@@ -17,12 +17,14 @@ export function ProjectRow({ project: p, href, onMore }: ProjectRowProps) {
         <span className={styles.repo} title={p.repo}>{p.repo}</span>
       </td>
       <td className={styles.connection}>
-        <InlineStatus
-          tone={p.connection.tone}
-          icon={ok ? <span title="status: succeeded" className={styles.glyph}><StatusIcon status="succeeded" size={12} title="status: succeeded" /></span> : <Icon name="warning" size={14} />}
-        >
-          {p.connection.text}
-        </InlineStatus>
+        {ok ? (
+          <span className={styles.okRow}>
+            <span title="status: succeeded" className={styles.glyph}><StatusIcon status="succeeded" size={12} title="status: succeeded" /></span>
+            {p.connection.text}
+          </span>
+        ) : (
+          <InlineStatus tone="idle" icon={<Icon name="warning" size={14} />}>{p.connection.text}</InlineStatus>
+        )}
       </td>
       <td>
         {p.needsYou > 0

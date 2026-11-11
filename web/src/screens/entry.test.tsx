@@ -61,12 +61,24 @@ describe('Projects', () => {
     expect(within(rows[2]).getByText('No webhooks for 2 days')).toBeInTheDocument();
   });
 
+  it('colors only the Connected glyph, and the warning row with the idle tone', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    const rows = screen.getAllByRole('row').slice(1);
+    const connected = within(rows[0]).getByText('Connected');
+    expect(connected.closest('.ok')).toBeNull();
+    expect(connected.closest('.inline-status')).toBeNull();
+    expect(within(rows[0]).getByTitle('status: succeeded')).toBeInTheDocument();
+    const warn = within(rows[2]).getByText('No webhooks for 2 days').closest('.inline-status');
+    expect(warn).toHaveClass('idle');
+  });
+
   it('truncates a very long repo name and keeps the full text in title', () => {
     const repo = `harbor-labs/${'a'.repeat(68)}`;
     expect(repo).toHaveLength(80);
     render(<Projects user={user} newHref="/new" projects={[{ ...projects[0], repo }]} />);
     const el = screen.getByText(repo);
     expect(el).toHaveAttribute('title', repo);
+    expect(el).toHaveClass('repo');
   });
 
   it('gives each row a project link and a labelled More button', () => {
