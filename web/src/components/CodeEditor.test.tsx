@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { CodeEditor } from './CodeEditor';
@@ -61,5 +61,26 @@ describe('CodeEditor', () => {
     const { container } = render(<CodeEditor value={long} aria-label="x" />);
     expect(container.querySelector('[data-view]')!.textContent).toContain(long);
     expect(gutter(container)).toEqual(['1']);
+  });
+  it('has trailing slack so the textarea is wider than its longest line', () => {
+    const { container } = render(<CodeEditor value="abc" aria-label="x" />);
+    const inner = container.querySelector('[data-view]')!.parentElement!;
+    expect(inner.className).toMatch(/inner/);
+    expect(inner.className).toMatch(/slack/);
+    expect(screen.getByRole('textbox').className).toMatch(/ta/);
+  });
+  it('resets textarea scroll to 0 if it ever moves', () => {
+    render(<CodeEditor value="abc" aria-label="x" />);
+    const ta = screen.getByRole('textbox') as HTMLTextAreaElement;
+    ta.scrollLeft = 7; ta.scrollTop = 3;
+    fireEvent.scroll(ta);
+    expect(ta.scrollLeft).toBe(0);
+    expect(ta.scrollTop).toBe(0);
+  });
+  it('no controlled-input warning without onChange or readOnly', () => {
+    const err = vi.spyOn(console, 'error').mockImplementation(() => {});
+    render(<CodeEditor value="abc" aria-label="x" />);
+    expect(err).not.toHaveBeenCalled();
+    err.mockRestore();
   });
 });

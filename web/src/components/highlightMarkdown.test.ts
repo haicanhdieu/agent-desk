@@ -34,6 +34,13 @@ describe('highlightMarkdown', () => {
   it('key not at line start is plain', () => {
     expect(highlightMarkdown('  name: x').some((s) => s.kind === 'k')).toBe(false);
   });
+  it('CRLF: fence and heading recognised, original text preserved', () => {
+    expect(highlightMarkdown('---\r')).toEqual([{ text: '---\r', kind: 'f' }]);
+    expect(highlightMarkdown('# H\r')).toEqual([{ text: '# H\r', kind: 'h' }]);
+    expect(highlightMarkdown('name: x\r').map((s) => s.kind)).toEqual(['k', 'plain']);
+    expect(join('a `b`\r')).toBe('a `b`\r');
+    expect(join('\r')).toBe('\r');
+  });
   it('spans concatenate back to the original line', () => {
     for (const l of ['', '# H', '---', 'name: x', 'description: a `b` c', '`a``b`', 'a `open', '``', '`', 'x `y` `z', '  # not heading', '- Never push to `main`.', 'tab\there `c`', '----']) {
       expect(join(l)).toBe(l);

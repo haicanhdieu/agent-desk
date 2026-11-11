@@ -2,6 +2,9 @@
    so they scroll together natively; no JS scroll sync. */
 .editor { position: relative; overflow: auto; background: var(--input-bg); color: var(--term-text); font-family: var(--mono); font-size: 13px; line-height: 1.6; white-space: pre; tab-size: 2; }
 .inner { position: relative; width: max-content; min-width: 100%; padding: 14px 0; }
+/* Trailing slack: the textarea (right:0) spans this padding too, so it is always wider than its
+   longest line and the caret at end-of-line never forces it to scroll. */
+.slack { padding-right: 2ch; }
 .line { display: grid; grid-template-columns: 44px 14px minmax(0, 1fr); }
 .changed { background: var(--editor-changed-bg); }
 .mark { color: var(--ok); }

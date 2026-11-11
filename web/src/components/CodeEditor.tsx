@@ -15,7 +15,7 @@ export function CodeEditor({ value, onChange, readOnly, changedLines = [], 'aria
   const changed = new Set(changedLines);
   return (
     <div className={styles.editor}>
-      <div className={styles.inner}>
+      <div className={`${styles.inner} ${styles.slack}`}>
         <div data-view aria-hidden="true">
           {lines.map((text, i) => {
             const n = i + 1;
@@ -41,6 +41,14 @@ export function CodeEditor({ value, onChange, readOnly, changedLines = [], 'aria
           value={value}
           readOnly={readOnly}
           onChange={(e) => onChange?.(e.target.value)}
+          // The textarea is always wider/taller than its text (see .slack) so it never needs to
+          // scroll itself; if the browser scrolls it anyway (caret reveal), snap back so the
+          // text stays aligned with the highlighted view. The .editor container does the scrolling.
+          onScroll={(e) => {
+            const t = e.currentTarget;
+            if (t.scrollLeft !== 0) t.scrollLeft = 0;
+            if (t.scrollTop !== 0) t.scrollTop = 0;
+          }}
           wrap="off"
           spellCheck={false}
           autoCapitalize="off"
