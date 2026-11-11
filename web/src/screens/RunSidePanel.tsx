@@ -1,4 +1,4 @@
-import { Icon, InlineStatus } from '@/ds';
+import { Icon, InlineStatus, StatusIcon, statusTokens } from '@/ds';
 import {
   ActorRef, ChainTimeline, EventLog, KeyValue, Meter, ModelTag, Note, RuleText, Section, SidePanel, SideRail, Stat,
   TicketSummary,
@@ -16,7 +16,17 @@ export function RunSidePanel({ data, collapsed, onExpand }: RunSidePanelProps) {
   const t = run.ticket;
   if (collapsed) {
     const label = `${t.kind === 'pr' ? 'PR' : 'Issue'} #${t.number}`;
-    return <SideRail onExpand={onExpand} items={[{ icon: <Icon name={t.kind === 'pr' ? 'pull-request' : 'issue'} size={16} />, title: label }]} />;
+    const here = data.chain.findIndex((c) => c.here) + 1;
+    return (
+      <SideRail
+        onExpand={onExpand}
+        items={[
+          { icon: <Icon name={t.kind === 'pr' ? 'pull-request' : 'issue'} size={16} />, title: label },
+          { icon: <StatusIcon status={run.status} size={16} />, title: statusTokens[run.status].label },
+          { icon: <Icon name="rule" size={16} />, title: `Chain: ${here} of ${data.chain.length}` },
+        ]}
+      />
+    );
   }
 
   const active = run.status === 'starting' || run.status === 'queued' || run.status === 'running';

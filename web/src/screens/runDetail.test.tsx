@@ -60,6 +60,16 @@ describe('RunDetail actions', () => {
   });
 });
 
+describe('RunDetail top bar elapsed', () => {
+  it.each([
+    ['RunStarting', '0:24'], ['RunRunning', '7:40'], ['RunIdle', '4:51'], ['RunReconnect', '9:02'],
+    ['RunSucceeded', '6m 12s'], ['RunFailed', '1m 10s'], ['RunTimedOut', '30m 00s'], ['RunCancelled', '7m 50s'],
+  ] as [RunDetailKey, string][])('%s shows %s', (k, text) => {
+    show(k);
+    expect(within(screen.getByRole('banner')).getByText(text)).toBeInTheDocument();
+  });
+});
+
 describe('RunDetail cancel confirmation', () => {
   it('is absent by default', () => {
     show('RunRunning');
@@ -95,6 +105,8 @@ describe('RunDetail reconnecting and collapsed panel', () => {
   it('collapsed: Expand button instead of the context sections', () => {
     show('RunReconnect', { panelCollapsed: true });
     expect(screen.getByRole('button', { name: 'Expand context panel (])' })).toBeInTheDocument();
+    const rail = screen.getByRole('complementary', { name: 'Run context, collapsed' });
+    for (const name of ['Issue #139', 'Running', 'Chain: 1 of 2']) expect(within(rail).getByRole('img', { name })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Run context' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Ticket' })).not.toBeInTheDocument();
     expect(screen.queryByText('Chain on this ticket')).not.toBeInTheDocument();

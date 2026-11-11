@@ -71,6 +71,8 @@ describe('mock fixtures', () => {
 
   it('copies board values faithfully', () => {
     expect(runDetails.RunReconnect.elapsed).toBe('9:02');
+    expect(runDetails.RunStarting.elapsed).toBe('0:24');
+    expect(runDetails.RunIdle.elapsed).toBe('4:51');
     expect(runDetails.RunReconnect.connection).toEqual({ state: 'reconnecting', label: 'Reconnecting, attempt 3' });
     expect(runDetails.RunReconnect.termSize).toBe('116×38');
     expect(runs.find((r) => r.id === 62)?.statusNote).toBe('Waiting 3m. Auto-finish after 10m unattended');

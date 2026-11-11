@@ -22,7 +22,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
   RunStarting: {
     // The Runs board lists run 63 as queued; the RunStarting board shows it once the slot is claimed.
     run: { ...runsById[63], status: 'starting', statusNote: undefined },
-    elapsed: '—',
+    elapsed: '0:24',
     rule: RULE_BUILD,
     triggerNote: 'comment',
     startedAt: '14:15:13',
@@ -57,7 +57,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
 
   RunIdle: {
     run: runsById[62],
-    elapsed: '4m 51s',
+    elapsed: '4:51',
     rule: RULE_REVIEW,
     triggerNote: 'comment by run 60',
     startedAt: '14:09:07',

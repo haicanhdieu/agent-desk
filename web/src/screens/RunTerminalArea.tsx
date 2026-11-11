@@ -1,9 +1,8 @@
-import { Banner, Button, StatusIcon, type IconName } from '@/ds';
+import { Banner, Button, Popover, StatusIcon, type IconName } from '@/ds';
 import {
   ConnectionIndicator, EventLog, Note, PopoverCard, StartupChecklist, Terminal, TerminalBar, TerminalPane,
   TerminalPlaceholder, type TermLine,
 } from '@/components';
-import { Popover } from '@/ds';
 import type { RunDetailData } from '@/mocks';
 
 export interface RunTerminalAreaProps {
