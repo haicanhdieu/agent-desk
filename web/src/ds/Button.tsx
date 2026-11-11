@@ -6,29 +6,30 @@ import styles from './Button.module.css';
 type Variant = 'default' | 'primary' | 'go' | 'danger' | 'solid-danger' | 'ghost';
 type Size = 'sm' | 'md' | 'lg';
 
-export type ButtonProps = {
+type ButtonCommon = {
   variant?: Variant;
   size?: Size;
   icon?: IconName;
   iconRight?: IconName;
-  href?: string;
-} & ButtonHTMLAttributes<HTMLButtonElement>;
+};
+type AsButton = ButtonCommon & { href?: undefined } & ButtonHTMLAttributes<HTMLButtonElement>;
+type AsAnchor = ButtonCommon & { href: string; disabled?: boolean } & AnchorHTMLAttributes<HTMLAnchorElement>;
+export type ButtonProps = AsButton | AsAnchor;
 
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(' ');
 
-function classes(variant: Variant, size: Size, extra?: string, className?: string, dis?: boolean) {
+function classes(variant: Variant, size: Size, extra?: string, className?: string) {
   return cx(
     styles.btn,
     variant !== 'default' && styles[variant],
     size !== 'md' && styles[size],
     extra,
-    dis && styles.dis,
     className,
   );
 }
 
 export function Button({
-  variant = 'default', size = 'md', icon, iconRight, href, className, children, disabled, ...rest
+  variant = 'default', size = 'md', icon, iconRight, className, children, ...rest
 }: ButtonProps) {
   const cls = classes(variant, size, undefined, className);
   const content = (
@@ -38,15 +39,19 @@ export function Button({
       {iconRight && <Icon name={iconRight} />}
     </>
   );
-  if (href && !disabled) {
+  if (rest.href !== undefined) {
+    const { disabled, ...anchor } = rest;
+    if (!disabled) {
+      return <a {...anchor} className={cls}>{content}</a>;
+    }
     return (
-      <a {...(rest as unknown as AnchorHTMLAttributes<HTMLAnchorElement>)} href={href} className={cls}>
+      <button type="button" disabled className={cls} aria-label={anchor['aria-label']}>
         {content}
-      </a>
+      </button>
     );
   }
   return (
-    <button type="button" {...rest} disabled={disabled} className={cls}>
+    <button type="button" {...rest} className={cls}>
       {content}
     </button>
   );

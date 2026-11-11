@@ -66,7 +66,7 @@ select.input { appearance: auto; }
   background: var(--toggle-knob); top: 3px; left: 3px;
 }
 .toggle.on { background: var(--toggle-on); }
-.toggle.on::after { left: 17px; background: var(--text); }
+.toggle.on::after { left: 17px; background: var(--toggle-knob-on); }
 .toggle:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Checkbox / radio visuals (native input is visually hidden, sibling box is styled) */
@@ -85,11 +85,12 @@ select.input { appearance: auto; }
 /* Radio card */
 .radio-card {
   border: 1px solid var(--line2); border-radius: var(--radius-8); padding: 12px 14px; display: flex;
-  gap: 12px; align-items: flex-start; background: var(--panel); cursor: pointer;
+  gap: 12px; align-items: flex-start; background: var(--panel);
 }
+.rc-label { display: flex; gap: 12px; align-items: flex-start; flex: 1 1 auto; min-width: 0; cursor: pointer; }
 .radio-card:hover { border-color: var(--hover-line); }
-.radio-card.sel, .radio-card.sel:hover { border-color: var(--select-line); background: var(--select-bg); }
-.radio-card .choice { margin-top: 2px; }
+.radio-card.on, .radio-card.on:hover { border-color: var(--select-line); background: var(--select-bg); }
+.rc-label .choice { margin-top: 2px; }
 .rc-body { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
 .rc-title { font-weight: 500; }
 .rc-desc { font-size: var(--fs-12_5); color: var(--muted); }

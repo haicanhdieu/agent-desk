@@ -82,11 +82,11 @@ describe('RuleForm', () => {
     expect(screen.getByLabelText('Command')).toHaveAccessibleDescription(/First line of the comment/);
     expect(screen.getByLabelText('Run skill')).toHaveValue('code-build');
     expect(screen.getByLabelText('With agent')).not.toBeDisabled();
-    expect(screen.getByRole('switch', { name: 'Rule enabled' })).toBeChecked();
+    expect(screen.getByRole('switch', { name: 'Enabled' })).toBeChecked();
     expect(screen.getByText('Matches new comments right away')).toBeInTheDocument();
     await userEvent.type(screen.getByLabelText('Command'), 'x');
     expect(onChange).toHaveBeenLastCalledWith({ ...rule, command: 'code-buildx' });
-    await userEvent.click(screen.getByRole('switch', { name: 'Rule enabled' }));
+    await userEvent.click(screen.getByRole('switch', { name: 'Enabled' }));
     expect(onChange).toHaveBeenLastCalledWith({ ...rule, enabled: false });
   });
   it('label add and remove, skill and agent select', async () => {
@@ -110,24 +110,24 @@ describe('RuleRow', () => {
   it('toggle calls onToggle(false) for an enabled rule, true for disabled', async () => {
     const onToggle = vi.fn();
     const { rerender } = render(<RuleRow rule={row} stats="14 runs this week, last 14:15" onToggle={onToggle} />);
-    const sw = screen.getByRole('switch', { name: 'Enabled' });
+    const sw = screen.getByRole('switch', { name: 'Enable rule /code-build' });
     expect(sw).toBeChecked();
     await userEvent.click(sw);
     expect(onToggle).toHaveBeenLastCalledWith(false);
     rerender(<RuleRow rule={{ ...row, enabled: false }} stats="Turned off 3 Nov" onToggle={onToggle} />);
-    await userEvent.click(screen.getByRole('switch', { name: 'Enabled' }));
+    await userEvent.click(screen.getByRole('switch', { name: 'Enable rule /code-build' }));
     expect(onToggle).toHaveBeenLastCalledWith(true);
   });
   it('shows stats, warning text and a More button', () => {
     render(<RuleRow rule={row} stats="Never ran" warning="Skill docs-update is not in .claude/skills/ on main." onToggle={() => {}} />);
     expect(screen.getByText('Never ran')).toBeInTheDocument();
     expect(screen.getByText(/Skill docs-update is not in/)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'More actions for /code-build' })).toBeInTheDocument();
   });
   it('More button calls onMore when provided', async () => {
     const onMore = vi.fn();
     render(<RuleRow rule={row} stats="x" onToggle={() => {}} onMore={onMore} />);
-    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    await userEvent.click(screen.getByRole('button', { name: 'More actions for /code-build' }));
     expect(onMore).toHaveBeenCalledTimes(1);
   });
   it('selected row marks aria-current and onSelect fires', async () => {

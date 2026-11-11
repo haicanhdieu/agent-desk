@@ -120,7 +120,7 @@ describe('TerminalBar', () => {
     const onCopyAll = vi.fn();
     render(<TerminalBar views={views} activeView="term" connection={<span>c</span>} size="132×44" onFind={onFind} onCopyAll={onCopyAll} />);
     expect(screen.getByText('132×44')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Search scrollback' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Find in scrollback' }));
     await userEvent.click(screen.getByRole('button', { name: 'Copy all' }));
     expect(onFind).toHaveBeenCalledOnce();
     expect(onCopyAll).toHaveBeenCalledOnce();

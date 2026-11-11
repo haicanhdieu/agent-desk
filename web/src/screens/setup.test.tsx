@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { agentSettings, rules, skillTemplates, user } from '@/mocks';
 import { Setup1 } from './Setup1';
@@ -59,7 +60,8 @@ describe('setup steps', () => {
 describe('Setup1', () => {
   it('checks the selected repo and shows install + ping status', () => {
     render(s1);
-    expect(screen.getByRole('radio', { name: /invoicer-api.*updated 2 hours ago/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /invoicer-api/ })).toBeChecked();
+    expect(screen.getByRole('radio', { name: /invoicer-api/ })).toHaveAccessibleDescription('Private, updated 2 hours ago');
     expect(screen.getByRole('radio', { name: /invoicer-web/ })).not.toBeChecked();
     expect(screen.getByText('Installed on harbor-labs')).toBeInTheDocument();
     expect(screen.getByText('Webhook ping received at 14:01:37')).toBeInTheDocument();
@@ -107,7 +109,7 @@ describe('Setup3', () => {
     boxes.forEach((b) => expect(b).toBeChecked());
     expect(screen.getByRole('link', { name: 'Commit 2 skills and continue' })).toBeInTheDocument();
     expect(screen.getByText(/No skills found in/)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: 'Preview' })).toHaveLength(2);
+    expect(screen.getAllByRole('link', { name: /^Preview / })).toHaveLength(2);
     expect(screen.getByLabelText('Commit message')).toHaveValue('Add Agent Desk skills: code-build, code-review');
   });
   it('count follows toggling; 1 is singular; 0 reads Continue and Skip stays', async () => {
@@ -152,5 +154,15 @@ describe('SetupReady', () => {
     expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
     expect(screen.getByText('Listening for your first command')).toBeInTheDocument();
     expect(within(screen.getByRole('heading', { level: 1 })).getByText('Trigger your first run from GitHub')).toBeInTheDocument();
+  });
+});
+
+describe('Setup2 credential callback', () => {
+  it('Enter submits the typed token to onSubmitCredential and the value is not rendered afterward', async () => {
+    const onSubmitCredential = vi.fn();
+    const { container } = render(s2({ accepted: undefined, onSubmitCredential }));
+    await userEvent.type(screen.getByLabelText('Token'), 'tok-abc{Enter}');
+    expect(onSubmitCredential).toHaveBeenCalledWith('oauth_token', 'tok-abc');
+    expect(container.textContent).not.toContain('tok-abc');
   });
 });

@@ -40,7 +40,7 @@ export function TerminalBar({ views, activeView, connection, size, onViewChange,
       {connection}
       <span className={styles.sep} aria-hidden="true" />
       {size && <span className={styles.size}>{size}</span>}
-      <Button variant="ghost" size="sm" icon="search" aria-label="Search scrollback" onClick={onFind}>Find</Button>
+      <Button variant="ghost" size="sm" icon="search" aria-label="Find in scrollback" onClick={onFind}>Find</Button>
       <Button variant="ghost" size="sm" icon="copy" onClick={onCopyAll}>Copy all</Button>
     </div>
   );

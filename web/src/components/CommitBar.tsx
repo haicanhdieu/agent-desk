@@ -19,8 +19,8 @@ export function CommitBar({ message, onMessageChange, branch, dirty, onDiscard, 
           {({ id }) => <TextInput mono id={id} value={message} readOnly={!onMessageChange} onChange={(e) => onMessageChange?.(e.target.value)} />}
         </Field>
         <Field className={styles.commitTo} label="Commit to" labelAs="span">
-          {() => (
-            <StaticInput icon="branch">
+          {({ labelId }) => (
+            <StaticInput icon="branch" aria-labelledby={labelId}>
               <span className={styles.branchSpan}><span className={styles.monoText}>{branch}</span><span className={styles.faintText}>default branch</span></span>
             </StaticInput>
           )}

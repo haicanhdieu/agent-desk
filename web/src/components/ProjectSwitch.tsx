@@ -9,7 +9,7 @@ export interface ProjectSwitchProps {
 
 export function ProjectSwitch({ org, project, onClick }: ProjectSwitchProps) {
   return (
-    <button type="button" className={styles.switch} aria-label="Switch project" onClick={onClick}>
+    <button type="button" className={styles.switch} aria-label={`Switch project, currently ${project}`} onClick={onClick}>
       <span className={styles.org}>{org} /</span>
       <span className={styles.name} title={project}>{project}</span>
       <Icon name="chevron-down" />

@@ -12,11 +12,13 @@ export interface DeskAgentProps {
   replacingCredential?: boolean;
   onSaveLimits?(limits: { timeoutMinutes: number; idleEndMinutes: number; maxConcurrent: number; maxRunsPerTicket: number }): void;
   onDeleteProject?(): void;
+  /** Receives the typed replacement token. It is never rendered after submit. */
+  onReplaceCredential?(type: CredentialType, value: string): void;
 }
 
 const narrow = { width: 90 };
 
-export function DeskAgent({ settings, github, replacingCredential = false, onSaveLimits, onDeleteProject }: DeskAgentProps) {
+export function DeskAgent({ settings, github, replacingCredential = false, onSaveLimits, onDeleteProject, onReplaceCredential }: DeskAgentProps) {
   const [replacing, setReplacing] = useState(replacingCredential);
   const [credType, setCredType] = useState<CredentialType>(settings.credential.type);
   const [limits, setLimits] = useState({
@@ -46,7 +48,8 @@ export function DeskAgent({ settings, github, replacingCredential = false, onSav
             </Field>
           </div>
           <Field label="Credential" labelAs="span">
-            {() => (
+            {({ labelId }) => (
+              <div role="group" aria-labelledby={labelId}>
               <SecretField
                 state={state}
                 credentialType={credType}
@@ -54,7 +57,9 @@ export function DeskAgent({ settings, github, replacingCredential = false, onSav
                 savedInfo={settings.credential}
                 onReplace={() => setReplacing(true)}
                 onCancel={() => setReplacing(false)}
+                onSubmit={(value) => onReplaceCredential?.(credType, value)}
               />
+              </div>
             )}
           </Field>
         </SettingsSection>

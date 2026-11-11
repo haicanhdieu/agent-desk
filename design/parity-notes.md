@@ -46,8 +46,8 @@ Expected exceptions, not fixed:
 - Editor line numbers (`--ln`): decorative, aria-hidden.
 
 Known minors, flagged for a human:
-- Find button `aria-label="Search scrollback"`: the accessible name does not contain the visible text "Find" (WCAG 2.5.3 label-in-name). Known minor, flagged for the human to decide.
-- RadioCard "Preview" link sits inside the `<label>`: nested interactive content. Known minor, tracked, not fixed.
+- Find button `aria-label="Find in scrollback"` contains the visible text "Find" (WCAG 2.5.3 label-in-name satisfied).
+- RadioCard aside (Preview link) is a sibling of the label, not nested inside it.
 
 ## Parity items needing a browser check
 

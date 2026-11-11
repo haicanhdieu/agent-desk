@@ -207,3 +207,14 @@ describe('LabelInput', () => {
     expect(onAdd).not.toHaveBeenCalled();
   });
 });
+
+describe('Button variant hover specificity', () => {
+  it('variant selectors are compounded with .btn so they outrank .btn:hover', async () => {
+    const { readFileSync } = await import('node:fs');
+    const css = readFileSync('src/ds/Button.module.css', 'utf8');
+    for (const v of ['primary', 'go', 'danger', 'solid-danger', 'ghost']) {
+      expect(css).toMatch(new RegExp(`^\\.btn\\.${v} \\{`, 'm'));
+      expect(css).not.toMatch(new RegExp(`^\\.${v} \\{`, 'm'));
+    }
+  });
+});

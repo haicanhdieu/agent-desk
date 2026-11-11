@@ -14,7 +14,7 @@
   --chrome-bg: #0F1115; --notify-bg: #2A2E37;
 
   /* controls */
-  --toggle-off: var(--line2); --toggle-on: #4E6BD8; --toggle-knob: #C9CFDA;
+  --toggle-off: var(--line2); --toggle-on: #4E6BD8; --toggle-knob: #C9CFDA; --toggle-knob-on: #FFFFFF;
   --avatar-bg: #3B4A6B; --avatar-text: #DCE3F5; --avatar-bot-bg: #2F3A36; --avatar-bot-text: #BFE6D2;
 
   /* text on solid fills */

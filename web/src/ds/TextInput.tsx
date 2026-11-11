@@ -34,7 +34,7 @@ export function PasswordInput({ revealLabel, className, ...rest }: { revealLabel
   const [shown, setShown] = useState(false);
   return (
     <div className={cx(styles.wrap, styles.pw, className)} aria-invalid={rest['aria-invalid']}>
-      <input autoComplete="off" spellCheck={false} {...rest} type={shown ? 'text' : 'password'} />
+      <input autoComplete="new-password" data-1p-ignore data-lpignore="true" spellCheck={false} {...rest} type={shown ? 'text' : 'password'} />
       <IconButton
         icon="eye"
         size="sm"
@@ -55,9 +55,9 @@ export function SearchInput({ placeholder, className, ...rest }: { placeholder: 
   );
 }
 
-export function StaticInput({ icon, children }: { icon?: IconName; children: ReactNode }) {
+export function StaticInput({ icon, children, 'aria-labelledby': labelledBy }: { icon?: IconName; children: ReactNode; 'aria-labelledby'?: string }) {
   return (
-    <div className={cx(styles.wrap, styles.static)}>
+    <div className={cx(styles.wrap, styles.static)} role={labelledBy ? 'group' : undefined} aria-labelledby={labelledBy}>
       {icon && <Icon name={icon} size={14} />}
       <span>{children}</span>
     </div>

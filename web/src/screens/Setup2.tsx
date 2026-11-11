@@ -14,10 +14,12 @@ export interface Setup2Props extends SetupNav {
   models: string[];
   maxConcurrent: number;
   accepted?: { at: string; secretName: string };
+  /** Receives the typed token. It is never rendered after submit. */
+  onSubmitCredential?(type: CredentialType, value: string): void;
 }
 
 export function Setup2({
-  user, projectName, repo, credentialType, secretState, models, maxConcurrent, accepted, backHref = '#', nextHref = '#',
+  user, projectName, repo, credentialType, secretState, models, maxConcurrent, accepted, onSubmitCredential, backHref = '#', nextHref = '#',
 }: Setup2Props) {
   const [type, setType] = useState<CredentialType>(credentialType);
   return (
@@ -50,7 +52,8 @@ export function Setup2({
       <SecretField
         state={secretState}
         credentialType={type}
-        hideSubmit
+        hideSubmit={!onSubmitCredential}
+        onSubmit={(value) => onSubmitCredential?.(type, value)}
         revealLabel="Show token while typing"
         entryHelp="Use a dedicated token with a low limit. The agent process can read it inside the run container."
       />

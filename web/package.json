@@ -9,7 +9,8 @@
     "build-storybook": "storybook build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "parity": "node scripts/parity.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

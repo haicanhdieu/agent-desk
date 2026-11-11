@@ -46,7 +46,7 @@ describe('TopBar project', () => {
     const el = screen.getByText(name);
     expect(el).toHaveAttribute('title', name);
     expect(el.className).toMatch(/name/);
-    expect(screen.getByRole('button', { name: 'Switch project' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
   });
   it('has repo link, bell and avatar', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" />);
@@ -60,7 +60,7 @@ describe('TopBar global', () => {
   it('has no tabs and no switch', () => {
     render(<TopBar variant="global" user={user} />);
     expect(screen.queryByRole('navigation', { name: 'Project' })).toBeNull();
-    expect(screen.queryByRole('button', { name: 'Switch project' })).toBeNull();
+    expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
     expect(screen.getByText('Agent Desk')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
   });

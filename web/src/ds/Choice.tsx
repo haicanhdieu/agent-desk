@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { Icon } from './Icon';
 import styles from './Form.module.css';
 
@@ -42,29 +42,36 @@ export interface RadioCardProps {
 }
 
 export function RadioCard({ type, name, checked, onChange, title, description, aside, faintDescription }: RadioCardProps) {
+  const id = useId();
+  const titleId = `${id}-title`;
+  const descId = `${id}-desc`;
   return (
-    <label className={cx(styles['radio-card'], checked && styles.sel)}>
-      <span className={styles.choice}>
-        <input
-          type={type}
-          name={name}
-          className={styles.native}
-          checked={checked}
-          onChange={(e) => onChange(e.target.checked)}
-        />
-        {type === 'radio' ? (
-          <span className={cx(styles.rdot, checked && styles.on)} aria-hidden="true" />
-        ) : (
-          <span className={cx(styles.cbx, checked && styles.on)} aria-hidden="true">
-            {checked && <Icon name="check" size={12} />}
-          </span>
-        )}
-      </span>
-      <span className={styles['rc-body']}>
-        <span className={styles['rc-title']}>{title}</span>
-        {description && <span className={cx(styles['rc-desc'], faintDescription && styles.faint)}>{description}</span>}
-      </span>
+    <div className={cx(styles['radio-card'], checked && styles.on)}>
+      <label className={styles['rc-label']}>
+        <span className={styles.choice}>
+          <input
+            type={type}
+            name={name}
+            className={styles.native}
+            checked={checked}
+            aria-labelledby={titleId}
+            aria-describedby={description ? descId : undefined}
+            onChange={(e) => onChange(e.target.checked)}
+          />
+          {type === 'radio' ? (
+            <span className={cx(styles.rdot, checked && styles.on)} aria-hidden="true" />
+          ) : (
+            <span className={cx(styles.cbx, checked && styles.on)} aria-hidden="true">
+              {checked && <Icon name="check" size={12} />}
+            </span>
+          )}
+        </span>
+        <span className={styles['rc-body']}>
+          <span id={titleId} className={styles['rc-title']}>{title}</span>
+          {description && <span id={descId} className={cx(styles['rc-desc'], faintDescription && styles.faint)}>{description}</span>}
+        </span>
+      </label>
       {aside && <span className={styles['rc-aside']}>{aside}</span>}
-    </label>
+    </div>
   );
 }

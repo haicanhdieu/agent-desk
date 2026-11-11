@@ -24,7 +24,7 @@ export function SkillTemplateCard({ template, checked, onChange, previewHref }: 
         </span>
       }
       description={<span className={styles.tplDesc}>{template.description}</span>}
-      aside={<Button variant="ghost" size="sm" href={previewHref}>Preview</Button>}
+      aside={<Button variant="ghost" size="sm" href={previewHref} aria-label={`Preview ${template.name}`}>Preview</Button>}
     />
   );
 }

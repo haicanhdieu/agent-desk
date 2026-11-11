@@ -4,6 +4,7 @@ import { agentSettings, rules, skills } from '@/mocks';
 import { DeskSkills } from './DeskSkills';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
+import { vi } from 'vitest';
 
 const skillNames = skills.map((s) => s.name);
 const github = [
@@ -84,7 +85,7 @@ describe('DeskRules', () => {
     render(<DeskRules rules={rules} {...base} />);
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Routing rules' })).toBeInTheDocument();
-    expect(screen.getAllByRole('switch', { name: 'Enabled' })).toHaveLength(rules.length);
+    expect(screen.getAllByRole('switch', { name: /^Enable rule \// })).toHaveLength(rules.length);
     expect(screen.getByRole('heading', { name: 'Guards on every rule' })).toBeInTheDocument();
     expect(screen.queryByRole('complementary')).toBeNull();
   });
@@ -98,7 +99,7 @@ describe('DeskRules', () => {
   it('toggling a rule calls onToggle(id, next)', async () => {
     const onToggle = vi.fn();
     render(<DeskRules rules={rules} {...base} onToggle={onToggle} />);
-    const sw = screen.getAllByRole('switch', { name: 'Enabled' });
+    const sw = screen.getAllByRole('switch', { name: /^Enable rule \// });
     await userEvent.click(sw[0]);
     expect(onToggle).toHaveBeenLastCalledWith('r1', false);
     await userEvent.click(sw[4]);
@@ -131,7 +132,7 @@ describe('DeskRules', () => {
   it('More calls onMore with the rule id', async () => {
     const onMore = vi.fn();
     render(<DeskRules rules={rules} {...base} onMore={onMore} />);
-    await userEvent.click(screen.getAllByRole('button', { name: 'More' })[2]);
+    await userEvent.click(screen.getAllByRole('button', { name: /^More actions for \// })[2]);
     expect(onMore).toHaveBeenCalledWith('r3');
   });
 });
@@ -161,5 +162,14 @@ describe('DeskAgent', () => {
     expect(input).toHaveValue('');
     expect(container.querySelectorAll('input[type="password"]')).toHaveLength(1);
     expect(screen.getByRole('button', { name: 'Test and replace' })).toBeInTheDocument();
+  });
+
+  it('replace submit passes the typed token to onReplaceCredential and does not render it afterward', async () => {
+    const onReplaceCredential = vi.fn();
+    const { container } = render(<DeskAgent settings={agentSettings} github={github} replacingCredential onReplaceCredential={onReplaceCredential} />);
+    await userEvent.type(screen.getByLabelText('New token'), 'sk-secret-123');
+    await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
+    expect(onReplaceCredential).toHaveBeenCalledWith(agentSettings.credential.type, 'sk-secret-123');
+    expect(container.textContent).not.toContain('sk-secret-123');
   });
 });

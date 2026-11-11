@@ -34,7 +34,10 @@ describe('SkillTemplateCard', () => {
     render(<SkillTemplateCard template={{ name: 'code-build', note: 'chains to code-review', description: 'd' }} checked onChange={onChange} previewHref="/p" />);
     expect(screen.getByRole('checkbox')).toBeChecked();
     expect(screen.getByText('chains to code-review')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Preview' })).toHaveAttribute('href', '/p');
+    expect(screen.getByRole('link', { name: 'Preview code-build' })).toHaveAttribute('href', '/p');
+    expect(screen.getByRole('checkbox', { name: /code-build/ })).toBeInTheDocument();
+    expect(screen.getByRole('checkbox').getAttribute('aria-labelledby')).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /code-build/ })).not.toHaveAccessibleName(/Preview/);
     await userEvent.click(screen.getByRole('checkbox'));
     expect(onChange).toHaveBeenCalledWith(false);
   });

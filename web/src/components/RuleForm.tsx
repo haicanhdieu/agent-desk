@@ -67,9 +67,9 @@ export function RuleForm({ value, skills, agents, onChange, agentLocked, agentMo
           )}
         </Field>
         <Field label="Enabled" labelAs="span">
-          {() => (
+          {({ labelId }) => (
             <span className={styles.enabledRow}>
-              <Toggle aria-label="Rule enabled" checked={value.enabled} onChange={(enabled) => set({ enabled })} />
+              <Toggle aria-labelledby={labelId} checked={value.enabled} onChange={(enabled) => set({ enabled })} />
               <span className={styles.enabledText}>Matches new comments right away</span>
             </span>
           )}
