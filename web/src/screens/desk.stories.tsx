@@ -4,7 +4,7 @@ import { agentSettings, rules, skills } from '@/mocks';
 import { DeskAgent as DeskAgentScreen } from './DeskAgent';
 import { DeskRules as DeskRulesScreen } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
-import { StatusIcon, InlineStatus } from '@/ds';
+import { StatusIcon } from '@/ds';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules 1440x900; DeskAgent 1440x1240.
@@ -66,9 +66,9 @@ export const DeskAgent: Story = {
       settings={agentSettings}
       replacingCredential
       github={[
-        { term: 'App installation', value: <InlineStatus tone="ok" icon={ok}>harbor-labs, 1 repository</InlineStatus> },
+        { term: 'App installation', value: <span className="row" style={{ gap: 6 }}>{ok}harbor-labs, 1 repository</span> },
         { term: 'Repository', value: <span className="mono">harbor-labs/invoicer-api</span> },
-        { term: 'Last webhook', value: <InlineStatus tone="ok" icon={ok}>issue_comment, 2 min ago, accepted</InlineStatus> },
+        { term: 'Last webhook', value: <span className="row" style={{ gap: 6 }}>{ok}issue_comment, 2 min ago, accepted</span> },
         { term: 'Default branch', value: <><span className="mono">main</span> <span className="faint">protected, bot can commit skills</span></> },
       ]}
     />

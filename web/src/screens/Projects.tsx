@@ -17,7 +17,7 @@ const columns = [
   { key: 'running', header: 'Running' },
   { key: 'queued', header: 'Queued' },
   { key: 'last', header: 'Last run' },
-  { key: 'more', header: <span className={styles.srOnly}>Actions</span> },
+  { key: 'more', header: <span className="sr-only">Actions</span> },
 ];
 
 export function Projects({ user, projects, newHref }: ProjectsProps) {

@@ -24,7 +24,7 @@ const columns = [
   { key: 'command', header: 'Command' },
   { key: 'author', header: 'Author' },
   { key: 'why', header: 'Why nothing ran' },
-  { key: 'actions', header: <span className={styles.srOnly}>Actions</span> },
+  { key: 'actions', header: <span className="sr-only">Actions</span> },
 ];
 
 export function RunsProblems({ warnings, ignored, filter = 'ignored', ...page }: RunsProblemsProps) {

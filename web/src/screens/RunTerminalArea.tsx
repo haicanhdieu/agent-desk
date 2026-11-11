@@ -51,6 +51,7 @@ function EndNotice({ data }: { data: RunDetailData }) {
       tone={succeeded ? 'ok' : 'off'}
       flush
       centered
+      inlineTitle
       icon={<StatusIcon status={succeeded ? 'succeeded' : 'cancelled'} size={18} title={succeeded ? 'Succeeded' : 'Cancelled'} />}
       title={endNote.title}
       actions={succeeded ? endNote.actions.map((a) => (

@@ -25,5 +25,6 @@ a.cbox:hover { background: var(--raised); }
 .tsLink { display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-12_5); }
 .tsBody { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
 .tsTitle { font-weight: 600; font-size: var(--fs-14_5); line-height: 1.35; overflow-wrap: anywhere; }
+.tsPlain { font-size: var(--fs-13); overflow-wrap: anywhere; }
 .tsMeta { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
 .tsState { font-size: var(--fs-12); color: var(--faint); }

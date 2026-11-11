@@ -27,7 +27,11 @@ export function Terminal({
   lines, cursor, anchor = 'bottom', dimmed, 'aria-label': label = 'Claude Code terminal',
 }: TerminalProps) {
   const rows = cursor && lines.length === 0 ? [[]] : lines;
-  const last = rows.length - 1;
+  // The cursor sits on the input prompt row (a lone "> ") when there is one, otherwise on the last row.
+  let last = rows.length - 1;
+  for (let i = rows.length - 1; i >= 0; i--) {
+    if (rows[i].length === 1 && rows[i][0].text.trim() === '>') { last = i; break; }
+  }
   return (
     <div
       className={cx(styles.term, anchor === 'top' && styles.top, dimmed && styles.dimmed)}

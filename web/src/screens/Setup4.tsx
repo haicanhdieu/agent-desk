@@ -35,7 +35,7 @@ export function Setup4({
       footer={{ back: backHref, next: { label: 'Save rules and finish', href: nextHref } }}
       aside={<GuardsCard maxRunsPerTicket={maxRunsPerTicket} changeHref={agentSettingsHref} ignoredHref={ignoredHref} />}
     >
-      <RuleForm value={draft} skills={skills} agents={[draft.agent]} agentModel={agentModel} agentLocked onChange={setDraft} />
+      <RuleForm value={draft} skills={skills} agents={[draft.agent]} agentModel={agentModel} agentLocked spacious onChange={setDraft} />
       <FollowUpRule command={followUp.command} target={followUp.target} skill={followUp.skill} enabled={follow} onChange={setFollow} />
     </SetupLayout>
   );

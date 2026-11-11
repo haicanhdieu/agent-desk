@@ -8,7 +8,7 @@
 .stat { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-13); }
 .stat b { font-weight: 600; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-13); }
 
-.actor { display: inline-flex; align-items: center; gap: 6px; }
+.actor { display: flex; align-items: center; gap: 6px; }
 .actorNote { font-size: var(--fs-12); color: var(--faint); }
 .rule { font-size: var(--fs-12_5); }
 .model { font-size: var(--fs-12); color: var(--faint); font-family: var(--mono); }

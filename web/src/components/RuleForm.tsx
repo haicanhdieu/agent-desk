@@ -10,6 +10,8 @@ export interface RuleFormProps {
   agentLocked?: boolean;
   /** Shown after the agent name in the agent option, e.g. "Claude (opus)". */
   agentModel?: string;
+  /** Setup page spacing: 24px between the sentence card and the fields (the desk pane keeps 16px). */
+  spacious?: boolean;
 }
 
 const TARGETS: { value: RuleTarget; label: string }[] = [
@@ -21,10 +23,10 @@ const TARGETS: { value: RuleTarget; label: string }[] = [
 /** Keep a saved value selectable even when it is no longer in the option list (e.g. a deleted skill). */
 const withCurrent = (opts: string[], cur: string) => (opts.includes(cur) ? opts : [cur, ...opts]);
 
-export function RuleForm({ value, skills, agents, onChange, agentLocked, agentModel }: RuleFormProps) {
+export function RuleForm({ value, skills, agents, onChange, agentLocked, agentModel, spacious }: RuleFormProps) {
   const set = (patch: Partial<RuleDraft>) => onChange({ ...value, ...patch });
   return (
-    <div className={styles.form}>
+    <div className={spacious ? `${styles.form} ${styles.formSpacious}` : styles.form}>
       <div className={styles.sentenceCard}>
         <RuleSentence rule={value} variant="slots" />
       </div>

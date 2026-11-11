@@ -2,7 +2,6 @@ import { Button } from '@/ds';
 import { DataTable, EmptyState, NeedsYouBanner, RunRow, TicketGroupRow } from '@/components';
 import type { RunStatus } from '@/ds/tokens';
 import type { RunSummary, TicketGroup } from '@/mocks/types';
-import styles from './Screens.module.css';
 import { RunsPage, type RunsFilter, type RunsPageProps } from './RunsPage';
 
 export type { RunsFilter } from './RunsPage';
@@ -37,7 +36,7 @@ const columns = [
   { key: 'by', header: 'Triggered by' },
   { key: 'started', header: 'Started' },
   { key: 'duration', header: 'Duration' },
-  { key: 'actions', header: <span className={styles.srOnly}>Actions</span> },
+  { key: 'actions', header: <span className="sr-only">Actions</span> },
 ];
 
 const runHref = (r: RunSummary) => `/runs/${r.id}`;

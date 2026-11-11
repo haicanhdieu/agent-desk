@@ -20,7 +20,7 @@
 .tabs a.on { color: var(--text); border-bottom-color: var(--text); }
 
 .crumbs { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; font-size: var(--fs-13_5); min-width: 0; }
-.crumbs a { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+.crumbs a { color: var(--muted); display: inline-flex; align-items: center; gap: 8px; }
 .crumbs .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
 .crumbs a.crumb { flex: 0 1 auto; }
 .crumbs b.crumb { flex: 0 0 auto; max-width: 240px; }

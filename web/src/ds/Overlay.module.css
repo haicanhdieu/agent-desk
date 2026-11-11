@@ -18,6 +18,12 @@
 .banner.idle { border-color: var(--banner-idle-line); background: var(--banner-idle-bg); }
 .banner.centered { align-items: center; }
 .banner.flush { border-radius: 0; border-width: 0 0 1px 0; }
+.banner.inlineTitle .b-body { display: block; }
+.banner.inlineTitle .b-title, .banner.inlineTitle .b-text { display: inline; }
+.banner.inlineTitle .b-title { margin-right: 4px; }
+.banner.prominent { padding: 14px 16px; gap: 14px; }
+.banner.prominent .b-body { gap: 6px; }
+.banner.prominent .b-actions.below { margin-top: 4px; }
 .banner.prominent .b-title { font-size: 15px; }
 
 .overlay { position: absolute; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; }
