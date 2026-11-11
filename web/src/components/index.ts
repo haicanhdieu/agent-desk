@@ -10,3 +10,11 @@ export { TopBar, type TopBarProps } from './TopBar';
 export { SubNav, type SubNavProps } from './SubNav';
 export { AppShell, type AppShellProps } from './AppShell';
 export { DeskLayout, type DeskLayoutProps } from './DeskLayout';
+export {
+  Terminal, TerminalPane, TerminalPlaceholder,
+  type TermTone, type TermSpan, type TermLine, type TerminalProps, type TerminalPaneProps, type TerminalPlaceholderProps,
+} from './Terminal';
+export { TerminalBar, type TerminalBarProps } from './TerminalBar';
+export { ConnectionIndicator, type ConnectionState, type ConnectionIndicatorProps } from './ConnectionIndicator';
+export { StartupChecklist, type StartupStep } from './StartupChecklist';
+export { EventLog, type EventLogProps } from './EventLog';
