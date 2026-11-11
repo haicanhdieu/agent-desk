@@ -93,6 +93,13 @@ describe('ChainTimeline', () => {
     expect(screen.getByRole('link')).toHaveAttribute('href', '/runs/60');
     expect(screen.getByText('Run 60')).toBeInTheDocument();
   });
+  it('chain row carries the local wrapping class', () => {
+    render(<ChainTimeline steps={steps} />);
+    const row = screen.getByText('Run 61').parentElement;
+    expect(styles.crow).toBeTruthy();
+    expect(row).toHaveClass(styles.crow);
+    expect(row).not.toHaveClass('row');
+  });
   it('renders nothing for empty steps', () => {
     render(<ChainTimeline steps={[]} />);
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);

@@ -19,7 +19,7 @@ export function ChainTimeline({ steps }: { steps: ChainStep[] }) {
         const future = s.status === 'future';
         const body = (
           <>
-            <span className="row">
+            <span className={styles.crow}>
               {s.runId !== undefined && <b>Run {s.runId}</b>}
               <CommandChip>{s.command}</CommandChip>
               {s.ticket && (<><span className="faint">on</span><TicketRef kind={s.ticket.kind} number={s.ticket.number} /></>)}
