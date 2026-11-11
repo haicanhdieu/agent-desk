@@ -1,0 +1,284 @@
+{
+ "v": 3,
+ "createdOnFiles": {
+  "v": 1,
+  "at": "2026-11-11T16:10:42Z"
+ },
+ "title": "Agent Desk \u2014 PoC UI",
+ "launch": {
+  "view": "canvas"
+ },
+ "pages": [],
+ "boards": {
+  "Main.dc.html": {
+   "x": 0,
+   "y": 0,
+   "w": 1440,
+   "h": 900,
+   "title": "Agent Desk PoC UI \u2014 index",
+   "expand": "fill"
+  },
+  "NeedsYou.dc.html": {
+   "x": 1520,
+   "y": 0,
+   "w": 1440,
+   "h": 740,
+   "title": "Needs you \u2014 surfaces outside the run page",
+   "expand": "fill"
+  },
+  "SignIn.dc.html": {
+   "x": 0,
+   "y": 1280,
+   "w": 1440,
+   "h": 900,
+   "title": "Sign in",
+   "expand": "fill"
+  },
+  "ProjectsEmpty.dc.html": {
+   "x": 1520,
+   "y": 1280,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 empty",
+   "expand": "fill"
+  },
+  "Projects.dc.html": {
+   "x": 3040,
+   "y": 1280,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects",
+   "expand": "fill"
+  },
+  "Setup1.dc.html": {
+   "x": 0,
+   "y": 2560,
+   "w": 1440,
+   "h": 900,
+   "title": "Setup 1 \u2014 connect repository",
+   "expand": "fill"
+  },
+  "Setup2.dc.html": {
+   "x": 1520,
+   "y": 2560,
+   "w": 1440,
+   "h": 900,
+   "title": "Setup 2 \u2014 Claude credential",
+   "expand": "fill"
+  },
+  "Setup3.dc.html": {
+   "x": 3040,
+   "y": 2560,
+   "w": 1440,
+   "h": 900,
+   "title": "Setup 3 \u2014 skills",
+   "expand": "fill"
+  },
+  "Setup4.dc.html": {
+   "x": 4560,
+   "y": 2560,
+   "w": 1440,
+   "h": 900,
+   "title": "Setup 4 \u2014 first rule",
+   "expand": "fill"
+  },
+  "SetupReady.dc.html": {
+   "x": 6080,
+   "y": 2560,
+   "w": 1440,
+   "h": 900,
+   "title": "Setup \u2014 ready to trigger",
+   "expand": "fill"
+  },
+  "Runs.dc.html": {
+   "x": 0,
+   "y": 3840,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 project home",
+   "expand": "fill"
+  },
+  "RunsProblems.dc.html": {
+   "x": 1520,
+   "y": 3840,
+   "w": 1440,
+   "h": 960,
+   "title": "Runs \u2014 health warnings and ignored commands",
+   "expand": "fill"
+  },
+  "RunStarting.dc.html": {
+   "x": 0,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 63 \u2014 starting",
+   "expand": "fill"
+  },
+  "RunRunning.dc.html": {
+   "x": 1520,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 61 \u2014 running, cancel confirmation open",
+   "expand": "fill"
+  },
+  "RunIdle.dc.html": {
+   "x": 3040,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 needs you (idle)",
+   "expand": "fill"
+  },
+  "RunReconnect.dc.html": {
+   "x": 4560,
+   "y": 5220,
+   "w": 1280,
+   "h": 800,
+   "title": "Run 61 \u2014 reconnecting, laptop 1280, panel collapsed",
+   "expand": "fill"
+  },
+  "RunSucceeded.dc.html": {
+   "x": 0,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded",
+   "expand": "fill"
+  },
+  "RunFailed.dc.html": {
+   "x": 1520,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 56 \u2014 failed",
+   "expand": "fill"
+  },
+  "RunTimedOut.dc.html": {
+   "x": 3040,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 54 \u2014 timed out",
+   "expand": "fill"
+  },
+  "RunCancelled.dc.html": {
+   "x": 4560,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 52 \u2014 cancelled",
+   "expand": "fill"
+  },
+  "DeskSkills.dc.html": {
+   "x": 0,
+   "y": 7780,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 skills editor",
+   "expand": "fill"
+  },
+  "DeskSkillDelete.dc.html": {
+   "x": 1520,
+   "y": 7780,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 delete skill confirmation",
+   "expand": "fill"
+  },
+  "DeskRules.dc.html": {
+   "x": 3040,
+   "y": 7780,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 routing rules",
+   "expand": "fill"
+  },
+  "DeskAgent.dc.html": {
+   "x": 4560,
+   "y": 7780,
+   "w": 1440,
+   "h": 1240,
+   "title": "Desk \u2014 agent and settings, replacing credential",
+   "expand": "fill"
+  }
+ },
+ "order": [
+  "Main.dc.html",
+  "NeedsYou.dc.html",
+  "SignIn.dc.html",
+  "ProjectsEmpty.dc.html",
+  "Projects.dc.html",
+  "Setup1.dc.html",
+  "Setup2.dc.html",
+  "Setup3.dc.html",
+  "Setup4.dc.html",
+  "SetupReady.dc.html",
+  "Runs.dc.html",
+  "RunsProblems.dc.html",
+  "RunStarting.dc.html",
+  "RunRunning.dc.html",
+  "RunIdle.dc.html",
+  "RunReconnect.dc.html",
+  "RunSucceeded.dc.html",
+  "RunFailed.dc.html",
+  "RunTimedOut.dc.html",
+  "RunCancelled.dc.html",
+  "DeskSkills.dc.html",
+  "DeskSkillDelete.dc.html",
+  "DeskRules.dc.html",
+  "DeskAgent.dc.html"
+ ],
+ "notes": {
+  "t-intro": {
+   "x": 0,
+   "y": -240,
+   "text": "Overview",
+   "kind": "title1",
+   "maxW": 2960
+  },
+  "t-entry": {
+   "x": 0,
+   "y": 1040,
+   "text": "Entry and projects",
+   "kind": "title1",
+   "maxW": 4480
+  },
+  "t-setup": {
+   "x": 0,
+   "y": 2320,
+   "text": "First-run setup",
+   "kind": "title1",
+   "maxW": 7520
+  },
+  "t-runs": {
+   "x": 0,
+   "y": 3600,
+   "text": "Runs, the project home",
+   "kind": "title1",
+   "maxW": 2960
+  },
+  "t-live": {
+   "x": 0,
+   "y": 4980,
+   "text": "Run detail, live",
+   "kind": "title1",
+   "maxW": 5840
+  },
+  "t-ended": {
+   "x": 0,
+   "y": 6260,
+   "text": "Run detail, ended",
+   "kind": "title1",
+   "maxW": 6000
+  },
+  "t-desk": {
+   "x": 0,
+   "y": 7540,
+   "text": "Desk",
+   "kind": "title1",
+   "maxW": 6000
+  }
+ },
+ "designSystems": []
+}

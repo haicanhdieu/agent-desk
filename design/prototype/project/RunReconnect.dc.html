@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Run 61 — reconnecting, laptop 1280, panel collapsed</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15181E; --panel:#1B1F26; --raised:#232832; --line:#2C323D; --line2:#3A4150;
+  --text:#E3E6EB; --muted:#A3ABB8; --faint:#8A93A2; --accent:#93A9FF; --term:#0F1216;
+  --run:#52C4D9; --idle:#F5B83D; --ok:#6CCF96; --fail:#F2776B; --late:#EE9A57; --off:#9AA2AF;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'SFMono-Regular',Menlo,Consolas,monospace;
+}
+/* layout idea: one quiet slate shell; the terminal is the darkest, largest surface; amber is reserved for "needs you" */
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);font-size:14px;line-height:1.45;color-scheme:dark}
+a{color:var(--accent);text-decoration:none} a:hover{text-decoration:underline}
+*{box-sizing:border-box}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.app{display:flex;flex-direction:column;width:100%;background:var(--bg)}
+.mono{font-family:var(--mono);font-size:12.5px}
+.muted{color:var(--muted)} .faint{color:var(--faint)}
+.row{display:flex;align-items:center;gap:8px}
+.grow{flex:1 1 auto;min-width:0}
+h1{font-size:22px;line-height:1.25;font-weight:600;margin:0;text-wrap:balance;letter-spacing:-.01em}
+h2{font-size:16px;font-weight:600;margin:0}
+h3{font-size:14px;font-weight:600;margin:0}
+p{margin:0}
+/* top bar */
+.top{height:52px;flex:0 0 52px;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line);background:var(--panel)}
+.brand{display:flex;align-items:center;gap:8px;font-weight:600;color:var(--text);font-size:14px}
+.brand svg{color:var(--text)}
+.sep{width:1px;height:22px;background:var(--line2)}
+.switch{display:flex;align-items:center;gap:8px;padding:5px 10px;border:1px solid var(--line2);border-radius:6px;background:var(--raised);color:var(--text);cursor:pointer}
+.switch .org{color:var(--muted)}
+.tabs{display:flex;gap:2px;height:100%}
+.tabs a{display:flex;align-items:center;gap:7px;padding:0 12px;color:var(--muted);border-bottom:2px solid transparent;height:100%;font-weight:500}
+.tabs a:hover{color:var(--text);text-decoration:none}
+.tabs a.on{color:var(--text);border-bottom-color:var(--text)}
+.count-idle{display:inline-flex;align-items:center;gap:4px;background:var(--idle);color:#1A1405;font-size:11.5px;font-weight:600;border-radius:9px;padding:0 7px;height:18px}
+.avatar{width:26px;height:26px;border-radius:50%;background:#3B4A6B;color:#DCE3F5;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;flex:0 0 auto}
+.avatar.bot{background:#2F3A36;color:#BFE6D2;border-radius:6px}
+.avatar.sm{width:20px;height:20px;font-size:9.5px}
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line2);background:var(--raised);color:var(--text);font-weight:500;font-size:13.5px;cursor:pointer;white-space:nowrap}
+.btn:hover{border-color:#566078;text-decoration:none}
+.btn.primary{background:var(--text);color:#14171C;border-color:var(--text)}
+.btn.go{background:var(--idle);color:#1A1405;border-color:var(--idle)}
+.btn.danger{color:var(--fail);border-color:#5A3431;background:#2A1E1F}
+.btn.solid-danger{background:var(--fail);color:#1E0E0C;border-color:var(--fail)}
+.btn.ghost{background:transparent;border-color:transparent;color:var(--muted)}
+.btn.ghost:hover{color:var(--text);border-color:var(--line2)}
+.btn:disabled,.btn.dis{opacity:.45;cursor:not-allowed}
+.btn.lg{height:40px;padding:0 18px;font-size:14.5px}
+.btn.sm{height:26px;padding:0 9px;font-size:12.5px}
+.iconbtn{width:32px;padding:0}
+kbd{font-family:var(--mono);font-size:11px;border:1px solid var(--line2);border-bottom-width:2px;border-radius:4px;padding:0 4px;color:var(--muted)}
+/* status */
+.st{display:inline-flex;align-items:center;gap:6px;font-weight:500;font-size:13px;white-space:nowrap}
+.st svg{flex:0 0 auto}
+.st-queued{color:var(--off)} .st-starting{color:var(--run)} .st-running{color:var(--run)}
+.st-idle{color:var(--idle)} .st-succeeded{color:var(--ok)} .st-failed{color:var(--fail)}
+.st-timed_out{color:var(--late)} .st-cancelled{color:var(--off)}
+.st-pill{padding:3px 9px 3px 7px;border-radius:999px;border:1px solid currentColor;background:rgba(255,255,255,.02)}
+.st-idle.st-pill{background:var(--idle);color:#1A1405;border-color:var(--idle)}
+/* chips */
+.cmd{font-family:var(--mono);font-size:12.5px;background:#262C38;border:1px solid var(--line2);border-radius:4px;padding:0 5px;color:#D7DDF0;white-space:nowrap}
+.lbl{display:inline-flex;align-items:center;gap:5px;font-size:12px;border:1px solid var(--line2);border-radius:999px;padding:0 8px;height:20px;color:var(--muted);white-space:nowrap}
+.lbl i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.kind{display:inline-flex;align-items:center;gap:5px;color:var(--muted);font-size:12.5px;white-space:nowrap}
+.tref{font-family:var(--mono);font-size:12.5px;color:var(--text)}
+/* banners */
+.banner{display:flex;gap:12px;align-items:flex-start;padding:12px 16px;border-radius:8px;border:1px solid var(--line2);background:var(--panel)}
+.banner .b-ico{flex:0 0 auto;margin-top:1px}
+.banner.warn{border-color:#5B4520;background:#251F14} .banner.warn .b-ico{color:var(--idle)}
+.banner.err{border-color:#5A3431;background:#261A1A} .banner.err .b-ico{color:var(--fail)}
+.banner.late{border-color:#5A3F2A;background:#261D16} .banner.late .b-ico{color:var(--late)}
+.banner.ok{border-color:#2D4A3A;background:#17221C} .banner.ok .b-ico{color:var(--ok)}
+.banner.off{border-color:var(--line2);background:var(--panel)} .banner.off .b-ico{color:var(--off)}
+.banner.idle{border-color:var(--idle);background:#2A2214}
+/* forms */
+.field{display:flex;flex-direction:column;gap:6px}
+.field>label,.flabel{font-size:13px;font-weight:500;color:var(--text)}
+.help{font-size:12.5px;color:var(--muted)}
+.input{height:34px;border:1px solid var(--line2);background:#12151A;border-radius:6px;padding:0 10px;color:var(--text);width:100%}
+.input.mono{font-family:var(--mono);font-size:13px}
+.prefix{display:flex;align-items:center;border:1px solid var(--line2);background:#12151A;border-radius:6px;height:34px;overflow:hidden}
+.prefix span{padding:0 4px 0 10px;color:var(--faint);font-family:var(--mono)}
+.prefix input{border:0;background:transparent;height:100%;padding:0 10px 0 0;font-family:var(--mono);font-size:13px;width:100%}
+.seg{display:inline-flex;flex:0 0 auto;align-self:flex-start;border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:#12151A}
+.seg button{border:0;background:transparent;padding:0 12px;height:32px;color:var(--muted);cursor:pointer;border-right:1px solid var(--line2)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--raised);color:var(--text);font-weight:600}
+.toggle{width:34px;height:20px;border-radius:10px;background:var(--line2);position:relative;display:inline-block;flex:0 0 auto;border:0;padding:0;cursor:pointer}
+.toggle::after{content:"";position:absolute;width:14px;height:14px;border-radius:50%;background:#C9CFDA;top:3px;left:3px}
+.toggle.on{background:#4E6BD8}.toggle.on::after{left:17px;background:#fff}
+/* tables */
+table{border-collapse:collapse;width:100%}
+th{font-size:12.5px;font-weight:500;color:var(--muted);text-align:left;padding:8px 12px;border-bottom:1px solid var(--line)}
+td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+.num{font-variant-numeric:tabular-nums;font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+/* terminal */
+.termwrap{display:flex;flex-direction:column;background:var(--term);min-width:0}
+.termbar{height:38px;flex:0 0 38px;display:flex;align-items:center;gap:12px;padding:0 10px 0 6px;border-bottom:1px solid #1F242C;background:#13161B}
+.vtab{display:inline-flex;align-items:center;gap:6px;height:28px;padding:0 10px;border-radius:5px;font-size:13px;color:var(--muted);border:0;background:transparent}
+.vtab.on{background:var(--raised);color:var(--text);font-weight:500}
+.vtab.soon{opacity:.6;cursor:not-allowed}
+.soon-tag{font-size:11px;border:1px dashed var(--line2);border-radius:4px;padding:0 5px;color:var(--faint)}
+.term{flex:1 1 auto;overflow:hidden;padding:12px 16px;display:flex;flex-direction:column;justify-content:flex-end;font-family:var(--mono);font-size:13px;line-height:1.55;color:#D5DAE1;white-space:pre;position:relative}
+.t-dim{color:#7E8796} .t-b{font-weight:600;color:#EEF1F5} .t-cy{color:#6FD0E0} .t-gr{color:#7AD69F} .t-rd{color:#F28A80}
+.t-yl{color:#F2C46B} .t-add{color:#7AD69F;background:rgba(122,214,159,.08)} .t-del{color:#F28A80;background:rgba(242,138,128,.08)}
+.t-dot{color:#7AD69F} .t-dotw{color:#EEF1F5} .t-mag{color:#C8A2F0} .t-acc{color:#B9C6FF}
+.cursor{display:inline-block;width:8px;height:16px;background:#E3E6EB;vertical-align:-3px}
+.conn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--muted)}
+.conn i{width:8px;height:8px;border-radius:50%;background:var(--ok);display:inline-block}
+/* side panel */
+.side{width:344px;flex:0 0 344px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;overflow:hidden}
+.sec{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.sec-h{font-size:12.5px;color:var(--muted);font-weight:500;display:flex;align-items:center;justify-content:space-between}
+.kv{margin:0;display:grid;grid-template-columns:96px minmax(0,1fr);gap:7px 10px;font-size:13px;align-items:baseline}
+.kv dt{color:var(--muted)} .kv dd{margin:0;min-width:0}
+.meter{height:5px;border-radius:3px;background:var(--line2);overflow:hidden}
+.meter i{display:block;height:100%;background:var(--run)}
+/* chain */
+.chain{display:flex;flex-direction:column;gap:0}
+.cstep{display:grid;grid-template-columns:20px minmax(0,1fr);gap:10px;position:relative;padding-bottom:12px}
+.cstep::before{content:"";position:absolute;left:9px;top:20px;bottom:0;width:2px;background:var(--line2)}
+.cstep:last-child::before{display:none}
+.cstep.here .cbox{border-color:var(--line2);background:var(--raised)}
+.cbox .row{flex-wrap:wrap;row-gap:2px}.cbox b{white-space:nowrap}.cbox{border:1px solid transparent;border-radius:6px;padding:4px 8px;margin:-4px 0 0 -8px;display:flex;flex-direction:column;gap:2px}
+.cstep.future .cbox{color:var(--faint)}
+/* run list */
+.grp td{background:#191D24;border-bottom:1px solid var(--line)}
+.child td:first-child{position:relative}
+.tree{display:inline-block;width:22px;height:20px;position:relative;vertical-align:middle;margin-right:4px}
+.tree::before{content:"";position:absolute;left:8px;top:-12px;bottom:8px;border-left:1.5px solid var(--line2)}
+.tree::after{content:"";position:absolute;left:8px;width:12px;top:10px;border-top:1.5px solid var(--line2)}
+.tree.mid::before{bottom:-14px}
+tr.needs td{background:#221D13}
+tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
+.filters{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--line2);background:transparent;color:var(--muted);font-size:13px;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.fchip.on{background:var(--raised);color:var(--text);border-color:#566078}
+.fchip b{font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+/* desk */
+.subnav{width:220px;flex:0 0 220px;border-right:1px solid var(--line);padding:16px 10px;display:flex;flex-direction:column;gap:2px;background:var(--bg)}
+.subnav a{display:flex;align-items:center;gap:9px;padding:7px 10px;border-radius:6px;color:var(--muted);font-weight:500}
+.subnav a.on{background:var(--raised);color:var(--text)}
+.subnav a:hover{color:var(--text);text-decoration:none}
+.subnav .grp-h{font-size:12px;color:var(--faint);padding:14px 10px 6px}
+.editor{font-family:var(--mono);font-size:13px;line-height:1.6;white-space:pre;background:#12151A;color:#D5DAE1}
+.ln{color:#5C6575;text-align:right;padding-right:14px;user-select:none}
+.md-h{color:#B9C6FF;font-weight:600} .md-k{color:#C8A2F0} .md-c{color:#7AD69F} .md-f{color:#7E8796}
+.overlay{position:absolute;inset:0;background:rgba(10,12,16,.62);display:flex;align-items:center;justify-content:center}
+.dialog{width:520px;background:var(--panel);border:1px solid var(--line2);border-radius:10px;box-shadow:0 20px 60px rgba(0,0,0,.5);display:flex;flex-direction:column}
+.dialog .d-b{padding:20px;display:flex;flex-direction:column;gap:14px}
+.dialog .d-f{padding:14px 20px;border-top:1px solid var(--line);display:flex;justify-content:flex-end;gap:8px}
+.pop{position:absolute;background:var(--panel);border:1px solid var(--line2);border-radius:8px;box-shadow:0 14px 40px rgba(0,0,0,.55);padding:14px;display:flex;flex-direction:column;gap:10px;z-index:5}
+.note{font-size:12.5px;color:var(--muted)}
+.steps{display:flex;flex-direction:column;gap:2px}
+.step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;padding:10px 12px;border-radius:8px;align-items:start}
+.step.on{background:var(--raised)}
+.sn{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--line2);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:var(--muted);font-variant-numeric:tabular-nums}
+.step.done .sn{background:var(--ok);border-color:var(--ok);color:#0F1A13}
+.step.on .sn{border-color:var(--text);color:var(--text)}
+.radio-card{border:1px solid var(--line2);border-radius:8px;padding:12px 14px;display:flex;gap:12px;align-items:flex-start;background:var(--panel)}
+.radio-card.on{border-color:#7C8FD8;background:#1E2333}
+.rdot{width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line2);flex:0 0 auto;margin-top:2px}
+.on>.rdot{border:5px solid var(--accent)}
+.cbx{width:16px;height:16px;border-radius:4px;border:1.5px solid var(--line2);flex:0 0 auto;margin-top:2px;display:inline-flex;align-items:center;justify-content:center}
+.cbx.on{background:var(--accent);border-color:var(--accent);color:#11131A}
+.sentence{font-size:16px;line-height:1.9}
+.sentence .cmd,.sentence .slot{font-size:14px}
+.slot{display:inline-flex;align-items:center;gap:6px;border-bottom:1.5px dashed #6B7690;padding:0 2px;font-weight:600}
+</style>
+</helmet>
+<div class="app" style="min-height:800px;height:800px;position:relative;overflow:hidden;">
+<header class="top">
+<a href="Projects.dc.html" class="brand" aria-label="Agent Desk, all projects"><svg aria-hidden="true" class="" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="3.5"/><path d="M2.5 9.5h19"/><rect x="6.5" y="12.5" width="5" height="5" rx="1" fill="currentColor" stroke="none"/><path d="M14 14h4M14 17h3"/></svg></a>
+<span class="sep"></span>
+<nav class="row" aria-label="Breadcrumb" style="gap:6px;font-size:13.5px">
+<a href="Projects.dc.html" class="muted">invoicer-api</a><span class="faint">/</span>
+<a href="Runs.dc.html" class="muted">Runs <span class="count-idle" style="margin-left:4px">1</span></a><span class="faint">/</span>
+<b style="font-weight:600">Run 61</b>
+</nav>
+<span style="margin-left:6px"><span class="st st-running st-pill" title="status: running"><svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".45"/><circle cx="8" cy="8" r="3.4" fill="currentColor"/></svg>Running</span></span>
+<span class="muted" style="font-size:13px"><code class="cmd">/code-build</code> on <span class="kind"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg><span class="tref">Issue #139</span></span></span>
+<span class="num muted" style="margin-left:4px">9:02</span>
+<span class="grow"></span>
+<button class="btn dis" disabled title="Finish is available when the agent is waiting for you"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Finish</button>
+<button class="btn danger"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg>Cancel run</button>
+<span class="sep"></span>
+<button class="btn ghost iconbtn" aria-label="Collapse context panel (])" title="Collapse panel  ]"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg></button>
+<button class="btn ghost iconbtn" aria-label="Full screen terminal (F)" title="Full screen  F"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+<span class="avatar" title="kim-hale">KH</span>
+</header>
+<div style="flex:1;display:flex;min-height:0">
+<section class="termwrap" style="flex:1" aria-label="Terminal">
+<div class="termbar"><div class="row" role="tablist" aria-label="Run view" style="gap:2px">
+<button class="vtab on" role="tab" aria-selected="true"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M7 9l3 3-3 3M12 15h5"/></svg>Terminal</button>
+<button class="vtab soon" role="tab" aria-selected="false" disabled><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5h16v11H9l-5 4z"/></svg>Transcript <span class="soon-tag">coming in MVP</span></button>
+</div><span class="grow"></span><span class="conn" style="color:var(--idle)"><i style="background:var(--idle)"></i>Reconnecting, attempt 3</span><span class="sep" style="height:16px"></span><span class="num faint">116×38</span>
+<button class="btn ghost sm" aria-label="Search scrollback"><svg aria-hidden="true" class="" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg>Find</button>
+<button class="btn ghost sm"><svg aria-hidden="true" class="" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy all</button></div>
+<div style="flex:1;position:relative;display:flex;flex-direction:column;min-height:0"><div class="term" style="opacity:.6" role="log" aria-label="Claude Code terminal"><div><span class="t-acc">agent-desk runner 0.4.1</span><span class="t-dim">  run 61  ·  harbor-labs/invoicer-api</span>
+<span class="t-dim">clone </span>main @ a91c3e2<span class="t-dim"> … done in 6.2s</span>
+<span class="t-dim">start </span>claude in tmux session &#x27;agent&#x27;<span class="t-dim">  skill=code-build  ticket=issue#139</span>
+
+<span class="t-dim">&gt; </span>Run the code-build skill for issue #139 in harbor-labs/invoicer-api.
+<span class="t-dim">  </span>Read the issue and all comments first. Arguments: (none)
+
+<span class="t-dotw">● </span>I&#x27;ll read the skill and the issue first.
+
+<span class="t-dot">● </span><span class="t-b">Read</span><span class="t-dim">(</span>.claude/skills/code-build/SKILL.md<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span><span class="t-dim">Read 41 lines</span>
+
+<span class="t-dot">● </span><span class="t-b">Bash</span><span class="t-dim">(</span>gh issue view 139 --comments<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span>title:   Rate-limit the public webhook endpoint
+<span class="t-dim">     </span>labels:  user-story, api
+<span class="t-dim">     … +22 lines (ctrl+o to expand)</span>
+
+<span class="t-dot">● </span><span class="t-b">Search</span><span class="t-dim">(</span>pattern: &quot;MapPost\(\&quot;/webhooks&quot;, path: &quot;src&quot;<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span><span class="t-dim">Found 2 files</span>
+
+<span class="t-dot">● </span><span class="t-b">Read</span><span class="t-dim">(</span>src/Invoicer.Api/Endpoints/WebhookEndpoints.cs<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span><span class="t-dim">Read 88 lines</span>
+
+<span class="t-dotw">● </span>The public endpoint has no limiter. I will use the built-in ASP.NET Core rate limiter:
+  a fixed window per source IP, limits in appsettings, 429 with Retry-After.
+
+<span class="t-dot">● </span><span class="t-b">Bash</span><span class="t-dim">(</span>git switch -c ad/139-rate-limit-webhooks<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span><span class="t-dim">Switched to a new branch &#x27;ad/139-rate-limit-webhooks&#x27;</span>
+
+<span class="t-dot">● </span><span class="t-b">Update</span><span class="t-dim">(</span>src/Invoicer.Api/Program.cs<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span><span class="">Updated src/Invoicer.Api/Program.cs with 8 additions</span>
+<span class="t-dim">       38   </span>builder.Services.AddProblemDetails();
+<span class="t-dim">       39 </span><span class="t-add">+ builder.Services.AddRateLimiter(o =&gt;</span>
+<span class="t-dim">       40 </span><span class="t-add">+ {</span>
+<span class="t-dim">       41 </span><span class="t-add">+     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;</span>
+<span class="t-dim">       42 </span><span class="t-add">+     o.AddPolicy(&quot;public-webhooks&quot;, ctx =&gt; RateLimitPartition.GetFixedWindowLimiter(</span>
+<span class="t-dim">       43 </span><span class="t-add">+         ctx.Connection.RemoteIpAddress?.ToString() ?? &quot;unknown&quot;,</span>
+<span class="t-dim">       44 </span><span class="t-add">+         _ =&gt; webhookLimits.ToFixedWindowOptions()));</span>
+<span class="t-dim">       45 </span><span class="t-add">+ });</span>
+
+<span class="t-dot">● </span><span class="t-b">Write</span><span class="t-dim">(</span>tests/Invoicer.Api.Tests/WebhookRateLimitTests.cs<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span><span class="t-dim">Wrote 54 lines to tests/Invoicer.Api.Tests/WebhookRateLimitTests.cs</span>
+
+<span class="t-dot">● </span><span class="t-b">Bash</span><span class="t-dim">(</span>dotnet test tests/Invoicer.Api.Tests --filter WebhookRateLimit<span class="t-dim">)</span>
+<span class="t-dim">  ⎿  </span><span class="t-dim">Running…</span>
+
+<span class="t-yl">✻ </span><span class="t-yl">Running tests… </span><span class="t-dim">(41s · esc to interrupt)</span>
+
+<span class="t-dim">────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</span>
+<span class="t-dim">&gt; </span>
+<span class="t-dim">────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────</span>
+<span class="t-dim">  ⏵⏵ bypass permissions on (shift+tab to cycle)</span></div></div><div style="position:absolute;inset:0;background:rgba(15,18,22,.55)"></div>
+<div style="position:absolute;left:50%;top:30%;transform:translateX(-50%);width:460px" class="pop">
+<div class="row" style="gap:10px"><span class="st st-starting" title="status: starting"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-dasharray="3 2.4"/></svg></span><b style="font-weight:600">Connection to the terminal lost</b></div>
+<p class="muted" style="font-size:13px">The agent keeps working; tmux holds the session. Retrying in 4 s. Input is paused until the screen redraws.</p>
+<div class="row" style="gap:8px;justify-content:flex-end"><button class="btn sm"><svg aria-hidden="true" class="" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></svg>Reconnect now</button></div></div></div>
+</section>
+<aside style="width:48px;flex:0 0 48px;border-left:1px solid var(--line);background:var(--panel);display:flex;flex-direction:column;align-items:center;gap:14px;padding:12px 0" aria-label="Run context, collapsed">
+<button class="btn ghost iconbtn" aria-label="Expand context panel (])"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"/></svg></button>
+<span title="Issue #139"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg></span><span title="Running"><span class="st st-running"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" stroke-width="1.4" opacity=".45"/><circle cx="8" cy="8" r="3.4" fill="currentColor"/></svg></span></span><span title="Chain: 1 of 2"><svg aria-hidden="true" class="" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="2.2"/><circle cx="18" cy="18" r="2.2"/><path d="M8.2 6H15a3 3 0 0 1 0 6H9a3 3 0 0 0 0 6h6.8"/></svg></span></aside>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1280, "height": 800}}'>
+class Component extends DCLogic {
+renderVals() {
+return {};
+}
+}
+</script>
+</body>
+</html>
