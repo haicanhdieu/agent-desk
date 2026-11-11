@@ -10,6 +10,7 @@ const preview: Preview = {
   },
   decorators: [
     (Story) => {
+      document.body.style.colorScheme = 'dark';
       document.body.style.background = 'var(--bg, #15181E)';
       document.body.style.color = 'var(--text, #E3E6EB)';
       return Story();
