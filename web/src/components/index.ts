@@ -24,3 +24,5 @@ export { KeyValue, type KeyValueProps } from './KeyValue';
 export { Meter, type MeterProps } from './Meter';
 export { ChainTimeline, type ChainStep } from './ChainTimeline';
 export { TicketSummary } from './TicketSummary';
+export { CodeEditor, type CodeEditorProps } from './CodeEditor';
+export { highlightMarkdown, type MdSpan } from './highlightMarkdown';
