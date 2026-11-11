@@ -96,7 +96,25 @@ describe('Breadcrumb', () => {
   });
 });
 
+describe('Breadcrumb ellipsis', () => {
+  it('string crumbs carry a title and the ellipsis class', () => {
+    const long = 'r'.repeat(90);
+    render(<Breadcrumb items={[{ label: long, href: '/a' }, { label: 'Run 61' }]} />);
+    const a = screen.getByRole('link');
+    expect(a).toHaveAttribute('title', long);
+    expect(a.className).toMatch(/crumb/);
+    expect(screen.getByText('Run 61')).toHaveAttribute('title', 'Run 61');
+  });
+});
+
 describe('SubNav', () => {
+  it('headings are direct children of the nav so only the first is :first-child', () => {
+    render(<SubNav aria-label="D" groups={[{ heading: 'One', items: [{ label: 'x', href: '/x' }] }, { heading: 'Two', content: 'c' }]} />);
+    const nav = screen.getByRole('navigation', { name: 'D' });
+    expect(screen.getByText('One').parentElement).toBe(nav);
+    expect(screen.getByText('Two').parentElement).toBe(nav);
+    expect(screen.getByText('Two')).not.toBe(nav.firstElementChild);
+  });
   it('active item has aria-current and content group renders', () => {
     render(
       <SubNav

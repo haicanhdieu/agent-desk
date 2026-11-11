@@ -19,18 +19,21 @@
 .tabs a:hover { color: var(--text); text-decoration: none; }
 .tabs a.on { color: var(--text); border-bottom-color: var(--text); }
 
-.crumbs { display: flex; align-items: center; gap: 6px; font-size: var(--fs-13_5); min-width: 0; }
+.crumbs { flex: 0 1 auto; display: flex; align-items: center; gap: 6px; font-size: var(--fs-13_5); min-width: 0; }
 .crumbs a { color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
-.crumbs .sepch { color: var(--faint); }
+.crumbs .crumb { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
+.crumbs a.crumb { flex: 0 1 auto; }
+.crumbs b.crumb { flex: 0 0 auto; max-width: 240px; }
+.crumbs .sepch { flex: 0 0 auto; color: var(--faint); }
 .crumbs b { font-weight: 600; }
-.runExtra { display: flex; align-items: center; gap: 10px; min-width: 0; margin-left: 6px; font-size: var(--fs-13); color: var(--muted); }
+.runExtra { flex: 0 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; gap: 10px; min-width: 0; margin-left: 6px; font-size: var(--fs-13); color: var(--muted); }
 
 .subnav { width: 220px; flex: 0 0 220px; border-right: 1px solid var(--line); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; background: var(--bg); }
 .subnav a { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: var(--radius-6); color: var(--muted); font-weight: 500; }
 .subnav a:hover { color: var(--text); text-decoration: none; }
 .subnav a.on { background: var(--raised); color: var(--text); }
 .subnav .grpH { font-size: var(--fs-12); color: var(--faint); padding: 14px 10px 6px; }
-.subnav .grpH:first-child { padding-top: 2px; }
+.subnav > .grpH:first-child { padding-top: 2px; }
 .grpBody { padding: 4px 10px; display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-12_5); }
 
 .repoOrg { display: block; font-family: var(--sans); font-size: var(--fs-12); color: var(--faint); }

@@ -42,3 +42,16 @@ export const Run: Story = {
     ),
   },
 };
+export const RunLongNames: Story = {
+  args: {
+    variant: 'run',
+    user,
+    breadcrumb: [
+      { label: 'a-very-long-repository-name-that-keeps-going-and-going-forever', href: '#' },
+      { label: 'Runs', href: '#' },
+      { label: 'Run 61' },
+    ],
+    children: <span>/code-build on Issue #139: an extremely long ticket title that should truncate rather than wrap or push the actions</span>,
+    actions: <Button variant="danger" icon="x">Cancel run</Button>,
+  },
+};

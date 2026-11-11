@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 import { Icon, type IconName } from '@/ds';
 import styles from './Chrome.module.css';
 
@@ -15,7 +15,7 @@ export function SubNav({ 'aria-label': ariaLabel, groups }: SubNavProps) {
   return (
     <nav className={styles.subnav} aria-label={ariaLabel}>
       {groups.map((g, i) => (
-        <div key={g.heading ?? i} style={{ display: 'contents' }}>
+        <Fragment key={g.heading ?? i}>
           {g.heading && <div className={styles.grpH}>{g.heading}</div>}
           {g.items?.map((it) => (
             <a
@@ -29,7 +29,7 @@ export function SubNav({ 'aria-label': ariaLabel, groups }: SubNavProps) {
             </a>
           ))}
           {g.content && <div className={styles.grpBody}>{g.content}</div>}
-        </div>
+        </Fragment>
       ))}
     </nav>
   );
