@@ -1,0 +1,106 @@
+/* Field */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field > label, .flabel { font-size: var(--fs-13); font-weight: 500; color: var(--text); }
+.help { font-size: var(--fs-12_5); color: var(--muted); }
+.error { font-size: var(--fs-12_5); color: var(--fail); }
+
+/* Text-like chrome */
+.input {
+  height: 34px; border: 1px solid var(--line2); background: var(--input-bg);
+  border-radius: var(--radius-6); padding: 0 10px; color: var(--text); width: 100%;
+}
+.input:hover:not(:disabled) { border-color: var(--hover-line); }
+.input.mono { font-family: var(--mono); font-size: var(--fs-13); }
+.input.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: var(--fs-12_5); }
+.input:disabled { opacity: .6; cursor: not-allowed; }
+.input[aria-invalid="true"], .wrap[aria-invalid="true"] { border-color: var(--fail); }
+.input::placeholder, .wrap input::placeholder { color: var(--faint); }
+
+/* Wrapped chrome: prefix, password, search, static, label input */
+.wrap {
+  display: flex; align-items: center; border: 1px solid var(--line2); background: var(--input-bg);
+  border-radius: var(--radius-6); height: 34px; overflow: hidden; color: var(--text);
+}
+.wrap:hover { border-color: var(--hover-line); }
+.wrap > input {
+  border: 0; background: transparent; height: 100%; padding: 0 10px 0 0; width: 100%; min-width: 0;
+  outline: none;
+}
+.wrap:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.prefix > span { padding: 0 4px 0 10px; color: var(--faint); font-family: var(--mono); }
+.prefix > input { font-family: var(--mono); font-size: var(--fs-13); }
+.pw > input { padding-left: 10px; font-family: var(--mono); font-size: var(--fs-13); }
+.pw > button { margin-right: 2px; flex: 0 0 auto; }
+.search { width: 240px; max-width: 100%; }
+.search > svg { margin-left: 10px; color: var(--faint); flex: 0 0 auto; }
+.search > input { padding-left: 8px; }
+.static { gap: 8px; padding: 0 10px; background: var(--input-bg); color: var(--muted); }
+.static:hover { border-color: var(--line2); }
+.static > svg { flex: 0 0 auto; }
+.unit { display: flex; align-items: center; gap: 8px; }
+.unit > input { width: 90px; }
+.unit > span { color: var(--muted); font-size: var(--fs-13); }
+select.input { appearance: auto; }
+
+/* Segmented control */
+.seg {
+  display: inline-flex; flex: 0 0 auto; align-self: flex-start; border: 1px solid var(--line2);
+  border-radius: var(--radius-6); overflow: hidden; background: var(--input-bg);
+}
+.seg button {
+  border: 0; background: transparent; padding: 0 12px; height: 32px; color: var(--muted);
+  cursor: pointer; border-right: 1px solid var(--line2);
+}
+.seg button:hover { color: var(--text); }
+.seg button:last-child { border-right: 0; }
+.seg button.on { background: var(--raised); color: var(--text); font-weight: 600; }
+.seg button:focus-visible { outline-offset: -2px; }
+
+/* Toggle */
+.toggle {
+  width: 34px; height: 20px; border-radius: 10px; background: var(--toggle-off); position: relative;
+  display: inline-block; flex: 0 0 auto; border: 0; padding: 0; cursor: pointer;
+}
+.toggle::after {
+  content: ""; position: absolute; width: 14px; height: 14px; border-radius: 50%;
+  background: var(--toggle-knob); top: 3px; left: 3px;
+}
+.toggle.on { background: var(--toggle-on); }
+.toggle.on::after { left: 17px; background: var(--text); }
+.toggle:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Checkbox / radio visuals (native input is visually hidden, sibling box is styled) */
+.choice { position: relative; display: inline-flex; flex: 0 0 auto; }
+.native { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.cbx {
+  width: 16px; height: 16px; border-radius: var(--radius-4); border: 1.5px solid var(--line2);
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+}
+.cbx.on { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.rdot { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid var(--line2); flex: 0 0 auto; }
+.on > .rdot, .rdot.on { border: 5px solid var(--accent); }
+.native:focus-visible + .cbx, .native:focus-visible + .rdot { outline: 2px solid var(--accent); outline-offset: 2px; }
+.native:hover:not(:checked) + .cbx, .native:hover:not(:checked) + .rdot { border-color: var(--hover-line); }
+
+/* Radio card */
+.radio-card {
+  border: 1px solid var(--line2); border-radius: var(--radius-8); padding: 12px 14px; display: flex;
+  gap: 12px; align-items: flex-start; background: var(--panel); cursor: pointer;
+}
+.radio-card:hover { border-color: var(--hover-line); }
+.radio-card.sel, .radio-card.sel:hover { border-color: var(--select-line); background: var(--select-bg); }
+.radio-card .choice { margin-top: 2px; }
+.rc-body { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
+.rc-title { font-weight: 500; }
+.rc-desc { font-size: var(--fs-12_5); color: var(--muted); }
+.rc-aside { flex: 0 0 auto; }
+
+/* Label input */
+.lblinput {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px; min-height: 34px;
+  border: 1px solid var(--line2); border-radius: var(--radius-6); padding: 4px 8px; background: var(--input-bg);
+}
+.lblinput:hover { border-color: var(--hover-line); }
+.lblinput:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+.lblinput > input { border: 0; background: transparent; flex: 1; min-width: 80px; height: 24px; outline: none; }
+.lblinput > input::placeholder { color: var(--faint); }
