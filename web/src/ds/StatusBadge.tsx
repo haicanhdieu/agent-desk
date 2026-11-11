@@ -14,9 +14,10 @@ export function StatusBadge({ status, variant = 'text', size = 14, children }: S
   const token = statusTokens[status] ?? statusTokens.queued;
   const cls = [styles.st, styles[`st-${status}`] ?? styles['st-queued'], variant === 'pill' && styles['st-pill']]
     .filter(Boolean).join(' ');
+  const solid = status === 'idle' && variant === 'pill';
   return (
     <span className={cls} title={`status: ${status}`}>
-      <StatusIcon status={status} size={size} />
+      <StatusIcon status={status} size={size} inheritColor={solid} />
       {children ?? token.label}
     </span>
   );

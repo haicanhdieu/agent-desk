@@ -25,4 +25,16 @@ describe('StatusBadge', () => {
     render(<StatusBadge status={'weird' as RunStatus} />);
     expect(screen.getByText('Queued')).toBeInTheDocument();
   });
+
+  it('idle pill glyph inherits the pill colour (not amber on amber)', () => {
+    render(<StatusBadge status="idle" variant="pill" />);
+    const svg = screen.getByTitle('status: idle').querySelector('svg') as SVGElement;
+    expect(svg.style.color).toBe('');
+  });
+
+  it('idle text glyph keeps the idle colour', () => {
+    render(<StatusBadge status="idle" />);
+    const svg = screen.getByTitle('status: idle').querySelector('svg') as SVGElement;
+    expect(svg.style.color).toBe('var(--idle)');
+  });
 });

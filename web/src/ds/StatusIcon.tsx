@@ -5,6 +5,8 @@ export interface StatusIconProps {
   status: RunStatus;
   size?: 12 | 14 | 16 | 18 | 20;
   title?: string;
+  /** Follow the surrounding text colour instead of the status colour (solid amber pill). */
+  inheritColor?: boolean;
 }
 
 /** 16 viewBox glyphs from the prototype; shape (not just colour) encodes status. */
@@ -19,7 +21,7 @@ const glyphs: Record<RunStatus, ReactNode> = {
   cancelled: (<><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M4 12 12 4" stroke="currentColor" strokeWidth="1.6" /></>),
 };
 
-export function StatusIcon({ status, size = 14, title }: StatusIconProps) {
+export function StatusIcon({ status, size = 14, title, inheritColor }: StatusIconProps) {
   const token = statusTokens[status] ?? statusTokens.queued;
   const glyph = glyphs[status] ?? glyphs.queued;
   return (
@@ -27,7 +29,7 @@ export function StatusIcon({ status, size = 14, title }: StatusIconProps) {
       width={size}
       height={size}
       viewBox="0 0 16 16"
-      style={{ color: `var(${token.colorVar})`, flex: '0 0 auto' }}
+      style={inheritColor ? { flex: '0 0 auto' } : { color: `var(${token.colorVar})`, flex: '0 0 auto' }}
       {...(title ? { role: 'img', 'aria-label': title } : { 'aria-hidden': true })}
     >
       {glyph}
