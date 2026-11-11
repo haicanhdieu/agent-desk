@@ -35,7 +35,7 @@ export const DeskSkills: Story = {
 export const DeskSkillDelete: Story = {
   name: 'Skills, delete confirmation',
   decorators: artboard(900),
-  render: () => <DeskSkillsScreen {...skillsProps} deleting="code-e2e" />,
+  render: () => <DeskSkillsScreen {...skillsProps} deleting="code-e2e" rulesUsing={['/code-e2e']} />,
 };
 
 export const DeskRules: Story = {

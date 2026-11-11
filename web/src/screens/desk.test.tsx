@@ -46,9 +46,10 @@ describe('DeskSkills', () => {
   });
 
   it('deleting opens a named dialog whose confirm needs the typed name', async () => {
-    render(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" />);
+    render(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={['/code-e2e']} />);
     const dialog = screen.getByRole('dialog', { name: 'Delete skill code-e2e?' });
     expect(within(dialog).getByText('/code-e2e')).toBeInTheDocument();
+    expect(within(dialog).getByText(/uses this skill/)).toBeInTheDocument();
     const confirm = within(dialog).getByRole('button', { name: 'Delete and commit' });
     expect(confirm).toBeDisabled();
     await userEvent.type(within(dialog).getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
@@ -59,7 +60,20 @@ describe('DeskSkills', () => {
   it('no dialog by default', () => {
     render(<DeskSkills skills={skills} activeName="code-build" />);
     expect(screen.queryByRole('dialog')).toBeNull();
-    expect(skillNames).toContain('code-e2e');
+  });
+
+  it('shows no usage warning when no rule uses the skill', () => {
+    const { rerender } = render(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" />);
+    expect(screen.getByRole('dialog', { name: 'Delete skill code-e2e?' })).toBeInTheDocument();
+    expect(screen.queryByText(/uses this skill/)).toBeNull();
+    rerender(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={[]} />);
+    expect(screen.queryByText(/uses this skill/)).toBeNull();
+  });
+
+  it('names a differently named rule command', () => {
+    render(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={['/flaky']} />);
+    expect(screen.getByText('/flaky')).toBeInTheDocument();
+    expect(screen.queryByText('/code-e2e')).toBeNull();
   });
 });
 
@@ -106,10 +120,12 @@ describe('DeskRules', () => {
 
   it('the pane edits a draft locally and the sentence follows', async () => {
     render(<DeskRules rules={rules} {...base} editingId="r2" />);
+    const pane = screen.getByRole('complementary', { name: 'Edit rule' });
     const cmd = screen.getByLabelText('Command');
     await userEvent.clear(cmd);
     await userEvent.type(cmd, 'cr');
     expect(cmd).toHaveValue('cr');
+    expect(within(pane).getAllByText('/cr').length).toBeGreaterThan(0);
   });
 
   it('More calls onMore with the rule id', async () => {

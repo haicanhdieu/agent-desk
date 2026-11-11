@@ -16,6 +16,8 @@ export interface DeskSkillsProps {
   view?: View;
   /** Name of the skill whose delete confirmation is open. */
   deleting?: string;
+  /** Rule commands (e.g. "/code-e2e") that use the skill being deleted. */
+  rulesUsing?: string[];
   commitMessage?: string;
   onDelete?(name: string): void;
   onCloseDelete?(): void;
@@ -76,7 +78,7 @@ function SkillEditor({
 }
 
 export function DeskSkills({
-  skills, activeName, dirty = false, changedLines = [], view = 'edit', deleting,
+  skills, activeName, dirty = false, changedLines = [], view = 'edit', deleting, rulesUsing = [],
   commitMessage = '', onDelete, onCloseDelete, onConfirmDelete, onCommit,
 }: DeskSkillsProps) {
   const active = skills.find((s) => s.name === activeName) ?? skills[0];
@@ -119,7 +121,13 @@ export function DeskSkills({
           path={`.claude/skills/${doomed.name}/`}
           branch="main"
           defaultMessage={`Remove ${doomed.name} skill`}
-          warning={<>Rule <CommandChip>/{doomed.name}</CommandChip> uses this skill. It will be disabled, and comments with that command will show as ignored.</>}
+          warning={rulesUsing.length > 0 ? (
+            <>
+              {rulesUsing.length === 1 ? 'Rule' : 'Rules'}{' '}
+              {rulesUsing.map((c, i) => <span key={c}>{i > 0 && ', '}<CommandChip>{c}</CommandChip></span>)}{' '}
+              {rulesUsing.length === 1 ? 'uses' : 'use'} this skill. {rulesUsing.length === 1 ? 'It' : 'They'} will be disabled, and comments with {rulesUsing.length === 1 ? 'that command' : 'those commands'} will show as ignored.
+            </>
+          ) : undefined}
           onClose={() => onCloseDelete?.()}
           onConfirm={(m) => onConfirmDelete?.(m)}
         />

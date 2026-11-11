@@ -83,6 +83,7 @@
 .rulesCol { flex: 1 1 0; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
 .ruleList { border: 1px solid var(--line); border-radius: var(--radius-10); overflow: hidden; }
 .paneFootStack { display: flex; flex-direction: column; gap: 16px; }
+.grow { flex: 1 1 auto; min-width: 0; }
 .paneActions { display: flex; align-items: center; gap: 8px; }
 .agentMain { flex: 1; min-width: 0; padding: 24px 40px; overflow: hidden; }
 .deskActions { display: flex; align-items: center; gap: 8px; }
