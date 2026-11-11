@@ -18,6 +18,11 @@ export interface TopBarProps {
   actions?: ReactNode;
 }
 
+/** The 1px divider between top bar groups. */
+export function TopBarSeparator() {
+  return <span className={styles.sep} aria-hidden="true" />;
+}
+
 export function TopBar({ variant, user, project, active, needsYou, breadcrumb, children, actions }: TopBarProps) {
   const avatar = <Avatar initials={user.initials} kind={user.bot ? 'bot' : 'user'} title={user.login} />;
   const bell = <IconButton icon="bell" aria-label="Notifications on" />;

@@ -1,4 +1,4 @@
-.termwrap { display: flex; flex-direction: column; background: var(--term); min-width: 0; }
+.termwrap { flex: 1; display: flex; flex-direction: column; background: var(--term); min-width: 0; }
 .termbar { height: 38px; flex: 0 0 38px; display: flex; align-items: center; gap: 12px; padding: 0 10px 0 6px; border-bottom: 1px solid var(--term-bar-line); background: var(--term-bar); }
 .tabs { display: flex; align-items: center; gap: 2px; }
 .grow { flex: 1 1 auto; }

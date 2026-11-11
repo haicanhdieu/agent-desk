@@ -67,3 +67,6 @@
 .needsIntro { font-size: var(--fs-15); }
 .needsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
 .ghSub { font-size: var(--fs-13); }
+
+/* run detail */
+.runMain { flex: 1; display: flex; min-height: 0; }

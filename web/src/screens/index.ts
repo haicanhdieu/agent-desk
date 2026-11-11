@@ -10,3 +10,4 @@ export { RunsPage, type RunsPageProps, type RunsFilter } from './RunsPage';
 export { Runs, filterGroups, type RunsProps } from './Runs';
 export { RunsProblems, type RunsProblemsProps, type RunsProblemsWarning } from './RunsProblems';
 export { NeedsYou, type NeedsYouProps } from './NeedsYou';
+export { RunDetail, type RunDetailProps } from './RunDetail';
