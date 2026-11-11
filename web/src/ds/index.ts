@@ -11,3 +11,7 @@ export { Avatar, type AvatarProps } from './Avatar';
 export { CountBadge, type CountBadgeProps } from './CountBadge';
 export { StepNumber, type StepNumberProps } from './StepNumber';
 export { InlineStatus, type InlineStatusProps } from './InlineStatus';
+export { Banner, type BannerProps, type BannerTone } from './Banner';
+export { Dialog, type DialogProps } from './Dialog';
+export { Popover, type PopoverProps } from './Popover';
+export { useFocusTrap, type FocusTrapOptions } from './useFocusTrap';

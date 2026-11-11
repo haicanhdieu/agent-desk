@@ -1,0 +1,27 @@
+.banner { display: flex; gap: 12px; align-items: flex-start; padding: 12px 16px; border-radius: 8px; border: 1px solid var(--line2); background: var(--panel); }
+.banner .b-ico { flex: 0 0 auto; margin-top: 1px; }
+.banner .b-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
+.banner .b-title { font-weight: 600; font-size: 13px; color: var(--text); }
+.banner .b-text { font-size: 13px; color: var(--muted); }
+.banner .b-actions { flex: 0 0 auto; display: flex; gap: 8px; align-items: center; }
+.banner .b-actions.below { margin-top: 8px; }
+.banner.warn { border-color: var(--banner-warn-line); background: var(--banner-warn-bg); }
+.banner.warn .b-ico { color: var(--idle); }
+.banner.err { border-color: var(--banner-err-line); background: var(--banner-err-bg); }
+.banner.err .b-ico { color: var(--fail); }
+.banner.late { border-color: var(--banner-late-line); background: var(--banner-late-bg); }
+.banner.late .b-ico { color: var(--late); }
+.banner.ok { border-color: var(--banner-ok-line); background: var(--banner-ok-bg); }
+.banner.ok .b-ico { color: var(--ok); }
+.banner.off { border-color: var(--banner-off-line); background: var(--banner-off-bg); }
+.banner.off .b-ico { color: var(--off); }
+.banner.idle { border-color: var(--banner-idle-line); background: var(--banner-idle-bg); }
+.banner.flush { border-radius: 0; border-width: 0 0 1px 0; }
+.banner.prominent .b-title { font-size: 15px; }
+
+.overlay { position: absolute; inset: 0; background: var(--scrim); display: flex; align-items: center; justify-content: center; }
+.dialog { width: 520px; max-width: 100%; background: var(--panel); border: 1px solid var(--line2); border-radius: 10px; box-shadow: var(--shadow-dialog); display: flex; flex-direction: column; }
+.dialog .d-b { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+.dialog .d-b h2 { margin: 0; font-size: 18px; font-weight: 600; color: var(--text); }
+.dialog .d-f { padding: 14px 20px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
+.pop { position: absolute; background: var(--panel); border: 1px solid var(--line2); border-radius: 8px; box-shadow: var(--shadow-pop); padding: 14px; display: flex; flex-direction: column; gap: 10px; z-index: 5; }
