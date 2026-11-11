@@ -53,7 +53,7 @@ export function SetupReady({
         <b className={styles.semi}>Listening for your first command</b> This page opens the run as soon as it starts. Last webhook: {lastWebhook}.
       </Banner>
       <div className={styles.summaryBlock}>
-        <h3>What you set up</h3>
+        <h2 className="h3">What you set up</h2>
         <KeyValue items={summary} termWidth={120} />
       </div>
     </SetupLayout>

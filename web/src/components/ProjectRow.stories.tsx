@@ -3,7 +3,7 @@ import { projects } from '@/mocks';
 import { DataTable } from './DataTable';
 import { ProjectRow } from './ProjectRow';
 
-const columns = ['Project', 'GitHub', 'Needs you', 'Running', 'Queued', 'Last run', ''].map((h) => ({ key: h || 'more', header: h }));
+const columns = ['Project', 'GitHub', 'Needs you', 'Running', 'Queued', 'Last run', ''].map((h) => ({ key: h || 'more', header: h || <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span> }));
 const meta = {
   title: 'Components/ProjectRow',
   component: ProjectRow,

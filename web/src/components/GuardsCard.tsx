@@ -12,7 +12,7 @@ export function GuardsCard({ maxRunsPerTicket, changeHref, ignoredHref }: Guards
   const titleId = useId();
   return (
     <section className={styles.card} aria-labelledby={titleId}>
-      <h3 id={titleId} className={styles.cardTitle}><Icon name="lock" size={16} />Guards on every rule</h3>
+      <h2 id={titleId} className={`h3 ${styles.cardTitle}`}><Icon name="lock" size={16} />Guards on every rule</h2>
       <ul className={styles.guards}>
         <li><span className={styles.strong}>Who can trigger:</span> repo owners, members and collaborators, and <span className={styles.monoText}>agent-desk[bot]</span>. Anyone else is ignored.</li>
         <li>

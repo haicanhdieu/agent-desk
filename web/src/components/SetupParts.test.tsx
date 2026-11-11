@@ -13,7 +13,7 @@ describe('GuardsCard ids', () => {
     render(<><GuardsCard maxRunsPerTicket={1} /><GuardsCard maxRunsPerTicket={2} /></>);
     const regions = screen.getAllByRole('region', { name: 'Guards on every rule' });
     expect(regions).toHaveLength(2);
-    const ids = screen.getAllByRole('heading', { level: 3 }).map((h) => h.id);
+    const ids = screen.getAllByRole('heading', { level: 2 }).map((h) => h.id);
     expect(new Set(ids).size).toBe(2);
   });
 });

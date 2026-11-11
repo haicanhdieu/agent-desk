@@ -3,7 +3,7 @@ import { ignored } from '@/mocks';
 import { DataTable } from './DataTable';
 import { IgnoredRow } from './IgnoredRow';
 
-const columns = ['Time', 'Ticket', 'Command', 'Author', 'Why nothing ran', ''].map((h) => ({ key: h || 'more', header: h }));
+const columns = ['Time', 'Ticket', 'Command', 'Author', 'Why nothing ran', ''].map((h) => ({ key: h || 'more', header: h || <span style={{ position: 'absolute', width: 1, height: 1, overflow: 'hidden', clip: 'rect(0 0 0 0)' }}>Actions</span> }));
 const meta = {
   title: 'Components/IgnoredRow',
   component: IgnoredRow,

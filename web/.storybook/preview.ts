@@ -9,6 +9,9 @@ import { viewportOptions } from '../src/screens/viewports';
 const preview: Preview = {
   parameters: {
     backgrounds: { disabled: true },
+    // Storybook has no title-glob parameter, so this applies to every story; it only gates when the a11y addon runs
+    // under the Vitest integration. The enforced check is the axe run in src/test/stories.smoke.test.tsx.
+    a11y: { test: 'error' },
     controls: { matchers: { color: /(background|color)$/i, date: /Date$/i } },
     viewport: { options: viewportOptions },
     options: {

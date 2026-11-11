@@ -86,7 +86,7 @@ export function Overview() {
         <div className={styles.groups}>
           {groups.map((g) => (
             <section key={g.heading} className={styles.group}>
-              <h3>{g.heading}</h3>
+              <h2 className="h3">{g.heading}</h2>
               <ul className={styles.list}>
                 {g.items.map((it) => (
                   <li key={it.board}><a href={storyHref(it.board)} target="_top">{it.label}</a></li>

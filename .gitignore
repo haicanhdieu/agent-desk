@@ -3,3 +3,4 @@ claude.sh
 web/node_modules
 web/storybook-static
 web/tsconfig.tsbuildinfo
+web/parity-out

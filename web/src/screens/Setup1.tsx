@@ -37,7 +37,7 @@ export function Setup1({ user, projectName, repos, selected, installedOn, pingAt
       footer={{ next: { label: 'Continue', href: nextHref } }}
       aside={
         <div className={styles.stack14}>
-          <h3>Permissions the app asks for</h3>
+          <h2 className="h3">Permissions the app asks for</h2>
           <KeyValue items={permissions} termWidth={120} />
           <div className={styles.asideBanner}>
             <Banner tone="warn" icon={<Icon name="warning" size={16} />} title="If the ping does not arrive">
