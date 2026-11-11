@@ -41,11 +41,6 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, opts: FocusTrap
     }
 
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        escRef.current?.();
-        return;
-      }
       if (e.key !== 'Tab' || !trap) return;
       const items = focusables(root);
       if (items.length === 0) {
@@ -63,10 +58,15 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>, opts: FocusTrap
         first.focus();
       }
     };
+    const onDocKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') escRef.current?.();
+    };
     root.addEventListener('keydown', onKeyDown);
+    document.addEventListener('keydown', onDocKeyDown);
 
     return () => {
       root.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('keydown', onDocKeyDown);
       if (restoreFocus && opener && opener.isConnected) opener.focus();
     };
   }, [active, ref, restoreFocus, focusOnOpen, trap]);

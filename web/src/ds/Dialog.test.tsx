@@ -58,4 +58,29 @@ describe('Dialog', () => {
     await user.tab({ shift: true });
     expect(screen.getByRole('button', { name: 'Confirm' })).toHaveFocus();
   });
+
+  it('Escape works when focus is on body after clicking the scrim or dialog text', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Dialog open title="Delete it?" onClose={onClose}>x</Dialog>);
+    await user.click(screen.getByRole('heading', { name: 'Delete it?' }));
+    (document.activeElement as HTMLElement).blur();
+    expect(document.body).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+    await user.click(screen.getByRole('dialog').parentElement as HTMLElement);
+    (document.activeElement as HTMLElement).blur();
+    expect(document.body).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it('removes the listener on unmount', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { unmount } = render(<Dialog open title="T" onClose={onClose}>x</Dialog>);
+    unmount();
+    await user.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });

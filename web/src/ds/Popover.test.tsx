@@ -42,4 +42,32 @@ describe('Popover', () => {
     const pop = screen.getByRole('status', { name: 'Reconnecting' });
     expect(pop.contains(document.activeElement)).toBe(false);
   });
+
+  it('dialog role: Escape closes even when focus is back on the opener', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Harness onClose={onClose} />);
+    const opener = screen.getByRole('button', { name: 'Cancel run' });
+    await user.click(opener);
+    opener.focus();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it('status role ignores Escape', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(<Popover open label="Reconnecting" role="status" onClose={onClose}>x</Popover>);
+    await user.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it('removes the listener after unmount', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const { unmount } = render(<Popover open label="L" onClose={onClose}><button>a</button></Popover>);
+    unmount();
+    await user.keyboard('{Escape}');
+    expect(onClose).not.toHaveBeenCalled();
+  });
 });
