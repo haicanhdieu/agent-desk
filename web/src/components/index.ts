@@ -41,3 +41,6 @@ export { DangerZone, type DangerZoneProps } from './DangerZone';
 export { ConfirmDeleteDialog, type ConfirmDeleteDialogProps } from './ConfirmDeleteDialog';
 export { SidePane, type SidePaneProps } from './SidePane';
 export { SurfaceCard } from './SurfaceCard';
+export { StepList, StepLine } from './StepList';
+export { StepCardGrid, type StepCardGridProps } from './StepCardGrid';
+export { ProjectRow, type ProjectRowProps } from './ProjectRow';

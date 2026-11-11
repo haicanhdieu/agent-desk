@@ -1,0 +1,30 @@
+/* Page-level grids and paddings only. Widgets live in @/components. */
+
+/* sign in */
+.signIn { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); height: 100%; }
+.signInLeft { padding: 72px 80px; display: flex; flex-direction: column; justify-content: space-between; border-right: 1px solid var(--line); }
+.signInCopy { display: flex; flex-direction: column; gap: 22px; max-width: 480px; }
+.signInCopy h1 { font-size: var(--fs-34); line-height: 1.15; }
+.lead { font-size: var(--fs-15); }
+.cta { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.cta > a { align-self: flex-start; }
+.privacy { font-size: var(--fs-12_5); }
+.poc { font-size: var(--fs-12); }
+.signInRight { padding: 72px 64px; display: flex; flex-direction: column; justify-content: center; background: var(--panel); }
+.kicker { font-size: var(--fs-13); margin-bottom: 16px; }
+
+/* projects empty */
+.emptyMain { flex: 1; display: flex; justify-content: center; padding: 96px 40px; }
+.emptyCol { width: 100%; max-width: 760px; display: flex; flex-direction: column; gap: 28px; }
+.emptyHead { display: flex; flex-direction: column; gap: 10px; }
+.emptyHead h1 { font-size: var(--fs-28); }
+.emptyHead p { font-size: var(--fs-15); max-width: 62ch; }
+.emptyActions { display: flex; align-items: center; gap: 12px; }
+.emptyNote { font-size: var(--fs-13); }
+
+/* projects list */
+.listMain { flex: 1; padding: 36px 48px; display: flex; flex-direction: column; gap: 20px; max-width: 1240px; width: 100%; margin: 0 auto; }
+.listHead { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.listIntro { font-size: var(--fs-13_5); }
+
+.srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
