@@ -14,3 +14,4 @@ export { RunDetail, type RunDetailProps } from './RunDetail';
 export { DeskSkills, type DeskSkillsProps } from './DeskSkills';
 export { DeskRules, type DeskRulesProps } from './DeskRules';
 export { DeskAgent, type DeskAgentProps } from './DeskAgent';
+export { Overview } from './Overview';

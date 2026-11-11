@@ -1,0 +1,22 @@
+.page { display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: 64px; padding: 64px 72px; height: 100%; background: var(--bg); overflow: hidden; }
+.left, .right { display: flex; flex-direction: column; gap: 28px; }
+.name { font-size: var(--fs-20); font-weight: 600; }
+.title { font-size: var(--fs-36); max-width: 22ch; }
+.summary { max-width: 62ch; font-size: var(--fs-15); }
+.groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 28px 32px; }
+.group { display: flex; flex-direction: column; gap: 8px; }
+.list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; font-size: var(--fs-13_5); }
+.legend { display: flex; flex-direction: column; gap: 6px; }
+.legendNote { font-size: var(--fs-13); }
+.statuses { margin-top: 6px; }
+.statusRow { gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.statusCell { width: 120px; }
+.statusNote { font-size: var(--fs-13); }
+.surfaces { display: flex; flex-direction: column; gap: 10px; }
+.swatches { gap: 10px; align-items: stretch; }
+.swatch { flex: 1; padding: 12px; border: 1px solid var(--line); font-size: var(--fs-12); }
+.ground { background: var(--bg); }
+.panel { background: var(--panel); }
+.raised { background: var(--raised); }
+.terminal { background: var(--term); }
+.typeNote { font-size: var(--fs-13); }

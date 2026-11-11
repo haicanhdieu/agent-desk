@@ -5,6 +5,7 @@ import { NeedsYou as NeedsYouScreen } from './NeedsYou';
 import { Runs as RunsScreen } from './Runs';
 import { RunsProblems as RunsProblemsScreen } from './RunsProblems';
 import type { RunsFilter } from './RunsPage';
+import { viewport } from './viewports';
 
 // Artboards come from canvas.json: Runs 1440x1000, RunsProblems 1440x960, NeedsYou 1440x740.
 const meta = {
@@ -27,6 +28,7 @@ const counts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1,
 export const Runs: Story = {
   name: 'Runs',
   decorators: artboard(1000),
+  globals: viewport(1440, 1000),
   render: () => (
     <RunsScreen
       {...common}
@@ -46,6 +48,7 @@ export const Runs: Story = {
 export const RunsProblems: Story = {
   name: 'Runs, problems and ignored commands',
   decorators: artboard(960),
+  globals: viewport(1440, 960),
   render: () => (
     <RunsProblemsScreen
       {...common}
@@ -70,5 +73,6 @@ export const RunsProblems: Story = {
 export const NeedsYou: Story = {
   name: 'Where needs you shows up',
   decorators: artboard(740),
+  globals: viewport(1440, 740),
   render: () => <NeedsYouScreen project={project} projects={projects} />,
 };

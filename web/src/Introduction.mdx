@@ -1,0 +1,47 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title="Introduction" />
+
+# Agent Desk design system
+
+Agent Desk is a dark-theme-only interface for delegating GitHub tickets to Claude Code runs. This Storybook is the
+reference for every token, primitive, composite and screen. The prototype boards in `design/prototype/project/` are the
+source of truth; start from **Screens / Overview** for an index of all 24 boards.
+
+## Where things live
+
+| Layer | Folder | Story title | Put it here when |
+| --- | --- | --- | --- |
+| Tokens | `src/ds/tokens.css` | `Foundations/<Topic>` | It is a colour, radius, type size or other design value. |
+| Primitive | `src/ds/` | `Primitives/<Name>` | It is a single control with no product knowledge: button, badge, input, dialog. |
+| Composite | `src/components/` | `Components/<Name>` | It composes primitives and knows the product: run row, side panel, top bar. |
+| Screen | `src/screens/` | `Screens/<Group>` | It is one page or state of the prototype, assembled from composites and mock data. |
+
+Import primitives from `@/ds`, composites from `@/components`, mock data from `@/mocks`. Primitives never import from
+`components/` or `screens/`.
+
+## Adding a component
+
+1. Decide the layer from the table above and create `Name.tsx` (plus `Name.module.css` if it needs styles) in that folder.
+2. Write the failing test first (`Name.test.tsx`), then implement. Export it from the folder's `index.ts`.
+3. Add `Name.stories.tsx` next to it with the right title prefix and cover every state and variant, including long text.
+4. A new screen also needs a board entry in `src/screens/storyIds.ts`; `src/test/coverage.test.ts` fails until every
+   prototype board has a story.
+
+## Story naming rules
+
+- Titles are `Foundations/<Topic>`, `Primitives/<Name>`, `Components/<Name>` and `Screens/<Group>`. One CSF file has one
+  `default.title`.
+- A screen story's export name equals its prototype board base name (`export const RunStarting`, `export const DeskSkills`)
+  with a human `name:` for the sidebar. Screen names are exports, never title segments.
+- Story ids follow Storybook's rule: title and export name lower-cased and joined by `--`, for example
+  `screens-run-detail--run-starting`. Use `storyHref(board)` from `src/screens/storyIds.ts` to link to a screen.
+- Screen stories fix their artboard size with a wrapper decorator and select the matching viewport preset through the
+  story `globals`.
+
+## Tokens
+
+All colours, radii and type sizes are CSS custom properties in `src/ds/tokens.css`. **No raw hex values outside
+`tokens.css`**: in CSS modules use `var(--panel)`, `var(--line2)` and friends; if a value is missing, add a token first.
+
+Status is never colour alone: every run status pairs its colour with a distinct icon and a word.

@@ -7,10 +7,12 @@ import { Setup2 as Setup2Screen } from './Setup2';
 import { Setup3 as Setup3Screen } from './Setup3';
 import { Setup4 as Setup4Screen } from './Setup4';
 import { SetupReady as SetupReadyScreen } from './SetupReady';
+import { viewport } from './viewports';
 
 // Artboard is 1440x900 (canvas.json). SetupLayout renders its own top bar and the single <main>.
 const meta = {
   title: 'Screens/Setup',
+  globals: viewport(1440, 900),
   parameters: { layout: 'fullscreen' },
   decorators: [(S) => <div style={{ width: 1440, height: 900 }}><AppShell height={900} topBar={null}><S /></AppShell></div>],
 } satisfies Meta;

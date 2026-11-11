@@ -4,10 +4,12 @@ import { projects, user } from '@/mocks';
 import { SignIn as SignInScreen } from './SignIn';
 import { ProjectsEmpty as ProjectsEmptyScreen } from './ProjectsEmpty';
 import { Projects as ProjectsScreen } from './Projects';
+import { viewport } from './viewports';
 
 const meta = {
   title: 'Screens/Entry',
-  parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'desktop1440' } },
+  parameters: { layout: 'fullscreen' },
+  globals: viewport(1440, 900),
   decorators: [(S) => <AppShell height={900} topBar={null}><S /></AppShell>],
 } satisfies Meta;
 export default meta;

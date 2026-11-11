@@ -5,6 +5,7 @@ import { DeskAgent as DeskAgentScreen } from './DeskAgent';
 import { DeskRules as DeskRulesScreen } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
 import { StatusIcon, InlineStatus } from '@/ds';
+import { viewport } from './viewports';
 
 // Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules 1440x900; DeskAgent 1440x1240.
 const meta = {
@@ -29,18 +30,21 @@ const skillsProps: DeskSkillsProps = {
 export const DeskSkills: Story = {
   name: 'Skills editor',
   decorators: artboard(900),
+  globals: viewport(1440, 900),
   render: () => <DeskSkillsScreen {...skillsProps} />,
 };
 
 export const DeskSkillDelete: Story = {
   name: 'Skills, delete confirmation',
   decorators: artboard(900),
+  globals: viewport(1440, 900),
   render: () => <DeskSkillsScreen {...skillsProps} deleting="code-e2e" rulesUsing={['/code-e2e']} />,
 };
 
 export const DeskRules: Story = {
   name: 'Routing rules, editing',
   decorators: artboard(900),
+  globals: viewport(1440, 900),
   render: () => (
     <DeskRulesScreen
       rules={rules}
@@ -56,6 +60,7 @@ const ok = <StatusIcon status="succeeded" size={12} />;
 export const DeskAgent: Story = {
   name: 'Agent & settings, replacing credential',
   decorators: artboard(1240),
+  globals: viewport(1440, 1240),
   render: () => (
     <DeskAgentScreen
       settings={agentSettings}
