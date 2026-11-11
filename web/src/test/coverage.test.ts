@@ -39,6 +39,16 @@ describe('storybook coverage of prototype boards', () => {
   });
 });
 
+describe('screens layout', () => {
+  it('every Screens stories file sets parameters.layout to fullscreen', () => {
+    expect(modules).toHaveLength(6);
+    for (const m of modules) {
+      const meta = m.default as { title: string; parameters?: { layout?: string } };
+      expect(meta.parameters?.layout, meta.title).toBe('fullscreen');
+    }
+  });
+});
+
 describe('storyHref', () => {
   it('builds Storybook ids from title and export name', () => {
     expect(storyHref('Main')).toBe('?path=/story/screens-overview--main');

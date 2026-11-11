@@ -9,6 +9,7 @@ describe('Overview', () => {
     const links = within(screen.getByRole('main')).getAllByRole('link');
     expect(links).toHaveLength(23);
     expect(screen.getByRole('link', { name: 'Sign in with GitHub' })).toHaveAttribute('href', '?path=/story/screens-entry--sign-in');
+    for (const a of links) expect(a).toHaveAttribute('target', '_top');
     expect(container.querySelectorAll('[title^="status: "]')).toHaveLength(8);
   });
 

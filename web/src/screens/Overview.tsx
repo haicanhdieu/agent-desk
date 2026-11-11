@@ -89,7 +89,7 @@ export function Overview() {
               <h3>{g.heading}</h3>
               <ul className={styles.list}>
                 {g.items.map((it) => (
-                  <li key={it.board}><a href={storyHref(it.board)}>{it.label}</a></li>
+                  <li key={it.board}><a href={storyHref(it.board)} target="_top">{it.label}</a></li>
                 ))}
               </ul>
             </section>
