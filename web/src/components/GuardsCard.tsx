@@ -1,3 +1,4 @@
+import { useId } from 'react';
 import { Icon } from '@/ds';
 import styles from './Composites.module.css';
 
@@ -8,9 +9,10 @@ export interface GuardsCardProps {
 }
 
 export function GuardsCard({ maxRunsPerTicket, changeHref, ignoredHref }: GuardsCardProps) {
+  const titleId = useId();
   return (
-    <section className={styles.card} aria-labelledby="guards-title">
-      <h3 id="guards-title" className={styles.cardTitle}><Icon name="lock" size={16} />Guards on every rule</h3>
+    <section className={styles.card} aria-labelledby={titleId}>
+      <h3 id={titleId} className={styles.cardTitle}><Icon name="lock" size={16} />Guards on every rule</h3>
       <ul className={styles.guards}>
         <li><span className={styles.strong}>Who can trigger:</span> repo owners, members and collaborators, and <span className={styles.monoText}>agent-desk[bot]</span>. Anyone else is ignored.</li>
         <li>

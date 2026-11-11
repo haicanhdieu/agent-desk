@@ -32,6 +32,7 @@
 /* StepNumber */
 .sn { width: 24px; height: 24px; border-radius: 50%; border: 1.5px solid var(--line2); display: flex; align-items: center; justify-content: center; font-size: var(--fs-12); font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; flex: 0 0 auto; }
 .sn.current { border-color: var(--text); color: var(--text); }
+.sn.ready { border-color: var(--ok); color: var(--ok); }
 .sn.done { background: var(--ok); border-color: var(--ok); color: var(--on-ok); }
 
 /* InlineStatus */

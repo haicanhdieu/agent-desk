@@ -99,3 +99,13 @@
 .surface { margin: 0; border: 1px solid var(--line2); border-radius: var(--radius-10); overflow: hidden; display: flex; flex-direction: column; }
 .surfaceBody { display: flex; flex-direction: column; }
 .surfaceCap { padding: 14px 16px; background: var(--panel); font-size: var(--fs-13); color: var(--muted); border-top: 1px solid var(--line); margin: 0; }
+
+.followUp { display: flex; align-items: center; gap: 10px; font-size: var(--fs-13); padding: 10px 14px; border-radius: var(--radius-8); background: var(--panel); border: 1px solid var(--line); }
+.followUpMuted { color: var(--muted); }
+.followUpSkill { font-family: var(--mono); font-size: var(--fs-12_5); }
+.followUpSpacer { flex: 1 1 auto; min-width: 0; }
+
+.tplTitle { display: flex; align-items: center; gap: 8px; }
+.tplName { font-family: var(--mono); font-size: var(--fs-13); font-weight: 500; }
+.tplNote { font-size: var(--fs-12); font-weight: 400; color: var(--faint); }
+.tplDesc { font-size: var(--fs-13); }

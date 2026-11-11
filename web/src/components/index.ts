@@ -44,3 +44,5 @@ export { SurfaceCard } from './SurfaceCard';
 export { StepList, StepLine } from './StepList';
 export { StepCardGrid, type StepCardGridProps } from './StepCardGrid';
 export { ProjectRow, type ProjectRowProps } from './ProjectRow';
+export { FollowUpRule, type FollowUpRuleProps } from './FollowUpRule';
+export { SkillTemplateCard, type SkillTemplateCardProps } from './SkillTemplateCard';

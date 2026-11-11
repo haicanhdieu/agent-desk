@@ -5,9 +5,11 @@ export interface StepperProps {
   steps: { label: string; detail?: string; optional?: boolean }[];
   /** Zero-based index of the current step. Steps before it are done. */
   current: number;
+  /** Final, non-numbered step shown highlighted after all steps are done ("Ready to trigger"). Not marked as the current step. */
+  ready?: string;
 }
 
-export function Stepper({ steps, current }: StepperProps) {
+export function Stepper({ steps, current, ready }: StepperProps) {
   return (
     <ol className={styles.steps}>
       {steps.map((s, i) => {
@@ -29,6 +31,14 @@ export function Stepper({ steps, current }: StepperProps) {
           </li>
         );
       })}
+      {ready && (
+        <li className={[styles.step, styles.on].join(' ')}>
+          <StepNumber state="ready" />
+          <div className={styles.stepText}>
+            <span className={styles.stepLabel}>{ready}</span>
+          </div>
+        </li>
+      )}
     </ol>
   );
 }

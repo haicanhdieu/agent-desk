@@ -93,6 +93,7 @@ select.input { appearance: auto; }
 .rc-body { display: flex; flex-direction: column; gap: 2px; flex: 1 1 auto; min-width: 0; }
 .rc-title { font-weight: 500; }
 .rc-desc { font-size: var(--fs-12_5); color: var(--muted); }
+.rc-desc.faint { color: var(--faint); }
 .rc-aside { flex: 0 0 auto; }
 
 /* Label input */

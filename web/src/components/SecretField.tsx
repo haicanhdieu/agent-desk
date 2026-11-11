@@ -16,6 +16,12 @@ export interface SecretFieldProps {
   onCancel?(): void;
   onSubmit?(value: string): void;
   submitLabel?: string;
+  /** Help under the token input while entering (the replace panel has its own). */
+  entryHelp?: string;
+  /** Accessible name of the reveal button while entering. Defaults to "Show token". */
+  revealLabel?: string;
+  /** Omit the submit button when the surrounding flow supplies the action. Enter still submits. */
+  hideSubmit?: boolean;
 }
 
 const typeName: Record<CredentialType, string> = {
@@ -30,8 +36,11 @@ const typeOptions: { value: CredentialType; label: string }[] = [
 
 /** Owns the typed secret; mounted only while entering so it always starts empty and is dropped on unmount. */
 function SecretEntry({
-  label, help, submitLabel, onSubmit, onCancel,
-}: { label: string; help?: string; submitLabel: string; onSubmit?(v: string): void; onCancel?(): void }) {
+  label, help, submitLabel, revealLabel, hideSubmit, onSubmit, onCancel,
+}: {
+  label: string; help?: string; submitLabel: string; revealLabel?: string; hideSubmit?: boolean;
+  onSubmit?(v: string): void; onCancel?(): void;
+}) {
   const [value, setValue] = useState('');
   const submit = (e: FormEvent) => {
     e.preventDefault();
@@ -43,25 +52,33 @@ function SecretEntry({
         {({ id }) => (
           <PasswordInput
             id={id}
-            revealLabel={`Show ${label.toLowerCase()}`}
+            revealLabel={revealLabel ?? `Show ${label.toLowerCase()}`}
             value={value}
             onChange={(e) => setValue(e.target.value)}
           />
         )}
       </Field>
-      <div className={styles.actions}>
-        {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
-        <Button type="submit" variant="primary" disabled={!value}>{submitLabel}</Button>
-      </div>
+      {(!hideSubmit || onCancel) && (
+        <div className={styles.actions}>
+          {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
+          {!hideSubmit && <Button type="submit" variant="primary" disabled={!value}>{submitLabel}</Button>}
+        </div>
+      )}
     </form>
   );
 }
 
 export function SecretField({
   state, credentialType, onCredentialTypeChange, savedInfo, onReplace, onCancel, onSubmit, submitLabel,
+  entryHelp, revealLabel, hideSubmit,
 }: SecretFieldProps) {
   if (state === 'empty' || state === 'entering') {
-    return <SecretEntry label="Token" submitLabel={submitLabel ?? 'Save and test'} onSubmit={onSubmit} />;
+    return (
+      <SecretEntry
+        label="Token" help={entryHelp} revealLabel={revealLabel} hideSubmit={hideSubmit}
+        submitLabel={submitLabel ?? 'Save and test'} onSubmit={onSubmit}
+      />
+    );
   }
 
   const replacing = state === 'replacing';

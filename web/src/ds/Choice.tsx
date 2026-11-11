@@ -37,9 +37,11 @@ export interface RadioCardProps {
   title: ReactNode;
   description?: ReactNode;
   aside?: ReactNode;
+  /** Description in --faint instead of --muted (setup repo and credential cards). */
+  faintDescription?: boolean;
 }
 
-export function RadioCard({ type, name, checked, onChange, title, description, aside }: RadioCardProps) {
+export function RadioCard({ type, name, checked, onChange, title, description, aside, faintDescription }: RadioCardProps) {
   return (
     <label className={cx(styles['radio-card'], checked && styles.sel)}>
       <span className={styles.choice}>
@@ -60,7 +62,7 @@ export function RadioCard({ type, name, checked, onChange, title, description, a
       </span>
       <span className={styles['rc-body']}>
         <span className={styles['rc-title']}>{title}</span>
-        {description && <span className={styles['rc-desc']}>{description}</span>}
+        {description && <span className={cx(styles['rc-desc'], faintDescription && styles.faint)}>{description}</span>}
       </span>
       {aside && <span className={styles['rc-aside']}>{aside}</span>}
     </label>

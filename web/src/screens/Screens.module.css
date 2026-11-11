@@ -28,3 +28,22 @@
 .listIntro { font-size: var(--fs-13_5); }
 
 .srOnly { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* setup flow */
+.stack6 { display: flex; flex-direction: column; gap: 6px; }
+.stack8 { display: flex; flex-direction: column; gap: 8px; }
+.stack10 { display: flex; flex-direction: column; gap: 10px; }
+.stack14 { display: flex; flex-direction: column; gap: 14px; }
+.split { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.groupLabel { font-size: var(--fs-13); font-weight: 500; }
+.helpLine { font-size: var(--fs-12_5); }
+.grid2Gap10 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.grid2Gap16 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.asideBanner { margin-top: 12px; font-size: var(--fs-13); }
+.onText { color: var(--text); font-size: var(--fs-13); }
+.semi { font-weight: 600; color: var(--text); }
+.readyHead { display: flex; flex-direction: column; gap: 10px; }
+.readyTitle { font-size: var(--fs-28); }
+.readyIntro { margin: 0; }
+.actions { display: flex; align-items: center; gap: 10px; }
+.summaryBlock { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }

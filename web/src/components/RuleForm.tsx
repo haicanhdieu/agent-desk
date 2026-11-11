@@ -8,6 +8,8 @@ export interface RuleFormProps {
   agents: string[];
   onChange(v: RuleDraft): void;
   agentLocked?: boolean;
+  /** Shown after the agent name in the agent option, e.g. "Claude (opus)". */
+  agentModel?: string;
 }
 
 const TARGETS: { value: RuleTarget; label: string }[] = [
@@ -19,7 +21,7 @@ const TARGETS: { value: RuleTarget; label: string }[] = [
 /** Keep a saved value selectable even when it is no longer in the option list (e.g. a deleted skill). */
 const withCurrent = (opts: string[], cur: string) => (opts.includes(cur) ? opts : [cur, ...opts]);
 
-export function RuleForm({ value, skills, agents, onChange, agentLocked }: RuleFormProps) {
+export function RuleForm({ value, skills, agents, onChange, agentLocked, agentModel }: RuleFormProps) {
   const set = (patch: Partial<RuleDraft>) => onChange({ ...value, ...patch });
   return (
     <div className={styles.form}>
@@ -58,7 +60,7 @@ export function RuleForm({ value, skills, agents, onChange, agentLocked }: RuleF
         <Field label="With agent" help="One agent per project in the PoC.">
           {({ id, describedBy }) => (
             <Select id={id} aria-describedby={describedBy} disabled={agentLocked} value={value.agent} onChange={(e) => set({ agent: e.target.value })}>
-              {withCurrent(agents, value.agent).map((a) => <option key={a}>{a}</option>)}
+              {withCurrent(agents, value.agent).map((a) => <option key={a} value={a}>{agentModel ? `${a} (${agentModel})` : a}</option>)}
             </Select>
           )}
         </Field>
