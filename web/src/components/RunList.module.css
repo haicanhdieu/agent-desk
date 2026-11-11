@@ -1,0 +1,54 @@
+.table { border-collapse: collapse; width: 100%; }
+.table th {
+  font-size: var(--fs-12_5); font-weight: 500; color: var(--muted); text-align: left;
+  padding: 8px 12px; border-bottom: 1px solid var(--line);
+}
+.table td { padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.num { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: var(--fs-12_5); white-space: nowrap; }
+.muted { color: var(--muted); }
+.faint { color: var(--faint); }
+.faint:hover { text-decoration: none; }
+.grow { flex: 1 1 auto; min-width: 0; }
+
+/* run list */
+.table .grp td { background: var(--row-group); border-bottom: 1px solid var(--line); max-width: 0; } /* max-width: 0 keeps long titles from widening the table */
+.grpRow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.grpRow > * { flex: 0 0 auto; }
+.grpTitle {
+  font-weight: 600; flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chain { font-size: var(--fs-12_5); color: var(--faint); white-space: nowrap; }
+.grpRow > .grow { flex: 1 1 0; min-width: 0; }
+.child td:first-child { position: relative; }
+.runCell { white-space: nowrap; }
+.runLink { color: var(--text); font-weight: 500; }
+.note { font-size: var(--fs-12); color: var(--faint); margin-top: 2px; }
+.skill { font-family: var(--mono); font-size: var(--fs-12_5); }
+.actor { font-size: var(--fs-13); }
+.actorRow { display: inline-flex; align-items: center; gap: 6px; }
+.actions { text-align: right; white-space: nowrap; }
+.tree { display: inline-block; width: 22px; height: 20px; position: relative; vertical-align: middle; margin-right: 4px; }
+.tree::before { content: ""; position: absolute; left: 8px; top: -12px; bottom: 8px; border-left: 1.5px solid var(--line2); }
+.tree::after { content: ""; position: absolute; left: 8px; width: 12px; top: 10px; border-top: 1.5px solid var(--line2); }
+.tree.mid::before { bottom: -14px; }
+.table tr.needs td { background: var(--row-needs); }
+.table tr.needs td:first-child { box-shadow: inset 3px 0 0 var(--idle); }
+
+/* filters */
+.filters { display: flex; gap: 6px; flex-wrap: wrap; }
+.fchip {
+  height: 28px; padding: 0 10px; border-radius: var(--radius-pill); border: 1px solid var(--line2);
+  background: transparent; color: var(--muted); font-size: var(--fs-13);
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+}
+.fchip.on { background: var(--raised); color: var(--text); border-color: var(--hover-line); }
+.fchip b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* empty */
+.empty {
+  display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
+  padding: 40px 16px; color: var(--muted);
+}
+.empty h3 { font-size: var(--fs-14); font-weight: 600; color: var(--text); margin: 0; }
+.emptyBody { font-size: var(--fs-13); color: var(--muted); max-width: 48ch; margin: 0; }
+.emptyAction { margin-top: 6px; }
