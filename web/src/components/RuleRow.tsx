@@ -9,9 +9,10 @@ export interface RuleRowProps {
   selected?: boolean;
   onToggle(next: boolean): void;
   onSelect?(): void;
+  onMore?(): void;
 }
 
-export function RuleRow({ rule, stats, warning, selected, onToggle, onSelect }: RuleRowProps) {
+export function RuleRow({ rule, stats, warning, selected, onToggle, onSelect, onMore }: RuleRowProps) {
   const sentence = (
     <span className={rule.enabled ? undefined : styles.faintText}>
       <RuleSentence rule={rule} variant="plain" />
@@ -27,7 +28,7 @@ export function RuleRow({ rule, stats, warning, selected, onToggle, onSelect }: 
         {warning && <InlineStatus tone="idle" icon={<Icon name="warning" size={14} />}>{warning}</InlineStatus>}
       </div>
       <span className={styles.stats}>{stats}</span>
-      <IconButton icon="more" aria-label="More" />
+      <IconButton icon="more" aria-label="More" onClick={onMore} />
     </div>
   );
 }

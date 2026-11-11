@@ -45,5 +45,5 @@ function Body({ name, path, branch, warning, defaultMessage, onClose, onConfirm 
 }
 
 export function ConfirmDeleteDialog({ open, ...rest }: ConfirmDeleteDialogProps) {
-  return open ? <Body {...rest} /> : null;
+  return open ? <Body key={rest.name} {...rest} /> : null;
 }

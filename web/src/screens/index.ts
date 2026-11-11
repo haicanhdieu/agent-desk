@@ -11,3 +11,6 @@ export { Runs, filterGroups, type RunsProps } from './Runs';
 export { RunsProblems, type RunsProblemsProps, type RunsProblemsWarning } from './RunsProblems';
 export { NeedsYou, type NeedsYouProps } from './NeedsYou';
 export { RunDetail, type RunDetailProps } from './RunDetail';
+export { DeskSkills, type DeskSkillsProps } from './DeskSkills';
+export { DeskRules, type DeskRulesProps } from './DeskRules';
+export { DeskAgent, type DeskAgentProps } from './DeskAgent';

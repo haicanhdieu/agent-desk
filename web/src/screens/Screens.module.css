@@ -70,3 +70,21 @@
 
 /* run detail */
 .runMain { flex: 1; display: flex; min-height: 0; }
+
+/* desk boards */
+.deskRow { flex: 1; display: flex; min-height: 0; }
+.skillsMain { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.skillHead { display: flex; align-items: center; gap: 12px; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+.skillHeadText { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.skillTitleRow { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.skillTitle { font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skillMeta { font-size: var(--fs-12); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rulesMain { flex: 1; min-width: 0; display: flex; }
+.rulesCol { flex: 1 1 0; min-width: 0; padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+.ruleList { border: 1px solid var(--line); border-radius: var(--radius-10); overflow: hidden; }
+.paneFootStack { display: flex; flex-direction: column; gap: 16px; }
+.paneActions { display: flex; align-items: center; gap: 8px; }
+.agentMain { flex: 1; min-width: 0; padding: 24px 40px; overflow: hidden; }
+.deskActions { display: flex; align-items: center; gap: 8px; }
+.actionsEnd { display: flex; justify-content: flex-end; gap: 8px; }
+.limitsGrid { gap: 16px 20px; }

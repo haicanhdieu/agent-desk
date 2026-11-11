@@ -124,6 +124,12 @@ describe('RuleRow', () => {
     expect(screen.getByText(/Skill docs-update is not in/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More' })).toBeInTheDocument();
   });
+  it('More button calls onMore when provided', async () => {
+    const onMore = vi.fn();
+    render(<RuleRow rule={row} stats="x" onToggle={() => {}} onMore={onMore} />);
+    await userEvent.click(screen.getByRole('button', { name: 'More' }));
+    expect(onMore).toHaveBeenCalledTimes(1);
+  });
   it('selected row marks aria-current and onSelect fires', async () => {
     const onSelect = vi.fn();
     const { container } = render(<RuleRow rule={row} stats="x" selected onSelect={onSelect} onToggle={() => {}} />);
@@ -313,6 +319,15 @@ describe('ConfirmDeleteDialog', () => {
     await userEvent.type(screen.getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
     await userEvent.click(btn());
     expect(onConfirm).toHaveBeenCalledWith('bye');
+  });
+  it('resets typed text when the name changes while open', async () => {
+    const props = { path: 'p', branch: 'main', defaultMessage: 'm', onClose: () => {}, onConfirm: () => {} };
+    const { rerender } = render(<ConfirmDeleteDialog open name="code-e2e" {...props} />);
+    await userEvent.type(screen.getByLabelText(/Type code-e2e to confirm/), 'code-e2e');
+    expect(screen.getByRole('button', { name: 'Delete and commit' })).toBeEnabled();
+    rerender(<ConfirmDeleteDialog open name="qa-e2e" {...props} />);
+    expect(screen.getByLabelText(/Type qa-e2e to confirm/)).toHaveValue('');
+    expect(screen.getByRole('button', { name: 'Delete and commit' })).toBeDisabled();
   });
   it('shows the warning banner and Keep skill closes', async () => {
     const { onClose } = setup({ warning: <>Rule uses this skill.</> });
