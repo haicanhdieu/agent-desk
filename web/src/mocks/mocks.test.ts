@@ -68,4 +68,23 @@ describe('mock fixtures', () => {
     const text = JSON.stringify({ agentSettings, ignored, projects, rules, runDetails, runs, skills, terminalByRun, ticketGroups });
     expect(text).not.toMatch(/sk-|token=/);
   });
+
+  it('copies board values faithfully', () => {
+    expect(runDetails.RunReconnect.elapsed).toBe('9:02');
+    expect(runDetails.RunReconnect.connection).toEqual({ state: 'reconnecting', label: 'Reconnecting, attempt 3' });
+    expect(runDetails.RunReconnect.termSize).toBe('116×38');
+    expect(runs.find((r) => r.id === 62)?.statusNote).toBe('Waiting 3m. Auto-finish after 10m unattended');
+    expect(runs.find((r) => r.id === 56)?.statusNote).toBe('API authentication failed (401)');
+    expect(rules.find((r) => r.command === 'code-build')?.stats).toBe('14 runs this week, last 14:15');
+    expect(rules.find((r) => r.command === 'qa-e2e')).toMatchObject({ enabled: false, labels: ['needs-qa'], stats: 'Turned off 3 Nov' });
+    expect(ignored[0]).toMatchObject({ at: '14:16', author: 'octo-visitor', reason: 'Author has no write access' });
+    expect(ignored[4]).toMatchObject({ command: '/deploy', reason: 'No rule for command' });
+    expect(agentSettings.credential).toMatchObject({ setAt: '12 Oct 2026', setBy: 'kim-hale', status: { tone: 'fail', text: 'Rejected at 11:29' } });
+    expect(terminalByRun[61][0]).toEqual([
+      { text: 'agent-desk runner 0.4.1', tone: 'accent' },
+      { text: '  run 61  ·  harbor-labs/invoicer-api', tone: 'dim' },
+    ]);
+    expect(terminalByRun[56]).toHaveLength(17);
+    expect(runDetails.RunSucceeded.pullRequest?.diffstat).toBe('+214 −12');
+  });
 });

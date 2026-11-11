@@ -71,9 +71,9 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
   },
 
   RunReconnect: {
-    // Collapsed side rail on the board ("Chain: 1 of 2"): same run as RunRunning.
+    // Collapsed side rail on the board ("Chain: 1 of 2"): same run as RunRunning, but the board's top bar shows elapsed 9:02.
     run: runsById[61],
-    elapsed: '7:40',
+    elapsed: '9:02',
     rule: RULE_BUILD,
     triggerNote: 'comment',
     startedAt: '14:05:12',
