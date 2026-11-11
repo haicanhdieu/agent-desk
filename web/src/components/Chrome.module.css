@@ -47,3 +47,4 @@
 .menuItem.current { border-color: var(--line2); background: var(--raised); }
 .menuName { font-family: var(--mono); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menuZero { color: var(--faint); }
+.stripBare { border-bottom: 0; }

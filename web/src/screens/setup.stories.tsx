@@ -79,7 +79,7 @@ export const Setup4: Story = {
       projectName={projectName}
       repo={repo}
       rule={rule}
-      skills={['code-build']}
+      skills={['code-build', 'code-review']}
       followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
     />

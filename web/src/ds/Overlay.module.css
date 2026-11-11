@@ -16,6 +16,7 @@
 .banner.off { border-color: var(--banner-off-line); background: var(--banner-off-bg); }
 .banner.off .b-ico { color: var(--off); }
 .banner.idle { border-color: var(--banner-idle-line); background: var(--banner-idle-bg); }
+.banner.centered { align-items: center; }
 .banner.flush { border-radius: 0; border-width: 0 0 1px 0; }
 .banner.prominent .b-title { font-size: 15px; }
 

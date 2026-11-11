@@ -1,9 +1,10 @@
 import type { ReactNode } from 'react';
-import { Avatar, Button, CountBadge, Icon, IconButton } from '@/ds';
+import { Avatar, Button, IconButton } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import { Brand } from './Brand';
-import { Breadcrumb } from './Breadcrumb';
 import { ProjectSwitch } from './ProjectSwitch';
+import { Breadcrumb } from './Breadcrumb';
+import { ProjectNav } from './ProjectNav';
 import styles from './Chrome.module.css';
 
 export interface TopBarProps {
@@ -51,17 +52,7 @@ export function TopBar({ variant, user, project, active, needsYou, breadcrumb, c
       <Brand href="/projects" />
       <span className={styles.sep} />
       {project && <ProjectSwitch org={project.org} project={project.name} />}
-      <nav className={styles.tabs} aria-label="Project">
-        <a href="/runs" className={active === 'runs' ? styles.on : undefined} aria-current={active === 'runs' ? 'page' : undefined}>
-          <Icon name="runs" size={15} />
-          Runs
-          <CountBadge count={needsYou} label="needs you" title={needsYou ? `${needsYou} ${needsYou === 1 ? 'run needs' : 'runs need'} you` : undefined} />
-        </a>
-        <a href="/desk" className={active === 'desk' ? styles.on : undefined} aria-current={active === 'desk' ? 'page' : undefined}>
-          <Icon name="desk" size={15} />
-          Desk
-        </a>
-      </nav>
+      <ProjectNav active={active} needsYou={needsYou} />
       <span className={styles.grow} />
       {project && <Button variant="ghost" size="sm" href={project.repoUrl} icon="external">Repo on GitHub</Button>}
       {bell}

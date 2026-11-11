@@ -47,3 +47,23 @@
 .readyIntro { margin: 0; }
 .actions { display: flex; align-items: center; gap: 10px; }
 .summaryBlock { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+
+/* runs boards */
+.runsMain { flex: 1; padding: 24px 32px; display: flex; flex-direction: column; gap: 16px; overflow: hidden; }
+.runsMainBanners { gap: 14px; }
+.runsHead { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.runsTitle { display: flex; align-items: center; gap: 16px; }
+.runsMeta { display: flex; align-items: center; gap: 14px; font-size: var(--fs-13); }
+.runsSlots { display: inline-flex; align-items: center; gap: 6px; }
+.slotNum { font-family: var(--mono); font-size: var(--fs-12_5); font-variant-numeric: tabular-nums; color: var(--text); }
+.runsTools { display: flex; align-items: center; gap: 8px; }
+.chipRow { display: flex; align-items: center; justify-content: space-between; }
+.helpLine13 { font-size: var(--fs-13); }
+
+/* needs-you board */
+.needsMain { flex: 1; padding: 56px 72px; display: flex; flex-direction: column; gap: 28px; height: 100%; }
+.needsHead { display: flex; flex-direction: column; gap: 8px; max-width: 760px; }
+.needsHead h1 { font-size: var(--fs-28); }
+.needsIntro { font-size: var(--fs-15); }
+.needsGrid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
+.ghSub { font-size: var(--fs-13); }

@@ -109,3 +109,12 @@
 .tplName { font-family: var(--mono); font-size: var(--fs-13); font-weight: 500; }
 .tplNote { font-size: var(--fs-12); font-weight: 400; color: var(--faint); }
 .tplDesc { font-size: var(--fs-13); }
+
+.nyLead { display: block; font-weight: 400; color: var(--text); }
+.nyLead b { font-weight: 600; }
+
+.ghComment { display: flex; flex-direction: column; }
+.ghHead { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--raised); font-size: var(--fs-13); }
+.ghHead b { font-weight: 600; }
+.ghMeta { color: var(--muted); }
+.ghBody { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-14); background: var(--input-bg); }

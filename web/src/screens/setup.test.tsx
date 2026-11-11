@@ -127,6 +127,10 @@ describe('Setup4', () => {
     const p = container.querySelector('p[class*="sentence"]');
     expect(p).toHaveTextContent('When a comment starting with /code-build is posted on an issue labelled user-story, run skill code-build with agent Claude.');
   });
+  it('stepper step 3 detail lists both skills, as on the board', () => {
+    render(s4);
+    expect(screen.getAllByText('code-build, code-review').length).toBeGreaterThan(0);
+  });
   it('follow-up strip toggles and guards card is labelled', async () => {
     render(s4);
     const t = screen.getByRole('switch', { name: 'Also add code-review rule' });

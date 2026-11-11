@@ -52,3 +52,7 @@
 .empty h3 { font-size: var(--fs-14); font-weight: 600; color: var(--text); margin: 0; }
 .emptyBody { font-size: var(--fs-13); color: var(--muted); max-width: 48ch; margin: 0; }
 .emptyAction { margin-top: 6px; }
+
+/* ignored commands */
+.reason { font-weight: 600; font-size: var(--fs-13); }
+.detail { font-size: var(--fs-12_5); color: var(--muted); }
