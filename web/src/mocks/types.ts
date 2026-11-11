@@ -1,5 +1,11 @@
+import type { ReactNode } from 'react';
 import type { RunStatus } from '@/ds/tokens';
 import type { TicketKind } from '@/ds/TicketRef';
+import type { IconName } from '@/ds/icons';
+import type { ChainStep } from '@/components/ChainTimeline';
+import type { ConnectionState } from '@/components/ConnectionIndicator';
+import type { CredentialType } from '@/components/SecretField';
+import type { RuleDraft } from '@/components/RuleSentence';
 
 export type Label = { name: string; color: string };
 export type Ticket = { kind: TicketKind; number: number; title: string; labels: Label[]; state?: string; href: string };
@@ -24,3 +30,75 @@ export type TicketGroup = {
   runsMax: number;
   runs: RunSummary[];
 };
+
+export type Project = {
+  id: string;
+  org: string;
+  name: string;
+  repo: string;
+  connection: { tone: 'ok' | 'warn'; text: string };
+  needsYou: number;
+  running: number;
+  queued: number;
+  lastRun: string;
+};
+
+export type IgnoredCommand = {
+  at: string;
+  ticket: { kind: TicketKind; number: number };
+  command: string;
+  author: string;
+  reason: string;
+  detail: string;
+  href: string;
+};
+
+export type Skill = {
+  name: string;
+  description: string;
+  body: string;
+  ruleSummary: string;
+  path: string;
+  lastCommit: string;
+};
+
+export type SkillTemplate = { name: string; description: string; note?: string };
+
+export type Rule = RuleDraft & { id: string; stats: string; warning?: string };
+
+export type AgentSettings = {
+  agent: 'Claude';
+  model: string;
+  credential: {
+    type: CredentialType;
+    setAt: string;
+    setBy: string;
+    status?: { tone: 'ok' | 'fail'; text: string };
+  };
+  timeoutMinutes: 30;
+  idleEndMinutes: 10;
+  maxConcurrent: 2;
+  maxRunsPerTicket: 10;
+};
+
+export type RunDetailData = {
+  run: RunSummary;
+  elapsed: string;
+  rule: string;
+  triggerNote: string;
+  startedAt: string;
+  endedAt?: string;
+  chain: ChainStep[];
+  pullRequest?: { ticket: Ticket; diffstat: string };
+  lifecycle?: { at: string; text: string }[];
+  startup?: { label: string; detail?: string; at?: string; state: 'done' | 'active' | 'pending' }[];
+  idle?: { since: string; endsAt: string; slotNote: string };
+  time?: { elapsed: string; limit: string; percent: number };
+  connection: { state: ConnectionState; label: string };
+  termSize?: string;
+  endNote?: { title: string; body: ReactNode; actions: { label: string; href?: string; icon?: IconName }[] };
+};
+
+export type RunDetailKey =
+  | 'RunStarting' | 'RunRunning' | 'RunIdle' | 'RunReconnect'
+  | 'RunSucceeded' | 'RunFailed' | 'RunTimedOut' | 'RunCancelled';
