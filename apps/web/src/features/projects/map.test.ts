@@ -58,6 +58,16 @@ describe('toConnectionStatus', () => {
     ['webhook silent for 3 days', webhook(ago(3 * DAY)), project, 'webhook', 'warn', 'No webhooks for 2 days'],
     ['webhook never heard, project old', webhook(null), project, 'webhook', 'warn', 'No webhooks for 2 days'],
     ['webhook recent', webhook(ago(DAY)), project, 'webhook', 'ok', 'Connected'],
+    ['webhook silent exactly 2 days', webhook(ago(2 * DAY)), project, 'webhook', 'warn', 'No webhooks for 2 days'],
+    ['webhook silent 2 days minus 1 ms', webhook(ago(2 * DAY - 1)), project, 'webhook', 'ok', 'Connected'],
+    [
+      'webhook never heard, project exactly 2 days old',
+      webhook(null),
+      { ...project, createdAt: ago(2 * DAY) },
+      'webhook',
+      'warn',
+      'No webhooks for 2 days',
+    ],
     [
       'webhook never heard, project new',
       webhook(null),

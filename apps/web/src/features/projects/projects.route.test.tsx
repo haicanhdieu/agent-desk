@@ -1,5 +1,5 @@
-import { screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { act, screen, within } from '@testing-library/react';
+import { describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { scenarios } from '@/mocks/msw/scenarios';
@@ -37,5 +37,27 @@ describe('projects route', () => {
     scenarios.serverError('projects.connection');
     await renderRoute('/o/alice/projects');
     expect(await screen.findByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+});
+
+describe('projects route clock', () => {
+  it('advances the last-run text on the useNow tick without refetching', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date', 'setInterval', 'clearInterval'] });
+    try {
+      vi.setSystemTime(new Date('2026-11-12T14:14:00.000Z'));
+      mockDb.state.projects = mockDb.state.projects.filter((p) => p.orgId === ids.org.alice).slice(0, 1);
+      await renderRoute('/o/alice/projects');
+      // Seed: last run 14:12Z for invoicer-api.
+      expect(await screen.findByText('2 min ago')).toBeInTheDocument();
+      const requests = mockDb.requests('GET', '/api/projects');
+      await act(async () => {
+        vi.setSystemTime(new Date('2026-11-12T14:24:00.000Z'));
+        await vi.advanceTimersByTimeAsync(30_000);
+      });
+      expect(await screen.findByText('12 min ago')).toBeInTheDocument();
+      expect(mockDb.requests('GET', '/api/projects')).toBe(requests);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
