@@ -2,8 +2,10 @@ import 'reflect-metadata';
 import type { Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
+import { createAdapterRegistry, systemClock, type AdapterRegistry } from '@agentdesk/core';
 import { createDb, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
+import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
 import { AppModule } from '../../src/app.module';
 import { configureApp, createAdapter } from '../../src/bootstrap';
 import { createLogger } from '../../src/common/logger';
@@ -39,6 +41,8 @@ export interface TestAppOptions {
   env?: Record<string, string>;
   /** Test-only controllers registered next to the real ones. */
   controllers?: Type[];
+  /** Wraps the real adapter registry (e.g. to widen the fake provider's repo list). */
+  wrapAdapters?: (real: AdapterRegistry) => AdapterRegistry;
 }
 
 export interface TestApp {
@@ -87,6 +91,12 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
       .useValue(config)
       .overrideProvider(DB)
       .useValue(db)
+      .overrideProvider(ADAPTER_REGISTRY)
+      .useValue(
+        options.wrapAdapters
+          ? options.wrapAdapters(createAdapterRegistry(config, systemClock))
+          : createAdapterRegistry(config, systemClock),
+      )
       .overrideProvider(TEMPORAL_CLIENT)
       .useValue(temporal.client)
       .compile();

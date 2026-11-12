@@ -58,6 +58,8 @@ export interface NewConnection {
 
 export interface InstallUser {
   userId: string;
+  /** Organization the connection is being installed for. */
+  orgId?: string;
   /** OAuth token of the user's linked account at this provider, if any. */
   linkedAccountToken: string | null;
 }

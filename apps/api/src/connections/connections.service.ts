@@ -1,6 +1,13 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, ConflictException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { account, connections, organization, withOrg, type Db } from '@agentdesk/db';
+import { account, connections, member, organization, withOrg, type Db } from '@agentdesk/db';
 import { Provider, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
 import type { AdapterRegistry } from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
@@ -47,12 +54,23 @@ export class ConnectionsService {
     return { url: this.registry.codeHost(provider).installUrl(orgId, state) };
   }
 
-  /** Verifies the signed state, completes the install at the provider and upserts the connection. Returns the redirect target. */
-  async complete(provider: Provider, params: Record<string, string>): Promise<string> {
-    this.requireProvider(provider);
+  /**
+   * Verifies the signed state, completes the install at the provider and upserts the connection. Returns the redirect
+   * target. The state binds {orgId, userId}: only that user (session) may redeem it, and must still be a member of the
+   * org. Replay by the same user is harmless: the upsert is idempotent (same provider account, same org).
+   */
+  async complete(provider: Provider, params: Record<string, string>, sessionUserId: string): Promise<string> {
     const identity = verifyState(this.config.BETTER_AUTH_SECRET, params['state'] ?? '');
     if (!identity) throw new BadRequestException('Invalid or expired install state');
+    if (identity.userId !== sessionUserId) throw new ForbiddenException('Install state belongs to another user');
     const { orgId, userId } = identity;
+    const membership = await this.db.orm
+      .select({ role: member.role })
+      .from(member)
+      .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)))
+      .limit(1);
+    if (!membership[0]) throw new ForbiddenException('Not a member of the organization');
+    this.requireProvider(provider);
 
     const linked = await this.db.orm
       .select({ token: account.accessToken })
@@ -61,7 +79,7 @@ export class ConnectionsService {
       .limit(1);
     const fresh = await this.registry
       .codeHost(provider)
-      .completeInstall(params, { userId, linkedAccountToken: linked[0]?.token ?? null });
+      .completeInstall(params, { userId, orgId, linkedAccountToken: linked[0]?.token ?? null });
 
     let row: ConnectionRow;
     try {
@@ -100,8 +118,7 @@ export class ConnectionsService {
       });
     } catch (err) {
       // (provider, external_id) is unique across orgs; a row owned by another org is invisible under RLS.
-      if (isUniqueViolation(err))
-        throw new ConflictException('This account is already connected to another organization');
+      if (isUniqueViolation(err)) throw new ConflictException('Connection already exists');
       throw err;
     }
 

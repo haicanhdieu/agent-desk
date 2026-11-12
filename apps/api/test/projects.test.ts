@@ -11,7 +11,19 @@ let bob: string;
 let connectionId: string;
 
 beforeAll(async () => {
-  t = await createTestApp();
+  t = await createTestApp({
+    wrapAdapters: (real) => ({
+      ...real,
+      codeHost: (provider) => {
+        const host = real.codeHost(provider);
+        if (provider !== 'fake') return host;
+        const repos = ['dev/demo', 'dev/dup', ...Array.from({ length: 300 }, (_, i) => `dev/demo-${i + 1}`)];
+        return Object.assign(Object.create(host), {
+          listRepos: async () => repos.map((repoPath) => ({ repoPath, private: false, defaultBranch: 'main' })),
+        });
+      },
+    }),
+  });
   alice = await loginAs(t, 'alice');
   bob = await loginAs(t, 'bob');
   const inst = await t.app.inject({ method: 'POST', url: '/api/connections/fake/install', headers: { cookie: alice } });
@@ -286,5 +298,44 @@ describe('projects', () => {
     expect((await patch(p.id, { maxConcurrentRuns: 0 })).statusCode).toBe(400);
     const badId = await t.app.inject({ method: 'GET', url: '/api/projects/not-a-uuid', headers: { cookie: alice } });
     expect(badId.statusCode).toBe(400);
+  });
+
+  it('rejects malformed or inaccessible repoPath with a /repoPath problem pointer', async () => {
+    const long = `dev/${'a'.repeat(300)}`;
+    for (const repoPath of [
+      '../etc/passwd',
+      'a/b/c',
+      'solo',
+      'dev/..',
+      './x',
+      'dev/a b',
+      'dev/a;rm',
+      long,
+      'dev/missing',
+    ]) {
+      const res = await createProject({ repoPath });
+      expect(res.statusCode, repoPath).toBe(400);
+      expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer, repoPath).toBe('/repoPath');
+    }
+  });
+
+  it('Temporal failures after commit are best-effort: create 201, update 200, delete 204', async () => {
+    t.temporal.failing = true;
+    const created = await createProject({ triggerMode: 'polling' });
+    expect(created.statusCode).toBe(201);
+    const p = created.json() as ProjectDto;
+    expect((await patch(p.id, { pollIntervalSeconds: 600, maxConcurrentRuns: 3 })).statusCode).toBe(200);
+    expect((await patch(p.id, { triggerMode: 'webhook' })).statusCode).toBe(200);
+    const del = await t.app.inject({ method: 'DELETE', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+    expect(del.statusCode).toBe(204);
+    const gone = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+    expect(gone.statusCode).toBe(404);
+  });
+
+  it('PATCH re-syncs an explicitly set polling mode (re-creates a missing schedule)', async () => {
+    const p = (await createProject({ triggerMode: 'polling' })).json() as ProjectDto;
+    t.temporal.reset();
+    await patch(p.id, { triggerMode: 'polling' });
+    expect(t.temporal.callsOfKind('scheduleUpdate')).toHaveLength(1);
   });
 });

@@ -26,6 +26,8 @@ const FakeWebhookBody = z.object({
   author: z.string(),
   authorAssociation: z.string(),
   createdAt: z.string().optional(),
+  /** The connection's external id (`fake-<orgId>`); defaults to the legacy shared id. */
+  externalId: z.string().min(1).optional(),
 });
 
 function header(headers: WebhookHeaders, name: string): string | undefined {
@@ -72,7 +74,7 @@ export class FakeBoardAdapter implements BoardAdapter {
       provider: 'fake',
       deliveryId: b.deliveryId,
       commentId: b.commentId,
-      externalId: FAKE_EXTERNAL_ID,
+      externalId: b.externalId ?? FAKE_EXTERNAL_ID,
       repoPath: b.repoPath,
       ticketRef: b.ticketRef,
       ...(b.ticketKind ? { ticketKind: b.ticketKind } : {}),
@@ -95,7 +97,7 @@ export class FakeBoardAdapter implements BoardAdapter {
         provider: 'fake',
         deliveryId: `poll-${c.id}`,
         commentId: c.id,
-        externalId: FAKE_EXTERNAL_ID,
+        externalId: project.connectionExternalId,
         repoPath: c.repoPath,
         ticketRef: c.ticketRef,
         ...(t ? { ticketKind: t.kind } : {}),

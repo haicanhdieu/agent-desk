@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
   agents,
@@ -13,6 +13,7 @@ import {
 } from '@agentdesk/db';
 import {
   PollInterval,
+  Provider,
   SetupStep,
   TriggerMode,
   type CreateProjectRequest,
@@ -22,10 +23,32 @@ import {
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { isUniqueViolation } from '../common/pg-errors';
+import type { AdapterRegistry } from '@agentdesk/core';
+import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
+import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { ProjectSchedules } from './project-schedules';
 
 type ProjectRow = typeof projects.$inferSelect;
+
+const REPO_SEGMENT = /^[A-Za-z0-9._-]+$/;
+const MAX_REPO_PATH = 200;
+
+function repoPathProblem(detail: string): ValidationProblemException {
+  return new ValidationProblemException([{ pointer: '/repoPath', detail }]);
+}
+
+/** Strict `owner/name`: two segments of [A-Za-z0-9._-], none of them '.' or '..'. */
+export function assertRepoPathShape(repoPath: string): void {
+  const parts = repoPath.split('/');
+  if (
+    repoPath.length > MAX_REPO_PATH ||
+    parts.length !== 2 ||
+    parts.some((p) => !REPO_SEGMENT.test(p) || p === '.' || p === '..')
+  ) {
+    throw repoPathProblem('must be "owner/name" using letters, digits, ".", "_" or "-"');
+  }
+}
 
 const STEP_ORDER: readonly SetupStep[] = ['agent', 'skills', 'rules', 'ready'];
 
@@ -38,8 +61,11 @@ interface Counts {
 
 @Injectable()
 export class ProjectsService {
+  private readonly logger = new Logger(ProjectsService.name);
+
   constructor(
     @Inject(DB) private readonly db: Db,
+    @Inject(ADAPTER_REGISTRY) private readonly registry: AdapterRegistry,
     @Inject(ProjectSchedules) private readonly schedules: ProjectSchedules,
   ) {}
 
@@ -92,11 +118,23 @@ export class ProjectsService {
     return this.toDto(row, counts.get(row.id));
   }
 
-  private async load(tx: Tx, projectId: string): Promise<ProjectRow> {
-    const rows = await tx.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+  private async load(tx: Tx, projectId: string, lock = false): Promise<ProjectRow> {
+    const q = tx.select().from(projects).where(eq(projects.id, projectId)).limit(1);
+    const rows = await (lock ? q.for('update') : q);
     const row = rows[0];
     if (!row) throw new NotFoundException('Project not found');
     return row;
+  }
+
+  /** Temporal work after the DB commit: a failure is logged (message only) and never fails the request. */
+  private async bestEffort(what: string, fn: () => Promise<void>, projectId: string): Promise<void> {
+    try {
+      await fn();
+    } catch (err) {
+      this.logger.warn(
+        `${what} failed for project ${projectId}: ${err instanceof Error ? err.message : 'unknown error'}`,
+      );
+    }
   }
 
   async list(org: OrgContext): Promise<ProjectDto[]> {
@@ -115,15 +153,23 @@ export class ProjectsService {
   }
 
   async create(org: OrgContext, body: CreateProjectRequest): Promise<ProjectDto> {
+    assertRepoPathShape(body.repoPath);
+    const conn = await withOrg(
+      this.db,
+      org.orgId,
+      async (tx) => (await tx.select().from(connections).where(eq(connections.id, body.connectionId)).limit(1))[0],
+    );
+    if (!conn) throw new NotFoundException('Connection not found');
+    // Provider call happens outside any transaction.
+    const accessible = await this.registry
+      .codeHost(Provider.parse(conn.provider))
+      .listRepos({ externalId: conn.externalId });
+    if (!accessible.some((r) => r.repoPath === body.repoPath)) {
+      throw repoPathProblem('repository is not accessible through this connection');
+    }
     let dto: ProjectDto;
     try {
       dto = await withOrg(this.db, org.orgId, async (tx) => {
-        const conn = await tx
-          .select({ id: connections.id })
-          .from(connections)
-          .where(eq(connections.id, body.connectionId))
-          .limit(1);
-        if (!conn[0]) throw new NotFoundException('Connection not found');
         const [row] = await tx
           .insert(projects)
           .values({
@@ -139,16 +185,14 @@ export class ProjectsService {
           })
           .returning();
         if (!row) throw new Error('project insert returned no row');
-        await tx
-          .insert(agents)
-          .values({
-            orgId: org.orgId,
-            projectId: row.id,
-            name: 'Claude',
-            model: 'sonnet',
-            maxTurns: 50,
-            timeoutSeconds: 1800,
-          });
+        await tx.insert(agents).values({
+          orgId: org.orgId,
+          projectId: row.id,
+          name: 'Claude',
+          model: 'sonnet',
+          maxTurns: 50,
+          timeoutSeconds: 1800,
+        });
         if (row.triggerMode === 'polling') {
           await tx.insert(pollCursors).values({ projectId: row.id, orgId: org.orgId, since: new Date() });
         }
@@ -158,13 +202,14 @@ export class ProjectsService {
       if (isUniqueViolation(err)) throw new ConflictException('This repository is already a project');
       throw err;
     }
-    await this.schedules.sync(org.orgId, dto);
+    await this.bestEffort('create schedule', () => this.schedules.sync(org.orgId, dto), dto.id);
     return dto;
   }
 
   async update(org: OrgContext, projectId: string, body: UpdateProjectRequest): Promise<ProjectDto> {
     const { before, dto } = await withOrg(this.db, org.orgId, async (tx) => {
-      const before = await this.load(tx, projectId);
+      // FOR UPDATE: the forward-only setupStep check below must not race a concurrent PATCH.
+      const before = await this.load(tx, projectId, true);
       const set: Partial<typeof projects.$inferInsert> = {};
       if (body.name !== undefined) set.name = body.name;
       if (body.triggerMode !== undefined) set.triggerMode = body.triggerMode;
@@ -194,12 +239,21 @@ export class ProjectsService {
       return { before, dto: await this.dtoOf(tx, after) };
     });
 
-    const modeChanged = dto.triggerMode !== before.triggerMode;
-    const intervalChanged = dto.pollIntervalSeconds !== before.pollIntervalSeconds;
-    if (modeChanged || (intervalChanged && dto.triggerMode === 'polling')) {
-      await this.schedules.sync(org.orgId, dto, { exists: before.triggerMode === 'polling' });
+    // Any explicit trigger setting re-syncs (idempotent), which also re-creates a missing schedule.
+    if (body.triggerMode !== undefined || body.pollIntervalSeconds !== undefined) {
+      await this.bestEffort(
+        'sync schedule',
+        () => this.schedules.sync(org.orgId, dto, { exists: before.triggerMode === 'polling' }),
+        projectId,
+      );
     }
-    if (body.maxConcurrentRuns !== undefined) await this.schedules.setLimit(projectId, dto.maxConcurrentRuns);
+    if (body.maxConcurrentRuns !== undefined) {
+      await this.bestEffort(
+        'set gate limit',
+        () => this.schedules.setLimit(projectId, dto.maxConcurrentRuns),
+        projectId,
+      );
+    }
     return dto;
   }
 
@@ -208,7 +262,7 @@ export class ProjectsService {
       await this.load(tx, projectId);
       await tx.delete(projects).where(eq(projects.id, projectId));
     });
-    await this.schedules.sync(org.orgId, { id: projectId, triggerMode: 'webhook', pollIntervalSeconds: 300 });
+    await this.bestEffort('delete schedule', () => this.schedules.remove(projectId), projectId);
   }
 
   async connection(org: OrgContext, projectId: string): Promise<ProjectConnectionDto> {

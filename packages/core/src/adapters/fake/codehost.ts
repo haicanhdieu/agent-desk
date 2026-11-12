@@ -29,10 +29,11 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     return `${this.publicOrigin}/api/connections/fake/callback?state=${encodeURIComponent(state)}`;
   }
 
-  async completeInstall(_params: Record<string, string>, _user: InstallUser): Promise<NewConnection> {
+  async completeInstall(_params: Record<string, string>, user: InstallUser): Promise<NewConnection> {
     return {
       provider: 'fake',
-      externalId: FAKE_EXTERNAL_ID,
+      // Org-specific so every org can install the fake provider (external ids are unique across orgs).
+      externalId: user.orgId ? `fake-${user.orgId}` : FAKE_EXTERNAL_ID,
       accountName: 'dev',
       capabilities: { code: true, board: true },
     };

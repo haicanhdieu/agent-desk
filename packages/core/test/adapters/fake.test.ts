@@ -222,3 +222,16 @@ describe('registry', () => {
     });
   });
 });
+
+describe('fake install external id', () => {
+  it('is org-specific so two orgs can both install', async () => {
+    const { FakeCodeHostAdapter } = await import('../../src/adapters/fake/codehost');
+    const { FakeStore } = await import('../../src/adapters/fake/store');
+    const { systemClock } = await import('../../src/clock');
+    const host = new FakeCodeHostAdapter(new FakeStore('/tmp/unused-fake-state', systemClock), systemClock, 'http://x');
+    const a = await host.completeInstall({}, { userId: 'u', orgId: 'org-a', linkedAccountToken: null });
+    const b = await host.completeInstall({}, { userId: 'u', orgId: 'org-b', linkedAccountToken: null });
+    expect(a.externalId).toBe('fake-org-a');
+    expect(b.externalId).toBe('fake-org-b');
+  });
+});

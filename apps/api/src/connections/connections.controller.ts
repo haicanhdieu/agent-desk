@@ -9,7 +9,7 @@ import { ConnectionsService } from './connections.service';
 
 const ProviderParam = new ZodPipe(Provider);
 const ConnectionIdParam = new ZodPipe(routes.connections.repos.params);
-const CallbackQuery = new ZodPipe(z.record(z.string(), z.union([z.string(), z.array(z.string())])));
+const CallbackQuery = new ZodPipe(z.record(z.string(), z.string()));
 
 /** Registered here (not in the route table): the provider redirects the browser to this path after install. */
 const CALLBACK_PATH = 'api/connections/:provider/callback';
@@ -31,12 +31,11 @@ export class ConnectionsController {
   @Get(CALLBACK_PATH)
   async callback(
     @Param('provider', ProviderParam) provider: Provider,
-    @Query(CallbackQuery) query: Record<string, string | string[]>,
+    @CurrentOrg() org: OrgContext,
+    @Query(CallbackQuery) params: Record<string, string>,
     @Res() reply: FastifyReply,
   ): Promise<void> {
-    const params: Record<string, string> = {};
-    for (const [k, v] of Object.entries(query)) if (typeof v === 'string') params[k] = v;
-    const location = await this.service.complete(provider, params);
+    const location = await this.service.complete(provider, params, org.userId);
     void reply.redirect(location, 302);
   }
 

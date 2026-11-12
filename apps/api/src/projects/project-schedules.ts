@@ -26,11 +26,7 @@ export class ProjectSchedules {
   async sync(orgId: string, project: ScheduledProject, opts: { exists?: boolean } = {}): Promise<void> {
     const scheduleId = pollScheduleId(project.id);
     if (project.triggerMode !== 'polling') {
-      try {
-        await this.client.schedule.getHandle(scheduleId).delete();
-      } catch (err) {
-        if (!(err instanceof ScheduleNotFoundError)) throw err;
-      }
+      await this.remove(project.id);
       return;
     }
     const every = project.pollIntervalSeconds * 1000;
@@ -63,6 +59,15 @@ export class ProjectSchedules {
     } catch (err) {
       if (!(err instanceof ScheduleAlreadyRunning)) throw err;
       await update();
+    }
+  }
+
+  /** Deletes the project's poll schedule; a missing schedule is fine. */
+  async remove(projectId: string): Promise<void> {
+    try {
+      await this.client.schedule.getHandle(pollScheduleId(projectId)).delete();
+    } catch (err) {
+      if (!(err instanceof ScheduleNotFoundError)) throw err;
     }
   }
 

@@ -29,8 +29,11 @@ export class FakeTemporalClient {
   readonly calls: FakeCall[] = [];
   /** When false, getSystemInfo rejects, so /readyz reports 503. */
   available = true;
+  /** When true, every workflow/schedule call rejects (nothing is recorded). */
+  failing = false;
 
   private record(call: FakeCall): void {
+    if (this.failing) throw new Error('temporal call failed (fake)');
     this.calls.push(call);
   }
 
@@ -89,5 +92,6 @@ export class FakeTemporalClient {
   reset(): void {
     this.calls.length = 0;
     this.available = true;
+    this.failing = false;
   }
 }
