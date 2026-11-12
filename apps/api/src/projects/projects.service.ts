@@ -164,9 +164,8 @@ export class ProjectsService {
     const accessible = await this.registry
       .codeHost(Provider.parse(conn.provider))
       .listRepos({ externalId: conn.externalId });
-    if (!accessible.some((r) => r.repoPath === body.repoPath)) {
-      throw repoPathProblem('repository is not accessible through this connection');
-    }
+    const repo = accessible.find((r) => r.repoPath === body.repoPath);
+    if (!repo) throw repoPathProblem('repository is not accessible through this connection');
     let dto: ProjectDto;
     try {
       dto = await withOrg(this.db, org.orgId, async (tx) => {
@@ -176,6 +175,7 @@ export class ProjectsService {
             orgId: org.orgId,
             name: body.name ?? body.repoPath,
             repoPath: body.repoPath,
+            defaultBranch: repo.defaultBranch,
             codeConnectionId: body.connectionId,
             boardConnectionId: body.connectionId,
             triggerMode: body.triggerMode,

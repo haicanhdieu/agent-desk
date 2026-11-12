@@ -3,6 +3,7 @@ export * from './clock';
 export * from './redact';
 export * from './adapters/types';
 export * from './adapters/registry';
+export * from './adapters/project';
 export { FakeStore, type PostedComment, type StoredTicket } from './adapters/fake/store';
 export { fakeSignature, FAKE_SIGNATURE_HEADER } from './adapters/fake/board';
 export * from './temporal-names';

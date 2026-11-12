@@ -11,6 +11,7 @@ import {
 import {
   SkillConflictError,
   SkillNotFoundError,
+  toAdapterProject,
   type AdapterProject,
   type AdapterRegistry,
   type CodeHostAdapter,
@@ -35,7 +36,12 @@ export class SkillsService {
   async codeHostFor(org: OrgContext, projectId: string): Promise<ProjectCodeHost> {
     const row = await withOrg(this.db, org.orgId, async (tx) => {
       const rows = await tx
-        .select({ repoPath: projects.repoPath, provider: connections.provider, externalId: connections.externalId })
+        .select({
+          repoPath: projects.repoPath,
+          defaultBranch: projects.defaultBranch,
+          provider: connections.provider,
+          externalId: connections.externalId,
+        })
         .from(projects)
         .innerJoin(connections, eq(connections.id, projects.codeConnectionId))
         .where(eq(projects.id, projectId))
@@ -45,7 +51,7 @@ export class SkillsService {
     if (!row) throw new NotFoundException('Project not found');
     return {
       host: this.registry.codeHost(Provider.parse(row.provider)),
-      project: { repoPath: row.repoPath, connectionExternalId: row.externalId },
+      project: toAdapterProject(row, row.externalId),
     };
   }
 

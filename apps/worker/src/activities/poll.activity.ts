@@ -3,6 +3,7 @@ import { Provider } from '@agentdesk/contracts';
 import {
   processTicketEvent,
   startRunWorkflow,
+  toAdapterProject,
   type AdapterProject,
   type AdapterRegistry,
   type Clock,
@@ -83,6 +84,7 @@ async function load(db: Db, input: PollInput, now: Date): Promise<Loaded | typeo
     const rows = await tx
       .select({
         repoPath: projects.repoPath,
+        defaultBranch: projects.defaultBranch,
         triggerMode: projects.triggerMode,
         pollIntervalSeconds: projects.pollIntervalSeconds,
         provider: connections.provider,
@@ -103,8 +105,7 @@ async function load(db: Db, input: PollInput, now: Date): Promise<Loaded | typeo
     if (!cursor) return NO_RUNNABLE_PROJECT;
     return {
       project: {
-        repoPath: row.repoPath,
-        connectionExternalId: row.externalId,
+        ...toAdapterProject(row, row.externalId),
         provider: Provider.parse(row.provider),
         pollIntervalSeconds: row.pollIntervalSeconds,
       },

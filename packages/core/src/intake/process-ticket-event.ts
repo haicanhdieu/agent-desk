@@ -14,7 +14,8 @@ import { Provider, RuleTarget } from '@agentdesk/contracts';
 import type { Clock } from '../clock';
 import { parseCommand } from '../router/parse-command';
 import { routeEvent, type RuleRow } from '../router/route-event';
-import type { AdapterProject, AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
+import type { AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
+import { toAdapterProject } from '../adapters/project';
 import { isUniqueViolation } from './pg-errors';
 import type { IntakeLogger } from './start-run';
 
@@ -167,6 +168,7 @@ async function decideInTx(
   const [proj] = await tx
     .select({
       repoPath: projects.repoPath,
+      defaultBranch: projects.defaultBranch,
       maxRunsPerTicket: projects.maxRunsPerTicket,
       boardProvider: connections.provider,
       boardExternalId: connections.externalId,
@@ -179,7 +181,7 @@ async function decideInTx(
 
   const provider = Provider.parse(proj.boardProvider);
   const board = deps.registry.board(provider);
-  const adapterProject: AdapterProject = { repoPath: proj.repoPath, connectionExternalId: proj.boardExternalId };
+  const adapterProject = toAdapterProject(proj, proj.boardExternalId);
 
   const ruleRows = await tx.select().from(rules).where(eq(rules.projectId, projectId));
   const ruleList: RuleRow[] = ruleRows.map((r) => ({
@@ -226,7 +228,13 @@ async function decideInTx(
   const refNumber = Number(event.ticketRef);
   const number = ticket?.number ?? (Number.isInteger(refNumber) ? refNumber : undefined);
   if (number === undefined && kind === 'pr') return finish('ignored_target', 'pull request number unknown');
-  const checkoutRef = deps.registry.codeHost(provider).checkoutRef({ kind, number: number ?? 0 });
+  const checkoutRef = deps.registry
+    .codeHost(provider)
+    .checkoutRef({
+      kind,
+      number: number ?? 0,
+      ...(proj.defaultBranch !== null ? { defaultBranch: proj.defaultBranch } : {}),
+    });
 
   try {
     // A savepoint: a unique violation must not abort the surrounding transaction.

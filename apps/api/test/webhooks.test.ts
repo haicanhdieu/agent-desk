@@ -5,7 +5,7 @@ import { runs, withOrg } from '@agentdesk/db';
 import { FAKE_SIGNATURE_HEADER, FakeStore, fakeSignature } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
-import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
+import { DEVELOP_REPO, freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
 let alice: string;
@@ -15,6 +15,7 @@ let orgId: string;
 let externalId: string;
 let admin: pg.Pool;
 let stateDir: string;
+let connectionId: string;
 
 beforeAll(async () => {
   stateDir = freshStateDir();
@@ -23,7 +24,8 @@ beforeAll(async () => {
   u.pathname = '/agentdesk';
   admin = new pg.Pool({ connectionString: u.toString() });
   alice = await loginAs(t, 'alice');
-  ({ projectId, repoPath } = await makeProject(t, alice, await installFake(t, alice)));
+  connectionId = await installFake(t, alice);
+  ({ projectId, repoPath } = await makeProject(t, alice, connectionId));
   orgId = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
   externalId = `fake-${orgId}`;
   await t.app.inject({
@@ -126,6 +128,41 @@ describe('POST /webhooks/:provider', () => {
     expect(again.statusCode).toBe(200);
     expect(again.json()).toEqual({ outcome: 'duplicate' });
     expect(t.temporal.callsOfKind('start')).toHaveLength(1);
+  });
+
+  it("an issue run checks out the repository's default branch recorded at project creation", async () => {
+    const created = await t.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: { cookie: alice },
+      payload: { connectionId, repoPath: DEVELOP_REPO, triggerMode: 'webhook' },
+    });
+    expect(created.statusCode).toBe(201);
+    const devProjectId = (created.json() as { id: string }).id;
+    await t.app.inject({
+      method: 'PUT',
+      url: `/api/projects/${devProjectId}/skills/fix`,
+      headers: { cookie: alice },
+      payload: { body: 'x', message: 'm' },
+    });
+    const rule = await t.app.inject({
+      method: 'POST',
+      url: `/api/projects/${devProjectId}/rules`,
+      headers: { cookie: alice },
+      payload: { command: 'fix', labelFilter: [], target: 'any', skillName: 'fix', enabled: true },
+    });
+    expect(rule.statusCode).toBe(201);
+    await new FakeStore(stateDir).addTicket({
+      repoPath: DEVELOP_REPO,
+      number: 3,
+      kind: 'issue',
+      title: 'T',
+      labels: [],
+    });
+    const res = await webhook({ repoPath: DEVELOP_REPO, ticketRef: '3' }).send();
+    expect(res.statusCode).toBe(202);
+    const [row] = await withOrg(t.db, orgId, (tx) => tx.select().from(runs).where(eq(runs.projectId, devProjectId)));
+    expect(row?.checkoutRef).toBe('develop');
   });
 
   it('Temporal down: still 202, run stays queued without workflow_id', async () => {

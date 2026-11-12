@@ -3,6 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { TestApp } from './app';
 
+/** Listed by `wideFakeRepos` with default branch `develop` (every other repo uses `main`). */
+export const DEVELOP_REPO = 'dev/on-develop';
+
 /** A test app whose fake provider lists any repo (so projects can be created for arbitrary repoPaths). */
 export const wideFakeRepos = (
   real: import('@agentdesk/core').AdapterRegistry,
@@ -12,8 +15,10 @@ export const wideFakeRepos = (
     const host = real.codeHost(provider);
     if (provider !== 'fake') return host;
     return Object.assign(Object.create(host), {
-      listRepos: async () =>
-        Array.from({ length: 50 }, (_, i) => ({ repoPath: `dev/p-${i}`, private: false, defaultBranch: 'main' })),
+      listRepos: async () => [
+        ...Array.from({ length: 50 }, (_, i) => ({ repoPath: `dev/p-${i}`, private: false, defaultBranch: 'main' })),
+        { repoPath: DEVELOP_REPO, private: false, defaultBranch: 'develop' },
+      ],
     });
   },
 });

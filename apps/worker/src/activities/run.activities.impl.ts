@@ -15,6 +15,7 @@ import {
   runJobName,
   runLabels,
   runPodConfigFrom,
+  toAdapterProject,
   type AdapterProject,
   type AdapterRegistry,
   type Clock,
@@ -217,6 +218,7 @@ interface RunDetails {
   startedAt: Date | null;
   finishedAt: Date | null;
   repoPath: string;
+  defaultBranch: string | null;
   orgSlug: string | null;
   code: { provider: string; externalId: string };
   board: { provider: string; externalId: string };
@@ -248,6 +250,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         startedAt: runs.startedAt,
         finishedAt: runs.finishedAt,
         repoPath: projects.repoPath,
+        defaultBranch: projects.defaultBranch,
         codeProvider: code.provider,
         codeExternalId: code.externalId,
         boardProvider: board.provider,
@@ -277,6 +280,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       startedAt: r.startedAt,
       finishedAt: r.finishedAt,
       repoPath: r.repoPath,
+      defaultBranch: r.defaultBranch,
       orgSlug: o?.slug ?? null,
       code: { provider: r.codeProvider, externalId: r.codeExternalId },
       board: { provider: r.boardProvider, externalId: r.boardExternalId },
@@ -366,7 +370,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     const cred = await credentialEnv(ctx);
     if (!cred) throw ApplicationFailure.nonRetryable('the agent has no credential set');
     const name = runJobName(ctx.runId);
-    const project: AdapterProject = { repoPath: d.repoPath, connectionExternalId: d.code.externalId };
+    const project: AdapterProject = toAdapterProject(d, d.code.externalId);
     let known = secretValues(cred);
     try {
       const codeHost = deps.adapters.codeHost(providerOf(d.code.provider));
@@ -463,11 +467,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     let commentId: string;
     try {
       const board = deps.adapters.board(providerOf(d.board.provider));
-      commentId = await board.comment(
-        { repoPath: d.repoPath, connectionExternalId: d.board.externalId },
-        d.ticketRef,
-        text,
-      );
+      commentId = await board.comment(toAdapterProject(d, d.board.externalId), d.ticketRef, text);
     } catch (err) {
       throw safeError(err, secrets, `post ${kind} comment`);
     }

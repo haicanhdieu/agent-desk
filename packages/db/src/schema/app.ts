@@ -56,6 +56,8 @@ export const projects = pgTable(
     orgId: uuid('org_id').notNull(),
     name: text('name').notNull(),
     repoPath: text('repo_path').notNull(),
+    /** The repository's default branch as the code host reported it at project creation; issue runs check it out. */
+    defaultBranch: text('default_branch'),
     codeConnectionId: uuid('code_connection_id')
       .notNull()
       .references(() => connections.id),
