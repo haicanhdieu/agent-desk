@@ -48,7 +48,7 @@ Runtime dependencies: Postgres (app database), Temporal server (its own database
 
 ### 4.1 Tables
 
-better-auth owns `user`, `session`, `account` (one row per IdP identity), `organization`, `member` (role `owner` | `member`), and `invitation` (unused in the PoC) through its Drizzle adapter and organization plugin. On first sign-in a hook creates a personal organization with the user as `owner`; the session carries `activeOrganizationId`.
+better-auth owns `user`, `session`, `account` (one row per IdP identity), `organization`, `member` (role `owner` | `member`), and `invitation` (unused in the PoC) through its Drizzle adapter and organization plugin. On first sign-in a hook creates a personal organization with the user as `owner` and a slug from the user's handle (suffix on collision; the web app routes by slug); the session carries `activeOrganizationId`.
 
 Application tables (every one has `org_id uuid not null` unless noted):
 
@@ -58,7 +58,7 @@ Application tables (every one has `org_id uuid not null` unless noted):
 | `projects` | id, org_id, name, repo_path, code_connection_id, board_connection_id, trigger_mode (`webhook`, `polling`), poll_interval_seconds, max_concurrent_runs, max_runs_per_ticket, created_by | `repo_path` is `owner/repo`, `group/subgroup/repo` or `workspace/repo`. `poll_interval_seconds` ∈ {300, 600, 900, 1800} |
 | `agents` | id, org_id, project_id, name, provider (`claude`), model, credential_secret_name, max_turns, timeout_seconds | `timeout_seconds` ≤ 3300. Credential value only in a Kubernetes Secret |
 | `rules` | id, org_id, project_id, command, label_filter[], target (`issue`, `pr`, `any`), agent_id, skill_name, enabled | Unique on (project_id, command) |
-| `runs` | id, org_id, project_id, rule_id, agent_id, skill_name, ticket_ref (text), ticket_kind, checkout_ref, args, status, workflow_id, job_name, trigger_source (`webhook`, `polling`, `manual`), trigger_comment_id (text), inbound_event_id, triggered_by, queued_at, started_at, finished_at, exit_code, failure_reason, cost_usd, outbox (jsonb) | Unique on (project_id, trigger_comment_id). `outbox` records which comments were posted, for idempotency |
+| `runs` | id, number, org_id, project_id, rule_id, agent_id, skill_name, ticket_ref (text), ticket_kind, checkout_ref, args, status, workflow_id, job_name, trigger_source (`webhook`, `polling`, `manual`), trigger_comment_id (text), inbound_event_id, triggered_by, queued_at, started_at, finished_at, exit_code, failure_reason, cost_usd, outbox (jsonb) | Unique on (project_id, trigger_comment_id) and (project_id, number). `number` is a per-project sequence assigned on insert, shown as "Run 62" and used in web URLs. `outbox` records which comments were posted, for idempotency |
 | `run_events` | org_id, run_id, seq, ts, type, payload (jsonb) | Primary key (run_id, seq). Lifecycle lines and final scrollback in the PoC |
 | `inbound_events` | id, provider, channel (`webhook`, `poll`), delivery_id (text), comment_id (text), org_id (nullable), project_id (nullable), received_at, event, action, outcome | Dedupe and debugging. `org_id` filled once the project is resolved. Unique on (provider, delivery_id) |
 | `poll_cursors` | org_id, project_id, since, etag, last_polled_at, last_error, next_poll_at, paused_reason | Primary key (project_id) |
@@ -169,7 +169,7 @@ A daily Schedule lists Jobs in `agentdesk-runs` by label `agentdesk/run-id` and 
 
 ### 7.1 Contracts
 
-`packages/contracts` holds a Zod schema for every request and response and the shared enums (run status, trigger mode, provider, ticket kind). The api uses them through `nestjs-zod` for validation and DTOs; the OpenAPI document is generated from them at `/api/docs`. `apps/web` imports the schemas and a typed `fetch` client from this package (wired in the frontend spec). Errors are RFC 9457 `application/problem+json`.
+`packages/contracts` holds a Zod schema for every request and response and the shared enums (run status, trigger mode, provider, ticket kind). The api uses them through `nestjs-zod` for validation and DTOs; the OpenAPI document is generated from them at `/api/docs`. `apps/web` imports the schemas and a typed `fetch` client from this package (wired in the frontend spec). Errors are RFC 9457 `application/problem+json`; validation failures carry `errors[]` of `{ pointer, detail }` (JSON Pointer into the request body). Every response carries an `x-request-id` header.
 
 ### 7.2 Routes
 
@@ -183,8 +183,9 @@ A daily Schedule lists Jobs in `agentdesk-runs` by label `agentdesk/run-id` and 
 | `PUT /api/projects/{id}/agent` · `PUT /api/agents/{id}/credential` | Agent settings; credential written to Kubernetes Secret `org-{orgId}-agent-{agentId}`, never stored in Postgres or returned |
 | `GET /api/projects/{id}/skills` · `GET, PUT, DELETE /api/projects/{id}/skills/{name}` | Skills through `CodeHostAdapter` |
 | `GET, POST /api/projects/{id}/rules` · `PATCH, DELETE /api/rules/{id}` | Rule CRUD |
-| `GET /api/projects/{id}/runs` · `GET /api/runs/{id}` | Run list and detail |
-| `GET /api/runs/{id}/events?after={seq}` | SSE |
+| `GET /api/projects/{id}/runs` · `GET /api/projects/{id}/runs/{number}` · `GET /api/runs/{id}` | Run list and detail (by per-project number or id) |
+| `GET /api/runs/{id}/events?after={seq}` | SSE for one run |
+| `GET /api/projects/{id}/events` | SSE of run status changes in the project (runs list, needs-you count) |
 | `POST /api/runs/{id}/cancel` · `POST /api/runs/{id}/finish` | Signals to `RunWorkflow` |
 | `GET /api/runs/{id}/terminal` | Terminal WebSocket |
 | `POST /api/projects/{id}/runs` | Manual run (P1) |
@@ -198,12 +199,13 @@ Every `/api/*` route requires a session and runs under `withOrg(activeOrganizati
 
 ### 7.4 SSE
 
-`GET /api/runs/{id}/events?after={seq}` sends the current status and the `run_events` backlog after `seq`, then live updates. Each api replica holds one dedicated `LISTEN run_status` connection; a notification carries only `(orgId, runId, seq)`, so the replica re-reads under `withOrg` and never trusts the payload. Heartbeat comment every 15 s.
+`GET /api/runs/{id}/events?after={seq}` sends the current status and the `run_events` backlog after `seq`, then live updates. Each event's `id` is its `seq`, and a `Last-Event-ID` request header is treated as `after`. `GET /api/projects/{id}/events` sends `{ runId, number, status, seq }` for each status change in the project, from the same notifications. Each api replica holds one dedicated `LISTEN run_status` connection; a notification carries only `(orgId, runId, seq)`, so the replica re-reads under `withOrg` and never trusts the payload. Heartbeat comment every 15 s.
 
 ### 7.5 Terminal relay
 
+- Frames: binary both ways for terminal bytes; resize from the browser is the text frame `{"type":"resize","cols":c,"rows":r}`. Close codes: 4401 not signed in, 4403 not allowed, 4409 run not `running` or `idle`.
 - Authorization: session, org member, and project creator or org owner (the PoC "project owner" rule mapped to orgs). The run must be `running` or `idle`.
-- `@kubernetes/client-node` `Exec` of `tmux attach -t agent` with `tty` and `stdin`; bytes relayed both ways. Resize from the browser is written to channel 4 as `{"Width":w,"Height":h}`.
+- `@kubernetes/client-node` `Exec` of `tmux attach -t agent` with `tty` and `stdin`; bytes relayed both ways. Resize frames are written to channel 4 as `{"Width":w,"Height":h}`.
 - On connect and disconnect the api signals `terminalAttached` / `terminalDetached`. The first input after a turn signals `resumed`, at most once per 5 s.
 - The control plane holds the Kubernetes credentials; the browser never gets them.
 
@@ -239,7 +241,7 @@ Local development: `pnpm dev` starts docker compose (Postgres; Temporal dev serv
 
 In scope: `apps/api`, `apps/worker`, `packages/contracts`, `packages/db`; moving `web/` to `apps/web` inside the workspace with no screen changes; docker compose for local dependencies; the runner contract in section 8.
 
-Out of scope: wiring screens to the API (frontend spec); runner image, Kustomize manifests, Temporal and Postgres in Kubernetes, NetworkPolicy, CI (infra spec); org invitations and switching UI; identity providers other than GitHub; providers other than GitHub; structured stream (approach B); token refresh for runs longer than 55 minutes.
+Out of scope: wiring screens to the API (`2026-11-12-frontend-design.md`); runner image, Kustomize manifests, Temporal and Postgres in Kubernetes, NetworkPolicy, CI (infra spec); org invitations and switching UI; identity providers other than GitHub; providers other than GitHub; structured stream (approach B); token refresh for runs longer than 55 minutes.
 
 Build order, each step leaving the system working and tested:
 
