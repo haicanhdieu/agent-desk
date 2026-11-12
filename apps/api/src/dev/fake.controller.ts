@@ -117,6 +117,9 @@ export class FakeController {
   ): Promise<{ commentId: string; outcome: string; runId?: string }> {
     this.assertEnabled();
     const ticketRef = String(body.ticketNumber);
+    // Resolve the project first so a bad projectId leaves no orphan comment behind.
+    const externalId =
+      body.deliver === 'webhook' ? await this.connectionExternalId(body.repoPath, body.projectId) : undefined;
     const comment = await this.store.addComment({
       repoPath: body.repoPath,
       ticketRef,
@@ -125,9 +128,8 @@ export class FakeController {
       authorAssociation: body.authorAssociation,
     });
     // Polled comments are picked up by the project's poller, as on a real board.
-    if (body.deliver === 'poll') return { commentId: comment.id, outcome: 'queued_for_poll' };
+    if (externalId === undefined) return { commentId: comment.id, outcome: 'queued_for_poll' };
 
-    const externalId = await this.connectionExternalId(body.repoPath, body.projectId);
     const ticket = await this.store.getTicket(body.repoPath, body.ticketNumber);
     const payload = Buffer.from(
       JSON.stringify({

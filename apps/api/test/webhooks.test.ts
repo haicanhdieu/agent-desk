@@ -168,6 +168,34 @@ describe('POST /webhooks/:provider', () => {
     expect(res.statusCode).toBe(413);
   });
 
+  it('a declared Content-Length over the limit is rejected up front', async () => {
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/webhooks/fake',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': '2000000',
+        [FAKE_SIGNATURE_HEADER]: 'a'.repeat(64),
+      },
+      payload: '{}',
+    });
+    expect(res.statusCode).toBe(413);
+  });
+
+  it('a routing error is a 200 with outcome error (no provider retry storm)', async () => {
+    const rule = await t.app.inject({
+      method: 'POST',
+      url: `/api/projects/${projectId}/rules`,
+      headers: { cookie: alice },
+      payload: { command: 'lbl', labelFilter: ['bug'], target: 'any', skillName: 'fix', enabled: true },
+    });
+    expect(rule.statusCode).toBe(201);
+    // ticket 4040 does not exist on the fake board, so fetching its labels fails
+    const res = await webhook({ body: '/lbl', ticketRef: '4040' }).send();
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ outcome: 'error' });
+  });
+
   it('JSON parsing elsewhere is unaffected', async () => {
     const res = await t.app.inject({
       method: 'POST',

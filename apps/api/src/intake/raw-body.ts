@@ -28,6 +28,8 @@ export function captureWebhookRawBody(fastify: FastifyInstance): void {
   fastify.addHook('preParsing', async (req, _reply, payload) => {
     const path = req.url.split('?')[0] ?? '';
     if (!path.startsWith(WEBHOOK_PATH_PREFIX)) return payload;
+    const declared = Number(req.headers['content-length']);
+    if (Number.isFinite(declared) && declared > WEBHOOK_BODY_LIMIT) throw new PayloadTooLarge();
     const chunks: Buffer[] = [];
     let size = 0;
     for await (const chunk of payload) {

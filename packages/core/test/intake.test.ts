@@ -6,7 +6,14 @@ import { eq, sql } from 'drizzle-orm';
 import { agents, connections, createDb, inboundEvents, projects, rules, runs, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { AdapterRegistry, BoardAdapter, CodeHostAdapter, Ticket, TicketEvent } from '../src';
-import { processTicketEvent, startRunWorkflow, sweepOutbox, type IntakeDeps, type WorkflowStarter } from '../src';
+import {
+  isUniqueViolation,
+  processTicketEvent,
+  startRunWorkflow,
+  sweepOutbox,
+  type IntakeDeps,
+  type WorkflowStarter,
+} from '../src';
 
 let pgServer: TestPg;
 let db: Db;
@@ -87,8 +94,8 @@ const ticket = (n: number): Ticket => ({
   labels: [{ name: 'bug', color: 'ff0000' }],
 });
 
-function harness(over: Partial<IntakeDeps> = {}) {
-  const getTicket = vi.fn(async (_p: unknown, ref: string) => ticket(Number(ref)));
+function harness(over: Partial<IntakeDeps> = {}, getTicketImpl?: (ref: string) => Promise<Ticket>) {
+  const getTicket = vi.fn(async (_p: unknown, ref: string) => (getTicketImpl ?? (async (r) => ticket(Number(r))))(ref));
   const board = { getTicket } as unknown as BoardAdapter; // only getTicket is exercised by the intake
   const host = {
     checkoutRef: (t: { kind: string; number: number }) => (t.kind === 'pr' ? `refs/pull/${t.number}/head` : 'main'),
@@ -276,6 +283,70 @@ describe('processTicketEvent', () => {
   });
 });
 
+describe('processTicketEvent races and errors', () => {
+  it('same comment, different deliveries, concurrently: exactly one run (20 rounds, both channel mixes)', async () => {
+    const s = await seed();
+    const h = harness();
+    for (let i = 0; i < 20; i += 1) {
+      const commentId = `race-${i}`;
+      const a = eventFor(s, { commentId, ticketRef: String(500 + i) });
+      const b = eventFor(s, { commentId, ticketRef: String(500 + i) });
+      const channels: ['webhook' | 'poll', 'webhook' | 'poll'] =
+        i % 2 === 0 ? ['webhook', 'poll'] : ['webhook', 'webhook'];
+      const results = await Promise.all([
+        processTicketEvent(h.deps, a, channels[0]),
+        processTicketEvent(h.deps, b, channels[1]),
+      ]);
+      expect(results.map((r) => r.outcome).sort(), `round ${i}`).toEqual(['duplicate_comment', 'run_created']);
+    }
+    expect(await runsOf(s)).toHaveLength(20);
+    expect(h.startRun).toHaveBeenCalledTimes(20);
+  });
+
+  it('isUniqueViolation only matches the named constraint when one is given', () => {
+    const err = (constraint: string) => Object.assign(new Error('x'), { cause: { code: '23505', constraint } });
+    expect(isUniqueViolation(err('runs_project_trigger_comment_key'), 'runs_project_trigger_comment_key')).toBe(true);
+    expect(isUniqueViolation(err('runs_project_number_key'), 'runs_project_trigger_comment_key')).toBe(false);
+    expect(isUniqueViolation(err('runs_project_number_key'))).toBe(true);
+    expect(isUniqueViolation(new Error('nope'))).toBe(false);
+  });
+
+  it('a routing error is recorded as outcome error (name only), creates no run, and does not throw', async () => {
+    const s = await seed({ labelFilter: ['bug'] });
+    const log = { warn: vi.fn() };
+    const h = harness({ log }, async () => {
+      throw new TypeError('secret detail that must not be stored');
+    });
+    const e = eventFor(s);
+    expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'error' });
+    const rows = await inboundOf(s);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ outcome: 'error', detail: 'TypeError', author: 'alice', ticketRef: '7' });
+    expect(JSON.stringify(rows[0])).not.toContain('secret detail');
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(h.startRun).not.toHaveBeenCalled();
+    expect(log.warn).toHaveBeenCalledWith(
+      { deliveryId: e.deliveryId, projectId: s.projectId, err: 'TypeError' },
+      expect.any(String),
+    );
+    // a different delivery of the same comment (the poller) can still create the run once the board recovers
+    const retry = harness();
+    expect((await processTicketEvent(retry.deps, eventFor(s, { commentId: e.commentId }), 'poll')).outcome).toBe(
+      'run_created',
+    );
+  });
+
+  it('a pull request without a known number is not run against refs/pull/0/head', async () => {
+    const s = await seed();
+    const h = harness({}, async () => {
+      throw new Error('board unavailable');
+    });
+    const r = await processTicketEvent(h.deps, eventFor(s, { ticketRef: 'abc', ticketKind: 'pr' }), 'webhook');
+    expect(r.outcome).toBe('ignored_target');
+    expect(await runsOf(s)).toHaveLength(0);
+  });
+});
+
 describe('startRunWorkflow and sweepOutbox', () => {
   const starter = (impl: WorkflowStarter['start']) => {
     const start = vi.fn(impl);
@@ -312,6 +383,15 @@ describe('startRunWorkflow and sweepOutbox', () => {
     });
     expect((await runsOf(s))[0]?.workflowId).toBe(`run-${r.runId}`);
     expect(await sweepOutbox({ db, starter: ok.starter })).toBe(0);
+  });
+
+  it('a failing workflow_id update is logged, not thrown', async () => {
+    const ok = starter(async () => ({}));
+    const log = { warn: vi.fn() };
+    // a db whose transactions fail; only withOrg's db.orm.transaction is reached
+    const broken = { orm: { transaction: async () => Promise.reject(new Error('db down')) } } as unknown as Db;
+    expect(await startRunWorkflow(ok.starter, broken, randomUUID(), randomUUID(), log)).toBe(true);
+    expect(log.warn).toHaveBeenCalledTimes(1);
   });
 
   it('treats WorkflowExecutionAlreadyStarted as success and records workflow_id', async () => {

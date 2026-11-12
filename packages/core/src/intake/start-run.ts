@@ -40,6 +40,11 @@ export async function startRunWorkflow(
       return false;
     }
   }
-  await withOrg(db, orgId, (tx) => tx.update(runs).set({ workflowId }).where(eq(runs.id, runId)));
+  try {
+    await withOrg(db, orgId, (tx) => tx.update(runs).set({ workflowId }).where(eq(runs.id, runId)));
+  } catch (err) {
+    // The workflow is running; the sweep would only re-issue an already-started start.
+    log?.warn({ runId, err: err instanceof Error ? err.name : 'unknown' }, 'recording workflow id failed');
+  }
   return true;
 }

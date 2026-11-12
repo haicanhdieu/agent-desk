@@ -38,6 +38,8 @@ export interface IntakeResult {
 }
 
 const FINAL_STATUSES = ['succeeded', 'failed', 'cancelled', 'timed_out'];
+/** Unique constraint on runs (project_id, trigger_comment_id). */
+const RUN_COMMENT_UNIQUE = 'runs_project_trigger_comment_key';
 const MAX_COMMAND_COLUMN = 100;
 
 /** The command column of an inbound row: the parsed command, else the (truncated) first line that failed to parse. */
@@ -124,11 +126,35 @@ async function routeInTx(
     .returning({ id: inboundEvents.id });
   if (!inserted) return { outcome: 'duplicate' };
   const inboundId = inserted.id;
+  try {
+    // A savepoint: a routing failure must not take the already-written delivery row down with it.
+    return await tx.transaction((sp) => decideInTx(deps, sp, event, channel, target, inboundId));
+  } catch (err) {
+    const name = err instanceof Error ? err.name : 'UnknownError';
+    deps.log?.warn({ deliveryId: event.deliveryId, projectId, err: name }, 'intake routing failed');
+    // Error name only: messages can echo row values or provider payloads.
+    await tx.update(inboundEvents).set({ outcome: 'error', detail: name }).where(eq(inboundEvents.id, inboundId));
+    return { outcome: 'error' };
+  }
+}
 
+async function decideInTx(
+  deps: IntakeDeps,
+  tx: Tx,
+  event: TicketEvent,
+  channel: IntakeChannel,
+  target: { orgId: string; projectId: string },
+  inboundId: string,
+): Promise<IntakeResult> {
+  const { orgId, projectId } = target;
   const finish = async (outcome: string, detail: string | null = null): Promise<IntakeResult> => {
     await tx.update(inboundEvents).set({ outcome, detail }).where(eq(inboundEvents.id, inboundId));
     return { outcome };
   };
+
+  // Serialise deliveries of the same comment: the loser waits here until the winner commits, then sees its run below
+  // (otherwise its guards could see the winner's fresh run first and report ignored_active_run).
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${projectId}:${event.commentId}`}, 0))`);
 
   // The same comment may arrive through both channels under different delivery ids.
   const [sameComment] = await tx
@@ -199,6 +225,7 @@ async function routeInTx(
   if (!kind) return finish('ignored_target', 'ticket kind unknown');
   const refNumber = Number(event.ticketRef);
   const number = ticket?.number ?? (Number.isInteger(refNumber) ? refNumber : undefined);
+  if (number === undefined && kind === 'pr') return finish('ignored_target', 'pull request number unknown');
   const checkoutRef = deps.registry.codeHost(provider).checkoutRef({ kind, number: number ?? 0 });
 
   try {
@@ -234,7 +261,7 @@ async function routeInTx(
     await tx.update(inboundEvents).set({ outcome: 'run_created' }).where(eq(inboundEvents.id, inboundId));
     return { outcome: 'run_created', runId: run.id };
   } catch (err) {
-    if (!isUniqueViolation(err)) throw err;
+    if (!isUniqueViolation(err, RUN_COMMENT_UNIQUE)) throw err;
     return finish('duplicate_comment', 'a run already exists for this comment');
   }
 }
