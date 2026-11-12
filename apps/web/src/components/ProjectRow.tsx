@@ -38,9 +38,9 @@ export function ProjectRow({ project: p, href, onMore, switchToPollingHref = '#'
             )}
           </>
         )}
-        {tone === 'fail' && (
+        {tone === 'err' && (
           <InlineStatus
-            tone="fail"
+            tone="err"
             icon={<span title="status: failed" className={styles.glyph}><StatusIcon status="failed" size={12} title="status: failed" /></span>}
           >
             {text}

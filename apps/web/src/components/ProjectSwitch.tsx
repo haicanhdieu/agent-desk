@@ -24,7 +24,7 @@ export interface ProjectMenuProps {
     /** Short connection warning, e.g. "webhooks" (silent webhook) or "polling" (polling failed). */
     warning?: string;
     /** idle (amber) for a silent webhook, fail (red) for a polling error. */
-    warningTone?: 'idle' | 'fail';
+    warningTone?: 'idle' | 'err';
     current?: boolean;
     href: string;
   }[];

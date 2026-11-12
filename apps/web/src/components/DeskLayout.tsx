@@ -11,7 +11,7 @@ export interface DeskLayoutProps {
     branch: string;
     connected: boolean;
     /** Connection status line. Defaults to "Connected" when `connected` is set. */
-    status?: { tone: 'ok' | 'warn' | 'fail'; text: string };
+    status?: { tone: 'ok' | 'warn' | 'err'; text: string };
   };
   children?: ReactNode;
 }
@@ -45,7 +45,7 @@ export function DeskLayout({ active, repo, children }: DeskLayoutProps) {
                 </span>
                 {status?.tone === 'ok' && <span className={styles.connected}><StatusIcon status="succeeded" size={12} /><span className="muted">{status.text}</span></span>}
                 {status && status.tone !== 'ok' && (
-                  <InlineStatus tone={status.tone === 'fail' ? 'fail' : 'idle'} icon={<Icon name="warning" size={12} />}>{status.text}</InlineStatus>
+                  <InlineStatus tone={status.tone === 'err' ? 'err' : 'idle'} icon={<Icon name="warning" size={12} />}>{status.text}</InlineStatus>
                 )}
               </>
             ),

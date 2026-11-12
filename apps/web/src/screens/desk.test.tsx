@@ -180,7 +180,7 @@ describe('DeskAgent', () => {
   it('a polling project starts in polling mode and shows its status in the side nav', () => {
     render(<DeskAgent settings={agentSettings} github={github} connection={connections.pollingRevoked} />);
     expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
-    expect(screen.getByText('Polling failed: token revoked').closest('.inline-status')).toHaveClass('fail');
+    expect(screen.getByText('Polling failed: token revoked').closest('.inline-status')).toHaveClass('err');
   });
 
   it('replacingCredential shows an empty New token password input and Test and replace', () => {

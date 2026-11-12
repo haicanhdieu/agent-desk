@@ -15,3 +15,6 @@ export const statusTokens: Record<RunStatus, { label: string; colorVar: string }
   cancelled: { label: 'Cancelled', colorVar: '--off' },
   timed_out: { label: 'Timed out', colorVar: '--late' },
 };
+
+/** Shared tone vocabulary for banners and inline status text. */
+export type StatusTone = 'ok' | 'warn' | 'err' | 'late' | 'off' | 'idle';

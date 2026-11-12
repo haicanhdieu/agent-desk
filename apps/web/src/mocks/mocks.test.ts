@@ -52,12 +52,12 @@ describe('mock fixtures', () => {
 
   it('gives each project a trigger mode and a status that fits it', () => {
     expect(projects.map((p) => [p.connection.mode, p.connection.tone])).toEqual([
-      ['webhook', 'ok'], ['polling', 'ok'], ['webhook', 'warn'], ['polling', 'fail'],
+      ['webhook', 'ok'], ['polling', 'ok'], ['webhook', 'warn'], ['polling', 'err'],
     ]);
     // Only a webhook can go silent; only polling can fail a check.
     for (const c of Object.values(connections)) {
       if (c.tone === 'warn') expect(c.mode).toBe('webhook');
-      if (c.tone === 'fail') expect(c.mode).toBe('polling');
+      if (c.tone === 'err') expect(c.mode).toBe('polling');
     }
   });
 
@@ -93,7 +93,7 @@ describe('mock fixtures', () => {
     expect(rules.find((r) => r.command === 'qa-e2e')).toMatchObject({ enabled: false, labels: ['needs-qa'], stats: 'Turned off 3 Nov' });
     expect(ignored[0]).toMatchObject({ at: '14:16', author: 'octo-visitor', reason: 'Author has no write access' });
     expect(ignored[4]).toMatchObject({ command: '/deploy', reason: 'No rule for command' });
-    expect(agentSettings.credential).toMatchObject({ setAt: '12 Oct 2026', setBy: 'kim-hale', status: { tone: 'fail', text: 'Rejected at 11:29' } });
+    expect(agentSettings.credential).toMatchObject({ setAt: '12 Oct 2026', setBy: 'kim-hale', status: { tone: 'err', text: 'Rejected at 11:29' } });
     expect(terminalByRun[61][0]).toEqual([
       { text: 'agent-desk runner 0.4.1', tone: 'accent' },
       { text: '  run 61  ·  harbor-labs/invoicer-api', tone: 'dim' },

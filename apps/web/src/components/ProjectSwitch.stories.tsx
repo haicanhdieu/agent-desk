@@ -32,7 +32,7 @@ export const MenuWithPolling: Story = {
         items={[
           { name: 'invoicer-api', needsYou: 1, current: true, href: '#' },
           { name: 'invoicer-web', needsYou: 0, href: '#' },
-          { name: 'docs-site', needsYou: 0, warning: connectionCopy.menuWarning.polling, warningTone: 'fail', href: '#' },
+          { name: 'docs-site', needsYou: 0, warning: connectionCopy.menuWarning.polling, warningTone: 'err', href: '#' },
           { name: 'billing-jobs', needsYou: 0, warning: connectionCopy.menuWarning.webhook, href: '#' },
         ]}
       />

@@ -11,9 +11,9 @@ function Gallery() {
         <InlineStatus tone="ok" icon={<Icon name="check" />}>Connected</InlineStatus>
         <InlineStatus tone="ok" icon={<Icon name="check" />}>Installed on harbor-labs</InlineStatus>
         <InlineStatus tone="warn" icon={<Icon name="warning" />}>No webhooks for 2 days</InlineStatus>
-        <InlineStatus tone="fail" icon={<Icon name="x" />}>Rejected at 11:29</InlineStatus>
+        <InlineStatus tone="err" icon={<Icon name="x" />}>Rejected at 11:29</InlineStatus>
         <InlineStatus tone="idle" icon={<Icon name="pause" />}>Timer paused</InlineStatus>
-        <InlineStatus tone="muted" icon={<Icon name="clock" />}>Waiting</InlineStatus>
+        <InlineStatus tone="off" icon={<Icon name="clock" />}>Waiting</InlineStatus>
       </section>
     </div>
   );

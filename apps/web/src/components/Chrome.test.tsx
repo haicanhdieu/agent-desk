@@ -155,11 +155,11 @@ describe('ProjectMenu', () => {
       <ProjectMenu
         items={[
           { name: 'docs-site', needsYou: 0, warning: 'webhooks', href: '/c' },
-          { name: 'billing-jobs', needsYou: 0, warning: 'polling', warningTone: 'fail', href: '/d' },
+          { name: 'billing-jobs', needsYou: 0, warning: 'polling', warningTone: 'err', href: '/d' },
         ]}
       />,
     );
     expect(screen.getByText('webhooks').closest('.inline-status')).toHaveClass('idle');
-    expect(screen.getByText('polling').closest('.inline-status')).toHaveClass('fail');
+    expect(screen.getByText('polling').closest('.inline-status')).toHaveClass('err');
   });
 });

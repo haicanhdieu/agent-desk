@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
+import type { StatusTone } from './tokens';
 import styles from './Chips.module.css';
 
 export interface InlineStatusProps {
-  tone: 'ok' | 'warn' | 'fail' | 'idle' | 'muted';
+  tone: StatusTone;
   icon?: ReactNode;
   children: ReactNode;
 }

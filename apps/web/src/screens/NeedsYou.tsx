@@ -45,7 +45,7 @@ export function NeedsYou({ project, projects }: NeedsYouProps) {
                 name: p.name,
                 needsYou: p.needsYou,
                 warning: menuWarning(p.connection),
-                warningTone: p.connection.tone === 'fail' ? 'fail' : 'idle',
+                warningTone: p.connection.tone === 'err' ? 'err' : 'idle',
                 current: p.id === project.id,
                 href: '#',
               }))}

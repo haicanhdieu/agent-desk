@@ -39,6 +39,7 @@
 .inline-status { display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-12_5); }
 .inline-status.ok { color: var(--ok); }
 .inline-status.warn { color: var(--late); }
-.inline-status.fail { color: var(--fail); }
+.inline-status.err { color: var(--fail); }
 .inline-status.idle { color: var(--idle); }
-.inline-status.muted { color: var(--muted); }
+.inline-status.late { color: var(--late); }
+.inline-status.off { color: var(--muted); }

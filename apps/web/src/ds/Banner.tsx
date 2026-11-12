@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import styles from './Overlay.module.css';
+import type { StatusTone } from './tokens';
 
-export type BannerTone = 'warn' | 'err' | 'late' | 'ok' | 'off' | 'idle';
+export type BannerTone = StatusTone;
 
 export interface BannerProps {
   tone: BannerTone;

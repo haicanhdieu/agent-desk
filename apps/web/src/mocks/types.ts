@@ -37,7 +37,7 @@ export type TriggerMode = 'webhook' | 'polling';
 export type PollInterval = '5 min' | '10 min' | '15 min' | '30 min';
 
 /** Project connection status. ok: Connected / Polling every N; warn: silent webhook; fail: polling error. */
-export type ConnectionStatus = { mode: TriggerMode; tone: 'ok' | 'warn' | 'fail'; text: string };
+export type ConnectionStatus = { mode: TriggerMode; tone: 'ok' | 'warn' | 'err'; text: string };
 
 /** A connection problem shown as a banner above the runs list. */
 export type ConnectionWarning = {
@@ -90,7 +90,7 @@ export type AgentSettings = {
     type: CredentialType;
     setAt: string;
     setBy: string;
-    status?: { tone: 'ok' | 'fail'; text: string };
+    status?: { tone: 'ok' | 'err'; text: string };
   };
   timeoutMinutes: 30;
   idleEndMinutes: 10;

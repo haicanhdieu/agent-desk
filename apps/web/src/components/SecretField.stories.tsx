@@ -18,10 +18,10 @@ export const Saved: Story = {
   args: { state: 'saved', credentialType: 'oauth_token', savedInfo: { ...info, status: { tone: 'ok', text: 'Verified at 09:12' } } },
 };
 export const SavedRejected: Story = {
-  args: { state: 'saved', credentialType: 'oauth_token', savedInfo: { ...info, status: { tone: 'fail', text: 'Rejected at 11:29' } } },
+  args: { state: 'saved', credentialType: 'oauth_token', savedInfo: { ...info, status: { tone: 'err', text: 'Rejected at 11:29' } } },
 };
 export const Replacing: Story = {
-  args: { state: 'replacing', credentialType: 'oauth_token', savedInfo: { ...info, status: { tone: 'fail', text: 'Rejected at 11:29' } } },
+  args: { state: 'replacing', credentialType: 'oauth_token', savedInfo: { ...info, status: { tone: 'err', text: 'Rejected at 11:29' } } },
 };
 
 function InteractiveDemo() {
@@ -32,7 +32,7 @@ function InteractiveDemo() {
         state={state}
         credentialType={type}
         onCredentialTypeChange={setType}
-        savedInfo={{ ...info, status: { tone: 'fail', text: 'Rejected at 11:29' } }}
+        savedInfo={{ ...info, status: { tone: 'err', text: 'Rejected at 11:29' } }}
         onReplace={() => setState((s) => (s === 'saved' ? 'replacing' : 'saved'))}
         onCancel={() => setState('saved')}
         onSubmit={() => setState('saved')}

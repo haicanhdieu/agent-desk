@@ -8,7 +8,7 @@ export const agentSettings: AgentSettings = {
     type: 'oauth_token',
     setAt: '12 Oct 2026',
     setBy: 'kim-hale',
-    status: { tone: 'fail', text: 'Rejected at 11:29' },
+    status: { tone: 'err', text: 'Rejected at 11:29' },
   },
   timeoutMinutes: 30,
   idleEndMinutes: 10,

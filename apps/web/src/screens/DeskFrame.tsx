@@ -16,7 +16,7 @@ export function DeskFrame({ active, connection = project.connection, children }:
         needsYou={project.needsYou}
         project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
       />
-      <DeskLayout active={active} repo={{ org: project.org, name: project.name, branch: 'main', connected: connection.tone !== 'fail', status: connection }}>
+      <DeskLayout active={active} repo={{ org: project.org, name: project.name, branch: 'main', connected: connection.tone !== 'err', status: connection }}>
         {children}
       </DeskLayout>
     </>

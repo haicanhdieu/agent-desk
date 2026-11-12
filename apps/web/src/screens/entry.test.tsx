@@ -78,7 +78,7 @@ describe('Projects', () => {
     expect(within(rows[1]).getByText('Polling every 5 min')).toBeInTheDocument();
     expect(within(rows[1]).getByTitle('status: succeeded')).toBeInTheDocument();
     const failed = within(rows[3]).getByText('Polling failed: rate limited, retry in 5 min');
-    expect(failed.closest('.inline-status')).toHaveClass('fail');
+    expect(failed.closest('.inline-status')).toHaveClass('err');
     expect(within(rows[3]).getByTitle('status: failed')).toBeInTheDocument();
   });
 

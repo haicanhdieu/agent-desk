@@ -11,7 +11,7 @@ export interface SecretFieldProps {
   state: SecretFieldState;
   credentialType: CredentialType;
   onCredentialTypeChange?(t: CredentialType): void;
-  savedInfo?: { setAt: string; setBy: string; status?: { tone: 'ok' | 'fail'; text: string } };
+  savedInfo?: { setAt: string; setBy: string; status?: { tone: 'ok' | 'err'; text: string } };
   onReplace?(): void;
   onCancel?(): void;
   onSubmit?(value: string): void;

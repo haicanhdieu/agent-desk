@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { SecretField } from './SecretField';
 
-const info = { setAt: '12 Oct 2026', setBy: 'kim-hale', status: { tone: 'fail' as const, text: 'Rejected at 11:29' } };
+const info = { setAt: '12 Oct 2026', setBy: 'kim-hale', status: { tone: 'err' as const, text: 'Rejected at 11:29' } };
 
 describe('SecretField', () => {
   it('saved renders no input and never a value; Replace is collapsed', () => {

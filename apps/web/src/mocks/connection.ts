@@ -79,8 +79,8 @@ export const connections = {
   webhookOk: { mode: 'webhook', tone: 'ok', text: connectionCopy.connected },
   webhookSilent: { mode: 'webhook', tone: 'warn', text: connectionCopy.webhookSilent('2 days') },
   pollingOk: { mode: 'polling', tone: 'ok', text: connectionCopy.polling(DEFAULT_POLL_INTERVAL) },
-  pollingRevoked: { mode: 'polling', tone: 'fail', text: connectionCopy.pollingFailed(connectionCopy.reasons.tokenRevoked) },
-  pollingRateLimited: { mode: 'polling', tone: 'fail', text: connectionCopy.pollingFailed(connectionCopy.reasons.rateLimited(5)) },
+  pollingRevoked: { mode: 'polling', tone: 'err', text: connectionCopy.pollingFailed(connectionCopy.reasons.tokenRevoked) },
+  pollingRateLimited: { mode: 'polling', tone: 'err', text: connectionCopy.pollingFailed(connectionCopy.reasons.rateLimited(5)) },
 } satisfies Record<string, ConnectionStatus>;
 
 /** Short warning in the project switcher, or undefined when the connection is fine. */
