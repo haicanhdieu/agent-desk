@@ -496,7 +496,7 @@ it('rule command must be lowercase slug without slash', () => {
 ### Task 19: Localhost end-to-end and observability wiring
 
 **Files:**
-- Create: `apps/api/src/tracing.ts`, `apps/worker/src/tracing.ts` (OTel SDK + Temporal interceptors, exporter only when `OTEL_EXPORTER_OTLP_ENDPOINT` set), `scripts/e2e-local.ts`, `docs/local-dev.md`
+- Create: `apps/api/src/tracing.ts`, `apps/worker/src/tracing.ts` (OTel SDK + Temporal interceptors, exporter only when `OTEL_EXPORTER_OTLP_ENDPOINT` set), `scripts/e2e-local.ts`; update `docs/runbooks/local-dev.md` (already exists on `main`)
 - Modify: root `package.json` (script `test:e2e:local` = `tsx scripts/e2e-local.ts`)
 
 **Interfaces:**
@@ -504,6 +504,6 @@ it('rule command must be lowercase slug without slash', () => {
 
 - [ ] **Step 1: Write the e2e script** (runs against a stack started by `pnpm dev` with `.env` from `.env.example`): dev-login `e2e-<rand>` → fake install → create project `dev/demo` (webhook mode) → PUT agent credential → PUT skill `code-review` → create rule `code-review` → `POST /dev/fake/comments` (`/code-review please`, deliver `webhook`) → poll `GET runs` until status `idle` (≤ 30 s) → open terminal WS, send `ok\r`, expect echo → `POST finish` → SSE stream ends with `succeeded` → `GET /dev/fake/posted` has a start and a finish comment. Repeat with a polling project (`pollIntervalSeconds: 300`, deliver `poll`; trigger the schedule with `temporal schedule trigger --schedule-id poll-<id>` via the Temporal client) and one run with `--fake-fail` → `failed`.
 - [ ] **Step 2:** Run `pnpm dev` in one shell, then `pnpm test:e2e:local` → all three scenarios PASS.
-- [ ] **Step 3:** Write `docs/local-dev.md`: prerequisites (Node 22, pnpm, Docker or Podman), `cp .env.example .env`, `pnpm dev`, dev login URL `http://localhost:3000/auth/dev-login?handle=me&redirect=/` (`:5173` once the frontend's Vite proxy is merged), fake comment curl, Temporal UI `:8233`, optional real GitHub App (create App, set the six `GITHUB_*` values, callback `http://localhost:5173/auth/callback/github`, use Polling mode) and optional `KUBE_MODE=kubeconfig`.
+- [ ] **Step 3:** Update `docs/runbooks/local-dev.md` (devbox-based; drop the *once backend lands* marks that now hold, and fix any command that changed): prerequisites (devbox, Docker or Podman), `devbox run dev`, dev login URL `http://localhost:3000/auth/dev-login?handle=me&redirect=/` (`:5173` once the frontend's Vite proxy is merged), fake comment curl, Temporal UI `:8233`, optional real GitHub App (create App, set the six `GITHUB_*` values, callback `http://localhost:5173/auth/callback/github`, use Polling mode) and optional `KUBE_MODE=kubeconfig`.
 - [ ] **Step 4:** Run `pnpm test && pnpm typecheck && pnpm lint` at the root → PASS.
 - [ ] **Step 5: Commit** — `test: localhost end-to-end flow; docs: local development`. Then merge `feat/backend` into `main` (Execution model, step 4).
