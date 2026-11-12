@@ -10,7 +10,8 @@ export const worker = setupWorker(...streamHandlers, ...handlers);
 setScenarioTarget(worker);
 
 // Sign-in and sign-out reload the page (the social sign-in redirects), so the auth state survives reloads in
-// sessionStorage. The rest of the store starts from the seed on every page load.
+// sessionStorage. The rest of the store starts from the seed on every page load. The mocked e2e specs seed this key to
+// start signed out (e2e/mock/mock.ts).
 const AUTH_KEY = 'agentdesk.mock.auth';
 const StoredAuth = z.object({ signedIn: z.boolean(), activeOrganizationId: z.string().nullable() });
 

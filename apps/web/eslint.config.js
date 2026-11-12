@@ -5,8 +5,18 @@ import tseslint from 'typescript-eslint';
 import prettier from 'eslint-config-prettier';
 
 export default tseslint.config(
-  // Generated: the TanStack route tree and the MSW service worker (`msw init`).
-  { ignores: ['dist', 'storybook-static', 'parity-out', 'src/app/routeTree.gen.ts', 'public/mockServiceWorker.js'] },
+  // Generated: build and test output, the TanStack route tree and the MSW service worker (`msw init`).
+  {
+    ignores: [
+      'dist',
+      'storybook-static',
+      'parity-out',
+      'test-results',
+      'playwright-report',
+      'src/app/routeTree.gen.ts',
+      'public/mockServiceWorker.js',
+    ],
+  },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
