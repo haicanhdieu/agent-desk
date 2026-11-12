@@ -26,6 +26,15 @@ describe('worker wiring', () => {
     await env.client.schedule.getHandle(RECONCILE_SCHEDULE_ID).delete();
   });
 
+  it('ensureSchedules tolerates concurrent first boots', async () => {
+    await Promise.all([ensureSchedules(env.client), ensureSchedules(env.client), ensureSchedules(env.client)]);
+    for (const id of [OUTBOX_SWEEP_SCHEDULE_ID, RECONCILE_SCHEDULE_ID]) {
+      const d = await env.client.schedule.getHandle(id).describe();
+      expect(d.policies.overlap).toBe('SKIP');
+      await env.client.schedule.getHandle(id).delete();
+    }
+  });
+
   it('the production workflow bundle runs the sweep and reconcile workflows against the activities', async () => {
     const calls: string[] = [];
     const worker = await Worker.create({

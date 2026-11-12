@@ -4,6 +4,7 @@ import { createDb, listenRunStatus, withOrg, runEvents, runs, type Db, type RunS
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import { eq } from 'drizzle-orm';
 import { setRunStatus } from '../src/activities/run-status.activity';
+import { appendRunEvent } from '../src/activities/run-events';
 
 const ORG = '33333333-3333-4333-8333-333333333333';
 let pgx: TestPg;
@@ -144,6 +145,22 @@ describe('setRunStatus', () => {
     expect((await load(runId)).events.map((e) => e.seq)).toEqual([1, 2, 3, 4, 5, 6]);
   });
 
+  it('concurrent appendRunEvent and setRunStatus on one run give gapless unique seqs', async () => {
+    const runId = await seedRun();
+    const append = (i: number) =>
+      withOrg(db, ORG, (tx) => appendRunEvent(tx, ORG, { runId, type: 'lifecycle', payload: { i } }));
+    const results = await Promise.all([
+      append(1),
+      setRunStatus(db, { orgId: ORG, runId, status: 'starting', at: '2026-11-12T10:00:00.000Z' }),
+      append(2),
+      setRunStatus(db, { orgId: ORG, runId, status: 'running', at: '2026-11-12T10:01:00.000Z' }),
+      append(3),
+      append(4),
+    ]);
+    expect(results.map((r) => r?.seq).sort()).toEqual([1, 2, 3, 4, 5, 6]);
+    expect((await load(runId)).events.map((e) => e.seq)).toEqual([1, 2, 3, 4, 5, 6]);
+  });
+
   it('rejects an unknown run and a malformed timestamp', async () => {
     await expect(
       setRunStatus(db, {
@@ -152,8 +169,10 @@ describe('setRunStatus', () => {
         status: 'running',
         at: new Date().toISOString(),
       }),
-    ).rejects.toThrow(/not found/);
+    ).rejects.toMatchObject({ nonRetryable: true });
     const runId = await seedRun();
-    await expect(setRunStatus(db, { orgId: ORG, runId, status: 'running', at: 'nope' })).rejects.toThrow(/timestamp/);
+    await expect(setRunStatus(db, { orgId: ORG, runId, status: 'running', at: 'nope' })).rejects.toMatchObject({
+      nonRetryable: true,
+    });
   });
 });

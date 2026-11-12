@@ -1,5 +1,5 @@
 import { continueAsNew, getExternalWorkflowHandle, setHandler, condition } from '@temporalio/workflow';
-import { granted, releaseSlot, requestSlot, setLimit } from './signals';
+import { gateState, granted, releaseSlot, requestSlot, setLimit } from './signals';
 
 export interface GateInput {
   projectId: string;
@@ -17,7 +17,7 @@ export const CONTINUE_AS_NEW_AFTER = 1000;
  * deterministic.
  */
 export async function ProjectGateWorkflow(input: GateInput): Promise<void> {
-  let limit = Math.max(0, Math.floor(input.limit));
+  let limit = Number.isFinite(input.limit) ? Math.max(0, Math.floor(input.limit)) : 0;
   const queue: string[] = [...(input.queue ?? [])];
   const active: string[] = [...(input.active ?? [])];
   // runIds that need a (re)sent `granted`: newly granted, or an active run that asked again.
@@ -25,6 +25,13 @@ export async function ProjectGateWorkflow(input: GateInput): Promise<void> {
   let handled = 0;
   let dirty = queue.length > 0;
 
+  // Read-only snapshot; `settled` is true when every queued change has been processed and every grant was sent.
+  setHandler(gateState, () => ({
+    limit,
+    queue: [...queue],
+    active: [...active],
+    settled: !dirty && toGrant.length === 0 && handled < CONTINUE_AS_NEW_AFTER,
+  }));
   setHandler(requestSlot, (runId) => {
     handled += 1;
     dirty = true;

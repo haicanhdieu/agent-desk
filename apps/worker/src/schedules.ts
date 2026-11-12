@@ -1,4 +1,4 @@
-import { ScheduleOverlapPolicy, ScheduleNotFoundError, type Client, type ScheduleOptions } from '@temporalio/client';
+import { ScheduleAlreadyRunning, ScheduleOverlapPolicy, type Client, type ScheduleOptions } from '@temporalio/client';
 import { OUTBOX_SWEEP_SCHEDULE_ID, RECONCILE_SCHEDULE_ID, TASK_QUEUE, WORKFLOW } from '@agentdesk/core';
 
 export function scheduleDefinitions(): { id: string; options: Omit<ScheduleOptions, 'scheduleId'> }[] {
@@ -32,21 +32,16 @@ export function scheduleDefinitions(): { id: string; options: Omit<ScheduleOptio
   ];
 }
 
-/** Creates the schedules if missing; otherwise updates them to the current definition. Safe to run on every boot. */
+/** Creates the schedules if missing; otherwise updates them to the current definition. Safe to run on every boot,
+ * including concurrently from several replicas (create losing the race falls through to update). */
 export async function ensureSchedules(client: Client): Promise<void> {
   for (const { id, options } of scheduleDefinitions()) {
-    const handle = client.schedule.getHandle(id);
-    let exists = true;
+    const update = () => client.schedule.getHandle(id).update((prev) => ({ ...prev, ...options, state: prev.state }));
     try {
-      await handle.describe();
-    } catch (err) {
-      if (!(err instanceof ScheduleNotFoundError)) throw err;
-      exists = false;
-    }
-    if (exists) {
-      await handle.update((prev) => ({ ...prev, ...options, state: prev.state }));
-    } else {
       await client.schedule.create({ scheduleId: id, ...options });
+    } catch (err) {
+      if (!(err instanceof ScheduleAlreadyRunning)) throw err;
+      await update();
     }
   }
 }

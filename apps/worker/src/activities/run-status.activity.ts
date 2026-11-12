@@ -1,21 +1,10 @@
-import { eq, sql } from 'drizzle-orm';
-import { notifyRunStatus, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
+import { ApplicationFailure } from '@temporalio/activity';
+import { eq } from 'drizzle-orm';
+import { FINAL_RUN_STATUSES, RunStatus } from '@agentdesk/contracts';
+import { notifyRunStatus, runs, withOrg, type Db } from '@agentdesk/db';
+import { appendRunEvent, currentSeq } from './run-events';
 
-export const RUN_STATUSES = [
-  'queued',
-  'starting',
-  'running',
-  'idle',
-  'succeeded',
-  'failed',
-  'cancelled',
-  'timed_out',
-] as const;
-export type RunStatus = (typeof RUN_STATUSES)[number];
-
-export const FINAL_STATUSES: readonly RunStatus[] = ['succeeded', 'failed', 'cancelled', 'timed_out'];
-
-const isFinal = (s: string): boolean => (FINAL_STATUSES as readonly string[]).includes(s);
+const isFinal = (s: string): boolean => (FINAL_RUN_STATUSES as readonly string[]).includes(s);
 
 export interface SetRunStatusInput {
   orgId: string;
@@ -36,10 +25,12 @@ export interface SetRunStatusResult {
  * run_event with the next per-run seq, and queue the NOTIFY. A transition out of a final status is a no-op.
  */
 export async function setRunStatus(db: Db, input: SetRunStatusInput): Promise<SetRunStatusResult> {
-  const { orgId, runId, status } = input;
-  if (!(RUN_STATUSES as readonly string[]).includes(status)) throw new Error(`unknown run status: ${status}`);
+  const { orgId, runId } = input;
+  const parsed = RunStatus.safeParse(input.status);
+  if (!parsed.success) throw ApplicationFailure.nonRetryable(`unknown run status: ${String(input.status)}`);
+  const status = parsed.data;
   const at = new Date(input.at);
-  if (Number.isNaN(at.getTime())) throw new Error('setRunStatus: invalid timestamp');
+  if (Number.isNaN(at.getTime())) throw ApplicationFailure.nonRetryable('setRunStatus: invalid timestamp');
 
   return withOrg(db, orgId, async (tx) => {
     const [run] = await tx
@@ -47,16 +38,9 @@ export async function setRunStatus(db: Db, input: SetRunStatusInput): Promise<Se
       .from(runs)
       .where(eq(runs.id, runId))
       .for('update');
-    if (!run) throw new Error('setRunStatus: run not found');
+    if (!run) throw ApplicationFailure.nonRetryable('setRunStatus: run not found');
+    if (isFinal(run.status)) return { seq: await currentSeq(tx, runId) };
 
-    const [max] = await tx
-      .select({ seq: sql<number>`coalesce(max(${runEvents.seq}), 0)::int` })
-      .from(runEvents)
-      .where(eq(runEvents.runId, runId));
-    const current = max?.seq ?? 0;
-    if (isFinal(run.status)) return { seq: current };
-
-    const seq = current + 1;
     await tx
       .update(runs)
       .set({
@@ -68,15 +52,14 @@ export async function setRunStatus(db: Db, input: SetRunStatusInput): Promise<Se
         ...(input.failureReason !== undefined ? { failureReason: input.failureReason } : {}),
       })
       .where(eq(runs.id, runId));
-    await tx.insert(runEvents).values({
-      orgId,
+    const ev = await appendRunEvent(tx, orgId, {
       runId,
-      seq,
-      ts: at,
       type: 'status',
       payload: { status, exitCode: input.exitCode ?? null, failureReason: input.failureReason ?? null },
+      ts: at,
     });
-    await notifyRunStatus(tx, { orgId, runId, seq });
-    return { seq };
+    if (!ev) throw ApplicationFailure.nonRetryable('setRunStatus: run not found');
+    await notifyRunStatus(tx, { orgId, runId, seq: ev.seq });
+    return { seq: ev.seq };
   });
 }
