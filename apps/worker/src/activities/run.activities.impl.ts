@@ -2,7 +2,7 @@ import { Context } from '@temporalio/activity';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { RunStatus, TicketKind } from '@agentdesk/contracts';
+import { Provider, RunStatus, TicketKind } from '@agentdesk/contracts';
 import {
   IDLE_END_SECONDS,
   SIGNAL,
@@ -150,6 +150,59 @@ function safeError(err: unknown, secrets: string[], what: string): Error {
 
 const oneLine = (s: string): string => s.replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
 
+/**
+ * The lines of one final-scrollback block, keeping only the newest `maxChars` (a window over an array with a moving
+ * head and a running character count, so each line costs O(1) amortised). `markEnd` records the last end marker;
+ * `text()` is everything before it (or everything, when the block never closed).
+ */
+export class ScrollbackBlock {
+  private lines: string[] = [];
+  private head = 0;
+  private chars = 0;
+  /** Lines pushed / dropped since the block began (absolute counts, unaffected by compaction). */
+  private pushed = 0;
+  private dropped = 0;
+  private endAt: number | null = null;
+  truncated = false;
+
+  constructor(
+    readonly begin: number,
+    private readonly maxChars: number,
+  ) {}
+
+  get closed(): boolean {
+    return this.endAt !== null;
+  }
+
+  markEnd(): void {
+    this.endAt = this.pushed;
+  }
+
+  push(line: string): void {
+    const l = line.length > this.maxChars ? line.slice(-this.maxChars) : line;
+    if (l !== line) this.truncated = true;
+    this.lines.push(l);
+    this.pushed += 1;
+    this.chars += l.length + 1;
+    while (this.chars > this.maxChars && this.lines.length - this.head > 1) {
+      this.chars -= (this.lines[this.head]?.length ?? 0) + 1;
+      this.head += 1;
+      this.dropped += 1;
+      this.truncated = true;
+    }
+    if (this.head > 1024 && this.head * 2 > this.lines.length) {
+      this.lines = this.lines.slice(this.head);
+      this.head = 0;
+    }
+  }
+
+  text(): string {
+    const window = this.lines.slice(this.head);
+    const keep = this.endAt === null ? window.length : Math.max(0, this.endAt - this.dropped);
+    return window.slice(0, keep).join('\n');
+  }
+}
+
 interface RunDetails {
   number: number;
   status: RunStatus;
@@ -168,7 +221,6 @@ interface RunDetails {
   code: { provider: string; externalId: string };
   board: { provider: string; externalId: string };
   maxTurns: number | null;
-  credentialSecretName: string | null;
 }
 
 export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
@@ -201,7 +253,6 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         boardProvider: board.provider,
         boardExternalId: board.externalId,
         maxTurns: agents.maxTurns,
-        credentialSecretName: agents.credentialSecretName,
       })
       .from(runs)
       .innerJoin(projects, eq(projects.id, runs.projectId))
@@ -230,7 +281,6 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       code: { provider: r.codeProvider, externalId: r.codeExternalId },
       board: { provider: r.boardProvider, externalId: r.boardExternalId },
       maxTurns: r.maxTurns,
-      credentialSecretName: r.credentialSecretName,
     };
   }
 
@@ -240,28 +290,32 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     return d;
   };
 
-  const providerOf = (p: string) => {
-    if (p !== 'github' && p !== 'fake') throw ApplicationFailure.nonRetryable(`unknown provider "${oneLine(p)}"`);
-    return p;
+  const providerOf = (p: string): Provider => {
+    const parsed = Provider.safeParse(p);
+    if (!parsed.success) throw ApplicationFailure.nonRetryable(`unknown provider "${oneLine(p).slice(0, 40)}"`);
+    return parsed.data;
   };
 
-  /** The agent credential as runner env, or null when none is set. */
-  async function credentialEnv(ctx: RunContext, d: RunDetails): Promise<Record<string, string> | null> {
+  /**
+   * The agent credential as runner env, or null when none is set. The Secret name is derived from (org, agent), never
+   * read from the database. A store error propagates (it must not look like "no credential").
+   */
+  async function credentialEnv(ctx: RunContext): Promise<Record<string, string> | null> {
     if (!ctx.agentId) return null;
-    const name = d.credentialSecretName ?? credentialSecretName(ctx.orgId, ctx.agentId);
+    const name = credentialSecretName(ctx.orgId, ctx.agentId);
     const parsed = StoredCredential.safeParse(await deps.secrets.get(name));
     if (!parsed.success) return null;
     const key = CREDENTIAL_ENV[parsed.data.type];
     return key ? { [key]: parsed.data.value } : null;
   }
 
+  /**
+   * Values to redact from run output. Fails closed: a missing Secret or credential means "no values", but any read
+   * error propagates (retryable), so nothing is ever persisted redacted only by the generic patterns.
+   */
   async function redactionList(ctx: RunContext): Promise<string[]> {
-    const runSecret = await kube.readSecret(runJobName(ctx.runId)).catch(() => null);
-    let cred: Record<string, string> | null = null;
-    if (ctx.agentId) {
-      const d = await withOrg(db, ctx.orgId, (tx) => details(tx, ctx.orgId, ctx.runId)).catch(() => null);
-      if (d) cred = await credentialEnv(ctx, d).catch(() => null);
-    }
+    const runSecret = await kube.readSecret(runJobName(ctx.runId));
+    const cred = await credentialEnv(ctx);
     return [...new Set([...secretValues(runSecret), ...secretValues(cred)])];
   }
 
@@ -302,7 +356,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   async function createRunSecretAndJob(ctx: RunContext): Promise<void> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return;
-    const cred = await credentialEnv(ctx, d);
+    const cred = await credentialEnv(ctx);
     if (!cred) throw ApplicationFailure.nonRetryable('the agent has no credential set');
     const name = runJobName(ctx.runId);
     const project: AdapterProject = { repoPath: d.repoPath, connectionExternalId: d.code.externalId };
@@ -322,22 +376,27 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         repoPath: d.repoPath,
         args: d.args,
       });
-      await kube.ensureJob(
-        buildRunJob({
-          runId: ctx.runId,
-          orgId: ctx.orgId,
-          projectId: ctx.projectId,
-          image: deps.config.RUNNER_IMAGE,
-          prompt,
-          checkoutRef: d.checkoutRef,
-          cloneUrlSecretKey: CLONE_URL_KEY,
-          maxTurns: d.maxTurns,
-          timeoutSeconds: ctx.timeoutSeconds,
-          botName: deps.config.BOT_NAME,
-          botEmail: deps.config.BOT_EMAIL,
-          pod: runPodConfigFrom(deps.config),
-        }),
-      );
+      const job = buildRunJob({
+        runId: ctx.runId,
+        orgId: ctx.orgId,
+        projectId: ctx.projectId,
+        image: deps.config.RUNNER_IMAGE,
+        prompt,
+        checkoutRef: d.checkoutRef,
+        cloneUrlSecretKey: CLONE_URL_KEY,
+        maxTurns: d.maxTurns,
+        timeoutSeconds: ctx.timeoutSeconds,
+        botName: deps.config.BOT_NAME,
+        botEmail: deps.config.BOT_EMAIL,
+        pod: runPodConfigFrom(deps.config),
+      });
+      try {
+        await kube.ensureJob(job);
+      } catch (err) {
+        // Do not leave a Secret with a live token behind; the next attempt recreates it with a fresh token.
+        await kube.deleteSecret(name).catch(() => undefined);
+        throw err;
+      }
     } catch (err) {
       throw safeError(err, known, 'create run Job');
     }
@@ -392,7 +451,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   async function postComment(ctx: RunContext, kind: CommentKind, fd?: FinishDetails): Promise<void> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (d.outbox[kind] !== undefined) return; // already posted
-    const secrets = secretValues(await credentialEnv(ctx, d).catch(() => null));
+    const secrets = secretValues(await credentialEnv(ctx));
     const text = commentText(ctx, d, kind, fd, secrets);
     let commentId: string;
     try {
@@ -496,13 +555,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         // State of one pass over the log. A scrollback block is only durable once stored as one row, so `durable`
         // never moves past an unfinished block and a new pass re-reads it from its begin line.
         let index = 0;
-        let block: { begin: number; lines: string[]; endAt: number | null; truncated: boolean } | null = null;
+        let block: ScrollbackBlock | null = null;
         const flushBlock = async (lastIndex: number): Promise<void> => {
           if (!block) return;
-          const raw = (block.endAt !== null ? block.lines.slice(0, block.endAt) : block.lines).join('\n');
-          const text = redact(raw, secrets);
+          const text = redact(block.text(), secrets);
           const begin = block.begin;
-          const truncated = block.truncated || block.endAt === null;
+          const truncated = block.truncated || !block.closed;
           await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'scrollback', begin, { text, truncated }));
           scrollbackTail = text.slice(-SCROLLBACK_TAIL_CHARS);
           block = null;
@@ -517,13 +575,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           if (block) {
             // Everything after the begin marker is scrollback; the last end marker closes it (a pane line that looks
             // like a marker cannot end it early or fake a lifecycle event).
-            if (parseLogLine(line).kind === 'scrollback_end') block.endAt = block.lines.length;
-            block.lines.push(line);
-            if (block.lines.join('\n').length > SCROLLBACK_MAX_CHARS) {
-              block.lines.shift();
-              if (block.endAt !== null) block.endAt -= 1;
-              block.truncated = true;
-            }
+            if (parseLogLine(line).kind === 'scrollback_end') block.markEnd();
+            block.push(line);
             continue;
           }
           const parsed = parseLogLine(line);
@@ -558,7 +611,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             // the workflow ignores turnFinished unless it is running.
             if (inserted || status === 'idle') await deps.signaller.signalRun(ctx.runId, SIGNAL.turnFinished);
           } else if (parsed.kind === 'scrollback_begin') {
-            block = { begin: index, lines: [], endAt: null, truncated: false };
+            block = new ScrollbackBlock(index, SCROLLBACK_MAX_CHARS);
             continue;
           } else if (parsed.kind === 'text') {
             textTail.push(redact(line, secrets));
@@ -568,11 +621,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           beat();
         }
         await throwIfCancelled();
-        if (block) await flushBlock(index);
-
         const exitCode = await waitForExit(ctx, ac.signal);
         await throwIfCancelled();
-        if (exitCode === 'running') continue; // the log stream dropped while the container still runs: re-attach
+        // The log stream dropped while the container still runs: re-attach. An unfinished block is not stored; the
+        // next pass re-reads it from its begin line (`durable` never passed it).
+        if (exitCode === 'running') continue;
+        if (block) await flushBlock(index);
         const tail =
           scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
         return { exitCode, ...(tail !== undefined ? { scrollbackTail: tail } : {}) };
@@ -591,12 +645,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
 
   /** The container's exit code once its log ended; 'running' when it still runs (the stream merely dropped). */
   async function waitForExit(ctx: RunContext, signal: AbortSignal): Promise<number | 'running'> {
-    const deadline = Date.now() + EXIT_WAIT_MS;
+    const deadline = clock.now().getTime() + EXIT_WAIT_MS;
     for (;;) {
       const pod = await kube.getRunPod(runJobName(ctx.runId));
       if (!pod) throw ApplicationFailure.nonRetryable('the run pod disappeared before it reported an exit code');
       if (pod.exitCode !== null) return pod.exitCode;
-      if (Date.now() > deadline) {
+      if (clock.now().getTime() > deadline) {
         if (pod.phase === 'Running') return 'running';
         const reason = pod.reason ? `: ${oneLine(pod.reason).slice(0, ERROR_MESSAGE_MAX)}` : '';
         throw ApplicationFailure.nonRetryable(`the run pod ended (${pod.phase}) without an exit code${reason}`);

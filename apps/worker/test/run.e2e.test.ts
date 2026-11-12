@@ -159,7 +159,11 @@ describe('RunWorkflow end to end (KUBE_MODE=fake, fake provider)', () => {
       expect(await handle.result()).toMatchObject({ status: 'succeeded', exitCode: 0 });
 
       // Reconcile against the real server: the gate is open and holds no dead runs.
-      expect(await reconcile({ db, kube, temporal: ops })).toEqual({ deletedJobs: 1, releasedSlots: 0 });
+      expect(await reconcile({ db, kube, temporal: ops })).toEqual({
+        deletedJobs: 1,
+        deletedSecrets: 0,
+        releasedSlots: 0,
+      });
     });
 
     const { run, events } = await withOrg(db, ORG, async (tx) => ({

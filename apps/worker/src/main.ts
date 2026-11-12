@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
+import { log as activityLog } from '@temporalio/activity';
 import { Client, Connection } from '@temporalio/client';
 import { NativeConnection, Worker } from '@temporalio/worker';
 import {
@@ -44,6 +45,8 @@ async function main(): Promise<void> {
         temporal: ops,
         clock: systemClock,
         config,
+        // Activity-context logger (carries workflow/activity ids); messages never include error text.
+        log: { warn: (msg, meta) => activityLog.warn(msg, meta) },
       }),
     });
     // The Temporal worker owns SIGINT/SIGTERM and drains in-flight activities; teardown happens only after it resolves.

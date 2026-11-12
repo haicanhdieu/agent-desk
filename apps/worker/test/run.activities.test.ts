@@ -91,6 +91,23 @@ function deps(over: Partial<RunActivityDeps> = {}): RunActivityDeps {
   };
 }
 
+/** The shared fake gateway with some methods replaced. */
+function wrapKube(over: Partial<KubeGateway>): KubeGateway {
+  return {
+    ensureSecret: (n, d, l) => kube.ensureSecret(n, d, l),
+    readSecret: (n) => kube.readSecret(n),
+    deleteSecret: (n) => kube.deleteSecret(n),
+    ensureJob: (j) => kube.ensureJob(j),
+    getRunPod: (n) => kube.getRunPod(n),
+    streamLogs: (n, s) => kube.streamLogs(n, s),
+    exec: (n, c, o) => kube.exec(n, c, o),
+    deleteJob: (n) => kube.deleteJob(n),
+    listRunJobs: () => kube.listRunJobs(),
+    listRunSecrets: () => kube.listRunSecrets(),
+    ...over,
+  };
+}
+
 const ctxFor = async (runId: string): Promise<RunContext> => createRunActivities(deps()).loadRun(ORG, runId);
 
 const load = (runId: string) =>
@@ -235,19 +252,11 @@ describe('createRunSecretAndJob', () => {
   it('adapter errors carry no secret values', async () => {
     const runId = await seedRun('x');
     const ctx = await ctxFor(runId);
-    const failing: KubeGateway = {
+    const failing = wrapKube({
       ensureSecret: async () => {
         throw new Error(`422 invalid secret ${CRED} https://x-access-token:ghs_abcdefghijklmnopqrstuvwxyz@h/r.git`);
       },
-      readSecret: (n) => kube.readSecret(n),
-      deleteSecret: (n) => kube.deleteSecret(n),
-      ensureJob: (j) => kube.ensureJob(j),
-      getRunPod: (n) => kube.getRunPod(n),
-      streamLogs: (n, s) => kube.streamLogs(n, s),
-      exec: (n, c, o) => kube.exec(n, c, o),
-      deleteJob: (n) => kube.deleteJob(n),
-      listRunJobs: () => kube.listRunJobs(),
-    };
+    });
     const err = await createRunActivities(deps({ kube: failing }))
       .createRunSecretAndJob(ctx)
       .catch((e: unknown) => e);
@@ -256,6 +265,61 @@ describe('createRunSecretAndJob', () => {
     expect(msg).not.toContain(CRED);
     expect(msg).not.toContain('ghs_abcdefghijklmnopqrstuvwxyz');
     expect(msg).toContain('422');
+  });
+});
+
+describe('createRunSecretAndJob cleanup', () => {
+  it('deletes the Secret again when creating the Job fails', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error('500 etcd unavailable');
+      },
+    });
+    const err = await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(ctx)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(false);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+});
+
+describe('redaction fails closed', () => {
+  it('a transient readSecret error fails followPodLogs retryably and persists nothing', async () => {
+    const runId = await seedRun(`echo ${CRED}`);
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    await until(async () => (await kube.getRunPod(`run-${runId}`))?.phase === 'Running');
+    const broken = wrapKube({
+      readSecret: async () => {
+        throw new Error('connect ETIMEDOUT');
+      },
+    });
+    const err = await follow(ctx, deps({ kube: broken })).promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(false);
+    const { run, events } = await load(runId);
+    expect(run?.status).toBe('starting');
+    expect(events).toEqual([]);
+    await acts.deleteJob(ctx);
+  });
+
+  it('a credential store error fails postComment retryably and posts nothing', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const before = (await store.listPosted()).length;
+    const broken = new MemorySecretStore();
+    broken.get = async () => {
+      throw new Error('store unavailable');
+    };
+    const err = await createRunActivities(deps({ secrets: broken }))
+      .postComment(ctx, 'finish', { status: 'failed', scrollbackTail: CRED })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((await store.listPosted()).length).toBe(before);
   });
 });
 
@@ -354,6 +418,64 @@ describe('followPodLogs', () => {
     await acts.deleteJob(ctx);
   });
 
+  it('a multi-MB scrollback is stored in linear time, capped to the newest 1 MB, closed at the last end marker', async () => {
+    const runId = await seedRun('big');
+    const ctx = await ctxFor(runId);
+    const LINES = 300_000; // ~10 MB of scrollback
+    const pad = 'x'.repeat(24);
+    const big = wrapKube({
+      readSecret: async () => ({ REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git' }),
+      getRunPod: async (name) => ({ name, phase: 'Succeeded', pendingSince: null, reason: null, exitCode: 0 }),
+      streamLogs: async function* () {
+        yield 'agentdesk: session started';
+        yield 'agentdesk: final scrollback begin';
+        for (let i = 0; i < LINES; i += 1) yield `line ${String(i).padStart(7, '0')} ${pad}`;
+        yield 'agentdesk: final scrollback end';
+      },
+    });
+    const started = Date.now();
+    const r = await follow(ctx, deps({ kube: big })).promise;
+    const elapsed = Date.now() - started;
+    expect(elapsed).toBeLessThan(5000);
+    expect(r.exitCode).toBe(0);
+    const rows = (await load(runId)).events.filter((e) => e.type === 'scrollback');
+    expect(rows).toHaveLength(1);
+    const text = String(rows[0]?.payload.text);
+    expect(text.length).toBeLessThanOrEqual(1_000_000);
+    expect(text.length).toBeGreaterThan(900_000);
+    expect(rows[0]?.payload.truncated).toBe(true);
+    expect(text.endsWith(`line ${String(LINES - 1).padStart(7, '0')} ${pad}`)).toBe(true);
+    expect(text).not.toContain('scrollback end');
+    expect(r.scrollbackTail?.length).toBe(4000);
+    expect(r.scrollbackTail && text.endsWith(r.scrollbackTail)).toBe(true);
+  });
+
+  it('a log stream that drops mid-scrollback re-reads the block instead of storing a partial one', async () => {
+    const runId = await seedRun('drop');
+    const ctx = await ctxFor(runId);
+    let pass = 0;
+    const lines = ['agentdesk: session started', 'agentdesk: final scrollback begin', 'a', 'b'];
+    const dropping = wrapKube({
+      readSecret: async () => null,
+      getRunPod: async (name) =>
+        pass < 2
+          ? { name, phase: 'Running', pendingSince: null, reason: null, exitCode: null }
+          : { name, phase: 'Succeeded', pendingSince: null, reason: null, exitCode: 0 },
+      streamLogs: async function* () {
+        pass += 1;
+        yield* lines; // first pass drops before the end marker
+        if (pass >= 2) yield* ['c', 'agentdesk: final scrollback end'];
+      },
+    });
+    // A clock that jumps past the exit wait so the first pass sees "still running" quickly.
+    let t = Date.now();
+    const clock: Clock = { now: () => new Date((t += 30_000)) };
+    const r = await follow(ctx, deps({ kube: dropping, clock })).promise;
+    expect(r.exitCode).toBe(0);
+    const rows = (await load(runId)).events.filter((e) => e.type === 'scrollback');
+    expect(rows.map((e) => e.payload.text)).toEqual(['a\nb\nc']);
+  });
+
   it('Pending for over 2 min (fake clock) → non-retryable PodPendingTimeout with the pod reason', async () => {
     const runId = await seedRun('--fake-pending');
     const ctx = await ctxFor(runId);
@@ -446,8 +568,40 @@ describe('reconcile', () => {
     expect(left).not.toContain('66666666-6666-4666-8666-666666666666');
     expect(await kube.readSecret(`run-${finalRun}`)).toBeNull();
     expect(released).toEqual([{ projectId, runId: closedRun }]);
-    expect(out).toEqual({ deletedJobs: 3, releasedSlots: 1 });
+    expect(out).toEqual({ deletedJobs: 3, deletedSecrets: 0, releasedSlots: 1 });
     await acts.deleteJob(await ctxFor(liveRun));
+  });
+});
+
+describe('reconcile: run Secrets without a Job', () => {
+  it('deletes Secrets of final runs, closed workflows and Job-less live runs; keeps an in-flight create', async () => {
+    const labels = (runId: string) => ({
+      'agentdesk/run-id': runId,
+      'agentdesk/org-id': ORG,
+      'agentdesk/project-id': projectId,
+    });
+    const finalRun = await seedRun('x', 'failed');
+    const closedRun = await seedRun('x', 'idle');
+    const jobGoneRun = await seedRun('x', 'running');
+    const creatingRun = await seedRun('x', 'starting');
+    for (const id of [finalRun, closedRun, jobGoneRun, creatingRun]) {
+      await kube.ensureSecret(`run-${id}`, { REPO_CLONE_URL: 'https://t@x.invalid/r.git' }, labels(id));
+    }
+    const open = new Set([`run-${jobGoneRun}`, `run-${creatingRun}`]);
+    const out = await reconcile({
+      db,
+      kube,
+      temporal: {
+        isWorkflowOpen: async (id) => open.has(id),
+        listOpenGateProjectIds: async () => [],
+        gateRuns: async () => [],
+        releaseSlot: async () => undefined,
+      },
+    });
+    expect(out).toEqual({ deletedJobs: 0, deletedSecrets: 3, releasedSlots: 0 });
+    for (const id of [finalRun, closedRun, jobGoneRun]) expect(await kube.readSecret(`run-${id}`)).toBeNull();
+    expect(await kube.readSecret(`run-${creatingRun}`)).not.toBeNull();
+    await kube.deleteSecret(`run-${creatingRun}`);
   });
 });
 
