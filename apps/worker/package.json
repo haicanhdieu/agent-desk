@@ -1,0 +1,11 @@
+{
+  "name": "@agentdesk/worker",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "dev": "echo \"worker: not implemented yet\"",
+    "typecheck": "tsc --noEmit"
+  }
+}

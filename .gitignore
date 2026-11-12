@@ -1,6 +1,11 @@
 .claude/settings.local.json
 claude.sh
-web/node_modules
-web/storybook-static
-web/tsconfig.tsbuildinfo
-web/parity-out
+apps/web/node_modules
+apps/web/storybook-static
+apps/web/tsconfig.tsbuildinfo
+apps/web/parity-out
+.agentdesk/
+.env
+node_modules
+.turbo
+dist

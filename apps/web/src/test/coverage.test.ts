@@ -4,7 +4,7 @@ import { toId, storyNameFromExport, isExportStory } from 'storybook/internal/csf
 import { boardStories, stateStories, storyHref } from '@/screens/storyIds';
 
 const canvas = JSON.parse(
-  readFileSync(resolve(__dirname, '../../../design/prototype/project/canvas.json'), 'utf8'),
+  readFileSync(resolve(__dirname, '../../../../design/prototype/project/canvas.json'), 'utf8'),
 ) as { order: string[] };
 const order = canvas.order.map((f) => f.replace(/\.dc\.html$/, ''));
 

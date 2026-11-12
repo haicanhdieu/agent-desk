@@ -1,5 +1,5 @@
 // Visual parity: screenshots each Screens/* story next to its prototype board at the artboard size.
-// Usage: npm run build-storybook && node scripts/parity.mjs   (writes web/parity-out/<board>.{story,proto}.png)
+// Usage: pnpm build-storybook && node scripts/parity.mjs   (writes apps/web/parity-out/<board>.{story,proto}.png)
 import { createServer } from 'node:http';
 import { readFileSync, mkdirSync, existsSync, statSync } from 'node:fs';
 import { extname, join, resolve, dirname } from 'node:path';
@@ -8,7 +8,7 @@ import { chromium } from 'playwright';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '..');
-const protoDir = resolve(root, '../design/prototype/project');
+const protoDir = resolve(root, '../../design/prototype/project');
 const staticDir = resolve(root, 'storybook-static');
 const outDir = resolve(root, 'parity-out');
 const canvas = JSON.parse(readFileSync(join(protoDir, 'canvas.json'), 'utf8'));
@@ -32,7 +32,7 @@ const server = createServer((req, res) => {
   if (!p.startsWith(staticDir) || !existsSync(p) || !statSync(p).isFile()) { res.writeHead(404).end(); return; }
   res.writeHead(200, { 'content-type': types[extname(p)] ?? 'application/octet-stream' }).end(readFileSync(p));
 });
-if (!existsSync(staticDir)) throw new Error('storybook-static missing: run npm run build-storybook first');
+if (!existsSync(staticDir)) throw new Error('storybook-static missing: run pnpm build-storybook first');
 await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
