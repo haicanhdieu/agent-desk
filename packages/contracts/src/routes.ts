@@ -167,7 +167,7 @@ export const routes = {
       method: 'GET',
       path: '/api/runs/:runId/events',
       params: runParams,
-      query: z.object({ after: z.coerce.number().int().min(0).optional() }),
+      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional() }),
       response: RunStatusEvent,
     },
   },

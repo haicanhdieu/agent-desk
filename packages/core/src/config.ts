@@ -74,6 +74,7 @@ export const ConfigSchema = z
     FAKE_WEBHOOK_SECRET: blankDefault(z.string().default('dev')),
     ENABLE_FAKE_PROVIDER: blankDefault(bool.default(false)),
     AUTH_DEV_LOGIN: blankDefault(bool.default(false)),
+    SSE_SAFETY_TICK_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     SSE_HEARTBEAT_MS: blankDefault(z.coerce.number().int().min(10).default(15000)),
     POLL_MAX_BACKOFF_SECONDS: blankDefault(z.coerce.number().int().min(1).default(3600)),
     OTEL_EXPORTER_OTLP_ENDPOINT: optional(z.string()),

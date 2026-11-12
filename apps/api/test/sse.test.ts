@@ -5,6 +5,7 @@ import { createParser, type EventSourceMessage } from 'eventsource-parser';
 import { eq, sql } from 'drizzle-orm';
 import { notifyRunStatus, runEvents, runs, withOrg } from '@agentdesk/db';
 import { ProjectRunEvent, RunEventMessage, RunStatusEvent } from '@agentdesk/contracts';
+import { RunStatusListener } from '../src/sse/run-status-listener';
 import { SseService } from '../src/sse/sse.service';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
@@ -90,10 +91,12 @@ async function commit(
   });
 }
 
-async function addEvents(orgId: string, runId: string, count: number): Promise<void> {
+async function addEvents(orgId: string, runId: string, count: number, blob?: string): Promise<void> {
   await withOrg(t.db, orgId, async (tx) => {
     for (let seq = 1; seq <= count; seq += 1) {
-      await tx.insert(runEvents).values({ orgId, runId, seq, type: 'lifecycle', payload: { n: seq } });
+      await tx
+        .insert(runEvents)
+        .values({ orgId, runId, seq, type: 'lifecycle', payload: blob === undefined ? { n: seq } : { n: seq, blob } });
     }
   });
 }
@@ -323,5 +326,129 @@ describe('project events stream', () => {
     streams.forEach((s) => s.abort());
     await sleep(200);
     expect(t.app.get(SseService).openStreams()).toBe(0);
+  });
+});
+
+describe('fix round 1', () => {
+  const sse = (): SseService => t.app.get(SseService);
+  const listener = (): RunStatusListener => t.app.get(RunStatusListener);
+  afterAll(() => {
+    sse().hooks = {};
+    listener().hooks = {};
+  });
+
+  it('does not lose a final status committed between the initial read and the flush', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject);
+    sse().hooks.afterFirstRead = async (id) => {
+      if (id !== runId) return;
+      await commit(aliceOrg, runId, 'failed');
+      await sleep(400);
+    };
+    try {
+      const s = await open(`/api/runs/${runId}/events`, alice);
+      await Promise.race([s.closed, sleep(5000).then(() => Promise.reject(new Error('stream hung')))]);
+      const last = RunStatusEvent.parse(JSON.parse(ofType(s.messages, 'status').at(-1)?.data ?? ''));
+      expect(last.status).toBe('failed');
+    } finally {
+      sse().hooks = {};
+    }
+  });
+
+  it('cleans up when the client disconnects during the initial read', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject);
+    const ac = new AbortController();
+    sse().hooks.afterFirstRead = async (id) => {
+      if (id !== runId) return;
+      await sleep(100);
+      ac.abort();
+      await sleep(300);
+    };
+    try {
+      await fetch(`${base}/api/runs/${runId}/events`, { headers: { cookie: alice }, signal: ac.signal }).catch(
+        () => null,
+      );
+      await sleep(500);
+      expect(sse().openStreams()).toBe(0);
+      expect(listener().subscriberCount()).toBe(0);
+    } finally {
+      sse().hooks = {};
+    }
+  });
+
+  it('rejects an out-of-range `after` with 400 /after and ignores an over-range Last-Event-ID', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject, 'succeeded');
+    await addEvents(aliceOrg, runId, 3);
+    const res = await fetch(`${base}/api/runs/${runId}/events?after=3000000000`, { headers: { cookie: alice } });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { errors?: Array<{ pointer: string }> };
+    expect(body.errors?.[0]?.pointer).toBe('/after');
+    const s = await open(`/api/runs/${runId}/events`, alice, { 'last-event-id': '3000000000' });
+    await s.closed;
+    expect(s.status).toBe(200);
+    expect(ofType(s.messages, 'event').map((e) => e.id)).toEqual(['1', '2', '3']);
+  });
+
+  it('delivers a large backlog fully to a slow reader', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject, 'succeeded');
+    await addEvents(aliceOrg, runId, 600, 'x'.repeat(4096));
+    const res = await fetch(`${base}/api/runs/${runId}/events`, { headers: { cookie: alice } });
+    const ids: string[] = [];
+    const parser = createParser({ onEvent: (m) => m.event === 'event' && ids.push(m.id ?? '') });
+    const reader = res.body?.getReader();
+    if (!reader) throw new Error('no body');
+    const decoder = new TextDecoder();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      parser.feed(decoder.decode(value, { stream: true }));
+      await sleep(2);
+    }
+    expect(ids).toHaveLength(600);
+    expect(ids[599]).toBe('600');
+  }, 30000);
+
+  it('recovers a final status committed while the LISTEN connection is down', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject);
+    const s = await open(`/api/runs/${runId}/events`, alice);
+    await s.waitFor((m) => ofType(m, 'status').length >= 1);
+    await t.db.pool.query(
+      "select pg_terminate_backend(pid) from pg_stat_activity where query like 'LISTEN run_status%' and pid <> pg_backend_pid()",
+    );
+    await commit(aliceOrg, runId, 'failed');
+    await Promise.race([s.closed, sleep(10000).then(() => Promise.reject(new Error('stream hung')))]);
+    expect(ofType(s.messages, 'status').at(-1)?.data).toContain('"failed"');
+  }, 20000);
+
+  it('coalesces a burst of notifications, and does not read for run-only subscribers', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject);
+    const burst = async (): Promise<void> => {
+      await Promise.all(
+        Array.from({ length: 20 }, () =>
+          withOrg(t.db, aliceOrg, (tx) => notifyRunStatus(tx, { orgId: aliceOrg, runId, seq: 1 })),
+        ),
+      );
+      await sleep(600);
+    };
+    const runOnly = await open(`/api/runs/${runId}/events`, alice);
+    try {
+      await runOnly.waitFor((m) => ofType(m, 'status').length >= 1);
+      const before = listener().readCount;
+      await burst();
+      expect(listener().readCount).toBe(before);
+    } finally {
+      runOnly.abort();
+    }
+    const proj = await open(`/api/projects/${aliceProject}/events`, alice);
+    try {
+      await sleep(100);
+      listener().hooks.beforeRead = () => sleep(200);
+      const before = listener().readCount;
+      await burst();
+      expect(listener().readCount - before).toBeLessThanOrEqual(2);
+      expect(listener().readCount - before).toBeGreaterThanOrEqual(1);
+    } finally {
+      listener().hooks = {};
+      proj.abort();
+    }
   });
 });

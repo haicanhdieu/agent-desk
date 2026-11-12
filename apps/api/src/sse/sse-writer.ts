@@ -6,18 +6,18 @@ export const MAX_BUFFERED_BYTES = 1024 * 1024;
 /** Server-sent-events framing over a raw Node response. The caller owns the HTTP lifecycle (hijacked reply). */
 export class SseWriter {
   private ended = false;
+  private heartbeat: NodeJS.Timeout | null = null;
   private readonly closeHandlers: Array<() => void> = [];
 
   constructor(
     private readonly raw: ServerResponse,
     private readonly maxBuffered = MAX_BUFFERED_BYTES,
   ) {
-    const onClose = (): void => {
-      this.ended = true;
-      for (const h of this.closeHandlers.splice(0)) h();
-    };
-    raw.once('close', onClose);
-    raw.once('error', onClose);
+    const onClose = (): void => this.finish();
+    // `on`, not `once`: a second 'error' must still have a listener, or it would throw.
+    raw.on('close', onClose);
+    raw.on('error', onClose);
+    if (raw.destroyed || raw.writableEnded) this.ended = true;
   }
 
   get closed(): boolean {
@@ -28,6 +28,25 @@ export class SseWriter {
   onClose(handler: () => void): void {
     if (this.ended) handler();
     else this.closeHandlers.push(handler);
+  }
+
+  /** Marks the stream over and runs the close handlers (once); does not touch the socket. */
+  private finish(): void {
+    this.ended = true;
+    if (this.heartbeat) clearInterval(this.heartbeat);
+    this.heartbeat = null;
+    for (const h of this.closeHandlers.splice(0)) h();
+  }
+
+  /** Gives up the stream without ending the response (used when an ordinary error response takes over). */
+  release(): void {
+    this.finish();
+  }
+
+  startHeartbeat(ms: number): void {
+    if (this.ended) return;
+    this.heartbeat = setInterval(() => this.comment('ping'), ms);
+    this.heartbeat.unref();
   }
 
   start(headers: Record<string, string | number | string[] | undefined>): void {
@@ -67,18 +86,16 @@ export class SseWriter {
 
   end(): void {
     if (this.ended) return;
-    this.ended = true;
     this.raw.end();
-    for (const h of this.closeHandlers.splice(0)) h();
+    this.finish();
   }
 
   private write(chunk: string): void {
     if (this.ended) return;
     this.raw.write(chunk);
     if (this.raw.writableLength > this.maxBuffered) {
-      this.ended = true;
       this.raw.destroy();
-      for (const h of this.closeHandlers.splice(0)) h();
+      this.finish();
     }
   }
 }

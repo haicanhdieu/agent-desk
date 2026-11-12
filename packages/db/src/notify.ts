@@ -33,7 +33,7 @@ function parseMessage(payload: string | undefined): RunStatusMessage | null {
 export async function listenRunStatus(
   url: string,
   onMsg: (msg: RunStatusMessage) => void,
-  opts: { reconnectDelayMs?: number } = {},
+  opts: { reconnectDelayMs?: number; onReconnect?: () => void } = {},
 ): Promise<() => Promise<void>> {
   const delay = opts.reconnectDelayMs ?? 1000;
   let stopped = false;
@@ -44,11 +44,11 @@ export async function listenRunStatus(
     if (stopped || timer) return;
     timer = setTimeout(() => {
       timer = null;
-      void connect().catch(scheduleReconnect);
+      void connect(true).catch(scheduleReconnect);
     }, delay);
   };
 
-  const connect = async (): Promise<void> => {
+  const connect = async (isReconnect = false): Promise<void> => {
     const c = new pg.Client({ connectionString: url });
     c.on('notification', (n) => {
       if (n.channel !== RUN_STATUS_CHANNEL) return;
@@ -89,6 +89,14 @@ export async function listenRunStatus(
       return;
     }
     client = c;
+    if (isReconnect) {
+      try {
+        // Notifications sent while the connection was down are gone: let the caller re-read.
+        opts.onReconnect?.();
+      } catch {
+        // A throwing callback must not kill the listener.
+      }
+    }
   };
 
   await connect();

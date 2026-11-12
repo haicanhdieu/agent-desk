@@ -10,10 +10,14 @@ const RunParam = new ZodPipe(routes.runs.events.params);
 const ProjectParam = new ZodPipe(routes.projects.events.params);
 const EventsQuery = new ZodPipe(routes.runs.events.query);
 
+const MAX_SEQ = 2147483647;
+
 /** `Last-Event-ID` is only honoured as a plain non-negative integer; anything else means "from the start". */
 function parseLastEventId(raw: string | undefined): number | undefined {
   if (raw === undefined || !/^\d{1,15}$/.test(raw)) return undefined;
-  return Number(raw);
+  const n = Number(raw);
+  // run_events.seq is int4: a larger id can match nothing, so it means "from the start".
+  return n <= MAX_SEQ ? n : undefined;
 }
 
 /**

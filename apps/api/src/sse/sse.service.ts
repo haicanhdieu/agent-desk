@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException, type OnModuleDestroy } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
-import { and, asc, eq, gt, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, notInArray, sql } from 'drizzle-orm';
 import { projects, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
 import {
   FINAL_RUN_STATUSES,
@@ -12,10 +12,17 @@ import {
 import type { OrgContext } from '../auth/org-context';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
-import { RunStatusListener, type RunSnapshot } from './run-status-listener';
+import { RunStatusListener } from './run-status-listener';
 import { SseWriter } from './sse-writer';
 
 const BACKLOG_PAGE = 500;
+const RESYNC_LIMIT = 200;
+
+/** Test seam. */
+export interface SseHooks {
+  /** Awaited after the first run read, before the response is started. */
+  afterFirstRead?: (runId: string) => Promise<void>;
+}
 const isFinal = (s: string): boolean => (FINAL_RUN_STATUSES as readonly string[]).includes(s);
 
 interface RunPage {
@@ -43,20 +50,35 @@ export class SseService implements OnModuleDestroy {
     for (const w of [...this.open]) w.end();
   }
 
-  private attach(reply: FastifyReply, cleanup: () => void): SseWriter {
+  hooks: SseHooks = {};
+
+  /**
+   * Registers the writer before any await, so a socket that closes while we are still reading is cleaned up (subscriber
+   * and registry entry); the response is not touched until `begin`.
+   */
+  private track(reply: FastifyReply, unsubscribe: () => void): SseWriter {
     const writer = new SseWriter(reply.raw);
     this.open.add(writer);
-    const heartbeat = setInterval(() => writer.comment('ping'), this.config.SSE_HEARTBEAT_MS);
-    heartbeat.unref();
     writer.onClose(() => {
-      clearInterval(heartbeat);
       this.open.delete(writer);
-      cleanup();
+      unsubscribe();
     });
-    // Take the response out of Fastify's hands; keep headers its hooks already set (x-request-id).
-    reply.hijack();
-    writer.start(reply.getHeaders());
     return writer;
+  }
+
+  /** Takes the response out of Fastify's hands (keeping headers its hooks set, like x-request-id) and starts SSE. */
+  private begin(reply: FastifyReply, writer: SseWriter): boolean {
+    try {
+      reply.hijack();
+      if (writer.closed) return false;
+      writer.start(reply.getHeaders());
+      writer.startHeartbeat(this.config.SSE_HEARTBEAT_MS);
+      return true;
+    } catch (err) {
+      this.log.warn(`could not start stream: ${err instanceof Error ? err.message : 'unknown'}`);
+      writer.release();
+      return false;
+    }
   }
 
   private async readRun(orgId: string, runId: string, after: number): Promise<RunPage | null> {
@@ -94,51 +116,53 @@ export class SseService implements OnModuleDestroy {
   }
 
   /**
-   * Subscribes first, then reads the backlog, so nothing committed in between is missed; notifications only mark the
-   * stream dirty and every flush re-reads from the last sent seq, which makes duplicates impossible.
+   * Subscribes first, then reads the backlog, so nothing committed in between is missed. A notification only bumps a
+   * generation counter; every flush re-reads from the last sent seq and repeats while the counter moved during it, so a
+   * wake-up can neither be lost (even one that lands before the first flush) nor cause duplicates.
    */
   async streamRun(org: OrgContext, runId: string, after: number, reply: FastifyReply): Promise<void> {
-    let dirty = false;
+    let gen = 0;
+    let started = false;
     let flushing = false;
-    let writer: SseWriter | null = null;
-    const unsubscribe = this.listener.onRun(org.orgId, runId, () => {
-      dirty = true;
-      if (writer && !flushing) void flush(writer);
-    });
-    let first: RunPage | null;
+    const writer = this.track(
+      reply,
+      this.listener.onRun(org.orgId, runId, () => {
+        gen += 1;
+        if (started && !flushing) void flush();
+      }),
+    );
+    let page: RunPage | null;
+    const pageGen = gen;
     try {
-      first = await this.readRun(org.orgId, runId, after);
+      page = await this.readRun(org.orgId, runId, after);
+      if (!page) throw new NotFoundException('Run not found');
+      await this.hooks.afterFirstRead?.(runId);
     } catch (err) {
-      unsubscribe();
+      writer.release();
       throw err;
     }
-    if (!first) {
-      unsubscribe();
-      throw new NotFoundException('Run not found');
+    if (writer.closed) {
+      this.begin(reply, writer);
+      return;
     }
 
     let lastSeq = after;
     let lastStatusKey = '';
     let initial = true;
-    let page: RunPage | null = first;
 
     const sendStatus = (s: RunStatusEvent): void => {
       const key = JSON.stringify([s.status, s.seq, s.exitCode, s.failureReason]);
       if (key === lastStatusKey) return;
       lastStatusKey = key;
       // No `id:` on status frames: only events advance the client's Last-Event-ID.
-      w().event('status', s);
-    };
-    const w = (): SseWriter => {
-      if (!writer) throw new Error('stream not started');
-      return writer;
+      writer.event('status', s);
     };
 
     const step = async (): Promise<void> => {
       let cur: RunPage | null = page ?? (await this.readRun(org.orgId, runId, lastSeq));
       page = null;
       if (!cur) {
-        w().end();
+        writer.end();
         return;
       }
       if (initial) {
@@ -147,56 +171,94 @@ export class SseService implements OnModuleDestroy {
       }
       for (;;) {
         for (const e of cur.events) {
-          w().event('event', e, e.seq);
+          writer.event('event', e, e.seq);
           lastSeq = e.seq;
+          // Per event, so a big backlog can never outrun a slow reader past the buffer cap.
+          await writer.drained();
+          if (writer.closed) return;
         }
-        await w().drained();
-        if (w().closed || cur.events.length < BACKLOG_PAGE) break;
+        if (cur.events.length < BACKLOG_PAGE) break;
         const next: RunPage | null = await this.readRun(org.orgId, runId, lastSeq);
         if (!next) {
-          w().end();
+          writer.end();
           return;
         }
         cur = next;
       }
-      if (w().closed) return;
       sendStatus({ ...cur.status, seq: Math.max(cur.status.seq, lastSeq) });
-      if (isFinal(cur.status.status)) w().end();
+      if (isFinal(cur.status.status)) writer.end();
     };
 
-    const flush = async (wr: SseWriter): Promise<void> => {
+    const flush = async (): Promise<void> => {
       flushing = true;
       try {
+        let g: number;
         do {
-          dirty = false;
+          // The first iteration consumes the page read at `pageGen`; wake-ups since then force another pass.
+          g = page ? pageGen : gen;
           await step();
-        } while (dirty && !wr.closed);
+        } while (g !== gen && !writer.closed);
       } catch (err) {
         this.log.warn(`run stream failed: ${err instanceof Error ? err.message : 'unknown'}`);
-        wr.end();
+        writer.end();
       } finally {
         flushing = false;
       }
     };
 
-    writer = this.attach(reply, unsubscribe);
-    await flush(writer);
+    if (!this.begin(reply, writer)) return;
+    started = true;
+    await flush();
   }
 
   async streamProject(org: OrgContext, projectId: string, reply: FastifyReply): Promise<void> {
-    let writer: SseWriter | null = null;
-    const unsubscribe = this.listener.onProject(org.orgId, projectId, (s: RunSnapshot) => {
-      writer?.event('run', ProjectRunEvent.parse({ runId: s.runId, number: s.number, status: s.status, seq: s.seq }));
-    });
+    let started = false;
+    const lastFrame = new Map<string, string>();
+    const emit = (runId: string, number: number, status: RunStatus, seq: number): void => {
+      const key = `${status}:${seq}`;
+      if (lastFrame.get(runId) === key) return;
+      lastFrame.set(runId, key);
+      writer.event('run', ProjectRunEvent.parse({ runId, number, status, seq }));
+    };
+    // After a LISTEN reconnect notifications may have been missed: re-send the state of the project's unfinished runs.
+    const resync = async (): Promise<void> => {
+      try {
+        const rows = await withOrg(this.db, org.orgId, (tx) =>
+          tx
+            .select({
+              id: runs.id,
+              number: runs.number,
+              status: runs.status,
+              seq: sql<number>`(select coalesce(max(seq), 0)::int from run_events where run_events.run_id = runs.id)`,
+            })
+            .from(runs)
+            .where(and(eq(runs.projectId, projectId), notInArray(runs.status, [...FINAL_RUN_STATUSES])))
+            .limit(RESYNC_LIMIT),
+        );
+        if (writer.closed) return;
+        for (const r of rows) emit(r.id, r.number, RunStatus.parse(r.status), r.seq);
+      } catch (err) {
+        this.log.warn(`project resync failed: ${err instanceof Error ? err.message : 'unknown'}`);
+      }
+    };
+    const writer = this.track(
+      reply,
+      this.listener.onProject(org.orgId, projectId, (s) => {
+        if (!started || writer.closed) return;
+        if (s) emit(s.runId, s.number, s.status, s.seq);
+        else void resync();
+      }),
+    );
     try {
       const exists = await withOrg(this.db, org.orgId, (tx) =>
         tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).limit(1),
       );
       if (!exists[0]) throw new NotFoundException('Project not found');
     } catch (err) {
-      unsubscribe();
+      writer.release();
       throw err;
     }
-    writer = this.attach(reply, unsubscribe);
+    if (!this.begin(reply, writer)) return;
+    started = true;
   }
 }
