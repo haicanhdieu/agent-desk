@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'msw';
 import { mockDb } from './db';
 import { problemResponse, routeHandler, type ProblemInit, type RouteKey } from './http';
+import { scriptRun, type ScriptStep } from './live';
 
 // Per-test (or per-page) overrides. Handler overrides go through the active MSW server or worker's `use`, so the
 // test setup's `resetHandlers()` drops them after each test; store changes are undone by `mockDb.reset()`.
@@ -38,5 +39,13 @@ export const scenarios = {
   /** The route answers the given problem until the handlers reset. */
   problem(routeKey: RouteKey, problem: ProblemInit): void {
     override(routeHandler(routeKey, async () => problemResponse(problem)));
+  },
+  /**
+   * The run changes over time: each step (after `afterMs` from the previous one) appends a lifecycle line and/or
+   * moves the status, and open event streams see it. Starts now, or with `onStream` when the run's first event
+   * stream opens. A run that becomes final meanwhile stops the script; a store reset drops it.
+   */
+  runScript(runId: string, steps: ScriptStep[], { start = 'now' }: { start?: 'now' | 'onStream' } = {}): void {
+    scriptRun(runId, steps, start);
   },
 };

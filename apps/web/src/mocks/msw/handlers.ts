@@ -27,6 +27,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
+import { appendRunEvent, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
 // handler requires a session (401 otherwise), scopes reads to the active org (another org's record is a 404, as
@@ -118,19 +119,12 @@ function runOf(runId: string): RunDto {
   return run;
 }
 
-function appendEvent(run: RunDto, type: 'lifecycle' | 'status', payload: Record<string, unknown>) {
-  const list = db().runEvents[run.id] ?? [];
-  list.push({ seq: (list.at(-1)?.seq ?? 0) + 1, ts: now(), type, payload });
-  db().runEvents[run.id] = list;
-}
-
+/** Ends the run now; open event streams see the note and the status (live.ts). */
 function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
-  run.status = status;
   run.finishedAt = now();
-  run.idleSince = null;
   run.exitCode = status === 'succeeded' ? 0 : null;
-  appendEvent(run, 'lifecycle', { text: note });
-  appendEvent(run, 'status', { status, exitCode: run.exitCode, failureReason: run.failureReason });
+  appendRunEvent(run, 'lifecycle', { text: note });
+  setRunStatus(run, status);
 }
 
 const matchesFilter = (filter: RunListFilter | undefined, s: RunStatus): boolean => {

@@ -2,10 +2,11 @@ import { setupWorker } from 'msw/browser';
 import { z } from 'zod';
 import { mockDb } from './db';
 import { handlers } from './handlers';
-import { setScenarioTarget } from './scenarios';
+import { scenarios, setScenarioTarget } from './scenarios';
+import { DEFAULT_RUN_SCRIPT, streamHandlers } from './stream-handlers';
 
-/** MSW service worker for `dev:mock` and Storybook. */
-export const worker = setupWorker(...handlers);
+/** MSW service worker for `dev:mock` and Storybook (the API plus the SSE streams). */
+export const worker = setupWorker(...streamHandlers, ...handlers);
 setScenarioTarget(worker);
 
 // Sign-in and sign-out reload the page (the social sign-in redirects), so the auth state survives reloads in
@@ -38,6 +39,8 @@ let started: Promise<unknown> | undefined;
 export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown> {
   started ??= (async () => {
     loadAuth();
+    // A clean click-through shows a live run: open run 63 and watch it start (stream-handlers.ts).
+    scenarios.runScript(DEFAULT_RUN_SCRIPT.runId, DEFAULT_RUN_SCRIPT.steps, { start: 'onStream' });
     worker.events.on('response:mocked', ({ request }) => {
       if (new URL(request.url).pathname.startsWith('/auth/')) saveAuth();
     });

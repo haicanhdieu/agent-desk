@@ -1,6 +1,6 @@
 import type { ProjectDto, RunDto, RunEventDto, RunStatus } from '@agentdesk/contracts';
 import { z } from 'zod';
-import type { ChainStep, TermLine } from '@/components';
+import type { ChainStep, ConnectionState, TermLine } from '@/components';
 import { statusTokens } from '@/ds';
 import type { RunDetailData, RunDetailKey } from '@/mocks/types';
 import { duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
@@ -57,7 +57,7 @@ const ESCAPES =
   /(?:\u001b[\]PX^_]|[\u0090\u0098\u009d\u009e\u009f])[^\u0007\u001b\u009c]*(?:\u0007|\u001b\\|\u009c)?|(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]|\u001b[ -~]?/g;
 // Remaining C0 controls (tab and newline stay), DEL, C1 controls and the bidi embeddings, overrides and isolates.
 // eslint-disable-next-line no-control-regex -- matching control characters is the point.
-const CONTROLS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g;
+const CONTROLS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
 
 /** At most this many scrollback lines (the newest) are rendered. */
 export const SCROLLBACK_MAX_LINES = 5000;
@@ -200,6 +200,20 @@ function endNote(run: RunDto, ticketRuns: RunDto[], links: RunDetailLinks, now: 
       };
     default:
       return { title: endedAt ? `Cancelled at ${endedAt}.` : 'Cancelled.', body: '', actions: [] };
+  }
+}
+
+/** The run event stream's state as the terminal bar's indicator (a run that is not final). */
+export function streamConnection(state: ConnectionState): RunDetailData['connection'] {
+  switch (state) {
+    case 'live':
+      return { state, label: 'Live' };
+    case 'reconnecting':
+      return { state, label: 'Reconnecting…' };
+    case 'ended':
+      return { state, label: 'Ended' };
+    case 'none':
+      return { state, label: 'No terminal yet' };
   }
 }
 

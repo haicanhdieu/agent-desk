@@ -151,6 +151,7 @@ let state = seedState();
 let log: { method: string; path: string }[] = [];
 let counter = 0;
 let requestCounter = 0;
+const resetHooks: (() => void)[] = [];
 
 export const mockDb = {
   get state(): MockState {
@@ -161,6 +162,11 @@ export const mockDb = {
     state = seedState();
     log = [];
     counter = 0;
+    for (const hook of resetHooks) hook();
+  },
+  /** Runs `hook` on every reset (live.ts stops scripted runs and drops stream listeners). */
+  onReset(hook: () => void): void {
+    resetHooks.push(hook);
   },
   /** A deep copy of the whole store (tests assert secrets never land in it). */
   snapshot(): MockState {

@@ -1,5 +1,6 @@
-import { FINAL_RUN_STATUSES, type RunDto } from '@agentdesk/contracts';
+import type { RunDto } from '@agentdesk/contracts';
 import type { QueryClient } from '@tanstack/react-query';
+import { isFinal } from './map';
 
 // Pending cancel / finish actions (spec §4.3). From the click until the run is final, the run carries the note
 // ("Cancelling…") in every cached copy, even across refetches: the run queries' queryFns re-apply it to fresh data.
@@ -23,8 +24,6 @@ const entriesOf = (qc: QueryClient) => {
   registry.set(qc, map);
   return map;
 };
-
-const isFinal = (status: RunDto['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
 
 /** True while a cancel or finish of the run is pending (a second one is ignored). */
 export const hasPendingAction = (qc: QueryClient, runId: string): boolean => entriesOf(qc).has(runId);

@@ -6,11 +6,12 @@ import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
-import { scrollbackLines, toRunDetail } from '@/features/runs/detail.map';
+import { scrollbackLines, streamConnection, toRunDetail } from '@/features/runs/detail.map';
 import { isFinal } from '@/features/runs/map';
 import { useCancelRun, useFinishRun } from '@/features/runs/mutations';
 import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
+import { useRunEvents } from '@/features/runs/useRunEvents';
 import { RunDetail } from '@/screens';
 
 /** `$run` is the per-project run number. */
@@ -45,6 +46,8 @@ function RunDetailRoute() {
   const final = isFinal(dto.status);
   const { data: events } = useSuspenseQuery(runsQueries.events(org, projectId, number, final));
   const { data: ticketRuns } = useSuspenseQuery(runsQueries.list(org, projectId, 'all', dto.ticket.ref));
+  // Live status and log while the run is not final (spec §5.1).
+  const stream = useRunEvents(org, projectId, number, dto.id, !final);
   const queryClient = useQueryClient();
   // The run became final while open (a refetch, not loaded final): its log now has the final scrollback.
   const wasFinal = useRef(final);
@@ -62,7 +65,8 @@ function RunDetailRoute() {
 
   const { paths } = page;
   const target = { id: dto.id, number };
-  const data = toRunDetail(dto, events, page.dto, ticketRuns.items, now, { runs: paths.runs, agent: paths.agent });
+  const mapped = toRunDetail(dto, events, page.dto, ticketRuns.items, now, { runs: paths.runs, agent: paths.agent });
+  const data = final ? mapped : { ...mapped, connection: streamConnection(stream) };
   const ticket = `${dto.ticket.kind === 'pr' ? 'PR' : 'issue'} #${dto.ticket.number}`;
 
   return (

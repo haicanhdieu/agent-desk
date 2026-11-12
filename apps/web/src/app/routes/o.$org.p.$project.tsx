@@ -1,6 +1,7 @@
 import { createFileRoute, notFound, Outlet } from '@tanstack/react-router';
 import { z } from 'zod';
 import { projectsQueries } from '@/features/projects/queries';
+import { useProjectEvents } from '@/features/runs/useProjectEvents';
 
 const ProjectParam = z.uuid();
 
@@ -16,5 +17,12 @@ export const Route = createFileRoute('/o/$org/p/$project')({
       queryClient.ensureQueryData(projectsQueries.connection(org, project)),
     ]);
   },
-  component: Outlet,
+  component: ProjectLayout,
 });
+
+function ProjectLayout() {
+  const { org, project } = Route.useParams();
+  // Run status changes in the project, for every project page (spec §5.2).
+  useProjectEvents(org, project);
+  return <Outlet />;
+}
