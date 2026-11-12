@@ -10,7 +10,7 @@ This spec picks the app stack and wires every PoC screen to the control plane AP
 
 The same roadmap as the backend applies: multi-tenancy (orgs), SSO, RBAC and audit come later, so URLs and caches are org-scoped from the start even though there is no org UI yet.
 
-Success for this spec: every PoC screen runs against the real API on a local kind cluster, run status updates live, the terminal attaches to a running agent, and each layer has automated tests, including a browser end-to-end path.
+Success for this spec: every PoC screen runs against the real API on a local k3s cluster (the infra spec's `local` target), run status updates live, the terminal attaches to a running agent, and each layer has automated tests, including a browser end-to-end path.
 
 ## 2. Decisions
 
@@ -185,7 +185,7 @@ Empty states use the existing screens and components. Their copy was invented wi
 | Components | Storybook 10, addon-a11y, existing stories smoke test and axe | `LiveTerminal`, `Toast`, `Skeleton`, form `error` props; all screen stories still render with the default `LinkProvider` |
 | Visual parity | `pnpm parity` | After the React 19 upgrade and the tone rename; no drift beyond `design/parity-notes.md` |
 | E2E, mocked | Playwright, `vite preview`, MSW in the browser | Sign in → setup steps 1–4 → runs list → run detail with a scripted live stream → finish; rule create and edit; trigger mode switch |
-| E2E, real | Playwright against the backend's kind e2e (`pnpm test:e2e`) | A `fake`-provider comment → run appears live in the list → terminal attaches and receives bytes → Finish → status `succeeded` |
+| E2E, real | Playwright against the backend's e2e on the infra `local` target (`pnpm test:e2e`) | A `fake`-provider comment → run appears live in the list → terminal attaches and receives bytes → Finish → status `succeeded` |
 
 Scripts in `apps/web`: `dev`, `dev:mock`, `test`, `test:e2e:mock`, `typecheck`, `lint`, `storybook`, `build-storybook`, `parity`. CI wiring belongs to the infra spec.
 
@@ -240,7 +240,7 @@ Frontend work starts after backend build step 1 (workspace, `web/` moved to `app
 5. Desk: skills (editor and commit), rules (TanStack Form with `RuleForm`), agent and settings (limits, trigger mode, credential, danger zone).
 6. Runs: list, problems and needs-you with typed search; run detail in all eight states; cancel and finish.
 7. Realtime: `useRunEvents`, `useProjectEvents`, `LiveTerminal` and `useTerminal`, reconnect states.
-8. Real API: Vite proxy, `pnpm dev` against local Nest, contract fixes, Playwright mocked e2e, then the real kind path.
+8. Real API: Vite proxy, `pnpm dev` against local Nest, contract fixes, Playwright mocked e2e, then the real `local` target path.
 
 ## 13. Open technical checks
 

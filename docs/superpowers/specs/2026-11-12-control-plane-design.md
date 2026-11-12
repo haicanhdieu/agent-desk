@@ -12,7 +12,7 @@ The PoC behavior is the one in the Architecture doc: comments on tickets trigger
 - **Any identity provider**: GitHub sign-in first; Google, Apple, Keycloak/generic OIDC and SAML later.
 - **Any code host and board**: GitHub first; GitLab, Bitbucket, Jira later. Nothing is named after a provider.
 
-Success for this spec: every Architecture-doc flow (webhook and polling intake, routing, run lifecycle, live terminal, finish, cancel, timeouts, chaining) works end to end on a local kind cluster, under the tenant-ready schema, with automated tests at each layer.
+Success for this spec: every Architecture-doc flow (webhook and polling intake, routing, run lifecycle, live terminal, finish, cancel, timeouts, chaining) works end to end on a local k3s cluster (the infra spec's `local` target), under the tenant-ready schema, with automated tests at each layer.
 
 ## 2. Decisions
 
@@ -70,6 +70,7 @@ Run status is unchanged: `queued` → `starting` → `running` ⇄ `idle` → `s
 
 - Every table with `org_id` has `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, and the policy `org_id = current_setting('app.org_id')::uuid`, declared with Drizzle `pgPolicy`. `inbound_events` additionally allows rows with null `org_id` to be inserted by the intake.
 - The app connects as `agentdesk_app` (no `BYPASSRLS`, no table ownership). Migrations run as `agentdesk_owner`.
+- The api image has a migrate entrypoint: it connects as the server's admin user, creates the roles `agentdesk_owner`, `agentdesk_app` and `temporal` and their databases idempotently, then runs the migrations as `agentdesk_owner`. It runs as a Helm hook (infra spec §6.3) and does not depend on Postgres init scripts.
 - `packages/db` exports `withOrg(orgId, fn)`: open a transaction, `select set_config('app.org_id', $1, true)`, run `fn(tx)`. Request and activity code have no other way to obtain a database handle.
 - The api derives `OrgContext` (request-scoped provider) from the session's active organization; a guard checks membership. Workflow inputs carry `orgId`; activities call `withOrg`.
 - Cross-tenant lookup for webhooks: `resolve_project(provider text, external_id text, repo_path text) returns (org_id uuid, project_id uuid)`, a `SECURITY DEFINER` function owned by `agentdesk_owner`, granted to `agentdesk_app`. The only other cross-tenant read is `queued_runs_without_workflow` for the outbox sweep (section 6.1), built the same way. Reconcile needs neither: it reads `agentdesk/org-id` from Job labels and uses `withOrg`.
@@ -208,6 +209,7 @@ Every `/api/*` route requires a session and runs under `withOrg(activeOrganizati
 - `@kubernetes/client-node` `Exec` of `tmux attach -t agent` with `tty` and `stdin`; bytes relayed both ways. Resize frames are written to channel 4 as `{"Width":w,"Height":h}`.
 - On connect and disconnect the api signals `terminalAttached` / `terminalDetached`. The first input after a turn signals `resumed`, at most once per 5 s.
 - The control plane holds the Kubernetes credentials; the browser never gets them.
+- Keepalive: the api sends a WebSocket ping every 30 s, so proxies with idle timeouts (Cloudflare, about 100 s) keep the connection open.
 
 ### 7.6 Observability
 
@@ -221,6 +223,7 @@ The runner image is built in the infra spec. The control plane depends on this c
 - The entrypoint clones, fetches and checks out `CHECKOUT_REF`, starts Claude Code interactively in tmux session `agent` with `--permission-mode bypassPermissions`, waits for the pane to die, prints the scrollback and exits with the agent's status.
 - Log lines, one per line on stdout: `agentdesk: session started`, `agentdesk: turn finished` (from the Stop hook), `agentdesk: final scrollback begin`, `agentdesk: final scrollback end`.
 - Job spec: as in Architecture §5, with labels `agentdesk/run-id`, `agentdesk/project-id`, `agentdesk/org-id`; `activeDeadlineSeconds` = `timeout_seconds` + 120 as a backstop to the workflow's hard timer.
+- The worker takes the run pod's `resources`, ephemeral-storage limit, `securityContext` (uid 10001, restricted Pod Security), workspace `emptyDir` size limit, `automountServiceAccountToken: false`, and optional `nodeSelector`, `tolerations` and `runtimeClassName` from `ConfigModule`; the infra chart supplies the values.
 
 ## 9. Testing and local development
 
@@ -231,11 +234,11 @@ The runner image is built in the infra spec. The control plane depends on this c
 | Database | Testcontainers Postgres, migrations, `agentdesk_app` role | RLS leak test across two orgs on every table, `resolve_project`, dedupe uniqueness, `withOrg`, NOTIFY |
 | API | Nest testing module, Fastify `inject`, Testcontainers Postgres, fake Temporal client | Auth and org boundary on every route, webhook signature and dedupe, SSE backlog and live, problem+json |
 | Contract | Vitest | Every route's response parses with its Zod schema |
-| Kubernetes | `KubeGateway` in-memory fake; one kind test behind `pnpm test:e2e` | Job spec shape, idempotent create, exec relay against a stub pod, end-to-end comment → run → finish comment with the `fake` provider |
+| Kubernetes | `KubeGateway` in-memory fake; one end-to-end test on the infra `local` target (k3s on Docker) behind `pnpm test:e2e` | Job spec shape, idempotent create, exec relay against a stub pod, end-to-end comment → run → finish comment with the `fake` provider |
 
 Test seams: `KubeGateway`, `BoardAdapter` and `CodeHostAdapter` (`fake` provider), `Clock`, `SecretStore` (Kubernetes Secrets in prod, in-memory in tests).
 
-Local development: `pnpm dev` starts docker compose (Postgres; Temporal dev server with UI on :8233), then api and worker on the host with hot reload. `KUBE_MODE=kind` uses the local kubeconfig; `KUBE_MODE=fake` simulates Jobs with a scripted log so the full flow runs without a cluster. Projects default to Polling locally.
+Local development: `pnpm dev` starts docker compose (Postgres; Temporal dev server with UI on :8233), then api and worker on the host with hot reload. `KUBE_MODE=kubeconfig` uses a local kubeconfig (for example the infra `local` target's); `KUBE_MODE=incluster` uses the pod's service account and is the deployed mode; `KUBE_MODE=fake` simulates Jobs with a scripted log so the full flow runs without a cluster. Projects default to Polling locally.
 
 ## 10. Scope and build order
 
@@ -255,7 +258,7 @@ Build order, each step leaving the system working and tested:
 8. Polling: Schedules, `PollOnce`, cursor and back-off.
 9. SSE.
 10. Terminal relay.
-11. kind end-to-end test.
+11. End-to-end test on the infra `local` target.
 
 ## 11. Open technical checks
 
