@@ -1,3 +1,5 @@
+// Tracing first: it registers the OTel provider before anything else loads (no-op unless configured).
+import './tracing';
 import 'reflect-metadata';
 import { createApp } from './bootstrap';
 import { CONFIG, type Config } from './config/config.module';

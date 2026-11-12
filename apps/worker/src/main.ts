@@ -1,3 +1,5 @@
+// Tracing first: it registers the OTel provider before anything else loads (no-op unless configured).
+import { tracing } from './tracing';
 import 'reflect-metadata';
 import { fileURLToPath } from 'node:url';
 import { NestFactory } from '@nestjs/core';
@@ -27,13 +29,14 @@ async function main(): Promise<void> {
   const connection = await Connection.connect({ address: config.TEMPORAL_ADDRESS });
   const nativeConnection = await NativeConnection.connect({ address: config.TEMPORAL_ADDRESS });
   try {
-    const client = new Client({ connection, namespace: config.TEMPORAL_NAMESPACE });
+    const client = new Client({ connection, namespace: config.TEMPORAL_NAMESPACE, plugins: tracing.plugins });
     await ensureSchedules(client);
     const ops = temporalOps(client);
     const worker = await Worker.create({
       connection: nativeConnection,
       namespace: config.TEMPORAL_NAMESPACE,
       taskQueue: TASK_QUEUE,
+      plugins: tracing.plugins,
       workflowsPath: fileURLToPath(new URL('./workflows/index.ts', import.meta.url)),
       activities: createActivities({
         db,
@@ -57,6 +60,7 @@ async function main(): Promise<void> {
     await nativeConnection.close();
     await connection.close();
     await app.close();
+    await tracing.shutdown();
   }
 }
 
