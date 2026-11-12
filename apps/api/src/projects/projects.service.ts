@@ -23,10 +23,11 @@ import {
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { isUniqueViolation } from '../common/pg-errors';
-import type { AdapterRegistry } from '@agentdesk/core';
+import { credentialSecretName, type AdapterRegistry, type SecretStore } from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
+import { SECRET_STORE } from '../secrets/secret-store.module';
 import { ProjectSchedules } from './project-schedules';
 
 type ProjectRow = typeof projects.$inferSelect;
@@ -50,6 +51,16 @@ export function assertRepoPathShape(repoPath: string): void {
   }
 }
 
+/** Non-final run statuses: a project with any of these cannot be deleted. */
+const LIVE_STATUSES = ['queued', 'starting', 'running', 'idle'];
+
+/** 409: deleting a project while it has live runs would orphan their workflows, Jobs and tokens. */
+export class ActiveRunsConflictException extends ConflictException {
+  constructor() {
+    super('Cancel active runs first: this project has queued or running runs');
+  }
+}
+
 const STEP_ORDER: readonly SetupStep[] = ['agent', 'skills', 'rules', 'ready'];
 
 interface Counts {
@@ -67,6 +78,7 @@ export class ProjectsService {
     @Inject(DB) private readonly db: Db,
     @Inject(ADAPTER_REGISTRY) private readonly registry: AdapterRegistry,
     @Inject(ProjectSchedules) private readonly schedules: ProjectSchedules,
+    @Inject(SECRET_STORE) private readonly secrets: SecretStore,
   ) {}
 
   /** One grouped query for all requested projects. needsYou = idle runs; running = live jobs (starting, running, idle). */
@@ -126,14 +138,15 @@ export class ProjectsService {
     return row;
   }
 
-  /** Temporal work after the DB commit: a failure is logged (message only) and never fails the request. */
+  /**
+   * External work after the DB commit (Temporal, secret store): a failure is logged and never fails the request. Only
+   * the error's name is logged: store and provider messages can quote values.
+   */
   private async bestEffort(what: string, fn: () => Promise<void>, projectId: string): Promise<void> {
     try {
       await fn();
     } catch (err) {
-      this.logger.warn(
-        `${what} failed for project ${projectId}: ${err instanceof Error ? err.message : 'unknown error'}`,
-      );
+      this.logger.warn(`${what} failed for project ${projectId}: ${err instanceof Error ? err.name : 'unknown error'}`);
     }
   }
 
@@ -257,12 +270,35 @@ export class ProjectsService {
     return dto;
   }
 
+  /**
+   * Refuses while any run is live (its workflow and Job would outlive the row). Otherwise deletes the project (runs,
+   * agents and rules cascade), then best-effort removes what lives outside Postgres: the gate workflow, the poll
+   * schedule and the agents' credential Secrets.
+   */
   async remove(org: OrgContext, projectId: string): Promise<void> {
-    await withOrg(this.db, org.orgId, async (tx) => {
-      await this.load(tx, projectId);
+    const agentIds = await withOrg(this.db, org.orgId, async (tx) => {
+      // FOR UPDATE: a run insert (FK share lock on this row) waits, so no run can appear between the check and delete.
+      await this.load(tx, projectId, true);
+      const [live] = await tx
+        .select({ id: runs.id })
+        .from(runs)
+        .where(and(eq(runs.projectId, projectId), inArray(runs.status, LIVE_STATUSES)))
+        .limit(1);
+      if (live) throw new ActiveRunsConflictException();
+      const rows = await tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId));
       await tx.delete(projects).where(eq(projects.id, projectId));
+      return rows.map((r) => r.id);
     });
+    await this.bestEffort('terminate gate', () => this.schedules.terminateGate(projectId), projectId);
     await this.bestEffort('delete schedule', () => this.schedules.remove(projectId), projectId);
+    for (const agentId of agentIds) {
+      // The Secret name is derived from (org, agent); a missing Secret is fine (delete is idempotent).
+      await this.bestEffort(
+        'delete credential secret',
+        () => this.secrets.delete(credentialSecretName(org.orgId, agentId)),
+        projectId,
+      );
+    }
   }
 
   async connection(org: OrgContext, projectId: string): Promise<ProjectConnectionDto> {

@@ -9,7 +9,8 @@ export type FakeCallKind =
   | 'scheduleDelete'
   | 'schedulePause'
   | 'scheduleUnpause'
-  | 'scheduleTrigger';
+  | 'scheduleTrigger'
+  | 'terminate';
 
 export interface FakeCall {
   kind: FakeCallKind;
@@ -22,7 +23,7 @@ export interface FakeCall {
 
 /**
  * Records the Temporal client calls the API makes. `client` is the object to inject as TEMPORAL_CLIENT; it
- * implements only the surface the API uses (workflow.start/signalWithStart/getHandle().signal,
+ * implements only the surface the API uses (workflow.start/signalWithStart/getHandle().signal|terminate,
  * schedule.create/getHandle().update|delete|pause|unpause|trigger, workflowService.getSystemInfo).
  */
 export class FakeTemporalClient {
@@ -33,6 +34,8 @@ export class FakeTemporalClient {
   failing = false;
   /** Awaited before each workflow signal is recorded; may delay or throw (per signal name). */
   signalHook?: (name: unknown) => Promise<void>;
+  /** When set, workflow terminate rejects with it (after recording the call). */
+  terminateError?: unknown;
 
   private record(call: FakeCall): void {
     if (this.failing) throw new Error('temporal call failed (fake)');
@@ -45,6 +48,10 @@ export class FakeTemporalClient {
       signal: async (...args: unknown[]) => {
         await this.signalHook?.(args[0]);
         this.record({ kind: 'signal', workflowId, args });
+      },
+      terminate: async (...args: unknown[]) => {
+        this.record({ kind: 'terminate', workflowId, args });
+        if (this.terminateError !== undefined) throw this.terminateError;
       },
     };
   }
@@ -97,5 +104,6 @@ export class FakeTemporalClient {
     this.available = true;
     this.failing = false;
     this.signalHook = undefined;
+    this.terminateError = undefined;
   }
 }

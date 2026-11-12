@@ -1,6 +1,8 @@
 import type { QueryResultRow } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { WorkflowNotFoundError } from '@temporalio/client';
 import type { ProjectDto } from '@agentdesk/contracts';
+import { credentialSecretName } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -284,6 +286,64 @@ describe('projects', () => {
     expect(t.temporal.callsOfKind('scheduleDelete').map((c) => c.scheduleId)).toEqual([`poll-${p.id}`]);
     const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
     expect(get.statusCode).toBe(404);
+  });
+
+  describe('DELETE with runs and credentials', () => {
+    async function seedRunAndCredential(projectId: string, status: string): Promise<string> {
+      const orgId = await aliceOrgId();
+      const agent = await asOrg(orgId, 'select id from agents where project_id = $1', [projectId]);
+      const agentId = String(agent.rows[0]?.id);
+      await asOrg(
+        orgId,
+        `insert into runs (org_id, project_id, agent_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref,
+                           status, trigger_source)
+         values ($1, $2, $3, 'fix', 'fix', '1', 'issue', 'main', $4, 'manual')`,
+        [orgId, projectId, agentId, status],
+      );
+      const secret = credentialSecretName(orgId, agentId);
+      await t.secrets.put(secret, { type: 'api_key', value: 'sk-test-credential-value' });
+      return secret;
+    }
+
+    it.each(['queued', 'starting', 'running', 'idle'])(
+      'a %s run blocks the delete with a 409 problem and nothing is removed',
+      async (status) => {
+        const p = (await createProject({ triggerMode: 'polling' })).json() as ProjectDto;
+        const secret = await seedRunAndCredential(p.id, status);
+        t.temporal.reset();
+        const res = await t.app.inject({ method: 'DELETE', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+        expect(res.statusCode).toBe(409);
+        expect(res.headers['content-type']).toContain('application/problem+json');
+        expect((res.json() as { detail: string }).detail).toContain('Cancel active runs first');
+        const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+        expect(get.statusCode).toBe(200);
+        expect(t.temporal.calls).toEqual([]);
+        expect(await t.secrets.get(secret)).not.toBeNull();
+      },
+    );
+
+    it('with only final runs: deletes the row, terminates gate-{id}, deletes the schedule and the credential Secret', async () => {
+      const p = (await createProject({ triggerMode: 'polling' })).json() as ProjectDto;
+      const secret = await seedRunAndCredential(p.id, 'succeeded');
+      t.temporal.reset();
+      const res = await t.app.inject({ method: 'DELETE', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+      expect(res.statusCode).toBe(204);
+      expect(t.temporal.callsOfKind('terminate').map((c) => c.workflowId)).toEqual([`gate-${p.id}`]);
+      expect(t.temporal.callsOfKind('scheduleDelete').map((c) => c.scheduleId)).toEqual([`poll-${p.id}`]);
+      expect(await t.secrets.get(secret)).toBeNull();
+      const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+      expect(get.statusCode).toBe(404);
+    });
+
+    it('a missing gate workflow is fine: still 204 and the Secret is deleted', async () => {
+      const p = (await createProject({})).json() as ProjectDto;
+      const secret = await seedRunAndCredential(p.id, 'cancelled');
+      t.temporal.reset();
+      t.temporal.terminateError = new WorkflowNotFoundError('not found', `gate-${p.id}`, undefined);
+      const res = await t.app.inject({ method: 'DELETE', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+      expect(res.statusCode).toBe(204);
+      expect(await t.secrets.get(secret)).toBeNull();
+    });
   });
 
   it('validates bodies (400 problem)', async () => {

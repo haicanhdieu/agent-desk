@@ -3,6 +3,7 @@ import {
   ScheduleAlreadyRunning,
   ScheduleNotFoundError,
   ScheduleOverlapPolicy,
+  WorkflowNotFoundError,
   type Client,
   type ScheduleOptions,
 } from '@temporalio/client';
@@ -68,6 +69,15 @@ export class ProjectSchedules {
       await this.client.schedule.getHandle(pollScheduleId(projectId)).delete();
     } catch (err) {
       if (!(err instanceof ScheduleNotFoundError)) throw err;
+    }
+  }
+
+  /** Terminates the project's gate workflow (on project delete); a missing or closed workflow is fine. */
+  async terminateGate(projectId: string): Promise<void> {
+    try {
+      await this.client.workflow.getHandle(gateWorkflowId(projectId)).terminate('project deleted');
+    } catch (err) {
+      if (!(err instanceof WorkflowNotFoundError)) throw err;
     }
   }
 
