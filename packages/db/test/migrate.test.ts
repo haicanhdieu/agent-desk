@@ -1,25 +1,29 @@
-import { randomUUID } from 'node:crypto';
-import pg from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { bootstrapDatabase } from '../src/bootstrap';
-import { runMigrations } from '../src/migrate';
-import { startPg, TEST_PASSWORDS, type TestPg } from './helpers/pg';
+import { randomUUID } from "node:crypto";
+import pg from "pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { bootstrapDatabase } from "../src/bootstrap";
+import { runMigrations } from "../src/migrate";
+import { startPg, TEST_PASSWORDS, type TestPg } from "./helpers/pg";
 
 const APP_TABLES = [
-  'connections',
-  'projects',
-  'agents',
-  'rules',
-  'runs',
-  'run_events',
-  'inbound_events',
-  'poll_cursors',
-  'audit_log',
+  "connections",
+  "projects",
+  "agents",
+  "rules",
+  "runs",
+  "run_events",
+  "inbound_events",
+  "poll_cursors",
+  "audit_log",
 ];
 
 let env: TestPg;
 
-async function query<T extends pg.QueryResultRow>(url: string, sql: string, params: unknown[] = []): Promise<T[]> {
+async function query<T extends pg.QueryResultRow>(
+  url: string,
+  sql: string,
+  params: unknown[] = [],
+): Promise<T[]> {
   const client = new pg.Client({ connectionString: url });
   await client.connect();
   try {
@@ -37,8 +41,8 @@ afterAll(async () => {
   await env?.stop();
 });
 
-describe('bootstrap and migrations', () => {
-  it('bootstrap is idempotent', async () => {
+describe("bootstrap and migrations", () => {
+  it("bootstrap is idempotent", async () => {
     await bootstrapDatabase(env.adminUrl, TEST_PASSWORDS);
     await bootstrapDatabase(env.adminUrl, TEST_PASSWORDS);
     await runMigrations(env.ownerUrl);
@@ -51,30 +55,44 @@ describe('bootstrap and migrations', () => {
       env.adminUrl,
       "select datname from pg_database where datname in ('agentdesk','temporal','temporal_visibility') order by 1",
     );
-    expect(dbs.map((d) => d.datname)).toEqual(['agentdesk', 'temporal', 'temporal_visibility']);
+    expect(dbs.map((d) => d.datname)).toEqual([
+      "agentdesk",
+      "temporal",
+      "temporal_visibility",
+    ]);
   });
 
-  it('all app tables have org_id not null (except inbound_events)', async () => {
-    const rows = await query<{ table_name: string; is_nullable: string; data_type: string }>(
+  it("all app tables have org_id not null (except inbound_events)", async () => {
+    const rows = await query<{
+      table_name: string;
+      is_nullable: string;
+      data_type: string;
+    }>(
       env.ownerUrl,
       "select table_name, is_nullable, data_type from information_schema.columns where table_schema = 'public' and column_name = 'org_id'",
     );
-    expect(rows.map((r) => r.table_name).sort()).toEqual([...APP_TABLES].sort());
+    expect(rows.map((r) => r.table_name).sort()).toEqual(
+      [...APP_TABLES].sort(),
+    );
     for (const r of rows) {
-      expect(r.data_type).toBe('uuid');
-      expect(r.is_nullable, r.table_name).toBe(r.table_name === 'inbound_events' ? 'YES' : 'NO');
+      expect(r.data_type).toBe("uuid");
+      expect(r.is_nullable, r.table_name).toBe(
+        r.table_name === "inbound_events" ? "YES" : "NO",
+      );
     }
   });
 
-  it('rls is forced on every org table', async () => {
+  it("rls is forced on every org table", async () => {
     const rows = await query<{ relname: string }>(
       env.ownerUrl,
-      'select relname from pg_class where relrowsecurity and relforcerowsecurity',
+      "select relname from pg_class where relrowsecurity and relforcerowsecurity",
     );
-    expect(rows.map((r) => r.relname)).toEqual(expect.arrayContaining(APP_TABLES));
+    expect(rows.map((r) => r.relname)).toEqual(
+      expect.arrayContaining(APP_TABLES),
+    );
   });
 
-  it('app role cannot own or bypass; auth tables exist with user.handle', async () => {
+  it("app role cannot own or bypass; auth tables exist with user.handle", async () => {
     const cols = await query<{ column_name: string }>(
       env.ownerUrl,
       "select column_name from information_schema.columns where table_name = 'user' and column_name = 'handle'",
@@ -84,10 +102,10 @@ describe('bootstrap and migrations', () => {
       env.ownerUrl,
       "select distinct tableowner from pg_tables where schemaname = 'public'",
     );
-    expect(owners).toEqual([{ tableowner: 'agentdesk_owner' }]);
+    expect(owners).toEqual([{ tableowner: "agentdesk_owner" }]);
   });
 
-  describe('runs constraints and numbering', () => {
+  describe("runs constraints and numbering", () => {
     const orgId = randomUUID();
     let projectId: string;
 
@@ -95,8 +113,10 @@ describe('bootstrap and migrations', () => {
       const client = new pg.Client({ connectionString: env.appUrl });
       await client.connect();
       try {
-        await client.query('begin');
-        await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+        await client.query("begin");
+        await client.query("select set_config('app.org_id', $1, true)", [
+          orgId,
+        ]);
         const conn = await client.query<{ id: string }>(
           `insert into connections (org_id, provider, capabilities, external_id, account_name)
            values ($1, 'fake', '{"code":true,"board":true}', 'acct-1', 'demo') returning id`,
@@ -108,14 +128,17 @@ describe('bootstrap and migrations', () => {
            values ($1, 'demo', 'dev/demo', $2, $2) returning id`,
           [orgId, connId],
         );
-        projectId = proj.rows[0]?.id ?? '';
-        await client.query('commit');
+        projectId = proj.rows[0]?.id ?? "";
+        await client.query("commit");
       } finally {
         await client.end();
       }
     }
 
-    async function insertRun(client: pg.Client, commentId: string): Promise<void> {
+    async function insertRun(
+      client: pg.Client,
+      commentId: string,
+    ): Promise<void> {
       await client.query(
         `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
                            trigger_source, trigger_comment_id, command)
@@ -128,36 +151,44 @@ describe('bootstrap and migrations', () => {
       const client = new pg.Client({ connectionString: env.appUrl });
       await client.connect();
       try {
-        await client.query('begin');
-        await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+        await client.query("begin");
+        await client.query("select set_config('app.org_id', $1, true)", [
+          orgId,
+        ]);
         await fn(client);
-        await client.query('commit');
+        await client.query("commit");
       } finally {
         await client.end();
       }
     }
 
-    it('duplicate (project_id, trigger_comment_id) fails with 23505', async () => {
+    it("duplicate (project_id, trigger_comment_id) fails with 23505", async () => {
       await seed();
-      await inOrg((c) => insertRun(c, 'c-1'));
-      await expect(inOrg((c) => insertRun(c, 'c-1'))).rejects.toMatchObject({ code: '23505' });
+      await inOrg((c) => insertRun(c, "c-1"));
+      await expect(inOrg((c) => insertRun(c, "c-1"))).rejects.toMatchObject({
+        code: "23505",
+      });
     });
 
-    it('duplicate (project_id, number) fails with 23505 and numbers auto-increment', async () => {
-      await inOrg((c) => insertRun(c, 'c-2'));
+    it("duplicate (project_id, number) fails with 23505 and numbers auto-increment", async () => {
+      await inOrg((c) => insertRun(c, "c-2"));
       const rows = await query<{ number: number }>(
-        env.adminUrl.replace(/\/[^/]*$/, '/agentdesk'),
-        'select number from runs order by number',
+        env.adminUrl.replace(/\/[^/]*$/, "/agentdesk"),
+        "select number from runs order by number",
       );
       expect(rows.map((r) => r.number)).toEqual([1, 2]);
       await expect(
         inOrg((c) =>
-          c.query(`update runs set number = 1 where trigger_comment_id = 'c-2'`).then(() => undefined),
+          c
+            .query(
+              `update runs set number = 1 where trigger_comment_id = 'c-2'`,
+            )
+            .then(() => undefined),
         ),
-      ).rejects.toMatchObject({ code: '23505' });
+      ).rejects.toMatchObject({ code: "23505" });
     });
 
-    it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
+    it("resolve_project (security definer) finds the project across tenants as the app role", async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,
         "select * from resolve_project('fake', 'acct-1', 'dev/demo')",

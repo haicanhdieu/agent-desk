@@ -1,4 +1,4 @@
-import { sql } from 'drizzle-orm';
+import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
@@ -13,7 +13,7 @@ import {
   timestamp,
   unique,
   uuid,
-} from 'drizzle-orm/pg-core';
+} from "drizzle-orm/pg-core";
 
 /**
  * Tenant predicate. `current_setting(..., true)` yields NULL when `app.org_id` was never set and ''
@@ -23,252 +23,318 @@ import {
 const orgMatch = sql`org_id = nullif(current_setting('app.org_id', true), '')::uuid`;
 
 const orgPolicy = () =>
-  pgPolicy('org_isolation', { as: 'permissive', for: 'all', using: orgMatch, withCheck: orgMatch });
+  pgPolicy("org_isolation", {
+    as: "permissive",
+    for: "all",
+    using: orgMatch,
+    withCheck: orgMatch,
+  });
 
-const ts = (name: string) => timestamp(name, { withTimezone: true, mode: 'date' });
+const ts = (name: string) =>
+  timestamp(name, { withTimezone: true, mode: "date" });
 
 export const connections = pgTable(
-  'connections',
+  "connections",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id').notNull(),
-    provider: text('provider').notNull(),
-    capabilities: jsonb('capabilities').$type<{ code: boolean; board: boolean }>().notNull(),
-    externalId: text('external_id').notNull(),
-    accountName: text('account_name').notNull(),
-    config: jsonb('config').$type<Record<string, unknown>>().notNull().default({}),
-    status: text('status').notNull().default('active'),
-    linkedByUserId: text('linked_by_user_id'),
-    createdAt: ts('created_at').notNull().defaultNow(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull(),
+    provider: text("provider").notNull(),
+    capabilities: jsonb("capabilities")
+      .$type<{ code: boolean; board: boolean }>()
+      .notNull(),
+    externalId: text("external_id").notNull(),
+    accountName: text("account_name").notNull(),
+    config: jsonb("config")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    status: text("status").notNull().default("active"),
+    linkedByUserId: text("linked_by_user_id"),
+    createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [
-    unique('connections_provider_external_id_key').on(t.provider, t.externalId),
-    index('connections_org_idx').on(t.orgId),
-    check('connections_status_check', sql`${t.status} in ('active','suspended','revoked')`),
+    unique("connections_provider_external_id_key").on(t.provider, t.externalId),
+    index("connections_org_idx").on(t.orgId),
+    check(
+      "connections_status_check",
+      sql`${t.status} in ('active','suspended','revoked')`,
+    ),
     orgPolicy(),
   ],
 );
 
 export const projects = pgTable(
-  'projects',
+  "projects",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id').notNull(),
-    name: text('name').notNull(),
-    repoPath: text('repo_path').notNull(),
-    codeConnectionId: uuid('code_connection_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull(),
+    name: text("name").notNull(),
+    repoPath: text("repo_path").notNull(),
+    codeConnectionId: uuid("code_connection_id")
       .notNull()
       .references(() => connections.id),
-    boardConnectionId: uuid('board_connection_id')
+    boardConnectionId: uuid("board_connection_id")
       .notNull()
       .references(() => connections.id),
-    triggerMode: text('trigger_mode').notNull().default('webhook'),
-    pollIntervalSeconds: integer('poll_interval_seconds').notNull().default(300),
-    maxConcurrentRuns: integer('max_concurrent_runs').notNull().default(2),
-    maxRunsPerTicket: integer('max_runs_per_ticket').notNull().default(5),
-    setupStep: text('setup_step').notNull().default('agent'),
-    createdBy: text('created_by'),
-    createdAt: ts('created_at').notNull().defaultNow(),
+    triggerMode: text("trigger_mode").notNull().default("webhook"),
+    pollIntervalSeconds: integer("poll_interval_seconds")
+      .notNull()
+      .default(300),
+    maxConcurrentRuns: integer("max_concurrent_runs").notNull().default(2),
+    maxRunsPerTicket: integer("max_runs_per_ticket").notNull().default(5),
+    setupStep: text("setup_step").notNull().default("agent"),
+    createdBy: text("created_by"),
+    createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [
-    unique('projects_code_connection_repo_key').on(t.codeConnectionId, t.repoPath),
-    index('projects_org_idx').on(t.orgId),
-    check('projects_trigger_mode_check', sql`${t.triggerMode} in ('webhook','polling')`),
-    check('projects_poll_interval_check', sql`${t.pollIntervalSeconds} in (300,600,900,1800)`),
-    check('projects_setup_step_check', sql`${t.setupStep} in ('agent','skills','rules','ready')`),
+    unique("projects_code_connection_repo_key").on(
+      t.codeConnectionId,
+      t.repoPath,
+    ),
+    index("projects_org_idx").on(t.orgId),
+    check(
+      "projects_trigger_mode_check",
+      sql`${t.triggerMode} in ('webhook','polling')`,
+    ),
+    check(
+      "projects_poll_interval_check",
+      sql`${t.pollIntervalSeconds} in (300,600,900,1800)`,
+    ),
+    check(
+      "projects_setup_step_check",
+      sql`${t.setupStep} in ('agent','skills','rules','ready')`,
+    ),
     orgPolicy(),
   ],
 );
 
 export const agents = pgTable(
-  'agents',
+  "agents",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id').notNull(),
-    projectId: uuid('project_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull(),
+    projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    name: text('name').notNull(),
-    provider: text('provider').notNull().default('claude'),
-    model: text('model').notNull(),
-    credentialSecretName: text('credential_secret_name'),
-    credentialType: text('credential_type'),
-    credentialUpdatedAt: ts('credential_updated_at'),
-    credentialSetBy: text('credential_set_by'),
-    maxTurns: integer('max_turns'),
-    timeoutSeconds: integer('timeout_seconds').notNull().default(1800),
-    createdAt: ts('created_at').notNull().defaultNow(),
+      .references(() => projects.id, { onDelete: "cascade" }),
+    name: text("name").notNull(),
+    provider: text("provider").notNull().default("claude"),
+    model: text("model").notNull(),
+    credentialSecretName: text("credential_secret_name"),
+    credentialType: text("credential_type"),
+    credentialUpdatedAt: ts("credential_updated_at"),
+    credentialSetBy: text("credential_set_by"),
+    maxTurns: integer("max_turns"),
+    timeoutSeconds: integer("timeout_seconds").notNull().default(1800),
+    createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [
-    unique('agents_project_name_key').on(t.projectId, t.name),
-    index('agents_org_idx').on(t.orgId),
-    check('agents_timeout_check', sql`${t.timeoutSeconds} between 60 and 3300`),
-    check('agents_credential_type_check', sql`${t.credentialType} in ('oauth_token','api_key')`),
+    unique("agents_project_name_key").on(t.projectId, t.name),
+    index("agents_org_idx").on(t.orgId),
+    check("agents_timeout_check", sql`${t.timeoutSeconds} between 60 and 3300`),
+    check(
+      "agents_credential_type_check",
+      sql`${t.credentialType} in ('oauth_token','api_key')`,
+    ),
     orgPolicy(),
   ],
 );
 
 export const rules = pgTable(
-  'rules',
+  "rules",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id').notNull(),
-    projectId: uuid('project_id')
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull(),
+    projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    command: text('command').notNull(),
-    labelFilter: text('label_filter').array().notNull().default(sql`'{}'::text[]`),
-    target: text('target').notNull().default('any'),
-    agentId: uuid('agent_id')
+      .references(() => projects.id, { onDelete: "cascade" }),
+    command: text("command").notNull(),
+    labelFilter: text("label_filter")
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
+    target: text("target").notNull().default("any"),
+    agentId: uuid("agent_id")
       .notNull()
       .references(() => agents.id),
-    skillName: text('skill_name').notNull(),
-    enabled: boolean('enabled').notNull().default(true),
-    createdAt: ts('created_at').notNull().defaultNow(),
+    skillName: text("skill_name").notNull(),
+    enabled: boolean("enabled").notNull().default(true),
+    createdAt: ts("created_at").notNull().defaultNow(),
   },
   (t) => [
-    unique('rules_project_command_key').on(t.projectId, t.command),
-    index('rules_org_idx').on(t.orgId),
-    check('rules_target_check', sql`${t.target} in ('issue','pr','any')`),
+    unique("rules_project_command_key").on(t.projectId, t.command),
+    index("rules_org_idx").on(t.orgId),
+    check("rules_target_check", sql`${t.target} in ('issue','pr','any')`),
     orgPolicy(),
   ],
 );
 
 export const inboundEvents = pgTable(
-  'inbound_events',
+  "inbound_events",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    provider: text('provider').notNull(),
-    channel: text('channel').notNull(),
-    deliveryId: text('delivery_id').notNull(),
-    commentId: text('comment_id'),
-    orgId: uuid('org_id'),
-    projectId: uuid('project_id'),
-    receivedAt: ts('received_at').notNull().defaultNow(),
-    event: text('event'),
-    action: text('action'),
-    outcome: text('outcome').notNull(),
-    ticketRef: text('ticket_ref'),
-    author: text('author'),
-    command: text('command'),
-    detail: text('detail'),
+    id: uuid("id").primaryKey().defaultRandom(),
+    provider: text("provider").notNull(),
+    channel: text("channel").notNull(),
+    deliveryId: text("delivery_id").notNull(),
+    commentId: text("comment_id"),
+    orgId: uuid("org_id"),
+    projectId: uuid("project_id"),
+    receivedAt: ts("received_at").notNull().defaultNow(),
+    event: text("event"),
+    action: text("action"),
+    outcome: text("outcome").notNull(),
+    ticketRef: text("ticket_ref"),
+    author: text("author"),
+    command: text("command"),
+    detail: text("detail"),
   },
   (t) => [
-    unique('inbound_events_provider_delivery_key').on(t.provider, t.deliveryId),
-    index('inbound_events_project_received_idx').on(t.projectId, t.receivedAt),
-    check('inbound_events_channel_check', sql`${t.channel} in ('webhook','poll')`),
+    unique("inbound_events_provider_delivery_key").on(t.provider, t.deliveryId),
+    index("inbound_events_project_received_idx").on(t.projectId, t.receivedAt),
+    check(
+      "inbound_events_channel_check",
+      sql`${t.channel} in ('webhook','poll')`,
+    ),
     orgPolicy(),
     // The intake records deliveries before the project is resolved, so it may insert rows with a null org.
-    pgPolicy('intake_null_org_insert', { as: 'permissive', for: 'insert', withCheck: sql`org_id is null` }),
+    pgPolicy("intake_null_org_insert", {
+      as: "permissive",
+      for: "insert",
+      withCheck: sql`org_id is null`,
+    }),
   ],
 );
 
 export const runs = pgTable(
-  'runs',
+  "runs",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
+    id: uuid("id").primaryKey().defaultRandom(),
     /** Assigned by the runs_assign_number trigger; the inserted value is ignored. */
-    number: integer('number').notNull().default(0),
-    orgId: uuid('org_id').notNull(),
-    projectId: uuid('project_id')
+    number: integer("number").notNull().default(0),
+    orgId: uuid("org_id").notNull(),
+    projectId: uuid("project_id")
       .notNull()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    ruleId: uuid('rule_id').references(() => rules.id, { onDelete: 'set null' }),
-    agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'set null' }),
-    command: text('command').notNull(),
-    skillName: text('skill_name').notNull(),
-    ticketRef: text('ticket_ref').notNull(),
-    ticketKind: text('ticket_kind').notNull(),
-    ticketNumber: integer('ticket_number'),
-    ticketTitle: text('ticket_title'),
-    ticketUrl: text('ticket_url'),
-    ticketLabels: jsonb('ticket_labels')
+      .references(() => projects.id, { onDelete: "cascade" }),
+    ruleId: uuid("rule_id").references(() => rules.id, {
+      onDelete: "set null",
+    }),
+    agentId: uuid("agent_id").references(() => agents.id, {
+      onDelete: "set null",
+    }),
+    command: text("command").notNull(),
+    skillName: text("skill_name").notNull(),
+    ticketRef: text("ticket_ref").notNull(),
+    ticketKind: text("ticket_kind").notNull(),
+    ticketNumber: integer("ticket_number"),
+    ticketTitle: text("ticket_title"),
+    ticketUrl: text("ticket_url"),
+    ticketLabels: jsonb("ticket_labels")
       .$type<{ name: string; color: string }[]>()
       .notNull()
       .default(sql`'[]'::jsonb`),
-    checkoutRef: text('checkout_ref').notNull(),
-    args: text('args'),
-    status: text('status').notNull().default('queued'),
-    workflowId: text('workflow_id'),
-    jobName: text('job_name'),
-    triggerSource: text('trigger_source').notNull(),
-    triggerCommentId: text('trigger_comment_id'),
-    inboundEventId: uuid('inbound_event_id').references(() => inboundEvents.id, { onDelete: 'set null' }),
-    triggeredBy: text('triggered_by'),
-    queuedAt: ts('queued_at').notNull().defaultNow(),
-    startedAt: ts('started_at'),
-    finishedAt: ts('finished_at'),
-    idleSince: ts('idle_since'),
-    exitCode: integer('exit_code'),
-    failureReason: text('failure_reason'),
-    costUsd: numeric('cost_usd', { precision: 12, scale: 4 }),
-    outbox: jsonb('outbox').$type<Record<string, unknown>>().notNull().default({}),
+    checkoutRef: text("checkout_ref").notNull(),
+    args: text("args"),
+    status: text("status").notNull().default("queued"),
+    workflowId: text("workflow_id"),
+    jobName: text("job_name"),
+    triggerSource: text("trigger_source").notNull(),
+    triggerCommentId: text("trigger_comment_id"),
+    inboundEventId: uuid("inbound_event_id").references(
+      () => inboundEvents.id,
+      { onDelete: "set null" },
+    ),
+    triggeredBy: text("triggered_by"),
+    queuedAt: ts("queued_at").notNull().defaultNow(),
+    startedAt: ts("started_at"),
+    finishedAt: ts("finished_at"),
+    idleSince: ts("idle_since"),
+    exitCode: integer("exit_code"),
+    failureReason: text("failure_reason"),
+    costUsd: numeric("cost_usd", { precision: 12, scale: 4 }),
+    outbox: jsonb("outbox")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
   },
   (t) => [
-    unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
-    unique('runs_project_number_key').on(t.projectId, t.number),
-    index('runs_org_idx').on(t.orgId),
-    index('runs_project_status_idx').on(t.projectId, t.status),
-    index('runs_project_ticket_idx').on(t.projectId, t.ticketRef),
+    unique("runs_project_trigger_comment_key").on(
+      t.projectId,
+      t.triggerCommentId,
+    ),
+    unique("runs_project_number_key").on(t.projectId, t.number),
+    index("runs_org_idx").on(t.orgId),
+    index("runs_project_status_idx").on(t.projectId, t.status),
+    index("runs_project_ticket_idx").on(t.projectId, t.ticketRef),
     check(
-      'runs_status_check',
+      "runs_status_check",
       sql`${t.status} in ('queued','starting','running','idle','succeeded','failed','cancelled','timed_out')`,
     ),
-    check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),
-    check('runs_trigger_source_check', sql`${t.triggerSource} in ('webhook','polling','manual')`),
+    check("runs_ticket_kind_check", sql`${t.ticketKind} in ('issue','pr')`),
+    check(
+      "runs_trigger_source_check",
+      sql`${t.triggerSource} in ('webhook','polling','manual')`,
+    ),
     orgPolicy(),
   ],
 );
 
 export const runEvents = pgTable(
-  'run_events',
+  "run_events",
   {
-    orgId: uuid('org_id').notNull(),
-    runId: uuid('run_id')
+    orgId: uuid("org_id").notNull(),
+    runId: uuid("run_id")
       .notNull()
-      .references(() => runs.id, { onDelete: 'cascade' }),
-    seq: integer('seq').notNull(),
-    ts: ts('ts').notNull().defaultNow(),
-    type: text('type').notNull(),
-    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+      .references(() => runs.id, { onDelete: "cascade" }),
+    seq: integer("seq").notNull(),
+    ts: ts("ts").notNull().defaultNow(),
+    type: text("type").notNull(),
+    payload: jsonb("payload")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
   },
   (t) => [
-    primaryKey({ name: 'run_events_pkey', columns: [t.runId, t.seq] }),
-    index('run_events_org_idx').on(t.orgId),
-    check('run_events_type_check', sql`${t.type} in ('lifecycle','status','scrollback','comment')`),
+    primaryKey({ name: "run_events_pkey", columns: [t.runId, t.seq] }),
+    index("run_events_org_idx").on(t.orgId),
+    check(
+      "run_events_type_check",
+      sql`${t.type} in ('lifecycle','status','scrollback','comment')`,
+    ),
     orgPolicy(),
   ],
 );
 
 export const pollCursors = pgTable(
-  'poll_cursors',
+  "poll_cursors",
   {
-    projectId: uuid('project_id')
+    projectId: uuid("project_id")
       .primaryKey()
-      .references(() => projects.id, { onDelete: 'cascade' }),
-    orgId: uuid('org_id').notNull(),
-    since: ts('since'),
-    etag: text('etag'),
-    lastPolledAt: ts('last_polled_at'),
-    lastError: text('last_error'),
-    failures: integer('failures').notNull().default(0),
-    nextPollAt: ts('next_poll_at'),
-    pausedReason: text('paused_reason'),
+      .references(() => projects.id, { onDelete: "cascade" }),
+    orgId: uuid("org_id").notNull(),
+    since: ts("since"),
+    etag: text("etag"),
+    lastPolledAt: ts("last_polled_at"),
+    lastError: text("last_error"),
+    failures: integer("failures").notNull().default(0),
+    nextPollAt: ts("next_poll_at"),
+    pausedReason: text("paused_reason"),
   },
-  (t) => [index('poll_cursors_org_idx').on(t.orgId), orgPolicy()],
+  (t) => [index("poll_cursors_org_idx").on(t.orgId), orgPolicy()],
 );
 
 export const auditLog = pgTable(
-  'audit_log',
+  "audit_log",
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    orgId: uuid('org_id').notNull(),
-    actorUserId: text('actor_user_id'),
-    action: text('action').notNull(),
-    targetType: text('target_type'),
-    targetId: text('target_id'),
-    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
-    at: ts('at').notNull().defaultNow(),
+    id: uuid("id").primaryKey().defaultRandom(),
+    orgId: uuid("org_id").notNull(),
+    actorUserId: text("actor_user_id"),
+    action: text("action").notNull(),
+    targetType: text("target_type"),
+    targetId: text("target_id"),
+    payload: jsonb("payload")
+      .$type<Record<string, unknown>>()
+      .notNull()
+      .default({}),
+    at: ts("at").notNull().defaultNow(),
   },
-  (t) => [index('audit_log_org_at_idx').on(t.orgId, t.at), orgPolicy()],
+  (t) => [index("audit_log_org_at_idx").on(t.orgId, t.at), orgPolicy()],
 );
