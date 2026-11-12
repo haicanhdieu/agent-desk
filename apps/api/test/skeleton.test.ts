@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Body, Controller, Get, Post } from '@nestjs/common';
+import { Body, Controller, Get, NotFoundException, Post } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ZodPipe } from '../src/common/zod-validation';
@@ -18,6 +18,11 @@ class TestOnlyController {
 
 @Controller('test-only')
 class BoomController {
+  @Get('missing')
+  missing(): never {
+    throw new NotFoundException('Widget 7 not found');
+  }
+
   @Get('boom')
   boom(): never {
     throw new Error('secret internal detail');
@@ -104,7 +109,23 @@ describe('api skeleton', () => {
     });
     expect(res.statusCode).toBe(400);
     expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
-    expect(res.json()).toMatchObject({ status: 400, requestId: 'req-json' });
+    expect(res.json()).toMatchObject({ status: 400, requestId: 'req-json', detail: 'Malformed request' });
+  });
+  it('unsupported content-type is a 415 problem+json with fixed detail', async () => {
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/test-only/validate',
+      headers: { 'content-type': 'application/x-weird' },
+      payload: 'x',
+    });
+    expect(res.statusCode).toBe(415);
+    expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
+    expect(res.json()).toMatchObject({ status: 415, detail: 'Unsupported media type' });
+  });
+  it('domain-thrown HttpExceptions keep their deliberate message', async () => {
+    const res = await t.app.inject({ method: 'GET', url: '/test-only/missing' });
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).toMatchObject({ status: 404, detail: 'Widget 7 not found' });
   });
   it('unexpected errors are a 500 problem+json that leaks nothing', async () => {
     const res = await t.app.inject({ method: 'GET', url: '/test-only/boom', headers: { 'x-request-id': 'req-500' } });

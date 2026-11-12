@@ -56,7 +56,14 @@ export class ProblemFilter implements ExceptionFilter {
     } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const body = exception.getResponse();
-      detail = typeof body === 'string' ? body : exception.message;
+      // Nest rewraps Fastify-native errors (bad JSON, 413, 415) as a bare `HttpException(message, status)`. Domain code
+      // throws subclasses (NotFoundException, ...), so a bare 4xx HttpException is Fastify-origin: use fixed text.
+      const fastifyOrigin = exception.constructor === HttpException && status >= 400 && status < 500;
+      detail = fastifyOrigin
+        ? CLIENT_ERROR_DETAIL[status] ?? 'The request could not be processed'
+        : typeof body === 'string'
+          ? body
+          : exception.message;
     } else if (clientErrorStatus(exception) !== undefined) {
       // Fastify-native 4xx (malformed JSON, 413, 415, ...): fixed text per status, never the raw message.
       status = clientErrorStatus(exception) ?? 400;
