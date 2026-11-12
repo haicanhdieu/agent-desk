@@ -1,10 +1,8 @@
 import { All, Controller, Inject, NotFoundException, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CONFIG, type Config } from '../config/config.module';
-import { AUTH, type Auth } from './auth';
+import { AUTH, DISABLED_PATHS, type Auth } from './auth';
 
-/** Email/password endpoints exist only for the server-side dev-login; they are never reachable over HTTP. */
-const BLOCKED_PREFIXES = ['/auth/sign-in/email', '/auth/sign-up/email'];
 const SKIPPED_RESPONSE_HEADERS = new Set(['set-cookie', 'content-length', 'content-encoding', 'transfer-encoding']);
 
 /** Forwards `/auth/*` to the better-auth handler (Fetch API Request/Response). */
@@ -20,7 +18,8 @@ export class AuthController {
     // Check the normalized pathname (dot segments resolved), the same one better-auth routes on.
     const url = new URL(req.url, this.config.PUBLIC_ORIGIN);
     const path = url.pathname.toLowerCase().replace(/\/+$/, '');
-    if (BLOCKED_PREFIXES.some((p) => path.startsWith(p))) throw new NotFoundException('Not found');
+    if (DISABLED_PATHS.some((p) => path === `/auth${p}` || path.startsWith(`/auth${p}/`)))
+      throw new NotFoundException('Not found');
 
     const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers)) {

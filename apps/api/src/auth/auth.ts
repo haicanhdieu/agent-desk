@@ -5,23 +5,14 @@ import { organization as organizationPlugin } from 'better-auth/plugins';
 import { asc, eq, sql } from 'drizzle-orm';
 import { account, invitation, member, organization, session, user, verification, type Db } from '@agentdesk/db';
 import type { Config } from '../config/config.schema';
-import { slugFromHandle } from './slug';
+import { createWithUniqueSlug } from './unique-slug';
 
 export const AUTH = Symbol('AUTH');
 
 const schema = { user, session, account, verification, organization, member, invitation };
 
-const MAX_SLUG_ATTEMPTS = 5;
-
-/** drizzle wraps pg errors in DrizzleQueryError with the pg error on `.cause`, so check both levels. */
-export function isUniqueViolation(e: unknown): boolean {
-  const code = (v: unknown): unknown => (typeof v === 'object' && v !== null && 'code' in v ? v.code : undefined);
-  const cause = typeof e === 'object' && e !== null && 'cause' in e ? e.cause : undefined;
-  return code(e) === '23505' || code(cause) === '23505';
-}
-
 /** Never reachable over HTTP: dev-login uses auth.api directly, which skips the router. */
-const DISABLED_PATHS = [
+export const DISABLED_PATHS = [
   '/sign-in/email',
   '/sign-up/email',
   '/organization/create',
@@ -64,9 +55,18 @@ export function createAuth(config: Config, db: Db) {
    * created, also from session.create.before. A per-user advisory lock serialises the two.
    */
   async function ensurePersonalOrg(userId: string, handle: string): Promise<string> {
-    for (let attempt = 0; attempt < MAX_SLUG_ATTEMPTS; attempt += 1) {
-      try {
-        return await orm.transaction(async (tx) => {
+    return createWithUniqueSlug({
+      handle,
+      isTaken: async (slug) => {
+        const rows = await orm
+          .select({ id: organization.id })
+          .from(organization)
+          .where(eq(organization.slug, slug))
+          .limit(1);
+        return rows.length > 0;
+      },
+      insert: (slug) =>
+        orm.transaction(async (tx) => {
           await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
           const existing = await tx
             .select({ organizationId: member.organizationId })
@@ -75,14 +75,6 @@ export function createAuth(config: Config, db: Db) {
             .orderBy(asc(member.createdAt))
             .limit(1);
           if (existing[0]) return existing[0].organizationId;
-          const slug = await slugFromHandle(handle, async (s) => {
-            const rows = await tx
-              .select({ id: organization.id })
-              .from(organization)
-              .where(eq(organization.slug, s))
-              .limit(1);
-            return rows.length > 0;
-          });
           // organization.id doubles as app tables' org_id (uuid, no FK), hence randomUUID.
           const orgId = randomUUID();
           const now = new Date();
@@ -91,12 +83,8 @@ export function createAuth(config: Config, db: Db) {
             .insert(member)
             .values({ id: randomUUID(), organizationId: orgId, userId, role: 'owner', createdAt: now });
           return orgId;
-        });
-      } catch (e) {
-        if (!isUniqueViolation(e)) throw e;
-      }
-    }
-    throw new Error('could not allocate a personal organization slug');
+        }),
+    });
   }
 
   return betterAuth({

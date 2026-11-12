@@ -125,17 +125,21 @@ describe('auth', () => {
     }
   });
 
-  it.each(['/auth/./sign-in/email', '/auth/x/../sign-up/email', '/auth/%2e/sign-in/email', '/auth/sign-in/email/'])(
-    'blocks %s after path normalization',
-    async (url) => {
-      const res = await t.app.inject({
-        method: 'POST',
-        url,
-        payload: { email: 'alice@dev.local', password: 'password1234', name: 'x' },
-      });
-      expect(res.statusCode).toBe(404);
-    },
-  );
+  it.each([
+    '/auth/./sign-in/email',
+    '/auth/x/../sign-up/email',
+    '/auth/%2e/sign-in/email',
+    '/auth/sign-in/email/',
+    '/auth/organization/create/',
+    '/auth/Organization/Delete',
+  ])('blocks %s after path normalization', async (url) => {
+    const res = await t.app.inject({
+      method: 'POST',
+      url,
+      payload: { email: 'alice@dev.local', password: 'password1234', name: 'x' },
+    });
+    expect(res.statusCode).toBe(404);
+  });
 
   it('blocks better-auth organization mutation endpoints but dev-login still works', async () => {
     const cookie = cookieOf(await devLogin('alice'));
@@ -149,7 +153,7 @@ describe('auth', () => {
     expect((await devLogin('frank')).statusCode).toBe(302);
   });
 
-  it('concurrent sign-ups with the same handle both succeed with suffixed slugs (unique-violation retry)', async () => {
+  it('concurrent sign-ups with colliding handles both succeed with distinct slugs (end-to-end; the retry itself is covered deterministically in unique-slug.test.ts)', async () => {
     const [a, b] = await Promise.all([devLogin('race.x'), devLogin('race-x')]);
     expect([a.statusCode, b.statusCode]).toEqual([302, 302]);
     const r = await t.db.pool.query("select slug from organization where slug like 'race-x%' order by slug");
