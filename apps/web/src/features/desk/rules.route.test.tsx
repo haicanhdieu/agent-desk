@@ -1,7 +1,9 @@
 import { screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
+import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
 
@@ -16,6 +18,37 @@ const ruleRow = (id: string) => {
   return rule;
 };
 const toggleFor = (command: string) => screen.getByRole('switch', { name: `Enable rule /${command}` });
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Scripts `rules.update` answers per call (1-based, in arrival order). `fail` answers 500 after `delayMs`; `ok` writes
+ * the store at once and answers after `delayMs`. Calls with no script fall through to the default handler.
+ */
+function scriptUpdates(script: Record<number, { outcome: 'fail' | 'ok'; delayMs: number }>) {
+  let call = 0;
+  server.use(
+    http.patch('*/api/rules/:ruleId', async ({ request, params }) => {
+      call += 1;
+      const step = script[call];
+      if (!step) return undefined;
+      if (step.outcome === 'fail') {
+        await sleep(step.delayMs);
+        return HttpResponse.json(
+          { type: 'urn:agentdesk:problem:internal', title: 'Internal server error', status: 500 },
+          { status: 500, headers: { 'content-type': 'application/problem+json' } },
+        );
+      }
+      const rule = ruleRow(String(params.ruleId));
+      const body: unknown = await request.json();
+      if (typeof body === 'object' && body !== null && 'enabled' in body && typeof body.enabled === 'boolean')
+        rule.enabled = body.enabled;
+      const answer = structuredClone(rule);
+      await sleep(step.delayMs);
+      return HttpResponse.json(answer);
+    }),
+  );
+}
+
 const pane = (name: 'Edit rule' | 'New rule') => screen.getByRole('complementary', { name });
 
 describe('desk rules route', () => {
@@ -77,6 +110,46 @@ describe('desk rules route', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('Internal server error');
       await waitFor(() => expect(toggleFor('code-build')).toHaveAttribute('aria-checked', 'true'));
       expect(ruleRow(ids.rule.r1).enabled).toBe(true);
+    });
+
+    it('a slow failing toggle of one rule rolls back only that rule', async () => {
+      // Call 1 (code-build) fails late; call 2 (code-review) succeeds at once.
+      scriptUpdates({ 1: { outcome: 'fail', delayMs: 80 }, 2: { outcome: 'ok', delayMs: 0 } });
+      const { user } = await renderRoute(rulesPage);
+      await user.click(await screen.findByRole('switch', { name: 'Enable rule /code-build' }));
+      await user.click(toggleFor('code-review'));
+      await waitFor(() => expect(ruleRow(ids.rule.r2).enabled).toBe(false));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Internal server error');
+      await waitFor(() => expect(toggleFor('code-build')).toHaveAttribute('aria-checked', 'true'));
+      expect(toggleFor('code-review')).toHaveAttribute('aria-checked', 'false');
+      await sleep(30);
+      expect(toggleFor('code-review')).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('same rule toggled twice, the first fails late: the second outcome stands', async () => {
+      // Off (fails after 80 ms), then on again (succeeds at once).
+      scriptUpdates({ 1: { outcome: 'fail', delayMs: 80 }, 2: { outcome: 'ok', delayMs: 0 } });
+      const { user } = await renderRoute(`${rulesPage}`);
+      const sw = await screen.findByRole('switch', { name: 'Enable rule /qa-e2e' });
+      await user.click(sw); // off → on (fails late)
+      await user.click(toggleFor('qa-e2e')); // on → off (succeeds)
+      await waitFor(() => expect(ruleRow(ids.rule.r5).enabled).toBe(false));
+      expect(await screen.findByRole('alert')).toHaveTextContent('Internal server error');
+      await sleep(30);
+      expect(toggleFor('qa-e2e')).toHaveAttribute('aria-checked', 'false');
+      expect(ruleRow(ids.rule.r5).enabled).toBe(false);
+    });
+
+    it('same rule toggled twice, the first answer arrives last: the stale answer does not win', async () => {
+      // Both succeed; the first answer (enabled false) arrives after the second (enabled true).
+      scriptUpdates({ 1: { outcome: 'ok', delayMs: 80 }, 2: { outcome: 'ok', delayMs: 0 } });
+      const { user } = await renderRoute(rulesPage);
+      await user.click(await screen.findByRole('switch', { name: 'Enable rule /code-build' }));
+      await user.click(toggleFor('code-build'));
+      await sleep(150);
+      expect(ruleRow(ids.rule.r1).enabled).toBe(true);
+      expect(toggleFor('code-build')).toHaveAttribute('aria-checked', 'true');
     });
   });
 
@@ -208,6 +281,32 @@ describe('desk rules route', () => {
       await user.click(within(edit).getByRole('button', { name: 'Save rule' }));
       expect(await within(edit).findByRole('alert')).toHaveTextContent('Internal server error');
       expect(command).toHaveValue('code-review-x');
+    });
+
+    it('Save on edit sends only the changed fields, so a row toggle made meanwhile stands', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`);
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      // The draft is touched first, then the row switch turns the rule off while the pane is open.
+      await user.type(within(edit).getByLabelText('Command'), '-x');
+      await user.click(toggleFor('code-review'));
+      await waitFor(() => expect(ruleRow(ids.rule.r2).enabled).toBe(false));
+      await user.click(within(edit).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(ruleRow(ids.rule.r2).command).toBe('code-review-x'));
+      expect(ruleRow(ids.rule.r2).enabled).toBe(false);
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(toggleFor('code-review-x')).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('editing any field clears the form banner', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, {
+        scenario: () => scenarios.serverError('rules.update'),
+      });
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      await user.type(within(edit).getByLabelText('Command'), '-x');
+      await user.click(within(edit).getByRole('button', { name: 'Save rule' }));
+      expect(await within(edit).findByRole('alert')).toBeInTheDocument();
+      await user.click(within(edit).getByRole('radio', { name: 'Any' }));
+      expect(within(edit).queryByRole('alert')).toBeNull();
     });
 
     it('Delete removes the rule and closes the pane', async () => {

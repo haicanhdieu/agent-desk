@@ -1,6 +1,7 @@
 import type { CreateRuleRequest, RuleDto, UpdateRuleRequest } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useRef } from 'react';
 import { useToast } from '@/ds';
 import { api } from '../api';
 import { deskQueries } from './queries';
@@ -57,28 +58,59 @@ export function useDeleteSkill(org: string, projectId: string) {
 
 // Rules (spec §4.3): the enable toggle is optimistic on the rules cache; create, edit and delete invalidate it.
 
+/** Per-rule toggle bookkeeping: the newest request, how many are in flight, and the last state the server confirmed. */
+interface ToggleTrack {
+  latest: number;
+  pending: number;
+  confirmed: boolean;
+  /** The request whose answer set `confirmed` (0: the cached state before any toggle); older answers are stale. */
+  confirmedBy: number;
+}
+
 /**
- * Enable or disable a rule. The rules cache flips at once and rolls back when the server refuses; `onError` then
- * tells the user (an error toast). It is a hook option, not a `mutate` option, so it fires for every failed toggle.
+ * Enable or disable a rule. The rule's row flips at once. Each answer only touches its own rule, and only when it is
+ * still the newest request for that rule, or the last one to settle: then the row shows what the server confirmed.
+ * So a late failure of rule A never reverts rule B, and a stale answer never overwrites a newer flip of the same
+ * rule. `onError` tells the user (an error toast); as a hook option it fires for every failed toggle.
  */
 export function useToggleRule(org: string, projectId: string, { onError }: { onError?(e: unknown): void } = {}) {
   const qc = useQueryClient();
   const queryKey = deskQueries.rules(org, projectId).queryKey;
+  const tracks = useRef(new Map<string, ToggleTrack>());
+  const seq = useRef(0);
+  const setEnabled = (id: string, enabled: boolean) =>
+    qc.setQueryData(queryKey, (rules) => rules?.map((r) => (r.id === id ? { ...r, enabled } : r)));
+  /** Called when a request settles; shows `value` if it is the newest request, else the confirmed state once idle. */
+  const settle = (id: string, n: number, value: (t: ToggleTrack) => boolean) => {
+    const t = tracks.current.get(id);
+    if (!t) return;
+    t.pending -= 1;
+    if (n === t.latest || t.pending === 0) setEnabled(id, n === t.latest ? value(t) : t.confirmed);
+    if (t.pending === 0) tracks.current.delete(id);
+  };
   return useMutation({
     mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
       api.rules.update({ params: { ruleId: id }, body: { enabled } }),
     onMutate: async ({ id, enabled }) => {
+      const n = ++seq.current;
+      const current = qc.getQueryData(queryKey)?.find((r) => r.id === id)?.enabled ?? !enabled;
+      const t = tracks.current.get(id) ?? { latest: n, pending: 0, confirmed: current, confirmedBy: 0 };
+      t.latest = n;
+      t.pending += 1;
+      tracks.current.set(id, t);
       await qc.cancelQueries({ queryKey });
-      const previous = qc.getQueryData(queryKey);
-      qc.setQueryData(queryKey, (rules) => rules?.map((r) => (r.id === id ? { ...r, enabled } : r)));
-      return { previous };
+      setEnabled(id, enabled);
+      return { id, n };
+    },
+    onSuccess: (saved, _vars, { id, n }) => {
+      const t = tracks.current.get(id);
+      if (t && n > t.confirmedBy) Object.assign(t, { confirmed: saved.enabled, confirmedBy: n });
+      settle(id, n, () => saved.enabled);
     },
     onError: (e, _vars, context) => {
-      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+      if (context) settle(context.id, context.n, (t) => t.confirmed);
       onError?.(e);
     },
-    // The server's rule replaces the optimistic one; no refetch, so a failure shows only the rollback.
-    onSuccess: (saved) => qc.setQueryData(queryKey, (rules) => rules?.map((r) => (r.id === saved.id ? saved : r))),
   });
 }
 

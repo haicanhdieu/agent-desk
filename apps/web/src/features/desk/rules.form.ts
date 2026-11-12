@@ -1,4 +1,4 @@
-import { CreateRuleRequest, type RuleDto } from '@agentdesk/contracts';
+import { CreateRuleRequest, type RuleDto, type UpdateRuleRequest } from '@agentdesk/contracts';
 import { revalidateLogic, useField, useForm, useStore, type ValidationErrorMap } from '@tanstack/react-form';
 import { useState } from 'react';
 import { fieldErrorsFromProblem } from './problem';
@@ -46,6 +46,17 @@ function messageOf(errorMap: ValidationErrorMap, field: ValueField): string | un
   return schemaError ? SCHEMA_MESSAGE[field] : undefined;
 }
 
+/** The fields of `value` that differ from `base` (labels compared by content), for a PATCH. */
+export function changedFields(base: RuleValues, value: RuleValues): UpdateRuleRequest {
+  const body: UpdateRuleRequest = {};
+  if (value.command !== base.command) body.command = value.command;
+  if (JSON.stringify(value.labelFilter) !== JSON.stringify(base.labelFilter)) body.labelFilter = value.labelFilter;
+  if (value.target !== base.target) body.target = value.target;
+  if (value.skillName !== base.skillName) body.skillName = value.skillName;
+  if (value.enabled !== base.enabled) body.enabled = value.enabled;
+  return body;
+}
+
 export interface RuleFormOptions {
   /** The rule being edited; none creates a rule. */
   initial?: RuleDto;
@@ -66,13 +77,17 @@ export function useRuleForm(org: string, projectId: string, { initial, defaultSk
     skillName: initial?.skillName ?? defaultSkill,
     enabled: initial?.enabled ?? true,
   };
+  // What the draft started from: an edit sends only what differs, so a row toggle made meanwhile is not reverted.
+  const [base] = useState(defaultValues);
   const form = useForm({
     defaultValues,
     validationLogic: revalidateLogic(),
     validators: { onDynamic: CreateRuleRequest },
     onSubmit: async ({ value, formApi }) => {
       try {
-        const rule = await save.mutateAsync(initial ? { id: initial.id, body: value } : { body: value });
+        const rule = await save.mutateAsync(
+          initial ? { id: initial.id, body: changedFields(base, value) } : { body: value },
+        );
         onSaved?.(rule);
       } catch (e) {
         // The values stay as typed; only the messages change.
@@ -104,6 +119,18 @@ export function useRuleForm(org: string, projectId: string, { initial, defaultSk
     if (fields[name].state.meta.errorMap.onServer !== undefined) fields[name].setErrorMap({ onServer: undefined });
   };
 
+  // One typed setter per field (handleChange is typed per field name).
+  const setField = <K extends keyof RuleValues>(name: K, value: RuleValues[K]) => {
+    const setters: { [F in keyof RuleValues]: (v: RuleValues[F]) => void } = {
+      command: (v) => fields.command.handleChange(v),
+      labelFilter: (v) => fields.labelFilter.handleChange(v),
+      target: (v) => fields.target.handleChange(v),
+      skillName: (v) => fields.skillName.handleChange(v),
+      enabled: (v) => fields.enabled.handleChange(v),
+    };
+    setters[name](value);
+  };
+
   const errors: RuleFieldErrors = {};
   for (const name of VALUE_FIELDS) {
     const message = messageOf(fields[name].state.meta.errorMap, name);
@@ -118,26 +145,18 @@ export function useRuleForm(org: string, projectId: string, { initial, defaultSk
       skillName: fields.skillName.state.value,
       enabled: fields.enabled.state.value,
     } satisfies RuleValues,
-    /** Sets the changed fields; a changed field drops its server message. */
+    /** Sets the changed fields; a changed field drops its server message, and any change drops the form banner. */
     change(next: RuleValues) {
-      const command = next.command.replace(/^\/+/, '');
-      if (command !== fields.command.state.value) {
-        clearServerError('command');
-        fields.command.handleChange(command);
+      const patch: Partial<RuleValues> = { ...next, command: next.command.replace(/^\/+/, '') };
+      let changed = false;
+      for (const name of [...VALUE_FIELDS, 'enabled'] as const) {
+        const value = patch[name];
+        if (value === undefined || value === fields[name].state.value) continue;
+        changed = true;
+        if (name !== 'enabled') clearServerError(name);
+        setField(name, value);
       }
-      if (next.labelFilter !== fields.labelFilter.state.value) {
-        clearServerError('labelFilter');
-        fields.labelFilter.handleChange(next.labelFilter);
-      }
-      if (next.target !== fields.target.state.value) {
-        clearServerError('target');
-        fields.target.handleChange(next.target);
-      }
-      if (next.skillName !== fields.skillName.state.value) {
-        clearServerError('skillName');
-        fields.skillName.handleChange(next.skillName);
-      }
-      if (next.enabled !== fields.enabled.state.value) fields.enabled.handleChange(next.enabled);
+      if (changed) setFormError(undefined);
     },
     errors,
     formError,
