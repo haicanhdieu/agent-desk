@@ -10,7 +10,8 @@ export interface SetupReadyProps {
   user: Actor;
   projectName: string;
   repo: string;
-  label: { name: string; color: string };
+  /** The label the first rule needs, if any. */
+  label?: { name: string; color?: string };
   command: string;
   summary: { term: string; value: ReactNode }[];
   /** What was heard last: a webhook delivery, or the last polling check. */
@@ -43,7 +44,7 @@ export function SetupReady({
       }
     >
       <CodeBlock
-        caption={<>Comment on an issue labelled <LabelChip name={label.name} color={label.color} /></>}
+        caption={label ? <>Comment on an issue labelled <LabelChip name={label.name} color={label.color} /></> : 'Comment on an issue'}
         code={command}
         onCopy={() => { void navigator.clipboard?.writeText(command); }}
       />

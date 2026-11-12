@@ -35,3 +35,10 @@ export const WithAside: Story = {
     footer: { back: '#', next: { label: 'Save rules and finish', href: '#' } },
   },
 };
+export const Saving: Story = {
+  args: {
+    ...Skills.args,
+    user, projectName: 'invoicer-api', steps, current: 1, children: Skills.args?.children,
+    footer: { back: '#', onSkip: () => undefined, next: { label: 'Commit 2 skills and continue', onClick: () => undefined, pending: true } },
+  },
+};

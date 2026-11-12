@@ -19,7 +19,16 @@ export interface SetupLayoutProps {
   header?: ReactNode;
   children: ReactNode;
   aside?: ReactNode;
-  footer?: { back?: string; skip?: string; next: { label: string; href: string; disabled?: boolean } };
+  /**
+   * Back and Skip are links unless `onSkip` is given. `next` is a link with `href`, or a button with `onClick` when the
+   * step saves first; `pending` disables it while the save runs.
+   */
+  footer?: {
+    back?: string;
+    skip?: string;
+    onSkip?(): void;
+    next: { label: string; href?: string; onClick?(): void; disabled?: boolean; pending?: boolean };
+  };
 }
 
 export function SetupLayout({ user, projectName, steps, current, ready, stepLabel, title, intro, header, children, aside, footer }: SetupLayoutProps) {
@@ -49,8 +58,23 @@ export function SetupLayout({ user, projectName, steps, current, ready, stepLabe
             <div className={styles.setupFoot}>
               {footer.back && <Button variant="ghost" icon="chevron-left" href={footer.back}>Back</Button>}
               <span className={styles.spacer} />
-              {footer.skip && <Button variant="ghost" href={footer.skip}>Skip</Button>}
-              <Button variant="primary" href={footer.next.href} disabled={footer.next.disabled}>{footer.next.label}</Button>
+              {footer.onSkip ? (
+                <Button variant="ghost" onClick={footer.onSkip} disabled={footer.next.pending}>Skip</Button>
+              ) : (
+                footer.skip && <Button variant="ghost" href={footer.skip}>Skip</Button>
+              )}
+              {footer.next.onClick ? (
+                <Button
+                  variant="primary"
+                  onClick={footer.next.onClick}
+                  disabled={footer.next.disabled || footer.next.pending}
+                  aria-busy={footer.next.pending || undefined}
+                >
+                  {footer.next.label}
+                </Button>
+              ) : (
+                <Button variant="primary" href={footer.next.href ?? '#'} disabled={footer.next.disabled}>{footer.next.label}</Button>
+              )}
             </div>
             )}
           </div>

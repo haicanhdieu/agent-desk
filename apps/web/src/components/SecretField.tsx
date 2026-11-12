@@ -24,6 +24,8 @@ export interface SecretFieldProps {
   hideSubmit?: boolean;
   /** Message from a failed save or test; shown under the token input. */
   error?: string;
+  /** Each keystroke, for flows whose own button submits (setup step 2). Never store or log the value. */
+  onValueChange?(value: string): void;
 }
 
 const typeName: Record<CredentialType, string> = {
@@ -38,10 +40,10 @@ const typeOptions: { value: CredentialType; label: string }[] = [
 
 /** Owns the typed secret; mounted only while entering so it always starts empty and is dropped on unmount. */
 function SecretEntry({
-  label, help, error, submitLabel, revealLabel, hideSubmit, onSubmit, onCancel,
+  label, help, error, submitLabel, revealLabel, hideSubmit, onSubmit, onCancel, onValueChange,
 }: {
   label: string; help?: string; error?: string; submitLabel: string; revealLabel?: string; hideSubmit?: boolean;
-  onSubmit?(v: string): void; onCancel?(): void;
+  onSubmit?(v: string): void; onCancel?(): void; onValueChange?(v: string): void;
 }) {
   const [value, setValue] = useState('');
   const submit = (e: FormEvent) => {
@@ -58,7 +60,10 @@ function SecretEntry({
             aria-invalid={invalid}
             revealLabel={revealLabel ?? `Show ${label.toLowerCase()}`}
             value={value}
-            onChange={(e) => setValue(e.target.value)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              onValueChange?.(e.target.value);
+            }}
           />
         )}
       </Field>
@@ -74,13 +79,13 @@ function SecretEntry({
 
 export function SecretField({
   state, credentialType, onCredentialTypeChange, savedInfo, onReplace, onCancel, onSubmit, submitLabel,
-  entryHelp, revealLabel, hideSubmit, error,
+  entryHelp, revealLabel, hideSubmit, error, onValueChange,
 }: SecretFieldProps) {
   if (state === 'empty' || state === 'entering') {
     return (
       <SecretEntry
         label="Token" help={entryHelp} error={error} revealLabel={revealLabel} hideSubmit={hideSubmit}
-        submitLabel={submitLabel ?? 'Save and test'} onSubmit={onSubmit}
+        submitLabel={submitLabel ?? 'Save and test'} onSubmit={onSubmit} onValueChange={onValueChange}
       />
     );
   }

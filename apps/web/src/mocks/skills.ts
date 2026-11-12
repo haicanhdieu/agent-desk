@@ -1,3 +1,4 @@
+import { SKILL_TEMPLATES } from '@/features/setup/templates';
 import type { Skill, SkillTemplate } from './types';
 
 // Prototype boards: DeskSkills (list + code-build editor), Setup3 (templates).
@@ -54,10 +55,7 @@ export const skills: Skill[] = [
   },
 ];
 
-export const skillTemplates: SkillTemplate[] = [
-  {
-    name: 'code-build', note: 'chains to code-review',
-    description: 'Implement an issue on a branch, run build and tests, open a PR, then comment /code-review on it.',
-  },
-  { name: 'code-review', description: 'Review a PR, fix small problems, run tests, then approve or request changes.' },
-];
+// The template list lives with the setup flow (features/setup/templates.ts, with bodies); stories get the card text.
+export const skillTemplates: SkillTemplate[] = SKILL_TEMPLATES.map(({ name, description, note }) => ({
+  name, description, ...(note !== undefined && { note }),
+}));

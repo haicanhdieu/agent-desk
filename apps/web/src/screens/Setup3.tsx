@@ -15,11 +15,19 @@ export interface Setup3Props extends SetupNav {
   commitMessage: string;
   credentialDetail?: string;
   previewHref?: string;
+  /** Commits the picked templates. With it, the primary button is a button instead of the `nextHref` link. */
+  onContinue?(draft: { names: string[]; message: string }): void;
+  /** Skips the step (it is still saved as done). With it, Skip is a button. */
+  onSkip?(): void;
+  saving?: boolean;
+  errors?: { message?: string };
+  /** A failed save that names no field. */
+  formError?: string;
 }
 
 export function Setup3({
   user, projectName, repo, branch, templates, selected, commitMessage, credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
-  backHref = '#', skipHref = '#', nextHref = '#', previewHref = '#',
+  backHref = '#', skipHref = '#', nextHref = '#', previewHref = '#', onContinue, onSkip, saving, errors, formError,
 }: Setup3Props) {
   const [picked, setPicked] = useState(selected);
   const [edited, setEdited] = useState<string | null>(null);
@@ -36,8 +44,16 @@ export function Setup3({
       stepLabel="Step 3 of 4, optional"
       title="Start from skill templates"
       intro={<>A skill is a Markdown file in your repo at <span className="mono">.claude/skills/&lt;name&gt;/SKILL.md</span>. Pick templates to add them, or skip if your repo already has skills.</>}
-      footer={{ back: backHref, skip: skipHref, next: { label: commitLabel(names.length), href: nextHref } }}
+      footer={{
+        back: backHref,
+        skip: skipHref,
+        onSkip,
+        next: onContinue
+          ? { label: commitLabel(names.length), onClick: () => onContinue({ names, message }), pending: saving }
+          : { label: commitLabel(names.length), href: nextHref },
+      }}
     >
+      {formError && <Banner tone="err" icon={<Icon name="warning" size={16} />} title={formError} live="assertive" />}
       <Banner tone="off" icon={<Icon name="info" size={16} />}>
         <span className={styles.onText}>No skills found in <span className="mono">{repo}</span> on <span className="mono">{branch}</span>.</span>
       </Banner>
@@ -53,6 +69,7 @@ export function Setup3({
           message={message}
           files={names.map((n) => `.claude/skills/${n}/SKILL.md`)}
           onMessageChange={setEdited}
+          error={errors?.message}
         />
       )}
     </SetupLayout>

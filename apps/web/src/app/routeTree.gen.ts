@@ -14,6 +14,7 @@ import { Route as SignInRouteImport } from './routes/sign-in';
 import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
+import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -40,6 +41,11 @@ const OOrgProjectsIndexRoute = OOrgProjectsIndexRouteImport.update({
   path: '/projects/',
   getParentRoute: () => OOrgRoute,
 } as any);
+const OOrgProjectsNewStepRoute = OOrgProjectsNewStepRouteImport.update({
+  id: '/projects/new/$step',
+  path: '/projects/new/$step',
+  getParentRoute: () => OOrgRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
@@ -47,12 +53,14 @@ export interface FileRoutesByFullPath {
   '/o/$org': typeof OOrgRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
+  '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
   '/sign-in': typeof SignInRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
+  '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -61,19 +69,32 @@ export interface FileRoutesById {
   '/o/$org': typeof OOrgRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
+  '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: '/' | '/sign-in' | '/o/$org' | '/o/$org/' | '/o/$org/projects/';
+  fullPaths:
+    | '/'
+    | '/sign-in'
+    | '/o/$org'
+    | '/o/$org/'
+    | '/o/$org/projects/'
+    | '/o/$org/projects/new/$step';
   fileRoutesByTo: FileRoutesByTo;
-  to: '/' | '/sign-in' | '/o/$org' | '/o/$org/projects';
+  to:
+    | '/'
+    | '/sign-in'
+    | '/o/$org'
+    | '/o/$org/projects'
+    | '/o/$org/projects/new/$step';
   id:
     | '__root__'
     | '/'
     | '/sign-in'
     | '/o/$org'
     | '/o/$org/'
-    | '/o/$org/projects/';
+    | '/o/$org/projects/'
+    | '/o/$org/projects/new/$step';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -119,17 +140,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgProjectsIndexRouteImport;
       parentRoute: typeof OOrgRoute;
     };
+    '/o/$org/projects/new/$step': {
+      id: '/o/$org/projects/new/$step';
+      path: '/projects/new/$step';
+      fullPath: '/o/$org/projects/new/$step';
+      preLoaderRoute: typeof OOrgProjectsNewStepRouteImport;
+      parentRoute: typeof OOrgRoute;
+    };
   }
 }
 
 interface OOrgRouteChildren {
   OOrgIndexRoute: typeof OOrgIndexRoute;
   OOrgProjectsIndexRoute: typeof OOrgProjectsIndexRoute;
+  OOrgProjectsNewStepRoute: typeof OOrgProjectsNewStepRoute;
 }
 
 const OOrgRouteChildren: OOrgRouteChildren = {
   OOrgIndexRoute: OOrgIndexRoute,
   OOrgProjectsIndexRoute: OOrgProjectsIndexRoute,
+  OOrgProjectsNewStepRoute: OOrgProjectsNewStepRoute,
 };
 
 const OOrgRouteWithChildren = OOrgRoute._addFileChildren(OOrgRouteChildren);

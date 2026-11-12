@@ -12,3 +12,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
 export const OneFile: Story = { args: { files: ['.claude/skills/code-build/SKILL.md'] } };
+export const Rejected: Story = {
+  args: { onMessageChange: () => undefined, error: 'The commit was rejected: the branch is protected.' },
+};
