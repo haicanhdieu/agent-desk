@@ -12,3 +12,4 @@ type Story = StoryObj<typeof meta>;
 
 export const Dirty: Story = {};
 export const Clean: Story = { args: { dirty: false } };
+export const Committing: Story = { args: { pending: true } };

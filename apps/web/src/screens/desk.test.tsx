@@ -71,6 +71,11 @@ describe('DeskSkills', () => {
     expect(screen.getByLabelText('SKILL.md source')).toHaveValue(skills[1].body);
   });
 
+  it('committing disables Commit even when dirty', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" dirty committing />);
+    expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
+  });
+
   it('a plain click on a skill calls onSelect', async () => {
     const onSelect = vi.fn();
     render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" skillHref={(n) => `/s?skill=${n}`} onSelect={onSelect} />);

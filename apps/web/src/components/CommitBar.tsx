@@ -9,9 +9,11 @@ export interface CommitBarProps {
   onDiscard?(): void;
   onCommit?(): void;
   note: string;
+  /** A commit is in flight: Commit stays disabled so a double click cannot send two. */
+  pending?: boolean;
 }
 
-export function CommitBar({ message, onMessageChange, branch, dirty, onDiscard, onCommit, note }: CommitBarProps) {
+export function CommitBar({ message, onMessageChange, branch, dirty, onDiscard, onCommit, note, pending = false }: CommitBarProps) {
   return (
     <div className={styles.commitBar}>
       <div className={styles.commitRow}>
@@ -26,7 +28,7 @@ export function CommitBar({ message, onMessageChange, branch, dirty, onDiscard, 
           )}
         </Field>
         <Button variant="ghost" onClick={onDiscard}>Discard</Button>
-        <Button variant="primary" icon="commit" disabled={!dirty} onClick={onCommit}>Commit to {branch}</Button>
+        <Button variant="primary" icon="commit" disabled={!dirty || pending} aria-busy={pending || undefined} onClick={onCommit}>Commit to {branch}</Button>
       </div>
       <p className={styles.note}>{note}</p>
     </div>

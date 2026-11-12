@@ -1,6 +1,6 @@
 import { useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
@@ -55,15 +55,35 @@ function DeskSkillsPage() {
   const remove = useDeleteSkill(org, projectId);
   const [deleting, setDeleting] = useState<string>();
 
+  // No silent overwrite: a draft is bound to the sha it started from, and a commit always sends that sha. A
+  // background refetch that brings a newer sha keeps the draft and its base, so committing it gets a 409 instead of
+  // overwriting. A 409 or a successful commit bumps `generation`, which starts a new draft from the fresh body.
+  const [generation, setGeneration] = useState(0);
+  const editorKey = `${activeName ?? ''}:${generation}`;
+  const [base, setBase] = useState<{ key: string; sha: string }>();
+  if (detail && base?.key !== editorKey) setBase({ key: editorKey, sha: detail.sha });
+  const restartDraft = () => setGeneration((g) => g + 1);
+  // `isPending` only shows after a render; this blocks a second click that lands before it.
+  const committing = useRef(false);
+
   const skills = list.map((s) => toSkill(s.name === activeName && detail ? detail : s, rules, now));
   const paths = projectPaths(org, projectId);
   const skillHref = (name: string) => `${paths.skills}?skill=${encodeURIComponent(name)}`;
 
   const onCommit = (body: string, message: string) => {
-    if (!detail || activeName === undefined) return;
+    if (!detail || activeName === undefined || committing.current) return;
+    committing.current = true;
+    const sha = base?.key === editorKey ? base.sha : detail.sha;
     commit.mutate(
-      { name: activeName, body, message: message.trim() || `Update ${activeName} skill`, sha: detail.sha },
-      { onError: (e) => !isStaleSkill(e) && toast.show(toastFromError(e)) },
+      { name: activeName, body, message: message.trim() || `Update ${activeName} skill`, sha },
+      {
+        // The hook has refetched the skill by now; the next draft starts from the fresh body and sha.
+        onSettled: () => {
+          committing.current = false;
+        },
+        onSuccess: restartDraft,
+        onError: (e) => (isStaleSkill(e) ? restartDraft() : toast.show(toastFromError(e))),
+      },
     );
   };
 
@@ -87,6 +107,8 @@ function DeskSkillsPage() {
       frame={frame}
       skills={skills}
       activeName={activeName}
+      editorKey={editorKey}
+      committing={commit.isPending}
       skillHref={skillHref}
       onSelect={(name) => void navigate({ search: { skill: name } })}
       onCommit={onCommit}

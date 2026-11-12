@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -90,7 +90,7 @@ describe('desk skills route', () => {
   it('commit sends { body, message, sha } and the list refetches', async () => {
     const puts = capturePuts();
     const { user } = await renderRoute(`${base}/skills?skill=code-review`);
-    const sha = skillRow('code-review').sha;
+    const { sha, body: original } = skillRow('code-review');
     const editor = await screen.findByLabelText('SKILL.md source');
     await user.type(editor, '\nMore steps.');
     const message = screen.getByLabelText('Commit message');
@@ -99,30 +99,75 @@ describe('desk skills route', () => {
     const listBefore = mockDb.requests('GET', skillsPath);
     await user.click(screen.getByRole('button', { name: 'Commit to main' }));
 
-    await waitFor(() => expect(skillRow('code-review').lastCommit?.message).toBe('code-review: more steps'));
     await waitFor(() => expect(puts).toHaveLength(1));
-    expect(puts[0]).toEqual({
-      body: `${mockDb.state.skills[projectId]?.find((s) => s.name === 'code-review')?.body ?? ''}`,
-      message: 'code-review: more steps',
-      sha,
-    });
-    expect(skillRow('code-review').body.endsWith('\nMore steps.')).toBe(true);
+    expect(puts[0]).toEqual({ body: `${original}\nMore steps.`, message: 'code-review: more steps', sha });
     await waitFor(() => expect(mockDb.requests('GET', skillsPath)).toBeGreaterThan(listBefore));
     await waitFor(() => expect(screen.queryByText('Unsaved changes')).toBeNull());
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`${original}\nMore steps.`);
   });
 
-  it('a stale sha (409) shows a toast and refetches the skill', async () => {
+  it('an empty commit message falls back to "Update <name> skill"', async () => {
+    const puts = capturePuts();
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    await user.type(await screen.findByLabelText('SKILL.md source'), 'x');
+    await user.clear(screen.getByLabelText('Commit message'));
+    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await waitFor(() => expect(puts).toHaveLength(1));
+    expect(puts[0]).toMatchObject({ message: 'Update code-review skill' });
+  });
+
+  it('a double click on Commit sends one commit', async () => {
+    const puts = capturePuts();
+    const { user } = await renderRoute(`${base}/skills?skill=code-review`);
+    await user.type(await screen.findByLabelText('SKILL.md source'), 'x');
+    const commit = screen.getByRole('button', { name: 'Commit to main' });
+    // Two clicks before the first PUT answers.
+    fireEvent.click(commit);
+    fireEvent.click(commit);
+    await waitFor(() => expect(screen.queryByText('Unsaved changes')).toBeNull());
+    expect(puts).toHaveLength(1);
+  });
+
+  it('a stale sha (409) shows a toast and restarts the draft from the other change', async () => {
+    const puts = capturePuts();
     const { user } = await renderRoute(`${base}/skills?skill=code-review`);
     const editor = await screen.findByLabelText('SKILL.md source');
     // Someone else commits after the page loaded.
-    skillRow('code-review').sha = 'changed-elsewhere';
+    Object.assign(skillRow('code-review'), { sha: 'changed-elsewhere', body: 'their version' });
     await user.type(editor, '\nMine.');
     const detailBefore = mockDb.requests('GET', `${skillsPath}/code-review`);
     await user.click(screen.getByRole('button', { name: 'Commit to main' }));
 
     expect(await screen.findByText('Skill changed elsewhere — reload')).toBeInTheDocument();
-    await waitFor(() => expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBeGreaterThan(detailBefore));
-    expect(skillRow('code-review').body.endsWith('Mine.')).toBe(false);
+    expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBeGreaterThan(detailBefore);
+    await waitFor(() => expect(screen.getByLabelText('SKILL.md source')).toHaveValue('their version'));
+    expect(screen.queryByText('Unsaved changes')).toBeNull();
+    expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
+    expect(skillRow('code-review').body).toBe('their version');
+
+    // A new edit commits on top of their version, with their sha.
+    await user.type(screen.getByLabelText('SKILL.md source'), '!');
+    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    await waitFor(() => expect(skillRow('code-review').body).toBe('their version!'));
+    expect(puts.at(-1)).toMatchObject({ body: 'their version!', sha: 'changed-elsewhere' });
+  });
+
+  it('a background refetch with a newer sha keeps the draft on its base sha, so commit 409s', async () => {
+    const puts = capturePuts();
+    const { user, queryClient } = await renderRoute(`${base}/skills?skill=code-review`);
+    const { sha: baseSha } = skillRow('code-review');
+    await user.type(await screen.findByLabelText('SKILL.md source'), '\nMine.');
+    Object.assign(skillRow('code-review'), { sha: 'changed-elsewhere', body: 'their version' });
+    const detailBefore = mockDb.requests('GET', `${skillsPath}/code-review`);
+    await queryClient.refetchQueries({ queryKey: ['org', 'alice', 'projects', projectId, 'desk', 'skill'] });
+    expect(mockDb.requests('GET', `${skillsPath}/code-review`)).toBeGreaterThan(detailBefore);
+    // The draft survives the refetch.
+    expect(screen.getByLabelText('SKILL.md source')).toHaveDisplayValue(/Mine\./);
+
+    await user.click(screen.getByRole('button', { name: 'Commit to main' }));
+    expect(await screen.findByText('Skill changed elsewhere — reload')).toBeInTheDocument();
+    expect(puts[0]).toMatchObject({ sha: baseSha });
+    expect(skillRow('code-review').body).toBe('their version');
   });
 
   it('the delete dialog lists the rules using the skill, and confirming deletes it', async () => {

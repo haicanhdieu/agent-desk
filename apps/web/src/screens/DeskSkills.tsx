@@ -21,6 +21,13 @@ export interface DeskSkillsProps {
   /** Rule commands (e.g. "/code-e2e") that use the skill being deleted. */
   rulesUsing?: string[];
   commitMessage?: string;
+  /** A commit is in flight (Commit disabled). */
+  committing?: boolean;
+  /**
+   * Identity of the editor's draft. When it changes the draft starts over from the skill's current body (e.g. after
+   * a rejected commit). Defaults to the skill name.
+   */
+  editorKey?: string;
   /** In-app href of a skill in the list; defaults to `#<name>`. */
   skillHref?(name: string): string;
   /** A skill was picked in the list (the link's own navigation is skipped). */
@@ -38,11 +45,11 @@ const views: { value: View; label: string }[] = [
   { value: 'diff', label: 'Diff' },
 ];
 
-/** The editor column for one skill. Keyed by skill name so the draft and view reset when the skill changes. */
+/** The editor column for one skill. Keyed by `editorKey` (default: the skill name), so the draft and view reset when it changes. */
 function SkillEditor({
-  skill, dirty: markedDirty, changedLines, view: initialView, commitMessage, onDelete, onCommit,
+  skill, dirty: markedDirty, changedLines, view: initialView, commitMessage, committing, onDelete, onCommit,
 }: {
-  skill: Skill; dirty: boolean; changedLines: number[]; view: View; commitMessage: string;
+  skill: Skill; dirty: boolean; changedLines: number[]; view: View; commitMessage: string; committing: boolean;
   onDelete?(name: string): void; onCommit?(body: string, message: string): void;
 }) {
   const [view, setView] = useState<View>(initialView);
@@ -80,6 +87,7 @@ function SkillEditor({
         onMessageChange={setMessage}
         branch="main"
         dirty={dirty}
+        pending={committing}
         onDiscard={() => setValue(skill.body)}
         onCommit={() => onCommit?.(value, message)}
         note="Commits as agent-desk[bot]. Runs that start after the commit use the new version; running runs keep the old one."
@@ -90,7 +98,7 @@ function SkillEditor({
 
 export function DeskSkills({
   frame, skills, activeName, dirty = false, changedLines = [], view = 'edit', deleting, rulesUsing = [],
-  commitMessage = '', skillHref, onSelect, onDelete, onCloseDelete, onConfirmDelete, onCommit,
+  commitMessage = '', committing = false, editorKey, skillHref, onSelect, onDelete, onCloseDelete, onConfirmDelete, onCommit,
 }: DeskSkillsProps) {
   const active = skills.find((s) => s.name === activeName) ?? skills[0];
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
@@ -110,12 +118,13 @@ export function DeskSkills({
           <main className={styles.skillsMain}>
             {active ? (
               <SkillEditor
-                key={active.name}
+                key={editorKey ?? active.name}
                 skill={active}
                 dirty={dirty}
                 changedLines={changedLines}
                 view={view}
                 commitMessage={commitMessage}
+                committing={committing}
                 onDelete={onDelete}
                 onCommit={onCommit}
               />
