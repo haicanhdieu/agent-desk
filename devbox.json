@@ -1,0 +1,44 @@
+{
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.18.3/.schema/devbox.schema.json",
+  "packages": ["nodejs@22", "pnpm_10@latest", "docker-compose@latest"],
+  "env": {
+    "AGENTDESK_COMPOSE_FILE": "$DEVBOX_PROJECT_ROOT/docker-compose.yml"
+  },
+  "shell": {
+    "scripts": {
+      "setup": ["[ -f .env ] || cp .env.example .env", "pnpm install --frozen-lockfile"],
+      "dev": ["devbox run setup", "devbox services up"],
+      "dev-bg": ["devbox run setup", "devbox services up -b"],
+      "stop": ["devbox services stop", "docker-compose -f \"$AGENTDESK_COMPOSE_FILE\" stop"],
+      "dev-mock": ["pnpm --filter @agentdesk/web dev:mock"],
+      "storybook": ["pnpm --filter @agentdesk/web storybook"],
+      "parity": ["pnpm --filter @agentdesk/web parity"],
+      "test": ["pnpm test"],
+      "typecheck": ["pnpm typecheck"],
+      "lint": ["pnpm lint"],
+      "format": ["pnpm format"],
+      "format-check": ["pnpm format:check"],
+      "fix": ["node scripts/fix-changed.mjs"],
+      "fix-staged": ["node scripts/fix-changed.mjs --staged"],
+      "check": ["pnpm format:check && pnpm lint && pnpm typecheck && pnpm test"],
+      "e2e-mock": ["pnpm --filter @agentdesk/web test:e2e:mock"],
+      "e2e-local": ["pnpm test:e2e:local", "pnpm --filter @agentdesk/web exec playwright test e2e/local"],
+      "playwright-install": ["pnpm --filter @agentdesk/web exec playwright install chromium"],
+      "db-migrate": ["pnpm db:migrate"],
+      "db-psql": ["docker-compose -f \"$AGENTDESK_COMPOSE_FILE\" exec postgres psql -U postgres -d agentdesk"],
+      "db-reset": [
+        "docker-compose -f \"$AGENTDESK_COMPOSE_FILE\" down -v",
+        "rm -rf .agentdesk/fake",
+        "echo 'Wiped Postgres, Temporal history and fake-provider state. Next `devbox run dev` re-runs migrations on an empty database.'"
+      ],
+      "help": [
+        "echo 'dev | dev-bg | stop        start (TUI / background) or stop the local stack'",
+        "echo 'dev-mock | storybook | parity   frontend without a backend'",
+        "echo 'test | typecheck | lint | format | format-check | fix | fix-staged | check   quality gates'",
+        "echo 'e2e-mock | e2e-local | playwright-install   end-to-end tests'",
+        "echo 'db-migrate | db-psql | db-reset   database'",
+        "echo 'Docs: docs/runbooks/README.md'"
+      ]
+    }
+  }
+}

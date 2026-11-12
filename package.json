@@ -8,9 +8,12 @@
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "db:migrate": "pnpm --filter @agentdesk/api migrate"
   },
   "devDependencies": {
+    "prettier": "3.10.1",
     "turbo": "^2.5.0",
     "typescript": "^6.0.3",
     "vitest": "^5.1.0"
