@@ -9,13 +9,16 @@ export interface PromptInput {
   args: string;
 }
 
-/** The fixed four-line prompt template (Architecture section 5). */
+/** Collapses line terminators so an interpolated value can never add lines to the template. */
+const oneLine = (v: string): string => v.replace(/[\r\n\u2028\u2029]+/g, ' ');
+
+/** The fixed four-line prompt template (Architecture section 5). Always exactly four lines. */
 export function buildPrompt(p: PromptInput): string {
   const kind = p.ticketKind === 'pr' ? 'pull request' : 'issue';
   return [
-    `Use the skill "${p.skillName}" on ${kind} #${p.ticketNumber} in ${p.repoPath}.`,
+    `Use the skill "${oneLine(p.skillName)}" on ${kind} #${p.ticketNumber} in ${oneLine(p.repoPath)}.`,
     'Read the ticket and all its comments with the gh CLI before you start.',
-    `Arguments from the user: ${p.args}`,
+    `Arguments from the user: ${oneLine(p.args)}`,
     'When done, report on the ticket as the skill instructs.',
   ].join('\n');
 }

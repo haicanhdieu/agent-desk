@@ -75,6 +75,32 @@ describe('parseCommand', () => {
   });
 });
 
+describe('parseCommand hardening', () => {
+  it('parses a 65k adversarial padded line quickly', () => {
+    const t = performance.now();
+    expect(parseCommand('/x' + ' '.repeat(65000) + 'a\rb')).toBeNull();
+    expect(performance.now() - t).toBeLessThan(200);
+    const t2 = performance.now();
+    expect(parseCommand('/x' + ' '.repeat(900) + 'a\rb')).toEqual({ command: 'x', args: 'a' });
+    expect(performance.now() - t2).toBeLessThan(200);
+  });
+
+  it.each([
+    ['/x a\u2028b', { command: 'x', args: 'a' }],
+    ['/x a\u2029b', { command: 'x', args: 'a' }],
+    ['/x a\rb', { command: 'x', args: 'a' }],
+    ['/x\rfoo', { command: 'x', args: '' }],
+    ['/x\u2028foo', { command: 'x', args: '' }],
+  ])('cuts the first line at %j', (body, expected) => {
+    expect(parseCommand(body)).toEqual(expected);
+  });
+
+  it('rejects first lines over 1000 chars and accepts exactly 1000', () => {
+    expect(parseCommand('/x ' + 'a'.repeat(997))).toEqual({ command: 'x', args: 'a'.repeat(997) });
+    expect(parseCommand('/x ' + 'a'.repeat(998))).toBeNull();
+  });
+});
+
 describe('routeEvent', () => {
   it('routes an authorized comment to a run', async () => {
     const { base } = input();
@@ -261,6 +287,19 @@ describe('buildPrompt', () => {
         'When done, report on the ticket as the skill instructs.',
       ].join('\n'),
     );
+  });
+
+  it('always yields four lines even with newline-bearing values', () => {
+    const out = buildPrompt({
+      skillName: 'a\nb\r\nc\u2028d',
+      ticketKind: 'issue',
+      ticketNumber: 1,
+      repoPath: 'x\ny/z',
+      args: 'l1\nl2\u2029l3',
+    });
+    expect(out.split('\n')).toHaveLength(4);
+    expect(out).toContain('Use the skill "a b c d" on issue #1 in x y/z.');
+    expect(out).toContain('Arguments from the user: l1 l2 l3');
   });
 
   it('renders pull request for pr', () => {
