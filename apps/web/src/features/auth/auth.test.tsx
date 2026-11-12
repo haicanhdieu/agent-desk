@@ -31,6 +31,13 @@ describe('root session guard', () => {
     const { router } = await renderRoute('/');
     await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/projects'));
   });
+
+  // The global top bar (projects list, setup) links the logo to `/projects`, which has no org in it.
+  it('sends a signed-in user at /projects to the active org projects', async () => {
+    mockDb.setActiveOrg(ids.org.acme);
+    const { router } = await renderRoute('/projects');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme/projects'));
+  });
 });
 
 describe('org layout', () => {

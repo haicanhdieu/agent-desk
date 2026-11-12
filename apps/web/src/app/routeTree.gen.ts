@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as IndexRouteImport } from './routes/index';
+import { Route as ProjectsRouteImport } from './routes/projects';
 import { Route as SignInRouteImport } from './routes/sign-in';
 import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
@@ -26,6 +27,11 @@ import { Route as OOrgPProjectRunsRunRouteImport } from './routes/o.$org.p.$proj
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const ProjectsRoute = ProjectsRouteImport.update({
+  id: '/projects',
+  path: '/projects',
   getParentRoute: () => rootRouteImport,
 } as any);
 const SignInRoute = SignInRouteImport.update({
@@ -91,6 +97,7 @@ const OOrgPProjectRunsRunRoute = OOrgPProjectRunsRunRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
+  '/projects': typeof ProjectsRoute;
   '/sign-in': typeof SignInRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
@@ -106,6 +113,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
+  '/projects': typeof ProjectsRoute;
   '/sign-in': typeof SignInRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
@@ -121,6 +129,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
+  '/projects': typeof ProjectsRoute;
   '/sign-in': typeof SignInRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
@@ -138,6 +147,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
+    | '/projects'
     | '/sign-in'
     | '/o/$org'
     | '/o/$org/'
@@ -153,6 +163,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
+    | '/projects'
     | '/sign-in'
     | '/o/$org'
     | '/o/$org/p/$project'
@@ -167,6 +178,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/projects'
     | '/sign-in'
     | '/o/$org'
     | '/o/$org/'
@@ -183,6 +195,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  ProjectsRoute: typeof ProjectsRoute;
   SignInRoute: typeof SignInRoute;
   OOrgRoute: typeof OOrgRouteWithChildren;
 }
@@ -194,6 +207,13 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/';
       preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/projects': {
+      id: '/projects';
+      path: '/projects';
+      fullPath: '/projects';
+      preLoaderRoute: typeof ProjectsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/sign-in': {
@@ -323,6 +343,7 @@ const OOrgRouteWithChildren = OOrgRoute._addFileChildren(OOrgRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ProjectsRoute: ProjectsRoute,
   SignInRoute: SignInRoute,
   OOrgRoute: OOrgRouteWithChildren,
 };

@@ -55,3 +55,12 @@ export async function setActiveOrganization(queryClient: QueryClient, org: Organ
   await queryClient.cancelQueries({ queryKey: ['org'] });
   queryClient.removeQueries({ queryKey: ['org'] });
 }
+
+/** The org `/` and `/projects` open: the session's active org, else the first membership, else none. */
+export async function landingOrg(queryClient: QueryClient): Promise<Organization | undefined> {
+  const [session, orgs] = await Promise.all([
+    queryClient.ensureQueryData(sessionQuery),
+    queryClient.ensureQueryData(orgsQuery),
+  ]);
+  return orgs.find((o) => o.id === session?.activeOrganizationId) ?? orgs[0];
+}
