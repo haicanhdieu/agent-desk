@@ -1,0 +1,21 @@
+# Incident response
+
+What to do, in order, when a secret leaks, a run misbehaves, or tenant data is exposed. The rules behind these steps are in [security.md](../conventions/security.md).
+
+**Applies to:** anyone operating an Agent Desk deployment (QA or later), or noticing a leak locally.
+
+## Steps
+
+First: **contain, rotate, preserve, tell.** Do not delete evidence (`audit_log`, `inbound_events`, `run_events`, pod logs) while containing.
+
+| Situation                                               | Immediate steps                                                                                                                                                                                                                                                                                                                                                  |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Suspected prompt injection / rogue run                  | Cancel the run (`POST /api/runs/:id/cancel`); if needed `kubectl -n agentdesk-runs delete job run-<id>`. Disable the rule. Review commits, PRs, comments and branches made by the bot since the run started; revert. The workspace token expires within 1 h; revoke the installation token early if the provider allows. Rotate that project's agent credential. |
+| Agent credential leaked                                 | Revoke it at the provider console. `PUT /api/agents/:id/credential` with a new value. Check provider usage for abuse.                                                                                                                                                                                                                                            |
+| App private key, client secret or webhook secret leaked | Regenerate in the code-host App settings; update the target's `secrets.sops.yaml` (or the external store) and let Flux apply; restart api and worker. Switch affected projects to Polling while webhook secrets rotate if needed.                                                                                                                                |
+| `BETTER_AUTH_SECRET` or DB password leaked              | Rotate in the Secret, restart; rotating the auth secret signs everyone out, which is intended.                                                                                                                                                                                                                                                                   |
+| Secret found in Postgres, logs or `run_events`          | Rotate the secret first. Then fix the redaction gap, purge the affected rows/log streams, and add a regression test that asserts the value is absent.                                                                                                                                                                                                            |
+| Cross-tenant data exposure                              | Take the api out of service (`flux suspend hr agentdesk` and scale api to 0) if exposure is ongoing. Preserve `audit_log`. Fix with a two-org leak test.                                                                                                                                                                                                         |
+| Run pod reached an internal address                     | Suspend runs (scale worker to 0); check NetworkPolicy and the egress `except` list; review what the pod could reach.                                                                                                                                                                                                                                             |
+
+Afterwards: write a short post-incident note (timeline, cause, fix, the test that now prevents it) and link it from the fixing PR.

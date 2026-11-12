@@ -9,3 +9,4 @@ apps/web/parity-out
 node_modules
 .turbo
 dist
+.devbox/

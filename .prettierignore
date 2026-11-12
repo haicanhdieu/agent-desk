@@ -1,0 +1,17 @@
+node_modules
+dist
+.turbo
+.devbox
+.agentdesk
+pnpm-lock.yaml
+storybook-static
+parity-out
+**/routeTree.gen.ts
+design/prototype
+**/drizzle/meta
+**/*.tsbuildinfo
+coverage
+playwright-report
+test-results
+.superpowers
+docs/superpowers
