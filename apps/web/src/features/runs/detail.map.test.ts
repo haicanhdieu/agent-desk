@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 import type { RunDetailKey } from '@/mocks/types';
 import { projectFixtures } from '@/mocks/dto/projects';
 import { runFixtures } from '@/mocks/dto/runs';
-import { runDetailKey, SCROLLBACK_MAX_LINES, scrollbackLines, toRunDetail } from './detail.map';
+import {
+  runDetailKey,
+  SCROLLBACK_MAX_LINES,
+  scrollbackLines,
+  scrollbackText,
+  terminalConnection,
+  toRunDetail,
+} from './detail.map';
 
 const base = runFixtures.find((r) => r.number === 61);
 const project = projectFixtures[0];
@@ -248,6 +255,36 @@ describe('toRunDetail', () => {
     it('active runs have no end note', () => {
       expect(detail(running).endNote).toBeUndefined();
     });
+  });
+});
+
+describe('scrollbackText', () => {
+  it('keeps escape sequences for xterm, uses CRLF line ends and takes the newest scrollback event', () => {
+    const events = [
+      ev(local(1, 0), 'scrollback', { text: 'old' }),
+      ev(local(1, 1), 'scrollback', { text: '\u001b[32mok\u001b[0m\nb\r\nc\rd' }),
+    ];
+    expect(scrollbackText(events)).toBe('\u001b[32mok\u001b[0m\r\nb\r\nc\rd');
+  });
+
+  it('is undefined without a (well-formed) scrollback event; keeps the newest lines only', () => {
+    expect(scrollbackText([])).toBeUndefined();
+    expect(scrollbackText([ev(local(1, 0), 'scrollback', { lines: 3 })])).toBeUndefined();
+    const text = Array.from({ length: SCROLLBACK_MAX_LINES + 2 }, (_, i) => `l${i}`).join('\n');
+    const out = scrollbackText([ev(local(1, 0), 'scrollback', { text })])?.split('\r\n');
+    expect(out).toHaveLength(SCROLLBACK_MAX_LINES);
+    expect(out?.[0]).toBe('l2');
+  });
+});
+
+describe('terminalConnection', () => {
+  it('follows the event stream while the socket is open, otherwise the socket', () => {
+    expect(terminalConnection('open', 'live')).toEqual({ state: 'live', label: 'Live' });
+    expect(terminalConnection('open', 'reconnecting')).toEqual({ state: 'reconnecting', label: 'Reconnecting…' });
+    expect(terminalConnection('connecting', 'live')).toEqual({ state: 'reconnecting', label: 'Connecting…' });
+    expect(terminalConnection('retrying', 'live')).toEqual({ state: 'reconnecting', label: 'Reconnecting…' });
+    expect(terminalConnection('gave_up', 'live')).toEqual({ state: 'reconnecting', label: 'Disconnected' });
+    expect(terminalConnection('forbidden', 'live')).toEqual({ state: 'none', label: 'No access' });
   });
 });
 

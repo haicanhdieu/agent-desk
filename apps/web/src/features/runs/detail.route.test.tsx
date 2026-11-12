@@ -7,6 +7,7 @@ import { mockDb } from '@/mocks/msw/db';
 import { jsonResponse, routeHandler } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { FakeXterm } from '@/test/fakeXterm';
 import { renderRoute } from '@/test/renderRoute';
 
 const projectId = ids.project.invoicerApi;
@@ -127,10 +128,12 @@ describe('run detail route', () => {
   it('a succeeded run shows its stored scrollback from the run log, read-only', async () => {
     await renderRoute(`${base}/runs/60`);
     expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
-    const log = screen.getByRole('log', { name: 'Claude Code terminal' });
-    const lastLine = scrollbackText(60)?.split('\n').at(-1);
-    expect(lastLine).toBeTruthy();
-    expect(within(log).getByText(lastLine ?? '')).toBeInTheDocument();
+    // The live terminal (xterm, faked in tests), read-only, with the stored scrollback written once.
+    const terminal = await screen.findByRole('group', { name: 'Claude Code terminal' });
+    const term = FakeXterm.latest();
+    expect(terminal).toContainElement(term.element ?? null);
+    expect(term.options.disableStdin).toBe(true);
+    expect(term.writes).toEqual([scrollbackText(60)?.replace(/\n/g, '\r\n')]);
     expect(screen.getByRole('tab', { name: /Final scrollback/ })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
     expect(mockDb.requests('GET', `/api/runs/${runId(60)}/log`)).toBe(1);

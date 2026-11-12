@@ -29,6 +29,10 @@ export interface RunDetailProps {
   cancelBody?: ReactNode;
   /** In-app hrefs; default to the prototype's. */
   links?: RunDetailLinks;
+  /** Shows the terminal's "Connection to the terminal lost" overlay; defaults to the connection reconnecting. */
+  reconnectOverlay?: boolean;
+  /** That overlay's text; defaults to the board's. */
+  reconnectBody?: ReactNode;
 }
 
 export interface RunDetailLinks {
@@ -44,7 +48,7 @@ const FINISH_HINT = 'Finish is available when the agent is waiting for you';
 export function RunDetail({
   data, lines, needsYou, panelCollapsed, cancelConfirmOpen, height = 900, projectName = 'invoicer-api',
   onCancel, onCancelClose, onCancelConfirm, onFinish, onReconnect, onTogglePanel, terminal, pendingNote, cancelBody,
-  links,
+  links, reconnectOverlay, reconnectBody,
 }: RunDetailProps) {
   const { run } = data;
   const t = run.ticket;
@@ -101,6 +105,8 @@ export function RunDetail({
           busy={busy}
           onFinish={onFinish}
           onReconnect={onReconnect}
+          reconnectOverlay={reconnectOverlay}
+          reconnectBody={reconnectBody}
         />
         <RunSidePanel
           data={data}

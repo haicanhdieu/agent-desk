@@ -9,7 +9,12 @@ import './ds/global.css';
 /** `vite --mode mock` (pnpm dev:mock) serves the API from MSW in the browser; other modes never load it. */
 async function enableMocking(): Promise<void> {
   if (import.meta.env.MODE !== 'mock') return;
-  const { startMockWorker } = await import('./mocks/msw/browser');
+  const [{ startMockWorker }, { installFakeTerminal }] = await Promise.all([
+    import('./mocks/msw/browser'),
+    import('./mocks/msw/fakeTerminal'),
+  ]);
+  // The service worker cannot answer WebSockets: the run terminal socket gets a fake (echo) terminal.
+  installFakeTerminal();
   await startMockWorker();
 }
 

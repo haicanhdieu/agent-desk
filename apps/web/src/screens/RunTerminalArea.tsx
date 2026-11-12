@@ -15,6 +15,10 @@ export interface RunTerminalAreaProps {
   busy?: boolean;
   onFinish?(): void;
   onReconnect?(): void;
+  /** Shows the "Connection to the terminal lost" overlay; defaults to the connection reconnecting (the board). */
+  reconnectOverlay?: boolean;
+  /** The overlay's text; defaults to the board's. */
+  reconnectBody?: ReactNode;
 }
 
 const views = (label: string) => [
@@ -68,7 +72,9 @@ function EndNotice({ data }: { data: RunDetailData }) {
   );
 }
 
-export function RunTerminalArea({ data, lines = [], terminal, busy, onFinish, onReconnect }: RunTerminalAreaProps) {
+export function RunTerminalArea({
+  data, lines = [], terminal, busy, onFinish, onReconnect, reconnectOverlay, reconnectBody,
+}: RunTerminalAreaProps) {
   const { run, connection } = data;
   const status = run.status;
   const isEnded = status === 'succeeded' || status === 'failed' || status === 'timed_out' || status === 'cancelled';
@@ -125,7 +131,7 @@ export function RunTerminalArea({ data, lines = [], terminal, busy, onFinish, on
     </Banner>
   ) : isEnded ? <EndNotice data={data} /> : undefined;
 
-  const overlay = reconnecting ? (
+  const overlay = (reconnectOverlay ?? reconnecting) ? (
     <Popover
       open
       role="status"
@@ -136,7 +142,7 @@ export function RunTerminalArea({ data, lines = [], terminal, busy, onFinish, on
       <PopoverCard
         icon={<StatusIcon status="starting" size={18} />}
         title="Connection to the terminal lost"
-        body="The agent keeps working; tmux holds the session. Retrying in 4 s. Input is paused until the screen redraws."
+        body={reconnectBody ?? 'The agent keeps working; tmux holds the session. Retrying in 4 s. Input is paused until the screen redraws.'}
         actions={<Button size="sm" icon="refresh" onClick={onReconnect}>Reconnect now</Button>}
       />
     </Popover>

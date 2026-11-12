@@ -5,6 +5,7 @@ import { statusTokens } from '@/ds';
 import type { RunDetailData, RunDetailKey } from '@/mocks/types';
 import { duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
 import type { CachedRun } from './queries';
+import type { TerminalState } from './useTerminal';
 
 // Run detail view model (spec §3.2): one RunDetailData per run, for the eight RunDetail boards.
 
@@ -80,6 +81,18 @@ export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
       const plain = line.replace(CONTROLS, '');
       return plain === '' ? [] : [{ text: plain }];
     });
+}
+
+/**
+ * The stored final scrollback as terminal input for the read-only live terminal: escape sequences kept (xterm
+ * renders them), line ends as CRLF (a lone CR stays a carriage return), the newest SCROLLBACK_MAX_LINES only.
+ * Undefined when no scrollback was stored.
+ */
+export function scrollbackText(events: RunEventDto[]): string | undefined {
+  const event = events.filter((e) => e.type === 'scrollback').at(-1);
+  const text = event && textOf(event);
+  if (text === undefined) return undefined;
+  return text.split(/\r?\n/).slice(-SCROLLBACK_MAX_LINES).join('\r\n');
 }
 
 /** When each startup step happened, from the status and lifecycle events (and the run itself). */
@@ -214,6 +227,25 @@ export function streamConnection(state: ConnectionState): RunDetailData['connect
       return { state, label: 'Ended' };
     case 'none':
       return { state, label: 'No terminal yet' };
+  }
+}
+
+/**
+ * The indicator for an active run's terminal: the event stream's state while the terminal socket is open, otherwise
+ * the socket's (connecting, retrying, given up, or no access).
+ */
+export function terminalConnection(terminal: TerminalState, stream: ConnectionState): RunDetailData['connection'] {
+  switch (terminal) {
+    case 'open':
+      return streamConnection(stream);
+    case 'connecting':
+      return { state: 'reconnecting', label: 'Connecting…' };
+    case 'retrying':
+      return { state: 'reconnecting', label: 'Reconnecting…' };
+    case 'gave_up':
+      return { state: 'reconnecting', label: 'Disconnected' };
+    case 'forbidden':
+      return { state: 'none', label: 'No access' };
   }
 }
 

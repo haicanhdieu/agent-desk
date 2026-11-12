@@ -1,18 +1,31 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
-import { useState } from 'react';
+import { lazy, Suspense, useCallback, useRef, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
-import { useToast } from '@/ds';
-import { scrollbackLines, streamConnection, toRunDetail } from '@/features/runs/detail.map';
+import type { LiveTerminalHandle } from '@/components/LiveTerminal';
+import { Banner, Skeleton, useToast } from '@/ds';
+import {
+  scrollbackLines,
+  scrollbackText,
+  streamConnection,
+  terminalConnection,
+  toRunDetail,
+} from '@/features/runs/detail.map';
 import { isFinal } from '@/features/runs/map';
 import { useCancelRun, useFinishRun } from '@/features/runs/mutations';
 import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
 import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
+import { useTerminal } from '@/features/runs/useTerminal';
 import { RunDetail } from '@/screens';
+
+// xterm downloads only when a run detail shows a terminal (spec §5.3).
+const LiveTerminal = lazy(() => import('@/components/LiveTerminal'));
+
+const GAVE_UP_BODY = 'The agent keeps working; tmux holds the session. Reconnect to attach to the terminal again.';
 
 /** `$run` is the per-project run number. */
 const RunParam = z.string().regex(/^[1-9]\d{0,8}$/);
@@ -50,6 +63,16 @@ function RunDetailRoute() {
   const stream = useRunEvents(org, projectId, number, dto.id, !final);
   // Turned final while open: the run and its log (the final scrollback) reload.
   useFinalLogReload(org, projectId, number, final);
+  // The live terminal, while the run is running or idle. The socket opens once the (lazy) terminal has mounted, so
+  // no output arrives before there is a terminal to write it to.
+  const live = dto.status === 'running' || dto.status === 'idle';
+  const termRef = useRef<LiveTerminalHandle | null>(null);
+  const [termReady, setTermReady] = useState(false);
+  const attachTerm = useCallback((handle: LiveTerminalHandle | null) => {
+    termRef.current = handle;
+    if (handle) setTermReady(true);
+  }, []);
+  const term = useTerminal(dto.id, live && termReady, termRef, { org, projectId, number });
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const onError = (e: unknown) => toast.show(toastFromError(e));
@@ -59,13 +82,37 @@ function RunDetailRoute() {
   const { paths } = page;
   const target = { id: dto.id, number };
   const mapped = toRunDetail(dto, events, page.dto, ticketRuns.items, now, { runs: paths.runs, agent: paths.agent });
-  const data = final ? mapped : { ...mapped, connection: streamConnection(stream) };
+  const data = final
+    ? mapped
+    : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
+  // A finished run's stored scrollback in the same terminal, read-only, written once.
+  const scrollback = final ? scrollbackText(events) : undefined;
+  let terminal: ReactNode;
+  if (live && term.state === 'forbidden') {
+    terminal = <Banner tone="err" flush live="polite" title="You can't open this terminal" />;
+  } else if (live) {
+    terminal = (
+      <Suspense fallback={<TerminalLoading />}>
+        <LiveTerminal key={`live:${dto.id}`} ref={attachTerm} onData={term.onData} onResize={term.onResize} />
+      </Suspense>
+    );
+  } else if (scrollback !== undefined) {
+    terminal = (
+      <Suspense fallback={<TerminalLoading />}>
+        <LiveTerminal key={`final:${dto.id}`} ref={attachTerm} readOnly initial={scrollback} />
+      </Suspense>
+    );
+  }
   const ticket = `${dto.ticket.kind === 'pr' ? 'PR' : 'issue'} #${dto.ticket.number}`;
 
   return (
     <RunDetail
       data={data}
       lines={final ? scrollbackLines(events) : undefined}
+      terminal={terminal}
+      onReconnect={term.reconnect}
+      reconnectOverlay={live ? term.state === 'gave_up' : undefined}
+      reconnectBody={GAVE_UP_BODY}
       needsYou={page.dto.counts.needsYou}
       projectName={page.dto.name}
       links={{ projects: paths.projects, runs: paths.runs, skills: paths.skills, rules: paths.rules }}
@@ -87,5 +134,13 @@ function RunDetailRoute() {
       }}
       onFinish={() => finish(target)}
     />
+  );
+}
+
+function TerminalLoading() {
+  return (
+    <div aria-busy="true" aria-label="Loading the terminal" role="status">
+      <Skeleton variant="text" lines={6} width="100%" />
+    </div>
   );
 }

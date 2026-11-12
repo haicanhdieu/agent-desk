@@ -1,0 +1,17 @@
+/* The xterm host fills the terminal pane body; fit measures this box (padding excluded). */
+.host {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 12px 16px;
+  background: var(--term);
+  overflow: hidden;
+}
+
+.host :global(.xterm) {
+  height: 100%;
+}
+
+.host :global(.xterm-viewport) {
+  background: var(--term);
+}

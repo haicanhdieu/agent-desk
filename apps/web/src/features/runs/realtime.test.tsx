@@ -7,6 +7,7 @@ import { ids } from '@/mocks/dto/ids';
 import { runFixtures } from '@/mocks/dto/runs';
 import { mockDb } from '@/mocks/msw/db';
 import { FakeEventSource } from '@/test/fakeEventSource';
+import { FakeWebSocket } from '@/test/fakeWebSocket';
 import { renderRoute } from '@/test/renderRoute';
 import { setPendingAction } from './pending';
 import { runsQueries } from './queries';
@@ -235,7 +236,11 @@ describe('useFinalLogReload', () => {
 describe('run detail route, live', () => {
   it('the indicator goes live → reconnecting → live; status idle updates the detail and the runs list row', async () => {
     const { queryClient } = await renderRoute(`${base}/runs/61`);
-    expect(await screen.findByText('Reconnecting…')).toBeInTheDocument();
+    // Until the terminal socket opens, the indicator is the terminal's; then it follows the event stream.
+    expect(await screen.findByText('Connecting…')).toBeInTheDocument();
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
+    act(() => FakeWebSocket.latest().open());
+    expect(indicator()).toHaveTextContent('Reconnecting…');
     const source = runSource(61);
     expect(source.url).toMatch(/\?after=\d+$/);
 
