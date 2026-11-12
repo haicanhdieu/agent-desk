@@ -1,29 +1,34 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { appendFile, mkdir, open, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { z } from 'zod';
 import { assertSecretName } from '../secrets/secret-store';
 import {
-  RUN_LABELS,
   TMUX_ATTACH,
   TMUX_KILL,
+  runRefFromLabels,
   sameCommand,
   type ExecSession,
   type KubeGateway,
   type RunJobRef,
   type RunPod,
+  type RunSecretRef,
   type V1Job,
 } from './gateway';
 
 const FAKE_POD = fileURLToPath(new URL('./fake-pod.mjs', import.meta.url));
+const FAKE_POD_FILE = 'fake-pod.mjs';
 const JOB_NAME = /^run-[a-z0-9-]{1,60}$/;
 const TICK_MS = 50;
 const SECRETS_DIR = '.secrets';
 
 const JobFile = z.object({ labels: z.record(z.string(), z.string()), createdAt: z.string() });
-const SecretFile = z.record(z.string(), z.string());
+const SecretFile = z.object({ labels: z.record(z.string(), z.string()), data: z.record(z.string(), z.string()) });
+const execFileAsync = promisify(execFile);
 
 export interface FakeKubeOptions {
   /** FAKE_TURN_MS for spawned pods (the pod's default is 2000). */
@@ -83,6 +88,21 @@ function isAlive(pid: number): boolean {
   }
 }
 
+/** The process's command line (`ps -o command=`, macOS and Linux), or null when there is no such process. */
+async function commandLine(pid: number): Promise<string | null> {
+  try {
+    const { stdout } = await execFileAsync('ps', ['-o', 'command=', '-p', String(pid)]);
+    return stdout.trim() || null;
+  } catch {
+    return null; // ps exits 1 when the pid does not exist
+  }
+}
+
+async function readPid(dir: string): Promise<number | null> {
+  const pid = Number.parseInt((await readOrNull(join(dir, 'pid'))) ?? '', 10);
+  return Number.isInteger(pid) && pid > 1 ? pid : null;
+}
+
 function killGroup(pid: number): void {
   for (const target of [-pid, pid]) {
     try {
@@ -117,11 +137,11 @@ export class FakeKubeGateway implements KubeGateway {
     return join(this.dir, SECRETS_DIR, `${name}.json`);
   }
 
-  async ensureSecret(name: string, data: Record<string, string>, _labels: Record<string, string>): Promise<void> {
+  async ensureSecret(name: string, data: Record<string, string>, labels: Record<string, string>): Promise<void> {
     const file = this.secretFile(name);
     await mkdir(join(this.dir, SECRETS_DIR), { recursive: true, mode: 0o700 });
     try {
-      await writeFile(file, JSON.stringify(data), { flag: 'wx', mode: 0o600 });
+      await writeFile(file, JSON.stringify({ labels, data }), { flag: 'wx', mode: 0o600 });
     } catch (err) {
       if (err instanceof Error && 'code' in err && err.code === 'EEXIST') return; // already exists → success
       throw err;
@@ -133,7 +153,7 @@ export class FakeKubeGateway implements KubeGateway {
     if (raw === null) return null;
     const parsed = SecretFile.safeParse(JSON.parse(raw));
     if (!parsed.success) throw new Error('fake kube: corrupt secret file');
-    return parsed.data;
+    return parsed.data.data;
   }
 
   async deleteSecret(name: string): Promise<void> {
@@ -198,8 +218,8 @@ export class FakeKubeGateway implements KubeGateway {
         exitCode: Number.isNaN(code) ? 1 : code,
       };
     }
-    const pid = Number.parseInt((await readOrNull(join(dir, 'pid'))) ?? '', 10);
-    if (Number.isInteger(pid) && !isAlive(pid)) {
+    const pid = await readPid(dir);
+    if (pid !== null && (await this.ownedPid(jobName, dir)) === null) {
       return { name: jobName, phase: 'Failed', pendingSince: null, reason: 'Killed', exitCode: 137 };
     }
     if (existsSync(join(dir, 'started'))) {
@@ -219,12 +239,13 @@ export class FakeKubeGateway implements KubeGateway {
     const dir = this.jobDir(podName);
     let offset = 0;
     let partial = '';
+    const decoder = new StringDecoder('utf8'); // a multi-byte character may straddle two reads
     while (!signal.aborted) {
       // Check for the exit marker before reading: everything logged before it is then read in this pass.
       const exited = existsSync(join(dir, 'exit')) || !existsSync(dir);
       const buf = await readFrom(join(dir, 'log'), offset);
       offset += buf.length;
-      partial += buf.toString('utf8');
+      partial += decoder.write(buf);
       const lines = partial.split('\n');
       partial = lines.pop() ?? '';
       for (const l of lines) {
@@ -232,6 +253,7 @@ export class FakeKubeGateway implements KubeGateway {
         yield l.replace(/\r$/, '');
       }
       if (exited) {
+        partial += decoder.end();
         if (partial.length > 0) yield partial;
         return;
       }
@@ -252,8 +274,8 @@ export class FakeKubeGateway implements KubeGateway {
 
   async deleteJob(jobName: string): Promise<void> {
     const dir = this.jobDir(jobName);
-    const pid = Number.parseInt((await readOrNull(join(dir, 'pid'))) ?? '', 10);
-    if (Number.isInteger(pid) && pid > 0) killGroup(pid);
+    const pid = await this.ownedPid(jobName, dir);
+    if (pid !== null) killGroup(pid);
     this.children.delete(jobName);
     this.envs.delete(jobName);
     await rm(dir, { recursive: true, force: true });
@@ -273,13 +295,43 @@ export class FakeKubeGateway implements KubeGateway {
       if (raw === null) continue;
       const parsed = JobFile.safeParse(JSON.parse(raw));
       if (!parsed.success) continue;
-      const l = parsed.data.labels;
-      const runId = l[RUN_LABELS.runId];
-      const orgId = l[RUN_LABELS.orgId];
-      const projectId = l[RUN_LABELS.projectId];
-      if (runId && orgId && projectId) out.push({ jobName: name, runId, orgId, projectId });
+      const ref = runRefFromLabels(parsed.data.labels);
+      if (ref) out.push({ jobName: name, ...ref });
     }
     return out;
+  }
+
+  async listRunSecrets(): Promise<RunSecretRef[]> {
+    let files: string[];
+    try {
+      files = await readdir(join(this.dir, SECRETS_DIR));
+    } catch {
+      return [];
+    }
+    const out: RunSecretRef[] = [];
+    for (const file of files) {
+      const secretName = file.replace(/\.json$/, '');
+      if (!JOB_NAME.test(secretName)) continue;
+      const raw = await readOrNull(join(this.dir, SECRETS_DIR, file));
+      const parsed = raw === null ? null : SecretFile.safeParse(JSON.parse(raw));
+      const ref = parsed?.success ? runRefFromLabels(parsed.data.labels) : null;
+      if (ref) out.push({ secretName, ...ref });
+    }
+    return out;
+  }
+
+  /**
+   * The pid of this job's fake pod if it is still running and really is ours. Never trusts the pid file alone: after
+   * the pod exited (`exit` written) or died, the pid may belong to an unrelated process (pid reuse). Ownership is the
+   * live child handle, or a command line naming fake-pod.mjs and this job's dir.
+   */
+  private async ownedPid(jobName: string, dir: string): Promise<number | null> {
+    if (existsSync(join(dir, 'exit'))) return null;
+    const pid = await readPid(dir);
+    if (pid === null || !isAlive(pid)) return null;
+    if (this.children.get(jobName)?.pid === pid) return pid;
+    const cmd = await commandLine(pid);
+    return cmd !== null && cmd.includes(FAKE_POD_FILE) && cmd.includes(dir) ? pid : null;
   }
 
   // ---- test helpers
@@ -306,10 +358,11 @@ export class FakeKubeGateway implements KubeGateway {
     }
     for (const name of names) {
       if (!JOB_NAME.test(name)) continue;
-      const pid = Number.parseInt((await readOrNull(join(this.dir, name, 'pid'))) ?? '', 10);
-      if (Number.isInteger(pid) && pid > 0) killGroup(pid);
+      const pid = await this.ownedPid(name, join(this.dir, name));
+      if (pid !== null) killGroup(pid);
     }
-    for (const c of this.children.values()) if (c.pid !== undefined) killGroup(c.pid);
+    // Live child handles are ours by construction (exited children leave the map).
+    for (const c of this.children.values()) if (c.pid !== undefined && c.exitCode === null) killGroup(c.pid);
     this.children.clear();
   }
 }

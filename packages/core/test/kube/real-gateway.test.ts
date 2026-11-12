@@ -26,6 +26,9 @@ function mocks() {
     })),
     deleteNamespacedSecret: vi.fn(async (_: { name: string; namespace: string }) => ({})),
     listNamespacedPod: vi.fn(async (_: { namespace: string; labelSelector?: string }) => ({ items: [] as V1Pod[] })),
+    listNamespacedSecret: vi.fn(async (_: { namespace: string; labelSelector?: string }) => ({
+      items: [] as { metadata?: { name?: string; labels?: Record<string, string> } }[],
+    })),
   };
   const log = { log: vi.fn() };
   const sent: Buffer[] = [];
@@ -182,6 +185,23 @@ describe('RealKubeGateway', () => {
     });
     expect(await m.gw.listRunJobs()).toEqual([{ jobName: 'run-a', runId: 'a', orgId: 'o', projectId: 'p' }]);
     expect(m.batch.listNamespacedJob).toHaveBeenCalledWith({ namespace: NS, labelSelector: 'agentdesk/run-id' });
+  });
+
+  it('listRunSecrets reads the agentdesk labels of Secrets', async () => {
+    const m = mocks();
+    m.core.listNamespacedSecret.mockResolvedValueOnce({
+      items: [
+        {
+          metadata: {
+            name: 'run-a',
+            labels: { 'agentdesk/run-id': 'a', 'agentdesk/org-id': 'o', 'agentdesk/project-id': 'p' },
+          },
+        },
+        { metadata: { name: 'other', labels: { 'agentdesk/run-id': 'b' } } },
+      ],
+    });
+    expect(await m.gw.listRunSecrets()).toEqual([{ secretName: 'run-a', runId: 'a', orgId: 'o', projectId: 'p' }]);
+    expect(m.core.listNamespacedSecret).toHaveBeenCalledWith({ namespace: NS, labelSelector: 'agentdesk/run-id' });
   });
 
   it('streamLogs yields whole lines from the followed log and stops on abort', async () => {

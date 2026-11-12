@@ -11,6 +11,7 @@
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
 import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 
 const dir = process.argv[2];
 if (!dir) process.exit(64);
@@ -72,6 +73,7 @@ if (prompt.includes('--fake-pending')) {
 
   let inputOffset = 0;
   let pending = '';
+  const decoder = new StringDecoder('utf8'); // a multi-byte character may straddle two reads
   setInterval(() => {
     if (existsSync(file('kill'))) return finish(0);
     if (expired()) return finish(0);
@@ -80,7 +82,7 @@ if (prompt.includes('--fake-pending')) {
     if (size <= inputOffset) return;
     const buf = readFileSync(file('input')).subarray(inputOffset, size);
     inputOffset = size;
-    pending += buf.toString('utf8');
+    pending += decoder.write(buf);
     let i;
     while ((i = pending.indexOf('\r')) >= 0) {
       const line = pending.slice(0, i).replace(/\n/g, '');

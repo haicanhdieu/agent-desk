@@ -1,7 +1,7 @@
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FakeKubeGateway } from '../../src/kube/fake-gateway';
 import { buildRunJob } from '../../src/kube/job-spec';
 import type { ExecSession } from '../../src/kube/gateway';
@@ -199,16 +199,60 @@ describe('FakeKubeGateway', () => {
   it('secrets: ensure/read/delete are idempotent; the Secret reaches the pod env; listRunJobs reads labels', async () => {
     const id = runId();
     const name = `run-${id}`;
-    await gw.ensureSecret(name, { REPO_CLONE_URL: 'https://t@x.invalid/r.git', TOKEN: 's3cr3t' }, {});
+    const labels = { 'agentdesk/run-id': id, 'agentdesk/org-id': ORG, 'agentdesk/project-id': PROJECT };
+    await gw.ensureSecret(name, { REPO_CLONE_URL: 'https://t@x.invalid/r.git', TOKEN: 's3cr3t' }, labels);
     await gw.ensureSecret(name, { REPO_CLONE_URL: 'other' }, {}); // already exists → success, unchanged
     expect(await gw.readSecret(name)).toEqual({ REPO_CLONE_URL: 'https://t@x.invalid/r.git', TOKEN: 's3cr3t' });
     await gw.ensureJob(job(id, 'x'));
     expect(await gw.listRunJobs()).toContainEqual({ jobName: name, runId: id, orgId: ORG, projectId: PROJECT });
     expect(await gw.podEnv(name)).toMatchObject({ TOKEN: 's3cr3t', PROMPT: 'x' });
+    expect(await gw.listRunSecrets()).toContainEqual({ secretName: name, runId: id, orgId: ORG, projectId: PROJECT });
     await gw.deleteSecret(name);
     await gw.deleteSecret(name);
     expect(await gw.readSecret(name)).toBeNull();
+    expect((await gw.listRunSecrets()).map((x) => x.secretName)).not.toContain(name);
     await gw.deleteJob(name);
     expect((await gw.listRunJobs()).map((j) => j.jobName)).not.toContain(name);
+  });
+
+  it('never signals a pid it does not own: exit written, or a pid file pointing at another process', async () => {
+    const kill = vi.spyOn(process, 'kill');
+    try {
+      for (const withExit of [true, false]) {
+        const name = `run-${runId()}`;
+        const d = join(dir, name);
+        await mkdir(d);
+        await writeFile(join(d, 'job.json'), JSON.stringify({ labels: {}, createdAt: new Date().toISOString() }));
+        await writeFile(join(d, 'pid'), String(process.pid)); // a reused pid: this very test process
+        if (withExit) await writeFile(join(d, 'exit'), '0');
+        else await writeFile(join(d, 'started'), '');
+        const pod = await gw.getRunPod(name);
+        expect(pod?.phase).toBe(withExit ? 'Succeeded' : 'Failed'); // not ours → treated as dead, not Running
+        await gw.deleteJob(name);
+        await gw.killAll();
+        expect(
+          kill.mock.calls.filter(([pid, sig]) => sig === 'SIGKILL' && Math.abs(Number(pid)) === process.pid),
+        ).toEqual([]);
+        expect(await gw.getRunPod(name)).toBeNull();
+      }
+    } finally {
+      kill.mockRestore();
+    }
+  });
+
+  it('streams a multi-byte character split across reads intact', async () => {
+    const name = `run-${runId()}`;
+    const d = join(dir, name);
+    await mkdir(d);
+    await writeFile(join(d, 'job.json'), JSON.stringify({ labels: {}, createdAt: new Date().toISOString() }));
+    const bytes = Buffer.from('héllo ✓\n', 'utf8');
+    const c = collect(name);
+    await appendFile(join(d, 'log'), bytes.subarray(0, 2)); // ends inside 'é'
+    await sleep(150);
+    await appendFile(join(d, 'log'), bytes.subarray(2));
+    await writeFile(join(d, 'exit'), '0');
+    await c.done;
+    expect(c.lines).toEqual(['héllo ✓']);
+    await gw.deleteJob(name);
   });
 });

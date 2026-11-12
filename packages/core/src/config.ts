@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
 
 /** Env values arrive as strings; blank means "unset" (`.env.example` lists optional keys with empty values). */
@@ -99,10 +101,30 @@ export const ConfigSchema = z
 
 export type Config = z.infer<typeof ConfigSchema>;
 
-/** Parses raw env into Config. Throws one Error naming every invalid key (values are never echoed). */
-export function parseConfig(env: Record<string, string | undefined>): Config {
+/** Nearest ancestor of `start` (inclusive) that holds `pnpm-workspace.yaml`, or null. */
+export function findWorkspaceRoot(start: string): string | null {
+  let dir = resolve(start);
+  for (;;) {
+    if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
+}
+
+/**
+ * Parses raw env into Config. Throws one Error naming every invalid key (values are never echoed).
+ * A relative FAKE_STATE_DIR is resolved against the monorepo root (else `cwd`), so the api and the worker, which run
+ * from different package directories, share one fake state dir (ruling R21).
+ */
+export function parseConfig(env: Record<string, string | undefined>, opts: { cwd?: string } = {}): Config {
   const result = ConfigSchema.safeParse(env);
-  if (result.success) return result.data;
+  if (result.success) {
+    const dir = result.data.FAKE_STATE_DIR;
+    if (isAbsolute(dir)) return result.data;
+    const cwd = opts.cwd ?? process.cwd();
+    return { ...result.data, FAKE_STATE_DIR: resolve(findWorkspaceRoot(cwd) ?? cwd, dir) };
+  }
   const lines = result.error.issues.map((i) => `  ${i.path.join('.') || '(config)'}: ${i.message}`);
   throw new Error(`Invalid configuration:\n${lines.join('\n')}`);
 }

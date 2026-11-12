@@ -44,6 +44,13 @@ export interface RunJobRef {
   projectId: string;
 }
 
+export interface RunSecretRef {
+  secretName: string;
+  runId: string;
+  orgId: string;
+  projectId: string;
+}
+
 /**
  * The control plane's only access to Kubernetes for runs (namespace `RUNS_NAMESPACE`). Create and delete calls are
  * idempotent: "already exists" and "not found" are success.
@@ -61,6 +68,18 @@ export interface KubeGateway {
   /** Deletes the Job (and its pod, foreground). */
   deleteJob(jobName: string): Promise<void>;
   listRunJobs(): Promise<RunJobRef[]>;
+  /** Run Secrets (label `agentdesk/run-id`), including ones whose Job never existed or is gone. */
+  listRunSecrets(): Promise<RunSecretRef[]>;
+}
+
+/** The run labels of an object, or null when any is missing. */
+export function runRefFromLabels(
+  labels: Record<string, string> | undefined,
+): { runId: string; orgId: string; projectId: string } | null {
+  const runId = labels?.[RUN_LABELS.runId];
+  const orgId = labels?.[RUN_LABELS.orgId];
+  const projectId = labels?.[RUN_LABELS.projectId];
+  return runId && orgId && projectId ? { runId, orgId, projectId } : null;
 }
 
 /** The exec commands the control plane uses (and the only ones the fake accepts). */

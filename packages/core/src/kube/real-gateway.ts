@@ -9,11 +9,13 @@ import {
   RUN_CONTAINER,
   RUN_LABELS,
   kubeStatusOf,
+  runRefFromLabels,
   type ExecSession,
   type KubeGateway,
   type RunJobRef,
   type RunPod,
   type RunPodPhase,
+  type RunSecretRef,
   type V1Job,
 } from './gateway';
 
@@ -21,7 +23,11 @@ import {
 export type KubeBatchApi = Pick<BatchV1Api, 'createNamespacedJob' | 'deleteNamespacedJob' | 'listNamespacedJob'>;
 export type KubeCoreApi = Pick<
   CoreV1Api,
-  'createNamespacedSecret' | 'readNamespacedSecret' | 'deleteNamespacedSecret' | 'listNamespacedPod'
+  | 'createNamespacedSecret'
+  | 'readNamespacedSecret'
+  | 'deleteNamespacedSecret'
+  | 'listNamespacedPod'
+  | 'listNamespacedSecret'
 >;
 export type KubeLogApi = Pick<Log, 'log'>;
 
@@ -212,12 +218,20 @@ export class RealKubeGateway implements KubeGateway {
     const list = await this.deps.batch.listNamespacedJob({ namespace: this.ns, labelSelector: RUN_LABELS.runId });
     const out: RunJobRef[] = [];
     for (const job of list.items) {
-      const l = job.metadata?.labels ?? {};
+      const ref = runRefFromLabels(job.metadata?.labels);
       const jobName = job.metadata?.name;
-      const runId = l[RUN_LABELS.runId];
-      const orgId = l[RUN_LABELS.orgId];
-      const projectId = l[RUN_LABELS.projectId];
-      if (jobName && runId && orgId && projectId) out.push({ jobName, runId, orgId, projectId });
+      if (jobName && ref) out.push({ jobName, ...ref });
+    }
+    return out;
+  }
+
+  async listRunSecrets(): Promise<RunSecretRef[]> {
+    const list = await this.deps.core.listNamespacedSecret({ namespace: this.ns, labelSelector: RUN_LABELS.runId });
+    const out: RunSecretRef[] = [];
+    for (const secret of list.items) {
+      const ref = runRefFromLabels(secret.metadata?.labels);
+      const secretName = secret.metadata?.name;
+      if (secretName && ref) out.push({ secretName, ...ref });
     }
     return out;
   }
