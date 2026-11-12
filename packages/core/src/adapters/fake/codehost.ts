@@ -26,7 +26,7 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
   ) {}
 
   installUrl(_orgId: string, state: string): string {
-    return `${this.publicOrigin}/connections/fake/callback?state=${encodeURIComponent(state)}`;
+    return `${this.publicOrigin}/api/connections/fake/callback?state=${encodeURIComponent(state)}`;
   }
 
   async completeInstall(_params: Record<string, string>, _user: InstallUser): Promise<NewConnection> {

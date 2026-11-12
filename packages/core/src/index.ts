@@ -5,3 +5,4 @@ export * from './adapters/types';
 export * from './adapters/registry';
 export { FakeStore } from './adapters/fake/store';
 export { fakeSignature, FAKE_SIGNATURE_HEADER } from './adapters/fake/board';
+export * from './temporal-names';

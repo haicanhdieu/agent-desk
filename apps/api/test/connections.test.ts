@@ -1,0 +1,119 @@
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { createTestApp, type TestApp } from './helpers/app';
+import { loginAs } from './helpers/auth';
+import { expectContract } from './helpers/contract';
+
+let t: TestApp;
+let alice: string;
+let bob: string;
+beforeAll(async () => {
+  t = await createTestApp();
+  alice = await loginAs(t, 'alice');
+  bob = await loginAs(t, 'bob');
+});
+afterAll(async () => {
+  await t.close();
+});
+
+async function install(cookie: string) {
+  return t.app.inject({ method: 'POST', url: '/api/connections/fake/install', headers: { cookie } });
+}
+
+describe('connections', () => {
+  it('fake install round-trip creates a connection visible in the list and its repos', async () => {
+    const res = await install(alice);
+    expect(res.statusCode).toBe(201);
+    const { url } = expectContract('connections.install', res) as { url: string };
+    const parsed = new URL(url);
+    expect(parsed.origin + parsed.pathname).toBe(`${t.config.PUBLIC_ORIGIN}/api/connections/fake/callback`);
+
+    const cb = await t.app.inject({
+      method: 'GET',
+      url: `${parsed.pathname}${parsed.search}`,
+      headers: { cookie: alice },
+    });
+    expect(cb.statusCode).toBe(302);
+    const location = new URL(String(cb.headers['location']));
+    expect(location.origin).toBe(t.config.PUBLIC_ORIGIN);
+    expect(location.pathname).toBe('/o/alice/projects/new/repo');
+    const connectionId = location.searchParams.get('connection');
+    expect(connectionId).toMatch(/^[0-9a-f-]{36}$/);
+
+    const list = await t.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie: alice } });
+    const conns = expectContract('connections.list', list) as { id: string; provider: string }[];
+    expect(conns.map((c) => c.id)).toEqual([connectionId]);
+    expect(conns[0]?.provider).toBe('fake');
+
+    const repos = await t.app.inject({
+      method: 'GET',
+      url: `/api/connections/${connectionId}/repos`,
+      headers: { cookie: alice },
+    });
+    const parsedRepos = expectContract('connections.repos', repos) as { repoPath: string }[];
+    expect(parsedRepos.map((r) => r.repoPath)).toContain('dev/demo');
+
+    // Reinstalling upserts: still one connection.
+    const again = await install(alice);
+    const u2 = new URL((again.json() as { url: string }).url);
+    await t.app.inject({ method: 'GET', url: `${u2.pathname}${u2.search}`, headers: { cookie: alice } });
+    const list2 = await t.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie: alice } });
+    expect(list2.json()).toHaveLength(1);
+  });
+
+  it('other orgs cannot see or use the connection (404, empty list)', async () => {
+    const list = await t.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie: bob } });
+    expect(expectContract('connections.list', list)).toEqual([]);
+    const aliceList = await t.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie: alice } });
+    const id = (aliceList.json() as { id: string }[])[0]?.id;
+    const repos = await t.app.inject({
+      method: 'GET',
+      url: `/api/connections/${id}/repos`,
+      headers: { cookie: bob },
+    });
+    expect(repos.statusCode).toBe(404);
+  });
+
+  it('callback with a tampered, malformed or expired state is a 400', async () => {
+    const res = await install(alice);
+    const state = new URL((res.json() as { url: string }).url).searchParams.get('state') ?? '';
+    const [payload = '', sig = ''] = state.split('.');
+    const forgedPayload = Buffer.from(JSON.stringify({ orgId: 'x', userId: 'y', exp: Date.now() + 60_000 })).toString(
+      'base64url',
+    );
+    const cases = [`${payload}.${sig.slice(0, -2)}AA`, `${forgedPayload}.${sig}`, 'garbage', ''];
+    for (const s of cases) {
+      const cb = await t.app.inject({
+        method: 'GET',
+        url: `/api/connections/fake/callback?state=${encodeURIComponent(s)}`,
+        headers: { cookie: alice },
+      });
+      expect(cb.statusCode, `state ${s}`).toBe(400);
+    }
+    const noState = await t.app.inject({
+      method: 'GET',
+      url: '/api/connections/fake/callback',
+      headers: { cookie: alice },
+    });
+    expect(noState.statusCode).toBe(400);
+  });
+
+  it('rejects an expired state', async () => {
+    const { signState } = await import('../src/connections/install-state');
+    const state = signState(t.config.BETTER_AUTH_SECRET, { orgId: 'o', userId: 'u' }, new Date(Date.now() - 3600_000));
+    const cb = await t.app.inject({
+      method: 'GET',
+      url: `/api/connections/fake/callback?state=${encodeURIComponent(state)}`,
+      headers: { cookie: alice },
+    });
+    expect(cb.statusCode).toBe(400);
+  });
+
+  it('install for an unknown provider is a 400', async () => {
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/api/connections/nope/install',
+      headers: { cookie: alice },
+    });
+    expect(res.statusCode).toBe(400);
+  });
+});
