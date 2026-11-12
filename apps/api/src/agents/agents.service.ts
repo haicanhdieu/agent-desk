@@ -78,6 +78,7 @@ export class AgentsService {
       this.logger.error(
         `credential store write failed for agent ${agentId}: ${err instanceof Error ? err.name : 'unknown'}`,
       );
+      // eslint-disable-next-line preserve-caught-error -- deliberate: the cause may echo the credential.
       throw new Error('credential store unavailable');
     }
     const updatedAt = new Date();

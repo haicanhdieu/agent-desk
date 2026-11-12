@@ -10,6 +10,7 @@ const RelativePath = z
   .string()
   .max(2048)
   .refine(
+    // eslint-disable-next-line no-control-regex -- the point of this check is to reject control characters.
     (p) => p.startsWith('/') && !p.startsWith('//') && !p.includes('\\') && !/[\u0000-\u001f\u007f]/.test(p),
     'redirect must be a relative path starting with a single "/"',
   );

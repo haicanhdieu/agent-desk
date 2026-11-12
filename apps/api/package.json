@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "test": "vitest run",
-    "start": "tsx src/main.ts"
+    "start": "tsx src/main.ts",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",

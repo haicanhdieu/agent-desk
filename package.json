@@ -7,14 +7,18 @@
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "lint": "turbo run lint",
+    "lint": "turbo run lint && eslint eslint.config.mjs",
     "db:migrate": "pnpm --filter @agentdesk/api migrate",
     "dev:down": "bash scripts/dev.sh down",
     "stop": "bash scripts/dev.sh down"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
     "turbo": "^2.5.0",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.72.2",
     "vitest": "^5.1.0"
   },
   "engines": {
