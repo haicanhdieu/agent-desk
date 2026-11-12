@@ -7,9 +7,18 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
   },
   "dependencies": {
+    "@agentdesk/contracts": "workspace:*",
+    "@octokit/auth-app": "^8.3.1",
+    "@octokit/rest": "^22.0.1",
     "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "undici": "^8.12.4",
+    "vitest": "^5.1.0"
   }
 }

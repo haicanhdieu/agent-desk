@@ -1,0 +1,10 @@
+{
+  "number": 5,
+  "title": "Build is red",
+  "html_url": "https://github.com/acme/widgets/issues/5",
+  "state": "open",
+  "labels": [
+    { "id": 1, "name": "bug", "color": "d73a4a" },
+    { "id": 2, "name": "ci", "color": "0e8a16" }
+  ]
+}

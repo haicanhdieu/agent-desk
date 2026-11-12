@@ -1,0 +1,8 @@
+{
+  "number": 7,
+  "title": "Fix flaky login test",
+  "html_url": "https://github.com/acme/widgets/pull/7",
+  "state": "open",
+  "labels": [{ "id": 1, "name": "bug", "color": "d73a4a" }],
+  "pull_request": { "url": "https://api.github.com/repos/acme/widgets/pulls/7" }
+}
