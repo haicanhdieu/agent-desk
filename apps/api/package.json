@@ -23,6 +23,8 @@
     "@nestjs/platform-fastify": "^11.2.9",
     "@nestjs/swagger": "^11.4.8",
     "@temporalio/client": "^1.25.0",
+    "better-auth": "^1.7.22",
+    "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.8",
     "nestjs-zod": "^5.6.0",
     "pg": "^8.23.1",
