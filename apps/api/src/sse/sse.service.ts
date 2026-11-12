@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, NotFoundException, type OnModuleDestroy } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
-import { and, asc, eq, gt, notInArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gt, inArray, notInArray, or, sql } from 'drizzle-orm';
 import { projects, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
 import {
   FINAL_RUN_STATUSES,
@@ -39,7 +39,9 @@ export class SseService implements OnModuleDestroy {
     @Inject(DB) private readonly db: Db,
     @Inject(CONFIG) private readonly config: Config,
     @Inject(RunStatusListener) private readonly listener: RunStatusListener,
-  ) {}
+  ) {
+    this.drainTimeoutMs = config.SSE_DRAIN_TIMEOUT_MS;
+  }
 
   openStreams(): number {
     return this.open.size;
@@ -47,17 +49,19 @@ export class SseService implements OnModuleDestroy {
 
   /** Server shutdown: open streams would otherwise keep the HTTP server from closing. */
   onModuleDestroy(): void {
-    for (const w of [...this.open]) w.end();
+    for (const w of [...this.open]) w.shutdown();
   }
 
   hooks: SseHooks = {};
+  /** Test seam: initialised from SSE_DRAIN_TIMEOUT_MS. */
+  drainTimeoutMs: number;
 
   /**
    * Registers the writer before any await, so a socket that closes while we are still reading is cleaned up (subscriber
    * and registry entry); the response is not touched until `begin`.
    */
   private track(reply: FastifyReply, unsubscribe: () => void): SseWriter {
-    const writer = new SseWriter(reply.raw);
+    const writer = new SseWriter(reply.raw, this.drainTimeoutMs);
     this.open.add(writer);
     writer.onClose(() => {
       this.open.delete(writer);
@@ -213,15 +217,20 @@ export class SseService implements OnModuleDestroy {
 
   async streamProject(org: OrgContext, projectId: string, reply: FastifyReply): Promise<void> {
     let started = false;
-    const lastFrame = new Map<string, string>();
+    const lastFrame = new Map<string, { status: RunStatus; seq: number }>();
     const emit = (runId: string, number: number, status: RunStatus, seq: number): void => {
-      const key = `${status}:${seq}`;
-      if (lastFrame.get(runId) === key) return;
-      lastFrame.set(runId, key);
+      const prev = lastFrame.get(runId);
+      if (prev) {
+        if (prev.status === status && prev.seq === seq) return;
+        // A stale resync must never overwrite a fresher frame.
+        if (prev.seq > seq || (isFinal(prev.status) && !isFinal(status))) return;
+      }
+      lastFrame.set(runId, { status, seq });
       writer.event('run', ProjectRunEvent.parse({ runId, number, status, seq }));
     };
     // After a LISTEN reconnect notifications may have been missed: re-send the state of the project's unfinished runs.
     const resync = async (): Promise<void> => {
+      const seenOpen = [...lastFrame].filter(([, f]) => !isFinal(f.status)).map(([id]) => id);
       try {
         const rows = await withOrg(this.db, org.orgId, (tx) =>
           tx
@@ -232,7 +241,15 @@ export class SseService implements OnModuleDestroy {
               seq: sql<number>`(select coalesce(max(seq), 0)::int from run_events where run_events.run_id = runs.id)`,
             })
             .from(runs)
-            .where(and(eq(runs.projectId, projectId), notInArray(runs.status, [...FINAL_RUN_STATUSES])))
+            .where(
+              and(
+                eq(runs.projectId, projectId),
+                // Unfinished runs, plus runs this stream last saw as unfinished (they may have finished in the gap).
+                seenOpen.length > 0
+                  ? or(notInArray(runs.status, [...FINAL_RUN_STATUSES]), inArray(runs.id, seenOpen))
+                  : notInArray(runs.status, [...FINAL_RUN_STATUSES]),
+              ),
+            )
             .limit(RESYNC_LIMIT),
         );
         if (writer.closed) return;

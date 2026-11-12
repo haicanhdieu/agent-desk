@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { AddressInfo } from 'node:net';
+import { connect, type AddressInfo } from 'node:net';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createParser, type EventSourceMessage } from 'eventsource-parser';
 import { eq, sql } from 'drizzle-orm';
@@ -451,4 +451,54 @@ describe('fix round 1', () => {
       proj.abort();
     }
   });
+});
+
+describe('fix round 2', () => {
+  it('drops a client that stays connected but never reads', async () => {
+    const svc = t.app.get(SseService);
+    const runId = await insertRun(aliceOrg, aliceProject);
+    await addEvents(aliceOrg, runId, 3000, 'x'.repeat(4096));
+    const before = svc.drainTimeoutMs;
+    svc.drainTimeoutMs = 300;
+    const port = (t.app.getHttpServer().address() as AddressInfo).port;
+    const socket = connect(port, '127.0.0.1');
+    try {
+      await new Promise<void>((r) => socket.once('connect', () => r()));
+      socket.write(`GET /api/runs/${runId}/events HTTP/1.1\r\nHost: x\r\nCookie: ${alice}\r\n\r\n`);
+      socket.pause();
+      const opened = Date.now() + 3000;
+      while (Date.now() < opened && svc.openStreams() === 0) await sleep(10);
+      expect(svc.openStreams()).toBe(1);
+      const deadline = Date.now() + 10000;
+      while (Date.now() < deadline && (svc.openStreams() > 0 || t.app.get(RunStatusListener).subscriberCount() > 0)) {
+        await sleep(50);
+      }
+      expect(svc.openStreams()).toBe(0);
+      expect(t.app.get(RunStatusListener).subscriberCount()).toBe(0);
+    } finally {
+      svc.drainTimeoutMs = before;
+      socket.destroy();
+    }
+  }, 30000);
+
+  it('re-sends a run that finished while the LISTEN connection was down', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject);
+    const s = await open(`/api/projects/${aliceProject}/events`, alice);
+    try {
+      await sleep(100);
+      await commit(aliceOrg, runId, 'idle');
+      await s.waitFor((m) => ofType(m, 'run').length >= 1);
+      await t.db.pool.query(
+        "select pg_terminate_backend(pid) from pg_stat_activity where query like 'LISTEN run_status%' and pid <> pg_backend_pid()",
+      );
+      await commit(aliceOrg, runId, 'failed');
+      await s.waitFor((m) => ofType(m, 'run').some((x) => x.data.includes('"failed"')), 10000);
+      const frames = ofType(s.messages, 'run')
+        .map((m) => ProjectRunEvent.parse(JSON.parse(m.data)))
+        .filter((f) => f.runId === runId);
+      expect(frames.at(-1)?.status).toBe('failed');
+    } finally {
+      s.abort();
+    }
+  }, 20000);
 });

@@ -49,6 +49,7 @@ export class RunStatusListener implements OnModuleInit, OnModuleDestroy {
   private retry: NodeJS.Timeout | null = null;
   private tick: NodeJS.Timeout | null = null;
   private destroyed = false;
+  private failedConnects = 0;
 
   // Per-run read scheduling: one read in flight and at most one pending per (orgId, runId), a few reads at a time.
   private readonly pending = new Map<string, RunStatusMessage>();
@@ -67,7 +68,7 @@ export class RunStatusListener implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleInit(): Promise<void> {
-    this.tick = setInterval(() => this.wakeRuns(), this.config.SSE_SAFETY_TICK_MS);
+    this.tick = setInterval(() => this.resyncAll(), this.config.SSE_SAFETY_TICK_MS);
     this.tick.unref();
     await this.connect();
   }
@@ -95,8 +96,13 @@ export class RunStatusListener implements OnModuleInit, OnModuleDestroy {
           onReconnect: () => this.resyncAll(),
         });
         if (this.destroyed) await stop();
-        else this.stop = stop;
+        else {
+          this.stop = stop;
+          // An earlier attempt failed, so notifications may have been missed before this connection existed.
+          if (this.failedConnects > 0) this.resyncAll();
+        }
       } catch (err) {
+        this.failedConnects += 1;
         this.log.warn(`LISTEN connect failed, retrying: ${err instanceof Error ? err.message : 'unknown'}`);
         if (this.destroyed) return;
         this.retry = setTimeout(() => {

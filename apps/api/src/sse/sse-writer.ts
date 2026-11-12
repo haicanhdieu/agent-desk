@@ -7,10 +7,13 @@ export const MAX_BUFFERED_BYTES = 1024 * 1024;
 export class SseWriter {
   private ended = false;
   private heartbeat: NodeJS.Timeout | null = null;
+  private stall: NodeJS.Timeout | null = null;
+  private started = false;
   private readonly closeHandlers: Array<() => void> = [];
 
   constructor(
     private readonly raw: ServerResponse,
+    private readonly drainTimeoutMs = 30_000,
     private readonly maxBuffered = MAX_BUFFERED_BYTES,
   ) {
     const onClose = (): void => this.finish();
@@ -35,6 +38,8 @@ export class SseWriter {
     this.ended = true;
     if (this.heartbeat) clearInterval(this.heartbeat);
     this.heartbeat = null;
+    if (this.stall) clearTimeout(this.stall);
+    this.stall = null;
     for (const h of this.closeHandlers.splice(0)) h();
   }
 
@@ -49,6 +54,30 @@ export class SseWriter {
     this.heartbeat.unref();
   }
 
+  /** Server shutdown: end a started stream; just let go of one whose response was never taken over. */
+  shutdown(): void {
+    if (this.started) this.end();
+    else this.release();
+  }
+
+  /** A client that stays connected but never reads would hold the stream forever: drop it after the timeout. */
+  private watchStall(): void {
+    if (this.stall || this.ended || !this.raw.writableNeedDrain) return;
+    const clear = (): void => {
+      if (this.stall) clearTimeout(this.stall);
+      this.stall = null;
+    };
+    this.stall = setTimeout(() => {
+      this.stall = null;
+      if (!this.ended && this.raw.writableNeedDrain) {
+        this.raw.destroy();
+        this.finish();
+      }
+    }, this.drainTimeoutMs);
+    this.stall.unref();
+    this.raw.once('drain', clear);
+  }
+
   start(headers: Record<string, string | number | string[] | undefined>): void {
     this.raw.writeHead(200, {
       ...headers,
@@ -58,6 +87,7 @@ export class SseWriter {
       'x-accel-buffering': 'no',
     });
     this.raw.flushHeaders();
+    this.started = true;
   }
 
   event(name: string, data: unknown, id?: number): void {
@@ -96,6 +126,8 @@ export class SseWriter {
     if (this.raw.writableLength > this.maxBuffered) {
       this.raw.destroy();
       this.finish();
+      return;
     }
+    this.watchStall();
   }
 }
