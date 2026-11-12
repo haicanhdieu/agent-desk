@@ -19,6 +19,9 @@ import { RulesService } from './rules/rules.service';
 import { SecretStoreModule } from './secrets/secret-store.module';
 import { SkillsController } from './skills/skills.controller';
 import { SkillsService } from './skills/skills.service';
+import { RunStatusListener } from './sse/run-status-listener';
+import { SseController } from './sse/sse.controller';
+import { SseService } from './sse/sse.service';
 import { TemporalClientModule } from './temporal/temporal-client.module';
 
 @Module({
@@ -39,6 +42,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     RulesController,
     SkillsController,
     RunsController,
+    SseController,
   ],
   providers: [
     ConnectionsService,
@@ -48,6 +52,8 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     RulesService,
     SkillsService,
     RunsService,
+    RunStatusListener,
+    SseService,
   ],
 })
 export class AppModule {}

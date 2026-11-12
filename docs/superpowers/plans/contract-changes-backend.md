@@ -1,0 +1,9 @@
+# Backend contract changes (additive only)
+
+| Task | Route / schema                                            | Change                                                                                                                                                                     | Why                                                                                                                 |
+| ---- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 17   | `runs.events` (`GET /api/runs/:runId/events?after=`)      | New route. Response schema `RunStatusEvent` documents the `event: status` frame; `event: event` frames are `RunEventMessage`. `after` is an optional non-negative integer. | The SSE endpoints existed in the spec and schemas (`RunStatusEvent`, `RunEventMessage`) but not in the route table. |
+| 17   | `projects.events` (`GET /api/projects/:projectId/events`) | New route. Response schema `ProjectRunEvent` documents the `event: run` frame.                                                                                             | Same.                                                                                                               |
+| 17   | `routes.test.ts`                                          | Flattened route count 27 -> 29.                                                                                                                                            | Two new routes.                                                                                                     |
+
+Non-contract config added in Task 17: `SSE_HEARTBEAT_MS` (default 15000, min 10) in `packages/core` config and `.env.example`.
