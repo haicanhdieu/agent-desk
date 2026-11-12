@@ -8,6 +8,8 @@ import { ConnectionsController } from './connections/connections.controller';
 import { ConnectionsService } from './connections/connections.service';
 import { DbModule } from './db/db.module';
 import { IntakeModule } from './intake/intake.module';
+import { KubeGatewayModule } from './kube/kube-gateway.module';
+import { TerminalModule } from './terminal/terminal.module';
 import { HealthController } from './health/health.controller';
 import { ProjectSchedules } from './projects/project-schedules';
 import { ProjectsController } from './projects/projects.controller';
@@ -33,6 +35,8 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     SecretStoreModule,
     AuthModule,
     IntakeModule,
+    KubeGatewayModule,
+    TerminalModule,
   ],
   controllers: [
     HealthController,

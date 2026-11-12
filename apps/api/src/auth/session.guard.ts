@@ -23,7 +23,7 @@ export function isPublicPath(url: string): boolean {
   return !(path === '/api' || path.startsWith('/api/') || path === '/dev' || path.startsWith('/dev/'));
 }
 
-function toHeaders(req: FastifyRequest): Headers {
+export function toHeaders(req: FastifyRequest): Headers {
   const headers = new Headers();
   for (const [k, v] of Object.entries(req.headers)) {
     if (Array.isArray(v)) v.forEach((x) => headers.append(k, x));

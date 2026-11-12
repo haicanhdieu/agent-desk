@@ -170,6 +170,8 @@ export const routes = {
       query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional() }),
       response: RunStatusEvent,
     },
+    /** WebSocket upgrade: binary terminal bytes both ways; text `{"type":"resize","cols","rows"}`; close 4401/4403/4409. */
+    terminal: { method: 'GET', path: '/api/runs/:runId/terminal', params: runParams, response: empty },
   },
 } as const satisfies Record<string, Record<string, RouteDef>>;
 

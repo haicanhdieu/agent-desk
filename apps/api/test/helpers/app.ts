@@ -3,7 +3,13 @@ import type { Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
 import type { Logger } from 'pino';
-import { MemorySecretStore, createAdapterRegistry, systemClock, type AdapterRegistry } from '@agentdesk/core';
+import {
+  MemorySecretStore,
+  createAdapterRegistry,
+  systemClock,
+  type AdapterRegistry,
+  type KubeGateway,
+} from '@agentdesk/core';
 import { createDb, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
@@ -13,6 +19,7 @@ import { createLogger } from '../../src/common/logger';
 import { CONFIG } from '../../src/config/config.module';
 import { parseConfig, type Config } from '../../src/config/config.schema';
 import { DB } from '../../src/db/db.module';
+import { KUBE_GATEWAY } from '../../src/kube/kube-gateway.module';
 import { SECRET_STORE } from '../../src/secrets/secret-store.module';
 import { TEMPORAL_CLIENT } from '../../src/temporal/temporal-client.module';
 import { FakeTemporalClient } from './fake-temporal';
@@ -45,6 +52,8 @@ export interface TestAppOptions {
   controllers?: Type[];
   /** Wraps the real adapter registry (e.g. to widen the fake provider's repo list). */
   wrapAdapters?: (real: AdapterRegistry) => AdapterRegistry;
+  /** Replaces the Kubernetes gateway (default: built from config, i.e. the file-backed fake). */
+  kube?: KubeGateway;
   /** Logger for request/problem logging (default: silent); tests capture output through it. */
   logger?: Logger;
 }
@@ -92,7 +101,9 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     const db = createDb(config.DATABASE_APP_URL);
     const temporal = new FakeTemporalClient();
     const secrets = new MemorySecretStore();
-    const moduleRef = await Test.createTestingModule({ imports: [AppModule], controllers: options.controllers ?? [] })
+    const builder = Test.createTestingModule({ imports: [AppModule], controllers: options.controllers ?? [] });
+    if (options.kube) builder.overrideProvider(KUBE_GATEWAY).useValue(options.kube);
+    const moduleRef = await builder
       .overrideProvider(CONFIG)
       .useValue(config)
       .overrideProvider(DB)

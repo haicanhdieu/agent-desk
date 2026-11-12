@@ -77,6 +77,7 @@ export const ConfigSchema = z
     SSE_SAFETY_TICK_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     SSE_DRAIN_TIMEOUT_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     SSE_HEARTBEAT_MS: blankDefault(z.coerce.number().int().min(10).default(15000)),
+    TERMINAL_PING_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     POLL_MAX_BACKOFF_SECONDS: blankDefault(z.coerce.number().int().min(1).default(3600)),
     OTEL_EXPORTER_OTLP_ENDPOINT: optional(z.string()),
     BOT_NAME: blankDefault(z.string().default('agentdesk[bot]')),
