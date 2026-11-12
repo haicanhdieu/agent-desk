@@ -25,6 +25,7 @@ import {
   turnFinished,
   type RunPhase,
 } from './signals';
+import { ACTIVITY_RETRY as RETRY } from './retry';
 
 /** Mirrors IDLE_END_SECONDS in @agentdesk/core (workflow code cannot import core); used when loadRun gives none. */
 export const IDLE_END_SECONDS_DEFAULT = 600;
@@ -58,8 +59,6 @@ interface Outcome extends RunOutcome {
   podExited: boolean;
   scrollbackTail?: string;
 }
-
-const RETRY = { initialInterval: '1s', maximumInterval: '1m', maximumAttempts: 5 } as const;
 
 const act = proxyActivities<RunActivities>({ startToCloseTimeout: '2 minutes', retry: RETRY });
 /**

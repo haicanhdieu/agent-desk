@@ -1,9 +1,10 @@
 import { proxyActivities } from '@temporalio/workflow';
 import type { Activities } from '../activities/types';
+import { ACTIVITY_RETRY } from './retry';
 
 const act = proxyActivities<Activities>({
   startToCloseTimeout: '2 minutes',
-  retry: { initialInterval: '1s', maximumInterval: '1m', maximumAttempts: 5 },
+  retry: ACTIVITY_RETRY,
 });
 
 /** Scheduled every 30 s: starts workflows for runs stuck `queued` without one. */

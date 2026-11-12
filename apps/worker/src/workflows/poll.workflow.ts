@@ -1,10 +1,11 @@
 import { proxyActivities, sleep } from '@temporalio/workflow';
 import type { Activities } from '../activities/types';
 import type { PollOutcome, PollInput } from '../activities/poll.activity';
+import { ACTIVITY_RETRY } from './retry';
 
 const act = proxyActivities<Activities>({
   startToCloseTimeout: '2 minutes',
-  retry: { initialInterval: '2s', maximumInterval: '30s', maximumAttempts: 3 },
+  retry: ACTIVITY_RETRY,
 });
 
 /**
