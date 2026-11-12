@@ -101,6 +101,13 @@ export const ConfigSchema = z
       if (cfg.ENABLE_FAKE_PROVIDER) {
         ctx.addIssue({ code: 'custom', path: ['ENABLE_FAKE_PROVIDER'], message: 'must not be true in production' });
       }
+      if (cfg.KUBE_MODE === 'fake') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['KUBE_MODE'],
+          message: 'must be kubeconfig or incluster in production (fake is dev only)',
+        });
+      }
     }
   });
 

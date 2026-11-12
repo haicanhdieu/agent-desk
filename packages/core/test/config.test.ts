@@ -41,3 +41,15 @@ describe('FAKE_STATE_DIR (R21)', () => {
     expect(findWorkspaceRoot(process.cwd())).toBe(resolve(process.cwd(), '../..'));
   });
 });
+
+describe('production refuses dev-only settings', () => {
+  it('rejects KUBE_MODE=fake (explicit or defaulted) in production', () => {
+    expect(() => parseConfig({ ...base, NODE_ENV: 'production', KUBE_MODE: 'fake' })).toThrow(/KUBE_MODE/);
+    expect(() => parseConfig({ ...base, NODE_ENV: 'production' })).toThrow(/KUBE_MODE/);
+  });
+
+  it('accepts a real KUBE_MODE in production and keeps the fake default in development', () => {
+    expect(parseConfig({ ...base, NODE_ENV: 'production', KUBE_MODE: 'incluster' }).KUBE_MODE).toBe('incluster');
+    expect(parseConfig(base).KUBE_MODE).toBe('fake');
+  });
+});
