@@ -17,3 +17,4 @@ export * from './intake/process-ticket-event';
 export * from './intake/start-run';
 export * from './intake/sweep';
 export { isUniqueViolation } from './intake/pg-errors';
+export * from './kube';
