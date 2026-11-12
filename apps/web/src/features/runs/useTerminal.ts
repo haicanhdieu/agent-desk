@@ -10,6 +10,11 @@ export type TerminalState = 'connecting' | 'open' | 'retrying' | 'gave_up' | 'fo
 
 /** Waits before each retry after an abnormal close; after the last one the hook gives up (RunReconnect). */
 export const TERMINAL_BACKOFF_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 10_000];
+/**
+ * A connection resets the back-off only after staying open this long: a server that accepts and then closes at once
+ * still moves through TERMINAL_BACKOFF_MS to `gave_up` instead of retrying every second forever.
+ */
+export const STABLE_OPEN_MS = 5_000;
 /** Container resizes closer together than this send one resize frame. */
 export const RESIZE_DEBOUNCE_MS = 100;
 
@@ -46,9 +51,10 @@ const resizeFrame = ({ cols, rows }: TerminalSize) => JSON.stringify({ type: 're
  * The run's terminal socket (spec §5.3) while `enabled` (the run is running or idle and the terminal is mounted).
  * Binary frames both ways: output is written to `term`, keystrokes are sent as UTF-8. Text frames from the server
  * are ignored (never acted on). Close codes: 4401 → the sign-out path; 4403 → `forbidden`, no retry; 4409 → the run
- * is no longer active: its detail is invalidated (the route then shows the final scrollback), no retry. Any other
- * close retries after TERMINAL_BACKOFF_MS, then `gave_up`. Unmounting, or `enabled` turning false, closes the socket
- * and cancels a pending retry. Terminal data is never logged.
+ * is no longer active: `connecting` while its detail refetches (the route then shows the final scrollback), no
+ * retry. Any other close retries after TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open
+ * STABLE_OPEN_MS resets the back-off. Unmounting, or `enabled` turning false, closes the socket and cancels a pending
+ * retry. Terminal data is never logged.
  */
 export function useTerminal(
   runId: string,
@@ -72,6 +78,7 @@ export function useTerminal(
     let disposed = false;
     let retries = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
+    let stable: ReturnType<typeof setTimeout> | undefined;
     const set = (state: TerminalState) => {
       if (!disposed) setCurrent({ session, state });
     };
@@ -79,6 +86,7 @@ export function useTerminal(
 
     const onClose = (code: number) => {
       socket.current = null;
+      clearTimeout(stable);
       switch (code) {
         case CLOSE_UNAUTHORIZED:
           void signOutAndRedirect();
@@ -87,6 +95,7 @@ export function useTerminal(
           set('forbidden');
           return;
         case CLOSE_RUN_GONE:
+          set('connecting');
           // The run ended: the route shows its final scrollback once the refetched run is final. If it is still
           // active after the refetch, only a manual reconnect is offered (no loop).
           void qc.invalidateQueries({ queryKey: detailKey }).then(() => {
@@ -113,7 +122,9 @@ export function useTerminal(
       socket.current = ws;
       ws.addEventListener('open', () => {
         if (disposed) return;
-        retries = 0;
+        stable = setTimeout(() => {
+          retries = 0;
+        }, STABLE_OPEN_MS);
         set('open');
         if (size.current) ws.send(resizeFrame(size.current));
       });
@@ -131,6 +142,7 @@ export function useTerminal(
     return () => {
       disposed = true;
       clearTimeout(retry);
+      clearTimeout(stable);
       clearTimeout(resizeTimer.current);
       socket.current?.close(1000);
       socket.current = null;

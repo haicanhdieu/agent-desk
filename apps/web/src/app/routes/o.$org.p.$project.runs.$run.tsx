@@ -87,6 +87,8 @@ function RunDetailRoute() {
     : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
   // A finished run's stored scrollback in the same terminal, read-only, written once.
   const scrollback = final ? scrollbackText(events) : undefined;
+  // Keyed by the scrollback event too, so a later (re-stored) scrollback opens a new terminal with it.
+  const scrollbackSeq = events.filter((e) => e.type === 'scrollback').at(-1)?.seq;
   let terminal: ReactNode;
   if (live && term.state === 'forbidden') {
     terminal = <Banner tone="err" flush live="polite" title="You can't open this terminal" />;
@@ -99,7 +101,7 @@ function RunDetailRoute() {
   } else if (scrollback !== undefined) {
     terminal = (
       <Suspense fallback={<TerminalLoading />}>
-        <LiveTerminal key={`final:${dto.id}`} ref={attachTerm} readOnly initial={scrollback} />
+        <LiveTerminal key={`final:${dto.id}:${scrollbackSeq}`} ref={attachTerm} readOnly initial={scrollback} />
       </Suspense>
     );
   }
@@ -110,9 +112,10 @@ function RunDetailRoute() {
       data={data}
       lines={final ? scrollbackLines(events) : undefined}
       terminal={terminal}
-      onReconnect={term.reconnect}
-      reconnectOverlay={live ? term.state === 'gave_up' : undefined}
-      reconnectBody={GAVE_UP_BODY}
+      // The "terminal lost" overlay belongs to a live terminal that gave up; never to queued, starting or final runs.
+      onReconnect={live ? term.reconnect : undefined}
+      reconnectOverlay={live && term.state === 'gave_up'}
+      reconnectBody={live ? GAVE_UP_BODY : undefined}
       needsYou={page.dto.counts.needsYou}
       projectName={page.dto.name}
       links={{ projects: paths.projects, runs: paths.runs, skills: paths.skills, rules: paths.rules }}

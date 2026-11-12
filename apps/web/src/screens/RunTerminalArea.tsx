@@ -15,7 +15,7 @@ export interface RunTerminalAreaProps {
   busy?: boolean;
   onFinish?(): void;
   onReconnect?(): void;
-  /** Shows the "Connection to the terminal lost" overlay; defaults to the connection reconnecting (the board). */
+  /** Shows the "Connection to the terminal lost" overlay (`false` suppresses it); defaults to the connection reconnecting (the board). */
   reconnectOverlay?: boolean;
   /** The overlay's text; defaults to the board's. */
   reconnectBody?: ReactNode;

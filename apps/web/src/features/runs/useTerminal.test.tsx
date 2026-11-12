@@ -11,7 +11,13 @@ import { FakeWebSocket } from '@/test/fakeWebSocket';
 import { FakeXterm } from '@/test/fakeXterm';
 import { renderRoute } from '@/test/renderRoute';
 import { runsQueries } from './queries';
-import { RESIZE_DEBOUNCE_MS, TERMINAL_BACKOFF_MS, useTerminal, type TerminalState } from './useTerminal';
+import {
+  RESIZE_DEBOUNCE_MS,
+  STABLE_OPEN_MS,
+  TERMINAL_BACKOFF_MS,
+  useTerminal,
+  type TerminalState,
+} from './useTerminal';
 
 const signOut = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock('@/features/auth/signOut', async (importOriginal) => ({
@@ -166,7 +172,7 @@ describe('useTerminal', () => {
     expect(FakeWebSocket.instances).toHaveLength(6);
   });
 
-  it('an open connection resets the back-off', () => {
+  it('a connection that stayed open 5 s resets the back-off', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const { state } = setup();
     act(() => latest().serverClose(1006));
@@ -175,10 +181,36 @@ describe('useTerminal', () => {
     act(() => vi.advanceTimersByTime(2000));
     act(() => latest().open());
     expect(state()).toBe('open');
+    act(() => vi.advanceTimersByTime(STABLE_OPEN_MS));
     act(() => latest().serverClose(1001));
     expect(state()).toBe('retrying');
     act(() => vi.advanceTimersByTime(1000));
     expect(FakeWebSocket.instances).toHaveLength(4);
+  });
+
+  it('accept-then-close does not reset the back-off: delays grow and it gives up', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { state } = setup();
+    act(() => {
+      latest().open();
+      latest().serverClose(1011);
+    });
+    for (const delay of TERMINAL_BACKOFF_MS) {
+      const count = FakeWebSocket.instances.length;
+      act(() => vi.advanceTimersByTime(delay - 1));
+      expect(FakeWebSocket.instances).toHaveLength(count);
+      act(() => vi.advanceTimersByTime(1));
+      expect(FakeWebSocket.instances).toHaveLength(count + 1);
+      // The server accepts, then closes at once (well within STABLE_OPEN_MS).
+      act(() => {
+        latest().open();
+        vi.advanceTimersByTime(STABLE_OPEN_MS - 1);
+        latest().serverClose(1011);
+      });
+    }
+    expect(state()).toBe('gave_up');
+    act(() => vi.advanceTimersByTime(10 * 60_000));
+    expect(FakeWebSocket.instances).toHaveLength(6);
   });
 
   it('reconnect() after giving up opens a new socket with a fresh back-off', () => {
@@ -216,14 +248,23 @@ describe('useTerminal', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
-  it('4409 → the run detail is invalidated, no retry', () => {
+  it('4409 → the run detail is invalidated, connecting while it refetches, no retry', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-    const { qc } = setup();
+    const { qc, state } = setup();
     const invalidate = vi.spyOn(qc, 'invalidateQueries');
     act(() => latest().open());
     act(() => latest().serverClose(4409));
     expect(invalidate).toHaveBeenCalledWith({ queryKey: runsQueries.detail(org, projectId, 62).queryKey });
+    expect(state()).toBe('connecting');
     act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('4409 while the refetched run is still active → gave_up (manual reconnect only)', async () => {
+    const { state } = setup();
+    act(() => latest().open());
+    act(() => latest().serverClose(4409));
+    await waitFor(() => expect(state()).toBe('gave_up'));
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
@@ -329,6 +370,36 @@ describe('run detail terminal', () => {
     const term = FakeXterm.instances.find((t) => !t.disposed);
     expect(term?.options.disableStdin).toBe(true);
     expect(term?.writes).toHaveLength(1);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it('a later scrollback event replaces the read-only terminal', async () => {
+    const { queryClient } = await renderRoute(`${base}/runs/60`);
+    await waitFor(() => expect(FakeXterm.instances.some((t) => !t.disposed)).toBe(true));
+    const first = FakeXterm.instances.find((t) => !t.disposed);
+    const r = dbRun(60);
+    const events = mockDb.state.runEvents[r.id] ?? [];
+    events.push({
+      seq: (events.at(-1)?.seq ?? 0) + 1,
+      ts: new Date().toISOString(),
+      type: 'scrollback',
+      payload: { text: 'newer' },
+    });
+    await act(() => queryClient.invalidateQueries());
+    await waitFor(() => expect(first?.disposed).toBe(true));
+    const next = FakeXterm.instances.find((t) => !t.disposed);
+    expect(next?.options.disableStdin).toBe(true);
+    expect(next?.writes).toEqual(['newer']);
+  });
+
+  it.each(['queued', 'starting'] as const)('a %s run never shows the terminal-lost overlay', async (status) => {
+    const r = dbRun(63);
+    r.status = status;
+    if (status === 'starting') r.startedAt = new Date().toISOString();
+    await renderRoute(`${base}/runs/63`);
+    expect(await screen.findByText('Starting the agent')).toBeInTheDocument();
+    expect(screen.queryByText('Connection to the terminal lost')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reconnect now' })).not.toBeInTheDocument();
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 

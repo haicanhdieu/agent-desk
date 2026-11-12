@@ -29,7 +29,7 @@ export interface RunDetailProps {
   cancelBody?: ReactNode;
   /** In-app hrefs; default to the prototype's. */
   links?: RunDetailLinks;
-  /** Shows the terminal's "Connection to the terminal lost" overlay; defaults to the connection reconnecting. */
+  /** Shows the terminal's "Connection to the terminal lost" overlay (`false` suppresses it); defaults to the connection reconnecting. */
   reconnectOverlay?: boolean;
   /** That overlay's text; defaults to the board's. */
   reconnectBody?: ReactNode;
