@@ -5,7 +5,7 @@ import { MockAgent, fetch as undiciFetch } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GithubBoardAdapter } from '../../src/adapters/github/board';
 import { GithubCodeHostAdapter } from '../../src/adapters/github/codehost';
-import { GithubClients } from '../../src/adapters/github/app';
+import { GithubClients, assertSafeRef } from '../../src/adapters/github/app';
 import { verifyGithubSignature } from '../../src/adapters/github/webhook';
 import type { AdapterProject } from '../../src/adapters/types';
 
@@ -275,6 +275,42 @@ describe('github board tickets', () => {
       })
       .reply(201, '{"id": 555}', { headers: JSON_HEADERS });
     expect(await new GithubBoardAdapter(clients, clock).comment(project, '5', 'hello')).toBe('555');
+  });
+});
+
+describe('assertSafeRef', () => {
+  it.each(['main', 'release+1', 'user@feature', 'release/1.2_x', 'a.b', 'feat/x-y'])('accepts %s', (ref) => {
+    expect(assertSafeRef(ref)).toBe(ref);
+  });
+  it.each([
+    '',
+    '-x',
+    '--upload-pack=x',
+    '/x',
+    'x/',
+    'a//b',
+    'a..b',
+    'a@{1}',
+    '@',
+    'x.lock',
+    'a b',
+    'a\tb',
+    'a\nb',
+    'a;b',
+    'a$(x)',
+    'a`b`',
+    'a|b',
+    'a&b',
+    "a'b",
+    'a\\b',
+    'a:b',
+    'a~1',
+    'a^b',
+    'a?b',
+    'a*b',
+    'a[b',
+  ])('rejects %j', (ref) => {
+    expect(() => assertSafeRef(ref)).toThrow();
   });
 });
 

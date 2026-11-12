@@ -118,6 +118,8 @@ describe('fake code host', () => {
     await expect(host.writeSkill(project, 'other', 'v2', 'edit', created.commitSha)).rejects.toBeInstanceOf(
       SkillConflictError,
     );
+    await expect(host.writeSkill(project, 'fix', 'v2', 'edit', '')).rejects.toBeInstanceOf(SkillConflictError);
+    expect((await host.writeSkill(project, 'fresh', 'v1', 'add', '')).commitSha).toBeTruthy();
     const updated = await host.writeSkill(project, 'fix', 'v2', 'edit', created.commitSha);
     expect(updated.commitSha).not.toBe(created.commitSha);
     expect((await host.readSkill(project, 'fix')).body).toBe('v2');
