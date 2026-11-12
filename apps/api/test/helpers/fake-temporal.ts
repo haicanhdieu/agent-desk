@@ -34,22 +34,26 @@ export class FakeTemporalClient {
     this.calls.push(call);
   }
 
+  private workflowHandle(workflowId: string | undefined) {
+    return {
+      workflowId,
+      signal: async (...args: unknown[]) => {
+        this.record({ kind: 'signal', workflowId, args });
+      },
+    };
+  }
+
   private readonly surface = {
     workflow: {
       start: async (workflowType: unknown, options: { workflowId?: string }) => {
         this.record({ kind: 'start', workflowId: options.workflowId, args: [workflowType, options] });
-        return { workflowId: options.workflowId };
+        return this.workflowHandle(options.workflowId);
       },
       signalWithStart: async (workflowType: unknown, options: { workflowId?: string }) => {
         this.record({ kind: 'signalWithStart', workflowId: options.workflowId, args: [workflowType, options] });
-        return { workflowId: options.workflowId };
+        return this.workflowHandle(options.workflowId);
       },
-      getHandle: (workflowId: string) => ({
-        workflowId,
-        signal: async (...args: unknown[]) => {
-          this.record({ kind: 'signal', workflowId, args });
-        },
-      }),
+      getHandle: (workflowId: string) => this.workflowHandle(workflowId),
     },
     schedule: {
       create: async (options: { scheduleId?: string }) => {

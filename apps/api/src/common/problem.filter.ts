@@ -1,5 +1,5 @@
 import { type ArgumentsHost, Catch, type ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
-import type { FastifyReply } from 'fastify';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodValidationException } from 'nestjs-zod';
 import { z } from 'zod';
 import type { ProblemSchema } from '@agentdesk/contracts';
@@ -21,13 +21,25 @@ const TITLES: Record<number, string> = {
   503: 'Service Unavailable',
 };
 
+const CLIENT_ERROR_DETAIL: Record<number, string> = {
+  400: 'Malformed request',
+  413: 'Request body too large',
+  415: 'Unsupported media type',
+};
+
+function clientErrorStatus(e: unknown): number | undefined {
+  if (typeof e !== 'object' || e === null || !('statusCode' in e)) return undefined;
+  const code = e.statusCode;
+  return typeof code === 'number' && Number.isInteger(code) && code >= 400 && code <= 499 ? code : undefined;
+}
+
 @Catch()
 export class ProblemFilter implements ExceptionFilter {
   constructor(private readonly logger: Logger) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const reply = host.switchToHttp().getResponse<FastifyReply>();
-    const requestId = requestContext.get()?.requestId;
+    const requestId = requestContext.get()?.requestId ?? host.switchToHttp().getRequest<FastifyRequest>().id;
     let status: number = HttpStatus.INTERNAL_SERVER_ERROR;
     let detail: string | undefined;
     let errors: ValidationIssue[] | undefined;
@@ -45,6 +57,10 @@ export class ProblemFilter implements ExceptionFilter {
       status = exception.getStatus();
       const body = exception.getResponse();
       detail = typeof body === 'string' ? body : exception.message;
+    } else if (clientErrorStatus(exception) !== undefined) {
+      // Fastify-native 4xx (malformed JSON, 413, 415, ...): fixed text per status, never the raw message.
+      status = clientErrorStatus(exception) ?? 400;
+      detail = CLIENT_ERROR_DETAIL[status] ?? 'The request could not be processed';
     } else {
       // Unexpected: never leak internals to the client.
       this.logger.error({ err: exception instanceof Error ? exception.message : 'unknown' }, 'unhandled exception');

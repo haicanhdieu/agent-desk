@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { Body, Controller, Post } from '@nestjs/common';
+import { Body, Controller, Get, Post } from '@nestjs/common';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ZodPipe } from '../src/common/zod-validation';
@@ -16,7 +16,18 @@ class TestOnlyController {
   }
 }
 
+@Controller('test-only')
+class BoomController {
+  @Get('boom')
+  boom(): never {
+    throw new Error('secret internal detail');
+  }
+}
+
 describe('config', () => {
+  it('rejects a BETTER_AUTH_SECRET shorter than 32 characters', () => {
+    expect(() => parseConfig({ ...validEnv(), BETTER_AUTH_SECRET: 'short' })).toThrow(/BETTER_AUTH_SECRET/);
+  });
   it('fails on missing value', () => {
     expect(() => parseConfig({})).toThrow(/DATABASE_APP_URL/);
   });
@@ -42,7 +53,7 @@ describe('config', () => {
 describe('api skeleton', () => {
   let t: TestApp;
   beforeAll(async () => {
-    t = await createTestApp({ controllers: [TestOnlyController] });
+    t = await createTestApp({ controllers: [TestOnlyController, BoomController] });
   });
   afterAll(async () => {
     await t.close();
@@ -83,6 +94,27 @@ describe('api skeleton', () => {
     expect(body.errors).toEqual([{ pointer: '/name', detail: expect.any(String) }]);
     const ok = await t.app.inject({ method: 'POST', url: '/test-only/validate', payload: { name: 'x' } });
     expect(ok.statusCode).toBe(201);
+  });
+  it('malformed JSON body is a 400 problem+json', async () => {
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/test-only/validate',
+      headers: { 'content-type': 'application/json', 'x-request-id': 'req-json' },
+      payload: '{"name": ',
+    });
+    expect(res.statusCode).toBe(400);
+    expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
+    expect(res.json()).toMatchObject({ status: 400, requestId: 'req-json' });
+  });
+  it('unexpected errors are a 500 problem+json that leaks nothing', async () => {
+    const res = await t.app.inject({ method: 'GET', url: '/test-only/boom', headers: { 'x-request-id': 'req-500' } });
+    expect(res.statusCode).toBe(500);
+    expect(res.headers['content-type']).toMatch(/application\/problem\+json/);
+    const body = res.json<Record<string, unknown>>();
+    expect(body).toMatchObject({ status: 500, requestId: 'req-500' });
+    expect(body).not.toHaveProperty('detail');
+    expect(body).not.toHaveProperty('stack');
+    expect(res.body).not.toMatch(/secret internal detail/);
   });
   it('GET /api/docs/json is a public OpenAPI 3.1 document', async () => {
     const res = await t.app.inject({ method: 'GET', url: '/api/docs/json' });
