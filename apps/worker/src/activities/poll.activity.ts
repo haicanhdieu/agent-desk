@@ -1,4 +1,4 @@
-import { and, eq } from 'drizzle-orm';
+import { eq } from 'drizzle-orm';
 import { Provider } from '@agentdesk/contracts';
 import {
   processTicketEvent,
@@ -23,6 +23,8 @@ export interface PollInput {
 export type PollOutcome =
   | 'ok'
   | 'not_modified'
+  /** Tick skipped without polling: inside a back-off/rate-limit window or paused as token_revoked. */
+  | 'skipped'
   | { pause: 'rate_limited'; until: string }
   | { pause: 'token_revoked' }
   | { backoffSeconds: number };
@@ -40,11 +42,14 @@ export interface ResumePollInput {
   projectId: string;
 }
 
+/** `waitUntil`: a later rate limit moved the reset time; the timer must sleep again. */
+export type ResumeResult = { resumed: boolean } | { waitUntil: string };
+
 /** Poll activities as seen from workflow code. */
 export interface PollActivities {
   pollOnce(input: PollInput): Promise<PollOutcome>;
   pausePollSchedule(input: PausePollInput): Promise<void>;
-  resumePollSchedule(input: ResumePollInput): Promise<void>;
+  resumePollSchedule(input: ResumePollInput): Promise<ResumeResult>;
 }
 
 /** Temporal calls the poll activities need (a Temporal Client in production). Missing schedules are not errors. */
@@ -129,7 +134,7 @@ export async function pollOnce(deps: PollDeps, input: PollInput): Promise<PollOu
   }
   const { project, cursor } = loaded;
   if (cursor.pausedReason === 'token_revoked') return { pause: 'token_revoked' };
-  if (cursor.nextPollAt && now < cursor.nextPollAt) return 'not_modified';
+  if (cursor.nextPollAt && now < cursor.nextPollAt) return 'skipped';
 
   const healthy = { lastError: null, failures: 0, nextPollAt: null, pausedReason: null, lastPolledAt: now };
   let result: PollResult;
@@ -145,14 +150,20 @@ export async function pollOnce(deps: PollDeps, input: PollInput): Promise<PollOu
     case 'not_modified':
       await patchCursor(deps.db, input, healthy);
       return 'not_modified';
-    case 'rate_limited':
+    case 'rate_limited': {
+      // The reset time comes from provider headers: reject garbage, and never park a project longer than the cap.
+      const resetMs = result.resetAt.getTime();
+      if (!Number.isFinite(resetMs)) return backoff(deps, input, project.pollIntervalSeconds, cursor.failures, now);
+      const maxHold = Math.max(deps.config.POLL_MAX_BACKOFF_SECONDS, 3600) * 1000;
+      const until = new Date(Math.min(Math.max(resetMs, now.getTime()), now.getTime() + maxHold));
       await patchCursor(deps.db, input, {
         lastPolledAt: now,
         lastError: 'rate limited by the provider',
-        nextPollAt: result.resetAt,
+        nextPollAt: until,
         pausedReason: 'rate_limited',
       });
-      return { pause: 'rate_limited', until: result.resetAt.toISOString() };
+      return { pause: 'rate_limited', until: until.toISOString() };
+    }
     case 'revoked':
       await patchCursor(deps.db, input, {
         lastPolledAt: now,
@@ -215,13 +226,28 @@ export async function pausePollSchedule(deps: PollDeps, input: PausePollInput): 
   }
 }
 
-/** Rate limit lifted: unpause the Schedule and clear the rate-limit pause (never a token_revoked one). */
-export async function resumePollSchedule(deps: PollDeps, input: ResumePollInput): Promise<void> {
-  await withOrg(deps.db, input.orgId, (tx) =>
-    tx
-      .update(pollCursors)
-      .set({ pausedReason: null, nextPollAt: null })
-      .where(and(eq(pollCursors.projectId, input.projectId), eq(pollCursors.pausedReason, 'rate_limited'))),
-  );
+/**
+ * Rate limit lifted: unpause the Schedule and clear the rate-limit pause. Re-reads the cursor first: a later rate
+ * limit may have moved `next_poll_at` (sleep again), and a `token_revoked` pause or a deleted project is left alone.
+ */
+export async function resumePollSchedule(deps: PollDeps, input: ResumePollInput): Promise<ResumeResult> {
+  const now = deps.clock.now();
+  const cursor = await withOrg(deps.db, input.orgId, async (tx) => {
+    const row = (await tx.select().from(pollCursors).where(eq(pollCursors.projectId, input.projectId)))[0];
+    if (!row) return undefined;
+    if (row.pausedReason === 'rate_limited' && row.nextPollAt && row.nextPollAt > now) return row;
+    if (row.pausedReason === 'rate_limited') {
+      await tx
+        .update(pollCursors)
+        .set({ pausedReason: null, nextPollAt: null })
+        .where(eq(pollCursors.projectId, input.projectId));
+    }
+    return row;
+  });
+  if (!cursor || cursor.pausedReason === 'token_revoked') return { resumed: false };
+  if (cursor.pausedReason === 'rate_limited' && cursor.nextPollAt && cursor.nextPollAt > now) {
+    return { waitUntil: cursor.nextPollAt.toISOString() };
+  }
   await deps.schedules.unpause(input.projectId);
+  return { resumed: true };
 }

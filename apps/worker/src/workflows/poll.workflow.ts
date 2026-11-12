@@ -23,8 +23,16 @@ export async function PollOnceWorkflow(input: PollInput): Promise<PollOutcome> {
   return outcome;
 }
 
-/** One-shot timer: sleeps until the rate limit lifts (`until`, ISO), then unpauses the project's Schedule. */
+/**
+ * One-shot timer: sleeps until the rate limit lifts (`until`, ISO), then unpauses the project's Schedule. If a later
+ * rate limit moved the reset time while this timer slept, it sleeps again.
+ */
 export async function resumePollWorkflow(input: PollInput & { until: string }): Promise<void> {
-  await sleep(Math.max(0, Date.parse(input.until) - Date.now()));
-  await act.resumePollSchedule({ orgId: input.orgId, projectId: input.projectId });
+  let until = input.until;
+  for (;;) {
+    await sleep(Math.max(0, Date.parse(until) - Date.now()));
+    const res = await act.resumePollSchedule({ orgId: input.orgId, projectId: input.projectId });
+    if (!('waitUntil' in res)) return;
+    until = res.waitUntil;
+  }
 }

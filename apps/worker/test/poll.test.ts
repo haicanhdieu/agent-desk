@@ -259,7 +259,7 @@ describe('pollOnce', () => {
     const cur = await cursorOf(s);
     expect([cur.pausedReason, cur.nextPollAt?.getTime()]).toEqual(['rate_limited', resetAt.getTime()]);
     advance(60);
-    expect(await pollOnce(deps(), s)).toBe('not_modified');
+    expect(await pollOnce(deps(), s)).toBe('skipped');
     expect(pollCalls).toBe(1);
   });
 
@@ -273,7 +273,7 @@ describe('pollOnce', () => {
     expect(await pollOnce(deps(), s)).toEqual({ backoffSeconds: 600 });
     expect(await next()).toBe(600_000);
     advance(300);
-    expect(await pollOnce(deps(), s)).toBe('not_modified'); // before next_poll_at
+    expect(await pollOnce(deps(), s)).toBe('skipped'); // before next_poll_at
     expect(pollCalls).toBe(1);
     advance(300);
     expect(await pollOnce(deps(), s)).toEqual({ backoffSeconds: 1200 });
@@ -286,6 +286,54 @@ describe('pollOnce', () => {
     expect(cur.failures).toBe(4);
     expect(cur.lastError).toBe('poll failed (network or provider error)');
     expect(cur.lastError).not.toContain('SECRET');
+  });
+
+  it('rate limit reset times are validated: NaN backs off, past clamps to now, far future clamps to the cap', async () => {
+    reset();
+    const nan = await seed();
+    pollImpl = async () => ({ kind: 'rate_limited', resetAt: new Date(Number.NaN) });
+    expect(await pollOnce(deps(), nan)).toEqual({ backoffSeconds: 600 });
+    expect((await cursorOf(nan)).pausedReason).toBeNull();
+
+    const past = await seed();
+    pollImpl = async () => ({ kind: 'rate_limited', resetAt: new Date(nowMs - 86_400_000) });
+    expect(await pollOnce(deps(), past)).toEqual({ pause: 'rate_limited', until: new Date(nowMs).toISOString() });
+
+    const far = await seed();
+    pollImpl = async () => ({ kind: 'rate_limited', resetAt: new Date(nowMs + 365 * 86_400_000) });
+    const cap = Math.max(config.POLL_MAX_BACKOFF_SECONDS, 3600) * 1000;
+    expect(await pollOnce(deps(), far)).toEqual({ pause: 'rate_limited', until: new Date(nowMs + cap).toISOString() });
+    expect((await cursorOf(far)).nextPollAt?.getTime()).toBe(nowMs + cap);
+  });
+
+  it('a processTicketEvent failure records a back-off and does not save the cursor', async () => {
+    reset();
+    const s = await seed();
+    const before = await cursorOf(s);
+    pollImpl = async () => ({
+      kind: 'events',
+      cursor: { since: new Date(nowMs + 5000).toISOString(), etag: 'new' },
+      events: [
+        {
+          provider: 'fake',
+          // NUL bytes are rejected by Postgres text columns: the inbound insert itself fails.
+          deliveryId: 'poll-\u0000bad',
+          commentId: 'c1',
+          externalId: `fake-${s.orgId}`,
+          repoPath: s.repoPath,
+          ticketRef: '7',
+          body: '/code-review',
+          author: 'alice',
+          authorAssociation: 'MEMBER',
+          createdAt: new Date(nowMs).toISOString(),
+        },
+      ],
+    });
+    expect(await pollOnce(deps(), s)).toEqual({ backoffSeconds: 600 });
+    const after = await cursorOf(s);
+    expect(after.since?.getTime()).toBe(before.since?.getTime());
+    expect(after.etag).toBe(before.etag);
+    expect(after.failures).toBe(1);
   });
 
   it('a success clears last_error, failures and next_poll_at', async () => {
@@ -335,15 +383,28 @@ describe('pause helpers', () => {
     reset();
     const rl = await seed();
     await withOrg(db, rl.orgId, (tx) =>
-      tx.update(pollCursors).set({ pausedReason: 'rate_limited', nextPollAt: new Date(nowMs + 5000) }),
+      tx.update(pollCursors).set({ pausedReason: 'rate_limited', nextPollAt: new Date(nowMs - 1000) }),
     );
-    await resumePollSchedule(deps(), rl);
+    expect(await resumePollSchedule(deps(), rl)).toEqual({ resumed: true });
     expect(await cursorOf(rl)).toMatchObject({ pausedReason: null, nextPollAt: null });
     const rv = await seed();
     await withOrg(db, rv.orgId, (tx) => tx.update(pollCursors).set({ pausedReason: 'token_revoked' }));
-    await resumePollSchedule(deps(), rv);
+    expect(await resumePollSchedule(deps(), rv)).toEqual({ resumed: false });
     expect((await cursorOf(rv)).pausedReason).toBe('token_revoked');
-    expect(scheduleCalls).toEqual([`unpause:${rl.projectId}`, `unpause:${rv.projectId}`]);
+    expect(scheduleCalls).toEqual([`unpause:${rl.projectId}`]);
+  });
+
+  it('resumePollSchedule sleeps again when a later rate limit moved next_poll_at, and skips deleted projects', async () => {
+    reset();
+    const s = await seed();
+    const later = new Date(nowMs + 90_000);
+    await withOrg(db, s.orgId, (tx) => tx.update(pollCursors).set({ pausedReason: 'rate_limited', nextPollAt: later }));
+    expect(await resumePollSchedule(deps(), s)).toEqual({ waitUntil: later.toISOString() });
+    expect((await cursorOf(s)).pausedReason).toBe('rate_limited');
+    expect(scheduleCalls).toEqual([]);
+    expect(await resumePollSchedule(deps(), { orgId: randomUUID(), projectId: randomUUID() })).toEqual({
+      resumed: false,
+    });
   });
 });
 

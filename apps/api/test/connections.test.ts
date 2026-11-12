@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { ProjectSchedules } from '../src/projects/project-schedules';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -7,7 +8,19 @@ let t: TestApp;
 let alice: string;
 let bob: string;
 beforeAll(async () => {
-  t = await createTestApp();
+  t = await createTestApp({
+    wrapAdapters: (real) => ({
+      ...real,
+      codeHost: (provider) => {
+        const host = real.codeHost(provider);
+        if (provider !== 'fake') return host;
+        const repos = ['dev/demo', 'dev/demo-2', 'dev/demo-3', 'dev/demo-4'];
+        return Object.assign(Object.create(host), {
+          listRepos: async () => repos.map((repoPath) => ({ repoPath, private: false, defaultBranch: 'main' })),
+        });
+      },
+    }),
+  });
   alice = await loginAs(t, 'alice');
   bob = await loginAs(t, 'bob');
 });
@@ -171,7 +184,7 @@ describe('connections', () => {
     expect(ids.rows).toHaveLength(2);
   });
 
-  it('a successful callback resumes polling projects paused as token_revoked (cursor cleared, schedule unpaused)', async () => {
+  it('a successful callback resumes revoked polling projects; a failed unpause keeps token_revoked for retry', async () => {
     const erin = await loginAs(t, 'erin');
     const complete = async () => {
       const u = new URL(((await install(erin)).json() as { url: string }).url);
@@ -180,18 +193,22 @@ describe('connections', () => {
       return new URL(String(cb.headers['location'])).searchParams.get('connection') ?? '';
     };
     const connectionId = await complete();
-    const mk = async (repoPath: string, triggerMode: string) =>
-      (
-        await t.app.inject({
-          method: 'POST',
-          url: '/api/projects',
-          headers: { cookie: erin },
-          payload: { connectionId, repoPath, triggerMode, pollIntervalSeconds: 300 },
-        })
-      ).json() as { id: string };
-    const revoked = await mk('dev/demo', 'polling');
+    const mk = async (repoPath: string, triggerMode: string) => {
+      const res = await t.app.inject({
+        method: 'POST',
+        url: '/api/projects',
+        headers: { cookie: erin },
+        payload: { connectionId, repoPath, triggerMode, pollIntervalSeconds: 300 },
+      });
+      expect(res.statusCode).toBe(201);
+      return (res.json() as { id: string }).id;
+    };
+    const failing = await mk('dev/demo', 'polling');
+    const revoked = await mk('dev/demo-2', 'polling');
+    const healthy = await mk('dev/demo-3', 'polling');
+    const webhook = await mk('dev/demo-4', 'webhook');
     const orgId = String((await t.db.pool.query("select id from organization where slug = 'erin'")).rows[0].id);
-    const sql = async (text: string, params: unknown[]) => {
+    const sql = async (text: string, params: unknown[] = []) => {
       const c = await t.db.pool.connect();
       try {
         await c.query('begin');
@@ -204,17 +221,39 @@ describe('connections', () => {
       }
     };
     await sql(
-      "update poll_cursors set paused_reason = 'token_revoked', last_error = 'x', failures = 2 where project_id = $1",
-      [revoked.id],
+      "update poll_cursors set paused_reason = 'token_revoked', last_error = 'x', failures = 2 where project_id = any($1)",
+      [[failing, revoked]],
     );
+    await sql(
+      "insert into poll_cursors (project_id, org_id, since, paused_reason) values ($1, $2, now(), 'token_revoked')",
+      [webhook, orgId],
+    );
+    const reasonOf = async (id: string) =>
+      (await sql('select paused_reason from poll_cursors where project_id = $1', [id]))[0]?.paused_reason ?? null;
+
+    const schedules = t.app.get(ProjectSchedules);
+    const real = schedules.unpause.bind(schedules);
+    const spy = vi.spyOn(schedules, 'unpause').mockImplementation(async (id) => {
+      if (id === failing) throw new Error('temporal down');
+      await real(id);
+    });
     t.temporal.reset();
-
     await complete();
+    expect(await reasonOf(failing)).toBe('token_revoked');
+    expect(await reasonOf(revoked)).toBeNull();
+    expect(await reasonOf(healthy)).toBeNull();
+    expect(await reasonOf(webhook)).toBe('token_revoked');
+    expect(t.temporal.callsOfKind('scheduleUnpause').map((c) => c.scheduleId)).toEqual([`poll-${revoked}`]);
+    expect((await sql('select last_error, failures from poll_cursors where project_id = $1', [revoked]))[0]).toEqual({
+      last_error: null,
+      failures: 0,
+    });
 
-    const rows = await sql('select paused_reason, last_error, failures from poll_cursors where project_id = $1', [
-      revoked.id,
-    ]);
-    expect(rows).toEqual([{ paused_reason: null, last_error: null, failures: 0 }]);
-    expect(t.temporal.callsOfKind('scheduleUnpause').map((c) => c.scheduleId)).toEqual([`poll-${revoked.id}`]);
+    // Temporal is back: the next callback retries the one that kept its reason.
+    spy.mockRestore();
+    t.temporal.reset();
+    await complete();
+    expect(await reasonOf(failing)).toBeNull();
+    expect(t.temporal.callsOfKind('scheduleUnpause').map((c) => c.scheduleId)).toEqual([`poll-${failing}`]);
   });
 });

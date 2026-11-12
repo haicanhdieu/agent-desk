@@ -7,7 +7,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import { account, connections, member, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
 import { Provider, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
 import type { AdapterRegistry } from '@agentdesk/core';
@@ -140,12 +140,13 @@ export class ConnectionsService {
   }
 
   /**
-   * The connection is healthy again: polling projects that were paused as `token_revoked` resume. The cursor is
-   * cleared in the database first; unpausing the Schedule is best-effort (the daily sync/next edit repairs it).
+   * The connection is healthy again: polling projects paused as `token_revoked` resume. Each Schedule is unpaused
+   * first; only projects whose unpause succeeded get their `token_revoked` reason cleared. A failed unpause keeps the
+   * reason (the Schedule is still paused), so the next successful callback retries it.
    */
   private async resumeRevokedPolling(orgId: string, connectionId: string): Promise<void> {
-    const resumed = await withOrg(this.db, orgId, async (tx) => {
-      const rows = await tx
+    const candidates = await withOrg(this.db, orgId, (tx) =>
+      tx
         .select({ id: projects.id })
         .from(projects)
         .innerJoin(pollCursors, eq(pollCursors.projectId, projects.id))
@@ -155,24 +156,26 @@ export class ConnectionsService {
             eq(projects.triggerMode, 'polling'),
             eq(pollCursors.pausedReason, 'token_revoked'),
           ),
-        );
-      for (const { id } of rows) {
-        await tx
-          .update(pollCursors)
-          .set({ pausedReason: null, lastError: null, failures: 0, nextPollAt: null })
-          .where(eq(pollCursors.projectId, id));
-      }
-      return rows.map((r) => r.id);
-    });
-    for (const projectId of resumed) {
+        ),
+    );
+    const resumed: string[] = [];
+    for (const { id } of candidates) {
       try {
-        await this.schedules.unpause(projectId);
+        await this.schedules.unpause(id);
+        resumed.push(id);
       } catch (err) {
         this.logger.warn(
-          `unpause poll schedule failed for project ${projectId}: ${err instanceof Error ? err.name : 'error'}`,
+          `unpause poll schedule failed for project ${id}: ${err instanceof Error ? err.name : 'error'}`,
         );
       }
     }
+    if (resumed.length === 0) return;
+    await withOrg(this.db, orgId, (tx) =>
+      tx
+        .update(pollCursors)
+        .set({ pausedReason: null, lastError: null, failures: 0, nextPollAt: null })
+        .where(and(inArray(pollCursors.projectId, resumed), eq(pollCursors.pausedReason, 'token_revoked'))),
+    );
   }
 
   async repos(orgId: string, connectionId: string): Promise<RepoDto[]> {
