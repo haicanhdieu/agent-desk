@@ -73,6 +73,7 @@ export const projects = pgTable(
   (t) => [
     unique('projects_code_connection_repo_key').on(t.codeConnectionId, t.repoPath),
     index('projects_org_idx').on(t.orgId),
+    index('projects_board_connection_idx').on(t.boardConnectionId),
     check('projects_trigger_mode_check', sql`${t.triggerMode} in ('webhook','polling')`),
     check('projects_poll_interval_check', sql`${t.pollIntervalSeconds} in (300,600,900,1800)`),
     check('projects_setup_step_check', sql`${t.setupStep} in ('agent','skills','rules','ready')`),
@@ -132,6 +133,7 @@ export const rules = pgTable(
   (t) => [
     unique('rules_project_command_key').on(t.projectId, t.command),
     index('rules_org_idx').on(t.orgId),
+    index('rules_agent_idx').on(t.agentId),
     check('rules_target_check', sql`${t.target} in ('issue','pr','any')`),
     orgPolicy(),
   ],
@@ -215,6 +217,8 @@ export const runs = pgTable(
     index('runs_project_ticket_idx').on(t.projectId, t.ticketRef),
     index('runs_rule_queued_idx').on(t.ruleId, t.queuedAt),
     index('runs_project_queued_idx').on(t.projectId, t.queuedAt.desc().nullsFirst(), t.id),
+    index('runs_agent_idx').on(t.agentId),
+    index('runs_inbound_event_idx').on(t.inboundEventId),
     check(
       'runs_status_check',
       sql`${t.status} in ('queued','starting','running','idle','succeeded','failed','cancelled','timed_out')`,

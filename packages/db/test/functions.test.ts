@@ -54,6 +54,33 @@ describe('resolveProject', () => {
     expect(await resolveProject(db, 'fake', 'acct-1', 'dev/other')).toBeNull();
     expect(await resolveProject(db, 'other-provider', 'acct-1', 'dev/demo')).toBeNull();
   });
+
+  it('does not resolve a project whose connection belongs to another org', async () => {
+    // Connection in org B; a project in org A points at it (FK checks ignore RLS, so this can exist).
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query(`select set_config('app.org_id', $1, true)`, [ORG_B]);
+      const conn = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'acct-cross', 'acct') returning id`,
+        [ORG_B],
+      );
+      await client.query(`select set_config('app.org_id', $1, true)`, [ORG_A]);
+      await client.query(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'cross', 'dev/cross', $2, $2)`,
+        [ORG_A, conn.rows[0]?.id],
+      );
+      await client.query('commit');
+    } finally {
+      await client.end();
+    }
+    expect(await resolveProject(db, 'fake', 'acct-cross', 'dev/cross')).toBeNull();
+    // A normal project still resolves.
+    expect(await resolveProject(db, 'fake', 'acct-1', 'dev/demo')).toEqual({ orgId: ORG_A, projectId: a.projectId });
+  });
 });
 
 describe('queuedRunsWithoutWorkflow', () => {

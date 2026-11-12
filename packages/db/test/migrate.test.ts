@@ -84,6 +84,40 @@ describe('bootstrap and migrations', () => {
     expect(rows[1]?.indexdef).toContain('(rule_id, queued_at)');
   });
 
+  it('foreign-key columns used by deletes and joins are indexed', async () => {
+    const rows = await query<{ indexname: string; indexdef: string }>(
+      env.ownerUrl,
+      `select indexname, indexdef from pg_indexes
+       where indexname in ('runs_agent_idx','runs_inbound_event_idx','projects_board_connection_idx','rules_agent_idx')
+       order by 1`,
+    );
+    expect(rows.map((r) => r.indexname)).toEqual([
+      'projects_board_connection_idx',
+      'rules_agent_idx',
+      'runs_agent_idx',
+      'runs_inbound_event_idx',
+    ]);
+    expect(rows[0]?.indexdef).toContain('(board_connection_id)');
+    expect(rows[1]?.indexdef).toContain('(agent_id)');
+    expect(rows[2]?.indexdef).toContain('(agent_id)');
+    expect(rows[3]?.indexdef).toContain('(inbound_event_id)');
+  });
+
+  it('resolve_project stays security definer, pinned search_path, executable only by the app role', async () => {
+    const fn = await query<{ prosecdef: boolean; proconfig: string[]; owner: string }>(
+      env.ownerUrl,
+      `select p.prosecdef, p.proconfig, pg_get_userbyid(p.proowner) as owner
+       from pg_proc p where p.proname = 'resolve_project'`,
+    );
+    expect(fn).toEqual([{ prosecdef: true, proconfig: ['search_path=public, pg_temp'], owner: 'agentdesk_owner' }]);
+    const grants = await query<{ grantee: string }>(
+      env.ownerUrl,
+      `select grantee from information_schema.routine_privileges
+       where routine_name = 'resolve_project' and privilege_type = 'EXECUTE' order by 1`,
+    );
+    expect(grants.map((g) => g.grantee)).toEqual(['agentdesk_app', 'agentdesk_owner']);
+  });
+
   it('app role cannot own or bypass; auth tables exist with user.handle', async () => {
     const cols = await query<{ column_name: string }>(
       env.ownerUrl,
