@@ -54,8 +54,8 @@
    "x": 0,
    "y": 2560,
    "w": 1440,
-   "h": 900,
-   "title": "Setup 1 \u2014 connect repository",
+   "h": 1000,
+   "title": "Setup 1 \u2014 connect repository, webhook",
    "expand": "fill"
   },
   "Setup2.dc.html": {
@@ -88,6 +88,22 @@
    "w": 1440,
    "h": 900,
    "title": "Setup \u2014 ready to trigger",
+   "expand": "fill"
+  },
+  "Setup1Polling.dc.html": {
+   "x": 7600,
+   "y": 2560,
+   "w": 1440,
+   "h": 1000,
+   "title": "Setup 1 \u2014 polling chosen, first check",
+   "expand": "fill"
+  },
+  "Setup1PollingOk.dc.html": {
+   "x": 9120,
+   "y": 2560,
+   "w": 1440,
+   "h": 1000,
+   "title": "Setup 1 \u2014 polling connected",
    "expand": "fill"
   },
   "Runs.dc.html": {
@@ -198,7 +214,7 @@
    "x": 4560,
    "y": 7780,
    "w": 1440,
-   "h": 1240,
+   "h": 1320,
    "title": "Desk \u2014 agent and settings, replacing credential",
    "expand": "fill"
   }
@@ -210,6 +226,8 @@
   "ProjectsEmpty.dc.html",
   "Projects.dc.html",
   "Setup1.dc.html",
+  "Setup1Polling.dc.html",
+  "Setup1PollingOk.dc.html",
   "Setup2.dc.html",
   "Setup3.dc.html",
   "Setup4.dc.html",
@@ -249,7 +267,7 @@
    "y": 2320,
    "text": "First-run setup",
    "kind": "title1",
-   "maxW": 7520
+   "maxW": 10560
   },
   "t-runs": {
    "x": 0,

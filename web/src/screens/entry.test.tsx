@@ -72,6 +72,26 @@ describe('Projects', () => {
     expect(warn).toHaveClass('idle');
   });
 
+  it('shows polling status: ok with the succeeded glyph, failure with the failed glyph and fail tone', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(within(rows[1]).getByText('Polling every 5 min')).toBeInTheDocument();
+    expect(within(rows[1]).getByTitle('status: succeeded')).toBeInTheDocument();
+    const failed = within(rows[3]).getByText('Polling failed: rate limited, retry in 5 min');
+    expect(failed.closest('.inline-status')).toHaveClass('fail');
+    expect(within(rows[3]).getByTitle('status: failed')).toBeInTheDocument();
+  });
+
+  it('offers Switch to polling only on the silent-webhook row', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    const links = screen.getAllByRole('link', { name: /^Switch to polling/ });
+    expect(links).toHaveLength(1);
+    expect(links[0]).toHaveAccessibleName('Switch to polling for docs-site');
+    expect(links[0]).toHaveTextContent('Switch to polling');
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(within(rows[2]).getByRole('link', { name: /Switch to polling/ })).toBe(links[0]);
+  });
+
   it('truncates a very long repo name and keeps the full text in title', () => {
     const repo = `harbor-labs/${'a'.repeat(68)}`;
     expect(repo).toHaveLength(80);

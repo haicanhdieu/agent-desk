@@ -1,15 +1,23 @@
 import type { ReactNode } from 'react';
-import { Icon, StatusIcon } from '@/ds';
+import { Icon, InlineStatus, StatusIcon } from '@/ds';
 import { SubNav } from './SubNav';
 import styles from './Chrome.module.css';
 
 export interface DeskLayoutProps {
   active: 'skills' | 'rules' | 'agent';
-  repo: { org: string; name: string; branch: string; connected: boolean };
+  repo: {
+    org: string;
+    name: string;
+    branch: string;
+    connected: boolean;
+    /** Connection status line. Defaults to "Connected" when `connected` is set. */
+    status?: { tone: 'ok' | 'warn' | 'fail'; text: string };
+  };
   children?: ReactNode;
 }
 
 export function DeskLayout({ active, repo, children }: DeskLayoutProps) {
+  const status = repo.status ?? (repo.connected ? { tone: 'ok' as const, text: 'Connected' } : undefined);
   return (
     <div className={styles.body}>
       <SubNav
@@ -35,7 +43,10 @@ export function DeskLayout({ active, repo, children }: DeskLayoutProps) {
                   <Icon name="branch" size={13} />
                   <span className="mono">{repo.branch}</span>
                 </span>
-                {repo.connected && <span className={styles.connected}><StatusIcon status="succeeded" size={12} /><span className="muted">Connected</span></span>}
+                {status?.tone === 'ok' && <span className={styles.connected}><StatusIcon status="succeeded" size={12} /><span className="muted">{status.text}</span></span>}
+                {status && status.tone !== 'ok' && (
+                  <InlineStatus tone={status.tone === 'fail' ? 'fail' : 'idle'} icon={<Icon name="warning" size={12} />}>{status.text}</InlineStatus>
+                )}
               </>
             ),
           },

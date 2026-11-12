@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { RUN_STATUSES } from '@/ds';
 import {
-  agentSettings, ignored, projects, rules, runDetails, runs, skills, terminalByRun, ticketGroups,
+  agentSettings, connectionCopy, connections, connectionWarnings, DEFAULT_POLL_INTERVAL, ignored, menuWarning, pollIntervals,
+  projects, rules, runDetails, runs, skills, terminalByRun, ticketGroups,
 } from '@/mocks';
 
 const ACTIVE = ['queued', 'starting', 'running', 'idle'];
@@ -44,9 +45,20 @@ describe('mock fixtures', () => {
     expect(rules.find((r) => r.warning)?.command).toBe('docs-update');
   });
 
-  it('has the five boards of ignored commands and three projects', () => {
+  it('has the five boards of ignored commands and four projects', () => {
     expect(ignored).toHaveLength(5);
-    expect(projects.map((p) => p.name)).toEqual(['invoicer-api', 'invoicer-web', 'docs-site']);
+    expect(projects.map((p) => p.name)).toEqual(['invoicer-api', 'invoicer-web', 'docs-site', 'billing-jobs']);
+  });
+
+  it('gives each project a trigger mode and a status that fits it', () => {
+    expect(projects.map((p) => [p.connection.mode, p.connection.tone])).toEqual([
+      ['webhook', 'ok'], ['polling', 'ok'], ['webhook', 'warn'], ['polling', 'fail'],
+    ]);
+    // Only a webhook can go silent; only polling can fail a check.
+    for (const c of Object.values(connections)) {
+      if (c.tone === 'warn') expect(c.mode).toBe('webhook');
+      if (c.tone === 'fail') expect(c.mode).toBe('polling');
+    }
   });
 
   it('has terminal scrollback for the runs that need it', () => {
@@ -88,5 +100,41 @@ describe('mock fixtures', () => {
     ]);
     expect(terminalByRun[56]).toHaveLength(17);
     expect(runDetails.RunSucceeded.pullRequest?.diffstat).toBe('+214 −12');
+  });
+});
+
+describe('polling copy', () => {
+  it('offers 5 min to 30 min, default is the 5 min minimum', () => {
+    expect(pollIntervals).toEqual(['5 min', '10 min', '15 min', '30 min']);
+    expect(DEFAULT_POLL_INTERVAL).toBe('5 min');
+  });
+
+  it('matches the brief and the prototype boards word for word', () => {
+    expect(connectionCopy.modeLabel).toBe('How Agent Desk hears about new comments');
+    expect(connectionCopy.pollingChecked('5 min', '20s ago')).toBe('Polling every 5 min · last checked 20s ago');
+    expect(connectionCopy.pollingCheckedBody('5 min')).toBe('Agent Desk can read comments on this repository. A new command starts a run within 5 minutes.');
+    expect(connectionCopy.pollingCheckedBody('30 min')).toMatch(/within 30 minutes\.$/);
+    expect(connectionCopy.pollingCostBody).toMatch(/12 an hour at 5 min/);
+    expect(connectionCopy.pollingCostBody).toMatch(/5,000 an hour/);
+    expect(connections.webhookSilent.text).toBe('No webhooks for 2 days');
+    expect(connections.pollingOk.text).toBe('Polling every 5 min');
+    expect(connections.pollingRevoked.text).toBe('Polling failed: token revoked');
+    expect(connections.pollingRateLimited.text).toBe('Polling failed: rate limited, retry in 5 min');
+    expect(connectionCopy.lastEvent('ping, 14:01:37')).toBe('Last event: ping, 14:01:37 (webhook)');
+    expect(connectionCopy.lastChecked('20s ago')).toBe('Last checked: 20s ago (polling)');
+    expect(connectionCopy.switchToPolling).toBe('Switch to polling');
+  });
+
+  it('puts Switch to polling first on the silent-webhook banner only', () => {
+    expect(connectionWarnings.webhookSilent.actions.map((a) => a.label)).toEqual(['Switch to polling', 'Check again', 'Connection details']);
+    expect(connectionWarnings.webhookSilent.actions[0].variant).toBe('primary');
+    expect(connectionWarnings.pollingFailed.actions.map((a) => a.label)).not.toContain('Switch to polling');
+  });
+
+  it('names the switcher warning after the mode, and none when ok', () => {
+    expect(menuWarning(connections.webhookOk)).toBeUndefined();
+    expect(menuWarning(connections.pollingOk)).toBeUndefined();
+    expect(menuWarning(connections.webhookSilent)).toBe('webhooks');
+    expect(menuWarning(connections.pollingRevoked)).toBe('polling');
   });
 });

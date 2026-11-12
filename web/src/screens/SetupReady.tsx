@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react';
 import { Banner, Button, InlineStatus, LabelChip, StatusIcon } from '@/ds';
 import { CodeBlock, KeyValue, SetupLayout } from '@/components';
-import type { Actor } from '@/mocks/types';
+import { connectionCopy as c } from '@/mocks/connection';
+import type { Actor, TriggerMode } from '@/mocks/types';
 import { DEFAULT_CREDENTIAL_DETAIL, setupSteps } from './setupSteps';
 import styles from './Screens.module.css';
 
@@ -12,7 +13,8 @@ export interface SetupReadyProps {
   label: { name: string; color: string };
   command: string;
   summary: { term: string; value: ReactNode }[];
-  lastWebhook: string;
+  /** What was heard last: a webhook delivery, or the last polling check. */
+  lastEvent: { mode: TriggerMode; at: string };
   skills?: string;
   credentialDetail?: string;
   issuesHref?: string;
@@ -20,7 +22,7 @@ export interface SetupReadyProps {
 }
 
 export function SetupReady({
-  user, projectName, repo, label, command, summary, lastWebhook, skills = 'code-build, code-review',
+  user, projectName, repo, label, command, summary, lastEvent, skills = 'code-build, code-review',
   credentialDetail = DEFAULT_CREDENTIAL_DETAIL, issuesHref = `https://github.com/${repo}/issues`, runsHref = '#',
 }: SetupReadyProps) {
   return (
@@ -50,7 +52,8 @@ export function SetupReady({
         <Button href={runsHref}>Go to runs</Button>
       </div>
       <Banner tone="off" icon={<StatusIcon status="starting" size={16} />} iconColor="var(--run)">
-        <b className={styles.semi}>Listening for your first command</b> This page opens the run as soon as it starts. Last webhook: {lastWebhook}.
+        <b className={styles.semi}>{c.listeningTitle}</b> {c.listeningBody}{' '}
+        {lastEvent.mode === 'webhook' ? c.lastEvent(lastEvent.at) : c.lastChecked(lastEvent.at)}.
       </Banner>
       <div className={styles.summaryBlock}>
         <h2 className="h3">What you set up</h2>

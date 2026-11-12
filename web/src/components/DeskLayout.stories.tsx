@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { connections } from '@/mocks';
 import { AppShell } from './AppShell';
 import { DeskLayout } from './DeskLayout';
 import { TopBar } from './TopBar';
@@ -21,4 +22,14 @@ export const Skills: Story = {
       <DeskLayout {...args} />
     </AppShell>
   ),
+};
+
+export const Polling: Story = {
+  ...Skills,
+  args: { ...Skills.args, active: 'agent', repo: { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: true, status: connections.pollingOk } },
+};
+
+export const PollingFailed: Story = {
+  ...Skills,
+  args: { ...Skills.args, active: 'agent', repo: { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: false, status: connections.pollingRevoked } },
 };

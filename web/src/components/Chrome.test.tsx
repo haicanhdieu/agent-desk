@@ -149,4 +149,17 @@ describe('ProjectMenu', () => {
     expect(screen.getByText('webhooks')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /invoicer-api/ })).toHaveAttribute('aria-current', 'true');
   });
+
+  it('a silent webhook warns in idle tone, a polling failure in fail tone', () => {
+    render(
+      <ProjectMenu
+        items={[
+          { name: 'docs-site', needsYou: 0, warning: 'webhooks', href: '/c' },
+          { name: 'billing-jobs', needsYou: 0, warning: 'polling', warningTone: 'fail', href: '/d' },
+        ]}
+      />,
+    );
+    expect(screen.getByText('webhooks').closest('.inline-status')).toHaveClass('idle');
+    expect(screen.getByText('polling').closest('.inline-status')).toHaveClass('fail');
+  });
 });

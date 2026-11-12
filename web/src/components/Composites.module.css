@@ -119,3 +119,7 @@
 .ghHead b { font-weight: 600; }
 .ghMeta { color: var(--muted); }
 .ghBody { padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; font-size: var(--fs-14); background: var(--input-bg); }
+
+/* Trigger mode setting (Desk, Agent & settings). */
+.triggerMode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.triggerHelp { font-size: var(--fs-12_5); color: var(--faint); }

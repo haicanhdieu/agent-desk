@@ -51,3 +51,4 @@ export { NeedsYouBanner, type NeedsYouBannerProps } from './NeedsYouBanner';
 export { IgnoredRow } from './IgnoredRow';
 export { GitHubComment, type GitHubCommentProps } from './GitHubComment';
 export { Note, Stat, ActorRef, RuleText, ModelTag, PopoverCard, type NoteProps, type StatProps, type ActorRefProps, type PopoverCardProps } from './RunFacts';
+export { TriggerModeSetting, type TriggerModeSettingProps } from './TriggerModeSetting';

@@ -20,21 +20,22 @@ Five principles keep the PoC small:
 
 &#91;embedded content: system components · control plane, run Job, GitHub\]
 
-GitHub events enter through the webhook intake, the router turns a matching comment into a queued run, and the run controller starts one Job per run. The Job is the only component that touches the repo; it also calls the Claude API directly. The control plane never executes agent code. The browser reaches a run's terminal through the control plane, which relays it to the pod over a Kubernetes exec WebSocket.
+GitHub events enter through the webhook intake, or through the poller for projects in Polling mode. Both produce the same `TicketEvent`; the router turns a matching comment into a queued run, and the run controller starts one Job per run. The Job is the only component that touches the repo; it also calls the Claude API directly. The control plane never executes agent code. The browser reaches a run's terminal through the control plane, which relays it to the pod over a Kubernetes exec WebSocket.
 
 ## 3. Domain model and data schema
 
-Seven tables hold all state. Skills are not stored; they are read from and written to the repo through the GitHub API.
+Eight tables hold all state. Skills are not stored; they are read from and written to the repo through the GitHub API.
 
 | Table | Key columns | Notes |
 | --- | --- | --- |
 | `users` | id, github\_user\_id, login | Created at first GitHub sign-in |
-| `projects` | id, owner\_user\_id, name, repo\_full\_name, installation\_id, max\_concurrent\_runs, max\_runs\_per\_ticket | One repo per project in the PoC |
+| `projects` | id, owner\_user\_id, name, repo\_full\_name, installation\_id, trigger\_mode (`webhook`, `polling`), poll\_interval\_seconds, max\_concurrent\_runs, max\_runs\_per\_ticket | One repo per project in the PoC. `poll_interval_seconds` is one of 300, 600, 900, 1800 (default 300) |
 | `agents` | id, project\_id, name, provider (`claude`), model, credential\_secret\_name, max\_turns, timeout\_seconds | Credential value lives in a Kubernetes Secret, not in Postgres |
 | `rules` | id, project\_id, command, label\_filter\[\], target (`issue`, `pr`, `any`), agent\_id, skill\_name, enabled | Unique on (project\_id, command) |
-| `runs` | id, project\_id, rule\_id, agent\_id, skill\_name, ticket\_number, ticket\_kind, ref, args, status, job\_name, trigger\_delivery\_id, triggered\_by, queued\_at, started\_at, finished\_at, exit\_code, cost\_usd | Also the work queue |
+| `runs` | id, project\_id, rule\_id, agent\_id, skill\_name, ticket\_number, ticket\_kind, ref, args, status, job\_name, trigger\_source (`webhook`, `polling`, `manual`), trigger\_comment\_id, trigger\_delivery\_id, triggered\_by, queued\_at, started\_at, finished\_at, exit\_code, cost\_usd | Also the work queue. Unique on (project\_id, trigger\_comment\_id), so one comment starts at most one run whichever path saw it |
 | `run_events` | run\_id, seq, ts, type, payload (jsonb) | PoC: lifecycle lines (turn finished, final scrollback). MVP: one row per agent event |
-| `webhook_deliveries` | delivery\_id, received\_at, event, action, outcome | Dedupe and debugging |
+| `webhook_deliveries` | delivery\_id, comment\_id, received\_at, event, action, outcome | Dedupe and debugging; also feeds "Last event" on the project |
+| `poll_cursors` | project\_id, repo, since, etag, last\_polled\_at, last\_error, next\_poll\_at | One row per polled repo. Primary key (project\_id, repo). Written only by the poller |
 
 Run status moves forward with one loop: `queued` → `starting` → `running` ⇄ `idle` → one of `succeeded`, `failed`, `cancelled`, `timed_out`. `idle` means the agent finished a turn and waits for the user (section 6).
 
@@ -43,6 +44,7 @@ The two seams, in pseudo-signature form:
 ```
 BoardAdapter
   ParseEvent(headers, body)      -> TicketEvent | null
+  PollComments(project, cursor)  -> (TicketEvent[], cursor) | NotModified
   GetTicket(project, number)     -> Ticket
   Comment(project, number, text)
   MintWorkspaceToken(project)    -> short-lived token
@@ -54,23 +56,50 @@ AgentRunner
 
 ## 4. Trigger and routing
 
-A run is created only when a webhook passes every step below; any failed step ends processing with a recorded outcome and no side effect.
+Each project has a trigger mode. Webhook (the default) is near-instant but needs GitHub to reach the control plane. Polling needs only outbound calls to GitHub, at the cost of up to one interval of latency. Both intakes produce the same `TicketEvent` and feed the same router, so rules, authorization, guards, and dedupe do not depend on the mode.
+
+A run is created only when an event passes every step below; any failed step ends processing with a recorded outcome and no side effect. Steps 1 to 4 are the webhook intake; the poller (below) replaces them for projects in Polling mode and joins at step 5.
 
 1. **Receive.** `POST /webhooks/github`. Verify the `X-Hub-Signature-256` HMAC against the App's webhook secret. Reject on mismatch.
-2. **Dedupe.** Insert `X-GitHub-Delivery` into `webhook_deliveries`; a duplicate key means the delivery was already handled.
+2. **Dedupe.** Insert `X-GitHub-Delivery` and the comment id into `webhook_deliveries`; a duplicate key means the delivery was already handled.
 3. **Filter event.** The PoC handles `issue_comment` with action `created`. GitHub sends this event for comments on both issues and pull requests.
 4. **Resolve project.** Look up the project by `installation.id` and repository name.
 5. **Parse command.** The first line of the comment must match `^/([a-z0-9-]+)(\s+.*)?$`. The capture is the command; the rest of the line is passed to the agent as arguments.
 6. **Authorize.** Accept if the author is the Agent Desk bot, or `author_association` is `OWNER`, `MEMBER`, or `COLLABORATOR`.
 7. **Match rule.** Find the enabled rule for (project, command). Check the target kind and that the ticket carries every label in `label_filter`.
 8. **Guard.** Reject if the ticket already has `max_runs_per_ticket` runs, or an active run for the same skill.
-9. **Enqueue.** Insert a `runs` row with status `queued`. Reply to the webhook with 202.
+9. **Enqueue.** Insert a `runs` row with status `queued` and the trigger comment id. The unique key on (project, comment id) turns a second sighting of the same comment, from the other intake or a repeated poll, into a no-op. For a webhook, reply with 202.
 
 A run controller loop then claims queued runs with `SELECT … FOR UPDATE SKIP LOCKED` while the project is under `max_concurrent_runs`. Postgres is the queue; no broker is needed at this scale.
 
-**Chaining.** A run posts its handoff comment (for example `/code-review` on the PR it opened) with the App installation token, so the comment is authored by the bot. GitHub delivers webhooks for App-authored comments, the bot passes step 6, and the next rule fires. This behavior is the basis of the whole chain and should be confirmed first in milestone M2.
+**Polling intake.** A background loop in the control plane ticks every 5 seconds and picks the `poll_cursors` rows whose `next_poll_at` has passed, for projects in Polling mode. For each row it makes one request with the installation token:
 
-**Local development.** A local cluster has no public URL. Use a webhook relay (smee.io or a tunnel) to forward deliveries. A polling fallback that lists recent issue comments every 30 seconds can reuse steps 5 to 9 unchanged.
+```
+GET /repos/{owner}/{repo}/issues/comments?since={since}&sort=updated&direction=asc&per_page=100
+If-None-Match: {etag}
+```
+
+- **304 Not Modified.** Nothing new. Set `last_polled_at` and schedule the next poll. A 304 on a conditional request does not count against the rate limit.
+- **200.** Follow pagination, then turn each comment into a `TicketEvent` and pass it to step 5. This endpoint covers comments on issues and on pull requests, and each comment carries `author_association` for step 6. A listed comment does not say whether its ticket is an issue or a PR, or carry labels, so step 7 reads them with `GetTicket`. Skip comments created before the cursor: `since` filters on update time, so edited old comments come back, and the webhook path only handles `created`. Set `since` to the newest `updated_at` seen and store the new ETag. The ETag belongs to the request URL, so it is cleared when `since` moves; the next poll costs one full request and then 304s resume.
+- The overlap at the `since` boundary (GitHub treats it as inclusive) is harmless, because step 9 dedupes by comment id.
+
+When a project switches to Polling, its cursor starts at the switch time, so history is not replayed. The webhook intake keeps accepting any delivery that still arrives for a polling project; comment-id dedupe makes running both briefly safe in either direction. The cursor is in Postgres, so after a control-plane restart polling resumes from `since` and picks up comments made while it was down, which webhook mode does not do on its own.
+
+**Rate limits and polling failures.** An installation gets 5000 REST requests per hour. Polling costs at most one request per repo per interval, before 304s: 12 per hour at 5 min, 2 at 30 min. Even 100 repos at the 5-minute minimum use about a quarter of the budget, so polling is not a rate-limit risk. The same budget also pays for token minting, status comments, skill edits, `GetTicket`, and the agents' own `gh` calls, which are the larger share during a run and the likelier cause of a rate-limit response.
+
+| Situation | Detection | Result |
+| --- | --- | --- |
+| Nothing new | 304 | No cost; `last_polled_at` updated |
+| Rate limited | 403 or 429 with `X-RateLimit-Remaining: 0` or `Retry-After` | `next_poll_at` set to the reset time; status "Polling failed: rate limited, retry in N min" |
+| Installation removed or token revoked | 401, or 404 on the repo | Polling paused for the project; status "Polling failed: token revoked"; resumes when the installation is back |
+| Network error or GitHub 5xx | Request error | Exponential back-off from one interval up to 1 hour; `last_error` recorded |
+| Control plane restarts | Cursor in Postgres | Resumes from `since`; nothing missed, duplicates absorbed by step 9 |
+
+Any successful poll clears `last_error`. The project status reads "Polling every 5 min" when healthy and shows `last_polled_at` as "Last checked". In Webhook mode the status comes from the newest `webhook_deliveries` row ("Last event: X (webhook)"), and no delivery for 2 days shows "No webhooks for 2 days" with a "Switch to polling" action.
+
+**Chaining.** A run posts its handoff comment (for example `/code-review` on the PR it opened) with the App installation token, so the comment is authored by the bot. GitHub delivers webhooks for App-authored comments, the bot passes step 6, and the next rule fires. This behavior is the basis of the whole chain in Webhook mode and should be confirmed first in milestone M2. In Polling mode the bot's comment is listed like any other, so chaining works without that check, but each handoff can wait up to one interval.
+
+**Local development.** A local cluster has no public URL. The recommended path is to set the project to Polling, which needs no relay or tunnel and exercises the same router. Use a webhook relay (smee.io or a tunnel) only when working on the webhook intake itself.
 
 ## 5. Run lifecycle on Kubernetes
 
@@ -225,7 +254,7 @@ In the MVP, approach B becomes the default view and the terminal from A stays av
 
 ## 7. GitHub integration, secrets, and security
 
-One GitHub App provides sign-in, webhooks, and repo access; the agent container holds only a one-hour token for one repo plus the Claude credential.
+One GitHub App provides sign-in, webhooks, and repo access (including the API calls the poller makes); the agent container holds only a one-hour token for one repo plus the Claude credential.
 
 **GitHub App**
 
@@ -233,6 +262,7 @@ One GitHub App provides sign-in, webhooks, and repo access; the agent container 
 | --- | --- |
 | Repository permissions | Contents: read/write · Issues: read/write · Pull requests: read/write · Metadata: read |
 | Webhook events | Issue comment (PoC) · Issues, Pull request (later) |
+| Webhook URL | `POST /webhooks/github` on the control plane. Optional: a deployment where every project uses Polling can leave the App webhook inactive |
 | User sign-in | The App's OAuth flow; session cookie on the web UI |
 | Skill editing | Contents API, commits to the default branch as the bot |
 
@@ -240,7 +270,7 @@ One GitHub App provides sign-in, webhooks, and repo access; the agent container 
 
 | Secret | Stored in | Reaches the run container |
 | --- | --- | --- |
-| App private key, webhook secret | Kubernetes Secret in the control-plane namespace | No |
+| App private key, webhook secret (webhook only) | Kubernetes Secret in the control-plane namespace | No |
 | Claude credential per project | Kubernetes Secret in the control-plane namespace, referenced by name from `agents` | Yes, copied into the per-run Secret |
 | Installation token | Minted per run, never persisted | Yes |
 
@@ -248,7 +278,7 @@ One GitHub App provides sign-in, webhooks, and repo access; the agent container 
 
 The main risk is prompt injection: ticket text is untrusted input to an agent that can push code. Controls, in order of importance:
 
-- Only repo collaborators and the bot can trigger runs (section 4, step 6).
+- Only repo collaborators and the bot can trigger runs (section 4, step 6). The check is the same for polled comments.
 - The installation token is limited to the project's single repo and expires in one hour.
 - The run pod mounts no service account token and cannot reach the Kubernetes API.
 - A NetworkPolicy on the runs namespace denies egress to cluster-internal addresses and allows the public internet. Domain allowlisting needs a CNI with FQDN policies and is deferred.
@@ -262,7 +292,7 @@ Known gap: the Claude credential is readable by the agent process, so a successf
 
 ## 8. API, tech stack, deployment
 
-The control plane is a single deployable (a modular monolith) that serves the web UI, the REST API, the webhook endpoint, and the background loops.
+The control plane is a single deployable (a modular monolith) that serves the web UI, the REST API, the webhook endpoint, and the background loops (run controller, poller).
 
 **API surface**
 
@@ -270,7 +300,8 @@ The control plane is a single deployable (a modular monolith) that serves the we
 | --- | --- |
 | `GET /auth/github`, `GET /auth/github/callback` | Sign-in |
 | `POST /webhooks/github` | Webhook intake |
-| `GET, POST /api/projects` · `GET, PATCH, DELETE /api/projects/{id}` | Project CRUD |
+| `GET, POST /api/projects` · `GET, PATCH, DELETE /api/projects/{id}` | Project CRUD, including `trigger_mode` and `poll_interval_seconds` |
+| `GET /api/projects/{id}/connection` | Trigger mode and status: last event (webhook) or last checked, interval, and last error (polling) |
 | `PUT /api/projects/{id}/agent` | Set model, limits, and credential |
 | `GET /api/projects/{id}/skills` · `GET, PUT, DELETE /api/projects/{id}/skills/{name}` | Skills, proxied to the repo |
 | `GET, POST /api/projects/{id}/rules` · `PATCH, DELETE /api/rules/{id}` | Rule CRUD |
@@ -286,6 +317,7 @@ The control plane is a single deployable (a modular monolith) that serves the we
 | Module | Responsibility |
 | --- | --- |
 | Webhook intake | Verify, dedupe, parse into a `TicketEvent` |
+| Poller | For projects in Polling mode: list new comments with conditional requests, advance `poll_cursors`, back off on errors, emit `TicketEvent`s |
 | Router | Authorize, match rules, apply guards, enqueue |
 | Run controller | Claim queued runs, create Jobs, watch status, end idle runs, reconcile |
 | Terminal relay and log follower | Relay the terminal WebSocket to pod exec; follow pod logs, store lifecycle lines and the final log, push status over SSE |
@@ -309,13 +341,23 @@ The control plane is a single deployable (a modular monolith) that serves the we
 - Namespace `agentdesk`: control-plane Deployment (1 replica), Postgres StatefulSet, Service, Secrets.
 - Namespace `agentdesk-runs`: Jobs, per-run Secrets, NetworkPolicy.
 - RBAC: the control-plane service account may manage `jobs`, `pods`, `pods/log`, `pods/exec`, and `secrets` in `agentdesk-runs` only.
-- During development the control plane can run on the host against the cluster's kubeconfig.
+- During development the control plane can run on the host against the cluster's kubeconfig, with projects in Polling mode.
+
+**Configuration**
+
+| Setting | Default | Notes |
+| --- | --- | --- |
+| Project `trigger_mode` | `webhook` | Chosen in the setup "connect" step; changeable in project settings |
+| Project `poll_interval_seconds` | 300 | 300, 600, 900, or 1800; other values, including anything below 300, are rejected |
+| `POLL_TICK_SECONDS` (service) | 5 | How often the poller looks for due cursors |
+| `POLL_MAX_BACKOFF_SECONDS` (service) | 3600 | Cap for error back-off; rate-limit waits follow GitHub's reset time instead |
+| `WEBHOOK_SILENT_WARN_HOURS` (service) | 48 | Threshold for "No webhooks for 2 days" |
 
 ## 9. Key decisions and evolution
 
 | Decision | PoC choice | Alternative set aside | Revisit when |
 | --- | --- | --- | --- |
-| Trigger mechanism | GitHub App webhooks | Polling, GitHub Actions as the runner | Never for webhooks; polling stays as a dev fallback |
+| Trigger mechanism | Per project: GitHub App webhooks (default) or polling with conditional requests, both feeding one router | GitHub Actions as the runner; polling as a dev-only fallback | Users need lower latency without a public URL, or GitHub adds a pull-based events feed |
 | Handoff | Slash-command comment written by the skill | `onSuccess` action declared on the rule | Chains stall because the model forgets the comment |
 | Rule storage | Postgres | YAML in the repo | Users want rules reviewed and versioned with skills |
 | Queue | Postgres table with `SKIP LOCKED` | NATS, Temporal | Multiple control-plane replicas or long multi-step workflows |
@@ -337,6 +379,10 @@ The control plane is a single deployable (a modular monolith) that serves the we
 **Open technical checks for M1 and M2**
 
 - Confirm that comments posted with an installation token deliver `issue_comment` webhooks to the same App.
+- Confirm that a 304 on `GET /repos/{owner}/{repo}/issues/comments` with an installation token does not count against the rate limit, and that the ETag changes when a comment is added or edited.
+- Confirm the `since` semantics (inclusive, by `updated_at`) and that `author_association` in the list response matches the webhook payload.
+- Confirm that the App works with its webhook marked inactive, for deployments that use only Polling.
+- Open question: should Webhook projects also poll slowly as a safety net for missed deliveries (PRD Q5)? The tables and dedupe already allow it.
 - Confirm the exact interactive invocation that makes Claude Code apply a repo skill by name.
 - Measure cold start: image pull, clone, and first event, against the 60-second target in the PRD.
 - Find how to suppress Claude Code first-run dialogs (trust, theme) in a container.

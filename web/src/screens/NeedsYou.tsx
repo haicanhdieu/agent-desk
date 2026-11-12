@@ -1,5 +1,6 @@
 import { Icon } from '@/ds';
 import { GitHubComment, ProjectMenu, ProjectStrip, SurfaceCard } from '@/components';
+import { menuWarning } from '@/mocks/connection';
 import type { Project } from '@/mocks/types';
 import styles from './Screens.module.css';
 import mock from './NeedsYou.module.css';
@@ -43,7 +44,8 @@ export function NeedsYou({ project, projects }: NeedsYouProps) {
               items={projects.map((p) => ({
                 name: p.name,
                 needsYou: p.needsYou,
-                warning: p.connection.tone === 'warn' ? 'webhooks' : undefined,
+                warning: menuWarning(p.connection),
+                warningTone: p.connection.tone === 'fail' ? 'fail' : 'idle',
                 current: p.id === project.id,
                 href: '#',
               }))}

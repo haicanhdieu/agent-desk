@@ -24,6 +24,7 @@
 .connection { font-size: var(--fs-13); }
 .connection > span { font-size: var(--fs-13); } /* InlineStatus sets its own 12.5px; the board uses 13px */
 .okRow { display: inline-flex; align-items: center; gap: 6px; }
+.connAction { display: block; margin-top: 6px; }
 .lastRun { font-size: var(--fs-13); color: var(--muted); }
 .noneText { color: var(--faint); }
 .end { text-align: right; }

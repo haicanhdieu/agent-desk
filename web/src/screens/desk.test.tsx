@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { agentSettings, rules, skills } from '@/mocks';
+import { agentSettings, connections, rules, skills } from '@/mocks';
 import { DeskSkills } from './DeskSkills';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
@@ -153,6 +153,34 @@ describe('DeskAgent', () => {
     expect(screen.getByLabelText('Runs per ticket')).toHaveValue('10');
     expect(screen.getByRole('button', { name: 'Save limits' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete project' })).toBeInTheDocument();
+  });
+
+  it('adds a Trigger mode row after Repository, webhook by default', () => {
+    const { container } = render(<DeskAgent settings={agentSettings} github={[...github, { term: 'Last event', value: 'x' }]} />);
+    const terms = [...container.querySelectorAll('dt')].map((d) => d.textContent);
+    expect(terms.slice(0, 3)).toEqual(['Repository', 'Trigger mode', 'Last event']);
+    expect(screen.getByRole('radio', { name: 'Webhook' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByRole('radiogroup', { name: 'Check every' })).toBeNull();
+    expect(screen.getByRole('button', { name: 'Send test ping' })).toBeInTheDocument();
+    expect(screen.getByText('Connected')).toBeInTheDocument();
+  });
+
+  it('switching to polling shows the interval and reports the change', async () => {
+    const onTriggerChange = vi.fn();
+    render(<DeskAgent settings={agentSettings} github={github} onTriggerChange={onTriggerChange} />);
+    await userEvent.click(screen.getByRole('radio', { name: 'Polling' }));
+    expect(onTriggerChange).toHaveBeenLastCalledWith({ mode: 'polling', interval: '5 min' });
+    const interval = screen.getByRole('radiogroup', { name: 'Check every' });
+    expect(within(interval).getByRole('radio', { name: '5 min' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(within(interval).getByRole('radio', { name: '30 min' }));
+    expect(onTriggerChange).toHaveBeenLastCalledWith({ mode: 'polling', interval: '30 min' });
+    expect(screen.getByRole('button', { name: 'Check now' })).toBeInTheDocument();
+  });
+
+  it('a polling project starts in polling mode and shows its status in the side nav', () => {
+    render(<DeskAgent settings={agentSettings} github={github} connection={connections.pollingRevoked} />);
+    expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('Polling failed: token revoked').closest('.inline-status')).toHaveClass('fail');
   });
 
   it('replacingCredential shows an empty New token password input and Test and replace', () => {

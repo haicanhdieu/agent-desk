@@ -18,7 +18,16 @@ export function ProjectSwitch({ org, project, onClick }: ProjectSwitchProps) {
 }
 
 export interface ProjectMenuProps {
-  items: { name: string; needsYou: number; warning?: string; current?: boolean; href: string }[];
+  items: {
+    name: string;
+    needsYou: number;
+    /** Short connection warning, e.g. "webhooks" (silent webhook) or "polling" (polling failed). */
+    warning?: string;
+    /** idle (amber) for a silent webhook, fail (red) for a polling error. */
+    warningTone?: 'idle' | 'fail';
+    current?: boolean;
+    href: string;
+  }[];
 }
 
 export function ProjectMenu({ items }: ProjectMenuProps) {
@@ -34,7 +43,7 @@ export function ProjectMenu({ items }: ProjectMenuProps) {
           <span className={styles.menuName} title={it.name}>{it.name}</span>
           <span className={styles.grow} />
           {it.warning ? (
-            <InlineStatus tone="idle" icon={<Icon name="warning" size={12} />}>{it.warning}</InlineStatus>
+            <InlineStatus tone={it.warningTone ?? 'idle'} icon={<Icon name="warning" size={12} />}>{it.warning}</InlineStatus>
           ) : it.needsYou > 0 ? (
             <CountBadge count={it.needsYou} />
           ) : (

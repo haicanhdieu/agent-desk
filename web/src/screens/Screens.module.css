@@ -35,6 +35,9 @@
 .split { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .groupLabel { font-size: var(--fs-13); font-weight: 500; }
 .helpLine { font-size: var(--fs-12_5); }
+.intervalRow { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+.intervalLabel { font-size: var(--fs-12_5); color: var(--text); }
+.grid2Gap8 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .grid2Gap10 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .grid2Gap16 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
 .asideBanner { margin-top: 12px; font-size: var(--fs-13); }

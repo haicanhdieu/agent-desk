@@ -31,12 +31,29 @@ export type TicketGroup = {
   runs: RunSummary[];
 };
 
+/** How a project hears about new comments. Webhook is the default; polling works with no public URL. */
+export type TriggerMode = 'webhook' | 'polling';
+/** Polling interval choices. Minimum and default 5 min. */
+export type PollInterval = '5 min' | '10 min' | '15 min' | '30 min';
+
+/** Project connection status. ok: Connected / Polling every N; warn: silent webhook; fail: polling error. */
+export type ConnectionStatus = { mode: TriggerMode; tone: 'ok' | 'warn' | 'fail'; text: string };
+
+/** A connection problem shown as a banner above the runs list. */
+export type ConnectionWarning = {
+  tone: 'err' | 'warn';
+  icon: IconName;
+  title: string;
+  body: string;
+  actions: { label: string; href?: string; icon?: IconName; variant?: 'default' | 'primary' | 'ghost' }[];
+};
+
 export type Project = {
   id: string;
   org: string;
   name: string;
   repo: string;
-  connection: { tone: 'ok' | 'warn'; text: string };
+  connection: ConnectionStatus;
   needsYou: number;
   running: number;
   queued: number;

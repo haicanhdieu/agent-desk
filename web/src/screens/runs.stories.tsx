@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell } from '@/components';
-import { ignored, projects, runs, ticketGroups, user } from '@/mocks';
+import { connectionWarnings, ignored, projects, runs, ticketGroups, user } from '@/mocks';
 import { NeedsYou as NeedsYouScreen } from './NeedsYou';
 import { Runs as RunsScreen } from './Runs';
-import { RunsProblems as RunsProblemsScreen } from './RunsProblems';
+import { RunsProblems as RunsProblemsScreen, type RunsProblemsWarning } from './RunsProblems';
 import type { RunsFilter } from './RunsPage';
 import { viewport } from './viewports';
 
@@ -45,6 +45,12 @@ export const Runs: Story = {
   ),
 };
 
+const credentialWarning: RunsProblemsWarning = {
+  tone: 'warn', icon: 'key', title: 'The Claude credential was rejected',
+  body: 'Run 56 failed with 401 at 11:29. New runs will fail the same way until you replace the credential.',
+  actions: [{ label: 'Replace credential', href: '/desk/agent' }],
+};
+
 export const RunsProblems: Story = {
   name: 'Runs, problems and ignored commands',
   decorators: artboard(960),
@@ -54,18 +60,21 @@ export const RunsProblems: Story = {
       {...common}
       counts={{ ...counts, ignored: ignored.length }}
       ignored={ignored}
-      warnings={[
-        {
-          tone: 'err', icon: 'warning', title: 'No webhooks from GitHub since 11:42',
-          body: 'Comments posted since then have not started runs. The last delivery attempt failed with HTTP 502 at the relay. Start the webhook relay, then redeliver missed events from the app settings in GitHub.',
-          actions: [{ label: 'Check again', icon: 'refresh' }, { label: 'Connection details', href: '/desk/agent', variant: 'ghost' }],
-        },
-        {
-          tone: 'warn', icon: 'key', title: 'The Claude credential was rejected',
-          body: 'Run 56 failed with 401 at 11:29. New runs will fail the same way until you replace the credential.',
-          actions: [{ label: 'Replace credential', href: '/desk/agent' }],
-        },
-      ]}
+      warnings={[connectionWarnings.webhookSilent, credentialWarning]}
+    />
+  ),
+};
+
+export const RunsProblemsPolling: Story = {
+  name: 'Runs, problems, polling failed',
+  decorators: artboard(960),
+  globals: viewport(1440, 960),
+  render: () => (
+    <RunsProblemsScreen
+      {...common}
+      counts={{ ...counts, ignored: ignored.length }}
+      ignored={ignored}
+      warnings={[connectionWarnings.pollingFailed]}
     />
   ),
 };
@@ -74,5 +83,5 @@ export const NeedsYou: Story = {
   name: 'Where needs you shows up',
   decorators: artboard(740),
   globals: viewport(1440, 740),
-  render: () => <NeedsYouScreen project={project} projects={projects} />,
+  render: () => <NeedsYouScreen project={project} projects={projects.slice(0, 3)} />,
 };

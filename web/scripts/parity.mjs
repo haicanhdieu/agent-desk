@@ -14,11 +14,12 @@ const outDir = resolve(root, 'parity-out');
 const canvas = JSON.parse(readFileSync(join(protoDir, 'canvas.json'), 'utf8'));
 
 // Same rule as src/screens/storyIds.ts: kebab-case of title and export name.
-const kebab = (s) => s.replace(/([a-z])([A-Z0-9])/g, '$1-$2').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+const kebab = (s) => s.replace(/([a-z])([A-Z0-9])/g, '$1-$2').replace(/([0-9])([A-Z])/g, '$1-$2').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
 const stories = {
   Main: ['Screens/Overview', 'Main'], NeedsYou: ['Screens/Runs', 'NeedsYou'], SignIn: ['Screens/Entry', 'SignIn'],
   ProjectsEmpty: ['Screens/Entry', 'ProjectsEmpty'], Projects: ['Screens/Entry', 'Projects'],
-  Setup1: ['Screens/Setup', 'Setup1'], Setup2: ['Screens/Setup', 'Setup2'], Setup3: ['Screens/Setup', 'Setup3'],
+  Setup1: ['Screens/Setup', 'Setup1'], Setup1Polling: ['Screens/Setup', 'Setup1Polling'],
+  Setup1PollingOk: ['Screens/Setup', 'Setup1PollingOk'], Setup2: ['Screens/Setup', 'Setup2'], Setup3: ['Screens/Setup', 'Setup3'],
   Setup4: ['Screens/Setup', 'Setup4'], SetupReady: ['Screens/Setup', 'SetupReady'],
   Runs: ['Screens/Runs', 'Runs'], RunsProblems: ['Screens/Runs', 'RunsProblems'],
   ...Object.fromEntries(['Starting', 'Running', 'Idle', 'Reconnect', 'Succeeded', 'Failed', 'TimedOut', 'Cancelled'].map((s) => [`Run${s}`, ['Screens/Run detail', `Run${s}`]])),

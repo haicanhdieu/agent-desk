@@ -60,3 +60,29 @@ Known minors, flagged for a human:
 - `.faint:hover` utility (hover colour not in the prototype).
 - Status pill glyph rendering and size.
 - Banner and heading sizes.
+
+## Polling trigger mode (prototype states, now in Storybook)
+
+Added after the pass above, so `parity.mjs` now finds 26 boards. Copy must match exactly.
+
+- Setup1 (now 1440x1000, webhook chosen): new group "How Agent Desk hears about new comments" with two radio cards side by side,
+  "Webhook" / "Near-instant. GitHub must reach Agent Desk at a public URL." and "Polling" / "Works without a public URL. Runs start up
+  to one interval later." The aside warning now reads "On a local cluster GitHub cannot reach you. Choose Polling instead, or start
+  the webhook relay and press Check again. ..."
+- Setup1Polling (new, 1440x1000): Polling chosen, "Check every" segmented control (5 min selected, 10 min, 15 min, 30 min) with help
+  "You can change the mode later in project settings." Banner (off, starting icon) "Checking issue comments for the first time" /
+  "No webhook or relay needed. This takes a few seconds." Continue is disabled. The aside warning is replaced by an info banner
+  "Polling and the GitHub rate limit" / "Each check is one request per repository, so 12 an hour at 5 min. GitHub gives
+  the app 5,000 an hour, and a check with no new comments does not count." Intervals are 5, 10, 15 or 30 min; 5 min is the
+  default and the minimum.
+- Setup1PollingOk (new, 1440x1000): same, with ok banner "Polling every 5 min · last checked 20s ago" / "Agent Desk can read
+  comments on this repository. A new command starts a run within 5 minutes." Continue enabled.
+- SetupReady: "Last event: ping, 14:01:37 (webhook)." and a "Trigger: Webhook" row in "What you set up". The polling form of the
+  line is "Last checked: 20s ago (polling)." (no separate board).
+- Projects: invoicer-web shows "Polling every 5 min" (ok); docs-site keeps "No webhooks for 2 days" with a small "Switch to polling"
+  button under it; new row billing-jobs (harbor-labs/billing-jobs) shows the polling error "Polling failed: rate limited, retry in 5 min".
+- RunsProblems: the silent-webhook banner gains a primary "Switch to polling" button before "Check again", and its text ends
+  "... or switch this project to polling, which needs no public URL."
+- DeskAgent (now 1440x1320): "Trigger mode" row with a Webhook / Polling segmented control and "Last webhook" renamed "Last event"
+  ("issue_comment, 2 min ago, accepted (webhook)").
+- NeedsYou: unchanged; its "webhooks" warning in the switcher is still the webhook-mode warning.

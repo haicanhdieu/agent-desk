@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { toId, storyNameFromExport, isExportStory } from 'storybook/internal/csf';
-import { boardStories, storyHref } from '@/screens/storyIds';
+import { boardStories, stateStories, storyHref } from '@/screens/storyIds';
 
 const canvas = JSON.parse(
   readFileSync(resolve(__dirname, '../../../design/prototype/project/canvas.json'), 'utf8'),
@@ -14,8 +14,8 @@ const modules = Object.values(
 );
 
 describe('storybook coverage of prototype boards', () => {
-  it('lists exactly the 24 boards of canvas.json, in order', () => {
-    expect(order).toHaveLength(24);
+  it('lists exactly the 26 boards of canvas.json, in order', () => {
+    expect(order).toHaveLength(26);
     expect(Object.keys(boardStories)).toEqual(order);
   });
 
@@ -26,8 +26,14 @@ describe('storybook coverage of prototype boards', () => {
     expect(Object.keys(mod!), `${title} lacks export ${exportName}`).toContain(exportName);
   });
 
-  it('has no screen story export that maps to no board', () => {
-    const known = new Set(Object.values(boardStories).map((b) => `${b.title}#${b.exportName}`));
+  it.each(Object.entries(stateStories))('state %s has a story and names a real board', (_name, { title, exportName, board }) => {
+    expect(order).toContain(board);
+    const mod = modules.find((m) => m.default.title === title);
+    expect(Object.keys(mod!), `${title} lacks export ${exportName}`).toContain(exportName);
+  });
+
+  it('has no screen story export that maps to no board or listed state', () => {
+    const known = new Set([...Object.values(boardStories), ...Object.values(stateStories)].map((b) => `${b.title}#${b.exportName}`));
     const orphans: string[] = [];
     for (const m of modules) {
       for (const key of Object.keys(m)) {

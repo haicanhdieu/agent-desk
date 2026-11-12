@@ -180,7 +180,7 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 .slot{display:inline-flex;align-items:center;gap:6px;border-bottom:1.5px dashed #6B7690;padding:0 2px;font-weight:600}
 </style>
 </helmet>
-<div class="app" style="min-height:1240px;height:1240px;position:relative;overflow:hidden;">
+<div class="app" style="min-height:1320px;height:1320px;position:relative;overflow:hidden;">
 <header class="top">
 <a href="Projects.dc.html" class="brand" aria-label="Agent Desk, all projects"><svg aria-hidden="true" class="" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="3.5"/><path d="M2.5 9.5h19"/><rect x="6.5" y="12.5" width="5" height="5" rx="1" fill="currentColor" stroke="none"/><path d="M14 14h4M14 17h3"/></svg>Agent Desk</a>
 <span class="sep"></span>
@@ -214,7 +214,8 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 <div style="display:flex;flex-direction:column;gap:14px;max-width:620px"><dl class="kv" style="grid-template-columns:150px 1fr;font-size:13px">
 <dt>App installation</dt><dd class="row" style="gap:6px"><span class="st st-succeeded" title="status: succeeded"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>harbor-labs, 1 repository</dd>
 <dt>Repository</dt><dd class="mono">harbor-labs/invoicer-api</dd>
-<dt>Last webhook</dt><dd class="row" style="gap:6px"><span class="st st-succeeded" title="status: succeeded"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>issue_comment, 2 min ago, accepted</dd>
+<dt>Trigger mode</dt><dd style="display:flex;flex-direction:column;gap:6px"><div class="seg" role="group" aria-label="Trigger mode"><button class="on" aria-pressed="true">Webhook</button><button>Polling</button></div><span class="faint" style="font-size:12.5px">Webhook is near-instant. Polling works without a public URL; runs start up to one interval later.</span></dd>
+<dt>Last event</dt><dd class="row" style="gap:6px"><span class="st st-succeeded" title="status: succeeded"><svg aria-hidden="true" width="12" height="12" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>issue_comment, 2 min ago, accepted (webhook)</dd>
 <dt>Default branch</dt><dd class="mono">main <span class="faint" style="font-family:var(--sans)">protected, bot can commit skills</span></dd></dl>
 <div class="row" style="gap:8px"><a href="https://github.com/" class="btn sm"><svg aria-hidden="true" class="" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg>Manage installation on GitHub</a><button class="btn ghost sm"><svg aria-hidden="true" class="" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 0 0-14.3-4.9L4 8M4 4v4h4M4 13a8 8 0 0 0 14.3 4.9L20 16M20 20v-4h-4"/></svg>Send test ping</button></div></div></section>
 <section style="display:grid;grid-template-columns:260px minmax(0,1fr);gap:32px;padding:22px 0;border-bottom:1px solid var(--line)">
@@ -246,7 +247,7 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 </main></div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 1240}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 1320}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};

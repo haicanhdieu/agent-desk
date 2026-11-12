@@ -9,7 +9,7 @@ export interface RunsProblemsWarning {
   icon: IconName;
   title: string;
   body: string;
-  actions: { label: string; href?: string; icon?: IconName; variant?: 'default' | 'ghost' }[];
+  actions: { label: string; href?: string; icon?: IconName; variant?: 'default' | 'primary' | 'ghost' }[];
 }
 
 export interface RunsProblemsProps extends Omit<RunsPageProps, 'children' | 'banners' | 'filter'> {

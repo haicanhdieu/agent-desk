@@ -15,7 +15,8 @@ const repos = [
 ];
 const repo = 'harbor-labs/invoicer-api';
 
-const s1 = <Setup1 user={user} projectName="invoicer-api" repos={repos} selected={repo} installedOn="harbor-labs" pingAt="14:01:37" />;
+const s1Props = { user, projectName: 'invoicer-api', repos, selected: repo, installedOn: 'harbor-labs' };
+const s1 = <Setup1 {...s1Props} pingAt="14:01:37" />;
 const s2 = (extra = {}) => (
   <Setup2 user={user} projectName="invoicer-api" repo={repo} credentialType="oauth_token" secretState="entering"
     models={['opus (latest Opus)', 'sonnet (latest Sonnet)', 'Custom model id']} maxConcurrent={2}
@@ -32,7 +33,7 @@ const s4 = (
 );
 const ready = (
   <SetupReady user={user} projectName="invoicer-api" repo={repo} label={{ name: 'user-story', color: '#7C8FD8' }} command="/code-build"
-    summary={[{ term: 'Repository', value: repo }]} lastWebhook="ping, 14:01:37" />
+    summary={[{ term: 'Repository', value: repo }]} lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }} />
 );
 
 describe('setup steps', () => {
@@ -73,6 +74,67 @@ describe('Setup1', () => {
     render(s1);
     await userEvent.click(screen.getByRole('radio', { name: /infra-k8s/ }));
     expect(screen.getByRole('radio', { name: /infra-k8s/ })).toBeChecked();
+  });
+});
+
+describe('Setup1 trigger mode', () => {
+  const modeGroup = () => screen.getByRole('radiogroup', { name: 'How Agent Desk hears about new comments' });
+
+  it('defaults to Webhook, with the ping help pointing at Polling and no interval', () => {
+    render(s1);
+    expect(within(modeGroup()).getByRole('radio', { name: 'Webhook' })).toBeChecked();
+    expect(within(modeGroup()).getByRole('radio', { name: 'Webhook' })).toHaveAccessibleDescription('Near-instant. GitHub must reach Agent Desk at a public URL.');
+    expect(within(modeGroup()).getByRole('radio', { name: 'Polling' })).toHaveAccessibleDescription('Works without a public URL. Runs start up to one interval later.');
+    expect(screen.getByText(/Choose Polling instead, or start the webhook relay/)).toBeInTheDocument();
+    expect(screen.queryByRole('radiogroup', { name: 'Check every' })).toBeNull();
+    expect(screen.getByRole('link', { name: 'Continue' })).toBeInTheDocument();
+  });
+
+  it('choosing Polling shows the interval, swaps the aside and hides the webhook ping', async () => {
+    const onModeChange = vi.fn();
+    const onIntervalChange = vi.fn();
+    render(<Setup1 {...s1Props} pingAt="14:01:37" onModeChange={onModeChange} onIntervalChange={onIntervalChange} />);
+    await userEvent.click(within(modeGroup()).getByRole('radio', { name: 'Polling' }));
+    expect(onModeChange).toHaveBeenCalledWith('polling');
+    const interval = screen.getByRole('radiogroup', { name: 'Check every' });
+    expect(within(interval).getAllByRole('radio').map((r) => r.textContent)).toEqual(['5 min', '10 min', '15 min', '30 min']);
+    expect(within(interval).getByRole('radio', { name: '5 min' })).toHaveAttribute('aria-checked', 'true');
+    await userEvent.click(within(interval).getByRole('radio', { name: '10 min' }));
+    expect(onIntervalChange).toHaveBeenCalledWith('10 min');
+    expect(screen.getByText('You can change the mode later in project settings.')).toBeInTheDocument();
+    expect(screen.getByText('Polling and the GitHub rate limit')).toBeInTheDocument();
+    expect(screen.queryByText('If the ping does not arrive')).toBeNull();
+    expect(screen.queryByText('Webhook ping received at 14:01:37')).toBeNull();
+  });
+
+  it('first check: no ping wait, Continue disabled', () => {
+    render(<Setup1 {...s1Props} mode="polling" polling={{ state: 'checking' }} />);
+    expect(screen.getByText('Checking issue comments for the first time')).toBeInTheDocument();
+    expect(screen.getByText('No webhook or relay needed. This takes a few seconds.')).toBeInTheDocument();
+    expect(screen.queryByText(/Waiting for webhook ping/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
+  });
+
+  it('connected: shows interval and last check, Continue enabled', () => {
+    render(<Setup1 {...s1Props} mode="polling" polling={{ state: 'ok', lastChecked: '20s ago' }} />);
+    expect(screen.getByText('Polling every 5 min · last checked 20s ago')).toBeInTheDocument();
+    expect(screen.getByText('Agent Desk can read comments on this repository. A new command starts a run within 5 minutes.')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Continue' })).toBeInTheDocument();
+  });
+
+  it('connected copy follows the chosen interval', () => {
+    render(<Setup1 {...s1Props} mode="polling" pollInterval="15 min" polling={{ state: 'ok', lastChecked: '4 min ago' }} />);
+    expect(screen.getByText('Polling every 15 min · last checked 4 min ago')).toBeInTheDocument();
+    expect(screen.getByText(/starts a run within 15 minutes\.$/)).toBeInTheDocument();
+  });
+
+  it('failed: shows the reason and Retry now, Continue disabled', async () => {
+    const onRetry = vi.fn();
+    render(<Setup1 {...s1Props} mode="polling" polling={{ state: 'failed', reason: 'token revoked' }} onRetry={onRetry} />);
+    expect(screen.getByText('Polling failed: token revoked')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry now' }));
+    expect(onRetry).toHaveBeenCalledOnce();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
   });
 });
 
@@ -154,6 +216,21 @@ describe('SetupReady', () => {
     expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
     expect(screen.getByText('Listening for your first command')).toBeInTheDocument();
     expect(within(screen.getByRole('heading', { level: 1 })).getByText('Trigger your first run from GitHub')).toBeInTheDocument();
+  });
+
+  it('webhook: names the last event and its source', () => {
+    render(ready);
+    expect(screen.getByText(/Last event: ping, 14:01:37 \(webhook\)\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Last webhook/)).toBeNull();
+  });
+
+  it('polling: names the last check instead', () => {
+    render(
+      <SetupReady user={user} projectName="invoicer-api" repo={repo} label={{ name: 'user-story', color: '#7C8FD8' }} command="/code-build"
+        summary={[]} lastEvent={{ mode: 'polling', at: '20s ago' }} />,
+    );
+    expect(screen.getByText(/Last checked: 20s ago \(polling\)\./)).toBeInTheDocument();
+    expect(screen.queryByText(/Last event/)).toBeNull();
   });
 });
 

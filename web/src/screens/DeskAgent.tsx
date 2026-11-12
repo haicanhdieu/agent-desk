@@ -1,15 +1,21 @@
 import { useState, type ReactNode } from 'react';
 import { Button, Field, Select, TextInput, UnitInput } from '@/ds';
-import { DangerZone, KeyValue, SecretField, SettingsSection, type SecretFieldState } from '@/components';
+import { DangerZone, KeyValue, SecretField, SettingsSection, TriggerModeSetting, type SecretFieldState } from '@/components';
 import type { CredentialType } from '@/components';
-import type { AgentSettings } from '@/mocks/types';
+import { connectionCopy as c, DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
+import type { AgentSettings, ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { DeskFrame } from './DeskFrame';
 
 export interface DeskAgentProps {
   settings: AgentSettings;
+  /** GitHub connection rows. A Trigger mode row is added after Repository. */
   github: { term: string; value: ReactNode }[];
   replacingCredential?: boolean;
+  /** Project connection; its mode is the initial trigger mode. Shown in the side nav. */
+  connection?: ConnectionStatus;
+  pollInterval?: PollInterval;
+  onTriggerChange?(trigger: { mode: TriggerMode; interval: PollInterval }): void;
   onSaveLimits?(limits: { timeoutMinutes: number; idleEndMinutes: number; maxConcurrent: number; maxRunsPerTicket: number }): void;
   onDeleteProject?(): void;
   /** Receives the typed replacement token. It is never rendered after submit. */
@@ -18,7 +24,22 @@ export interface DeskAgentProps {
 
 const narrow = { width: 90 };
 
-export function DeskAgent({ settings, github, replacingCredential = false, onSaveLimits, onDeleteProject, onReplaceCredential }: DeskAgentProps) {
+export function DeskAgent({
+  settings, github, replacingCredential = false, connection, pollInterval = DEFAULT_POLL_INTERVAL, onTriggerChange,
+  onSaveLimits, onDeleteProject, onReplaceCredential,
+}: DeskAgentProps) {
+  const [mode, setMode] = useState<TriggerMode>(connection?.mode ?? 'webhook');
+  const [interval, setPollEvery] = useState(pollInterval);
+  const pick = (next: { mode: TriggerMode; interval: PollInterval }) => {
+    setMode(next.mode); setPollEvery(next.interval); onTriggerChange?.(next);
+  };
+  // The trigger mode row sits right after Repository, as on the board.
+  const triggerRow = {
+    term: c.triggerModeTerm,
+    value: <TriggerModeSetting mode={mode} interval={interval} onChange={pick} />,
+  };
+  const at = github.findIndex((g) => g.term === 'Repository') + 1 || github.length;
+  const items = [...github.slice(0, at), triggerRow, ...github.slice(at)];
   const [replacing, setReplacing] = useState(replacingCredential);
   const [credType, setCredType] = useState<CredentialType>(settings.credential.type);
   const [limits, setLimits] = useState({
@@ -28,14 +49,16 @@ export function DeskAgent({ settings, github, replacingCredential = false, onSav
   const set = (k: keyof typeof limits) => (e: { target: { value: string } }) => setLimits({ ...limits, [k]: e.target.value });
   const state: SecretFieldState = replacing ? 'replacing' : 'saved';
   return (
-    <DeskFrame active="agent">
+    <DeskFrame active="agent" connection={connection}>
       <main className={styles.agentMain}>
         <h1>Agent &amp; settings</h1>
         <SettingsSection title="GitHub connection" description="Where commands come from and where agents write.">
-          <KeyValue termWidth={150} items={github} />
+          <KeyValue termWidth={150} items={items} />
           <div className={styles.deskActions}>
             <Button size="sm" icon="external" href="https://github.com/">Manage installation on GitHub</Button>
-            <Button variant="ghost" size="sm" icon="refresh">Send test ping</Button>
+            {mode === 'webhook'
+              ? <Button variant="ghost" size="sm" icon="refresh">Send test ping</Button>
+              : <Button variant="ghost" size="sm" icon="refresh">{c.checkNow}</Button>}
           </div>
         </SettingsSection>
         <SettingsSection title="Agent" description="Every run in this project uses this agent and credential.">

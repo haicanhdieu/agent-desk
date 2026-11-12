@@ -19,7 +19,7 @@ export interface SetupLayoutProps {
   header?: ReactNode;
   children: ReactNode;
   aside?: ReactNode;
-  footer?: { back?: string; skip?: string; next: { label: string; href: string } };
+  footer?: { back?: string; skip?: string; next: { label: string; href: string; disabled?: boolean } };
 }
 
 export function SetupLayout({ user, projectName, steps, current, ready, stepLabel, title, intro, header, children, aside, footer }: SetupLayoutProps) {
@@ -50,7 +50,7 @@ export function SetupLayout({ user, projectName, steps, current, ready, stepLabe
               {footer.back && <Button variant="ghost" icon="chevron-left" href={footer.back}>Back</Button>}
               <span className={styles.spacer} />
               {footer.skip && <Button variant="ghost" href={footer.skip}>Skip</Button>}
-              <Button variant="primary" href={footer.next.href}>{footer.next.label}</Button>
+              <Button variant="primary" href={footer.next.href} disabled={footer.next.disabled}>{footer.next.label}</Button>
             </div>
             )}
           </div>
