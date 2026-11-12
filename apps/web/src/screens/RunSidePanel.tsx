@@ -9,9 +9,11 @@ export interface RunSidePanelProps {
   data: RunDetailData;
   collapsed?: boolean;
   onExpand?(): void;
+  /** In-app hrefs of the Desk pages; default to the prototype's. */
+  links?: { skills?: string; rules?: string };
 }
 
-export function RunSidePanel({ data, collapsed, onExpand }: RunSidePanelProps) {
+export function RunSidePanel({ data, collapsed, onExpand, links }: RunSidePanelProps) {
   const { run } = data;
   const t = run.ticket;
   if (collapsed) {
@@ -39,8 +41,8 @@ export function RunSidePanel({ data, collapsed, onExpand }: RunSidePanelProps) {
   );
 
   const kv = [
-    { term: 'Skill', value: <AppLink className="mono" href="/desk/skills">{run.skill}</AppLink> },
-    { term: 'Rule', value: <AppLink href="/desk/rules"><RuleText rule={data.rule} command={run.command} /></AppLink> },
+    { term: 'Skill', value: <AppLink className="mono" href={links?.skills ?? '/desk/skills'}>{run.skill}</AppLink> },
+    { term: 'Rule', value: <AppLink href={links?.rules ?? '/desk/rules'}><RuleText rule={data.rule} command={run.command} /></AppLink> },
     {
       term: 'Triggered by',
       value: <ActorRef actor={run.triggeredBy} note={data.triggerNote} noteHref={t.href} />,

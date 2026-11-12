@@ -16,6 +16,7 @@ import type {
 } from '@/mocks/types';
 import { IDLE_END_MINUTES } from '../desk/agent.form';
 import { relativeTime } from '../relativeTime';
+import type { CachedRun } from './queries';
 
 const MIN = 60_000;
 
@@ -47,7 +48,7 @@ export function safeHref(url: string): string {
 /** Label colours arrive as 6-digit hex without '#'; anything else gets no swatch. */
 const labelColor = (color: string) => (/^[0-9a-f]{6}$/i.test(color) ? `#${color.toLowerCase()}` : '');
 
-const isFinal = (status: RunDto['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
+export const isFinal = (status: RunDto['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
 
 function statusNote(dto: RunDto, now: Date): string | undefined {
   switch (dto.status) {
@@ -67,16 +68,17 @@ function statusNote(dto: RunDto, now: Date): string | undefined {
 }
 
 /** Final runs: start to finish. Runs still going: start to now. Queued runs: none. */
-function duration(dto: RunDto, now: Date): string | undefined {
+export function duration(dto: RunDto, now: Date): string | undefined {
   if (!dto.startedAt) return undefined;
   const start = Date.parse(dto.startedAt);
   if (isFinal(dto.status)) return dto.finishedAt ? formatDuration(Date.parse(dto.finishedAt) - start) : undefined;
   return formatDuration(now.getTime() - start);
 }
 
-export function toRunSummary(dto: RunDto, now: Date): RunSummary {
+/** A pending cancel or finish ("Cancelling…") shows instead of the derived note. */
+export function toRunSummary(dto: CachedRun, now: Date): RunSummary {
   const login = dto.triggeredBy ?? '—';
-  const note = statusNote(dto, now);
+  const note = dto.statusNote ?? statusNote(dto, now);
   const time = duration(dto, now);
   const labels: Label[] = dto.ticket.labels.map((l) => ({ name: l.name, color: labelColor(l.color) }));
   return {

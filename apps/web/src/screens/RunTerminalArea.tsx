@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { Banner, Button, Popover, StatusIcon, type IconName } from '@/ds';
 import {
   ConnectionIndicator, EventLog, Note, PopoverCard, StartupChecklist, Terminal, TerminalBar, TerminalPane,
@@ -8,6 +9,10 @@ import type { RunDetailData } from '@/mocks';
 export interface RunTerminalAreaProps {
   data: RunDetailData;
   lines?: TermLine[];
+  /** Replaces the static terminal (the live terminal, Task 14). */
+  terminal?: ReactNode;
+  /** A cancel or finish is in flight: Finish waits. */
+  busy?: boolean;
   onFinish?(): void;
   onReconnect?(): void;
 }
@@ -63,7 +68,7 @@ function EndNotice({ data }: { data: RunDetailData }) {
   );
 }
 
-export function RunTerminalArea({ data, lines = [], onFinish, onReconnect }: RunTerminalAreaProps) {
+export function RunTerminalArea({ data, lines = [], terminal, busy, onFinish, onReconnect }: RunTerminalAreaProps) {
   const { run, connection } = data;
   const status = run.status;
   const isEnded = status === 'succeeded' || status === 'failed' || status === 'timed_out' || status === 'cancelled';
@@ -114,7 +119,7 @@ export function RunTerminalArea({ data, lines = [], onFinish, onReconnect }: Run
       centered
       icon={<StatusIcon status="idle" size={20} title="Needs you" />}
       title="The agent finished its turn and is waiting for you"
-      actions={<Button variant="go" icon="check" onClick={onFinish}>Finish run</Button>}
+      actions={<Button variant="go" icon="check" disabled={busy} onClick={onFinish}>Finish run</Button>}
     >
       Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while this page is attached.
     </Banner>
@@ -139,12 +144,14 @@ export function RunTerminalArea({ data, lines = [], onFinish, onReconnect }: Run
 
   return (
     <TerminalPane notice={notice} bar={bar} overlay={overlay}>
-      <Terminal
-        lines={lines}
-        cursor={status === 'idle'}
-        anchor={status === 'failed' || status === 'timed_out' ? 'top' : 'bottom'}
-        dimmed={reconnecting}
-      />
+      {terminal ?? (
+        <Terminal
+          lines={lines}
+          cursor={status === 'idle'}
+          anchor={status === 'failed' || status === 'timed_out' ? 'top' : 'bottom'}
+          dimmed={reconnecting}
+        />
+      )}
     </TerminalPane>
   );
 }

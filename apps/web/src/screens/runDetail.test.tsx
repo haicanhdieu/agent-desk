@@ -195,3 +195,31 @@ describe('RunDetail per state', () => {
     expect(container.textContent).not.toMatch(/sk-ant|ghp_|oauth-token|Bearer /i);
   });
 });
+
+describe('RunDetail app props', () => {
+  it('pendingNote shows in the top bar and holds Finish and Cancel', () => {
+    show('RunIdle', { pendingNote: 'Finishing…' });
+    expect(within(screen.getByRole('banner')).getByRole('status')).toHaveTextContent('Finishing…');
+    for (const b of screen.getAllByRole('button', { name: 'Finish run' })) expect(b).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel run' })).toBeDisabled();
+  });
+
+  it('terminal replaces the static terminal', () => {
+    show('RunRunning', { terminal: <div data-testid="live" /> });
+    expect(screen.getByTestId('live')).toBeInTheDocument();
+    expect(screen.queryByRole('log')).not.toBeInTheDocument();
+  });
+
+  it('links set the breadcrumb and Desk hrefs; cancelBody replaces the confirmation text', () => {
+    show('RunRunning', {
+      links: { projects: '/o/a/projects', runs: '/o/a/p/1/runs', skills: '/o/a/p/1/desk/skills', rules: '/o/a/p/1/desk/rules' },
+      cancelConfirmOpen: true,
+      cancelBody: 'Stops the pod.',
+    });
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByRole('link', { name: 'invoicer-api' })).toHaveAttribute('href', '/o/a/projects');
+    expect(within(crumbs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('href', '/o/a/p/1/runs');
+    expect(screen.getByRole('link', { name: 'code-build' })).toHaveAttribute('href', '/o/a/p/1/desk/skills');
+    expect(screen.getByRole('dialog')).toHaveTextContent('Stops the pod.');
+  });
+});

@@ -21,6 +21,7 @@ import { Route as OOrgPProjectDeskAgentRouteImport } from './routes/o.$org.p.$pr
 import { Route as OOrgPProjectDeskRulesRouteImport } from './routes/o.$org.p.$project.desk.rules';
 import { Route as OOrgPProjectDeskSkillsRouteImport } from './routes/o.$org.p.$project.desk.skills';
 import { Route as OOrgPProjectRunsIndexRouteImport } from './routes/o.$org.p.$project.runs.index';
+import { Route as OOrgPProjectRunsRunRouteImport } from './routes/o.$org.p.$project.runs.$run';
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -82,6 +83,11 @@ const OOrgPProjectRunsIndexRoute = OOrgPProjectRunsIndexRouteImport.update({
   path: '/runs/',
   getParentRoute: () => OOrgPProjectRoute,
 } as any);
+const OOrgPProjectRunsRunRoute = OOrgPProjectRunsRunRouteImport.update({
+  id: '/runs/$run',
+  path: '/runs/$run',
+  getParentRoute: () => OOrgPProjectRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
@@ -95,6 +101,7 @@ export interface FileRoutesByFullPath {
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
+  '/o/$org/p/$project/runs/$run': typeof OOrgPProjectRunsRunRoute;
   '/o/$org/p/$project/runs/': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRoutesByTo {
@@ -108,6 +115,7 @@ export interface FileRoutesByTo {
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
+  '/o/$org/p/$project/runs/$run': typeof OOrgPProjectRunsRunRoute;
   '/o/$org/p/$project/runs': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRoutesById {
@@ -123,6 +131,7 @@ export interface FileRoutesById {
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
+  '/o/$org/p/$project/runs/$run': typeof OOrgPProjectRunsRunRoute;
   '/o/$org/p/$project/runs/': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRouteTypes {
@@ -139,6 +148,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/rules'
     | '/o/$org/p/$project/desk/skills'
+    | '/o/$org/p/$project/runs/$run'
     | '/o/$org/p/$project/runs/';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -152,6 +162,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/rules'
     | '/o/$org/p/$project/desk/skills'
+    | '/o/$org/p/$project/runs/$run'
     | '/o/$org/p/$project/runs';
   id:
     | '__root__'
@@ -166,6 +177,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/rules'
     | '/o/$org/p/$project/desk/skills'
+    | '/o/$org/p/$project/runs/$run'
     | '/o/$org/p/$project/runs/';
   fileRoutesById: FileRoutesById;
 }
@@ -261,6 +273,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgPProjectRunsIndexRouteImport;
       parentRoute: typeof OOrgPProjectRoute;
     };
+    '/o/$org/p/$project/runs/$run': {
+      id: '/o/$org/p/$project/runs/$run';
+      path: '/runs/$run';
+      fullPath: '/o/$org/p/$project/runs/$run';
+      preLoaderRoute: typeof OOrgPProjectRunsRunRouteImport;
+      parentRoute: typeof OOrgPProjectRoute;
+    };
   }
 }
 
@@ -269,6 +288,7 @@ interface OOrgPProjectRouteChildren {
   OOrgPProjectDeskAgentRoute: typeof OOrgPProjectDeskAgentRoute;
   OOrgPProjectDeskRulesRoute: typeof OOrgPProjectDeskRulesRoute;
   OOrgPProjectDeskSkillsRoute: typeof OOrgPProjectDeskSkillsRoute;
+  OOrgPProjectRunsRunRoute: typeof OOrgPProjectRunsRunRoute;
   OOrgPProjectRunsIndexRoute: typeof OOrgPProjectRunsIndexRoute;
 }
 
@@ -277,6 +297,7 @@ const OOrgPProjectRouteChildren: OOrgPProjectRouteChildren = {
   OOrgPProjectDeskAgentRoute: OOrgPProjectDeskAgentRoute,
   OOrgPProjectDeskRulesRoute: OOrgPProjectDeskRulesRoute,
   OOrgPProjectDeskSkillsRoute: OOrgPProjectDeskSkillsRoute,
+  OOrgPProjectRunsRunRoute: OOrgPProjectRunsRunRoute,
   OOrgPProjectRunsIndexRoute: OOrgPProjectRunsIndexRoute,
 };
 
