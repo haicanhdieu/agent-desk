@@ -85,3 +85,17 @@ export const NeedsYou: Story = {
   globals: viewport(1440, 740),
   render: () => <NeedsYouScreen project={project} projects={projects.slice(0, 3)} />,
 };
+
+export const RunsProblemsEmpty: Story = {
+  name: 'Runs, problems, nothing ignored',
+  decorators: artboard(960),
+  globals: viewport(1440, 960),
+  render: () => <RunsProblemsScreen {...common} counts={{ ...counts, ignored: 0 }} ignored={[]} warnings={[]} />,
+};
+
+export const NeedsYouNone: Story = {
+  name: 'Where needs you shows up, no idle run',
+  decorators: artboard(740),
+  globals: viewport(1440, 740),
+  render: () => <NeedsYouScreen project={{ ...project, needsYou: 0 }} projects={projects.slice(0, 3)} runs={[]} />,
+};

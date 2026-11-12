@@ -9,6 +9,10 @@ export type { RunsFilter } from './RunsPage';
 export interface RunsProps extends Omit<RunsPageProps, 'children' | 'banners'> {
   groups: TicketGroup[];
   needsYouRun?: { run: RunSummary; askedAgo: string; slotNote: string; href: string };
+  /** In-app href of a run; defaults to the prototype's `/runs/<id>`. */
+  runHref?(run: RunSummary): string;
+  /** Href for the empty state's "Show all runs" (a link instead of the `onFilter('all')` button). */
+  showAllHref?: string;
 }
 
 const statuses: Record<Exclude<RunsFilter, 'all' | 'ignored'>, RunStatus[]> = {
@@ -39,9 +43,9 @@ const columns = [
   { key: 'actions', header: <span className="sr-only">Actions</span> },
 ];
 
-const runHref = (r: RunSummary) => `/runs/${r.id}`;
+const defaultRunHref = (r: RunSummary) => `/runs/${r.id}`;
 
-function rowActions(run: RunSummary) {
+function rowActions(run: RunSummary, runHref: (r: RunSummary) => string) {
   if (run.status === 'idle') {
     return (
       <>
@@ -54,7 +58,7 @@ function rowActions(run: RunSummary) {
   return null;
 }
 
-export function Runs({ groups, needsYouRun, filter, ...page }: RunsProps) {
+export function Runs({ groups, needsYouRun, filter, runHref = defaultRunHref, showAllHref, ...page }: RunsProps) {
   const shown = filterGroups(groups, filter);
   return (
     <RunsPage {...page} filter={filter}>
@@ -70,7 +74,11 @@ export function Runs({ groups, needsYouRun, filter, ...page }: RunsProps) {
         <EmptyState
           title="No runs match this filter"
           body="Runs appear here when a ticket comment starts one."
-          action={<Button variant="ghost" onClick={() => page.onFilter?.('all')}>Show all runs</Button>}
+          action={
+            showAllHref !== undefined
+              ? <Button variant="ghost" href={showAllHref}>Show all runs</Button>
+              : <Button variant="ghost" onClick={() => page.onFilter?.('all')}>Show all runs</Button>
+          }
         />
       ) : (
         <DataTable columns={columns}>
@@ -82,7 +90,7 @@ export function Runs({ groups, needsYouRun, filter, ...page }: RunsProps) {
                 run={r}
                 tree={i === g.runs.length - 1 ? 'last' : 'mid'}
                 href={runHref(r)}
-                actions={rowActions(r)}
+                actions={rowActions(r, runHref)}
               />
             )),
           ])}

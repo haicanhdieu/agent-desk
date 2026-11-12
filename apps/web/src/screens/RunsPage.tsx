@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button, Icon, SearchInput, StatusIcon } from '@/ds';
-import { FilterChip, FilterChips, TopBar } from '@/components';
+import { FilterChip, FilterChips, TopBar, type TopBarProps } from '@/components';
 import type { Actor, Project } from '@/mocks/types';
 import styles from './Screens.module.css';
 
@@ -15,6 +15,10 @@ export interface RunsPageProps {
   filter: RunsFilter;
   counts: Record<RunsFilter, number>;
   onFilter?(f: RunsFilter): void;
+  /** When set, the chips are links to this href (e.g. `?filter=queued`) instead of buttons. */
+  filterHref?(f: RunsFilter): string;
+  /** In-app hrefs for the top bar. */
+  links?: TopBarProps['links'];
   /** Static banners above the page header. */
   banners?: ReactNode;
   children?: ReactNode;
@@ -30,7 +34,7 @@ const chips: { filter: RunsFilter; label: string }[] = [
 
 /** Top bar plus the single <main> shared by the Runs boards: header, search, chips. */
 export function RunsPage({
-  project, user, needsYou, slots, today, filter, counts, onFilter, banners, children,
+  project, user, needsYou, slots, today, filter, counts, onFilter, filterHref, links, banners, children,
 }: RunsPageProps) {
   return (
     <>
@@ -39,6 +43,7 @@ export function RunsPage({
         active="runs"
         user={user}
         needsYou={needsYou}
+        links={links}
         project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
       />
       <main className={`${styles.runsMain} ${banners ? styles.runsMainBanners : ''}`}>
@@ -69,6 +74,7 @@ export function RunsPage({
                 icon={c.filter === 'needs_you' ? <StatusIcon status="idle" size={12} /> : undefined}
                 on={filter === c.filter}
                 onClick={() => onFilter?.(c.filter)}
+                href={filterHref?.(c.filter)}
               />
             ))}
           </FilterChips>
@@ -78,6 +84,7 @@ export function RunsPage({
             icon={<Icon name="ignored" size={13} />}
             on={filter === 'ignored'}
             onClick={() => onFilter?.('ignored')}
+            href={filterHref?.('ignored')}
           />
         </div>
         {children}

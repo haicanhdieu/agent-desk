@@ -41,6 +41,7 @@
   background: transparent; color: var(--muted); font-size: var(--fs-13);
   display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
 }
+a.fchip, a.fchip:hover { text-decoration: none; }
 .fchip.on { background: var(--raised); color: var(--text); border-color: var(--hover-line); }
 .fchip b { font-weight: 600; color: var(--text); font-variant-numeric: tabular-nums; }
 

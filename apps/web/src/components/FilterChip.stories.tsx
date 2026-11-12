@@ -8,6 +8,8 @@ type Story = StoryObj<typeof meta>;
 
 export const Off: Story = { args: { label: 'Running', count: 1, on: false, onClick: () => {} } };
 export const On: Story = { args: { label: 'All', count: 7, on: true, onClick: () => {} } };
+/** A chip that is a link to a filtered URL (the Runs page). */
+export const AsLink: Story = { args: { label: 'Queued', count: 1, on: false, href: '/runs?filter=queued' } };
 
 function GroupDemo() {
   const [sel, setSel] = useState('All');

@@ -90,6 +90,26 @@ describe('Runs', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 
+  it('renders the chips as links when filterHref is given', () => {
+    render(<Runs {...base} filter="queued" filterHref={(f) => `/runs?filter=${f}`} />);
+    const group = screen.getByRole('group', { name: 'Filter by status' });
+    expect(within(group).getByRole('link', { name: /^Queued/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(group).getByRole('link', { name: /^All/ })).toHaveAttribute('href', '/runs?filter=all');
+    expect(within(group).getByRole('link', { name: /^All/ })).not.toHaveAttribute('aria-current');
+    expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute('href', '/runs?filter=ignored');
+  });
+
+  it('uses runHref for run links and showAllHref for the empty state', () => {
+    render(<Runs {...base} filter="all" runHref={(r) => `/p/x/runs/${r.id}`} />);
+    expect(screen.getByRole('link', { name: 'Run 61' })).toHaveAttribute('href', '/p/x/runs/61');
+    expect(screen.getByRole('link', { name: 'Watch' })).toHaveAttribute('href', '/p/x/runs/61');
+  });
+
+  it('links "Show all runs" when showAllHref is given', () => {
+    render(<Runs {...base} groups={[]} filter="queued" showAllHref="/p/x/runs" />);
+    expect(screen.getByRole('link', { name: 'Show all runs' })).toHaveAttribute('href', '/p/x/runs');
+  });
+
   it('gives long ticket titles an ellipsis title attribute', () => {
     const long = 'x'.repeat(200);
     const groups = [{ ...ticketGroups[0], ticket: { ...ticketGroups[0].ticket, title: long } }];
@@ -146,6 +166,26 @@ describe('NeedsYou', () => {
     expect(screen.getAllByRole('figure')).toHaveLength(4);
     expect(screen.getByText('(1) Needs you, invoicer-api')).toBeInTheDocument();
     expect(screen.getByText('Run 62 needs you')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', '/runs/62');
+  });
+
+  it('lists the given idle runs with their hrefs, or says none need you', () => {
+    const run = runs.find((r) => r.id === 62)!;
+    const { unmount } = render(
+      <NeedsYou project={project} projects={projects} runs={[{ run, href: '/p/x/runs/62', idleAt: '14:13', endsAt: '14:23' }]} />,
+    );
+    expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', '/p/x/runs/62');
+    unmount();
+    render(<NeedsYou project={project} projects={projects} runs={[]} />);
+    expect(screen.getAllByText('No runs need you right now.')).toHaveLength(2);
+    expect(screen.queryByRole('link', { name: /^Open run/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('RunsProblems empty', () => {
+  it('shows an empty state when nothing was ignored', () => {
+    render(<RunsProblems {...base} filter="ignored" warnings={[]} ignored={[]} />);
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'No ignored commands' })).toBeInTheDocument();
   });
 });

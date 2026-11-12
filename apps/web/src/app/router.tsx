@@ -3,6 +3,7 @@ import { createRouter, type AnyRoute, type RouterHistory } from '@tanstack/react
 import { registerSignOutTarget } from '@/features/auth/signOut';
 import { NotFound, RouteError, RoutePending } from './boundaries';
 import { routeTree } from './routeTree.gen';
+import { parseSearch, stringifySearch } from './searchParams';
 
 export interface CreateAppRouterOptions {
   queryClient: QueryClient;
@@ -22,6 +23,9 @@ function routerDefaults({ queryClient, history }: CreateAppRouterOptions) {
     defaultPendingComponent: RoutePending,
     defaultErrorComponent: RouteError,
     defaultNotFoundComponent: NotFound,
+    // Plain `?ticket=12`, not TanStack's JSON-quoted default (see searchParams.ts).
+    parseSearch,
+    stringifySearch,
   };
 }
 

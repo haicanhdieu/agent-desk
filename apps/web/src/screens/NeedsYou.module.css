@@ -14,3 +14,4 @@
 .notify { display: flex; gap: 12px; padding: 14px 16px; background: var(--notify-bg); }
 .notifyText { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-13_5); }
 .notifyText b { font-weight: 600; }
+.none { margin: 0; padding: 14px 16px; font-size: var(--fs-13); }

@@ -18,9 +18,11 @@ export function TicketGroupRow({ group, colSpan }: { group: TicketGroup; colSpan
           {group.chainNote && <span className={styles.chain}>{group.chainNote}</span>}
           <span className={styles.grow} />
           <span className={`${styles.faint} ${styles.num}`}>{group.runsUsed} of {group.runsMax} runs</span>
-          <a href={ticket.href} className={styles.faint} aria-label={`Open #${ticket.number} in GitHub`}>
-            <Icon name="external" size={13} />
-          </a>
+          {ticket.href && (
+            <a href={ticket.href} className={styles.faint} aria-label={`Open #${ticket.number} in GitHub`}>
+              <Icon name="external" size={13} />
+            </a>
+          )}
         </div>
       </td>
     </tr>

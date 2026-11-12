@@ -123,7 +123,7 @@ export const projectConnectionFixtures: Record<string, ProjectConnectionDto> = {
   [ids.project.storefront]: { mode: 'webhook', webhook: { lastEventAt: null, lastEventAction: null }, polling: null },
 };
 
-// Mirrors mocks/ignored.ts (RunsProblems "Ignored commands"). `outcome` is the machine reason the mapper words.
+// Mirrors mocks/ignored.ts (RunsProblems "Ignored commands"). `outcome` is the router's `ignored_*` value the mapper words.
 const ignored = (
   n: number,
   receivedAt: string,
@@ -151,7 +151,7 @@ export const ignoredFixtures: Record<string, IgnoredEventDto[]> = {
       { kind: 'issue', number: 160 },
       'code-build',
       'octo-visitor',
-      'no_write_access',
+      'ignored_unauthorized',
       'octo-visitor is not a collaborator on the repo.',
     ),
     ignored(
@@ -160,7 +160,7 @@ export const ignoredFixtures: Record<string, IgnoredEventDto[]> = {
       { kind: 'pr', number: 133 },
       'code-review',
       'agent-desk[bot]',
-      'run_limit',
+      'ignored_max_runs',
       'PR #133 already has 10 runs. Raise the limit or start a new ticket.',
     ),
     ignored(
@@ -169,7 +169,7 @@ export const ignoredFixtures: Record<string, IgnoredEventDto[]> = {
       { kind: 'pr', number: 148 },
       'code-review',
       'kim-hale',
-      'already_running',
+      'ignored_active_run',
       'Run 62 (code-review) is still active on this ticket.',
     ),
     ignored(
@@ -178,7 +178,7 @@ export const ignoredFixtures: Record<string, IgnoredEventDto[]> = {
       { kind: 'issue', number: 158 },
       'code-build',
       'kim-hale',
-      'label_missing',
+      'ignored_labels',
       'Rule needs label user-story. The issue has: bug.',
     ),
     ignored(
@@ -187,7 +187,7 @@ export const ignoredFixtures: Record<string, IgnoredEventDto[]> = {
       { kind: 'issue', number: 131 },
       'deploy',
       'kim-hale',
-      'no_rule',
+      'ignored_no_rule',
       'No enabled rule uses /deploy.',
     ),
   ],

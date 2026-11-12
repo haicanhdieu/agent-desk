@@ -15,10 +15,12 @@ import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
+import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
 import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
 import { Route as OOrgPProjectDeskAgentRouteImport } from './routes/o.$org.p.$project.desk.agent';
 import { Route as OOrgPProjectDeskRulesRouteImport } from './routes/o.$org.p.$project.desk.rules';
 import { Route as OOrgPProjectDeskSkillsRouteImport } from './routes/o.$org.p.$project.desk.skills';
+import { Route as OOrgPProjectRunsIndexRouteImport } from './routes/o.$org.p.$project.runs.index';
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -50,6 +52,11 @@ const OOrgProjectsIndexRoute = OOrgProjectsIndexRouteImport.update({
   path: '/projects/',
   getParentRoute: () => OOrgRoute,
 } as any);
+const OOrgPProjectNeedsYouRoute = OOrgPProjectNeedsYouRouteImport.update({
+  id: '/needs-you',
+  path: '/needs-you',
+  getParentRoute: () => OOrgPProjectRoute,
+} as any);
 const OOrgProjectsNewStepRoute = OOrgProjectsNewStepRouteImport.update({
   id: '/projects/new/$step',
   path: '/projects/new/$step',
@@ -70,6 +77,11 @@ const OOrgPProjectDeskSkillsRoute = OOrgPProjectDeskSkillsRouteImport.update({
   path: '/desk/skills',
   getParentRoute: () => OOrgPProjectRoute,
 } as any);
+const OOrgPProjectRunsIndexRoute = OOrgPProjectRunsIndexRouteImport.update({
+  id: '/runs/',
+  path: '/runs/',
+  getParentRoute: () => OOrgPProjectRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
@@ -78,10 +90,12 @@ export interface FileRoutesByFullPath {
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
+  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
+  '/o/$org/p/$project/runs/': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
@@ -89,10 +103,12 @@ export interface FileRoutesByTo {
   '/o/$org': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
+  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
+  '/o/$org/p/$project/runs': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -102,10 +118,12 @@ export interface FileRoutesById {
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
+  '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
   '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
+  '/o/$org/p/$project/runs/': typeof OOrgPProjectRunsIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
@@ -116,10 +134,12 @@ export interface FileRouteTypes {
     | '/o/$org/'
     | '/o/$org/p/$project'
     | '/o/$org/projects/'
+    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/rules'
-    | '/o/$org/p/$project/desk/skills';
+    | '/o/$org/p/$project/desk/skills'
+    | '/o/$org/p/$project/runs/';
   fileRoutesByTo: FileRoutesByTo;
   to:
     | '/'
@@ -127,10 +147,12 @@ export interface FileRouteTypes {
     | '/o/$org'
     | '/o/$org/p/$project'
     | '/o/$org/projects'
+    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/rules'
-    | '/o/$org/p/$project/desk/skills';
+    | '/o/$org/p/$project/desk/skills'
+    | '/o/$org/p/$project/runs';
   id:
     | '__root__'
     | '/'
@@ -139,10 +161,12 @@ export interface FileRouteTypes {
     | '/o/$org/'
     | '/o/$org/p/$project'
     | '/o/$org/projects/'
+    | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
     | '/o/$org/p/$project/desk/rules'
-    | '/o/$org/p/$project/desk/skills';
+    | '/o/$org/p/$project/desk/skills'
+    | '/o/$org/p/$project/runs/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -195,6 +219,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgProjectsIndexRouteImport;
       parentRoute: typeof OOrgRoute;
     };
+    '/o/$org/p/$project/needs-you': {
+      id: '/o/$org/p/$project/needs-you';
+      path: '/needs-you';
+      fullPath: '/o/$org/p/$project/needs-you';
+      preLoaderRoute: typeof OOrgPProjectNeedsYouRouteImport;
+      parentRoute: typeof OOrgPProjectRoute;
+    };
     '/o/$org/projects/new/$step': {
       id: '/o/$org/projects/new/$step';
       path: '/projects/new/$step';
@@ -223,19 +254,30 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgPProjectDeskSkillsRouteImport;
       parentRoute: typeof OOrgPProjectRoute;
     };
+    '/o/$org/p/$project/runs/': {
+      id: '/o/$org/p/$project/runs/';
+      path: '/runs';
+      fullPath: '/o/$org/p/$project/runs/';
+      preLoaderRoute: typeof OOrgPProjectRunsIndexRouteImport;
+      parentRoute: typeof OOrgPProjectRoute;
+    };
   }
 }
 
 interface OOrgPProjectRouteChildren {
+  OOrgPProjectNeedsYouRoute: typeof OOrgPProjectNeedsYouRoute;
   OOrgPProjectDeskAgentRoute: typeof OOrgPProjectDeskAgentRoute;
   OOrgPProjectDeskRulesRoute: typeof OOrgPProjectDeskRulesRoute;
   OOrgPProjectDeskSkillsRoute: typeof OOrgPProjectDeskSkillsRoute;
+  OOrgPProjectRunsIndexRoute: typeof OOrgPProjectRunsIndexRoute;
 }
 
 const OOrgPProjectRouteChildren: OOrgPProjectRouteChildren = {
+  OOrgPProjectNeedsYouRoute: OOrgPProjectNeedsYouRoute,
   OOrgPProjectDeskAgentRoute: OOrgPProjectDeskAgentRoute,
   OOrgPProjectDeskRulesRoute: OOrgPProjectDeskRulesRoute,
   OOrgPProjectDeskSkillsRoute: OOrgPProjectDeskSkillsRoute,
+  OOrgPProjectRunsIndexRoute: OOrgPProjectRunsIndexRoute,
 };
 
 const OOrgPProjectRouteWithChildren = OOrgPProjectRoute._addFileChildren(

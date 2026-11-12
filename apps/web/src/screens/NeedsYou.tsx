@@ -1,17 +1,39 @@
-import { Icon } from '@/ds';
-import { GitHubComment, ProjectMenu, ProjectStrip, SurfaceCard } from '@/components';
+import { AppLink, Icon } from '@/ds';
+import { GitHubComment, ProjectMenu, ProjectStrip, SurfaceCard, TopBar, type TopBarProps } from '@/components';
 import { menuWarning } from '@/mocks/connection';
-import type { Project } from '@/mocks/types';
+import { runs as runFixtures } from '@/mocks';
+import type { Actor, Project, RunSummary } from '@/mocks/types';
 import styles from './Screens.module.css';
 import mock from './NeedsYou.module.css';
+
+/** A run waiting for someone: the run, its in-app href, when it went idle and when it ends on its own ("HH:mm"). */
+export interface NeedsYouRun {
+  run: RunSummary;
+  href: string;
+  idleAt: string;
+  endsAt: string;
+}
 
 export interface NeedsYouProps {
   project: Project;
   projects: Project[];
+  /** Idle runs of the project; defaults to the board's Run 62. */
+  runs?: NeedsYouRun[];
+  /** Href of a project in the switcher; defaults to '#'. */
+  projectHref?(p: Project): string;
+  /** In the app the page gets the project top bar; the board has none. */
+  topBar?: { user: Actor; links?: TopBarProps['links'] };
 }
 
-export function NeedsYou({ project, projects }: NeedsYouProps) {
-  return (
+const boardRun = runFixtures.find((r) => r.id === 62);
+const boardRuns: NeedsYouRun[] = boardRun ? [{ run: boardRun, href: '/runs/62', idleAt: '14:13', endsAt: '14:23' }] : [];
+
+const ticketLabel = (r: RunSummary) => `${r.ticket.kind === 'pr' ? 'PR' : 'issue'} #${r.ticket.number}`;
+
+export function NeedsYou({ project, projects, runs = boardRuns, projectHref = () => '#', topBar }: NeedsYouProps) {
+  const first = runs[0];
+  const none = <p className={`muted ${mock.none}`}>No runs need you right now.</p>;
+  const main = (
     <main className={styles.needsMain}>
       <div className={styles.needsHead}>
         <h1>Where "needs you" shows up</h1>
@@ -47,30 +69,54 @@ export function NeedsYou({ project, projects }: NeedsYouProps) {
                 warning: menuWarning(p.connection),
                 warningTone: p.connection.tone === 'err' ? 'err' : 'idle',
                 current: p.id === project.id,
-                href: '#',
+                href: projectHref(p),
               }))}
             />
           </div>
         </SurfaceCard>
         <SurfaceCard caption="On GitHub: the bot edits its own start comment as the run changes state, so the ticket shows &quot;waiting for your input&quot; without a new comment or extra notification noise.">
-          <GitHubComment author="agent-desk[bot]" bot meta="commented on PR #148, edited 14:13">
-            <span><b>Run 62</b> <span className="mono">code-review</span> is waiting for your input.</span>
-            <span className={`muted ${styles.ghSub}`}>
-              Started 14:09 by a <span className="mono">/code-review</span> comment from agent-desk[bot]. It ends on its own at 14:23 if nobody opens it.
-            </span>
-            <a href="/runs/62">Open run 62 in Agent Desk</a>
-          </GitHubComment>
+          {runs.length === 0 && none}
+          {runs.map(({ run, href, idleAt, endsAt }) => (
+            <GitHubComment
+              key={run.id}
+              author="agent-desk[bot]"
+              bot
+              meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
+            >
+              <span><b>Run {run.id}</b> <span className="mono">{run.skill}</span> is waiting for your input.</span>
+              <span className={`muted ${styles.ghSub}`}>
+                Started {run.startedAt} by a <span className="mono">{run.command}</span> comment from {run.triggeredBy.login}. It ends on its own at {endsAt} if nobody opens it.
+              </span>
+              <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
+            </GitHubComment>
+          ))}
         </SurfaceCard>
         <SurfaceCard caption="Desktop notification, opt-in from the bell in the top bar. Sent once when a run becomes idle, again 2 minutes before auto-finish.">
-          <div className={mock.notify}>
-            <Icon name="brand" size={28} strokeWidth={1.4} />
-            <div className={mock.notifyText}>
-              <b>Run 62 needs you</b>
-              <span className="muted">code-review on PR #148 asked a question</span>
+          {first ? (
+            <div className={mock.notify}>
+              <Icon name="brand" size={28} strokeWidth={1.4} />
+              <div className={mock.notifyText}>
+                <b>Run {first.run.id} needs you</b>
+                <span className="muted">{first.run.skill} on {ticketLabel(first.run)} asked a question</span>
+              </div>
             </div>
-          </div>
+          ) : none}
         </SurfaceCard>
       </div>
     </main>
+  );
+  if (!topBar) return main;
+  return (
+    <>
+      <TopBar
+        variant="project"
+        active="runs"
+        user={topBar.user}
+        needsYou={project.needsYou}
+        links={topBar.links}
+        project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
+      />
+      {main}
+    </>
   );
 }

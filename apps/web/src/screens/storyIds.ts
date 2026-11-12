@@ -45,6 +45,8 @@ export const stateStories = {
   Setup1PollingFailed: { title: setup, exportName: 'Setup1PollingFailed', board: 'Setup1PollingOk' },
   SetupReadyPolling: { title: setup, exportName: 'SetupReadyPolling', board: 'SetupReady' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
+  RunsProblemsEmpty: { title: runs, exportName: 'RunsProblemsEmpty', board: 'RunsProblems' },
+  NeedsYouNone: { title: runs, exportName: 'NeedsYouNone', board: 'NeedsYou' },
   DeskAgentPolling: { title: desk, exportName: 'DeskAgentPolling', board: 'DeskAgent' },
   DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
   DeskAgentSaveErrors: { title: desk, exportName: 'DeskAgentSaveErrors', board: 'DeskAgent' },
