@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -62,6 +63,7 @@ async function openPage() {
 }
 
 const field = (label: string) => screen.getByLabelText(label);
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('desk agent route', () => {
   it('shows the agent, credential, limits and connection from the API', async () => {
@@ -131,12 +133,53 @@ describe('desk agent route', () => {
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
   });
 
-  it('nothing changed: Save limits sends nothing', async () => {
+  it('the idle limit is read-only and never sent', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    const idle = field('End idle runs after');
+    expect(idle).toHaveAttribute('readonly');
+    expect(idle).toHaveValue('10');
+    await user.type(idle, '5');
+    expect(idle).toHaveValue('10');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    await sleep(50);
+    expect(sent).toHaveLength(0);
+    expect(screen.queryByText('Limits saved')).toBeNull();
+  });
+
+  it('nothing changed: Save limits sends nothing and shows no toast', async () => {
     const sent = captureWrites();
     const { user } = await openPage();
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
-    expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await sleep(50);
     expect(sent).toHaveLength(0);
+    expect(screen.queryByText('Limits saved')).toBeNull();
+  });
+
+  it('one limit request fails, the other saves; the retry resends only the failed field', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    const concurrent = field('Concurrent runs');
+    await user.clear(concurrent);
+    await user.type(concurrent, '3');
+    const timeout = field('Run time limit');
+    await user.clear(timeout);
+    await user.type(timeout, '60');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+
+    await waitFor(() => expect(timeout).toHaveAttribute('aria-invalid', 'true'));
+    expect(concurrent).not.toHaveAttribute('aria-invalid');
+    expect(projectRow().maxConcurrentRuns).toBe(3);
+    expect(screen.queryByText('Limits saved')).toBeNull();
+
+    sent.length = 0;
+    await user.clear(timeout);
+    await user.type(timeout, '45');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await waitFor(() => expect(sent.every((x) => x.body !== undefined)).toBe(true));
+    expect(sent).toEqual([{ method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 2700 } }]);
+    expect(timeout).not.toHaveAttribute('aria-invalid');
   });
 
   it('a double click on Save limits sends one save', async () => {
@@ -172,13 +215,44 @@ describe('desk agent route', () => {
     expect(within(interval).getByRole('radio', { name: '30 min' })).toHaveAttribute('aria-checked', 'true');
   });
 
-  it('a failed trigger mode change goes back to the saved mode and shows the error', async () => {
+  it('a failed trigger mode change goes back to the saved mode and shows the problem title', async () => {
     const { user } = await openPage();
-    scenarios.serverError('projects.update');
+    scenarios.problem('projects.update', {
+      status: 503,
+      title: 'Polling unavailable',
+      detail: 'The poller is restarting; try again in a minute.',
+    });
     await user.click(screen.getByRole('radio', { name: 'Polling' }));
-    expect(await screen.findByText('Internal server error')).toBeInTheDocument();
+    expect(await screen.findByText('Polling unavailable')).toBeInTheDocument();
+    expect(screen.queryByText(/The poller is restarting/)).toBeNull();
     await waitFor(() => expect(screen.getByRole('radio', { name: 'Webhook' })).toHaveAttribute('aria-checked', 'true'));
     expect(projectRow().triggerMode).toBe('webhook');
+  });
+
+  it('an older trigger save failing late does not undo a newer pick', async () => {
+    let call = 0;
+    server.use(
+      http.patch(`*${projectPath}`, async () => {
+        call += 1;
+        if (call !== 1) return undefined;
+        await sleep(80);
+        return HttpResponse.json(
+          { type: 'urn:agentdesk:problem:internal', title: 'Internal server error', status: 500 },
+          { status: 500, headers: { 'content-type': 'application/problem+json' } },
+        );
+      }),
+    );
+    const { user } = await openPage();
+    await user.click(screen.getByRole('radio', { name: 'Polling' }));
+    const interval = screen.getByRole('radiogroup', { name: 'Check every' });
+    await user.click(within(interval).getByRole('radio', { name: '30 min' }));
+
+    await waitFor(() => expect(projectRow()).toMatchObject({ triggerMode: 'polling', pollIntervalSeconds: 1800 }));
+    expect(await screen.findByText('Polling every 30 min')).toBeInTheDocument();
+    expect(call).toBe(2);
+    expect(screen.queryByText('Internal server error')).toBeNull();
+    expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
+    expect(within(interval).getByRole('radio', { name: '30 min' })).toHaveAttribute('aria-checked', 'true');
   });
 
   it('replacing the credential sends { type, value } and the secret is in no Query or mutation cache entry', async () => {

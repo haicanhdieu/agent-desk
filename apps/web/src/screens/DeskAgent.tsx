@@ -32,6 +32,8 @@ export interface DeskAgentProps {
   limitsError?: string;
   /** A limits save is in flight: Save limits stays disabled. */
   savingLimits?: boolean;
+  /** The idle limit is shown but cannot be changed here (no API field for it yet). */
+  idleReadOnly?: boolean;
   /** Called after the delete is confirmed in a dialog. */
   onDeleteProject?(): void;
   /**
@@ -47,7 +49,8 @@ const deleteBody = 'Removes rules, run history and the stored credential. Skills
 
 export function DeskAgent({
   frame, settings, github, replacingCredential = false, connection, pollInterval = DEFAULT_POLL_INTERVAL, trigger,
-  onTriggerChange, triggerError, onSaveLimits, limitsErrors = {}, limitsError, savingLimits = false, onDeleteProject,
+  onTriggerChange, triggerError, onSaveLimits, limitsErrors = {}, limitsError, savingLimits = false, idleReadOnly = false,
+  onDeleteProject,
   onReplaceCredential, credentialError,
 }: DeskAgentProps) {
   const [ownMode, setMode] = useState<TriggerMode>(connection?.mode ?? 'webhook');
@@ -121,7 +124,7 @@ export function DeskAgent({
               {({ id, describedBy, invalid }) => <UnitInput id={id} aria-describedby={describedBy} aria-invalid={invalid} unit="minutes" value={limits.timeout} onChange={set('timeout')} />}
             </Field>
             <Field label="End idle runs after" help="Only counts while no terminal is open." error={limitsErrors.idleEndMinutes}>
-              {({ id, describedBy, invalid }) => <UnitInput id={id} aria-describedby={describedBy} aria-invalid={invalid} unit="minutes unattended" value={limits.idle} onChange={set('idle')} />}
+              {({ id, describedBy, invalid }) => <UnitInput id={id} aria-describedby={describedBy} aria-invalid={invalid} unit="minutes unattended" value={limits.idle} readOnly={idleReadOnly} onChange={set('idle')} />}
             </Field>
             <Field label="Concurrent runs" help="Idle runs count. Extra runs wait in the queue." error={limitsErrors.maxConcurrent}>
               {({ id, describedBy, invalid }) => <TextInput numeric id={id} aria-describedby={describedBy} aria-invalid={invalid} inputMode="numeric" style={narrow} value={limits.concurrent} onChange={set('concurrent')} />}

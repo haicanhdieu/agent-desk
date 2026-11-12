@@ -13,7 +13,7 @@ import { deskQueries } from './queries';
 
 /**
  * The idle timeout is fixed on the server (10 min, control-plane spec §5) and no contract field carries it, so the
- * field shows the server's value and a save never sends it (CONTRACT-GAPS.md).
+ * field shows the server's value read-only and a save never sends it (CONTRACT-GAPS.md).
  */
 export const IDLE_END_MINUTES = 10;
 
@@ -49,7 +49,8 @@ export interface LimitsRequests {
 
 /**
  * What a limits save sends: only the fields changed since `base` (what the form opened with, or last saved), so a
- * limit changed elsewhere meanwhile is not overwritten. Minutes become seconds for the agent.
+ * limit changed elsewhere meanwhile is not overwritten. Minutes become seconds for the agent. The idle limit is never
+ * compared or sent (see `IDLE_END_MINUTES`).
  */
 export function limitsRequests(base: AgentLimits, next: AgentLimits): LimitsRequests {
   const changed = (k: LimitField) => !Object.is(base[k], next[k]);
@@ -69,6 +70,13 @@ export const LIMIT_POINTERS: Record<string, LimitField> = {
   '/maxConcurrentRuns': 'maxConcurrent',
   '/maxRunsPerTicket': 'maxRunsPerTicket',
 };
+
+const LIMIT_FIELDS: ReadonlySet<string> = new Set(Object.values(LIMIT_POINTERS));
+const isLimitField = (k: string): k is LimitField => LIMIT_FIELDS.has(k);
+
+/** True when a limits save has something to send. */
+export const hasLimitChanges = (req: LimitsRequests): boolean =>
+  req.project !== undefined || req.timeoutSeconds !== undefined;
 
 /**
  * Saves the limits: `projects.update` for the run limits and `agents.put` for the timeout, in parallel. `agents.put`
@@ -104,12 +112,15 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
 
   const save = async (next: AgentLimits) => {
     if (inFlight.current) return;
+    const requests = limitsRequests(base.current, next);
+    // Nothing changed since the last save: nothing to send and nothing to confirm.
+    if (!hasLimitChanges(requests)) return;
     inFlight.current = true;
     setSaving(true);
     setErrors({});
     setFormError(undefined);
     try {
-      const { project, timeoutSeconds } = limitsRequests(base.current, next);
+      const { project, timeoutSeconds } = requests;
       const results = await Promise.allSettled([
         project && saveProject(project),
         timeoutSeconds !== undefined && saveTimeout(timeoutSeconds),
@@ -120,10 +131,7 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
         if (r.status === 'fulfilled') continue;
         const problem = fieldErrorsFromProblem(r.reason, LIMIT_POINTERS);
         // The problem's fields are keyed by the map's values, i.e. limit fields.
-        for (const [k, v] of Object.entries(problem.fields)) {
-          const f = Object.values(LIMIT_POINTERS).find((x) => x === k);
-          if (f) fields[f] ??= v;
-        }
+        for (const [k, v] of Object.entries(problem.fields)) if (isLimitField(k)) fields[k] ??= v;
         if (problem.form) forms.push(problem.form);
       }
       if (project) void qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true });

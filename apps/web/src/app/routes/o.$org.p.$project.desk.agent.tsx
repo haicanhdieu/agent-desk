@@ -41,7 +41,8 @@ function DeskAgentPage() {
   const credential = useReplaceCredential(org, projectId, agent.id);
 
   // Trigger mode: the pick shows at once and is saved; while saves are in flight the latest pick shows, after a
-  // failure the saved mode shows again with the message.
+  // failure the saved mode shows again with the problem title (spec §6). Every save settles through its own promise;
+  // only the latest pick's outcome is shown, so an older save failing late never hides a newer pick.
   const saveTrigger = useSaveTrigger(org, projectId);
   const triggerSeq = useRef(0);
   const [picked, setPicked] = useState<Trigger>();
@@ -50,19 +51,17 @@ function DeskAgentPage() {
     const n = ++triggerSeq.current;
     setPicked(next);
     setTriggerError(undefined);
-    saveTrigger.mutate(
-      {
+    const settle = (e?: unknown) => {
+      if (n !== triggerSeq.current) return;
+      setPicked(undefined);
+      if (e !== undefined) setTriggerError(e instanceof ApiError ? e.title : 'Something went wrong. Try again.');
+    };
+    void saveTrigger
+      .mutateAsync({
         triggerMode: next.mode,
         ...(next.mode === 'polling' && { pollIntervalSeconds: pollSeconds(next.interval) }),
-      },
-      {
-        onSettled: (_saved, e) => {
-          if (n !== triggerSeq.current) return;
-          setPicked(undefined);
-          if (e) setTriggerError(e instanceof ApiError ? e.detail ?? e.title : 'Something went wrong. Try again.');
-        },
-      },
-    );
+      })
+      .then(() => settle(), settle);
   };
 
   const remove = useDeleteProject(org, projectId);
@@ -105,6 +104,7 @@ function DeskAgentPage() {
       limitsErrors={limits.errors}
       limitsError={limits.formError}
       savingLimits={limits.saving}
+      idleReadOnly
       onReplaceCredential={credential.replace}
       credentialError={credential.error}
       onDeleteProject={onDeleteProject}

@@ -2,7 +2,7 @@ import type { AgentDto, ProjectDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { agentFixtures } from '@/mocks/dto/agents';
 import { projectFixtures } from '@/mocks/dto/projects';
-import { IDLE_END_MINUTES, limitsOf, limitsRequests, toAgentSettings } from './agent.form';
+import { hasLimitChanges, IDLE_END_MINUTES, limitsOf, limitsRequests, toAgentSettings } from './agent.form';
 
 const now = new Date('2026-11-12T14:14:00.000Z');
 
@@ -37,6 +37,13 @@ describe('toAgentSettings', () => {
 describe('limitsRequests', () => {
   it('nothing changed → nothing to send', () => {
     expect(limitsRequests(base, { ...base })).toEqual({});
+    expect(hasLimitChanges(limitsRequests(base, { ...base }))).toBe(false);
+  });
+
+  it('only the idle limit changed → nothing to send', () => {
+    const req = limitsRequests(base, { ...base, idleEndMinutes: 30 });
+    expect(req).toEqual({});
+    expect(hasLimitChanges(req)).toBe(false);
   });
 
   it('only changed project limits go to the project; the idle field is never sent', () => {

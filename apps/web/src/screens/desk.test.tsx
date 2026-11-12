@@ -237,6 +237,14 @@ describe('DeskAgent', () => {
     expect(screen.getByRole('button', { name: 'Save limits' })).toBeDisabled();
   });
 
+  it('idleReadOnly makes End idle runs after read-only; by default it is editable', () => {
+    const { unmount } = render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} idleReadOnly />);
+    expect(screen.getByLabelText('End idle runs after')).toHaveAttribute('readonly');
+    unmount();
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} />);
+    expect(screen.getByLabelText('End idle runs after')).not.toHaveAttribute('readonly');
+  });
+
   it('a controlled trigger shows the given mode with its error', () => {
     render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} trigger={{ mode: 'polling', interval: '15 min' }} triggerError="Internal server error" />);
     expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
