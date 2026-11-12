@@ -3,9 +3,11 @@ import { Button } from '@/ds';
 import { EmptyState, GuardsCard, RuleForm, RuleRow, SidePane, type RuleDraft } from '@/components';
 import type { Rule } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame } from './DeskFrame';
+import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
 export interface DeskRulesProps {
+  /** Top bar and Desk navigation data. */
+  frame: DeskFrameData;
   rules: Rule[];
   /** Skill names offered in the rule form. */
   skills: string[];
@@ -49,11 +51,11 @@ function RulePane({
 }
 
 export function DeskRules({
-  rules, skills, editingId, maxRunsPerTicket, onToggle, onNew, onEdit, onMore, onClose, onSave, onDelete,
+  frame, rules, skills, editingId, maxRunsPerTicket, onToggle, onNew, onEdit, onMore, onClose, onSave, onDelete,
 }: DeskRulesProps) {
   const editing = rules.find((r) => r.id === editingId);
   return (
-    <DeskFrame active="rules">
+    <DeskFrame active="rules" {...frame}>
       <main className={styles.rulesMain}>
         <div className={styles.rulesCol}>
           <div className={styles.split}>

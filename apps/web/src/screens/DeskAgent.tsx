@@ -5,9 +5,11 @@ import type { CredentialType } from '@/components';
 import { connectionCopy as c, DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
 import type { AgentSettings, ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame } from './DeskFrame';
+import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
 export interface DeskAgentProps {
+  /** Top bar and Desk navigation data. */
+  frame: DeskFrameData;
   settings: AgentSettings;
   /** GitHub connection rows. A Trigger mode row is added after Repository. */
   github: { term: string; value: ReactNode }[];
@@ -25,7 +27,7 @@ export interface DeskAgentProps {
 const narrow = { width: 90 };
 
 export function DeskAgent({
-  settings, github, replacingCredential = false, connection, pollInterval = DEFAULT_POLL_INTERVAL, onTriggerChange,
+  frame, settings, github, replacingCredential = false, connection, pollInterval = DEFAULT_POLL_INTERVAL, onTriggerChange,
   onSaveLimits, onDeleteProject, onReplaceCredential,
 }: DeskAgentProps) {
   const [mode, setMode] = useState<TriggerMode>(connection?.mode ?? 'webhook');
@@ -49,7 +51,7 @@ export function DeskAgent({
   const set = (k: keyof typeof limits) => (e: { target: { value: string } }) => setLimits({ ...limits, [k]: e.target.value });
   const state: SecretFieldState = replacing ? 'replacing' : 'saved';
   return (
-    <DeskFrame active="agent" connection={connection}>
+    <DeskFrame active="agent" {...frame} connection={connection ?? frame.connection}>
       <main className={styles.agentMain}>
         <h1>Agent &amp; settings</h1>
         <SettingsSection title="GitHub connection" description="Where commands come from and where agents write.">

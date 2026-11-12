@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { agentSettings, connections, rules, skills } from '@/mocks';
+import { agentSettings, connections, deskFrame, rules, skills } from '@/mocks';
 import { DeskSkills } from './DeskSkills';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
@@ -13,7 +13,7 @@ const github = [
 
 describe('DeskSkills', () => {
   it('has exactly one main and the editor for the active skill', () => {
-    render(<DeskSkills skills={skills} activeName="code-build" />);
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 2, name: 'code-build' })).toBeInTheDocument();
     expect(screen.getByLabelText('SKILL.md source')).toHaveValue(skills[0].body);
@@ -21,23 +21,23 @@ describe('DeskSkills', () => {
   });
 
   it('empty skills shows the empty state pointing to starter templates', () => {
-    render(<DeskSkills skills={[]} />);
+    render(<DeskSkills frame={deskFrame} skills={[]} />);
     expect(screen.getByRole('heading', { name: /No skills yet/ })).toBeInTheDocument();
     expect(screen.getByText(/starter templates/i)).toBeInTheDocument();
     expect(screen.queryByLabelText('SKILL.md source')).toBeNull();
   });
 
   it('dirty shows Unsaved changes and enables Commit to main; otherwise disabled', () => {
-    const { rerender } = render(<DeskSkills skills={skills} activeName="code-build" dirty />);
+    const { rerender } = render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" dirty />);
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Commit to main' })).toBeEnabled();
-    rerender(<DeskSkills skills={skills} activeName="code-build" />);
+    rerender(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByText('Unsaved changes')).toBeNull();
     expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
   });
 
   it('view switches Edit/Preview/Diff and read-only outside Edit', async () => {
-    render(<DeskSkills skills={skills} activeName="code-build" changedLines={[17]} />);
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" changedLines={[17]} />);
     const seg = screen.getByRole('radiogroup', { name: 'Editor view' });
     expect(within(seg).getByRole('radio', { name: 'Edit' })).toBeChecked();
     expect(screen.getByLabelText('SKILL.md source')).not.toHaveAttribute('readonly');
@@ -47,7 +47,7 @@ describe('DeskSkills', () => {
   });
 
   it('deleting opens a named dialog whose confirm needs the typed name', async () => {
-    render(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={['/code-e2e']} />);
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={['/code-e2e']} />);
     const dialog = screen.getByRole('dialog', { name: 'Delete skill code-e2e?' });
     expect(within(dialog).getByText('/code-e2e')).toBeInTheDocument();
     expect(within(dialog).getByText(/uses this skill/)).toBeInTheDocument();
@@ -58,21 +58,43 @@ describe('DeskSkills', () => {
     expect(screen.getAllByRole('main')).toHaveLength(1);
   });
 
+  it('editing marks the skill dirty and commits the edited text with the message', async () => {
+    const onCommit = vi.fn();
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-review" commitMessage="msg" onCommit={onCommit} />);
+    const commit = screen.getByRole('button', { name: 'Commit to main' });
+    expect(commit).toBeDisabled();
+    await userEvent.type(screen.getByLabelText('SKILL.md source'), 'x');
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    await userEvent.click(commit);
+    expect(onCommit).toHaveBeenCalledWith(`${skills[1].body}x`, 'msg');
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(skills[1].body);
+  });
+
+  it('a plain click on a skill calls onSelect', async () => {
+    const onSelect = vi.fn();
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" skillHref={(n) => `/s?skill=${n}`} onSelect={onSelect} />);
+    const link = screen.getByRole('link', { name: /code-e2e/ });
+    expect(link).toHaveAttribute('href', '/s?skill=code-e2e');
+    await userEvent.click(link);
+    expect(onSelect).toHaveBeenCalledWith('code-e2e');
+  });
+
   it('no dialog by default', () => {
-    render(<DeskSkills skills={skills} activeName="code-build" />);
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('shows no usage warning when no rule uses the skill', () => {
-    const { rerender } = render(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" />);
+    const { rerender } = render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" deleting="code-e2e" />);
     expect(screen.getByRole('dialog', { name: 'Delete skill code-e2e?' })).toBeInTheDocument();
     expect(screen.queryByText(/uses this skill/)).toBeNull();
-    rerender(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={[]} />);
+    rerender(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={[]} />);
     expect(screen.queryByText(/uses this skill/)).toBeNull();
   });
 
   it('names a differently named rule command', () => {
-    render(<DeskSkills skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={['/flaky']} />);
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" deleting="code-e2e" rulesUsing={['/flaky']} />);
     expect(screen.getByText('/flaky')).toBeInTheDocument();
     expect(screen.queryByText('/code-e2e')).toBeNull();
   });
@@ -82,7 +104,7 @@ describe('DeskRules', () => {
   const base = { skills: skillNames, maxRunsPerTicket: 10 };
 
   it('lists rules and guards in a single main', () => {
-    render(<DeskRules rules={rules} {...base} />);
+    render(<DeskRules frame={deskFrame} rules={rules} {...base} />);
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Routing rules' })).toBeInTheDocument();
     expect(screen.getAllByRole('switch', { name: /^Enable rule \// })).toHaveLength(rules.length);
@@ -91,14 +113,14 @@ describe('DeskRules', () => {
   });
 
   it('empty rules shows the empty state', () => {
-    render(<DeskRules rules={[]} {...base} />);
+    render(<DeskRules frame={deskFrame} rules={[]} {...base} />);
     expect(screen.getByRole('heading', { name: /No routing rules/ })).toBeInTheDocument();
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
   });
 
   it('toggling a rule calls onToggle(id, next)', async () => {
     const onToggle = vi.fn();
-    render(<DeskRules rules={rules} {...base} onToggle={onToggle} />);
+    render(<DeskRules frame={deskFrame} rules={rules} {...base} onToggle={onToggle} />);
     const sw = screen.getAllByRole('switch', { name: /^Enable rule \// });
     await userEvent.click(sw[0]);
     expect(onToggle).toHaveBeenLastCalledWith('r1', false);
@@ -107,7 +129,7 @@ describe('DeskRules', () => {
   });
 
   it('editingId opens the Edit rule pane and marks that row selected', () => {
-    render(<DeskRules rules={rules} {...base} editingId="r2" />);
+    render(<DeskRules frame={deskFrame} rules={rules} {...base} editingId="r2" />);
     const pane = screen.getByRole('complementary', { name: 'Edit rule' });
     expect(within(pane).getByLabelText('Command')).toHaveValue('code-review');
     expect(within(pane).getByRole('button', { name: 'Delete rule' })).toBeInTheDocument();
@@ -120,7 +142,7 @@ describe('DeskRules', () => {
   });
 
   it('the pane edits a draft locally and the sentence follows', async () => {
-    render(<DeskRules rules={rules} {...base} editingId="r2" />);
+    render(<DeskRules frame={deskFrame} rules={rules} {...base} editingId="r2" />);
     const pane = screen.getByRole('complementary', { name: 'Edit rule' });
     const cmd = screen.getByLabelText('Command');
     await userEvent.clear(cmd);
@@ -131,7 +153,7 @@ describe('DeskRules', () => {
 
   it('More calls onMore with the rule id', async () => {
     const onMore = vi.fn();
-    render(<DeskRules rules={rules} {...base} onMore={onMore} />);
+    render(<DeskRules frame={deskFrame} rules={rules} {...base} onMore={onMore} />);
     await userEvent.click(screen.getAllByRole('button', { name: /^More actions for \// })[2]);
     expect(onMore).toHaveBeenCalledWith('r3');
   });
@@ -139,7 +161,7 @@ describe('DeskRules', () => {
 
 describe('DeskAgent', () => {
   it('has one main, the four sections and no credential input by default', () => {
-    const { container } = render(<DeskAgent settings={agentSettings} github={github} />);
+    const { container } = render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} />);
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
     for (const n of ['GitHub connection', 'Agent', 'Limits', 'Danger zone']) {
@@ -156,7 +178,7 @@ describe('DeskAgent', () => {
   });
 
   it('adds a Trigger mode row after Repository, webhook by default', () => {
-    const { container } = render(<DeskAgent settings={agentSettings} github={[...github, { term: 'Last event', value: 'x' }]} />);
+    const { container } = render(<DeskAgent frame={deskFrame} settings={agentSettings} github={[...github, { term: 'Last event', value: 'x' }]} />);
     const terms = [...container.querySelectorAll('dt')].map((d) => d.textContent);
     expect(terms.slice(0, 3)).toEqual(['Repository', 'Trigger mode', 'Last event']);
     expect(screen.getByRole('radio', { name: 'Webhook' })).toHaveAttribute('aria-checked', 'true');
@@ -167,7 +189,7 @@ describe('DeskAgent', () => {
 
   it('switching to polling shows the interval and reports the change', async () => {
     const onTriggerChange = vi.fn();
-    render(<DeskAgent settings={agentSettings} github={github} onTriggerChange={onTriggerChange} />);
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} onTriggerChange={onTriggerChange} />);
     await userEvent.click(screen.getByRole('radio', { name: 'Polling' }));
     expect(onTriggerChange).toHaveBeenLastCalledWith({ mode: 'polling', interval: '5 min' });
     const interval = screen.getByRole('radiogroup', { name: 'Check every' });
@@ -178,13 +200,13 @@ describe('DeskAgent', () => {
   });
 
   it('a polling project starts in polling mode and shows its status in the side nav', () => {
-    render(<DeskAgent settings={agentSettings} github={github} connection={connections.pollingRevoked} />);
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} connection={connections.pollingRevoked} />);
     expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.getByText('Polling failed: token revoked').closest('.inline-status')).toHaveClass('err');
   });
 
   it('replacingCredential shows an empty New token password input and Test and replace', () => {
-    const { container } = render(<DeskAgent settings={agentSettings} github={github} replacingCredential />);
+    const { container } = render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} replacingCredential />);
     const input = screen.getByLabelText('New token');
     expect(input).toHaveAttribute('type', 'password');
     expect(input).toHaveValue('');
@@ -194,7 +216,7 @@ describe('DeskAgent', () => {
 
   it('replace submit passes the typed token to onReplaceCredential and does not render it afterward', async () => {
     const onReplaceCredential = vi.fn();
-    const { container } = render(<DeskAgent settings={agentSettings} github={github} replacingCredential onReplaceCredential={onReplaceCredential} />);
+    const { container } = render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} replacingCredential onReplaceCredential={onReplaceCredential} />);
     await userEvent.type(screen.getByLabelText('New token'), 'sk-secret-123');
     await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
     expect(onReplaceCredential).toHaveBeenCalledWith(agentSettings.credential.type, 'sk-secret-123');

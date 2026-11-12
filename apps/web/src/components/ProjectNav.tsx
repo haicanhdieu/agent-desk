@@ -5,18 +5,22 @@ import styles from './Chrome.module.css';
 export interface ProjectNavProps {
   active?: 'runs' | 'desk';
   needsYou?: number;
+  /** Default "/runs". */
+  runsHref?: string;
+  /** Default "/desk". */
+  deskHref?: string;
 }
 
 /** Runs / Desk tabs of the project top bar. */
-export function ProjectNav({ active, needsYou }: ProjectNavProps) {
+export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref = '/desk' }: ProjectNavProps) {
   return (
     <nav className={styles.tabs} aria-label="Project">
-      <AppLink href="/runs" className={active === 'runs' ? styles.on : undefined} aria-current={active === 'runs' ? 'page' : undefined}>
+      <AppLink href={runsHref} className={active === 'runs' ? styles.on : undefined} aria-current={active === 'runs' ? 'page' : undefined}>
         <Icon name="runs" size={15} />
         Runs
         <CountBadge count={needsYou} label="needs you" title={needsYou ? `${needsYou} ${needsYou === 1 ? 'run needs' : 'runs need'} you` : undefined} />
       </AppLink>
-      <AppLink href="/desk" className={active === 'desk' ? styles.on : undefined} aria-current={active === 'desk' ? 'page' : undefined}>
+      <AppLink href={deskHref} className={active === 'desk' ? styles.on : undefined} aria-current={active === 'desk' ? 'page' : undefined}>
         <Icon name="desk" size={15} />
         Desk
       </AppLink>

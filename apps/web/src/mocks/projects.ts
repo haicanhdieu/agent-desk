@@ -24,3 +24,10 @@ export const projects: Project[] = [
   },
 ];
 
+
+/** The Desk boards' top bar and navigation (invoicer-api), in the DeskFrameData shape. */
+export const deskFrame = {
+  user,
+  project: { org: 'harbor-labs', name: 'invoicer-api', repo: 'harbor-labs/invoicer-api', needsYou: 1 },
+  connection: connections.webhookOk,
+};

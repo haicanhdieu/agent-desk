@@ -13,10 +13,14 @@ export interface DeskLayoutProps {
     /** Connection status line. Defaults to "Connected" when `connected` is set. */
     status?: { tone: 'ok' | 'warn' | 'err'; text: string };
   };
+  /** Sub-nav hrefs; default to the relative "skills", "rules" and "agent". */
+  links?: { skills: string; rules: string; agent: string };
   children?: ReactNode;
 }
 
-export function DeskLayout({ active, repo, children }: DeskLayoutProps) {
+const relativeLinks = { skills: 'skills', rules: 'rules', agent: 'agent' };
+
+export function DeskLayout({ active, repo, links = relativeLinks, children }: DeskLayoutProps) {
   const status = repo.status ?? (repo.connected ? { tone: 'ok' as const, text: 'Connected' } : undefined);
   return (
     <div className={styles.body}>
@@ -26,9 +30,9 @@ export function DeskLayout({ active, repo, children }: DeskLayoutProps) {
           {
             heading: 'Desk',
             items: [
-              { label: 'Skills', href: 'skills', icon: 'skill-file', active: active === 'skills' },
-              { label: 'Routing rules', href: 'rules', icon: 'rule', active: active === 'rules' },
-              { label: 'Agent & settings', href: 'agent', icon: 'bot', active: active === 'agent' },
+              { label: 'Skills', href: links.skills, icon: 'skill-file', active: active === 'skills' },
+              { label: 'Routing rules', href: links.rules, icon: 'rule', active: active === 'rules' },
+              { label: 'Agent & settings', href: links.agent, icon: 'bot', active: active === 'agent' },
             ],
           },
           {

@@ -3,11 +3,13 @@ import { Button, CommandChip, IconButton, LabelChip, SegmentedControl } from '@/
 import { CodeEditor, CommitBar, ConfirmDeleteDialog, EmptyState, SkillList } from '@/components';
 import type { Skill } from '@/mocks/types';
 import styles from './Screens.module.css';
-import { DeskFrame } from './DeskFrame';
+import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
 type View = 'edit' | 'preview' | 'diff';
 
 export interface DeskSkillsProps {
+  /** Top bar and Desk navigation data. */
+  frame: DeskFrameData;
   skills: Skill[];
   activeName?: string;
   dirty?: boolean;
@@ -19,10 +21,15 @@ export interface DeskSkillsProps {
   /** Rule commands (e.g. "/code-e2e") that use the skill being deleted. */
   rulesUsing?: string[];
   commitMessage?: string;
+  /** In-app href of a skill in the list; defaults to `#<name>`. */
+  skillHref?(name: string): string;
+  /** A skill was picked in the list (the link's own navigation is skipped). */
+  onSelect?(name: string): void;
   onDelete?(name: string): void;
   onCloseDelete?(): void;
   onConfirmDelete?(message: string): void;
-  onCommit?(message: string): void;
+  /** Commit the editor's text with the message. */
+  onCommit?(body: string, message: string): void;
 }
 
 const views: { value: View; label: string }[] = [
@@ -33,14 +40,16 @@ const views: { value: View; label: string }[] = [
 
 /** The editor column for one skill. Keyed by skill name so the draft and view reset when the skill changes. */
 function SkillEditor({
-  skill, dirty, changedLines, view: initialView, commitMessage, onDelete, onCommit,
+  skill, dirty: markedDirty, changedLines, view: initialView, commitMessage, onDelete, onCommit,
 }: {
   skill: Skill; dirty: boolean; changedLines: number[]; view: View; commitMessage: string;
-  onDelete?(name: string): void; onCommit?(message: string): void;
+  onDelete?(name: string): void; onCommit?(body: string, message: string): void;
 }) {
   const [view, setView] = useState<View>(initialView);
   const [value, setValue] = useState(skill.body);
   const [message, setMessage] = useState(commitMessage);
+  // Dirty when marked so (stories) or when the text differs from the skill as last loaded.
+  const dirty = markedDirty || value !== skill.body;
   const [hash, ago] = skill.lastCommit.split(/,\s*(.*)/);
   return (
     <>
@@ -51,7 +60,8 @@ function SkillEditor({
             {dirty && <LabelChip name="Unsaved changes" tone="idle" />}
           </span>
           <span className={`faint ${styles.skillMeta}`}>
-            <span className="mono">{skill.path}</span>, last commit <span className="mono">{hash}</span>, {ago}
+            <span className="mono">{skill.path}</span>
+            {hash && <>, last commit <span className="mono">{hash}</span>{ago && <>, {ago}</>}</>}
           </span>
         </div>
         <SegmentedControl aria-label="Editor view" value={view} options={views} onChange={(v) => setView(v as View)} />
@@ -70,7 +80,8 @@ function SkillEditor({
         onMessageChange={setMessage}
         branch="main"
         dirty={dirty}
-        onCommit={() => onCommit?.(message)}
+        onDiscard={() => setValue(skill.body)}
+        onCommit={() => onCommit?.(value, message)}
         note="Commits as agent-desk[bot]. Runs that start after the commit use the new version; running runs keep the old one."
       />
     </>
@@ -78,19 +89,23 @@ function SkillEditor({
 }
 
 export function DeskSkills({
-  skills, activeName, dirty = false, changedLines = [], view = 'edit', deleting, rulesUsing = [],
-  commitMessage = '', onDelete, onCloseDelete, onConfirmDelete, onCommit,
+  frame, skills, activeName, dirty = false, changedLines = [], view = 'edit', deleting, rulesUsing = [],
+  commitMessage = '', skillHref, onSelect, onDelete, onCloseDelete, onConfirmDelete, onCommit,
 }: DeskSkillsProps) {
   const active = skills.find((s) => s.name === activeName) ?? skills[0];
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
   return (
     <>
-      <DeskFrame active="skills">
+      <DeskFrame active="skills" {...frame}>
         <div className={styles.deskRow}>
           <SkillList
             branch="main"
             activeName={active?.name}
-            skills={skills.map((s) => ({ name: s.name, description: s.description, ruleSummary: s.ruleSummary }))}
+            skills={skills.map((s) => ({
+              name: s.name, description: s.description, ruleSummary: s.ruleSummary,
+              ...(skillHref && { href: skillHref(s.name) }),
+            }))}
+            onSelect={onSelect}
           />
           <main className={styles.skillsMain}>
             {active ? (

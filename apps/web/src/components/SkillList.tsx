@@ -6,9 +6,11 @@ export interface SkillListProps {
   activeName?: string;
   branch: string;
   onNew?(): void;
+  /** Called on a plain click of a skill; the link's own navigation is then skipped. */
+  onSelect?(name: string): void;
 }
 
-export function SkillList({ skills, activeName, branch, onNew }: SkillListProps) {
+export function SkillList({ skills, activeName, branch, onNew, onSelect }: SkillListProps) {
   return (
     <nav className={styles.skills} aria-label="Skills">
       <div className={styles.skillsHead}>
@@ -21,7 +23,14 @@ export function SkillList({ skills, activeName, branch, onNew }: SkillListProps)
           const active = s.name === activeName;
           return (
             <li key={s.name}>
-              <AppLink href={s.href ?? `#${s.name}`} className={[styles.skill, active && styles.active].filter(Boolean).join(' ')} aria-current={active ? 'page' : undefined}>
+              <AppLink href={s.href ?? `#${s.name}`} className={[styles.skill, active && styles.active].filter(Boolean).join(' ')} aria-current={active ? 'page' : undefined}
+                onClick={onSelect && ((e) => {
+                  // Modified clicks (new tab, new window) keep the link's default.
+                  if (e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                  e.preventDefault();
+                  onSelect(s.name);
+                })}
+              >
                 <span className={styles.skillTop}>
                   <b className={styles.skillName}>{s.name}</b>
                   <span className={styles.skillRules}>{s.ruleSummary}</span>

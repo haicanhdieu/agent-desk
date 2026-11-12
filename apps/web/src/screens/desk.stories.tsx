@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell } from '@/components';
-import { agentSettings, connectionCopy, connections, rules, skills } from '@/mocks';
+import { agentSettings, connectionCopy, connections, deskFrame, rules, skills } from '@/mocks';
 import { DeskAgent as DeskAgentScreen } from './DeskAgent';
 import { DeskRules as DeskRulesScreen } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
@@ -20,6 +20,7 @@ const artboard = (height: number): NonNullable<Story['decorators']> => [
 ];
 
 const skillsProps: DeskSkillsProps = {
+  frame: deskFrame,
   skills,
   activeName: 'code-build',
   dirty: true,
@@ -46,7 +47,7 @@ export const DeskRules: Story = {
   decorators: artboard(900),
   globals: viewport(1440, 900),
   render: () => (
-    <DeskRulesScreen
+    <DeskRulesScreen frame={deskFrame}
       rules={rules}
       skills={skills.map((s) => s.name)}
       editingId="r2"
@@ -69,7 +70,7 @@ export const DeskAgent: Story = {
   decorators: artboard(1320),
   globals: viewport(1440, 1320),
   render: () => (
-    <DeskAgentScreen
+    <DeskAgentScreen frame={deskFrame}
       settings={agentSettings}
       replacingCredential
       github={github({ term: connectionCopy.lastEventTerm, text: 'issue_comment, 2 min ago, accepted (webhook)' })}
@@ -82,7 +83,7 @@ export const DeskAgentPolling: Story = {
   decorators: artboard(1320),
   globals: viewport(1440, 1320),
   render: () => (
-    <DeskAgentScreen
+    <DeskAgentScreen frame={deskFrame}
       settings={agentSettings}
       connection={connections.pollingOk}
       github={github({ term: connectionCopy.lastCheckedTerm, text: '20s ago, no new comments (polling)' })}
