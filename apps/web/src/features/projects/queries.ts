@@ -14,6 +14,9 @@ export const projectsQueries = {
     queryOptions({
       queryKey: projectKey(org, projectId),
       queryFn: () => api.projects.get({ params: { projectId } }),
+      // The detail carries `counts` (needs you, running, queued): an aggregate of the runs, shown next to the runs
+      // lists (chips, slots, the needs-you badge). It refetches on focus like the runs queries so the two agree.
+      refetchOnWindowFocus: true,
     }),
   connection: (org: string, projectId: string) =>
     queryOptions({

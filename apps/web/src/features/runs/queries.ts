@@ -22,6 +22,9 @@ export const runsQueries = {
    * Every run matching `filter` (and `ticket`, a full ticket ref `owner/repo#12`), newest first. The API pages by
    * cursor; this follows `nextCursor` for up to `RUN_LIST_MAX_PAGES` pages of `RUN_LIST_PAGE_SIZE`. `truncated` is
    * true when runs beyond that cap exist (logged in CONTRACT-GAPS.md; there is no aggregate count route).
+   * A failed page fails the whole query, and Query's retry starts again from page 1: keeping fetched pages across
+   * retries would need state outside the query function (or useInfiniteQuery, whose pages the screens don't need),
+   * and a fresh walk also avoids stitching pages from different moments. At most 10 pages, so the cost is bounded.
    */
   list: (org: string, projectId: string, filter: RunListFilter, ticket?: string) =>
     queryOptions({

@@ -1,5 +1,6 @@
-import { screen, waitFor, within } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { focusManager } from '@tanstack/react-query';
+import { act, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
@@ -135,6 +136,33 @@ describe('runs route', () => {
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
     expect(runNumbers()).toEqual([63]);
     expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+  });
+
+  it('refetches the rows and the chip counts together on window focus', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date'] });
+    try {
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('1');
+      // Run 61 goes idle while the tab is in the background; the cached data is now past its 30 s stale time.
+      const run61 = mockDb.state.runs.find((r) => r.number === 61);
+      if (!run61) throw new Error('run 61 fixture missing');
+      run61.status = 'idle';
+      run61.idleSince = new Date().toISOString();
+      vi.setSystemTime(Date.now() + 60_000);
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      await waitFor(() => expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('2'));
+      const row61 = screen.getByRole('link', { name: 'Run 61' }).closest('tr');
+      if (!row61) throw new Error('row 61 missing');
+      expect(within(row61).getByText(/Waiting \dm/)).toBeInTheDocument();
+      expect(within(chips()).getByRole('link', { name: /^Active/ })).toHaveTextContent('2');
+    } finally {
+      focusManager.setFocused(undefined);
+      vi.useRealTimers();
+    }
   });
 
   describe('with more runs than one API page', () => {
