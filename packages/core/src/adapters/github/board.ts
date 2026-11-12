@@ -39,6 +39,17 @@ const IssueBody = z.object({
 
 const CreatedComment = z.object({ id: z.number() });
 
+/** Only follow pagination links on the API origin, so a crafted Link header cannot send the token elsewhere. */
+function sameOriginLink(url: string | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const u = new URL(url);
+    return u.protocol === 'https:' && u.host === 'api.github.com' ? u.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export class GithubBoardAdapter implements BoardAdapter {
   constructor(
     private readonly clients: GithubClients,
@@ -95,7 +106,7 @@ export class GithubBoardAdapter implements BoardAdapter {
           });
         }
         const link = res.headers.link ?? '';
-        next = /<([^>]+)>;\s*rel="next"/.exec(link)?.[1];
+        next = sameOriginLink(/<([^>]+)>;\s*rel="next"/.exec(link)?.[1]);
         if (!next) break;
       }
     } catch (e) {

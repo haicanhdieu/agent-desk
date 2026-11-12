@@ -64,7 +64,7 @@ describe('fake board', () => {
   });
 
   it('webhook: valid HMAC parses, bad HMAC is rejected before parsing', async () => {
-    const board = new FakeBoardAdapter(new FakeStore(dir, clock), clock);
+    const board = new FakeBoardAdapter(new FakeStore(dir, clock), clock, 'dev');
     const body = JSON.stringify({
       deliveryId: 'd1',
       commentId: 'c1',
@@ -81,6 +81,16 @@ describe('fake board', () => {
       'bad_signature',
     );
     expect(await board.verifyAndParseWebhook({}, 'not json', async () => undefined)).toBe('bad_signature');
+    // non-hex / wrong-length signatures are rejected without throwing
+    for (const bad of ['', 'zz'.repeat(32), sig.slice(0, 62), `${sig}00`]) {
+      expect(await board.verifyAndParseWebhook({ 'x-fake-signature': bad }, body, async () => undefined)).toBe(
+        'bad_signature',
+      );
+    }
+    // correctly signed but not JSON: authentic, just not an event
+    const junk = 'not json';
+    const junkSig = createHmac('sha256', 'dev').update(junk).digest('hex');
+    expect(await board.verifyAndParseWebhook({ 'x-fake-signature': junkSig }, junk, async () => undefined)).toBeNull();
   });
 });
 
@@ -100,6 +110,19 @@ describe('fake code host', () => {
     expect(await host.listSkills(project)).toEqual([]);
   });
 
+  it('mirrors GitHub write semantics: sha required to update, stale sha conflicts, create needs no sha', async () => {
+    const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
+    const created = await host.writeSkill(project, 'fix', 'v1', 'add');
+    await expect(host.writeSkill(project, 'fix', 'v2', 'edit')).rejects.toBeInstanceOf(SkillConflictError);
+    await expect(host.writeSkill(project, 'fix', 'v2', 'edit', 'stale')).rejects.toBeInstanceOf(SkillConflictError);
+    await expect(host.writeSkill(project, 'other', 'v2', 'edit', created.commitSha)).rejects.toBeInstanceOf(
+      SkillConflictError,
+    );
+    const updated = await host.writeSkill(project, 'fix', 'v2', 'edit', created.commitSha);
+    expect(updated.commitSha).not.toBe(created.commitSha);
+    expect((await host.readSkill(project, 'fix')).body).toBe('v2');
+  });
+
   it('rejects path traversal in skill names', async () => {
     const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
     await expect(host.writeSkill(project, '../evil', 'x', 'm')).rejects.toThrow();
@@ -114,6 +137,15 @@ describe('fake code host', () => {
     expect(tok.expiresAt.getTime()).toBeGreaterThan(clock.now().getTime());
     expect(host.checkoutRef({ kind: 'pr', number: 7 })).toBe('refs/pull/7/head');
     expect(host.checkoutRef({ kind: 'issue', number: 7 })).toBe('main');
+  });
+});
+
+describe('fake store paths', () => {
+  it('rejects repoPath traversal segments', async () => {
+    const store = new FakeStore(dir, clock);
+    await expect(store.writeSkillFile('../evil', 'fix', 'x')).rejects.toThrow(/invalid path segment/);
+    await expect(store.writeSkillFile('dev/../../evil', 'fix', 'x')).rejects.toThrow(/invalid path segment/);
+    await expect(store.readSkillFile('dev/..', 'fix')).rejects.toThrow(/invalid path segment/);
   });
 });
 
@@ -139,5 +171,52 @@ describe('registry', () => {
     expect(fake.providers()).toEqual(['fake']);
     expect(fake.board('fake')).toBeDefined();
     expect(fake.codeHost('fake')).toBeDefined();
+    const gh = createAdapterRegistry(
+      parseConfig({
+        ...base,
+        GITHUB_APP_ID: '1',
+        GITHUB_APP_SLUG: 'agent-desk',
+        GITHUB_PRIVATE_KEY: 'pem',
+        GITHUB_WEBHOOK_SECRET: 'w',
+        GITHUB_CLIENT_ID: 'c',
+        GITHUB_CLIENT_SECRET: 's',
+      }),
+      clock,
+    );
+    expect(gh.providers()).toEqual(['github']);
+    expect(gh.board('github')).toBeDefined();
+    expect(gh.codeHost('github').installUrl('o', 's')).toContain('/apps/agent-desk/');
+  });
+
+  it('passes the configured fake webhook secret to the fake board', async () => {
+    const { createAdapterRegistry } = await import('../../src/adapters/registry');
+    const { parseConfig } = await import('../../src/config');
+    const cfg = parseConfig({
+      PUBLIC_ORIGIN: 'http://localhost:3000',
+      DATABASE_APP_URL: 'x',
+      DATABASE_OWNER_URL: 'x',
+      DATABASE_ADMIN_URL: 'x',
+      TEMPORAL_ADDRESS: 'x',
+      TEMPORAL_NAMESPACE: 'x',
+      BETTER_AUTH_SECRET: 'x'.repeat(32),
+      RUNNER_IMAGE: 'x',
+      FAKE_STATE_DIR: dir,
+      ENABLE_FAKE_PROVIDER: 'true',
+      FAKE_WEBHOOK_SECRET: 'cfg-secret',
+    });
+    const board = createAdapterRegistry(cfg, clock).board('fake');
+    const body = JSON.stringify({
+      deliveryId: 'd',
+      commentId: 'c',
+      repoPath: 'dev/demo',
+      ticketRef: '1',
+      body: 'x',
+      author: 'a',
+      authorAssociation: 'OWNER',
+    });
+    const sig = createHmac('sha256', 'cfg-secret').update(body).digest('hex');
+    expect(await board.verifyAndParseWebhook({ 'x-fake-signature': sig }, body, async () => undefined)).toMatchObject({
+      deliveryId: 'd',
+    });
   });
 });

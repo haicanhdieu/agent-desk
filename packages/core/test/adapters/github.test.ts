@@ -175,6 +175,17 @@ describe('github pollEvents', () => {
     expect(res.cursor).toEqual({ since: '2026-11-12T10:20:00Z', etag: null });
   });
 
+  it('does not follow pagination links to other hosts', async () => {
+    mockInstallationToken();
+    gh()
+      .intercept({ path: path(SINCE), method: 'GET' })
+      .reply(200, fixture('comments.list.json'), {
+        headers: { ...JSON_HEADERS, link: '<https://evil.example/steal?page=2>; rel="next"' },
+      });
+    const res = await board().pollEvents(project, { since: SINCE, etag: null });
+    expect(res.kind).toBe('events'); // MockAgent has netConnect disabled: a follow would throw
+  });
+
   it('keeps the response etag when no comments are new', async () => {
     mockInstallationToken();
     gh()
@@ -281,6 +292,16 @@ describe('github code host', () => {
     expect(host().checkoutRef({ kind: 'issue', number: 7 })).toBe('main');
     expect(host().cloneUrl(project, 'tok')).toBe('https://x-access-token:tok@github.com/acme/widgets.git');
     expect(host().installUrl('org', 'st')).toBe('https://github.com/apps/agent-desk/installations/new?state=st');
+  });
+
+  it('refuses to interpolate unsafe repo paths or branch names', () => {
+    expect(() => host().cloneUrl({ ...project, repoPath: 'acme/widgets@evil.com/x' }, 't')).toThrow();
+    expect(() => host().cloneUrl({ ...project, repoPath: 'acme/../x' }, 't')).toThrow();
+    expect(() => host().cloneUrl({ ...project, repoPath: 'a b/c' }, 't')).toThrow();
+    expect(() => host().checkoutRef({ kind: 'issue', number: 1, defaultBranch: 'main; rm -rf /' })).toThrow();
+    expect(() => host().checkoutRef({ kind: 'issue', number: 1, defaultBranch: '--upload-pack=x' })).toThrow();
+    expect(() => host().checkoutRef({ kind: 'issue', number: 1, defaultBranch: 'a..b' })).toThrow();
+    expect(host().checkoutRef({ kind: 'issue', number: 1, defaultBranch: 'release/1.2_x' })).toBe('release/1.2_x');
   });
 
   it('mints a repo-scoped installation token', async () => {

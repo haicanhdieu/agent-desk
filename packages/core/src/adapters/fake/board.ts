@@ -38,6 +38,7 @@ export function fakeSignature(rawBody: Buffer | string, secret: string): string 
 }
 
 function signatureMatches(rawBody: Buffer | string, provided: string, secret: string): boolean {
+  if (!/^[0-9a-fA-F]{64}$/.test(provided)) return false;
   const expected = Buffer.from(fakeSignature(rawBody, secret), 'hex');
   const got = Buffer.from(provided, 'hex');
   return got.length === expected.length && timingSafeEqual(got, expected);
@@ -47,7 +48,7 @@ export class FakeBoardAdapter implements BoardAdapter {
   constructor(
     private readonly store: FakeStore,
     private readonly clock: Clock,
-    private readonly defaultSecret: string = process.env.FAKE_WEBHOOK_SECRET || 'dev',
+    private readonly defaultSecret: string = 'dev',
   ) {}
 
   async verifyAndParseWebhook(
@@ -62,7 +63,7 @@ export class FakeBoardAdapter implements BoardAdapter {
     try {
       json = JSON.parse(rawBody.toString());
     } catch {
-      return 'bad_signature';
+      return null; // authentic but not an event
     }
     const parsed = FakeWebhookBody.safeParse(json);
     if (!parsed.success) return null;

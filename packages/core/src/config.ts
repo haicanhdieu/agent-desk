@@ -69,6 +69,7 @@ export const ConfigSchema = z
     RUN_POD_TOLERATIONS: optional(jsonValue(z.array(TolerationSchema))),
     RUN_POD_RUNTIME_CLASS: optional(z.string()),
     FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
+    FAKE_WEBHOOK_SECRET: blankDefault(z.string().default('dev')),
     ENABLE_FAKE_PROVIDER: blankDefault(bool.default(false)),
     AUTH_DEV_LOGIN: blankDefault(bool.default(false)),
     POLL_MAX_BACKOFF_SECONDS: blankDefault(z.coerce.number().int().min(1).default(3600)),

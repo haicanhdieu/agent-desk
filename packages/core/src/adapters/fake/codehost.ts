@@ -78,7 +78,8 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     sha?: string,
   ): Promise<{ commitSha: string }> {
     const existing = await this.store.readSkillFile(project.repoPath, name);
-    if (existing && sha !== undefined && sha !== existing.sha) throw new SkillConflictError(name);
+    // GitHub semantics: updating needs the current sha; creating must not carry one.
+    if (existing ? sha !== existing.sha : sha !== undefined) throw new SkillConflictError(name);
     return { commitSha: await this.store.writeSkillFile(project.repoPath, name, body) };
   }
 

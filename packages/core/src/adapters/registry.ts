@@ -43,7 +43,7 @@ export function createAdapterRegistry(config: Config, clock: Clock, opts: Regist
 
   if (config.ENABLE_FAKE_PROVIDER) {
     const store = new FakeStore(config.FAKE_STATE_DIR, clock);
-    boards.set('fake', new FakeBoardAdapter(store, clock));
+    boards.set('fake', new FakeBoardAdapter(store, clock, config.FAKE_WEBHOOK_SECRET));
     codeHosts.set('fake', new FakeCodeHostAdapter(store, clock, config.PUBLIC_ORIGIN));
   }
 

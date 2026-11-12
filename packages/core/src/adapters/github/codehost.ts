@@ -13,7 +13,7 @@ import {
   type InstallUser,
   type NewConnection,
 } from '../types';
-import { errorStatus, splitRepoPath, type GithubClients } from './app';
+import { assertSafeRef, errorStatus, splitRepoPath, type GithubClients } from './app';
 
 export interface GithubCodeHostOptions {
   appSlug: string;
@@ -109,11 +109,12 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
   }
 
   cloneUrl(project: AdapterProject, token: string): string {
-    return `https://x-access-token:${token}@github.com/${project.repoPath}.git`;
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    return `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
   }
 
   checkoutRef(ticket: CheckoutTicket): string {
-    return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : ticket.defaultBranch ?? 'main';
+    return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : assertSafeRef(ticket.defaultBranch ?? 'main');
   }
 
   async listSkills(project: AdapterProject): Promise<SkillSummaryDto[]> {

@@ -44,10 +44,27 @@ export class GithubClients {
   }
 }
 
+const REPO_SEGMENT = /^[A-Za-z0-9._-]+$/;
+const SAFE_REF = /^(?!-)(?!.*\.\.)[A-Za-z0-9._/-]+$/;
+
+/** Splits and validates `owner/name`; repo paths come from untrusted input. */
 export function splitRepoPath(repoPath: string): { owner: string; repo: string } {
   const [owner, repo, ...rest] = repoPath.split('/');
-  if (!owner || !repo || rest.length > 0) throw new Error(`invalid repo path "${repoPath}"`);
+  if (
+    !owner ||
+    !repo ||
+    rest.length > 0 ||
+    ![owner, repo].every((s) => REPO_SEGMENT.test(s) && s !== '.' && s !== '..')
+  ) {
+    throw new Error(`invalid repo path "${repoPath}"`);
+  }
   return { owner, repo };
+}
+
+/** Rejects branch names that could be read as options or contain shell/ref-special characters. */
+export function assertSafeRef(ref: string): string {
+  if (!SAFE_REF.test(ref) || ref.endsWith('/') || ref.endsWith('.lock')) throw new Error(`unsafe ref "${ref}"`);
+  return ref;
 }
 
 /** HTTP status of an Octokit error, if it is one. */
