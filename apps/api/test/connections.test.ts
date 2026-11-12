@@ -170,4 +170,51 @@ describe('connections', () => {
     const ids = await t.db.pool.query("select 1 from organization where slug in ('carol','dave')");
     expect(ids.rows).toHaveLength(2);
   });
+
+  it('a successful callback resumes polling projects paused as token_revoked (cursor cleared, schedule unpaused)', async () => {
+    const erin = await loginAs(t, 'erin');
+    const complete = async () => {
+      const u = new URL(((await install(erin)).json() as { url: string }).url);
+      const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie: erin } });
+      expect(cb.statusCode).toBe(302);
+      return new URL(String(cb.headers['location'])).searchParams.get('connection') ?? '';
+    };
+    const connectionId = await complete();
+    const mk = async (repoPath: string, triggerMode: string) =>
+      (
+        await t.app.inject({
+          method: 'POST',
+          url: '/api/projects',
+          headers: { cookie: erin },
+          payload: { connectionId, repoPath, triggerMode, pollIntervalSeconds: 300 },
+        })
+      ).json() as { id: string };
+    const revoked = await mk('dev/demo', 'polling');
+    const orgId = String((await t.db.pool.query("select id from organization where slug = 'erin'")).rows[0].id);
+    const sql = async (text: string, params: unknown[]) => {
+      const c = await t.db.pool.connect();
+      try {
+        await c.query('begin');
+        await c.query("select set_config('app.org_id', $1, true)", [orgId]);
+        const res = await c.query(text, params);
+        await c.query('commit');
+        return res.rows;
+      } finally {
+        c.release();
+      }
+    };
+    await sql(
+      "update poll_cursors set paused_reason = 'token_revoked', last_error = 'x', failures = 2 where project_id = $1",
+      [revoked.id],
+    );
+    t.temporal.reset();
+
+    await complete();
+
+    const rows = await sql('select paused_reason, last_error, failures from poll_cursors where project_id = $1', [
+      revoked.id,
+    ]);
+    expect(rows).toEqual([{ paused_reason: null, last_error: null, failures: 0 }]);
+    expect(t.temporal.callsOfKind('scheduleUnpause').map((c) => c.scheduleId)).toEqual([`poll-${revoked.id}`]);
+  });
 });

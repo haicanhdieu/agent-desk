@@ -14,6 +14,7 @@ import {
 } from '@agentdesk/core';
 import type { Db } from '@agentdesk/db';
 import { createActivities } from './activities';
+import { pollScheduleOps } from './activities/poll-ops';
 import { temporalOps } from './activities/temporal-ops';
 import { ensureSchedules } from './schedules';
 import { ADAPTERS, CONFIG, DB, KUBE, SECRET_STORE, WorkerModule } from './worker.module';
@@ -43,6 +44,7 @@ async function main(): Promise<void> {
         secrets: app.get<SecretStore>(SECRET_STORE),
         signaller: ops,
         temporal: ops,
+        pollSchedules: pollScheduleOps(client),
         clock: systemClock,
         config,
         // Activity-context logger (carries workflow/activity ids); messages never include error text.

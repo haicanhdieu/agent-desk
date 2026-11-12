@@ -4,16 +4,18 @@ import {
   ForbiddenException,
   Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { and, eq } from 'drizzle-orm';
-import { account, connections, member, organization, withOrg, type Db } from '@agentdesk/db';
+import { account, connections, member, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
 import { Provider, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
 import type { AdapterRegistry } from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import { isUniqueViolation } from '../common/pg-errors';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
+import { ProjectSchedules } from '../projects/project-schedules';
 import { signState, verifyState } from './install-state';
 
 type ConnectionRow = typeof connections.$inferSelect;
@@ -32,10 +34,13 @@ export function toConnectionDto(row: ConnectionRow): ConnectionDto {
 
 @Injectable()
 export class ConnectionsService {
+  private readonly logger = new Logger(ConnectionsService.name);
+
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(CONFIG) private readonly config: Config,
     @Inject(ADAPTER_REGISTRY) private readonly registry: AdapterRegistry,
+    @Inject(ProjectSchedules) private readonly schedules: ProjectSchedules,
   ) {}
 
   private requireProvider(provider: Provider): void {
@@ -122,6 +127,8 @@ export class ConnectionsService {
       throw err;
     }
 
+    await this.resumeRevokedPolling(orgId, row.id);
+
     const org = await this.db.orm
       .select({ slug: organization.slug })
       .from(organization)
@@ -130,6 +137,42 @@ export class ConnectionsService {
     const slug = org[0]?.slug;
     if (!slug) throw new BadRequestException('Invalid or expired install state');
     return `${this.config.PUBLIC_ORIGIN}/o/${encodeURIComponent(slug)}/projects/new/repo?connection=${row.id}`;
+  }
+
+  /**
+   * The connection is healthy again: polling projects that were paused as `token_revoked` resume. The cursor is
+   * cleared in the database first; unpausing the Schedule is best-effort (the daily sync/next edit repairs it).
+   */
+  private async resumeRevokedPolling(orgId: string, connectionId: string): Promise<void> {
+    const resumed = await withOrg(this.db, orgId, async (tx) => {
+      const rows = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .innerJoin(pollCursors, eq(pollCursors.projectId, projects.id))
+        .where(
+          and(
+            eq(projects.boardConnectionId, connectionId),
+            eq(projects.triggerMode, 'polling'),
+            eq(pollCursors.pausedReason, 'token_revoked'),
+          ),
+        );
+      for (const { id } of rows) {
+        await tx
+          .update(pollCursors)
+          .set({ pausedReason: null, lastError: null, failures: 0, nextPollAt: null })
+          .where(eq(pollCursors.projectId, id));
+      }
+      return rows.map((r) => r.id);
+    });
+    for (const projectId of resumed) {
+      try {
+        await this.schedules.unpause(projectId);
+      } catch (err) {
+        this.logger.warn(
+          `unpause poll schedule failed for project ${projectId}: ${err instanceof Error ? err.name : 'error'}`,
+        );
+      }
+    }
   }
 
   async repos(orgId: string, connectionId: string): Promise<RepoDto[]> {

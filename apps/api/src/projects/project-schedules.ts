@@ -71,6 +71,15 @@ export class ProjectSchedules {
     }
   }
 
+  /** Unpauses the project's poll schedule; a missing schedule is fine. */
+  async unpause(projectId: string): Promise<void> {
+    try {
+      await this.client.schedule.getHandle(pollScheduleId(projectId)).unpause('connection healthy again');
+    } catch (err) {
+      if (!(err instanceof ScheduleNotFoundError)) throw err;
+    }
+  }
+
   /** Sets the project's concurrency limit; `signalWithStart` so it works before the gate workflow exists. */
   async setLimit(projectId: string, limit: number): Promise<void> {
     const workflowId = gateWorkflowId(projectId);

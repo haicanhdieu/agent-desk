@@ -23,6 +23,7 @@ import { createDb, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import { createActivities } from '../src/activities';
 import { reconcile } from '../src/activities/reconcile.activity';
+import { pollScheduleOps } from '../src/activities/poll-ops';
 import { temporalOps } from '../src/activities/temporal-ops';
 
 // End to end in one process: real RunWorkflow + gate bundle on the local Temporal dev server, the real activities,
@@ -116,6 +117,7 @@ describe('RunWorkflow end to end (KUBE_MODE=fake, fake provider)', () => {
         secrets,
         signaller: ops,
         temporal: ops,
+        pollSchedules: pollScheduleOps(env.client),
         clock: systemClock,
         config,
         timing: { pollMs: 100 },
