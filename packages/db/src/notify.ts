@@ -1,8 +1,8 @@
-import { sql } from "drizzle-orm";
-import pg from "pg";
-import type { Tx } from "./withOrg";
+import { sql } from 'drizzle-orm';
+import pg from 'pg';
+import type { Tx } from './withOrg';
 
-export const RUN_STATUS_CHANNEL = "run_status";
+export const RUN_STATUS_CHANNEL = 'run_status';
 
 export interface RunStatusMessage {
   orgId: string;
@@ -11,13 +11,8 @@ export interface RunStatusMessage {
 }
 
 /** Queues a NOTIFY that Postgres delivers only when the surrounding transaction commits. */
-export async function notifyRunStatus(
-  tx: Tx,
-  msg: RunStatusMessage,
-): Promise<void> {
-  await tx.execute(
-    sql`select pg_notify(${RUN_STATUS_CHANNEL}, ${JSON.stringify(msg)})`,
-  );
+export async function notifyRunStatus(tx: Tx, msg: RunStatusMessage): Promise<void> {
+  await tx.execute(sql`select pg_notify(${RUN_STATUS_CHANNEL}, ${JSON.stringify(msg)})`);
 }
 
 function parseMessage(payload: string | undefined): RunStatusMessage | null {
@@ -28,14 +23,9 @@ function parseMessage(payload: string | undefined): RunStatusMessage | null {
   } catch {
     return null;
   }
-  if (typeof v !== "object" || v === null) return null;
+  if (typeof v !== 'object' || v === null) return null;
   const { orgId, runId, seq } = v as Record<string, unknown>;
-  if (
-    typeof orgId !== "string" ||
-    typeof runId !== "string" ||
-    typeof seq !== "number"
-  )
-    return null;
+  if (typeof orgId !== 'string' || typeof runId !== 'string' || typeof seq !== 'number') return null;
   return { orgId, runId, seq };
 }
 
@@ -60,23 +50,30 @@ export async function listenRunStatus(
 
   const connect = async (): Promise<void> => {
     const c = new pg.Client({ connectionString: url });
-    c.on("notification", (n) => {
+    c.on('notification', (n) => {
       if (n.channel !== RUN_STATUS_CHANNEL) return;
       const m = parseMessage(n.payload);
-      if (m) onMsg(m);
+      if (!m) return;
+      try {
+        onMsg(m);
+      } catch {
+        // A throwing handler must not kill the listener connection.
+      }
     });
     let dead = false;
+    let established = false;
     const onDead = () => {
       if (dead) return;
       dead = true;
       c.removeAllListeners();
-      c.on("error", () => undefined);
+      c.on('error', () => undefined);
       c.end().catch(() => undefined);
       if (client === c) client = null;
-      scheduleReconnect();
+      // A failed first connect is reported to the caller, which has no stop function to cancel a retry loop.
+      if (established) scheduleReconnect();
     };
-    c.on("error", onDead);
-    c.on("end", onDead);
+    c.on('error', onDead);
+    c.on('end', onDead);
     try {
       await c.connect();
       await c.query(`LISTEN ${RUN_STATUS_CHANNEL}`);
@@ -84,8 +81,10 @@ export async function listenRunStatus(
       onDead();
       throw e;
     }
+    established = true;
     if (stopped) {
       c.removeAllListeners();
+      c.on('error', () => undefined);
       await c.end();
       return;
     }
@@ -101,7 +100,7 @@ export async function listenRunStatus(
     client = null;
     if (c) {
       c.removeAllListeners();
-      c.on("error", () => undefined);
+      c.on('error', () => undefined);
       await c.end();
     }
   };

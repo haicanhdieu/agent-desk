@@ -1,7 +1,7 @@
-import pg from "pg";
+import pg from 'pg';
 
-export const ORG_A = "11111111-1111-4111-8111-111111111111";
-export const ORG_B = "22222222-2222-4222-8222-222222222222";
+export const ORG_A = '11111111-1111-4111-8111-111111111111';
+export const ORG_B = '22222222-2222-4222-8222-222222222222';
 
 export interface SeededOrg {
   orgId: string;
@@ -22,12 +22,12 @@ export async function seedOrg(
   const client = new pg.Client({ connectionString: ownerUrl });
   await client.connect();
   try {
-    await client.query("begin");
+    await client.query('begin');
     await client.query(`select set_config('app.org_id', $1, true)`, [orgId]);
     const one = async (sql: string, params: unknown[]): Promise<string> => {
       const r = await client.query<{ id: string }>(sql, params);
       const row = r.rows[0];
-      if (!row) throw new Error("seed insert returned no row");
+      if (!row) throw new Error('seed insert returned no row');
       return row.id;
     };
     const connectionId = await one(
@@ -54,27 +54,21 @@ export async function seedOrg(
        values ($1, $2, '/fix', 'fix', '#1', 'issue', 'main', 'manual') returning id`,
       [orgId, projectId],
     );
-    await client.query(
-      `insert into run_events (org_id, run_id, seq, type) values ($1, $2, 1, 'status')`,
-      [orgId, runId],
-    );
+    await client.query(`insert into run_events (org_id, run_id, seq, type) values ($1, $2, 1, 'status')`, [
+      orgId,
+      runId,
+    ]);
     await client.query(
       `insert into inbound_events (org_id, project_id, provider, channel, delivery_id, outcome)
        values ($1, $2, 'fake', 'webhook', $3, 'accepted')`,
       [orgId, projectId, `d-${orgId}`],
     );
-    await client.query(
-      `insert into poll_cursors (org_id, project_id) values ($1, $2)`,
-      [orgId, projectId],
-    );
-    await client.query(
-      `insert into audit_log (org_id, action) values ($1, 'seed')`,
-      [orgId],
-    );
-    await client.query("commit");
+    await client.query(`insert into poll_cursors (org_id, project_id) values ($1, $2)`, [orgId, projectId]);
+    await client.query(`insert into audit_log (org_id, action) values ($1, 'seed')`, [orgId]);
+    await client.query('commit');
     return { orgId, connectionId, projectId, agentId, ruleId, runId };
   } catch (e) {
-    await client.query("rollback").catch(() => undefined);
+    await client.query('rollback').catch(() => undefined);
     throw e;
   } finally {
     await client.end();
@@ -90,7 +84,7 @@ export async function seedRun(
   const client = new pg.Client({ connectionString: ownerUrl });
   await client.connect();
   try {
-    await client.query("begin");
+    await client.query('begin');
     await client.query(`select set_config('app.org_id', $1, true)`, [s.orgId]);
     const r = await client.query<{ id: string }>(
       `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref, trigger_source,
@@ -99,9 +93,9 @@ export async function seedRun(
        returning id`,
       [s.orgId, s.projectId, o.ticketRef, o.workflowId, o.ageSeconds],
     );
-    await client.query("commit");
+    await client.query('commit');
     const row = r.rows[0];
-    if (!row) throw new Error("seed run returned no row");
+    if (!row) throw new Error('seed run returned no row');
     return row.id;
   } finally {
     await client.end();
