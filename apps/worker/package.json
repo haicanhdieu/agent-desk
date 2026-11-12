@@ -30,6 +30,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@temporalio/common": "1.25.0",
     "@temporalio/testing": "1.25.0",
     "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^26.6.6",

@@ -6,8 +6,9 @@ import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activit
  * here may need a runtime import. Implementations live in `run.activities.impl.ts` (Task 14) except `requestSlot`
  * (`slot.activity.ts`).
  *
- * Everything that crosses this boundary is stored in Temporal history: no credential values, no workspace tokens
- * (see `mintWorkspaceToken`), and only redacted run output.
+ * Everything that crosses this boundary is stored in Temporal history, so no argument or result may carry a credential
+ * value or a workspace token (ruling R19): the token is minted inside `createRunSecretAndJob` and goes straight into the
+ * run Secret. Run output crosses it only redacted.
  */
 
 /** What the workflow needs to know about a run; loaded once by `loadRun`. */
@@ -25,12 +26,6 @@ export interface RunContext {
   maxConcurrentRuns: number;
   /** Idle end, seconds. Normally `IDLE_END_SECONDS` (600); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
-}
-
-export interface WorkspaceToken {
-  token: string;
-  /** ISO timestamp. */
-  expiresAt: string;
 }
 
 export interface RequestSlotInput {
@@ -68,10 +63,11 @@ export interface RunActivities {
   requestSlot(input: RequestSlotInput): Promise<void>;
   /** The only writer of `runs.status` (Task 12). */
   setRunStatus(input: SetRunStatusInput): Promise<SetRunStatusResult>;
-  /** CodeHostAdapter.mintWorkspaceToken for the run's project. */
-  mintWorkspaceToken(ctx: RunContext): Promise<WorkspaceToken>;
-  /** Secret and Job `run-{runId}`; already exists → success. */
-  createRunSecretAndJob(ctx: RunContext, token: WorkspaceToken): Promise<void>;
+  /**
+   * Mints the workspace token (CodeHostAdapter.mintWorkspaceToken) and creates Secret and Job `run-{runId}` with it;
+   * already exists → success. The token never leaves the activity.
+   */
+  createRunSecretAndJob(ctx: RunContext): Promise<void>;
   /** Idempotent via `runs.outbox.{kind}`. */
   postComment(ctx: RunContext, kind: CommentKind, details?: FinishDetails): Promise<void>;
   /**

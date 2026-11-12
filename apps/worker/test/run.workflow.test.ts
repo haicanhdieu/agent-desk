@@ -2,7 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { readFile, writeFile } from 'node:fs/promises';
 import { Worker } from '@temporalio/worker';
+import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import { ApplicationFailure, CancelledFailure, Context } from '@temporalio/activity';
 import type { WorkflowHandle } from '@temporalio/client';
 import { IDLE_END_SECONDS, QUERY, TASK_QUEUE, WORKFLOW, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
@@ -69,6 +71,12 @@ interface Script {
   jobCalled: Deferred<void>;
   /** When set, createRunSecretAndJob waits for it (or for cancellation). */
   jobHold?: Deferred<void>;
+  /** What the mock "wrote" into the run Secret. */
+  secretData?: Record<string, string>;
+  /** When set, createRunSecretAndJob ignores cancellation and lands after this many ms (records 'create:done'). */
+  createLandsAfterMs?: number;
+  /** When set, postComment('start') ignores cancellation and lands after this many ms. */
+  startCommentLandsAfterMs?: number;
   endSessionAt?: number;
   endSessionCalled: Deferred<void>;
 }
@@ -78,6 +86,10 @@ let env: TestWorkflowEnvironment;
 let worker: Worker;
 let running: Promise<void>;
 let lastSuccessHandle: WorkflowHandle | undefined;
+/** Histories captured during the run, replayed (and, with UPDATE_REPLAY_FIXTURES=1, written as fixtures) at the end. */
+const captured: Record<string, WorkflowHandle> = {};
+const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}-history.json`, import.meta.url));
+const TOKEN = 'test-token-must-not-leak';
 const workflowsPath = fileURLToPath(new URL('../src/workflows/index.ts', import.meta.url));
 
 function script(runId: string): Script {
@@ -116,20 +128,26 @@ function activities(): RunActivities {
       s.statuses.push(input);
       return { seq: s.statuses.length };
     },
-    async mintWorkspaceToken(ctx) {
-      script(ctx.runId).calls.push('mintWorkspaceToken');
-      return { token: 'test-token', expiresAt: new Date(Date.now() + 3600_000).toISOString() };
-    },
     async createRunSecretAndJob(ctx) {
       const s = script(ctx.runId);
       s.calls.push('createRunSecretAndJob');
+      // Stands in for the real mint: the token is used here (written to the run Secret) and never returned.
+      s.secretData = { REPO_CLONE_URL: `https://x-access-token:${TOKEN}@example.test/repo.git` };
       s.jobCalled.resolve();
+      if (s.createLandsAfterMs !== undefined) {
+        await sleepReal(s.createLandsAfterMs);
+        s.calls.push('create:done');
+      }
       if (s.jobHold)
         await untilSettledOrCancelled(s.jobHold.promise, () => s.calls.push('createRunSecretAndJob:cancelled'));
     },
     async postComment(ctx, kind, details) {
       const s = script(ctx.runId);
       s.calls.push(`postComment:${kind}`);
+      if (kind === 'start' && s.startCommentLandsAfterMs !== undefined) {
+        await sleepReal(s.startCommentLandsAfterMs);
+        s.calls.push('postComment:start:done');
+      }
       s.comments.push(details ? { kind, details } : { kind });
     },
     async followPodLogs(ctx) {
@@ -267,7 +285,6 @@ describe('RunWorkflow', () => {
     expect(s.calls).toEqual([
       'loadRun',
       'requestSlot',
-      'mintWorkspaceToken',
       'createRunSecretAndJob',
       'postComment:start',
       'followPodLogs',
@@ -279,6 +296,7 @@ describe('RunWorkflow', () => {
     await gateForgot(s);
     expect((await state(h)).phase).toBe('done');
     lastSuccessHandle = h;
+    captured['run-success'] = h;
   });
 
   it('idle → finish → endSession → logs complete 0 → succeeded; finish while running is ignored', async () => {
@@ -372,7 +390,6 @@ describe('RunWorkflow', () => {
     const out = await h.result();
     expect(out.status).toBe('cancelled');
     expect(statuses(s)).toEqual(['cancelled']);
-    expect(count(s, 'mintWorkspaceToken')).toBe(0);
     expect(count(s, 'createRunSecretAndJob')).toBe(0);
     expect(count(s, 'deleteJob')).toBe(0);
     expect(count(s, 'ensureJobGone')).toBe(0);
@@ -397,6 +414,7 @@ describe('RunWorkflow', () => {
     expect(count(s, 'deleteJob')).toBe(1);
     expect(count(s, 'ensureJobGone')).toBe(0);
     await waitFor(() => s.logsCancelled, 'followPodLogs cancelled');
+    captured['run-cancel-starting'] = h;
     expect(expectFinishOnce(s)).toMatchObject({ status: 'cancelled' });
     await gateForgot(s);
   });
@@ -459,10 +477,117 @@ describe('RunWorkflow', () => {
     expect(s.statuses).toEqual([]);
   });
 
-  it('replay: the success history replays without nondeterminism', async () => {
+  it('R19: the workspace token never appears in workflow history', async () => {
     expect(lastSuccessHandle).toBeDefined();
     if (!lastSuccessHandle) return;
-    const history = await lastSuccessHandle.fetchHistory();
-    await Worker.runReplayHistory({ workflowsPath }, history, lastSuccessHandle.workflowId);
+    const json = historyToJSON(await lastSuccessHandle.fetchHistory());
+    expect(json).toContain('createRunSecretAndJob');
+    expect(script(lastSuccessHandle.workflowId.slice('run-'.length)).secretData?.REPO_CLONE_URL).toContain(TOKEN);
+    expect(json).not.toContain(TOKEN);
+    // Payloads are base64 JSON: check the decoded form too.
+    expect(json).not.toContain(Buffer.from(JSON.stringify(TOKEN)).toString('base64').slice(0, 20));
+  });
+
+  it('cancel while createRunSecretAndJob is in flight: deleteJob runs only after the create landed', async () => {
+    const s = newRun();
+    s.createLandsAfterMs = 300;
+    const h = await start(s);
+    await s.jobCalled.promise;
+    await h.signal(signals.cancel);
+    const out = await h.result();
+    expect(out.status).toBe('cancelled');
+    expect(s.calls.indexOf('create:done')).toBeGreaterThanOrEqual(0);
+    expect(s.calls.indexOf('create:done')).toBeLessThan(s.calls.indexOf('deleteJob'));
+    expect(count(s, 'deleteJob')).toBe(1);
+    expect(count(s, 'postComment:start')).toBe(0);
+    expect(statuses(s)).toEqual(['starting', 'cancelled']);
+    expectFinishOnce(s);
+    await gateForgot(s);
+  });
+
+  it('hard timeout while postComment(start) is in flight: deleteJob runs only after it landed', async () => {
+    const s = newRun({ timeoutSeconds: 1 });
+    s.startCommentLandsAfterMs = 1800;
+    const h = await start(s);
+    const out = await h.result();
+    expect(out.status).toBe('timed_out');
+    expect(s.calls.indexOf('postComment:start:done')).toBeGreaterThanOrEqual(0);
+    expect(s.calls.indexOf('postComment:start:done')).toBeLessThan(s.calls.indexOf('deleteJob'));
+    expect(count(s, 'followPodLogs')).toBe(0);
+    expect(statuses(s)).toEqual(['starting', 'timed_out']);
+    expectFinishOnce(s);
+  });
+
+  it('a turn that ends after the workflow wrote running (resumed) gets idle written again', async () => {
+    const s = newRun();
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await h.signal(signals.turnFinished);
+    await waitPhase(h, 'idle');
+    await h.signal(signals.resumed);
+    await waitFor(() => statuses(s).length === 3, 'running written after resumed');
+    await h.signal(signals.turnFinished);
+    await waitFor(() => statuses(s).length === 4, 'idle re-written');
+    expect(statuses(s)).toEqual(['starting', 'running', 'running', 'idle']);
+    // A plain turn with no resume in between writes nothing from the workflow.
+    await h.signal(signals.resumed);
+    await waitFor(() => statuses(s).length === 5, 'running');
+    await h.signal(signals.turnFinished);
+    await waitFor(() => statuses(s).length === 6, 'idle');
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+    expect(statuses(s)).toEqual(['starting', 'running', 'running', 'idle', 'running', 'idle', 'succeeded']);
+  });
+
+  it('Temporal cancellation (handle.cancel) lands in the same finalize: deleteJob, cancelled, one finish comment', async () => {
+    const s = newRun();
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await h.cancel();
+    const out = await h.result();
+    expect(out.status).toBe('cancelled');
+    expect(statuses(s)).toEqual(['starting', 'running', 'cancelled']);
+    expect(count(s, 'deleteJob')).toBe(1);
+    await waitFor(() => s.logsCancelled, 'followPodLogs cancelled');
+    expectFinishOnce(s);
+    await gateForgot(s);
+  });
+
+  it('finish while ending is ignored', async () => {
+    const s = newRun({}, { endSessionExits: false });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await h.signal(signals.turnFinished);
+    await waitPhase(h, 'idle');
+    await h.signal(signals.finish);
+    await s.endSessionCalled.promise;
+    await waitPhase(h, 'ending');
+    await h.signal(signals.finish);
+    await h.signal(signals.resumed);
+    await sleepReal(300);
+    expect(count(s, 'endSession')).toBe(1);
+    expect((await state(h)).phase).toBe('ending');
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+    expect(count(s, 'endSession')).toBe(1);
+    expect(statuses(s)).toEqual(['starting', 'running', 'succeeded']);
+    captured['run-idle-finish'] = h;
+  });
+
+  it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
+    expect(Object.keys(captured).sort()).toEqual(['run-cancel-starting', 'run-idle-finish', 'run-success']);
+    for (const [name, h] of Object.entries(captured)) {
+      const history = await h.fetchHistory();
+      await Worker.runReplayHistory({ workflowsPath }, history, h.workflowId);
+      if (process.env.UPDATE_REPLAY_FIXTURES === '1') {
+        // Worker identities are "pid@hostname": keep machine names out of the repo.
+        const json = historyToJSON(history).replace(/"identity": "[^"]*"/g, '"identity": "replay-fixture"');
+        await writeFile(fixture(name), json + '\n');
+      }
+    }
+    for (const name of Object.keys(captured)) {
+      const json: unknown = JSON.parse(await readFile(fixture(name), 'utf8'));
+      await Worker.runReplayHistory({ workflowsPath }, json, `fixture-${name}`);
+    }
   });
 });

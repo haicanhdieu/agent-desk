@@ -1,10 +1,12 @@
 import {
+  ActivityCancellationType,
   ActivityFailure,
   ApplicationFailure,
   CancellationScope,
   condition,
   getExternalWorkflowHandle,
   isCancellation,
+  log,
   proxyActivities,
   setHandler,
   sleep,
@@ -31,6 +33,8 @@ const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 /** followPodLogs may run for the whole run; it gets this much beyond the hard timer before Temporal gives up. */
 const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
 const FAILURE_REASON_MAX = 1000;
+/** Spec cap on `timeout_seconds` (the workspace token lives one hour); the hard timer never exceeds it. */
+const TIMEOUT_SECONDS_MAX = 3300;
 const SCROLLBACK_TAIL_MAX = 4000;
 
 type FinalStatus = 'succeeded' | 'failed' | 'cancelled' | 'timed_out';
@@ -58,6 +62,17 @@ interface Outcome extends RunOutcome {
 const RETRY = { initialInterval: '1s', maximumInterval: '1m', maximumAttempts: 5 } as const;
 
 const act = proxyActivities<RunActivities>({ startToCloseTimeout: '2 minutes', retry: RETRY });
+/**
+ * Activities whose side effect must be settled before `finalize` runs: on cancel or hard timeout the workflow waits for
+ * the in-flight attempt to finish (or acknowledge the cancel) instead of abandoning it. Otherwise a Job created after
+ * finalize's `deleteJob` would be orphaned with live credentials, and a slot request landing after `releaseSlot` would
+ * re-queue a dead run. Cancelling still stops retries.
+ */
+const settled = proxyActivities<Pick<RunActivities, 'requestSlot' | 'createRunSecretAndJob' | 'postComment'>>({
+  startToCloseTimeout: '2 minutes',
+  retry: RETRY,
+  cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
+});
 
 function failureReason(err: unknown): string {
   let reason: string;
@@ -82,9 +97,9 @@ function failureReason(err: unknown): string {
  * scope; so does a Temporal-level cancellation of the workflow. The cancellation reaches whatever is in flight
  * (waiting for the slot, a starting activity, the main loop, followPodLogs) and lands in the same `finalize`.
  *
- * Status writes: the workflow writes `starting`, `running` after `resumed` (plus `idle` again if a turn ended during
- * that write), and the final status. `followPodLogs` writes `running` on the first log line and `idle` on each
- * Stop-hook line (then signals `turnFinished`).
+ * Status writes: the workflow writes `starting`, `running` after `resumed` (plus `idle` again when the next turn ends,
+ * since followPodLogs' `idle` may have landed before that `running`), and the final status. `followPodLogs` writes
+ * `running` on the first log line and `idle` on each Stop-hook line (then signals `turnFinished`).
  */
 export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> {
   const { orgId, runId } = input;
@@ -93,6 +108,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let isGranted = false;
   let finishRequested = false;
   let resumePending = false;
+  /** The workflow wrote `running` (after `resumed`) since the last turn ended. */
+  let wroteRunningSinceTurn = false;
+  /** A turn ended after (or while) the workflow wrote `running`: followPodLogs' `idle` may be older, so write it again. */
+  let idleFixPending = false;
   /** Bumped on every state change the idle timer cares about; a changed value restarts the timer. */
   let epoch = 0;
   let stopReason: 'cancelled' | 'timed_out' | undefined;
@@ -119,6 +138,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     if (phase !== 'running') return;
     phase = 'idle';
     resumePending = false;
+    if (wroteRunningSinceTurn) {
+      wroteRunningSinceTurn = false;
+      idleFixPending = true;
+    }
     epoch += 1;
   });
   setHandler(resumed, () => {
@@ -153,27 +176,31 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // 1. Acquire a slot.
     phase = 'waiting_slot';
     slotRequested = true;
-    await act.requestSlot({ projectId: c.projectId, runId, limit: c.maxConcurrentRuns });
+    // Race note: a cancel here waits for the request to land (WAIT_CANCELLATION_COMPLETED), so finalize's releaseSlot
+    // is always signalled after requestSlot and the gate drops the run. A `granted` the gate sent before it saw the
+    // release only flips `isGranted`, which nobody reads any more.
+    await settled.requestSlot({ projectId: c.projectId, runId, limit: c.maxConcurrentRuns });
     await condition(() => isGranted);
 
     // 2-3. Start. The hard timer covers everything from here on (the workspace token lives one hour).
     phase = 'starting';
+    const timeoutSeconds = Math.min(c.timeoutSeconds, TIMEOUT_SECONDS_MAX);
     hardTimer
-      .run(() => sleep(c.timeoutSeconds * 1000))
+      .run(() => sleep(timeoutSeconds * 1000))
       .then(
         () => stop('timed_out'),
         () => undefined,
       );
     await status('starting');
-    const token = await act.mintWorkspaceToken(c);
+    // The workspace token is minted inside this activity and never enters workflow history (ruling R19).
     jobMayExist = true;
-    await act.createRunSecretAndJob(c, token);
-    await act.postComment(c, 'start');
+    await settled.createRunSecretAndJob(c);
+    await settled.postComment(c, 'start');
 
     // 4. Follow the logs.
     phase = 'running';
     const logsActs = proxyActivities<Pick<RunActivities, 'followPodLogs'>>({
-      startToCloseTimeout: (c.timeoutSeconds + LOGS_TIMEOUT_MARGIN_SECONDS) * 1000,
+      startToCloseTimeout: (timeoutSeconds + LOGS_TIMEOUT_MARGIN_SECONDS) * 1000,
       heartbeatTimeout: '60s',
       retry: { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] },
     });
@@ -197,8 +224,12 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     while (!logsDone) {
       if (resumePending) {
         resumePending = false;
+        wroteRunningSinceTurn = true;
         await status('running');
-        // A turn finished while that write was in flight: followPodLogs' `idle` may have landed first, so restore it.
+        continue;
+      }
+      if (idleFixPending) {
+        idleFixPending = false;
         if (currentPhase() === 'idle') await status('idle');
         continue;
       }
@@ -210,7 +241,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       }
       const seen = epoch;
       // Every term must turn false once handled, or condition() resolves at once and the loop spins.
-      const wake = () => epoch !== seen || logsDone || (finishRequested && !ending) || resumePending;
+      const wake = () => epoch !== seen || logsDone || (finishRequested && !ending) || resumePending || idleFixPending;
       // phase is read through a call: signal handlers change it between awaits, which TS narrowing cannot see.
       if (!ending && currentPhase() === 'idle' && attached === 0) {
         if (!(await condition(wake, idleMs))) {
@@ -256,8 +287,12 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     let statusError: unknown;
     await CancellationScope.nonCancellable(async () => {
       const c = ctx;
-      if (c && jobMayExist) await attempt(() => (o.podExited ? act.ensureJobGone(c) : act.deleteJob(c)));
-      statusError = await attempt(() =>
+      if (c && jobMayExist) {
+        await attempt(o.podExited ? 'ensureJobGone' : 'deleteJob', () =>
+          o.podExited ? act.ensureJobGone(c) : act.deleteJob(c),
+        );
+      }
+      statusError = await attempt('setRunStatus', () =>
         status(o.status, {
           ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),
           ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
@@ -270,11 +305,11 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
           ...(o.status === 'failed' && o.scrollbackTail !== undefined ? { scrollbackTail: o.scrollbackTail } : {}),
         };
-        await attempt(() => act.postComment(c, 'finish', details));
+        await attempt('postComment(finish)', () => act.postComment(c, 'finish', details));
       }
       if (c && slotRequested) {
         slotRequested = false;
-        await attempt(() => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
+        await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
       }
     });
     phase = 'done';
@@ -289,12 +324,24 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   }
 }
 
-/** Runs one cleanup step; a failure (after the activity's own retries) must not skip the steps after it. */
-async function attempt(fn: () => Promise<unknown>): Promise<unknown> {
+/**
+ * Runs one cleanup step; a failure (after the activity's own retries) must not skip the steps after it. Logs only the
+ * step and the error's kind: messages can quote provider responses and are not logged.
+ */
+async function attempt(step: string, fn: () => Promise<unknown>): Promise<unknown> {
   try {
     await fn();
     return undefined;
   } catch (err) {
+    log.warn('run finalize step failed', { step, error: errorKind(err) });
     return err;
   }
+}
+
+function errorKind(err: unknown): string {
+  if (err instanceof ActivityFailure) {
+    const cause = err.cause;
+    return `ActivityFailure(${cause instanceof ApplicationFailure ? cause.type ?? cause.name : cause?.name ?? 'unknown'})`;
+  }
+  return err instanceof Error ? err.name : 'unknown';
 }
