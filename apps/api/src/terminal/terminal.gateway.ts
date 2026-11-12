@@ -38,6 +38,12 @@ export const RESUME_THROTTLE_MS = 5000;
 export const HIGH_WATER_BYTES = 4 * 1024 * 1024;
 /** Input arriving before the exec session is up is held, up to this much. */
 const PENDING_INPUT_MAX_BYTES = 256 * 1024;
+/** Until authorization completes an unauthenticated peer may buffer almost nothing. */
+const UNAUTHORIZED_INPUT_MAX_BYTES = 4 * 1024;
+/** Authorization (session + membership + run lookup) must finish within this, else 1013. */
+const AUTH_TIMEOUT_MS = 10_000;
+/** Attach/detach signal attempts (first try plus retries with a short backoff). */
+const SIGNAL_ATTEMPTS = 3;
 
 const ResizeFrame = z.object({
   type: z.literal('resize'),
@@ -66,6 +72,13 @@ interface Conn {
   alive: boolean;
   pingTimer?: NodeJS.Timeout;
   registered: boolean;
+  /** Request headers (session cookie), kept in memory only to re-validate the session on a long-lived socket. */
+  headers: Headers;
+  authTimer?: NodeJS.Timeout;
+  reauthTimer?: NodeJS.Timeout;
+  reauthBusy: boolean;
+  /** Resolves true when `terminalAttached` was delivered. `terminalDetached` is sent only after, and only if true. */
+  attachSignal?: Promise<boolean>;
 }
 
 const toBuffer = (data: RawData): Buffer =>
@@ -90,6 +103,8 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly byRun = new Map<string, Set<Conn>>();
   /** Per-run time of the last `resumed` signal; an entry lives only while the run has a terminal attached. */
   private readonly resumedAt = new Map<string, number>();
+  /** Test seam: base delay between attach/detach signal retries. */
+  signalRetryMs = 100;
 
   constructor(
     @Inject(HttpAdapterHost) private readonly host: HttpAdapterHost,
@@ -114,6 +129,11 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     );
   }
 
+  /**
+   * Closes every registered terminal. Sockets still authorizing are not registered yet: they are closed by the HTTP
+   * server shutdown (the websocket plugin terminates all clients) and their auth timer/ping timer die with their close
+   * event; their `start` returns early because `conn.closed` is set by cleanup.
+   */
   onModuleDestroy(): void {
     for (const set of this.byRun.values()) {
       for (const conn of [...set]) {
@@ -138,6 +158,8 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       statusReadAt: 0,
       alive: true,
       registered: false,
+      headers: toHeaders(req),
+      reauthBusy: false,
     };
     // Listeners go on synchronously: frames sent right after the upgrade must not be lost while we authorize.
     socket.on('message', (data, isBinary) => this.onFrame(conn, data, isBinary));
@@ -158,6 +180,10 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       conn.alive = false;
       socket.ping();
     }, this.config.TERMINAL_PING_MS);
+    conn.authTimer = setTimeout(() => {
+      this.log.warn(`terminal auth timeout run=${conn.runId}`);
+      this.shut(conn, CLOSE.tryAgainLater);
+    }, AUTH_TIMEOUT_MS);
     this.start(conn, req).catch((err: unknown) => {
       this.log.error(`terminal start failed run=${conn.runId} user=${conn.userId}: ${errorName(err)}`);
       this.shut(conn, CLOSE.internal);
@@ -173,6 +199,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
   private async start(conn: Conn, req: FastifyRequest): Promise<void> {
     const authz = await this.authorize(req, conn.runId);
+    if (conn.authTimer) clearTimeout(conn.authTimer);
     if (conn.closed) return;
     if (!authz.ok) {
       this.log.log(`terminal denied run=${conn.runId} code=${authz.code} why=${authz.why}`);
@@ -183,6 +210,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     conn.orgId = authz.orgId;
     conn.idle = authz.status === 'idle';
     conn.statusReadAt = Date.now();
+    conn.reauthTimer = setInterval(() => void this.reauth(conn), this.config.TERMINAL_REAUTH_MS);
 
     // Reserve the slot before the first await below, so the cap holds under concurrent attaches.
     const set = this.byRun.get(conn.runId) ?? new Set<Conn>();
@@ -212,7 +240,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     });
     conn.attached = true;
     this.log.log(`terminal attached run=${conn.runId} user=${conn.userId}`);
-    void this.signal(conn.runId, SIGNAL.terminalAttached);
+    conn.attachSignal = this.signalWithRetry(conn.runId, SIGNAL.terminalAttached);
     if (conn.pendingResize) session.resize(conn.pendingResize.cols, conn.pendingResize.rows);
     const pending = conn.pending.splice(0);
     conn.pendingBytes = 0;
@@ -224,8 +252,16 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const origin = req.headers.origin;
     if (origin !== undefined && origin !== new URL(this.config.PUBLIC_ORIGIN).origin)
       return deny(CLOSE.forbidden, 'origin');
+    return this.check(toHeaders(req), runId);
+  }
 
-    const session = await this.auth.api.getSession({ headers: toHeaders(req) }).catch(() => null);
+  /**
+   * Session + membership + (project creator or org owner) + run status. A thrown error (auth or DB outage) propagates:
+   * only a null session is 4401.
+   */
+  private async check(headers: Headers, runId: string): Promise<AuthzResult> {
+    const deny = (code: number, why: string): AuthzResult => ({ ok: false, code, why });
+    const session = await this.auth.api.getSession({ headers });
     if (!session) return deny(CLOSE.unauthorized, 'no-session');
     const orgId = session.session.activeOrganizationId;
     const userId = session.user.id;
@@ -261,7 +297,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (isBinary) {
       if (!conn.session) {
         conn.pendingBytes += buf.length;
-        if (conn.pendingBytes > PENDING_INPUT_MAX_BYTES) {
+        if (conn.pendingBytes > (conn.userId ? PENDING_INPUT_MAX_BYTES : UNAUTHORIZED_INPUT_MAX_BYTES)) {
           this.shut(conn, CLOSE.tooBig);
           return;
         }
@@ -326,12 +362,50 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     await this.signal(conn.runId, SIGNAL.resumed);
   }
 
-  /** Best-effort: a failed signal is logged and never breaks the relay. */
-  private async signal(runId: string, name: string): Promise<void> {
+  /** Best-effort: a failed signal is logged (error name only) and never breaks the relay. True when delivered. */
+  private async signal(runId: string, name: string): Promise<boolean> {
     try {
       await this.temporal.workflow.getHandle(runWorkflowId(runId)).signal(name);
+      return true;
     } catch (err) {
       this.log.warn(`terminal signal ${name} failed run=${runId}: ${errorName(err)}`);
+      return false;
+    }
+  }
+
+  /** Up to SIGNAL_ATTEMPTS tries with a short growing backoff (signalRetryMs, 2x each time). */
+  private async signalWithRetry(runId: string, name: string): Promise<boolean> {
+    for (let attempt = 1; attempt <= SIGNAL_ATTEMPTS; attempt += 1) {
+      if (await this.signal(runId, name)) return true;
+      if (attempt < SIGNAL_ATTEMPTS) await new Promise((r) => setTimeout(r, this.signalRetryMs * 2 ** (attempt - 1)));
+    }
+    this.log.error(`terminal signal ${name} gave up run=${runId}`);
+    return false;
+  }
+
+  /**
+   * Detach must reach the workflow after attach (it clamps the count at 0, so a detach that overtakes its attach would
+   * leave the run looking attached forever). If attach never landed there is nothing to balance.
+   */
+  private async detach(conn: Conn, attachSignal: Promise<boolean>): Promise<void> {
+    if (!(await attachSignal)) return;
+    await this.signalWithRetry(conn.runId, SIGNAL.terminalDetached);
+  }
+
+  /** Re-validates the session and authorization of a long-lived socket; an outage never closes it. */
+  private async reauth(conn: Conn): Promise<void> {
+    if (conn.closed || conn.reauthBusy) return;
+    conn.reauthBusy = true;
+    try {
+      const res = await this.check(conn.headers, conn.runId);
+      if (!res.ok && (res.code === CLOSE.unauthorized || res.code === CLOSE.forbidden) && !conn.closed) {
+        this.log.log(`terminal reauth denied run=${conn.runId} user=${conn.userId} code=${res.code} why=${res.why}`);
+        this.shut(conn, res.code);
+      }
+    } catch (err) {
+      this.log.warn(`terminal reauth failed run=${conn.runId}: ${errorName(err)}`);
+    } finally {
+      conn.reauthBusy = false;
     }
   }
 
@@ -340,6 +414,8 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (conn.closed) return;
     conn.closed = true;
     if (conn.pingTimer) clearInterval(conn.pingTimer);
+    if (conn.authTimer) clearTimeout(conn.authTimer);
+    if (conn.reauthTimer) clearInterval(conn.reauthTimer);
     conn.pending.length = 0;
     try {
       conn.session?.close();
@@ -354,9 +430,9 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
         this.resumedAt.delete(conn.runId);
       }
     }
-    if (conn.attached) {
+    if (conn.attachSignal) {
       this.log.log(`terminal detached run=${conn.runId} user=${conn.userId}`);
-      void this.signal(conn.runId, SIGNAL.terminalDetached);
+      void this.detach(conn, conn.attachSignal);
     }
   }
 }

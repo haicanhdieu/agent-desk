@@ -31,6 +31,8 @@ export class FakeTemporalClient {
   available = true;
   /** When true, every workflow/schedule call rejects (nothing is recorded). */
   failing = false;
+  /** Awaited before each workflow signal is recorded; may delay or throw (per signal name). */
+  signalHook?: (name: unknown) => Promise<void>;
 
   private record(call: FakeCall): void {
     if (this.failing) throw new Error('temporal call failed (fake)');
@@ -41,6 +43,7 @@ export class FakeTemporalClient {
     return {
       workflowId,
       signal: async (...args: unknown[]) => {
+        await this.signalHook?.(args[0]);
         this.record({ kind: 'signal', workflowId, args });
       },
     };
@@ -93,5 +96,6 @@ export class FakeTemporalClient {
     this.calls.length = 0;
     this.available = true;
     this.failing = false;
+    this.signalHook = undefined;
   }
 }
