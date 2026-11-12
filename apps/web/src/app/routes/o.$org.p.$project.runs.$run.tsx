@@ -1,7 +1,7 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
@@ -11,7 +11,7 @@ import { isFinal } from '@/features/runs/map';
 import { useCancelRun, useFinishRun } from '@/features/runs/mutations';
 import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
-import { useRunEvents } from '@/features/runs/useRunEvents';
+import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
 import { RunDetail } from '@/screens';
 
 /** `$run` is the per-project run number. */
@@ -48,15 +48,8 @@ function RunDetailRoute() {
   const { data: ticketRuns } = useSuspenseQuery(runsQueries.list(org, projectId, 'all', dto.ticket.ref));
   // Live status and log while the run is not final (spec §5.1).
   const stream = useRunEvents(org, projectId, number, dto.id, !final);
-  const queryClient = useQueryClient();
-  // The run became final while open (a refetch, not loaded final): its log now has the final scrollback.
-  const wasFinal = useRef(final);
-  useEffect(() => {
-    if (final && !wasFinal.current) {
-      void queryClient.invalidateQueries({ queryKey: runsQueries.events(org, projectId, number).queryKey });
-    }
-    wasFinal.current = final;
-  }, [final, queryClient, org, projectId, number]);
+  // Turned final while open: the run and its log (the final scrollback) reload.
+  useFinalLogReload(org, projectId, number, final);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const onError = (e: unknown) => toast.show(toastFromError(e));

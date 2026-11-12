@@ -119,6 +119,38 @@ describe('applyRunStatus', () => {
     expect(qc.getQueryState(runsQueries.list(org, projectId, 'active').queryKey)?.isInvalidated).toBe(false);
   });
 
+  it('drops a lagging change: an older seq, or one that would take a final run back to active', () => {
+    const qc = seeded();
+    const counts = () => qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+    // Run stream: idle (seq 20), then succeeded (seq 22). The project stream lags with the same changes.
+    applyRunStatus(qc, org, projectId, status(61, 'idle', 20));
+    applyRunStatus(qc, org, projectId, status(61, 'succeeded', 22));
+    expect(counts()).toEqual({ needsYou: 1, running: 0, queued: 1 });
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 61), number: 61, status: 'idle', seq: 20 });
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 61), number: 61, status: 'succeeded', seq: 22 });
+    const detail = qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey);
+    expect(detail?.status).toBe('succeeded');
+    expect(detail?.finishedAt).not.toBeNull();
+    expect(counts()).toEqual({ needsYou: 1, running: 0, queued: 1 });
+    expect(
+      qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey)?.items.find((r) => r.number === 61)?.status,
+    ).toBe('succeeded');
+
+    // A final run loaded over REST (no seq seen yet) is not taken back to active either.
+    const fresh = seeded();
+    fresh.setQueryData(runsQueries.detail(org, projectId, 55).queryKey, run(55));
+    applyRunStatus(fresh, org, projectId, status(55, 'running', 3));
+    expect(fresh.getQueryData(runsQueries.detail(org, projectId, 55).queryKey)?.status).toBe('succeeded');
+  });
+
+  it('an uncached run also invalidates the ticket lists its status fits', () => {
+    const qc = seeded();
+    const ticketList = runsQueries.list(org, projectId, 'all', 'harbor-labs/invoicer-api#12').queryKey;
+    qc.setQueryData(ticketList, listOf());
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 99), number: 99, status: 'queued', seq: 2 });
+    expect(qc.getQueryState(ticketList)?.isInvalidated).toBe(true);
+  });
+
   it('keeps a pending note on a non-final status and clears it, everywhere, on a final one', () => {
     const qc = seeded();
     const strip = vi.fn(() => {
@@ -131,7 +163,7 @@ describe('applyRunStatus', () => {
     expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)?.statusNote).toBe('Finishing…');
     expect(hasPendingAction(qc, ids.run(1, 61))).toBe(true);
 
-    applyRunStatus(qc, org, projectId, status(61, 'succeeded'));
+    applyRunStatus(qc, org, projectId, status(61, 'succeeded', 21));
     const detail = qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey);
     expect(detail?.status).toBe('succeeded');
     expect(detail?.exitCode).toBe(0);

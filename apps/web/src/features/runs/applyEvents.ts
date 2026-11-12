@@ -104,6 +104,14 @@ function listScope(key: QueryKey): { filter: RunListFilter; ticket: unknown } | 
  */
 export function applyRunStatus(qc: QueryClient, org: string, projectId: string, e: StatusChange): void {
   const before = cachedRun(qc, org, projectId, e);
+  // The two streams deliver the same changes at different times: a change at or before one already applied (a
+  // lagging project stream), or one that would take a final run back to an active status, is stale.
+  const applied = appliedSeqsOf(qc);
+  const last = applied.get(e.runId);
+  if ((last !== undefined && e.seq <= last) || (before !== undefined && isFinal(before.status) && !isFinal(e.status))) {
+    return;
+  }
+  applied.set(e.runId, e.seq);
   // The other stream may have applied this change already: patching again is harmless, moving counts is not.
   const changed = before?.status !== e.status;
 
@@ -124,9 +132,11 @@ export function applyRunStatus(qc: QueryClient, org: string, projectId: string, 
       continue;
     } else if (
       scope === undefined ||
-      (matches(scope.filter, e.status) && (scope.ticket === undefined || scope.ticket === before?.ticket.ref))
+      (matches(scope.filter, e.status) &&
+        (scope.ticket === undefined || before === undefined || scope.ticket === before.ticket.ref))
     ) {
-      // The run belongs here now (or a new run, ticket unknown): only the server has the row and its position.
+      // The run belongs here now (an uncached run's ticket is unknown, so every ticket list may hold it): only the
+      // server has the row and its position.
       void qc.invalidateQueries({ queryKey: key, exact: true });
     }
   }
@@ -150,6 +160,14 @@ export function applyRunStatus(qc: QueryClient, org: string, projectId: string, 
 
   if (isFinal(e.status)) clearPendingAction(qc, e.runId);
 }
+
+// The seq of the last status change applied per run, per QueryClient (see applyRunStatus).
+const appliedSeqs = new WeakMap<QueryClient, Map<string, number>>();
+const appliedSeqsOf = (qc: QueryClient) => {
+  const map = appliedSeqs.get(qc) ?? new Map<string, number>();
+  appliedSeqs.set(qc, map);
+  return map;
+};
 
 // Runs whose event stream is open (useRunEvents), per QueryClient: the project stream leaves their detail to it.
 const streaming = new WeakMap<QueryClient, Map<string, number>>();

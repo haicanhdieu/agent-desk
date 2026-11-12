@@ -11,7 +11,7 @@ import { renderRoute } from '@/test/renderRoute';
 import { setPendingAction } from './pending';
 import { runsQueries } from './queries';
 import { PROJECT_STREAM_HIDDEN_MS, useProjectEvents } from './useProjectEvents';
-import { useRunEvents } from './useRunEvents';
+import { FINAL_LOG_RECHECK_MS, useFinalLogReload, useRunEvents } from './useRunEvents';
 
 const org = 'alice';
 const projectId = ids.project.invoicerApi;
@@ -76,6 +76,7 @@ const setHidden = (h: boolean) => {
 afterEach(() => {
   hidden = false;
   vi.useRealTimers();
+  vi.restoreAllMocks();
 });
 
 describe('useRunEvents', () => {
@@ -143,9 +144,33 @@ describe('useRunEvents', () => {
       first.fail(FakeEventSource.CLOSED);
     });
     expect(result.current).toBe('reconnecting');
-    act(() => vi.advanceTimersByTime(3_000));
+    act(() => vi.advanceTimersByTime(1_200));
     expect(FakeEventSource.instances).toHaveLength(2);
     expect(FakeEventSource.latest().url).toBe(`${runPrefix(61)}?after=2`);
+  });
+
+  it('backs off 1, 2, 4 … 30 s, gives up after 8 failed re-opens and stays reconnecting; an open resets it', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.spyOn(Math, 'random').mockReturnValue(1);
+    const qc = new QueryClient();
+    const { result } = renderHook(() => useRunEvents(org, projectId, 61, runId(61)), { wrapper: wrapperFor(qc) });
+    // With full jitter (+20 %).
+    act(() => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+    act(() => vi.advanceTimersByTime(1_200));
+    act(() => FakeEventSource.latest().open());
+    expect(result.current).toBe('live');
+    const delays = [1_200, 2_400, 4_800, 9_600, 19_200, 36_000, 36_000, 36_000];
+    for (const [i, delay] of delays.entries()) {
+      act(() => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+      act(() => vi.advanceTimersByTime(delay - 1));
+      expect(FakeEventSource.instances).toHaveLength(i + 2);
+      act(() => vi.advanceTimersByTime(1));
+      expect(FakeEventSource.instances).toHaveLength(i + 3);
+    }
+    act(() => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+    act(() => vi.advanceTimersByTime(10 * 60_000));
+    expect(FakeEventSource.instances).toHaveLength(delays.length + 2);
+    expect(result.current).toBe('reconnecting');
   });
 
   it('status succeeded → ended and the source is closed', () => {
@@ -168,6 +193,42 @@ describe('useRunEvents', () => {
     const source = FakeEventSource.latest();
     unmount();
     expect(source.closed).toBe(true);
+  });
+});
+
+describe('useFinalLogReload', () => {
+  const setup = () => {
+    const qc = new QueryClient();
+    const spy = vi.spyOn(qc, 'invalidateQueries');
+    const hook = renderHook(({ final, n }) => useFinalLogReload(org, projectId, n, final), {
+      wrapper: wrapperFor(qc),
+      initialProps: { final: false, n: 61 },
+    });
+    return { spy, hook };
+  };
+
+  it('reloads the run and its log once when it turns final, and the log again after the recheck delay', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { spy, hook } = setup();
+    hook.rerender({ final: true, n: 61 });
+    expect(spy).toHaveBeenCalledTimes(1);
+    hook.rerender({ final: true, n: 61 });
+    act(() => vi.advanceTimersByTime(FINAL_LOG_RECHECK_MS));
+    expect(spy).toHaveBeenCalledTimes(2);
+    expect(spy).toHaveBeenLastCalledWith({ queryKey: runsQueries.events(org, projectId, 61).queryKey, exact: true });
+  });
+
+  it('drops the recheck on unmount; another run loaded final reloads nothing', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { spy, hook } = setup();
+    hook.rerender({ final: true, n: 61 });
+    hook.unmount();
+    act(() => vi.advanceTimersByTime(FINAL_LOG_RECHECK_MS));
+    expect(spy).toHaveBeenCalledTimes(1);
+
+    const other = setup();
+    other.hook.rerender({ final: true, n: 55 });
+    expect(other.spy).not.toHaveBeenCalled();
   });
 });
 
@@ -227,6 +288,47 @@ describe('run detail route, live', () => {
     expect(FakeEventSource.matching(runPrefix(62))).toHaveLength(1);
   });
 
+  it('a lagging project event never takes an ended run back (run stream first, then project idle)', async () => {
+    const { queryClient } = await renderRoute(`${base}/runs/62`);
+    const counts = () => queryClient.getQueryData(['org', org, 'projects', projectId]);
+    const run = runSource(62);
+    const project = projectSource();
+    act(() => {
+      run.open();
+      project.open();
+    });
+    expect(counts()).toMatchObject({ counts: { needsYou: 1 } });
+    dbRun(62).status = 'succeeded';
+    dbRun(62).finishedAt = new Date().toISOString();
+    act(() => run.emit('status', statusMsg(62, 'succeeded', 40), 40));
+    expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
+    expect(counts()).toMatchObject({ counts: { needsYou: 0 } });
+    const sources = FakeEventSource.instances.length;
+
+    act(() => project.emit('run', { runId: runId(62), number: 62, status: 'idle', seq: 30 }));
+    expect(queryClient.getQueryData(runsQueries.detail(org, projectId, 62).queryKey)?.status).toBe('succeeded');
+    expect(screen.getByText(/^Succeeded in /)).toBeInTheDocument();
+    expect(counts()).toMatchObject({ counts: { needsYou: 0 } });
+    expect(FakeEventSource.instances).toHaveLength(sources);
+    act(() => project.emit('run', { runId: runId(62), number: 62, status: 'succeeded', seq: 40 }));
+    expect(counts()).toMatchObject({ counts: { needsYou: 0 } });
+    expect(FakeEventSource.instances).toHaveLength(sources);
+    await waitFor(() => expect(counts()).toMatchObject({ counts: { needsYou: 0 } }));
+  });
+
+  it('a refetch of the log while streaming keeps the events the stream added', async () => {
+    const { queryClient } = await renderRoute(`${base}/runs/61`);
+    const source = runSource(61);
+    const key = runsQueries.events(org, projectId, 61).queryKey;
+    const top = Math.max(...(queryClient.getQueryData(key) ?? []).map((e) => e.seq));
+    act(() => {
+      source.open();
+      source.emit('event', ev(top + 1), top + 1);
+    });
+    await act(() => queryClient.refetchQueries({ queryKey: key, exact: true }));
+    expect(queryClient.getQueryData(key)?.at(-1)?.seq).toBe(top + 1);
+  });
+
   it('a final run opens no run stream', async () => {
     await renderRoute(`${base}/runs/55`);
     expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
@@ -276,7 +378,67 @@ describe('project events', () => {
     setHidden(false);
     expect(FakeEventSource.instances).toHaveLength(2);
     expect(projectSource()).not.toBe(first);
+    // Catch-up waits for the new stream to open.
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+    act(() => projectSource().open());
     expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
+  });
+
+  it('a browser reconnect catches up once the stream is open again', () => {
+    const qc = new QueryClient();
+    const listKey = runsQueries.list(org, projectId, 'all').queryKey;
+    qc.setQueryData(listKey, { items: [fixture(61)], truncated: false });
+    renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(qc) });
+    const source = projectSource();
+    act(() => source.open());
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+    act(() => source.fail());
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+    act(() => source.open());
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
+    expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  it('a stream the browser gives up on re-opens with growing delays, then stops; catch-up only on open', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    // Unobserved, the list would be garbage-collected during the minutes this test skips.
+    const qc = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
+    const listKey = runsQueries.list(org, projectId, 'all').queryKey;
+    qc.setQueryData(listKey, { items: [fixture(61)], truncated: false });
+    renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(qc) });
+
+    const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000, 30_000];
+    for (const [i, delay] of delays.entries()) {
+      act(() => projectSource().fail(FakeEventSource.CLOSED));
+      act(() => vi.advanceTimersByTime(delay - 1));
+      expect(FakeEventSource.instances).toHaveLength(i + 1);
+      act(() => vi.advanceTimersByTime(1));
+      expect(FakeEventSource.instances).toHaveLength(i + 2);
+    }
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+    act(() => projectSource().fail(FakeEventSource.CLOSED));
+    act(() => vi.advanceTimersByTime(10 * 60_000));
+    expect(FakeEventSource.instances).toHaveLength(delays.length + 1);
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
+  });
+
+  it('an open resets the back-off and catches up', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    const qc = new QueryClient();
+    const listKey = runsQueries.list(org, projectId, 'all').queryKey;
+    qc.setQueryData(listKey, { items: [fixture(61)], truncated: false });
+    renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(qc) });
+    for (const delay of [1_000, 2_000, 4_000]) {
+      act(() => projectSource().fail(FakeEventSource.CLOSED));
+      act(() => vi.advanceTimersByTime(delay));
+    }
+    act(() => projectSource().open());
+    expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
+    act(() => projectSource().fail(FakeEventSource.CLOSED));
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(FakeEventSource.instances).toHaveLength(5);
   });
 
   it('a short hide keeps the stream', () => {

@@ -1,4 +1,4 @@
-import type { RunDto, RunListFilter } from '@agentdesk/contracts';
+import type { RunDto, RunEventDto, RunListFilter } from '@agentdesk/contracts';
 import { queryOptions } from '@tanstack/react-query';
 import { api } from '../api';
 import { withPendingNote } from './pending';
@@ -66,15 +66,18 @@ export const runsQueries = {
     }),
   /**
    * The stored event log; `runs.log` takes the run id, so this goes through the (cached) detail first. A final run's
-   * log no longer changes, so with `final` it loads once: never stale, no refetch on focus.
+   * log no longer changes, so with `final` it loads once: never stale, no refetch on focus. Events the run stream
+   * added after the fetched ones (higher seq) are kept, so a refetch while streaming never drops them.
    */
   events: (org: string, projectId: string, number: number, final = false) =>
     queryOptions({
       queryKey: [...runsKey(org, projectId), number, 'events'] as const,
-      queryFn: async ({ client }) => {
+      queryFn: async ({ client, queryKey }): Promise<RunEventDto[]> => {
         const run = await client.ensureQueryData(runsQueries.detail(org, projectId, number));
         const log = await api.runs.log({ params: { runId: run.id } });
-        return log.items;
+        const fetchedTo = log.items.reduce((max, e) => Math.max(max, e.seq), 0);
+        const live = (client.getQueryData<RunEventDto[]>(queryKey) ?? []).filter((e) => e.seq > fetchedTo);
+        return [...log.items, ...live];
       },
       ...(final ? { staleTime: Infinity, refetchOnWindowFocus: false } : { refetchOnWindowFocus: true }),
     }),
