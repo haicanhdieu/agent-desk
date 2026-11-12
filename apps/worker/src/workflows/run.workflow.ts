@@ -283,6 +283,24 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   async function finalize(o: Outcome): Promise<RunOutcome> {
     phase = 'finalizing';
     hardTimer.cancel();
+    if (ctx === undefined) {
+      // Stopped before loadRun returned (a cancel while it was in flight): load the context now so the finish comment
+      // still posts (spec step 6, ruling R20). Best effort: without it the comment is skipped.
+      const late = await CancellationScope.nonCancellable(async (): Promise<RunContext | undefined> => {
+        try {
+          return await act.loadRun(orgId, runId);
+        } catch (err) {
+          log.warn('run finalize step failed', { step: 'loadRun', error: errorKind(err) });
+          return undefined;
+        }
+      });
+      ctx = late;
+      if (late !== undefined && isFinal(late.status)) {
+        // Another execution already finished this run: leave it alone, as `run` would have.
+        phase = 'done';
+        return { status: late.status };
+      }
+    }
     let statusError: unknown;
     await CancellationScope.nonCancellable(async () => {
       const c = ctx;

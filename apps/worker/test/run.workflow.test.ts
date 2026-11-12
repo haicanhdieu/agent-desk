@@ -79,6 +79,8 @@ interface Script {
   startCommentLandsAfterMs?: number;
   endSessionAt?: number;
   endSessionCalled: Deferred<void>;
+  /** When set, the first loadRun waits for it (or for cancellation); later calls return at once. */
+  loadHold?: Deferred<void>;
 }
 
 const scripts = new Map<string, Script>();
@@ -116,7 +118,10 @@ function activities(): RunActivities {
   return {
     async loadRun(_orgId, runId) {
       const s = script(runId);
+      const first = count(s, 'loadRun') === 0;
       s.calls.push('loadRun');
+      if (first && s.loadHold)
+        await untilSettledOrCancelled(s.loadHold.promise, () => s.calls.push('loadRun:cancelled'));
       return s.ctx;
     },
     async requestSlot(input) {
@@ -469,6 +474,35 @@ describe('RunWorkflow', () => {
     await gateForgot(s);
   });
 
+  it('cancel while loadRun is in flight → cancelled, one finish comment, no Job, no slot', async () => {
+    const s = newRun();
+    s.loadHold = deferred();
+    const h = await start(s);
+    await waitFor(() => count(s, 'loadRun') === 1, 'loadRun started');
+    await h.signal(signals.cancel);
+    const out = await h.result();
+    expect(out.status).toBe('cancelled');
+    expect(statuses(s)).toEqual(['cancelled']);
+    expect(expectFinishOnce(s)).toMatchObject({ status: 'cancelled' });
+    expect(count(s, 'createRunSecretAndJob')).toBe(0);
+    expect(count(s, 'requestSlot')).toBe(0);
+    expect(count(s, 'deleteJob') + count(s, 'ensureJobGone')).toBe(0);
+    s.loadHold.resolve();
+    captured['run-cancel-loading'] = h;
+  });
+
+  it('cancel while loadRun is in flight for a run that is already final → no status write, no comment', async () => {
+    const s = newRun({ status: 'succeeded' });
+    s.loadHold = deferred();
+    const h = await start(s);
+    await waitFor(() => count(s, 'loadRun') === 1, 'loadRun started');
+    await h.signal(signals.cancel);
+    expect((await h.result()).status).toBe('succeeded');
+    expect(s.statuses).toEqual([]);
+    expect(count(s, 'postComment:finish')).toBe(0);
+    s.loadHold.resolve();
+  });
+
   it('a run that is already final does nothing', async () => {
     const s = newRun({ status: 'succeeded' });
     const h = await start(s);
@@ -575,7 +609,12 @@ describe('RunWorkflow', () => {
   });
 
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
-    expect(Object.keys(captured).sort()).toEqual(['run-cancel-starting', 'run-idle-finish', 'run-success']);
+    expect(Object.keys(captured).sort()).toEqual([
+      'run-cancel-loading',
+      'run-cancel-starting',
+      'run-idle-finish',
+      'run-success',
+    ]);
     for (const [name, h] of Object.entries(captured)) {
       const history = await h.fetchHistory();
       await Worker.runReplayHistory({ workflowsPath }, history, h.workflowId);
