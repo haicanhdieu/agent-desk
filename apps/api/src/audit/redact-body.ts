@@ -1,4 +1,8 @@
-const DROPPED_KEYS = new Set(['value', 'token', 'secret', 'password']);
+const SECRET_KEY = /token|secret|password|credential|authorization|api[-_]?key|private[-_]?key/i;
+
+function isDropped(key: string): boolean {
+  return key.toLowerCase() === 'value' || SECRET_KEY.test(key);
+}
 
 /** Copy of a request body without secret-bearing keys, at any depth. Non-object input yields `{}`. */
 export function redactBody(body: unknown): Record<string, unknown> {
@@ -15,7 +19,7 @@ function redact(v: unknown): unknown {
   if (isRecord(v)) {
     const out: Record<string, unknown> = {};
     for (const [k, val] of Object.entries(v)) {
-      if (!DROPPED_KEYS.has(k.toLowerCase())) out[k] = redact(val);
+      if (!isDropped(k)) out[k] = redact(val);
     }
     return out;
   }

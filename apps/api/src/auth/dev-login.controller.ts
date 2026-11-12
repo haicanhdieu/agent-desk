@@ -28,11 +28,10 @@ export class DevLoginController {
   ) {}
 
   @Get('dev-login')
-  async login(
-    @Query(new ZodPipe(DevLoginQuery)) query: z.output<typeof DevLoginQuery>,
-    @Res() reply: FastifyReply,
-  ): Promise<void> {
+  async login(@Query() rawQuery: unknown, @Res() reply: FastifyReply): Promise<void> {
+    // Gate first: when disabled the route must look absent, whatever the query holds.
     if (!this.config.AUTH_DEV_LOGIN || this.config.NODE_ENV === 'production') throw new NotFoundException('Not found');
+    const query = new ZodPipe(DevLoginQuery).transform(rawQuery);
     const handle = query.handle.toLowerCase();
     const email = `${handle}@dev.local`;
     const password = devPassword(this.config, email);

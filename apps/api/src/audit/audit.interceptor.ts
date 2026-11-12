@@ -56,6 +56,14 @@ export function describeRequest(method: string, path: string): AuditTarget {
   return { action: `${method} ${path}`, targetType, targetId: null };
 }
 
+/** Error name and pg code only: messages can echo row values. */
+function describeError(err: unknown): string {
+  if (!(err instanceof Error)) return 'unknown';
+  const cause = err.cause;
+  const code = typeof cause === 'object' && cause !== null && 'code' in cause ? String(cause.code) : undefined;
+  return code ? `${err.name} (${code})` : err.name;
+}
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger(AuditInterceptor.name);
@@ -83,9 +91,7 @@ export class AuditInterceptor implements NestInterceptor {
           );
         } catch (err) {
           // The mutation already happened; never fail the response, but make the gap visible.
-          this.logger.error(
-            `audit insert failed for ${target.action}: ${err instanceof Error ? err.message : 'unknown'}`,
-          );
+          this.logger.error(`audit insert failed for ${target.action}: ${describeError(err)}`);
         }
         return value;
       }),

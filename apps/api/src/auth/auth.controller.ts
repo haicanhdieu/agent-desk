@@ -17,7 +17,9 @@ export class AuthController {
 
   @All('*')
   async handle(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
-    const path = req.url.split('?')[0] ?? '';
+    // Check the normalized pathname (dot segments resolved), the same one better-auth routes on.
+    const url = new URL(req.url, this.config.PUBLIC_ORIGIN);
+    const path = url.pathname.toLowerCase().replace(/\/+$/, '');
     if (BLOCKED_PREFIXES.some((p) => path.startsWith(p))) throw new NotFoundException('Not found');
 
     const headers = new Headers();
@@ -27,7 +29,7 @@ export class AuthController {
       else if (v !== undefined) headers.set(k, v);
     }
     const hasBody = req.method !== 'GET' && req.method !== 'HEAD' && req.body !== undefined && req.body !== null;
-    const request = new Request(new URL(req.url, this.config.PUBLIC_ORIGIN), {
+    const request = new Request(url, {
       method: req.method,
       headers,
       body: hasBody ? JSON.stringify(req.body) : undefined,

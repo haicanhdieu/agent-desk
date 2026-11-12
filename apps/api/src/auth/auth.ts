@@ -13,9 +13,28 @@ const schema = { user, session, account, verification, organization, member, inv
 
 const MAX_SLUG_ATTEMPTS = 5;
 
-function isUniqueViolation(e: unknown): boolean {
-  return typeof e === 'object' && e !== null && 'code' in e && e.code === '23505';
+/** drizzle wraps pg errors in DrizzleQueryError with the pg error on `.cause`, so check both levels. */
+export function isUniqueViolation(e: unknown): boolean {
+  const code = (v: unknown): unknown => (typeof v === 'object' && v !== null && 'code' in v ? v.code : undefined);
+  const cause = typeof e === 'object' && e !== null && 'cause' in e ? e.cause : undefined;
+  return code(e) === '23505' || code(cause) === '23505';
 }
+
+/** Never reachable over HTTP: dev-login uses auth.api directly, which skips the router. */
+const DISABLED_PATHS = [
+  '/sign-in/email',
+  '/sign-up/email',
+  '/organization/create',
+  '/organization/update',
+  '/organization/delete',
+  '/organization/invite-member',
+  '/organization/remove-member',
+  '/organization/leave',
+  '/organization/update-member-role',
+  '/organization/cancel-invitation',
+  '/organization/accept-invitation',
+  '/organization/reject-invitation',
+];
 
 /** Dev-login accounts are not guessable from outside: the password is an HMAC of the email under the server secret. */
 export function devPassword(config: Pick<Config, 'BETTER_AUTH_SECRET'>, email: string): string {
@@ -84,6 +103,7 @@ export function createAuth(config: Config, db: Db) {
     baseURL: config.PUBLIC_ORIGIN,
     basePath: '/auth',
     secret: config.BETTER_AUTH_SECRET,
+    disabledPaths: DISABLED_PATHS,
     trustedOrigins: [config.PUBLIC_ORIGIN],
     database: drizzleAdapter(orm, { provider: 'pg', schema }),
     // Ids double as uuid org ids for organizations, so every generated id is a uuid.

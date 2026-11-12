@@ -125,6 +125,37 @@ describe('auth', () => {
     }
   });
 
+  it.each(['/auth/./sign-in/email', '/auth/x/../sign-up/email', '/auth/%2e/sign-in/email', '/auth/sign-in/email/'])(
+    'blocks %s after path normalization',
+    async (url) => {
+      const res = await t.app.inject({
+        method: 'POST',
+        url,
+        payload: { email: 'alice@dev.local', password: 'password1234', name: 'x' },
+      });
+      expect(res.statusCode).toBe(404);
+    },
+  );
+
+  it('blocks better-auth organization mutation endpoints but dev-login still works', async () => {
+    const cookie = cookieOf(await devLogin('alice'));
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/auth/organization/create',
+      headers: { cookie },
+      payload: { name: 'x', slug: 'x-org' },
+    });
+    expect(res.statusCode).toBe(404);
+    expect((await devLogin('frank')).statusCode).toBe(302);
+  });
+
+  it('concurrent sign-ups with the same handle both succeed with suffixed slugs (unique-violation retry)', async () => {
+    const [a, b] = await Promise.all([devLogin('race.x'), devLogin('race-x')]);
+    expect([a.statusCode, b.statusCode]).toEqual([302, 302]);
+    const r = await t.db.pool.query("select slug from organization where slug like 'race-x%' order by slug");
+    expect(r.rows.map((x) => x.slug)).toEqual(['race-x', 'race-x-2']);
+  });
+
   it('returns 403 when the active organization is not one the user belongs to', async () => {
     const cookie = cookieOf(await devLogin('carol'));
     const other = await t.db.pool.query("select id from organization where slug = 'alice'");
@@ -175,6 +206,9 @@ describe('auth with dev login disabled', () => {
     const off = await createTestApp({ env: { AUTH_DEV_LOGIN: 'false' } });
     try {
       expect((await off.app.inject({ method: 'GET', url: '/auth/dev-login?handle=x' })).statusCode).toBe(404);
+      expect(
+        (await off.app.inject({ method: 'GET', url: '/auth/dev-login?handle=Bad%20!&redirect=//x' })).statusCode,
+      ).toBe(404);
       expect(
         (
           await off.app.inject({
