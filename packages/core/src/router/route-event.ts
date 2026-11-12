@@ -31,6 +31,15 @@ export type RouteDecision =
 
 const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
+/** The comment author may trigger runs: the desk's own bot, or an OWNER / MEMBER / COLLABORATOR. */
+export function isAuthorizedAuthor(
+  event: Pick<TicketEvent, 'author' | 'authorAssociation'>,
+  botLogin: string,
+): boolean {
+  const isBot = botLogin !== '' && event.author === botLogin;
+  return isBot || AUTHORIZED_ASSOCIATIONS.has(event.authorAssociation);
+}
+
 const ignored = (outcome: IgnoredOutcome, detail: string): RouteDecision => ({ kind: 'ignored', outcome, detail });
 
 /** Pure routing over (event, project, rules, run counts). Steps follow control-plane design 6.1 / Architecture 4. */
@@ -40,8 +49,7 @@ export async function routeEvent(input: RouteInput): Promise<RouteDecision> {
   const parsed = parseCommand(event.body);
   if (!parsed) return ignored('ignored_no_command', 'first line is not a command');
 
-  const isBot = botLogin !== '' && event.author === botLogin;
-  if (!isBot && !AUTHORIZED_ASSOCIATIONS.has(event.authorAssociation)) {
+  if (!isAuthorizedAuthor(event, botLogin)) {
     return ignored('ignored_unauthorized', `author association ${event.authorAssociation || 'unknown'} is not allowed`);
   }
 

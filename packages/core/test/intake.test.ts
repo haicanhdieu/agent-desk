@@ -347,6 +347,58 @@ describe('processTicketEvent races and errors', () => {
   });
 });
 
+describe('processTicketEvent: the ticket fetch holds no database connection', () => {
+  /** Connections checked out of the app pool right now (the intake runs alone in these tests). */
+  const busy = (): number => db.pool.totalCount - db.pool.idleCount;
+
+  it('fetches the ticket before the routing transaction opens, once, for a run', async () => {
+    const s = await seed({ labelFilter: ['bug'] });
+    const seen: number[] = [];
+    const h = harness({}, async (ref) => {
+      seen.push(busy());
+      return ticket(Number(ref));
+    });
+    expect((await processTicketEvent(h.deps, eventFor(s), 'webhook')).outcome).toBe('run_created');
+    expect(seen).toEqual([0]);
+    const [run] = await runsOf(s);
+    expect(run).toMatchObject({ ticketTitle: 'Ticket 7', ticketUrl: 'http://fake.invalid/issues/7' });
+  });
+
+  it('does not call the provider for events that cannot run (no command, unauthorized, no rule, same comment)', async () => {
+    const s = await seed();
+    const h = harness();
+    await processTicketEvent(h.deps, eventFor(s, { body: 'just chatting' }), 'webhook');
+    await processTicketEvent(h.deps, eventFor(s, { authorAssociation: 'NONE' }), 'webhook');
+    await processTicketEvent(h.deps, eventFor(s, { body: '/unknown-cmd' }), 'webhook');
+    expect(h.getTicket).not.toHaveBeenCalled();
+    const first = eventFor(s);
+    expect((await processTicketEvent(h.deps, first, 'webhook')).outcome).toBe('run_created');
+    expect(h.getTicket).toHaveBeenCalledTimes(1);
+    expect((await processTicketEvent(h.deps, first, 'webhook')).outcome).toBe('duplicate');
+    expect((await processTicketEvent(h.deps, eventFor(s, { commentId: first.commentId }), 'poll')).outcome).toBe(
+      'duplicate_comment',
+    );
+    expect(h.getTicket).toHaveBeenCalledTimes(1);
+  });
+
+  it('a ticket fetch that hangs is bounded: the run is still created without the snapshot', async () => {
+    const s = await seed();
+    const h = harness({ ticketTimeoutMs: 50 }, () => new Promise<Ticket>(() => undefined));
+    const r = await processTicketEvent(h.deps, eventFor(s), 'webhook');
+    expect(r.outcome).toBe('run_created');
+    const [run] = await runsOf(s);
+    expect(run).toMatchObject({ ticketTitle: null, ticketUrl: null, ticketKind: 'issue', ticketNumber: 7 });
+  });
+
+  it('a hanging fetch the router needs (label filter) is a routing error, recorded by name', async () => {
+    const s = await seed({ labelFilter: ['bug'] });
+    const h = harness({ ticketTimeoutMs: 50 }, () => new Promise<Ticket>(() => undefined));
+    expect(await processTicketEvent(h.deps, eventFor(s), 'webhook')).toEqual({ outcome: 'error' });
+    const [row] = await inboundOf(s);
+    expect(row).toMatchObject({ outcome: 'error', detail: 'TicketFetchTimeoutError' });
+  });
+});
+
 describe('startRunWorkflow and sweepOutbox', () => {
   const starter = (impl: WorkflowStarter['start']) => {
     const start = vi.fn(impl);

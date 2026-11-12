@@ -13,7 +13,7 @@ import {
 import { Provider, RuleTarget } from '@agentdesk/contracts';
 import type { Clock } from '../clock';
 import { parseCommand } from '../router/parse-command';
-import { routeEvent, type RuleRow } from '../router/route-event';
+import { isAuthorizedAuthor, routeEvent, type RuleRow } from '../router/route-event';
 import type { AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
 import { toAdapterProject } from '../adapters/project';
 import { isUniqueViolation } from './pg-errors';
@@ -30,6 +30,8 @@ export interface IntakeDeps {
   /** Login the desk comments as; its own comments may trigger chains. */
   botLogin: string;
   log?: IntakeLogger;
+  /** Bound on one board ticket fetch (default 5 s); a timeout counts as "ticket unavailable". */
+  ticketTimeoutMs?: number;
 }
 
 export interface IntakeResult {
@@ -42,6 +44,26 @@ const FINAL_STATUSES = ['succeeded', 'failed', 'cancelled', 'timed_out'];
 /** Unique constraint on runs (project_id, trigger_comment_id). */
 const RUN_COMMENT_UNIQUE = 'runs_project_trigger_comment_key';
 const MAX_COMMAND_COLUMN = 100;
+const TICKET_TIMEOUT_MS = 5000;
+
+/** The board did not answer a ticket fetch in time. */
+export class TicketFetchTimeoutError extends Error {
+  override readonly name = 'TicketFetchTimeoutError';
+  constructor() {
+    super('ticket fetch timed out');
+  }
+}
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new TicketFetchTimeoutError()), ms);
+  });
+  return Promise.race([p, timeout]).finally(() => clearTimeout(timer));
+}
+
+/** A ticket fetched before the routing transaction: the ticket, or the error the fetch failed with. */
+type Prefetched = { ok: true; ticket: Ticket } | { ok: false; err: unknown };
 
 /** The command column of an inbound row: the parsed command, else the (truncated) first line that failed to parse. */
 function commandColumn(body: string): string | null {
@@ -69,11 +91,74 @@ export async function processTicketEvent(
   const target = known ?? (await resolveProject(deps.db, event.provider, event.externalId, event.repoPath));
   if (!target) return recordUnknownProject(deps, event, channel);
 
-  const result = await withOrg(deps.db, target.orgId, (tx) => routeInTx(deps, tx, event, channel, target));
+  const prefetched = await prefetchTicket(deps, event, target);
+  const result = await withOrg(deps.db, target.orgId, (tx) => routeInTx(deps, tx, event, channel, target, prefetched));
   if (result.outcome === 'run_created' && result.runId !== undefined) {
     await deps.startRun(target.orgId, result.runId);
   }
   return result;
+}
+
+/**
+ * Fetches the ticket before the routing transaction opens, so the provider call never holds a pool connection or the
+ * per-comment advisory lock. Only for events that look runnable (a command from an authorized author, an enabled rule
+ * for it, a new delivery and no run for the comment yet), read in a short transaction of their own; anything else
+ * returns undefined and is decided in the routing transaction as before, which then fetches lazily (still bounded) in
+ * the rare case a concurrent change made it runnable. The fetch is bounded by `ticketTimeoutMs`.
+ */
+async function prefetchTicket(
+  deps: IntakeDeps,
+  event: TicketEvent,
+  target: { orgId: string; projectId: string },
+): Promise<Prefetched | undefined> {
+  const parsed = parseCommand(event.body);
+  if (!parsed || !isAuthorizedAuthor(event, deps.botLogin)) return undefined;
+  const { projectId } = target;
+  const pre = await withOrg(deps.db, target.orgId, async (tx) => {
+    const [delivery] = await tx
+      .select({ id: inboundEvents.id })
+      .from(inboundEvents)
+      .where(and(eq(inboundEvents.provider, event.provider), eq(inboundEvents.deliveryId, event.deliveryId)))
+      .limit(1);
+    if (delivery) return undefined;
+    const [sameComment] = await tx
+      .select({ id: runs.id })
+      .from(runs)
+      .where(and(eq(runs.projectId, projectId), eq(runs.triggerCommentId, event.commentId)))
+      .limit(1);
+    if (sameComment) return undefined;
+    const [rule] = await tx
+      .select({ enabled: rules.enabled })
+      .from(rules)
+      .where(and(eq(rules.projectId, projectId), eq(rules.command, parsed.command)))
+      .limit(1);
+    if (!rule?.enabled) return undefined;
+    const [proj] = await tx
+      .select({
+        repoPath: projects.repoPath,
+        defaultBranch: projects.defaultBranch,
+        boardProvider: connections.provider,
+        boardExternalId: connections.externalId,
+      })
+      .from(projects)
+      .innerJoin(connections, eq(connections.id, projects.boardConnectionId))
+      .where(eq(projects.id, projectId))
+      .limit(1);
+    return proj;
+  });
+  if (!pre) return undefined;
+  const provider = Provider.safeParse(pre.boardProvider);
+  if (!provider.success) return undefined;
+  const board = deps.registry.board(provider.data);
+  try {
+    const ticket = await withTimeout(
+      board.getTicket(toAdapterProject(pre, pre.boardExternalId), event.ticketRef),
+      deps.ticketTimeoutMs ?? TICKET_TIMEOUT_MS,
+    );
+    return { ok: true, ticket };
+  } catch (err) {
+    return { ok: false, err };
+  }
 }
 
 async function recordUnknownProject(
@@ -106,6 +191,7 @@ async function routeInTx(
   event: TicketEvent,
   channel: IntakeChannel,
   target: { orgId: string; projectId: string },
+  prefetched: Prefetched | undefined,
 ): Promise<IntakeResult> {
   const { orgId, projectId } = target;
   const [inserted] = await tx
@@ -129,7 +215,7 @@ async function routeInTx(
   const inboundId = inserted.id;
   try {
     // A savepoint: a routing failure must not take the already-written delivery row down with it.
-    return await tx.transaction((sp) => decideInTx(deps, sp, event, channel, target, inboundId));
+    return await tx.transaction((sp) => decideInTx(deps, sp, event, channel, target, inboundId, prefetched));
   } catch (err) {
     const name = err instanceof Error ? err.name : 'UnknownError';
     deps.log?.warn({ deliveryId: event.deliveryId, projectId, err: name }, 'intake routing failed');
@@ -146,6 +232,7 @@ async function decideInTx(
   channel: IntakeChannel,
   target: { orgId: string; projectId: string },
   inboundId: string,
+  prefetched: Prefetched | undefined,
 ): Promise<IntakeResult> {
   const { orgId, projectId } = target;
   const finish = async (outcome: string, detail: string | null = null): Promise<IntakeResult> => {
@@ -182,6 +269,14 @@ async function decideInTx(
   const provider = Provider.parse(proj.boardProvider);
   const board = deps.registry.board(provider);
   const adapterProject = toAdapterProject(proj, proj.boardExternalId);
+  /** The prefetched ticket (or its failure); a lazy, bounded fetch only when nothing was prefetched. */
+  let fetched: Promise<Ticket> | undefined;
+  const fetchTicket = (): Promise<Ticket> =>
+    (fetched ??= prefetched
+      ? prefetched.ok
+        ? Promise.resolve(prefetched.ticket)
+        : Promise.reject(prefetched.err)
+      : withTimeout(board.getTicket(adapterProject, event.ticketRef), deps.ticketTimeoutMs ?? TICKET_TIMEOUT_MS));
 
   const ruleRows = await tx.select().from(rules).where(eq(rules.projectId, projectId));
   const ruleList: RuleRow[] = ruleRows.map((r) => ({
@@ -208,7 +303,7 @@ async function decideInTx(
     event,
     project: { id: projectId, maxRunsPerTicket: proj.maxRunsPerTicket },
     rules: ruleList,
-    ticket: () => board.getTicket(adapterProject, event.ticketRef),
+    ticket: fetchTicket,
     counts: { runsForTicket: counted?.total ?? 0, activeSkillsOnTicket: active.map((a) => a.skillName) },
     botLogin: deps.botLogin,
   });
@@ -218,7 +313,7 @@ async function decideInTx(
   let ticket: Ticket | null = decision.ticket;
   if (!ticket) {
     try {
-      ticket = await board.getTicket(adapterProject, event.ticketRef);
+      ticket = await fetchTicket();
     } catch (err) {
       deps.log?.warn({ err: err instanceof Error ? err.name : 'unknown' }, 'ticket snapshot unavailable');
     }
@@ -228,13 +323,11 @@ async function decideInTx(
   const refNumber = Number(event.ticketRef);
   const number = ticket?.number ?? (Number.isInteger(refNumber) ? refNumber : undefined);
   if (number === undefined && kind === 'pr') return finish('ignored_target', 'pull request number unknown');
-  const checkoutRef = deps.registry
-    .codeHost(provider)
-    .checkoutRef({
-      kind,
-      number: number ?? 0,
-      ...(proj.defaultBranch !== null ? { defaultBranch: proj.defaultBranch } : {}),
-    });
+  const checkoutRef = deps.registry.codeHost(provider).checkoutRef({
+    kind,
+    number: number ?? 0,
+    ...(proj.defaultBranch !== null ? { defaultBranch: proj.defaultBranch } : {}),
+  });
 
   try {
     // A savepoint: a unique violation must not abort the surrounding transaction.
