@@ -1,0 +1,7 @@
+{
+  "total_count": 2,
+  "repositories": [
+    { "full_name": "acme/widgets", "private": true, "default_branch": "main" },
+    { "full_name": "acme/docs", "private": false, "default_branch": "trunk" }
+  ]
+}

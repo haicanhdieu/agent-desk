@@ -35,10 +35,9 @@ processes:
       timeout_seconds: 5
       failure_threshold: 100
 
-  # One-shot: creates roles and applies Drizzle migrations (idempotent). `--if-present` keeps the stack
-  # usable until the api's `migrate` script lands (backend plan, Task 3).
+  # One-shot: creates roles and applies Drizzle migrations (idempotent).
   migrate:
-    command: pnpm --filter @agentdesk/api run --if-present migrate
+    command: pnpm --filter @agentdesk/api run migrate
     availability:
       restart: 'no'
       exit_on_end: false

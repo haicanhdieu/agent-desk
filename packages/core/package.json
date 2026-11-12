@@ -3,6 +3,30 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "lint": "eslint ."
+  },
+  "dependencies": {
+    "@agentdesk/contracts": "workspace:*",
+    "@agentdesk/db": "workspace:*",
+    "@kubernetes/client-node": "^2.0.2",
+    "@octokit/auth-app": "^8.3.1",
+    "@octokit/rest": "^22.0.1",
+    "@opentelemetry/api": "^1.10.0",
+    "@temporalio/client": "^1.25.0",
+    "drizzle-orm": "^0.45.4",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "pg": "^8.23.1",
+    "undici": "^8.12.4",
+    "vitest": "^5.1.0"
+  }
 }

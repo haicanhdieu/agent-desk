@@ -14,7 +14,7 @@ services:
       retries: 20
 
   temporal:
-    image: temporalio/temporal:latest
+    image: temporalio/temporal:1.9.1
     command: ["server", "start-dev", "--ip", "0.0.0.0", "--ui-port", "8233", "--namespace", "agentdesk", "--db-filename", "/data/temporal.db"]
     ports:
       - "7233:7233"

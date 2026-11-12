@@ -34,7 +34,7 @@ RESET ROLE;
 
 Without `app.org_id`, the app role sees no rows at all. That is intended.
 
-## Adding a migration _(once backend lands)_
+## Adding a migration
 
 1. Edit the Drizzle schema in `packages/db/src/schema/`.
 2. Generate SQL: `pnpm --filter @agentdesk/db exec drizzle-kit generate --name <what-changed>`.

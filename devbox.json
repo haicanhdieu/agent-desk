@@ -9,7 +9,11 @@
       "setup": ["[ -f .env ] || cp .env.example .env", "pnpm install --frozen-lockfile"],
       "dev": ["devbox run setup", "devbox services up"],
       "dev-bg": ["devbox run setup", "devbox services up -b"],
-      "stop": ["devbox services stop", "docker-compose -f \"$AGENTDESK_COMPOSE_FILE\" stop"],
+      "stop": [
+        "devbox services stop",
+        "docker-compose -f \"$AGENTDESK_COMPOSE_FILE\" stop",
+        "pkill -f 'kube/fake-pod\\.mjs' || true"
+      ],
       "dev-mock": ["pnpm --filter @agentdesk/web dev:mock"],
       "storybook": ["pnpm --filter @agentdesk/web storybook"],
       "parity": ["pnpm --filter @agentdesk/web parity"],

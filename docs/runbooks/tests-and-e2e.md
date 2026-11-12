@@ -43,7 +43,7 @@ devbox run e2e-mock             # vite build --mode mock + playwright test e2e/m
 
 To click through the mocked app by hand: `devbox run dev-mock`, then open http://localhost:5173.
 
-## 4. Full local end-to-end _(once backend lands)_
+## 4. Full local end-to-end
 
 These run against the real stack with the fake provider and `KUBE_MODE=fake`.
 

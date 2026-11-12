@@ -10,6 +10,7 @@ import {
   UpdateProjectRequest,
 } from './schemas/projects';
 import { CreateRuleRequest, RuleDto, UpdateRuleRequest } from './schemas/rules';
+import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
 import {
   DeleteSkillQuery,
@@ -76,6 +77,13 @@ export const routes = {
       path: '/api/projects/:projectId/ignored',
       params: projectParams,
       response: z.array(IgnoredEventDto),
+    },
+    /** SSE (text/event-stream): `event: run` frames, each a ProjectRunEvent. */
+    events: {
+      method: 'GET',
+      path: '/api/projects/:projectId/events',
+      params: projectParams,
+      response: ProjectRunEvent,
     },
   },
   agents: {
@@ -154,6 +162,16 @@ export const routes = {
     log: { method: 'GET', path: '/api/runs/:runId/log', params: runParams, response: RunLogResponse },
     cancel: { method: 'POST', path: '/api/runs/:runId/cancel', params: runParams, response: empty },
     finish: { method: 'POST', path: '/api/runs/:runId/finish', params: runParams, response: empty },
+    /** SSE (text/event-stream): `event: status` (RunStatusEvent) then `event: event` (RunEventMessage) frames. */
+    events: {
+      method: 'GET',
+      path: '/api/runs/:runId/events',
+      params: runParams,
+      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional() }),
+      response: RunStatusEvent,
+    },
+    /** WebSocket upgrade: binary terminal bytes both ways; text `{"type":"resize","cols","rows"}`; close 4401/4403/4409. */
+    terminal: { method: 'GET', path: '/api/runs/:runId/terminal', params: runParams, response: empty },
   },
 } as const satisfies Record<string, Record<string, RouteDef>>;
 
