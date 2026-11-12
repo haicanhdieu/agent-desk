@@ -16,6 +16,7 @@ import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
 import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
+import { Route as OOrgPProjectDeskRulesRouteImport } from './routes/o.$org.p.$project.desk.rules';
 import { Route as OOrgPProjectDeskSkillsRouteImport } from './routes/o.$org.p.$project.desk.skills';
 
 const IndexRoute = IndexRouteImport.update({
@@ -53,6 +54,11 @@ const OOrgProjectsNewStepRoute = OOrgProjectsNewStepRouteImport.update({
   path: '/projects/new/$step',
   getParentRoute: () => OOrgRoute,
 } as any);
+const OOrgPProjectDeskRulesRoute = OOrgPProjectDeskRulesRouteImport.update({
+  id: '/desk/rules',
+  path: '/desk/rules',
+  getParentRoute: () => OOrgPProjectRoute,
+} as any);
 const OOrgPProjectDeskSkillsRoute = OOrgPProjectDeskSkillsRouteImport.update({
   id: '/desk/skills',
   path: '/desk/skills',
@@ -67,6 +73,7 @@ export interface FileRoutesByFullPath {
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
+  '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
 }
 export interface FileRoutesByTo {
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
+  '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
 }
 export interface FileRoutesById {
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
+  '/o/$org/p/$project/desk/rules': typeof OOrgPProjectDeskRulesRoute;
   '/o/$org/p/$project/desk/skills': typeof OOrgPProjectDeskSkillsRoute;
 }
 export interface FileRouteTypes {
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project'
     | '/o/$org/projects/'
     | '/o/$org/projects/new/$step'
+    | '/o/$org/p/$project/desk/rules'
     | '/o/$org/p/$project/desk/skills';
   fileRoutesByTo: FileRoutesByTo;
   to:
@@ -108,6 +118,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project'
     | '/o/$org/projects'
     | '/o/$org/projects/new/$step'
+    | '/o/$org/p/$project/desk/rules'
     | '/o/$org/p/$project/desk/skills';
   id:
     | '__root__'
@@ -118,6 +129,7 @@ export interface FileRouteTypes {
     | '/o/$org/p/$project'
     | '/o/$org/projects/'
     | '/o/$org/projects/new/$step'
+    | '/o/$org/p/$project/desk/rules'
     | '/o/$org/p/$project/desk/skills';
   fileRoutesById: FileRoutesById;
 }
@@ -178,6 +190,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgProjectsNewStepRouteImport;
       parentRoute: typeof OOrgRoute;
     };
+    '/o/$org/p/$project/desk/rules': {
+      id: '/o/$org/p/$project/desk/rules';
+      path: '/desk/rules';
+      fullPath: '/o/$org/p/$project/desk/rules';
+      preLoaderRoute: typeof OOrgPProjectDeskRulesRouteImport;
+      parentRoute: typeof OOrgPProjectRoute;
+    };
     '/o/$org/p/$project/desk/skills': {
       id: '/o/$org/p/$project/desk/skills';
       path: '/desk/skills';
@@ -189,10 +208,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface OOrgPProjectRouteChildren {
+  OOrgPProjectDeskRulesRoute: typeof OOrgPProjectDeskRulesRoute;
   OOrgPProjectDeskSkillsRoute: typeof OOrgPProjectDeskSkillsRoute;
 }
 
 const OOrgPProjectRouteChildren: OOrgPProjectRouteChildren = {
+  OOrgPProjectDeskRulesRoute: OOrgPProjectDeskRulesRoute,
   OOrgPProjectDeskSkillsRoute: OOrgPProjectDeskSkillsRoute,
 };
 

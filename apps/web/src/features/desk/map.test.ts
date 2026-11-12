@@ -1,6 +1,6 @@
-import type { RuleDto, SkillDto } from '@agentdesk/contracts';
+import type { AgentDto, RuleDto, SkillDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { ruleSummary, rulesUsing, toSkill } from './map';
+import { ruleStats, ruleSummary, rulesUsing, toRule, toSkill } from './map';
 
 const now = new Date('2026-11-12T14:14:00.000Z');
 
@@ -66,5 +66,53 @@ describe('toSkill', () => {
 
   it('no commit yet gives an empty last commit', () => {
     expect(toSkill({ ...skill, lastCommit: null }, [], now).lastCommit).toBe('');
+  });
+});
+
+const agent: AgentDto = {
+  id: '00000000-0000-4000-8000-000000000002',
+  projectId: '00000000-0000-4000-8000-000000000001',
+  name: 'Claude',
+  provider: 'claude',
+  model: 'opus',
+  maxTurns: null,
+  timeoutSeconds: 1800,
+  credential: { set: true, type: 'oauth_token', updatedAt: null, setBy: null },
+};
+
+describe('ruleStats', () => {
+  it.each([
+    ['runs, last run', { runs30d: 14, lastRunAt: '2026-11-12T14:12:00.000Z' }, '14 runs in 30 days · last 2 min ago'],
+    ['one run', { runs30d: 1, lastRunAt: '2026-11-11T10:00:00.000Z' }, '1 run in 30 days · last yesterday'],
+    ['none in 30 days', { runs30d: 0, lastRunAt: '2026-10-03T16:00:00.000Z' }, '0 runs in 30 days · last 3 Oct'],
+    ['never ran', { runs30d: 0, lastRunAt: null }, 'Never ran'],
+  ])('%s', (_, stats, expected) => {
+    expect(ruleStats(stats, now)).toBe(expected);
+  });
+});
+
+describe('toRule', () => {
+  it('maps the DTO to the screen rule with the agent name and stats', () => {
+    const dto = { ...rule('code-build', 'code-build'), labelFilter: ['user-story'], target: 'issue' as const };
+    expect(toRule(dto, agent, now, ['code-build'])).toEqual({
+      id: dto.id,
+      command: 'code-build',
+      target: 'issue',
+      labels: ['user-story'],
+      skill: 'code-build',
+      agent: 'Claude',
+      enabled: true,
+      stats: 'Never ran',
+    });
+  });
+
+  it('warns when the skill is not in the repo', () => {
+    expect(toRule(rule('docs-update', 'docs-update'), agent, now, ['code-build']).warning).toBe(
+      'Skill docs-update is not in .claude/skills/ on main. Comments with /docs-update are ignored until you add it or pick another skill.',
+    );
+  });
+
+  it('no skill list, no warning', () => {
+    expect(toRule(rule('docs-update', 'docs-update'), agent, now).warning).toBeUndefined();
   });
 });

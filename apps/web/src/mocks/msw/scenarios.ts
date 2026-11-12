@@ -26,12 +26,13 @@ export const scenarios = {
   signedOut(): void {
     mockDb.signOut();
   },
-  /** The route answers 500 problem+json until the handlers reset. */
-  serverError(routeKey: RouteKey): void {
+  /** The route answers 500 problem+json until the handlers reset; `delayMs` holds the answer back (in-flight UI). */
+  serverError(routeKey: RouteKey, { delayMs = 0 }: { delayMs?: number } = {}): void {
     override(
-      routeHandler(routeKey, async () =>
-        problemResponse({ status: 500, title: 'Internal server error', type: 'internal' }),
-      ),
+      routeHandler(routeKey, async () => {
+        if (delayMs > 0) await new Promise((resolve) => setTimeout(resolve, delayMs));
+        return problemResponse({ status: 500, title: 'Internal server error', type: 'internal' });
+      }),
     );
   },
   /** The route answers the given problem until the handlers reset. */

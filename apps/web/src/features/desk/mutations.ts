@@ -1,3 +1,4 @@
+import type { CreateRuleRequest, RuleDto, UpdateRuleRequest } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { useToast } from '@/ds';
@@ -51,5 +52,54 @@ export function useDeleteSkill(org: string, projectId: string) {
         qc.invalidateQueries({ queryKey: deskQueries.skill(org, projectId, name).queryKey, refetchType: 'none' }),
       ]);
     },
+  });
+}
+
+// Rules (spec §4.3): the enable toggle is optimistic on the rules cache; create, edit and delete invalidate it.
+
+/**
+ * Enable or disable a rule. The rules cache flips at once and rolls back when the server refuses; `onError` then
+ * tells the user (an error toast). It is a hook option, not a `mutate` option, so it fires for every failed toggle.
+ */
+export function useToggleRule(org: string, projectId: string, { onError }: { onError?(e: unknown): void } = {}) {
+  const qc = useQueryClient();
+  const queryKey = deskQueries.rules(org, projectId).queryKey;
+  return useMutation({
+    mutationFn: ({ id, enabled }: { id: string; enabled: boolean }) =>
+      api.rules.update({ params: { ruleId: id }, body: { enabled } }),
+    onMutate: async ({ id, enabled }) => {
+      await qc.cancelQueries({ queryKey });
+      const previous = qc.getQueryData(queryKey);
+      qc.setQueryData(queryKey, (rules) => rules?.map((r) => (r.id === id ? { ...r, enabled } : r)));
+      return { previous };
+    },
+    onError: (e, _vars, context) => {
+      if (context?.previous) qc.setQueryData(queryKey, context.previous);
+      onError?.(e);
+    },
+    // The server's rule replaces the optimistic one; no refetch, so a failure shows only the rollback.
+    onSuccess: (saved) => qc.setQueryData(queryKey, (rules) => rules?.map((r) => (r.id === saved.id ? saved : r))),
+  });
+}
+
+export type SaveRuleInput = { id?: undefined; body: CreateRuleRequest } | { id: string; body: UpdateRuleRequest };
+
+/** Creates a rule (no `id`) or updates one; the rules list refetches on success. */
+export function useSaveRule(org: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (input: SaveRuleInput): Promise<RuleDto> =>
+      input.id === undefined
+        ? api.rules.create({ params: { projectId }, body: input.body })
+        : api.rules.update({ params: { ruleId: input.id }, body: input.body }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: deskQueries.rules(org, projectId).queryKey }),
+  });
+}
+
+export function useDeleteRule(org: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.rules.remove({ params: { ruleId: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: deskQueries.rules(org, projectId).queryKey }),
   });
 }

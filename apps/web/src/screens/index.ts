@@ -12,7 +12,7 @@ export { RunsProblems, type RunsProblemsProps, type RunsProblemsWarning } from '
 export { NeedsYou, type NeedsYouProps } from './NeedsYou';
 export { RunDetail, type RunDetailProps } from './RunDetail';
 export { DeskSkills, type DeskSkillsProps } from './DeskSkills';
-export { DeskRules, type DeskRulesProps } from './DeskRules';
+export { DeskRules, RulePane, type DeskRulesProps, type RulePaneProps } from './DeskRules';
 export { DeskAgent, type DeskAgentProps } from './DeskAgent';
 export type { DeskFrameData, DeskLinks } from './DeskFrame';
 export { Overview } from './Overview';

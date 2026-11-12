@@ -46,6 +46,7 @@ export const stateStories = {
   SetupReadyPolling: { title: setup, exportName: 'SetupReadyPolling', board: 'SetupReady' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
   DeskAgentPolling: { title: desk, exportName: 'DeskAgentPolling', board: 'DeskAgent' },
+  DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
 } as const satisfies Record<string, BoardStory & { board: BoardName }>;
 
 /** Storybook's own id rule: toId(title, startCase(exportName)), e.g. `screens-run-detail--run-starting`. */
