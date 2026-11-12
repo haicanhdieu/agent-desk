@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "typecheck": "tsc --noEmit",
-    "migrate": "tsx src/migrate.ts",
+    "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "test": "vitest run",
     "start": "tsx src/main.ts"
   },

@@ -1,10 +1,43 @@
 {
   "$schema": "https://turbo.build/schema.json",
   "tasks": {
-    "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
-    "dev": { "cache": false, "persistent": true },
-    "test": { "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"] },
-    "typecheck": { "dependsOn": ["^typecheck"] },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "passThroughEnv": [
+        "NODE_ENV",
+        "PORT",
+        "PUBLIC_ORIGIN",
+        "DATABASE_*",
+        "AGENTDESK_*",
+        "TEMPORAL_*",
+        "BETTER_AUTH_*",
+        "AUTH_*",
+        "GITHUB_*",
+        "KUBE*",
+        "RUNS_NAMESPACE",
+        "APP_NAMESPACE",
+        "RUNNER_IMAGE",
+        "RUN_POD_*",
+        "FAKE_*",
+        "ENABLE_FAKE_PROVIDER",
+        "SSE_*",
+        "TERMINAL_*",
+        "POLL_*",
+        "BOT_*",
+        "OTEL_*"
+      ]
+    },
+    "test": {
+      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
     "lint": {}
   }
 }

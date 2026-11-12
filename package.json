@@ -3,16 +3,21 @@
   "private": true,
   "packageManager": "pnpm@10.21.0",
   "scripts": {
-    "dev": "docker compose up -d --wait && turbo run dev --filter=@agentdesk/api --filter=@agentdesk/worker --filter=@agentdesk/web",
+    "dev": "bash scripts/dev.sh up",
     "build": "turbo run build",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
     "lint": "turbo run lint",
-    "db:migrate": "pnpm --filter @agentdesk/api migrate"
+    "db:migrate": "pnpm --filter @agentdesk/api migrate",
+    "dev:down": "bash scripts/dev.sh down",
+    "stop": "bash scripts/dev.sh down"
   },
   "devDependencies": {
     "turbo": "^2.5.0",
     "typescript": "^6.0.3",
     "vitest": "^5.1.0"
+  },
+  "engines": {
+    "node": ">=22.9.0"
   }
 }
