@@ -15,6 +15,13 @@
       "when": 1794499708852,
       "tag": "0001_roles_rls_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794509869767,
+      "tag": "0002_run_list_indexes",
+      "breakpoints": true
     }
   ]
 }

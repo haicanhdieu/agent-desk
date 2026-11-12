@@ -1,0 +1,2 @@
+CREATE INDEX IF NOT EXISTS "runs_rule_queued_idx" ON "runs" USING btree ("rule_id","queued_at");--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS "runs_project_queued_idx" ON "runs" USING btree ("project_id","queued_at" DESC,"id");

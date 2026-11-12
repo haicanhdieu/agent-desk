@@ -74,6 +74,16 @@ describe('bootstrap and migrations', () => {
     expect(rows.map((r) => r.relname)).toEqual(expect.arrayContaining(APP_TABLES));
   });
 
+  it('run list indexes exist (rule/queued_at and project/queued_at desc/id)', async () => {
+    const rows = await query<{ indexname: string; indexdef: string }>(
+      env.ownerUrl,
+      "select indexname, indexdef from pg_indexes where tablename = 'runs' and indexname in ('runs_rule_queued_idx','runs_project_queued_idx') order by 1",
+    );
+    expect(rows.map((r) => r.indexname)).toEqual(['runs_project_queued_idx', 'runs_rule_queued_idx']);
+    expect(rows[0]?.indexdef).toContain('(project_id, queued_at DESC, id)');
+    expect(rows[1]?.indexdef).toContain('(rule_id, queued_at)');
+  });
+
   it('app role cannot own or bypass; auth tables exist with user.handle', async () => {
     const cols = await query<{ column_name: string }>(
       env.ownerUrl,
@@ -151,9 +161,7 @@ describe('bootstrap and migrations', () => {
       );
       expect(rows.map((r) => r.number)).toEqual([1, 2]);
       await expect(
-        inOrg((c) =>
-          c.query(`update runs set number = 1 where trigger_comment_id = 'c-2'`).then(() => undefined),
-        ),
+        inOrg((c) => c.query(`update runs set number = 1 where trigger_comment_id = 'c-2'`).then(() => undefined)),
       ).rejects.toMatchObject({ code: '23505' });
     });
 

@@ -12,6 +12,8 @@ import { HealthController } from './health/health.controller';
 import { ProjectSchedules } from './projects/project-schedules';
 import { ProjectsController } from './projects/projects.controller';
 import { ProjectsService } from './projects/projects.service';
+import { RunsController } from './runs/runs.controller';
+import { RunsService } from './runs/runs.service';
 import { RulesController } from './rules/rules.controller';
 import { RulesService } from './rules/rules.service';
 import { SecretStoreModule } from './secrets/secret-store.module';
@@ -36,7 +38,16 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     AgentsController,
     RulesController,
     SkillsController,
+    RunsController,
   ],
-  providers: [ConnectionsService, ProjectSchedules, ProjectsService, AgentsService, RulesService, SkillsService],
+  providers: [
+    ConnectionsService,
+    ProjectSchedules,
+    ProjectsService,
+    AgentsService,
+    RulesService,
+    SkillsService,
+    RunsService,
+  ],
 })
 export class AppModule {}

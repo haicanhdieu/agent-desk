@@ -117,7 +117,10 @@ export const rules = pgTable(
       .notNull()
       .references(() => projects.id, { onDelete: 'cascade' }),
     command: text('command').notNull(),
-    labelFilter: text('label_filter').array().notNull().default(sql`'{}'::text[]`),
+    labelFilter: text('label_filter')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
     target: text('target').notNull().default('any'),
     agentId: uuid('agent_id')
       .notNull()
@@ -210,6 +213,8 @@ export const runs = pgTable(
     index('runs_org_idx').on(t.orgId),
     index('runs_project_status_idx').on(t.projectId, t.status),
     index('runs_project_ticket_idx').on(t.projectId, t.ticketRef),
+    index('runs_rule_queued_idx').on(t.ruleId, t.queuedAt),
+    index('runs_project_queued_idx').on(t.projectId, t.queuedAt.desc().nullsFirst(), t.id),
     check(
       'runs_status_check',
       sql`${t.status} in ('queued','starting','running','idle','succeeded','failed','cancelled','timed_out')`,
