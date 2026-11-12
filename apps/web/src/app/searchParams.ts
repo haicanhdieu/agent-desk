@@ -10,6 +10,8 @@ export function parseSearch(searchStr: string): Record<string, string> {
   return out;
 }
 
+// Non-strings are written as text: numbers and booleans with String(), objects as JSON. None of them round-trips
+// (parseSearch always returns strings), so routes must declare string params and coerce in `validateSearch`.
 const toText = (value: unknown): string | undefined => {
   if (value === undefined || value === null) return undefined;
   if (typeof value === 'string') return value;

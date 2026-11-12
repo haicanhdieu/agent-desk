@@ -1,7 +1,7 @@
 import type { IgnoredEventDto, RunDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { runFixtures } from '@/mocks/dto/runs';
-import { groupByTicket, runCounts, safeHref, toIgnored, toRunSummary } from './map';
+import { chipCounts, groupByTicket, runsPerTicket, safeHref, toIgnored, toRunSummary } from './map';
 
 const base = runFixtures.find((r) => r.number === 60);
 if (!base) throw new Error('run 60 fixture missing');
@@ -100,16 +100,33 @@ describe('groupByTicket', () => {
     expect(groups[0]?.runsMax).toBe(10);
   });
 
+  it('takes runsUsed from the unfiltered per-ticket counts, so a filter does not shrink it', () => {
+    const t12 = { ...base.ticket, number: 12, ref: 'harbor-labs/invoicer-api#12' };
+    const unfiltered = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => run({ number: n, ticket: t12, status: 'succeeded' }));
+    const queued = run({ number: 9, ticket: t12, status: 'queued', startedAt: null, finishedAt: null });
+    const used = runsPerTicket([...unfiltered, queued]);
+    const groups = groupByTicket([toRunSummary(queued, now)], 10, used);
+    expect(groups[0]?.runs.map((r) => r.id)).toEqual([9]);
+    expect(groups[0]?.runsUsed).toBe(9);
+    expect(groups[0]?.runsMax).toBe(10);
+  });
+
   it('orders groups by their newest run', () => {
     const groups = groupByTicket([summary(3, 5), summary(8, 6), summary(10, 5)], 10);
     expect(groups.map((g) => g.ticket.number)).toEqual([5, 6]);
   });
 });
 
-describe('runCounts', () => {
-  it('counts per filter with the API semantics (active = starting, running, idle)', () => {
-    const counts = runCounts(runFixtures.filter((r) => r.projectId === base.projectId));
-    expect(counts).toEqual({ needs_you: 1, active: 2, queued: 1, ended: 6, all: 9 });
+describe('chipCounts', () => {
+  it('takes needs-you, active (incl. idle) and queued from project counts; ended and all from the list', () => {
+    const list = runFixtures.filter((r) => r.projectId === base.projectId);
+    expect(chipCounts({ needsYou: 1, running: 1, queued: 1 }, list)).toEqual({
+      needs_you: 1,
+      active: 2,
+      queued: 1,
+      ended: 6,
+      all: 9,
+    });
   });
 });
 

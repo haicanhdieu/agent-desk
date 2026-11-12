@@ -8,7 +8,8 @@ import {
   groupByTicket,
   idleSlotNote,
   repoUrlOf,
-  runCounts,
+  chipCounts,
+  runsPerTicket,
   toConnectionWarning,
   toIgnored,
   todaySummary,
@@ -29,18 +30,25 @@ const RunsSearch = z.object({
 });
 type RunsSearch = z.infer<typeof RunsSearch>;
 
+/** The contract's ticket filter is the full ref, `owner/repo#12`. */
+const ticketRef = (repoPath: string, ticket: string | undefined) =>
+  ticket === undefined ? undefined : `${repoPath}#${ticket}`;
+
 const listFilterOf = (filter: RunsFilter): RunListFilter => (filter === 'ignored' ? 'all' : filter);
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/')({
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
-  loaderDeps: ({ search }) => ({ filter: search.filter ?? 'all' }),
-  loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter } }) => {
-    await Promise.all([
-      // The unfiltered list feeds the chip counts, the "today" line and the needs-you banner.
+  loaderDeps: ({ search }) => ({ filter: search.filter ?? 'all', ticket: search.ticket }),
+  loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter, ticket } }) => {
+    const [dto] = await Promise.all([
+      queryClient.ensureQueryData(projectsQueries.detail(org, project)),
+      // The unfiltered list feeds the ended/all counts, runs per ticket, the "today" line and the needs-you banner.
       queryClient.ensureQueryData(runsQueries.list(org, project, 'all')),
-      queryClient.ensureQueryData(runsQueries.list(org, project, listFilterOf(filter))),
       queryClient.ensureQueryData(runsQueries.ignored(org, project)),
     ]);
+    await queryClient.ensureQueryData(
+      runsQueries.list(org, project, listFilterOf(filter), ticketRef(dto.repoPath, ticket)),
+    );
   },
   component: RunsRoute,
 });
@@ -52,24 +60,26 @@ function RunsRoute() {
   const now = useNow();
   const queryClient = useQueryClient();
   const page = useProjectPage(org, projectId, now);
+  const { paths, dto } = page;
   const { data: all } = useSuspenseQuery(runsQueries.list(org, projectId, 'all'));
-  const { data: listed } = useSuspenseQuery(runsQueries.list(org, projectId, listFilterOf(filter)));
+  const { data: listed } = useSuspenseQuery(
+    runsQueries.list(org, projectId, listFilterOf(filter), ticketRef(dto.repoPath, search.ticket)),
+  );
   const { data: ignoredDtos } = useSuspenseQuery(runsQueries.ignored(org, projectId));
 
-  const { paths, dto } = page;
-  const counts: Record<RunsFilter, number> = { ...runCounts(all.items), ignored: ignoredDtos.length };
+  const counts: Record<RunsFilter, number> = { ...chipCounts(dto.counts, all.items), ignored: ignoredDtos.length };
   const ticketQuery = search.ticket === undefined ? '' : `ticket=${search.ticket}`;
   const filterHref = (f: RunsFilter) => {
     const query = [f === 'all' ? '' : `filter=${f}`, ticketQuery].filter(Boolean).join('&');
     return query ? `${paths.runs}?${query}` : paths.runs;
   };
-  const active = all.items.filter((r) => r.status === 'starting' || r.status === 'running' || r.status === 'idle');
   const common = {
     project: page.project,
     user: page.user,
     links: page.links,
     needsYou: dto.counts.needsYou,
-    slots: { used: active.length, total: dto.maxConcurrentRuns },
+    // Idle runs hold a slot too.
+    slots: { used: dto.counts.running + dto.counts.needsYou, total: dto.maxConcurrentRuns },
     today: todaySummary(all.items, now),
     counts,
     filterHref,
@@ -92,9 +102,7 @@ function RunsRoute() {
     );
   }
 
-  const summaries = listed.items
-    .map((r) => toRunSummary(r, now))
-    .filter((r) => search.ticket === undefined || String(r.ticket.number) === search.ticket);
+  const summaries = listed.items.map((r) => toRunSummary(r, now));
   // The newest idle run gets the pinned banner; the oldest queued run is the one it keeps waiting.
   const idle = all.items.find((r) => r.status === 'idle');
   const waiting = all.items.filter((r) => r.status === 'queued').at(-1);
@@ -109,7 +117,7 @@ function RunsRoute() {
     <Runs
       {...common}
       filter={filter}
-      groups={groupByTicket(summaries, dto.maxRunsPerTicket)}
+      groups={groupByTicket(summaries, dto.maxRunsPerTicket, runsPerTicket(all.items))}
       needsYouRun={needsYouRun}
       runHref={(r) => runHref(paths, r.id)}
       showAllHref={paths.runs}

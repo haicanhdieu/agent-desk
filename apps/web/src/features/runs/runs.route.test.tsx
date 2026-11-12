@@ -9,6 +9,7 @@ import { renderRoute } from '@/test/renderRoute';
 const projectId = ids.project.invoicerApi;
 const base = `/o/alice/p/${projectId}`;
 const runsApi = `/api/projects/${projectId}/runs`;
+const ticket12Ref = 'harbor-labs/invoicer-api#12';
 
 /** Records the query strings of GET /runs requests. */
 function captureRunListQueries() {
@@ -105,7 +106,7 @@ describe('runs route', () => {
 
   it('?ticket=12 stays a plain number-like string in hrefs and URL, and narrows the list', async () => {
     mockDb.state.runs = mockDb.state.runs.map((r) =>
-      r.number === 55 || r.number === 57 ? { ...r, ticket: { ...r.ticket, number: 12 } } : r,
+      r.number === 55 || r.number === 57 ? { ...r, ticket: { ...r.ticket, number: 12, ref: ticket12Ref } } : r,
     );
     const { router, user } = await renderRoute(`${base}/runs?ticket=12`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
@@ -117,6 +118,63 @@ describe('runs route', () => {
     await waitFor(() => expect(router.state.location.searchStr).toBe('?filter=ended&ticket=12'));
     expect(router.state.location.search).toEqual({ filter: 'ended', ticket: '12' });
     expect(router.state.location.href).not.toContain('%22');
+  });
+
+  it('?filter=active lists every active run, idle included, matching its chip count', async () => {
+    await renderRoute(`${base}/runs?filter=active`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expect(runNumbers().sort((a, b) => a - b)).toEqual([61, 62]);
+    expect(within(chips()).getByRole('link', { name: /^Active/ })).toHaveTextContent('2');
+  });
+
+  it('runs used per ticket count every run of the ticket, not only the filtered ones', async () => {
+    const issue131 = mockDb.state.runs.find((r) => r.number === 55)?.ticket;
+    if (!issue131) throw new Error('run 55 fixture missing');
+    mockDb.state.runs = mockDb.state.runs.map((r) => (r.number === 63 ? { ...r, ticket: issue131 } : r));
+    await renderRoute(`${base}/runs?filter=queued`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expect(runNumbers()).toEqual([63]);
+    expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+  });
+
+  describe('with more runs than one API page', () => {
+    // 120 newer runs on their own tickets, and ticket 12's two runs as the oldest (numbers 1 and 2).
+    function seedMany() {
+      const template = mockDb.state.runs.find((r) => r.number === 60);
+      if (!template) throw new Error('run 60 fixture missing');
+      const extra = Array.from({ length: 120 }, (_, i) => ({
+        ...template,
+        id: ids.run(1, 100 + i),
+        number: 100 + i,
+        ticket: { ...template.ticket, number: 500 + i, ref: `harbor-labs/invoicer-api#${500 + i}` },
+      }));
+      const old = [1, 2].map((n) => ({
+        ...template,
+        id: ids.run(1, n),
+        number: n,
+        ticket: { ...template.ticket, number: 12, ref: ticket12Ref },
+      }));
+      mockDb.state.runs = [...mockDb.state.runs, ...extra, ...old];
+    }
+
+    it('"All" lists and counts every run, following the cursor', async () => {
+      seedMany();
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(runNumbers()).toHaveLength(9 + 120 + 2);
+      expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveTextContent('131');
+      expect(within(chips()).getByRole('link', { name: /^Ended/ })).toHaveTextContent(String(6 + 122));
+    });
+
+    it('?ticket= asks the server for the ticket ref and finds its oldest runs', async () => {
+      seedMany();
+      const queries = captureRunListQueries();
+      await renderRoute(`${base}/runs?ticket=12`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(runNumbers()).toEqual([1, 2]);
+      expect(queries.some((q) => new URLSearchParams(q).get('ticket') === ticket12Ref)).toBe(true);
+      expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+    });
   });
 
   it('shows the empty state when no run matches', async () => {

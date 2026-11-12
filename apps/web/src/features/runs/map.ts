@@ -100,30 +100,56 @@ export function toRunSummary(dto: RunDto, now: Date): RunSummary {
   };
 }
 
-/** One group per ticket, newest run's group first; runs inside a group oldest first. */
-export function groupByTicket(runs: RunSummary[], maxRunsPerTicket: number): TicketGroup[] {
+/** Identity of a ticket within a project (an issue and a PR can share a number on some hosts). */
+export const ticketKey = (t: { kind: string; number: number }): string => `${t.kind}:${t.number}`;
+
+/** Runs per ticket over a run list (pass the unfiltered list so filters don't shrink "N of max runs"). */
+export function runsPerTicket(runs: RunDto[]): Map<string, number> {
+  const used = new Map<string, number>();
+  for (const r of runs) used.set(ticketKey(r.ticket), (used.get(ticketKey(r.ticket)) ?? 0) + 1);
+  return used;
+}
+
+/**
+ * One group per ticket, newest run's group first; runs inside a group oldest first. `runsUsed` comes from `used`
+ * (runs per ticket over the unfiltered list) when given, else the group's own run count.
+ */
+export function groupByTicket(
+  runs: RunSummary[],
+  maxRunsPerTicket: number,
+  used?: ReadonlyMap<string, number>,
+): TicketGroup[] {
   const groups = new Map<string, TicketGroup>();
   for (const run of runs) {
-    const key = `${run.ticket.kind}:${run.ticket.number}`;
+    const key = ticketKey(run.ticket);
     const group = groups.get(key);
     if (group) group.runs.push(run);
     else groups.set(key, { ticket: run.ticket, runsUsed: 0, runsMax: maxRunsPerTicket, runs: [run] });
   }
   const newest = (g: TicketGroup) => Math.max(...g.runs.map((r) => r.id));
   return [...groups.values()]
-    .map((g) => ({ ...g, runs: [...g.runs].sort((a, b) => a.id - b.id), runsUsed: g.runs.length }))
+    .map((g) => ({
+      ...g,
+      runs: [...g.runs].sort((a, b) => a.id - b.id),
+      runsUsed: Math.max(used?.get(ticketKey(g.ticket)) ?? 0, g.runs.length),
+    }))
     .sort((a, b) => newest(b) - newest(a));
 }
 
-/** Chip counts with the API's filter semantics (`active` = starting, running, idle). */
-export function runCounts(runs: RunDto[]): Record<RunListFilter, number> {
-  const count = (pred: (s: RunDto['status']) => boolean) => runs.filter((r) => pred(r.status)).length;
+/**
+ * Chip counts: needs-you, active and queued from the project's server-side counts (uncapped); ended and all from the
+ * unfiltered run list. `active` follows the API filter: starting, running and idle.
+ */
+export function chipCounts(
+  counts: { needsYou: number; running: number; queued: number },
+  all: RunDto[],
+): Record<RunListFilter, number> {
   return {
-    needs_you: count((s) => s === 'idle'),
-    active: count((s) => s === 'starting' || s === 'running' || s === 'idle'),
-    queued: count((s) => s === 'queued'),
-    ended: count(isFinal),
-    all: runs.length,
+    needs_you: counts.needsYou,
+    active: counts.running + counts.needsYou,
+    queued: counts.queued,
+    ended: all.filter((r) => isFinal(r.status)).length,
+    all: all.length,
   };
 }
 

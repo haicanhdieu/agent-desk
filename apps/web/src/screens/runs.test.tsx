@@ -23,7 +23,8 @@ describe('filterGroups', () => {
     expect(g).toHaveLength(1);
     expect(g[0].runs.map((r) => r.id)).toEqual([62]);
     expect(filterGroups(ticketGroups, 'queued').map((x) => x.runs[0].id)).toEqual([63]);
-    expect(filterGroups(ticketGroups, 'active').flatMap((x) => x.runs.map((r) => r.id))).toEqual([61]);
+    // `active` matches the API filter: starting, running and idle.
+    expect(filterGroups(ticketGroups, 'active').flatMap((x) => x.runs.map((r) => r.id))).toEqual([62, 61]);
   });
 });
 

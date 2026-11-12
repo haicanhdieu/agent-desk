@@ -79,6 +79,12 @@ describe('TicketGroupRow', () => {
     expect(screen.getByRole('link', { name: 'Open #142 in GitHub' })).toHaveAttribute('href', ticket.href);
   });
 
+  it('renders no external link when the ticket href is empty (untrusted URL dropped)', () => {
+    inTable(<TicketGroupRow group={{ ...group, ticket: { ...group.ticket, href: '' } }} colSpan={8} />);
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+  });
+
   it('spans colSpan columns', () => {
     const { container } = inTable(<TicketGroupRow group={group} colSpan={8} />);
     expect(container.querySelector('td')).toHaveAttribute('colspan', '8');
