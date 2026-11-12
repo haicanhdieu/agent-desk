@@ -2,6 +2,7 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { createRoute } from '@tanstack/react-router';
 import { act, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { mockDb } from '@/mocks/msw/db';
 import { createTestRootRoute, renderRoute } from '@/test/renderRoute';
 import { toastFromError } from './boundaries';
 import { useNow } from './useNow';
@@ -94,8 +95,8 @@ describe('app shell', () => {
     spy.mockRestore();
   });
 
-  it('renders the index route', async () => {
-    await renderRoute('/');
+  it('renders the index route for a user without an organization', async () => {
+    await renderRoute('/', { scenario: () => (mockDb.state.members = []) });
     expect(await screen.findByRole('heading', { name: 'Agent Desk' })).toBeInTheDocument();
   });
 });

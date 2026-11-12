@@ -10,33 +10,61 @@
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as IndexRouteImport } from './routes/index';
+import { Route as SignInRouteImport } from './routes/sign-in';
+import { Route as OOrgRouteImport } from './routes/o.$org';
+import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any);
+const SignInRoute = SignInRouteImport.update({
+  id: '/sign-in',
+  path: '/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const OOrgRoute = OOrgRouteImport.update({
+  id: '/o/$org',
+  path: '/o/$org',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const OOrgIndexRoute = OOrgIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OOrgRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
+  '/sign-in': typeof SignInRoute;
+  '/o/$org': typeof OOrgRouteWithChildren;
+  '/o/$org/': typeof OOrgIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
+  '/sign-in': typeof SignInRoute;
+  '/o/$org': typeof OOrgIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
+  '/sign-in': typeof SignInRoute;
+  '/o/$org': typeof OOrgRouteWithChildren;
+  '/o/$org/': typeof OOrgIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: '/';
+  fullPaths: '/' | '/sign-in' | '/o/$org' | '/o/$org/';
   fileRoutesByTo: FileRoutesByTo;
-  to: '/';
-  id: '__root__' | '/';
+  to: '/' | '/sign-in' | '/o/$org';
+  id: '__root__' | '/' | '/sign-in' | '/o/$org' | '/o/$org/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  SignInRoute: typeof SignInRoute;
+  OOrgRoute: typeof OOrgRouteWithChildren;
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +76,44 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/sign-in': {
+      id: '/sign-in';
+      path: '/sign-in';
+      fullPath: '/sign-in';
+      preLoaderRoute: typeof SignInRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/o/$org': {
+      id: '/o/$org';
+      path: '/o/$org';
+      fullPath: '/o/$org';
+      preLoaderRoute: typeof OOrgRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/o/$org/': {
+      id: '/o/$org/';
+      path: '/';
+      fullPath: '/o/$org/';
+      preLoaderRoute: typeof OOrgIndexRouteImport;
+      parentRoute: typeof OOrgRoute;
+    };
   }
 }
 
+interface OOrgRouteChildren {
+  OOrgIndexRoute: typeof OOrgIndexRoute;
+}
+
+const OOrgRouteChildren: OOrgRouteChildren = {
+  OOrgIndexRoute: OOrgIndexRoute,
+};
+
+const OOrgRouteWithChildren = OOrgRoute._addFileChildren(OOrgRouteChildren);
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  SignInRoute: SignInRoute,
+  OOrgRoute: OOrgRouteWithChildren,
 };
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

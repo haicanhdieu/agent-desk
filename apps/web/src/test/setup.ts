@@ -1,5 +1,6 @@
 import '@testing-library/jest-dom/vitest';
 import { afterAll, afterEach, beforeAll } from 'vitest';
+import { resetSignOutGuard } from '@/features/auth/signOut';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 
@@ -12,5 +13,6 @@ beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
 afterEach(() => {
   server.resetHandlers();
   mockDb.reset();
+  resetSignOutGuard();
 });
 afterAll(() => server.close());

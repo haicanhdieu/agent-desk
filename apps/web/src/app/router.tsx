@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { createRouter, type AnyRoute, type RouterHistory } from '@tanstack/react-router';
+import { registerSignOutTarget } from '@/features/auth/signOut';
 import { NotFound, RouteError, RoutePending } from './boundaries';
 import { routeTree } from './routeTree.gen';
 
@@ -26,14 +27,19 @@ function routerDefaults({ queryClient, history }: CreateAppRouterOptions) {
 
 /** The app router: file routes, intent preloading, 300 ms pending delay and minimum, shared boundaries. */
 export function createAppRouter(opts: CreateAppRouterOptions) {
-  return createRouter({ routeTree, ...routerDefaults(opts), scrollRestoration: true });
+  const router = createRouter({ routeTree, ...routerDefaults(opts), scrollRestoration: true });
+  // A 401 anywhere signs out through this router and clears this QueryClient.
+  registerSignOutTarget({ router, queryClient: opts.queryClient });
+  return router;
 }
 
 export type AppRouter = ReturnType<typeof createAppRouter>;
 
 /** Test-only: the same router defaults over an ad-hoc route tree (see src/test/renderRoute.tsx). */
 export function createRouterForTree(opts: CreateAppRouterOptions & { routeTree: AnyRoute }) {
-  return createRouter({ routeTree: opts.routeTree, ...routerDefaults(opts) });
+  const router = createRouter({ routeTree: opts.routeTree, ...routerDefaults(opts) });
+  registerSignOutTarget({ router, queryClient: opts.queryClient });
+  return router;
 }
 
 declare module '@tanstack/react-router' {

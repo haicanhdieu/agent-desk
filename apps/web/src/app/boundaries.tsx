@@ -4,11 +4,12 @@ import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/r
 import { useEffect } from 'react';
 import { EmptyState } from '@/components';
 import { Banner, Button, Icon, Skeleton, type ToastInput } from '@/ds';
+import { signOutAndRedirect } from '@/features/auth/signOut';
 import styles from './boundaries.module.css';
 
 // Error, not-found and pending UI for routes (spec §6). Route `errorComponent`s go through `RouteError`, which
-// picks the state from the error: 404 → NotFound, 403 → Forbidden, 5xx / network → LoaderErrorBanner, anything
-// else → RootErrorBoundary.
+// picks the state from the error: 401 → the sign-out path, 404 → NotFound, 403 → Forbidden, 5xx / network →
+// LoaderErrorBanner, anything else → RootErrorBoundary.
 
 /** Org slug of the current location, when inside `/o/$org/...`. */
 function useOrgSlug(): string | undefined {
@@ -99,8 +100,15 @@ export function LoaderErrorBanner({ error }: { error: ApiError }) {
   );
 }
 
+/** A 401 while loading: the session is gone. Starts the once-guarded sign-out path and shows pending meanwhile. */
+function SigningOut() {
+  useEffect(() => void signOutAndRedirect(), []);
+  return <RoutePending />;
+}
+
 export function RouteError({ error }: ErrorComponentProps) {
   if (error instanceof ApiError) {
+    if (error.status === 401) return <SigningOut />;
     if (error.status === 404) return <NotFound />;
     if (error.status === 403) return <Forbidden />;
     if (error.status === 0 || error.status >= 500) return <LoaderErrorBanner error={error} />;

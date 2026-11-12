@@ -4,9 +4,11 @@ import styles from './Screens.module.css';
 
 export interface SignInProps {
   signInHref: string;
+  /** Starts the sign-in in script (the app's GitHub social sign-in); the link stays the no-script fallback. */
+  onSignIn?: () => void;
 }
 
-export function SignIn({ signInHref }: SignInProps) {
+export function SignIn({ signInHref, onSignIn }: SignInProps) {
   return (
     <main className={styles.signIn}>
       <div className={styles.signInLeft}>
@@ -18,7 +20,15 @@ export function SignIn({ signInHref }: SignInProps) {
             back to the ticket, and lets you step into the terminal when the agent needs you.
           </p>
           <div className={styles.cta}>
-            <Button variant="primary" size="lg" icon="github" href={signInHref}>Sign in with GitHub</Button>
+            <Button
+              variant="primary"
+              size="lg"
+              icon="github"
+              href={signInHref}
+              onClick={onSignIn && ((e) => { e.preventDefault(); onSignIn(); })}
+            >
+              Sign in with GitHub
+            </Button>
             <p className={`faint ${styles.privacy}`}>
               We read your GitHub login and the repositories you install the app on. Nothing else.
             </p>
