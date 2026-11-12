@@ -44,7 +44,7 @@ export async function apiErrorFromResponse(res: Response): Promise<ApiError> {
   const problem = ProblemSchema.safeParse(raw);
   if (problem.success) {
     const p = problem.data;
-    const requestId = p.requestId ?? headerId;
+    const requestId = headerId ?? p.requestId;
     return new ApiError({
       status: res.status,
       type: p.type,

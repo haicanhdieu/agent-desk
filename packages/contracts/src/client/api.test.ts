@@ -66,7 +66,7 @@ describe('createApi', () => {
 
   it('network failure becomes ApiError status 0', async () => {
     const api = createApi({ fetch: mockFetch(new TypeError('offline')) });
-    const err = await api.connections.list({}).catch((e: unknown) => e);
+    const err = await api.connections.list().catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApiError);
     expect(err).toMatchObject({ status: 0 });
   });
@@ -75,13 +75,13 @@ describe('createApi', () => {
     const onUnauthorized = vi.fn();
     const res = json({ type: 'unauthorized', title: 'Unauthorized', status: 401 }, { status: 401 });
     const api = createApi({ fetch: mockFetch(res), onUnauthorized });
-    await expect(api.connections.list({})).rejects.toMatchObject({ status: 401 });
+    await expect(api.connections.list()).rejects.toMatchObject({ status: 401 });
     expect(onUnauthorized).toHaveBeenCalledOnce();
   });
 
   it('non-problem error body still yields ApiError', async () => {
     const api = createApi({ fetch: mockFetch(new Response('boom', { status: 502 })) });
-    await expect(api.connections.list({})).rejects.toMatchObject({ status: 502 });
+    await expect(api.connections.list()).rejects.toMatchObject({ status: 502 });
   });
 
   it('parse true rejects mismatching responses; false passes through', async () => {
@@ -96,6 +96,32 @@ describe('createApi', () => {
     const f = mockFetch(json({}));
     await createApi({ fetch: f, parse: false }).skills.get({ params: { projectId: P, name: 'a/b' } });
     expect(f.mock.calls[0]?.[0]).toBe(`/api/projects/${P}/skills/a%2Fb`);
+  });
+});
+
+describe('fix round 1', () => {
+  it('202 with empty body returns null on runs.cancel', async () => {
+    const api = createApi({ fetch: mockFetch(new Response(null, { status: 202 })) });
+    expect(await api.runs.cancel({ params: { runId: R } })).toBeNull();
+  });
+  it('2xx with invalid JSON throws ApiError', async () => {
+    const api = createApi({ fetch: mockFetch(new Response('{oops', { status: 200 })), parse: false });
+    await expect(api.projects.list()).rejects.toMatchObject({ name: 'ApiError', status: 200 });
+  });
+  it('x-request-id header wins over body requestId', async () => {
+    const res = json(
+      { type: 't', title: 'T', status: 500, requestId: 'body-id' },
+      { status: 500, headers: { 'content-type': 'application/problem+json', 'x-request-id': 'hdr-id' } },
+    );
+    await expect(createApi({ fetch: mockFetch(res) }).projects.list()).rejects.toMatchObject({ requestId: 'hdr-id' });
+  });
+  it('401 without onUnauthorized still throws ApiError', async () => {
+    const api = createApi({ fetch: mockFetch(json({}, { status: 401 })) });
+    await expect(api.projects.list()).rejects.toBeInstanceOf(ApiError);
+  });
+  it('parse true passes a valid payload', async () => {
+    const api = createApi({ fetch: mockFetch(json([])), parse: true });
+    expect(await api.projects.list()).toEqual([]);
   });
 });
 

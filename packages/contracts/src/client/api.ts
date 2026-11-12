@@ -12,11 +12,16 @@ type CallInput<R extends RouteDef> = Obj<
     (R extends { body: infer S extends z.ZodType } ? { body: z.output<S> } : { body?: undefined })
 >;
 
+// Body schemas currently have no defaults (checked), so z.output is exact for bodies.
+// Input is optional when every key is optional (parameterless routes: `api.connections.list()`).
+type Call<R extends RouteDef> =
+  {} extends CallInput<R>
+    ? (input?: CallInput<R>) => Promise<Out<R['response']>>
+    : (input: CallInput<R>) => Promise<Out<R['response']>>;
+
 export type Api = {
   [G in keyof Routes]: {
-    [N in keyof Routes[G]]: Routes[G][N] extends infer R extends RouteDef
-      ? (input: CallInput<R>) => Promise<Out<R['response']>>
-      : never;
+    [N in keyof Routes[G]]: Routes[G][N] extends infer R extends RouteDef ? Call<R> : never;
   };
 };
 
@@ -45,7 +50,9 @@ function substitute(path: string, params: object | undefined): string {
 function serializeQuery(query: object | undefined): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(query ?? {})) {
-    if (v !== undefined && v !== null) sp.append(k, String(v));
+    // Arrays (none in current query schemas) append one entry per element.
+    if (Array.isArray(v)) for (const item of v) sp.append(k, String(item));
+    else if (v !== undefined && v !== null) sp.append(k, String(v));
   }
   const s = sp.toString();
   return s ? `?${s}` : '';
@@ -98,7 +105,14 @@ async function call(def: RouteDef, rawInput: unknown, opts: ApiOptions, doParse:
     throw err;
   }
   if (res.status === 204) return null;
-  const data: unknown = await res.json();
+  const text = await res.text();
+  if (text === '') return doParse ? def.response.parse(null) : null;
+  let data: unknown;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new ApiError({ status: res.status, type: 'invalid_response', title: 'Invalid JSON in response' });
+  }
   return doParse ? def.response.parse(data) : data;
 }
 
