@@ -10,3 +10,6 @@ export * from './secrets/secret-store';
 export { MemorySecretStore } from './secrets/memory-secret-store';
 export { FileSecretStore } from './secrets/file-secret-store';
 export { KubeSecretStore, type SecretsApi } from './secrets/kube-secret-store';
+export * from './router/parse-command';
+export * from './router/route-event';
+export * from './router/prompt';
