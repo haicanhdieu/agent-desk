@@ -3,6 +3,8 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
+import { jsonResponse, routeHandler } from '@/mocks/msw/http';
+import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
 import { browserLocation } from './location';
@@ -156,5 +158,41 @@ describe('setup flow', () => {
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
     expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(1);
+  });
+});
+
+describe('setup flow fixes', () => {
+  it('Back from agent after creating the project updates it instead of creating it again', async () => {
+    const { router, user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('radio', { name: 'dev/demo' }));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/agent`));
+    const created = mockDb.state.projects.find((p) => p.repoPath === 'dev/demo');
+    if (!created) throw new Error('project not created');
+    // The repo entry was replaced (not pushed), so no history entry is left without the project.
+    expect(router.history.length).toBe(2);
+
+    router.history.back();
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/repo`));
+    expect(router.state.location.search).toEqual({ project: created.id });
+    await screen.findByRole('radio', { name: 'dev/demo' });
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/agent`));
+    expect(router.state.location.search).toEqual({ project: created.id });
+    expect(mockDb.requests('POST', '/api/projects')).toBe(1);
+    expect(mockDb.requests('PATCH', `/api/projects/${created.id}`)).toBe(1);
+    expect(mockDb.state.projects.filter((p) => p.repoPath === 'dev/demo')).toHaveLength(1);
+    expect(screen.queryByText(/already/)).toBeNull();
+  });
+
+  it('an install URL that is not https is not followed and an error shows', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+    server.use(routeHandler('connections.install', async () => jsonResponse({ url: 'javascript:alert(1)' })));
+    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const { user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('not a valid https address');
+    expect(assign).not.toHaveBeenCalled();
   });
 });

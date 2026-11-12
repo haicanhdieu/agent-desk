@@ -32,7 +32,7 @@ export interface Setup1Props extends SetupNav {
   pollInterval?: PollInterval;
   /** Webhook mode: time the ping arrived. */
   pingAt?: string;
-  /** Polling mode: result of the first check. Continue waits for a good check. */
+  /** Polling mode: result of the first check, once the project exists. When given, Continue waits for a good check; before the project is saved there is none and Continue (which creates it) stays enabled. */
   polling?: PollingState;
   accessHref?: string;
   onModeChange?(mode: TriggerMode): void;

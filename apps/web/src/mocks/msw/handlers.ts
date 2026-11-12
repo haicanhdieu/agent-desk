@@ -166,8 +166,14 @@ const impl: Impl = {
   },
   'connections.install': ({ params }) => {
     session();
-    // The real API returns the provider's install page; the fake provider has none.
-    return { url: params.provider === 'github' ? 'https://github.com/apps/agent-desk/installations/new' : '/' };
+    // The real API returns the provider's install page; the fake provider has none, so it gets a placeholder https URL
+    // (the app only follows absolute https install URLs).
+    return {
+      url:
+        params.provider === 'github'
+          ? 'https://github.com/apps/agent-desk/installations/new'
+          : 'https://fake-provider.invalid/install',
+    };
   },
   'connections.repos': ({ params }) => {
     const { orgId } = session();

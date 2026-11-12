@@ -9,7 +9,7 @@ import { CommandChip, useToast } from '@/ds';
 import { sessionQuery } from '@/features/auth/session';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
-import { browserLocation } from '@/features/setup/location';
+import { browserLocation, safeInstallUrl } from '@/features/setup/location';
 import {
   agentSummary,
   credentialDetail,
@@ -143,6 +143,7 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   const now = useNow();
   const toast = useToast();
   const goTo = useGoToStep(org);
+  const navigate = useNavigate();
   const { data: project } = useQuery({ ...projectsQueries.detail(org, projectId ?? ''), enabled: !!projectId });
   const { data: progress, refetch: refetchProgress } = useQuery({
     ...projectsQueries.connection(org, projectId ?? ''),
@@ -189,6 +190,14 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
           kind: 'create',
           body: { ...settings, connectionId: owner, repoPath: d.repo },
         });
+        // The history entry of this step now names the project, so Back from `agent` updates it instead of
+        // creating the same repo again (409).
+        await navigate({
+          to: '/o/$org/projects/new/$step',
+          params: { org, step: 'repo' },
+          search: { project: saved.id },
+          replace: true,
+        });
       } else {
         setErrors({ fields: { repo: 'Pick a repository.' } });
         return;
@@ -202,7 +211,15 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   const onConnect = async () => {
     try {
       const { url } = await install.mutateAsync('github');
-      browserLocation.assign(url);
+      const target = safeInstallUrl(url);
+      if (!target) {
+        setErrors({
+          fields: {},
+          form: 'The install link from the server is not a valid https address. Try again later.',
+        });
+        return;
+      }
+      browserLocation.assign(target);
     } catch (e) {
       toast.show(toastFromError(e));
     }

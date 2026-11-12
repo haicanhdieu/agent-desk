@@ -4,3 +4,19 @@ export const browserLocation = {
     window.location.assign(url);
   },
 };
+
+/**
+ * An install URL from the API, only when it is absolute https (http too in `mock` / `development` mode, for local
+ * servers). Anything else (javascript:, data:, relative) is refused: the API response is not trusted to navigate.
+ */
+export function safeInstallUrl(url: string, mode: string = import.meta.env.MODE): string | null {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  const allowHttp = mode === 'mock' || mode === 'development';
+  if (parsed.protocol === 'https:' || (allowHttp && parsed.protocol === 'http:')) return parsed.href;
+  return null;
+}
