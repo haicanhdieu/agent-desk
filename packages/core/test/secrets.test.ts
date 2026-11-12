@@ -1,4 +1,4 @@
-import { mkdtemp, readdir, stat } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -50,6 +50,25 @@ describe('FileSecretStore permissions', () => {
     expect((await stat(dir)).mode & 0o777).toBe(0o700);
     expect((await stat(join(dir, 'a-1.json'))).mode & 0o777).toBe(0o600);
     expect(await readdir(dir)).toEqual(['a-1.json']);
+  });
+});
+
+describe('FileSecretStore corrupt files', () => {
+  const VALUE = 'plain-credential-value-1234567890';
+  it.each([
+    ['truncated JSON', `{"type":"api_key","value":"${VALUE}`],
+    ['wrong shape', JSON.stringify({ type: 'api_key', value: { nested: VALUE } })],
+    ['not JSON', `value=${VALUE}`],
+  ])('%s → a fixed error that quotes no content', async (_n, content) => {
+    const dir = join(await mkdtemp(join(tmpdir(), 'sec-')), 'secrets');
+    await mkdir(dir, { recursive: true });
+    await writeFile(join(dir, 'a-1.json'), content);
+    const err = await new FileSecretStore(dir).get('a-1').catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe('corrupt secret file');
+    expect((err as Error).cause).toBeUndefined();
+    expect(JSON.stringify(err)).not.toContain('plain-credential');
+    expect(String((err as Error).stack)).not.toContain('plain-credential');
   });
 });
 

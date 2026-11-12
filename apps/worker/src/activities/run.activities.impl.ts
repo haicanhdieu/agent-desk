@@ -303,7 +303,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   async function credentialEnv(ctx: RunContext): Promise<Record<string, string> | null> {
     if (!ctx.agentId) return null;
     const name = credentialSecretName(ctx.orgId, ctx.agentId);
-    const parsed = StoredCredential.safeParse(await deps.secrets.get(name));
+    let stored: Record<string, string> | null;
+    try {
+      stored = await deps.secrets.get(name);
+    } catch (err) {
+      // A store error may quote stored content (a parse error over a corrupt value): keep only its name.
+      throw ApplicationFailure.retryable('credential store read failed', err instanceof Error ? err.name : 'Error');
+    }
+    const parsed = StoredCredential.safeParse(stored);
     if (!parsed.success) return null;
     const key = CREDENTIAL_ENV[parsed.data.type];
     return key ? { [key]: parsed.data.value } : null;
@@ -706,5 +713,28 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
   }
 
-  return { loadRun, createRunSecretAndJob, postComment, followPodLogs, endSession, deleteJob, ensureJobGone };
+  /**
+   * Every activity body runs inside this: whatever escapes (a DB error, a store error thrown before an inner
+   * `safeError`) leaves as a redacted, bounded ApplicationFailure with no cause. Inner `safeError`s, which know the
+   * run's secret values, still redact first; their ApplicationFailures pass through unchanged.
+   */
+  const guarded =
+    <A extends unknown[], R>(what: string, fn: (...args: A) => Promise<R>) =>
+    async (...args: A): Promise<R> => {
+      try {
+        return await fn(...args);
+      } catch (err) {
+        throw safeError(err, [], what);
+      }
+    };
+
+  return {
+    loadRun: guarded('load run', loadRun),
+    createRunSecretAndJob: guarded('create run Job', createRunSecretAndJob),
+    postComment: guarded('post comment', postComment),
+    followPodLogs: guarded('follow pod logs', followPodLogs),
+    endSession: guarded('end session', endSession),
+    deleteJob: guarded('delete run Job', deleteJob),
+    ensureJobGone: guarded('clean up run Job', ensureJobGone),
+  };
 }

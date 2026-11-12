@@ -43,7 +43,16 @@ export class FileSecretStore implements SecretStore {
       if (typeof err === 'object' && err !== null && 'code' in err && err.code === 'ENOENT') return null;
       throw err;
     }
-    return FileData.parse(JSON.parse(raw));
+    // Never let a parse error through: JSON.parse and Zod messages can quote the stored value.
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      throw new Error('corrupt secret file');
+    }
+    const data = FileData.safeParse(parsed);
+    if (!data.success) throw new Error('corrupt secret file');
+    return data.data;
   }
 
   async delete(name: string): Promise<void> {

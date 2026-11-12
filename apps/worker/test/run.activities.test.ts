@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import pg from 'pg';
@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakeKubeGateway,
   FakeStore,
+  FileSecretStore,
   MemorySecretStore,
   createAdapterRegistry,
   parseConfig,
@@ -320,6 +321,51 @@ describe('redaction fails closed', () => {
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(Error);
     expect((await store.listPosted()).length).toBe(before);
+  });
+});
+
+describe('activity errors are redacted', () => {
+  // A store whose read error quotes the stored value (like a JSON SyntaxError over a corrupt file).
+  const LEAK = 'stored-credential-value-0123456789abcdef';
+  const leaky = (): MemorySecretStore => {
+    const s = new MemorySecretStore();
+    s.get = async () => {
+      throw new SyntaxError(
+        `Unexpected end of JSON input: {"type":"api_key","value":"${LEAK} sk-ant-api03-abcdefghijklmn`,
+      );
+    };
+    return s;
+  };
+  const check = (err: unknown): void => {
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    const e = err as ApplicationFailure;
+    expect(e.message).not.toContain(LEAK.slice(0, 16));
+    expect(e.message).not.toContain('sk-ant-api03');
+    expect(e.cause).toBeUndefined();
+    expect(e.message.length).toBeLessThan(400);
+  };
+
+  it('a store read error in createRunSecretAndJob and postComment reaches Temporal only as a fixed or redacted message', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps({ secrets: leaky() }));
+    check(await acts.createRunSecretAndJob(ctx).catch((e: unknown) => e));
+    check(await acts.postComment(ctx, 'finish', { status: 'failed' }).catch((e: unknown) => e));
+    const followErr = await follow(ctx, deps({ secrets: leaky() })).promise.catch((e: unknown) => e);
+    check(followErr);
+  });
+
+  it('a corrupt credential file in the file store leaks nothing into the activity error', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const fileDir = join(dir, 'corrupt-secrets');
+    await mkdir(fileDir, { recursive: true });
+    await writeFile(join(fileDir, `org-${ORG}-agent-${AGENT}.json`), `{"type":"api_key","value":"${LEAK}`);
+    const err = await createRunActivities(deps({ secrets: new FileSecretStore(fileDir) }))
+      .createRunSecretAndJob(ctx)
+      .catch((e: unknown) => e);
+    check(err);
+    expect((err as Error).message).toContain('credential store read failed');
   });
 });
 
