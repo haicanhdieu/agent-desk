@@ -23,7 +23,8 @@ export interface RunList {
 const projectKey = (org: string, projectId: string) => ['org', org, 'projects', projectId] as const;
 export const runsKey = (org: string, projectId: string) => [...projectKey(org, projectId), 'runs'] as const;
 
-// Keys per spec §4.2. Runs queries refetch on window focus (the only area besides connections that does).
+// Keys per spec §4.2. Runs queries refetch on window focus (as do the connection queries and, for its counts,
+// `projectsQueries.detail`).
 export const runsQueries = {
   /**
    * Every run matching `filter` (and `ticket`, a full ticket ref `owner/repo#12`), newest first. The API pages by

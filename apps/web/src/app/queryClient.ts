@@ -10,7 +10,7 @@ export function isRetryable(error: unknown): boolean {
 
 /**
  * Query defaults: data is fresh for 30 s; retry twice only for status 0 and 5xx; no refetch on window focus
- * (runs and connection queries turn it on in their own options). `overrides` is for tests (e.g. `retryDelay: 0`).
+ * (runs, connection and project detail queries turn it on in their own options; the detail carries the run counts). `overrides` is for tests (e.g. `retryDelay: 0`).
  */
 export function createAppQueryClient(overrides: DefaultOptions['queries'] = {}): QueryClient {
   return new QueryClient({

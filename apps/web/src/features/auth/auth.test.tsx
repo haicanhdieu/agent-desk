@@ -143,4 +143,21 @@ describe('sign-in', () => {
     await user.click(await screen.findByRole('link', { name: 'Sign in with GitHub' }));
     await waitFor(() => expect(callbackURL).toBe('/o/acme/projects'));
   });
+
+  it('shows a failed social sign-in instead of ignoring it', async () => {
+    server.use(
+      http.post('/auth/sign-in/social', () =>
+        HttpResponse.json({ code: 'PROVIDER_ERROR', message: 'GitHub is unavailable' }, { status: 500 }),
+      ),
+    );
+    const { router, user } = await renderRoute('/sign-in', { scenario: scenarios.signedOut });
+    await user.click(await screen.findByRole('link', { name: 'Sign in with GitHub' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Sign-in failed');
+    expect(router.state.location.pathname).toBe('/sign-in');
+  });
+
+  it('a signed-in user opening /sign-in goes to the landing org', async () => {
+    const { router } = await renderRoute('/sign-in');
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
+  });
 });

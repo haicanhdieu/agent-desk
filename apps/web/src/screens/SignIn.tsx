@@ -1,4 +1,5 @@
-import { Button, CommandChip, StatusBadge, TicketRef } from '@/ds';
+import type { ReactNode } from 'react';
+import { Banner, Button, CommandChip, StatusBadge, TicketRef } from '@/ds';
 import { Brand, StepLine, StepList } from '@/components';
 import styles from './Screens.module.css';
 
@@ -6,9 +7,11 @@ export interface SignInProps {
   signInHref: string;
   /** Starts the sign-in in script (the app's GitHub social sign-in); the link stays the no-script fallback. */
   onSignIn?: () => void;
+  /** A failed sign-in (announced); the button stays so the user can try again. */
+  error?: ReactNode;
 }
 
-export function SignIn({ signInHref, onSignIn }: SignInProps) {
+export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
   return (
     <main className={styles.signIn}>
       <div className={styles.signInLeft}>
@@ -20,6 +23,7 @@ export function SignIn({ signInHref, onSignIn }: SignInProps) {
             back to the ticket, and lets you step into the terminal when the agent needs you.
           </p>
           <div className={styles.cta}>
+            {error && <Banner tone="err" live="assertive" title={error} />}
             <Button
               variant="primary"
               size="lg"
