@@ -6,9 +6,9 @@ import { createTestApp, type TestApp } from './helpers/app';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-@Controller('api/agents')
+@Controller('api/audit-probe')
 class CredentialStubController {
-  @Put(':agentId/credential')
+  @Put(':agentId')
   put(@Param('agentId') agentId: string, @Body() body: Record<string, unknown>) {
     return { agentId, name: body['name'] };
   }
@@ -176,7 +176,7 @@ describe('auth', () => {
     const agentId = '11111111-1111-4111-8111-111111111111';
     const res = await t.app.inject({
       method: 'PUT',
-      url: `/api/agents/${agentId}/credential`,
+      url: `/api/audit-probe/${agentId}`,
       headers: { cookie },
       payload: { name: 'anthropic', value: 'sk-super-secret', nested: [{ token: 't', keep: 1 }], password: 'p' },
     });
@@ -188,9 +188,9 @@ describe('auth', () => {
     );
     expect(found.rows).toHaveLength(1);
     const row = found.rows[0] as Record<string, unknown>;
-    expect(row['action']).toBe('PUT agents.putCredential');
-    expect(row['target_type']).toBe('agents');
-    expect(row['target_id']).toBe(agentId);
+    expect(row['action']).toBe(`PUT /api/audit-probe/${agentId}`);
+    expect(row['target_type']).toBe('audit-probe');
+    expect(row['target_id']).toBeNull();
     expect(row['actor_user_id']).toEqual(expect.any(String));
     expect(row['payload']).toEqual({ name: 'anthropic', nested: [{ keep: 1 }] });
     expect(JSON.stringify(row['payload'])).not.toContain('sk-super-secret');

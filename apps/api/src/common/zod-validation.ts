@@ -1,4 +1,9 @@
-import { BadRequestException, type PipeTransform } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  UnprocessableEntityException,
+  type PipeTransform,
+} from '@nestjs/common';
 import type { z } from 'zod';
 
 export interface ValidationIssue {
@@ -10,6 +15,26 @@ export interface ValidationIssue {
 export class ValidationProblemException extends BadRequestException {
   constructor(readonly issues: ValidationIssue[]) {
     super('Request validation failed');
+  }
+}
+
+/** 409 whose problem body carries `errors[]` pointers. */
+export class ConflictProblemException extends ConflictException {
+  constructor(
+    message: string,
+    readonly issues: ValidationIssue[],
+  ) {
+    super(message);
+  }
+}
+
+/** 422 whose problem body carries `errors[]` pointers. */
+export class UnprocessableProblemException extends UnprocessableEntityException {
+  constructor(
+    message: string,
+    readonly issues: ValidationIssue[],
+  ) {
+    super(message);
   }
 }
 

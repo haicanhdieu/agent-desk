@@ -4,7 +4,13 @@ import { ZodValidationException } from 'nestjs-zod';
 import { z } from 'zod';
 import type { ProblemSchema } from '@agentdesk/contracts';
 import { requestContext } from './request-context';
-import { type ValidationIssue, ValidationProblemException, toIssues } from './zod-validation';
+import {
+  ConflictProblemException,
+  UnprocessableProblemException,
+  type ValidationIssue,
+  ValidationProblemException,
+  toIssues,
+} from './zod-validation';
 import type { Logger } from 'pino';
 
 export const PROBLEM_CONTENT_TYPE = 'application/problem+json';
@@ -64,6 +70,9 @@ export class ProblemFilter implements ExceptionFilter {
         : typeof body === 'string'
           ? body
           : exception.message;
+      if (exception instanceof ConflictProblemException || exception instanceof UnprocessableProblemException) {
+        errors = exception.issues;
+      }
     } else if (clientErrorStatus(exception) !== undefined) {
       // Fastify-native 4xx (malformed JSON, 413, 415, ...): fixed text per status, never the raw message.
       status = clientErrorStatus(exception) ?? 400;

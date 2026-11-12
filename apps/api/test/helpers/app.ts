@@ -2,7 +2,8 @@ import 'reflect-metadata';
 import type { Type } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import type { NestFastifyApplication } from '@nestjs/platform-fastify';
-import { createAdapterRegistry, systemClock, type AdapterRegistry } from '@agentdesk/core';
+import type { Logger } from 'pino';
+import { MemorySecretStore, createAdapterRegistry, systemClock, type AdapterRegistry } from '@agentdesk/core';
 import { createDb, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
@@ -12,6 +13,7 @@ import { createLogger } from '../../src/common/logger';
 import { CONFIG } from '../../src/config/config.module';
 import { parseConfig, type Config } from '../../src/config/config.schema';
 import { DB } from '../../src/db/db.module';
+import { SECRET_STORE } from '../../src/secrets/secret-store.module';
 import { TEMPORAL_CLIENT } from '../../src/temporal/temporal-client.module';
 import { FakeTemporalClient } from './fake-temporal';
 
@@ -43,6 +45,8 @@ export interface TestAppOptions {
   controllers?: Type[];
   /** Wraps the real adapter registry (e.g. to widen the fake provider's repo list). */
   wrapAdapters?: (real: AdapterRegistry) => AdapterRegistry;
+  /** Logger for request/problem logging (default: silent); tests capture output through it. */
+  logger?: Logger;
 }
 
 export interface TestApp {
@@ -50,6 +54,7 @@ export interface TestApp {
   db: Db;
   config: Config;
   temporal: FakeTemporalClient;
+  secrets: MemorySecretStore;
   pg: TestPg;
   close: () => Promise<void>;
 }
@@ -86,6 +91,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     );
     const db = createDb(config.DATABASE_APP_URL);
     const temporal = new FakeTemporalClient();
+    const secrets = new MemorySecretStore();
     const moduleRef = await Test.createTestingModule({ imports: [AppModule], controllers: options.controllers ?? [] })
       .overrideProvider(CONFIG)
       .useValue(config)
@@ -97,11 +103,13 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
           ? options.wrapAdapters(createAdapterRegistry(config, systemClock))
           : createAdapterRegistry(config, systemClock),
       )
+      .overrideProvider(SECRET_STORE)
+      .useValue(secrets)
       .overrideProvider(TEMPORAL_CLIENT)
       .useValue(temporal.client)
       .compile();
     const app = moduleRef.createNestApplication<NestFastifyApplication>(createAdapter(), { logger: false });
-    configureApp(app, createLogger('silent'));
+    configureApp(app, options.logger ?? createLogger('silent'));
     await app.init();
     await app.getHttpAdapter().getInstance().ready();
     let closed = false;
@@ -110,6 +118,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
       db,
       config,
       temporal,
+      secrets,
       pg,
       close: async () => {
         if (closed) return;

@@ -6,3 +6,7 @@ export * from './adapters/registry';
 export { FakeStore } from './adapters/fake/store';
 export { fakeSignature, FAKE_SIGNATURE_HEADER } from './adapters/fake/board';
 export * from './temporal-names';
+export * from './secrets/secret-store';
+export { MemorySecretStore } from './secrets/memory-secret-store';
+export { FileSecretStore } from './secrets/file-secret-store';
+export { KubeSecretStore, type SecretsApi } from './secrets/kube-secret-store';
