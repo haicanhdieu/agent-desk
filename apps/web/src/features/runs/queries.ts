@@ -1,6 +1,7 @@
 import type { RunDto, RunListFilter } from '@agentdesk/contracts';
 import { queryOptions } from '@tanstack/react-query';
 import { api } from '../api';
+import { withPendingNote } from './pending';
 
 /** The contract's maximum page size. */
 export const RUN_LIST_PAGE_SIZE = 100;
@@ -8,8 +9,8 @@ export const RUN_LIST_PAGE_SIZE = 100;
 export const RUN_LIST_MAX_PAGES = 10;
 
 /**
- * A run as cached: the DTO plus `statusNote`, a client-only note set optimistically while a cancel or finish is in
- * flight ("Cancelling…"). Server data never carries it, so the next fetch of the run drops it.
+ * A run as cached: the DTO plus `statusNote`, a client-only note while a cancel or finish is pending ("Cancelling…").
+ * Server data never carries it; the queryFns re-apply it to fresh data until the run is final (pending.ts).
  */
 export type CachedRun = RunDto & { statusNote?: string };
 
@@ -35,7 +36,7 @@ export const runsQueries = {
   list: (org: string, projectId: string, filter: RunListFilter, ticket?: string) =>
     queryOptions({
       queryKey: [...runsKey(org, projectId), 'list', filter, ...(ticket === undefined ? [] : [ticket])] as const,
-      queryFn: async (): Promise<RunList> => {
+      queryFn: async ({ client }): Promise<RunList> => {
         const items: CachedRun[] = [];
         let cursor: string | undefined;
         for (let page = 0; page < RUN_LIST_MAX_PAGES; page += 1) {
@@ -48,7 +49,7 @@ export const runsQueries = {
               ...(cursor !== undefined && { cursor }),
             },
           });
-          items.push(...res.items);
+          items.push(...res.items.map((r) => withPendingNote(client, r)));
           if (res.nextCursor === null) return { items, truncated: false };
           cursor = res.nextCursor;
         }
@@ -59,7 +60,8 @@ export const runsQueries = {
   detail: (org: string, projectId: string, number: number) =>
     queryOptions({
       queryKey: [...runsKey(org, projectId), number] as const,
-      queryFn: (): Promise<CachedRun> => api.runs.byNumber({ params: { projectId, number } }),
+      queryFn: async ({ client }): Promise<CachedRun> =>
+        withPendingNote(client, await api.runs.byNumber({ params: { projectId, number } })),
       refetchOnWindowFocus: true,
     }),
   /**

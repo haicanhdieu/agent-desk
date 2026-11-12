@@ -49,14 +49,23 @@ const StatusPayload = z.object({ status: z.string() });
 
 const textOf = (e: RunEventDto): string | undefined => TextPayload.safeParse(e.payload).data?.text;
 
-// ANSI CSI / OSC sequences and other control characters (tab and newline stay).
-const ANSI =
+// Escape sequences, stripped before the text is split into lines:
+// - string sequences (OSC, DCS, SOS, PM, APC; 7-bit `ESC ] P X ^ _` or 8-bit) with their payload, up to BEL or ST;
+// - CSI (7-bit `ESC [` or 8-bit), then any other two-byte `ESC x`.
+const ESCAPES =
   // eslint-disable-next-line no-control-regex -- matching control characters is the point.
-  /\u001b\[[0-?]*[ -/]*[@-~]|\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)|\u001b[@-_]|[\u0000-\u0008\u000b-\u001f\u007f]/g;
+  /(?:\u001b[\]PX^_]|[\u0090\u0098\u009d\u009e\u009f])[^\u0007\u001b\u009c]*(?:\u0007|\u001b\\|\u009c)?|(?:\u001b\[|\u009b)[0-?]*[ -/]*[@-~]|\u001b[ -~]?/g;
+// Remaining C0 controls (tab and newline stay), DEL, C1 controls and the bidi embeddings, overrides and isolates.
+// eslint-disable-next-line no-control-regex -- matching control characters is the point.
+const CONTROLS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f‪-‮⁦-⁩]/g;
+
+/** At most this many scrollback lines (the newest) are rendered. */
+export const SCROLLBACK_MAX_LINES = 5000;
 
 /**
- * The stored final scrollback as plain text lines for the static terminal (rendered as text, never as markup).
- * Escape sequences are dropped; the live terminal (Task 14) renders them.
+ * The stored final scrollback as plain text lines for the static terminal (rendered as text, never as markup), the
+ * newest SCROLLBACK_MAX_LINES only. Escape sequences and controls are dropped; the live terminal (Task 14) renders
+ * them.
  */
 export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
   const event = events.filter((e) => e.type === 'scrollback').at(-1);
@@ -64,9 +73,11 @@ export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
   if (text === undefined) return undefined;
   return text
     .replace(/\r\n?/g, '\n')
+    .replace(ESCAPES, '')
     .split('\n')
+    .slice(-SCROLLBACK_MAX_LINES)
     .map((line) => {
-      const plain = line.replace(ANSI, '');
+      const plain = line.replace(CONTROLS, '');
       return plain === '' ? [] : [{ text: plain }];
     });
 }

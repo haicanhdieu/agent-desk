@@ -1,5 +1,6 @@
-import { screen, waitFor, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { focusManager } from '@tanstack/react-query';
+import { act, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { scrollbackText } from '@/mocks/dto/events';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -33,6 +34,15 @@ function holdAction(key: 'runs.finish' | 'runs.cancel') {
 }
 
 const banner = () => screen.getByRole('banner');
+
+/** The server accepts the action (202) but the run stays as it is (the worker ends it later). */
+function acceptWithoutEnding(key: 'runs.finish' | 'runs.cancel') {
+  server.use(routeHandler(key, async () => jsonResponse(null, 202)));
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 describe('run detail route', () => {
   it('an idle run renders the idle state with Finish enabled', async () => {
@@ -142,5 +152,68 @@ describe('run detail route', () => {
   it('a run number that is not a number is not found', async () => {
     await renderRoute(`${base}/runs/abc`);
     expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  it("another org's run (the API answers 404) is not found", async () => {
+    await renderRoute(`${base}/runs/62`, {
+      scenario: () => scenarios.problem('runs.byNumber', { status: 404, title: 'Run not found' }),
+    });
+    expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+  });
+
+  describe('accepted (202) while the run is still active', () => {
+    const finishPosts = () => mockDb.requests('POST', `/api/runs/${runId(62)}/finish`);
+    const byNumberGets = () => mockDb.requests('GET', `/api/projects/${projectId}/runs/62`);
+
+    async function finishAccepted() {
+      acceptWithoutEnding('runs.finish');
+      const rendered = await renderRoute(`${base}/runs/62`);
+      const [topFinish] = await screen.findAllByRole('button', { name: 'Finish run' });
+      if (!topFinish) throw new Error('no Finish button');
+      const before = byNumberGets();
+      await rendered.user.click(topFinish);
+      // The settle refetch has landed: the run is still idle.
+      await waitFor(() => expect(byNumberGets()).toBeGreaterThan(before));
+      await waitFor(() => expect(rendered.queryClient.isFetching()).toBe(0));
+      return rendered;
+    }
+
+    it('keeps "Finishing…" after the settle refetch, buttons held, no second POST', async () => {
+      const { user } = await finishAccepted();
+      expect(within(banner()).getByText('Finishing…')).toBeInTheDocument();
+      expect(screen.getByText('The agent finished its turn and is waiting for you')).toBeInTheDocument();
+      const buttons = screen.getAllByRole('button', { name: 'Finish run' });
+      for (const b of buttons) expect(b).toBeDisabled();
+      expect(screen.getByRole('button', { name: 'Cancel run' })).toBeDisabled();
+      for (const b of buttons) await user.click(b);
+      expect(finishPosts()).toBe(1);
+    });
+
+    it('drops the note once a refetch brings the final status', async () => {
+      const { queryClient } = await finishAccepted();
+      dbRun(62).status = 'succeeded';
+      dbRun(62).finishedAt = new Date().toISOString();
+      await act(() => queryClient.invalidateQueries());
+      expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
+      expect(within(banner()).queryByText('Finishing…')).not.toBeInTheDocument();
+      // The log is refetched with the run, so the stored scrollback of the final run can load.
+      expect(mockDb.requests('GET', `/api/runs/${runId(62)}/log`)).toBeGreaterThan(1);
+    });
+
+    it('keeps the note through a window-focus refetch', async () => {
+      vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date'] });
+      await finishAccepted();
+      const before = byNumberGets();
+      // Past the 30 s stale time, then the window regains focus.
+      vi.setSystemTime(Date.now() + 60_000);
+      act(() => {
+        focusManager.setFocused(false);
+        focusManager.setFocused(true);
+      });
+      await waitFor(() => expect(byNumberGets()).toBeGreaterThan(before));
+      await waitFor(() => expect(within(banner()).getByText('Finishing…')).toBeInTheDocument());
+      for (const b of screen.getAllByRole('button', { name: 'Finish run' })) expect(b).toBeDisabled();
+      act(() => focusManager.setFocused(undefined));
+    });
   });
 });

@@ -58,7 +58,7 @@ export function RunDetail({
         <Button icon="external" href={t.href}>View ticket</Button>
       ) : (
         <>
-          {/* Disabled like the board; the title explains why (not focusable by design: Finish does nothing yet). */}
+          {/* Disabled like the board unless idle; the title explains why. */}
           <Button icon="check" disabled={!idle || busy} title={idle ? undefined : FINISH_HINT} onClick={onFinish}>
             {idle ? 'Finish run' : 'Finish'}
           </Button>

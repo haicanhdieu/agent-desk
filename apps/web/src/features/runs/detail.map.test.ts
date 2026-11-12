@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { RunDetailKey } from '@/mocks/types';
 import { projectFixtures } from '@/mocks/dto/projects';
 import { runFixtures } from '@/mocks/dto/runs';
-import { runDetailKey, scrollbackLines, toRunDetail } from './detail.map';
+import { runDetailKey, SCROLLBACK_MAX_LINES, scrollbackLines, toRunDetail } from './detail.map';
 
 const base = runFixtures.find((r) => r.number === 61);
 const project = projectFixtures[0];
@@ -265,6 +265,29 @@ describe('scrollbackLines', () => {
       [{ text: 'Passed! <img src=x onerror=alert(1)>' }],
       [{ text: 'done' }],
     ]);
+  });
+
+  it('strips string sequences with their payloads (DCS, APC, PM, SOS, 8-bit OSC), C1 controls and bidi overrides', () => {
+    const text = [
+      'a\u001bPq#0;payload\u001b\\b',
+      'c\u001b_apc payload\u001b\\d\u001b^pm payload\u0007e\u001bXsos\u001b\\f',
+      '\u009d0;8-bit osc\u009cg\u009b31mh\u0085i\u0090dcs\u009cj',
+      'evil\u202egnp.exe\u2066x\u2069',
+    ].join('\n');
+    expect(scrollbackLines([ev(local(1, 0), 'scrollback', { text })])).toEqual([
+      [{ text: 'ab' }],
+      [{ text: 'cdef' }],
+      [{ text: 'ghij' }],
+      [{ text: 'evilgnp.exex' }],
+    ]);
+  });
+
+  it('renders only the newest lines', () => {
+    const text = Array.from({ length: SCROLLBACK_MAX_LINES + 10 }, (_, i) => `line ${i}`).join('\n');
+    const lines = scrollbackLines([ev(local(1, 0), 'scrollback', { text })]) ?? [];
+    expect(lines).toHaveLength(SCROLLBACK_MAX_LINES);
+    expect(lines[0]).toEqual([{ text: 'line 10' }]);
+    expect(lines.at(-1)).toEqual([{ text: `line ${SCROLLBACK_MAX_LINES + 9}` }]);
   });
 
   it('no scrollback event (or a malformed one) → undefined', () => {

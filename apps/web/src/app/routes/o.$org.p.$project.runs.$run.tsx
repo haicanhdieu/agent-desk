@@ -1,7 +1,7 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
@@ -45,6 +45,15 @@ function RunDetailRoute() {
   const final = isFinal(dto.status);
   const { data: events } = useSuspenseQuery(runsQueries.events(org, projectId, number, final));
   const { data: ticketRuns } = useSuspenseQuery(runsQueries.list(org, projectId, 'all', dto.ticket.ref));
+  const queryClient = useQueryClient();
+  // The run became final while open (a refetch, not loaded final): its log now has the final scrollback.
+  const wasFinal = useRef(final);
+  useEffect(() => {
+    if (final && !wasFinal.current) {
+      void queryClient.invalidateQueries({ queryKey: runsQueries.events(org, projectId, number).queryKey });
+    }
+    wasFinal.current = final;
+  }, [final, queryClient, org, projectId, number]);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const onError = (e: unknown) => toast.show(toastFromError(e));
@@ -77,9 +86,9 @@ function RunDetailRoute() {
       onCancelClose={() => setConfirmingCancel(false)}
       onCancelConfirm={() => {
         setConfirmingCancel(false);
-        cancel.run(target);
+        cancel(target);
       }}
-      onFinish={() => finish.run(target)}
+      onFinish={() => finish(target)}
     />
   );
 }
