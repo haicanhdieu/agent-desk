@@ -1,9 +1,10 @@
-import type { CreateRuleRequest, RuleDto, UpdateRuleRequest } from '@agentdesk/contracts';
+import type { CreateRuleRequest, RuleDto, UpdateProjectRequest, UpdateRuleRequest } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
 import { useToast } from '@/ds';
 import { api } from '../api';
+import { projectsQueries } from '../projects/queries';
 import { deskQueries } from './queries';
 
 // Skill commit and delete (spec §4.3): no optimistic update; the affected desk keys are invalidated on success.
@@ -134,4 +135,46 @@ export function useDeleteRule(org: string, projectId: string) {
     mutationFn: (id: string) => api.rules.remove({ params: { ruleId: id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: deskQueries.rules(org, projectId).queryKey }),
   });
+}
+
+// Project settings on the Agent & settings page (spec §4.3).
+
+/**
+ * Saves the trigger mode (and poll interval). Changes run one after another (a mutation scope per project), so the
+ * last pick is the last write. On success the project is written into the cache and the connection status refetches.
+ */
+export function useSaveTrigger(org: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    scope: { id: `project-trigger:${projectId}` },
+    mutationFn: (body: Pick<UpdateProjectRequest, 'triggerMode' | 'pollIntervalSeconds'>) =>
+      api.projects.update({ params: { projectId }, body }),
+    onSuccess: async (saved) => {
+      qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, saved);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: projectsQueries.connection(org, projectId).queryKey }),
+        qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true }),
+      ]);
+    },
+  });
+}
+
+/**
+ * Deletes the project. On success the projects list is refetched (also while no page shows it), so the list the
+ * caller navigates to no longer has the project; the caller drops the project's own queries after leaving.
+ */
+export function useDeleteProject(org: string, projectId: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.projects.remove({ params: { projectId } }),
+    onSuccess: async () => {
+      await qc.cancelQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey });
+      await qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true, refetchType: 'all' });
+    },
+  });
+}
+
+/** Drops every cached query of a deleted project (detail, connection, desk). */
+export function forgetProject(qc: QueryClient, org: string, projectId: string): void {
+  qc.removeQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey });
 }

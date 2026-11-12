@@ -103,6 +103,20 @@ export const DeskAgent: Story = {
   ),
 };
 
+export const DeskAgentSaveErrors: Story = {
+  name: 'Agent & settings, refused saves',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentScreen frame={deskFrame}
+      settings={{ ...agentSettings, timeoutMinutes: 60 }}
+      triggerError="Internal server error"
+      limitsErrors={{ timeoutMinutes: 'Too big: expected number to be <=3300' }}
+      github={github({ term: connectionCopy.lastEventTerm, text: 'issue_comment, 2 min ago, accepted (webhook)' })}
+    />
+  ),
+};
+
 export const DeskAgentPolling: Story = {
   name: 'Agent & settings, polling',
   decorators: artboard(1320),

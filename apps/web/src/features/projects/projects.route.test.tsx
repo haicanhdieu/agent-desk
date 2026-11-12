@@ -20,6 +20,12 @@ describe('projects route', () => {
     expect(screen.getByRole('link', { name: /New project/ })).toHaveAttribute('href', '/o/alice/projects/new/repo');
   });
 
+  it('"Switch to polling" on a silent webhook project links to its agent settings', async () => {
+    await renderRoute('/o/alice/projects');
+    const link = await screen.findByRole('link', { name: 'Switch to polling for docs-site' });
+    expect(link).toHaveAttribute('href', `/o/alice/p/${ids.project.docsSite}/desk/agent`);
+  });
+
   it('shows the empty state with a create link when the org has no projects', async () => {
     mockDb.state.projects = [];
     await renderRoute('/o/alice/projects');

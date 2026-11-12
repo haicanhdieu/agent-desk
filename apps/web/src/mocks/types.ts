@@ -92,10 +92,10 @@ export type AgentSettings = {
     setBy: string;
     status?: { tone: 'ok' | 'err'; text: string };
   };
-  timeoutMinutes: 30;
-  idleEndMinutes: 10;
-  maxConcurrent: 2;
-  maxRunsPerTicket: 10;
+  timeoutMinutes: number;
+  idleEndMinutes: number;
+  maxConcurrent: number;
+  maxRunsPerTicket: number;
 };
 
 export type RunDetailData = {

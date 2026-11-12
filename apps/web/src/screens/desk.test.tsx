@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { agentSettings, connections, deskFrame, rules, skills } from '@/mocks';
 import { DeskSkills } from './DeskSkills';
@@ -226,5 +226,43 @@ describe('DeskAgent', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
     expect(onReplaceCredential).toHaveBeenCalledWith(agentSettings.credential.type, 'sk-secret-123');
     expect(container.textContent).not.toContain('sk-secret-123');
+  });
+
+  it('shows limit field errors on their inputs and disables Save limits while saving', () => {
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} savingLimits limitsErrors={{ timeoutMinutes: 'Max 55 minutes.' }} limitsError="Saving failed." />);
+    const timeout = screen.getByLabelText('Run time limit');
+    expect(timeout).toHaveAttribute('aria-invalid', 'true');
+    expect(timeout).toHaveAccessibleDescription(expect.stringContaining('Max 55 minutes.'));
+    expect(screen.getByRole('alert')).toHaveTextContent('Saving failed.');
+    expect(screen.getByRole('button', { name: 'Save limits' })).toBeDisabled();
+  });
+
+  it('a controlled trigger shows the given mode with its error', () => {
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} trigger={{ mode: 'polling', interval: '15 min' }} triggerError="Internal server error" />);
+    expect(screen.getByRole('radio', { name: 'Polling' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('radio', { name: '15 min' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByText('Internal server error')).toBeInTheDocument();
+  });
+
+  it('Delete project asks to confirm before calling onDeleteProject', async () => {
+    const onDeleteProject = vi.fn();
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} onDeleteProject={onDeleteProject} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Delete project' }));
+    expect(onDeleteProject).not.toHaveBeenCalled();
+    const dialog = screen.getByRole('dialog', { name: 'Delete project' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Delete project' }));
+    expect(onDeleteProject).toHaveBeenCalledOnce();
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('the replace panel closes only when onReplaceCredential resolves true', async () => {
+    const onReplaceCredential = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} replacingCredential onReplaceCredential={onReplaceCredential} credentialError="Rejected." />);
+    expect(screen.getByLabelText('New token')).toHaveAttribute('aria-invalid', 'true');
+    await userEvent.type(screen.getByLabelText('New token'), 'x');
+    await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
+    expect(screen.getByLabelText('New token')).toHaveValue('x');
+    await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
+    await waitFor(() => expect(screen.queryByLabelText('New token')).toBeNull());
   });
 });
