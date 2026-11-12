@@ -51,5 +51,7 @@ export const orgsQuery = queryOptions({
 export async function setActiveOrganization(queryClient: QueryClient, org: Organization): Promise<void> {
   await authCall(() => authClient.organization.setActive({ organizationId: org.id }));
   queryClient.setQueryData(sessionQuery.queryKey, (prev) => prev && { ...prev, activeOrganizationId: org.id });
+  // In-flight fetches of the old org must not land in the cache after it is cleared.
+  await queryClient.cancelQueries({ queryKey: ['org'] });
   queryClient.removeQueries({ queryKey: ['org'] });
 }

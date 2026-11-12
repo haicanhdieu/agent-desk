@@ -15,5 +15,24 @@ export default tseslint.config(
     plugins: { 'react-hooks': reactHooks },
     rules: reactHooks.configs.recommended.rules,
   },
+  {
+    // The app's `api` (features/api.ts) wires 401 handling; the contracts package's default instance does not.
+    files: ['**/*.{ts,tsx,mjs}'],
+    ignores: ['src/features/api.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: '@agentdesk/contracts/client',
+              importNames: ['api'],
+              message: "Import `api` from '@/features/api' (it handles 401); the contracts default has no hooks.",
+            },
+          ],
+        },
+      ],
+    },
+  },
   prettier,
 );

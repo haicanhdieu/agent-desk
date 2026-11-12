@@ -37,8 +37,10 @@ describe('org layout', () => {
   it.each(['/o/stranger/projects', '/o/stranger'])(
     'shows not found for an org the user is not in (%s) and never calls set-active',
     async (path) => {
-      await renderRoute(path);
+      const { router } = await renderRoute(path);
       expect(await screen.findByRole('heading', { name: 'Page not found' })).toBeInTheDocument();
+      // No redirect happened: the org layout rejected the slug before any child route ran.
+      expect(router.state.location.pathname).toBe(path);
       expect(setActiveCalls()).toBe(0);
     },
   );

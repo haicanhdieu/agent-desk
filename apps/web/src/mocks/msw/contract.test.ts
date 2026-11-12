@@ -12,6 +12,8 @@ import {
   flattenRoutes,
   routes,
 } from '@agentdesk/contracts';
+// The contracts package's own default instance is what these tests exercise, so the restriction does not apply.
+// eslint-disable-next-line no-restricted-imports
 import { ApiError, api as defaultApi, createApi } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';

@@ -11,8 +11,7 @@ export const Route = createFileRoute('/')({
       queryClient.ensureQueryData(orgsQuery),
     ]);
     const org = orgs.find((o) => o.id === session?.activeOrganizationId) ?? orgs[0];
-    // `href` until the projects route exists (Task 6); then `to: '/o/$org/projects'`.
-    if (org) throw redirect({ href: `/o/${encodeURIComponent(org.slug)}/projects` });
+    if (org) throw redirect({ to: '/o/$org/projects', params: { org: org.slug } });
   },
   component: NoOrganization,
 });
