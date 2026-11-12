@@ -72,7 +72,7 @@ describe('Projects', () => {
     expect(warn).toHaveClass('idle');
   });
 
-  it('shows polling status: ok with the succeeded glyph, failure with the failed glyph and fail tone', () => {
+  it('shows polling status: ok with the succeeded glyph, failure with the failed glyph and err tone', () => {
     render(<Projects user={user} projects={projects} newHref="/new" />);
     const rows = screen.getAllByRole('row').slice(1);
     expect(within(rows[1]).getByText('Polling every 5 min')).toBeInTheDocument();

@@ -150,7 +150,7 @@ describe('ProjectMenu', () => {
     expect(screen.getByRole('link', { name: /invoicer-api/ })).toHaveAttribute('aria-current', 'true');
   });
 
-  it('a silent webhook warns in idle tone, a polling failure in fail tone', () => {
+  it('a silent webhook warns in idle tone, a polling failure in err tone', () => {
     render(
       <ProjectMenu
         items={[

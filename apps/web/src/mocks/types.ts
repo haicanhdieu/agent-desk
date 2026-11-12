@@ -36,7 +36,7 @@ export type TriggerMode = 'webhook' | 'polling';
 /** Polling interval choices. Minimum and default 5 min. */
 export type PollInterval = '5 min' | '10 min' | '15 min' | '30 min';
 
-/** Project connection status. ok: Connected / Polling every N; warn: silent webhook; fail: polling error. */
+/** Project connection status. ok: Connected / Polling every N; warn: silent webhook; err: polling error. */
 export type ConnectionStatus = { mode: TriggerMode; tone: 'ok' | 'warn' | 'err'; text: string };
 
 /** A connection problem shown as a banner above the runs list. */
