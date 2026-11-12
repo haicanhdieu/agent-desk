@@ -7,16 +7,38 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "echo \"api: not implemented yet\"",
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "typecheck": "tsc --noEmit",
-    "migrate": "tsx src/migrate.ts"
+    "migrate": "tsx src/migrate.ts",
+    "test": "vitest run",
+    "start": "tsx src/main.ts"
   },
   "dependencies": {
+    "@agentdesk/contracts": "workspace:*",
+    "@agentdesk/core": "workspace:*",
     "@agentdesk/db": "workspace:*",
-    "pg": "^8.23.1"
+    "@fastify/static": "^10.1.10",
+    "@nestjs/common": "^11.2.9",
+    "@nestjs/core": "^11.2.9",
+    "@nestjs/platform-fastify": "^11.2.9",
+    "@nestjs/swagger": "^11.4.8",
+    "@nestjs/testing": "^11.2.9",
+    "@temporalio/client": "^1.25.0",
+    "dotenv": "^18.0.10",
+    "fastify": "^5.12.8",
+    "nestjs-zod": "^5.6.0",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
-    "tsx": "^4.23.15"
+    "testcontainers": "^12.2.1",
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
   }
 }

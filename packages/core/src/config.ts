@@ -1,0 +1,107 @@
+import { z } from 'zod';
+
+/** Env values arrive as strings; blank means "unset" (`.env.example` lists optional keys with empty values). */
+const blankToUndefined = (v: unknown): unknown => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+const optional = <T extends z.ZodType>(schema: T) => z.preprocess(blankToUndefined, schema.optional());
+/** Wrap a schema that carries its own `.default()` so a blank value falls back to it. */
+const blankDefault = <T extends z.ZodType>(schema: T) => z.preprocess(blankToUndefined, schema);
+
+const bool = z.enum(['true', 'false']).transform((v) => v === 'true');
+
+const jsonValue = <T extends z.ZodType>(schema: T) =>
+  z.string().transform((raw, ctx): z.infer<T> => {
+    try {
+      const parsed = schema.safeParse(JSON.parse(raw));
+      if (parsed.success) return parsed.data;
+      ctx.addIssue({ code: 'custom', message: z.prettifyError(parsed.error) });
+    } catch {
+      ctx.addIssue({ code: 'custom', message: 'must be valid JSON' });
+    }
+    return z.NEVER;
+  });
+
+const GITHUB_KEYS = [
+  'GITHUB_APP_ID',
+  'GITHUB_APP_SLUG',
+  'GITHUB_PRIVATE_KEY',
+  'GITHUB_WEBHOOK_SECRET',
+  'GITHUB_CLIENT_ID',
+  'GITHUB_CLIENT_SECRET',
+] as const;
+
+const TolerationSchema = z.object({
+  key: z.string().optional(),
+  operator: z.enum(['Exists', 'Equal']).optional(),
+  value: z.string().optional(),
+  effect: z.enum(['NoSchedule', 'PreferNoSchedule', 'NoExecute']).optional(),
+  tolerationSeconds: z.number().int().optional(),
+});
+
+export const ConfigSchema = z
+  .object({
+    NODE_ENV: blankDefault(z.enum(['development', 'test', 'production']).default('development')),
+    PORT: blankDefault(z.coerce.number().int().min(1).max(65535).default(3000)),
+    PUBLIC_ORIGIN: z.url(),
+    DATABASE_APP_URL: z.string().min(1),
+    DATABASE_OWNER_URL: z.string().min(1),
+    DATABASE_ADMIN_URL: z.string().min(1),
+    TEMPORAL_ADDRESS: z.string().min(1),
+    TEMPORAL_NAMESPACE: z.string().min(1),
+    BETTER_AUTH_SECRET: z.string().min(32),
+    GITHUB_APP_ID: optional(z.string()),
+    GITHUB_APP_SLUG: optional(z.string()),
+    GITHUB_PRIVATE_KEY: optional(z.string()),
+    GITHUB_WEBHOOK_SECRET: optional(z.string()),
+    GITHUB_CLIENT_ID: optional(z.string()),
+    GITHUB_CLIENT_SECRET: optional(z.string()),
+    KUBE_MODE: blankDefault(z.enum(['fake', 'kubeconfig', 'incluster']).default('fake')),
+    KUBECONFIG: optional(z.string()),
+    RUNS_NAMESPACE: blankDefault(z.string().default('agentdesk-runs')),
+    APP_NAMESPACE: blankDefault(z.string().default('agentdesk')),
+    RUNNER_IMAGE: z.string().min(1),
+    RUN_POD_CPU_REQUEST: blankDefault(z.string().default('500m')),
+    RUN_POD_CPU_LIMIT: blankDefault(z.string().default('2')),
+    RUN_POD_MEMORY_REQUEST: blankDefault(z.string().default('1Gi')),
+    RUN_POD_MEMORY_LIMIT: blankDefault(z.string().default('4Gi')),
+    RUN_POD_EPHEMERAL_STORAGE_LIMIT: blankDefault(z.string().default('4Gi')),
+    RUN_POD_WORKSPACE_SIZE_LIMIT: blankDefault(z.string().default('4Gi')),
+    RUN_POD_NODE_SELECTOR: optional(jsonValue(z.record(z.string(), z.string()))),
+    RUN_POD_TOLERATIONS: optional(jsonValue(z.array(TolerationSchema))),
+    RUN_POD_RUNTIME_CLASS: optional(z.string()),
+    FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
+    ENABLE_FAKE_PROVIDER: blankDefault(bool.default(false)),
+    AUTH_DEV_LOGIN: blankDefault(bool.default(false)),
+    POLL_MAX_BACKOFF_SECONDS: blankDefault(z.coerce.number().int().min(1).default(3600)),
+    OTEL_EXPORTER_OTLP_ENDPOINT: optional(z.string()),
+    BOT_NAME: blankDefault(z.string().default('agentdesk[bot]')),
+    BOT_EMAIL: blankDefault(z.string().default('agentdesk-bot@users.noreply.local')),
+  })
+  .superRefine((cfg, ctx) => {
+    const set = GITHUB_KEYS.filter((k) => cfg[k] !== undefined);
+    if (set.length > 0 && set.length < GITHUB_KEYS.length) {
+      const missing = GITHUB_KEYS.filter((k) => cfg[k] === undefined);
+      ctx.addIssue({
+        code: 'custom',
+        path: [missing[0] ?? 'GITHUB_APP_ID'],
+        message: `GITHUB_* keys are all-or-none; missing ${missing.join(', ')}`,
+      });
+    }
+    if (cfg.NODE_ENV === 'production') {
+      if (cfg.AUTH_DEV_LOGIN) {
+        ctx.addIssue({ code: 'custom', path: ['AUTH_DEV_LOGIN'], message: 'must not be true in production' });
+      }
+      if (cfg.ENABLE_FAKE_PROVIDER) {
+        ctx.addIssue({ code: 'custom', path: ['ENABLE_FAKE_PROVIDER'], message: 'must not be true in production' });
+      }
+    }
+  });
+
+export type Config = z.infer<typeof ConfigSchema>;
+
+/** Parses raw env into Config. Throws one Error naming every invalid key (values are never echoed). */
+export function parseConfig(env: Record<string, string | undefined>): Config {
+  const result = ConfigSchema.safeParse(env);
+  if (result.success) return result.data;
+  const lines = result.error.issues.map((i) => `  ${i.path.join('.') || '(config)'}: ${i.message}`);
+  throw new Error(`Invalid configuration:\n${lines.join('\n')}`);
+}

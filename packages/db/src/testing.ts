@@ -1,6 +1,6 @@
 import { PostgreSqlContainer } from '@testcontainers/postgresql';
-import { bootstrapDatabase } from '../../src/bootstrap';
-import { runMigrations } from '../../src/migrate';
+import { bootstrapDatabase } from './bootstrap';
+import { runMigrations } from './migrate';
 
 export const TEST_PASSWORDS = { owner: 'owner-pw', app: 'app-pw', temporal: 'temporal-pw' } as const;
 
