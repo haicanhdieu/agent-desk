@@ -109,6 +109,28 @@ describe('runs list', () => {
     expect(tied).toEqual([...tied].sort());
   });
 
+  it('tampered cursors with a valid shape but impossible date or bad uuid are 400 /cursor, never 500', async () => {
+    const uuid = randomUUID();
+    const enc = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
+    const bad = [
+      { t: '2026-99-99T99:99:99.000000Z', i: uuid },
+      { t: '2026-02-30T00:00:00.000000Z', i: uuid },
+      { t: '2026-01-01T25:00:00.000000Z', i: uuid },
+      { t: '2026-01-01T00:60:00.000000Z', i: uuid },
+      { t: '2026-01-01T00:00:61.000000Z', i: uuid },
+      { t: '2026-13-01T00:00:00.000000Z', i: uuid },
+      { t: '2026-01-01T00:00:00.000000Z', i: 'not-a-uuid' },
+      { t: '2026-01-01T00:00:00.000000Z', i: `${uuid}x` },
+    ];
+    for (const c of bad) {
+      const res = await listRuns(`?cursor=${enc(c)}`);
+      expect(res.statusCode, JSON.stringify(c)).toBe(400);
+      expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/cursor');
+    }
+    const ok = await listRuns(`?cursor=${enc({ t: '2026-02-28T23:59:59.999999Z', i: uuid })}`);
+    expect(ok.statusCode).toBe(200);
+  });
+
   it('malformed cursor is 400 with pointer /cursor; limit above the max is rejected', async () => {
     for (const bad of ['!!!', 'e30', Buffer.from('{"t":"x","i":"y"}').toString('base64url')]) {
       const res = await listRuns(`?cursor=${bad}`);

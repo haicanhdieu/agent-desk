@@ -26,7 +26,33 @@ export const LOG_CAP = 5000;
 export const IGNORED_LIMIT = 100;
 
 const TS_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
-const Cursor = z.object({ t: z.string().regex(TS_ISO), i: z.uuid() });
+
+/** The shape check plus a real calendar/clock check (month 1-12, valid day for month/year, hh<24, mm/ss<60). */
+function isRealTimestamp(t: string): boolean {
+  if (!TS_ISO.test(t)) return false;
+  const [y, mo, d, h, mi, sec] = t.split(/[-T:.Z]/).map(Number);
+  if (
+    y === undefined ||
+    mo === undefined ||
+    d === undefined ||
+    h === undefined ||
+    mi === undefined ||
+    sec === undefined
+  )
+    return false;
+  const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  return (
+    mo >= 1 &&
+    mo <= 12 &&
+    d >= 1 &&
+    d <= daysInMonth &&
+    h < 24 &&
+    mi < 60 &&
+    sec < 60 &&
+    !Number.isNaN(Date.parse(t.slice(0, 23) + 'Z'))
+  );
+}
+const Cursor = z.object({ t: z.string().refine(isRealTimestamp), i: z.uuid() });
 type Cursor = z.infer<typeof Cursor>;
 
 /** Microsecond-exact timestamp text (a JS Date would truncate to milliseconds and break tie-breaking). */
@@ -46,6 +72,14 @@ function decodeCursor(raw: string): Cursor {
   } catch {
     throw bad();
   }
+}
+
+function isPgCode(err: unknown, codes: string[]): boolean {
+  for (let e: unknown = err, depth = 0; typeof e === 'object' && e !== null && depth < 4; depth += 1) {
+    if ('code' in e && typeof e.code === 'string' && codes.includes(e.code)) return true;
+    e = 'cause' in e ? e.cause : undefined;
+  }
+  return false;
 }
 
 const isFinal = (status: string): boolean => (FINAL_RUN_STATUSES as readonly string[]).includes(status);
@@ -110,7 +144,7 @@ export class RunsService {
   }
 
   private async dto(tx: Tx, row: RunRow): Promise<RunDto> {
-    return (await this.dtos(tx, [row]))[0] ?? this.toDto(row, undefined);
+    return this.toDto(row, row.agentId === null ? undefined : (await this.agentsFor(tx, [row])).get(row.agentId));
   }
 
   private async dtos(tx: Tx, rows: RunRow[]): Promise<RunDto[]> {
@@ -131,6 +165,18 @@ export class RunsService {
 
   async list(org: OrgContext, projectId: string, q: RunListQuery): Promise<RunListResponse> {
     const cursor = q.cursor === undefined ? undefined : decodeCursor(q.cursor);
+    try {
+      return await this.listPage(org, projectId, q, cursor);
+    } catch (err) {
+      // Defence in depth: a timestamp Postgres rejects (22007 invalid format, 22008 out of range) is a bad cursor.
+      if (cursor && isPgCode(err, ['22007', '22008'])) {
+        throw new ValidationProblemException([{ pointer: '/cursor', detail: 'malformed cursor' }]);
+      }
+      throw err;
+    }
+  }
+
+  private async listPage(org: OrgContext, projectId: string, q: RunListQuery, cursor: Cursor | undefined) {
     return withOrg(this.db, org.orgId, async (tx) => {
       await this.requireProject(tx, projectId);
       const conds: (SQL | undefined)[] = [eq(runs.projectId, projectId)];
