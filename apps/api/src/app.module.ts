@@ -7,6 +7,7 @@ import { ConfigModule } from './config/config.module';
 import { ConnectionsController } from './connections/connections.controller';
 import { ConnectionsService } from './connections/connections.service';
 import { DbModule } from './db/db.module';
+import { IntakeModule } from './intake/intake.module';
 import { HealthController } from './health/health.controller';
 import { ProjectSchedules } from './projects/project-schedules';
 import { ProjectsController } from './projects/projects.controller';
@@ -19,7 +20,15 @@ import { SkillsService } from './skills/skills.service';
 import { TemporalClientModule } from './temporal/temporal-client.module';
 
 @Module({
-  imports: [ConfigModule, DbModule, TemporalClientModule, AdapterRegistryModule, SecretStoreModule, AuthModule],
+  imports: [
+    ConfigModule,
+    DbModule,
+    TemporalClientModule,
+    AdapterRegistryModule,
+    SecretStoreModule,
+    AuthModule,
+    IntakeModule,
+  ],
   controllers: [
     HealthController,
     ConnectionsController,

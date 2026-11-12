@@ -9,6 +9,7 @@ import { ProblemFilter } from './common/problem.filter';
 import { pickRequestId, requestContext } from './common/request-context';
 import { PinoNestLogger, createLogger } from './common/logger';
 import { AppModule } from './app.module';
+import { captureWebhookRawBody } from './intake/raw-body';
 
 export function createAdapter(): FastifyAdapter {
   return new FastifyAdapter({
@@ -33,6 +34,7 @@ export function configureApp(app: NestFastifyApplication, logger: Logger): void 
     );
     done();
   });
+  captureWebhookRawBody(fastify);
   app.useGlobalFilters(new ProblemFilter(logger));
   mountDocs(app);
 }

@@ -13,11 +13,14 @@ import { requestContext } from '../common/request-context';
 import { DB } from '../db/db.module';
 import { AUTH, type Auth } from './auth';
 
-/** Everything under /api needs a session except the OpenAPI spec and UI. Health and webhooks live outside /api. */
+/**
+ * Everything under /api needs a session except the OpenAPI spec and UI; so do the dev-only /dev routes (they act on the
+ * caller's org). Health and webhooks live outside /api and are public.
+ */
 export function isPublicPath(url: string): boolean {
   const path = url.split('?')[0] ?? '';
   if (path === '/api/docs' || path.startsWith('/api/docs/')) return true;
-  return !(path === '/api' || path.startsWith('/api/'));
+  return !(path === '/api' || path.startsWith('/api/') || path === '/dev' || path.startsWith('/dev/'));
 }
 
 function toHeaders(req: FastifyRequest): Headers {

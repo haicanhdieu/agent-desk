@@ -28,6 +28,14 @@ const StoredComment = z.object({
   createdAt: z.string(),
 });
 export type StoredComment = z.infer<typeof StoredComment>;
+const PostedComment = z.object({
+  id: z.string(),
+  repoPath: z.string(),
+  ticketRef: z.string(),
+  body: z.string(),
+  at: z.string(),
+});
+export type PostedComment = z.infer<typeof PostedComment>;
 export type NewComment = Omit<StoredComment, 'id' | 'createdAt'>;
 
 const SKILL_NAME = /^[a-z0-9-]+$/;
@@ -138,6 +146,11 @@ export class FakeStore {
       at: c.createdAt,
     });
     return c.id;
+  }
+
+  /** Comments the desk itself posted (posted.jsonl), oldest first. */
+  async listPosted(): Promise<PostedComment[]> {
+    return this.readLines(this.path('posted.jsonl'), PostedComment);
   }
 
   // ---- skills (skills/<repo>/<name>.md)
