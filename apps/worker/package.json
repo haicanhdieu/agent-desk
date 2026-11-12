@@ -3,9 +3,39 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts",
+    "./signals": "./src/workflows/signals.ts"
+  },
   "scripts": {
-    "dev": "echo \"worker: not implemented yet\"",
-    "typecheck": "tsc --noEmit"
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@agentdesk/contracts": "workspace:*",
+    "@agentdesk/core": "workspace:*",
+    "@agentdesk/db": "workspace:*",
+    "@nestjs/common": "^11.2.9",
+    "@nestjs/core": "^11.2.9",
+    "@temporalio/activity": "1.25.0",
+    "@temporalio/client": "1.25.0",
+    "@temporalio/worker": "1.25.0",
+    "@temporalio/workflow": "1.25.0",
+    "drizzle-orm": "^0.45.4",
+    "pg": "^8.23.1",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@temporalio/testing": "1.25.0",
+    "@testcontainers/postgresql": "^12.2.1",
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "testcontainers": "^12.2.1",
+    "tsx": "^4.23.15",
+    "vitest": "^5.1.0"
   }
 }
