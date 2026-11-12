@@ -8,6 +8,8 @@ export interface ProjectsProps {
   user: Actor;
   projects: Project[];
   newHref: string;
+  /** Where a project row links (its runs). Defaults to the prototype's `/runs`. */
+  projectHref?: (project: Project) => string;
 }
 
 const columns = [
@@ -20,7 +22,7 @@ const columns = [
   { key: 'more', header: <span className="sr-only">Actions</span> },
 ];
 
-export function Projects({ user, projects, newHref }: ProjectsProps) {
+export function Projects({ user, projects, newHref, projectHref = () => '/runs' }: ProjectsProps) {
   if (projects.length === 0) return <ProjectsEmpty user={user} createHref={newHref} />;
   return (
     <>
@@ -34,7 +36,7 @@ export function Projects({ user, projects, newHref }: ProjectsProps) {
           After sign-in you land on the runs of the project you used last. This list is one click away on the logo.
         </p>
         <DataTable columns={columns}>
-          {projects.map((p) => <ProjectRow key={p.id} project={p} href="/runs" />)}
+          {projects.map((p) => <ProjectRow key={p.id} project={p} href={projectHref(p)} />)}
         </DataTable>
       </main>
     </>

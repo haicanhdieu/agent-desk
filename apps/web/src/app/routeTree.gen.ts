@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index';
 import { Route as SignInRouteImport } from './routes/sign-in';
 import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
+import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -34,17 +35,24 @@ const OOrgIndexRoute = OOrgIndexRouteImport.update({
   path: '/',
   getParentRoute: () => OOrgRoute,
 } as any);
+const OOrgProjectsIndexRoute = OOrgProjectsIndexRouteImport.update({
+  id: '/projects/',
+  path: '/projects/',
+  getParentRoute: () => OOrgRoute,
+} as any);
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
   '/sign-in': typeof SignInRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
+  '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute;
   '/sign-in': typeof SignInRoute;
   '/o/$org': typeof OOrgIndexRoute;
+  '/o/$org/projects': typeof OOrgProjectsIndexRoute;
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
@@ -52,13 +60,20 @@ export interface FileRoutesById {
   '/sign-in': typeof SignInRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
+  '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
-  fullPaths: '/' | '/sign-in' | '/o/$org' | '/o/$org/';
+  fullPaths: '/' | '/sign-in' | '/o/$org' | '/o/$org/' | '/o/$org/projects/';
   fileRoutesByTo: FileRoutesByTo;
-  to: '/' | '/sign-in' | '/o/$org';
-  id: '__root__' | '/' | '/sign-in' | '/o/$org' | '/o/$org/';
+  to: '/' | '/sign-in' | '/o/$org' | '/o/$org/projects';
+  id:
+    | '__root__'
+    | '/'
+    | '/sign-in'
+    | '/o/$org'
+    | '/o/$org/'
+    | '/o/$org/projects/';
   fileRoutesById: FileRoutesById;
 }
 export interface RootRouteChildren {
@@ -97,15 +112,24 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgIndexRouteImport;
       parentRoute: typeof OOrgRoute;
     };
+    '/o/$org/projects/': {
+      id: '/o/$org/projects/';
+      path: '/projects';
+      fullPath: '/o/$org/projects/';
+      preLoaderRoute: typeof OOrgProjectsIndexRouteImport;
+      parentRoute: typeof OOrgRoute;
+    };
   }
 }
 
 interface OOrgRouteChildren {
   OOrgIndexRoute: typeof OOrgIndexRoute;
+  OOrgProjectsIndexRoute: typeof OOrgProjectsIndexRoute;
 }
 
 const OOrgRouteChildren: OOrgRouteChildren = {
   OOrgIndexRoute: OOrgIndexRoute,
+  OOrgProjectsIndexRoute: OOrgProjectsIndexRoute,
 };
 
 const OOrgRouteWithChildren = OOrgRoute._addFileChildren(OOrgRouteChildren);
