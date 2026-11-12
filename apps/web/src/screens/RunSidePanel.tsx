@@ -1,4 +1,4 @@
-import { Icon, InlineStatus, StatusIcon, statusTokens } from '@/ds';
+import { AppLink, Icon, InlineStatus, StatusIcon, statusTokens } from '@/ds';
 import {
   ActorRef, ChainTimeline, EventLog, KeyValue, Meter, ModelTag, Note, RuleText, Section, SidePanel, SideRail, Stat,
   TicketSummary,
@@ -39,8 +39,8 @@ export function RunSidePanel({ data, collapsed, onExpand }: RunSidePanelProps) {
   );
 
   const kv = [
-    { term: 'Skill', value: <a className="mono" href="/desk/skills">{run.skill}</a> },
-    { term: 'Rule', value: <a href="/desk/rules"><RuleText rule={data.rule} command={run.command} /></a> },
+    { term: 'Skill', value: <AppLink className="mono" href="/desk/skills">{run.skill}</AppLink> },
+    { term: 'Rule', value: <AppLink href="/desk/rules"><RuleText rule={data.rule} command={run.command} /></AppLink> },
     {
       term: 'Triggered by',
       value: <ActorRef actor={run.triggeredBy} note={data.triggerNote} noteHref={t.href} />,

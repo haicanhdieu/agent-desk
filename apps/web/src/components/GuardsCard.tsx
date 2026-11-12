@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { Icon } from '@/ds';
+import { AppLink, Icon } from '@/ds';
 import styles from './Composites.module.css';
 
 export interface GuardsCardProps {
@@ -17,11 +17,11 @@ export function GuardsCard({ maxRunsPerTicket, changeHref, ignoredHref }: Guards
         <li><span className={styles.strong}>Who can trigger:</span> repo owners, members and collaborators, and <span className={styles.monoText}>agent-desk[bot]</span>. Anyone else is ignored.</li>
         <li>
           <span className={styles.strong}>Runs per ticket:</span> at most <b>{maxRunsPerTicket}</b>.{' '}
-          {changeHref && <a href={changeHref}>Change</a>}
+          {changeHref && <AppLink href={changeHref}>Change</AppLink>}
         </li>
         <li><span className={styles.strong}>One at a time:</span> a ticket can have only one active run per skill.</li>
         <li>
-          Ignored commands are listed under {ignoredHref ? <a href={ignoredHref}>Runs, Ignored</a> : 'Runs, Ignored'} with the reason.
+          Ignored commands are listed under {ignoredHref ? <AppLink href={ignoredHref}>Runs, Ignored</AppLink> : 'Runs, Ignored'} with the reason.
         </li>
       </ul>
     </section>

@@ -1,4 +1,4 @@
-import { Button, IconButton, Icon, InlineStatus, StatusBadge, StatusIcon } from '@/ds';
+import { AppLink, Button, IconButton, Icon, InlineStatus, StatusBadge, StatusIcon } from '@/ds';
 import { connectionCopy } from '@/mocks/connection';
 import type { Project } from '@/mocks/types';
 import styles from './Entry.module.css';
@@ -16,7 +16,7 @@ export function ProjectRow({ project: p, href, onMore, switchToPollingHref = '#'
   return (
     <tr>
       <td className={styles.projectCell}>
-        <a href={href} className={styles.name}>{p.name}</a>
+        <AppLink href={href} className={styles.name}>{p.name}</AppLink>
         <span className={styles.repo} title={p.repo}>{p.repo}</span>
       </td>
       <td className={styles.connection}>

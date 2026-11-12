@@ -1,4 +1,4 @@
-import { CountBadge, Icon } from '@/ds';
+import { AppLink, CountBadge, Icon } from '@/ds';
 import { ProjectSwitch } from './ProjectSwitch';
 import styles from './Chrome.module.css';
 
@@ -11,15 +11,15 @@ export interface ProjectNavProps {
 export function ProjectNav({ active, needsYou }: ProjectNavProps) {
   return (
     <nav className={styles.tabs} aria-label="Project">
-      <a href="/runs" className={active === 'runs' ? styles.on : undefined} aria-current={active === 'runs' ? 'page' : undefined}>
+      <AppLink href="/runs" className={active === 'runs' ? styles.on : undefined} aria-current={active === 'runs' ? 'page' : undefined}>
         <Icon name="runs" size={15} />
         Runs
         <CountBadge count={needsYou} label="needs you" title={needsYou ? `${needsYou} ${needsYou === 1 ? 'run needs' : 'runs need'} you` : undefined} />
-      </a>
-      <a href="/desk" className={active === 'desk' ? styles.on : undefined} aria-current={active === 'desk' ? 'page' : undefined}>
+      </AppLink>
+      <AppLink href="/desk" className={active === 'desk' ? styles.on : undefined} aria-current={active === 'desk' ? 'page' : undefined}>
         <Icon name="desk" size={15} />
         Desk
-      </a>
+      </AppLink>
     </nav>
   );
 }

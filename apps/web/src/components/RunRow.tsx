@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Avatar, Icon, LabelChip, StatusBadge, TicketRef } from '@/ds';
+import { AppLink, Avatar, Icon, LabelChip, StatusBadge, TicketRef } from '@/ds';
 import type { RunSummary, TicketGroup } from '@/mocks/types';
 import styles from './RunList.module.css';
 
@@ -41,7 +41,7 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
     <tr className={[styles.child, idle && styles.needs].filter(Boolean).join(' ')}>
       <td className={styles.runCell}>
         <span className={[styles.tree, tree === 'mid' && styles.mid].filter(Boolean).join(' ')} aria-hidden="true" />
-        <a href={href} className={`${styles.num} ${styles.runLink}`}>Run {run.id}</a>
+        <AppLink href={href} className={`${styles.num} ${styles.runLink}`}>Run {run.id}</AppLink>
       </td>
       <td>
         <StatusBadge status={run.status} variant={idle ? 'pill' : 'text'} />

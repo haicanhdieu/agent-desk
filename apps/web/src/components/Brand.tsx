@@ -1,4 +1,4 @@
-import { Icon } from '@/ds';
+import { AppLink, Icon } from '@/ds';
 import styles from './Chrome.module.css';
 
 export interface BrandProps {
@@ -13,9 +13,9 @@ export function Brand({ withName = true, size = 20, href }: BrandProps) {
     return <span className={styles.brand}>{glyph}{withName && 'Agent Desk'}</span>;
   }
   return (
-    <a href={href} className={styles.brand} aria-label="Agent Desk, all projects">
+    <AppLink href={href} className={styles.brand} aria-label="Agent Desk, all projects">
       {glyph}
       {withName && 'Agent Desk'}
-    </a>
+    </AppLink>
   );
 }

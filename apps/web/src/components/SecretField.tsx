@@ -22,6 +22,8 @@ export interface SecretFieldProps {
   revealLabel?: string;
   /** Omit the submit button when the surrounding flow supplies the action. Enter still submits. */
   hideSubmit?: boolean;
+  /** Message from a failed save or test; shown under the token input. */
+  error?: string;
 }
 
 const typeName: Record<CredentialType, string> = {
@@ -36,9 +38,9 @@ const typeOptions: { value: CredentialType; label: string }[] = [
 
 /** Owns the typed secret; mounted only while entering so it always starts empty and is dropped on unmount. */
 function SecretEntry({
-  label, help, submitLabel, revealLabel, hideSubmit, onSubmit, onCancel,
+  label, help, error, submitLabel, revealLabel, hideSubmit, onSubmit, onCancel,
 }: {
-  label: string; help?: string; submitLabel: string; revealLabel?: string; hideSubmit?: boolean;
+  label: string; help?: string; error?: string; submitLabel: string; revealLabel?: string; hideSubmit?: boolean;
   onSubmit?(v: string): void; onCancel?(): void;
 }) {
   const [value, setValue] = useState('');
@@ -48,10 +50,12 @@ function SecretEntry({
   };
   return (
     <form className={styles.entry} onSubmit={submit}>
-      <Field label={label} help={help}>
-        {({ id }) => (
+      <Field label={label} help={help} error={error}>
+        {({ id, describedBy, invalid }) => (
           <PasswordInput
             id={id}
+            aria-describedby={describedBy}
+            aria-invalid={invalid}
             revealLabel={revealLabel ?? `Show ${label.toLowerCase()}`}
             value={value}
             onChange={(e) => setValue(e.target.value)}
@@ -70,12 +74,12 @@ function SecretEntry({
 
 export function SecretField({
   state, credentialType, onCredentialTypeChange, savedInfo, onReplace, onCancel, onSubmit, submitLabel,
-  entryHelp, revealLabel, hideSubmit,
+  entryHelp, revealLabel, hideSubmit, error,
 }: SecretFieldProps) {
   if (state === 'empty' || state === 'entering') {
     return (
       <SecretEntry
-        label="Token" help={entryHelp} revealLabel={revealLabel} hideSubmit={hideSubmit}
+        label="Token" help={entryHelp} error={error} revealLabel={revealLabel} hideSubmit={hideSubmit}
         submitLabel={submitLabel ?? 'Save and test'} onSubmit={onSubmit}
       />
     );
@@ -114,6 +118,7 @@ export function SecretField({
           />
           <SecretEntry
             label="New token"
+            error={error}
             help="We test the new token with one small call before saving. The old token is overwritten; runs already in progress keep the one they started with."
             submitLabel={submitLabel ?? 'Test and replace'}
             onSubmit={onSubmit}

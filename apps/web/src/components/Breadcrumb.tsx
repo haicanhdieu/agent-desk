@@ -1,4 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
+import { AppLink } from '@/ds';
 import styles from './Chrome.module.css';
 
 export interface BreadcrumbProps {
@@ -16,7 +17,7 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
             {last || !item.href ? (
               <b className={styles.crumb} aria-current={last ? 'page' : undefined} title={typeof item.label === 'string' ? item.label : undefined}>{item.label}</b>
             ) : (
-              <a href={item.href} className={styles.crumb} title={typeof item.label === 'string' ? item.label : undefined}>{item.label}</a>
+              <AppLink href={item.href} className={styles.crumb} title={typeof item.label === 'string' ? item.label : undefined}>{item.label}</AppLink>
             )}
           </Fragment>
         );

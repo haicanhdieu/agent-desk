@@ -1,5 +1,6 @@
 import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react';
 import { Icon } from './Icon';
+import { AppLink } from './Link';
 import type { IconName } from './icons';
 import styles from './Button.module.css';
 
@@ -42,7 +43,7 @@ export function Button({
   if (rest.href !== undefined) {
     const { disabled, ...anchor } = rest;
     if (!disabled) {
-      return <a {...anchor} className={cls}>{content}</a>;
+      return <AppLink {...anchor} className={cls}>{content}</AppLink>;
     }
     return (
       <button type="button" disabled className={cls} aria-label={anchor['aria-label']}>

@@ -28,3 +28,10 @@ export const CodeReview: Story = {
 export const MissingSkill: Story = {
   args: { skills, agents, onChange: () => {}, value: { command: 'docs-update', target: 'any', labels: [], skill: 'docs-update', agent: 'Claude (opus)', enabled: false } },
 };
+export const WithErrors: Story = {
+  args: {
+    skills, agents, agentLocked: true, onChange: () => {},
+    value: { command: 'code-build', target: 'issue', labels: [], skill: 'code-build', agent: 'Claude (opus)', enabled: true },
+    errors: { command: 'Command already used', skill: 'This skill no longer exists' },
+  },
+};

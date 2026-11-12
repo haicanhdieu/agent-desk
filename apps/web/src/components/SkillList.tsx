@@ -1,4 +1,4 @@
-import { Button } from '@/ds';
+import { AppLink, Button } from '@/ds';
 import styles from './Composites.module.css';
 
 export interface SkillListProps {
@@ -21,13 +21,13 @@ export function SkillList({ skills, activeName, branch, onNew }: SkillListProps)
           const active = s.name === activeName;
           return (
             <li key={s.name}>
-              <a href={s.href ?? `#${s.name}`} className={[styles.skill, active && styles.active].filter(Boolean).join(' ')} aria-current={active ? 'page' : undefined}>
+              <AppLink href={s.href ?? `#${s.name}`} className={[styles.skill, active && styles.active].filter(Boolean).join(' ')} aria-current={active ? 'page' : undefined}>
                 <span className={styles.skillTop}>
                   <b className={styles.skillName}>{s.name}</b>
                   <span className={styles.skillRules}>{s.ruleSummary}</span>
                 </span>
                 <span className={styles.skillDesc}>{s.description}</span>
-              </a>
+              </AppLink>
             </li>
           );
         })}

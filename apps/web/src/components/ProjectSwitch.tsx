@@ -1,4 +1,4 @@
-import { CountBadge, Icon, InlineStatus } from '@/ds';
+import { AppLink, CountBadge, Icon, InlineStatus } from '@/ds';
 import styles from './Chrome.module.css';
 
 export interface ProjectSwitchProps {
@@ -34,7 +34,7 @@ export function ProjectMenu({ items }: ProjectMenuProps) {
   return (
     <div className={styles.menu}>
       {items.map((it) => (
-        <a
+        <AppLink
           key={it.name}
           href={it.href}
           className={`${styles.menuItem} ${it.current ? styles.current : ''}`}
@@ -49,7 +49,7 @@ export function ProjectMenu({ items }: ProjectMenuProps) {
           ) : (
             <span className={styles.menuZero}>0</span>
           )}
-        </a>
+        </AppLink>
       ))}
     </div>
   );

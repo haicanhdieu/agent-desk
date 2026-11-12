@@ -14,6 +14,9 @@ const info = { setAt: '12 Oct 2026', setBy: 'kim-hale' };
 
 export const Empty: Story = { args: { state: 'empty', credentialType: 'oauth_token' } };
 export const Entering: Story = { args: { state: 'entering', credentialType: 'oauth_token', submitLabel: 'Save token' } };
+export const EnteringRejected: Story = {
+  args: { state: 'entering', credentialType: 'oauth_token', error: 'The token was rejected. Check it and try again.' },
+};
 export const Saved: Story = {
   args: { state: 'saved', credentialType: 'oauth_token', savedInfo: { ...info, status: { tone: 'ok', text: 'Verified at 09:12' } } },
 };

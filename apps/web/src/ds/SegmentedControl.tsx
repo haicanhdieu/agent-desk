@@ -7,6 +7,8 @@ export interface SegmentedControlProps<T extends string> {
   onChange(v: T): void;
   'aria-label'?: string;
   'aria-labelledby'?: string;
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean;
 }
 
 export function SegmentedControl<T extends string>({

@@ -1,4 +1,4 @@
-import { CommandChip, StatusIcon, TicketRef, statusTokens, type RunStatus, type TicketKind } from '@/ds';
+import { AppLink, CommandChip, StatusIcon, TicketRef, statusTokens, type RunStatus, type TicketKind } from '@/ds';
 import styles from './SidePanel.module.css';
 
 export type ChainStep = {
@@ -39,7 +39,7 @@ export function ChainTimeline({ steps }: { steps: ChainStep[] }) {
               />
             </div>
             {s.href && !future
-              ? <a className={styles.cbox} href={s.href}>{body}</a>
+              ? <AppLink className={styles.cbox} href={s.href}>{body}</AppLink>
               : <div className={styles.cbox}>{body}</div>}
           </li>
         );

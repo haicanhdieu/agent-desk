@@ -1,5 +1,5 @@
 import { Fragment, type ReactNode } from 'react';
-import { Icon, type IconName } from '@/ds';
+import { AppLink, Icon, type IconName } from '@/ds';
 import styles from './Chrome.module.css';
 
 export interface SubNavProps {
@@ -18,7 +18,7 @@ export function SubNav({ 'aria-label': ariaLabel, groups }: SubNavProps) {
         <Fragment key={g.heading ?? i}>
           {g.heading && <div className={styles.grpH}>{g.heading}</div>}
           {g.items?.map((it) => (
-            <a
+            <AppLink
               key={it.href}
               href={it.href}
               className={it.active ? styles.on : undefined}
@@ -26,7 +26,7 @@ export function SubNav({ 'aria-label': ariaLabel, groups }: SubNavProps) {
             >
               {it.icon && <Icon name={it.icon} size={15} />}
               {it.label}
-            </a>
+            </AppLink>
           ))}
           {g.content && <div className={styles.grpBody}>{g.content}</div>}
         </Fragment>

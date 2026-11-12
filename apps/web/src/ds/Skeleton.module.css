@@ -1,0 +1,33 @@
+.sk {
+  display: block;
+  background: var(--raised);
+  border-radius: var(--radius-6);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.text {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.line {
+  height: 12px;
+}
+.line:last-child:not(:only-child) {
+  width: 60%;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sk {
+    animation: none;
+  }
+}

@@ -123,3 +123,4 @@
 /* Trigger mode setting (Desk, Agent & settings). */
 .triggerMode { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .triggerHelp { font-size: var(--fs-12_5); color: var(--faint); }
+.triggerError { font-size: var(--fs-12_5); color: var(--fail); }

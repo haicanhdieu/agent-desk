@@ -8,9 +8,13 @@ export interface LabelInputProps {
   onRemove(l: string): void;
   id?: string;
   placeholder?: string;
+  'aria-describedby'?: string;
+  'aria-invalid'?: boolean;
 }
 
-export function LabelInput({ labels, onAdd, onRemove, id, placeholder }: LabelInputProps) {
+export function LabelInput({
+  labels, onAdd, onRemove, id, placeholder, 'aria-describedby': describedBy, 'aria-invalid': invalid,
+}: LabelInputProps) {
   const [text, setText] = useState('');
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
@@ -33,6 +37,8 @@ export function LabelInput({ labels, onAdd, onRemove, id, placeholder }: LabelIn
       ))}
       <input
         id={id}
+        aria-describedby={describedBy}
+        aria-invalid={invalid}
         value={text}
         placeholder={placeholder}
         onChange={(e) => setText(e.target.value)}

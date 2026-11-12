@@ -12,6 +12,8 @@ export interface RuleFormProps {
   agentModel?: string;
   /** Setup page spacing: 24px between the sentence card and the fields (the desk pane keeps 16px). */
   spacious?: boolean;
+  /** Field-level messages (e.g. from a problem+json response); the field is marked invalid and described by it. */
+  errors?: Partial<Record<'command' | 'labels' | 'target' | 'skill', string>>;
 }
 
 const TARGETS: { value: RuleTarget; label: string }[] = [
@@ -23,7 +25,7 @@ const TARGETS: { value: RuleTarget; label: string }[] = [
 /** Keep a saved value selectable even when it is no longer in the option list (e.g. a deleted skill). */
 const withCurrent = (opts: string[], cur: string) => (opts.includes(cur) ? opts : [cur, ...opts]);
 
-export function RuleForm({ value, skills, agents, onChange, agentLocked, agentModel, spacious }: RuleFormProps) {
+export function RuleForm({ value, skills, agents, onChange, agentLocked, agentModel, spacious, errors }: RuleFormProps) {
   const set = (patch: Partial<RuleDraft>) => onChange({ ...value, ...patch });
   return (
     <div className={spacious ? `${styles.form} ${styles.formSpacious}` : styles.form}>
@@ -31,20 +33,22 @@ export function RuleForm({ value, skills, agents, onChange, agentLocked, agentMo
         <RuleSentence rule={value} variant="slots" />
       </div>
       <div className={styles.grid2}>
-        <Field label="Command" help="First line of the comment. Text after it is passed to the agent.">
-          {({ id, describedBy }) => (
-            <PrefixInput prefix="/" id={id} aria-describedby={describedBy} value={value.command} onChange={(e) => set({ command: e.target.value })} />
+        <Field label="Command" help="First line of the comment. Text after it is passed to the agent." error={errors?.command}>
+          {({ id, describedBy, invalid }) => (
+            <PrefixInput prefix="/" id={id} aria-describedby={describedBy} aria-invalid={invalid} value={value.command} onChange={(e) => set({ command: e.target.value })} />
           )}
         </Field>
-        <Field label="Posted on" labelAs="span">
-          {({ labelId }) => (
-            <SegmentedControl aria-labelledby={labelId} value={value.target} options={TARGETS} onChange={(target) => set({ target })} />
+        <Field label="Posted on" labelAs="span" error={errors?.target}>
+          {({ labelId, describedBy, invalid }) => (
+            <SegmentedControl aria-labelledby={labelId} aria-describedby={describedBy} aria-invalid={invalid} value={value.target} options={TARGETS} onChange={(target) => set({ target })} />
           )}
         </Field>
-        <Field label="Only if the ticket has all labels" help="Optional. Leave empty to match any ticket.">
-          {({ id }) => (
+        <Field label="Only if the ticket has all labels" help="Optional. Leave empty to match any ticket." error={errors?.labels}>
+          {({ id, describedBy, invalid }) => (
             <LabelInput
               id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
               labels={value.labels}
               placeholder="Add label"
               onAdd={(l) => !value.labels.includes(l) && set({ labels: [...value.labels, l] })}
@@ -52,9 +56,9 @@ export function RuleForm({ value, skills, agents, onChange, agentLocked, agentMo
             />
           )}
         </Field>
-        <Field label="Run skill" help={<>From <span className="mono">.claude/skills/</span> on main.</>}>
-          {({ id, describedBy }) => (
-            <Select mono id={id} aria-describedby={describedBy} value={value.skill} onChange={(e) => set({ skill: e.target.value })}>
+        <Field label="Run skill" help={<>From <span className="mono">.claude/skills/</span> on main.</>} error={errors?.skill}>
+          {({ id, describedBy, invalid }) => (
+            <Select mono id={id} aria-describedby={describedBy} aria-invalid={invalid} value={value.skill} onChange={(e) => set({ skill: e.target.value })}>
               {withCurrent(skills, value.skill).map((s) => <option key={s}>{s}</option>)}
             </Select>
           )}
