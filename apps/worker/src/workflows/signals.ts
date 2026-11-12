@@ -24,3 +24,12 @@ export interface GateState {
   settled: boolean;
 }
 export const gateState = defineQuery<GateState>('gateState');
+
+/** RunWorkflow phases as seen by the `state` query (workflow-side view; `runs.status` is the durable one). */
+export type RunPhase = 'loading' | 'waiting_slot' | 'starting' | 'running' | 'idle' | 'ending' | 'finalizing' | 'done';
+
+export interface RunState {
+  phase: RunPhase;
+  terminalAttached: number;
+}
+export const runState = defineQuery<RunState>('state');

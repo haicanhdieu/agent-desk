@@ -1,8 +1,7 @@
-import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activity';
+import type { RunActivities } from './run.activities';
 
 /** Activity signatures as seen from workflow code (type-only import; no runtime dependency). */
-export interface Activities {
-  setRunStatus(input: SetRunStatusInput): Promise<SetRunStatusResult>;
+export interface Activities extends RunActivities {
   sweepOutbox(): Promise<number>;
   reconcile(): Promise<void>;
 }

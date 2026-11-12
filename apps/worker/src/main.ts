@@ -24,7 +24,7 @@ async function main(): Promise<void> {
       namespace: config.TEMPORAL_NAMESPACE,
       taskQueue: TASK_QUEUE,
       workflowsPath: fileURLToPath(new URL('./workflows/index.ts', import.meta.url)),
-      activities: createActivities({ db, starter: client.workflow }),
+      activities: createActivities({ db, starter: client.workflow, gate: client.workflow }),
     });
     // The Temporal worker owns SIGINT/SIGTERM and drains in-flight activities; teardown happens only after it resolves.
     await worker.run();

@@ -26,6 +26,16 @@ export const SIGNAL = {
   cancel: 'cancel',
 } as const;
 
+export const QUERY = {
+  /** RunWorkflow: `{ phase, terminalAttached }`. */
+  runState: 'state',
+  /** ProjectGateWorkflow: `{ limit, queue, active, settled }`. */
+  gateState: 'gateState',
+} as const;
+
+/** RunWorkflow ends an idle session after this long with no terminal attached. */
+export const IDLE_END_SECONDS = 600;
+
 /** Gate state is carried through continueAsNew after this many handled signals. */
 export const GATE_CONTINUE_AS_NEW_AFTER = 1000;
 
