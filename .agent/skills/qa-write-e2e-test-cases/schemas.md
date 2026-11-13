@@ -1,10 +1,10 @@
 # Output schemas
 
-Every agent in this skill writes JSON in these shapes, never markdown. `scripts/validate.mjs` enforces them and `scripts/render-issues.mjs` turns them into issue bodies, so the issues look the same on every run. The allowed values live in `scripts/lib.mjs`.
+Every agent in this skill writes JSON in these shapes, never markdown. `scripts/validate.mjs` enforces them and `scripts/publish.mjs` turns them into issue bodies, so the issues look the same on every run. The allowed values live in `scripts/lib.mjs`.
 
 All files live in the run's work directory (`<workdir>`).
 
-## `scope.json`: requirements and rules
+## `scope.json`: requirements, rules and clusters
 
 ```json
 {
@@ -43,6 +43,14 @@ All files live in the run's work directory (`<workdir>`).
       "note": "optional, one sentence of context for the implementer"
     }
   ],
+  "clusters": [
+    {
+      "id": "CL-01",
+      "title": "Step 2: choosing a repository",
+      "summary": "Step 2 of project setup, where a member picks the repository the project works on.",
+      "rules": ["BR-01"]
+    }
+  ],
   "excluded": [{ "requirement": "R9", "reason": "Visual spacing only; covered by Storybook parity." }],
   "openQuestions": [{ "id": "Q1", "about": "R4", "question": "Is the 20-plugin limit per project or per org?" }]
 }
@@ -59,12 +67,15 @@ All files live in the run's work directory (`<workdir>`).
 | `rules[].statement`     | one sentence: `When <condition>, <actor> <can / cannot / sees / is …> <observable outcome>.`                                                                |
 | `rules[].category`      | `validation`, `state-transition`, `permission`, `conditional-display`, `calculation`, `limit`, `navigation`, `feedback-state`, `persistence`, `side-effect` |
 | `rules[].requirements`  | one or more `R` ids                                                                                                                                         |
+| `clusters[]`            | added in step 4. `id` `CL-01`, `CL-02`, …; `title` 80 characters or fewer; `summary` one sentence; `rules` 1 to 8 `BR` ids                                  |
 | `excluded[]`            | every requirement that maps to no rule, with the reason                                                                                                     |
 | `openQuestions[].about` | `"scope"`, an `R` id or a `BR` id                                                                                                                           |
 
-Every requirement is either referenced by a rule or listed in `excluded`, never both, never neither.
+Every requirement is either referenced by a rule or listed in `excluded`, never both, never neither. Every rule is in exactly one cluster.
 
 ## `rules/<BR-id>.json`: test cases for one rule
+
+A cluster's writer writes one of these per rule in its cluster.
 
 ```json
 {
@@ -106,13 +117,13 @@ Every requirement is either referenced by a rule or listed in `excluded`, never 
 | `cases[].expected`              | what the user observes, one assertion per item                                                                                                                       |
 | `cases[].covers`                | one or more coverage row ids; every row needs at least one case                                                                                                      |
 | `cases[].existing.status`       | `NEW`, `PARTIAL` (needs `ref` and `missing`) or `COVERED` (needs `ref`, e2e layer only)                                                                              |
-| `cases[].existing.ref`          | the `ref` value of an `inventory.json` entry, copied exactly                                                                                                         |
+| `cases[].existing.ref`          | one whole line of `inventory-e2e.txt` or `inventory-lower.txt`, copied exactly                                                                                       |
 
-Each rule needs at least one `smoke` case.
+Each rule needs at least one `smoke` case. No two cases share a title, within a rule or across rules.
 
 ## `reviews/<name>.json`: review findings
 
-`reviews/rules-round-<n>.json` for the rule review, `reviews/cases-<BR-id>-round-<n>.json` for one rule's cases, `reviews/cases-cross.json` for the cross-rule pass.
+`reviews/rules.json` for the rule review, `reviews/cases-<CL-id>.json` for one cluster's cases. One file each; there is one review round.
 
 ```json
 {
@@ -128,12 +139,12 @@ Each rule needs at least one `smoke` case.
 }
 ```
 
-| Field          | Rule                                                                                                       |
-| -------------- | ---------------------------------------------------------------------------------------------------------- |
-| `findings`     | empty array when the draft is clean                                                                        |
-| `type` (rules) | `MISSING`, `SPLIT`, `MERGE`, `NOT_A_RULE`, `UNTRACEABLE`, `AMBIGUOUS`, `WRONG_CATEGORY`                    |
-| `type` (cases) | `GAP`, `DUPLICATE`, `VAGUE_EXPECTED`, `NOT_FROM_SPEC`, `NOT_ATOMIC`, `WRONG_STATUS`, `WRONG_PRIORITY`      |
-| `target`       | the id the finding is about (`R`, `BR`, `C` or `TC` id; two ids joined with `+` for `MERGE` / `DUPLICATE`) |
-| `detail`       | what is wrong, with the source wording that shows it                                                       |
-| `proposal`     | the exact change to make                                                                                   |
-| `resolution`   | added by the orchestrator: `applied`, `rejected` or `open-question`; the last two need a `reason`          |
+| Field          | Rule                                                                                                              |
+| -------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `findings`     | empty array when the draft is clean                                                                               |
+| `type` (rules) | `MISSING`, `SPLIT`, `MERGE`, `NOT_A_RULE`, `UNTRACEABLE`, `AMBIGUOUS`, `WRONG_CATEGORY`                           |
+| `type` (cases) | `GAP`, `DUPLICATE`, `VAGUE_EXPECTED`, `NOT_FROM_SPEC`, `NOT_ATOMIC`, `WRONG_STATUS`, `WRONG_PRIORITY`             |
+| `target`       | the id the finding is about (`R`, `BR`, `BR-xx/Cn` or `TC` id; two ids joined with `+` for `MERGE` / `DUPLICATE`) |
+| `detail`       | what is wrong, with the source wording that shows it                                                              |
+| `proposal`     | the exact change to make                                                                                          |
+| `resolution`   | added by the orchestrator: `applied`, `rejected` or `open-question`; the last two need a `reason`                 |

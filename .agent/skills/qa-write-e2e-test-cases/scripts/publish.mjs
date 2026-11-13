@@ -1,16 +1,26 @@
 #!/usr/bin/env node
-// Creates or updates the GitHub issues for a scope. Idempotent: issues are found
-// by a hidden marker in their body, so a re-run edits them instead of duplicating.
+// Renders the validated drafts into issue bodies and creates or updates the GitHub
+// issues: one parent per scope, one sub-issue per cluster. Idempotent: issues are
+// found by a hidden marker in their body, so a re-run edits them instead of duplicating.
 //
-//   node publish.mjs existing <slug>          print the rules already published for a scope (JSON)
-//   node publish.mjs <workdir> [--dry-run]    create/update parent + one sub-issue per rule
+//   node publish.mjs existing <slug>          print the clusters, rules and cases already published (JSON)
+//   node publish.mjs <workdir> [--dry-run]    render <workdir>/out/*.md, then create/update the issues
 //
-// Needs an authenticated `gh` in the target repository. All text goes to gh as
-// argv or a body file, never through a shell.
+// With --dry-run nothing is written to GitHub; the bodies are still rendered to out/.
+// Needs an authenticated `gh` in the target repository. All text goes to gh as argv
+// or a body file, never through a shell.
 import { execFileSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { LABEL_SCOPE, LABEL_RULE, scopeMarker, readJson } from './lib.mjs';
+import {
+  LABEL_SCOPE,
+  LABEL_CLUSTER,
+  LABEL_LEGACY_RULE,
+  scopeMarker,
+  clusterMarker,
+  ruleMarker,
+  readJson,
+} from './lib.mjs';
 
 const args = process.argv.slice(2);
 const dryRun = args.includes('--dry-run');
@@ -43,13 +53,33 @@ function listIssues(label) {
 
 function findExisting(slug) {
   const parent = listIssues(LABEL_SCOPE).find((issue) => issue.body.includes(scopeMarker(slug)));
-  const pattern = new RegExp(`<!-- qa-e2e:rule=${slug}/(BR-\\d+) -->`);
-  const rules = new Map();
-  for (const issue of listIssues(LABEL_RULE)) {
+  const pattern = new RegExp(`<!-- qa-e2e:cluster=${slug}/(CL-\\d+) -->`);
+  const clusters = new Map();
+  for (const issue of listIssues(LABEL_CLUSTER)) {
     const match = issue.body.match(pattern);
-    if (match) rules.set(match[1], issue);
+    if (match) clusters.set(match[1], issue);
   }
-  return { parent, rules };
+  const legacyPattern = new RegExp(`<!-- qa-e2e:rule=${slug}/BR-\\d+ -->`);
+  const legacy = listIssues(LABEL_LEGACY_RULE).filter((issue) => legacyPattern.test(issue.body));
+  return { parent, clusters, legacy };
+}
+
+// Rules and cases inside a published cluster body, split on the per-rule markers.
+function parseClusterBody(body) {
+  const parts = body.split(/<!-- qa-e2e:rule=(BR-\d+) -->/);
+  const rules = [];
+  for (let index = 1; index < parts.length; index += 2) {
+    const text = parts[index + 1];
+    rules.push({
+      id: parts[index],
+      statement: text.match(/^> (.+)$/m)?.[1] ?? null,
+      cases: [...text.matchAll(/\*\*(TC-BR\d+-\d+)\*\* (?:`[^`]+` )*(.+)$/gm)].map((match) => ({
+        id: match[1],
+        title: match[2].trim(),
+      })),
+    });
+  }
+  return rules;
 }
 
 // ------------------------------------------------------------------ existing
@@ -60,26 +90,22 @@ if (positional[0] === 'existing') {
     console.error('usage: node publish.mjs existing <slug>');
     process.exit(2);
   }
-  const { parent, rules } = findExisting(slug);
-  const statement = (body) => body.match(/## Rule\s+> (.+)/)?.[1] ?? null;
+  const { parent, clusters, legacy } = findExisting(slug);
   console.log(
     JSON.stringify(
       {
         slug,
         parent: parent ? { number: parent.number, state: parent.state, url: parent.url } : null,
-        rules: [...rules.entries()]
+        clusters: [...clusters.entries()]
           .sort(([a], [b]) => a.localeCompare(b))
           .map(([id, issue]) => ({
             id,
             number: issue.number,
             state: issue.state,
             title: issue.title,
-            statement: statement(issue.body),
-            cases: [...issue.body.matchAll(/\*\*(TC-BR\d+-\d+)\*\* (?:`[^`]+` )*(.+)$/gm)].map((match) => ({
-              id: match[1],
-              title: match[2].trim(),
-            })),
+            rules: parseClusterBody(issue.body),
           })),
+        legacyRuleIssues: legacy.map((issue) => ({ number: issue.number, state: issue.state, title: issue.title })),
       },
       null,
       2,
@@ -88,7 +114,7 @@ if (positional[0] === 'existing') {
   process.exit(0);
 }
 
-// ------------------------------------------------------------------- publish
+// -------------------------------------------------------------------- render
 
 const workdir = positional[0];
 if (!workdir) {
@@ -96,16 +122,233 @@ if (!workdir) {
   process.exit(2);
 }
 
+const scope = readJson(join(workdir, 'scope.json'));
+const ruleDocs = new Map(scope.rules.map((rule) => [rule.id, readJson(join(workdir, 'rules', `${rule.id}.json`))]));
+const rulesById = new Map(scope.rules.map((rule) => [rule.id, rule]));
+const requirements = new Map(scope.requirements.map((req) => [req.id, req]));
+
+const cell = (text) =>
+  String(text)
+    .replace(/\|/g, '\\|')
+    .replace(/\s*\n\s*/g, ' ');
+const count = (cases, status) => cases.filter((testCase) => testCase.existing.status === status).length;
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const casesOf = (cluster) => cluster.rules.flatMap((id) => ruleDocs.get(id).cases);
+const reqText = (req) =>
+  req.verbatim === false ? `${cell(req.text)} _(paraphrased: ${cell(req.note)})_` : `“${cell(req.text)}”`;
+
+const GENERATED =
+  '> Generated by the `qa-write-e2e-test-cases` skill. Expected results come from the requirement sources, never from the implementation. Re-running the skill on the same scope updates this issue in place.';
+
+function questionsFor(cluster) {
+  const ids = new Set(cluster.rules);
+  const reqIds = new Set(cluster.rules.flatMap((id) => rulesById.get(id).requirements));
+  return [
+    ...(scope.openQuestions ?? [])
+      .filter((q) => ids.has(q.about) || reqIds.has(q.about))
+      .map((q) => ({ about: q.about, question: q.question })),
+    ...cluster.rules.flatMap((id) =>
+      (ruleDocs.get(id).openQuestions ?? []).map((q) => ({ about: id, question: q.question })),
+    ),
+  ];
+}
+
+function renderParent() {
+  const allCases = [...ruleDocs.values()].flatMap((doc) => doc.cases);
+  const questions = [
+    ...(scope.openQuestions ?? []).map((q) => ({ about: q.about, question: q.question })),
+    ...[...ruleDocs.entries()].flatMap(([ruleId, doc]) =>
+      (doc.openQuestions ?? []).map((q) => ({ about: ruleId, question: q.question })),
+    ),
+  ];
+  const clusterOf = new Map(scope.clusters.flatMap((cluster) => cluster.rules.map((id) => [id, cluster.id])));
+
+  return [
+    scopeMarker(scope.slug),
+    GENERATED,
+    '',
+    '## Scope',
+    '',
+    `- **Environment:** ${scope.env.name}${scope.env.baseUrl ? ` (${scope.env.baseUrl})` : ''}`,
+    `- **Test suite:** \`${scope.env.targetDir}\`, run with \`${scope.env.runCommand}\``,
+    '- **Sources:**',
+    ...scope.sources.map((source) => `  - \`${source.path}\`${source.note ? `: ${source.note}` : ''}`),
+    '',
+    '## Summary',
+    '',
+    `${plural(scope.rules.length, 'business rule')} in ${plural(scope.clusters.length, 'cluster')} · ` +
+      `${plural(allCases.length, 'test case')} (${count(allCases, 'NEW')} new, ${count(allCases, 'PARTIAL')} partly covered, ` +
+      `${count(allCases, 'COVERED')} already covered) · ${plural(questions.length, 'open question')}`,
+    '',
+    '## Clusters',
+    '',
+    'Each cluster is a sub-issue holding the test cases of its rules.',
+    '',
+    '| Cluster | Issue | Covers | Rules | Cases | To implement |',
+    '| --- | --- | --- | --- | --- | --- |',
+    ...scope.clusters.map((cluster) => {
+      const cases = casesOf(cluster);
+      return `| ${cluster.id} | {{issue:${cluster.id}}} | ${cell(cluster.title)} | ${cluster.rules.join(', ')} | ${cases.length} | ${cases.length - count(cases, 'COVERED')} |`;
+    }),
+    '',
+    '## Business rules',
+    '',
+    '| Rule | Cluster | Category | Statement |',
+    '| --- | --- | --- | --- |',
+    ...scope.rules.map(
+      (rule) => `| ${rule.id} | ${clusterOf.get(rule.id)} | ${rule.category} | ${cell(rule.statement)} |`,
+    ),
+    '',
+    '## Requirement traceability',
+    '',
+    'Every requirement statement found in the sources, and the rule that tests it.',
+    '',
+    '| Req | Requirement | Source | Rules |',
+    '| --- | --- | --- | --- |',
+    ...scope.requirements.map((req) => {
+      const rules = scope.rules.filter((rule) => rule.requirements.includes(req.id)).map((rule) => rule.id);
+      return `| ${req.id} | ${reqText(req)} | ${cell(req.source)} | ${rules.length ? rules.join(', ') : '— (excluded)'} |`;
+    }),
+    '',
+    '## Out of scope or not testable end to end',
+    '',
+    ...((scope.excluded ?? []).length
+      ? scope.excluded.map((item) => `- **${item.requirement}:** ${item.reason}`)
+      : ['None.']),
+    '',
+    '## Open questions',
+    '',
+    ...(questions.length
+      ? [
+          'The sources do not answer these. Cases that depend on an answer say so in their cluster issue.',
+          '',
+          ...questions.map((q) => `- [ ] **${q.about}:** ${q.question}`),
+        ]
+      : ['None.']),
+    '',
+  ].join('\n');
+}
+
+function renderCase(testCase, { checkbox }) {
+  const tags = `\`${testCase.priority}\` \`${testCase.type}\` \`${testCase.existing.status}\``;
+  const lines = [`${checkbox ? '- [ ]' : '-'} **${testCase.id}** ${tags} ${testCase.title}`];
+  const list = (label, items, ordered) => {
+    if (!items || items.length === 0) return;
+    lines.push(`  - **${label}:**`);
+    items.forEach((item, index) => lines.push(`    ${ordered ? `${index + 1}.` : '-'} ${item}`));
+  };
+  list('Preconditions', testCase.preconditions);
+  list('Data', testCase.data);
+  list('Steps', testCase.steps, true);
+  list('Expected', testCase.expected);
+  lines.push(`  - **Covers:** ${testCase.covers.join(', ')}`);
+  if (testCase.existing.status === 'PARTIAL')
+    lines.push(`  - **Existing test:** \`${testCase.existing.ref}\`. Missing: ${testCase.existing.missing}`);
+  if (testCase.existing.status === 'COVERED') lines.push(`  - **Existing test:** \`${testCase.existing.ref}\``);
+  if (testCase.note) lines.push(`  - **Note:** ${testCase.note}`);
+  return lines.join('\n');
+}
+
+function renderRuleSection(rule) {
+  const doc = ruleDocs.get(rule.id);
+  const todo = doc.cases.filter((testCase) => testCase.existing.status !== 'COVERED');
+  const done = doc.cases.filter((testCase) => testCase.existing.status === 'COVERED');
+  return [
+    `## ${rule.id}: ${rule.title}`,
+    ruleMarker(rule.id),
+    '',
+    `> ${rule.statement}`,
+    '',
+    `- **Category:** ${rule.category}`,
+    `- **Design techniques:** ${doc.techniques.join(', ')}`,
+    '- **Source:**',
+    ...rule.requirements.map((id) => {
+      const req = requirements.get(id);
+      return `  - **${id}** ${reqText(req)} (${req.source})`;
+    }),
+    ...(rule.note ? ['', rule.note] : []),
+    '',
+    '| # | Condition | Expected | Cases |',
+    '| --- | --- | --- | --- |',
+    ...doc.coverage.map((row) => {
+      const ids = doc.cases.filter((testCase) => testCase.covers.includes(row.id)).map((testCase) => testCase.id);
+      return `| ${row.id} | ${cell(row.condition)} | ${cell(row.expected)} | ${ids.join(', ')} |`;
+    }),
+    '',
+    `### To implement (${todo.length})`,
+    '',
+    ...(todo.length
+      ? todo.flatMap((testCase) => [renderCase(testCase, { checkbox: true }), ''])
+      : ['None. Every case is already covered by an existing test.', '']),
+    ...(done.length
+      ? [
+          `### Already covered, do not re-implement (${done.length})`,
+          '',
+          ...done.flatMap((testCase) => [renderCase(testCase, { checkbox: false }), '']),
+        ]
+      : []),
+  ];
+}
+
+function renderCluster(cluster) {
+  const cases = casesOf(cluster);
+  const questions = questionsFor(cluster);
+  const example = cases[0];
+  return [
+    clusterMarker(scope.slug, cluster.id),
+    `Part of {{issue:parent}} (${scope.title}).`,
+    '',
+    GENERATED,
+    '',
+    cluster.summary,
+    '',
+    `${plural(cluster.rules.length, 'rule')} · ${plural(cases.length, 'case')} · ${cases.length - count(cases, 'COVERED')} to implement`,
+    '',
+    '| Rule | Category | Statement | Cases |',
+    '| --- | --- | --- | --- |',
+    ...cluster.rules.map((id) => {
+      const rule = rulesById.get(id);
+      return `| ${id} | ${rule.category} | ${cell(rule.statement)} | ${ruleDocs.get(id).cases.length} |`;
+    }),
+    '',
+    ...cluster.rules.flatMap((id) => renderRuleSection(rulesById.get(id))),
+    '## Open questions',
+    '',
+    ...(questions.length ? questions.map((q) => `- [ ] **${q.about}:** ${q.question}`) : ['None.']),
+    '',
+    '## Implementing these cases',
+    '',
+    `- Write Playwright specs under \`${scope.env.targetDir}\`; run them with \`${scope.env.runCommand}\`. Follow \`docs/conventions/testing.md\` and \`docs/runbooks/tests-and-e2e.md\`.`,
+    "- Start each test title with the scope and case id, for example `test('" +
+      `${scope.slug} ${example.id}: ${example.title.replace(/'/g, "\\'")}` +
+      "', …)`. That prefix is how later runs detect that the case is covered.",
+    '- One test per case. Take preconditions, data, steps and expected results from this issue as written.',
+    '- For a `PARTIAL` case, extend the named existing test or add a test for the missing part only.',
+    '- The requirement source is the oracle. If the app does not behave as a case expects, keep the assertion, do not weaken it, and open a bug issue that links the case.',
+    '- If a case cannot be automated as written, comment on this issue with the reason instead of changing the case.',
+    '- Tick a case when its test is merged. Close this issue when every case is ticked.',
+    '',
+  ].join('\n');
+}
+
 const outDir = join(workdir, 'out');
-const manifest = readJson(join(outDir, 'manifest.json'));
+mkdirSync(outDir, { recursive: true });
+const parentTemplate = renderParent();
+const clusterBodies = new Map(scope.clusters.map((cluster) => [cluster.id, renderCluster(cluster)]));
+writeFileSync(join(outDir, 'parent.md'), parentTemplate);
+for (const [id, body] of clusterBodies) writeFileSync(join(outDir, `${id}.md`), body);
+
+// ------------------------------------------------------------------- publish
+
 const repo = gh(['repo', 'view', '--json', 'nameWithOwner', '--jq', '.nameWithOwner']);
-const existing = findExisting(manifest.slug);
+const existing = findExisting(scope.slug);
 const log = [];
 const warnings = [];
+const parentTitle = `QA e2e: ${scope.title}`;
+const clusterTitle = (cluster) => `QA e2e · ${cluster.id}: ${cluster.title}`;
 
 function ensureLabel(name, color, description) {
-  if (dryRun) return;
-  gh(['label', 'create', name, '--color', color, '--description', description, '--force']);
+  if (!dryRun) gh(['label', 'create', name, '--color', color, '--description', description, '--force']);
 }
 
 function writeBody(name, body) {
@@ -123,11 +366,14 @@ function editIssue(number, title, bodyPath) {
   gh(['issue', 'edit', String(number), '--title', title, '--body-file', bodyPath]);
 }
 
-// Keep the boxes people already ticked.
-function keepTicks(newBody, oldBody) {
-  const ticked = new Set([...oldBody.matchAll(/- \[[xX]\] \*\*(TC-BR\d+-\d+)\*\*/g)].map((match) => match[1]));
-  return newBody.replace(/- \[ \] \*\*(TC-BR\d+-\d+)\*\*/g, (line, id) => (ticked.has(id) ? `- [x] **${id}**` : line));
-}
+// Keep ticked cases, whichever cluster issue they were ticked in (a rule can move between clusters).
+const tickedCases = new Set(
+  [...existing.clusters.values()].flatMap((issue) =>
+    [...issue.body.matchAll(/- \[[xX]\] \*\*(TC-BR\d+-\d+)\*\*/g)].map((match) => match[1]),
+  ),
+);
+const keepTicks = (body) =>
+  body.replace(/- \[ \] \*\*(TC-BR\d+-\d+)\*\*/g, (line, id) => (tickedCases.has(id) ? `- [x] **${id}**` : line));
 
 function keepTickedQuestions(newBody, oldBody) {
   const ticked = new Set([...oldBody.matchAll(/^- \[[xX]\] (.+)$/gm)].map((match) => match[1].trim()));
@@ -145,72 +391,78 @@ function linkSubIssue(parentNumber, childNumber) {
   }
 }
 
-ensureLabel(LABEL_SCOPE, '5319e7', 'E2E test-case scope: parent of one issue per business rule');
-ensureLabel(LABEL_RULE, 'c5def5', 'E2E test cases for one business rule');
+ensureLabel(LABEL_SCOPE, '5319e7', 'E2E test-case scope: parent of one issue per rule cluster');
+ensureLabel(LABEL_CLUSTER, 'c5def5', 'E2E test cases for one cluster of business rules');
 
-// 1. Parent first (rule issues link back to it). Tokens are filled in at the end.
-const parentTemplate = readFileSync(join(outDir, manifest.parent.bodyFile), 'utf8');
+// 1. Parent first (cluster issues link back to it). Issue numbers are filled in at the end.
 let parent = existing.parent;
 if (!parent) {
   if (dryRun) {
     parent = { number: 0, url: '(new)' };
-    log.push(`create parent: ${manifest.parent.title}`);
+    log.push(`create parent: ${parentTitle}`);
   } else {
-    parent = createIssue(manifest.parent.title, writeBody('parent', parentTemplate), LABEL_SCOPE);
+    parent = createIssue(parentTitle, writeBody('parent', parentTemplate), LABEL_SCOPE);
     log.push(`created parent #${parent.number}`);
   }
 }
 const parentRef = parent.number ? `#${parent.number}` : '(new parent)';
 
-// 2. One sub-issue per rule.
+// 2. One sub-issue per cluster.
 const numbers = new Map();
-for (const rule of manifest.rules) {
-  const body = readFileSync(join(outDir, rule.bodyFile), 'utf8').replaceAll('{{issue:parent}}', parentRef);
-  const current = existing.rules.get(rule.id);
+for (const cluster of scope.clusters) {
+  const title = clusterTitle(cluster);
+  const body = keepTicks(clusterBodies.get(cluster.id).replaceAll('{{issue:parent}}', parentRef));
+  const current = existing.clusters.get(cluster.id);
   if (current) {
-    numbers.set(rule.id, current.number);
-    const merged = keepTickedQuestions(keepTicks(body, current.body), current.body);
-    if (dryRun) log.push(`update #${current.number} (${current.state.toLowerCase()}): ${rule.title}`);
-    else {
-      editIssue(current.number, rule.title, writeBody(rule.id, merged));
+    numbers.set(cluster.id, current.number);
+    const merged = keepTickedQuestions(body, current.body);
+    if (dryRun) {
+      writeBody(cluster.id, merged);
+      log.push(`update #${current.number} (${current.state.toLowerCase()}): ${title}`);
+    } else {
+      editIssue(current.number, title, writeBody(cluster.id, merged));
       linkSubIssue(parent.number, current.number);
-      log.push(`updated #${current.number}: ${rule.title}`);
+      log.push(`updated #${current.number}: ${title}`);
     }
     if (current.state === 'CLOSED' && /- \[ \] \*\*TC-BR/.test(merged))
       warnings.push(
-        `#${current.number} (${rule.id}) is closed but now has unticked cases; reopen it if they are new work`,
+        `#${current.number} (${cluster.id}) is closed but now has unticked cases; reopen it if they are new work`,
       );
   } else if (dryRun) {
-    log.push(`create rule issue: ${rule.title}`);
+    writeBody(cluster.id, body);
+    log.push(`create cluster issue: ${title}`);
   } else {
-    const created = createIssue(rule.title, writeBody(rule.id, body), LABEL_RULE);
-    numbers.set(rule.id, created.number);
+    const created = createIssue(title, writeBody(cluster.id, body), LABEL_CLUSTER);
+    numbers.set(cluster.id, created.number);
     linkSubIssue(parent.number, created.number);
-    log.push(`created #${created.number}: ${rule.title}`);
+    log.push(`created #${created.number}: ${title}`);
   }
 }
 
-// 3. Rules published by an earlier run that this run no longer produces.
-const produced = new Set(manifest.rules.map((rule) => rule.id));
-for (const [id, issue] of existing.rules)
+// 3. Issues an earlier run published that this run no longer produces.
+const produced = new Set(scope.clusters.map((cluster) => cluster.id));
+for (const [id, issue] of existing.clusters)
   if (!produced.has(id))
+    warnings.push(`#${issue.number} (${id}) was published earlier but is not in this run; review and close it`);
+for (const issue of existing.legacy)
+  if (issue.state === 'OPEN')
     warnings.push(
-      `#${issue.number} (${id}) was published earlier but is not in this run; review and close it if the rule is gone`,
+      `#${issue.number} is a one-issue-per-rule issue from an older version of this skill; its cases now live in the cluster issues, so close it`,
     );
 
 // 4. Fill the issue numbers into the parent.
 let parentBody = parentTemplate;
-for (const rule of manifest.rules)
+for (const cluster of scope.clusters)
   parentBody = parentBody.replaceAll(
-    `{{issue:${rule.id}}}`,
-    numbers.has(rule.id) ? `#${numbers.get(rule.id)}` : '(new)',
+    `{{issue:${cluster.id}}}`,
+    numbers.has(cluster.id) ? `#${numbers.get(cluster.id)}` : '(new)',
   );
 if (existing.parent) parentBody = keepTickedQuestions(parentBody, existing.parent.body);
 if (dryRun) {
   writeBody('parent', parentBody);
   if (existing.parent) log.push(`update parent #${parent.number}`);
 } else {
-  editIssue(parent.number, manifest.parent.title, writeBody('parent', parentBody));
+  editIssue(parent.number, parentTitle, writeBody('parent', parentBody));
   if (existing.parent) log.push(`updated parent #${parent.number}`);
 }
 
@@ -219,8 +471,15 @@ console.log(
     {
       dryRun,
       repo,
+      out: outDir,
       parent: { number: parent.number || null, url: parent.url },
-      rules: manifest.rules.map((rule) => ({ id: rule.id, number: numbers.get(rule.id) ?? null })),
+      clusters: scope.clusters.map((cluster) => ({
+        id: cluster.id,
+        number: numbers.get(cluster.id) ?? null,
+        rules: cluster.rules.length,
+        cases: casesOf(cluster).length,
+        toImplement: casesOf(cluster).length - count(casesOf(cluster), 'COVERED'),
+      })),
       actions: log,
       warnings,
     },

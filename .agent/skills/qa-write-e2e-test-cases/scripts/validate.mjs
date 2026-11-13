@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 // Mechanical checks on the drafts. Exit 0 = clean, 1 = errors (printed one per line).
 //
-//   node validate.mjs <workdir> rules     scope.json only (after rule extraction / reconcile)
-//   node validate.mjs <workdir> cases     scope.json + every rules/<BR>.json
-//   node validate.mjs <workdir> case BR-03   one rule's cases (for the agent that wrote them)
+//   node validate.mjs <workdir> rules          scope.json requirements and rules (after extraction / reconcile)
+//   node validate.mjs <workdir> clusters       + scope.json clusters (after clustering)
+//   node validate.mjs <workdir> cluster CL-02  + the rules/<BR>.json of one cluster (for its writer)
+//   node validate.mjs <workdir> cases          + every rules/<BR>.json, duplicates across clusters, reviews
 //
 // Run from the repo root: source paths in scope.json resolve against the current
 // directory first, then against <workdir>.
@@ -18,15 +19,17 @@ import {
   RULE_FINDINGS,
   CASE_FINDINGS,
   RESOLUTIONS,
+  CLUSTER_MIN_RULES,
+  CLUSTER_MAX_RULES,
   casePrefix,
   readJson,
   isNonEmptyString,
   isStringArray,
 } from './lib.mjs';
 
-const [workdir, stage = 'cases', onlyRule] = process.argv.slice(2);
-if (!workdir || !['rules', 'cases', 'case'].includes(stage) || (stage === 'case' && !onlyRule)) {
-  console.error('usage: node validate.mjs <workdir> rules|cases|case [BR-xx]');
+const [workdir, stage = 'cases', onlyCluster] = process.argv.slice(2);
+if (!workdir || !['rules', 'clusters', 'cluster', 'cases'].includes(stage) || (stage === 'cluster' && !onlyCluster)) {
+  console.error('usage: node validate.mjs <workdir> rules|clusters|cluster CL-xx|cases');
   process.exit(2);
 }
 
@@ -170,12 +173,46 @@ function validateScope(scope) {
   return { ruleIds };
 }
 
+// ------------------------------------------------------- scope.json clusters
+
+function validateClusters(scope, ruleIds) {
+  const clusters = Array.isArray(scope.clusters) ? scope.clusters : [];
+  if (clusters.length === 0) {
+    err('scope.clusters', 'at least one cluster');
+    return new Map();
+  }
+  uniqueIds(clusters, /^CL-\d{2,}$/, 'scope.clusters', 'CL-01');
+  const owner = new Map();
+  const byId = new Map();
+  for (const [index, cluster] of clusters.entries()) {
+    const where = `scope.clusters[${index}] (${cluster?.id})`;
+    if (!isNonEmptyString(cluster?.title)) err(where, 'title required');
+    else if (cluster.title.length > 80) err(where, 'title longer than 80 characters');
+    if (!isNonEmptyString(cluster?.summary)) err(where, 'summary required (one sentence: the screen or flow)');
+    if (!isStringArray(cluster?.rules)) {
+      err(where, 'rules must list at least one BR id');
+      continue;
+    }
+    const size = cluster.rules.length;
+    if (size > CLUSTER_MAX_RULES) err(where, `${size} rules; split it (at most ${CLUSTER_MAX_RULES})`);
+    if (size < CLUSTER_MIN_RULES) err(where, `needs at least ${CLUSTER_MIN_RULES} rule`);
+    for (const id of cluster.rules) {
+      if (!ruleIds.has(id)) err(where, `unknown rule ${id}`);
+      else if (owner.has(id)) err(where, `${id} is already in ${owner.get(id)}`);
+      owner.set(id, cluster.id);
+    }
+    byId.set(cluster.id, cluster.rules);
+  }
+  for (const id of ruleIds) if (!owner.has(id)) err('scope.clusters', `${id} is in no cluster`);
+  return byId;
+}
+
 // ------------------------------------------------------------- rules/BR.json
 
 function validateRuleCases(ruleId, inventoryRefs) {
   const file = join(workdir, 'rules', `${ruleId}.json`);
   const doc = load(file, ruleId);
-  if (!doc) return;
+  if (!doc) return null;
   if (doc.ruleId !== ruleId) err(ruleId, `ruleId must be ${ruleId}`);
 
   if (!isStringArray(doc.techniques)) err(ruleId, 'techniques: at least one');
@@ -244,6 +281,21 @@ function validateRuleCases(ruleId, inventoryRefs) {
 
   for (const [index, question] of (doc.openQuestions ?? []).entries())
     if (!isNonEmptyString(question?.question)) err(`${ruleId}.openQuestions[${index}]`, 'question required');
+  return doc;
+}
+
+// The same case written under two rules (within or across clusters).
+function crossRuleDuplicates(docs) {
+  const seen = new Map();
+  for (const doc of docs)
+    for (const testCase of doc?.cases ?? []) {
+      if (!isNonEmptyString(testCase?.title)) continue;
+      const key = normalize(testCase.title);
+      const other = seen.get(key);
+      if (other && other.ruleId !== doc.ruleId)
+        err(testCase.id, `same title as ${other.id} under ${other.ruleId}; keep the case under one rule`);
+      else seen.set(key, { id: testCase.id, ruleId: doc.ruleId });
+    }
 }
 
 // ------------------------------------------------------- reviews/*.json files
@@ -254,7 +306,7 @@ function validateReviews() {
   for (const name of readdirSync(dir).filter((file) => file.endsWith('.json'))) {
     const doc = load(join(dir, name), `reviews/${name}`);
     if (!doc) continue;
-    const allowed = name.startsWith('rules-') ? RULE_FINDINGS : CASE_FINDINGS;
+    const allowed = name.startsWith('rules') ? RULE_FINDINGS : CASE_FINDINGS;
     if (!Array.isArray(doc.findings)) {
       err(`reviews/${name}`, 'findings must be an array (empty when clean)');
       continue;
@@ -281,20 +333,23 @@ const scope = load(join(workdir, 'scope.json'), 'scope.json');
 if (scope) {
   const { ruleIds } = validateScope(scope);
   if (stage !== 'rules') {
-    let inventoryRefs = null;
-    const inventoryPath = join(workdir, 'inventory.json');
-    if (existsSync(inventoryPath))
-      inventoryRefs = new Map(readJson(inventoryPath).map((entry) => [entry.ref, entry.layer]));
-    else err('inventory.json', 'missing; run inventory.mjs first');
+    const clusters = validateClusters(scope, ruleIds);
+    if (stage === 'cluster' || stage === 'cases') {
+      let inventoryRefs = null;
+      const inventoryPath = join(workdir, 'inventory.json');
+      if (existsSync(inventoryPath))
+        inventoryRefs = new Map(readJson(inventoryPath).map((entry) => [entry.ref, entry.layer]));
+      else err('inventory.json', 'missing; run inventory.mjs first');
 
-    if (stage === 'case') {
-      if (!ruleIds.has(onlyRule)) err(onlyRule, 'not a rule in scope.json');
-      else validateRuleCases(onlyRule, inventoryRefs);
-    } else {
-      for (const id of ruleIds) validateRuleCases(id, inventoryRefs);
+      if (stage === 'cluster') {
+        if (!clusters.has(onlyCluster)) err(onlyCluster, 'not a cluster in scope.json');
+        else crossRuleDuplicates(clusters.get(onlyCluster).map((id) => validateRuleCases(id, inventoryRefs)));
+      } else {
+        crossRuleDuplicates([...ruleIds].map((id) => validateRuleCases(id, inventoryRefs)));
+      }
     }
   }
-  if (stage !== 'case') validateReviews();
+  if (stage === 'rules' || stage === 'cases') validateReviews();
 }
 
 if (errors.length > 0) {
@@ -302,4 +357,4 @@ if (errors.length > 0) {
   console.error(`\nvalidate: ${errors.length} error(s)`);
   process.exit(1);
 }
-console.log(`validate (${stage}${onlyRule ? ` ${onlyRule}` : ''}): clean.`);
+console.log(`validate (${stage}${onlyCluster ? ` ${onlyCluster}` : ''}): clean.`);
