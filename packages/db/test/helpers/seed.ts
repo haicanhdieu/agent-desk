@@ -63,6 +63,10 @@ export async function seedOrg(
        values ($1, $2, 'fake', 'webhook', $3, 'accepted')`,
       [orgId, projectId, `d-${orgId}`],
     );
+    await client.query(
+      `insert into setup_script_versions (org_id, project_id, version, body, created_by) values ($1, $2, 1, 'echo hi', 'u1')`,
+      [orgId, projectId],
+    );
     await client.query(`insert into poll_cursors (org_id, project_id) values ($1, $2)`, [orgId, projectId]);
     await client.query(`insert into audit_log (org_id, action) values ($1, 'seed')`, [orgId]);
     await client.query('commit');

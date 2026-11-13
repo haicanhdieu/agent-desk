@@ -15,6 +15,7 @@ const APP_TABLES = [
   'inbound_events',
   'poll_cursors',
   'audit_log',
+  'setup_script_versions',
 ];
 
 let env: TestPg;

@@ -49,6 +49,9 @@ const inserts: Record<string, (tx: Tx, orgId: string) => Promise<unknown>> = {
   inbound_events: (tx, o) =>
     tx.execute(sql`insert into inbound_events (org_id, provider, channel, delivery_id, outcome)
       values (${o}, 'fake', 'webhook', ${`d-${Math.random()}`}, 'accepted')`),
+  setup_script_versions: (tx, o) =>
+    tx.execute(sql`insert into setup_script_versions (org_id, project_id, version, body, created_by)
+      values (${o}, ${a.projectId}, 2, 'x', 'u1')`),
   poll_cursors: (tx, o) => tx.execute(sql`insert into poll_cursors (org_id, project_id) values (${o}, ${b.projectId})`),
   audit_log: (tx, o) => tx.execute(sql`insert into audit_log (org_id, action) values (${o}, 'x')`),
 };
@@ -84,6 +87,48 @@ describe.each(Object.keys(inserts))('RLS on %s', (table) => {
   it('a raw query without withOrg returns 0 rows', async () => {
     const r = await db.pool.query(`select 1 from ${table}`);
     expect(r.rowCount).toBe(0);
+  });
+});
+
+describe('setup_script_versions is append-only for the app role', () => {
+  it.each(['update setup_script_versions set note = $1', 'delete from setup_script_versions'])(
+    '%s is denied (42501)',
+    async (stmt) => {
+      const err = await withOrg(db, ORG_A, (tx) =>
+        stmt.startsWith('update')
+          ? tx.execute(sql`update setup_script_versions set note = 'n'`)
+          : tx.execute(sql`delete from setup_script_versions`),
+      ).then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+      expect(pgCode(err)).toBe('42501');
+    },
+  );
+
+  it('rejects a body over 64 KiB in bytes and a note over 200 chars', async () => {
+    const big = (body: string, note: string | null) =>
+      withOrg(db, ORG_A, (tx) =>
+        tx.execute(sql`insert into setup_script_versions (org_id, project_id, version, body, note, created_by)
+          values (${ORG_A}, ${a.projectId}, ${Math.floor(Math.random() * 1e6) + 10}, ${body}, ${note}, 'u1')`),
+      ).then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    expect(await big('é'.repeat(32768), null)).toBeUndefined();
+    expect(pgCode(await big('é'.repeat(32768) + 'a', null))).toBe('23514');
+    expect(pgCode(await big('x', 'n'.repeat(201)))).toBe('23514');
+  });
+
+  it('enforces unique (project_id, version)', async () => {
+    const err = await withOrg(db, ORG_A, (tx) =>
+      tx.execute(sql`insert into setup_script_versions (org_id, project_id, version, body, created_by)
+        values (${ORG_A}, ${a.projectId}, 1, 'dup', 'u1')`),
+    ).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+    expect(pgCode(err)).toBe('23505');
   });
 });
 

@@ -283,3 +283,27 @@ export const auditLog = pgTable(
   },
   (t) => [index('audit_log_org_at_idx').on(t.orgId, t.at), orgPolicy()],
 );
+
+/** Append-only history of a project's setup script; the highest version is current. No UPDATE/DELETE grant. */
+export const setupScriptVersions = pgTable(
+  'setup_script_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    body: text('body').notNull(),
+    note: text('note'),
+    createdBy: text('created_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('setup_script_versions_project_version_key').on(t.projectId, t.version),
+    index('setup_script_versions_org_idx').on(t.orgId),
+    check('setup_script_versions_body_check', sql`octet_length(${t.body}) <= 65536`),
+    check('setup_script_versions_note_check', sql`${t.note} is null or char_length(${t.note}) <= 200`),
+    orgPolicy(),
+  ],
+);
