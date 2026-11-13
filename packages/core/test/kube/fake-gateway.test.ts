@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FakeKubeGateway } from '../../src/kube/fake-gateway';
-import { buildRunJob } from '../../src/kube/job-spec';
+import { buildRunJob, buildSetupTestJob } from '../../src/kube/job-spec';
 import type { ExecSession } from '../../src/kube/gateway';
 
 const ORG = '22222222-2222-4222-8222-222222222222';
@@ -14,7 +14,13 @@ let n = 0;
 const sessions: ExecSession[] = [];
 
 const runId = (): string => `11111111-1111-4111-8111-${String(++n).padStart(12, '0')}`;
-const job = (id: string, prompt: string) =>
+const job = (id: string, prompt: string, extraEnv: Record<string, string> = {}) => {
+  const j = jobFor(id, prompt);
+  const container = j.spec?.template.spec?.containers[0];
+  for (const [name, value] of Object.entries(extraEnv)) container?.env?.push({ name, value });
+  return j;
+};
+const jobFor = (id: string, prompt: string) =>
   buildRunJob({
     runId: id,
     orgId: ORG,
@@ -27,6 +33,9 @@ const job = (id: string, prompt: string) =>
     timeoutSeconds: 60,
     botName: 'bot',
     botEmail: 'bot@x.invalid',
+    pluginMarketplaces: {},
+    setupTimeoutSeconds: 600,
+    setupScript: null,
     pod: {
       cpuRequest: '1',
       cpuLimit: '1',
@@ -98,8 +107,15 @@ describe('FakeKubeGateway', () => {
     });
     expect(pod.name).toBe(name);
     const c = collect(pod.name);
-    await until(async () => c.lines.length >= 2);
-    expect(c.lines.slice(0, 2)).toEqual(['agentdesk: session started', 'agentdesk: turn finished']);
+    await until(async () => c.lines.length >= 6);
+    expect(c.lines.slice(0, 6)).toEqual([
+      `agentdesk: checkout ${'0'.repeat(40)}`,
+      'agentdesk: plugins begin',
+      'agentdesk: plugins end',
+      'agentdesk: setup skipped (no script)',
+      'agentdesk: session started',
+      'agentdesk: turn finished',
+    ]);
     c.ac.abort();
     await c.done;
     await gw.deleteJob(name);
@@ -172,6 +188,77 @@ describe('FakeKubeGateway', () => {
     await gw.deleteJob(name);
   });
 
+  describe('setup phase', () => {
+    it('real mode with --fake-setup-fail exits 78 before session started', async () => {
+      const id = runId();
+      const name = `run-${id}`;
+      await gw.ensureJob(job(id, 'go', { SETUP_SCRIPT: 'exit 1 # --fake-setup-fail' }));
+      const pod = await until(async () => {
+        const p = await gw.getRunPod(name);
+        return p?.phase === 'Failed' ? p : null;
+      });
+      expect(pod.exitCode).toBe(78);
+      const c = collect(name);
+      await c.done;
+      expect(c.lines).toContain('agentdesk: setup begin');
+      expect(c.lines).toContain('agentdesk: setup failed exit=1');
+      expect(c.lines).not.toContain('agentdesk: session started');
+      await gw.deleteJob(name);
+    });
+
+    it('real mode with a script passes without running it', async () => {
+      const id = runId();
+      const name = `run-${id}`;
+      const marker = join(dir, `ran-${id}`);
+      await gw.ensureJob(job(id, 'go', { SETUP_SCRIPT: `touch ${marker}` }));
+      await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+      const c = collect(name);
+      await until(async () => c.lines.includes('agentdesk: session started'));
+      expect(c.lines).toContain('agentdesk: setup passed');
+      await expect(readFile(marker)).rejects.toThrow();
+      c.ac.abort();
+      await c.done;
+      await gw.deleteJob(name);
+    });
+
+    it('setup_test mode starts a shell pane that echoes input, with no turn markers', async () => {
+      const id = runId();
+      const name = `run-${id}`;
+      await gw.ensureJob(job(id, 'ignored', { RUN_MODE: 'setup_test', SETUP_SCRIPT: 'x --fake-setup-fail' }));
+      await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+      const c = collect(name);
+      await until(async () => c.lines.includes('agentdesk: session started'));
+      expect(c.lines).toContain('agentdesk: setup failed exit=1');
+      const s = await gw.exec(name, ['tmux', 'attach', '-t', 'agent'], { tty: true });
+      sessions.push(s);
+      let screen = '';
+      s.onData((d) => {
+        screen += decoder.decode(d);
+      });
+      s.write(new TextEncoder().encode('echo hi\r'));
+      await until(async () => screen.includes('echo hi'));
+      await sleep(400); // longer than turnMs: a turn marker would have appeared by now
+      expect(c.lines.some((l) => l.startsWith('agentdesk: turn'))).toBe(false);
+      const kill = await gw.exec(name, ['tmux', 'kill-session', '-t', 'agent'], { tty: false });
+      await new Promise<number>((r) => kill.onClose(r));
+      await c.done;
+      await gw.deleteJob(name);
+    });
+
+    it('setup_test mode passes unless the script has --fake-setup-fail', async () => {
+      const id = runId();
+      const name = `run-${id}`;
+      await gw.ensureJob(job(id, 'ignored', { RUN_MODE: 'setup_test', SETUP_SCRIPT: 'make' }));
+      await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+      const c = collect(name);
+      await until(async () => c.lines.includes('agentdesk: session started'));
+      expect(c.lines).toContain('agentdesk: setup passed');
+      c.ac.abort();
+      await c.done;
+      await gw.deleteJob(name);
+    });
+  });
+
   it('--fake-pending stays Pending with a pendingSince; deleteJob kills the process', async () => {
     const id = runId();
     const name = `run-${id}`;
@@ -219,6 +306,35 @@ describe('FakeKubeGateway', () => {
     expect((await gw.listRunJobs()).map((j) => j.jobName)).not.toContain(name);
   });
 
+  it('listSetupTestSecrets lists only setup-test labelled Secrets, with or without a Job', async () => {
+    const id = runId();
+    const name = `setup-test-${id}`;
+    const labels = {
+      'agentdesk/kind': 'setup-test',
+      'agentdesk/setup-test-id': id,
+      'agentdesk/org-id': ORG,
+      'agentdesk/project-id': PROJECT,
+    };
+    await gw.ensureSecret(name, { REPO_CLONE_URL: 'x' }, labels);
+    const runName = `run-${runId()}`;
+    await gw.ensureSecret(
+      runName,
+      { A: 'b' },
+      { 'agentdesk/run-id': runName, 'agentdesk/org-id': ORG, 'agentdesk/project-id': PROJECT },
+    );
+    expect(await gw.listSetupTestSecrets()).toContainEqual({
+      secretName: name,
+      setupTestId: id,
+      orgId: ORG,
+      projectId: PROJECT,
+    });
+    expect((await gw.listSetupTestSecrets()).map((x) => x.secretName)).not.toContain(runName);
+    expect((await gw.listRunSecrets()).map((x) => x.secretName)).not.toContain(name);
+    await gw.deleteSecret(name);
+    await gw.deleteSecret(runName);
+    expect((await gw.listSetupTestSecrets()).map((x) => x.secretName)).not.toContain(name);
+  });
+
   it('never signals a pid it does not own: exit written, or a pid file pointing at another process', async () => {
     const kill = vi.spyOn(process, 'kill');
     try {
@@ -258,5 +374,57 @@ describe('FakeKubeGateway', () => {
     await c.done;
     expect(c.lines).toEqual(['héllo ✓']);
     await gw.deleteJob(name);
+  });
+
+  it('runs a setup-test job to session started; listSetupTestJobs returns it and listRunJobs does not', async () => {
+    const id = runId();
+    const name = `setup-test-${id}`;
+    const spec = buildSetupTestJob({
+      setupTestId: id,
+      orgId: ORG,
+      projectId: PROJECT,
+      image: 'fake',
+      checkoutRef: 'main',
+      script: 'echo hi',
+      pluginMarketplaces: {},
+      setupTimeoutSeconds: 600,
+      ttlSeconds: 60,
+      botName: 'bot',
+      botEmail: 'bot@x.invalid',
+      pod: {
+        cpuRequest: '1',
+        cpuLimit: '1',
+        memoryRequest: '1Gi',
+        memoryLimit: '1Gi',
+        ephemeralStorageLimit: '1Gi',
+        workspaceSizeLimit: '1Gi',
+      },
+    });
+    await gw.ensureJob(spec);
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    const c = collect(name);
+    await until(async () => c.lines.includes('agentdesk: session started'));
+    expect(c.lines).toContain('agentdesk: setup begin');
+    c.ac.abort();
+    await c.done;
+    expect(await gw.listSetupTestJobs()).toContainEqual({
+      jobName: name,
+      setupTestId: id,
+      orgId: ORG,
+      projectId: PROJECT,
+    });
+    expect((await gw.listRunJobs()).map((j) => j.jobName)).not.toContain(name);
+    await gw.deleteJob(name);
+    expect((await gw.listSetupTestJobs()).map((j) => j.jobName)).not.toContain(name);
+  });
+
+  it('listRunJobs keeps returning only run jobs, and job names outside run-/setup-test- are rejected', async () => {
+    const id = runId();
+    await gw.ensureJob(job(id, 'p'));
+    const names = (await gw.listRunJobs()).map((j) => j.jobName);
+    expect(names.every((n) => n.startsWith('run-'))).toBe(true);
+    expect(names).toContain(`run-${id}`);
+    await expect(gw.getRunPod('other-x')).rejects.toThrow(/invalid job name/);
+    await gw.deleteJob(`run-${id}`);
   });
 });

@@ -9,10 +9,21 @@ export const RUN_LABELS = {
   orgId: 'agentdesk/org-id',
 } as const;
 
+/** Labels a setup-test Job, its pod and its Secret carry (no run id). */
+export const SETUP_TEST_LABELS = {
+  kind: 'agentdesk/kind',
+  setupTestId: 'agentdesk/setup-test-id',
+} as const;
+
+/** Value of `agentdesk/kind` on setup-test objects. */
+export const SETUP_TEST_KIND = 'setup-test';
+
 /** The container that runs the agent in a run pod. */
 export const RUN_CONTAINER = 'agent';
 
 export const runJobName = (runId: string): string => `run-${runId}`;
+
+export const setupTestJobName = (setupTestId: string): string => `setup-test-${setupTestId}`;
 
 export type RunPodPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Unknown';
 
@@ -44,6 +55,20 @@ export interface RunJobRef {
   projectId: string;
 }
 
+export interface SetupTestJobRef {
+  jobName: string;
+  setupTestId: string;
+  orgId: string;
+  projectId: string;
+}
+
+export interface SetupTestSecretRef {
+  secretName: string;
+  setupTestId: string;
+  orgId: string;
+  projectId: string;
+}
+
 export interface RunSecretRef {
   secretName: string;
   runId: string;
@@ -68,8 +93,12 @@ export interface KubeGateway {
   /** Deletes the Job (and its pod, foreground). */
   deleteJob(jobName: string): Promise<void>;
   listRunJobs(): Promise<RunJobRef[]>;
+  /** Setup-test Jobs (label `agentdesk/kind=setup-test`); a Secret of the same name holds the clone URL and runEnv. */
+  listSetupTestJobs(): Promise<SetupTestJobRef[]>;
   /** Run Secrets (label `agentdesk/run-id`), including ones whose Job never existed or is gone. */
   listRunSecrets(): Promise<RunSecretRef[]>;
+  /** Setup-test Secrets (label `agentdesk/kind=setup-test`), including ones whose Job never existed or is gone. */
+  listSetupTestSecrets(): Promise<SetupTestSecretRef[]>;
 }
 
 /** The run labels of an object, or null when any is missing. */
@@ -80,6 +109,17 @@ export function runRefFromLabels(
   const orgId = labels?.[RUN_LABELS.orgId];
   const projectId = labels?.[RUN_LABELS.projectId];
   return runId && orgId && projectId ? { runId, orgId, projectId } : null;
+}
+
+/** The setup-test labels of an object, or null when any is missing or it is not a setup test. */
+export function setupTestRefFromLabels(
+  labels: Record<string, string> | undefined,
+): { setupTestId: string; orgId: string; projectId: string } | null {
+  const setupTestId = labels?.[SETUP_TEST_LABELS.setupTestId];
+  const orgId = labels?.[RUN_LABELS.orgId];
+  const projectId = labels?.[RUN_LABELS.projectId];
+  if (labels?.[SETUP_TEST_LABELS.kind] !== SETUP_TEST_KIND) return null;
+  return setupTestId && orgId && projectId ? { setupTestId, orgId, projectId } : null;
 }
 
 /** The exec commands the control plane uses (and the only ones the fake accepts). */

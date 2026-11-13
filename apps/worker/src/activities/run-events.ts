@@ -1,5 +1,6 @@
 import { eq, sql } from 'drizzle-orm';
 import { runEvents, runs, type Tx } from '@agentdesk/db';
+import { appendSeqEvent } from './follow-core';
 
 export interface AppendRunEventInput {
   runId: string;
@@ -18,19 +19,21 @@ export async function appendRunEvent(
   orgId: string,
   input: AppendRunEventInput,
 ): Promise<{ seq: number } | null> {
-  const locked = await tx.select({ id: runs.id }).from(runs).where(eq(runs.id, input.runId)).for('update');
-  if (locked.length === 0) return null;
-  const seq = await currentSeq(tx, input.runId);
-  const next = seq + 1;
-  await tx.insert(runEvents).values({
-    orgId,
-    runId: input.runId,
-    seq: next,
-    ts: input.ts ?? new Date(),
-    type: input.type,
-    payload: input.payload,
+  return appendSeqEvent(tx, {
+    lockOwner: async (t) =>
+      (await t.select({ id: runs.id }).from(runs).where(eq(runs.id, input.runId)).for('update')).length > 0,
+    maxSeq: (t) => currentSeq(t, input.runId),
+    insert: async (t, seq) => {
+      await t.insert(runEvents).values({
+        orgId,
+        runId: input.runId,
+        seq,
+        ts: input.ts ?? new Date(),
+        type: input.type,
+        payload: input.payload,
+      });
+    },
   });
-  return { seq: next };
 }
 
 /** Highest seq for the run (0 when none). Call after taking the row lock for a stable answer. */

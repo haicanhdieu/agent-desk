@@ -17,6 +17,9 @@ export const terminalDetached = defineSignal<[]>('terminalDetached');
 export const finish = defineSignal<[]>('finish');
 export const cancel = defineSignal<[]>('cancel');
 
+// Setup test signals
+export const endSetupTest = defineSignal<[]>('endSetupTest');
+
 export interface GateState {
   limit: number;
   queue: string[];

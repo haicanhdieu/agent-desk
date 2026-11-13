@@ -494,3 +494,7 @@
   border-radius: var(--radius-8);
   background: var(--panel);
 }
+
+.deskWarning {
+  padding: 12px 24px 0;
+}

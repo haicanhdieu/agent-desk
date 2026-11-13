@@ -2,7 +2,12 @@
 //
 // State dir (argv[2]): log (stdout lines), pane (the tmux screen), input (keystrokes), kill (marker), exit (exit code),
 // started (marker: the container runs). Protocol, mirroring the real runner (spec §8):
-//   - log `agentdesk: session started`, write a banner and PROMPT to `pane`;
+//   - log `agentdesk: checkout <sha>`, `plugins begin`, `plugins end`, the setup markers (`setup skipped (no script)`, or
+//     `setup begin` + `setup passed` | `setup failed exit=1` when SETUP_SCRIPT contains `--fake-setup-fail`; the script is
+//     never executed), then `agentdesk: session started`, write a banner and PROMPT to `pane`;
+//   - a failed setup in a real run exits 78 before `session started`, like the runner;
+//   - RUN_MODE=setup_test: session started after the setup markers (pass or fail), the pane is a shell that echoes typed
+//     lines, and no turn markers are ever logged;
 //   - after FAKE_TURN_MS (default 2000) log `agentdesk: turn finished`;
 //   - each `\r`-terminated line appended to `input` is echoed to `pane`, logs `agentdesk: turn started` (the runner's
 //     UserPromptSubmit hook; the first turn's start is implicit, the run is already running), then another turn finishes;
@@ -18,6 +23,8 @@ const dir = process.argv[2];
 if (!dir) process.exit(64);
 const file = (n) => join(dir, n);
 const prompt = process.env.PROMPT ?? '';
+const setupScript = process.env.SETUP_SCRIPT ?? '';
+const setupTest = process.env.RUN_MODE === 'setup_test';
 const turnMs = Number.parseInt(process.env.FAKE_TURN_MS ?? '', 10) || 2000;
 const maxLifeMs = Number.parseInt(process.env.FAKE_MAX_LIFE_MS ?? '', 10) || 60 * 60 * 1000;
 const TICK_MS = 50;
@@ -47,9 +54,27 @@ if (prompt.includes('--fake-pending')) {
   }, TICK_MS);
 } else {
   writeFileSync(file('started'), new Date().toISOString());
+  log(`agentdesk: checkout ${'0'.repeat(40)}`);
+  log('agentdesk: plugins begin');
+  log('agentdesk: plugins end');
+  let setupFailed = false;
+  if (setupScript === '') {
+    log('agentdesk: setup skipped (no script)');
+  } else {
+    log('agentdesk: setup begin');
+    setupFailed = setupScript.includes('--fake-setup-fail');
+    log(setupFailed ? 'agentdesk: setup failed exit=1' : 'agentdesk: setup passed');
+  }
+  if (setupFailed && !setupTest) {
+    writeFileSync(file('exit'), '78');
+    process.exit(78);
+  }
   log('agentdesk: session started');
-  pane('\u001b[1mFake Claude Code\u001b[0m (agentdesk fake pod)\r\n> ');
-  pane(`${prompt.split(/\r?\n/).join('\r\n')}\r\n`);
+  if (setupTest) pane('$ ');
+  else {
+    pane('\u001b[1mFake Claude Code\u001b[0m (agentdesk fake pod)\r\n> ');
+    pane(`${prompt.split(/\r?\n/).join('\r\n')}\r\n`);
+  }
 
   const fail = prompt.includes('--fake-fail');
   // A line typed while a turn is in progress queues one more turn after it (like a prompt typed mid-turn).
@@ -71,7 +96,7 @@ if (prompt.includes('--fake-pending')) {
       }
     }, turnMs);
   };
-  scheduleTurn();
+  if (!setupTest) scheduleTurn();
 
   let inputOffset = 0;
   let pending = '';
@@ -89,8 +114,8 @@ if (prompt.includes('--fake-pending')) {
     while ((i = pending.indexOf('\r')) >= 0) {
       const line = pending.slice(0, i).replace(/\n/g, '');
       pending = pending.slice(i + 1);
-      pane(`${line}\r\n`);
-      scheduleTurn(true);
+      pane(setupTest ? `${line}\r\n$ ` : `${line}\r\n`);
+      if (!setupTest) scheduleTurn(true);
     }
   }, TICK_MS);
 }

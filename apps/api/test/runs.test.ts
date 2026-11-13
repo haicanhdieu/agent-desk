@@ -152,6 +152,8 @@ describe('run reads', () => {
       costUsd: 1.25,
       ticket: { ref: run.ticketRef, number: 7, title: 'Title' },
     });
+    expect(dto.failureStage).toBeNull();
+    expect(dto.setupScriptVersion).toBeNull();
     const byNum = expectContract('runs.byNumber', await get(`/api/projects/${projectId}/runs/${run.number}`)) as RunDto;
     expect(byNum.id).toBe(run.id);
     expect((await get(`/api/projects/${projectId}/runs/999999`)).statusCode).toBe(404);

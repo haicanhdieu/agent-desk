@@ -114,6 +114,34 @@ describe('setRunStatus', () => {
     expect(events.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
   });
 
+  it('persists failure_stage with the final status, and leaves it null otherwise', async () => {
+    const setup = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId: setup, status: 'starting', at: '2026-11-12T10:00:00.000Z' });
+    expect((await load(setup)).run?.failureStage).toBeNull();
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId: setup,
+      status: 'failed',
+      failureReason: 'setup failed (exit 1)',
+      failureStage: 'setup',
+      at: '2026-11-12T10:01:00.000Z',
+    });
+    expect((await load(setup)).run?.failureStage).toBe('setup');
+    const agent = await seedRun();
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId: agent,
+      status: 'failed',
+      exitCode: 2,
+      failureStage: 'agent',
+      at: '2026-11-12T10:01:00.000Z',
+    });
+    expect((await load(agent)).run?.failureStage).toBe('agent');
+    const infra = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId: infra, status: 'failed', at: '2026-11-12T10:01:00.000Z' });
+    expect((await load(infra)).run?.failureStage).toBeNull();
+  });
+
   it('a transition out of a final status is a no-op that returns the current seq', async () => {
     const runId = await seedRun();
     const got: RunStatusMessage[] = [];

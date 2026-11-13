@@ -7,7 +7,7 @@ import { GithubBoardAdapter } from '../../src/adapters/github/board';
 import { GithubCodeHostAdapter } from '../../src/adapters/github/codehost';
 import { GithubClients, assertSafeRef } from '../../src/adapters/github/app';
 import { verifyGithubSignature } from '../../src/adapters/github/webhook';
-import type { AdapterProject } from '../../src/adapters/types';
+import { RepoFileError, type AdapterProject } from '../../src/adapters/types';
 
 const fixture = (name: string): string => readFileSync(join(__dirname, '../fixtures/github', name), 'utf8');
 
@@ -371,14 +371,14 @@ describe('github code host', () => {
     ]);
   });
 
-  it('lists and reads skills from .claude/skills', async () => {
+  it('lists and reads skills from .agent/skills', async () => {
     mockInstallationToken();
     const base = '/repos/acme/widgets';
     gh()
-      .intercept({ path: `${base}/contents/.claude/skills`, method: 'GET' })
+      .intercept({ path: `${base}/contents/.agent/skills`, method: 'GET' })
       .reply(200, fixture('contents.skills-dir.json'), { headers: JSON_HEADERS });
     gh()
-      .intercept({ path: `${base}/contents/.claude/skills/fix/SKILL.md`, method: 'GET' })
+      .intercept({ path: `${base}/contents/.agent/skills/fix/SKILL.md`, method: 'GET' })
       .reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS })
       .persist();
     gh()
@@ -390,7 +390,7 @@ describe('github code host', () => {
       {
         name: 'fix',
         description: 'Fix things',
-        path: '.claude/skills/fix/SKILL.md',
+        path: '.agent/skills/fix/SKILL.md',
         lastCommit: {
           sha: 'c0ffee0000000000000000000000000000000001',
           message: 'Add fix skill',
@@ -407,7 +407,7 @@ describe('github code host', () => {
     mockInstallationToken();
     gh()
       .intercept({
-        path: '/repos/acme/widgets/contents/.claude/skills/fix/SKILL.md',
+        path: '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md',
         method: 'PUT',
         body: (b) => {
           const o = JSON.parse(b) as { sha?: string; message: string; content: string; committer?: { name: string } };
@@ -449,6 +449,72 @@ describe('github code host', () => {
     await expect(
       host().completeInstall({ installation_id: '4242' }, { userId: 'u', linkedAccountToken: null }),
     ).rejects.toThrow(/linked account/);
+  });
+
+  describe('readRepoFile', () => {
+    const settingsPath = '/repos/acme/widgets/contents/.claude/settings.json';
+    const onRef = (ref: string) => (p: string) => {
+      const u = new URL(p, 'https://api.github.com');
+      return u.pathname === settingsPath && u.searchParams.get('ref') === ref;
+    };
+
+    it('decodes base64 contents, reading at the default branch', async () => {
+      mockInstallationToken();
+      gh()
+        .intercept({ path: onRef('main'), method: 'GET' })
+        .reply(200, fixture('contents.settings-file.json'), { headers: JSON_HEADERS });
+      expect(await host().readRepoFile(project, '.claude/settings.json')).toBe(
+        '{\n  "enabledPlugins": {\n    "superpowers@claude-plugins-official": true\n  }\n}\n',
+      );
+    });
+
+    it('reads at the project default branch when it is not main', async () => {
+      mockInstallationToken();
+      gh()
+        .intercept({ path: onRef('develop'), method: 'GET' })
+        .reply(200, fixture('contents.settings-file.json'), { headers: JSON_HEADERS });
+      expect(await host().readRepoFile({ ...project, defaultBranch: 'develop' }, '.claude/settings.json')).toContain(
+        'enabledPlugins',
+      );
+    });
+
+    it('returns null on 404', async () => {
+      mockInstallationToken();
+      gh()
+        .intercept({ path: onRef('main'), method: 'GET' })
+        .reply(404, '{"message":"Not Found"}', { headers: JSON_HEADERS });
+      expect(await host().readRepoFile(project, '.claude/settings.json')).toBeNull();
+    });
+
+    it('throws a typed error when the path is a directory', async () => {
+      mockInstallationToken();
+      gh()
+        .intercept({ path: onRef('main'), method: 'GET' })
+        .reply(200, fixture('contents.skills-dir.json'), { headers: JSON_HEADERS });
+      await expect(host().readRepoFile(project, '.claude/settings.json')).rejects.toBeInstanceOf(RepoFileError);
+    });
+
+    it('throws a typed error when the content is not base64 (too large)', async () => {
+      mockInstallationToken();
+      const big = { ...(JSON.parse(fixture('contents.settings-file.json')) as object), content: '', encoding: 'none' };
+      gh()
+        .intercept({ path: onRef('main'), method: 'GET' })
+        .reply(200, JSON.stringify(big), { headers: JSON_HEADERS });
+      await expect(host().readRepoFile(project, '.claude/settings.json')).rejects.toBeInstanceOf(RepoFileError);
+    });
+
+    it('propagates other provider errors', async () => {
+      mockInstallationToken();
+      gh()
+        .intercept({ path: onRef('main'), method: 'GET' })
+        .reply(500, '{"message":"boom"}', { headers: JSON_HEADERS });
+      await expect(host().readRepoFile(project, '.claude/settings.json')).rejects.toThrow();
+    });
+
+    it('rejects unsafe paths before any request', async () => {
+      await expect(host().readRepoFile(project, '../etc/passwd')).rejects.toThrow();
+      await expect(host().readRepoFile(project, '/abs')).rejects.toThrow();
+    });
   });
 
   it('rejects invalid skill names before any request', async () => {

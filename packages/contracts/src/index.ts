@@ -9,3 +9,4 @@ export * from './schemas/skills';
 export * from './schemas/rules';
 export * from './schemas/runs';
 export * from './schemas/events';
+export * from './schemas/setup';

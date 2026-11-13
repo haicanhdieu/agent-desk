@@ -10,6 +10,7 @@ import {
   type AdapterProject,
   type CheckoutTicket,
   type CodeHostAdapter,
+  RepoFileError,
   type InstallUser,
   type NewConnection,
 } from '../types';
@@ -22,6 +23,7 @@ export interface GithubCodeHostOptions {
 }
 
 const SKILL_NAME = /^[a-z0-9-]+$/;
+const REPO_FILE_SEGMENT = /^[A-Za-z0-9._-]+$/;
 
 const TokenResponse = z.object({ token: z.string(), expires_at: z.string() });
 const ReposResponse = z.object({
@@ -179,6 +181,30 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
       body,
       sha: file.sha,
     };
+  }
+
+  async readRepoFile(project: AdapterProject, path: string): Promise<string | null> {
+    if (path.split('/').some((s) => !REPO_FILE_SEGMENT.test(s) || s === '.' || s === '..')) {
+      throw new Error('invalid repo file path');
+    }
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    const ref = assertSafeRef(project.defaultBranch ?? 'main');
+    let data: unknown;
+    try {
+      data = (
+        await this.clients
+          .installation(project.connectionExternalId)
+          .request('GET /repos/{owner}/{repo}/contents/{+path}', { owner, repo, path, ref })
+      ).data;
+    } catch (e) {
+      if (errorStatus(e) === 404) return null;
+      throw e;
+    }
+    if (Array.isArray(data)) throw new RepoFileError('path is a directory');
+    const file = FileResponse.safeParse(data);
+    // Files over 1 MB come back with encoding "none" and no content.
+    if (!file.success || file.data.encoding !== 'base64') throw new RepoFileError('not a base64 text file');
+    return Buffer.from(file.data.content.replace(/\n/g, ''), 'base64').toString('utf8');
   }
 
   async writeSkill(

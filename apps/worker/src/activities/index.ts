@@ -5,11 +5,12 @@ import { reconcile, type ReconcileLogger, type ReconcileTemporal } from './recon
 import { setRunStatus, type SetRunStatusInput } from './run-status.activity';
 import { createRunActivities, type RunActivityDeps } from './run.activities.impl';
 import type { RequestSlotInput } from './run.activities';
+import { createSetupTestActivities } from './setup-test.activities.impl';
 import { requestSlot, type GateSignaller } from './slot.activity';
 import type { Activities } from './types';
 
 export interface ActivityDeps extends Omit<RunActivityDeps, 'db' | 'config'> {
-  config: RunActivityDeps['config'] & Pick<Config, 'POLL_MAX_BACKOFF_SECONDS'>;
+  config: RunActivityDeps['config'] & Pick<Config, 'POLL_MAX_BACKOFF_SECONDS' | 'SETUP_TEST_TTL_SECONDS'>;
   db: Db;
   starter: WorkflowStarter;
   gate: GateSignaller;
@@ -31,6 +32,14 @@ export function createActivities(deps: ActivityDeps): Activities {
   };
   return {
     ...createRunActivities(deps),
+    ...createSetupTestActivities({
+      db: deps.db,
+      kube: deps.kube,
+      adapters: deps.adapters,
+      clock: deps.clock,
+      config: deps.config,
+      ...(deps.timing ? { timing: deps.timing } : {}),
+    }),
     setRunStatus: (input: SetRunStatusInput) => setRunStatus(deps.db, input),
     requestSlot: (input: RequestSlotInput) => requestSlot(deps.gate, input),
     pollOnce: (input) => pollOnce(pollDeps, input),
@@ -42,6 +51,11 @@ export function createActivities(deps: ActivityDeps): Activities {
         db: deps.db,
         kube: deps.kube,
         temporal: deps.temporal,
+        setupTest: {
+          ttlSeconds: deps.config.SETUP_TEST_TTL_SECONDS,
+          setupTimeoutSeconds: deps.config.RUN_SETUP_TIMEOUT_SECONDS,
+        },
+        clock: deps.clock,
         ...(deps.log ? { log: deps.log } : {}),
       });
     },

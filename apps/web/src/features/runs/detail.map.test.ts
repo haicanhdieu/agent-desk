@@ -252,6 +252,64 @@ describe('toRunDetail', () => {
       expect(d.connection).toEqual({ state: 'ended', label: 'Ended, read-only, 3 lines' });
     });
 
+    describe('failed in setup', () => {
+      // Started_at is set when the session starts, so a run that failed in setup has none.
+      const setupFailed = (over: Partial<RunDto> = {}) =>
+        run({
+          status: 'failed',
+          startedAt: null,
+          queuedAt: local(11, 29, 0),
+          finishedAt: local(11, 30, 17),
+          exitCode: 1,
+          failureReason: 'setup failed (exit 1)',
+          failureStage: 'setup',
+          setupScriptVersion: 5,
+          ...over,
+        });
+      const events = [ev(local(11, 29, 7), 'status', { status: 'starting', exitCode: null, failureReason: null })];
+      const setupLinks = { ...links, setup: '/o/alice/p/p1/desk/setup' };
+
+      it('maps the stage and the script version for the screen', () => {
+        const d = toRunDetail(setupFailed(), events, project, [setupFailed()], now, setupLinks);
+        expect(d.failureStage).toBe('setup');
+        expect(d.setup).toEqual({ version: 5, note: 'failed, exit 1' });
+      });
+
+      it('a null start time never shows NaN: the slot claim (or the queue time) stands in', () => {
+        const d = toRunDetail(setupFailed(), events, project, [setupFailed()], now, setupLinks);
+        expect(d.startedAt).toBe('11:29:07');
+        expect(d.elapsed).toBe('1:10');
+        expect(d.endNote?.title).toBe('Setup failed after 1m 10s: the setup script exited with code 1');
+        expect(d.endNote?.body).toContain('The agent did not start. Setup version 5');
+        expect(d.endNote?.actions[0]).toEqual({
+          label: 'Open workspace setup',
+          href: setupLinks.setup,
+          icon: 'terminal',
+        });
+        expect(d.endedAt).toBe('11:30:17, setup failed');
+        const text = JSON.stringify(d);
+        expect(text).not.toContain('NaN');
+        expect(text).not.toContain('Invalid');
+        const noEvents = toRunDetail(setupFailed(), [], project, [setupFailed()], now, setupLinks);
+        expect(noEvents.startedAt).toBe('11:29:00');
+        expect(noEvents.elapsed).toBe('1:17');
+        expect(JSON.stringify(noEvents)).not.toContain('NaN');
+      });
+
+      it('a timed out setup says so', () => {
+        const r = setupFailed({ exitCode: 78, failureReason: 'setup timed out' });
+        const d = toRunDetail(r, events, project, [r], now, setupLinks);
+        expect(d.endNote?.title).toBe('Setup failed after 1m 10s: the setup script timed out');
+      });
+
+      it('a failed run without a setup stage is unchanged', () => {
+        const d = detail(ended({ status: 'failed', failureStage: 'agent', setupScriptVersion: 3 }));
+        expect(d.failureStage).toBe('agent');
+        expect(d.endNote?.title).toBe('Failed after 1m 10s');
+        expect(d.setup).toEqual({ version: 3 });
+      });
+    });
+
     it('active runs have no end note', () => {
       expect(detail(running).endNote).toBeUndefined();
     });

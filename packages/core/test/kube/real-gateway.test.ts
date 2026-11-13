@@ -187,6 +187,33 @@ describe('RealKubeGateway', () => {
     expect(m.batch.listNamespacedJob).toHaveBeenCalledWith({ namespace: NS, labelSelector: 'agentdesk/run-id' });
   });
 
+  it('listSetupTestJobs selects by the kind label and reads the agentdesk labels', async () => {
+    const m = mocks();
+    m.batch.listNamespacedJob.mockResolvedValueOnce({
+      items: [
+        {
+          metadata: {
+            name: 'setup-test-a',
+            labels: {
+              'agentdesk/kind': 'setup-test',
+              'agentdesk/setup-test-id': 'a',
+              'agentdesk/org-id': 'o',
+              'agentdesk/project-id': 'p',
+            },
+          },
+        },
+        { metadata: { name: 'setup-test-b', labels: { 'agentdesk/kind': 'setup-test' } } },
+      ],
+    });
+    expect(await m.gw.listSetupTestJobs()).toEqual([
+      { jobName: 'setup-test-a', setupTestId: 'a', orgId: 'o', projectId: 'p' },
+    ]);
+    expect(m.batch.listNamespacedJob).toHaveBeenCalledWith({
+      namespace: NS,
+      labelSelector: 'agentdesk/kind=setup-test',
+    });
+  });
+
   it('listRunSecrets reads the agentdesk labels of Secrets', async () => {
     const m = mocks();
     m.core.listNamespacedSecret.mockResolvedValueOnce({
@@ -202,6 +229,33 @@ describe('RealKubeGateway', () => {
     });
     expect(await m.gw.listRunSecrets()).toEqual([{ secretName: 'run-a', runId: 'a', orgId: 'o', projectId: 'p' }]);
     expect(m.core.listNamespacedSecret).toHaveBeenCalledWith({ namespace: NS, labelSelector: 'agentdesk/run-id' });
+  });
+
+  it('listSetupTestSecrets reads the setup-test labels of Secrets and ignores run Secrets', async () => {
+    const m = mocks();
+    m.core.listNamespacedSecret.mockResolvedValueOnce({
+      items: [
+        {
+          metadata: {
+            name: 'setup-test-a',
+            labels: {
+              'agentdesk/kind': 'setup-test',
+              'agentdesk/setup-test-id': 'a',
+              'agentdesk/org-id': 'o',
+              'agentdesk/project-id': 'p',
+            },
+          },
+        },
+        { metadata: { name: 'setup-test-b', labels: { 'agentdesk/kind': 'setup-test' } } },
+      ],
+    });
+    expect(await m.gw.listSetupTestSecrets()).toEqual([
+      { secretName: 'setup-test-a', setupTestId: 'a', orgId: 'o', projectId: 'p' },
+    ]);
+    expect(m.core.listNamespacedSecret).toHaveBeenCalledWith({
+      namespace: NS,
+      labelSelector: 'agentdesk/kind=setup-test',
+    });
   });
 
   it('streamLogs yields whole lines from the followed log and stops on abort', async () => {

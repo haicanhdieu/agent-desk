@@ -18,7 +18,9 @@ RUN groupadd -g 10001 runner \
 
 COPY --chown=10001:10001 settings.json /home/runner/.claude/settings.json
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod 0755 /usr/local/bin/entrypoint.sh
+COPY select-plugins.mjs /usr/local/lib/agentdesk/select-plugins.mjs
+RUN chmod 0755 /usr/local/bin/entrypoint.sh \
+ && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs
 
 USER 10001:10001
 ENV HOME=/home/runner

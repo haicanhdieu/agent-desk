@@ -9,6 +9,10 @@ import { CommandChip, useToast } from '@/ds';
 import { sessionQuery } from '@/features/auth/session';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
+import { projectPaths } from '@/features/desk/frame';
+import { setupQueries as scriptQueries } from '@/features/setup-script/queries';
+import { useSetupWarning } from '@/features/setup-script/useSetupWarning';
+import { WorkspaceStep } from '@/features/setup/WorkspaceStep';
 import { browserLocation, safeInstallUrl } from '@/features/setup/location';
 import {
   agentSummary,
@@ -75,6 +79,7 @@ export const Route = createFileRoute('/o/$org/projects/new/$step')({
     if (!projectId) return;
     await Promise.all([
       ensure(setupQueries.agent(org, projectId)),
+      ...(step === 'setup' ? [ensure(scriptQueries.script(org, projectId))] : []),
       ...(step === 'rules' || step === 'ready' ? [ensure(setupQueries.skills(org, projectId))] : []),
       ...(step === 'ready'
         ? [ensure(setupQueries.rules(org, projectId)), ensure(projectsQueries.connection(org, projectId))]
@@ -107,6 +112,8 @@ function SetupPage() {
   switch (step) {
     case 'agent':
       return <AgentStep org={org} projectId={projectId} />;
+    case 'setup':
+      return <WorkspaceSetupStep org={org} projectId={projectId} />;
     case 'skills':
       return <SkillsStep org={org} projectId={projectId} />;
     case 'rules':
@@ -116,7 +123,7 @@ function SetupPage() {
   }
 }
 
-type LaterStep = 'agent' | 'skills' | 'rules' | 'ready';
+type LaterStep = 'agent' | 'setup' | 'skills' | 'rules' | 'ready';
 
 /** Moves to `step` of the same project. */
 function useGoToStep(org: string) {
@@ -279,7 +286,7 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
         credentialType: d.credentialType,
         credential: d.credential,
       });
-      await goTo('skills', saved);
+      await goTo('setup', saved);
     } catch (e) {
       setErrors(stepErrors(e, AGENT_POINTERS));
     }
@@ -300,6 +307,23 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
       saving={pending}
       errors={errors.fields}
       formError={errors.form}
+    />
+  );
+}
+
+function WorkspaceSetupStep({ org, projectId }: { org: string; projectId: string }) {
+  const user = useActor();
+  const goTo = useGoToStep(org);
+  const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
+  const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
+  return (
+    <WorkspaceStep
+      org={org}
+      project={project}
+      user={user}
+      credentialDetail={credentialDetail(agent)}
+      backHref={stepHref(org, 'agent', projectId)}
+      onDone={(saved) => void goTo('skills', saved)}
     />
   );
 }
@@ -335,7 +359,7 @@ function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
       selected={names}
       commitMessage={`Add Agent Desk skills: ${names.join(', ')}`}
       credentialDetail={credentialDetail(agent)}
-      backHref={stepHref(org, 'agent', projectId)}
+      backHref={stepHref(org, 'setup', projectId)}
       onContinue={(d) => void run(d.names, d.message)}
       onSkip={() => void run([], '')}
       saving={save.isPending}
@@ -367,7 +391,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     command: 'code-build',
     target: 'issue',
     labels: ['user-story'],
-    skill: skillNames.includes('code-build') ? 'code-build' : skillNames[0] ?? 'code-build',
+    skill: skillNames.includes('code-build') ? 'code-build' : (skillNames[0] ?? 'code-build'),
     agent: agent.name,
     enabled: true,
   };
@@ -430,6 +454,7 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: skills } = useSuspenseQuery(setupQueries.skills(org, projectId));
   const { data: rules } = useSuspenseQuery(setupQueries.rules(org, projectId));
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
+  const warning = useSetupWarning(org, projectId);
   const first = rules[0];
   const label = first?.labelFilter[0];
   const skillList = skills.map((s) => s.name).join(', ');
@@ -466,6 +491,9 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
       skills={skillList}
       credentialDetail={credentialDetail(agent)}
       runsHref={`/o/${encodeURIComponent(org)}/p/${encodeURIComponent(projectId)}/runs`}
+      {...(warning && {
+        warning: { title: warning.title, detail: warning.detail, href: projectPaths(org, projectId).setup },
+      })}
     />
   );
 }

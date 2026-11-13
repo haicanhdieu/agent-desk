@@ -44,6 +44,12 @@ describe('DeskSetup', () => {
     expect(onTest).toHaveBeenCalledWith('echo draft');
   });
 
+  it('shows why the version history is missing instead of the empty copy', () => {
+    render(<DeskSetup {...props} versions={[]} versionsError="Could not load the version history." />);
+    expect(screen.getByText('Could not load the version history.')).toBeInTheDocument();
+    expect(screen.queryByText(/No versions yet/)).not.toBeInTheDocument();
+  });
+
   it('warns when the last pass was on an older script', () => {
     render(<DeskSetup {...props} lastTest={{ result: 'passed', matchesSaved: false, summary: 'On version 3.' }} />);
     expect(screen.getByText('Last test passed, but the script changed since')).toBeInTheDocument();

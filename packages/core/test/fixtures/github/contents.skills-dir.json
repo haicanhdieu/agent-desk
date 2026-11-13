@@ -1,4 +1,4 @@
 [
-  { "name": "fix", "path": ".claude/skills/fix", "type": "dir", "sha": "aaa111" },
-  { "name": "README.md", "path": ".claude/skills/README.md", "type": "file", "sha": "bbb222" }
+  { "name": "fix", "path": ".agent/skills/fix", "type": "dir", "sha": "aaa111" },
+  { "name": "README.md", "path": ".agent/skills/README.md", "type": "file", "sha": "bbb222" }
 ]

@@ -70,6 +70,14 @@ export const ConfigSchema = z
     RUN_POD_NODE_SELECTOR: optional(jsonValue(z.record(z.string(), z.string()))),
     RUN_POD_TOLERATIONS: optional(jsonValue(z.array(TolerationSchema))),
     RUN_POD_RUNTIME_CLASS: optional(z.string()),
+    /** Approved plugin stores: store name -> marketplace source. Platform config only, never repo text. */
+    RUN_PLUGIN_MARKETPLACES: blankDefault(
+      jsonValue(z.record(z.string(), z.string())).default({
+        'claude-plugins-official': 'anthropics/claude-plugins-official',
+      }),
+    ),
+    RUN_SETUP_TIMEOUT_SECONDS: blankDefault(z.coerce.number().int().min(1).max(3300).default(600)),
+    SETUP_TEST_TTL_SECONDS: blankDefault(z.coerce.number().int().min(60).max(3600).default(900)),
     FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
     FAKE_WEBHOOK_SECRET: blankDefault(z.string().default('dev')),
     ENABLE_FAKE_PROVIDER: blankDefault(bool.default(false)),

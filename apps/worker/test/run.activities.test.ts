@@ -5,7 +5,7 @@ import pg from 'pg';
 import { eq } from 'drizzle-orm';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakeKubeGateway,
   FakeStore,
@@ -17,13 +17,15 @@ import {
   type Config,
   type KubeGateway,
 } from '@agentdesk/core';
-import { createDb, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
+import { createDb, runEvents, runs, setupScriptVersions, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { FollowPodLogsResult, RunContext } from '../src/activities/run.activities';
 import { createRunActivities, type RunActivityDeps, type RunSignaller } from '../src/activities/run.activities.impl';
 import { reconcile, type ReconcileTemporal } from '../src/activities/reconcile.activity';
 
 const ORG = '44444444-4444-4444-8444-444444444444';
+const SETUP_LIMITS = { ttlSeconds: 900, setupTimeoutSeconds: 600 };
+const NO_SETUP_TEST_DELETES = { deletedSetupTestJobs: 0, deletedSetupTestSecrets: 0 };
 const AGENT = '55555555-5555-4555-8555-555555555555';
 const CRED = 'sk-ant-oat01-CREDENTIAL-VALUE-xyz';
 let pgx: TestPg;
@@ -104,7 +106,9 @@ function wrapKube(over: Partial<KubeGateway>): KubeGateway {
     exec: (n, c, o) => kube.exec(n, c, o),
     deleteJob: (n) => kube.deleteJob(n),
     listRunJobs: () => kube.listRunJobs(),
+    listSetupTestJobs: () => kube.listSetupTestJobs(),
     listRunSecrets: () => kube.listRunSecrets(),
+    listSetupTestSecrets: () => kube.listSetupTestSecrets(),
     ...over,
   };
 }
@@ -230,6 +234,8 @@ describe('createRunSecretAndJob', () => {
     expect(env?.PROMPT).toContain('Arguments from the user: please fix');
     expect(env?.PROMPT).toContain('Use the skill "fix" on issue #7 in dev/demo.');
     expect(env).toMatchObject({ CHECKOUT_REF: 'main', MAX_TURNS: '25', CLAUDE_CODE_OAUTH_TOKEN: CRED });
+    expect(env?.PLUGIN_MARKETPLACES).toBe(JSON.stringify(config.RUN_PLUGIN_MARKETPLACES));
+    expect(env?.SETUP_TIMEOUT_SECONDS).toBe(String(config.RUN_SETUP_TIMEOUT_SECONDS));
     expect((await load(runId)).run?.jobName).toBe(name);
     // Nothing about the Secret's values lands in the database.
     expect(JSON.stringify(await load(runId))).not.toContain(CRED);
@@ -267,6 +273,87 @@ describe('createRunSecretAndJob', () => {
     expect(msg).not.toContain(CRED);
     expect(msg).not.toContain('ghs_abcdefghijklmnopqrstuvwxyz');
     expect(msg).toContain('422');
+  });
+});
+
+describe('createRunSecretAndJob setup script', () => {
+  async function saveVersion(version: number, body: string): Promise<void> {
+    await withOrg(db, ORG, (tx) =>
+      tx.insert(setupScriptVersions).values({ orgId: ORG, projectId, version, body, createdBy: 'tester' }),
+    );
+  }
+  // Later suites seed runs on the same project and expect no setup script.
+  afterAll(async () => {
+    await asOwner((c) => c.query('delete from setup_script_versions where project_id = $1', [projectId]));
+  });
+  const versionOf = async (runId: string) => (await load(runId)).run?.setupScriptVersion;
+
+  it('no saved script: the column stays null and the Job has no SETUP_SCRIPT', async () => {
+    const runId = await seedRun('x');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBeUndefined();
+    expect(await versionOf(runId)).toBeNull();
+    await acts.deleteJob(await ctxFor(runId));
+  });
+
+  it('passes the current script and records its version', async () => {
+    const body = 'echo "héllo ✓"\r\nnpm ci';
+    await saveVersion(1, 'echo old');
+    await saveVersion(2, body);
+    const runId = await seedRun('x');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBe(body);
+    expect(await versionOf(runId)).toBe(2);
+    await acts.deleteJob(await ctxFor(runId));
+  });
+
+  it('an empty current script records nothing and sets no SETUP_SCRIPT', async () => {
+    await saveVersion(3, '');
+    const runId = await seedRun('x');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBeUndefined();
+    expect(await versionOf(runId)).toBeNull();
+    await acts.deleteJob(await ctxFor(runId));
+  });
+
+  it('retry reuses the recorded script version', async () => {
+    await saveVersion(4, 'echo four');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error('500 etcd unavailable');
+      },
+    });
+    await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(ctx)
+      .catch(() => undefined);
+    expect(await versionOf(runId)).toBe(4);
+    await saveVersion(5, 'echo five');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBe('echo four');
+    expect(await versionOf(runId)).toBe(4);
+    await acts.deleteJob(ctx);
+  });
+
+  it('a Job failure leaks no script text into the error (it can become the failure reason posted to the ticket)', async () => {
+    const body = 'echo "run-path-secret-script-body" && make setup';
+    await saveVersion(6, body);
+    const runId = await seedRun('x');
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error(`apply failed for ${body}`);
+      },
+    });
+    const err = await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(await ctxFor(runId))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).not.toContain('run-path-secret-script-body');
   });
 });
 
@@ -370,6 +457,10 @@ describe('activity errors are redacted', () => {
   });
 });
 
+// The fake pod's log up to the agent starting, as lifecycle kinds (one log line each); the first turn finishes next.
+const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
+const FIRST_TURN_LINE = PRELUDE_KINDS.length + 1;
+
 describe('followPodLogs', () => {
   it('writes running then idle, signals turnFinished, stores one redacted scrollback, returns the exit code', async () => {
     const runId = await seedRun(`echo ${CRED} please`);
@@ -388,7 +479,7 @@ describe('followPodLogs', () => {
     const { events } = await load(runId);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     const lifecycle = events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind);
-    expect(lifecycle).toEqual(['session_started', 'turn_finished']);
+    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'turn_finished']);
     const scrollback = events.filter((e) => e.type === 'scrollback');
     expect(scrollback).toHaveLength(1);
     const text = String(scrollback[0]?.payload.text);
@@ -402,26 +493,28 @@ describe('followPodLogs', () => {
     await acts.deleteJob(ctx);
   });
 
-  it('Review Focus 3: resumed after cancel at {lastLine: 2}, no duplicate rows and no running after idle', async () => {
+  it('Review Focus 3: resumed after cancel at the first turn line, no duplicate rows and no running after idle', async () => {
     const runId = await seedRun('resume me');
     const ctx = await ctxFor(runId);
     const acts = createRunActivities(deps());
     await acts.createRunSecretAndJob(ctx);
 
     const first = follow(ctx, deps());
-    await until(async () => first.beats.some((b) => lastLineOf(b) >= 2));
+    await until(async () => first.beats.some((b) => lastLineOf(b) >= FIRST_TURN_LINE));
     first.env.cancel();
     await expect(first.promise).rejects.toBeInstanceOf(CancelledFailure);
     expect((await load(runId)).run?.status).toBe('idle');
 
     // The worker restarted: the retry gets the last heartbeat's details.
-    const second = follow(ctx, deps(), { lastLine: 2 });
+    const second = follow(ctx, deps(), { lastLine: FIRST_TURN_LINE });
     await sleep(300);
     // Another turn (the user typed in the terminal).
     const attach = await kube.exec(`run-${runId}`, ['tmux', 'attach', '-t', 'agent'], { tty: true });
     attach.write(new TextEncoder().encode('again\r'));
     await until(
-      async () => (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= 4 && second.beats.length,
+      async () =>
+        (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= FIRST_TURN_LINE + 2 &&
+        second.beats.length,
     );
     attach.close();
     await acts.endSession(ctx);
@@ -436,7 +529,7 @@ describe('followPodLogs', () => {
     const lines = lifecycle.map((e) => e.payload.line);
     expect(new Set(lines).size).toBe(lines.length);
     expect(lifecycle.map((e) => e.payload.kind)).toEqual([
-      'session_started',
+      ...PRELUDE_KINDS,
       'turn_finished',
       'turn_started',
       'turn_finished',
@@ -446,6 +539,320 @@ describe('followPodLogs', () => {
     expect(events.filter((e) => e.type === 'scrollback')).toHaveLength(1);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     await acts.deleteJob(ctx);
+  });
+
+  it('stays starting through plugin lines, running only from session started', async () => {
+    const runId = await seedRun('plugins');
+    const ctx = await ctxFor(runId);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const gated = wrapKube({
+      async *streamLogs(n, s) {
+        let held = false;
+        for await (const line of kube.streamLogs(n, s)) {
+          if (!held && line === 'agentdesk: session started') {
+            held = true;
+            // Output that merely looks like the marker is prefixed, so it parses as output.
+            yield 'setup| agentdesk: session started';
+            yield 'plugin| agentdesk: session started';
+            yield 'agentdesk: plugin installed demo@acme';
+            await gate;
+          }
+          yield line;
+        }
+      },
+    });
+    const acts = createRunActivities(deps({ kube: gated }));
+    await acts.createRunSecretAndJob(ctx);
+    const f = follow(ctx, deps({ kube: gated }));
+    await until(async () =>
+      (await load(runId)).events.some((e) => e.type === 'lifecycle' && e.payload.kind === 'plugin_installed'),
+    );
+    const mid = await load(runId);
+    expect(mid.run?.status).toBe('starting');
+    expect(await statuses(runId)).toEqual([]);
+    expect(mid.events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind)).toEqual([
+      'checkout',
+      'plugins_begin',
+      'plugins_end',
+      'setup_skipped',
+      'setup_output',
+      'plugin_output',
+      'plugin_installed',
+    ]);
+    release();
+    // Wait for the first turn to finish: ending the session earlier races the turn_finished line.
+    await until(async () => (await load(runId)).run?.status === 'idle');
+    await acts.endSession(ctx);
+    await f.promise;
+    expect(await statuses(runId)).toEqual(['running', 'idle']);
+    await acts.deleteJob(ctx);
+  });
+
+  it('stores plugin markers as lifecycle events with pluginId and sha', async () => {
+    const runId = await seedRun('markers');
+    const ctx = await ctxFor(runId);
+    const gated = wrapKube({
+      async *streamLogs(n, s) {
+        for await (const line of kube.streamLogs(n, s)) {
+          if (line === 'agentdesk: plugins end') {
+            yield 'plugin| noisy output';
+            yield 'agentdesk: plugin installed demo@acme';
+            yield 'agentdesk: plugin failed bad@acme';
+          }
+          yield line;
+        }
+      },
+    });
+    const acts = createRunActivities(deps({ kube: gated }));
+    await acts.createRunSecretAndJob(ctx);
+    const f = follow(ctx, deps({ kube: gated }));
+    await until(async () => (await load(runId)).run?.status === 'idle');
+    await acts.endSession(ctx);
+    await f.promise;
+    const lifecycle = (await load(runId)).events.filter((e) => e.type === 'lifecycle');
+    expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+      'checkout',
+      'plugins_begin',
+      'plugin_output',
+      'plugin_installed',
+      'plugin_failed',
+      'plugins_end',
+      'setup_skipped',
+      'session_started',
+      'turn_finished',
+    ]);
+    expect(lifecycle[0]?.payload.sha).toMatch(/^[0-9a-f]{40}$/);
+    expect(lifecycle[2]?.payload).toMatchObject({ kind: 'plugin_output', text: 'noisy output', truncated: false });
+    expect(lifecycle[3]?.payload).toMatchObject({
+      kind: 'plugin_installed',
+      pluginId: 'demo@acme',
+      text: 'agentdesk: plugin installed demo@acme',
+    });
+    expect(lifecycle[4]?.payload.pluginId).toBe('bad@acme');
+    await acts.deleteJob(ctx);
+  });
+
+  describe('setup phase', () => {
+    const SETUP_FAIL_VERSION = 90;
+    async function seedFailingSetupRun(): Promise<string> {
+      await withOrg(db, ORG, (tx) =>
+        tx.insert(setupScriptVersions).values({
+          orgId: ORG,
+          projectId,
+          version: SETUP_FAIL_VERSION,
+          body: 'npm ci # --fake-setup-fail',
+          createdBy: 't',
+        }),
+      );
+      return seedRun('setup fail');
+    }
+    afterEach(async () => {
+      await asOwner((c) => c.query('delete from setup_script_versions where project_id = $1', [projectId]));
+    });
+    const lifecycleOf = async (runId: string) => (await load(runId)).events.filter((e) => e.type === 'lifecycle');
+    /** A pod that has exited with `exitCode` after printing `lines`. */
+    const exited = (lines: string[], exitCode: number, pause?: Promise<void>): KubeGateway =>
+      wrapKube({
+        readSecret: async () => null,
+        getRunPod: async (name) => ({ name, phase: 'Failed', pendingSince: null, reason: null, exitCode }),
+        streamLogs: async function* () {
+          yield* lines;
+          if (pause) await pause;
+        },
+      });
+
+    it('setup failure returns failureStage setup; status stays starting; output stored redacted', async () => {
+      const runId = await seedFailingSetupRun();
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx);
+      await asOwner((c) => c.query('delete from setup_script_versions where project_id = $1', [projectId]));
+      const injected = wrapKube({
+        async *streamLogs(n, s) {
+          for await (const line of kube.streamLogs(n, s)) {
+            if (line === 'agentdesk: setup failed exit=1') {
+              yield `setup| npm ERR! token ${CRED} rejected`;
+              yield 'setup| second line';
+            }
+            yield line;
+          }
+        },
+      });
+      const r = await follow(ctx, deps({ kube: injected })).promise;
+      expect(r).toMatchObject({ exitCode: 78, failureStage: 'setup', setupExitCode: 1 });
+      const { run, events } = await load(runId);
+      expect(run?.status).toBe('starting');
+      expect(await statuses(runId)).toEqual([]);
+      const lifecycle = events.filter((e) => e.type === 'lifecycle');
+      expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+        'checkout',
+        'plugins_begin',
+        'plugins_end',
+        'setup_begin',
+        'setup_output',
+        'setup_failed',
+      ]);
+      const out = lifecycle[4]?.payload;
+      expect(out?.text).toBe('npm ERR! token *** rejected\nsecond line');
+      expect(out?.truncated).toBe(false);
+      expect(JSON.stringify(events)).not.toContain(CRED);
+      expect(lifecycle[5]?.payload).toMatchObject({ kind: 'setup_failed', exitCode: 1 });
+      await acts.deleteJob(ctx);
+    });
+
+    it('a pod that exits during setup (setup_failed marker then exit) is a setup failure, buffered output flushed', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(
+        ctx,
+        deps({
+          kube: exited(['agentdesk: setup begin', 'setup| boom', 'agentdesk: setup failed exit=2', 'setup| tail'], 78),
+        }),
+      ).promise;
+      expect(r).toMatchObject({ exitCode: 78, failureStage: 'setup', setupExitCode: 2 });
+      const lifecycle = await lifecycleOf(runId);
+      expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+        'setup_begin',
+        'setup_output',
+        'setup_failed',
+        'setup_output',
+      ]);
+      expect(lifecycle[2]?.payload.exitCode).toBe(2);
+      expect(lifecycle[3]?.payload.text).toBe('tail');
+    });
+
+    it('setup timed out then exit is a setup failure without an exit code', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: setup begin', 'agentdesk: setup timed out'], 78) }))
+        .promise;
+      expect(r.failureStage).toBe('setup');
+      expect(r.setupExitCode).toBeUndefined();
+    });
+
+    it('a pod killed before the agent started: no markers, exit 137 -> no setup stage, agentStarted false', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: checkout ' + '0'.repeat(40)], 137) })).promise;
+      expect(r.exitCode).toBe(137);
+      expect(r.failureStage).toBeUndefined();
+      expect(r.agentStarted).toBe(false);
+    });
+
+    it('exit 78 before the session started is a setup failure even without a marker', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: plugins begin'], 78) })).promise;
+      expect(r).toMatchObject({ exitCode: 78, failureStage: 'setup', setupExitCode: 78, agentStarted: false });
+    });
+
+    it('agentStarted is true once session_started is stored', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: session started'], 137) })).promise;
+      expect(r).toMatchObject({ exitCode: 137, agentStarted: true });
+      expect(r.failureStage).toBeUndefined();
+    });
+
+    it('a later pass after truncation stores no further output chunks and no second truncated chunk', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const big = 'y'.repeat(1000);
+      const first = ['agentdesk: setup begin', ...Array.from({ length: 300 }, () => `setup| ${big}`)];
+      const f1 = follow(ctx, deps({ kube: exited(first, 78) }));
+      const r1 = await f1.promise;
+      expect(r1.exitCode).toBe(78);
+      const outputs = async () => (await lifecycleOf(runId)).filter((e) => e.payload.kind === 'setup_output');
+      const stored = await outputs();
+      expect(stored.filter((e) => e.payload.truncated === true)).toHaveLength(1);
+      const lastLine = Math.max(...f1.beats.map(lastLineOf));
+      const more = [...first, ...Array.from({ length: 60 }, () => `setup| ${big}`), 'agentdesk: setup passed'];
+      await follow(ctx, deps({ kube: exited(more, 78) }), { lastLine }).promise;
+      const after = await outputs();
+      expect(after).toHaveLength(stored.length);
+      expect(after.filter((e) => e.payload.truncated === true)).toHaveLength(1);
+    });
+
+    it('a secret straddling the maxChars cut never leaves a prefix in a stored event', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const MAX = 262_144;
+      const filler = 'z'.repeat(1000);
+      const full = Math.floor((MAX - 100) / 1001); // lines of 1000 chars (+1 join each)
+      const used = full * 1001;
+      const gap = MAX - used - 1 - 6; // leaves room 5 for the next line
+      const lines = [
+        ...Array.from({ length: full }, () => `setup| ${filler}`),
+        `setup| ${'q'.repeat(gap - 1)}`,
+        `setup| ${CRED}`,
+      ];
+      const injected = wrapKube({
+        readSecret: async () => ({ REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git' }),
+        getRunPod: async (name) => ({ name, phase: 'Failed', pendingSince: null, reason: null, exitCode: 78 }),
+        streamLogs: async function* () {
+          yield* lines;
+        },
+      });
+      await follow(ctx, deps({ kube: injected })).promise;
+      const all = JSON.stringify((await load(runId)).events);
+      expect(all).not.toContain('sk-a');
+      expect(all).not.toContain(CRED);
+    });
+
+    it('no failureStage when the session started, or when the run only fails later', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(
+        ctx,
+        deps({ kube: exited(['agentdesk: setup failed exit=1', 'agentdesk: session started'], 3) }),
+      ).promise;
+      expect(r.exitCode).toBe(3);
+      expect(r.failureStage).toBeUndefined();
+    });
+
+    it('chunks output at 50 lines, and a replay from line 0 adds nothing', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const lines = [
+        'agentdesk: setup begin',
+        ...Array.from({ length: 120 }, (_, i) => `setup| l${i}`),
+        'agentdesk: setup passed',
+        'agentdesk: session started',
+      ];
+      const pod = exited(lines, 0);
+      await follow(ctx, deps({ kube: pod })).promise;
+      const chunks = async () => (await lifecycleOf(runId)).filter((e) => e.payload.kind === 'setup_output');
+      expect((await chunks()).map((e) => String(e.payload.text).split('\n').length)).toEqual([50, 50, 20]);
+      const total = (await lifecycleOf(runId)).length;
+      await follow(ctx, deps({ kube: pod }), { lastLine: 0 }).promise;
+      expect((await lifecycleOf(runId)).length).toBe(total);
+      expect(await statuses(runId)).toEqual(['running']);
+    });
+
+    it('durable (the heartbeat) never passes output lines that are buffered but not stored', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const lines = ['agentdesk: setup begin', ...Array.from({ length: 60 }, (_, i) => `setup| l${i}`)];
+      let release: () => void = () => undefined;
+      const hold = new Promise<void>((r) => (release = r));
+      const f = follow(ctx, deps({ kube: exited(lines, 78, hold) }));
+      await until(async () => (await lifecycleOf(runId)).some((e) => e.payload.kind === 'setup_output'));
+      await sleep(500); // several heartbeats
+      // Lines 1..51 are stored (setup begin + the first 50 output lines); 10 lines are still buffered.
+      const max = Math.max(...f.beats.map(lastLineOf));
+      expect(max).toBe(51);
+      f.env.cancel();
+      release();
+      await expect(f.promise).rejects.toBeInstanceOf(CancelledFailure);
+      // The retry resumes from the heartbeat and stores the remainder once.
+      const retry = await follow(ctx, deps({ kube: exited(lines, 78) }), { lastLine: max }).promise;
+      expect(retry.exitCode).toBe(78);
+      const texts = (await lifecycleOf(runId))
+        .filter((e) => e.payload.kind === 'setup_output')
+        .map((e) => String(e.payload.text).split('\n').length);
+      expect(texts).toEqual([50, 10]);
+    });
   });
 
   it('does not write running when the run is no longer starting', async () => {
@@ -584,6 +991,28 @@ describe('postComment', () => {
   });
 });
 
+describe('postComment setup failure', () => {
+  it('says setup failed and the agent did not start, with the reason and the run link', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'finish', {
+      status: 'failed',
+      exitCode: 1,
+      failureReason: 'setup failed (exit 1)',
+      failureStage: 'setup',
+    });
+    const body = (await store.listPosted()).slice(before)[0]?.body ?? '';
+    const number = (await load(runId)).run?.number;
+    expect(body.split('\n').filter((l) => l !== '')).toEqual([
+      `Agent Desk run #${number} failed during workspace setup; the agent did not start.`,
+      'Reason: setup failed (exit 1)',
+      `Run: http://localhost:5173/o/acme/p/${projectId}/runs/${number}`,
+    ]);
+  });
+});
+
 describe('reconcile', () => {
   it('deletes Jobs whose run is final, missing or whose workflow is closed; releases leaked gate slots', async () => {
     const acts = createRunActivities(deps());
@@ -614,7 +1043,7 @@ describe('reconcile', () => {
       gateRuns: async () => [liveRun, closedRun],
       releaseSlot: async (p, r) => void released.push({ projectId: p, runId: r }),
     };
-    const out = await reconcile({ db, kube, temporal });
+    const out = await reconcile({ db, kube, temporal, setupTest: SETUP_LIMITS });
     const left = (await kube.listRunJobs()).map((j) => j.runId);
     expect(left).toContain(liveRun);
     expect(left).not.toContain(finalRun);
@@ -622,7 +1051,7 @@ describe('reconcile', () => {
     expect(left).not.toContain('66666666-6666-4666-8666-666666666666');
     expect(await kube.readSecret(`run-${finalRun}`)).toBeNull();
     expect(released).toEqual([{ projectId, runId: closedRun }]);
-    expect(out).toEqual({ deletedJobs: 3, deletedSecrets: 0, releasedSlots: 1 });
+    expect(out).toEqual({ deletedJobs: 3, deletedSecrets: 0, releasedSlots: 1, ...NO_SETUP_TEST_DELETES });
     await acts.deleteJob(await ctxFor(liveRun));
   });
 });
@@ -645,6 +1074,7 @@ describe('reconcile: run Secrets without a Job', () => {
     const out = await reconcile({
       db,
       kube,
+      setupTest: SETUP_LIMITS,
       temporal: {
         isWorkflowOpen: async (id) => open.has(id),
         listOpenGateProjectIds: async () => [],
@@ -652,7 +1082,7 @@ describe('reconcile: run Secrets without a Job', () => {
         releaseSlot: async () => undefined,
       },
     });
-    expect(out).toEqual({ deletedJobs: 0, deletedSecrets: 3, releasedSlots: 0 });
+    expect(out).toEqual({ deletedJobs: 0, deletedSecrets: 3, releasedSlots: 0, ...NO_SETUP_TEST_DELETES });
     for (const id of [finalRun, closedRun, jobGoneRun]) expect(await kube.readSecret(`run-${id}`)).toBeNull();
     expect(await kube.readSecret(`run-${creatingRun}`)).not.toBeNull();
     await kube.deleteSecret(`run-${creatingRun}`);

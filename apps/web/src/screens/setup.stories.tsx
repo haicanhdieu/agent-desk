@@ -216,6 +216,22 @@ export const SetupReady: Story = {
   ),
 };
 
+export const SetupReadyWithWarning: Story = {
+  name: 'Setup, ready, setup warning',
+  render: () => (
+    <SetupReadyScreen
+      {...ready}
+      lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+      summary={readySummary(connectionCopy.triggerSummary('webhook'))}
+      warning={{
+        title: 'The last workspace setup test failed',
+        detail: 'Runs still start, but setup may fail in them. Open Workspace setup to see the log.',
+        href: '#',
+      }}
+    />
+  ),
+};
+
 export const SetupReadyPolling: Story = {
   name: 'Setup, ready, polling',
   render: () => (

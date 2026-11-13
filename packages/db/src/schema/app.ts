@@ -78,7 +78,7 @@ export const projects = pgTable(
     index('projects_board_connection_idx').on(t.boardConnectionId),
     check('projects_trigger_mode_check', sql`${t.triggerMode} in ('webhook','polling')`),
     check('projects_poll_interval_check', sql`${t.pollIntervalSeconds} in (300,600,900,1800)`),
-    check('projects_setup_step_check', sql`${t.setupStep} in ('agent','skills','rules','ready')`),
+    check('projects_setup_step_check', sql`${t.setupStep} in ('agent','setup','skills','rules','ready')`),
     orgPolicy(),
   ],
 );
@@ -210,6 +210,10 @@ export const runs = pgTable(
     failureReason: text('failure_reason'),
     costUsd: numeric('cost_usd', { precision: 12, scale: 4 }),
     outbox: jsonb('outbox').$type<Record<string, unknown>>().notNull().default({}),
+    /** Setup script version this run used; null until recorded, or when the project had no script. */
+    setupScriptVersion: integer('setup_script_version'),
+    /** Which phase failed: 'setup' (repo setup script) or 'agent'. Null otherwise. */
+    failureStage: text('failure_stage'),
   },
   (t) => [
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
@@ -227,6 +231,7 @@ export const runs = pgTable(
     ),
     check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),
     check('runs_trigger_source_check', sql`${t.triggerSource} in ('webhook','polling','manual')`),
+    check('runs_failure_stage_check', sql`${t.failureStage} in ('setup','agent')`),
     orgPolicy(),
   ],
 );
@@ -247,6 +252,60 @@ export const runEvents = pgTable(
     primaryKey({ name: 'run_events_pkey', columns: [t.runId, t.seq] }),
     index('run_events_org_idx').on(t.orgId),
     check('run_events_type_check', sql`${t.type} in ('lifecycle','status','scrollback','comment')`),
+    orgPolicy(),
+  ],
+);
+
+/** A project setup script run in a throwaway sandbox. `scriptBody` is cleared when the test ends. */
+export const setupTests = pgTable(
+  'setup_tests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    scriptSha256: text('script_sha256').notNull(),
+    scriptBody: text('script_body'),
+    checkoutSha: text('checkout_sha'),
+    plugins: jsonb('plugins')
+      .$type<{ installed: unknown[]; skipped: unknown[]; failed: unknown[] }>()
+      .notNull()
+      .default({ installed: [], skipped: [], failed: [] }),
+    exitCode: integer('exit_code'),
+    startedBy: text('started_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    /** The setup result is known. */
+    finishedAt: ts('finished_at'),
+    /** The workspace was deleted. */
+    endedAt: ts('ended_at'),
+  },
+  (t) => [
+    index('setup_tests_project_created_idx').on(t.projectId, t.createdAt.desc()),
+    index('setup_tests_org_idx').on(t.orgId),
+    check('setup_tests_status_check', sql`${t.status} in ('queued','running','passed','failed','ended')`),
+    check('setup_tests_script_body_check', sql`octet_length(${t.scriptBody}) <= 65536`),
+    orgPolicy(),
+  ],
+);
+
+export const setupTestEvents = pgTable(
+  'setup_test_events',
+  {
+    orgId: uuid('org_id').notNull(),
+    setupTestId: uuid('setup_test_id')
+      .notNull()
+      .references(() => setupTests.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    ts: ts('ts').notNull().defaultNow(),
+    type: text('type').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (t) => [
+    primaryKey({ name: 'setup_test_events_pkey', columns: [t.setupTestId, t.seq] }),
+    index('setup_test_events_org_idx').on(t.orgId),
+    check('setup_test_events_type_check', sql`${t.type} in ('lifecycle','status')`),
     orgPolicy(),
   ],
 );
@@ -282,4 +341,28 @@ export const auditLog = pgTable(
     at: ts('at').notNull().defaultNow(),
   },
   (t) => [index('audit_log_org_at_idx').on(t.orgId, t.at), orgPolicy()],
+);
+
+/** Append-only history of a project's setup script; the highest version is current. No UPDATE/DELETE grant. */
+export const setupScriptVersions = pgTable(
+  'setup_script_versions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    version: integer('version').notNull(),
+    body: text('body').notNull(),
+    note: text('note'),
+    createdBy: text('created_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('setup_script_versions_project_version_key').on(t.projectId, t.version),
+    index('setup_script_versions_org_idx').on(t.orgId),
+    check('setup_script_versions_body_check', sql`octet_length(${t.body}) <= 65536`),
+    check('setup_script_versions_note_check', sql`${t.note} is null or char_length(${t.note}) <= 200`),
+    orgPolicy(),
+  ],
 );

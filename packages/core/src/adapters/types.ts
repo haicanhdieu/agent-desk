@@ -108,6 +108,19 @@ export interface CodeHostAdapter {
     sha?: string,
   ): Promise<{ commitSha: string }>;
   deleteSkill(project: AdapterProject, name: string, message: string): Promise<void>;
+  /**
+   * Text of a file at the project's default branch, or null when it does not exist. Throws `RepoFileError` when the
+   * path is not a readable text file (a directory, too large, unexpected encoding). The text is untrusted repo content.
+   */
+  readRepoFile(project: AdapterProject, path: string): Promise<string | null>;
+}
+
+/** Thrown when a repo path exists but cannot be read as a text file. Carries no file content. */
+export class RepoFileError extends Error {
+  constructor(reason: string) {
+    super(`repo file unreadable: ${reason}`);
+    this.name = 'RepoFileError';
+  }
 }
 
 /** Thrown by adapters when a skill write races another write (sha mismatch). */
@@ -132,7 +145,7 @@ export interface AdapterRegistry {
   providers(): Provider[];
 }
 
-export const SKILLS_DIR = '.claude/skills';
+export const SKILLS_DIR = '.agent/skills';
 
 /** Extracts `description:` from SKILL.md front-matter ('' when absent). */
 export function skillDescription(body: string): string {

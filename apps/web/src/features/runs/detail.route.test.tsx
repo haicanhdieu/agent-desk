@@ -230,3 +230,23 @@ describe('run detail route', () => {
     });
   });
 });
+
+describe('run detail route, failed in setup', () => {
+  it('shows "Setup failed" and the setup version, with a null start time (no NaN)', async () => {
+    // Started_at is set when the session starts, so the run has none.
+    Object.assign(dbRun(60), {
+      status: 'failed',
+      startedAt: null,
+      exitCode: 1,
+      failureReason: 'setup failed (exit 1)',
+      failureStage: 'setup',
+      setupScriptVersion: 5,
+    });
+    await renderRoute(`${base}/runs/60`);
+    expect(await screen.findAllByText('Setup failed')).not.toHaveLength(0);
+    expect(screen.getByRole('link', { name: 'Version 5' })).toHaveAttribute('href', `${base}/desk/setup`);
+    expect(screen.getByText(/The agent did not start\. Setup version 5/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open workspace setup' })).toHaveAttribute('href', `${base}/desk/setup`);
+    expect(document.body.textContent).not.toMatch(/NaN|Invalid/);
+  });
+});
