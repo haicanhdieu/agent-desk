@@ -6,11 +6,15 @@ import { defineConfig, devices } from '@playwright/test';
 // - local (`pnpm test:e2e:local`, or `playwright test e2e/local`): the Vite dev server, whose proxy forwards `/api`
 //   (with the terminal WebSocket), `/auth` and `/dev` to the real API on :3000. Needs the stack from `pnpm dev` at the
 //   repo root (KUBE_MODE=fake, ENABLE_FAKE_PROVIDER=true, AUTH_DEV_LOGIN=true); a running dev server is reused.
+// The suite comes from E2E_TARGET (`local` | `mock`, set by the package scripts); only when it is unset (e.g. devbox's
+// `playwright test e2e/local`) is it read from the CLI path.
+const target = process.env['E2E_TARGET'];
 const local =
-  process.env['E2E_TARGET'] === 'local' ||
-  process.argv.some((a) => a === '--project=local' || /(^|[\\/])e2e[\\/]local([\\/]|$)/.test(a));
+  target === undefined
+    ? process.argv.some((a) => a === '--project=local' || /(^|[\\/])e2e[\\/]local([\\/]|$)/.test(a))
+    : target === 'local';
 // Test workers load this config again without the CLI arguments; the environment they inherit keeps the choice.
-if (local) process.env['E2E_TARGET'] = 'local';
+process.env['E2E_TARGET'] = local ? 'local' : 'mock';
 
 const MOCK_PORT = 4173;
 const LOCAL_PORT = 5173;

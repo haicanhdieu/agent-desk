@@ -1,6 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { expect, test, type APIResponse } from '@playwright/test';
-import { InstallResponse } from '@agentdesk/contracts';
+import { InstallResponse, RunDto, RunLogResponse } from '@agentdesk/contracts';
 import { z } from 'zod';
 
 /*
@@ -114,8 +114,23 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   await page.keyboard.press('Enter');
   await expect(terminal).toContainText(/\bok\b/);
 
-  // Typing starts a turn (running); finish is accepted once the run is idle again.
-  await expect(status('Needs you')).toBeVisible({ timeout: 30_000 });
+  // The typed line starts a second turn in the pod; Finish is a 409 unless the run is idle, and "Needs you" may still be
+  // the pre-turn status. The browser may never see `running` (the API signals `resumed` only when it knows the run is
+  // idle, re-reading that at most every 5 s, and the turn is 2 s), so wait for proof the turn ended: a second
+  // `turn_finished` lifecycle event in the run log with the run idle.
+  const runId = comment.runId ?? '';
+  await expect
+    .poll(
+      async () => {
+        const log = RunLogResponse.parse(await ok(await page.request.get(`/api/runs/${runId}/log`), 200, 'run log'));
+        const turns = log.items.filter((e) => e.type === 'lifecycle' && e.payload['kind'] === 'turn_finished').length;
+        const run = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run'));
+        return `${turns >= 2 ? 'second turn finished' : `${turns} turn(s)`}, ${run.status}`;
+      },
+      { timeout: 30_000 },
+    )
+    .toBe('second turn finished, idle');
+  await expect(status('Needs you')).toBeVisible({ timeout: 15_000 });
   await page.getByRole('region', { name: 'Terminal' }).getByRole('button', { name: 'Finish run' }).click();
   await expect(status('Succeeded')).toBeVisible({ timeout: 30_000 });
 

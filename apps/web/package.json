@@ -9,8 +9,8 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "test": "vitest run",
-    "test:e2e:mock": "vite build --mode mock && playwright test e2e/mock",
-    "test:e2e:local": "playwright test e2e/local",
+    "test:e2e:mock": "vite build --mode mock && E2E_TARGET=mock playwright test e2e/mock",
+    "test:e2e:local": "E2E_TARGET=local playwright test e2e/local",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "parity": "node scripts/parity.mjs"
