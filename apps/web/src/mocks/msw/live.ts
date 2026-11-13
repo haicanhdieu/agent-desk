@@ -5,6 +5,7 @@ import {
   type RunEventDto,
   type RunStatus,
   type RunStatusEvent,
+  type SetupTestDto,
 } from '@agentdesk/contracts';
 import { mockDb } from './db';
 
@@ -150,4 +151,120 @@ mockDb.onReset(() => {
   scripts.clear();
   runListeners.clear();
   projectListeners.clear();
+});
+
+// Setup tests: like runs, appending an event or changing the test's status notifies its open streams (stream-handlers.ts,
+// browser only), and a test plays a short scripted setup (`playSetupTest`) once its first stream opens.
+
+export type SetupTestStreamMessage =
+  { event: 'event'; id: string; data: RunEventDto } | { event: 'status'; data: SetupTestDto };
+
+const setupTestListeners = new Map<string, Set<Listener<SetupTestStreamMessage>>>();
+const playedSetupTests = new Set<string>();
+/** The script text each test was created with (the DTO never carries it); only the scripted play reads it. */
+const testScripts = new Map<string, string>();
+
+export const rememberSetupTestScript = (testId: string, script: string): void => {
+  testScripts.set(testId, script);
+};
+const setupTestTimers: ReturnType<typeof setTimeout>[] = [];
+
+export const subscribeSetupTest = (id: string, fn: Listener<SetupTestStreamMessage>): (() => void) =>
+  subscribe(setupTestListeners, id, fn);
+
+const setupTestRow = (id: string) => mockDb.state.setupTests.find((t) => t.id === id);
+
+/** Appends a lifecycle event (next seq) to the test's log and sends it to the test's open streams. */
+export function appendSetupTestEvent(testId: string, payload: Record<string, unknown>): RunEventDto {
+  const list = mockDb.state.setupTestEvents[testId] ?? [];
+  const event: RunEventDto = { seq: (list.at(-1)?.seq ?? 0) + 1, ts: now(), type: 'lifecycle', payload };
+  list.push(event);
+  mockDb.state.setupTestEvents[testId] = list;
+  notify(setupTestListeners, testId, { event: 'event', id: String(event.seq), data: event });
+  return event;
+}
+
+/** Sends the test's current state to its open streams. */
+export function notifySetupTest(test: SetupTestDto): void {
+  notify(setupTestListeners, test.id, { event: 'status', data: structuredClone(test) });
+}
+
+const SETUP_TEST_TTL_MS = 15 * 60_000;
+
+/** A setup script with a line `exit <non-zero>` fails in the mock; every other script passes. */
+const failsInMock = (script: string) => /^\s*exit\s+[1-9]/m.test(script);
+
+/**
+ * Plays a short setup on the queued test: checkout, the plugins the project's repo enables, a few lines of script
+ * output, then passed or failed with the workspace open for 15 minutes. Once per test; a store reset drops it.
+ */
+export function playSetupTest(testId: string): void {
+  if (playedSetupTests.has(testId)) return;
+  playedSetupTests.add(testId);
+  let at = 0;
+  const step = (afterMs: number, run: (test: SetupTestDto) => void) => {
+    at += afterMs;
+    setupTestTimers.push(
+      setTimeout(() => {
+        const test = setupTestRow(testId);
+        // A test ended meanwhile stays as it is.
+        if (test && test.status !== 'ended') run(test);
+      }, at),
+    );
+  };
+  const marker = (kind: string, text: string, extra: Record<string, unknown> = {}) =>
+    appendSetupTestEvent(testId, { kind, text, ...extra });
+  const plugins = mockDb.state.plugins[setupTestRow(testId)?.projectId ?? '']?.plugins ?? [];
+  const sha = 'a91c3e2'.padEnd(40, '0');
+  step(600, (t) => {
+    t.status = 'running';
+    t.checkoutSha = sha;
+    marker('checkout', `agentdesk: checkout ${sha}`, { sha });
+    notifySetupTest(t);
+  });
+  step(400, () => marker('plugins_begin', 'agentdesk: plugins begin'));
+  for (const p of plugins) {
+    step(300, (t) => {
+      if (p.state === 'blocked') {
+        t.plugins.skipped.push(p.id);
+        marker('plugin_skipped', `agentdesk: plugin skipped ${p.id} (store not approved)`, { pluginId: p.id });
+      } else {
+        t.plugins.installed.push(p.id);
+        marker('plugin_installed', `agentdesk: plugin installed ${p.id}`, { pluginId: p.id });
+      }
+      notifySetupTest(t);
+    });
+  }
+  step(300, () => marker('plugins_end', 'agentdesk: plugins end'));
+  step(300, () => marker('setup_begin', 'agentdesk: setup begin'));
+  const fails = failsInMock(testScripts.get(testId) ?? '');
+  step(500, () =>
+    appendSetupTestEvent(testId, { kind: 'setup_output', text: '+ set -euo pipefail\n', truncated: false }),
+  );
+  step(600, () =>
+    appendSetupTestEvent(testId, {
+      kind: 'setup_output',
+      text: fails ? 'error: restore failed\n' : 'Restore complete\n',
+      truncated: false,
+    }),
+  );
+  step(400, (t) => {
+    const exitCode = fails ? 1 : 0;
+    if (fails) marker('setup_failed', `agentdesk: setup failed exit=${exitCode}`, { exitCode });
+    else marker('setup_passed', 'agentdesk: setup passed');
+    const finished = now();
+    t.status = fails ? 'failed' : 'passed';
+    t.exitCode = exitCode;
+    t.finishedAt = finished;
+    t.endsAt = new Date(Date.parse(finished) + SETUP_TEST_TTL_MS).toISOString();
+    notifySetupTest(t);
+  });
+}
+
+mockDb.onReset(() => {
+  for (const t of setupTestTimers) clearTimeout(t);
+  setupTestTimers.length = 0;
+  playedSetupTests.clear();
+  testScripts.clear();
+  setupTestListeners.clear();
 });

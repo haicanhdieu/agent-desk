@@ -1,13 +1,15 @@
 import { FINAL_RUN_STATUSES, type RunStatus } from '@agentdesk/contracts';
 import { mockDb } from './db';
-import { appendRunEvent, subscribeRun } from './live';
+import { appendRunEvent, subscribeRun, subscribeSetupTest } from './live';
 
 // dev:mock only (main.tsx loads this module in mock mode only): MSW's service worker cannot answer WebSockets, so
-// `installFakeTerminal()` wraps `window.WebSocket`. Sockets to `/api/runs/:runId/terminal` get a fake terminal that
+// `installFakeTerminal()` wraps `window.WebSocket`. Sockets to `/api/runs/:runId/terminal` and
+// `/api/setup-tests/:setupTestId/terminal` get a fake terminal that
 // prints a banner and echoes what is typed; every other socket (Vite's HMR) is a real WebSocket. When the run ends
 // in the mock store, the session is stored as the run's scrollback and the socket closes with 4409, like the server.
 
-const TERMINAL_PATH = /^\/api\/runs\/([^/]+)\/terminal$/;
+const TERMINAL_PATH = /^\/api\/(runs|setup-tests)\/([^/]+)\/terminal$/;
+type OwnerKind = 'run' | 'setup-test';
 const CLOSE_RUN_GONE = 4409;
 const CLOSE_NOT_FOUND = 4404;
 const ESC = '\u001b';
@@ -39,12 +41,14 @@ class FakeTerminalSocket extends EventTarget {
   onerror: ((e: Event) => void) | null = null;
 
   private readonly runId: string;
+  private readonly kind: OwnerKind;
   private transcript = '';
   private unsubscribe: (() => void) | undefined;
 
-  constructor(url: URL, runId: string) {
+  constructor(url: URL, kind: OwnerKind, runId: string) {
     super();
     this.url = url.href;
+    this.kind = kind;
     this.runId = runId;
     setTimeout(() => this.accept(), 150);
   }
@@ -68,8 +72,25 @@ class FakeTerminalSocket extends EventTarget {
     return mockDb.state.runs.find((r) => r.id === this.runId);
   }
 
+  /** A setup test's workspace: a shell once setup finished (passed or failed); until the test ends. */
+  private acceptSetupTest(): void {
+    const test = mockDb.state.setupTests.find((t) => t.id === this.runId);
+    if (!test) return this.finish(CLOSE_NOT_FOUND, 'Setup test not found');
+    if (test.status !== 'passed' && test.status !== 'failed') return this.finish(CLOSE_RUN_GONE, 'Setup test ended');
+    this.readyState = FakeTerminalSocket.OPEN;
+    this.fire(new Event('open'));
+    this.unsubscribe = subscribeSetupTest(this.runId, (m) => {
+      if (m.event === 'status' && m.data.status === 'ended') this.finish(CLOSE_RUN_GONE, 'Setup test ended');
+    });
+    this.output(
+      `${ESC}[34magent-desk fake terminal${ESC}[0m${ESC}[90m  setup test  ·  dev:mock${ESC}[0m\r\n` +
+        `${ESC}[90mThis is not a real workspace: what you type is echoed back.${ESC}[0m\r\n${PROMPT}`,
+    );
+  }
+
   private accept(): void {
     if (this.readyState !== FakeTerminalSocket.CONNECTING) return;
+    if (this.kind === 'setup-test') return this.acceptSetupTest();
     const run = this.run;
     if (!run) return this.finish(CLOSE_NOT_FOUND, 'Run not found');
     if (isFinal(run.status)) return this.finish(CLOSE_RUN_GONE, 'Run ended');
@@ -139,7 +160,8 @@ export function installFakeTerminal(): void {
       const [url, protocols] = args;
       const parsed = new URL(url, window.location.href);
       const match = parsed.host === window.location.host ? TERMINAL_PATH.exec(parsed.pathname) : null;
-      if (match?.[1]) return new FakeTerminalSocket(parsed, match[1]);
+      if (match?.[1] && match[2])
+        return new FakeTerminalSocket(parsed, match[1] === 'runs' ? 'run' : 'setup-test', match[2]);
       return new target(url, protocols);
     },
   });

@@ -13,6 +13,7 @@ import {
 } from '@agentdesk/contracts';
 import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
+import { noPlugins } from '../dto/setup';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
 import {
   Problem,
@@ -29,7 +30,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
-import { appendRunEvent, setRunStatus } from './live';
+import { appendRunEvent, notifySetupTest, rememberSetupTestScript, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
 // handler requires a session (401 otherwise), scopes reads to the active org (another org's record is a 404, as
@@ -154,15 +155,21 @@ const nextSha = () => {
   return `c0ffee${String(commits).padStart(34, '0')}`;
 };
 
-/** In-memory setup script history per project (oldest first); not part of the mock db seed. */
-const setupScripts = new Map<string, SetupScriptDto[]>();
-const setupVersionsOf = (projectId: string) => setupScripts.get(projectId) ?? [];
+/** Saved setup script versions of a project, oldest first (part of the mock store, so a reset clears them). */
+const setupVersionsOf = (projectId: string): SetupScriptDto[] => db().setupScripts[projectId] ?? [];
+const findSetupTest = (id: string): SetupTestDto | undefined => db().setupTests.find((t) => t.id === id);
 
-/** In-memory setup tests per project (newest last); never carry the script text, like the real DTO. */
-const setupTests = new Map<string, SetupTestDto[]>();
-const setupTestsOf = (projectId: string) => setupTests.get(projectId) ?? [];
-const findSetupTest = (id: string): SetupTestDto | undefined =>
-  [...setupTests.values()].flat().find((t) => t.id === id);
+/** Lowercase hex SHA-256 of the text's UTF-8 bytes (WebCrypto: the browser and the Vitest environment have it). */
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The tested script is still the project's current one: its hash equals the current version's. */
+async function matchesCurrent(projectId: string, scriptSha256: string): Promise<boolean> {
+  const current = setupVersionsOf(projectId).at(-1);
+  return current !== undefined && (await sha256Hex(current.body)) === scriptSha256;
+}
 
 /** Routes that are not JSON: the SSE streams and the terminal WebSockets (see streamGuard below). */
 const STREAM_KEYS = [
@@ -175,7 +182,7 @@ const STREAM_KEYS = [
 type StreamKey = (typeof STREAM_KEYS)[number];
 type JsonKey = Exclude<RouteKey, StreamKey>;
 
-type Impl = { [K in JsonKey]: (ctx: RouteCtx<K>) => ResponseOf<K> };
+type Impl = { [K in JsonKey]: (ctx: RouteCtx<K>) => ResponseOf<K> | Promise<ResponseOf<K>> };
 
 const impl: Impl = {
   'connections.list': () => {
@@ -278,6 +285,10 @@ const impl: Impl = {
     delete s.skills[row.id];
     delete s.triggers[row.id];
     delete s.ignored[row.id];
+    delete s.setupScripts[row.id];
+    delete s.plugins[row.id];
+    for (const t of s.setupTests.filter((x) => x.projectId === row.id)) delete s.setupTestEvents[t.id];
+    s.setupTests = s.setupTests.filter((t) => t.projectId !== row.id);
     return null;
   },
   'projects.connection': ({ params }) => connectionDto(projectRow(params.projectId)),
@@ -333,7 +344,7 @@ const impl: Impl = {
   },
 
   'setupScript.get': ({ params }) => setupVersionsOf(projectRow(params.projectId).id).at(-1) ?? null,
-  'setupScript.put': ({ params, body }) => {
+  'setupScript.put': async ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
     const list = setupVersionsOf(projectId);
     const current = list.at(-1)?.version ?? null;
@@ -347,46 +358,38 @@ const impl: Impl = {
       createdBy: session().user.handle,
       createdAt: now(),
     };
-    setupScripts.set(projectId, [...list, next]);
+    db().setupScripts[projectId] = [...list, next];
+    // Tests of the previous script no longer match the current one.
+    const sha = await sha256Hex(next.body);
+    for (const t of db().setupTests) if (t.projectId === projectId) t.matchesCurrentScript = t.scriptSha256 === sha;
     return next;
   },
   'setupScript.versions': ({ params }) =>
-    setupVersionsOf(projectRow(params.projectId).id)
-      .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt }))
-      .reverse(),
+    [...setupVersionsOf(projectRow(params.projectId).id)]
+      .reverse()
+      .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt })),
   'setupScript.version': ({ params }) => {
     const found = setupVersionsOf(projectRow(params.projectId).id).find((v) => v.version === params.version);
     if (!found) throw notFound('Setup script version');
     return found;
   },
-  'setup.plugins': ({ params }) => {
-    projectRow(params.projectId);
-    return {
-      approvedStores: ['claude-plugins-official'],
-      plugins: [
-        {
-          id: 'superpowers@claude-plugins-official',
-          name: 'superpowers',
-          store: 'claude-plugins-official',
-          state: 'will_install' as const,
-        },
-        { id: 'unknown-tool@third-party', name: 'unknown-tool', store: 'third-party', state: 'blocked' as const },
-      ],
-      settingsError: null,
-    };
-  },
-  'setupTests.create': ({ params, body }) => {
+  'setup.plugins': ({ params }) => db().plugins[projectRow(params.projectId).id] ?? noPlugins(),
+  'setupTests.create': async ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
-    const sha = [...body.script].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(16);
-    const list = setupTestsOf(projectId).map((t) =>
-      t.endedAt === null ? { ...t, status: 'ended' as const, endedAt: now(), endsAt: null } : t,
-    );
+    const sha = await sha256Hex(body.script);
+    // A project has one test workspace at a time: the previous one ends.
+    for (const t of db().setupTests) {
+      if (t.projectId === projectId && t.status !== 'ended') {
+        Object.assign(t, { status: 'ended', endedAt: now(), endsAt: null });
+        notifySetupTest(t);
+      }
+    }
     const test: SetupTestDto = {
       id: mockDb.nextId(),
       projectId,
       status: 'queued',
       scriptSha256: sha,
-      matchesCurrentScript: true,
+      matchesCurrentScript: await matchesCurrent(projectId, sha),
       checkoutSha: null,
       plugins: { installed: [], skipped: [], failed: [] },
       exitCode: null,
@@ -396,17 +399,22 @@ const impl: Impl = {
       endedAt: null,
       endsAt: null,
     };
-    setupTests.set(projectId, [...list, test]);
+    db().setupTests.push(test);
+    rememberSetupTestScript(test.id, body.script);
     return test;
   },
-  'setupTests.latest': ({ params }) => setupTestsOf(projectRow(params.projectId).id).at(-1) ?? null,
+  'setupTests.latest': ({ params }) =>
+    db()
+      .setupTests.filter((t) => t.projectId === projectRow(params.projectId).id)
+      .at(-1) ?? null,
   'setupTests.end': ({ params }) => {
     const found = findSetupTest(params.setupTestId);
     if (!found) throw notFound('Setup test');
-    const list = setupTestsOf(found.projectId).map((t) =>
-      t.id === found.id ? { ...t, status: 'ended' as const, endedAt: now(), endsAt: null } : t,
-    );
-    setupTests.set(found.projectId, list);
+    projectRow(found.projectId);
+    if (found.status !== 'ended') {
+      Object.assign(found, { status: 'ended', endedAt: now(), endsAt: null });
+      notifySetupTest(found);
+    }
     return null;
   },
   'rules.list': ({ params }) => db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
@@ -480,6 +488,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'rules.create': 201,
   'runs.cancel': 202,
   'runs.finish': 202,
+  'setupTests.end': 202,
 };
 
 async function readBody(request: Request): Promise<unknown> {
@@ -519,7 +528,7 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
       };
       // Each part was parsed by this route's own schema above, so it has the shape RouteCtx<K> names.
       const ctx = parts as RouteCtx<K>;
-      return jsonResponse(def.response.parse(run(ctx)), STATUS[key]);
+      return jsonResponse(def.response.parse(await run(ctx)), STATUS[key]);
     } catch (e) {
       if (e instanceof Problem) return problemResponse(e.init);
       throw e;
