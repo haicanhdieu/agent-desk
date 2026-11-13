@@ -25,12 +25,21 @@ script stored by Agent Desk. This ADR records the whole decision; the entrypoint
   regex; a configured source containing a control character (tab, newline, CR, NUL) is dropped. The entrypoint parses
   its tab-separated output strictly and passes every value to `claude` as a separate argv element, under
   `timeout 120` and `</dev/null`. Nothing is evaluated or interpolated into a shell string.
-- A plugin or marketplace failure prints a warning marker and the run continues (decision 7). Plugin command output is
-  emitted with line prefix `plugin| ` so it can never form a protocol marker.
+- A plugin or marketplace failure prints a warning marker and the run continues (decision 7). Plugin and setup command
+  output is emitted with line prefix `plugin| ` / `setup| `, so that output cannot form a protocol marker. This covers
+  the commands' piped stdout and stderr only: a process that writes to the container log directly (for example
+  `echo … > /proc/1/fd/1`, as the image's own hooks do, same uid) can still emit a marker. The worker therefore takes a
+  setup test's result from the **last** result marker before `agentdesk: session started` (or before the log ends),
+  not the first. A forged `agentdesk: session started` can still flip a run to `running` early, and a forged marker
+  pair can still decide a test; the script author is trusted (decision 8), so this is a labelling issue, not an
+  escalation.
 - **Decision 8: credentials visible to setup are accepted.** The setup script runs with the pod's existing env (clone
   token, provider `runEnv`, agent credential). Only users allowed to edit a project's setup can change the script,
   and they can already attach to run terminals where the same credentials are visible, so setup adds no new
-  exposure. Test pods still get no agent credential. Hiding credentials from setup and the agent is follow-up F6.
+  exposure. Test pods get no agent credential, but they do carry the write-scoped workspace clone token (in
+  `REPO_CLONE_URL`) and the adapter's `runEnv` (GitHub: `GH_TOKEN`), and the editor who starts a test gets an
+  interactive shell holding them for the test's TTL (`SETUP_TEST_TTL_SECONDS`, default 15 min). Hiding credentials
+  from setup and the agent is follow-up F6.
 
 ### CLI spike (pinned `CLAUDE_CODE_VERSION=2.1.323`, image `agentdesk-runner:dev`, run as uid 10001)
 
@@ -73,7 +82,10 @@ The source spec (§4) records these.
 
 ### Positive
 
-- Repos get their plugins without a prompt that hangs an unattended run; a repo cannot impersonate an approved store.
+- Repos get their plugins without a prompt that hangs an unattended run. The entrypoint never registers a store from a
+  repo-supplied source; repo-executed code (the setup script, the agent's tools) is outside this guarantee (see F6).
+  How the agent session itself treats a repo's `extraKnownMarketplaces` or an `enabledPlugins` entry for a built-in
+  store (`anthropic-plugin-directory`) is unverified.
 - Failures never block the agent; the entrypoint's markers show which plugin loaded, was skipped or failed.
 
 ### Negative
@@ -82,6 +94,10 @@ The source spec (§4) records these.
 - Plugin install adds startup time (a clone per approved store in use) on every run.
 - Setup runs with the pod's credentials (decision 8), accepted until F6.
 - Built-in store names cannot be approved today (see above).
+- Setup-test pods run in the run namespace (`agentdesk-runs`) and count against its `ResourceQuota` (infra spec §6.5:
+  `pods` 2, `limits.memory` 1536 Mi). An open test (kept for its TTL) can take the slot a run pod needs; that run then
+  fails after the 2 min Pending limit with "no pod was created". Follow-up: a separate quota (or a separate namespace)
+  for setup tests, sized for one open test per project, so tests never compete with runs.
 
 ## Links
 

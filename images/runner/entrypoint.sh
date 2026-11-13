@@ -31,7 +31,8 @@ JSON
 # only warns. Plugin output is prefixed with "plugin| " (read line by line, so a partial last line cannot join a
 # marker line).
 # prefix_lines PREFIX: copies stdin to stdout line by line (a final line without a newline is kept, CR is stripped),
-# each line starting with PREFIX, so command output can never form a marker line.
+# each line starting with PREFIX, so piped command output cannot form a marker line. (A process that writes to
+# /proc/1/fd/1 directly bypasses the prefix; the worker takes the last result marker, not the first.)
 prefix_lines() {
   local line
   while IFS= read -r line || [ -n "$line" ]; do
