@@ -222,6 +222,7 @@ describe('createRunSecretAndJob', () => {
     const name = `run-${runId}`;
     expect(await kube.readSecret(name)).toEqual({
       REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
+      GH_TOKEN: 'fake-workspace-token',
       CLAUDE_CODE_OAUTH_TOKEN: CRED,
     });
     expect((await kube.processIds()).filter((p) => p.jobName === name)).toHaveLength(1);
@@ -420,7 +421,7 @@ describe('followPodLogs', () => {
     const attach = await kube.exec(`run-${runId}`, ['tmux', 'attach', '-t', 'agent'], { tty: true });
     attach.write(new TextEncoder().encode('again\r'));
     await until(
-      async () => (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= 3 && second.beats.length,
+      async () => (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= 4 && second.beats.length,
     );
     attach.close();
     await acts.endSession(ctx);
@@ -434,7 +435,14 @@ describe('followPodLogs', () => {
     const lifecycle = events.filter((e) => e.type === 'lifecycle');
     const lines = lifecycle.map((e) => e.payload.line);
     expect(new Set(lines).size).toBe(lines.length);
-    expect(lifecycle.map((e) => e.payload.kind)).toEqual(['session_started', 'turn_finished', 'turn_finished']);
+    expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+      'session_started',
+      'turn_finished',
+      'turn_started',
+      'turn_finished',
+    ]);
+    // The agent's own turn-start line (not terminal input) resumes the run, once, even across the replaying retry.
+    expect(signals.filter((s) => s.runId === runId && s.signal === 'resumed')).toHaveLength(1);
     expect(events.filter((e) => e.type === 'scrollback')).toHaveLength(1);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     await acts.deleteJob(ctx);

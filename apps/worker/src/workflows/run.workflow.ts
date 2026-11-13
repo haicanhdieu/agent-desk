@@ -98,7 +98,7 @@ function failureReason(err: unknown): string {
  *
  * Status writes: the workflow writes `starting`, `running` after `resumed` (plus `idle` again when the next turn ends,
  * since followPodLogs' `idle` may have landed before that `running`), and the final status. `followPodLogs` writes
- * `running` on the first log line and `idle` on each Stop-hook line (then signals `turnFinished`).
+ * `running` on the first log line and `idle` on each Stop-hook line (then signals `turnFinished`); it signals `resumed` on each UserPromptSubmit-hook line.
  */
 export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> {
   const { orgId, runId } = input;
@@ -358,7 +358,7 @@ async function attempt(step: string, fn: () => Promise<unknown>): Promise<unknow
 function errorKind(err: unknown): string {
   if (err instanceof ActivityFailure) {
     const cause = err.cause;
-    return `ActivityFailure(${cause instanceof ApplicationFailure ? cause.type ?? cause.name : cause?.name ?? 'unknown'})`;
+    return `ActivityFailure(${cause instanceof ApplicationFailure ? (cause.type ?? cause.name) : (cause?.name ?? 'unknown')})`;
   }
   return err instanceof Error ? err.name : 'unknown';
 }

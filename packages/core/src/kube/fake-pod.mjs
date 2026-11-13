@@ -4,7 +4,8 @@
 // started (marker: the container runs). Protocol, mirroring the real runner (spec §8):
 //   - log `agentdesk: session started`, write a banner and PROMPT to `pane`;
 //   - after FAKE_TURN_MS (default 2000) log `agentdesk: turn finished`;
-//   - each `\r`-terminated line appended to `input` is echoed to `pane`, then another turn finishes;
+//   - each `\r`-terminated line appended to `input` is echoed to `pane`, logs `agentdesk: turn started` (the runner's
+//     UserPromptSubmit hook; the first turn's start is implicit, the run is already running), then another turn finishes;
 //   - on `kill`: log the scrollback (begin marker, pane lines, end marker), write `exit` 0 and exit.
 //   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback);
 //     `--fake-pending`: never start (the pod stays Pending) until killed.
@@ -54,18 +55,19 @@ if (prompt.includes('--fake-pending')) {
   // A line typed while a turn is in progress queues one more turn after it (like a prompt typed mid-turn).
   let turnTimer = null;
   let queued = 0;
-  const scheduleTurn = () => {
+  const scheduleTurn = (typed = false) => {
     if (turnTimer) {
       queued += 1;
       return;
     }
+    if (typed) log('agentdesk: turn started');
     turnTimer = setTimeout(() => {
       turnTimer = null;
       log('agentdesk: turn finished');
       if (fail) return finish(3);
       if (queued > 0) {
         queued -= 1;
-        scheduleTurn();
+        scheduleTurn(true);
       }
     }, turnMs);
   };
@@ -88,7 +90,7 @@ if (prompt.includes('--fake-pending')) {
       const line = pending.slice(0, i).replace(/\n/g, '');
       pending = pending.slice(i + 1);
       pane(`${line}\r\n`);
-      scheduleTurn();
+      scheduleTurn(true);
     }
   }, TICK_MS);
 }

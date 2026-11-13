@@ -51,8 +51,12 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     return `https://fake.invalid/${project.repoPath}.git`;
   }
 
+  runEnv(token: string): Record<string, string> {
+    return { GH_TOKEN: token };
+  }
+
   checkoutRef(ticket: CheckoutTicket): string {
-    return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : ticket.defaultBranch ?? 'main';
+    return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : (ticket.defaultBranch ?? 'main');
   }
 
   async listSkills(project: AdapterProject): Promise<SkillSummaryDto[]> {

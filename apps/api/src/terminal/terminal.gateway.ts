@@ -32,8 +32,6 @@ export const CLOSE = {
 export const MAX_FRAME_BYTES = 64 * 1024;
 /** Terminals attached to one run at once, per api process. More are closed with 1013. */
 export const MAX_TERMINALS_PER_RUN = 4;
-/** `resumed` is signalled at most this often per run per process; the run status is re-read at the same pace. */
-export const RESUME_THROTTLE_MS = 5000;
 /** A client that lets this much output pile up unsent is dropped (1013); it reattaches to the tmux session. */
 export const HIGH_WATER_BYTES = 4 * 1024 * 1024;
 /** Input arriving before the exec session is up is held, up to this much. */
@@ -52,8 +50,7 @@ const ResizeFrame = z.object({
 });
 
 type AuthzResult =
-  | { ok: true; userId: string; orgId: string; status: 'running' | 'idle' }
-  | { ok: false; code: number; why: string };
+  { ok: true; userId: string; orgId: string; status: 'running' | 'idle' } | { ok: false; code: number; why: string };
 
 interface Conn {
   readonly runId: string;
@@ -67,8 +64,6 @@ interface Conn {
   pendingBytes: number;
   /** The latest resize that arrived before the exec session was up (browsers send one right after open). */
   pendingResize?: { cols: number; rows: number };
-  idle: boolean;
-  statusReadAt: number;
   alive: boolean;
   pingTimer?: NodeJS.Timeout;
   registered: boolean;
@@ -101,8 +96,6 @@ const toBuffer = (data: RawData): Buffer =>
 export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly log = new Logger(TerminalGateway.name);
   private readonly byRun = new Map<string, Set<Conn>>();
-  /** Per-run time of the last `resumed` signal; an entry lives only while the run has a terminal attached. */
-  private readonly resumedAt = new Map<string, number>();
   /** Test seam: base delay between attach/detach signal retries. */
   signalRetryMs = 100;
 
@@ -154,8 +147,6 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       attached: false,
       pending: [],
       pendingBytes: 0,
-      idle: false,
-      statusReadAt: 0,
       alive: true,
       registered: false,
       headers: toHeaders(req),
@@ -208,8 +199,6 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     }
     conn.userId = authz.userId;
     conn.orgId = authz.orgId;
-    conn.idle = authz.status === 'idle';
-    conn.statusReadAt = Date.now();
     conn.reauthTimer = setInterval(() => void this.reauth(conn), this.config.TERMINAL_REAUTH_MS);
 
     // Reserve the slot before the first await below, so the cap holds under concurrent attaches.
@@ -322,7 +311,6 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
 
   private onInput(conn: Conn, buf: Buffer): void {
     conn.session?.write(new Uint8Array(buf.buffer, buf.byteOffset, buf.length));
-    void this.maybeResume(conn);
   }
 
   private onOutput(conn: Conn, d: Uint8Array): void {
@@ -333,33 +321,6 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       return;
     }
     conn.socket.send(d, { binary: true }, () => undefined);
-  }
-
-  /**
-   * The first input of a turn gap: if the run is `idle`, tell its workflow. The status is re-read (withOrg) at most once
-   * per RESUME_THROTTLE_MS per connection; `resumed` is signalled at most once per RESUME_THROTTLE_MS per run.
-   */
-  private async maybeResume(conn: Conn): Promise<void> {
-    let now = Date.now();
-    if (now - conn.statusReadAt >= RESUME_THROTTLE_MS) {
-      conn.statusReadAt = now;
-      try {
-        const row = (
-          await withOrg(this.db, conn.orgId, (tx) =>
-            tx.select({ status: runs.status }).from(runs).where(eq(runs.id, conn.runId)).limit(1),
-          )
-        )[0];
-        conn.idle = row?.status === 'idle';
-      } catch (err) {
-        this.log.warn(`terminal status read failed run=${conn.runId}: ${errorName(err)}`);
-      }
-      now = Date.now();
-    }
-    if (conn.closed || !conn.idle) return;
-    const last = this.resumedAt.get(conn.runId);
-    if (last !== undefined && now - last < RESUME_THROTTLE_MS) return;
-    this.resumedAt.set(conn.runId, now);
-    await this.signal(conn.runId, SIGNAL.resumed);
   }
 
   /** Best-effort: a failed signal is logged (error name only) and never breaks the relay. True when delivered. */
@@ -427,7 +388,6 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       set?.delete(conn);
       if (set?.size === 0) {
         this.byRun.delete(conn.runId);
-        this.resumedAt.delete(conn.runId);
       }
     }
     if (conn.attachSignal) {

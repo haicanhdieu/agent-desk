@@ -126,7 +126,7 @@ The router is a pure function over (event, project, rules, run counts) so pollin
 4. Start `followPodLogs` (long-running, heartbeat 10 s, heartbeat timeout 60 s). It resumes from the last stored `run_events.seq` after a retry. It:
    - fails non-retryably if the pod stays `Pending` for over 2 min (reason: pod event message);
    - calls `setRunStatus(running)` at the first log line;
-   - signals `turnFinished` on the Stop-hook line;
+   - signals `resumed` on the `UserPromptSubmit`-hook line and `turnFinished` on the Stop-hook line;
    - stores lifecycle lines and the final scrollback (redacted) in `run_events`;
    - completes with the container exit code.
 5. **Main loop.** State: `running` or `idle`, `terminalAttached` count. Events:
@@ -207,7 +207,7 @@ Every `/api/*` route requires a session and runs under `withOrg(activeOrganizati
 - Frames: binary both ways for terminal bytes; resize from the browser is the text frame `{"type":"resize","cols":c,"rows":r}`. Close codes: 4401 not signed in, 4403 not allowed, 4409 run not `running` or `idle`.
 - Authorization: session, org member, and project creator or org owner (the PoC "project owner" rule mapped to orgs). The run must be `running` or `idle`.
 - `@kubernetes/client-node` `Exec` of `tmux attach -t agent` with `tty` and `stdin`; bytes relayed both ways. Resize frames are written to channel 4 as `{"Width":w,"Height":h}`.
-- On connect and disconnect the api signals `terminalAttached` / `terminalDetached`. The first input after a turn signals `resumed`, at most once per 5 s.
+- On connect and disconnect the api signals `terminalAttached` / `terminalDetached`. Terminal input does not signal `resumed`: xterm.js and tmux exchange protocol replies on every attach, so input says nothing about a turn. The agent's own `UserPromptSubmit` hook does (see `followPodLogs`).
 - The control plane holds the Kubernetes credentials; the browser never gets them.
 - Keepalive: the api sends a WebSocket ping every 30 s, so proxies with idle timeouts (Cloudflare, about 100 s) keep the connection open.
 
@@ -219,9 +219,9 @@ pino JSON logs with `requestId`, `orgId`, `runId` from AsyncLocalStorage; OpenTe
 
 The runner image is built in the infra spec. The control plane depends on this contract:
 
-- Env: `REPO_CLONE_URL` (includes the workspace token), `CHECKOUT_REF`, `PROMPT`, `BOT_NAME`, `BOT_EMAIL`, `MAX_TURNS`, plus the agent credential from the per-run Secret.
+- Env: `REPO_CLONE_URL` (includes the workspace token), the code host adapter's `runEnv` (GitHub: `GH_TOKEN`, the same token, so `gh` is authenticated), `CHECKOUT_REF`, `PROMPT`, `BOT_NAME`, `BOT_EMAIL`, `MAX_TURNS`, plus the agent credential from the per-run Secret.
 - The entrypoint clones, fetches and checks out `CHECKOUT_REF`, starts Claude Code interactively in tmux session `agent` with `--permission-mode bypassPermissions`, waits for the pane to die, prints the scrollback and exits with the agent's status.
-- Log lines, one per line on stdout: `agentdesk: session started`, `agentdesk: turn finished` (from the Stop hook), `agentdesk: final scrollback begin`, `agentdesk: final scrollback end`.
+- Log lines, one per line on stdout: `agentdesk: session started`, `agentdesk: turn started` (from the UserPromptSubmit hook), `agentdesk: turn finished` (from the Stop hook), `agentdesk: final scrollback begin`, `agentdesk: final scrollback end`.
 - Job spec: as in Architecture §5, with labels `agentdesk/run-id`, `agentdesk/project-id`, `agentdesk/org-id`; `activeDeadlineSeconds` = `timeout_seconds` + 120 as a backstop to the workflow's hard timer.
 - The worker takes the run pod's `resources`, ephemeral-storage limit, `securityContext` (uid 10001, restricted Pod Security), workspace `emptyDir` size limit, `automountServiceAccountToken: false`, and optional `nodeSelector`, `tolerations` and `runtimeClassName` from `ConfigModule`; the infra chart supplies the values.
 

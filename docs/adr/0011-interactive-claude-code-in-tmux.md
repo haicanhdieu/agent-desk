@@ -22,7 +22,9 @@ doc refines this to an interactive session.
   `agent`, with `--permission-mode bypassPermissions` set explicitly on the
   command line, because the container is the sandbox.
 - A `Stop` hook in the image's user-level settings (not the repo) prints
-  `agentdesk: turn finished`; the control plane moves the run to `idle`.
+  `agentdesk: turn finished`; the control plane moves the run to `idle`. A
+  `UserPromptSubmit` hook prints `agentdesk: turn started`; that line, not
+  terminal input, moves an idle run back to `running`.
 - The run ends on Finish, after 10 min idle with no terminal attached, on cancel
   or on the hard timeout. Ending execs `tmux kill-session -t agent`; the
   entrypoint prints the final scrollback between marker lines and exits with the

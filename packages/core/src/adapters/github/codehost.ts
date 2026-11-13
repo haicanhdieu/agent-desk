@@ -113,6 +113,10 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     return `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
   }
 
+  runEnv(token: string): Record<string, string> {
+    return { GH_TOKEN: token };
+  }
+
   checkoutRef(ticket: CheckoutTicket): string {
     return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : assertSafeRef(ticket.defaultBranch ?? 'main');
   }

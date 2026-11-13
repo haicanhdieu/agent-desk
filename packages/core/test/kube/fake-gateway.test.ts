@@ -127,6 +127,10 @@ describe('FakeKubeGateway', () => {
     const c = collect(name);
     // Session started, first turn, and the turn after `hello`.
     await until(async () => c.lines.filter((l) => l === 'agentdesk: turn finished').length >= 2);
+    // A typed line starts a turn (the runner's UserPromptSubmit hook), before that turn finishes.
+    const started = c.lines.indexOf('agentdesk: turn started');
+    expect(started).toBeGreaterThan(c.lines.indexOf('agentdesk: turn finished'));
+    expect(started).toBeLessThan(c.lines.lastIndexOf('agentdesk: turn finished'));
 
     const kill = await gw.exec(name, ['tmux', 'kill-session', '-t', 'agent'], { tty: false });
     const code = await new Promise<number>((r) => kill.onClose(r));

@@ -25,7 +25,7 @@ crosses Cloudflare, whose idle timeout is about 100 s.
   REST, never on the socket.
 - Authorization: session, org member, and project creator or org owner.
 - Keepalive: WebSocket ping every 30 s; Traefik `readTimeout: 0`.
-- Attach/detach and first input after a turn are signalled to the run workflow.
+- Attach/detach are signalled to the run workflow. Input is not: attaching makes xterm.js reply to tmux's queries, so a turn start comes from the runner's `UserPromptSubmit` hook instead.
 
 ## Alternatives considered
 

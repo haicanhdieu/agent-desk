@@ -379,7 +379,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       known = [...known, token];
       const cloneUrl = codeHost.cloneUrl(project, token);
       known = [...known, ...secretValues({ cloneUrl })];
-      await kube.ensureSecret(name, { [CLONE_URL_KEY]: cloneUrl, ...cred }, runLabels(ctx));
+      // The adapter's env (e.g. GH_TOKEN) repeats the token already in the clone URL, so `known` already redacts it.
+      await kube.ensureSecret(name, { [CLONE_URL_KEY]: cloneUrl, ...codeHost.runEnv(token), ...cred }, runLabels(ctx));
       const prompt = buildPrompt({
         skillName: d.skillName,
         ticketKind: d.ticketKind,
@@ -601,6 +602,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             await withOrg(db, ctx.orgId, (tx) =>
               storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text }),
             );
+          } else if (parsed.kind === 'turn_started') {
+            // The agent's own hook says a turn began (terminal input proves nothing). Signal only on a first store: a
+            // replayed line must not resume a run whose later turn already finished. The workflow ignores `resumed`
+            // unless the run is idle.
+            const inserted = await withOrg(db, ctx.orgId, (tx) =>
+              storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text }),
+            );
+            if (inserted) await deps.signaller.signalRun(ctx.runId, SIGNAL.resumed);
           } else if (parsed.kind === 'turn_finished') {
             const { inserted, status } = await withOrg(db, ctx.orgId, async (tx) => {
               const ins = await storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text });

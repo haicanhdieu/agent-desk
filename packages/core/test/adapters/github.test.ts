@@ -330,6 +330,10 @@ describe('github code host', () => {
     expect(host().installUrl('org', 'st')).toBe('https://github.com/apps/agent-desk/installations/new?state=st');
   });
 
+  it('runEnv hands the workspace token to the agent as GH_TOKEN, so `gh` is authenticated', () => {
+    expect(host().runEnv('tok')).toEqual({ GH_TOKEN: 'tok' });
+  });
+
   it('refuses to interpolate unsafe repo paths or branch names', () => {
     expect(() => host().cloneUrl({ ...project, repoPath: 'acme/widgets@evil.com/x' }, 't')).toThrow();
     expect(() => host().cloneUrl({ ...project, repoPath: 'acme/../x' }, 't')).toThrow();

@@ -432,28 +432,18 @@ describe('terminal relay', () => {
     }
   });
 
-  it('two inputs within 5 s while idle signal resumed once; a running run never does', async () => {
+  it('terminal input never signals resumed: protocol replies and keystrokes do not start a turn', async () => {
     const idle = await makeRun('idle');
     const c = connect(idle, { cookie: alice });
     await c.opened;
     await until(() => c.bytes().length > 0);
+    c.ws.send(Buffer.from('\u001b[>0;276;0c'), { binary: true }); // xterm.js answering tmux's DA2 query on attach
     c.ws.send(Buffer.from('a'), { binary: true });
-    c.ws.send(Buffer.from('b'), { binary: true });
-    await until(() => signalsFor(idle, SIGNAL.resumed).length > 0);
-    c.ws.send(Buffer.from('c'), { binary: true });
+    c.ws.send(Buffer.from('\r'), { binary: true });
     await sleep(300);
-    expect(signalsFor(idle, SIGNAL.resumed)).toHaveLength(1);
+    expect(signalsFor(idle, SIGNAL.resumed)).toHaveLength(0);
     c.ws.close();
     await c.closed;
-
-    const running = await makeRun('running');
-    const d = connect(running, { cookie: alice });
-    await d.opened;
-    d.ws.send(Buffer.from('x'), { binary: true });
-    await sleep(300);
-    expect(signalsFor(running, SIGNAL.resumed)).toHaveLength(0);
-    d.ws.close();
-    await d.closed;
   });
 
   it('closes 1009 on an oversized frame', async () => {
