@@ -558,7 +558,6 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     let secrets: string[] = [];
     try {
       secrets = await redactionList(ctx);
-      let runningChecked = false;
       let scrollbackTail: string | undefined;
       const textTail: string[] = [];
 
@@ -592,20 +591,17 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             continue;
           }
           const parsed = parseLogLine(line);
-          if (!runningChecked) {
-            runningChecked = true;
-            await withOrg(db, ctx.orgId, (tx) =>
-              setRunStatusTx(
+          if (parsed.kind === 'session_started') {
+            // Only the runner's own marker starts the session; setup/plugin output is prefixed and parses as output.
+            // `onlyFrom` keeps a replayed line harmless.
+            await withOrg(db, ctx.orgId, async (tx) => {
+              await storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text });
+              await setRunStatusTx(
                 tx,
                 { orgId: ctx.orgId, runId: ctx.runId, status: 'running', at: now() },
                 { onlyFrom: ['starting'] },
-              ),
-            );
-          }
-          if (parsed.kind === 'session_started') {
-            await withOrg(db, ctx.orgId, (tx) =>
-              storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text }),
-            );
+              );
+            });
           } else if (parsed.kind === 'turn_started') {
             // The agent's own hook says a turn began (terminal input proves nothing). Signal only on a first store: a
             // replayed line must not resume a run whose later turn already finished. The workflow ignores `resumed`
@@ -633,7 +629,20 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           } else if (parsed.kind === 'scrollback_begin') {
             block = new ScrollbackBlock(index, SCROLLBACK_MAX_CHARS);
             continue;
-          } else if (parsed.kind === 'text') {
+          } else if (parsed.kind === 'setup_output' || parsed.kind === 'plugin_output') {
+            // Output lines are batched into events later; they never change the run's status.
+          } else if (parsed.kind !== 'text' && parsed.kind !== 'scrollback_end') {
+            // Setup and plugin markers (checkout, plugins begin/end, plugin installed, ...): stored, no status change.
+            await withOrg(db, ctx.orgId, (tx) =>
+              storeLineEvent(tx, ctx, 'lifecycle', index, {
+                kind: parsed.kind,
+                text: parsed.text,
+                ...(parsed.pluginId !== undefined ? { pluginId: parsed.pluginId } : {}),
+                ...(parsed.sha !== undefined ? { sha: parsed.sha } : {}),
+                ...(parsed.exitCode !== undefined ? { exitCode: parsed.exitCode } : {}),
+              }),
+            );
+          } else {
             textTail.push(redact(line, secrets));
             if (textTail.length > TEXT_TAIL_LINES) textTail.shift();
           }

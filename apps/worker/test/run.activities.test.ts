@@ -230,6 +230,8 @@ describe('createRunSecretAndJob', () => {
     expect(env?.PROMPT).toContain('Arguments from the user: please fix');
     expect(env?.PROMPT).toContain('Use the skill "fix" on issue #7 in dev/demo.');
     expect(env).toMatchObject({ CHECKOUT_REF: 'main', MAX_TURNS: '25', CLAUDE_CODE_OAUTH_TOKEN: CRED });
+    expect(env?.PLUGIN_MARKETPLACES).toBe(JSON.stringify(config.RUN_PLUGIN_MARKETPLACES));
+    expect(env?.SETUP_TIMEOUT_SECONDS).toBe(String(config.RUN_SETUP_TIMEOUT_SECONDS));
     expect((await load(runId)).run?.jobName).toBe(name);
     // Nothing about the Secret's values lands in the database.
     expect(JSON.stringify(await load(runId))).not.toContain(CRED);
@@ -388,7 +390,7 @@ describe('followPodLogs', () => {
     const { events } = await load(runId);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     const lifecycle = events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind);
-    expect(lifecycle).toEqual(['session_started', 'turn_finished']);
+    expect(lifecycle).toEqual(['checkout', 'plugins_begin', 'plugins_end', 'session_started', 'turn_finished']);
     const scrollback = events.filter((e) => e.type === 'scrollback');
     expect(scrollback).toHaveLength(1);
     const text = String(scrollback[0]?.payload.text);
@@ -402,26 +404,26 @@ describe('followPodLogs', () => {
     await acts.deleteJob(ctx);
   });
 
-  it('Review Focus 3: resumed after cancel at {lastLine: 2}, no duplicate rows and no running after idle', async () => {
+  it('Review Focus 3: resumed after cancel at {lastLine: 5}, no duplicate rows and no running after idle', async () => {
     const runId = await seedRun('resume me');
     const ctx = await ctxFor(runId);
     const acts = createRunActivities(deps());
     await acts.createRunSecretAndJob(ctx);
 
     const first = follow(ctx, deps());
-    await until(async () => first.beats.some((b) => lastLineOf(b) >= 2));
+    await until(async () => first.beats.some((b) => lastLineOf(b) >= 5));
     first.env.cancel();
     await expect(first.promise).rejects.toBeInstanceOf(CancelledFailure);
     expect((await load(runId)).run?.status).toBe('idle');
 
     // The worker restarted: the retry gets the last heartbeat's details.
-    const second = follow(ctx, deps(), { lastLine: 2 });
+    const second = follow(ctx, deps(), { lastLine: 5 });
     await sleep(300);
     // Another turn (the user typed in the terminal).
     const attach = await kube.exec(`run-${runId}`, ['tmux', 'attach', '-t', 'agent'], { tty: true });
     attach.write(new TextEncoder().encode('again\r'));
     await until(
-      async () => (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= 4 && second.beats.length,
+      async () => (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= 7 && second.beats.length,
     );
     attach.close();
     await acts.endSession(ctx);
@@ -436,6 +438,9 @@ describe('followPodLogs', () => {
     const lines = lifecycle.map((e) => e.payload.line);
     expect(new Set(lines).size).toBe(lines.length);
     expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+      'checkout',
+      'plugins_begin',
+      'plugins_end',
       'session_started',
       'turn_finished',
       'turn_started',
@@ -445,6 +450,94 @@ describe('followPodLogs', () => {
     expect(signals.filter((s) => s.runId === runId && s.signal === 'resumed')).toHaveLength(1);
     expect(events.filter((e) => e.type === 'scrollback')).toHaveLength(1);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
+    await acts.deleteJob(ctx);
+  });
+
+  it('stays starting through plugin lines, running only from session started', async () => {
+    const runId = await seedRun('plugins');
+    const ctx = await ctxFor(runId);
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((r) => (release = r));
+    const gated = wrapKube({
+      async *streamLogs(n, s) {
+        let held = false;
+        for await (const line of kube.streamLogs(n, s)) {
+          if (!held && line === 'agentdesk: session started') {
+            held = true;
+            // Output that merely looks like the marker is prefixed, so it parses as output.
+            yield 'setup| agentdesk: session started';
+            yield 'plugin| agentdesk: session started';
+            yield 'agentdesk: plugin installed demo@acme';
+            await gate;
+          }
+          yield line;
+        }
+      },
+    });
+    const acts = createRunActivities(deps({ kube: gated }));
+    await acts.createRunSecretAndJob(ctx);
+    const f = follow(ctx, deps({ kube: gated }));
+    await until(async () =>
+      (await load(runId)).events.some((e) => e.type === 'lifecycle' && e.payload.kind === 'plugin_installed'),
+    );
+    const mid = await load(runId);
+    expect(mid.run?.status).toBe('starting');
+    expect(await statuses(runId)).toEqual([]);
+    expect(mid.events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind)).toEqual([
+      'checkout',
+      'plugins_begin',
+      'plugins_end',
+      'plugin_installed',
+    ]);
+    release();
+    await until(
+      async () => (await load(runId)).run?.status === 'running' || (await load(runId)).run?.status === 'idle',
+    );
+    await acts.endSession(ctx);
+    await f.promise;
+    expect(await statuses(runId)).toEqual(['running', 'idle']);
+    await acts.deleteJob(ctx);
+  });
+
+  it('stores plugin markers as lifecycle events with pluginId and sha', async () => {
+    const runId = await seedRun('markers');
+    const ctx = await ctxFor(runId);
+    const gated = wrapKube({
+      async *streamLogs(n, s) {
+        for await (const line of kube.streamLogs(n, s)) {
+          if (line === 'agentdesk: plugins end') {
+            yield 'plugin| noisy output';
+            yield 'agentdesk: plugin installed demo@acme';
+            yield 'agentdesk: plugin failed bad@acme';
+          }
+          yield line;
+        }
+      },
+    });
+    const acts = createRunActivities(deps({ kube: gated }));
+    await acts.createRunSecretAndJob(ctx);
+    const f = follow(ctx, deps({ kube: gated }));
+    await until(async () => (await load(runId)).run?.status === 'idle');
+    await acts.endSession(ctx);
+    await f.promise;
+    const lifecycle = (await load(runId)).events.filter((e) => e.type === 'lifecycle');
+    expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+      'checkout',
+      'plugins_begin',
+      'plugin_installed',
+      'plugin_failed',
+      'plugins_end',
+      'session_started',
+      'turn_finished',
+    ]);
+    expect(lifecycle[0]?.payload.sha).toMatch(/^[0-9a-f]{40}$/);
+    expect(lifecycle[2]?.payload).toMatchObject({
+      kind: 'plugin_installed',
+      pluginId: 'demo@acme',
+      text: 'agentdesk: plugin installed demo@acme',
+    });
+    expect(lifecycle[3]?.payload.pluginId).toBe('bad@acme');
+    expect(JSON.stringify(lifecycle)).not.toContain('noisy output');
     await acts.deleteJob(ctx);
   });
 
