@@ -24,6 +24,8 @@ import { createRunActivities, type RunActivityDeps, type RunSignaller } from '..
 import { reconcile, type ReconcileTemporal } from '../src/activities/reconcile.activity';
 
 const ORG = '44444444-4444-4444-8444-444444444444';
+const SETUP_LIMITS = { ttlSeconds: 900, setupTimeoutSeconds: 600 };
+const NO_SETUP_TEST_DELETES = { deletedSetupTestJobs: 0, deletedSetupTestSecrets: 0 };
 const AGENT = '55555555-5555-4555-8555-555555555555';
 const CRED = 'sk-ant-oat01-CREDENTIAL-VALUE-xyz';
 let pgx: TestPg;
@@ -1025,7 +1027,7 @@ describe('reconcile', () => {
       gateRuns: async () => [liveRun, closedRun],
       releaseSlot: async (p, r) => void released.push({ projectId: p, runId: r }),
     };
-    const out = await reconcile({ db, kube, temporal });
+    const out = await reconcile({ db, kube, temporal, setupTest: SETUP_LIMITS });
     const left = (await kube.listRunJobs()).map((j) => j.runId);
     expect(left).toContain(liveRun);
     expect(left).not.toContain(finalRun);
@@ -1033,7 +1035,7 @@ describe('reconcile', () => {
     expect(left).not.toContain('66666666-6666-4666-8666-666666666666');
     expect(await kube.readSecret(`run-${finalRun}`)).toBeNull();
     expect(released).toEqual([{ projectId, runId: closedRun }]);
-    expect(out).toEqual({ deletedJobs: 3, deletedSecrets: 0, releasedSlots: 1 });
+    expect(out).toEqual({ deletedJobs: 3, deletedSecrets: 0, releasedSlots: 1, ...NO_SETUP_TEST_DELETES });
     await acts.deleteJob(await ctxFor(liveRun));
   });
 });
@@ -1056,6 +1058,7 @@ describe('reconcile: run Secrets without a Job', () => {
     const out = await reconcile({
       db,
       kube,
+      setupTest: SETUP_LIMITS,
       temporal: {
         isWorkflowOpen: async (id) => open.has(id),
         listOpenGateProjectIds: async () => [],
@@ -1063,7 +1066,7 @@ describe('reconcile: run Secrets without a Job', () => {
         releaseSlot: async () => undefined,
       },
     });
-    expect(out).toEqual({ deletedJobs: 0, deletedSecrets: 3, releasedSlots: 0 });
+    expect(out).toEqual({ deletedJobs: 0, deletedSecrets: 3, releasedSlots: 0, ...NO_SETUP_TEST_DELETES });
     for (const id of [finalRun, closedRun, jobGoneRun]) expect(await kube.readSecret(`run-${id}`)).toBeNull();
     expect(await kube.readSecret(`run-${creatingRun}`)).not.toBeNull();
     await kube.deleteSecret(`run-${creatingRun}`);

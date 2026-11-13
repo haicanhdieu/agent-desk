@@ -39,6 +39,17 @@ import {
   type Tx,
 } from '@agentdesk/db';
 import { alias } from 'drizzle-orm/pg-core';
+import {
+  CLONE_URL_KEY,
+  ERROR_MESSAGE_MAX,
+  SETUP_CHUNK_LINES,
+  SETUP_OUTPUT_MAX_CHARS,
+  guarded,
+  oneLine,
+  safeError,
+  secretValues,
+  sleep,
+} from './activity-utils';
 import { appendRunEvent } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
 import {
@@ -105,23 +116,16 @@ const EXEC_CLOSE_WAIT_MS = 30_000;
 const SCROLLBACK_MAX_CHARS = 1_000_000;
 const SCROLLBACK_TAIL_CHARS = 4000;
 const TEXT_TAIL_LINES = 50;
-/** Setup/plugin output is stored as one lifecycle event per this many lines, up to this many characters in all. */
-const SETUP_CHUNK_LINES = 50;
-const SETUP_OUTPUT_MAX_CHARS = 262_144;
 /** The runner entrypoint's exit code for a failed (or timed out) setup in a real run. */
 const SETUP_FAILED_EXIT_CODE = 78;
-const ERROR_MESSAGE_MAX = 500;
 const COMMENT_TAIL_CHARS = 2000;
 const COMMENT_REASON_CHARS = 500;
-/** Secret values shorter than this are not used for redaction (they would blank out ordinary text). */
-const MIN_SECRET_LENGTH = 6;
 
 /** Where the runner image expects the agent credential (runner contract; the credential store keeps `{type, value}`). */
 const CREDENTIAL_ENV: Record<string, string> = {
   oauth_token: 'CLAUDE_CODE_OAUTH_TOKEN',
   api_key: 'ANTHROPIC_API_KEY',
 };
-const CLONE_URL_KEY = 'REPO_CLONE_URL';
 
 const SetupMarkerPayload = z.object({
   kind: z.string(),
@@ -133,48 +137,6 @@ const StoredCredential = z.object({ type: z.string(), value: z.string().min(1) }
 
 const isFinal = (s: RunStatus): boolean =>
   s === 'succeeded' || s === 'failed' || s === 'cancelled' || s === 'timed_out';
-
-const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
-  new Promise((resolve) => {
-    if (signal?.aborted) return resolve();
-    const t = setTimeout(done, ms);
-    function done(): void {
-      clearTimeout(t);
-      signal?.removeEventListener('abort', done);
-      resolve();
-    }
-    signal?.addEventListener('abort', done, { once: true });
-  });
-
-/** Values worth redacting: each value, plus the user/password parts of URL values (the clone URL's token). */
-function secretValues(data: Record<string, string> | null | undefined): string[] {
-  const out: string[] = [];
-  for (const v of Object.values(data ?? {})) {
-    out.push(v);
-    try {
-      const u = new URL(v);
-      if (u.password) out.push(decodeURIComponent(u.password), u.password);
-      if (u.username && u.password) out.push(decodeURIComponent(u.username));
-    } catch {
-      // not a URL
-    }
-  }
-  return [...new Set(out.filter((s) => s.length >= MIN_SECRET_LENGTH))];
-}
-
-/**
- * Activity errors end up in Temporal history, `runs.failure_reason` and the finish comment: re-throw anything that is
- * not ours as an ApplicationFailure with a redacted, bounded message (the original error is dropped, not chained).
- */
-function safeError(err: unknown, secrets: string[], what: string): Error {
-  if (err instanceof ApplicationFailure || err instanceof CancelledFailure) return err;
-  const raw = err instanceof Error ? err.message : String(err);
-  const name = err instanceof Error ? err.name : 'Error';
-  const message = redact(raw, secrets).replace(/\s+/g, ' ').slice(0, ERROR_MESSAGE_MAX);
-  return ApplicationFailure.retryable(`${what}: ${message}`, name);
-}
-
-const oneLine = (s: string): string => s.replace(/[\r\n\u2028\u2029]+/g, ' ').trim();
 
 /**
  * The lines of one final-scrollback block, keeping only the newest `maxChars` (a window over an array with a moving
@@ -888,21 +850,6 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       throw safeError(err, [], 'clean up run Job');
     }
   }
-
-  /**
-   * Every activity body runs inside this: whatever escapes (a DB error, a store error thrown before an inner
-   * `safeError`) leaves as a redacted, bounded ApplicationFailure with no cause. Inner `safeError`s, which know the
-   * run's secret values, still redact first; their ApplicationFailures pass through unchanged.
-   */
-  const guarded =
-    <A extends unknown[], R>(what: string, fn: (...args: A) => Promise<R>) =>
-    async (...args: A): Promise<R> => {
-      try {
-        return await fn(...args);
-      } catch (err) {
-        throw safeError(err, [], what);
-      }
-    };
 
   return {
     loadRun: guarded('load run', loadRun),
