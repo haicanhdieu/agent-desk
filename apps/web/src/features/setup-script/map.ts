@@ -338,15 +338,16 @@ export interface SetupWarning {
 }
 
 /**
- * Warns when the project has a saved script and the latest test failed, or no passing test matches the script (it
- * changed since the last passing test, or it was never tested). A project without a script has nothing to warn
- * about, even if a draft was tested. The result is read as the Desk Setup tab reads it (status, then `finishedAt`;
+ * Warns when the project has a saved script and the latest test of that script failed, or no passing test matches the
+ * script (it changed since the last passing test, or it was never tested). A project without a script (none saved, or
+ * an empty one) has nothing to warn about, even if a draft was tested; a failed test of an unsaved draft is not
+ * blamed on the saved script. The result is read as the Desk Setup tab reads it (status, then `finishedAt`;
  * a test that ended without a result says nothing), from the test row alone: the log is not loaded here.
  */
 export function setupWarningOf(script: SetupScriptDto | null, latest: SetupTestDto | null): SetupWarning | undefined {
-  if (script === null) return undefined;
+  if (script === null || script.body === '') return undefined;
   const result = latest === null ? undefined : resultOf(latest, []);
-  if (latest !== null && result === 'failed') {
+  if (latest !== null && result === 'failed' && latest.matchesCurrentScript) {
     return {
       kind: 'failed',
       title: 'The last workspace setup test failed',

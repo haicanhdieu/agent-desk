@@ -456,6 +456,16 @@ describe('setupWarningOf', () => {
     expect(setupWarningOf(script(), done({ status: 'failed', exitCode: 1 }))?.kind).toBe('failed');
   });
 
+  it('does not blame the saved script for a failed test of an unsaved draft', () => {
+    const draftFailed = done({ status: 'failed', exitCode: 1, matchesCurrentScript: false });
+    expect(setupWarningOf(script(), draftFailed)?.kind).toBe('untested');
+  });
+
+  it('treats an empty saved script as no script', () => {
+    expect(setupWarningOf(script({ body: '' }), null)).toBeUndefined();
+    expect(setupWarningOf(script({ body: '' }), done({ status: 'failed', exitCode: 1 }))).toBeUndefined();
+  });
+
   it('reads a failure from status, not from an exit code of 0', () => {
     expect(setupWarningOf(script(), done({ status: 'failed', exitCode: 0 }))?.kind).toBe('failed');
     expect(setupWarningOf(script(), done({ status: 'passed', exitCode: 1 }))).toBeUndefined();
