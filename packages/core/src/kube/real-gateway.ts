@@ -2,7 +2,7 @@ import { PassThrough } from 'node:stream';
 import { createInterface } from 'node:readline';
 import type { Writable } from 'node:stream';
 import { z } from 'zod';
-import { BatchV1Api, CoreV1Api, KubeConfig, Log, type V1ContainerStatus, type V1Pod } from '@kubernetes/client-node';
+import { BatchV1Api, CoreV1Api, KubeConfig, type V1ContainerStatus, type V1Pod } from '@kubernetes/client-node';
 // Not re-exported from the package index; the package has no exports map, so the deep path is stable for v2.
 import { WebSocketHandler } from '@kubernetes/client-node/dist/web-socket-handler.js';
 import {
@@ -18,6 +18,7 @@ import {
   type RunSecretRef,
   type V1Job,
 } from './gateway';
+import { FollowLog } from './follow-log';
 
 /** Slices of the generated clients this gateway uses (object-parameter style of @kubernetes/client-node v2). */
 export type KubeBatchApi = Pick<BatchV1Api, 'createNamespacedJob' | 'deleteNamespacedJob' | 'listNamespacedJob'>;
@@ -29,7 +30,8 @@ export type KubeCoreApi = Pick<
   | 'listNamespacedPod'
   | 'listNamespacedSecret'
 >;
-export type KubeLogApi = Pick<Log, 'log'>;
+/** The one call the gateway makes: follow a container's log into `stream` (the options-only form of `Log.log`). */
+export type KubeLogApi = Pick<FollowLog, 'log'>;
 
 /** The part of a WebSocket the exec session needs (the `ws` socket satisfies it). */
 export interface ExecSocket {
@@ -135,8 +137,8 @@ export class RealKubeGateway implements KubeGateway {
     return {
       name: pod.metadata.name,
       phase,
-      pendingSince: phase === 'Pending' ? pod.metadata.creationTimestamp ?? null : null,
-      reason: phase === 'Pending' ? waitingReason(pod, cs) : terminated?.reason ?? pod.status?.reason ?? null,
+      pendingSince: phase === 'Pending' ? (pod.metadata.creationTimestamp ?? null) : null,
+      reason: phase === 'Pending' ? waitingReason(pod, cs) : (terminated?.reason ?? pod.status?.reason ?? null),
       exitCode: terminated ? terminated.exitCode : null,
     };
   }
@@ -272,7 +274,7 @@ export function createRealKubeGateway(
   return new RealKubeGateway({
     batch: kc.makeApiClient(BatchV1Api),
     core: kc.makeApiClient(CoreV1Api),
-    log: new Log(kc),
+    log: new FollowLog(kc),
     ws: {
       connect: async (path, onFrame) => {
         const ws = await handler.connect(path, null, onFrame);
