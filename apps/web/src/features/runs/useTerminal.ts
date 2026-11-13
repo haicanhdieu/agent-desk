@@ -97,17 +97,22 @@ export function useTerminal(
       retry = setTimeout(connect, delay);
     };
 
+    /** `connecting` while the run's detail refetches; `onStillActive` runs when it is not final after that. */
+    const refetchRun = (onStillActive: () => void) => {
+      set('connecting');
+      void qc.invalidateQueries({ queryKey: detailKey }).then(() => {
+        const status = qc.getQueryData(detailKey)?.status;
+        if (!disposed && (status === undefined || !isFinal(status))) onStillActive();
+      });
+    };
+
     const onClose = (code: number) => {
       socket.current = null;
       clearTimeout(stable);
       switch (code) {
         case CLOSE_NORMAL:
-          set('connecting');
           // Usually the run ended (the route then shows its final scrollback); a run still active reattaches.
-          void qc.invalidateQueries({ queryKey: detailKey }).then(() => {
-            const status = qc.getQueryData(detailKey)?.status;
-            if (!disposed && (status === undefined || !isFinal(status))) retryLater();
-          });
+          refetchRun(retryLater);
           return;
         case CLOSE_UNAUTHORIZED:
           void signOutAndRedirect();
@@ -116,13 +121,9 @@ export function useTerminal(
           set('forbidden');
           return;
         case CLOSE_RUN_GONE:
-          set('connecting');
           // The run ended: the route shows its final scrollback once the refetched run is final. If it is still
           // active after the refetch, only a manual reconnect is offered (no loop).
-          void qc.invalidateQueries({ queryKey: detailKey }).then(() => {
-            const status = qc.getQueryData(detailKey)?.status;
-            if (status === undefined || !isFinal(status)) set('gave_up');
-          });
+          refetchRun(() => set('gave_up'));
           return;
         default:
           retryLater();
