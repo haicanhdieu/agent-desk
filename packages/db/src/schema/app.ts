@@ -210,6 +210,10 @@ export const runs = pgTable(
     failureReason: text('failure_reason'),
     costUsd: numeric('cost_usd', { precision: 12, scale: 4 }),
     outbox: jsonb('outbox').$type<Record<string, unknown>>().notNull().default({}),
+    /** Setup script version this run used; null until recorded, or when the project had no script. */
+    setupScriptVersion: integer('setup_script_version'),
+    /** Which phase failed: 'setup' (repo setup script) or 'agent'. Null otherwise. */
+    failureStage: text('failure_stage'),
   },
   (t) => [
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
@@ -227,6 +231,7 @@ export const runs = pgTable(
     ),
     check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),
     check('runs_trigger_source_check', sql`${t.triggerSource} in ('webhook','polling','manual')`),
+    check('runs_failure_stage_check', sql`${t.failureStage} in ('setup','agent')`),
     orgPolicy(),
   ],
 );

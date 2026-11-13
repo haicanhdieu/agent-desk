@@ -200,6 +200,27 @@ describe('bootstrap and migrations', () => {
       ).rejects.toMatchObject({ code: '23505' });
     });
 
+    it('runs have nullable setup_script_version and failure_stage; the app role updates them; the check rejects others', async () => {
+      await inOrg((c) =>
+        c
+          .query(`update runs set setup_script_version = 3, failure_stage = 'setup' where trigger_comment_id = 'c-2'`)
+          .then(() => undefined),
+      );
+      const rows = await query<{ setup_script_version: number | null; failure_stage: string | null }>(
+        env.ownerUrl.replace(/\/[^/]*$/, '/agentdesk'),
+        `select setup_script_version, failure_stage from runs order by number`,
+      );
+      expect(rows).toEqual([
+        { setup_script_version: null, failure_stage: null },
+        { setup_script_version: 3, failure_stage: 'setup' },
+      ]);
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set failure_stage = 'bogus' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,

@@ -43,6 +43,13 @@
       "when": 1794558097451,
       "tag": "0005_setup_script_versions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794560037686,
+      "tag": "0006_runs_setup_columns",
+      "breakpoints": true
     }
   ]
 }
