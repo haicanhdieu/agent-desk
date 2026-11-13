@@ -4,6 +4,7 @@ import type { DeskFrameData } from '@/screens';
 import { sessionQuery } from '../auth/session';
 import { toConnectionStatus, toProject } from '../projects/map';
 import { projectsQueries } from '../projects/queries';
+import { useSetupWarning } from '../setup-script/useSetupWarning';
 
 /** In-app paths of a project, for the screens' links. */
 export function projectPaths(org: string, projectId: string) {
@@ -32,6 +33,7 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
   const handle = session?.user.handle ?? '';
   const user: Actor = { login: handle, initials: handle.slice(0, 2).toUpperCase() };
   const paths = projectPaths(org, projectId);
+  const warning = useSetupWarning(org, projectId);
   return {
     user,
     project: { org: owner, name: project.name, repo: project.repo, needsYou: project.needsYou },
@@ -45,5 +47,6 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
       agent: paths.agent,
       setup: paths.setup,
     },
+    ...(warning && { warning: { title: warning.title, detail: warning.detail, href: paths.setup } }),
   };
 }

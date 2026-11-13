@@ -19,7 +19,7 @@ function projectRow(id: string) {
 }
 
 /** Puts a seeded project back at `step`, as if setup stopped there. */
-function seedAt(step: 'agent' | 'skills' | 'rules') {
+function seedAt(step: 'agent' | 'setup' | 'skills' | 'rules') {
   const row = projectRow(ids.project.invoicerApi);
   row.setupStep = step;
   return row.id;
@@ -65,17 +65,23 @@ describe('setup flow', () => {
     if (!created) throw new Error('project not created');
     expect(router.state.location.search).toEqual({ project: created.id });
 
-    // Step agent: the credential is saved, then the project moves on to skills.
+    // Step agent: the credential is saved, then the project moves on to setup.
     await user.type(await screen.findByLabelText('Token'), TOKEN);
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/skills`));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
     expect(router.state.location.searchStr).toBe(`?project=${created.id}`);
-    expect(projectRow(created.id).setupStep).toBe('skills');
+    expect(projectRow(created.id).setupStep).toBe('setup');
     const agent = mockDb.state.agents.find((a) => a.projectId === created.id);
     expect(agent?.credential).toMatchObject({ set: true, type: 'oauth_token' });
     expect(cacheText(queryClient)).not.toContain(TOKEN);
     expect(JSON.stringify(mockDb.snapshot())).not.toContain(TOKEN);
     expect(log.mock.calls.flat().map(String).join(' ')).not.toContain(TOKEN);
+
+    // Step setup: skipped, nothing saved, the project moves on to skills.
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/skills`));
+    expect(mockDb.state.setupScripts[created.id]).toBeUndefined();
+    expect(projectRow(created.id).setupStep).toBe('skills');
 
     // Step skills: both templates are committed.
     await user.click(await screen.findByRole('button', { name: 'Commit 2 skills and continue' }));
@@ -105,6 +111,53 @@ describe('setup flow', () => {
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/skills`));
     expect(router.state.location.search).toEqual({ project: id });
     expect(await screen.findByRole('heading', { name: 'Start from skill templates' })).toBeInTheDocument();
+  });
+
+  it('a reload of a later step lands on setup for a project at that step', async () => {
+    const id = seedAt('setup');
+    const { router } = await renderRoute(`${base}/ready?project=${id}`);
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+    expect(router.state.location.search).toEqual({ project: id });
+    expect(await screen.findByRole('heading', { name: 'Prepare the workspace' })).toBeInTheDocument();
+  });
+
+  it('the setup step shows the five-step stepper', async () => {
+    const id = seedAt('setup');
+    await renderRoute(`${base}/setup?project=${id}`);
+    await screen.findByRole('heading', { name: 'Prepare the workspace' });
+    const steps = [...document.querySelectorAll('ol > li')].map((li) => li.textContent ?? '');
+    expect(steps).toHaveLength(5);
+    expect(steps[2]).toContain('Prepare workspace');
+    expect(document.querySelector('[aria-current="step"]')).toHaveTextContent('Prepare workspace');
+    expect(screen.getByText('Step 3 of 5, optional')).toBeInTheDocument();
+  });
+
+  it('Skip on setup goes to skills without saving a script', async () => {
+    const id = seedAt('setup');
+    const { router, user } = await renderRoute(`${base}/setup?project=${id}`);
+    await user.click(await screen.findByRole('button', { name: 'Skip' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/skills`));
+    expect(mockDb.requests('PUT', `/api/projects/${id}/setup-script`)).toBe(0);
+    expect(projectRow(id).setupStep).toBe('skills');
+  });
+
+  it('Save and continue on setup stores the script as version 1 and moves on', async () => {
+    const id = ids.project.docsSite;
+    projectRow(id).setupStep = 'setup';
+    const { router, user } = await renderRoute(`${base}/setup?project=${id}`);
+    await user.click(await screen.findByRole('button', { name: 'Save and continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/skills`));
+    expect(mockDb.state.setupScripts[id]).toHaveLength(1);
+    expect(mockDb.state.setupScripts[id]?.[0]?.version).toBe(1);
+    expect(projectRow(id).setupStep).toBe('skills');
+  });
+
+  it('Test setup starts a test with the editor text from the step', async () => {
+    const id = seedAt('setup');
+    const { user } = await renderRoute(`${base}/setup?project=${id}`);
+    await user.click(await screen.findByRole('button', { name: 'Test setup' }));
+    await waitFor(() => expect(mockDb.state.setupTests).toHaveLength(1));
+    expect(await screen.findByText('Testing in a throwaway workspace')).toBeInTheDocument();
   });
 
   it('an earlier step stays open for a project further along', async () => {
@@ -158,6 +211,80 @@ describe('setup flow', () => {
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     await waitFor(() => expect(assign).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
     expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(1);
+  });
+});
+
+/** A setup test of the seeded project, finished with `status`. */
+function seedTest(projectId: string, status: 'passed' | 'failed', matchesCurrentScript: boolean): void {
+  mockDb.state.setupTests.push({
+    id: ids.created(900),
+    projectId,
+    status,
+    scriptSha256: 'a'.repeat(64),
+    matchesCurrentScript,
+    checkoutSha: 'a91c3e2' + '0'.repeat(33),
+    plugins: { installed: [], skipped: [], failed: [] },
+    exitCode: status === 'failed' ? 1 : null,
+    startedBy: 'kim-hale',
+    createdAt: '2026-11-12T09:00:00.000Z',
+    finishedAt: '2026-11-12T09:01:00.000Z',
+    endedAt: '2026-11-12T09:20:00.000Z',
+    endsAt: null,
+  });
+}
+
+describe('setup warnings on the Ready step', () => {
+  const warning = (title: RegExp) =>
+    screen.findByRole('heading', { name: title }).catch(() => screen.findByText(title));
+
+  it('warns when the latest test failed and Go to runs stays enabled', async () => {
+    const id = ids.project.invoicerApi;
+    projectRow(id).setupStep = 'ready';
+    seedTest(id, 'failed', true);
+    await renderRoute(`${base}/ready?project=${id}`);
+    expect(await warning(/last workspace setup test failed/)).toBeInTheDocument();
+    const go = screen.getByRole('link', { name: 'Go to runs' });
+    expect(go).toHaveAttribute('href', `/o/alice/p/${id}/runs`);
+    expect(go).not.toHaveAttribute('aria-disabled');
+  });
+
+  it('warns when the script changed since the last passing test', async () => {
+    const id = ids.project.invoicerApi;
+    projectRow(id).setupStep = 'ready';
+    seedTest(id, 'passed', false);
+    await renderRoute(`${base}/ready?project=${id}`);
+    expect(await warning(/changed since the last passing test/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to runs' })).toBeInTheDocument();
+  });
+
+  it('warns about a saved script that was never tested', async () => {
+    const id = ids.project.invoicerApi;
+    projectRow(id).setupStep = 'ready';
+    await renderRoute(`${base}/ready?project=${id}`);
+    expect(await warning(/has not passed a test yet/)).toBeInTheDocument();
+  });
+
+  it('does not warn when the latest test passed on the saved script', async () => {
+    const id = ids.project.invoicerApi;
+    projectRow(id).setupStep = 'ready';
+    seedTest(id, 'passed', true);
+    await renderRoute(`${base}/ready?project=${id}`);
+    await screen.findByRole('heading', { name: 'Trigger your first run from GitHub' });
+    await waitFor(() => expect(mockDb.requests('GET', `/api/projects/${id}/setup-tests/latest`)).toBeGreaterThan(0));
+    expect(
+      screen.queryByText(/workspace setup test failed|changed since the last passing|has not passed a test/),
+    ).toBeNull();
+  });
+
+  it('does not warn when the project has no setup script and no test', async () => {
+    const id = ids.project.docsSite;
+    projectRow(id).setupStep = 'ready';
+    await renderRoute(`${base}/ready?project=${id}`);
+    await screen.findByRole('heading', { name: 'Trigger your first run from GitHub' });
+    await waitFor(() => expect(mockDb.requests('GET', `/api/projects/${id}/setup-script`)).toBeGreaterThan(0));
+    expect(
+      screen.queryByText(/workspace setup test failed|changed since the last passing|has not passed a test/),
+    ).toBeNull();
   });
 });
 

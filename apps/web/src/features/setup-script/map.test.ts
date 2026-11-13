@@ -7,7 +7,7 @@ import type {
 } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { SETUP_SCRIPT_STARTER } from '@/screens/DeskSetup';
-import { setupScriptSaveProblem, toDeskSetupProps } from './map';
+import { setupScriptSaveProblem, setupWarningOf, toDeskSetupProps, toSetupStepTest } from './map';
 
 const ID = 'b0000000-0000-4000-8000-000000000001';
 const PROJECT = 'a0000000-0000-4000-8000-000000000001';
@@ -440,5 +440,58 @@ describe('setupScriptSaveProblem', () => {
   it('rejects a change note over 200 characters', () => {
     expect(setupScriptSaveProblem('x', 'n'.repeat(201))).toMatch(/200/);
     expect(setupScriptSaveProblem('x', 'n'.repeat(200))).toBeUndefined();
+  });
+});
+
+describe('setupWarningOf', () => {
+  const done = (over: Partial<SetupTestDto> = {}) =>
+    test({ status: 'passed', finishedAt: local(14, 23), endedAt: local(14, 40), ...over });
+
+  it('has nothing to warn about without a saved script, even after a failed draft test', () => {
+    expect(setupWarningOf(null, null)).toBeUndefined();
+    expect(setupWarningOf(null, done({ status: 'failed', exitCode: 1 }))).toBeUndefined();
+  });
+
+  it('warns when the latest test failed', () => {
+    expect(setupWarningOf(script(), done({ status: 'failed', exitCode: 1 }))?.kind).toBe('failed');
+  });
+
+  it('reads a failure from status, not from an exit code of 0', () => {
+    expect(setupWarningOf(script(), done({ status: 'failed', exitCode: 0 }))?.kind).toBe('failed');
+    expect(setupWarningOf(script(), done({ status: 'passed', exitCode: 1 }))).toBeUndefined();
+  });
+
+  it('is quiet when the latest passing test matches the saved script, ended or not', () => {
+    expect(setupWarningOf(script(), done())).toBeUndefined();
+    expect(setupWarningOf(script(), done({ endedAt: null }))).toBeUndefined();
+  });
+
+  it('warns when the script changed since the last passing test', () => {
+    expect(setupWarningOf(script(), done({ matchesCurrentScript: false }))?.kind).toBe('changed');
+  });
+
+  it('warns when a saved script was never tested, or its latest test has no result', () => {
+    expect(setupWarningOf(script(), null)?.kind).toBe('untested');
+    expect(setupWarningOf(script(), test({ status: 'ended', endedAt: local(14, 25) }))?.kind).toBe('untested');
+  });
+});
+
+describe('toSetupStepTest', () => {
+  it('is idle without an open test', () => {
+    expect(toSetupStepTest({})).toEqual({ state: 'idle' });
+  });
+
+  it('shows a running test with the phase it is in', () => {
+    const view = toDeskSetupProps(
+      { script: script(), versions: [], plugins: noPlugins, latest: test(), events: [] },
+      now,
+    );
+    expect(toSetupStepTest(view)).toMatchObject({ state: 'running', detail: expect.stringContaining('Clone') });
+  });
+
+  it('shows a settled test as passed or failed with the last-test summary', () => {
+    const latest = test({ status: 'failed', exitCode: 1, finishedAt: local(14, 23), checkoutSha: SHA });
+    const view = toDeskSetupProps({ script: script(), versions: [], plugins: noPlugins, latest, events: [] }, now);
+    expect(toSetupStepTest(view)).toMatchObject({ state: 'failed', title: 'Setup failed' });
   });
 });

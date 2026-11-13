@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Banner, Button, InlineStatus, LabelChip, StatusIcon } from '@/ds';
+import { Banner, Button, Icon, InlineStatus, LabelChip, StatusIcon } from '@/ds';
 import { CodeBlock, KeyValue, SetupLayout } from '@/components';
 import { connectionCopy as c } from '@/mocks/connection';
 import type { Actor, TriggerMode } from '@/mocks/types';
@@ -20,22 +20,36 @@ export interface SetupReadyProps {
   credentialDetail?: string;
   issuesHref?: string;
   runsHref?: string;
+  /** Workspace setup warning (warn, don't block): the project still goes live. */
+  warning?: { title: string; detail: string; href?: string };
 }
 
 export function SetupReady({
-  user, projectName, repo, label, command, summary, lastEvent, skills = 'code-build, code-review',
-  credentialDetail = DEFAULT_CREDENTIAL_DETAIL, issuesHref = `https://github.com/${repo}/issues`, runsHref = '#',
+  user,
+  projectName,
+  repo,
+  label,
+  command,
+  summary,
+  lastEvent,
+  skills = 'code-build, code-review',
+  credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
+  issuesHref = `https://github.com/${repo}/issues`,
+  runsHref = '#',
+  warning,
 }: SetupReadyProps) {
   return (
     <SetupLayout
       user={user}
       projectName={projectName}
-      steps={setupSteps({ repo, credential: credentialDetail, skills })}
-      current={4}
+      steps={setupSteps({ repo, credential: credentialDetail, skills, withWorkspace: true })}
+      current={5}
       ready="Ready to trigger"
       header={
         <div className={styles.readyHead}>
-          <InlineStatus tone="ok" icon={<StatusIcon status="succeeded" size={16} />}>Project ready</InlineStatus>
+          <InlineStatus tone="ok" icon={<StatusIcon status="succeeded" size={16} />}>
+            Project ready
+          </InlineStatus>
           <h1 className={styles.readyTitle}>Trigger your first run from GitHub</h1>
           <p className={`muted ${styles.readyIntro}`}>
             Open or create an issue in <span className="mono">{repo}</span>, add the label, and post this comment:
@@ -43,13 +57,42 @@ export function SetupReady({
         </div>
       }
     >
+      {warning && (
+        <Banner
+          tone="warn"
+          icon={<Icon name="warning" size={16} />}
+          title={warning.title}
+          centered
+          actions={
+            warning.href ? (
+              <Button size="sm" href={warning.href}>
+                Open workspace setup
+              </Button>
+            ) : undefined
+          }
+        >
+          {warning.detail}
+        </Banner>
+      )}
       <CodeBlock
-        caption={label ? <>Comment on an issue labelled <LabelChip name={label.name} color={label.color} /></> : 'Comment on an issue'}
+        caption={
+          label ? (
+            <>
+              Comment on an issue labelled <LabelChip name={label.name} color={label.color} />
+            </>
+          ) : (
+            'Comment on an issue'
+          )
+        }
         code={command}
-        onCopy={() => { void navigator.clipboard?.writeText(command); }}
+        onCopy={() => {
+          void navigator.clipboard?.writeText(command);
+        }}
       />
       <div className={styles.actions}>
-        <Button variant="primary" icon="external" href={issuesHref}>Open issues in GitHub</Button>
+        <Button variant="primary" icon="external" href={issuesHref}>
+          Open issues in GitHub
+        </Button>
         <Button href={runsHref}>Go to runs</Button>
       </div>
       <Banner tone="off" icon={<StatusIcon status="starting" size={16} />} iconColor="var(--run)">

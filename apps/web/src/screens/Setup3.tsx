@@ -26,8 +26,23 @@ export interface Setup3Props extends SetupNav {
 }
 
 export function Setup3({
-  user, projectName, repo, branch, templates, selected, commitMessage, credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
-  backHref = '#', skipHref = '#', nextHref = '#', previewHref = '#', onContinue, onSkip, saving, errors, formError,
+  user,
+  projectName,
+  repo,
+  branch,
+  templates,
+  selected,
+  commitMessage,
+  credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
+  backHref = '#',
+  skipHref = '#',
+  nextHref = '#',
+  previewHref = '#',
+  onContinue,
+  onSkip,
+  saving,
+  errors,
+  formError,
 }: Setup3Props) {
   const [picked, setPicked] = useState(selected);
   const [edited, setEdited] = useState<string | null>(null);
@@ -39,11 +54,16 @@ export function Setup3({
     <SetupLayout
       user={user}
       projectName={projectName}
-      steps={setupSteps({ repo, credential: credentialDetail })}
-      current={2}
-      stepLabel="Step 3 of 4, optional"
+      steps={setupSteps({ repo, credential: credentialDetail, withWorkspace: true })}
+      current={3}
+      stepLabel="Step 4 of 5, optional"
       title="Start from skill templates"
-      intro={<>A skill is a Markdown file in your repo at <span className="mono">.claude/skills/&lt;name&gt;/SKILL.md</span>. Pick templates to add them, or skip if your repo already has skills.</>}
+      intro={
+        <>
+          A skill is a Markdown file in your repo at <span className="mono">.claude/skills/&lt;name&gt;/SKILL.md</span>.
+          Pick templates to add them, or skip if your repo already has skills.
+        </>
+      }
       footer={{
         back: backHref,
         skip: skipHref,
@@ -55,11 +75,19 @@ export function Setup3({
     >
       {formError && <Banner tone="err" icon={<Icon name="warning" size={16} />} title={formError} live="assertive" />}
       <Banner tone="off" icon={<Icon name="info" size={16} />}>
-        <span className={styles.onText}>No skills found in <span className="mono">{repo}</span> on <span className="mono">{branch}</span>.</span>
+        <span className={styles.onText}>
+          No skills found in <span className="mono">{repo}</span> on <span className="mono">{branch}</span>.
+        </span>
       </Banner>
       <div className={styles.stack8}>
         {templates.map((t) => (
-          <SkillTemplateCard key={t.name} template={t} checked={picked.includes(t.name)} onChange={(on) => toggle(t.name, on)} previewHref={previewHref} />
+          <SkillTemplateCard
+            key={t.name}
+            template={t}
+            checked={picked.includes(t.name)}
+            onChange={(on) => toggle(t.name, on)}
+            previewHref={previewHref}
+          />
         ))}
       </div>
       {names.length > 0 && (

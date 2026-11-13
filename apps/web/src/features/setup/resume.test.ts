@@ -6,6 +6,11 @@ describe('resolveStep', () => {
   it.each([
     // [requested, server setupStep (null = no project), expected]
     ['rules', 'agent', 'agent'],
+    ['setup', 'agent', 'agent'],
+    ['setup', 'setup', 'setup'],
+    ['skills', 'setup', 'setup'],
+    ['setup', 'skills', 'setup'],
+    ['agent', 'setup', 'agent'],
     ['ready', 'skills', 'skills'],
     ['skills', 'skills', 'skills'],
     ['agent', 'rules', 'agent'],
@@ -33,7 +38,7 @@ describe('setup search', () => {
     });
   });
 
-  it('lists the five steps in order', () => {
-    expect(SETUP_STEPS).toEqual(['repo', 'agent', 'skills', 'rules', 'ready']);
+  it('lists the six steps in order', () => {
+    expect(SETUP_STEPS).toEqual(['repo', 'agent', 'setup', 'skills', 'rules', 'ready']);
   });
 });

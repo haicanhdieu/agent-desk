@@ -36,6 +36,36 @@ afterEach(() => {
   stopCapture = undefined;
 });
 
+describe('desk setup warning', () => {
+  it('shows the warning above the Desk boards, with a link to Workspace setup, and nothing blocks', async () => {
+    mockDb.state.setupTests.push({
+      id: ids.created(901),
+      projectId,
+      status: 'failed',
+      scriptSha256: 'a'.repeat(64),
+      matchesCurrentScript: true,
+      checkoutSha: null,
+      plugins: { installed: [], skipped: [], failed: [] },
+      exitCode: 1,
+      startedBy: 'kim-hale',
+      createdAt: '2026-11-12T09:00:00.000Z',
+      finishedAt: '2026-11-12T09:01:00.000Z',
+      endedAt: '2026-11-12T09:20:00.000Z',
+      endsAt: null,
+    });
+    await renderRoute(`${base}/skills`);
+    expect(await screen.findByText('The last workspace setup test failed')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open workspace setup' })).toHaveAttribute('href', `${base}/setup`);
+    expect(screen.getByRole('navigation', { name: 'Desk' })).toBeInTheDocument();
+  });
+
+  it('is not repeated on the Setup tab, which has its own last-test banner', async () => {
+    await renderRoute(`${base}/setup`);
+    await screen.findByText('Not tested yet');
+    expect(screen.queryByText('The setup script has not passed a test yet')).toBeNull();
+  });
+});
+
 describe('desk skills route', () => {
   it('lists the project skills with links that select them; the first opens by default', async () => {
     await renderRoute(`${base}/skills`);

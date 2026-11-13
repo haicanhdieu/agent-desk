@@ -9,7 +9,7 @@ import {
 } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { ScriptVersion, SetupPhase, TermLine, TermTone } from '@/components';
-import type { DeskSetupProps, LastSetupTest, SetupTestView } from '@/screens';
+import type { DeskSetupProps, LastSetupTest, SetupStepTest, SetupTestView } from '@/screens';
 import { relativeTime } from '../relativeTime';
 import { plainLines, SCROLLBACK_MAX_LINES } from '../runs/detail.map';
 import { clockTime } from '../runs/map';
@@ -308,5 +308,62 @@ export function toDeskSetupProps(data: SetupData, now: Date, opts: { showEnded?:
     })),
     ...(lastTest && { lastTest }),
     ...(latest !== null && open && { test: testView(latest, parsed, script, now, !isOpen(latest)) }),
+  };
+}
+
+/**
+ * The onboarding step's test panel from the Desk Setup view: idle without an open test, running with the phase it is
+ * in, passed or failed with the same summary line as the Desk's last-test banner.
+ */
+export function toSetupStepTest(view: Pick<SetupViewProps, 'test' | 'lastTest'>): SetupStepTest {
+  const { test, lastTest } = view;
+  if (test === undefined) return { state: 'idle' };
+  if (test.status === 'running') {
+    const phase = test.phases.find((p) => p.state === 'active');
+    const detail = phase ? `${phase.label}${phase.detail ? `: ${phase.detail}` : ''}` : 'Starting the workspace';
+    return { state: 'running', detail };
+  }
+  return {
+    state: test.status,
+    title: test.status === 'passed' ? 'Setup passed' : 'Setup failed',
+    detail: lastTest?.summary ?? '',
+  };
+}
+
+/** A setup warning (spec §5.5, "warn, don't block"): what to tell the person, never a reason to stop them. */
+export interface SetupWarning {
+  kind: 'failed' | 'changed' | 'untested';
+  title: string;
+  detail: string;
+}
+
+/**
+ * Warns when the project has a saved script and the latest test failed, or no passing test matches the script (it
+ * changed since the last passing test, or it was never tested). A project without a script has nothing to warn
+ * about, even if a draft was tested. The result is read as the Desk Setup tab reads it (status, then `finishedAt`;
+ * a test that ended without a result says nothing), from the test row alone: the log is not loaded here.
+ */
+export function setupWarningOf(script: SetupScriptDto | null, latest: SetupTestDto | null): SetupWarning | undefined {
+  if (script === null) return undefined;
+  const result = latest === null ? undefined : resultOf(latest, []);
+  if (latest !== null && result === 'failed') {
+    return {
+      kind: 'failed',
+      title: 'The last workspace setup test failed',
+      detail: 'Runs still start, but setup may fail in them. Open Workspace setup to see the log.',
+    };
+  }
+  if (latest !== null && result === 'passed' && latest.matchesCurrentScript) return undefined;
+  if (latest !== null && result === 'passed') {
+    return {
+      kind: 'changed',
+      title: 'The setup script changed since the last passing test',
+      detail: 'Runs use the saved script as it is. Test it again to be sure it still works.',
+    };
+  }
+  return {
+    kind: 'untested',
+    title: 'The setup script has not passed a test yet',
+    detail: 'Runs use the saved script as it is. Test it in Workspace setup to be sure it works.',
   };
 }
