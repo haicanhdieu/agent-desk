@@ -64,14 +64,10 @@ const CONTROLS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u
 export const SCROLLBACK_MAX_LINES = 5000;
 
 /**
- * The stored final scrollback as plain text lines for the static terminal (rendered as text, never as markup), the
- * newest SCROLLBACK_MAX_LINES only. Escape sequences and controls are dropped; the live terminal (Task 14) renders
- * them.
+ * Untrusted terminal text as plain lines for the static terminal (rendered as text, never as markup), the newest
+ * SCROLLBACK_MAX_LINES only. Escape sequences and controls are dropped.
  */
-export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
-  const event = events.filter((e) => e.type === 'scrollback').at(-1);
-  const text = event && textOf(event);
-  if (text === undefined) return undefined;
+export function plainLines(text: string): TermLine[] {
   return text
     .replace(/\r\n?/g, '\n')
     .replace(ESCAPES, '')
@@ -81,6 +77,17 @@ export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
       const plain = line.replace(CONTROLS, '');
       return plain === '' ? [] : [{ text: plain }];
     });
+}
+
+/**
+ * The stored final scrollback as plain text lines for the static terminal (rendered as text, never as markup), the
+ * newest SCROLLBACK_MAX_LINES only. Escape sequences and controls are dropped; the live terminal (Task 14) renders
+ * them.
+ */
+export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
+  const event = events.filter((e) => e.type === 'scrollback').at(-1);
+  const text = event && textOf(event);
+  return text === undefined ? undefined : plainLines(text);
 }
 
 /**

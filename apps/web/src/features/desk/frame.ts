@@ -43,6 +43,7 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
       skills: paths.skills,
       rules: paths.rules,
       agent: paths.agent,
+      setup: paths.setup,
     },
   };
 }
