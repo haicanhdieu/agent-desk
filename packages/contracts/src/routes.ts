@@ -12,6 +12,7 @@ import {
 import { CreateRuleRequest, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
+import { PutSetupScriptRequest, SetupScriptDto, SetupScriptVersionDto } from './schemas/setup';
 import {
   DeleteSkillQuery,
   PutSkillRequest,
@@ -36,6 +37,7 @@ const projectParams = z.object({ projectId: z.uuid() });
 const runParams = z.object({ runId: z.uuid() });
 const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
+const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1) });
 const empty = z.null();
 
 export const routes = {
@@ -143,6 +145,33 @@ export const routes = {
       response: RuleDto,
     },
     remove: { method: 'DELETE', path: '/api/rules/:ruleId', params: ruleParams, response: empty },
+  },
+  setupScript: {
+    get: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-script',
+      params: projectParams,
+      response: SetupScriptDto.nullable(),
+    },
+    put: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/setup-script',
+      params: projectParams,
+      body: PutSetupScriptRequest,
+      response: SetupScriptDto,
+    },
+    versions: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-script/versions',
+      params: projectParams,
+      response: z.array(SetupScriptVersionDto),
+    },
+    version: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-script/versions/:version',
+      params: setupVersionParams,
+      response: SetupScriptDto,
+    },
   },
   runs: {
     list: {

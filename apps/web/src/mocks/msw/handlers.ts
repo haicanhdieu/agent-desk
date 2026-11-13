@@ -7,6 +7,7 @@ import {
   type RunDto,
   type RunListFilter,
   type RunStatus,
+  type SetupScriptDto,
   type SkillDto,
 } from '@agentdesk/contracts';
 import { http, type HttpHandler } from 'msw';
@@ -151,6 +152,10 @@ const nextSha = () => {
   commits += 1;
   return `c0ffee${String(commits).padStart(34, '0')}`;
 };
+
+/** In-memory setup script history per project (oldest first); not part of the mock db seed. */
+const setupScripts = new Map<string, SetupScriptDto[]>();
+const setupVersionsOf = (projectId: string) => setupScripts.get(projectId) ?? [];
 
 /** Routes that are not JSON: the two SSE streams and the terminal WebSocket (see streamGuard below). */
 const STREAM_KEYS = ['runs.events', 'projects.events', 'runs.terminal'] as const;
@@ -314,6 +319,33 @@ const impl: Impl = {
     return null;
   },
 
+  'setupScript.get': ({ params }) => setupVersionsOf(projectRow(params.projectId).id).at(-1) ?? null,
+  'setupScript.put': ({ params, body }) => {
+    const projectId = projectRow(params.projectId).id;
+    const list = setupVersionsOf(projectId);
+    const current = list.at(-1)?.version ?? null;
+    if (body.baseVersion !== current) {
+      throw conflict('Setup script changed', undefined, 'The setup script was changed since you opened it.');
+    }
+    const next: SetupScriptDto = {
+      version: (current ?? 0) + 1,
+      body: body.body,
+      note: body.note ?? null,
+      createdBy: session().user.handle,
+      createdAt: now(),
+    };
+    setupScripts.set(projectId, [...list, next]);
+    return next;
+  },
+  'setupScript.versions': ({ params }) =>
+    setupVersionsOf(projectRow(params.projectId).id)
+      .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt }))
+      .reverse(),
+  'setupScript.version': ({ params }) => {
+    const found = setupVersionsOf(projectRow(params.projectId).id).find((v) => v.version === params.version);
+    if (!found) throw notFound('Setup script version');
+    return found;
+  },
   'rules.list': ({ params }) => db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
   'rules.create': ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
