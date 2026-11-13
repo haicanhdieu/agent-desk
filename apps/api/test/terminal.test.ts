@@ -5,12 +5,14 @@ import { join } from 'node:path';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { eq } from 'drizzle-orm';
-import { projects, runs, withOrg } from '@agentdesk/db';
+import { projects, runs, setupTests, withOrg } from '@agentdesk/db';
 import {
   FakeKubeGateway,
   SIGNAL,
   buildRunJob,
+  buildSetupTestJob,
   runWorkflowId,
+  setupTestJobName,
   type ExecSession,
   type KubeGateway,
 } from '@agentdesk/core';
@@ -514,5 +516,165 @@ describe('terminal relay', () => {
     gateway.onModuleDestroy();
     expect(await c.closed).toBe(1001);
     expect(gateway.openCount()).toBe(0);
+  });
+});
+
+/** Inserts a setup_tests row and (unless `pod` is false) starts its fake pod, waiting until it is Running. */
+async function makeSetupTest(
+  status: string,
+  opts: { pod?: boolean; ended?: boolean; projectId?: string; id?: string } = {},
+): Promise<string> {
+  const projectId = opts.projectId ?? aliceProject;
+  const id = await withOrg(t.db, aliceOrg, async (tx) => {
+    const [row] = await tx
+      .insert(setupTests)
+      .values({
+        ...(opts.id ? { id: opts.id } : {}),
+        orgId: aliceOrg,
+        projectId,
+        status,
+        scriptSha256: 'x'.repeat(64),
+        startedBy: 'alice',
+        endedAt: opts.ended ? new Date() : null,
+      })
+      .returning({ id: setupTests.id });
+    if (!row) throw new Error('no row');
+    return row.id;
+  });
+  if (opts.pod ?? true) {
+    await real.ensureJob(
+      buildSetupTestJob({
+        setupTestId: id,
+        orgId: aliceOrg,
+        projectId,
+        image: 'fake',
+        checkoutRef: 'main',
+        script: 'echo hi',
+        pluginMarketplaces: {},
+        setupTimeoutSeconds: 600,
+        ttlSeconds: 60,
+        botName: 'bot',
+        botEmail: 'bot@x.invalid',
+        pod: {
+          cpuRequest: '1',
+          cpuLimit: '1',
+          memoryRequest: '1Gi',
+          memoryLimit: '1Gi',
+          ephemeralStorageLimit: '1Gi',
+          workspaceSizeLimit: '1Gi',
+        },
+      }),
+    );
+    await until(async () => (await real.getRunPod(setupTestJobName(id)))?.phase === 'Running');
+  }
+  return id;
+}
+
+const stPath = (id: string): string => `/api/setup-tests/${id}/terminal`;
+const connectSetup = (id: string, opts: { cookie?: string; origin?: string | null } = {}): Client =>
+  connect(id, { ...opts, path: stPath(id) });
+
+describe('terminal relay: setup tests', () => {
+  beforeEach(() => {
+    execCalls = 0;
+    resizes.length = 0;
+    t.temporal.reset();
+  });
+
+  it('attaches end to end: typed input comes back, and no workflow is signalled', async () => {
+    const id = await makeSetupTest('running');
+    const c = connectSetup(id, { cookie: alice });
+    await c.opened;
+    await until(() => execCalls === 1);
+    c.ws.send(Buffer.from('echo hi\r'), { binary: true });
+    await until(() => c.bytes().includes('echo hi'));
+    c.ws.close();
+    await c.closed;
+    await sleep(300);
+    expect(t.temporal.callsOfKind('signal')).toHaveLength(0);
+  });
+
+  it('a passed test whose workspace is still up is attachable', async () => {
+    const id = await makeSetupTest('passed');
+    const c = connectSetup(id, { cookie: alice });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('closes 4401 without a session', async () => {
+    const id = await makeSetupTest('running');
+    expect(await connectSetup(id).closed).toBe(4401);
+    expectNoExec();
+  });
+
+  it('closes 4403 for a member who is not the project creator, and for another org, alike', async () => {
+    const id = await makeSetupTest('running');
+    expect(await connectSetup(id, { cookie: carol }).closed).toBe(4403);
+    expect(await connectSetup(id, { cookie: bob }).closed).toBe(4403);
+    expect(await connectSetup(randomUUID(), { cookie: alice }).closed).toBe(4403);
+    expect(await connect('not-a-uuid', { cookie: alice, path: stPath('not-a-uuid') }).closed).toBe(4403);
+    expectNoExec();
+  });
+
+  it('closes 4403 on a bad Origin', async () => {
+    const id = await makeSetupTest('running');
+    expect(await connectSetup(id, { cookie: alice, origin: 'http://evil.example' }).closed).toBe(4403);
+    expectNoExec();
+  });
+
+  it('closes 4409 for an ended test, and for a queued one (not active yet)', async () => {
+    const ended = await makeSetupTest('ended', { pod: false, ended: true });
+    expect(await connectSetup(ended, { cookie: alice }).closed).toBe(4409);
+    const queued = await makeSetupTest('queued', { pod: false });
+    expect(await connectSetup(queued, { cookie: alice }).closed).toBe(4409);
+    expectNoExec();
+  });
+
+  it('closes 4409 when the test is running but its pod is gone', async () => {
+    const id = await makeSetupTest('running', { pod: false });
+    expect(await connectSetup(id, { cookie: alice }).closed).toBe(4409);
+    expectNoExec();
+  });
+
+  it('re-validates the session on a live setup-test socket: a revoked session closes 4401', async () => {
+    const id = await makeSetupTest('running');
+    const cookie = await loginAs(t, 'alice');
+    const token = (
+      (
+        await t.db.pool.query(
+          `select token from session where user_id = (select id from "user" where handle = 'alice') order by created_at desc limit 1`,
+        )
+      ).rows[0] as { token: string }
+    ).token;
+    const c = connectSetup(id, { cookie });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    await t.db.pool.query('delete from session where token = $1', [token]);
+    expect(await c.closed).toBe(4401);
+  });
+
+  it('a run id and a setup-test id that are the same string do not share a connection entry or cap', async () => {
+    const shared = await makeRun('running');
+    await makeSetupTest('running', { id: shared });
+    const open: Client[] = [];
+    for (let i = 0; i < 4; i += 1) {
+      const c = connect(shared, { cookie: alice });
+      await c.opened;
+      await until(() => c.bytes().length > 0);
+      open.push(c);
+    }
+    // the run's four slots are taken; the setup test with the same id still gets its own
+    const st = connectSetup(shared, { cookie: alice });
+    await st.opened;
+    await until(() => st.bytes().length > 0);
+    open.push(st);
+    expect(t.app.get(TerminalGateway).openCount()).toBe(5);
+    expect(await connect(shared, { cookie: alice }).closed).toBe(1013);
+    for (const c of open) {
+      c.ws.close();
+      await c.closed;
+    }
   });
 });
