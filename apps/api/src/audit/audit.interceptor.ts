@@ -46,7 +46,7 @@ export interface AuditTarget {
 /** Derives `METHOD route-key` from the contracts route table; unmatched routes fall back to `METHOD path`. */
 export function describeRequest(method: string, path: string): AuditTarget {
   const segments = path.split('/').filter(Boolean);
-  const targetType = segments[0] === 'api' ? segments[1] ?? null : segments[0] ?? null;
+  const targetType = segments[0] === 'api' ? (segments[1] ?? null) : (segments[0] ?? null);
   for (const route of compiled) {
     if (route.method !== method) continue;
     const m = route.pattern.exec(path);
@@ -86,7 +86,7 @@ export class AuditInterceptor implements NestInterceptor {
               action: target.action,
               targetType: target.targetType,
               targetId: target.targetId,
-              payload: redactBody(req.body),
+              payload: redactBody(req.body, target.action),
             }),
           );
         } catch (err) {
