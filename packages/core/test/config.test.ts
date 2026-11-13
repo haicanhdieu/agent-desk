@@ -53,3 +53,27 @@ describe('production refuses dev-only settings', () => {
     expect(parseConfig(base).KUBE_MODE).toBe('fake');
   });
 });
+
+describe('BOT_NAME', () => {
+  const github = {
+    GITHUB_APP_ID: '1',
+    GITHUB_APP_SLUG: 'agent-desk-devlocal',
+    GITHUB_PRIVATE_KEY: 'pem',
+    GITHUB_WEBHOOK_SECRET: 'w',
+    GITHUB_CLIENT_ID: 'c',
+    GITHUB_CLIENT_SECRET: 's',
+  };
+
+  it('defaults to the app login <slug>[bot] so the desk recognises its own comments', () => {
+    expect(parseConfig({ ...base, ...github }).BOT_NAME).toBe('agent-desk-devlocal[bot]');
+    expect(parseConfig({ ...base, ...github, BOT_NAME: '' }).BOT_NAME).toBe('agent-desk-devlocal[bot]');
+  });
+
+  it('an explicit BOT_NAME wins over the slug', () => {
+    expect(parseConfig({ ...base, ...github, BOT_NAME: 'custom[bot]' }).BOT_NAME).toBe('custom[bot]');
+  });
+
+  it('keeps the generic default when no GitHub app is configured', () => {
+    expect(parseConfig(base).BOT_NAME).toBe('agentdesk[bot]');
+  });
+});

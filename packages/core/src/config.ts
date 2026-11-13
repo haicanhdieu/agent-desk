@@ -81,7 +81,8 @@ export const ConfigSchema = z
     TERMINAL_PING_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     POLL_MAX_BACKOFF_SECONDS: blankDefault(z.coerce.number().int().min(1).default(3600)),
     OTEL_EXPORTER_OTLP_ENDPOINT: optional(z.string()),
-    BOT_NAME: blankDefault(z.string().default('agentdesk[bot]')),
+    /** Defaults to the app login `<GITHUB_APP_SLUG>[bot]` (see below), else `agentdesk[bot]`. */
+    BOT_NAME: optional(z.string()),
     BOT_EMAIL: blankDefault(z.string().default('agentdesk-bot@users.noreply.local')),
   })
   .superRefine((cfg, ctx) => {
@@ -109,7 +110,12 @@ export const ConfigSchema = z
         });
       }
     }
-  });
+  })
+  .transform((cfg) => ({
+    ...cfg,
+    // GitHub reports the app's own comments as `<slug>[bot]`; the router trusts that login, so the default must match.
+    BOT_NAME: cfg.BOT_NAME ?? (cfg.GITHUB_APP_SLUG ? `${cfg.GITHUB_APP_SLUG}[bot]` : 'agentdesk[bot]'),
+  }));
 
 export type Config = z.infer<typeof ConfigSchema>;
 
