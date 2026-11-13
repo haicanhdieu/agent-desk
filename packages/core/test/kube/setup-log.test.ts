@@ -4,7 +4,11 @@ import { SetupLogTracker, type SetupLogEffect } from '../../src/kube/setup-log';
 
 const SHA = 'b'.repeat(40);
 const feed = (t: SetupLogTracker, lines: string[]): SetupLogEffect[] => lines.flatMap((l) => t.push(parseLogLine(l)));
-const tracker = (chunkLines = 50, maxChars = 262144) => new SetupLogTracker({ chunkLines, maxChars });
+const tracker = (
+  chunkLines = 50,
+  maxChars = 262144,
+  seed: { initialChars?: number; alreadyTruncated?: boolean } = {},
+) => new SetupLogTracker({ chunkLines, maxChars, ...seed });
 
 describe('SetupLogTracker', () => {
   it('batches output into chunks of chunkLines and keeps the remainder until flush', () => {
@@ -109,5 +113,18 @@ describe('SetupLogTracker', () => {
     const t = tracker();
     const effects = feed(t, ['setup| a', 'agentdesk: session started', 'plain text']);
     expect(effects.map((e) => e.kind)).toEqual(['output']);
+  });
+
+  it('seeded with alreadyTruncated it drops all output but still emits markers', () => {
+    const t = tracker(50, 100, { alreadyTruncated: true });
+    expect(feed(t, ['setup| a', 'setup| b', 'agentdesk: setup passed']).map((e) => e.kind)).toEqual(['event']);
+    expect(t.flush()).toEqual([]);
+  });
+
+  it('seeded with initialChars it spends only the remaining budget, then truncates once', () => {
+    const t = tracker(50, 10, { initialChars: 6 });
+    const effects = feed(t, ['setup| abcdef', 'setup| more']);
+    expect(effects).toHaveLength(1);
+    expect(effects[0]).toMatchObject({ payload: { text: 'abcd', truncated: true } });
   });
 });

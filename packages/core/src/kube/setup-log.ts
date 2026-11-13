@@ -38,8 +38,8 @@ const EVENT_KINDS: ReadonlySet<LogLineKind> = new Set<LogLineKind>([
 export class SetupLogTracker {
   private buffer: string[] = [];
   private bufferKind: 'setup_output' | 'plugin_output' = 'setup_output';
-  private chars = 0;
-  private truncated = false;
+  private chars: number;
+  private truncated: boolean;
   private readonly state: SetupSummary = {
     checkoutSha: null,
     plugins: { installed: [], skipped: [], failed: [] },
@@ -47,7 +47,16 @@ export class SetupLogTracker {
     exitCode: null,
   };
 
-  constructor(private readonly opts: { chunkLines: number; maxChars: number }) {}
+  /**
+   * `initialChars` and `alreadyTruncated` seed the output budget from earlier passes (the caller derives them from
+   * storage), so the cap and the single truncated chunk hold across log re-attaches and retries.
+   */
+  constructor(
+    private readonly opts: { chunkLines: number; maxChars: number; initialChars?: number; alreadyTruncated?: boolean },
+  ) {
+    this.chars = opts.initialChars ?? 0;
+    this.truncated = opts.alreadyTruncated ?? false;
+  }
 
   get summary(): SetupSummary {
     return {
