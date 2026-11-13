@@ -47,6 +47,8 @@ export type RunActivityConfig = Pick<
   | 'RUNNER_IMAGE'
   | 'BOT_NAME'
   | 'BOT_EMAIL'
+  | 'RUN_PLUGIN_MARKETPLACES'
+  | 'RUN_SETUP_TIMEOUT_SECONDS'
   | 'PUBLIC_ORIGIN'
   | 'RUN_POD_CPU_REQUEST'
   | 'RUN_POD_CPU_LIMIT'
@@ -400,6 +402,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         timeoutSeconds: ctx.timeoutSeconds,
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
+        pluginMarketplaces: deps.config.RUN_PLUGIN_MARKETPLACES,
+        setupTimeoutSeconds: deps.config.RUN_SETUP_TIMEOUT_SECONDS,
         pod: runPodConfigFrom(deps.config),
       });
       try {

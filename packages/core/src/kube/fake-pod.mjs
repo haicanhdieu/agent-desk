@@ -2,7 +2,7 @@
 //
 // State dir (argv[2]): log (stdout lines), pane (the tmux screen), input (keystrokes), kill (marker), exit (exit code),
 // started (marker: the container runs). Protocol, mirroring the real runner (spec §8):
-//   - log `agentdesk: session started`, write a banner and PROMPT to `pane`;
+//   - log `agentdesk: checkout <sha>`, `plugins begin`, `plugins end`, then `agentdesk: session started`, write a banner and PROMPT to `pane`;
 //   - after FAKE_TURN_MS (default 2000) log `agentdesk: turn finished`;
 //   - each `\r`-terminated line appended to `input` is echoed to `pane`, logs `agentdesk: turn started` (the runner's
 //     UserPromptSubmit hook; the first turn's start is implicit, the run is already running), then another turn finishes;
@@ -47,6 +47,9 @@ if (prompt.includes('--fake-pending')) {
   }, TICK_MS);
 } else {
   writeFileSync(file('started'), new Date().toISOString());
+  log(`agentdesk: checkout ${'0'.repeat(40)}`);
+  log('agentdesk: plugins begin');
+  log('agentdesk: plugins end');
   log('agentdesk: session started');
   pane('\u001b[1mFake Claude Code\u001b[0m (agentdesk fake pod)\r\n> ');
   pane(`${prompt.split(/\r?\n/).join('\r\n')}\r\n`);

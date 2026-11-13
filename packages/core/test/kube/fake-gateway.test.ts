@@ -27,6 +27,8 @@ const job = (id: string, prompt: string) =>
     timeoutSeconds: 60,
     botName: 'bot',
     botEmail: 'bot@x.invalid',
+    pluginMarketplaces: {},
+    setupTimeoutSeconds: 600,
     pod: {
       cpuRequest: '1',
       cpuLimit: '1',
@@ -98,8 +100,14 @@ describe('FakeKubeGateway', () => {
     });
     expect(pod.name).toBe(name);
     const c = collect(pod.name);
-    await until(async () => c.lines.length >= 2);
-    expect(c.lines.slice(0, 2)).toEqual(['agentdesk: session started', 'agentdesk: turn finished']);
+    await until(async () => c.lines.length >= 5);
+    expect(c.lines.slice(0, 5)).toEqual([
+      `agentdesk: checkout ${'0'.repeat(40)}`,
+      'agentdesk: plugins begin',
+      'agentdesk: plugins end',
+      'agentdesk: session started',
+      'agentdesk: turn finished',
+    ]);
     c.ac.abort();
     await c.done;
     await gw.deleteJob(name);

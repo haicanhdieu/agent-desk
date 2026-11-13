@@ -17,6 +17,8 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   timeoutSeconds: 1800,
   botName: 'agentdesk[bot]',
   botEmail: 'bot@example.invalid',
+  pluginMarketplaces: { 'claude-plugins-official': 'anthropics/claude-plugins-official' },
+  setupTimeoutSeconds: 600,
   pod: {
     cpuRequest: '500m',
     cpuLimit: '2',
@@ -29,6 +31,15 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
 });
 
 describe('buildRunJob', () => {
+  it('passes plugin marketplaces and the setup timeout as env values', () => {
+    const env = buildRunJob(input()).spec?.template.spec?.containers[0]?.env ?? [];
+    expect(env).toContainEqual({
+      name: 'PLUGIN_MARKETPLACES',
+      value: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
+    });
+    expect(env).toContainEqual({ name: 'SETUP_TIMEOUT_SECONDS', value: '600' });
+  });
+
   it('has the key fields of spec §8', () => {
     const job = buildRunJob(input());
     const labels = { 'agentdesk/run-id': RUN, 'agentdesk/project-id': PROJECT, 'agentdesk/org-id': ORG };
@@ -80,6 +91,8 @@ describe('buildRunJob', () => {
       BOT_NAME: 'agentdesk[bot]',
       BOT_EMAIL: 'bot@example.invalid',
       MAX_TURNS: '30',
+      PLUGIN_MARKETPLACES: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
+      SETUP_TIMEOUT_SECONDS: '600',
     });
     // The clone URL (with its token) comes from the Secret, never from a literal env value.
     expect(JSON.stringify(job)).not.toContain('REPO_CLONE_URL');

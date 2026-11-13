@@ -29,6 +29,10 @@ export interface RunJobInput {
   timeoutSeconds: number;
   botName: string;
   botEmail: string;
+  /** Approved plugin stores (store -> source) from platform config; reaches the pod as one JSON env value. */
+  pluginMarketplaces: Record<string, string>;
+  /** Cap on the repo setup script, from platform config. */
+  setupTimeoutSeconds: number;
   pod: RunPodConfig;
 }
 
@@ -89,6 +93,8 @@ export function buildRunJob(input: RunJobInput): V1Job {
     { name: 'PROMPT', value: input.prompt },
     { name: 'BOT_NAME', value: input.botName },
     { name: 'BOT_EMAIL', value: input.botEmail },
+    { name: 'PLUGIN_MARKETPLACES', value: JSON.stringify(input.pluginMarketplaces) },
+    { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
     ...(input.maxTurns !== null ? [{ name: 'MAX_TURNS', value: String(input.maxTurns) }] : []),
   ];
   const p = input.pod;
