@@ -60,7 +60,7 @@ export function useSetupTest(testId: string | undefined): SetupTestStream {
         const t = parseMessage(SetupTestDto, ev);
         if (!t || t.id !== testId) return;
         update((s) => ({ ...s, test: t }));
-        if (t.status !== 'ended') return;
+        if (t.endedAt === null && t.status !== 'ended') return;
         done = true;
         es.close();
       });

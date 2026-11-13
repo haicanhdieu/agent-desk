@@ -101,7 +101,7 @@ export const streamHandlers: HttpHandler[] = [
         client.send({ event: 'event', id: String(e.seq), data: e });
       }
       client.send({ event: 'status', data: structuredClone(test) });
-      if (test.status === 'ended') {
+      if (test.endedAt !== null) {
         client.close();
         return;
       }
@@ -111,7 +111,7 @@ export const streamHandlers: HttpHandler[] = [
         safe(
           (m) => {
             client.send(m);
-            if (m.event === 'status' && m.data.status === 'ended') {
+            if (m.event === 'status' && m.data.endedAt !== null) {
               stop();
               client.close();
             }

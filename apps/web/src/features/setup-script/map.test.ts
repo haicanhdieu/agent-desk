@@ -118,9 +118,10 @@ describe('toDeskSetupProps', () => {
   });
 
   describe('last test', () => {
+    // As the backend stores a pass: status passed, no exit code; ended_at set once the workspace is gone.
     const finished = {
-      status: 'ended' as const,
-      exitCode: 0,
+      status: 'passed' as const,
+      exitCode: null,
       checkoutSha: SHA,
       plugins: { installed: ['a@s', 'b@s'], skipped: ['c@x'], failed: [] },
       createdAt: local(14, 22, 0),
@@ -133,7 +134,7 @@ describe('toDeskSetupProps', () => {
       expect(p.lastTest).toEqual({
         result: 'passed',
         matchesSaved: true,
-        summary: 'Today 14:22 by kim-hale, 2m 41s. Clone, 2 plugins installed, 1 blocked, setup exited 0.',
+        summary: 'Today 14:22 by kim-hale, 2m 41s. Clone, 2 plugins installed, 1 blocked, setup passed.',
       });
       expect(p.test).toBeUndefined();
     });
@@ -143,9 +144,89 @@ describe('toDeskSetupProps', () => {
     });
 
     it('a non-zero exit is a failed test', () => {
-      const p = props({ latest: test({ ...finished, exitCode: 1 }) });
+      const p = props({ latest: test({ ...finished, status: 'failed', exitCode: 1 }) });
       expect(p.lastTest?.result).toBe('failed');
       expect(p.lastTest?.summary).toContain('setup exited 1');
+    });
+
+    describe('the four shapes the backend stores', () => {
+      const marker = (kind: string, extra: Record<string, unknown> = {}) => [
+        ev(local(14, 24, 41), { kind, text: kind, ...extra }),
+      ];
+      const shapes = [
+        {
+          name: 'passed, no exit code',
+          latest: { ...finished, status: 'passed' as const, exitCode: null },
+          events: marker('setup_passed'),
+          result: 'passed',
+          view: 'passed',
+          tail: 'setup passed.',
+        },
+        {
+          name: 'no script (setup skipped), no exit code',
+          latest: { ...finished, status: 'passed' as const, exitCode: null },
+          events: marker('setup_skipped'),
+          result: 'passed',
+          view: 'passed',
+          tail: 'setup skipped.',
+        },
+        {
+          name: 'failed with an exit code',
+          latest: { ...finished, status: 'failed' as const, exitCode: 3 },
+          events: marker('setup_failed', { exitCode: 3 }),
+          result: 'failed',
+          view: 'failed',
+          tail: 'setup exited 3.',
+        },
+        {
+          name: 'timed out, no exit code',
+          latest: { ...finished, status: 'failed' as const, exitCode: null },
+          events: marker('setup_timed_out'),
+          result: 'failed',
+          view: 'failed',
+          tail: 'setup timed out.',
+        },
+      ] as const;
+
+      for (const shape of shapes) {
+        it(`${shape.name}: banner and the ended log agree`, () => {
+          const p = toDeskSetupProps(data({ latest: test(shape.latest), events: [...shape.events] }), now, {
+            showEnded: true,
+          });
+          expect(p.lastTest?.result).toBe(shape.result);
+          expect(p.lastTest?.summary.endsWith(shape.tail)).toBe(true);
+          expect(p.lastTest?.summary).not.toContain('exited 0');
+          expect(p.test).toMatchObject({ status: shape.view, view: 'log', endsIn: 'ended' });
+        });
+
+        it(`${shape.name}: with the test's own events missing, the status decides`, () => {
+          const p = props({ latest: test(shape.latest) });
+          expect(p.lastTest?.result).toBe(shape.result);
+        });
+      }
+
+      it('ended without a result (status ended): no banner; the log shows as failed', () => {
+        const latest = test({ status: 'ended', exitCode: null, finishedAt: null, endedAt: local(14, 25) });
+        const p = toDeskSetupProps(data({ latest }), now, { showEnded: true });
+        expect(p.lastTest).toBeUndefined();
+        expect(p.test).toMatchObject({ status: 'failed', view: 'log' });
+        expect(props({ latest }).test).toBeUndefined();
+      });
+
+      it('a test that passed and was later ended keeps status passed: ended, not an open workspace', () => {
+        const latest = test({ ...finished, status: 'passed' });
+        expect(props({ latest }).test).toBeUndefined();
+        expect(props({ latest }).lastTest?.result).toBe('passed');
+      });
+
+      it('the result marker wins over the status, then the status, then finishedAt without an exit code', () => {
+        const running = test({ status: 'running', exitCode: null, finishedAt: null });
+        const withMarker = props({ latest: running, events: marker('setup_passed') });
+        expect(withMarker.lastTest?.result).toBe('passed');
+        const finishedNoStatus = test({ status: 'running', exitCode: null, finishedAt: local(14, 24, 41) });
+        expect(props({ latest: finishedNoStatus }).lastTest?.result).toBe('passed');
+        expect(props({ latest: running }).lastTest).toBeUndefined();
+      });
     });
 
     it('a test ended before setup finished has no result', () => {
@@ -163,7 +244,7 @@ describe('toDeskSetupProps', () => {
     it('queued and running are "running"; passed and failed carry through; ended has no workspace', () => {
       expect(props({ latest: test({ status: 'queued' }) }).test?.status).toBe('running');
       expect(props({ latest: running }).test?.status).toBe('running');
-      expect(props({ latest: test({ status: 'passed', exitCode: 0 }) }).test?.status).toBe('passed');
+      expect(props({ latest: test({ status: 'passed', exitCode: null }) }).test?.status).toBe('passed');
       expect(props({ latest: test({ status: 'failed', exitCode: 1 }) }).test?.status).toBe('failed');
       expect(props({ latest: test({ status: 'ended', endedAt: local(14, 25) }) }).test).toBeUndefined();
     });
@@ -181,10 +262,10 @@ describe('toDeskSetupProps', () => {
     });
 
     it('ends in: minutes until endsAt (at least 0), after setup before it is known', () => {
-      expect(props({ latest: test({ status: 'passed', exitCode: 0, endsAt: local(14, 43, 10) }) }).test?.endsIn).toBe(
-        '14 min',
-      );
-      expect(props({ latest: test({ status: 'passed', exitCode: 0, endsAt: local(14, 20) }) }).test?.endsIn).toBe(
+      expect(
+        props({ latest: test({ status: 'passed', exitCode: null, endsAt: local(14, 43, 10) }) }).test?.endsIn,
+      ).toBe('14 min');
+      expect(props({ latest: test({ status: 'passed', exitCode: null, endsAt: local(14, 20) }) }).test?.endsIn).toBe(
         '0 min',
       );
       expect(props({ latest: running }).test?.endsIn).toBe('setup finishes');
@@ -328,9 +409,13 @@ describe('toDeskSetupProps', () => {
   });
 
   it('an ended test shown as a log: view "log", ended', () => {
-    const p = toDeskSetupProps(data({ latest: test({ status: 'ended', exitCode: 0, endedAt: local(14, 25) }) }), now, {
-      showEnded: true,
-    });
+    const p = toDeskSetupProps(
+      data({ latest: test({ status: 'passed', exitCode: null, endedAt: local(14, 25) }) }),
+      now,
+      {
+        showEnded: true,
+      },
+    );
     expect(p.test).toMatchObject({ status: 'passed', view: 'log', endsIn: 'ended' });
   });
 });

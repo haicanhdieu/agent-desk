@@ -91,7 +91,12 @@ function shortDuration(ms: number): string {
 }
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-const isOpen = (t: SetupTestDto) => t.status !== 'ended';
+/**
+ * Ended: the workspace is gone. The backend sets `endedAt` for every test; `status` becomes `ended` only when no
+ * result was recorded, so a test that passed and was later ended keeps status `passed` with `endedAt` set.
+ */
+const isEnded = (t: SetupTestDto) => t.endedAt !== null || t.status === 'ended';
+const isOpen = (t: SetupTestDto) => !isEnded(t);
 const settled = (t: SetupTestDto) => t.status === 'passed' || t.status === 'failed';
 
 /** The plugin ids each state holds: from the events in order, then what only the test row knows. */
@@ -194,7 +199,7 @@ function logLines(parsed: Parsed[]): TermLine[] {
 }
 
 function endsIn(test: SetupTestDto, now: Date): string {
-  if (test.status === 'ended') return 'ended';
+  if (isEnded(test)) return 'ended';
   if (test.endsAt === null) return 'setup finishes';
   return `${Math.max(0, Math.ceil((Date.parse(test.endsAt) - now.getTime()) / 60_000))} min`;
 }
@@ -202,8 +207,37 @@ function endsIn(test: SetupTestDto, now: Date): string {
 const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-function lastTestOf(test: SetupTestDto, now: Date): LastSetupTest | undefined {
-  if (test.exitCode === null) return undefined;
+type Result = 'passed' | 'failed';
+
+const RESULT_KINDS: Kind[] = ['setup_passed', 'setup_skipped', 'setup_failed', 'setup_timed_out'];
+const resultMarker = (parsed: Parsed[]) => parsed.find((x) => RESULT_KINDS.some((k) => k === x.p.kind));
+
+/**
+ * How setup went. The backend stores `exitCode` only for `setup_failed` (null for a pass, a skip and a timeout), so
+ * the result comes from the test's result marker, else its status (`passed`/`failed` are set only when a result was
+ * recorded), else a recorded finish. Undefined: no result (still running, or ended without one).
+ */
+function resultOf(test: SetupTestDto, parsed: Parsed[]): Result | undefined {
+  const marker = resultMarker(parsed);
+  if (marker) return marker.p.kind === 'setup_passed' || marker.p.kind === 'setup_skipped' ? 'passed' : 'failed';
+  if (test.status === 'passed' || test.status === 'failed') return test.status;
+  if (test.finishedAt !== null) return test.exitCode === null || test.exitCode === 0 ? 'passed' : 'failed';
+  return undefined;
+}
+
+/** The last part of the summary: how setup ended, never an exit code the test does not have. */
+function setupOutcome(test: SetupTestDto, parsed: Parsed[], result: Result): string {
+  const marker = resultMarker(parsed);
+  if (marker?.p.kind === 'setup_skipped') return 'setup skipped';
+  if (marker?.p.kind === 'setup_timed_out') return 'setup timed out';
+  const exitCode = marker?.p.exitCode ?? test.exitCode;
+  if (exitCode !== null && exitCode !== undefined) return `setup exited ${exitCode}`;
+  return result === 'passed' ? 'setup passed' : 'setup failed';
+}
+
+function lastTestOf(test: SetupTestDto, parsed: Parsed[], now: Date): LastSetupTest | undefined {
+  const result = resultOf(test, parsed);
+  if (result === undefined) return undefined;
   const created = new Date(test.createdAt);
   const when = sameDay(created, now) ? `Today ${clockTime(test.createdAt)}` : relativeTime(test.createdAt, now);
   const took = test.finishedAt === null ? '' : `, ${shortDuration(Date.parse(test.finishedAt) - created.getTime())}`;
@@ -213,10 +247,10 @@ function lastTestOf(test: SetupTestDto, now: Date): LastSetupTest | undefined {
     installed.length > 0 && `${plural(installed.length, 'plugin', 'plugins')} installed`,
     skipped.length > 0 && `${skipped.length} blocked`,
     failed.length > 0 && `${failed.length} failed`,
-    `setup exited ${test.exitCode}`,
+    setupOutcome(test, parsed, result),
   ].filter((x): x is string => x !== false);
   return {
-    result: test.exitCode === 0 ? 'passed' : 'failed',
+    result,
     matchesSaved: test.matchesCurrentScript,
     summary: `${when} by ${test.startedBy}${took}. ${parts.join(', ')}.`,
   };
@@ -224,12 +258,8 @@ function lastTestOf(test: SetupTestDto, now: Date): LastSetupTest | undefined {
 
 function testView(test: SetupTestDto, parsed: Parsed[], script: SetupScriptDto | null, now: Date, ended: boolean) {
   const states = pluginStates(test, parsed);
-  const status: SetupTestView['status'] =
-    test.status === 'passed' || (test.status === 'ended' && test.exitCode === 0)
-      ? 'passed'
-      : test.status === 'failed' || test.status === 'ended'
-        ? 'failed'
-        : 'running';
+  // A test that ended without a result shows as failed in its log.
+  const status: SetupTestView['status'] = resultOf(test, parsed) ?? (isEnded(test) ? 'failed' : 'running');
   const sha = test.checkoutSha ?? parsed.find((x) => x.p.kind === 'checkout')?.p.sha;
   const view: SetupTestView = {
     status,
@@ -241,7 +271,7 @@ function testView(test: SetupTestDto, parsed: Parsed[], script: SetupScriptDto |
     checkout: sha === undefined ? 'Cloning…' : sha.slice(0, SHA7),
     started: clockTime(test.createdAt),
     endsIn: endsIn(test, now),
-    ...(settled(test) && { attachedAs: test.startedBy }),
+    ...(settled(test) && !ended && { attachedAs: test.startedBy }),
   };
   return view;
 }
@@ -255,7 +285,7 @@ export function toDeskSetupProps(data: SetupData, now: Date, opts: { showEnded?:
   const { script, versions, plugins, latest, events } = data;
   const parsed = parseEvents(events);
   const open = latest !== null && (isOpen(latest) || opts.showEnded === true);
-  const lastTest = latest === null ? undefined : lastTestOf(latest, now);
+  const lastTest = latest === null ? undefined : lastTestOf(latest, parsed, now);
   return {
     script:
       script === null

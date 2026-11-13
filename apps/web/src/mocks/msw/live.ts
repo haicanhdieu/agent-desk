@@ -184,6 +184,18 @@ export function appendSetupTestEvent(testId: string, payload: Record<string, unk
   return event;
 }
 
+/**
+ * Ends the test as the backend does: `endedAt` is set; the status becomes `ended` only when no result was recorded,
+ * so a test that passed or failed keeps its status.
+ */
+export function endSetupTest(test: SetupTestDto): void {
+  if (test.endedAt !== null) return;
+  test.endedAt = now();
+  test.endsAt = null;
+  if (test.status === 'queued' || test.status === 'running') test.status = 'ended';
+  notifySetupTest(test);
+}
+
 /** Sends the test's current state to its open streams. */
 export function notifySetupTest(test: SetupTestDto): void {
   notify(setupTestListeners, test.id, { event: 'status', data: structuredClone(test) });
@@ -208,7 +220,7 @@ export function playSetupTest(testId: string): void {
       setTimeout(() => {
         const test = setupTestRow(testId);
         // A test ended meanwhile stays as it is.
-        if (test && test.status !== 'ended') run(test);
+        if (test && test.endedAt === null) run(test);
       }, at),
     );
   };
@@ -254,7 +266,8 @@ export function playSetupTest(testId: string): void {
     else marker('setup_passed', 'agentdesk: setup passed');
     const finished = now();
     t.status = fails ? 'failed' : 'passed';
-    t.exitCode = exitCode;
+    // As the backend stores it: only a failed script has an exit code; a pass has none.
+    t.exitCode = fails ? exitCode : null;
     t.finishedAt = finished;
     t.endsAt = new Date(Date.parse(finished) + SETUP_TEST_TTL_MS).toISOString();
     notifySetupTest(t);

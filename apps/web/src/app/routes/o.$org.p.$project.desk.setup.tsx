@@ -87,7 +87,8 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
       qc.setQueryData(setupQueries.latest(org, projectId).queryKey, (t) => (t?.id === streamed.id ? streamed : t));
   }, [qc, org, projectId, streamed]);
 
-  const settled = current !== null && (current.status === 'passed' || current.status === 'failed');
+  const ended = current !== null && (current.endedAt !== null || current.status === 'ended');
+  const settled = current !== null && !ended && (current.status === 'passed' || current.status === 'failed');
   const termRef = useRef<LiveTerminalHandle | null>(null);
   const [termReady, setTermReady] = useState(false);
   const attachTerm = useCallback((handle: LiveTerminalHandle | null) => {
@@ -99,7 +100,7 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
     const key = setupQueries.latest(org, projectId).queryKey;
     await qc.invalidateQueries({ queryKey: key });
     const t = qc.getQueryData(key);
-    return t != null && t.status !== 'ended';
+    return t != null && t.endedAt === null && t.status !== 'ended';
   }, [qc, org, projectId]);
   const terminalPath = apiPath('setupTests.terminal', { setupTestId: current?.id ?? '-' });
   const term = useTerminalSocket(terminalPath, settled && termReady, termRef, onSessionEnd);
@@ -159,7 +160,7 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
   const onEndTest = () => {
     if (current === null) return;
     // An ended test opened as a log has no workspace left: End closes the log.
-    if (current.status === 'ended') {
+    if (ended) {
       setLogOpen(false);
       return;
     }

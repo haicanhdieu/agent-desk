@@ -93,7 +93,7 @@ describe('scripted setup tests', () => {
     vi.advanceTimersByTime(60_000);
     expect(row(test.id)).toMatchObject({
       status: 'passed',
-      exitCode: 0,
+      exitCode: null,
       checkoutSha: expect.stringMatching(/^a91c3e2/),
     });
     expect(row(test.id).plugins).toEqual({
@@ -131,7 +131,7 @@ describe('scripted setup tests', () => {
     const ended = await create('x');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     playSetupTest(ended.id);
-    row(ended.id).status = 'ended';
+    Object.assign(row(ended.id), { status: 'ended', endedAt: new Date().toISOString() });
     vi.advanceTimersByTime(60_000);
     expect(row(ended.id).status).toBe('ended');
     expect(mockDb.state.setupTestEvents[ended.id]).toBeUndefined();

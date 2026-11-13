@@ -191,7 +191,7 @@ describe('desk setup route', () => {
       serverLogs(4, { kind: 'setup_passed', text: 'agentdesk: setup passed' });
       serverSays({
         status: 'passed',
-        exitCode: 0,
+        exitCode: null,
         finishedAt: new Date().toISOString(),
         endsAt: new Date(Date.now() + 15 * 60_000).toISOString(),
       });
@@ -214,7 +214,7 @@ describe('desk setup route', () => {
       const id = dbTest().id;
       serverSays({ status: 'running' });
       expect(FakeWebSocket.instances).toHaveLength(0);
-      serverSays({ status: 'passed', exitCode: 0, endsAt: new Date(Date.now() + 900_000).toISOString() });
+      serverSays({ status: 'passed', exitCode: null, endsAt: new Date(Date.now() + 900_000).toISOString() });
       await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(1));
       expect(FakeWebSocket.latest().url).toBe(`ws://${window.location.host}/api/setup-tests/${id}/terminal`);
     });
@@ -224,7 +224,7 @@ describe('desk setup route', () => {
       const id = dbTest().id;
       serverSays({
         status: 'passed',
-        exitCode: 0,
+        exitCode: null,
         checkoutSha: SHA,
         endsAt: new Date(Date.now() + 900_000).toISOString(),
       });
@@ -232,12 +232,13 @@ describe('desk setup route', () => {
       await waitFor(() => expect(mockDb.requests('POST', `/api/setup-tests/${id}/end`)).toBe(1));
       expect(await screen.findByText('Last test passed, matches the saved script')).toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'End test' })).not.toBeInTheDocument();
-      expect(dbTest().status).toBe('ended');
+      // A test that passed keeps its status when it ends: only ended_at is set.
+      expect(dbTest()).toMatchObject({ status: 'passed', exitCode: null, endedAt: expect.any(String) });
     });
 
     it('saving a changed script makes the last test stale', async () => {
       const { user } = await startTest();
-      serverSays({ status: 'passed', exitCode: 0, checkoutSha: SHA });
+      serverSays({ status: 'passed', exitCode: null, checkoutSha: SHA });
       await user.click(await screen.findByRole('button', { name: 'End test' }));
       await screen.findByText('Last test passed, matches the saved script');
       await user.type(editor(), '\necho more');
@@ -248,10 +249,12 @@ describe('desk setup route', () => {
     it('View log opens an ended test as a log', async () => {
       const { user } = await startTest();
       serverLogs(1, { kind: 'setup_output', text: 'line from the test\n', truncated: false });
-      serverSays({ status: 'passed', exitCode: 0, checkoutSha: SHA });
+      serverSays({ status: 'passed', exitCode: null, checkoutSha: SHA });
       await user.click(await screen.findByRole('button', { name: 'End test' }));
       await user.click(await screen.findByRole('button', { name: 'View log' }));
       expect(await screen.findByLabelText('Test workspace terminal')).toHaveTextContent('line from the test');
+      // The log of a passed test shows as passed (the backend stores no exit code for a pass).
+      expect(screen.getByText('Setup passed')).toBeInTheDocument();
     });
   });
 

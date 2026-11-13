@@ -76,11 +76,12 @@ class FakeTerminalSocket extends EventTarget {
   private acceptSetupTest(): void {
     const test = mockDb.state.setupTests.find((t) => t.id === this.runId);
     if (!test) return this.finish(CLOSE_NOT_FOUND, 'Setup test not found');
-    if (test.status !== 'passed' && test.status !== 'failed') return this.finish(CLOSE_RUN_GONE, 'Setup test ended');
+    const settled = test.status === 'passed' || test.status === 'failed';
+    if (!settled || test.endedAt !== null) return this.finish(CLOSE_RUN_GONE, 'Setup test ended');
     this.readyState = FakeTerminalSocket.OPEN;
     this.fire(new Event('open'));
     this.unsubscribe = subscribeSetupTest(this.runId, (m) => {
-      if (m.event === 'status' && m.data.status === 'ended') this.finish(CLOSE_RUN_GONE, 'Setup test ended');
+      if (m.event === 'status' && m.data.endedAt !== null) this.finish(CLOSE_RUN_GONE, 'Setup test ended');
     });
     this.output(
       `${ESC}[34magent-desk fake terminal${ESC}[0m${ESC}[90m  setup test  ·  dev:mock${ESC}[0m\r\n` +

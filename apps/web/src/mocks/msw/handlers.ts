@@ -30,7 +30,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
-import { appendRunEvent, notifySetupTest, rememberSetupTestScript, setRunStatus } from './live';
+import { appendRunEvent, endSetupTest, rememberSetupTestScript, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
 // handler requires a session (401 otherwise), scopes reads to the active org (another org's record is a 404, as
@@ -379,10 +379,7 @@ const impl: Impl = {
     const sha = await sha256Hex(body.script);
     // A project has one test workspace at a time: the previous one ends.
     for (const t of db().setupTests) {
-      if (t.projectId === projectId && t.status !== 'ended') {
-        Object.assign(t, { status: 'ended', endedAt: now(), endsAt: null });
-        notifySetupTest(t);
-      }
+      if (t.projectId === projectId) endSetupTest(t);
     }
     const test: SetupTestDto = {
       id: mockDb.nextId(),
@@ -411,10 +408,7 @@ const impl: Impl = {
     const found = findSetupTest(params.setupTestId);
     if (!found) throw notFound('Setup test');
     projectRow(found.projectId);
-    if (found.status !== 'ended') {
-      Object.assign(found, { status: 'ended', endedAt: now(), endsAt: null });
-      notifySetupTest(found);
-    }
+    endSetupTest(found);
     return null;
   },
   'rules.list': ({ params }) => db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
