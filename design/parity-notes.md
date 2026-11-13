@@ -35,17 +35,20 @@ All 24 pairs were reviewed (side by side; boards with under 1% pixel difference 
 
 jsdom axe run (`src/test/stories.smoke.test.tsx`, every `Primitives/*`, `Components/*`, `Screens/*` story, `color-contrast` disabled).
 Fixed:
+
 - `heading-order`: headings that skipped a level are now `h2.h3` (Overview group titles, Setup 1 aside, Setup ready summary, GuardsCard). `.h3` in `global.css` keeps the 14px look.
 - `empty-table-header`: action columns carry a visually hidden "Actions" label via the shared `.sr-only` utility (`global.css`), now also used by the Runs, Runs problems and Projects screens in place of three module-local copies.
 
 Contrast was checked with axe `color-contrast` against the built Storybook for every Primitives, Components and Screens story. The only findings were the editor line numbers (3.11:1, `--ln` on the editor background) in `Components/CodeEditor` (both stories) and `Screens/Desk` Skills, which is an expected exception below. Nothing else failed.
 
 Expected exceptions, not fixed:
+
 - Disabled controls (`.dis`, opacity .45): exempt under WCAG 1.4.3 (inactive components).
 - The "coming in MVP" disabled Transcript tab (opacity .6).
 - Editor line numbers (`--ln`): decorative, aria-hidden.
 
 Known minors, flagged for a human:
+
 - Find button `aria-label="Find in scrollback"` contains the visible text "Find" (WCAG 2.5.3 label-in-name satisfied).
 - RadioCard aside (Preview link) is a sibling of the label, not nested inside it.
 
@@ -63,7 +66,7 @@ Known minors, flagged for a human:
 
 ## Polling trigger mode (prototype states, now in Storybook)
 
-Added after the pass above, so `parity.mjs` now finds 26 boards. Copy must match exactly.
+Added after the pass above, so `parity.mjs` then found 26 boards (30 with workspace setup, below). Copy must match exactly.
 
 - Setup1 (now 1440x1000, webhook chosen): new group "How Agent Desk hears about new comments" with two radio cards side by side,
   "Webhook" / "Near-instant. GitHub must reach Agent Desk at a public URL." and "Polling" / "Works without a public URL. Runs start up
@@ -86,3 +89,21 @@ Added after the pass above, so `parity.mjs` now finds 26 boards. Copy must match
 - DeskAgent (now 1440x1320): "Trigger mode" row with a Webhook / Polling segmented control and "Last webhook" renamed "Last event"
   ("issue_comment, 2 min ago, accepted (webhook)").
 - NeedsYou: unchanged; its "webhooks" warning in the switcher is still the webhook-mode warning.
+
+## Workspace setup and plugins (prototype states, now in Storybook)
+
+Spec: `docs/superpowers/specs/2026-11-13-workspace-setup-and-plugins-design.md`. Four new boards, so `parity.mjs` finds 30.
+Not yet run through `parity.mjs`; side by side in a browser only.
+
+- DeskSetup (1440x900): Desk tab "Workspace setup" (nav item between Routing rules and Agent & settings, also added to the
+  other four Desk boards). Last-test banner, shell editor, change note + "Save version 5", side panel with Plugins
+  (will install / blocked: store not approved) and Version history (View, Restore).
+- DeskSetupTest (1440x900): draft under test, setup failed. Phase row (Clone, Plugins, Setup, Shell), terminal with the
+  `agentdesk:` markers and the idle shell, End test in the terminal bar. Story differences: the bar keeps Find and Copy all
+  (shared TerminalBar), and the side panel has no "Setup: Failed, exit 1" row (the phase row carries it).
+- SetupWorkspace (1440x1000): onboarding "Step 3 of 5, optional", "Prepare the workspace". Story difference: "Test again"
+  sits under the result banner, not in the footer. The other Setup boards still show four steps; they renumber when the
+  onboarding step ships (the live `setupSteps` keeps four until then, `withWorkspace` opts in).
+- RunSetupFailed (1440x900): Run 58, "Setup failed" pill and banner, setup log as scrollback, side panel "Setup: Version 5".
+- The sample repo is .NET, but the runner image has only Node 22, git and gh, so the sample script installs the .NET SDK
+  into `$HOME`. Open question for the spec: `export PATH=...` in the setup script does not reach the agent's shell.

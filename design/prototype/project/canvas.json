@@ -217,6 +217,38 @@
    "h": 1320,
    "title": "Desk \u2014 agent and settings, replacing credential",
    "expand": "fill"
+  },
+  "SetupWorkspace.dc.html": {
+   "x": 10640,
+   "y": 2560,
+   "w": 1440,
+   "h": 1000,
+   "title": "Setup 3 \u2014 prepare workspace, test passed",
+   "expand": "fill"
+  },
+  "RunSetupFailed.dc.html": {
+   "x": 6080,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 58 \u2014 setup failed",
+   "expand": "fill"
+  },
+  "DeskSetup.dc.html": {
+   "x": 6080,
+   "y": 7780,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup",
+   "expand": "fill"
+  },
+  "DeskSetupTest.dc.html": {
+   "x": 7600,
+   "y": 7780,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, test failed, terminal open",
+   "expand": "fill"
   }
  },
  "order": [
@@ -229,6 +261,7 @@
   "Setup1Polling.dc.html",
   "Setup1PollingOk.dc.html",
   "Setup2.dc.html",
+  "SetupWorkspace.dc.html",
   "Setup3.dc.html",
   "Setup4.dc.html",
   "SetupReady.dc.html",
@@ -240,12 +273,15 @@
   "RunReconnect.dc.html",
   "RunSucceeded.dc.html",
   "RunFailed.dc.html",
+  "RunSetupFailed.dc.html",
   "RunTimedOut.dc.html",
   "RunCancelled.dc.html",
   "DeskSkills.dc.html",
   "DeskSkillDelete.dc.html",
   "DeskRules.dc.html",
-  "DeskAgent.dc.html"
+  "DeskAgent.dc.html",
+  "DeskSetup.dc.html",
+  "DeskSetupTest.dc.html"
  ],
  "notes": {
   "t-intro": {
@@ -267,7 +303,7 @@
    "y": 2320,
    "text": "First-run setup",
    "kind": "title1",
-   "maxW": 10560
+   "maxW": 12080
   },
   "t-runs": {
    "x": 0,
@@ -288,14 +324,14 @@
    "y": 6260,
    "text": "Run detail, ended",
    "kind": "title1",
-   "maxW": 6000
+   "maxW": 7520
   },
   "t-desk": {
    "x": 0,
    "y": 7540,
    "text": "Desk",
    "kind": "title1",
-   "maxW": 6000
+   "maxW": 9040
   }
  },
  "designSystems": []
