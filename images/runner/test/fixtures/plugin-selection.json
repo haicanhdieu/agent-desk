@@ -61,5 +61,19 @@
     "marketplaces": { "store-a": "o/a", "store-b": "o/b" },
     "install": ["a@store-a", "z@store-a", "a@store-b", "b@store-b"],
     "skipped": ["b@nope", "q@nope"]
+  },
+  {
+    "name": "__proto__ and constructor are not approved stores",
+    "settings": "{\"enabledPlugins\": {\"x@__proto__\": true, \"x@constructor\": true, \"x@toString\": true}}",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": [],
+    "skipped": ["x@constructor"]
+  },
+  {
+    "name": "id parts are limited to 64 characters",
+    "settings": "{\"enabledPlugins\": {\"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@claude-plugins-official\": true, \"abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@claude-plugins-official\": true}}",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": ["abbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb@claude-plugins-official"],
+    "skipped": []
   }
 ]

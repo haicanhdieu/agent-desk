@@ -6,6 +6,7 @@ export * from './adapters/registry';
 export * from './adapters/project';
 export { FakeStore, type PostedComment, type StoredTicket } from './adapters/fake/store';
 export { fakeSignature, FAKE_SIGNATURE_HEADER } from './adapters/fake/board';
+export * from './plugins/select-plugins';
 export * from './temporal-names';
 export * from './secrets/secret-store';
 export { MemorySecretStore } from './secrets/memory-secret-store';
