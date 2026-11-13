@@ -27,6 +27,8 @@ import {
   RunListResponse,
   RunLogResponse,
   RunStatusEvent,
+  SetupScriptDto,
+  SetupTestDto,
   SkillDto,
   type RunStatus,
 } from '@agentdesk/contracts';
@@ -442,6 +444,82 @@ async function failureScenario(name: string): Promise<void> {
   }
 }
 
+/** Saves the project's setup script as its next version (`baseVersion` null for the first). */
+async function putScript(s: Setup, body: string, baseVersion: number | null): Promise<SetupScriptDto> {
+  return s.session.json(
+    'PUT',
+    `/api/projects/${s.project.id}/setup-script`,
+    SetupScriptDto,
+    { body, baseVersion },
+    [200, 201],
+  );
+}
+
+/** A saved script is tested in a throwaway workspace (passes with the fake pod), then a real run records its version. */
+async function setupScenario(name: string): Promise<void> {
+  let s: Setup | undefined;
+  let runId: string | undefined;
+  try {
+    s = await setup(name, 'webhook');
+    const script = await putScript(s, 'echo prepare workspace\n', null);
+    assert(script.version === 1, `setup script: expected version 1, got ${script.version}`);
+    logStep(name, 'setup script saved as version 1');
+
+    const created = await s.session.json(
+      'POST',
+      `/api/projects/${s.project.id}/setup-tests`,
+      SetupTestDto,
+      { script: script.body },
+      [200, 201],
+    );
+    const deadline = Date.now() + IDLE_TIMEOUT_MS;
+    let test = created;
+    while (test.status !== 'passed' && test.status !== 'failed') {
+      assert(Date.now() < deadline, `setup test ${created.id}: still ${test.status} after ${IDLE_TIMEOUT_MS} ms`);
+      await sleep(500);
+      const latest = await s.session.json(
+        'GET',
+        `/api/projects/${s.project.id}/setup-tests/latest`,
+        SetupTestDto.nullable(),
+      );
+      if (latest) test = latest;
+    }
+    assert(test.status === 'passed', `setup test: expected passed, got ${test.status}`);
+    assert(test.matchesCurrentScript, 'setup test: does not match the saved script');
+    logStep(name, 'setup test passed on the saved script');
+    await s.session.call('POST', `/api/setup-tests/${created.id}/end`, { expect: [200, 202, 204] });
+
+    const result = await comment(s, '/code-review please', 'webhook');
+    runId = result.runId;
+    assert(runId, `webhook: no runId (outcome ${result.outcome})`);
+    const idle = await waitForRun(s, runId, (st) => st === 'idle' || isFinal(st), IDLE_TIMEOUT_MS);
+    assert(idle.setupScriptVersion === 1, `run ${runId}: expected setup version 1, got ${idle.setupScriptVersion}`);
+    logStep(name, `run #${idle.number} used setup version 1`);
+  } finally {
+    await cleanup(name, s, runId);
+  }
+}
+
+/** A setup script that fails in the fake pod stops the run as failed at the setup stage; the agent never starts. */
+async function setupFailureScenario(name: string): Promise<void> {
+  let s: Setup | undefined;
+  let runId: string | undefined;
+  try {
+    s = await setup(name, 'webhook');
+    await putScript(s, 'echo prepare --fake-setup-fail\n', null);
+    const result = await comment(s, '/code-review please', 'webhook');
+    runId = result.runId;
+    assert(runId, `webhook: no runId (outcome ${result.outcome})`);
+    const run = await waitForRun(s, runId, isFinal, IDLE_TIMEOUT_MS + FINAL_TIMEOUT_MS);
+    assert(run.status === 'failed', `run ${runId}: expected failed, got ${run.status}`);
+    assert(run.failureStage === 'setup', `run ${runId}: expected failure stage setup, got ${run.failureStage}`);
+    assert(run.setupScriptVersion === 1, `run ${runId}: expected setup version 1, got ${run.setupScriptVersion}`);
+    logStep(name, `run #${run.number} failed at setup (${run.failureReason ?? ''})`);
+  } finally {
+    await cleanup(name, s, runId);
+  }
+}
+
 async function main(): Promise<number> {
   console.log(`e2e-local: ${BASE} (origin ${ORIGIN}, temporal ${TEMPORAL_ADDRESS}/${TEMPORAL_NAMESPACE})`);
   const ready = await fetch(`${BASE}/readyz`).catch(() => null);
@@ -454,6 +532,8 @@ async function main(): Promise<number> {
     ['webhook', webhookScenario],
     ['polling', pollingScenario],
     ['failure', failureScenario],
+    ['setup', setupScenario],
+    ['setup-failure', setupFailureScenario],
   ];
   const results: [string, boolean][] = [];
   for (const [name, fn] of scenarios) {
