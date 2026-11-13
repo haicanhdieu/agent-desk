@@ -15,7 +15,7 @@ type CallInput<R extends RouteDef> = Obj<
 // Body schemas currently have no defaults (checked), so z.output is exact for bodies.
 // Input is optional when every key is optional (parameterless routes: `api.connections.list()`).
 type Call<R extends RouteDef> =
-  {} extends CallInput<R>
+  Partial<CallInput<R>> extends CallInput<R>
     ? (input?: CallInput<R>) => Promise<Out<R['response']>>
     : (input: CallInput<R>) => Promise<Out<R['response']>>;
 
