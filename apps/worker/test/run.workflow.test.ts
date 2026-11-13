@@ -458,6 +458,56 @@ describe('RunWorkflow', () => {
     await gateForgot(s);
   });
 
+  it('failed in setup → setRunStatus carries failureStage setup; finish details carry it with no tail', async () => {
+    const s = newRun({}, { firstLine: false });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    s.logs.resolve({ exitCode: 78, failureStage: 'setup', setupExitCode: 1, scrollbackTail: 'should be dropped' });
+    const out = await h.result();
+    expect(out).toMatchObject({ status: 'failed', failureReason: 'setup failed (exit 1)' });
+    expect(s.statuses.at(-1)).toMatchObject({
+      status: 'failed',
+      failureReason: 'setup failed (exit 1)',
+      failureStage: 'setup',
+    });
+    const details = expectFinishOnce(s);
+    expect(details).toMatchObject({ status: 'failed', failureReason: 'setup failed (exit 1)', failureStage: 'setup' });
+    expect(details?.scrollbackTail).toBeUndefined();
+    await gateForgot(s);
+  });
+
+  it('setup timed out → failed with reason "setup timed out" and stage setup', async () => {
+    const s = newRun({}, { firstLine: false });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    s.logs.resolve({ exitCode: 78, failureStage: 'setup' });
+    await h.result();
+    expect(s.statuses.at(-1)).toMatchObject({
+      status: 'failed',
+      failureReason: 'setup timed out',
+      failureStage: 'setup',
+    });
+    await gateForgot(s);
+  });
+
+  it('infra failure carries no failure stage; an agent non-zero exit carries agent', async () => {
+    const infra = newRun({}, { firstLine: false });
+    const h1 = await start(infra);
+    await infra.logsStarted.promise;
+    infra.logs.reject(ApplicationFailure.nonRetryable('no node', POD_PENDING_TIMEOUT));
+    await h1.result();
+    expect(infra.statuses.at(-1)?.failureStage).toBeUndefined();
+    expect(expectFinishOnce(infra)?.failureStage).toBeUndefined();
+
+    const agent = newRun();
+    const h2 = await start(agent);
+    await agent.logsStarted.promise;
+    agent.logs.resolve({ exitCode: 3 });
+    await h2.result();
+    expect(agent.statuses.at(-1)).toMatchObject({ status: 'failed', failureStage: 'agent' });
+    expect(expectFinishOnce(agent)).toMatchObject({ failureStage: 'agent' });
+  });
+
   it('followPodLogs fails non-retryably (PodPendingTimeout) → failed with the reason, Job deleted', async () => {
     const s = newRun({}, { firstLine: false });
     const h = await start(s);

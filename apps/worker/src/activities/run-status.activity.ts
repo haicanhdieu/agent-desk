@@ -12,6 +12,8 @@ export interface SetRunStatusInput {
   status: RunStatus;
   exitCode?: number;
   failureReason?: string;
+  /** Written with the final status: `setup` (workspace setup failed), `agent` (the agent exited non-zero); else null. */
+  failureStage?: 'setup' | 'agent';
   /** ISO timestamp of the transition. */
   at: string;
 }
@@ -71,6 +73,7 @@ export async function setRunStatusTx(
       idleSince: status === 'idle' ? at : null,
       ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
       ...(input.failureReason !== undefined ? { failureReason: input.failureReason } : {}),
+      ...(input.failureStage !== undefined && isFinal(status) ? { failureStage: input.failureStage } : {}),
     })
     .where(eq(runs.id, runId));
   const ev = await appendRunEvent(tx, orgId, {

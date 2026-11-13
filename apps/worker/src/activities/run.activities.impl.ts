@@ -11,6 +11,7 @@ import {
   buildRunJob,
   credentialSecretName,
   parseLogLine,
+  SetupLogTracker,
   redact,
   runJobName,
   runLabels,
@@ -23,6 +24,7 @@ import {
   type KubeGateway,
   type RunPod,
   type SecretStore,
+  type SetupLogEffect,
 } from '@agentdesk/core';
 import {
   agents,
@@ -103,6 +105,9 @@ const EXEC_CLOSE_WAIT_MS = 30_000;
 const SCROLLBACK_MAX_CHARS = 1_000_000;
 const SCROLLBACK_TAIL_CHARS = 4000;
 const TEXT_TAIL_LINES = 50;
+/** Setup/plugin output is stored as one lifecycle event per this many lines, up to this many characters in all. */
+const SETUP_CHUNK_LINES = 50;
+const SETUP_OUTPUT_MAX_CHARS = 262_144;
 const ERROR_MESSAGE_MAX = 500;
 const COMMENT_TAIL_CHARS = 2000;
 const COMMENT_REASON_CHARS = 500;
@@ -116,6 +121,10 @@ const CREDENTIAL_ENV: Record<string, string> = {
 };
 const CLONE_URL_KEY = 'REPO_CLONE_URL';
 
+const SetupMarkerPayload = z.object({
+  kind: z.string(),
+  exitCode: z.number().int().optional(),
+});
 const HeartbeatDetails = z.object({ lastLine: z.number().int().min(0) });
 const StoredCredential = z.object({ type: z.string(), value: z.string().min(1) });
 
@@ -496,7 +505,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
     const status = fd?.status ?? d.status;
     const took = duration(d);
-    const lines = [`Agent Desk run #${d.number} finished: **${status}**${took ? ` after ${took}` : ''}.`, ''];
+    const lines =
+      fd?.failureStage === 'setup'
+        ? [`Agent Desk run #${d.number} failed during workspace setup; the agent did not start.`, '']
+        : [`Agent Desk run #${d.number} finished: **${status}**${took ? ` after ${took}` : ''}.`, ''];
     if (fd?.exitCode !== undefined) lines.push(`Exit code: ${fd.exitCode}`);
     if (fd?.failureReason) {
       lines.push(`Reason: ${oneLine(redact(fd.failureReason, secrets)).slice(0, COMMENT_REASON_CHARS)}`);
@@ -585,6 +597,33 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
   }
 
+  /**
+   * The setup failure recorded in the stored run events: a `setup_failed` or `setup_timed_out` lifecycle event and no
+   * `session_started`. Reading the database (not this attempt's memory) keeps the answer stable across activity retries.
+   */
+  async function findSetupFailure(ctx: RunContext): Promise<{ exitCode?: number } | null> {
+    const rows = await withOrg(db, ctx.orgId, (tx) =>
+      tx
+        .select({ payload: runEvents.payload })
+        .from(runEvents)
+        .where(
+          and(
+            eq(runEvents.runId, ctx.runId),
+            eq(runEvents.type, 'lifecycle'),
+            sql`${runEvents.payload} ->> 'kind' in ('setup_failed', 'setup_timed_out', 'session_started')`,
+          ),
+        )
+        .orderBy(runEvents.seq),
+    );
+    const kinds = rows.map((r) => SetupMarkerPayload.safeParse(r.payload));
+    if (kinds.some((k) => k.success && k.data.kind === 'session_started')) return null;
+    const failed = kinds.find(
+      (k) => k.success && (k.data.kind === 'setup_failed' || k.data.kind === 'setup_timed_out'),
+    );
+    if (!failed?.success) return null;
+    return failed.data.exitCode !== undefined ? { exitCode: failed.data.exitCode } : {};
+  }
+
   async function followPodLogs(ctx: RunContext): Promise<FollowPodLogsResult> {
     const actx = Context.current();
     const resumed = HeartbeatDetails.safeParse(actx.info.heartbeatDetails);
@@ -614,6 +653,21 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         // never moves past an unfinished block and a new pass re-reads it from its begin line.
         let index = 0;
         let block: ScrollbackBlock | null = null;
+        // Setup/plugin output is batched into one event per chunk. Lines in the buffer are not durable until stored.
+        const setupLog = new SetupLogTracker({ chunkLines: SETUP_CHUNK_LINES, maxChars: SETUP_OUTPUT_MAX_CHARS });
+        let lastOutputIndex = 0;
+        let bufferStart = 0;
+        /** Stores effects: a marker event is keyed by its own line, an output chunk by its last line. */
+        const storeEffects = async (effects: SetupLogEffect[], lineIndex: number, chunkKey: number): Promise<void> => {
+          for (const effect of effects) {
+            if (effect.kind === 'output') {
+              const payload = { ...effect.payload, text: redact(effect.payload.text, secrets) };
+              await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'lifecycle', chunkKey, payload));
+            } else {
+              await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'lifecycle', lineIndex, effect.payload));
+            }
+          }
+        };
         const flushBlock = async (lastIndex: number): Promise<void> => {
           if (!block) return;
           const text = redact(block.text(), secrets);
@@ -638,6 +692,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             continue;
           }
           const parsed = parseLogLine(line);
+          // Setup/plugin markers become events and output is batched into chunk events; a chunk is keyed by its last
+          // line (an output line never carries another event), so replays dedup it like any other line.
+          const isOutput = parsed.kind === 'setup_output' || parsed.kind === 'plugin_output';
+          const prevOutputIndex = lastOutputIndex;
+          const effects = setupLog.push(parsed);
+          if (isOutput) lastOutputIndex = index;
+          if (isOutput && setupLog.pendingLines === 1) bufferStart = index; // this line opened a new buffer
+          await storeEffects(effects, index, isOutput && setupLog.pendingLines === 0 ? index : prevOutputIndex);
           if (parsed.kind === 'session_started') {
             // Only the runner's own marker starts the session; setup/plugin output is prefixed and parses as output.
             // `onlyFrom` keeps a replayed line harmless.
@@ -676,24 +738,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           } else if (parsed.kind === 'scrollback_begin') {
             block = new ScrollbackBlock(index, SCROLLBACK_MAX_CHARS);
             continue;
-          } else if (parsed.kind === 'setup_output' || parsed.kind === 'plugin_output') {
-            // Output lines are batched into events later; they never change the run's status.
-          } else if (parsed.kind !== 'text' && parsed.kind !== 'scrollback_end') {
-            // Setup and plugin markers (checkout, plugins begin/end, plugin installed, ...): stored, no status change.
-            await withOrg(db, ctx.orgId, (tx) =>
-              storeLineEvent(tx, ctx, 'lifecycle', index, {
-                kind: parsed.kind,
-                text: parsed.text,
-                ...(parsed.pluginId !== undefined ? { pluginId: parsed.pluginId } : {}),
-                ...(parsed.sha !== undefined ? { sha: parsed.sha } : {}),
-                ...(parsed.exitCode !== undefined ? { exitCode: parsed.exitCode } : {}),
-              }),
-            );
-          } else {
+          } else if (parsed.kind === 'text') {
             textTail.push(redact(line, secrets));
             if (textTail.length > TEXT_TAIL_LINES) textTail.shift();
           }
-          durable = Math.max(durable, index);
+          // Output still buffered (not yet stored) is not durable: a retry must re-read it.
+          durable = Math.max(durable, setupLog.pendingLines === 0 ? index : bufferStart - 1);
           beat();
         }
         await throwIfCancelled();
@@ -703,9 +753,18 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         // next pass re-reads it from its begin line (`durable` never passed it).
         if (exitCode === 'running') continue;
         if (block) await flushBlock(index);
+        await storeEffects(setupLog.flush(), index, lastOutputIndex);
+        durable = Math.max(durable, index);
+        beat();
+        const setupFailure = await findSetupFailure(ctx);
         const tail =
           scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
-        return { exitCode, ...(tail !== undefined ? { scrollbackTail: tail } : {}) };
+        return {
+          exitCode,
+          ...(tail !== undefined ? { scrollbackTail: tail } : {}),
+          ...(setupFailure ? { failureStage: 'setup' as const } : {}),
+          ...(setupFailure?.exitCode !== undefined ? { setupExitCode: setupFailure.exitCode } : {}),
+        };
       }
     } catch (err) {
       if (actx.cancellationSignal.aborted && !(err instanceof ApplicationFailure)) {

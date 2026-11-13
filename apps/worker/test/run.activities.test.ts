@@ -5,7 +5,7 @@ import pg from 'pg';
 import { eq } from 'drizzle-orm';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakeKubeGateway,
   FakeStore,
@@ -556,6 +556,8 @@ describe('followPodLogs', () => {
       'plugins_begin',
       'plugins_end',
       'setup_skipped',
+      'setup_output',
+      'plugin_output',
       'plugin_installed',
     ]);
     release();
@@ -593,6 +595,7 @@ describe('followPodLogs', () => {
     expect(lifecycle.map((e) => e.payload.kind)).toEqual([
       'checkout',
       'plugins_begin',
+      'plugin_output',
       'plugin_installed',
       'plugin_failed',
       'plugins_end',
@@ -601,14 +604,167 @@ describe('followPodLogs', () => {
       'turn_finished',
     ]);
     expect(lifecycle[0]?.payload.sha).toMatch(/^[0-9a-f]{40}$/);
-    expect(lifecycle[2]?.payload).toMatchObject({
+    expect(lifecycle[2]?.payload).toMatchObject({ kind: 'plugin_output', text: 'noisy output', truncated: false });
+    expect(lifecycle[3]?.payload).toMatchObject({
       kind: 'plugin_installed',
       pluginId: 'demo@acme',
       text: 'agentdesk: plugin installed demo@acme',
     });
-    expect(lifecycle[3]?.payload.pluginId).toBe('bad@acme');
-    expect(JSON.stringify(lifecycle)).not.toContain('noisy output');
+    expect(lifecycle[4]?.payload.pluginId).toBe('bad@acme');
     await acts.deleteJob(ctx);
+  });
+
+  describe('setup phase', () => {
+    const SETUP_FAIL_VERSION = 90;
+    async function seedFailingSetupRun(): Promise<string> {
+      await withOrg(db, ORG, (tx) =>
+        tx.insert(setupScriptVersions).values({
+          orgId: ORG,
+          projectId,
+          version: SETUP_FAIL_VERSION,
+          body: 'npm ci # --fake-setup-fail',
+          createdBy: 't',
+        }),
+      );
+      return seedRun('setup fail');
+    }
+    afterEach(async () => {
+      await asOwner((c) => c.query('delete from setup_script_versions where project_id = $1', [projectId]));
+    });
+    const lifecycleOf = async (runId: string) => (await load(runId)).events.filter((e) => e.type === 'lifecycle');
+    /** A pod that has exited with `exitCode` after printing `lines`. */
+    const exited = (lines: string[], exitCode: number, pause?: Promise<void>): KubeGateway =>
+      wrapKube({
+        readSecret: async () => null,
+        getRunPod: async (name) => ({ name, phase: 'Failed', pendingSince: null, reason: null, exitCode }),
+        streamLogs: async function* () {
+          yield* lines;
+          if (pause) await pause;
+        },
+      });
+
+    it('setup failure returns failureStage setup; status stays starting; output stored redacted', async () => {
+      const runId = await seedFailingSetupRun();
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx);
+      await asOwner((c) => c.query('delete from setup_script_versions where project_id = $1', [projectId]));
+      const injected = wrapKube({
+        async *streamLogs(n, s) {
+          for await (const line of kube.streamLogs(n, s)) {
+            if (line === 'agentdesk: setup failed exit=1') {
+              yield `setup| npm ERR! token ${CRED} rejected`;
+              yield 'setup| second line';
+            }
+            yield line;
+          }
+        },
+      });
+      const r = await follow(ctx, deps({ kube: injected })).promise;
+      expect(r).toMatchObject({ exitCode: 78, failureStage: 'setup', setupExitCode: 1 });
+      const { run, events } = await load(runId);
+      expect(run?.status).toBe('starting');
+      expect(await statuses(runId)).toEqual([]);
+      const lifecycle = events.filter((e) => e.type === 'lifecycle');
+      expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+        'checkout',
+        'plugins_begin',
+        'plugins_end',
+        'setup_begin',
+        'setup_output',
+        'setup_failed',
+      ]);
+      const out = lifecycle[4]?.payload;
+      expect(out?.text).toBe('npm ERR! token *** rejected\nsecond line');
+      expect(out?.truncated).toBe(false);
+      expect(JSON.stringify(events)).not.toContain(CRED);
+      expect(lifecycle[5]?.payload).toMatchObject({ kind: 'setup_failed', exitCode: 1 });
+      await acts.deleteJob(ctx);
+    });
+
+    it('a pod that exits during setup (setup_failed marker then exit) is a setup failure, buffered output flushed', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(
+        ctx,
+        deps({
+          kube: exited(['agentdesk: setup begin', 'setup| boom', 'agentdesk: setup failed exit=2', 'setup| tail'], 78),
+        }),
+      ).promise;
+      expect(r).toMatchObject({ exitCode: 78, failureStage: 'setup', setupExitCode: 2 });
+      const lifecycle = await lifecycleOf(runId);
+      expect(lifecycle.map((e) => e.payload.kind)).toEqual([
+        'setup_begin',
+        'setup_output',
+        'setup_failed',
+        'setup_output',
+      ]);
+      expect(lifecycle[2]?.payload.exitCode).toBe(2);
+      expect(lifecycle[3]?.payload.text).toBe('tail');
+    });
+
+    it('setup timed out then exit is a setup failure without an exit code', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: setup begin', 'agentdesk: setup timed out'], 78) }))
+        .promise;
+      expect(r.failureStage).toBe('setup');
+      expect(r.setupExitCode).toBeUndefined();
+    });
+
+    it('no failureStage when the session started, or when the run only fails later', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(
+        ctx,
+        deps({ kube: exited(['agentdesk: setup failed exit=1', 'agentdesk: session started'], 3) }),
+      ).promise;
+      expect(r.exitCode).toBe(3);
+      expect(r.failureStage).toBeUndefined();
+    });
+
+    it('chunks output at 50 lines, and a replay from line 0 adds nothing', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const lines = [
+        'agentdesk: setup begin',
+        ...Array.from({ length: 120 }, (_, i) => `setup| l${i}`),
+        'agentdesk: setup passed',
+        'agentdesk: session started',
+      ];
+      const pod = exited(lines, 0);
+      await follow(ctx, deps({ kube: pod })).promise;
+      const chunks = async () => (await lifecycleOf(runId)).filter((e) => e.payload.kind === 'setup_output');
+      expect((await chunks()).map((e) => String(e.payload.text).split('\n').length)).toEqual([50, 50, 20]);
+      const total = (await lifecycleOf(runId)).length;
+      await follow(ctx, deps({ kube: pod }), { lastLine: 0 }).promise;
+      expect((await lifecycleOf(runId)).length).toBe(total);
+      expect(await statuses(runId)).toEqual(['running']);
+    });
+
+    it('durable (the heartbeat) never passes output lines that are buffered but not stored', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const lines = ['agentdesk: setup begin', ...Array.from({ length: 60 }, (_, i) => `setup| l${i}`)];
+      let release: () => void = () => undefined;
+      const hold = new Promise<void>((r) => (release = r));
+      const f = follow(ctx, deps({ kube: exited(lines, 78, hold) }));
+      await until(async () => (await lifecycleOf(runId)).some((e) => e.payload.kind === 'setup_output'));
+      await sleep(500); // several heartbeats
+      // Lines 1..51 are stored (setup begin + the first 50 output lines); 10 lines are still buffered.
+      const max = Math.max(...f.beats.map(lastLineOf));
+      expect(max).toBe(51);
+      f.env.cancel();
+      release();
+      await expect(f.promise).rejects.toBeInstanceOf(CancelledFailure);
+      // The retry resumes from the heartbeat and stores the remainder once.
+      const retry = await follow(ctx, deps({ kube: exited(lines, 78) }), { lastLine: max }).promise;
+      expect(retry.exitCode).toBe(78);
+      const texts = (await lifecycleOf(runId))
+        .filter((e) => e.payload.kind === 'setup_output')
+        .map((e) => String(e.payload.text).split('\n').length);
+      expect(texts).toEqual([50, 10]);
+    });
   });
 
   it('does not write running when the run is no longer starting', async () => {
@@ -744,6 +900,27 @@ describe('postComment', () => {
     const { run, events } = await load(runId);
     expect(Object.keys(run?.outbox ?? {}).sort()).toEqual(['finish', 'start']);
     expect(events.filter((e) => e.type === 'comment').map((e) => e.payload.kind)).toEqual(['start', 'finish']);
+  });
+});
+
+describe('postComment setup failure', () => {
+  it('says setup failed and the agent did not start, with the reason and the run link', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'finish', {
+      status: 'failed',
+      failureReason: 'setup failed (exit 1)',
+      failureStage: 'setup',
+    });
+    const body = (await store.listPosted()).slice(before)[0]?.body ?? '';
+    const number = (await load(runId)).run?.number;
+    const lines = body.split('\n');
+    expect(lines[0]).toBe(`Agent Desk run #${number} failed during workspace setup; the agent did not start.`);
+    expect(body).toContain('Reason: setup failed (exit 1)');
+    expect(body).toContain(`Run: http://localhost:5173/o/acme/p/${projectId}/runs/${number}`);
+    expect(body).not.toContain('finished');
   });
 });
 

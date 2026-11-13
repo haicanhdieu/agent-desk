@@ -42,6 +42,8 @@ export interface FinishDetails {
   status: RunStatus;
   exitCode?: number;
   failureReason?: string;
+  /** Where a failed run failed; `setup` changes the wording of the finish comment. */
+  failureStage?: 'setup' | 'agent';
   /** Redacted tail of the final scrollback; only on failure. */
   scrollbackTail?: string;
 }
@@ -51,6 +53,13 @@ export interface FollowPodLogsResult {
   exitCode: number;
   /** Redacted tail of the final scrollback (bounded by the activity), when the runner printed one. */
   scrollbackTail?: string;
+  /**
+   * `setup` when the stored run events hold a `setup_failed` or `setup_timed_out` event and no `session_started` (the
+   * runner stopped the run before the agent started). Decided from the database, so it survives activity retries.
+   */
+  failureStage?: 'setup';
+  /** The setup script's exit code from the stored `setup_failed` event; absent when setup timed out. */
+  setupExitCode?: number;
 }
 
 /** Non-retryable `ApplicationFailure` type thrown by `followPodLogs` when the pod stays Pending for over 2 min. */
