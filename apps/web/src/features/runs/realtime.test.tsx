@@ -358,7 +358,7 @@ describe('project events', () => {
     const all = queryClient.getQueryData(runsQueries.list(org, projectId, 'all').queryKey);
     expect(all?.items.find((r) => r.number === 61)?.status).toBe('idle');
     expect(queryClient.getQueryData(['org', org, 'projects', projectId])).toMatchObject({
-      counts: { needsYou: 2, running: 0 },
+      counts: { needsYou: 2, running: 2 },
     });
   });
 

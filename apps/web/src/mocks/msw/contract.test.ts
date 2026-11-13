@@ -84,7 +84,7 @@ describe('MSW handlers cover the contract', () => {
       'billing-jobs',
     ]);
     await expect(api.projects.get({ params: { projectId: P } })).resolves.toMatchObject({
-      counts: { needsYou: 1, running: 1, queued: 1 },
+      counts: { needsYou: 1, running: 2, queued: 1 },
     });
     await expect(api.projects.connection({ params: { projectId: P } })).resolves.toMatchObject({ mode: 'webhook' });
     await expect(api.projects.ignored({ params: { projectId: P } })).resolves.toHaveLength(5);
@@ -120,7 +120,7 @@ describe('MSW handlers cover the contract', () => {
     expect(page2.items.map((r) => r.number)).toEqual([57, 56, 55, 54]);
     const byTicket = await api.runs.list({
       params: { projectId: P },
-      query: { ticket: 'harbor-labs/invoicer-api#133' },
+      query: { ticket: '133' },
     });
     expect(byTicket.items.map((r) => r.number)).toEqual([57, 56]);
   });

@@ -15,7 +15,7 @@ const seconds = (duration: string | undefined) => {
 
 const repoPath = 'harbor-labs/invoicer-api';
 const ticketDto = (t: Ticket, repo = repoPath): TicketDto => ({
-  ref: `${repo}#${t.number}`,
+  ref: String(t.number),
   kind: t.kind,
   number: t.number,
   title: t.title,

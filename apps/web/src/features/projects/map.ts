@@ -69,7 +69,8 @@ export function toProject(dto: ProjectDto, connection: ConnectionStatus, org: st
     repo: dto.repoPath,
     connection,
     needsYou: dto.counts.needsYou,
-    running: dto.counts.running,
+    // counts.running includes idle runs (needsYou); the projects list shows them once, under needs you.
+    running: Math.max(0, dto.counts.running - dto.counts.needsYou),
     queued: dto.counts.queued,
     lastRun: dto.lastRunAt ? relativeTime(dto.lastRunAt, now) : '—',
   };

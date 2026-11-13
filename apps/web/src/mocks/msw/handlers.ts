@@ -9,7 +9,7 @@ import {
   type RunStatus,
   type SkillDto,
 } from '@agentdesk/contracts';
-import type { HttpHandler } from 'msw';
+import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
 import {
@@ -63,7 +63,8 @@ function toProjectDto(row: ProjectRow): ProjectDto {
     ...row,
     counts: {
       needsYou: runs.filter((r) => r.status === 'idle').length,
-      running: runs.filter((r) => r.status === 'starting' || r.status === 'running').length,
+      // As the API counts them: live jobs, idle included (needsYou is a subset).
+      running: runs.filter((r) => isActive(r.status)).length,
       queued: runs.filter((r) => r.status === 'queued').length,
     },
     lastRunAt,
@@ -151,7 +152,12 @@ const nextSha = () => {
   return `c0ffee${String(commits).padStart(34, '0')}`;
 };
 
-type Impl = { [K in RouteKey]: (ctx: RouteCtx<K>) => ResponseOf<K> };
+/** Routes that are not JSON: the two SSE streams and the terminal WebSocket (see streamGuard below). */
+const STREAM_KEYS = ['runs.events', 'projects.events', 'runs.terminal'] as const;
+type StreamKey = (typeof STREAM_KEYS)[number];
+type JsonKey = Exclude<RouteKey, StreamKey>;
+
+type Impl = { [K in JsonKey]: (ctx: RouteCtx<K>) => ResponseOf<K> };
 
 const impl: Impl = {
   'connections.list': () => {
@@ -372,7 +378,9 @@ const impl: Impl = {
   },
 };
 
+// As the API answers (Nest: 201 for a POST without @HttpCode).
 const STATUS: Partial<Record<RouteKey, number>> = {
+  'connections.install': 201,
   'projects.create': 201,
   'rules.create': 201,
   'runs.cancel': 202,
@@ -402,7 +410,7 @@ function parsePart(schema: RouteDef['body'], value: unknown, where: string): unk
   });
 }
 
-function contractHandler<K extends RouteKey>(key: K, run: Impl[K]): HttpHandler {
+function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
   const def = routeDef(key);
   return routeHandler(key, async (request, rawParams) => {
     try {
@@ -424,15 +432,48 @@ function contractHandler<K extends RouteKey>(key: K, run: Impl[K]): HttpHandler 
   });
 }
 
-const isRouteKey = (k: string): k is RouteKey => k in flatRoutes;
-const build = <K extends RouteKey>(key: K) => contractHandler(key, impl[key]);
+const isJsonKey = (k: string): k is JsonKey => k in flatRoutes && !STREAM_KEYS.some((s) => s === k);
+const build = <K extends JsonKey>(key: K) => contractHandler(key, impl[key]);
 
-/** The handler for each contracts route key. */
-export const routeHandlers: Record<RouteKey, HttpHandler> = Object.fromEntries(
-  Object.keys(impl)
-    .filter(isRouteKey)
-    .map((key) => [key, build(key)]),
-) as Record<RouteKey, HttpHandler>; // `impl` is typed `Impl`, so its keys are exactly RouteKey.
+/** The project a stream route's path parameters point at, when the signed-in user's active org can see it (RLS). */
+function streamProblem(key: StreamKey, params: Record<string, unknown>): Response | undefined {
+  if (!mockDb.currentUser()) return problemResponse({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
+  const orgId = mockDb.auth.activeOrganizationId;
+  const projectId =
+    key === 'projects.events' ? params['projectId'] : db().runs.find((r) => r.id === params['runId'])?.projectId;
+  const ok = db().projects.some((p) => p.id === projectId && p.orgId === orgId);
+  return ok ? undefined : problemResponse({ status: 404, title: 'Not found', type: 'not-found' });
+}
+
+/**
+ * A stream route's auth and scope check (401, or 404 for a record the active org cannot see). When the request may go
+ * on it answers nothing, so the next handler takes it: in the browser the SSE handlers (stream-handlers.ts, listed
+ * after these guards) stream; the terminal route only exists as a WebSocket, played by fakeTerminal.ts. Vitest uses
+ * FakeEventSource and FakeWebSocket instead, so no request gets past a guard there.
+ */
+function streamGuard(key: StreamKey): HttpHandler {
+  const def = routeDef(key);
+  return http.get(def.path, ({ request, params }) => {
+    mockDb.logRequest(def.method, new URL(request.url).pathname);
+    return streamProblem(key, params);
+  });
+}
+
+export const streamGuards: Record<StreamKey, HttpHandler> = {
+  'runs.events': streamGuard('runs.events'),
+  'projects.events': streamGuard('projects.events'),
+  'runs.terminal': streamGuard('runs.terminal'),
+};
+
+/** The handler for each contracts route key (the stream routes get their guard). */
+export const routeHandlers: Record<RouteKey, HttpHandler> = {
+  ...(Object.fromEntries(
+    Object.keys(impl)
+      .filter(isJsonKey)
+      .map((key) => [key, build(key)]),
+  ) as Record<JsonKey, HttpHandler>), // `impl` is typed `Impl`, so its keys are exactly JsonKey.
+  ...streamGuards,
+};
 
 export { problemResponse };
 

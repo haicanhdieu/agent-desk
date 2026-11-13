@@ -30,25 +30,19 @@ const RunsSearch = z.object({
 });
 type RunsSearch = z.infer<typeof RunsSearch>;
 
-/** The contract's ticket filter is the full ref, `owner/repo#12`. */
-const ticketRef = (repoPath: string, ticket: string | undefined) =>
-  ticket === undefined ? undefined : `${repoPath}#${ticket}`;
-
 const listFilterOf = (filter: RunsFilter): RunListFilter => (filter === 'ignored' ? 'all' : filter);
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/')({
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
   loaderDeps: ({ search }) => ({ filter: search.filter ?? 'all', ticket: search.ticket }),
   loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter, ticket } }) => {
-    const [dto] = await Promise.all([
+    await Promise.all([
       queryClient.ensureQueryData(projectsQueries.detail(org, project)),
       // The unfiltered list feeds the ended/all counts, runs per ticket, the "today" line and the needs-you banner.
       queryClient.ensureQueryData(runsQueries.list(org, project, 'all')),
       queryClient.ensureQueryData(runsQueries.ignored(org, project)),
+      queryClient.ensureQueryData(runsQueries.list(org, project, listFilterOf(filter), ticket)),
     ]);
-    await queryClient.ensureQueryData(
-      runsQueries.list(org, project, listFilterOf(filter), ticketRef(dto.repoPath, ticket)),
-    );
   },
   component: RunsRoute,
 });
@@ -62,9 +56,7 @@ function RunsRoute() {
   const page = useProjectPage(org, projectId, now);
   const { paths, dto } = page;
   const { data: all } = useSuspenseQuery(runsQueries.list(org, projectId, 'all'));
-  const { data: listed } = useSuspenseQuery(
-    runsQueries.list(org, projectId, listFilterOf(filter), ticketRef(dto.repoPath, search.ticket)),
-  );
+  const { data: listed } = useSuspenseQuery(runsQueries.list(org, projectId, listFilterOf(filter), search.ticket));
   const { data: ignoredDtos } = useSuspenseQuery(runsQueries.ignored(org, projectId));
 
   const counts: Record<RunsFilter, number> = { ...chipCounts(dto.counts, all.items), ignored: ignoredDtos.length };
@@ -79,7 +71,8 @@ function RunsRoute() {
     links: page.links,
     needsYou: dto.counts.needsYou,
     // Idle runs hold a slot too.
-    slots: { used: dto.counts.running + dto.counts.needsYou, total: dto.maxConcurrentRuns },
+    // counts.running is every live job (starting, running, idle): each holds a slot.
+    slots: { used: dto.counts.running, total: dto.maxConcurrentRuns },
     today: todaySummary(all.items, now),
     counts,
     filterHref,

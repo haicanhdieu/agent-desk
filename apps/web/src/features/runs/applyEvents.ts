@@ -49,8 +49,8 @@ function patched(run: CachedRun, e: StatusChange): CachedRun {
       failureReason: e.failureReason,
     }),
     startedAt: run.startedAt ?? (status === 'queued' ? null : at),
-    idleSince: status === 'idle' ? run.idleSince ?? at : null,
-    finishedAt: isFinal(status) ? run.finishedAt ?? at : null,
+    idleSince: status === 'idle' ? (run.idleSince ?? at) : null,
+    finishedAt: isFinal(status) ? (run.finishedAt ?? at) : null,
   };
 }
 
@@ -69,12 +69,19 @@ const matches = (filter: RunListFilter, status: RunStatus): boolean => {
   }
 };
 
-/** The project count a status falls in (`counts` of ProjectDto). */
-const bucketOf = (status: RunStatus): keyof ProjectDto['counts'] | undefined => {
-  if (status === 'idle') return 'needsYou';
-  if (status === 'starting' || status === 'running') return 'running';
-  if (status === 'queued') return 'queued';
-  return undefined;
+type CountKey = keyof ProjectDto['counts'];
+const COUNT_KEYS: readonly CountKey[] = ['needsYou', 'running', 'queued'];
+
+/** Whether a run with `status` is in a project count, as the API counts: `running` is every live job, idle included. */
+const countedIn = (key: CountKey, status: RunStatus): boolean => {
+  switch (key) {
+    case 'needsYou':
+      return status === 'idle';
+    case 'running':
+      return status === 'starting' || status === 'running' || status === 'idle';
+    case 'queued':
+      return status === 'queued';
+  }
 };
 
 /** The run as cached, from its detail or any runs list row. */
@@ -145,14 +152,14 @@ export function applyRunStatus(qc: QueryClient, org: string, projectId: string, 
   if (before === undefined) {
     void qc.invalidateQueries({ queryKey: project, exact: true });
   } else if (changed) {
-    const from = bucketOf(before.status);
-    const to = bucketOf(e.status);
-    if (from !== to) {
+    const moves = COUNT_KEYS.map(
+      (k) => [k, Number(countedIn(k, e.status)) - Number(countedIn(k, before.status))] as const,
+    );
+    if (moves.some(([, d]) => d !== 0)) {
       qc.setQueryData(project, (p) => {
         if (!p) return p;
         const counts = { ...p.counts };
-        if (from) counts[from] = Math.max(0, counts[from] - 1);
-        if (to) counts[to] += 1;
+        for (const [k, d] of moves) counts[k] = Math.max(0, counts[k] + d);
         return { ...p, counts };
       });
     }

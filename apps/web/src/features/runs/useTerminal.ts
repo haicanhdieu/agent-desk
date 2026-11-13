@@ -18,7 +18,8 @@ export const STABLE_OPEN_MS = 5_000;
 /** Container resizes closer together than this send one resize frame. */
 export const RESIZE_DEBOUNCE_MS = 100;
 
-/** Close codes the server uses (spec §5.3). */
+/** Close codes the server uses (spec §5.3). 1000: the exec session ended (the pod's tmux exited, e.g. the run finished). */
+const CLOSE_NORMAL = 1000;
 const CLOSE_UNAUTHORIZED = 4401;
 const CLOSE_FORBIDDEN = 4403;
 const CLOSE_RUN_GONE = 4409;
@@ -52,7 +53,8 @@ const resizeFrame = ({ cols, rows }: TerminalSize) => JSON.stringify({ type: 're
  * Binary frames both ways: output is written to `term`, keystrokes are sent as UTF-8. Text frames from the server
  * are ignored (never acted on). Close codes: 4401 → the sign-out path; 4403 → `forbidden`, no retry; 4409 → the run
  * is no longer active: `connecting` while its detail refetches (the route then shows the final scrollback), no
- * retry. Any other close retries after TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open
+ * retry; 1000 (the session ended) → the detail refetches too, and only a run still active then retries. Any other
+ * close retries after TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open
  * STABLE_OPEN_MS resets the back-off. Unmounting, or `enabled` turning false, closes the socket and cancels a pending
  * retry. Terminal data is never logged.
  */
@@ -84,10 +86,29 @@ export function useTerminal(
     };
     const detailKey = runsQueries.detail(org, projectId, number).queryKey;
 
+    const retryLater = () => {
+      const delay = TERMINAL_BACKOFF_MS[retries];
+      if (delay === undefined) {
+        set('gave_up');
+        return;
+      }
+      retries += 1;
+      set('retrying');
+      retry = setTimeout(connect, delay);
+    };
+
     const onClose = (code: number) => {
       socket.current = null;
       clearTimeout(stable);
       switch (code) {
+        case CLOSE_NORMAL:
+          set('connecting');
+          // Usually the run ended (the route then shows its final scrollback); a run still active reattaches.
+          void qc.invalidateQueries({ queryKey: detailKey }).then(() => {
+            const status = qc.getQueryData(detailKey)?.status;
+            if (!disposed && (status === undefined || !isFinal(status))) retryLater();
+          });
+          return;
         case CLOSE_UNAUTHORIZED:
           void signOutAndRedirect();
           return;
@@ -103,16 +124,8 @@ export function useTerminal(
             if (status === undefined || !isFinal(status)) set('gave_up');
           });
           return;
-        default: {
-          const delay = TERMINAL_BACKOFF_MS[retries];
-          if (delay === undefined) {
-            set('gave_up');
-            return;
-          }
-          retries += 1;
-          set('retrying');
-          retry = setTimeout(connect, delay);
-        }
+        default:
+          retryLater();
       }
     };
 

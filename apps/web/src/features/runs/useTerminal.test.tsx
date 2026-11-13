@@ -268,6 +268,28 @@ describe('useTerminal', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  it('1000 (the server ended the session) after the run ended → the run is refetched, no retry', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { qc, state } = setup();
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    act(() => latest().open());
+    // The run finished on the server; the refetch the close triggers sees it final.
+    qc.setQueryData(runsQueries.detail(org, projectId, 62).queryKey, { ...fixture(62), status: 'succeeded' });
+    await act(async () => latest().serverClose(1000));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: runsQueries.detail(org, projectId, 62).queryKey });
+    expect(state()).toBe('connecting');
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('1000 while the refetched run is still active → retries with the back-off', async () => {
+    const { state } = setup();
+    act(() => latest().open());
+    act(() => latest().serverClose(1000));
+    await waitFor(() => expect(state()).toBe('retrying'));
+    await waitFor(() => expect(FakeWebSocket.instances).toHaveLength(2), { timeout: TERMINAL_BACKOFF_MS[0] + 1_000 });
+  });
+
   it('closes the socket on unmount and never reconnects after', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const { hook } = setup();

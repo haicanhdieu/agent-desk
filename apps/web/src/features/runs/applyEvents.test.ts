@@ -27,7 +27,8 @@ const project = (): ProjectDto => {
   if (!p) throw new Error('project missing');
   return {
     ...structuredClone(p),
-    counts: { needsYou: 1, running: 1, queued: 1 },
+    // As the API counts: running includes the idle run 62.
+    counts: { needsYou: 1, running: 2, queued: 1 },
   };
 };
 const listOf = (...runs: CachedRun[]): RunList => ({
@@ -100,7 +101,7 @@ describe('applyRunStatus', () => {
     });
     expect(qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts).toEqual({
       needsYou: 2,
-      running: 0,
+      running: 2,
       queued: 1,
     });
     expect(qc.getQueryState(projectsQueries.detail(org, projectId).queryKey)?.isInvalidated).toBe(false);
@@ -125,13 +126,13 @@ describe('applyRunStatus', () => {
     // Run stream: idle (seq 20), then succeeded (seq 22). The project stream lags with the same changes.
     applyRunStatus(qc, org, projectId, status(61, 'idle', 20));
     applyRunStatus(qc, org, projectId, status(61, 'succeeded', 22));
-    expect(counts()).toEqual({ needsYou: 1, running: 0, queued: 1 });
+    expect(counts()).toEqual({ needsYou: 1, running: 1, queued: 1 });
     applyRunStatus(qc, org, projectId, { runId: ids.run(1, 61), number: 61, status: 'idle', seq: 20 });
     applyRunStatus(qc, org, projectId, { runId: ids.run(1, 61), number: 61, status: 'succeeded', seq: 22 });
     const detail = qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey);
     expect(detail?.status).toBe('succeeded');
     expect(detail?.finishedAt).not.toBeNull();
-    expect(counts()).toEqual({ needsYou: 1, running: 0, queued: 1 });
+    expect(counts()).toEqual({ needsYou: 1, running: 1, queued: 1 });
     expect(
       qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey)?.items.find((r) => r.number === 61)?.status,
     ).toBe('succeeded');
@@ -145,7 +146,7 @@ describe('applyRunStatus', () => {
 
   it('an uncached run also invalidates the ticket lists its status fits', () => {
     const qc = seeded();
-    const ticketList = runsQueries.list(org, projectId, 'all', 'harbor-labs/invoicer-api#12').queryKey;
+    const ticketList = runsQueries.list(org, projectId, 'all', '12').queryKey;
     qc.setQueryData(ticketList, listOf());
     applyRunStatus(qc, org, projectId, { runId: ids.run(1, 99), number: 99, status: 'queued', seq: 2 });
     expect(qc.getQueryState(ticketList)?.isInvalidated).toBe(true);

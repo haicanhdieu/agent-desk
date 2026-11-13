@@ -21,7 +21,7 @@ export const projectFixtures: ProjectDto[] = [
     triggerMode: 'webhook',
     pollIntervalSeconds: 300,
     createdAt: '2026-09-02T09:20:00.000Z',
-    counts: { needsYou: 1, running: 1, queued: 1 },
+    counts: { needsYou: 1, running: 2, queued: 1 },
     lastRunAt: '2026-11-12T14:12:00.000Z',
   },
   {
@@ -135,7 +135,7 @@ const ignored = (
 ): IgnoredEventDto => ({
   id: ids.ignored(n),
   receivedAt,
-  ticketRef: `harbor-labs/invoicer-api#${ticket.number}`,
+  ticketRef: String(ticket.number),
   ticketKind: ticket.kind,
   command,
   author,

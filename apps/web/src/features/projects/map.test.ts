@@ -103,7 +103,7 @@ describe('toProject', () => {
   };
   const conn = { mode: 'webhook', tone: 'ok', text: 'Connected' } as const;
 
-  it('maps names, counts and a relative last run', () => {
+  it('maps names, counts (running without the idle runs, as needs you holds them) and a relative last run', () => {
     expect(toProject(dto, conn, 'alice', now)).toEqual({
       id: 'p1',
       org: 'alice',
@@ -111,7 +111,7 @@ describe('toProject', () => {
       repo: 'harbor-labs/invoicer-api',
       connection: conn,
       needsYou: 1,
-      running: 2,
+      running: 1,
       queued: 3,
       lastRun: '2 min ago',
     });

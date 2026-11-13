@@ -118,6 +118,8 @@ function RunDetailRoute() {
       reconnectBody={live ? GAVE_UP_BODY : undefined}
       needsYou={page.dto.counts.needsYou}
       projectName={page.dto.name}
+      user={page.user}
+      maxRunsPerTicket={page.dto.maxRunsPerTicket}
       links={{ projects: paths.projects, runs: paths.runs, skills: paths.skills, rules: paths.rules }}
       pendingNote={dto.statusNote}
       panelCollapsed={panelCollapsed}

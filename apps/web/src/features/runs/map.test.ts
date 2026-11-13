@@ -86,7 +86,7 @@ describe('groupByTicket', () => {
     toRunSummary(
       run({
         number,
-        ticket: { ...base.ticket, number: ticketNumber, ref: `harbor-labs/invoicer-api#${ticketNumber}` },
+        ticket: { ...base.ticket, number: ticketNumber, ref: String(ticketNumber) },
       }),
       now,
     );
@@ -101,7 +101,7 @@ describe('groupByTicket', () => {
   });
 
   it('takes runsUsed from the unfiltered per-ticket counts, so a filter does not shrink it', () => {
-    const t12 = { ...base.ticket, number: 12, ref: 'harbor-labs/invoicer-api#12' };
+    const t12 = { ...base.ticket, number: 12, ref: '12' };
     const unfiltered = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => run({ number: n, ticket: t12, status: 'succeeded' }));
     const queued = run({ number: 9, ticket: t12, status: 'queued', startedAt: null, finishedAt: null });
     const used = runsPerTicket([...unfiltered, queued]);
@@ -120,7 +120,7 @@ describe('groupByTicket', () => {
 describe('chipCounts', () => {
   it('takes needs-you, active (incl. idle) and queued from project counts; ended and all from the list', () => {
     const list = runFixtures.filter((r) => r.projectId === base.projectId);
-    expect(chipCounts({ needsYou: 1, running: 1, queued: 1 }, list)).toEqual({
+    expect(chipCounts({ needsYou: 1, running: 2, queued: 1 }, list)).toEqual({
       needs_you: 1,
       active: 2,
       queued: 1,
@@ -134,7 +134,7 @@ describe('toIgnored', () => {
   const dto = (outcome: string, over: Partial<IgnoredEventDto> = {}): IgnoredEventDto => ({
     id: 'f0000000-0000-4000-8000-000000000001',
     receivedAt: local(14, 16),
-    ticketRef: 'harbor-labs/invoicer-api#160',
+    ticketRef: '160',
     ticketKind: 'issue',
     command: 'code-build',
     author: 'octo-visitor',
@@ -167,9 +167,21 @@ describe('toIgnored', () => {
       detail: 'octo-visitor is not a collaborator on the repo.',
       href: `${repo}/issues/160`,
     });
-    expect(toIgnored(dto('ignored_max_runs', { ticketKind: 'pr', ticketRef: 'x/y#133' }), repo).href).toBe(
+    expect(toIgnored(dto('ignored_max_runs', { ticketKind: 'pr', ticketRef: '133' }), repo).href).toBe(
       `${repo}/pull/133`,
     );
+  });
+
+  it('shows a stored first line that is not a command name as is (the API keeps it for ignored_no_command)', () => {
+    expect(toIgnored(dto('ignored_no_command', { command: '/Code-Review now' }), repo).command).toBe(
+      '/Code-Review now',
+    );
+    expect(toIgnored(dto('ignored_no_command', { command: 'please review' }), repo).command).toBe('please review');
+    expect(toIgnored(dto('ignored_no_rule', { command: 'docs-fix' }), repo).command).toBe('/docs-fix');
+  });
+
+  it('reads a legacy owner/repo#n ticket ref too', () => {
+    expect(toIgnored(dto('ignored_no_rule', { ticketRef: 'x/y#77' }), repo).ticket.number).toBe(77);
   });
 
   it('tolerates missing fields and unknown outcomes', () => {

@@ -14,7 +14,8 @@ import { mockDb } from './db';
 
 export type RunStreamMessage =
   | { event: 'event'; id: string; data: RunEventDto }
-  | { event: 'status'; id: string; data: RunStatusEvent };
+  // No id on status frames, as the API: only events advance the browser's Last-Event-ID.
+  | { event: 'status'; data: RunStatusEvent };
 
 type Listener<T> = (message: T) => void;
 
@@ -79,13 +80,10 @@ export function setRunStatus(run: RunDto, status: RunStatus): void {
   if (status !== 'queued') run.startedAt ??= at;
   run.idleSince = status === 'idle' ? at : null;
   if (isFinal(status)) run.finishedAt ??= at;
-  const payload = isFinal(status) ? { status, exitCode: run.exitCode, failureReason: run.failureReason } : { status };
+  // The worker's `status` run event payload.
+  const payload = { status, exitCode: run.exitCode, failureReason: run.failureReason };
   const { seq } = appendRunEvent(run, 'status', payload);
-  notify(runListeners, run.id, {
-    event: 'status',
-    id: String(seq),
-    data: statusMessage(run, seq),
-  });
+  notify(runListeners, run.id, { event: 'status', data: statusMessage(run, seq) });
   notify(projectListeners, run.projectId, {
     runId: run.id,
     number: run.number,

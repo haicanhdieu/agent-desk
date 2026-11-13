@@ -1,6 +1,17 @@
 import { AppLink, Icon, InlineStatus, StatusIcon, statusTokens } from '@/ds';
 import {
-  ActorRef, ChainTimeline, EventLog, KeyValue, Meter, ModelTag, Note, RuleText, Section, SidePanel, SideRail, Stat,
+  ActorRef,
+  ChainTimeline,
+  EventLog,
+  KeyValue,
+  Meter,
+  ModelTag,
+  Note,
+  RuleText,
+  Section,
+  SidePanel,
+  SideRail,
+  Stat,
   TicketSummary,
 } from '@/components';
 import type { RunDetailData } from '@/mocks';
@@ -11,9 +22,11 @@ export interface RunSidePanelProps {
   onExpand?(): void;
   /** In-app hrefs of the Desk pages; default to the prototype's. */
   links?: { skills?: string; rules?: string };
+  /** The project's run limit per ticket; defaults to the board's 10. */
+  maxRunsPerTicket?: number;
 }
 
-export function RunSidePanel({ data, collapsed, onExpand, links }: RunSidePanelProps) {
+export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicket = 10 }: RunSidePanelProps) {
   const { run } = data;
   const t = run.ticket;
   if (collapsed) {
@@ -34,15 +47,35 @@ export function RunSidePanel({ data, collapsed, onExpand, links }: RunSidePanelP
   const active = run.status === 'starting' || run.status === 'queued' || run.status === 'running';
   const pr = data.pullRequest;
   const prSection = pr ? (
-    <Section title="Pull request"><TicketSummary ticket={pr.ticket} diffstat={pr.diffstat} /></Section>
+    <Section title="Pull request">
+      <TicketSummary ticket={pr.ticket} diffstat={pr.diffstat} />
+    </Section>
   ) : null;
   const prNone = (
-    <Section title="Pull request"><Note tone="faint" size={13}>None yet. A link appears here when the agent opens one.</Note></Section>
+    <Section title="Pull request">
+      <Note tone="faint" size={13}>
+        None yet. A link appears here when the agent opens one.
+      </Note>
+    </Section>
   );
 
   const kv = [
-    { term: 'Skill', value: <AppLink className="mono" href={links?.skills ?? '/desk/skills'}>{run.skill}</AppLink> },
-    { term: 'Rule', value: <AppLink href={links?.rules ?? '/desk/rules'}><RuleText rule={data.rule} command={run.command} /></AppLink> },
+    {
+      term: 'Skill',
+      value: (
+        <AppLink className="mono" href={links?.skills ?? '/desk/skills'}>
+          {run.skill}
+        </AppLink>
+      ),
+    },
+    {
+      term: 'Rule',
+      value: (
+        <AppLink href={links?.rules ?? '/desk/rules'}>
+          <RuleText rule={data.rule} command={run.command} />
+        </AppLink>
+      ),
+    },
     {
       term: 'Triggered by',
       value: <ActorRef actor={run.triggeredBy} note={data.triggerNote} noteHref={t.href} />,
@@ -54,24 +87,47 @@ export function RunSidePanel({ data, collapsed, onExpand, links }: RunSidePanelP
 
   return (
     <SidePanel>
-      <Section title="Ticket"><TicketSummary ticket={t} /></Section>
+      <Section title="Ticket">
+        <TicketSummary ticket={t} />
+      </Section>
       {data.idle && (
         <Section title="Waiting for you">
           <Stat
-            left={<>Idle since <b>{data.idle.since}</b></>}
-            right={<InlineStatus tone="idle" icon={<Icon name="pause" size={13} />}>Timer paused</InlineStatus>}
+            left={
+              <>
+                Idle since <b>{data.idle.since}</b>
+              </>
+            }
+            right={
+              <InlineStatus tone="idle" icon={<Icon name="pause" size={13} />}>
+                Timer paused
+              </InlineStatus>
+            }
           />
-          <Note>With nobody attached it ends as succeeded after 10 minutes. Close this tab now and it ends at <b>{data.idle.endsAt}</b>.</Note>
+          <Note>
+            With nobody attached it ends as succeeded after 10 minutes. Close this tab now and it ends at{' '}
+            <b>{data.idle.endsAt}</b>.
+          </Note>
           <Note>{data.idle.slotNote}</Note>
         </Section>
       )}
       {!active && prSection}
-      <Section title="Run"><KeyValue items={kv} /></Section>
+      <Section title="Run">
+        <KeyValue items={kv} />
+      </Section>
       {data.time && (
         <Section title="Time">
           <Stat
-            left={<>Elapsed <b>{data.time.elapsed}</b></>}
-            right={<span className="faint">limit <span className="num">{data.time.limit}</span></span>}
+            left={
+              <>
+                Elapsed <b>{data.time.elapsed}</b>
+              </>
+            }
+            right={
+              <span className="faint">
+                limit <span className="num">{data.time.limit}</span>
+              </span>
+            }
           />
           <Meter
             value={data.time.percent}
@@ -81,12 +137,14 @@ export function RunSidePanel({ data, collapsed, onExpand, links }: RunSidePanelP
           />
         </Section>
       )}
-      <Section title="Chain on this ticket" aside={<span className="faint num">max 10 runs</span>}>
+      <Section title="Chain on this ticket" aside={<span className="faint num">max {maxRunsPerTicket} runs</span>}>
         <ChainTimeline steps={data.chain} />
       </Section>
       {active && prNone}
       {run.status === 'running' && data.lifecycle && (
-        <Section title="Lifecycle"><EventLog events={data.lifecycle} /></Section>
+        <Section title="Lifecycle">
+          <EventLog events={data.lifecycle} />
+        </Section>
       )}
     </SidePanel>
   );

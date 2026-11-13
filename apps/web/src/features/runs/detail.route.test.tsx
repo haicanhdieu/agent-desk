@@ -61,6 +61,16 @@ describe('run detail route', () => {
     ).toHaveAttribute('href', `${base}/runs`);
   });
 
+  it("shows the signed-in user in the top bar and the project's run limit per ticket", async () => {
+    const project = mockDb.state.projects.find((p) => p.id === projectId);
+    if (!project) throw new Error('project missing');
+    project.maxRunsPerTicket = 7;
+    await renderRoute(`${base}/runs/62`);
+    expect(await screen.findByText('max 7 runs')).toBeInTheDocument();
+    expect(within(banner()).getByText('AL')).toBeInTheDocument();
+    expect(within(banner()).queryByText('KH')).not.toBeInTheDocument();
+  });
+
   it('Finish posts and shows "Finishing…" on the run until the server answers', async () => {
     const release = holdAction('runs.finish');
     const { user } = await renderRoute(`${base}/runs/62`);

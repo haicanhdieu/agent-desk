@@ -2,7 +2,8 @@ import type { ReactNode } from 'react';
 import { Button, CommandChip, CountBadge, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
 import { AppShell, PopoverCard, TopBar, TopBarSeparator, type TermLine } from '@/components';
 import type { RunDetailData } from '@/mocks';
-import { user } from '@/mocks';
+import { user as boardUser } from '@/mocks';
+import type { Actor } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { RunSidePanel } from './RunSidePanel';
 import { RunTerminalArea } from './RunTerminalArea';
@@ -33,6 +34,10 @@ export interface RunDetailProps {
   reconnectOverlay?: boolean;
   /** That overlay's text; defaults to the board's. */
   reconnectBody?: ReactNode;
+  /** The signed-in user in the top bar; defaults to the board's. */
+  user?: Actor;
+  /** The project's run limit per ticket (the chain's "max N runs"); defaults to the board's 10. */
+  maxRunsPerTicket?: number;
 }
 
 export interface RunDetailLinks {
@@ -46,9 +51,27 @@ const ENDED = ['succeeded', 'failed', 'timed_out', 'cancelled'];
 const FINISH_HINT = 'Finish is available when the agent is waiting for you';
 
 export function RunDetail({
-  data, lines, needsYou, panelCollapsed, cancelConfirmOpen, height = 900, projectName = 'invoicer-api',
-  onCancel, onCancelClose, onCancelConfirm, onFinish, onReconnect, onTogglePanel, terminal, pendingNote, cancelBody,
-  links, reconnectOverlay, reconnectBody,
+  data,
+  lines,
+  needsYou,
+  panelCollapsed,
+  cancelConfirmOpen,
+  height = 900,
+  projectName = 'invoicer-api',
+  onCancel,
+  onCancelClose,
+  onCancelConfirm,
+  onFinish,
+  onReconnect,
+  onTogglePanel,
+  terminal,
+  pendingNote,
+  cancelBody,
+  links,
+  reconnectOverlay,
+  reconnectBody,
+  user = boardUser,
+  maxRunsPerTicket,
 }: RunDetailProps) {
   const { run } = data;
   const t = run.ticket;
@@ -59,18 +82,27 @@ export function RunDetail({
   const actions = (
     <>
       {ended ? (
-        <Button icon="external" href={t.href}>View ticket</Button>
+        <Button icon="external" href={t.href}>
+          View ticket
+        </Button>
       ) : (
         <>
           {/* Disabled like the board unless idle; the title explains why. */}
           <Button icon="check" disabled={!idle || busy} title={idle ? undefined : FINISH_HINT} onClick={onFinish}>
             {idle ? 'Finish run' : 'Finish'}
           </Button>
-          <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>Cancel run</Button>
+          <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
+            Cancel run
+          </Button>
         </>
       )}
       <TopBarSeparator />
-      <IconButton icon="panel" aria-label="Collapse context panel (])" title="Collapse panel  ]" onClick={onTogglePanel} />
+      <IconButton
+        icon="panel"
+        aria-label="Collapse context panel (])"
+        title="Collapse panel  ]"
+        onClick={onTogglePanel}
+      />
       <IconButton icon="fullscreen" aria-label="Full screen terminal (F)" title="Full screen  F" />
     </>
   );
@@ -85,15 +117,28 @@ export function RunDetail({
           links={{ projects: links?.projects }}
           breadcrumb={[
             { label: projectName, href: links?.projects ?? '/projects' },
-            { label: <>Runs <CountBadge count={needsYou} title="Needs you" /></>, href: links?.runs ?? '/runs' },
+            {
+              label: (
+                <>
+                  Runs <CountBadge count={needsYou} title="Needs you" />
+                </>
+              ),
+              href: links?.runs ?? '/runs',
+            },
             { label: `Run ${run.id}` },
           ]}
           actions={actions}
         >
           <StatusBadge status={run.status} variant="pill" />
-          <span><CommandChip>{run.command}</CommandChip> on <TicketRef kind={t.kind} number={t.number} /></span>
-          <span className="num muted">{ended ? run.duration ?? data.elapsed : data.elapsed}</span>
-          {busy && <span className="muted" role="status">{pendingNote}</span>}
+          <span>
+            <CommandChip>{run.command}</CommandChip> on <TicketRef kind={t.kind} number={t.number} />
+          </span>
+          <span className="num muted">{ended ? (run.duration ?? data.elapsed) : data.elapsed}</span>
+          {busy && (
+            <span className="muted" role="status">
+              {pendingNote}
+            </span>
+          )}
         </TopBar>
       }
     >
@@ -113,6 +158,7 @@ export function RunDetail({
           collapsed={panelCollapsed}
           onExpand={onTogglePanel}
           links={{ skills: links?.skills, rules: links?.rules }}
+          maxRunsPerTicket={maxRunsPerTicket}
         />
       </main>
       <Popover
@@ -125,11 +171,23 @@ export function RunDetail({
       >
         <PopoverCard
           title={`Cancel run ${run.id}?`}
-          body={cancelBody ?? <>The pod is stopped now. Work the agent has not pushed is lost; branch <span className="mono">ad/139-rate-limit-webhooks</span> has no pushes yet. A &quot;cancelled&quot; comment is posted on issue #{t.number}.</>}
+          body={
+            cancelBody ?? (
+              <>
+                The pod is stopped now. Work the agent has not pushed is lost; branch{' '}
+                <span className="mono">ad/139-rate-limit-webhooks</span> has no pushes yet. A &quot;cancelled&quot;
+                comment is posted on issue #{t.number}.
+              </>
+            )
+          }
           actions={
             <>
-              <Button variant="ghost" size="sm" onClick={onCancelClose}>Keep running</Button>
-              <Button variant="solid-danger" size="sm" onClick={onCancelConfirm}>Cancel run</Button>
+              <Button variant="ghost" size="sm" onClick={onCancelClose}>
+                Keep running
+              </Button>
+              <Button variant="solid-danger" size="sm" onClick={onCancelConfirm}>
+                Cancel run
+              </Button>
             </>
           }
         />

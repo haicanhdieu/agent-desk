@@ -34,11 +34,12 @@ describe('scripted runs', () => {
     expect(project).toEqual(['starting', 'running', 'idle']);
     const statuses = run.flatMap((m) => (m.event === 'status' ? [m.data.status] : []));
     expect(statuses).toEqual(['starting', 'running', 'idle']);
-    // Every message carries its seq as id; seqs follow the stored log.
+    // Event messages carry their seq as id (status messages none, as the API); seqs follow the stored log.
     const stored = mockDb.state.runEvents[run63().id]?.map((e) => e.seq) ?? [];
     const sent = run.flatMap((m) => (m.event === 'event' ? [m.data.seq] : []));
     expect(sent).toEqual(stored.slice(-sent.length));
-    for (const m of run) expect(m.id).toBe(String(m.data.seq));
+    for (const m of run)
+      expect('id' in m ? m.id : undefined).toBe(m.event === 'event' ? String(m.data.seq) : undefined);
   });
 
   it('a run cancelled meanwhile stops the script; a reset drops it', () => {

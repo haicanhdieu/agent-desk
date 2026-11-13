@@ -140,7 +140,8 @@ export function groupByTicket(
 
 /**
  * Chip counts: needs-you, active and queued from the project's server-side counts (uncapped); ended and all from the
- * unfiltered run list. `active` follows the API filter: starting, running and idle.
+ * unfiltered run list. `active` follows the API filter (starting, running and idle), which is what `counts.running`
+ * counts.
  */
 export function chipCounts(
   counts: { needsYou: number; running: number; queued: number },
@@ -148,7 +149,7 @@ export function chipCounts(
 ): Record<RunListFilter, number> {
   return {
     needs_you: counts.needsYou,
-    active: counts.running + counts.needsYou,
+    active: counts.running,
     queued: counts.queued,
     ended: all.filter((r) => isFinal(r.status)).length,
     all: all.length,
@@ -189,17 +190,27 @@ const REASONS: Record<string, string> = {
 };
 
 /**
+ * The API stores a parsed command name without the `/` (`code-build`); for a first line that is no command
+ * (ignored_no_command) it keeps that line as typed, which is shown as is.
+ */
+const ignoredCommand = (command: string | null): string => {
+  if (command === null) return '—';
+  return /^[a-z0-9-]+$/.test(command) ? `/${command}` : command;
+};
+
+/**
  * One "Ignored commands" row. The DTO has no comment URL, so the link opens the ticket (`repoUrl` + issues/pull path),
  * or the repository when the ticket is unknown.
  */
 export function toIgnored(dto: IgnoredEventDto, repoUrl: string): IgnoredCommand {
   const kind = dto.ticketKind ?? 'issue';
-  const match = dto.ticketRef === null ? null : /#(\d+)$/.exec(dto.ticketRef);
+  // The ref is the provider-local ticket number (`160`); an `owner/repo#160` form is read too.
+  const match = dto.ticketRef === null ? null : /(?:^|#)(\d+)$/.exec(dto.ticketRef);
   const number = match?.[1] === undefined ? 0 : Number(match[1]);
   return {
     at: clockTime(dto.receivedAt),
     ticket: { kind, number },
-    command: dto.command === null ? '—' : `/${dto.command}`,
+    command: ignoredCommand(dto.command),
     author: dto.author ?? '—',
     reason: REASONS[dto.outcome] ?? 'Ignored',
     detail: dto.detail ?? '',

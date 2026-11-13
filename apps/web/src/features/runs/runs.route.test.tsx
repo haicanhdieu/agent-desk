@@ -10,7 +10,7 @@ import { renderRoute } from '@/test/renderRoute';
 const projectId = ids.project.invoicerApi;
 const base = `/o/alice/p/${projectId}`;
 const runsApi = `/api/projects/${projectId}/runs`;
-const ticket12Ref = 'harbor-labs/invoicer-api#12';
+const ticket12Ref = '12';
 
 /** Records the query strings of GET /runs requests. */
 function captureRunListQueries() {
@@ -174,7 +174,7 @@ describe('runs route', () => {
         ...template,
         id: ids.run(1, 100 + i),
         number: 100 + i,
-        ticket: { ...template.ticket, number: 500 + i, ref: `harbor-labs/invoicer-api#${500 + i}` },
+        ticket: { ...template.ticket, number: 500 + i, ref: String(500 + i) },
       }));
       const old = [1, 2].map((n) => ({
         ...template,

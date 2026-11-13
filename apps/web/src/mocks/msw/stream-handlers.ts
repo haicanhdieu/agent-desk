@@ -5,15 +5,16 @@ import {
   type RunStatus,
   type RunStatusEvent,
 } from '@agentdesk/contracts';
-import { http, sse, type HttpHandler } from 'msw';
+import { sse, type HttpHandler } from 'msw';
 import { ids } from '../dto/ids';
 import { mockDb } from './db';
-import { problemResponse } from './http';
+import { streamGuards } from './handlers';
 import { statusMessage, subscribeProject, subscribeRun, type ScriptStep } from './live';
 
 // SSE for `dev:mock` and Storybook (browser only: msw's `sse()` needs a real EventSource, so Vitest uses
-// FakeEventSource instead). GET /api/runs/:runId/events replays the stored events after `after` (or the
-// Last-Event-ID the browser sends on reconnect) with `id: <seq>`, then live changes; it ends on a final status.
+// FakeEventSource instead). GET /api/runs/:runId/events replays the stored events after `after` (or, without
+// it, the Last-Event-ID the browser sends on reconnect) with `id: <seq>`, then live changes; status frames carry no
+// id. It ends on a final status.
 // GET /api/projects/:projectId/events sends `run` messages for status changes in the project.
 
 const isFinal = (s: RunStatus) => FINAL_RUN_STATUSES.some((f) => f === s);
@@ -30,19 +31,6 @@ export const DEFAULT_RUN_SCRIPT: { runId: string; steps: ScriptStep[] } = {
   ],
 };
 
-/** The signed-in user's active org can see the project (RLS); else a problem response. */
-function guard(projectId: string | undefined): Response | undefined {
-  const orgId = mockDb.auth.activeOrganizationId;
-  if (!mockDb.currentUser())
-    return problemResponse({
-      status: 401,
-      title: 'Unauthorized',
-      type: 'unauthorized',
-    });
-  const ok = mockDb.state.projects.some((p) => p.id === projectId && p.orgId === orgId);
-  return ok ? undefined : problemResponse({ status: 404, title: 'Not found', type: 'not-found' });
-}
-
 const runOf = (runId: unknown) => mockDb.state.runs.find((r) => r.id === runId);
 const asNumber = (v: string | null) => (v !== null && /^\d+$/.test(v) ? Number(v) : 0);
 
@@ -58,28 +46,20 @@ function safe<T>(send: (m: T) => void, stop: () => void): (m: T) => void {
 }
 
 export const streamHandlers: HttpHandler[] = [
-  // Auth and scope first: a resolver that returns nothing falls through to the stream handler.
-  http.get('/api/runs/:runId/events', ({ params }) => {
-    mockDb.logRequest('GET', `/api/runs/${String(params.runId)}/events`);
-    return guard(runOf(params.runId)?.projectId);
-  }),
-  http.get('/api/projects/:projectId/events', ({ params }) => {
-    mockDb.logRequest('GET', `/api/projects/${String(params.projectId)}/events`);
-    return guard(typeof params.projectId === 'string' ? params.projectId : undefined);
-  }),
+  // Auth and scope first (handlers.ts): a guard that answers nothing falls through to the stream handler.
+  streamGuards['runs.events'],
+  streamGuards['projects.events'],
   sse<{ event: RunEventDto; status: RunStatusEvent }>('/api/runs/:runId/events', ({ request, params, client }) => {
     const run = runOf(params.runId);
     if (!run) return;
     const url = new URL(request.url);
-    const after = Math.max(asNumber(url.searchParams.get('after')), asNumber(request.headers.get('last-event-id')));
+    // As the API: the `after` query wins; the Last-Event-ID header applies only without it.
+    const query = url.searchParams.get('after');
+    const after = asNumber(query ?? request.headers.get('last-event-id'));
     const backlog = (mockDb.state.runEvents[run.id] ?? []).filter((e) => e.seq > after);
     for (const e of backlog) client.send({ event: 'event', id: String(e.seq), data: e });
     const lastSeq = mockDb.state.runEvents[run.id]?.at(-1)?.seq ?? after;
-    client.send({
-      event: 'status',
-      id: String(lastSeq),
-      data: statusMessage(run, lastSeq),
-    });
+    client.send({ event: 'status', data: statusMessage(run, lastSeq) });
     if (isFinal(run.status)) {
       client.close();
       return;
