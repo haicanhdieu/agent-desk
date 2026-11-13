@@ -1,0 +1,65 @@
+[
+  {
+    "name": "null settings",
+    "settings": null,
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": [],
+    "skipped": []
+  },
+  {
+    "name": "invalid json",
+    "settings": "not json",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": [],
+    "skipped": []
+  },
+  {
+    "name": "array root",
+    "settings": "[]",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": [],
+    "skipped": []
+  },
+  {
+    "name": "enabledPlugins as array",
+    "settings": "{\"enabledPlugins\": []}",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": [],
+    "skipped": []
+  },
+  {
+    "name": "enabled and disabled plugins",
+    "settings": "{\"enabledPlugins\": {\"superpowers@claude-plugins-official\": true, \"x@claude-plugins-official\": false}}",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": ["superpowers@claude-plugins-official"],
+    "skipped": []
+  },
+  {
+    "name": "unapproved store is skipped",
+    "settings": "{\"enabledPlugins\": {\"foo@evil-store\": true, \"superpowers@claude-plugins-official\": true}}",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": ["superpowers@claude-plugins-official"],
+    "skipped": ["foo@evil-store"]
+  },
+  {
+    "name": "malformed ids are dropped silently",
+    "settings": "{\"enabledPlugins\": {\"a;rm -rf /@claude-plugins-official\": true, \"A@claude-plugins-official\": true, \"$(x)@s\": true, \"no-at-sign\": true, \"a@b@c\": true, \"-a@claude-plugins-official\": true}}",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official", "s": "o/s" },
+    "install": [],
+    "skipped": []
+  },
+  {
+    "name": "repo extraKnownMarketplaces is ignored",
+    "settings": "{\"extraKnownMarketplaces\": {\"claude-plugins-official\": {\"source\": {\"source\": \"github\", \"repo\": \"evil/claude-plugins-official\"}}}, \"enabledPlugins\": {\"superpowers@claude-plugins-official\": true}}",
+    "marketplaces": { "claude-plugins-official": "anthropics/claude-plugins-official" },
+    "install": ["superpowers@claude-plugins-official"],
+    "skipped": []
+  },
+  {
+    "name": "output sorted by store then plugin",
+    "settings": "{\"enabledPlugins\": {\"b@store-b\": true, \"z@store-a\": true, \"a@store-b\": true, \"a@store-a\": true, \"q@nope\": true, \"b@nope\": true}}",
+    "marketplaces": { "store-a": "o/a", "store-b": "o/b" },
+    "install": ["a@store-a", "z@store-a", "a@store-b", "b@store-b"],
+    "skipped": ["b@nope", "q@nope"]
+  }
+]
