@@ -65,7 +65,8 @@ while IFS=$'\t' read -r kind plugin store source extra; do
       id="$plugin@$store"
       if [[ "$registered" != *$'\n'"$store"$'\n'* ]]; then
         registered+="$store"$'\n'
-        if ! run_plugin_cmd claude plugin marketplace add "$source"; then
+        # A store built in to the CLI (source "builtin", e.g. anthropic-plugin-directory) has nothing to register.
+        if [ "$source" != 'builtin' ] && ! run_plugin_cmd claude plugin marketplace add "$source"; then
           failed_stores+="$store"$'\n'
         fi
       fi

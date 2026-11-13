@@ -58,15 +58,15 @@ Results:
 - **Names.** Source `anthropics/claude-plugins-official` registers as `claude-plugins-official`. Source
   `anthropics/claude-code` registers as `claude-code-plugins`.
 - `anthropic-plugin-directory` is **built in** to the CLI (`claude plugin marketplace list` shows "Built in
-  (Anthropic Directory)" before anything is added). No source registers under that name, so it cannot be approved
-  through `PLUGIN_MARKETPLACES` and is dropped from the default config. `claude plugin install
+  (Anthropic Directory)" before anything is added). No source registers under that name, so it is approved with the
+  source marker `builtin` (`{"anthropic-plugin-directory":"builtin"}`): the entrypoint skips `marketplace add` for it
+  and installs directly. `claude plugin install
 superpowers@anthropic-plugin-directory` works without any `marketplace add`; it is the same plugin as
   `superpowers@claude-plugins-official`, and installing the second after the first answers "already installed" with
   exit 0.
-- Default `RUN_PLUGIN_MARKETPLACES`: `{"claude-plugins-official":"anthropics/claude-plugins-official"}`. Consequence:
-  this repo's own `.claude/settings.json` (which uses `superpowers@anthropic-plugin-directory`) shows that plugin as
-  skipped until the repo switches to the `claude-plugins-official` id or a follow-up supports approving built-in
-  store names without a source.
+- Default `RUN_PLUGIN_MARKETPLACES`: `{"claude-plugins-official":"anthropics/claude-plugins-official","anthropic-plugin-directory":"builtin"}`.
+  Both stores are Anthropic's, so repos that enable `<plugin>@anthropic-plugin-directory` (as this repo's own
+  `.claude/settings.json` does) are no longer shown as blocked.
 
 ## Alternatives considered
 
@@ -93,7 +93,7 @@ The source spec (§4) records these.
 - Pod egress must reach the marketplace sources (GitHub) and package registries, so a future egress allowlist needs them.
 - Plugin install adds startup time (a clone per approved store in use) on every run.
 - Setup runs with the pod's credentials (decision 8), accepted until F6.
-- Built-in store names cannot be approved today (see above).
+- `builtin` trusts the CLI's own built-in store: a CLI version that changed what that store serves would change what installs.
 - Setup-test pods run in the run namespace (`agentdesk-runs`) and count against its `ResourceQuota` (infra spec §6.5:
   `pods` 2, `limits.memory` 1536 Mi). An open test (kept for its TTL) can take the slot a run pod needs; that run then
   fails after the 2 min Pending limit with "no pod was created". Follow-up: a separate quota (or a separate namespace)

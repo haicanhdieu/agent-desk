@@ -35,6 +35,19 @@ describe('entrypoint plugins phase', () => {
     expect(r.exitCode).toBe(0);
   });
 
+  it('installs from a built-in store without registering a marketplace', async () => {
+    const r = await runEntrypoint(
+      { PLUGIN_MARKETPLACES: JSON.stringify({ 'anthropic-plugin-directory': 'builtin' }) },
+      settings({ 'superpowers@anthropic-plugin-directory': true, 'playwright@anthropic-plugin-directory': true }),
+    );
+    expect(claudeCalls(r)).toEqual([
+      ['plugin', 'install', 'playwright@anthropic-plugin-directory'],
+      ['plugin', 'install', 'superpowers@anthropic-plugin-directory'],
+    ]);
+    expect(r.stdout).toContain('agentdesk: plugin installed superpowers@anthropic-plugin-directory');
+    expect(started(r)).toBe(true);
+  });
+
   it('skips unapproved store', async () => {
     const r = await runEntrypoint({ PLUGIN_MARKETPLACES: market }, settings({ 'evil@rogue-store': true }));
     expect(r.stdout).toContain('agentdesk: plugin skipped evil@rogue-store (store not approved)');

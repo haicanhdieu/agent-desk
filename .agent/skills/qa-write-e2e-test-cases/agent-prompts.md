@@ -4,6 +4,8 @@ Spawn each with the Agent tool. Fill the `<…>` slots and send the prompt as wr
 
 Every prompt carries the reading rule, because a subagent does not inherit it from you.
 
+`<source list>` is every entry of `scope.json` `sources`, with its sections: the scope doc **and** the sibling specs, ADRs, PRD or Architecture sections and prototype boards found in step 0 of [guides/extracting-rules.md](guides/extracting-rules.md). Never pass only the sections the scope doc cites; a subagent that sees only the scope doc asks questions the sibling sources answer.
+
 ## Model and effort
 
 Pass both on every spawn; this skill asks for them explicitly. Do not let a subagent inherit the session model.
@@ -29,15 +31,24 @@ missing here is behaviour that never gets tested. You get one pass; there is no 
 
 Follow <skill>/guides/reviewing-rules.md exactly. Output shape: <skill>/schemas.md ("reviews").
 
-Sources to read: <source paths, with sections>
+Sources to read (scope doc, then sibling specs, ADRs and prototype boards): <source list>
 Draft to review (open only after your blind pass): <workdir>/scope.json
 
 Write your blind list to <workdir>/reviews/rules-blind.md
 Write your findings to <workdir>/reviews/rules.json
 
-Reading rule: read only the sources above and files in <workdir> (not inventory.json). Do not
-open apps/*/src, packages/*/src, stories, mocks or implementation plans; the implementation may
-be wrong.
+Resolve before asking: the product is built on all of these sources, so a detail the scope doc
+leaves out (a label, a format, an empty, loading or error state) is answered by a sibling source
+when one states it. Report every open question in the draft that a listed source answers, quoting
+that source, and every rule split finer than its outcomes can fail (by field, by message type, per
+column). An open question lives once in the scope.json openQuestions registry, with "about"
+listing every requirement or rule it touches; report a question registered twice.
+
+Reading rule: read only the sources above, any other file under docs/superpowers/specs/, docs/adr/
+or the "docs/Agent Desk — *" docs that covers the same feature, the prototype boards they cite, and
+files in <workdir> (not inventory.json). Do not open apps/*/src, packages/*/src, stories, mocks,
+fixtures, implementation plans (docs/superpowers/plans/) or the running app; the implementation
+may be wrong.
 
 Reply with one line: the number of findings by type.
 ```
@@ -55,7 +66,8 @@ Follow <skill>/guides/writing-cases.md exactly, including its coverage and valid
 Output shape: <skill>/schemas.md.
 
 Cluster: <CL-id> "<cluster title>", rules <BR-id, BR-id, …>, all in <workdir>/scope.json
-Sources: the sections those rules' requirements cite: <source paths, with sections>
+Sources (scope doc, then sibling specs, ADRs and prototype boards): <source list>
+Open questions already registered: the registry in <workdir>/scope.json
 Environment: <env name>; tests will live in <targetDir>
 Existing test titles: <workdir>/inventory-e2e.txt (read it) and <workdir>/inventory-lower.txt
 (grep it, do not read it whole). Do not open <workdir>/inventory.json.
@@ -63,13 +75,28 @@ Previously published cases for these rules: <list of rule id + case id + title, 
 
 Write <workdir>/rules/<BR-id>.json for each rule in the cluster, and no others.
 Then run, from the repo root: node <skill>/scripts/validate.mjs <workdir> cluster <CL-id>
-and fix every error until it prints "clean."
+and fix every error until it prints "clean.", and every warning that a question or case note
+restates a registry question.
 
-Reading rule: read only the sources above, files in <workdir>, and existing spec files under
-apps/web/e2e/. Do not open apps/*/src, packages/*/src, stories, mocks or implementation plans.
-Expected results come from the sources; where they are silent, add an open question.
+Resolve before asking: before any open question, and before naming a label, format, state or
+control, check the registry, then search the sources above (and the other specs, ADRs and
+PRD/Architecture docs) and open the boards they cite. Where a source answers, use its wording and
+cite file and section in the case note. Where none does, do not block the case: follow the closest
+stated convention, assert only what the sources support (format-agnostic where the format is
+unstated), reference the registry question as {"ref":"Qn"} and note the dependent case "Depends
+on Qn". Write a new per-rule question only when the registry has none; if it touches several of
+your rules, write it under the first only and name the others in your reply. Never restate a
+registry question.
 
-Reply with one line: cluster id, rules written, total cases, open questions.
+Reading rule: read only the requirement sources above, any other file under docs/superpowers/specs/,
+docs/adr/ or the "docs/Agent Desk — *" docs that covers your rules, the prototype boards they cite,
+files in <workdir> (not inventory.json), and existing spec files under apps/web/e2e/ (to confirm
+coverage only, never to learn an expected result). Do not open apps/*/src, packages/*/src, stories,
+mocks, fixtures, implementation plans (docs/superpowers/plans/) or the running app.
+
+Reply with one line: cluster id, rules written, total cases, new per-rule open questions, registry
+questions referenced. Add one more line per gap that touches more than one rule, and per behaviour
+that belongs to no rule in your cluster.
 ```
 
 ## Case reviewer (step 6, one per cluster)
@@ -85,15 +112,25 @@ enough to apply as written.
 Follow <skill>/guides/reviewing-cases.md exactly. Output shape: <skill>/schemas.md ("reviews").
 
 Cluster: <CL-id>, rules <BR-id, BR-id, …>, all in <workdir>/scope.json
-Sources: <source paths, with sections>
+Sources (scope doc, then sibling specs, ADRs and prototype boards): <source list>
+Open questions already registered: the registry in <workdir>/scope.json
 Drafts (open only after listing the conditions yourself): <workdir>/rules/<BR-id>.json for each rule above
 Existing test titles: <workdir>/inventory-e2e.txt (read it) and <workdir>/inventory-lower.txt
 (grep it, do not read it whole). Do not open <workdir>/inventory.json.
 
 Write your findings to <workdir>/reviews/cases-<CL-id>.json
 
-Reading rule: read only the sources above, files in <workdir>, and existing spec files under
-apps/web/e2e/. Do not open apps/*/src, packages/*/src, stories, mocks or implementation plans.
+Resolve before asking: a label, format or state that a listed source states must appear in the
+cases as stated, not as an open question; report any open question a source answers, quoting the
+source. A condition must not be left without a case because a detail is unstated: its case should follow
+the closest stated convention and assert format-agnostically. A rule file must reference a registry
+question as {"ref":"Qn"}, never restate it; report each restatement or repeat as the guide says.
+
+Reading rule: read only the requirement sources above, any other file under docs/superpowers/specs/,
+docs/adr/ or the "docs/Agent Desk — *" docs that covers these rules, the prototype boards they cite,
+files in <workdir> (not inventory.json), and existing spec files under apps/web/e2e/ (to confirm
+coverage only). Do not open apps/*/src, packages/*/src, stories, mocks, fixtures, implementation
+plans (docs/superpowers/plans/) or the running app.
 
 Reply with one line: the number of findings by type.
 ```

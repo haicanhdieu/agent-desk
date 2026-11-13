@@ -2,6 +2,8 @@
 
 How to add `clusters` to `scope.json` (shape in [schemas.md](../schemas.md)). A cluster is one GitHub sub-issue, one case writer and one case reviewer, so its size sets both the cost of the run and how readable each issue is.
 
+Before clustering, run `validate.mjs <workdir> rules` and settle every dedupe message: merge near-duplicate rules (error) and possible over-splits (warning), or record `distinctFrom` with a reason, and merge duplicate `openQuestions`; a duplicate rule clustered now is written and reviewed twice.
+
 ## Size
 
 - **1 to 8 rules** per cluster; `validate.mjs` rejects more than 8.
