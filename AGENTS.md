@@ -54,3 +54,14 @@ devbox run help
 - **Self-review:** go through [code-review-checklist.md](docs/conventions/code-review-checklist.md) and fill in the PR template.
 - **Never commit** `.env`, credentials, or generated output (`storybook-static/`, `parity-out/`, `.devbox/`).
 - **When docs conflict,** the newer accepted doc wins. Fix the stale one in the same PR, or flag it.
+
+## Talking to humans
+
+When you have a concern or a question that needs a human decision, write it in plain everyday language and keep it short. People will not read a long question. Use this template:
+
+1. **Problem:** what is wrong or unclear, in one or two sentences.
+2. **Sample:** a small example, only if it is needed and directly related to the problem.
+3. **Solutions:** the realistic options, briefly.
+4. **Suggestion:** which option you recommend, and why in one line.
+
+If you have several questions, ask **one at a time**. Then stop and wait for the human's answer before continuing or asking the next one.
