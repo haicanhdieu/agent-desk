@@ -108,6 +108,8 @@ const TEXT_TAIL_LINES = 50;
 /** Setup/plugin output is stored as one lifecycle event per this many lines, up to this many characters in all. */
 const SETUP_CHUNK_LINES = 50;
 const SETUP_OUTPUT_MAX_CHARS = 262_144;
+/** The runner entrypoint's exit code for a failed (or timed out) setup in a real run. */
+const SETUP_FAILED_EXIT_CODE = 78;
 const ERROR_MESSAGE_MAX = 500;
 const COMMENT_TAIL_CHARS = 2000;
 const COMMENT_REASON_CHARS = 500;
@@ -125,6 +127,7 @@ const SetupMarkerPayload = z.object({
   kind: z.string(),
   exitCode: z.number().int().optional(),
 });
+const StoredOutputPayload = z.object({ text: z.string(), truncated: z.boolean().optional() });
 const HeartbeatDetails = z.object({ lastLine: z.number().int().min(0) });
 const StoredCredential = z.object({ type: z.string(), value: z.string().min(1) });
 
@@ -505,11 +508,11 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
     const status = fd?.status ?? d.status;
     const took = duration(d);
-    const lines =
-      fd?.failureStage === 'setup'
-        ? [`Agent Desk run #${d.number} failed during workspace setup; the agent did not start.`, '']
-        : [`Agent Desk run #${d.number} finished: **${status}**${took ? ` after ${took}` : ''}.`, ''];
-    if (fd?.exitCode !== undefined) lines.push(`Exit code: ${fd.exitCode}`);
+    const setupFailed = fd?.failureStage === 'setup';
+    const lines = setupFailed
+      ? [`Agent Desk run #${d.number} failed during workspace setup; the agent did not start.`, '']
+      : [`Agent Desk run #${d.number} finished: **${status}**${took ? ` after ${took}` : ''}.`, ''];
+    if (fd?.exitCode !== undefined && !setupFailed) lines.push(`Exit code: ${fd.exitCode}`);
     if (fd?.failureReason) {
       lines.push(`Reason: ${oneLine(redact(fd.failureReason, secrets)).slice(0, COMMENT_REASON_CHARS)}`);
     }
@@ -598,10 +601,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   }
 
   /**
-   * The setup failure recorded in the stored run events: a `setup_failed` or `setup_timed_out` lifecycle event and no
-   * `session_started`. Reading the database (not this attempt's memory) keeps the answer stable across activity retries.
+   * What the stored run events say about the pre-agent phase: whether `session_started` was stored and, if not, whether
+   * setup failed (a `setup_failed` / `setup_timed_out` event, or the runner's dedicated exit code 78). Reading the
+   * database (not this attempt's memory) keeps the answer stable across activity retries.
    */
-  async function findSetupFailure(ctx: RunContext): Promise<{ exitCode?: number } | null> {
+  async function findSetupState(
+    ctx: RunContext,
+    exitCode: number,
+  ): Promise<{ agentStarted: boolean; setup: { exitCode?: number } | null }> {
     const rows = await withOrg(db, ctx.orgId, (tx) =>
       tx
         .select({ payload: runEvents.payload })
@@ -616,12 +623,44 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         .orderBy(runEvents.seq),
     );
     const kinds = rows.map((r) => SetupMarkerPayload.safeParse(r.payload));
-    if (kinds.some((k) => k.success && k.data.kind === 'session_started')) return null;
+    if (kinds.some((k) => k.success && k.data.kind === 'session_started')) return { agentStarted: true, setup: null };
     const failed = kinds.find(
       (k) => k.success && (k.data.kind === 'setup_failed' || k.data.kind === 'setup_timed_out'),
     );
-    if (!failed?.success) return null;
-    return failed.data.exitCode !== undefined ? { exitCode: failed.data.exitCode } : {};
+    if (failed?.success) {
+      return {
+        agentStarted: false,
+        setup: failed.data.exitCode !== undefined ? { exitCode: failed.data.exitCode } : {},
+      };
+    }
+    // The runner exits 78 on a setup failure; honour it even if the marker was lost.
+    if (exitCode === SETUP_FAILED_EXIT_CODE) return { agentStarted: false, setup: { exitCode } };
+    return { agentStarted: false, setup: null };
+  }
+
+  /** Output already stored for the run (all passes and attempts): characters spent and whether it was truncated. */
+  async function storedOutputBudget(ctx: RunContext): Promise<{ chars: number; truncated: boolean }> {
+    const rows = await withOrg(db, ctx.orgId, (tx) =>
+      tx
+        .select({ payload: runEvents.payload })
+        .from(runEvents)
+        .where(
+          and(
+            eq(runEvents.runId, ctx.runId),
+            eq(runEvents.type, 'lifecycle'),
+            sql`${runEvents.payload} ->> 'kind' in ('setup_output', 'plugin_output')`,
+          ),
+        ),
+    );
+    let chars = 0;
+    let truncated = false;
+    for (const r of rows) {
+      const p = StoredOutputPayload.safeParse(r.payload);
+      if (!p.success) continue;
+      chars += p.data.text.length + 1;
+      truncated ||= p.data.truncated === true;
+    }
+    return { chars, truncated };
   }
 
   async function followPodLogs(ctx: RunContext): Promise<FollowPodLogsResult> {
@@ -654,7 +693,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         let index = 0;
         let block: ScrollbackBlock | null = null;
         // Setup/plugin output is batched into one event per chunk. Lines in the buffer are not durable until stored.
-        const setupLog = new SetupLogTracker({ chunkLines: SETUP_CHUNK_LINES, maxChars: SETUP_OUTPUT_MAX_CHARS });
+        // Seeded from storage so the cap (and the single truncated chunk) hold across re-attaches and retries.
+        const budget = await storedOutputBudget(ctx);
+        const setupLog = new SetupLogTracker({
+          chunkLines: SETUP_CHUNK_LINES,
+          maxChars: SETUP_OUTPUT_MAX_CHARS,
+          initialChars: budget.chars,
+          alreadyTruncated: budget.truncated || budget.chars >= SETUP_OUTPUT_MAX_CHARS,
+        });
         let lastOutputIndex = 0;
         let bufferStart = 0;
         /** Stores effects: a marker event is keyed by its own line, an output chunk by its last line. */
@@ -696,7 +742,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           // line (an output line never carries another event), so replays dedup it like any other line.
           const isOutput = parsed.kind === 'setup_output' || parsed.kind === 'plugin_output';
           const prevOutputIndex = lastOutputIndex;
-          const effects = setupLog.push(parsed);
+          // Redact each output line before it is buffered and budgeted, so a cut can never split a secret.
+          const effects = setupLog.push(isOutput ? { ...parsed, text: redact(parsed.text, secrets) } : parsed);
           if (isOutput) lastOutputIndex = index;
           if (isOutput && setupLog.pendingLines === 1) bufferStart = index; // this line opened a new buffer
           await storeEffects(effects, index, isOutput && setupLog.pendingLines === 0 ? index : prevOutputIndex);
@@ -756,14 +803,15 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         await storeEffects(setupLog.flush(), index, lastOutputIndex);
         durable = Math.max(durable, index);
         beat();
-        const setupFailure = await findSetupFailure(ctx);
+        const pre = await findSetupState(ctx, exitCode);
         const tail =
           scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
         return {
           exitCode,
           ...(tail !== undefined ? { scrollbackTail: tail } : {}),
-          ...(setupFailure ? { failureStage: 'setup' as const } : {}),
-          ...(setupFailure?.exitCode !== undefined ? { setupExitCode: setupFailure.exitCode } : {}),
+          agentStarted: pre.agentStarted,
+          ...(pre.setup ? { failureStage: 'setup' as const } : {}),
+          ...(pre.setup?.exitCode !== undefined ? { setupExitCode: pre.setup.exitCode } : {}),
         };
       }
     } catch (err) {

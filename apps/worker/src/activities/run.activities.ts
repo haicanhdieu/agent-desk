@@ -54,11 +54,14 @@ export interface FollowPodLogsResult {
   /** Redacted tail of the final scrollback (bounded by the activity), when the runner printed one. */
   scrollbackTail?: string;
   /**
-   * `setup` when the stored run events hold a `setup_failed` or `setup_timed_out` event and no `session_started` (the
-   * runner stopped the run before the agent started). Decided from the database, so it survives activity retries.
+   * `setup` when no `session_started` is stored and the runner reported setup failing (`setup_failed` or
+   * `setup_timed_out` event) or exited with its dedicated setup-failure code 78 (the runner stopped the run before the
+   * agent started). Decided from the database, so it survives activity retries.
    */
   failureStage?: 'setup';
-  /** The setup script's exit code from the stored `setup_failed` event; absent when setup timed out. */
+  /** `session_started` is stored for the run: the agent (or idle shell) began. False means the pod died before that. */
+  agentStarted?: boolean;
+  /** The setup script's exit code from the stored `setup_failed` event, the runner's 78 when it exited so without a marker; absent when setup timed out. */
   setupExitCode?: number;
 }
 

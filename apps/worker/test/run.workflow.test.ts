@@ -464,9 +464,10 @@ describe('RunWorkflow', () => {
     await s.logsStarted.promise;
     s.logs.resolve({ exitCode: 78, failureStage: 'setup', setupExitCode: 1, scrollbackTail: 'should be dropped' });
     const out = await h.result();
-    expect(out).toMatchObject({ status: 'failed', failureReason: 'setup failed (exit 1)' });
+    expect(out).toMatchObject({ status: 'failed', exitCode: 1, failureReason: 'setup failed (exit 1)' });
     expect(s.statuses.at(-1)).toMatchObject({
       status: 'failed',
+      exitCode: 1,
       failureReason: 'setup failed (exit 1)',
       failureStage: 'setup',
     });
@@ -488,6 +489,24 @@ describe('RunWorkflow', () => {
       failureStage: 'setup',
     });
     await gateForgot(s);
+  });
+
+  it('a pre-session exit (agentStarted false) carries no stage; a result lacking the field keeps agent', async () => {
+    const pre = newRun({}, { firstLine: false });
+    const h1 = await start(pre);
+    await pre.logsStarted.promise;
+    pre.logs.resolve({ exitCode: 137, agentStarted: false });
+    await h1.result();
+    expect(pre.statuses.at(-1)?.failureStage).toBeUndefined();
+    expect(pre.statuses.at(-1)).toMatchObject({ status: 'failed', exitCode: 137 });
+    expect(expectFinishOnce(pre)?.failureStage).toBeUndefined();
+
+    const old = newRun();
+    const h2 = await start(old);
+    await old.logsStarted.promise;
+    old.logs.resolve({ exitCode: 137 });
+    await h2.result();
+    expect(old.statuses.at(-1)).toMatchObject({ failureStage: 'agent' });
   });
 
   it('infra failure carries no failure stage; an agent non-zero exit carries agent', async () => {

@@ -257,12 +257,13 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     }
     if (logsError !== undefined) throw logsError;
     if (logsResult === undefined) throw ApplicationFailure.nonRetryable('followPodLogs returned nothing');
-    const { exitCode, scrollbackTail, failureStage, setupExitCode } = logsResult;
-    // The runner stopped the run before the agent started: report the setup failure, not the runner's exit code.
+    const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted } = logsResult;
+    // The runner stopped the run before the agent started: report the setup failure. The run's exit code is the setup
+    // script's (the runner's own 78 only when setup timed out or the script's code is unknown).
     if (failureStage === 'setup') {
       return {
         status: 'failed',
-        exitCode,
+        exitCode: setupExitCode ?? exitCode,
         failureReason: setupExitCode !== undefined ? `setup failed (exit ${setupExitCode})` : 'setup timed out',
         failureStage: 'setup',
         podExited: true,
@@ -273,8 +274,11 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     return {
       status: 'failed',
       exitCode,
-      failureReason: `agent exited with code ${exitCode}`,
-      failureStage: 'agent',
+      // `agentStarted` absent (a result from before the field existed) keeps the old labelling. False: the pod died in
+      // checkout, plugins or setup without a setup marker, so it is neither a setup nor an agent failure.
+      ...(agentStarted === false
+        ? { failureReason: `run exited with code ${exitCode} before the agent started` }
+        : { failureReason: `agent exited with code ${exitCode}`, failureStage: 'agent' as const }),
       podExited: true,
       ...(scrollbackTail !== undefined ? { scrollbackTail: scrollbackTail.slice(-SCROLLBACK_TAIL_MAX) } : {}),
     };

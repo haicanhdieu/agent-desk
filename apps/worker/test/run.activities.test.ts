@@ -561,9 +561,8 @@ describe('followPodLogs', () => {
       'plugin_installed',
     ]);
     release();
-    await until(
-      async () => (await load(runId)).run?.status === 'running' || (await load(runId)).run?.status === 'idle',
-    );
+    // Wait for the first turn to finish: ending the session earlier races the turn_finished line.
+    await until(async () => (await load(runId)).run?.status === 'idle');
     await acts.endSession(ctx);
     await f.promise;
     expect(await statuses(runId)).toEqual(['running', 'idle']);
@@ -710,6 +709,75 @@ describe('followPodLogs', () => {
         .promise;
       expect(r.failureStage).toBe('setup');
       expect(r.setupExitCode).toBeUndefined();
+    });
+
+    it('a pod killed before the agent started: no markers, exit 137 -> no setup stage, agentStarted false', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: checkout ' + '0'.repeat(40)], 137) })).promise;
+      expect(r.exitCode).toBe(137);
+      expect(r.failureStage).toBeUndefined();
+      expect(r.agentStarted).toBe(false);
+    });
+
+    it('exit 78 before the session started is a setup failure even without a marker', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: plugins begin'], 78) })).promise;
+      expect(r).toMatchObject({ exitCode: 78, failureStage: 'setup', setupExitCode: 78, agentStarted: false });
+    });
+
+    it('agentStarted is true once session_started is stored', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const r = await follow(ctx, deps({ kube: exited(['agentdesk: session started'], 137) })).promise;
+      expect(r).toMatchObject({ exitCode: 137, agentStarted: true });
+      expect(r.failureStage).toBeUndefined();
+    });
+
+    it('a later pass after truncation stores no further output chunks and no second truncated chunk', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const big = 'y'.repeat(1000);
+      const first = ['agentdesk: setup begin', ...Array.from({ length: 300 }, () => `setup| ${big}`)];
+      const f1 = follow(ctx, deps({ kube: exited(first, 78) }));
+      const r1 = await f1.promise;
+      expect(r1.exitCode).toBe(78);
+      const outputs = async () => (await lifecycleOf(runId)).filter((e) => e.payload.kind === 'setup_output');
+      const stored = await outputs();
+      expect(stored.filter((e) => e.payload.truncated === true)).toHaveLength(1);
+      const lastLine = Math.max(...f1.beats.map(lastLineOf));
+      const more = [...first, ...Array.from({ length: 60 }, () => `setup| ${big}`), 'agentdesk: setup passed'];
+      await follow(ctx, deps({ kube: exited(more, 78) }), { lastLine }).promise;
+      const after = await outputs();
+      expect(after).toHaveLength(stored.length);
+      expect(after.filter((e) => e.payload.truncated === true)).toHaveLength(1);
+    });
+
+    it('a secret straddling the maxChars cut never leaves a prefix in a stored event', async () => {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const MAX = 262_144;
+      const filler = 'z'.repeat(1000);
+      const full = Math.floor((MAX - 100) / 1001); // lines of 1000 chars (+1 join each)
+      const used = full * 1001;
+      const gap = MAX - used - 1 - 6; // leaves room 5 for the next line
+      const lines = [
+        ...Array.from({ length: full }, () => `setup| ${filler}`),
+        `setup| ${'q'.repeat(gap - 1)}`,
+        `setup| ${CRED}`,
+      ];
+      const injected = wrapKube({
+        readSecret: async () => ({ REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git' }),
+        getRunPod: async (name) => ({ name, phase: 'Failed', pendingSince: null, reason: null, exitCode: 78 }),
+        streamLogs: async function* () {
+          yield* lines;
+        },
+      });
+      await follow(ctx, deps({ kube: injected })).promise;
+      const all = JSON.stringify((await load(runId)).events);
+      expect(all).not.toContain('sk-a');
+      expect(all).not.toContain(CRED);
     });
 
     it('no failureStage when the session started, or when the run only fails later', async () => {
@@ -911,16 +979,17 @@ describe('postComment setup failure', () => {
     const before = (await store.listPosted()).length;
     await acts.postComment(ctx, 'finish', {
       status: 'failed',
+      exitCode: 1,
       failureReason: 'setup failed (exit 1)',
       failureStage: 'setup',
     });
     const body = (await store.listPosted()).slice(before)[0]?.body ?? '';
     const number = (await load(runId)).run?.number;
-    const lines = body.split('\n');
-    expect(lines[0]).toBe(`Agent Desk run #${number} failed during workspace setup; the agent did not start.`);
-    expect(body).toContain('Reason: setup failed (exit 1)');
-    expect(body).toContain(`Run: http://localhost:5173/o/acme/p/${projectId}/runs/${number}`);
-    expect(body).not.toContain('finished');
+    expect(body.split('\n').filter((l) => l !== '')).toEqual([
+      `Agent Desk run #${number} failed during workspace setup; the agent did not start.`,
+      'Reason: setup failed (exit 1)',
+      `Run: http://localhost:5173/o/acme/p/${projectId}/runs/${number}`,
+    ]);
   });
 });
 
