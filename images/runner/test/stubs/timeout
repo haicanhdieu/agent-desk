@@ -1,23 +1,42 @@
 #!/usr/bin/env node
-// Test stub: logs argv, then runs the wrapped command (argv[1..]). Enforces a numeric limit like coreutils timeout:
-// the command's process group is killed after argv[0] seconds and the exit code is 124.
+// Test stub: logs argv, then runs the wrapped command. Mimics coreutils `timeout [-k DURATION] LIMIT CMD...`: after LIMIT
+// seconds the command gets SIGTERM and the exit code is 124; with -k, a command still alive DURATION seconds later gets
+// SIGKILL and the exit code is 137. Without -k a command that ignores SIGTERM is waited for forever, like the real one.
+// Like the real one it only signals the command itself; descendants that outlive it are the caller's business.
 import { spawn } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
 appendFileSync(process.env.STUB_LOG, `${JSON.stringify({ cmd: 'timeout', argv })}\n`);
-const [limit, cmd, ...args] = argv;
+const rest = [...argv];
+let killAfter = 0;
+if (rest[0] === '-k') {
+  rest.shift();
+  killAfter = Number(rest.shift());
+}
+const [limit, cmd, ...args] = rest;
 const seconds = Number(limit);
-const child = spawn(cmd, args, { stdio: 'inherit', detached: true });
-let timedOut = false;
-const timer =
-  seconds > 0
-    ? setTimeout(() => {
-        timedOut = true;
-        process.kill(-child.pid, 'SIGKILL');
-      }, seconds * 1000)
-    : undefined;
-child.on('close', (code) => {
-  clearTimeout(timer);
-  process.exit(timedOut ? 124 : (code ?? 1));
+const child = spawn(cmd, args, { stdio: 'inherit' });
+let code = null;
+let killed = false;
+const timers = [];
+if (seconds > 0) {
+  timers.push(
+    setTimeout(() => {
+      code = 124;
+      child.kill('SIGTERM');
+      if (killAfter > 0) {
+        timers.push(
+          setTimeout(() => {
+            killed = true;
+            child.kill('SIGKILL');
+          }, killAfter * 1000),
+        );
+      }
+    }, seconds * 1000),
+  );
+}
+child.on('close', (status) => {
+  for (const t of timers) clearTimeout(t);
+  process.exit(killed ? 137 : (code ?? status ?? 1));
 });

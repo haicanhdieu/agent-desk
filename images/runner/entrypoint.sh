@@ -91,8 +91,23 @@ if [ -n "${SETUP_SCRIPT:-}" ]; then
   setup_file="$(mktemp)"
   printf '%s' "$SETUP_SCRIPT" > "$setup_file"
   set +e
-  (cd "$REPO_DIR" && exec timeout "$SETUP_TIMEOUT_SECONDS" bash "$setup_file") </dev/null 2>&1 | prefix_lines 'setup| '
+  setup_started=$SECONDS
+  # `set -m` makes the script's `timeout` a process-group leader, so once it returns (script done, timed out or
+  # killed) whatever the script left running (`server &`) is killed with the group. That closes the pipe, so the
+  # prefix filter sees EOF and the whole phase is bounded by the timeout plus the 10 s kill grace.
+  (
+    cd "$REPO_DIR" || exit 1
+    set -m
+    timeout -k 10 "$SETUP_TIMEOUT_SECONDS" bash "$setup_file" </dev/null &
+    setup_job=$!
+    wait "$setup_job"
+    rc=$?
+    kill -KILL -- "-$setup_job" 2>/dev/null
+    exit "$rc"
+  ) </dev/null 2>&1 | prefix_lines 'setup| '
   setup_rc="${PIPESTATUS[0]}"
+  # timeout exits 137 when it had to SIGKILL a script that ignored SIGTERM after the limit.
+  if [ "$setup_rc" = 137 ] && [ $((SECONDS - setup_started)) -ge "$SETUP_TIMEOUT_SECONDS" ]; then setup_rc=124; fi
   set -e
   rm -f "$setup_file"
   if [ "$setup_rc" = 0 ]; then

@@ -143,7 +143,7 @@ describe('entrypoint setup phase', () => {
     expect(at('agentdesk: setup begin')).toBeLessThan(at(`setup| ${repo}`));
     expect(at(`setup| ${repo}`)).toBeLessThan(at('agentdesk: setup passed'));
     expect(at('agentdesk: setup passed')).toBeLessThan(at('agentdesk: session started'));
-    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv[0]).toBe('600');
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv.includes('bash'))?.argv.at(-3)).toBe('600');
     expect(r.exitCode).toBe(0);
   });
 
@@ -167,15 +167,33 @@ describe('entrypoint setup phase', () => {
     const r = await runEntrypoint({ SETUP_SCRIPT: 'sleep 5', SETUP_TIMEOUT_SECONDS: '1' }, {});
     expect(r.stdout).toContain('agentdesk: setup timed out');
     expect(r.stdout.some((l) => l.startsWith('agentdesk: setup failed'))).toBe(false);
-    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv[0]).toBe('1');
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv.includes('bash'))?.argv.at(-3)).toBe('1');
     expect(r.exitCode).toBe(78);
     expect(tmuxCalls(r)).toEqual([]);
   });
 
   it.each(['abc', '', '1; rm -rf x', '-5', '0'])('SETUP_TIMEOUT_SECONDS %j falls back to 600', async (v) => {
     const r = await runEntrypoint({ SETUP_SCRIPT: 'true', SETUP_TIMEOUT_SECONDS: v }, {});
-    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv[0]).toBe('600');
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv.includes('bash'))?.argv.at(-3)).toBe('600');
   });
+
+  it('a script that leaves a background process does not stall the phase', async () => {
+    const t0 = Date.now();
+    const r = await runEntrypoint({ SETUP_SCRIPT: 'sleep 30 & echo hi', SETUP_TIMEOUT_SECONDS: '10' }, {});
+    expect(Date.now() - t0).toBeLessThan(5000);
+    expect(r.stdout).toContain('setup| hi');
+    expect(r.stdout).toContain('agentdesk: setup passed');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('a script that ignores SIGTERM still ends as setup timed out in bounded time', async () => {
+    const t0 = Date.now();
+    const r = await runEntrypoint({ SETUP_SCRIPT: "trap '' TERM; sleep 30", SETUP_TIMEOUT_SECONDS: '1' }, {});
+    expect(Date.now() - t0).toBeLessThan(20_000);
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv.includes('bash'))?.argv.slice(0, 2)).toEqual(['-k', '10']);
+    expect(r.stdout).toContain('agentdesk: setup timed out');
+    expect(r.exitCode).toBe(78);
+  }, 30_000);
 
   it('setup output cannot forge markers', async () => {
     const r = await runEntrypoint(
@@ -201,8 +219,8 @@ describe('entrypoint setup phase', () => {
     expect(existsSync(`${probe}-b`)).toBe(false);
     expect(existsSync(`${probe}-c`)).toBe(false);
     // The script text only ever reaches a file: no stub saw it in argv (timeout gets the file path).
-    const timeoutCall = r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash');
-    expect(timeoutCall?.argv).toHaveLength(3);
+    const timeoutCall = r.calls.find((c) => c.cmd === 'timeout' && c.argv.includes('bash'));
+    expect(timeoutCall?.argv).toHaveLength(5);
     expect(timeoutCall?.argv.join(' ')).not.toContain('touch');
     expect(r.exitCode).toBe(0);
   });
@@ -211,7 +229,7 @@ describe('entrypoint setup phase', () => {
     const probe = join(tmpdir(), `entrypoint-probe-${process.pid}-${Date.now()}-run`);
     const r = await runEntrypoint({ SETUP_SCRIPT: `$(touch ${probe})` }, {});
     expect(existsSync(probe)).toBe(true); // executed once, by bash reading the file
-    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv.join(' ')).not.toContain('touch');
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv.includes('bash'))?.argv.join(' ')).not.toContain('touch');
   });
 
   it('SETUP_SCRIPT is not in the env tmux sees', async () => {
