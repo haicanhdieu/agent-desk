@@ -57,6 +57,11 @@ describe('select-plugins CLI', () => {
     expect(stdout).toBe('install\ta\ts\to/s\ninstall\tb\ts\to/s\nskip\tc@other\n');
   });
 
+  it.each([['\t'], ['\n'], ['\r'], ['\u0000']])('drops a source containing control char %j', async (ch) => {
+    const { stdout } = await runCli(settings, JSON.stringify({ s: `o/${ch}s` }));
+    expect(stdout).toBe('skip\tc@other\nskip\ta@s\nskip\tb@s\n');
+  });
+
   it.each([
     ['missing file', null, market],
     ['invalid json', 'nope', market],

@@ -100,6 +100,7 @@ The choice and the concrete rules that follow from it.
 | [0016](0016-qa-on-separate-k3s-in-shared-podman.md)    | QA on a separate k3s container in the Mac mini's shared Podman machine | Accepted | 2026-11-12 |
 | [0017](0017-helm-chart-delivered-by-flux.md)           | One Helm chart delivered by Flux from OCI release bundles              | Accepted | 2026-11-12 |
 | [0018](0018-portable-app-layer-target-contracts.md)    | Portable app layer: targets supply capabilities behind fixed names     | Accepted | 2026-11-12 |
+| [0019](0019-repo-setup-and-approved-store-plugins.md)  | Repo setup script and plugins from approved stores only                | Accepted | 2026-11-13 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the

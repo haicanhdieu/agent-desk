@@ -1,11 +1,13 @@
 #!/bin/bash
 # Runner entrypoint (control-plane spec §8). Env: REPO_CLONE_URL (holds a token), GH_TOKEN (same token, set by the
-# provider adapter so `gh` works), CHECKOUT_REF, PROMPT, BOT_NAME,
-# BOT_EMAIL, and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. Untrusted values are only ever expanded as
-# quoted values, never evaluated. No `set -x`: the clone URL is a secret.
+# provider adapter so `gh` works), CHECKOUT_REF, PROMPT, BOT_NAME, BOT_EMAIL, PLUGIN_MARKETPLACES (JSON
+# {store: source}, optional), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR and
+# AGENTDESK_LIB_DIR are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
+# No `set -x`: the clone URL is a secret.
 set -euo pipefail
 
-REPO_DIR=/workspace/repo
+REPO_DIR="${AGENTDESK_REPO_DIR:-/workspace/repo}"
+LIB_DIR="${AGENTDESK_LIB_DIR:-/usr/local/lib/agentdesk}"
 
 git clone --quiet -- "$REPO_CLONE_URL" "$REPO_DIR" 2>&1 | sed 's#://[^@/]*@#://***@#g' >&2
 cd "$REPO_DIR"
@@ -15,11 +17,60 @@ if [ -n "${CHECKOUT_REF:-}" ]; then
   git fetch --quiet origin -- "$CHECKOUT_REF"
   git checkout --quiet --detach FETCH_HEAD
 fi
+echo "agentdesk: checkout $(git rev-parse HEAD)"
 
-# Skip Claude Code's first-run onboarding and folder-trust prompts.
+# Skip Claude Code's first-run onboarding and folder-trust prompts. (`claude plugin ...` with stdin closed needs no
+# further pre-accept keys on the pinned version; see ADR 0019.)
 cat > "$HOME/.claude.json" <<JSON
 {"hasCompletedOnboarding": true, "projects": {"$REPO_DIR": {"hasTrustDialogAccepted": true}}}
 JSON
+
+# Plugins phase (workspace-setup spec 5.1). The repo's enabledPlugins is untrusted: select-plugins.mjs validates it
+# and prints strict tab-separated lines. Values reach the claude CLI only as separate argv elements, and a failure
+# only warns. Plugin output is prefixed with "plugin| " (read line by line, so a partial last line cannot join a
+# marker line).
+run_plugin_cmd() {
+  local rc
+  set +e
+  timeout 120 "$@" </dev/null 2>&1 | while IFS= read -r line || [ -n "$line" ]; do
+    printf 'plugin| %s\n' "${line//$'\r'/}"
+  done
+  rc="${PIPESTATUS[0]}"
+  set -e
+  return "$rc"
+}
+
+echo 'agentdesk: plugins begin'
+selection="$(node "$LIB_DIR/select-plugins.mjs" "$REPO_DIR/.claude/settings.json" 2>/dev/null || true)"
+registered=$'\n'
+failed_stores=$'\n'
+while IFS=$'\t' read -r kind plugin store source extra; do
+  case "$kind" in
+    skip)
+      if [ -n "$plugin" ] && [ -z "${store:-}" ]; then
+        echo "agentdesk: plugin skipped $plugin (store not approved)"
+      fi
+      ;;
+    install)
+      if [ -z "$plugin" ] || [ -z "${store:-}" ] || [ -z "${source:-}" ] || [ -n "${extra:-}" ]; then continue; fi
+      id="$plugin@$store"
+      if [[ "$registered" != *$'\n'"$store"$'\n'* ]]; then
+        registered+="$store"$'\n'
+        if ! run_plugin_cmd claude plugin marketplace add "$source"; then
+          failed_stores+="$store"$'\n'
+        fi
+      fi
+      if [[ "$failed_stores" == *$'\n'"$store"$'\n'* ]]; then
+        echo "agentdesk: plugin failed $id"
+      elif run_plugin_cmd claude plugin install "$id"; then
+        echo "agentdesk: plugin installed $id"
+      else
+        echo "agentdesk: plugin failed $id"
+      fi
+      ;;
+  esac
+done <<< "$selection"
+echo 'agentdesk: plugins end'
 
 # remain-on-exit keeps the dead pane so its exit status and scrollback can be read. It is set before new-session (same
 # tmux invocation, after start-server) so a command that dies at once still leaves its pane and output behind.

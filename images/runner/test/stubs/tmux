@@ -1,0 +1,9 @@
+#!/usr/bin/env node
+// Test stub: logs argv; the agent pane is reported dead at once with status 0.
+import { appendFileSync } from 'node:fs';
+
+const argv = process.argv.slice(2);
+appendFileSync(process.env.STUB_LOG, `${JSON.stringify({ cmd: 'tmux', argv })}\n`);
+if (argv.includes('display-message')) {
+  console.log(argv[argv.length - 1].includes('pane_dead_status') ? '0' : '1');
+}

@@ -54,6 +54,9 @@ export function selectPlugins(settingsText, marketplaces) {
   return result;
 }
 
+/** @param {string} s */
+const hasControlChar = (s) => [...s].some((c) => c.charCodeAt(0) < 0x20 || c.charCodeAt(0) === 0x7f);
+
 /** @param {string | undefined} raw @returns {Record<string, string> | null} */
 function parseMarketplaces(raw) {
   if (!raw) return null;
@@ -67,7 +70,10 @@ function parseMarketplaces(raw) {
   /** @type {Record<string, string>} */
   const out = {};
   for (const [store, source] of Object.entries(parsed)) {
-    if (ID_PART.test(store) && typeof source === 'string' && source !== '') out[store] = source;
+    // Control characters would break the tab/newline-delimited output the entrypoint parses.
+    if (ID_PART.test(store) && typeof source === 'string' && source !== '' && !hasControlChar(source)) {
+      out[store] = source;
+    }
   }
   return out;
 }

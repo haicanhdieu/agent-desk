@@ -1,0 +1,10 @@
+#!/usr/bin/env node
+// Test stub: logs argv, then runs the wrapped command (argv[1..]) without enforcing the limit.
+import { spawnSync } from 'node:child_process';
+import { appendFileSync } from 'node:fs';
+
+const argv = process.argv.slice(2);
+appendFileSync(process.env.STUB_LOG, `${JSON.stringify({ cmd: 'timeout', argv })}\n`);
+const [, cmd, ...args] = argv;
+const r = spawnSync(cmd, args, { stdio: 'inherit' });
+process.exit(r.status ?? 1);

@@ -232,7 +232,7 @@ One `HTTPRoute/agentdesk` on `Gateway/edge`, hostname `values.publicHost`:
 - `ResourceQuota`: `limits.memory` 1536 Mi, `requests.memory` 768 Mi, `pods` 2 (one finishing while the next starts). Values: `runs.maxConcurrent`, `runs.resources`.
 - `LimitRange` with the run pod defaults.
 - Pod Security `restricted`. Run pods (created by the worker) use uid 10001, `automountServiceAccountToken: false`, an `emptyDir` workspace with `sizeLimit: 4Gi`, and `ephemeral-storage` limit 4 Gi.
-- NetworkPolicy: deny all ingress. Egress allowed to DNS (kube-system) and to `0.0.0.0/0` **except** `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, `169.254.0.0/16`. This blocks the cluster, the Podman network, the LAN, and cloud metadata endpoints with the same rule on every target.
+- NetworkPolicy: deny all ingress. Egress allowed to DNS (kube-system) and to `0.0.0.0/0` **except** `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, `169.254.0.0/16`. This blocks the cluster, the Podman network, the LAN, and cloud metadata endpoints with the same rule on every target. Run pods must also reach the plugin marketplace sources (GitHub) and package registries ([ADR 0019](../../adr/0019-repo-setup-and-approved-store-plugins.md)); any future egress allowlist has to include them.
 - Optional values for cloud targets: `runs.nodeSelector`, `runs.tolerations`, `runs.runtimeClassName`.
 
 ### 6.6 RBAC
