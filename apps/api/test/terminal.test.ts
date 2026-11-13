@@ -143,6 +143,7 @@ async function makeRun(status: string, pod = true, projectId = aliceProject): Pr
         botEmail: 'bot@x.invalid',
         pluginMarketplaces: {},
         setupTimeoutSeconds: 600,
+        setupScript: null,
         pod: {
           cpuRequest: '1',
           cpuLimit: '1',

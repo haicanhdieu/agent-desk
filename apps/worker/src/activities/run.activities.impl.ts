@@ -1,6 +1,6 @@
 import { Context } from '@temporalio/activity';
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Provider, RunStatus, TicketKind } from '@agentdesk/contracts';
 import {
@@ -24,7 +24,18 @@ import {
   type RunPod,
   type SecretStore,
 } from '@agentdesk/core';
-import { agents, connections, organization, projects, runEvents, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
+import {
+  agents,
+  connections,
+  organization,
+  projects,
+  runEvents,
+  runs,
+  setupScriptVersions,
+  withOrg,
+  type Db,
+  type Tx,
+} from '@agentdesk/db';
 import { alias } from 'drizzle-orm/pg-core';
 import { appendRunEvent } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
@@ -366,6 +377,40 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
 
   // ---- createRunSecretAndJob
 
+  /**
+   * The setup script body this run's Job gets. The version is recorded on the run once (only while still null), then
+   * the body is loaded by that recorded version, so a retry after a newer save still gets the original script. The
+   * body stays inside this activity: it is never returned, logged or part of Temporal history.
+   */
+  async function recordedSetupScript(ctx: RunContext): Promise<string | null> {
+    return withOrg(db, ctx.orgId, async (tx) => {
+      const [run] = await tx.select({ v: runs.setupScriptVersion }).from(runs).where(eq(runs.id, ctx.runId));
+      let version = run?.v ?? null;
+      if (version === null) {
+        const [current] = await tx
+          .select({ version: setupScriptVersions.version, body: setupScriptVersions.body })
+          .from(setupScriptVersions)
+          .where(eq(setupScriptVersions.projectId, ctx.projectId))
+          .orderBy(desc(setupScriptVersions.version))
+          .limit(1);
+        if (!current || current.body === '') return null;
+        await tx
+          .update(runs)
+          .set({ setupScriptVersion: current.version })
+          .where(and(eq(runs.id, ctx.runId), isNull(runs.setupScriptVersion)));
+        // A concurrent attempt may have recorded first; the stored value wins.
+        const [after] = await tx.select({ v: runs.setupScriptVersion }).from(runs).where(eq(runs.id, ctx.runId));
+        version = after?.v ?? null;
+        if (version === null) return null;
+      }
+      const [row] = await tx
+        .select({ body: setupScriptVersions.body })
+        .from(setupScriptVersions)
+        .where(and(eq(setupScriptVersions.projectId, ctx.projectId), eq(setupScriptVersions.version, version)));
+      return row && row.body !== '' ? row.body : null;
+    });
+  }
+
   async function createRunSecretAndJob(ctx: RunContext): Promise<void> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return;
@@ -375,6 +420,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     const project: AdapterProject = toAdapterProject(d, d.code.externalId);
     let known = secretValues(cred);
     try {
+      const setupScript = await recordedSetupScript(ctx);
       const codeHost = deps.adapters.codeHost(providerOf(d.code.provider));
       // The token stays inside this activity: it goes into the run Secret and nowhere else (ruling R19).
       const { token } = await codeHost.mintWorkspaceToken(project);
@@ -404,6 +450,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         botEmail: deps.config.BOT_EMAIL,
         pluginMarketplaces: deps.config.RUN_PLUGIN_MARKETPLACES,
         setupTimeoutSeconds: deps.config.RUN_SETUP_TIMEOUT_SECONDS,
+        setupScript,
         pod: runPodConfigFrom(deps.config),
       });
       try {

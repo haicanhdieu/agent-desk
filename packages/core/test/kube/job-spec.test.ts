@@ -19,6 +19,7 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   botEmail: 'bot@example.invalid',
   pluginMarketplaces: { 'claude-plugins-official': 'anthropics/claude-plugins-official' },
   setupTimeoutSeconds: 600,
+  setupScript: null,
   pod: {
     cpuRequest: '500m',
     cpuLimit: '2',
@@ -38,6 +39,15 @@ describe('buildRunJob', () => {
       value: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
     });
     expect(env).toContainEqual({ name: 'SETUP_TIMEOUT_SECONDS', value: '600' });
+  });
+
+  it('SETUP_SCRIPT is present iff the script is non-empty, byte for byte', () => {
+    const envOf = (setupScript: string | null) =>
+      buildRunJob(input({ setupScript })).spec?.template.spec?.containers[0]?.env ?? [];
+    expect(envOf(null).some((e) => e.name === 'SETUP_SCRIPT')).toBe(false);
+    expect(envOf('').some((e) => e.name === 'SETUP_SCRIPT')).toBe(false);
+    const body = 'echo "héllo ✓"\r\nnpm ci $(id)';
+    expect(envOf(body)).toContainEqual({ name: 'SETUP_SCRIPT', value: body });
   });
 
   it('has the key fields of spec §8', () => {

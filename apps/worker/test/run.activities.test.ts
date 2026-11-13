@@ -17,7 +17,7 @@ import {
   type Config,
   type KubeGateway,
 } from '@agentdesk/core';
-import { createDb, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
+import { createDb, runEvents, runs, setupScriptVersions, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { FollowPodLogsResult, RunContext } from '../src/activities/run.activities';
 import { createRunActivities, type RunActivityDeps, type RunSignaller } from '../src/activities/run.activities.impl';
@@ -269,6 +269,71 @@ describe('createRunSecretAndJob', () => {
     expect(msg).not.toContain(CRED);
     expect(msg).not.toContain('ghs_abcdefghijklmnopqrstuvwxyz');
     expect(msg).toContain('422');
+  });
+});
+
+describe('createRunSecretAndJob setup script', () => {
+  async function saveVersion(version: number, body: string): Promise<void> {
+    await withOrg(db, ORG, (tx) =>
+      tx.insert(setupScriptVersions).values({ orgId: ORG, projectId, version, body, createdBy: 'tester' }),
+    );
+  }
+  // Later suites seed runs on the same project and expect no setup script.
+  afterAll(async () => {
+    await asOwner((c) => c.query('delete from setup_script_versions where project_id = $1', [projectId]));
+  });
+  const versionOf = async (runId: string) => (await load(runId)).run?.setupScriptVersion;
+
+  it('no saved script: the column stays null and the Job has no SETUP_SCRIPT', async () => {
+    const runId = await seedRun('x');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBeUndefined();
+    expect(await versionOf(runId)).toBeNull();
+    await acts.deleteJob(await ctxFor(runId));
+  });
+
+  it('passes the current script and records its version', async () => {
+    const body = 'echo "héllo ✓"\r\nnpm ci';
+    await saveVersion(1, 'echo old');
+    await saveVersion(2, body);
+    const runId = await seedRun('x');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBe(body);
+    expect(await versionOf(runId)).toBe(2);
+    await acts.deleteJob(await ctxFor(runId));
+  });
+
+  it('an empty current script records nothing and sets no SETUP_SCRIPT', async () => {
+    await saveVersion(3, '');
+    const runId = await seedRun('x');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBeUndefined();
+    expect(await versionOf(runId)).toBeNull();
+    await acts.deleteJob(await ctxFor(runId));
+  });
+
+  it('retry reuses the recorded script version', async () => {
+    await saveVersion(4, 'echo four');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error('500 etcd unavailable');
+      },
+    });
+    await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(ctx)
+      .catch(() => undefined);
+    expect(await versionOf(runId)).toBe(4);
+    await saveVersion(5, 'echo five');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect((await kube.podEnv(`run-${runId}`))?.SETUP_SCRIPT).toBe('echo four');
+    expect(await versionOf(runId)).toBe(4);
+    await acts.deleteJob(ctx);
   });
 });
 

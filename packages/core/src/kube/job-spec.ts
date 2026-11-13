@@ -33,6 +33,8 @@ export interface RunJobInput {
   pluginMarketplaces: Record<string, string>;
   /** Cap on the repo setup script, from platform config. */
   setupTimeoutSeconds: number;
+  /** The project's saved setup script (untrusted text): an env value only. Null or empty means none. */
+  setupScript: string | null;
   pod: RunPodConfig;
 }
 
@@ -95,6 +97,7 @@ export function buildRunJob(input: RunJobInput): V1Job {
     { name: 'BOT_EMAIL', value: input.botEmail },
     { name: 'PLUGIN_MARKETPLACES', value: JSON.stringify(input.pluginMarketplaces) },
     { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
+    ...(input.setupScript ? [{ name: 'SETUP_SCRIPT', value: input.setupScript }] : []),
     ...(input.maxTurns !== null ? [{ name: 'MAX_TURNS', value: String(input.maxTurns) }] : []),
   ];
   const p = input.pod;
