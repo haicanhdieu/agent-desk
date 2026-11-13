@@ -371,14 +371,14 @@ describe('github code host', () => {
     ]);
   });
 
-  it('lists and reads skills from .claude/skills', async () => {
+  it('lists and reads skills from .agent/skills', async () => {
     mockInstallationToken();
     const base = '/repos/acme/widgets';
     gh()
-      .intercept({ path: `${base}/contents/.claude/skills`, method: 'GET' })
+      .intercept({ path: `${base}/contents/.agent/skills`, method: 'GET' })
       .reply(200, fixture('contents.skills-dir.json'), { headers: JSON_HEADERS });
     gh()
-      .intercept({ path: `${base}/contents/.claude/skills/fix/SKILL.md`, method: 'GET' })
+      .intercept({ path: `${base}/contents/.agent/skills/fix/SKILL.md`, method: 'GET' })
       .reply(200, fixture('contents.skill-file.json'), { headers: JSON_HEADERS })
       .persist();
     gh()
@@ -390,7 +390,7 @@ describe('github code host', () => {
       {
         name: 'fix',
         description: 'Fix things',
-        path: '.claude/skills/fix/SKILL.md',
+        path: '.agent/skills/fix/SKILL.md',
         lastCommit: {
           sha: 'c0ffee0000000000000000000000000000000001',
           message: 'Add fix skill',
@@ -407,7 +407,7 @@ describe('github code host', () => {
     mockInstallationToken();
     gh()
       .intercept({
-        path: '/repos/acme/widgets/contents/.claude/skills/fix/SKILL.md',
+        path: '/repos/acme/widgets/contents/.agent/skills/fix/SKILL.md',
         method: 'PUT',
         body: (b) => {
           const o = JSON.parse(b) as { sha?: string; message: string; content: string; committer?: { name: string } };

@@ -145,7 +145,7 @@ export interface AdapterRegistry {
   providers(): Provider[];
 }
 
-export const SKILLS_DIR = '.claude/skills';
+export const SKILLS_DIR = '.agent/skills';
 
 /** Extracts `description:` from SKILL.md front-matter ('' when absent). */
 export function skillDescription(body: string): string {
