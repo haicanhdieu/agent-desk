@@ -12,6 +12,27 @@ const now = new Date(2026, 10, 12, 14, 20);
 
 const run = (over: Partial<RunDto>): RunDto => ({ ...base, ...over });
 
+describe('toRunSummary, failed in setup', () => {
+  it('a null start time gives the queue time, no duration and the failure reason as the note', () => {
+    const s = toRunSummary(
+      run({
+        status: 'failed',
+        startedAt: null,
+        queuedAt: local(13, 2),
+        finishedAt: local(13, 3),
+        failureStage: 'setup',
+        failureReason: 'setup failed (exit 1)',
+        setupScriptVersion: 5,
+      }),
+      now,
+    );
+    expect(s.startedAt).toBe('13:02');
+    expect(s.duration).toBeUndefined();
+    expect(s.statusNote).toBe('setup failed (exit 1)');
+    expect(JSON.stringify(s)).not.toMatch(/NaN|Invalid/);
+  });
+});
+
 describe('toRunSummary', () => {
   it('maps a final run: number, slash command, ticket, local start time, "12m 04s" duration', () => {
     const s = toRunSummary(

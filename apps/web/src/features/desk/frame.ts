@@ -16,6 +16,7 @@ export function projectPaths(org: string, projectId: string) {
     skills: `${projectPath}/desk/skills`,
     rules: `${projectPath}/desk/rules`,
     agent: `${projectPath}/desk/agent`,
+    setup: `${projectPath}/desk/setup`,
   };
 }
 
