@@ -57,6 +57,13 @@
       "when": 1794562776784,
       "tag": "0007_setup_tests",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794573019824,
+      "tag": "0008_projects_setup_step_setup",
+      "breakpoints": true
     }
   ]
 }

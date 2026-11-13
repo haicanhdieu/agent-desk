@@ -237,6 +237,16 @@ describe('bootstrap and migrations', () => {
       ).rejects.toMatchObject({ code: '23514' });
     });
 
+    it('projects accept the setup onboarding step, keep existing steps valid and reject unknown ones', async () => {
+      await inOrg((c) => c.query(`update projects set setup_step = 'setup'`).then(() => undefined));
+      for (const step of ['agent', 'skills', 'rules', 'ready']) {
+        await inOrg((c) => c.query(`update projects set setup_step = '${step}'`).then(() => undefined));
+      }
+      await expect(
+        inOrg((c) => c.query(`update projects set setup_step = 'bogus'`).then(() => undefined)),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,

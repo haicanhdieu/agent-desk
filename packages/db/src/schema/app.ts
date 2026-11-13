@@ -78,7 +78,7 @@ export const projects = pgTable(
     index('projects_board_connection_idx').on(t.boardConnectionId),
     check('projects_trigger_mode_check', sql`${t.triggerMode} in ('webhook','polling')`),
     check('projects_poll_interval_check', sql`${t.pollIntervalSeconds} in (300,600,900,1800)`),
-    check('projects_setup_step_check', sql`${t.setupStep} in ('agent','skills','rules','ready')`),
+    check('projects_setup_step_check', sql`${t.setupStep} in ('agent','setup','skills','rules','ready')`),
     orgPolicy(),
   ],
 );
