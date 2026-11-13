@@ -7,6 +7,7 @@ import { createRealKubeGateway } from './real-gateway';
 export * from './gateway';
 export * from './job-spec';
 export * from './log-parser';
+export * from './setup-log';
 export { FakeKubeGateway, type FakeKubeOptions } from './fake-gateway';
 export {
   RealKubeGateway,
