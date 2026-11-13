@@ -20,6 +20,7 @@ import {
   type RunPodPhase,
   type RunSecretRef,
   type SetupTestJobRef,
+  type SetupTestSecretRef,
   type V1Job,
 } from './gateway';
 import { FollowLog } from './follow-log';
@@ -241,6 +242,20 @@ export class RealKubeGateway implements KubeGateway {
       const ref = setupTestRefFromLabels(job.metadata?.labels);
       const jobName = job.metadata?.name;
       if (jobName && ref) out.push({ jobName, ...ref });
+    }
+    return out;
+  }
+
+  async listSetupTestSecrets(): Promise<SetupTestSecretRef[]> {
+    const list = await this.deps.core.listNamespacedSecret({
+      namespace: this.ns,
+      labelSelector: `${SETUP_TEST_LABELS.kind}=${SETUP_TEST_KIND}`,
+    });
+    const out: SetupTestSecretRef[] = [];
+    for (const secret of list.items) {
+      const ref = setupTestRefFromLabels(secret.metadata?.labels);
+      const secretName = secret.metadata?.name;
+      if (secretName && ref) out.push({ secretName, ...ref });
     }
     return out;
   }

@@ -19,6 +19,7 @@ import {
   type RunPod,
   type RunSecretRef,
   type SetupTestJobRef,
+  type SetupTestSecretRef,
   type V1Job,
 } from './gateway';
 
@@ -321,6 +322,25 @@ export class FakeKubeGateway implements KubeGateway {
       if (!parsed.success) continue;
       const ref = setupTestRefFromLabels(parsed.data.labels);
       if (ref) out.push({ jobName: name, ...ref });
+    }
+    return out;
+  }
+
+  async listSetupTestSecrets(): Promise<SetupTestSecretRef[]> {
+    let files: string[];
+    try {
+      files = await readdir(join(this.dir, SECRETS_DIR));
+    } catch {
+      return [];
+    }
+    const out: SetupTestSecretRef[] = [];
+    for (const file of files) {
+      const secretName = file.replace(/\.json$/, '');
+      if (!SETUP_TEST_JOB_NAME.test(secretName)) continue;
+      const raw = await readOrNull(join(this.dir, SECRETS_DIR, file));
+      const parsed = raw === null ? null : SecretFile.safeParse(JSON.parse(raw));
+      const ref = parsed?.success ? setupTestRefFromLabels(parsed.data.labels) : null;
+      if (ref) out.push({ secretName, ...ref });
     }
     return out;
   }

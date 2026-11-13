@@ -62,6 +62,13 @@ export interface SetupTestJobRef {
   projectId: string;
 }
 
+export interface SetupTestSecretRef {
+  secretName: string;
+  setupTestId: string;
+  orgId: string;
+  projectId: string;
+}
+
 export interface RunSecretRef {
   secretName: string;
   runId: string;
@@ -90,6 +97,8 @@ export interface KubeGateway {
   listSetupTestJobs(): Promise<SetupTestJobRef[]>;
   /** Run Secrets (label `agentdesk/run-id`), including ones whose Job never existed or is gone. */
   listRunSecrets(): Promise<RunSecretRef[]>;
+  /** Setup-test Secrets (label `agentdesk/kind=setup-test`), including ones whose Job never existed or is gone. */
+  listSetupTestSecrets(): Promise<SetupTestSecretRef[]>;
 }
 
 /** The run labels of an object, or null when any is missing. */

@@ -306,6 +306,35 @@ describe('FakeKubeGateway', () => {
     expect((await gw.listRunJobs()).map((j) => j.jobName)).not.toContain(name);
   });
 
+  it('listSetupTestSecrets lists only setup-test labelled Secrets, with or without a Job', async () => {
+    const id = runId();
+    const name = `setup-test-${id}`;
+    const labels = {
+      'agentdesk/kind': 'setup-test',
+      'agentdesk/setup-test-id': id,
+      'agentdesk/org-id': ORG,
+      'agentdesk/project-id': PROJECT,
+    };
+    await gw.ensureSecret(name, { REPO_CLONE_URL: 'x' }, labels);
+    const runName = `run-${runId()}`;
+    await gw.ensureSecret(
+      runName,
+      { A: 'b' },
+      { 'agentdesk/run-id': runName, 'agentdesk/org-id': ORG, 'agentdesk/project-id': PROJECT },
+    );
+    expect(await gw.listSetupTestSecrets()).toContainEqual({
+      secretName: name,
+      setupTestId: id,
+      orgId: ORG,
+      projectId: PROJECT,
+    });
+    expect((await gw.listSetupTestSecrets()).map((x) => x.secretName)).not.toContain(runName);
+    expect((await gw.listRunSecrets()).map((x) => x.secretName)).not.toContain(name);
+    await gw.deleteSecret(name);
+    await gw.deleteSecret(runName);
+    expect((await gw.listSetupTestSecrets()).map((x) => x.secretName)).not.toContain(name);
+  });
+
   it('never signals a pid it does not own: exit written, or a pid file pointing at another process', async () => {
     const kill = vi.spyOn(process, 'kill');
     try {

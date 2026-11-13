@@ -231,6 +231,33 @@ describe('RealKubeGateway', () => {
     expect(m.core.listNamespacedSecret).toHaveBeenCalledWith({ namespace: NS, labelSelector: 'agentdesk/run-id' });
   });
 
+  it('listSetupTestSecrets reads the setup-test labels of Secrets and ignores run Secrets', async () => {
+    const m = mocks();
+    m.core.listNamespacedSecret.mockResolvedValueOnce({
+      items: [
+        {
+          metadata: {
+            name: 'setup-test-a',
+            labels: {
+              'agentdesk/kind': 'setup-test',
+              'agentdesk/setup-test-id': 'a',
+              'agentdesk/org-id': 'o',
+              'agentdesk/project-id': 'p',
+            },
+          },
+        },
+        { metadata: { name: 'setup-test-b', labels: { 'agentdesk/kind': 'setup-test' } } },
+      ],
+    });
+    expect(await m.gw.listSetupTestSecrets()).toEqual([
+      { secretName: 'setup-test-a', setupTestId: 'a', orgId: 'o', projectId: 'p' },
+    ]);
+    expect(m.core.listNamespacedSecret).toHaveBeenCalledWith({
+      namespace: NS,
+      labelSelector: 'agentdesk/kind=setup-test',
+    });
+  });
+
   it('streamLogs yields whole lines from the followed log and stops on abort', async () => {
     const m = mocks();
     let sink: Writable | undefined;

@@ -106,6 +106,7 @@ function wrapKube(over: Partial<KubeGateway>): KubeGateway {
     listRunJobs: () => kube.listRunJobs(),
     listSetupTestJobs: () => kube.listSetupTestJobs(),
     listRunSecrets: () => kube.listRunSecrets(),
+    listSetupTestSecrets: () => kube.listSetupTestSecrets(),
     ...over,
   };
 }
