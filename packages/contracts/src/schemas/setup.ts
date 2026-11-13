@@ -62,3 +62,18 @@ export type SetupTestDto = z.infer<typeof SetupTestDto>;
 
 export const CreateSetupTestRequest = z.object({ script: SetupScriptBody });
 export type CreateSetupTestRequest = z.infer<typeof CreateSetupTestRequest>;
+
+export const PluginState = z.enum(['will_install', 'blocked']);
+export type PluginState = z.infer<typeof PluginState>;
+
+/**
+ * What the runner will do with the plugins the repo's `.claude/settings.json` enables. `id` is `plugin@store`.
+ * `blocked` plugins come from a store that is not approved. `settingsError` is set when the file could not be read.
+ */
+export const PluginsDto = z.object({
+  /** Names of the approved plugin stores (never their sources). */
+  approvedStores: z.array(z.string()),
+  plugins: z.array(z.object({ id: z.string(), name: z.string(), store: z.string(), state: PluginState })),
+  settingsError: z.enum(['unreadable']).nullable(),
+});
+export type PluginsDto = z.infer<typeof PluginsDto>;

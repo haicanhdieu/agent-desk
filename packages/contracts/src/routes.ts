@@ -14,6 +14,7 @@ import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
 import {
   CreateSetupTestRequest,
+  PluginsDto,
   PutSetupScriptRequest,
   SetupScriptDto,
   SetupScriptVersionDto,
@@ -178,6 +179,15 @@ export const routes = {
       path: '/api/projects/:projectId/setup-script/versions/:version',
       params: setupVersionParams,
       response: SetupScriptDto,
+    },
+  },
+  setup: {
+    /** The plugins panel: what the runner will install from the repo's settings, read at the default branch. */
+    plugins: {
+      method: 'GET',
+      path: '/api/projects/:projectId/plugins',
+      params: projectParams,
+      response: PluginsDto,
     },
   },
   setupTests: {

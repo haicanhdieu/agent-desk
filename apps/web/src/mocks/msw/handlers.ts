@@ -359,6 +359,22 @@ const impl: Impl = {
     if (!found) throw notFound('Setup script version');
     return found;
   },
+  'setup.plugins': ({ params }) => {
+    projectRow(params.projectId);
+    return {
+      approvedStores: ['claude-plugins-official'],
+      plugins: [
+        {
+          id: 'superpowers@claude-plugins-official',
+          name: 'superpowers',
+          store: 'claude-plugins-official',
+          state: 'will_install' as const,
+        },
+        { id: 'unknown-tool@third-party', name: 'unknown-tool', store: 'third-party', state: 'blocked' as const },
+      ],
+      settingsError: null,
+    };
+  },
   'setupTests.create': ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
     const sha = [...body.script].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(16);
