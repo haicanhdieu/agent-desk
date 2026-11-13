@@ -6,6 +6,7 @@ import { agents, inboundEvents, projects, runEvents, runs, withOrg, type Db, typ
 import {
   ACTIVE_RUN_STATUSES,
   FINAL_RUN_STATUSES,
+  FailureStage,
   RunStatus,
   TicketKind,
   TriggerSource,
@@ -125,6 +126,8 @@ export class RunsService {
       finishedAt: row.finishedAt?.toISOString() ?? null,
       exitCode: row.exitCode,
       failureReason: row.failureReason,
+      failureStage: row.failureStage === null ? null : FailureStage.parse(row.failureStage),
+      setupScriptVersion: row.setupScriptVersion,
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
       timeoutSeconds: agent?.timeoutSeconds ?? 1800,
       idleSince: row.idleSince?.toISOString() ?? null,

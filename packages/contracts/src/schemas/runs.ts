@@ -12,6 +12,9 @@ export const TicketDto = z.object({
 });
 export type TicketDto = z.infer<typeof TicketDto>;
 
+export const FailureStage = z.enum(['setup', 'agent']);
+export type FailureStage = z.infer<typeof FailureStage>;
+
 export const RunDto = z.object({
   id: Id,
   number: z.number().int(),
@@ -30,6 +33,10 @@ export const RunDto = z.object({
   finishedAt: Timestamp.nullable(),
   exitCode: z.number().int().nullable(),
   failureReason: z.string().nullable(),
+  /** Phase that failed; null when the run did not fail or the phase is unknown. */
+  failureStage: FailureStage.nullable(),
+  /** Setup script version the run used; null when the project had no script. */
+  setupScriptVersion: z.number().int().nullable(),
   costUsd: z.number().nullable(),
   timeoutSeconds: z.number().int(),
   idleSince: Timestamp.nullable(),
