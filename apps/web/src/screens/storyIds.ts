@@ -60,6 +60,7 @@ export const stateStories = {
   DeskSetupStale: { title: desk, exportName: 'DeskSetupStale', board: 'DeskSetup' },
   DeskSetupConflict: { title: desk, exportName: 'DeskSetupConflict', board: 'DeskSetup' },
   DeskSetupEmpty: { title: desk, exportName: 'DeskSetupEmpty', board: 'DeskSetup' },
+  DeskSetupVersionsError: { title: desk, exportName: 'DeskSetupVersionsError', board: 'DeskSetup' },
   DeskSetupLoading: { title: desk, exportName: 'DeskSetupLoading', board: 'DeskSetup' },
   DeskSetupLoadError: { title: desk, exportName: 'DeskSetupLoadError', board: 'DeskSetup' },
   SetupWorkspaceStart: { title: setup, exportName: 'SetupWorkspaceStart', board: 'SetupWorkspace' },

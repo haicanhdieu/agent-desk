@@ -264,6 +264,19 @@ export const DeskSetupEmpty: Story = {
   render: () => <DeskSetupScreen {...setupProps} script={null} versions={[]} lastTest={undefined} />,
 };
 
+export const DeskSetupVersionsError: Story = {
+  name: 'Workspace setup, version history failed to load',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSetupScreen
+      {...setupProps}
+      versions={[]}
+      versionsError="Could not load the version history. Reload to try again."
+    />
+  ),
+};
+
 export const DeskSetupLoading: Story = {
   name: 'Workspace setup, loading',
   decorators: artboard(900),

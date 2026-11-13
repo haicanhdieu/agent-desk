@@ -75,6 +75,8 @@ export interface DeskSetupProps {
   plugins: PluginListProps;
   versions: ScriptVersion[];
   versionsLoading?: boolean;
+  /** The version history could not be loaded. */
+  versionsError?: string;
   lastTest?: LastSetupTest;
   test?: SetupTestView;
   saving?: boolean;
@@ -135,6 +137,7 @@ export function DeskSetup({
   plugins,
   versions,
   versionsLoading,
+  versionsError,
   lastTest,
   test,
   saving = false,
@@ -355,6 +358,7 @@ export function DeskSetup({
                 <VersionHistory
                   versions={versions}
                   loading={versionsLoading}
+                  error={versionsError}
                   onView={onViewVersion}
                   onRestore={onRestore}
                 />
