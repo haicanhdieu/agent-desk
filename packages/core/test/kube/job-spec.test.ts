@@ -210,9 +210,10 @@ describe('buildSetupTestJob', () => {
     expect(job.spec?.template.spec?.containers[0]?.envFrom).toEqual([{ secretRef: { name: `setup-test-${TEST_ID}` } }]);
   });
 
-  it('runs in setup_test mode with no agent prompt and a deadline of setup + ttl + 300', () => {
+  it('runs in setup_test mode with no agent prompt and a deadline of setup + ttl + a pending/clone/plugin margin', () => {
     const job = buildSetupTestJob(setupInput());
-    expect(job.spec?.activeDeadlineSeconds).toBe(600 + 1800 + 300);
+    // 420 s for Pending and the clone, 1200 s for ten plugin commands at the runner's 120 s each, 10 s kill grace.
+    expect(job.spec?.activeDeadlineSeconds).toBe(600 + 1800 + 420 + 1200 + 10);
     expect(job.spec?.backoffLimit).toBe(0);
     const env = Object.fromEntries((job.spec?.template.spec?.containers[0]?.env ?? []).map((e) => [e.name, e.value]));
     expect(env).toEqual({

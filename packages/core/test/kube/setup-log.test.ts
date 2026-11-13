@@ -74,6 +74,35 @@ describe('SetupLogTracker', () => {
     expect(t.flush()).toEqual([]);
   });
 
+  it('a kind change at the cap emits the buffered chunk (truncated) as the one output effect, losing none of it', () => {
+    const t = tracker(50, 12);
+    expect(feed(t, ['plugin| abcd', 'plugin| efg'])).toEqual([]);
+    const effects = feed(t, ['setup| this line does not fit']);
+    expect(effects).toEqual([
+      { kind: 'output', payload: { kind: 'plugin_output', text: 'abcd\nefg', truncated: true } },
+    ]);
+    expect(t.pendingLines).toBe(0);
+    expect(feed(t, ['setup| x', 'plugin| y'])).toEqual([]);
+    expect(t.flush()).toEqual([]);
+  });
+
+  it('a kind change below the cap flushes the old kind and buffers the new line (one output effect)', () => {
+    const t = tracker(50, 100);
+    feed(t, ['plugin| a']);
+    expect(feed(t, ['setup| b'])).toEqual([
+      { kind: 'output', payload: { kind: 'plugin_output', text: 'a', truncated: false } },
+    ]);
+    expect(t.flush()).toEqual([{ kind: 'output', payload: { kind: 'setup_output', text: 'b', truncated: false } }]);
+  });
+
+  it('the last result marker wins: a later pass clears the exit code of an earlier failure', () => {
+    const t = tracker();
+    feed(t, ['agentdesk: setup failed exit=5', 'agentdesk: setup passed']);
+    expect(t.summary).toMatchObject({ setup: 'passed', exitCode: null });
+    feed(t, ['agentdesk: setup failed exit=2']);
+    expect(t.summary).toMatchObject({ setup: 'failed', exitCode: 2 });
+  });
+
   it('summary lists plugins, checkout, setup result and exit code', () => {
     const t = tracker();
     expect(t.summary).toEqual({

@@ -102,8 +102,26 @@ export class SetupLogTracker {
 
   private pushOutput(kind: 'setup_output' | 'plugin_output', text: string): SetupLogEffect[] {
     if (this.truncated) return [];
+    if (this.buffer.length > 0 && this.bufferKind !== kind) {
+      if (text.length > this.opts.maxChars - this.chars) {
+        // Budget exhausted on a kind change: the buffered chunk (whole) is the last one and the new line is dropped, so
+        // this push still returns exactly one output effect and never mixes kinds.
+        this.truncated = true;
+        const last: SetupLogEffect = {
+          kind: 'output',
+          payload: { kind: this.bufferKind, text: this.buffer.join('\n'), truncated: true },
+        };
+        this.buffer = [];
+        return [last];
+      }
+      const flushed = this.flush();
+      this.bufferKind = kind;
+      this.chars += text.length;
+      this.buffer.push(text);
+      // The new line starts a fresh buffer and stays there (even at chunkLines 1) so this push returns one effect.
+      return flushed;
+    }
     const effects: SetupLogEffect[] = [];
-    if (this.buffer.length > 0 && this.bufferKind !== kind) effects.push(...this.flush());
     this.bufferKind = kind;
     const join = this.buffer.length > 0 ? 1 : 0;
     const room = this.opts.maxChars - this.chars - join;
@@ -126,10 +144,12 @@ export class SetupLogTracker {
     else if (p.kind === 'plugin_installed' && p.pluginId) s.plugins.installed.push(p.pluginId);
     else if (p.kind === 'plugin_skipped' && p.pluginId) s.plugins.skipped.push(p.pluginId);
     else if (p.kind === 'plugin_failed' && p.pluginId) s.plugins.failed.push(p.pluginId);
-    else if (p.kind === 'setup_skipped') s.setup = 'skipped';
-    else if (p.kind === 'setup_passed') s.setup = 'passed';
-    else if (p.kind === 'setup_timed_out') s.setup = 'timed_out';
-    else if (p.kind === 'setup_failed') {
+    // The last result marker wins (a process writing to the container log directly can print an earlier one), so each
+    // result also resets the exit code.
+    else if (p.kind === 'setup_skipped' || p.kind === 'setup_passed' || p.kind === 'setup_timed_out') {
+      s.setup = p.kind === 'setup_skipped' ? 'skipped' : p.kind === 'setup_passed' ? 'passed' : 'timed_out';
+      s.exitCode = null;
+    } else if (p.kind === 'setup_failed') {
       s.setup = 'failed';
       s.exitCode = p.exitCode ?? null;
     }

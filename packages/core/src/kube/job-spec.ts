@@ -42,6 +42,11 @@ export interface RunJobInput {
 const TIMEOUT_SECONDS_MAX = 3300;
 /** `activeDeadlineSeconds` = timeout + this, a backstop to the workflow's hard timer. */
 const DEADLINE_MARGIN_SECONDS = 120;
+/**
+ * Setup-test `activeDeadlineSeconds` = setup timeout + TTL + this: Pending and the clone (420 s), ten plugin commands at
+ * the runner's 120 s limit each (1200 s), and the setup kill grace (10 s). A backstop only: the workflow deletes the Job.
+ */
+const SETUP_TEST_DEADLINE_MARGIN_SECONDS = 420 + 10 * 120 + 10;
 const TTL_AFTER_FINISHED_SECONDS = 3600;
 const RUNNER_UID = 10001;
 
@@ -228,7 +233,7 @@ export function buildSetupTestJob(input: SetupTestJobInput): V1Job {
     labels: setupTestLabels(input),
     image: input.image,
     env,
-    activeDeadlineSeconds: input.setupTimeoutSeconds + input.ttlSeconds + 300,
+    activeDeadlineSeconds: input.setupTimeoutSeconds + input.ttlSeconds + SETUP_TEST_DEADLINE_MARGIN_SECONDS,
     pod: input.pod,
   });
 }
