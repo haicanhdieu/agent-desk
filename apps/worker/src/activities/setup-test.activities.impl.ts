@@ -74,8 +74,6 @@ const MARKER_KINDS = [
   'setup_failed',
   'setup_timed_out',
 ] as const;
-/** The markers that end setup: the first one seen is the test's result. */
-const RESULT_KINDS: ReadonlySet<string> = new Set(['setup_skipped', 'setup_passed', 'setup_failed', 'setup_timed_out']);
 
 const MarkerPayload = z.object({
   kind: z.enum(MARKER_KINDS),
@@ -299,7 +297,11 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
           await withOrg(db, ref.orgId, (tx) => storeSetupLineEvent(tx, ref.orgId, ref.setupTestId, line, payload));
         },
         onParsed: async (pass, parsed) => {
-          if (!RESULT_KINDS.has(parsed.kind)) return undefined;
+          // The result is taken at "session started", from the LAST result marker stored before it. A process that
+          // writes to the container log directly (not through the "setup| " prefix) can print a marker, so the first
+          // one is not trusted; by "session started" the script's process group is gone. A "session started" with no
+          // result marker before it cannot be the runner's own (it always prints one first): keep following.
+          if (parsed.kind !== 'session_started') return undefined;
           // Durable only once the result is written: a retry must see this marker again if the write failed.
           const result = await recordResult(ref);
           if (!result) return undefined;
@@ -316,11 +318,13 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
             await pass.throwIfCancelled();
             return 'reattach';
           }
-          // The pod ended without a result marker: keep what it printed; finalize ends the test.
+          // The pod ended before "session started": keep what it printed and take the last result marker it stored, if
+          // any. With none the result is null and finalize ends the test.
           await pass.flushPending();
+          const result = await recordResult(ref);
           pass.markDurable(pass.index);
           pass.beat();
-          return { done: null };
+          return { done: result };
         },
       },
     );

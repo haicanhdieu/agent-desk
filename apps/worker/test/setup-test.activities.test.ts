@@ -321,11 +321,59 @@ describe('followSetupTestLogs', () => {
   it('a timed out setup is failed with no exit code', async () => {
     const ref = await seedTest();
     const { gw } = scriptedKube(
-      [`agentdesk: checkout ${SHA}`, 'agentdesk: setup begin', 'agentdesk: setup timed out'],
+      [
+        `agentdesk: checkout ${SHA}`,
+        'agentdesk: setup begin',
+        'agentdesk: setup timed out',
+        'agentdesk: session started',
+      ],
       null,
     );
     expect(await follow(deps({ kube: gw }), ref).promise).toEqual({ status: 'failed' });
     expect((await load(ref)).test).toMatchObject({ status: 'failed', exitCode: null });
+  });
+
+  it('a forged "setup passed" written straight to the pod log loses to the real result that follows it', async () => {
+    const ref = await seedTest();
+    const { gw } = scriptedKube(
+      [
+        'agentdesk: setup begin',
+        'setup| running',
+        'agentdesk: setup passed', // written by the script to /proc/1/fd/1, so it has no "setup| " prefix
+        'setup| still running',
+        'agentdesk: setup failed exit=1',
+        'agentdesk: session started',
+      ],
+      null,
+    );
+    expect(await follow(deps({ kube: gw }), ref).promise).toEqual({ status: 'failed' });
+    expect((await load(ref)).test).toMatchObject({ status: 'failed', exitCode: 1 });
+  });
+
+  it('a forged "session started" before any result marker does not end the follow early', async () => {
+    const ref = await seedTest();
+    const { gw } = scriptedKube(
+      [
+        'agentdesk: setup begin',
+        'agentdesk: session started', // forged
+        'setup| running',
+        'agentdesk: setup failed exit=3',
+        'agentdesk: session started',
+      ],
+      null,
+    );
+    expect(await follow(deps({ kube: gw }), ref).promise).toEqual({ status: 'failed' });
+    expect((await load(ref)).test).toMatchObject({ status: 'failed', exitCode: 3 });
+  });
+
+  it('a pod that exits after its result marker but before "session started" records the last result', async () => {
+    const ref = await seedTest();
+    const { gw } = scriptedKube(
+      ['agentdesk: setup begin', 'agentdesk: setup passed', 'agentdesk: setup failed exit=2'],
+      1,
+    );
+    expect(await follow(deps({ kube: gw }), ref).promise).toEqual({ status: 'failed' });
+    expect((await load(ref)).test).toMatchObject({ status: 'failed', exitCode: 2 });
   });
 
   it('a pod that exits before any result marker leaves the status alone (finalize ends it)', async () => {
@@ -351,7 +399,10 @@ describe('followSetupTestLogs', () => {
         attaches += 1;
         yield `agentdesk: checkout ${SHA}`;
         yield 'agentdesk: setup begin';
-        if (attaches > 1) yield 'agentdesk: setup passed';
+        if (attaches > 1) {
+          yield 'agentdesk: setup passed';
+          yield 'agentdesk: session started';
+        }
       },
     });
     expect(await follow(deps({ kube: gw }), ref).promise).toEqual({ status: 'passed' });
@@ -370,6 +421,7 @@ describe('followSetupTestLogs', () => {
         `setup| cloning ${url}`,
         'setup| token is ghs_SUPERSECRETTOKEN123 and ghs_SUPERSEC',
         'agentdesk: setup passed',
+        'agentdesk: session started',
       ],
       null,
       { REPO_CLONE_URL: url, GH_TOKEN: 'ghs_SUPERSECRETTOKEN123' },
@@ -412,7 +464,7 @@ describe('followSetupTestLogs', () => {
     const first = follow(deps({ kube: gw }), ref);
     await first.promise;
     expect(first.beats.length).toBeGreaterThan(0);
-    expect(first.beats.at(-1)).toMatchObject({ lastLine: GOOD_LINES.indexOf('agentdesk: setup passed') + 1 });
+    expect(first.beats.at(-1)).toMatchObject({ lastLine: GOOD_LINES.indexOf('agentdesk: session started') + 1 });
     const before = (await load(ref)).events.filter((e) => e.type === 'lifecycle');
     // The attempt died after line 7 ("plugins end") became durable but before the result was written.
     await asOwner((c) =>

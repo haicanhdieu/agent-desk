@@ -143,6 +143,23 @@ describe('SetupTestWorkflow', () => {
     expect(s.calls).toEqual(['create', 'follow', 'finalize']);
   });
 
+  it('a test that ends with no result (pod died before a result marker) finalizes at once, with no TTL wait', async () => {
+    const { ref, s } = newTest({ ttlSeconds: 900, result: null });
+    const h = await start(ref);
+    expect(await h.result()).toEqual({ status: 'ended' });
+    expect(s.calls).toEqual(['create', 'follow', 'finalize']);
+    const timers = ((await h.fetchHistory()).events ?? []).filter((e) => e.timerStartedEventAttributes);
+    expect(timers).toHaveLength(0);
+  });
+
+  it('a test with a result starts the TTL timer', async () => {
+    const { ref } = newTest({ ttlSeconds: 900 });
+    const h = await start(ref);
+    await h.result();
+    const timers = ((await h.fetchHistory()).events ?? []).filter((e) => e.timerStartedEventAttributes);
+    expect(timers).toHaveLength(1);
+  });
+
   it('only the ids reach the activities: no script, no token in any argument', async () => {
     const { ref, s } = newTest();
     const h = await start(ref);

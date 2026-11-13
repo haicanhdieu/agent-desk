@@ -339,6 +339,22 @@ describe('createRunSecretAndJob setup script', () => {
     expect(await versionOf(runId)).toBe(4);
     await acts.deleteJob(ctx);
   });
+
+  it('a Job failure leaks no script text into the error (it can become the failure reason posted to the ticket)', async () => {
+    const body = 'echo "run-path-secret-script-body" && make setup';
+    await saveVersion(6, body);
+    const runId = await seedRun('x');
+    const failing = wrapKube({
+      ensureJob: async () => {
+        throw new Error(`apply failed for ${body}`);
+      },
+    });
+    const err = await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(await ctxFor(runId))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).not.toContain('run-path-secret-script-body');
+  });
 });
 
 describe('createRunSecretAndJob cleanup', () => {

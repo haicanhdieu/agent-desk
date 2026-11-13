@@ -42,7 +42,7 @@ const fin = proxyActivities<Pick<SetupTestActivities, 'finalizeSetupTest'>>({
 
 /**
  * Spec §5.3. One setup test: create the Job, follow its logs until the setup result, keep the workspace for the TTL
- * (or until the `endSetupTest` signal), then always `finalize` (non-cancellable), which deletes the Job and Secret,
+ * (or until the `endSetupTest` signal; no wait when there is no result), then always `finalize` (non-cancellable), which deletes the Job and Secret,
  * clears the script and marks the test ended.
  *
  * The `endSetupTest` signal cancels steps 1-2 and releases the TTL wait. A failure of create or follow (or a
@@ -70,7 +70,9 @@ export async function SetupTestWorkflow(input: SetupTestWorkflowInput): Promise<
       // workflow) is rethrown after finalize.
       if (!(ended && isCancellation(err))) throw err;
     }
-    await condition(() => ended, state.ttlSeconds * 1000);
+    // The workspace is kept for the TTL only once there is a result to inspect. With none (the pod died before a result
+    // marker, or the test was already closed) there is nothing to wait for: finalize ends it at once.
+    if (state.result !== null) await condition(() => ended, state.ttlSeconds * 1000);
   } finally {
     await CancellationScope.nonCancellable(() => fin.finalizeSetupTest(ref));
   }

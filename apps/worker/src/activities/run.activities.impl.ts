@@ -35,7 +35,16 @@ import {
   type Tx,
 } from '@agentdesk/db';
 import { alias } from 'drizzle-orm/pg-core';
-import { CLONE_URL_KEY, ERROR_MESSAGE_MAX, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
+import {
+  CLONE_URL_KEY,
+  ERROR_MESSAGE_MAX,
+  MIN_SECRET_LENGTH,
+  guarded,
+  oneLine,
+  safeError,
+  secretValues,
+  sleep,
+} from './activity-utils';
 import {
   followPodLog,
   outputBudget,
@@ -385,6 +394,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     let known = secretValues(cred);
     try {
       const setupScript = await recordedSetupScript(ctx);
+      // The script is untrusted text: keep it out of an error too (the failure reason is posted to the ticket).
+      if (setupScript !== null && setupScript.length >= MIN_SECRET_LENGTH) known = [...known, setupScript];
       const codeHost = deps.adapters.codeHost(providerOf(d.code.provider));
       // The token stays inside this activity: it goes into the run Secret and nowhere else (ruling R19).
       const { token } = await codeHost.mintWorkspaceToken(project);
