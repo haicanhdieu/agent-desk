@@ -1,8 +1,8 @@
-# Writing test cases for one rule
+# Writing test cases for a cluster
 
-You write `rules/<BR-id>.json` for the single rule named in your prompt (shape in [schemas.md](../schemas.md)).
+You write one `rules/<BR-id>.json` for each rule in the cluster named in your prompt (shape in [schemas.md](../schemas.md)). Work through the rules one at a time, in id order, giving each the full procedure below. The last rule deserves the same care as the first.
 
-Read only: the requirement sources, `scope.json`, `inventory.json`, and existing spec files under `apps/web/e2e/`. Do not open `apps/*/src`, `packages/*/src`, stories, mocks or implementation plans. Expected results come from the source. If the source does not say what should happen, write an open question; do not guess and do not check what the app does.
+Read only: the requirement sources (the sections your prompt names), `scope.json`, the two `inventory-*.txt` files, and existing spec files under `apps/web/e2e/`. Do not open `apps/*/src`, `packages/*/src`, stories, mocks or implementation plans. Expected results come from the source. If the source does not say what should happen, write an open question; do not guess and do not check what the app does.
 
 ## Step 1: pick the design techniques
 
@@ -27,7 +27,7 @@ Use `error-guessing` only for a condition the source itself mentions (double sub
 
 List every condition the rule distinguishes as a `coverage` row: the condition and what the source says is expected. The techniques above tell you which rows exist. Include the rows where the rule does _not_ apply, so the test proves the rule is not always on.
 
-A row whose expected result the source does not give still goes in the table only if you can state it; otherwise it becomes an open question and no case.
+A row whose expected result the source does not give goes in the table only if you can state it; otherwise it becomes an open question and no case.
 
 ## Step 3: write the cases
 
@@ -41,19 +41,19 @@ One case proves one coverage row, or a few rows that share the same steps. Every
 - **Priority:** `smoke` for the cases that prove the rule's core behaviour, usually the main positive and the main negative. Everything else is `full`. Each rule has at least one `smoke`.
 - **Type:** `positive`, `negative`, `boundary`, `state` or `permission`.
 
-Keep cases independent: each one sets up its own state and can run alone or in any order.
+Keep cases independent: each one sets up its own state and can run alone or in any order. Rules in a cluster often share preconditions; write them out in full on every case anyway.
 
-Stay inside your rule. If you notice behaviour that belongs to another rule or to no rule, add an entry to `openQuestions` saying so instead of writing a case for it.
+**One case, one rule.** When a case would prove two rules of your cluster, put it under the rule that owns the condition being varied, and do not repeat it under the other. `validate.mjs` rejects the same title under two rules. Behaviour that belongs to no rule in your cluster goes in `openQuestions`, not into a case.
 
 On a re-run you are given the previously published cases. Keep the id of a case that still tests the same condition; new cases take the next free number.
 
 ## Step 4: mark existing coverage
 
-Set `existing` on every case by following [checking-existing-coverage.md](checking-existing-coverage.md).
+Set `existing` on every case by following [checking-existing-coverage.md](checking-existing-coverage.md). Grep `inventory-lower.txt` once for the whole cluster with alternatives (`plugin.*name|repository.*select`), not once per case.
 
 ## Step 5: validate
 
-Run `node .agent/skills/qa-write-e2e-test-cases/scripts/validate.mjs <workdir> case <BR-id>` and fix every error. Reply with one line: the rule id, the number of cases, and the number of open questions.
+Run `node .agent/skills/qa-write-e2e-test-cases/scripts/validate.mjs <workdir> cluster <CL-id>` and fix every error until it prints `clean.`
 
 ## Worked example
 
@@ -104,4 +104,4 @@ Rule BR-07: "When a plugin name is longer than 40 characters, the member sees a 
 }
 ```
 
-The empty-name case is not here: "required" is a different rule with its own issue.
+The empty-name case is not here: "required" is a different rule (BR-06 in the same cluster), and its file holds that case.

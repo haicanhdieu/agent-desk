@@ -4,7 +4,9 @@ How to set `existing` on a test case so the project does not get the same test t
 
 ## What you may open
 
-- `inventory.json` in the work directory: the title of every test in the repo, built by `scripts/inventory.mjs`. Each entry has `file`, `title`, `kind` (`suite` or `test`), `layer` (`e2e` or `lower`) and `ref`.
+- `inventory-e2e.txt` in the work directory: every existing e2e suite and test, one `ref` per line (`<file> › <title>`). It is short; read it whole.
+- `inventory-lower.txt`: the same for unit, route and API tests. It is long: grep it, never read it whole.
+- Never open `inventory.json`. It holds the same refs in a form only the validator needs, and costs about 100k tokens to read.
 - Existing spec files under `apps/web/e2e/`, to confirm what a candidate test does.
 
 Nothing else. Unit and integration test bodies, source files, stories and mocks stay closed; for those layers the title is all you use.
@@ -13,7 +15,7 @@ Nothing else. Unit and integration test bodies, source files, stories and mocks 
 
 For each case:
 
-1. **Search the inventory** for the scope slug plus case id (`<slug> TC-BR07-01`), then for the key nouns of the case: the screen, the control, the value, the message.
+1. **Search the inventory.** Look through `inventory-e2e.txt` for the scope slug plus case id (`<slug> TC-BR07-01`), then for the key nouns of the case: the screen, the control, the value, the message. Then grep `inventory-lower.txt`, case-insensitive, for the same nouns; one grep with alternatives (`plugin.*name|name.*length`) covers several cases at once.
 2. **No plausible match:** `{ "status": "NEW" }`.
 3. **An e2e-layer match:** open that spec file and read the test. Then decide:
 
@@ -26,7 +28,7 @@ For each case:
 
 4. **Only a lower-layer match** (unit, route, API test): `PARTIAL` with `ref` and `missing: "covered below e2e only; the end-to-end flow is not exercised"`. A lower-layer test never makes an e2e case `COVERED`.
 
-Copy `ref` exactly from the inventory entry; the validator rejects a ref that is not there.
+Copy `ref` exactly: it is the whole line of the inventory file. The validator rejects a ref that is not there.
 
 ## The bar for COVERED
 

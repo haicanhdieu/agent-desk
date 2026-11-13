@@ -2,7 +2,10 @@
 // Lists the titles of every existing test in the repo, so agents can check for
 // duplicates without opening implementation code.
 //
-//   node inventory.mjs <workdir>      -> writes <workdir>/inventory.json
+//   node inventory.mjs <workdir>
+//     -> <workdir>/inventory.json       full entries; read by validate.mjs only, too large for an agent
+//     -> <workdir>/inventory-e2e.txt    one ref per line, e2e layer; small, agents read it whole
+//     -> <workdir>/inventory-lower.txt  one ref per line, lower layers; agents grep it, never read it whole
 //
 // Only test files are opened, and only describe/it/test titles are extracted.
 import { execFileSync } from 'node:child_process';
@@ -55,4 +58,9 @@ mkdirSync(workdir, { recursive: true });
 const out = join(workdir, 'inventory.json');
 writeFileSync(out, JSON.stringify(entries, null, 2) + '\n');
 const e2e = entries.filter((entry) => entry.layer === 'e2e' && entry.kind === 'test').length;
+const refsOf = (layer) => [...new Set(entries.filter((entry) => entry.layer === layer).map((entry) => entry.ref))];
+const writeRefs = (name, refs) => writeFileSync(join(workdir, name), refs.length > 0 ? refs.join('\n') + '\n' : '');
+writeRefs('inventory-e2e.txt', refsOf('e2e'));
+writeRefs('inventory-lower.txt', refsOf('lower'));
 console.log(`inventory: ${entries.length} titles from ${files.length} test files (${e2e} e2e tests) -> ${out}`);
+console.log('agents: read inventory-e2e.txt, grep inventory-lower.txt, never open inventory.json');

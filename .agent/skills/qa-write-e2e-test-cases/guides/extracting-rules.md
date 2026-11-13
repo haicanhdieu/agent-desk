@@ -64,7 +64,7 @@ Never guess and never look at the code to find out. Write the rule for the part 
 
 ## Re-runs
 
-If rules were published for this scope before, you are given their ids and statements. A rule that says the same thing keeps its id even if the wording improves. New rules take the next free number. Never reuse the id of a rule that no longer exists.
+If this scope was published before, `publish.mjs existing <slug>` lists the published rules (inside their clusters) with their ids and statements. A rule that says the same thing keeps its id even if the wording improves. New rules take the next free number. Never reuse the id of a rule that no longer exists.
 
 ## Worked example
 

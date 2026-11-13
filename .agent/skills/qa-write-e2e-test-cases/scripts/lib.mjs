@@ -41,11 +41,17 @@ export const CASE_FINDINGS = [
 ];
 export const RESOLUTIONS = ['applied', 'rejected', 'open-question'];
 
+// Cluster size: one sub-issue, one writer, one reviewer each.
+export const CLUSTER_MIN_RULES = 1;
+export const CLUSTER_MAX_RULES = 8;
+
 export const LABEL_SCOPE = 'qa:e2e-scope';
-export const LABEL_RULE = 'qa:e2e-rule';
+export const LABEL_CLUSTER = 'qa:e2e-cluster';
+export const LABEL_LEGACY_RULE = 'qa:e2e-rule'; // earlier versions published one issue per rule
 
 export const scopeMarker = (slug) => `<!-- qa-e2e:scope=${slug} -->`;
-export const ruleMarker = (slug, ruleId) => `<!-- qa-e2e:rule=${slug}/${ruleId} -->`;
+export const clusterMarker = (slug, clusterId) => `<!-- qa-e2e:cluster=${slug}/${clusterId} -->`;
+export const ruleMarker = (ruleId) => `<!-- qa-e2e:rule=${ruleId} -->`;
 
 // BR-07 -> TC-BR07-
 export const casePrefix = (ruleId) => `TC-${ruleId.replace('-', '')}-`;
