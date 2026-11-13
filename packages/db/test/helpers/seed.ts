@@ -10,6 +10,7 @@ export interface SeededOrg {
   agentId: string;
   ruleId: string;
   runId: string;
+  setupTestId: string;
 }
 
 /** Seeds one row in every app table for an org. Runs as the owner, which is bound by FORCE RLS, so the
@@ -67,10 +68,19 @@ export async function seedOrg(
       `insert into setup_script_versions (org_id, project_id, version, body, created_by) values ($1, $2, 1, 'echo hi', 'u1')`,
       [orgId, projectId],
     );
+    const setupTestId = await one(
+      `insert into setup_tests (org_id, project_id, status, script_sha256, script_body, started_by)
+       values ($1, $2, 'queued', 'abc', 'echo hi', 'u1') returning id`,
+      [orgId, projectId],
+    );
+    await client.query(
+      `insert into setup_test_events (org_id, setup_test_id, seq, type) values ($1, $2, 1, 'lifecycle')`,
+      [orgId, setupTestId],
+    );
     await client.query(`insert into poll_cursors (org_id, project_id) values ($1, $2)`, [orgId, projectId]);
     await client.query(`insert into audit_log (org_id, action) values ($1, 'seed')`, [orgId]);
     await client.query('commit');
-    return { orgId, connectionId, projectId, agentId, ruleId, runId };
+    return { orgId, connectionId, projectId, agentId, ruleId, runId, setupTestId };
   } catch (e) {
     await client.query('rollback').catch(() => undefined);
     throw e;

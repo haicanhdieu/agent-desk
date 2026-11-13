@@ -50,6 +50,13 @@
       "when": 1794560037686,
       "tag": "0006_runs_setup_columns",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794562776784,
+      "tag": "0007_setup_tests",
+      "breakpoints": true
     }
   ]
 }

@@ -52,6 +52,12 @@ const inserts: Record<string, (tx: Tx, orgId: string) => Promise<unknown>> = {
   setup_script_versions: (tx, o) =>
     tx.execute(sql`insert into setup_script_versions (org_id, project_id, version, body, created_by)
       values (${o}, ${a.projectId}, 2, 'x', 'u1')`),
+  setup_tests: (tx, o) =>
+    tx.execute(sql`insert into setup_tests (org_id, project_id, status, script_sha256, started_by)
+      values (${o}, ${a.projectId}, 'queued', 'abc', 'u1')`),
+  setup_test_events: (tx, o) =>
+    tx.execute(sql`insert into setup_test_events (org_id, setup_test_id, seq, type)
+      values (${o}, ${a.setupTestId}, 99, 'status')`),
   poll_cursors: (tx, o) => tx.execute(sql`insert into poll_cursors (org_id, project_id) values (${o}, ${b.projectId})`),
   audit_log: (tx, o) => tx.execute(sql`insert into audit_log (org_id, action) values (${o}, 'x')`),
 };
@@ -129,6 +135,68 @@ describe('setup_script_versions is append-only for the app role', () => {
       (e: unknown) => e,
     );
     expect(pgCode(err)).toBe('23505');
+  });
+});
+
+describe('setup_tests constraints', () => {
+  const attempt = (stmt: (tx: Tx) => Promise<unknown>) =>
+    withOrg(db, ORG_A, stmt).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+
+  it('rejects an invalid status (23514) and accepts every valid one', async () => {
+    const insert = (status: string) =>
+      attempt((tx) =>
+        tx.execute(sql`insert into setup_tests (org_id, project_id, status, script_sha256, started_by)
+          values (${ORG_A}, ${a.projectId}, ${status}, 'abc', 'u1')`),
+      );
+    expect(pgCode(await insert('bogus'))).toBe('23514');
+    for (const s of ['queued', 'running', 'passed', 'failed', 'ended']) expect(await insert(s)).toBeUndefined();
+  });
+
+  it('rejects a script_body over 64 KiB in bytes', async () => {
+    const insert = (body: string) =>
+      attempt((tx) =>
+        tx.execute(sql`insert into setup_tests (org_id, project_id, status, script_sha256, script_body, started_by)
+          values (${ORG_A}, ${a.projectId}, 'queued', 'abc', ${body}, 'u1')`),
+      );
+    expect(await insert('é'.repeat(32768))).toBeUndefined();
+    expect(pgCode(await insert('é'.repeat(32768) + 'a'))).toBe('23514');
+  });
+
+  it('defaults plugins, allows the app role to update and clear the body', async () => {
+    const rows = await withOrg(db, ORG_A, async (tx) => {
+      await tx.execute(sql`update setup_tests set script_body = null, status = 'ended', ended_at = now()
+        where id = ${a.setupTestId}`);
+      return tx.execute<{ plugins: unknown; script_body: string | null }>(
+        sql`select plugins, script_body from setup_tests where id = ${a.setupTestId}`,
+      );
+    });
+    expect(rows.rows[0]).toEqual({ plugins: { installed: [], skipped: [], failed: [] }, script_body: null });
+  });
+
+  it('rejects an invalid setup_test_events type (23514) and a duplicate seq (23505)', async () => {
+    const insertEvent = (seq: number, type: string) =>
+      attempt((tx) =>
+        tx.execute(sql`insert into setup_test_events (org_id, setup_test_id, seq, type)
+          values (${ORG_A}, ${a.setupTestId}, ${seq}, ${type})`),
+      );
+    expect(pgCode(await insertEvent(50, 'scrollback'))).toBe('23514');
+    expect(pgCode(await insertEvent(1, 'status'))).toBe('23505');
+  });
+
+  it('deleting a project cascades to its setup tests and their events', async () => {
+    const o = await seedOrg(pgx.ownerUrl, '33333333-3333-4333-8333-333333333333', {
+      externalId: 'acct-3',
+      repoPath: 'dev/third',
+    });
+    await withOrg(db, o.orgId, (tx) => tx.execute(sql`delete from projects where id = ${o.projectId}`));
+    const counts = await withOrg(db, o.orgId, async (tx) => ({
+      tests: (await tx.execute(sql`select 1 from setup_tests`)).rows.length,
+      events: (await tx.execute(sql`select 1 from setup_test_events`)).rows.length,
+    }));
+    expect(counts).toEqual({ tests: 0, events: 0 });
   });
 });
 

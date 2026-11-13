@@ -16,6 +16,8 @@ const APP_TABLES = [
   'poll_cursors',
   'audit_log',
   'setup_script_versions',
+  'setup_tests',
+  'setup_test_events',
 ];
 
 let env: TestPg;
@@ -102,6 +104,20 @@ describe('bootstrap and migrations', () => {
     expect(rows[1]?.indexdef).toContain('(agent_id)');
     expect(rows[2]?.indexdef).toContain('(agent_id)');
     expect(rows[3]?.indexdef).toContain('(inbound_event_id)');
+  });
+
+  it('setup test FK and list indexes exist', async () => {
+    const rows = await query<{ indexname: string; indexdef: string }>(
+      env.ownerUrl,
+      `select indexname, indexdef from pg_indexes
+       where indexname in ('setup_tests_project_created_idx','setup_tests_org_idx','setup_test_events_org_idx') order by 1`,
+    );
+    expect(rows.map((r) => r.indexname)).toEqual([
+      'setup_test_events_org_idx',
+      'setup_tests_org_idx',
+      'setup_tests_project_created_idx',
+    ]);
+    expect(rows[2]?.indexdef).toMatch(/\(project_id, created_at DESC/);
   });
 
   it('resolve_project stays security definer, pinned search_path, executable only by the app role', async () => {

@@ -256,6 +256,60 @@ export const runEvents = pgTable(
   ],
 );
 
+/** A project setup script run in a throwaway sandbox. `scriptBody` is cleared when the test ends. */
+export const setupTests = pgTable(
+  'setup_tests',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    status: text('status').notNull(),
+    scriptSha256: text('script_sha256').notNull(),
+    scriptBody: text('script_body'),
+    checkoutSha: text('checkout_sha'),
+    plugins: jsonb('plugins')
+      .$type<{ installed: unknown[]; skipped: unknown[]; failed: unknown[] }>()
+      .notNull()
+      .default({ installed: [], skipped: [], failed: [] }),
+    exitCode: integer('exit_code'),
+    startedBy: text('started_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    /** The setup result is known. */
+    finishedAt: ts('finished_at'),
+    /** The workspace was deleted. */
+    endedAt: ts('ended_at'),
+  },
+  (t) => [
+    index('setup_tests_project_created_idx').on(t.projectId, t.createdAt.desc()),
+    index('setup_tests_org_idx').on(t.orgId),
+    check('setup_tests_status_check', sql`${t.status} in ('queued','running','passed','failed','ended')`),
+    check('setup_tests_script_body_check', sql`octet_length(${t.scriptBody}) <= 65536`),
+    orgPolicy(),
+  ],
+);
+
+export const setupTestEvents = pgTable(
+  'setup_test_events',
+  {
+    orgId: uuid('org_id').notNull(),
+    setupTestId: uuid('setup_test_id')
+      .notNull()
+      .references(() => setupTests.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    ts: ts('ts').notNull().defaultNow(),
+    type: text('type').notNull(),
+    payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
+  },
+  (t) => [
+    primaryKey({ name: 'setup_test_events_pkey', columns: [t.setupTestId, t.seq] }),
+    index('setup_test_events_org_idx').on(t.orgId),
+    check('setup_test_events_type_check', sql`${t.type} in ('lifecycle','status')`),
+    orgPolicy(),
+  ],
+);
+
 export const pollCursors = pgTable(
   'poll_cursors',
   {
