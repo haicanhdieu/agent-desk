@@ -95,6 +95,13 @@ describe('setup script API', () => {
     expect((await put({ body: 'a'.repeat(65536), baseVersion: null })).statusCode).toBe(200);
   });
 
+  it('rejects a NUL character with 400 (never a 500 that could log the body)', async () => {
+    await freshProject();
+    const res = await put({ body: 'a\u0000b', baseVersion: null });
+    expect(res.statusCode).toBe(400);
+    expect(res.body).not.toContain('a\u0000b');
+  });
+
   it('allows an empty body (no setup)', async () => {
     await freshProject();
     const res = await put({ body: '', baseVersion: null });

@@ -221,8 +221,10 @@ export class SetupTestsService {
     try {
       await this.temporal.workflow.getHandle(setupTestWorkflowId(setupTestId)).signal(SIGNAL.endSetupTest);
     } catch (err) {
-      // Already finished: ending it again is a no-op.
       if (!(err instanceof WorkflowNotFoundError)) throw err;
+      // Already finished (its row is ended: a no-op) or never started (its creator's start failed or is still in
+      // flight): no workflow will end this row, so close it here. A workflow that starts later sees `ended_at`.
+      await this.closeSuperseded(org.orgId, setupTestId);
     }
   }
 }

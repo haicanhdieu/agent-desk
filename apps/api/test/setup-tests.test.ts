@@ -138,6 +138,10 @@ describe('setup test create', () => {
     expect((await create('a'.repeat(65536))).statusCode).toBe(200);
   });
 
+  it('rejects a script with a NUL character with 400', async () => {
+    expect((await create('a\u0000b')).statusCode).toBe(400);
+  });
+
   it('is 403 for an org member who is neither owner nor project creator, 404 for another org', async () => {
     expect((await create('x', carol)).statusCode).toBe(403);
     expect((await create('x', bob)).statusCode).toBe(404);
@@ -369,6 +373,19 @@ describe('setup test end', () => {
     const signals = t.temporal.callsOfKind('signal');
     expect(signals.map((c) => c.workflowId)).toEqual([setupTestWorkflowId(dto.id)]);
     expect(signals[0]?.args).toEqual([SIGNAL.endSetupTest]);
+  });
+
+  it('closes a queued test whose workflow does not exist (never started), keeping a recorded result', async () => {
+    const dto = await created('echo orphan');
+    t.temporal.signalFailure = (id) => notFound(id);
+    const res = await end(dto.id);
+    expect(res.statusCode).toBeLessThan(300);
+    expect(await rowOf(dto.id)).toMatchObject({ status: 'ended', scriptBody: null });
+    expect((await rowOf(dto.id))?.endedAt).not.toBeNull();
+    const done = await created('echo done');
+    await setStatus(done.id, 'passed');
+    expect((await end(done.id)).statusCode).toBeLessThan(300);
+    expect(await rowOf(done.id)).toMatchObject({ status: 'passed', scriptBody: null });
   });
 });
 
