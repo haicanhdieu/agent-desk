@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { Timestamp } from './common';
+import { Id, Timestamp } from './common';
 
 export const SETUP_SCRIPT_MAX_BYTES = 65536;
 
@@ -28,3 +28,37 @@ export const PutSetupScriptRequest = z.object({
   baseVersion: z.number().int().min(1).nullable(),
 });
 export type PutSetupScriptRequest = z.infer<typeof PutSetupScriptRequest>;
+
+export const SetupTestStatus = z.enum(['queued', 'running', 'passed', 'failed', 'ended']);
+export type SetupTestStatus = z.infer<typeof SetupTestStatus>;
+
+export const SetupTestPlugins = z.object({
+  installed: z.array(z.string()),
+  skipped: z.array(z.string()),
+  failed: z.array(z.string()),
+});
+export type SetupTestPlugins = z.infer<typeof SetupTestPlugins>;
+
+/** A setup test. The script text is never part of it, only its hash. */
+export const SetupTestDto = z.object({
+  id: Id,
+  projectId: Id,
+  status: SetupTestStatus,
+  scriptSha256: z.string(),
+  /** The tested script is still the project's current script. */
+  matchesCurrentScript: z.boolean(),
+  checkoutSha: z.string().nullable(),
+  plugins: SetupTestPlugins,
+  exitCode: z.number().int().nullable(),
+  /** User handle. */
+  startedBy: z.string(),
+  createdAt: Timestamp,
+  finishedAt: Timestamp.nullable(),
+  endedAt: Timestamp.nullable(),
+  /** When the workspace is deleted on its own; null once ended or before the setup result is known. */
+  endsAt: Timestamp.nullable(),
+});
+export type SetupTestDto = z.infer<typeof SetupTestDto>;
+
+export const CreateSetupTestRequest = z.object({ script: SetupScriptBody });
+export type CreateSetupTestRequest = z.infer<typeof CreateSetupTestRequest>;

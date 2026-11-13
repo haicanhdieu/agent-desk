@@ -8,6 +8,7 @@ import {
   type RunListFilter,
   type RunStatus,
   type SetupScriptDto,
+  type SetupTestDto,
   type SkillDto,
 } from '@agentdesk/contracts';
 import { http, type HttpHandler } from 'msw';
@@ -157,8 +158,20 @@ const nextSha = () => {
 const setupScripts = new Map<string, SetupScriptDto[]>();
 const setupVersionsOf = (projectId: string) => setupScripts.get(projectId) ?? [];
 
-/** Routes that are not JSON: the two SSE streams and the terminal WebSocket (see streamGuard below). */
-const STREAM_KEYS = ['runs.events', 'projects.events', 'runs.terminal'] as const;
+/** In-memory setup tests per project (newest last); never carry the script text, like the real DTO. */
+const setupTests = new Map<string, SetupTestDto[]>();
+const setupTestsOf = (projectId: string) => setupTests.get(projectId) ?? [];
+const findSetupTest = (id: string): SetupTestDto | undefined =>
+  [...setupTests.values()].flat().find((t) => t.id === id);
+
+/** Routes that are not JSON: the SSE streams and the terminal WebSockets (see streamGuard below). */
+const STREAM_KEYS = [
+  'runs.events',
+  'projects.events',
+  'runs.terminal',
+  'setupTests.events',
+  'setupTests.terminal',
+] as const;
 type StreamKey = (typeof STREAM_KEYS)[number];
 type JsonKey = Exclude<RouteKey, StreamKey>;
 
@@ -346,6 +359,40 @@ const impl: Impl = {
     if (!found) throw notFound('Setup script version');
     return found;
   },
+  'setupTests.create': ({ params, body }) => {
+    const projectId = projectRow(params.projectId).id;
+    const sha = [...body.script].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(16);
+    const list = setupTestsOf(projectId).map((t) =>
+      t.endedAt === null ? { ...t, status: 'ended' as const, endedAt: now(), endsAt: null } : t,
+    );
+    const test: SetupTestDto = {
+      id: mockDb.nextId(),
+      projectId,
+      status: 'queued',
+      scriptSha256: sha,
+      matchesCurrentScript: true,
+      checkoutSha: null,
+      plugins: { installed: [], skipped: [], failed: [] },
+      exitCode: null,
+      startedBy: session().user.handle,
+      createdAt: now(),
+      finishedAt: null,
+      endedAt: null,
+      endsAt: null,
+    };
+    setupTests.set(projectId, [...list, test]);
+    return test;
+  },
+  'setupTests.latest': ({ params }) => setupTestsOf(projectRow(params.projectId).id).at(-1) ?? null,
+  'setupTests.end': ({ params }) => {
+    const found = findSetupTest(params.setupTestId);
+    if (!found) throw notFound('Setup test');
+    const list = setupTestsOf(found.projectId).map((t) =>
+      t.id === found.id ? { ...t, status: 'ended' as const, endedAt: now(), endsAt: null } : t,
+    );
+    setupTests.set(found.projectId, list);
+    return null;
+  },
   'rules.list': ({ params }) => db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
   'rules.create': ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
@@ -472,7 +519,11 @@ function streamProblem(key: StreamKey, params: Record<string, unknown>): Respons
   if (!mockDb.currentUser()) return problemResponse({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
   const orgId = mockDb.auth.activeOrganizationId;
   const projectId =
-    key === 'projects.events' ? params['projectId'] : db().runs.find((r) => r.id === params['runId'])?.projectId;
+    key === 'projects.events'
+      ? params['projectId']
+      : key === 'setupTests.events' || key === 'setupTests.terminal'
+        ? findSetupTest(String(params['setupTestId']))?.projectId
+        : db().runs.find((r) => r.id === params['runId'])?.projectId;
   const ok = db().projects.some((p) => p.id === projectId && p.orgId === orgId);
   return ok ? undefined : problemResponse({ status: 404, title: 'Not found', type: 'not-found' });
 }
@@ -495,6 +546,8 @@ export const streamGuards: Record<StreamKey, HttpHandler> = {
   'runs.events': streamGuard('runs.events'),
   'projects.events': streamGuard('projects.events'),
   'runs.terminal': streamGuard('runs.terminal'),
+  'setupTests.events': streamGuard('setupTests.events'),
+  'setupTests.terminal': streamGuard('setupTests.terminal'),
 };
 
 /** The handler for each contracts route key (the stream routes get their guard). */

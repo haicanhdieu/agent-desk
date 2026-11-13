@@ -12,7 +12,13 @@ import {
 import { CreateRuleRequest, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
-import { PutSetupScriptRequest, SetupScriptDto, SetupScriptVersionDto } from './schemas/setup';
+import {
+  CreateSetupTestRequest,
+  PutSetupScriptRequest,
+  SetupScriptDto,
+  SetupScriptVersionDto,
+  SetupTestDto,
+} from './schemas/setup';
 import {
   DeleteSkillQuery,
   PutSkillRequest,
@@ -37,6 +43,7 @@ const projectParams = z.object({ projectId: z.uuid() });
 const runParams = z.object({ runId: z.uuid() });
 const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
+const setupTestParams = z.object({ setupTestId: z.uuid() });
 const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1).max(2147483647) });
 const empty = z.null();
 
@@ -171,6 +178,37 @@ export const routes = {
       path: '/api/projects/:projectId/setup-script/versions/:version',
       params: setupVersionParams,
       response: SetupScriptDto,
+    },
+  },
+  setupTests: {
+    create: {
+      method: 'POST',
+      path: '/api/projects/:projectId/setup-tests',
+      params: projectParams,
+      body: CreateSetupTestRequest,
+      response: SetupTestDto,
+    },
+    latest: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-tests/latest',
+      params: projectParams,
+      response: SetupTestDto.nullable(),
+    },
+    end: { method: 'POST', path: '/api/setup-tests/:setupTestId/end', params: setupTestParams, response: empty },
+    /** SSE (text/event-stream): `event: status` (SetupTestDto) then `event: event` (RunEventDto) frames. */
+    events: {
+      method: 'GET',
+      path: '/api/setup-tests/:setupTestId/events',
+      params: setupTestParams,
+      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional() }),
+      response: SetupTestDto,
+    },
+    /** WebSocket upgrade, framed like runs.terminal; the gateway lands separately from the HTTP controllers. */
+    terminal: {
+      method: 'GET',
+      path: '/api/setup-tests/:setupTestId/terminal',
+      params: setupTestParams,
+      response: empty,
     },
   },
   runs: {
