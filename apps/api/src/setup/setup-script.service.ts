@@ -9,7 +9,7 @@ import { assertCanEditProject, assertProjectVisible } from '../projects/project-
 const versionColumns = {
   version: setupScriptVersions.version,
   note: setupScriptVersions.note,
-  createdBy: user.handle,
+  createdBy: sql<string>`coalesce(${user.handle}, ${setupScriptVersions.createdBy})`,
   createdAt: setupScriptVersions.createdAt,
 };
 
@@ -45,7 +45,7 @@ export class SetupScriptService {
       const rows = await tx
         .select({ ...versionColumns, body: setupScriptVersions.body })
         .from(setupScriptVersions)
-        .innerJoin(user, eq(user.id, setupScriptVersions.createdBy))
+        .leftJoin(user, eq(user.id, setupScriptVersions.createdBy))
         .where(eq(setupScriptVersions.projectId, projectId))
         .orderBy(desc(setupScriptVersions.version))
         .limit(1);
@@ -60,7 +60,7 @@ export class SetupScriptService {
       const rows = await tx
         .select(versionColumns)
         .from(setupScriptVersions)
-        .innerJoin(user, eq(user.id, setupScriptVersions.createdBy))
+        .leftJoin(user, eq(user.id, setupScriptVersions.createdBy))
         .where(eq(setupScriptVersions.projectId, projectId))
         .orderBy(desc(setupScriptVersions.version));
       return rows.map(toVersionDto);
@@ -73,7 +73,7 @@ export class SetupScriptService {
       const rows = await tx
         .select({ ...versionColumns, body: setupScriptVersions.body })
         .from(setupScriptVersions)
-        .innerJoin(user, eq(user.id, setupScriptVersions.createdBy))
+        .leftJoin(user, eq(user.id, setupScriptVersions.createdBy))
         .where(and(eq(setupScriptVersions.projectId, projectId), eq(setupScriptVersions.version, version)))
         .limit(1);
       const row = rows[0];

@@ -144,6 +144,31 @@ describe('setup script API', () => {
     expect(((await get('/versions').then((r) => r.json())) as unknown[]).length).toBe(3);
   });
 
+  it('versions stay readable, with the user id as createdBy, after the creator user row is deleted', async () => {
+    await freshProject();
+    const dave = await loginAs(t, 'dave');
+    const daveId = ((await t.db.pool.query(`select id from "user" where handle = 'dave'`)).rows[0] as { id: string })
+      .id;
+    await t.db.pool.query(
+      `insert into member (id, organization_id, user_id, role, created_at) values ($1, $2, $3, 'owner', now())`,
+      [randomUUID(), aliceOrg, daveId],
+    );
+    await t.db.pool.query(`update session set active_organization_id = $1 where user_id = $2`, [aliceOrg, daveId]);
+    await put({ body: 'one', baseVersion: null });
+    expect((await put({ body: 'two', baseVersion: 1 }, dave)).statusCode).toBe(200);
+    await t.db.pool.query(`delete from "user" where id = $1`, [daveId]);
+
+    const cur = (await get().then((r) => r.json())) as SetupScriptDto;
+    expect(cur).toMatchObject({ version: 2, body: 'two', createdBy: daveId });
+    const list = (await get('/versions').then((r) => r.json())) as SetupScriptVersionDto[];
+    expect(list.map((v) => [v.version, v.createdBy])).toEqual([
+      [2, daveId],
+      [1, 'alice'],
+    ]);
+    expect(((await get('/versions/2').then((r) => r.json())) as SetupScriptDto).body).toBe('two');
+    expect((await put({ body: 'three', baseVersion: 2 })).statusCode).toBe(200);
+  });
+
   it('two parallel PUTs with the same base: exactly one wins', async () => {
     await freshProject();
     const [a, b] = await Promise.all([put({ body: 'A', baseVersion: null }), put({ body: 'B', baseVersion: null })]);
