@@ -1,24 +1,33 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell } from '@/components';
 import { CommandChip } from '@/ds';
-import { agentSettings, connectionCopy, rules, skillTemplates, user } from '@/mocks';
+import { agentSettings, connectionCopy, rules, setupPlugins, setupScript, skillTemplates, user } from '@/mocks';
 import { Setup1 as Setup1Screen } from './Setup1';
 import { Setup2 as Setup2Screen } from './Setup2';
 import { Setup3 as Setup3Screen } from './Setup3';
 import { Setup4 as Setup4Screen } from './Setup4';
 import { SetupReady as SetupReadyScreen } from './SetupReady';
+import { SetupWorkspace as SetupWorkspaceScreen } from './SetupWorkspace';
 import { viewport } from './viewports';
 
-// Artboards come from canvas.json: Setup1, Setup1Polling, Setup1PollingOk 1440x1000; the rest 1440x900.
+// Artboards come from canvas.json: Setup1, Setup1Polling, Setup1PollingOk, SetupWorkspace 1440x1000; the rest 1440x900.
 // SetupLayout renders its own top bar and the single <main>.
 const meta = {
   title: 'Screens/Setup',
   globals: viewport(1440, 900),
   parameters: { layout: 'fullscreen', artboardHeight: 900 },
-  decorators: [(S, ctx) => {
-    const h = ctx.parameters.artboardHeight as number;
-    return <div style={{ width: 1440, height: h }}><AppShell height={h} topBar={null}><S /></AppShell></div>;
-  }],
+  decorators: [
+    (S, ctx) => {
+      const h = ctx.parameters.artboardHeight as number;
+      return (
+        <div style={{ width: 1440, height: h }}>
+          <AppShell height={h} topBar={null}>
+            <S />
+          </AppShell>
+        </div>
+      );
+    },
+  ],
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -64,7 +73,11 @@ export const Setup1PollingFailed: Story = {
   name: 'Setup 1, polling failed',
   ...tall,
   render: () => (
-    <Setup1Screen {...setup1} mode="polling" polling={{ state: 'failed', reason: connectionCopy.reasons.tokenRevoked }} />
+    <Setup1Screen
+      {...setup1}
+      mode="polling"
+      polling={{ state: 'failed', reason: connectionCopy.reasons.tokenRevoked }}
+    />
   ),
 };
 
@@ -80,6 +93,60 @@ export const Setup2: Story = {
       models={['opus (latest Opus)', 'sonnet (latest Sonnet)', 'Custom model id']}
       maxConcurrent={agentSettings.maxConcurrent}
       accepted={{ at: '14:03:02', secretName: 'agentdesk/proj-invoicer-api-claude' }}
+    />
+  ),
+};
+
+const workspace = { user, projectName, repo, plugins: { plugins: setupPlugins.planned } };
+
+/** New optional step between the credential and skills (five steps once it ships). */
+export const SetupWorkspace: Story = {
+  name: 'Setup, prepare workspace, test passed',
+  ...tall,
+  render: () => (
+    <SetupWorkspaceScreen
+      {...workspace}
+      script={setupScript}
+      test={{
+        state: 'passed',
+        title: 'Test passed in 2m 41s',
+        detail: 'Clone, 2 plugins installed, 1 blocked, setup exited 0. The test workspace stays up 13 more minutes.',
+      }}
+    />
+  ),
+};
+
+export const SetupWorkspaceStart: Story = {
+  name: 'Setup, prepare workspace, not tested',
+  ...tall,
+  render: () => <SetupWorkspaceScreen {...workspace} />,
+};
+
+export const SetupWorkspaceRunning: Story = {
+  name: 'Setup, prepare workspace, test running',
+  ...tall,
+  render: () => (
+    <SetupWorkspaceScreen
+      {...workspace}
+      script={setupScript}
+      test={{ state: 'running', detail: 'Plugins done. Running the setup script, 21s so far.' }}
+    />
+  ),
+};
+
+export const SetupWorkspaceFailed: Story = {
+  name: 'Setup, prepare workspace, test failed',
+  ...tall,
+  render: () => (
+    <SetupWorkspaceScreen
+      {...workspace}
+      script={setupScript}
+      test={{
+        state: 'failed',
+        title: 'Setup failed: exit 1 after 48s',
+        detail:
+          'dotnet restore could not reach a package feed. Open the terminal to look around; you can still continue.',
+      }}
     />
   ),
 };
@@ -119,7 +186,15 @@ const readySummary = (trigger: string) => [
   { term: connectionCopy.triggerTerm, value: trigger },
   { term: 'Agent', value: 'Claude, opus, 30 min limit, 2 at a time' },
   { term: 'Skills', value: <span className="mono">code-build, code-review</span> },
-  { term: 'Rules', value: <><CommandChip>/code-build</CommandChip> on issues labelled user-story; <CommandChip>/code-review</CommandChip> on pull requests</> },
+  {
+    term: 'Rules',
+    value: (
+      <>
+        <CommandChip>/code-build</CommandChip> on issues labelled user-story; <CommandChip>/code-review</CommandChip> on
+        pull requests
+      </>
+    ),
+  },
 ];
 
 const ready = {

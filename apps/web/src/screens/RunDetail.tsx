@@ -129,7 +129,9 @@ export function RunDetail({
           ]}
           actions={actions}
         >
-          <StatusBadge status={run.status} variant="pill" />
+          <StatusBadge status={run.status} variant="pill">
+            {data.failureStage === 'setup' ? 'Setup failed' : undefined}
+          </StatusBadge>
           <span>
             <CommandChip>{run.command}</CommandChip> on <TicketRef kind={t.kind} number={t.number} />
           </span>

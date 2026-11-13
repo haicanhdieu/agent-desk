@@ -114,8 +114,19 @@ export type RunDetailData = {
   connection: { state: ConnectionState; label: string };
   termSize?: string;
   endNote?: { title: string; body: ReactNode; actions: { label: string; href?: string; icon?: IconName }[] };
+  /** A failed run that stopped in setup, before the agent started. */
+  failureStage?: 'setup' | 'agent';
+  /** The setup script version the run used, and how it ended. */
+  setup?: { version: number; note?: string };
 };
 
 export type RunDetailKey =
-  | 'RunStarting' | 'RunRunning' | 'RunIdle' | 'RunReconnect'
-  | 'RunSucceeded' | 'RunFailed' | 'RunTimedOut' | 'RunCancelled';
+  | 'RunStarting'
+  | 'RunRunning'
+  | 'RunIdle'
+  | 'RunReconnect'
+  | 'RunSucceeded'
+  | 'RunFailed'
+  | 'RunSetupFailed'
+  | 'RunTimedOut'
+  | 'RunCancelled';

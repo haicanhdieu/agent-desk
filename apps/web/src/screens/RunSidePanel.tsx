@@ -21,7 +21,7 @@ export interface RunSidePanelProps {
   collapsed?: boolean;
   onExpand?(): void;
   /** In-app hrefs of the Desk pages; default to the prototype's. */
-  links?: { skills?: string; rules?: string };
+  links?: { skills?: string; rules?: string; setup?: string };
   /** The project's run limit per ticket; defaults to the board's 10. */
   maxRunsPerTicket?: number;
 }
@@ -81,6 +81,24 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
       value: <ActorRef actor={run.triggeredBy} note={data.triggerNote} noteHref={t.href} />,
     },
     { term: 'Agent', value: <ModelTag agent={run.agent} model={run.model} /> },
+    ...(data.setup
+      ? [
+          {
+            term: 'Setup',
+            value: (
+              <>
+                <AppLink href={links?.setup ?? '/desk/setup'}>Version {data.setup.version}</AppLink>
+                {data.setup.note && (
+                  <>
+                    {' '}
+                    <span className="faint">{data.setup.note}</span>
+                  </>
+                )}
+              </>
+            ),
+          },
+        ]
+      : []),
     { term: 'Started', value: <span className="num">{data.startedAt}</span> },
     ...(data.endedAt ? [{ term: 'Ended', value: <span className="num">{data.endedAt}</span> }] : []),
   ];

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { highlightMarkdown } from './highlightMarkdown';
+import { highlightMarkdown, highlightShell } from './highlightMarkdown';
 
-const join = (l: string) => highlightMarkdown(l).map((s) => s.text).join('');
+const join = (l: string) =>
+  highlightMarkdown(l)
+    .map((s) => s.text)
+    .join('');
 
 describe('highlightMarkdown', () => {
   it('heading is one h span', () => {
@@ -10,13 +13,16 @@ describe('highlightMarkdown', () => {
   });
   it('front-matter keys', () => {
     expect(highlightMarkdown('name: code-build')).toEqual([
-      { text: 'name: ', kind: 'k' }, { text: 'code-build', kind: 'plain' },
+      { text: 'name: ', kind: 'k' },
+      { text: 'code-build', kind: 'plain' },
     ]);
     expect(highlightMarkdown('description: Do it.')[0]).toEqual({ text: 'description: ', kind: 'k' });
   });
   it('inline code includes backticks', () => {
     expect(highlightMarkdown('at `main`.')).toEqual([
-      { text: 'at ', kind: 'plain' }, { text: '`main`', kind: 'c' }, { text: '.', kind: 'plain' },
+      { text: 'at ', kind: 'plain' },
+      { text: '`main`', kind: 'c' },
+      { text: '.', kind: 'plain' },
     ]);
   });
   it('multiple inline code spans', () => {
@@ -42,8 +48,35 @@ describe('highlightMarkdown', () => {
     expect(join('\r')).toBe('\r');
   });
   it('spans concatenate back to the original line', () => {
-    for (const l of ['', '# H', '---', 'name: x', 'description: a `b` c', '`a``b`', 'a `open', '``', '`', 'x `y` `z', '  # not heading', '- Never push to `main`.', 'tab\there `c`', '----']) {
+    for (const l of [
+      '',
+      '# H',
+      '---',
+      'name: x',
+      'description: a `b` c',
+      '`a``b`',
+      'a `open',
+      '``',
+      '`',
+      'x `y` `z',
+      '  # not heading',
+      '- Never push to `main`.',
+      'tab\there `c`',
+      '----',
+    ]) {
       expect(join(l)).toBe(l);
     }
+  });
+});
+
+describe('highlightShell', () => {
+  it('comments are faint, set lines are keywords, the rest is plain, and texts round-trip', () => {
+    expect(highlightShell('# Runs in the repo root')).toEqual([{ text: '# Runs in the repo root', kind: 'f' }]);
+    expect(highlightShell('  # indented')).toEqual([{ text: '  # indented', kind: 'f' }]);
+    expect(highlightShell('set -euo pipefail')).toEqual([{ text: 'set -euo pipefail', kind: 'k' }]);
+    expect(highlightShell('dotnet restore # not a heading')).toEqual([
+      { text: 'dotnet restore # not a heading', kind: 'plain' },
+    ]);
+    expect(highlightShell('')).toEqual([]);
   });
 });

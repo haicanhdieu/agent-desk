@@ -10,6 +10,8 @@ export interface DeskLinks {
   skills: string;
   rules: string;
   agent: string;
+  /** Desk Setup tab; the nav item is hidden without it. */
+  setup?: string;
 }
 
 /** What the frame shows around every Desk board: the user, the project and its connection, and the nav links. */
@@ -22,10 +24,15 @@ export interface DeskFrameData {
   links?: DeskLinks;
 }
 
-/** Top bar plus the Desk sub navigation shared by the three Desk boards. Children render in the content column. */
+/** Top bar plus the Desk sub navigation shared by the Desk boards. Children render in the content column. */
 export function DeskFrame({
-  active, user, project, connection, links, children,
-}: DeskFrameData & { active: 'skills' | 'rules' | 'agent'; children?: ReactNode }) {
+  active,
+  user,
+  project,
+  connection,
+  links,
+  children,
+}: DeskFrameData & { active: 'skills' | 'rules' | 'agent' | 'setup'; children?: ReactNode }) {
   return (
     <>
       <TopBar
@@ -38,7 +45,13 @@ export function DeskFrame({
       />
       <DeskLayout
         active={active}
-        repo={{ org: project.org, name: project.name, branch: 'main', connected: connection.tone !== 'err', status: connection }}
+        repo={{
+          org: project.org,
+          name: project.name,
+          branch: 'main',
+          connected: connection.tone !== 'err',
+          status: connection,
+        }}
         links={links}
       >
         {children}

@@ -4,7 +4,7 @@ import { SubNav } from './SubNav';
 import styles from './Chrome.module.css';
 
 export interface DeskLayoutProps {
-  active: 'skills' | 'rules' | 'agent';
+  active: 'skills' | 'rules' | 'agent' | 'setup';
   repo: {
     org: string;
     name: string;
@@ -13,12 +13,15 @@ export interface DeskLayoutProps {
     /** Connection status line. Defaults to "Connected" when `connected` is set. */
     status?: { tone: 'ok' | 'warn' | 'err'; text: string };
   };
-  /** Sub-nav hrefs; default to the relative "skills", "rules" and "agent". */
-  links?: { skills: string; rules: string; agent: string };
+  /**
+   * Sub-nav hrefs; default to the relative "skills", "rules", "setup" and "agent". "Workspace setup" shows only when
+   * `setup` is set, so callers without that route keep the three-item nav.
+   */
+  links?: { skills: string; rules: string; agent: string; setup?: string };
   children?: ReactNode;
 }
 
-const relativeLinks = { skills: 'skills', rules: 'rules', agent: 'agent' };
+const relativeLinks = { skills: 'skills', rules: 'rules', setup: 'setup', agent: 'agent' };
 
 export function DeskLayout({ active, repo, links = relativeLinks, children }: DeskLayoutProps) {
   const status = repo.status ?? (repo.connected ? { tone: 'ok' as const, text: 'Connected' } : undefined);
@@ -32,6 +35,16 @@ export function DeskLayout({ active, repo, links = relativeLinks, children }: De
             items: [
               { label: 'Skills', href: links.skills, icon: 'skill-file', active: active === 'skills' },
               { label: 'Routing rules', href: links.rules, icon: 'rule', active: active === 'rules' },
+              ...(links.setup
+                ? [
+                    {
+                      label: 'Workspace setup',
+                      href: links.setup,
+                      icon: 'terminal' as const,
+                      active: active === 'setup',
+                    },
+                  ]
+                : []),
               { label: 'Agent & settings', href: links.agent, icon: 'bot', active: active === 'agent' },
             ],
           },
@@ -47,9 +60,16 @@ export function DeskLayout({ active, repo, links = relativeLinks, children }: De
                   <Icon name="branch" size={13} />
                   <span className="mono">{repo.branch}</span>
                 </span>
-                {status?.tone === 'ok' && <span className={styles.connected}><StatusIcon status="succeeded" size={12} /><span className="muted">{status.text}</span></span>}
+                {status?.tone === 'ok' && (
+                  <span className={styles.connected}>
+                    <StatusIcon status="succeeded" size={12} />
+                    <span className="muted">{status.text}</span>
+                  </span>
+                )}
                 {status && status.tone !== 'ok' && (
-                  <InlineStatus tone={status.tone === 'err' ? 'err' : 'idle'} icon={<Icon name="warning" size={12} />}>{status.text}</InlineStatus>
+                  <InlineStatus tone={status.tone === 'err' ? 'err' : 'idle'} icon={<Icon name="warning" size={12} />}>
+                    {status.text}
+                  </InlineStatus>
                 )}
               </>
             ),

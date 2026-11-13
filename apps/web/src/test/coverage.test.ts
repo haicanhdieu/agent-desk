@@ -8,14 +8,15 @@ const canvas = JSON.parse(
 ) as { order: string[] };
 const order = canvas.order.map((f) => f.replace(/\.dc\.html$/, ''));
 
-type StoryModule = { default: { title: string; excludeStories?: unknown; includeStories?: unknown } } & Record<string, unknown>;
-const modules = Object.values(
-  import.meta.glob<StoryModule>('../screens/*.stories.tsx', { eager: true }),
-);
+type StoryModule = { default: { title: string; excludeStories?: unknown; includeStories?: unknown } } & Record<
+  string,
+  unknown
+>;
+const modules = Object.values(import.meta.glob<StoryModule>('../screens/*.stories.tsx', { eager: true }));
 
 describe('storybook coverage of prototype boards', () => {
-  it('lists exactly the 26 boards of canvas.json, in order', () => {
-    expect(order).toHaveLength(26);
+  it('lists exactly the 30 boards of canvas.json, in order', () => {
+    expect(order).toHaveLength(30);
     expect(Object.keys(boardStories)).toEqual(order);
   });
 
@@ -26,14 +27,19 @@ describe('storybook coverage of prototype boards', () => {
     expect(Object.keys(mod!), `${title} lacks export ${exportName}`).toContain(exportName);
   });
 
-  it.each(Object.entries(stateStories))('state %s has a story and names a real board', (_name, { title, exportName, board }) => {
-    expect(order).toContain(board);
-    const mod = modules.find((m) => m.default.title === title);
-    expect(Object.keys(mod!), `${title} lacks export ${exportName}`).toContain(exportName);
-  });
+  it.each(Object.entries(stateStories))(
+    'state %s has a story and names a real board',
+    (_name, { title, exportName, board }) => {
+      expect(order).toContain(board);
+      const mod = modules.find((m) => m.default.title === title);
+      expect(Object.keys(mod!), `${title} lacks export ${exportName}`).toContain(exportName);
+    },
+  );
 
   it('has no screen story export that maps to no board or listed state', () => {
-    const known = new Set([...Object.values(boardStories), ...Object.values(stateStories)].map((b) => `${b.title}#${b.exportName}`));
+    const known = new Set(
+      [...Object.values(boardStories), ...Object.values(stateStories)].map((b) => `${b.title}#${b.exportName}`),
+    );
     const orphans: string[] = [];
     for (const m of modules) {
       for (const key of Object.keys(m)) {

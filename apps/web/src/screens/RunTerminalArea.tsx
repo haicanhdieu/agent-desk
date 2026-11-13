@@ -1,8 +1,16 @@
 import type { ReactNode } from 'react';
 import { Banner, Button, Popover, StatusIcon, type IconName } from '@/ds';
 import {
-  ConnectionIndicator, EventLog, Note, PopoverCard, StartupChecklist, Terminal, TerminalBar, TerminalPane,
-  TerminalPlaceholder, type TermLine,
+  ConnectionIndicator,
+  EventLog,
+  Note,
+  PopoverCard,
+  StartupChecklist,
+  Terminal,
+  TerminalBar,
+  TerminalPane,
+  TerminalPlaceholder,
+  type TermLine,
 } from '@/components';
 import type { RunDetailData } from '@/mocks';
 
@@ -28,7 +36,13 @@ const views = (label: string) => [
 
 /** "Copy /cmd" renders the command in mono, like the boards. */
 function ActionLabel({ label }: { label: string }) {
-  return label.startsWith('Copy /') ? <>Copy <span className="mono">{label.slice(5)}</span></> : <>{label}</>;
+  return label.startsWith('Copy /') ? (
+    <>
+      Copy <span className="mono">{label.slice(5)}</span>
+    </>
+  ) : (
+    <>{label}</>
+  );
 }
 
 function EndNotice({ data }: { data: RunDetailData }) {
@@ -41,7 +55,13 @@ function EndNotice({ data }: { data: RunDetailData }) {
         tone={status === 'failed' ? 'err' : 'late'}
         flush
         prominent
-        icon={<StatusIcon status={status} size={20} title={status === 'failed' ? 'Failed' : 'Timed out'} />}
+        icon={
+          <StatusIcon
+            status={status}
+            size={20}
+            title={status === 'timed_out' ? 'Timed out' : data.failureStage === 'setup' ? 'Setup failed' : 'Failed'}
+          />
+        }
         title={endNote.title}
         actionsPlacement="below"
         actions={endNote.actions.map((a, i) => (
@@ -61,11 +81,23 @@ function EndNotice({ data }: { data: RunDetailData }) {
       flush
       centered
       inlineTitle
-      icon={<StatusIcon status={succeeded ? 'succeeded' : 'cancelled'} size={18} title={succeeded ? 'Succeeded' : 'Cancelled'} />}
+      icon={
+        <StatusIcon
+          status={succeeded ? 'succeeded' : 'cancelled'}
+          size={18}
+          title={succeeded ? 'Succeeded' : 'Cancelled'}
+        />
+      }
       title={endNote.title}
-      actions={succeeded ? endNote.actions.map((a) => (
-        <Button key={a.label} size="sm" href={a.href} iconRight={a.icon}>{a.label}</Button>
-      )) : undefined}
+      actions={
+        succeeded
+          ? endNote.actions.map((a) => (
+              <Button key={a.label} size="sm" href={a.href} iconRight={a.icon}>
+                {a.label}
+              </Button>
+            ))
+          : undefined
+      }
     >
       {endNote.body}
     </Banner>
@@ -73,7 +105,14 @@ function EndNotice({ data }: { data: RunDetailData }) {
 }
 
 export function RunTerminalArea({
-  data, lines = [], terminal, busy, onFinish, onReconnect, reconnectOverlay, reconnectBody,
+  data,
+  lines = [],
+  terminal,
+  busy,
+  onFinish,
+  onReconnect,
+  reconnectOverlay,
+  reconnectBody,
 }: RunTerminalAreaProps) {
   const { run, connection } = data;
   const status = run.status;
@@ -97,7 +136,9 @@ export function RunTerminalArea({
           body="The terminal opens here by itself when Claude Code is ready, usually within a minute. You can leave this page; the run keeps going."
         >
           <StartupChecklist steps={data.startup ?? []} />
-          <Note tone="faint">If the pod is still pending after 2 minutes the run fails with the scheduler&apos;s message.</Note>
+          <Note tone="faint">
+            If the pod is still pending after 2 minutes the run fails with the scheduler&apos;s message.
+          </Note>
         </TerminalPlaceholder>
       </TerminalPane>
     );
@@ -112,41 +153,63 @@ export function RunTerminalArea({
           body="The pod stopped before the terminal could be captured. What the agent pushed is on GitHub; everything else ended with the pod."
         >
           <EventLog timeWidth={70} events={(data.lifecycle ?? []).map((e) => ({ at: e.at, text: e.text }))} />
-          {branch && <div className="row"><Button icon={branch.icon} href={branch.href}>{branch.label}</Button></div>}
+          {branch && (
+            <div className="row">
+              <Button icon={branch.icon} href={branch.href}>
+                {branch.label}
+              </Button>
+            </div>
+          )}
         </TerminalPlaceholder>
       </TerminalPane>
     );
   }
 
-  const notice = status === 'idle' ? (
-    <Banner
-      tone="idle"
-      flush
-      centered
-      icon={<StatusIcon status="idle" size={20} title="Needs you" />}
-      title="The agent finished its turn and is waiting for you"
-      actions={<Button variant="go" icon="check" disabled={busy} onClick={onFinish}>Finish run</Button>}
-    >
-      Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while this page is attached.
-    </Banner>
-  ) : isEnded ? <EndNotice data={data} /> : undefined;
+  const notice =
+    status === 'idle' ? (
+      <Banner
+        tone="idle"
+        flush
+        centered
+        icon={<StatusIcon status="idle" size={20} title="Needs you" />}
+        title="The agent finished its turn and is waiting for you"
+        actions={
+          <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
+            Finish run
+          </Button>
+        }
+      >
+        Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while
+        this page is attached.
+      </Banner>
+    ) : isEnded ? (
+      <EndNotice data={data} />
+    ) : undefined;
 
-  const overlay = (reconnectOverlay ?? reconnecting) ? (
-    <Popover
-      open
-      role="status"
-      label="Connection to the terminal lost"
-      width={460}
-      style={{ left: '50%', top: '30%', transform: 'translateX(-50%)' }}
-    >
-      <PopoverCard
-        icon={<StatusIcon status="starting" size={18} />}
-        title="Connection to the terminal lost"
-        body={reconnectBody ?? 'The agent keeps working; tmux holds the session. Retrying in 4 s. Input is paused until the screen redraws.'}
-        actions={<Button size="sm" icon="refresh" onClick={onReconnect}>Reconnect now</Button>}
-      />
-    </Popover>
-  ) : undefined;
+  const overlay =
+    (reconnectOverlay ?? reconnecting) ? (
+      <Popover
+        open
+        role="status"
+        label="Connection to the terminal lost"
+        width={460}
+        style={{ left: '50%', top: '30%', transform: 'translateX(-50%)' }}
+      >
+        <PopoverCard
+          icon={<StatusIcon status="starting" size={18} />}
+          title="Connection to the terminal lost"
+          body={
+            reconnectBody ??
+            'The agent keeps working; tmux holds the session. Retrying in 4 s. Input is paused until the screen redraws.'
+          }
+          actions={
+            <Button size="sm" icon="refresh" onClick={onReconnect}>
+              Reconnect now
+            </Button>
+          }
+        />
+      </Popover>
+    ) : undefined;
 
   return (
     <TerminalPane notice={notice} bar={bar} overlay={overlay}>

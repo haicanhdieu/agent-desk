@@ -1,6 +1,9 @@
 import { toId, storyNameFromExport } from 'storybook/internal/csf';
 
-export interface BoardStory { title: string; exportName: string }
+export interface BoardStory {
+  title: string;
+  exportName: string;
+}
 
 const entry = 'Screens/Entry';
 const setup = 'Screens/Setup';
@@ -8,7 +11,7 @@ const runs = 'Screens/Runs';
 const detail = 'Screens/Run detail';
 const desk = 'Screens/Desk';
 
-/** The 26 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 30 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -19,6 +22,7 @@ export const boardStories = {
   Setup1Polling: { title: setup, exportName: 'Setup1Polling' },
   Setup1PollingOk: { title: setup, exportName: 'Setup1PollingOk' },
   Setup2: { title: setup, exportName: 'Setup2' },
+  SetupWorkspace: { title: setup, exportName: 'SetupWorkspace' },
   Setup3: { title: setup, exportName: 'Setup3' },
   Setup4: { title: setup, exportName: 'Setup4' },
   SetupReady: { title: setup, exportName: 'SetupReady' },
@@ -30,12 +34,15 @@ export const boardStories = {
   RunReconnect: { title: detail, exportName: 'RunReconnect' },
   RunSucceeded: { title: detail, exportName: 'RunSucceeded' },
   RunFailed: { title: detail, exportName: 'RunFailed' },
+  RunSetupFailed: { title: detail, exportName: 'RunSetupFailed' },
   RunTimedOut: { title: detail, exportName: 'RunTimedOut' },
   RunCancelled: { title: detail, exportName: 'RunCancelled' },
   DeskSkills: { title: desk, exportName: 'DeskSkills' },
   DeskSkillDelete: { title: desk, exportName: 'DeskSkillDelete' },
   DeskRules: { title: desk, exportName: 'DeskRules' },
   DeskAgent: { title: desk, exportName: 'DeskAgent' },
+  DeskSetup: { title: desk, exportName: 'DeskSetup' },
+  DeskSetupTest: { title: desk, exportName: 'DeskSetupTest' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;
@@ -50,6 +57,14 @@ export const stateStories = {
   DeskAgentPolling: { title: desk, exportName: 'DeskAgentPolling', board: 'DeskAgent' },
   DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
   DeskAgentSaveErrors: { title: desk, exportName: 'DeskAgentSaveErrors', board: 'DeskAgent' },
+  DeskSetupStale: { title: desk, exportName: 'DeskSetupStale', board: 'DeskSetup' },
+  DeskSetupConflict: { title: desk, exportName: 'DeskSetupConflict', board: 'DeskSetup' },
+  DeskSetupEmpty: { title: desk, exportName: 'DeskSetupEmpty', board: 'DeskSetup' },
+  DeskSetupLoading: { title: desk, exportName: 'DeskSetupLoading', board: 'DeskSetup' },
+  DeskSetupLoadError: { title: desk, exportName: 'DeskSetupLoadError', board: 'DeskSetup' },
+  SetupWorkspaceStart: { title: setup, exportName: 'SetupWorkspaceStart', board: 'SetupWorkspace' },
+  SetupWorkspaceRunning: { title: setup, exportName: 'SetupWorkspaceRunning', board: 'SetupWorkspace' },
+  SetupWorkspaceFailed: { title: setup, exportName: 'SetupWorkspaceFailed', board: 'SetupWorkspace' },
 } as const satisfies Record<string, BoardStory & { board: BoardName }>;
 
 /** Storybook's own id rule: toId(title, startCase(exportName)), e.g. `screens-run-detail--run-starting`. */

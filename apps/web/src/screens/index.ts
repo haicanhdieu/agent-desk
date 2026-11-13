@@ -16,3 +16,12 @@ export { DeskRules, RulePane, type DeskRulesProps, type RulePaneProps } from './
 export { DeskAgent, type AgentLimits, type DeskAgentProps, type LimitField } from './DeskAgent';
 export type { DeskFrameData, DeskLinks } from './DeskFrame';
 export { Overview } from './Overview';
+export {
+  DeskSetup,
+  SETUP_SCRIPT_STARTER,
+  type DeskSetupProps,
+  type LastSetupTest,
+  type SavedSetupScript,
+  type SetupTestView,
+} from './DeskSetup';
+export { SetupWorkspace, type SetupStepTest, type SetupWorkspaceProps } from './SetupWorkspace';

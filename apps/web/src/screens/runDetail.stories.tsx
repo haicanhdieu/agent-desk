@@ -14,7 +14,11 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const artboard = (width: number, height: number): NonNullable<Story['decorators']> => [
-  (S) => <div style={{ width, height }}><S /></div>,
+  (S) => (
+    <div style={{ width, height }}>
+      <S />
+    </div>
+  ),
 ];
 
 export const RunStarting: Story = {
@@ -46,6 +50,12 @@ export const RunFailed: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
   args: { data: runDetails.RunFailed, lines: terminalByRun[56], needsYou: 1 },
+};
+/** Failed in setup: the agent never started (prototype board RunSetupFailed). */
+export const RunSetupFailed: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunSetupFailed, lines: terminalByRun[58], needsYou: 1 },
 };
 export const RunTimedOut: Story = {
   decorators: artboard(1440, 900),

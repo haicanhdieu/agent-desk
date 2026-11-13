@@ -4,13 +4,26 @@ export interface SetupStepDetails {
   repo?: string;
   credential?: string;
   skills?: string;
+  /**
+   * Adds the optional "Prepare workspace" step after the credential (five steps). Off until the onboarding step
+   * ships, so the live flow keeps four steps.
+   */
+  withWorkspace?: boolean;
+  workspace?: string;
 }
 
-/** The four setup steps; `detail` only shows once a step is done. */
-export function setupSteps({ repo, credential, skills }: SetupStepDetails = {}): StepperProps['steps'] {
+/** The setup steps (four, or five `withWorkspace`); `detail` only shows once a step is done. */
+export function setupSteps({
+  repo,
+  credential,
+  skills,
+  withWorkspace,
+  workspace,
+}: SetupStepDetails = {}): StepperProps['steps'] {
   return [
     { label: 'Connect repository', detail: repo },
     { label: 'Add Claude credential', detail: credential },
+    ...(withWorkspace ? [{ label: 'Prepare workspace', optional: true, detail: workspace }] : []),
     { label: 'Add skills', optional: true, detail: skills },
     { label: 'Add first rule' },
   ];
@@ -25,4 +38,5 @@ export interface SetupNav {
 }
 
 /** Setup 3 primary button. 0 selected reads "Continue" (nothing to commit; Skip stays), 1 is singular. */
-export const commitLabel = (n: number) => (n === 0 ? 'Continue' : `Commit ${n} skill${n === 1 ? '' : 's'} and continue`);
+export const commitLabel = (n: number) =>
+  n === 0 ? 'Continue' : `Commit ${n} skill${n === 1 ? '' : 's'} and continue`;

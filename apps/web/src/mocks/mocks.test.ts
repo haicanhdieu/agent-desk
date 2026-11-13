@@ -1,8 +1,21 @@
 import { describe, expect, it } from 'vitest';
 import { RUN_STATUSES } from '@/ds';
 import {
-  agentSettings, connectionCopy, connections, connectionWarnings, DEFAULT_POLL_INTERVAL, ignored, menuWarning, pollIntervals,
-  projects, rules, runDetails, runs, skills, terminalByRun, ticketGroups,
+  agentSettings,
+  connectionCopy,
+  connections,
+  connectionWarnings,
+  DEFAULT_POLL_INTERVAL,
+  ignored,
+  menuWarning,
+  pollIntervals,
+  projects,
+  rules,
+  runDetails,
+  runs,
+  skills,
+  terminalByRun,
+  ticketGroups,
 } from '@/mocks';
 
 const ACTIVE = ['queued', 'starting', 'running', 'idle'];
@@ -16,7 +29,12 @@ describe('mock fixtures', () => {
   });
 
   it('flattens ticketGroups into runs', () => {
-    expect(ticketGroups.flatMap((g) => g.runs).map((r) => r.id).sort((a, b) => a - b)).toEqual(runs.map((r) => r.id));
+    expect(
+      ticketGroups
+        .flatMap((g) => g.runs)
+        .map((r) => r.id)
+        .sort((a, b) => a - b),
+    ).toEqual(runs.map((r) => r.id));
   });
 
   it('has at most one active run per ticket and skill', () => {
@@ -52,7 +70,10 @@ describe('mock fixtures', () => {
 
   it('gives each project a trigger mode and a status that fits it', () => {
     expect(projects.map((p) => [p.connection.mode, p.connection.tone])).toEqual([
-      ['webhook', 'ok'], ['polling', 'ok'], ['webhook', 'warn'], ['polling', 'err'],
+      ['webhook', 'ok'],
+      ['polling', 'ok'],
+      ['webhook', 'warn'],
+      ['polling', 'err'],
     ]);
     // Only a webhook can go silent; only polling can fail a check.
     for (const c of Object.values(connections)) {
@@ -62,13 +83,24 @@ describe('mock fixtures', () => {
   });
 
   it('has terminal scrollback for the runs that need it', () => {
-    expect(Object.keys(terminalByRun).map(Number).sort((a, b) => a - b)).toEqual([54, 56, 60, 61, 62]);
+    expect(
+      Object.keys(terminalByRun)
+        .map(Number)
+        .sort((a, b) => a - b),
+    ).toEqual([54, 56, 58, 60, 61, 62]);
   });
 
-  it('has eight run details whose status matches the board name', () => {
+  it('has nine run details whose status matches the board name', () => {
     const expected = {
-      RunStarting: 'starting', RunRunning: 'running', RunIdle: 'idle', RunReconnect: 'running',
-      RunSucceeded: 'succeeded', RunFailed: 'failed', RunTimedOut: 'timed_out', RunCancelled: 'cancelled',
+      RunStarting: 'starting',
+      RunRunning: 'running',
+      RunIdle: 'idle',
+      RunReconnect: 'running',
+      RunSucceeded: 'succeeded',
+      RunFailed: 'failed',
+      RunSetupFailed: 'failed',
+      RunTimedOut: 'timed_out',
+      RunCancelled: 'cancelled',
     } as const;
     expect(Object.keys(runDetails).sort()).toEqual(Object.keys(expected).sort());
     for (const [k, status] of Object.entries(expected)) {
@@ -77,7 +109,17 @@ describe('mock fixtures', () => {
   });
 
   it('never carries a credential-looking value (FR-3)', () => {
-    const text = JSON.stringify({ agentSettings, ignored, projects, rules, runDetails, runs, skills, terminalByRun, ticketGroups });
+    const text = JSON.stringify({
+      agentSettings,
+      ignored,
+      projects,
+      rules,
+      runDetails,
+      runs,
+      skills,
+      terminalByRun,
+      ticketGroups,
+    });
     expect(text).not.toMatch(/sk-|token=/);
   });
 
@@ -90,10 +132,18 @@ describe('mock fixtures', () => {
     expect(runs.find((r) => r.id === 62)?.statusNote).toBe('Waiting 3m. Auto-finish after 10m unattended');
     expect(runs.find((r) => r.id === 56)?.statusNote).toBe('API authentication failed (401)');
     expect(rules.find((r) => r.command === 'code-build')?.stats).toBe('14 runs this week, last 14:15');
-    expect(rules.find((r) => r.command === 'qa-e2e')).toMatchObject({ enabled: false, labels: ['needs-qa'], stats: 'Turned off 3 Nov' });
+    expect(rules.find((r) => r.command === 'qa-e2e')).toMatchObject({
+      enabled: false,
+      labels: ['needs-qa'],
+      stats: 'Turned off 3 Nov',
+    });
     expect(ignored[0]).toMatchObject({ at: '14:16', author: 'octo-visitor', reason: 'Author has no write access' });
     expect(ignored[4]).toMatchObject({ command: '/deploy', reason: 'No rule for command' });
-    expect(agentSettings.credential).toMatchObject({ setAt: '12 Oct 2026', setBy: 'kim-hale', status: { tone: 'err', text: 'Rejected at 11:29' } });
+    expect(agentSettings.credential).toMatchObject({
+      setAt: '12 Oct 2026',
+      setBy: 'kim-hale',
+      status: { tone: 'err', text: 'Rejected at 11:29' },
+    });
     expect(terminalByRun[61][0]).toEqual([
       { text: 'agent-desk runner 0.4.1', tone: 'accent' },
       { text: '  run 61  ·  harbor-labs/invoicer-api', tone: 'dim' },
@@ -112,7 +162,9 @@ describe('polling copy', () => {
   it('matches the brief and the prototype boards word for word', () => {
     expect(connectionCopy.modeLabel).toBe('How Agent Desk hears about new comments');
     expect(connectionCopy.pollingChecked('5 min', '20s ago')).toBe('Polling every 5 min · last checked 20s ago');
-    expect(connectionCopy.pollingCheckedBody('5 min')).toBe('Agent Desk can read comments on this repository. A new command starts a run within 5 minutes.');
+    expect(connectionCopy.pollingCheckedBody('5 min')).toBe(
+      'Agent Desk can read comments on this repository. A new command starts a run within 5 minutes.',
+    );
     expect(connectionCopy.pollingCheckedBody('30 min')).toMatch(/within 30 minutes\.$/);
     expect(connectionCopy.pollingCostBody).toMatch(/12 an hour at 5 min/);
     expect(connectionCopy.pollingCostBody).toMatch(/5,000 an hour/);
@@ -126,7 +178,11 @@ describe('polling copy', () => {
   });
 
   it('puts Switch to polling first on the silent-webhook banner only', () => {
-    expect(connectionWarnings.webhookSilent.actions.map((a) => a.label)).toEqual(['Switch to polling', 'Check again', 'Connection details']);
+    expect(connectionWarnings.webhookSilent.actions.map((a) => a.label)).toEqual([
+      'Switch to polling',
+      'Check again',
+      'Connection details',
+    ]);
     expect(connectionWarnings.webhookSilent.actions[0].variant).toBe('primary');
     expect(connectionWarnings.pollingFailed.actions.map((a) => a.label)).not.toContain('Switch to polling');
   });

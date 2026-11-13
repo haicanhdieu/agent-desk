@@ -34,3 +34,11 @@ export function highlightMarkdown(original: string): MdSpan[] {
   }
   return spans;
 }
+
+/** Shell scripts: whole-line `#` comments are faint, `set` options are keyword-coloured. Texts concatenate to `line`. */
+export function highlightShell(line: string): MdSpan[] {
+  if (line === '') return [];
+  if (/^\s*#/.test(line)) return [{ text: line, kind: 'f' }];
+  if (/^\s*set\s/.test(line)) return [{ text: line, kind: 'k' }];
+  return [{ text: line, kind: 'plain' }];
+}

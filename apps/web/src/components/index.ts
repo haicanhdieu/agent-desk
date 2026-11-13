@@ -11,8 +11,15 @@ export { SubNav, type SubNavProps } from './SubNav';
 export { AppShell, type AppShellProps } from './AppShell';
 export { DeskLayout, type DeskLayoutProps } from './DeskLayout';
 export {
-  Terminal, TerminalPane, TerminalPlaceholder,
-  type TermTone, type TermSpan, type TermLine, type TerminalProps, type TerminalPaneProps, type TerminalPlaceholderProps,
+  Terminal,
+  TerminalPane,
+  TerminalPlaceholder,
+  type TermTone,
+  type TermSpan,
+  type TermLine,
+  type TerminalProps,
+  type TerminalPaneProps,
+  type TerminalPlaceholderProps,
 } from './Terminal';
 export { TerminalBar, type TerminalBarProps } from './TerminalBar';
 export { ConnectionIndicator, type ConnectionState, type ConnectionIndicatorProps } from './ConnectionIndicator';
@@ -25,7 +32,7 @@ export { Meter, type MeterProps } from './Meter';
 export { ChainTimeline, type ChainStep } from './ChainTimeline';
 export { TicketSummary } from './TicketSummary';
 export { CodeEditor, type CodeEditorProps } from './CodeEditor';
-export { highlightMarkdown, type MdSpan } from './highlightMarkdown';
+export { highlightMarkdown, highlightShell, type MdSpan } from './highlightMarkdown';
 export { Stepper, type StepperProps } from './Stepper';
 export { SetupLayout, type SetupLayoutProps } from './SetupLayout';
 export { RuleSentence, type RuleDraft, type RuleTarget } from './RuleSentence';
@@ -50,5 +57,19 @@ export { ProjectNav, ProjectStrip, type ProjectNavProps } from './ProjectNav';
 export { NeedsYouBanner, type NeedsYouBannerProps } from './NeedsYouBanner';
 export { IgnoredRow } from './IgnoredRow';
 export { GitHubComment, type GitHubCommentProps } from './GitHubComment';
-export { Note, Stat, ActorRef, RuleText, ModelTag, PopoverCard, type NoteProps, type StatProps, type ActorRefProps, type PopoverCardProps } from './RunFacts';
+export {
+  Note,
+  Stat,
+  ActorRef,
+  RuleText,
+  ModelTag,
+  PopoverCard,
+  type NoteProps,
+  type StatProps,
+  type ActorRefProps,
+  type PopoverCardProps,
+} from './RunFacts';
 export { TriggerModeSetting, type TriggerModeSettingProps } from './TriggerModeSetting';
+export { PluginList, type PluginListProps, type PluginState } from './PluginList';
+export { SetupPhases, type SetupPhase, type SetupPhaseState } from './SetupPhases';
+export { VersionHistory, type VersionHistoryProps, type ScriptVersion } from './VersionHistory';

@@ -1,4 +1,4 @@
-import { highlightMarkdown } from './highlightMarkdown';
+import { highlightMarkdown, highlightShell } from './highlightMarkdown';
 import styles from './CodeEditor.module.css';
 
 export type CodeEditorProps = {
@@ -8,9 +8,19 @@ export type CodeEditorProps = {
   /** 1-based line numbers to mark as changed; out-of-range values are ignored. */
   changedLines?: number[];
   'aria-label': string;
+  /** Syntax colouring; defaults to Markdown (SKILL.md). */
+  language?: 'markdown' | 'shell';
 };
 
-export function CodeEditor({ value, onChange, readOnly, changedLines = [], 'aria-label': ariaLabel }: CodeEditorProps) {
+export function CodeEditor({
+  value,
+  onChange,
+  readOnly,
+  changedLines = [],
+  'aria-label': ariaLabel,
+  language = 'markdown',
+}: CodeEditorProps) {
+  const highlight = language === 'shell' ? highlightShell : highlightMarkdown;
   const lines = value.split('\n');
   const changed = new Set(changedLines);
   return (
@@ -21,14 +31,24 @@ export function CodeEditor({ value, onChange, readOnly, changedLines = [], 'aria
             const n = i + 1;
             const isChanged = changed.has(n);
             return (
-              <div key={i} className={isChanged ? `${styles.line} ${styles.changed}` : styles.line} {...(isChanged ? { 'data-changed': '' } : {})}>
-                <span className={styles.ln} data-ln>{n}</span>
+              <div
+                key={i}
+                className={isChanged ? `${styles.line} ${styles.changed}` : styles.line}
+                {...(isChanged ? { 'data-changed': '' } : {})}
+              >
+                <span className={styles.ln} data-ln>
+                  {n}
+                </span>
                 {isChanged ? <span className={styles.mark}>+</span> : <span />}
                 <span>
-                  {highlightMarkdown(text).map((s, j) =>
-                    s.kind === 'plain'
-                      ? <span key={j}>{s.text}</span>
-                      : <span key={j} className={styles[s.kind]} data-kind={s.kind}>{s.text}</span>,
+                  {highlight(text).map((s, j) =>
+                    s.kind === 'plain' ? (
+                      <span key={j}>{s.text}</span>
+                    ) : (
+                      <span key={j} className={styles[s.kind]} data-kind={s.kind}>
+                        {s.text}
+                      </span>
+                    ),
                   )}
                 </span>
               </div>
