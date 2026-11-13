@@ -3,17 +3,18 @@
 React 19 + TypeScript + Vite SPA: TanStack Router (file routes) and Query, TanStack Form, CSS Modules, xterm for the
 run terminal, MSW for mock mode, Storybook (react-vite), Vitest and Playwright.
 
-| Script                 | Purpose                                                                                                         |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `pnpm dev`             | Vite dev server; proxies `/api` (with the terminal WebSocket), `/auth`, `/webhooks`, `/dev` to the API on :3000 |
-| `pnpm dev:mock`        | Vite in `mock` mode: the API is served from MSW in the browser, no backend                                      |
-| `pnpm storybook`       | Storybook on :6006                                                                                              |
-| `pnpm build-storybook` | Static Storybook build (`storybook-static/`, not committed)                                                     |
-| `pnpm test`            | Vitest (includes the stories smoke test with axe)                                                               |
-| `pnpm test:e2e:mock`   | Mock-mode build, then the Playwright suite in `e2e/mock`                                                        |
-| `pnpm typecheck`       | `tsc --noEmit`                                                                                                  |
-| `pnpm lint`            | ESLint                                                                                                          |
-| `pnpm parity`          | Screenshots each screen story next to its prototype board (`parity-out/`, after `build-storybook`)              |
+| Script                 | Purpose                                                                                                           |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `pnpm dev`             | Vite dev server; proxies `/api` (with the terminal WebSocket), `/auth`, `/webhooks`, `/dev` to the API on :3000   |
+| `pnpm dev:mock`        | Vite in `mock` mode: the API is served from MSW in the browser, no backend                                        |
+| `pnpm storybook`       | Storybook on :6006                                                                                                |
+| `pnpm build-storybook` | Static Storybook build (`storybook-static/`, not committed)                                                       |
+| `pnpm test`            | Vitest (includes the stories smoke test with axe)                                                                 |
+| `pnpm test:e2e:mock`   | Mock-mode build, then the Playwright suite in `e2e/mock`                                                          |
+| `pnpm test:e2e:local`  | Playwright suite in `e2e/local` against the real stack (`pnpm dev` at the repo root); reuses a running dev server |
+| `pnpm typecheck`       | `tsc --noEmit`                                                                                                    |
+| `pnpm lint`            | ESLint                                                                                                            |
+| `pnpm parity`          | Screenshots each screen story next to its prototype board (`parity-out/`, after `build-storybook`)                |
 
 Path alias `@/` maps to `src/`. Dark theme only.
 
