@@ -14,8 +14,8 @@ credential.
 
 ## Decision
 
-The runner entrypoint gets phases after checkout and before the agent: plugins, then (Task 7 of the plan) a setup
-script stored by Agent Desk. This ADR records the whole decision; the entrypoint implements the plugins phase first.
+The runner entrypoint gets phases after checkout and before the agent: plugins, then a setup
+script stored by Agent Desk. This ADR records the whole decision; the entrypoint implements both phases.
 
 - **Plugins install only from approved stores.** The worker passes env `PLUGIN_MARKETPLACES` (JSON
   `{"<name>": "<source>"}`, from platform config). Approval is by marketplace name, but the pod always registers an

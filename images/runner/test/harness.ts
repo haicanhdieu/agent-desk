@@ -8,7 +8,7 @@ const runnerDir = join(import.meta.dirname, '..');
 export interface EntrypointResult {
   stdout: string[];
   exitCode: number;
-  calls: { cmd: string; argv: string[] }[];
+  calls: { cmd: string; argv: string[]; setupScript?: string | null }[];
 }
 
 /**
@@ -44,6 +44,6 @@ export async function runEntrypoint(
   const calls = (await readFile(stubLog, 'utf8'))
     .split('\n')
     .filter((l) => l !== '')
-    .map((l) => JSON.parse(l) as { cmd: string; argv: string[] });
+    .map((l) => JSON.parse(l) as { cmd: string; argv: string[]; setupScript?: string | null });
   return { stdout: stdout.split('\n').filter((l) => l !== ''), exitCode, calls };
 }

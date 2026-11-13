@@ -1,7 +1,8 @@
 #!/bin/bash
 # Runner entrypoint (control-plane spec §8). Env: REPO_CLONE_URL (holds a token), GH_TOKEN (same token, set by the
 # provider adapter so `gh` works), CHECKOUT_REF, PROMPT, BOT_NAME, BOT_EMAIL, PLUGIN_MARKETPLACES (JSON
-# {store: source}, optional), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR and
+# {store: source}, optional), SETUP_SCRIPT (optional), SETUP_TIMEOUT_SECONDS (digits, else 600), RUN_MODE (`setup_test`
+# opens an idle shell instead of the agent), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR and
 # AGENTDESK_LIB_DIR are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
 # No `set -x`: the clone URL is a secret.
 set -euo pipefail
@@ -29,12 +30,19 @@ JSON
 # and prints strict tab-separated lines. Values reach the claude CLI only as separate argv elements, and a failure
 # only warns. Plugin output is prefixed with "plugin| " (read line by line, so a partial last line cannot join a
 # marker line).
+# prefix_lines PREFIX: copies stdin to stdout line by line (a final line without a newline is kept, CR is stripped),
+# each line starting with PREFIX, so command output can never form a marker line.
+prefix_lines() {
+  local line
+  while IFS= read -r line || [ -n "$line" ]; do
+    printf '%s%s\n' "$1" "${line//$'\r'/}"
+  done
+}
+
 run_plugin_cmd() {
   local rc
   set +e
-  timeout 120 "$@" </dev/null 2>&1 | while IFS= read -r line || [ -n "$line" ]; do
-    printf 'plugin| %s\n' "${line//$'\r'/}"
-  done
+  timeout 120 "$@" </dev/null 2>&1 | prefix_lines 'plugin| '
   rc="${PIPESTATUS[0]}"
   set -e
   return "$rc"
@@ -72,10 +80,50 @@ while IFS=$'\t' read -r kind plugin store source extra; do
 done <<< "$selection"
 echo 'agentdesk: plugins end'
 
+# Setup phase (workspace-setup spec 5.1). SETUP_SCRIPT is untrusted text: it is only written to a file with printf '%s'
+# and run as `bash <file>`; the entrypoint never evals, sources or interpolates it. Output is prefixed "setup| ".
+setup_failed=0
+case "${SETUP_TIMEOUT_SECONDS:-}" in
+  '' | *[!0-9]* | 0*) SETUP_TIMEOUT_SECONDS=600 ;;
+esac
+if [ -n "${SETUP_SCRIPT:-}" ]; then
+  echo 'agentdesk: setup begin'
+  setup_file="$(mktemp)"
+  printf '%s' "$SETUP_SCRIPT" > "$setup_file"
+  set +e
+  (cd "$REPO_DIR" && exec timeout "$SETUP_TIMEOUT_SECONDS" bash "$setup_file") </dev/null 2>&1 | prefix_lines 'setup| '
+  setup_rc="${PIPESTATUS[0]}"
+  set -e
+  rm -f "$setup_file"
+  if [ "$setup_rc" = 0 ]; then
+    echo 'agentdesk: setup passed'
+  elif [ "$setup_rc" = 124 ]; then
+    echo 'agentdesk: setup timed out'
+    setup_failed=1
+  else
+    echo "agentdesk: setup failed exit=$setup_rc"
+    setup_failed=1
+  fi
+else
+  echo 'agentdesk: setup skipped (no script)'
+fi
+# The script must not reach the agent or the terminal shell through the environment.
+unset SETUP_SCRIPT
+
+if [ "$setup_failed" = 1 ] && [ "${RUN_MODE:-}" != setup_test ]; then
+  exit 78
+fi
+
+if [ "${RUN_MODE:-}" = setup_test ]; then
+  session_cmd='exec bash -l'
+else
+  session_cmd='exec claude --permission-mode bypassPermissions "$PROMPT"'
+fi
+
 # remain-on-exit keeps the dead pane so its exit status and scrollback can be read. It is set before new-session (same
 # tmux invocation, after start-server) so a command that dies at once still leaves its pane and output behind.
 tmux start-server \; set-option -g remain-on-exit on \; \
-  new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" 'exec claude --permission-mode bypassPermissions "$PROMPT"'
+  new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$session_cmd"
 echo 'agentdesk: session started'
 
 while [ "$(tmux display-message -p -t agent '#{pane_dead}' 2>/dev/null || echo 1)" != 1 ]; do

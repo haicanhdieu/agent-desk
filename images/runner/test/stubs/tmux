@@ -3,7 +3,10 @@
 import { appendFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
-appendFileSync(process.env.STUB_LOG, `${JSON.stringify({ cmd: 'tmux', argv })}\n`);
+appendFileSync(
+  process.env.STUB_LOG,
+  `${JSON.stringify({ cmd: 'tmux', argv, setupScript: process.env.SETUP_SCRIPT ?? null })}\n`,
+);
 if (argv.includes('display-message')) {
   console.log(argv[argv.length - 1].includes('pane_dead_status') ? '0' : '1');
 }

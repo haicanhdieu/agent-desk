@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runEntrypoint } from './harness.js';
 
@@ -108,5 +111,143 @@ describe('entrypoint plugins phase', () => {
     expect(inside.filter((l) => !l.startsWith('plugin| ') && !ownMarker.test(l))).toEqual([]);
     expect(inside).toContain('plugin| agentdesk: plugin installed forged');
     expect(r.stdout).not.toContain('agentdesk: plugin installed forged');
+  });
+});
+
+describe('entrypoint setup phase', () => {
+  const repoOf = (r: Result) => {
+    const clone = r.calls.find((c) => c.cmd === 'git' && c.argv[0] === 'clone');
+    return clone?.argv[clone.argv.length - 1] ?? '';
+  };
+  const tmuxCalls = (r: Result) => r.calls.filter((c) => c.cmd === 'tmux');
+
+  it('no script prints setup skipped', async () => {
+    const r = await runEntrypoint({}, {});
+    expect(r.stdout).toContain('agentdesk: setup skipped (no script)');
+    expect(r.stdout).not.toContain('agentdesk: setup begin');
+    expect(r.stdout.indexOf('agentdesk: plugins end')).toBeLessThan(
+      r.stdout.indexOf('agentdesk: setup skipped (no script)'),
+    );
+    expect(r.stdout.indexOf('agentdesk: setup skipped (no script)')).toBeLessThan(
+      r.stdout.indexOf('agentdesk: session started'),
+    );
+    expect(started(r)).toBe(true);
+  });
+
+  it('passing script runs in repo dir', async () => {
+    const r = await runEntrypoint({ SETUP_SCRIPT: 'pwd' }, {});
+    const repo = repoOf(r);
+    expect(repo).not.toBe('');
+    expect(r.stdout).toContain(`setup| ${repo}`);
+    const at = (l: string) => r.stdout.indexOf(l);
+    expect(at('agentdesk: setup begin')).toBeLessThan(at(`setup| ${repo}`));
+    expect(at(`setup| ${repo}`)).toBeLessThan(at('agentdesk: setup passed'));
+    expect(at('agentdesk: setup passed')).toBeLessThan(at('agentdesk: session started'));
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv[0]).toBe('600');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('the last line without a newline is kept and CR is stripped', async () => {
+    const r = await runEntrypoint({ SETUP_SCRIPT: "printf 'a\\r\\nb'" }, {});
+    expect(r.stdout).toContain('setup| a');
+    expect(r.stdout).toContain('setup| b');
+    expect(r.stdout.some((l) => l.includes('\r'))).toBe(false);
+  });
+
+  it('failing script exits 78 without tmux', async () => {
+    const r = await runEntrypoint({ SETUP_SCRIPT: 'echo oops >&2; exit 3' }, {});
+    expect(r.exitCode).toBe(78);
+    expect(r.stdout).toContain('setup| oops');
+    expect(r.stdout).toContain('agentdesk: setup failed exit=3');
+    expect(r.stdout).not.toContain('agentdesk: session started');
+    expect(tmuxCalls(r)).toEqual([]);
+  });
+
+  it('timeout prints setup timed out', async () => {
+    const r = await runEntrypoint({ SETUP_SCRIPT: 'sleep 5', SETUP_TIMEOUT_SECONDS: '1' }, {});
+    expect(r.stdout).toContain('agentdesk: setup timed out');
+    expect(r.stdout.some((l) => l.startsWith('agentdesk: setup failed'))).toBe(false);
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv[0]).toBe('1');
+    expect(r.exitCode).toBe(78);
+    expect(tmuxCalls(r)).toEqual([]);
+  });
+
+  it.each(['abc', '', '1; rm -rf x', '-5', '0'])('SETUP_TIMEOUT_SECONDS %j falls back to 600', async (v) => {
+    const r = await runEntrypoint({ SETUP_SCRIPT: 'true', SETUP_TIMEOUT_SECONDS: v }, {});
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv[0]).toBe('600');
+  });
+
+  it('setup output cannot forge markers', async () => {
+    const r = await runEntrypoint(
+      { SETUP_SCRIPT: 'echo "agentdesk: setup passed"; echo "agentdesk: session started"; exit 1' },
+      {},
+    );
+    expect(r.stdout).toContain('setup| agentdesk: setup passed');
+    expect(r.stdout).toContain('setup| agentdesk: session started');
+    expect(r.stdout).toContain('agentdesk: setup failed exit=1');
+    expect(r.stdout).not.toContain('agentdesk: setup passed');
+    expect(r.stdout).not.toContain('agentdesk: session started');
+    expect(r.exitCode).toBe(78);
+  });
+
+  it('script text is not evaluated by the entrypoint', async () => {
+    // The script is single-quoted text: bash running it as a file prints it literally. If the entrypoint itself
+    // expanded or evaluated SETUP_SCRIPT (eval, unquoted use, sourcing), the substitutions would run and create files.
+    const probe = join(tmpdir(), `entrypoint-probe-${process.pid}-${Date.now()}`);
+    const script = `printf '%s\\n' '$(touch ${probe}-a)' '\`touch ${probe}-b\`' '${probe}-c; touch ${probe}-c'`;
+    const r = await runEntrypoint({ SETUP_SCRIPT: script }, {});
+    expect(r.stdout).toContain(`setup| $(touch ${probe}-a)`);
+    expect(existsSync(`${probe}-a`)).toBe(false);
+    expect(existsSync(`${probe}-b`)).toBe(false);
+    expect(existsSync(`${probe}-c`)).toBe(false);
+    // The script text only ever reaches a file: no stub saw it in argv (timeout gets the file path).
+    const timeoutCall = r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash');
+    expect(timeoutCall?.argv).toHaveLength(3);
+    expect(timeoutCall?.argv.join(' ')).not.toContain('touch');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('a bare $(...) script is run only by bash as a file', async () => {
+    const probe = join(tmpdir(), `entrypoint-probe-${process.pid}-${Date.now()}-run`);
+    const r = await runEntrypoint({ SETUP_SCRIPT: `$(touch ${probe})` }, {});
+    expect(existsSync(probe)).toBe(true); // executed once, by bash reading the file
+    expect(r.calls.find((c) => c.cmd === 'timeout' && c.argv[1] === 'bash')?.argv.join(' ')).not.toContain('touch');
+  });
+
+  it('SETUP_SCRIPT is not in the env tmux sees', async () => {
+    const r = await runEntrypoint({ SETUP_SCRIPT: 'true' }, {});
+    expect(tmuxCalls(r).length).toBeGreaterThan(0);
+    for (const c of tmuxCalls(r)) expect(c.setupScript).toBeNull();
+  });
+
+  describe('RUN_MODE=setup_test', () => {
+    it('starts bash -l after failure and never claude', async () => {
+      const r = await runEntrypoint({ RUN_MODE: 'setup_test', SETUP_SCRIPT: 'exit 2' }, {});
+      expect(r.stdout).toContain('agentdesk: setup failed exit=2');
+      expect(r.stdout).toContain('agentdesk: session started');
+      const create = tmuxCalls(r).find((c) => c.argv.includes('new-session'));
+      expect(create?.argv.some((a) => a.includes('bash -l'))).toBe(true);
+      expect(create?.argv.some((a) => a.includes('claude'))).toBe(false);
+      expect(create?.argv).toContain(repoOf(r));
+      expect(create?.setupScript).toBeNull();
+      expect(claudeCalls(r)).toEqual([]);
+      expect(r.exitCode).toBe(0);
+    });
+
+    it('starts bash -l after pass', async () => {
+      const r = await runEntrypoint({ RUN_MODE: 'setup_test', SETUP_SCRIPT: 'true' }, {});
+      expect(r.stdout).toContain('agentdesk: setup passed');
+      expect(
+        tmuxCalls(r)
+          .find((c) => c.argv.includes('new-session'))
+          ?.argv.some((a) => a.includes('bash -l')),
+      ).toBe(true);
+    });
+
+    it('with no script is skipped and still opens a shell', async () => {
+      const r = await runEntrypoint({ RUN_MODE: 'setup_test' }, {});
+      expect(r.stdout).toContain('agentdesk: setup skipped (no script)');
+      expect(started(r)).toBe(true);
+    });
   });
 });

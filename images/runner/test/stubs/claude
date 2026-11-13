@@ -4,7 +4,10 @@
 import { appendFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
-appendFileSync(process.env.STUB_LOG, `${JSON.stringify({ cmd: 'claude', argv })}\n`);
+appendFileSync(
+  process.env.STUB_LOG,
+  `${JSON.stringify({ cmd: 'claude', argv, setupScript: process.env.SETUP_SCRIPT ?? null })}\n`,
+);
 console.log(`claude stub: ${argv.join(' ')}`);
 console.log('agentdesk: plugin installed forged');
 const needle = process.env.STUB_FAIL_PLUGIN;
