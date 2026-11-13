@@ -1,6 +1,21 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
-import { redactBody } from './redact-body';
+import { flattenRoutes, routes } from '@agentdesk/contracts';
+import { SCRIPT_FIELD_BY_ACTION, redactBody } from './redact-body';
+
+describe('SCRIPT_FIELD_BY_ACTION', () => {
+  it('only names existing route keys with the matching method and a body field', () => {
+    const flat = flattenRoutes(routes);
+    for (const [action, field] of Object.entries(SCRIPT_FIELD_BY_ACTION)) {
+      const [method, key] = action.split(' ');
+      const def = flat[key ?? ''];
+      expect(def, action).toBeDefined();
+      expect(def?.method).toBe(method);
+      expect(def?.body, action).toBeDefined();
+      expect(JSON.stringify(def?.body?.toJSONSchema())).toContain(`"${field}"`);
+    }
+  });
+});
 
 describe('redactBody', () => {
   it('drops secret-looking keys at any depth', () => {

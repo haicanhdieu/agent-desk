@@ -10,7 +10,7 @@ function isDropped(key: string): boolean {
  * Audit actions whose request body carries user script text, mapped to that top-level field. The text is never audited:
  * it is replaced by `{ sha256, bytes }`. A new route with script text only needs its key here.
  */
-const SCRIPT_FIELD_BY_ACTION: Record<string, string> = {
+export const SCRIPT_FIELD_BY_ACTION: Record<string, string> = {
   'PUT setupScript.put': 'body',
   'POST setupTests.create': 'script',
 };
