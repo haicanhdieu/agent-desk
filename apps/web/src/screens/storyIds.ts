@@ -50,6 +50,7 @@ export type BoardName = keyof typeof boardStories;
 /** Screen states with no board of their own in canvas.json. Each one is a variant of `board`. */
 export const stateStories = {
   Setup1PollingFailed: { title: setup, exportName: 'Setup1PollingFailed', board: 'Setup1PollingOk' },
+  SetupReadyWithWarning: { title: setup, exportName: 'SetupReadyWithWarning', board: 'SetupReady' },
   SetupReadyPolling: { title: setup, exportName: 'SetupReadyPolling', board: 'SetupReady' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
   RunsProblemsEmpty: { title: runs, exportName: 'RunsProblemsEmpty', board: 'RunsProblems' },
@@ -57,9 +58,11 @@ export const stateStories = {
   DeskAgentPolling: { title: desk, exportName: 'DeskAgentPolling', board: 'DeskAgent' },
   DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
   DeskAgentSaveErrors: { title: desk, exportName: 'DeskAgentSaveErrors', board: 'DeskAgent' },
+  DeskSkillsSetupWarning: { title: desk, exportName: 'DeskSkillsSetupWarning', board: 'DeskSkills' },
   DeskSetupStale: { title: desk, exportName: 'DeskSetupStale', board: 'DeskSetup' },
   DeskSetupConflict: { title: desk, exportName: 'DeskSetupConflict', board: 'DeskSetup' },
   DeskSetupEmpty: { title: desk, exportName: 'DeskSetupEmpty', board: 'DeskSetup' },
+  DeskSetupVersionsError: { title: desk, exportName: 'DeskSetupVersionsError', board: 'DeskSetup' },
   DeskSetupLoading: { title: desk, exportName: 'DeskSetupLoading', board: 'DeskSetup' },
   DeskSetupLoadError: { title: desk, exportName: 'DeskSetupLoadError', board: 'DeskSetup' },
   SetupWorkspaceStart: { title: setup, exportName: 'SetupWorkspaceStart', board: 'SetupWorkspace' },

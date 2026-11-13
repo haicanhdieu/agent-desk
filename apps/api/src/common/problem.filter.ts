@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodValidationException } from 'nestjs-zod';
 import { z } from 'zod';
 import type { ProblemSchema } from '@agentdesk/contracts';
+import { describeError } from './pg-errors';
 import { requestContext } from './request-context';
 import {
   ConflictProblemException,
@@ -66,7 +67,7 @@ export class ProblemFilter implements ExceptionFilter {
       // throws subclasses (NotFoundException, ...), so a bare 4xx HttpException is Fastify-origin: use fixed text.
       const fastifyOrigin = exception.constructor === HttpException && status >= 400 && status < 500;
       detail = fastifyOrigin
-        ? CLIENT_ERROR_DETAIL[status] ?? 'The request could not be processed'
+        ? (CLIENT_ERROR_DETAIL[status] ?? 'The request could not be processed')
         : typeof body === 'string'
           ? body
           : exception.message;
@@ -78,8 +79,9 @@ export class ProblemFilter implements ExceptionFilter {
       status = clientErrorStatus(exception) ?? 400;
       detail = CLIENT_ERROR_DETAIL[status] ?? 'The request could not be processed';
     } else {
-      // Unexpected: never leak internals to the client.
-      this.logger.error({ err: exception instanceof Error ? exception.message : 'unknown' }, 'unhandled exception');
+      // Unexpected: never leak internals to the client, and log only the name and pg code (a drizzle message carries
+      // the query params, e.g. a setup script body).
+      this.logger.error({ err: describeError(exception) }, 'unhandled exception');
     }
 
     const problem: ProblemSchema = {

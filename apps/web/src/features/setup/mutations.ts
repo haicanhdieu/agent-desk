@@ -4,6 +4,7 @@ import type {
   CreateRuleRequest,
   CredentialType,
   ProjectDto,
+  SetupScriptDto,
   SetupStep,
 } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
@@ -11,6 +12,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { useState } from 'react';
 import { api } from '../api';
 import { projectsQueries } from '../projects/queries';
+import { setupQueries as scriptQueries } from '../setup-script/queries';
 import { setupQueries } from './queries';
 import { stepIndex } from './steps';
 import { SKILL_TEMPLATES } from './templates';
@@ -115,12 +117,44 @@ export function useSaveAgentStep(org: string) {
         });
       }
       await qc.invalidateQueries({ queryKey: setupQueries.agent(org, project.id).queryKey });
-      return await finishStep(qc, org, project, 'skills', { maxConcurrentRuns: input.maxConcurrentRuns });
+      return await finishStep(qc, org, project, 'setup', { maxConcurrentRuns: input.maxConcurrentRuns });
     } finally {
       setPending(false);
     }
   };
   return { save, pending };
+}
+
+export interface WorkspaceStepInput {
+  project: ProjectDto;
+  /** The script saved so far (null when none); the base of the save. */
+  saved: SetupScriptDto | null;
+  /** The editor's text to save as the next version, or null to skip the step without saving anything. */
+  body: string | null;
+}
+
+/**
+ * Step `setup` ("Prepare workspace", optional): saves the editor's text as a new script version unless it is the one
+ * already saved, then marks the step done. Skip (`body: null`) only marks it done: no script is stored.
+ */
+export function useSaveWorkspaceStep(org: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ project, saved, body }: WorkspaceStepInput) => {
+      if (body !== null && body !== saved?.body) {
+        const next = await api.setupScript.put({
+          params: { projectId: project.id },
+          body: { body, baseVersion: saved?.version ?? null },
+        });
+        qc.setQueryData(scriptQueries.script(org, project.id).queryKey, next);
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: scriptQueries.versions(org, project.id).queryKey }),
+          qc.invalidateQueries({ queryKey: scriptQueries.latest(org, project.id).queryKey }),
+        ]);
+      }
+      return finishStep(qc, org, project, 'skills');
+    },
+  });
 }
 
 /** Step `skills`: one commit per picked template not in the repo yet (a retry skips the ones already there). */

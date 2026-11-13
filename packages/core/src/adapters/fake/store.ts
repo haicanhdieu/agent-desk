@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
 import { systemClock } from '../../clock';
+import { RepoFileError } from '../types';
 
 export const FAKE_REPOS = ['dev/demo'];
 export const FAKE_BOT = 'agentdesk[bot]';
@@ -151,6 +152,27 @@ export class FakeStore {
   /** Comments the desk itself posted (posted.jsonl), oldest first. */
   async listPosted(): Promise<PostedComment[]> {
     return this.readLines(this.path('posted.jsonl'), PostedComment);
+  }
+
+  // ---- repo files (repo-files/<repo>/<path>), so tests and dev can seed e.g. .claude/settings.json
+
+  private repoFile(repoPath: string, path: string): string {
+    return this.path('repo-files', ...safeSegments(repoPath), ...safeSegments(path));
+  }
+
+  /** The file's text, or null when it does not exist. A directory is a `RepoFileError`. */
+  async readRepoFile(repoPath: string, path: string): Promise<string | null> {
+    const file = this.repoFile(repoPath, path);
+    try {
+      return await this.readOrNull(file);
+    } catch (e) {
+      if (e instanceof Error && 'code' in e && e.code === 'EISDIR') throw new RepoFileError('path is a directory');
+      throw e;
+    }
+  }
+
+  async writeRepoFile(repoPath: string, path: string, body: string): Promise<void> {
+    await this.atomicWrite(this.repoFile(repoPath, path), body);
   }
 
   // ---- skills (skills/<repo>/<name>.md)

@@ -7,10 +7,13 @@ import {
   type RunDto,
   type RunListFilter,
   type RunStatus,
+  type SetupScriptDto,
+  type SetupTestDto,
   type SkillDto,
 } from '@agentdesk/contracts';
 import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
+import { noPlugins } from '../dto/setup';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
 import {
   Problem,
@@ -27,7 +30,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
-import { appendRunEvent, setRunStatus } from './live';
+import { appendRunEvent, endSetupTest, rememberSetupTestScript, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
 // handler requires a session (401 otherwise), scopes reads to the active org (another org's record is a 404, as
@@ -152,12 +155,34 @@ const nextSha = () => {
   return `c0ffee${String(commits).padStart(34, '0')}`;
 };
 
-/** Routes that are not JSON: the two SSE streams and the terminal WebSocket (see streamGuard below). */
-const STREAM_KEYS = ['runs.events', 'projects.events', 'runs.terminal'] as const;
+/** Saved setup script versions of a project, oldest first (part of the mock store, so a reset clears them). */
+const setupVersionsOf = (projectId: string): SetupScriptDto[] => db().setupScripts[projectId] ?? [];
+const findSetupTest = (id: string): SetupTestDto | undefined => db().setupTests.find((t) => t.id === id);
+
+/** Lowercase hex SHA-256 of the text's UTF-8 bytes (WebCrypto: the browser and the Vitest environment have it). */
+async function sha256Hex(text: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+/** The tested script is still the project's current one: its hash equals the current version's. */
+async function matchesCurrent(projectId: string, scriptSha256: string): Promise<boolean> {
+  const current = setupVersionsOf(projectId).at(-1);
+  return current !== undefined && (await sha256Hex(current.body)) === scriptSha256;
+}
+
+/** Routes that are not JSON: the SSE streams and the terminal WebSockets (see streamGuard below). */
+const STREAM_KEYS = [
+  'runs.events',
+  'projects.events',
+  'runs.terminal',
+  'setupTests.events',
+  'setupTests.terminal',
+] as const;
 type StreamKey = (typeof STREAM_KEYS)[number];
 type JsonKey = Exclude<RouteKey, StreamKey>;
 
-type Impl = { [K in JsonKey]: (ctx: RouteCtx<K>) => ResponseOf<K> };
+type Impl = { [K in JsonKey]: (ctx: RouteCtx<K>) => ResponseOf<K> | Promise<ResponseOf<K>> };
 
 const impl: Impl = {
   'connections.list': () => {
@@ -260,6 +285,10 @@ const impl: Impl = {
     delete s.skills[row.id];
     delete s.triggers[row.id];
     delete s.ignored[row.id];
+    delete s.setupScripts[row.id];
+    delete s.plugins[row.id];
+    for (const t of s.setupTests.filter((x) => x.projectId === row.id)) delete s.setupTestEvents[t.id];
+    s.setupTests = s.setupTests.filter((t) => t.projectId !== row.id);
     return null;
   },
   'projects.connection': ({ params }) => connectionDto(projectRow(params.projectId)),
@@ -314,6 +343,74 @@ const impl: Impl = {
     return null;
   },
 
+  'setupScript.get': ({ params }) => setupVersionsOf(projectRow(params.projectId).id).at(-1) ?? null,
+  'setupScript.put': async ({ params, body }) => {
+    const projectId = projectRow(params.projectId).id;
+    const list = setupVersionsOf(projectId);
+    const current = list.at(-1)?.version ?? null;
+    if (body.baseVersion !== current) {
+      throw conflict('Setup script changed', undefined, 'The setup script was changed since you opened it.');
+    }
+    const next: SetupScriptDto = {
+      version: (current ?? 0) + 1,
+      body: body.body,
+      note: body.note ?? null,
+      createdBy: session().user.handle,
+      createdAt: now(),
+    };
+    db().setupScripts[projectId] = [...list, next];
+    // Tests of the previous script no longer match the current one.
+    const sha = await sha256Hex(next.body);
+    for (const t of db().setupTests) if (t.projectId === projectId) t.matchesCurrentScript = t.scriptSha256 === sha;
+    return next;
+  },
+  'setupScript.versions': ({ params }) =>
+    [...setupVersionsOf(projectRow(params.projectId).id)]
+      .reverse()
+      .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt })),
+  'setupScript.version': ({ params }) => {
+    const found = setupVersionsOf(projectRow(params.projectId).id).find((v) => v.version === params.version);
+    if (!found) throw notFound('Setup script version');
+    return found;
+  },
+  'setup.plugins': ({ params }) => db().plugins[projectRow(params.projectId).id] ?? noPlugins(),
+  'setupTests.create': async ({ params, body }) => {
+    const projectId = projectRow(params.projectId).id;
+    const sha = await sha256Hex(body.script);
+    // A project has one test workspace at a time: the previous one ends.
+    for (const t of db().setupTests) {
+      if (t.projectId === projectId) endSetupTest(t);
+    }
+    const test: SetupTestDto = {
+      id: mockDb.nextId(),
+      projectId,
+      status: 'queued',
+      scriptSha256: sha,
+      matchesCurrentScript: await matchesCurrent(projectId, sha),
+      checkoutSha: null,
+      plugins: { installed: [], skipped: [], failed: [] },
+      exitCode: null,
+      startedBy: session().user.handle,
+      createdAt: now(),
+      finishedAt: null,
+      endedAt: null,
+      endsAt: null,
+    };
+    db().setupTests.push(test);
+    rememberSetupTestScript(test.id, body.script);
+    return test;
+  },
+  'setupTests.latest': ({ params }) =>
+    db()
+      .setupTests.filter((t) => t.projectId === projectRow(params.projectId).id)
+      .at(-1) ?? null,
+  'setupTests.end': ({ params }) => {
+    const found = findSetupTest(params.setupTestId);
+    if (!found) throw notFound('Setup test');
+    projectRow(found.projectId);
+    endSetupTest(found);
+    return null;
+  },
   'rules.list': ({ params }) => db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
   'rules.create': ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
@@ -385,6 +482,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'rules.create': 201,
   'runs.cancel': 202,
   'runs.finish': 202,
+  'setupTests.end': 202,
 };
 
 async function readBody(request: Request): Promise<unknown> {
@@ -424,7 +522,7 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
       };
       // Each part was parsed by this route's own schema above, so it has the shape RouteCtx<K> names.
       const ctx = parts as RouteCtx<K>;
-      return jsonResponse(def.response.parse(run(ctx)), STATUS[key]);
+      return jsonResponse(def.response.parse(await run(ctx)), STATUS[key]);
     } catch (e) {
       if (e instanceof Problem) return problemResponse(e.init);
       throw e;
@@ -440,7 +538,11 @@ function streamProblem(key: StreamKey, params: Record<string, unknown>): Respons
   if (!mockDb.currentUser()) return problemResponse({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
   const orgId = mockDb.auth.activeOrganizationId;
   const projectId =
-    key === 'projects.events' ? params['projectId'] : db().runs.find((r) => r.id === params['runId'])?.projectId;
+    key === 'projects.events'
+      ? params['projectId']
+      : key === 'setupTests.events' || key === 'setupTests.terminal'
+        ? findSetupTest(String(params['setupTestId']))?.projectId
+        : db().runs.find((r) => r.id === params['runId'])?.projectId;
   const ok = db().projects.some((p) => p.id === projectId && p.orgId === orgId);
   return ok ? undefined : problemResponse({ status: 404, title: 'Not found', type: 'not-found' });
 }
@@ -463,6 +565,8 @@ export const streamGuards: Record<StreamKey, HttpHandler> = {
   'runs.events': streamGuard('runs.events'),
   'projects.events': streamGuard('projects.events'),
   'runs.terminal': streamGuard('runs.terminal'),
+  'setupTests.events': streamGuard('setupTests.events'),
+  'setupTests.terminal': streamGuard('setupTests.terminal'),
 };
 
 /** The handler for each contracts route key (the stream routes get their guard). */

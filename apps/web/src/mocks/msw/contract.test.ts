@@ -2,12 +2,14 @@ import {
   AgentDto,
   ConnectionDto,
   IgnoredEventDto,
+  PluginsDto,
   ProjectConnectionDto,
   ProjectDto,
   RepoDto,
   RuleDto,
   RunDto,
   RunEventDto,
+  SetupScriptDto,
   SkillDto,
   flattenRoutes,
   routes,
@@ -24,6 +26,7 @@ import { ids } from '../dto/ids';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures } from '../dto/runs';
+import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 import { mockDb } from './db';
 import { routeHandlers } from './handlers';
@@ -59,6 +62,8 @@ describe('MSW handlers cover the contract', () => {
       [RuleDto, ruleFixtures],
       [RunDto, runFixtures],
       [RunEventDto, Object.values(runEventFixtures).flat()],
+      [SetupScriptDto, Object.values(setupScriptFixtures).flat()],
+      [PluginsDto, Object.values(pluginFixtures)],
     ];
     for (const [schema, items] of lists) {
       expect(items.length).toBeGreaterThan(0);
@@ -250,6 +255,103 @@ describe('MSW handler semantics', () => {
     expect(again).toMatchObject({ status: 409, title: 'Run already ended' });
     await expect(api.projects.get({ params: { projectId: P } })).resolves.toMatchObject({
       counts: { needsYou: 0, running: 0, queued: 1 },
+    });
+  });
+
+  describe('workspace setup', () => {
+    const EMPTY = ids.project.docsSite;
+    const sha256 = async (text: string) =>
+      [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text)))]
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+    it('serves the saved script, its versions (newest first) and the plugins; a project without a script gets null', async () => {
+      await expect(api.setupScript.get({ params: { projectId: P } })).resolves.toMatchObject({ version: 1 });
+      await expect(api.setupScript.get({ params: { projectId: EMPTY } })).resolves.toBeNull();
+      await expect(api.setupScript.versions({ params: { projectId: P } })).resolves.toEqual([
+        expect.objectContaining({ version: 1, createdBy: 'kim-hale' }),
+      ]);
+      await expect(api.setupScript.version({ params: { projectId: P, version: 1 } })).resolves.toMatchObject({
+        version: 1,
+        body: expect.stringContaining('set -euo pipefail'),
+      });
+      expect((await rejection(api.setupScript.version({ params: { projectId: P, version: 9 } }))).status).toBe(404);
+      await expect(api.setup.plugins({ params: { projectId: P } })).resolves.toMatchObject({
+        plugins: [{ state: 'will_install' }, { state: 'will_install' }, { state: 'blocked' }],
+      });
+      await expect(api.setup.plugins({ params: { projectId: EMPTY } })).resolves.toMatchObject({ plugins: [] });
+      await expect(api.setupTests.latest({ params: { projectId: P } })).resolves.toBeNull();
+    });
+
+    it('puts a new version against baseVersion; a stale or wrong base is a 409; the body limit is in bytes', async () => {
+      const first = await api.setupScript.put({ params: { projectId: EMPTY }, body: { body: 'a', baseVersion: null } });
+      expect(first).toMatchObject({ version: 1, note: null, createdBy: 'alice' });
+      const second = await api.setupScript.put({
+        params: { projectId: EMPTY },
+        body: { body: 'b', note: 'Second', baseVersion: 1 },
+      });
+      expect(second).toMatchObject({ version: 2, note: 'Second' });
+      expect(
+        (await rejection(api.setupScript.put({ params: { projectId: EMPTY }, body: { body: 'c', baseVersion: 1 } })))
+          .status,
+      ).toBe(409);
+      expect(
+        (await rejection(api.setupScript.put({ params: { projectId: EMPTY }, body: { body: 'c', baseVersion: null } })))
+          .status,
+      ).toBe(409);
+      const tooBig = await rejection(
+        api.setupScript.put({ params: { projectId: EMPTY }, body: { body: 'é'.repeat(32768) + 'a', baseVersion: 2 } }),
+      );
+      expect(tooBig).toMatchObject({
+        status: 400,
+        errors: [{ pointer: '/body', detail: 'Setup script is larger than 64 KiB' }],
+      });
+      await expect(api.setupScript.versions({ params: { projectId: EMPTY } })).resolves.toEqual([
+        expect.objectContaining({ version: 2 }),
+        expect.objectContaining({ version: 1 }),
+      ]);
+    });
+
+    it('state is part of the store: it does not survive a reset (no leak between tests)', async () => {
+      await expect(api.setupScript.get({ params: { projectId: EMPTY } })).resolves.toBeNull();
+      await expect(api.setupTests.latest({ params: { projectId: P } })).resolves.toBeNull();
+      expect(mockDb.snapshot().setupScripts[EMPTY]).toBeUndefined();
+    });
+
+    it('a test carries the real sha-256 of the script and matches the current script by hash, never the text', async () => {
+      const current = await api.setupScript.get({ params: { projectId: P } });
+      if (!current) throw new Error('fixture script missing');
+      const same = await api.setupTests.create({ params: { projectId: P }, body: { script: current.body } });
+      expect(same).toMatchObject({ status: 'queued', matchesCurrentScript: true, startedBy: 'alice', exitCode: null });
+      expect(same.scriptSha256).toBe(await sha256(current.body));
+      expect(JSON.stringify(same)).not.toContain('set -euo');
+      const draft = await api.setupTests.create({ params: { projectId: P }, body: { script: 'echo draft' } });
+      expect(draft).toMatchObject({ matchesCurrentScript: false, scriptSha256: await sha256('echo draft') });
+      // Creating a test ends the previous one; latest is the newest.
+      expect(mockDb.state.setupTests.find((t) => t.id === same.id)?.status).toBe('ended');
+      await expect(api.setupTests.latest({ params: { projectId: P } })).resolves.toMatchObject({ id: draft.id });
+      // Saving the draft makes the test match the current script.
+      await api.setupScript.put({ params: { projectId: P }, body: { body: 'echo draft', baseVersion: 1 } });
+      await expect(api.setupTests.latest({ params: { projectId: P } })).resolves.toMatchObject({
+        matchesCurrentScript: true,
+      });
+    });
+
+    it('end answers 202 and marks the test ended; a missing test is a 404', async () => {
+      const t = await api.setupTests.create({ params: { projectId: P }, body: { script: 'x' } });
+      const res = await fetch(`http://localhost:3000/api/setup-tests/${t.id}/end`, { method: 'POST' });
+      expect(res.status).toBe(202);
+      await expect(api.setupTests.latest({ params: { projectId: P } })).resolves.toMatchObject({
+        status: 'ended',
+        endedAt: expect.any(String),
+      });
+      const missing = await rejection(api.setupTests.end({ params: { setupTestId: ids.created(999) } }));
+      expect(missing.status).toBe(404);
+    });
+
+    it("hides other orgs' projects", async () => {
+      const e = await rejection(api.setupScript.get({ params: { projectId: ids.project.storefront } }));
+      expect(e.status).toBe(404);
     });
   });
 

@@ -3,6 +3,10 @@ export const browserLocation = {
   assign(url: string): void {
     window.location.assign(url);
   },
+  /** An in-app page in a new tab, so the step the person is on stays open. */
+  openInNewTab(path: string): void {
+    window.open(path, '_blank', 'noopener');
+  },
 };
 
 /**

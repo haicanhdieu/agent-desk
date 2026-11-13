@@ -81,7 +81,11 @@ function RunDetailRoute() {
 
   const { paths } = page;
   const target = { id: dto.id, number };
-  const mapped = toRunDetail(dto, events, page.dto, ticketRuns.items, now, { runs: paths.runs, agent: paths.agent });
+  const mapped = toRunDetail(dto, events, page.dto, ticketRuns.items, now, {
+    runs: paths.runs,
+    agent: paths.agent,
+    setup: paths.setup,
+  });
   const data = final
     ? mapped
     : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
@@ -120,7 +124,13 @@ function RunDetailRoute() {
       projectName={page.dto.name}
       user={page.user}
       maxRunsPerTicket={page.dto.maxRunsPerTicket}
-      links={{ projects: paths.projects, runs: paths.runs, skills: paths.skills, rules: paths.rules }}
+      links={{
+        projects: paths.projects,
+        runs: paths.runs,
+        skills: paths.skills,
+        rules: paths.rules,
+        setup: paths.setup,
+      }}
       pendingNote={dto.statusNote}
       panelCollapsed={panelCollapsed}
       onTogglePanel={() => setPanelCollapsed((c) => !c)}

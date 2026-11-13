@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { FakeBoardAdapter } from '../../src/adapters/fake/board';
 import { FakeCodeHostAdapter } from '../../src/adapters/fake/codehost';
 import { FakeStore } from '../../src/adapters/fake/store';
-import { SkillConflictError } from '../../src/adapters/types';
+import { RepoFileError, SkillConflictError } from '../../src/adapters/types';
 import type { AdapterProject } from '../../src/adapters/types';
 
 const project: AdapterProject = { repoPath: 'dev/demo', connectionExternalId: 'fake' };
@@ -140,6 +140,31 @@ describe('fake code host', () => {
     expect(host.runEnv(tok.token)).toEqual({ GH_TOKEN: tok.token });
     expect(host.checkoutRef({ kind: 'pr', number: 7 })).toBe('refs/pull/7/head');
     expect(host.checkoutRef({ kind: 'issue', number: 7 })).toBe('main');
+  });
+});
+
+describe('fake repo files', () => {
+  it('reads a seeded repo file and returns null for a missing one', async () => {
+    const store = new FakeStore(dir, clock);
+    const host = new FakeCodeHostAdapter(store, clock, 'http://localhost:3000');
+    expect(await host.readRepoFile(project, '.claude/settings.json')).toBeNull();
+    await store.writeRepoFile('dev/demo', '.claude/settings.json', '{"a":1}');
+    expect(await host.readRepoFile(project, '.claude/settings.json')).toBe('{"a":1}');
+    // a second store on the same dir (the worker process) sees it
+    expect(await new FakeStore(dir, clock).readRepoFile('dev/demo', '.claude/settings.json')).toBe('{"a":1}');
+  });
+
+  it('throws a typed error when the path is a directory', async () => {
+    const store = new FakeStore(dir, clock);
+    const host = new FakeCodeHostAdapter(store, clock, 'http://localhost:3000');
+    await store.writeRepoFile('dev/demo', '.claude/settings.json', '{}');
+    await expect(host.readRepoFile(project, '.claude')).rejects.toBeInstanceOf(RepoFileError);
+  });
+
+  it('rejects traversal in repo or file paths', async () => {
+    const store = new FakeStore(dir, clock);
+    await expect(store.writeRepoFile('dev/demo', '../x', 'x')).rejects.toThrow(/invalid path segment/);
+    await expect(store.readRepoFile('../evil', 'x')).rejects.toThrow(/invalid path segment/);
   });
 });
 

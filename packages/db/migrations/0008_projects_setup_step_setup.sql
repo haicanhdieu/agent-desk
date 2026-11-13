@@ -1,0 +1,2 @@
+ALTER TABLE "projects" DROP CONSTRAINT "projects_setup_step_check";--> statement-breakpoint
+ALTER TABLE "projects" ADD CONSTRAINT "projects_setup_step_check" CHECK ("projects"."setup_step" in ('agent','setup','skills','rules','ready'));

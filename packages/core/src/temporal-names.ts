@@ -9,6 +9,7 @@ export const WORKFLOW = {
   resumePoll: 'resumePollWorkflow',
   outboxSweep: 'OutboxSweepWorkflow',
   reconcile: 'ReconcileWorkflow',
+  setupTest: 'SetupTestWorkflow',
 } as const;
 
 export const SIGNAL = {
@@ -26,6 +27,8 @@ export const SIGNAL = {
   terminalDetached: 'terminalDetached',
   finish: 'finish',
   cancel: 'cancel',
+  /** SetupTestWorkflow: end the test now (cancels setup, then deletes the workspace). */
+  endSetupTest: 'endSetupTest',
 } as const;
 
 export const QUERY = {
@@ -42,6 +45,7 @@ export const IDLE_END_SECONDS = 600;
 export const GATE_CONTINUE_AS_NEW_AFTER = 1000;
 
 export const runWorkflowId = (runId: string): string => `run-${runId}`;
+export const setupTestWorkflowId = (setupTestId: string): string => `setup-test-${setupTestId}`;
 export const gateWorkflowId = (projectId: string): string => `gate-${projectId}`;
 export const pollScheduleId = (projectId: string): string => `poll-${projectId}`;
 export const pollResumeWorkflowId = (projectId: string): string => `poll-resume-${projectId}`;

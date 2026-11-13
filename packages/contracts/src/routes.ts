@@ -13,6 +13,14 @@ import { CreateRuleRequest, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
 import {
+  CreateSetupTestRequest,
+  PluginsDto,
+  PutSetupScriptRequest,
+  SetupScriptDto,
+  SetupScriptVersionDto,
+  SetupTestDto,
+} from './schemas/setup';
+import {
   DeleteSkillQuery,
   PutSkillRequest,
   PutSkillResponse,
@@ -36,6 +44,8 @@ const projectParams = z.object({ projectId: z.uuid() });
 const runParams = z.object({ runId: z.uuid() });
 const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
+const setupTestParams = z.object({ setupTestId: z.uuid() });
+const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1).max(2147483647) });
 const empty = z.null();
 
 export const routes = {
@@ -143,6 +153,73 @@ export const routes = {
       response: RuleDto,
     },
     remove: { method: 'DELETE', path: '/api/rules/:ruleId', params: ruleParams, response: empty },
+  },
+  setupScript: {
+    get: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-script',
+      params: projectParams,
+      response: SetupScriptDto.nullable(),
+    },
+    put: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/setup-script',
+      params: projectParams,
+      body: PutSetupScriptRequest,
+      response: SetupScriptDto,
+    },
+    versions: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-script/versions',
+      params: projectParams,
+      response: z.array(SetupScriptVersionDto),
+    },
+    version: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-script/versions/:version',
+      params: setupVersionParams,
+      response: SetupScriptDto,
+    },
+  },
+  setup: {
+    /** The plugins panel: what the runner will install from the repo's settings, read at the default branch. */
+    plugins: {
+      method: 'GET',
+      path: '/api/projects/:projectId/plugins',
+      params: projectParams,
+      response: PluginsDto,
+    },
+  },
+  setupTests: {
+    create: {
+      method: 'POST',
+      path: '/api/projects/:projectId/setup-tests',
+      params: projectParams,
+      body: CreateSetupTestRequest,
+      response: SetupTestDto,
+    },
+    latest: {
+      method: 'GET',
+      path: '/api/projects/:projectId/setup-tests/latest',
+      params: projectParams,
+      response: SetupTestDto.nullable(),
+    },
+    end: { method: 'POST', path: '/api/setup-tests/:setupTestId/end', params: setupTestParams, response: empty },
+    /** SSE (text/event-stream): `event: status` (SetupTestDto) then `event: event` (RunEventDto) frames. */
+    events: {
+      method: 'GET',
+      path: '/api/setup-tests/:setupTestId/events',
+      params: setupTestParams,
+      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional() }),
+      response: SetupTestDto,
+    },
+    /** WebSocket upgrade, framed like runs.terminal; the gateway lands separately from the HTTP controllers. */
+    terminal: {
+      method: 'GET',
+      path: '/api/setup-tests/:setupTestId/terminal',
+      params: setupTestParams,
+      response: empty,
+    },
   },
   runs: {
     list: {

@@ -12,7 +12,7 @@ import {
   sleep,
 } from '@temporalio/workflow';
 import type { RunStatus } from '@agentdesk/contracts';
-import type { FinishDetails, RunActivities, RunContext } from '../activities/run.activities';
+import type { FinishDetails, FollowPodLogsResult, RunActivities, RunContext } from '../activities/run.activities';
 import {
   cancel,
   finish,
@@ -58,6 +58,7 @@ interface Outcome extends RunOutcome {
   /** The container exited on its own, so the Job only needs to be confirmed gone; otherwise it is deleted. */
   podExited: boolean;
   scrollbackTail?: string;
+  failureStage?: 'setup' | 'agent';
 }
 
 const act = proxyActivities<RunActivities>({ startToCloseTimeout: '2 minutes', retry: RETRY });
@@ -163,8 +164,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   });
   setHandler(cancel, () => stop('cancelled'));
 
-  const status = (s: RunStatus, extra: { exitCode?: number; failureReason?: string } = {}) =>
-    act.setRunStatus({ orgId, runId, status: s, ...extra, at: new Date().toISOString() });
+  const status = (
+    s: RunStatus,
+    extra: { exitCode?: number; failureReason?: string; failureStage?: 'setup' | 'agent' } = {},
+  ) => act.setRunStatus({ orgId, runId, status: s, ...extra, at: new Date().toISOString() });
 
   async function run(): Promise<Outcome | typeof ALREADY_FINAL> {
     ctx = await act.loadRun(orgId, runId);
@@ -204,7 +207,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       retry: { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] },
     });
     let logsDone = false;
-    let logsResult: { exitCode: number; scrollbackTail?: string } | undefined;
+    let logsResult: FollowPodLogsResult | undefined;
     let logsError: unknown;
     logsActs.followPodLogs(c).then(
       (r) => {
@@ -254,13 +257,28 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     }
     if (logsError !== undefined) throw logsError;
     if (logsResult === undefined) throw ApplicationFailure.nonRetryable('followPodLogs returned nothing');
-    const { exitCode, scrollbackTail } = logsResult;
+    const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted } = logsResult;
+    // The runner stopped the run before the agent started: report the setup failure. The run's exit code is the setup
+    // script's (the runner's own 78 only when setup timed out or the script's code is unknown).
+    if (failureStage === 'setup') {
+      return {
+        status: 'failed',
+        exitCode: setupExitCode ?? exitCode,
+        failureReason: setupExitCode !== undefined ? `setup failed (exit ${setupExitCode})` : 'setup timed out',
+        failureStage: 'setup',
+        podExited: true,
+      };
+    }
     // Ended by us (finish or idle end): the session was idle, so the run succeeded whatever tmux's exit status was.
     if (ending || exitCode === 0) return { status: 'succeeded', exitCode, podExited: true };
     return {
       status: 'failed',
       exitCode,
-      failureReason: `agent exited with code ${exitCode}`,
+      // `agentStarted` absent (a result from before the field existed) keeps the old labelling. False: the pod died in
+      // checkout, plugins or setup without a setup marker, so it is neither a setup nor an agent failure.
+      ...(agentStarted === false
+        ? { failureReason: `run exited with code ${exitCode} before the agent started` }
+        : { failureReason: `agent exited with code ${exitCode}`, failureStage: 'agent' as const }),
       podExited: true,
       ...(scrollbackTail !== undefined ? { scrollbackTail: scrollbackTail.slice(-SCROLLBACK_TAIL_MAX) } : {}),
     };
@@ -313,6 +331,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         status(o.status, {
           ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),
           ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
+          ...(o.failureStage !== undefined ? { failureStage: o.failureStage } : {}),
         }),
       );
       if (c) {
@@ -320,6 +339,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           status: o.status,
           ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),
           ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
+          ...(o.failureStage !== undefined ? { failureStage: o.failureStage } : {}),
           ...(o.status === 'failed' && o.scrollbackTail !== undefined ? { scrollbackTail: o.scrollbackTail } : {}),
         };
         await attempt('postComment(finish)', () => act.postComment(c, 'finish', details));

@@ -75,6 +75,10 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     return { ...this.summary(name, f), body: f.body, sha: f.sha };
   }
 
+  async readRepoFile(project: AdapterProject, path: string): Promise<string | null> {
+    return this.store.readRepoFile(project.repoPath, path);
+  }
+
   async writeSkill(
     project: AdapterProject,
     name: string,

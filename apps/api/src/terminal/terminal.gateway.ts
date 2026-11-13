@@ -6,15 +6,16 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { and, eq } from 'drizzle-orm';
 import type { RawData, WebSocket } from 'ws';
 import { z } from 'zod';
-import { member, projects, runs, withOrg, type Db } from '@agentdesk/db';
+import { member, withOrg, type Db } from '@agentdesk/db';
 import { routes } from '@agentdesk/contracts';
-import { SIGNAL, TMUX_ATTACH, runJobName, runWorkflowId, type ExecSession, type KubeGateway } from '@agentdesk/core';
+import { TMUX_ATTACH, runWorkflowId, type ExecSession, type KubeGateway } from '@agentdesk/core';
 import { AUTH, type Auth } from '../auth/auth';
 import { toHeaders } from '../auth/session.guard';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { KUBE_GATEWAY } from '../kube/kube-gateway.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
+import { runTarget, setupTestTarget, terminalKey, type TerminalTarget } from './terminal-targets';
 
 /** Close codes (spec 7.5); the browser treats 4403 and 4409 as terminal, 4401 as "sign in". */
 export const CLOSE = {
@@ -50,9 +51,11 @@ const ResizeFrame = z.object({
 });
 
 type AuthzResult =
-  { ok: true; userId: string; orgId: string; status: 'running' | 'idle' } | { ok: false; code: number; why: string };
+  { ok: true; userId: string; orgId: string; jobName: string } | { ok: false; code: number; why: string };
 
 interface Conn {
+  readonly target: TerminalTarget;
+  /** The run or setup-test id from the route (empty when the params did not parse). */
   readonly runId: string;
   readonly socket: WebSocket;
   userId: string;
@@ -95,6 +98,7 @@ const toBuffer = (data: RawData): Buffer =>
 @Injectable()
 export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly log = new Logger(TerminalGateway.name);
+  /** Keyed by `terminalKey(target, id)`. */
   private readonly byRun = new Map<string, Set<Conn>>();
   /** Test seam: base delay between attach/detach signal retries. */
   signalRetryMs = 100;
@@ -117,9 +121,13 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   async onApplicationBootstrap(): Promise<void> {
     const fastify = this.host.httpAdapter.getInstance<FastifyInstance>();
     await fastify.register(websocket, { options: { maxPayload: MAX_FRAME_BYTES } });
-    fastify.get<{ Params: { runId: string } }>(routes.runs.terminal.path, { websocket: true }, (socket, req) =>
-      this.accept(socket, req),
-    );
+    const targets = [
+      runTarget((id, name) => this.signalWithRetry(id, name), routes.runs.terminal.path),
+      setupTestTarget(routes.setupTests.terminal.path),
+    ];
+    for (const target of targets) {
+      fastify.get(target.path, { websocket: true }, (socket, req) => this.accept(socket, req, target));
+    }
   }
 
   /**
@@ -136,10 +144,12 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     }
   }
 
-  private accept(socket: WebSocket, req: FastifyRequest): void {
-    const params = z.object({ runId: z.string() }).safeParse(req.params);
+  private accept(socket: WebSocket, req: FastifyRequest, target: TerminalTarget): void {
+    // Every target route has exactly one param, the id.
+    const params = z.record(z.string(), z.string()).safeParse(req.params);
     const conn: Conn = {
-      runId: params.success ? params.data.runId : '',
+      target,
+      runId: (params.success ? Object.values(params.data)[0] : undefined) ?? '',
       socket,
       userId: '',
       orgId: '',
@@ -159,12 +169,12 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     });
     socket.on('close', () => this.cleanup(conn));
     socket.on('error', (err: Error & { code?: string }) => {
-      this.log.warn(`terminal socket error run=${conn.runId} code=${err.code ?? 'unknown'}`);
+      this.log.warn(`terminal socket error ${conn.target.kind}=${conn.runId} code=${err.code ?? 'unknown'}`);
       this.cleanup(conn);
     });
     conn.pingTimer = setInterval(() => {
       if (!conn.alive) {
-        this.log.warn(`terminal ping timeout run=${conn.runId}`);
+        this.log.warn(`terminal ping timeout ${conn.target.kind}=${conn.runId}`);
         socket.terminate();
         return;
       }
@@ -172,11 +182,11 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       socket.ping();
     }, this.config.TERMINAL_PING_MS);
     conn.authTimer = setTimeout(() => {
-      this.log.warn(`terminal auth timeout run=${conn.runId}`);
+      this.log.warn(`terminal auth timeout ${conn.target.kind}=${conn.runId}`);
       this.shut(conn, CLOSE.tryAgainLater);
     }, AUTH_TIMEOUT_MS);
     this.start(conn, req).catch((err: unknown) => {
-      this.log.error(`terminal start failed run=${conn.runId} user=${conn.userId}: ${errorName(err)}`);
+      this.log.error(`terminal start failed ${conn.target.kind}=${conn.runId} user=${conn.userId}: ${errorName(err)}`);
       this.shut(conn, CLOSE.internal);
     });
   }
@@ -189,11 +199,11 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private async start(conn: Conn, req: FastifyRequest): Promise<void> {
-    const authz = await this.authorize(req, conn.runId);
+    const authz = await this.authorize(req, conn.target, conn.runId);
     if (conn.authTimer) clearTimeout(conn.authTimer);
     if (conn.closed) return;
     if (!authz.ok) {
-      this.log.log(`terminal denied run=${conn.runId} code=${authz.code} why=${authz.why}`);
+      this.log.log(`terminal denied ${conn.target.kind}=${conn.runId} code=${authz.code} why=${authz.why}`);
       this.shut(conn, authz.code);
       return;
     }
@@ -202,16 +212,17 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     conn.reauthTimer = setInterval(() => void this.reauth(conn), this.config.TERMINAL_REAUTH_MS);
 
     // Reserve the slot before the first await below, so the cap holds under concurrent attaches.
-    const set = this.byRun.get(conn.runId) ?? new Set<Conn>();
+    const key = terminalKey(conn.target, conn.runId);
+    const set = this.byRun.get(key) ?? new Set<Conn>();
     if (set.size >= MAX_TERMINALS_PER_RUN) {
       this.shut(conn, CLOSE.tryAgainLater);
       return;
     }
     set.add(conn);
-    this.byRun.set(conn.runId, set);
+    this.byRun.set(key, set);
     conn.registered = true;
 
-    const pod = await this.kube.getRunPod(runJobName(conn.runId));
+    const pod = await this.kube.getRunPod(authz.jobName);
     if (conn.closed) return;
     if (!pod || pod.phase !== 'Running') {
       this.shut(conn, CLOSE.notActive);
@@ -228,27 +239,30 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       if (!conn.closed) this.shut(conn, CLOSE.normal);
     });
     conn.attached = true;
-    this.log.log(`terminal attached run=${conn.runId} user=${conn.userId}`);
-    conn.attachSignal = this.signalWithRetry(conn.runId, SIGNAL.terminalAttached);
+    this.log.log(`terminal attached ${conn.target.kind}=${conn.runId} user=${conn.userId}`);
+    conn.attachSignal = conn.target.onAttach?.(conn.runId).then(
+      () => true,
+      () => false,
+    );
     if (conn.pendingResize) session.resize(conn.pendingResize.cols, conn.pendingResize.rows);
     const pending = conn.pending.splice(0);
     conn.pendingBytes = 0;
     for (const b of pending) this.onInput(conn, b);
   }
 
-  private async authorize(req: FastifyRequest, runId: string): Promise<AuthzResult> {
+  private async authorize(req: FastifyRequest, target: TerminalTarget, runId: string): Promise<AuthzResult> {
     const deny = (code: number, why: string): AuthzResult => ({ ok: false, code, why });
     const origin = req.headers.origin;
     if (origin !== undefined && origin !== new URL(this.config.PUBLIC_ORIGIN).origin)
       return deny(CLOSE.forbidden, 'origin');
-    return this.check(toHeaders(req), runId);
+    return this.check(toHeaders(req), target, runId);
   }
 
   /**
    * Session + membership + (project creator or org owner) + run status. A thrown error (auth or DB outage) propagates:
    * only a null session is 4401.
    */
-  private async check(headers: Headers, runId: string): Promise<AuthzResult> {
+  private async check(headers: Headers, target: TerminalTarget, runId: string): Promise<AuthzResult> {
     const deny = (code: number, why: string): AuthzResult => ({ ok: false, code, why });
     const session = await this.auth.api.getSession({ headers });
     if (!session) return deny(CLOSE.unauthorized, 'no-session');
@@ -264,20 +278,11 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (role === undefined) return deny(CLOSE.forbidden, 'not-member');
     if (!z.uuid().safeParse(runId).success) return deny(CLOSE.forbidden, 'bad-run-id');
 
-    const run = (
-      await withOrg(this.db, orgId, (tx) =>
-        tx
-          .select({ status: runs.status, createdBy: projects.createdBy })
-          .from(runs)
-          .innerJoin(projects, eq(projects.id, runs.projectId))
-          .where(eq(runs.id, runId))
-          .limit(1),
-      )
-    )[0];
+    const run = await withOrg(this.db, orgId, (tx) => target.lookup(tx, runId));
     if (!run) return deny(CLOSE.forbidden, 'run-not-visible');
     if (role !== 'owner' && run.createdBy !== userId) return deny(CLOSE.forbidden, 'not-owner-or-creator');
-    if (run.status !== 'running' && run.status !== 'idle') return deny(CLOSE.notActive, 'run-not-active');
-    return { ok: true, userId, orgId, status: run.status };
+    if (!run.active) return deny(CLOSE.notActive, 'run-not-active');
+    return { ok: true, userId, orgId, jobName: run.jobName };
   }
 
   private onFrame(conn: Conn, data: RawData, isBinary: boolean): void {
@@ -316,7 +321,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private onOutput(conn: Conn, d: Uint8Array): void {
     if (conn.closed || conn.socket.readyState !== conn.socket.OPEN) return;
     if (conn.socket.bufferedAmount > HIGH_WATER_BYTES) {
-      this.log.warn(`terminal slow consumer dropped run=${conn.runId}`);
+      this.log.warn(`terminal slow consumer dropped ${conn.target.kind}=${conn.runId}`);
       this.shut(conn, CLOSE.tryAgainLater);
       return;
     }
@@ -350,7 +355,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
    */
   private async detach(conn: Conn, attachSignal: Promise<boolean>): Promise<void> {
     if (!(await attachSignal)) return;
-    await this.signalWithRetry(conn.runId, SIGNAL.terminalDetached);
+    await conn.target.onDetach?.(conn.runId).catch(() => undefined); // the run target's signaller already logged the give-up
   }
 
   /** Re-validates the session and authorization of a long-lived socket; an outage never closes it. */
@@ -358,13 +363,15 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (conn.closed || conn.reauthBusy) return;
     conn.reauthBusy = true;
     try {
-      const res = await this.check(conn.headers, conn.runId);
+      const res = await this.check(conn.headers, conn.target, conn.runId);
       if (!res.ok && (res.code === CLOSE.unauthorized || res.code === CLOSE.forbidden) && !conn.closed) {
-        this.log.log(`terminal reauth denied run=${conn.runId} user=${conn.userId} code=${res.code} why=${res.why}`);
+        this.log.log(
+          `terminal reauth denied ${conn.target.kind}=${conn.runId} user=${conn.userId} code=${res.code} why=${res.why}`,
+        );
         this.shut(conn, res.code);
       }
     } catch (err) {
-      this.log.warn(`terminal reauth failed run=${conn.runId}: ${errorName(err)}`);
+      this.log.warn(`terminal reauth failed ${conn.target.kind}=${conn.runId}: ${errorName(err)}`);
     } finally {
       conn.reauthBusy = false;
     }
@@ -384,14 +391,15 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       // the session may already be gone
     }
     if (conn.registered) {
-      const set = this.byRun.get(conn.runId);
+      const key = terminalKey(conn.target, conn.runId);
+      const set = this.byRun.get(key);
       set?.delete(conn);
       if (set?.size === 0) {
-        this.byRun.delete(conn.runId);
+        this.byRun.delete(key);
       }
     }
     if (conn.attachSignal) {
-      this.log.log(`terminal detached run=${conn.runId} user=${conn.userId}`);
+      this.log.log(`terminal detached ${conn.target.kind}=${conn.runId} user=${conn.userId}`);
       void this.detach(conn, conn.attachSignal);
     }
   }

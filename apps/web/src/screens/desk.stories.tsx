@@ -55,6 +55,25 @@ export const DeskSkills: Story = {
   render: () => <DeskSkillsScreen {...skillsProps} />,
 };
 
+export const DeskSkillsSetupWarning: Story = {
+  name: 'Skills, setup warning',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSkillsScreen
+      {...skillsProps}
+      frame={{
+        ...deskFrame,
+        warning: {
+          title: 'The setup script changed since the last passing test',
+          detail: 'Runs use the saved script as it is. Test it again to be sure it still works.',
+          href: '#',
+        },
+      }}
+    />
+  ),
+};
+
 export const DeskSkillDelete: Story = {
   name: 'Skills, delete confirmation',
   decorators: artboard(900),
@@ -262,6 +281,19 @@ export const DeskSetupEmpty: Story = {
   decorators: artboard(900),
   globals: viewport(1440, 900),
   render: () => <DeskSetupScreen {...setupProps} script={null} versions={[]} lastTest={undefined} />,
+};
+
+export const DeskSetupVersionsError: Story = {
+  name: 'Workspace setup, version history failed to load',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSetupScreen
+      {...setupProps}
+      versions={[]}
+      versionsError="Could not load the version history. Reload to try again."
+    />
+  ),
 };
 
 export const DeskSetupLoading: Story = {

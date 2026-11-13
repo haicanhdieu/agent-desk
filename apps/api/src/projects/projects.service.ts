@@ -61,7 +61,7 @@ export class ActiveRunsConflictException extends ConflictException {
   }
 }
 
-const STEP_ORDER: readonly SetupStep[] = ['agent', 'skills', 'rules', 'ready'];
+const STEP_ORDER: readonly SetupStep[] = ['agent', 'setup', 'skills', 'rules', 'ready'];
 
 interface Counts {
   needsYou: number;
@@ -238,7 +238,7 @@ export class ProjectsService {
       const after =
         Object.keys(set).length === 0
           ? before
-          : (await tx.update(projects).set(set).where(eq(projects.id, projectId)).returning())[0] ?? before;
+          : ((await tx.update(projects).set(set).where(eq(projects.id, projectId)).returning())[0] ?? before);
       if (after.triggerMode === 'polling' && before.triggerMode !== 'polling') {
         // Switching to polling: the cursor starts at the switch time.
         await tx

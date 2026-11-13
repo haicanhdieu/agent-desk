@@ -19,6 +19,7 @@ import { RunsService } from './runs/runs.service';
 import { RulesController } from './rules/rules.controller';
 import { RulesService } from './rules/rules.service';
 import { SecretStoreModule } from './secrets/secret-store.module';
+import { SetupModule } from './setup/setup.module';
 import { SkillsController } from './skills/skills.controller';
 import { SkillsService } from './skills/skills.service';
 import { RunStatusListener } from './sse/run-status-listener';
@@ -37,6 +38,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     IntakeModule,
     KubeGatewayModule,
     TerminalModule,
+    SetupModule,
   ],
   controllers: [
     HealthController,

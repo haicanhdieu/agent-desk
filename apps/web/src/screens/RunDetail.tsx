@@ -45,6 +45,8 @@ export interface RunDetailLinks {
   runs?: string;
   skills?: string;
   rules?: string;
+  /** Desk workspace setup (the Setup row of the side panel). */
+  setup?: string;
 }
 
 const ENDED = ['succeeded', 'failed', 'timed_out', 'cancelled'];
@@ -159,7 +161,7 @@ export function RunDetail({
           data={data}
           collapsed={panelCollapsed}
           onExpand={onTogglePanel}
-          links={{ skills: links?.skills, rules: links?.rules }}
+          links={{ skills: links?.skills, rules: links?.rules, setup: links?.setup }}
           maxRunsPerTicket={maxRunsPerTicket}
         />
       </main>

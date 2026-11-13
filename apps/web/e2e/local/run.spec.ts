@@ -63,11 +63,17 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   await page.getByRole('textbox', { name: 'Token' }).fill(`sk-ant-e2e-${randomBytes(8).toString('hex')}`);
   await page.getByRole('button', { name: 'Continue' }).click();
 
-  // Step 3: the skill templates, code-review among them (templates already on the shared board are skipped).
+  // Step 3: prepare the workspace. The test passes in the fake pod, then the starter script is saved as version 1.
+  await expect(page.getByRole('heading', { name: 'Prepare the workspace', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Test setup' }).click();
+  await expect(page.getByText('Setup passed', { exact: true })).toBeVisible({ timeout: 60_000 });
+  await page.getByRole('button', { name: 'Save and continue' }).click();
+
+  // Step 4: the skill templates, code-review among them (templates already on the shared board are skipped).
   await expect(page.getByRole('heading', { name: 'Start from skill templates', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: /^Commit \d+ skills? and continue$/ }).click();
 
-  // Step 4: the prefilled /code-build rule and the /code-review follow-up (pull requests).
+  // Step 5: the prefilled /code-build rule and the /code-review follow-up (pull requests).
   await expect(page.getByRole('heading', { name: 'Add your first rule', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'Save rules and finish' }).click();
 

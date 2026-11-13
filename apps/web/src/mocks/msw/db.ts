@@ -3,11 +3,14 @@ import type {
   ConnectionDto,
   IgnoredEventDto,
   ProjectConnectionDto,
+  PluginsDto,
   ProjectDto,
   RepoDto,
   RuleDto,
   RunDto,
   RunEventDto,
+  SetupScriptDto,
+  SetupTestDto,
   SkillDto,
 } from '@agentdesk/contracts';
 import { agentFixtures } from '../dto/agents';
@@ -17,6 +20,7 @@ import { ids } from '../dto/ids';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures, projectOrg } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures } from '../dto/runs';
+import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 
 // In-memory store behind every MSW handler (Vitest, Storybook and `dev:mock`). Rows carry their org so handlers can
@@ -72,6 +76,13 @@ export interface MockState {
   rules: RuleDto[];
   runs: RunDto[];
   runEvents: Record<string, RunEventDto[]>;
+  /** Saved setup script versions per project, oldest first. */
+  setupScripts: Record<string, SetupScriptDto[]>;
+  /** Setup tests (oldest first); like the DTO they never carry the script text. */
+  setupTests: SetupTestDto[];
+  setupTestEvents: Record<string, RunEventDto[]>;
+  /** The plugins panel per project; a project without an entry has none. */
+  plugins: Record<string, PluginsDto>;
 }
 
 const emptyPolling: TriggerState['polling'] = {
@@ -137,6 +148,10 @@ export function seedState(): MockState {
     rules: ruleFixtures,
     runs: runFixtures,
     runEvents: runEventFixtures,
+    setupScripts: setupScriptFixtures,
+    setupTests: [],
+    setupTestEvents: {},
+    plugins: pluginFixtures,
   };
   // Every test and page load mutates its own copy, never the fixtures.
   return structuredClone(state);
@@ -190,7 +205,7 @@ export const mockDb = {
   },
   /** The signed-in user, or null when signed out. */
   currentUser(): MockUser | null {
-    return state.auth.signedIn ? state.users[0] ?? null : null;
+    return state.auth.signedIn ? (state.users[0] ?? null) : null;
   },
   orgsOf(userId: string): MockOrg[] {
     const mine = new Set(state.members.filter((m) => m.userId === userId).map((m) => m.orgId));

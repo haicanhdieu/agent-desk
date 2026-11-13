@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** The setup routes in order. `repo` has no project yet; the rest match the server's `project.setupStep`. */
-export const SETUP_STEPS = ['repo', 'agent', 'skills', 'rules', 'ready'] as const;
+export const SETUP_STEPS = ['repo', 'agent', 'setup', 'skills', 'rules', 'ready'] as const;
 
 export const SetupStepParam = z.enum(SETUP_STEPS);
 export type SetupStepParam = z.infer<typeof SetupStepParam>;

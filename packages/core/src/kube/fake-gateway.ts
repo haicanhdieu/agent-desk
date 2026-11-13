@@ -12,17 +12,22 @@ import {
   TMUX_KILL,
   runRefFromLabels,
   sameCommand,
+  setupTestRefFromLabels,
   type ExecSession,
   type KubeGateway,
   type RunJobRef,
   type RunPod,
   type RunSecretRef,
+  type SetupTestJobRef,
+  type SetupTestSecretRef,
   type V1Job,
 } from './gateway';
 
 const FAKE_POD = fileURLToPath(new URL('./fake-pod.mjs', import.meta.url));
 const FAKE_POD_FILE = 'fake-pod.mjs';
-const JOB_NAME = /^run-[a-z0-9-]{1,60}$/;
+const JOB_NAME = /^(run|setup-test)-[a-z0-9-]{1,60}$/;
+const RUN_JOB_NAME = /^run-[a-z0-9-]{1,60}$/;
+const SETUP_TEST_JOB_NAME = /^setup-test-[a-z0-9-]{1,60}$/;
 const TICK_MS = 50;
 const SECRETS_DIR = '.secrets';
 
@@ -290,13 +295,52 @@ export class FakeKubeGateway implements KubeGateway {
     }
     const out: RunJobRef[] = [];
     for (const name of names) {
-      if (!JOB_NAME.test(name)) continue;
+      if (!RUN_JOB_NAME.test(name)) continue;
       const raw = await readOrNull(join(this.dir, name, 'job.json'));
       if (raw === null) continue;
       const parsed = JobFile.safeParse(JSON.parse(raw));
       if (!parsed.success) continue;
       const ref = runRefFromLabels(parsed.data.labels);
       if (ref) out.push({ jobName: name, ...ref });
+    }
+    return out;
+  }
+
+  async listSetupTestJobs(): Promise<SetupTestJobRef[]> {
+    let names: string[];
+    try {
+      names = await readdir(this.dir);
+    } catch {
+      return [];
+    }
+    const out: SetupTestJobRef[] = [];
+    for (const name of names) {
+      if (!SETUP_TEST_JOB_NAME.test(name)) continue;
+      const raw = await readOrNull(join(this.dir, name, 'job.json'));
+      if (raw === null) continue;
+      const parsed = JobFile.safeParse(JSON.parse(raw));
+      if (!parsed.success) continue;
+      const ref = setupTestRefFromLabels(parsed.data.labels);
+      if (ref) out.push({ jobName: name, ...ref });
+    }
+    return out;
+  }
+
+  async listSetupTestSecrets(): Promise<SetupTestSecretRef[]> {
+    let files: string[];
+    try {
+      files = await readdir(join(this.dir, SECRETS_DIR));
+    } catch {
+      return [];
+    }
+    const out: SetupTestSecretRef[] = [];
+    for (const file of files) {
+      const secretName = file.replace(/\.json$/, '');
+      if (!SETUP_TEST_JOB_NAME.test(secretName)) continue;
+      const raw = await readOrNull(join(this.dir, SECRETS_DIR, file));
+      const parsed = raw === null ? null : SecretFile.safeParse(JSON.parse(raw));
+      const ref = parsed?.success ? setupTestRefFromLabels(parsed.data.labels) : null;
+      if (ref) out.push({ secretName, ...ref });
     }
     return out;
   }

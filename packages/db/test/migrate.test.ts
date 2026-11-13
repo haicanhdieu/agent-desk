@@ -15,6 +15,9 @@ const APP_TABLES = [
   'inbound_events',
   'poll_cursors',
   'audit_log',
+  'setup_script_versions',
+  'setup_tests',
+  'setup_test_events',
 ];
 
 let env: TestPg;
@@ -101,6 +104,20 @@ describe('bootstrap and migrations', () => {
     expect(rows[1]?.indexdef).toContain('(agent_id)');
     expect(rows[2]?.indexdef).toContain('(agent_id)');
     expect(rows[3]?.indexdef).toContain('(inbound_event_id)');
+  });
+
+  it('setup test FK and list indexes exist', async () => {
+    const rows = await query<{ indexname: string; indexdef: string }>(
+      env.ownerUrl,
+      `select indexname, indexdef from pg_indexes
+       where indexname in ('setup_tests_project_created_idx','setup_tests_org_idx','setup_test_events_org_idx') order by 1`,
+    );
+    expect(rows.map((r) => r.indexname)).toEqual([
+      'setup_test_events_org_idx',
+      'setup_tests_org_idx',
+      'setup_tests_project_created_idx',
+    ]);
+    expect(rows[2]?.indexdef).toMatch(/\(project_id, created_at DESC/);
   });
 
   it('resolve_project stays security definer, pinned search_path, executable only by the app role', async () => {
@@ -197,6 +214,37 @@ describe('bootstrap and migrations', () => {
       await expect(
         inOrg((c) => c.query(`update runs set number = 1 where trigger_comment_id = 'c-2'`).then(() => undefined)),
       ).rejects.toMatchObject({ code: '23505' });
+    });
+
+    it('runs have nullable setup_script_version and failure_stage; the app role updates them; the check rejects others', async () => {
+      await inOrg((c) =>
+        c
+          .query(`update runs set setup_script_version = 3, failure_stage = 'setup' where trigger_comment_id = 'c-2'`)
+          .then(() => undefined),
+      );
+      const rows = await query<{ setup_script_version: number | null; failure_stage: string | null }>(
+        env.ownerUrl.replace(/\/[^/]*$/, '/agentdesk'),
+        `select setup_script_version, failure_stage from runs order by number`,
+      );
+      expect(rows).toEqual([
+        { setup_script_version: null, failure_stage: null },
+        { setup_script_version: 3, failure_stage: 'setup' },
+      ]);
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set failure_stage = 'bogus' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
+    it('projects accept the setup onboarding step, keep existing steps valid and reject unknown ones', async () => {
+      await inOrg((c) => c.query(`update projects set setup_step = 'setup'`).then(() => undefined));
+      for (const step of ['agent', 'skills', 'rules', 'ready']) {
+        await inOrg((c) => c.query(`update projects set setup_step = '${step}'`).then(() => undefined));
+      }
+      await expect(
+        inOrg((c) => c.query(`update projects set setup_step = 'bogus'`).then(() => undefined)),
+      ).rejects.toMatchObject({ code: '23514' });
     });
 
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {

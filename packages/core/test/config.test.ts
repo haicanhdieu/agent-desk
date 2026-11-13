@@ -15,6 +15,37 @@ const base = {
   RUNNER_IMAGE: 'r',
 };
 
+describe('plugin and setup config', () => {
+  it('defaults', () => {
+    const c = parseConfig(base);
+    expect(c.RUN_PLUGIN_MARKETPLACES).toEqual({ 'claude-plugins-official': 'anthropics/claude-plugins-official' });
+    expect(c.RUN_SETUP_TIMEOUT_SECONDS).toBe(600);
+    expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
+  });
+  it('parses overrides and blank falls back to defaults', () => {
+    const c = parseConfig({
+      ...base,
+      RUN_PLUGIN_MARKETPLACES: '{"a":"o/r"}',
+      RUN_SETUP_TIMEOUT_SECONDS: '30',
+      SETUP_TEST_TTL_SECONDS: '',
+    });
+    expect(c.RUN_PLUGIN_MARKETPLACES).toEqual({ a: 'o/r' });
+    expect(c.RUN_SETUP_TIMEOUT_SECONDS).toBe(30);
+    expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
+  });
+  it.each(['[]', '"x"', '{"a":1}', 'nope'])('rejects RUN_PLUGIN_MARKETPLACES=%s', (v) => {
+    expect(() => parseConfig({ ...base, RUN_PLUGIN_MARKETPLACES: v })).toThrow(/RUN_PLUGIN_MARKETPLACES/);
+  });
+  it.each([
+    ['RUN_SETUP_TIMEOUT_SECONDS', '0'],
+    ['RUN_SETUP_TIMEOUT_SECONDS', '3301'],
+    ['SETUP_TEST_TTL_SECONDS', '59'],
+    ['SETUP_TEST_TTL_SECONDS', '3601'],
+  ])('rejects %s=%s', (k, v) => {
+    expect(() => parseConfig({ ...base, [k]: v })).toThrow(k);
+  });
+});
+
 describe('FAKE_STATE_DIR (R21)', () => {
   const root = mkdtempSync(join(tmpdir(), 'ws-root-'));
   writeFileSync(join(root, 'pnpm-workspace.yaml'), 'packages: []\n');

@@ -64,14 +64,10 @@ const CONTROLS = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u
 export const SCROLLBACK_MAX_LINES = 5000;
 
 /**
- * The stored final scrollback as plain text lines for the static terminal (rendered as text, never as markup), the
- * newest SCROLLBACK_MAX_LINES only. Escape sequences and controls are dropped; the live terminal (Task 14) renders
- * them.
+ * Untrusted terminal text as plain lines for the static terminal (rendered as text, never as markup), the newest
+ * SCROLLBACK_MAX_LINES only. Escape sequences and controls are dropped.
  */
-export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
-  const event = events.filter((e) => e.type === 'scrollback').at(-1);
-  const text = event && textOf(event);
-  if (text === undefined) return undefined;
+export function plainLines(text: string): TermLine[] {
   return text
     .replace(/\r\n?/g, '\n')
     .replace(ESCAPES, '')
@@ -81,6 +77,17 @@ export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
       const plain = line.replace(CONTROLS, '');
       return plain === '' ? [] : [{ text: plain }];
     });
+}
+
+/**
+ * The stored final scrollback as plain text lines for the static terminal (rendered as text, never as markup), the
+ * newest SCROLLBACK_MAX_LINES only. Escape sequences and controls are dropped; the live terminal (Task 14) renders
+ * them.
+ */
+export function scrollbackLines(events: RunEventDto[]): TermLine[] | undefined {
+  const event = events.filter((e) => e.type === 'scrollback').at(-1);
+  const text = event && textOf(event);
+  return text === undefined ? undefined : plainLines(text);
 }
 
 /**
@@ -177,14 +184,58 @@ export interface RunDetailLinks {
   runs: string;
   /** Agent & settings (the time limit). */
   agent: string;
+  /** Desk workspace setup, for a run that failed in setup. */
+  setup?: string;
 }
 
 type EndNote = NonNullable<RunDetailData['endNote']>;
 
-function endNote(run: RunDto, ticketRuns: RunDto[], links: RunDetailLinks, now: Date): EndNote | undefined {
+/** A run that failed before the agent started, in the setup script. */
+const failedInSetup = (run: RunDto): boolean => run.status === 'failed' && run.failureStage === 'setup';
+
+/**
+ * When the run's work began. `started_at` is set once the session starts, so a run that failed in setup has none:
+ * the slot claim (the `starting` status) stands in, then the queue time.
+ */
+function workStart(run: RunDto, events: RunEventDto[]): string {
+  if (run.startedAt !== null) return run.startedAt;
+  return (run.failureStage === 'setup' ? startupMarks(run, events).slot : undefined) ?? run.queuedAt;
+}
+
+function setupEndNote(run: RunDto, took: string, links: RunDetailLinks): EndNote {
+  const timedOut = /timed out/i.test(run.failureReason ?? '');
+  const cause = timedOut
+    ? 'the setup script timed out'
+    : run.exitCode === null
+      ? 'the setup script failed'
+      : `the setup script exited with code ${run.exitCode}`;
+  const version = run.setupScriptVersion === null ? 'The setup script' : `Setup version ${run.setupScriptVersion}`;
+  const href = safeHref(run.ticket.url);
+  const ticket = `${run.ticket.kind === 'pr' ? 'PR' : 'issue'} #${run.ticket.number}`;
+  return {
+    title: `Setup failed after ${took}: ${cause}`,
+    body: `The agent did not start. ${version} failed. Fix the script and test it, then comment the command again on the ${run.ticket.kind === 'pr' ? 'PR' : 'issue'}.`,
+    actions: [
+      ...(links.setup ? [{ label: 'Open workspace setup', href: links.setup, icon: 'terminal' as const }] : []),
+      ...(href ? [{ label: `Open ${ticket}`, href, icon: 'external' as const }] : []),
+    ],
+  };
+}
+
+function endNote(
+  run: RunDto,
+  ticketRuns: RunDto[],
+  links: RunDetailLinks,
+  now: Date,
+  events: RunEventDto[],
+): EndNote | undefined {
   if (!isFinal(run.status)) return undefined;
-  const took = duration(run, now) ?? formatDuration(0);
+  const took =
+    (failedInSetup(run) && run.finishedAt
+      ? formatDuration(Date.parse(run.finishedAt) - Date.parse(workStart(run, events)))
+      : duration(run, now)) ?? formatDuration(0);
   const endedAt = run.finishedAt ? clockSeconds(run.finishedAt) : undefined;
+  if (failedInSetup(run)) return setupEndNote(run, took, links);
   switch (run.status) {
     case 'succeeded': {
       const next = ticketRuns.filter((r) => r.number > run.number).sort((a, b) => a.number - b.number)[0];
@@ -268,7 +319,7 @@ export function toRunDetail(
   links: RunDetailLinks,
 ): RunDetailData {
   const final = isFinal(run.status);
-  const startIso = run.startedAt ?? run.queuedAt;
+  const startIso = workStart(run, events);
   const endMs = final && run.finishedAt ? Date.parse(run.finishedAt) : now.getTime();
   const elapsedMs = endMs - Date.parse(startIso);
   const lines = final ? scrollbackLines(events) : undefined;
@@ -278,7 +329,7 @@ export function toRunDetail(
   });
   const timed = run.startedAt !== null && (run.status === 'running' || run.status === 'timed_out');
   const end = final && run.finishedAt ? clockSeconds(run.finishedAt) : undefined;
-  const note = endNote(run, ticketRuns, links, now);
+  const note = endNote(run, ticketRuns, links, now, events);
   return {
     run: toRunSummary(run, now),
     elapsed: clock(elapsedMs),
@@ -286,7 +337,18 @@ export function toRunDetail(
     triggerNote: run.triggerSource === 'manual' ? '' : 'comment',
     startedAt: clockSeconds(startIso),
     ...(end !== undefined && {
-      endedAt: run.status === 'failed' && run.exitCode !== null ? `${end}, exit ${run.exitCode}` : end,
+      endedAt: failedInSetup(run)
+        ? `${end}, setup failed`
+        : run.status === 'failed' && run.exitCode !== null
+          ? `${end}, exit ${run.exitCode}`
+          : end,
+    }),
+    ...(run.failureStage !== null && run.status === 'failed' && { failureStage: run.failureStage }),
+    ...(run.setupScriptVersion !== null && {
+      setup: {
+        version: run.setupScriptVersion,
+        ...(failedInSetup(run) && { note: run.exitCode === null ? 'failed' : `failed, exit ${run.exitCode}` }),
+      },
     }),
     chain: chain(run, ticketRuns, links.runs, now),
     ...(lifecycle.length > 0 && { lifecycle }),

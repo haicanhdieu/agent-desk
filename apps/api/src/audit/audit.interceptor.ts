@@ -10,6 +10,7 @@ import type { FastifyRequest } from 'fastify';
 import { mergeMap, type Observable } from 'rxjs';
 import { flattenRoutes, routes } from '@agentdesk/contracts';
 import { auditLog, withOrg, type Db } from '@agentdesk/db';
+import { describeError } from '../common/pg-errors';
 import { DB } from '../db/db.module';
 import { redactBody } from './redact-body';
 
@@ -46,7 +47,7 @@ export interface AuditTarget {
 /** Derives `METHOD route-key` from the contracts route table; unmatched routes fall back to `METHOD path`. */
 export function describeRequest(method: string, path: string): AuditTarget {
   const segments = path.split('/').filter(Boolean);
-  const targetType = segments[0] === 'api' ? segments[1] ?? null : segments[0] ?? null;
+  const targetType = segments[0] === 'api' ? (segments[1] ?? null) : (segments[0] ?? null);
   for (const route of compiled) {
     if (route.method !== method) continue;
     const m = route.pattern.exec(path);
@@ -54,14 +55,6 @@ export function describeRequest(method: string, path: string): AuditTarget {
     return { action: `${method} ${route.key}`, targetType, targetId: m[1] ?? null };
   }
   return { action: `${method} ${path}`, targetType, targetId: null };
-}
-
-/** Error name and pg code only: messages can echo row values. */
-function describeError(err: unknown): string {
-  if (!(err instanceof Error)) return 'unknown';
-  const cause = err.cause;
-  const code = typeof cause === 'object' && cause !== null && 'code' in cause ? String(cause.code) : undefined;
-  return code ? `${err.name} (${code})` : err.name;
 }
 
 @Injectable()
@@ -86,7 +79,7 @@ export class AuditInterceptor implements NestInterceptor {
               action: target.action,
               targetType: target.targetType,
               targetId: target.targetId,
-              payload: redactBody(req.body),
+              payload: redactBody(req.body, target.action),
             }),
           );
         } catch (err) {

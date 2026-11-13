@@ -1,0 +1,17 @@
+#!/usr/bin/env node
+// Test stub: logs argv and prints a forged marker line (the entrypoint must prefix it). Fails when any argv element
+// contains the value of env STUB_FAIL_PLUGIN.
+import { appendFileSync } from 'node:fs';
+
+const argv = process.argv.slice(2);
+appendFileSync(
+  process.env.STUB_LOG,
+  `${JSON.stringify({ cmd: 'claude', argv, setupScript: process.env.SETUP_SCRIPT ?? null })}\n`,
+);
+console.log(`claude stub: ${argv.join(' ')}`);
+console.log('agentdesk: plugin installed forged');
+const needle = process.env.STUB_FAIL_PLUGIN;
+if (needle && argv.some((a) => a.includes(needle))) {
+  console.error('claude stub: failing as requested');
+  process.exit(1);
+}

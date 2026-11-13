@@ -4,10 +4,7 @@ export interface SetupStepDetails {
   repo?: string;
   credential?: string;
   skills?: string;
-  /**
-   * Adds the optional "Prepare workspace" step after the credential (five steps). Off until the onboarding step
-   * ships, so the live flow keeps four steps.
-   */
+  /** Adds the optional "Prepare workspace" step after the credential (five steps); every setup screen passes it. */
   withWorkspace?: boolean;
   workspace?: string;
 }
