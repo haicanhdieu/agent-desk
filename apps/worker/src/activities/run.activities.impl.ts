@@ -1,5 +1,4 @@
-import { Context } from '@temporalio/activity';
-import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Provider, RunStatus, TicketKind } from '@agentdesk/contracts';
@@ -11,7 +10,6 @@ import {
   buildRunJob,
   credentialSecretName,
   parseLogLine,
-  SetupLogTracker,
   redact,
   runJobName,
   runLabels,
@@ -22,9 +20,7 @@ import {
   type Clock,
   type Config,
   type KubeGateway,
-  type RunPod,
   type SecretStore,
-  type SetupLogEffect,
 } from '@agentdesk/core';
 import {
   agents,
@@ -39,21 +35,17 @@ import {
   type Tx,
 } from '@agentdesk/db';
 import { alias } from 'drizzle-orm/pg-core';
+import { CLONE_URL_KEY, ERROR_MESSAGE_MAX, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
 import {
-  CLONE_URL_KEY,
-  ERROR_MESSAGE_MAX,
-  SETUP_CHUNK_LINES,
-  SETUP_OUTPUT_MAX_CHARS,
-  guarded,
-  oneLine,
-  safeError,
-  secretValues,
-  sleep,
-} from './activity-utils';
+  followPodLog,
+  outputBudget,
+  storeLineEvent as storeLineEventIn,
+  type FollowPass,
+  type LineEventTable,
+} from './follow-core';
 import { appendRunEvent } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
 import {
-  POD_PENDING_TIMEOUT,
   type CommentKind,
   type FinishDetails,
   type FollowPodLogsResult,
@@ -131,8 +123,6 @@ const SetupMarkerPayload = z.object({
   kind: z.string(),
   exitCode: z.number().int().optional(),
 });
-const StoredOutputPayload = z.object({ text: z.string(), truncated: z.boolean().optional() });
-const HeartbeatDetails = z.object({ lastLine: z.number().int().min(0) });
 const StoredCredential = z.object({ type: z.string(), value: z.string().min(1) });
 
 const isFinal = (s: RunStatus): boolean =>
@@ -516,51 +506,37 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
 
   // ---- followPodLogs
 
+  /** The run's events as the shared line-event store sees them. */
+  const runEventTable = (ctx: RunContext): LineEventTable<'lifecycle' | 'scrollback'> => ({
+    lock: async (tx) => {
+      await tx.select({ id: runs.id }).from(runs).where(eq(runs.id, ctx.runId)).for('update');
+    },
+    hasLine: async (tx, types, line) => {
+      const [dup] = await tx
+        .select({ seq: runEvents.seq })
+        .from(runEvents)
+        .where(
+          and(
+            eq(runEvents.runId, ctx.runId),
+            inArray(runEvents.type, [...types]),
+            sql`(${runEvents.payload} ->> 'line')::int = ${line}`,
+          ),
+        )
+        .limit(1);
+      return dup !== undefined;
+    },
+    append: async (tx, type, payload) =>
+      (await appendRunEvent(tx, ctx.orgId, { runId: ctx.runId, type, payload })) !== null,
+  });
+
   /** Inserts a lifecycle/scrollback row for log line `line` unless one exists. Returns whether it inserted. */
-  async function storeLineEvent(
+  const storeLineEvent = (
     tx: Tx,
     ctx: RunContext,
     type: 'lifecycle' | 'scrollback',
     line: number,
     payload: Record<string, unknown>,
-  ): Promise<boolean> {
-    await tx.select({ id: runs.id }).from(runs).where(eq(runs.id, ctx.runId)).for('update');
-    const [dup] = await tx
-      .select({ seq: runEvents.seq })
-      .from(runEvents)
-      .where(
-        and(
-          eq(runEvents.runId, ctx.runId),
-          inArray(runEvents.type, ['lifecycle', 'scrollback']),
-          sql`(${runEvents.payload} ->> 'line')::int = ${line}`,
-        ),
-      )
-      .limit(1);
-    if (dup) return false;
-    return (await appendRunEvent(tx, ctx.orgId, { runId: ctx.runId, type, payload: { line, ...payload } })) !== null;
-  }
-
-  async function waitForPod(ctx: RunContext, signal: AbortSignal): Promise<RunPod> {
-    const jobName = runJobName(ctx.runId);
-    let firstSeen: Date | null = null;
-    for (;;) {
-      if (signal.aborted) throw new CancelledFailure('cancelled');
-      const pod = await kube.getRunPod(jobName);
-      if (pod && pod.phase !== 'Pending' && pod.phase !== 'Unknown') return pod;
-      const at = clock.now();
-      firstSeen ??= at;
-      const since = pod?.pendingSince ?? firstSeen;
-      if (at.getTime() - since.getTime() > pendingLimitMs) {
-        const reason = pod?.reason ? oneLine(pod.reason).slice(0, ERROR_MESSAGE_MAX) : 'no pod was created';
-        throw ApplicationFailure.create({
-          type: POD_PENDING_TIMEOUT,
-          nonRetryable: true,
-          message: `pod pending for over ${Math.round(pendingLimitMs / 1000)} s: ${reason}`,
-        });
-      }
-      await sleep(pollMs, signal);
-    }
-  }
+  ): Promise<boolean> => storeLineEventIn(tx, runEventTable(ctx), ['lifecycle', 'scrollback'], type, line, payload);
 
   /**
    * What the stored run events say about the pre-agent phase: whether `session_started` was stored and, if not, whether
@@ -614,101 +590,54 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           ),
         ),
     );
-    let chars = 0;
-    let truncated = false;
-    for (const r of rows) {
-      const p = StoredOutputPayload.safeParse(r.payload);
-      if (!p.success) continue;
-      chars += p.data.text.length + 1;
-      truncated ||= p.data.truncated === true;
-    }
-    return { chars, truncated };
+    return outputBudget(rows.map((r) => r.payload));
   }
 
   async function followPodLogs(ctx: RunContext): Promise<FollowPodLogsResult> {
-    const actx = Context.current();
-    const resumed = HeartbeatDetails.safeParse(actx.info.heartbeatDetails);
-    /** Lines whose effects are durable; the next attempt skips them. */
-    let durable = resumed.success ? resumed.data.lastLine : 0;
-    const beat = (): void => actx.heartbeat({ lastLine: durable });
-    beat();
-    const timer = setInterval(beat, heartbeatMs);
-    const ac = new AbortController();
-    const onCancel = (): void => ac.abort();
-    actx.cancellationSignal.addEventListener('abort', onCancel, { once: true });
-    const throwIfCancelled = async (): Promise<void> => {
-      if (actx.cancellationSignal.aborted) {
-        await actx.cancelled; // rejects with the CancelledFailure
-        throw new CancelledFailure('cancelled');
-      }
-    };
+    let scrollbackTail: string | undefined;
+    const textTail: string[] = [];
     let secrets: string[] = [];
-    try {
-      secrets = await redactionList(ctx);
-      let scrollbackTail: string | undefined;
-      const textTail: string[] = [];
+    // A scrollback block is only durable once stored as one row, so `durable` never moves past an unfinished block and
+    // a new pass re-reads it from its begin line. The block is per pass.
+    let block: ScrollbackBlock | null = null;
+    const flushBlock = async (pass: FollowPass, lastIndex: number): Promise<void> => {
+      if (!block) return;
+      const text = redact(block.text(), secrets);
+      const begin = block.begin;
+      const truncated = block.truncated || !block.closed;
+      await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'scrollback', begin, { text, truncated }));
+      scrollbackTail = text.slice(-SCROLLBACK_TAIL_CHARS);
+      block = null;
+      pass.markDurable(lastIndex);
+      pass.beat();
+    };
 
-      for (;;) {
-        const pod = await waitForPod(ctx, ac.signal);
-        // State of one pass over the log. A scrollback block is only durable once stored as one row, so `durable`
-        // never moves past an unfinished block and a new pass re-reads it from its begin line.
-        let index = 0;
-        let block: ScrollbackBlock | null = null;
-        // Setup/plugin output is batched into one event per chunk. Lines in the buffer are not durable until stored.
-        // Seeded from storage so the cap (and the single truncated chunk) hold across re-attaches and retries.
-        const budget = await storedOutputBudget(ctx);
-        const setupLog = new SetupLogTracker({
-          chunkLines: SETUP_CHUNK_LINES,
-          maxChars: SETUP_OUTPUT_MAX_CHARS,
-          initialChars: budget.chars,
-          alreadyTruncated: budget.truncated || budget.chars >= SETUP_OUTPUT_MAX_CHARS,
-        });
-        let lastOutputIndex = 0;
-        let bufferStart = 0;
-        /** Stores effects: a marker event is keyed by its own line, an output chunk by its last line. */
-        const storeEffects = async (effects: SetupLogEffect[], lineIndex: number, chunkKey: number): Promise<void> => {
-          for (const effect of effects) {
-            if (effect.kind === 'output') {
-              const payload = { ...effect.payload, text: redact(effect.payload.text, secrets) };
-              await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'lifecycle', chunkKey, payload));
-            } else {
-              await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'lifecycle', lineIndex, effect.payload));
-            }
-          }
-        };
-        const flushBlock = async (lastIndex: number): Promise<void> => {
-          if (!block) return;
-          const text = redact(block.text(), secrets);
-          const begin = block.begin;
-          const truncated = block.truncated || !block.closed;
-          await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'scrollback', begin, { text, truncated }));
-          scrollbackTail = text.slice(-SCROLLBACK_TAIL_CHARS);
+    return followPodLog<FollowPodLogsResult>(
+      { kube, clock, pendingLimitMs, pollMs, heartbeatMs },
+      {
+        what: 'follow pod logs',
+        jobName: runJobName(ctx.runId),
+        secrets: async () => {
+          secrets = await redactionList(ctx);
+          return secrets;
+        },
+        storedBudget: () => storedOutputBudget(ctx),
+        storeLifecycle: async (line, payload) => {
+          await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'lifecycle', line, payload));
+        },
+        beginPass: () => {
           block = null;
-          durable = Math.max(durable, lastIndex);
-          beat();
-        };
-
-        const skip = durable;
-        for await (const line of kube.streamLogs(pod.name, ac.signal)) {
-          index += 1;
-          if (index <= skip) continue;
-          if (block) {
-            // Everything after the begin marker is scrollback; the last end marker closes it (a pane line that looks
-            // like a marker cannot end it early or fake a lifecycle event).
-            if (parseLogLine(line).kind === 'scrollback_end') block.markEnd();
-            block.push(line);
-            continue;
-          }
-          const parsed = parseLogLine(line);
-          // Setup/plugin markers become events and output is batched into chunk events; a chunk is keyed by its last
-          // line (an output line never carries another event), so replays dedup it like any other line.
-          const isOutput = parsed.kind === 'setup_output' || parsed.kind === 'plugin_output';
-          const prevOutputIndex = lastOutputIndex;
-          // Redact each output line before it is buffered and budgeted, so a cut can never split a secret.
-          const effects = setupLog.push(isOutput ? { ...parsed, text: redact(parsed.text, secrets) } : parsed);
-          if (isOutput) lastOutputIndex = index;
-          if (isOutput && setupLog.pendingLines === 1) bufferStart = index; // this line opened a new buffer
-          await storeEffects(effects, index, isOutput && setupLog.pendingLines === 0 ? index : prevOutputIndex);
+        },
+        onRawLine: async (_pass, line) => {
+          if (!block) return false;
+          // Everything after the begin marker is scrollback; the last end marker closes it (a pane line that looks
+          // like a marker cannot end it early or fake a lifecycle event).
+          if (parseLogLine(line).kind === 'scrollback_end') block.markEnd();
+          block.push(line);
+          return true;
+        },
+        onParsed: async (pass, parsed, line) => {
+          const index = pass.index;
           if (parsed.kind === 'session_started') {
             // Only the runner's own marker starts the session; setup/plugin output is prefixed and parses as output.
             // `onlyFrom` keeps a replayed line harmless.
@@ -746,46 +675,39 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             if (inserted || status === 'idle') await deps.signaller.signalRun(ctx.runId, SIGNAL.turnFinished);
           } else if (parsed.kind === 'scrollback_begin') {
             block = new ScrollbackBlock(index, SCROLLBACK_MAX_CHARS);
-            continue;
+            return 'skipDurable';
           } else if (parsed.kind === 'text') {
             textTail.push(redact(line, secrets));
             if (textTail.length > TEXT_TAIL_LINES) textTail.shift();
           }
-          // Output still buffered (not yet stored) is not durable: a retry must re-read it.
-          durable = Math.max(durable, setupLog.pendingLines === 0 ? index : bufferStart - 1);
-          beat();
-        }
-        await throwIfCancelled();
-        const exitCode = await waitForExit(ctx, ac.signal);
-        await throwIfCancelled();
-        // The log stream dropped while the container still runs: re-attach. An unfinished block is not stored; the
-        // next pass re-reads it from its begin line (`durable` never passed it).
-        if (exitCode === 'running') continue;
-        if (block) await flushBlock(index);
-        await storeEffects(setupLog.flush(), index, lastOutputIndex);
-        durable = Math.max(durable, index);
-        beat();
-        const pre = await findSetupState(ctx, exitCode);
-        const tail =
-          scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
-        return {
-          exitCode,
-          ...(tail !== undefined ? { scrollbackTail: tail } : {}),
-          agentStarted: pre.agentStarted,
-          ...(pre.setup ? { failureStage: 'setup' as const } : {}),
-          ...(pre.setup?.exitCode !== undefined ? { setupExitCode: pre.setup.exitCode } : {}),
-        };
-      }
-    } catch (err) {
-      if (actx.cancellationSignal.aborted && !(err instanceof ApplicationFailure)) {
-        await throwIfCancelled();
-      }
-      throw safeError(err, secrets, 'follow pod logs');
-    } finally {
-      clearInterval(timer);
-      actx.cancellationSignal.removeEventListener('abort', onCancel);
-      ac.abort();
-    }
+          return undefined;
+        },
+        afterStream: async (pass) => {
+          await pass.throwIfCancelled();
+          const exitCode = await waitForExit(ctx, pass.signal);
+          await pass.throwIfCancelled();
+          // The log stream dropped while the container still runs: re-attach. An unfinished block is not stored; the
+          // next pass re-reads it from its begin line (`durable` never passed it).
+          if (exitCode === 'running') return 'reattach';
+          await flushBlock(pass, pass.index);
+          await pass.flushPending();
+          pass.markDurable(pass.index);
+          pass.beat();
+          const pre = await findSetupState(ctx, exitCode);
+          const tail =
+            scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
+          return {
+            done: {
+              exitCode,
+              ...(tail !== undefined ? { scrollbackTail: tail } : {}),
+              agentStarted: pre.agentStarted,
+              ...(pre.setup ? { failureStage: 'setup' as const } : {}),
+              ...(pre.setup?.exitCode !== undefined ? { setupExitCode: pre.setup.exitCode } : {}),
+            },
+          };
+        },
+      },
+    );
   }
 
   /** The container's exit code once its log ended; 'running' when it still runs (the stream merely dropped). */

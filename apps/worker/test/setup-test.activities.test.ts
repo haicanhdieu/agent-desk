@@ -17,6 +17,7 @@ import {
 } from '@agentdesk/core';
 import { createDb, setupTestEvents, setupTests, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
+import { POD_PENDING_TIMEOUT } from '../src/activities/run.activities';
 import type { SetupTestRef } from '../src/activities/setup-test.activities';
 import { createSetupTestActivities, type SetupTestActivityDeps } from '../src/activities/setup-test.activities.impl';
 
@@ -448,6 +449,7 @@ describe('followSetupTestLogs', () => {
     ).promise.catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApplicationFailure);
     expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).type).toBe(POD_PENDING_TIMEOUT); // same typed failure as the run path
   });
 });
 

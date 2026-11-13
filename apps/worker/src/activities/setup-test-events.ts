@@ -1,5 +1,6 @@
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import { setupTestEvents, setupTests, type Tx } from '@agentdesk/db';
+import { appendSeqEvent, storeLineEvent, type LineEventTable } from './follow-core';
 
 export interface AppendSetupTestEventInput {
   setupTestId: string;
@@ -18,53 +19,62 @@ export async function appendSetupTestEvent(
   orgId: string,
   input: AppendSetupTestEventInput,
 ): Promise<{ seq: number } | null> {
-  const locked = await tx
-    .select({ id: setupTests.id })
-    .from(setupTests)
-    .where(eq(setupTests.id, input.setupTestId))
-    .for('update');
-  if (locked.length === 0) return null;
-  const [max] = await tx
-    .select({ seq: sql<number>`coalesce(max(${setupTestEvents.seq}), 0)::int` })
-    .from(setupTestEvents)
-    .where(eq(setupTestEvents.setupTestId, input.setupTestId));
-  const next = (max?.seq ?? 0) + 1;
-  await tx.insert(setupTestEvents).values({
-    orgId,
-    setupTestId: input.setupTestId,
-    seq: next,
-    ts: input.ts ?? new Date(),
-    type: input.type,
-    payload: input.payload,
+  return appendSeqEvent(tx, {
+    lockOwner: async (t) =>
+      (await t.select({ id: setupTests.id }).from(setupTests).where(eq(setupTests.id, input.setupTestId)).for('update'))
+        .length > 0,
+    maxSeq: async (t) => {
+      const [max] = await t
+        .select({ seq: sql<number>`coalesce(max(${setupTestEvents.seq}), 0)::int` })
+        .from(setupTestEvents)
+        .where(eq(setupTestEvents.setupTestId, input.setupTestId));
+      return max?.seq ?? 0;
+    },
+    insert: async (t, seq) => {
+      await t.insert(setupTestEvents).values({
+        orgId,
+        setupTestId: input.setupTestId,
+        seq,
+        ts: input.ts ?? new Date(),
+        type: input.type,
+        payload: input.payload,
+      });
+    },
   });
-  return { seq: next };
 }
+
+/** The test's events as the shared line-event store sees them. */
+const setupTestEventTable = (orgId: string, setupTestId: string): LineEventTable<'lifecycle'> => ({
+  lock: async (tx) => {
+    await tx.select({ id: setupTests.id }).from(setupTests).where(eq(setupTests.id, setupTestId)).for('update');
+  },
+  hasLine: async (tx, types, line) => {
+    const [dup] = await tx
+      .select({ seq: setupTestEvents.seq })
+      .from(setupTestEvents)
+      .where(
+        and(
+          eq(setupTestEvents.setupTestId, setupTestId),
+          inArray(setupTestEvents.type, [...types]),
+          sql`(${setupTestEvents.payload} ->> 'line')::int = ${line}`,
+        ),
+      )
+      .limit(1);
+    return dup !== undefined;
+  },
+  append: async (tx, type, payload) => (await appendSetupTestEvent(tx, orgId, { setupTestId, type, payload })) !== null,
+});
 
 /**
  * Inserts a lifecycle row for pod log line `line` unless one exists (the dedupe key of a retried or re-attached
- * follow: the same log line always has the same number). Returns whether it inserted. Must run inside `withOrg`.
+ * follow). Returns whether it inserted. Must run inside `withOrg`.
  */
-export async function storeSetupLineEvent(
+export function storeSetupLineEvent(
   tx: Tx,
   orgId: string,
   setupTestId: string,
   line: number,
   payload: Record<string, unknown>,
 ): Promise<boolean> {
-  await tx.select({ id: setupTests.id }).from(setupTests).where(eq(setupTests.id, setupTestId)).for('update');
-  const [dup] = await tx
-    .select({ seq: setupTestEvents.seq })
-    .from(setupTestEvents)
-    .where(
-      and(
-        eq(setupTestEvents.setupTestId, setupTestId),
-        eq(setupTestEvents.type, 'lifecycle'),
-        sql`(${setupTestEvents.payload} ->> 'line')::int = ${line}`,
-      ),
-    )
-    .limit(1);
-  if (dup) return false;
-  return (
-    (await appendSetupTestEvent(tx, orgId, { setupTestId, type: 'lifecycle', payload: { line, ...payload } })) !== null
-  );
+  return storeLineEvent(tx, setupTestEventTable(orgId, setupTestId), ['lifecycle'], 'lifecycle', line, payload);
 }

@@ -1,13 +1,10 @@
-import { Context } from '@temporalio/activity';
-import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
+import { ApplicationFailure } from '@temporalio/common';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Provider } from '@agentdesk/contracts';
 import {
   SetupLogTracker,
   buildSetupTestJob,
-  parseLogLine,
-  redact,
   runPodConfigFrom,
   setupTestJobName,
   setupTestLabels,
@@ -16,22 +13,10 @@ import {
   type Clock,
   type Config,
   type KubeGateway,
-  type RunPod,
-  type SetupLogEffect,
 } from '@agentdesk/core';
 import { connections, projects, setupTestEvents, setupTests, withOrg, type Db } from '@agentdesk/db';
-import {
-  CLONE_URL_KEY,
-  ERROR_MESSAGE_MAX,
-  MIN_SECRET_LENGTH,
-  SETUP_CHUNK_LINES,
-  SETUP_OUTPUT_MAX_CHARS,
-  guarded,
-  oneLine,
-  safeError,
-  secretValues,
-  sleep,
-} from './activity-utils';
+import { CLONE_URL_KEY, MIN_SECRET_LENGTH, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
+import { followPodLog, outputBudget } from './follow-core';
 import { appendSetupTestEvent, storeSetupLineEvent } from './setup-test-events';
 import type { SetupTestActivities, SetupTestRef, SetupTestResult } from './setup-test.activities';
 
@@ -99,8 +84,6 @@ const MarkerPayload = z.object({
   exitCode: z.number().int().optional(),
   sha: z.string().optional(),
 });
-const StoredOutputPayload = z.object({ text: z.string(), truncated: z.boolean().optional() });
-const HeartbeatDetails = z.object({ lastLine: z.number().int().min(0) });
 
 const isLive = (status: string): boolean => status === 'queued' || status === 'running';
 
@@ -218,24 +201,6 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
     return row ? { status: row.status, ended: row.endedAt !== null } : null;
   }
 
-  async function waitForPod(ref: SetupTestRef, signal: AbortSignal): Promise<RunPod> {
-    const jobName = setupTestJobName(ref.setupTestId);
-    let firstSeen: Date | null = null;
-    for (;;) {
-      if (signal.aborted) throw new CancelledFailure('cancelled');
-      const pod = await kube.getRunPod(jobName);
-      if (pod && pod.phase !== 'Pending' && pod.phase !== 'Unknown') return pod;
-      const at = clock.now();
-      firstSeen ??= at;
-      const since = pod?.pendingSince ?? firstSeen;
-      if (at.getTime() - since.getTime() > pendingLimitMs) {
-        const reason = pod?.reason ? oneLine(pod.reason).slice(0, ERROR_MESSAGE_MAX) : 'no pod was created';
-        throw ApplicationFailure.nonRetryable(`pod pending for over ${Math.round(pendingLimitMs / 1000)} s: ${reason}`);
-      }
-      await sleep(pollMs, signal);
-    }
-  }
-
   /** Output already stored for the test (all passes and attempts): characters spent and whether it was truncated. */
   async function storedOutputBudget(ref: SetupTestRef): Promise<{ chars: number; truncated: boolean }> {
     const rows = await withOrg(db, ref.orgId, (tx) =>
@@ -250,15 +215,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
           ),
         ),
     );
-    let chars = 0;
-    let truncated = false;
-    for (const r of rows) {
-      const p = StoredOutputPayload.safeParse(r.payload);
-      if (!p.success) continue;
-      chars += p.data.text.length + 1;
-      truncated ||= p.data.truncated === true;
-    }
-    return { chars, truncated };
+    return outputBudget(rows.map((r) => r.payload));
   }
 
   /**
@@ -331,100 +288,42 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
     if (start.status === 'passed' || start.status === 'failed') return { status: start.status };
     if (start.ended) return null;
 
-    const actx = Context.current();
-    const resumed = HeartbeatDetails.safeParse(actx.info.heartbeatDetails);
-    /** Lines whose effects are durable; the next attempt skips them. */
-    let durable = resumed.success ? resumed.data.lastLine : 0;
-    const beat = (): void => actx.heartbeat({ lastLine: durable });
-    beat();
-    const timer = setInterval(beat, heartbeatMs);
-    const ac = new AbortController();
-    const onCancel = (): void => ac.abort();
-    actx.cancellationSignal.addEventListener('abort', onCancel, { once: true });
-    const throwIfCancelled = async (): Promise<void> => {
-      if (actx.cancellationSignal.aborted) {
-        await actx.cancelled; // rejects with the CancelledFailure
-        throw new CancelledFailure('cancelled');
-      }
-    };
-    let secrets: string[] = [];
-    try {
-      secrets = await redactionList(ref);
-      for (;;) {
-        const pod = await waitForPod(ref, ac.signal);
-        // State of one pass over the log. Output in the tracker's buffer is not durable until stored as a chunk.
-        let index = 0;
-        // Seeded from storage so the cap (and the single truncated chunk) hold across re-attaches and retries.
-        const budget = await storedOutputBudget(ref);
-        const tracker = new SetupLogTracker({
-          chunkLines: SETUP_CHUNK_LINES,
-          maxChars: SETUP_OUTPUT_MAX_CHARS,
-          initialChars: budget.chars,
-          alreadyTruncated: budget.truncated || budget.chars >= SETUP_OUTPUT_MAX_CHARS,
-        });
-        let lastOutputIndex = 0;
-        let bufferStart = 0;
-        /** A marker event is keyed by its own log line, an output chunk by its last line (as on the run path). */
-        const storeEffects = async (effects: SetupLogEffect[], lineIndex: number, chunkKey: number): Promise<void> => {
-          for (const effect of effects) {
-            const payload =
-              effect.kind === 'output'
-                ? { ...effect.payload, text: redact(effect.payload.text, secrets) }
-                : effect.payload;
-            const key = effect.kind === 'output' ? chunkKey : lineIndex;
-            await withOrg(db, ref.orgId, (tx) => storeSetupLineEvent(tx, ref.orgId, ref.setupTestId, key, payload));
+    return followPodLog<SetupTestResult>(
+      { kube, clock, pendingLimitMs, pollMs, heartbeatMs },
+      {
+        what: 'follow setup test logs',
+        jobName: setupTestJobName(ref.setupTestId),
+        secrets: () => redactionList(ref),
+        storedBudget: () => storedOutputBudget(ref),
+        storeLifecycle: async (line, payload) => {
+          await withOrg(db, ref.orgId, (tx) => storeSetupLineEvent(tx, ref.orgId, ref.setupTestId, line, payload));
+        },
+        onParsed: async (pass, parsed) => {
+          if (!RESULT_KINDS.has(parsed.kind)) return undefined;
+          // Durable only once the result is written: a retry must see this marker again if the write failed.
+          const result = await recordResult(ref);
+          if (!result) return undefined;
+          pass.markDurable(pass.index);
+          pass.beat();
+          return { done: result };
+        },
+        afterStream: async (pass) => {
+          await pass.throwIfCancelled();
+          const pod = await kube.getRunPod(setupTestJobName(ref.setupTestId));
+          // The log stream dropped while the container still runs: re-attach.
+          if (pod && pod.exitCode === null && pod.phase === 'Running') {
+            await sleep(pollMs, pass.signal);
+            await pass.throwIfCancelled();
+            return 'reattach';
           }
-        };
-
-        const skip = durable;
-        for await (const line of kube.streamLogs(pod.name, ac.signal)) {
-          index += 1;
-          if (index <= skip) continue;
-          const parsed = parseLogLine(line);
-          const isOutput = parsed.kind === 'setup_output' || parsed.kind === 'plugin_output';
-          const prevOutputIndex = lastOutputIndex;
-          // Redact each output line before it is buffered and budgeted, so a cut can never split a secret.
-          const effects = tracker.push(isOutput ? { ...parsed, text: redact(parsed.text, secrets) } : parsed);
-          if (isOutput) lastOutputIndex = index;
-          if (isOutput && tracker.pendingLines === 1) bufferStart = index; // this line opened a new buffer
-          await storeEffects(effects, index, isOutput && tracker.pendingLines === 0 ? index : prevOutputIndex);
-          if (RESULT_KINDS.has(parsed.kind)) {
-            // Durable only once the result is written: a retry must see this marker again if the write failed.
-            const result = await recordResult(ref);
-            if (result) {
-              durable = Math.max(durable, index);
-              beat();
-              return result;
-            }
-          }
-          // Output still buffered (not yet stored) is not durable: a retry must re-read it.
-          durable = Math.max(durable, tracker.pendingLines === 0 ? index : bufferStart - 1);
-          beat();
-        }
-        await throwIfCancelled();
-        const pod2 = await kube.getRunPod(pod.name);
-        // The log stream dropped while the container still runs: re-attach.
-        if (pod2 && pod2.exitCode === null && pod2.phase === 'Running') {
-          await sleep(pollMs, ac.signal);
-          await throwIfCancelled();
-          continue;
-        }
-        // The pod ended without a result marker: keep what it printed; finalize ends the test.
-        await storeEffects(tracker.flush(), index, lastOutputIndex);
-        durable = Math.max(durable, index);
-        beat();
-        return null;
-      }
-    } catch (err) {
-      if (actx.cancellationSignal.aborted && !(err instanceof ApplicationFailure)) {
-        await throwIfCancelled();
-      }
-      throw safeError(err, secrets, 'follow setup test logs');
-    } finally {
-      clearInterval(timer);
-      actx.cancellationSignal.removeEventListener('abort', onCancel);
-      ac.abort();
-    }
+          // The pod ended without a result marker: keep what it printed; finalize ends the test.
+          await pass.flushPending();
+          pass.markDurable(pass.index);
+          pass.beat();
+          return { done: null };
+        },
+      },
+    );
   }
 
   // ---- finalizeSetupTest
