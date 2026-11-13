@@ -40,35 +40,40 @@ export interface UseTerminal {
   onResize(size: TerminalSize): void;
 }
 
-/** `ws(s)://<this host>/api/runs/:runId/terminal`; the scheme follows the page. */
-function terminalUrl(runId: string): string {
+/** `ws(s)://<this host><path>`; the scheme follows the page. */
+function terminalUrl(path: string): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${window.location.host}${terminalPath(runId)}`;
+  return `${scheme}://${window.location.host}${path}`;
 }
 
 const resizeFrame = ({ cols, rows }: TerminalSize) => JSON.stringify({ type: 'resize', cols, rows });
 
 /**
- * The run's terminal socket (spec §5.3) while `enabled` (the run is running or idle and the terminal is mounted).
- * Binary frames both ways: output is written to `term`, keystrokes are sent as UTF-8. Text frames from the server
- * are ignored (never acted on). Close codes: 4401 → the sign-out path; 4403 → `forbidden`, no retry; 4409 → the run
- * is no longer active: `connecting` while its detail refetches (the route then shows the final scrollback), no
- * retry; 1000 (the session ended) → the detail refetches too, and only a run still active then retries. Any other
- * close retries after TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open
- * STABLE_OPEN_MS resets the back-off. Unmounting, or `enabled` turning false, closes the socket and cancels a pending
- * retry. Terminal data is never logged.
+ * What the owner of a terminal does when its session ended (close codes 1000 and 4409): refetch whatever shows the
+ * owner's state. Resolving `true` means the owner is still active (the socket then retries, or gives up after a
+ * 4409); anything else (no return value, `false`) means it ended, and the page shows its end state.
  */
-export function useTerminal(
-  runId: string,
+export type OnSessionEnd = () => void | Promise<boolean>;
+
+/**
+ * A terminal socket at `path` (spec §5.3) while `enabled` (the owner is active and the terminal is mounted). Binary
+ * frames both ways: output is written to `term`, keystrokes are sent as UTF-8. Text frames from the server are
+ * ignored (never acted on). Close codes: 4401 → the sign-out path; 4403 → `forbidden`, no retry; 4409 → the owner is
+ * no longer active: `connecting` while `onSessionEnd` runs (the page then shows the end state), no retry; 1000 (the
+ * session ended) → `onSessionEnd` too, and only an owner still active then retries. Any other close retries after
+ * TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open STABLE_OPEN_MS resets the back-off.
+ * Unmounting, or `enabled` turning false, closes the socket and cancels a pending retry. Terminal data is never
+ * logged. `onSessionEnd` must be stable (memoised): a new function opens a new connection.
+ */
+export function useTerminalSocket(
+  path: string,
   enabled: boolean,
   term: RefObject<LiveTerminalHandle | null>,
-  run: TerminalRun,
+  onSessionEnd: OnSessionEnd,
 ): UseTerminal {
-  const qc = useQueryClient();
-  const { org, projectId, number } = run;
   // Bumped by reconnect(): a new connection (the effect re-runs).
   const [attempt, setAttempt] = useState(0);
-  const session = `${runId}:${attempt}`;
+  const session = `${path}:${attempt}`;
   // Keyed by connection session so a stale state from the previous one never shows.
   const [current, setCurrent] = useState<{ session: string; state: TerminalState }>({ session, state: 'connecting' });
   const socket = useRef<WebSocket | null>(null);
@@ -84,7 +89,6 @@ export function useTerminal(
     const set = (state: TerminalState) => {
       if (!disposed) setCurrent({ session, state });
     };
-    const detailKey = runsQueries.detail(org, projectId, number).queryKey;
 
     const retryLater = () => {
       const delay = TERMINAL_BACKOFF_MS[retries];
@@ -97,12 +101,11 @@ export function useTerminal(
       retry = setTimeout(connect, delay);
     };
 
-    /** `connecting` while the run's detail refetches; `onStillActive` runs when it is not final after that. */
-    const refetchRun = (onStillActive: () => void) => {
+    /** `connecting` while the owner is refetched; `onStillActive` runs when it is still active after that. */
+    const sessionEnded = (onStillActive: () => void) => {
       set('connecting');
-      void qc.invalidateQueries({ queryKey: detailKey }).then(() => {
-        const status = qc.getQueryData(detailKey)?.status;
-        if (!disposed && (status === undefined || !isFinal(status))) onStillActive();
+      void Promise.resolve(onSessionEnd()).then((stillActive) => {
+        if (!disposed && stillActive === true) onStillActive();
       });
     };
 
@@ -111,8 +114,8 @@ export function useTerminal(
       clearTimeout(stable);
       switch (code) {
         case CLOSE_NORMAL:
-          // Usually the run ended (the route then shows its final scrollback); a run still active reattaches.
-          refetchRun(retryLater);
+          // Usually the owner ended (the page then shows its end state); one still active reattaches.
+          sessionEnded(retryLater);
           return;
         case CLOSE_UNAUTHORIZED:
           void signOutAndRedirect();
@@ -121,9 +124,9 @@ export function useTerminal(
           set('forbidden');
           return;
         case CLOSE_RUN_GONE:
-          // The run ended: the route shows its final scrollback once the refetched run is final. If it is still
-          // active after the refetch, only a manual reconnect is offered (no loop).
-          refetchRun(() => set('gave_up'));
+          // The owner ended: the page shows its end state once refetched. If it is still active after that, only a
+          // manual reconnect is offered (no loop).
+          sessionEnded(() => set('gave_up'));
           return;
         default:
           retryLater();
@@ -131,7 +134,7 @@ export function useTerminal(
     };
 
     const connect = () => {
-      const ws = new WebSocket(terminalUrl(runId));
+      const ws = new WebSocket(terminalUrl(path));
       ws.binaryType = 'arraybuffer';
       socket.current = ws;
       ws.addEventListener('open', () => {
@@ -161,7 +164,7 @@ export function useTerminal(
       socket.current?.close(1000);
       socket.current = null;
     };
-  }, [enabled, runId, session, org, projectId, number, qc, term]);
+  }, [enabled, path, session, term, onSessionEnd]);
 
   const onData = useCallback((data: string) => {
     const ws = socket.current;
@@ -181,4 +184,26 @@ export function useTerminal(
 
   const state = enabled && current.session === session ? current.state : 'connecting';
   return { state, reconnect, onData, onResize };
+}
+
+/**
+ * The run's terminal socket (spec §5.3) while `enabled` (the run is running or idle and the terminal is mounted).
+ * See `useTerminalSocket` for the protocol. When the session ends the run's detail refetches (the route then shows
+ * the final scrollback); a run still active after that retries (1000) or offers a manual reconnect (4409).
+ */
+export function useTerminal(
+  runId: string,
+  enabled: boolean,
+  term: RefObject<LiveTerminalHandle | null>,
+  run: TerminalRun,
+): UseTerminal {
+  const qc = useQueryClient();
+  const { org, projectId, number } = run;
+  const onSessionEnd = useCallback(async () => {
+    const detailKey = runsQueries.detail(org, projectId, number).queryKey;
+    await qc.invalidateQueries({ queryKey: detailKey });
+    const status = qc.getQueryData(detailKey)?.status;
+    return status === undefined || !isFinal(status);
+  }, [qc, org, projectId, number]);
+  return useTerminalSocket(terminalPath(runId), enabled, term, onSessionEnd);
 }

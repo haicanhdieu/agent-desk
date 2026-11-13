@@ -16,6 +16,7 @@ import {
   STABLE_OPEN_MS,
   TERMINAL_BACKOFF_MS,
   useTerminal,
+  useTerminalSocket,
   type TerminalState,
 } from './useTerminal';
 
@@ -320,6 +321,52 @@ describe('useTerminal', () => {
     expect(ws.readyState).toBe(FakeWebSocket.CLOSED);
     act(() => vi.advanceTimersByTime(60_000));
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+});
+
+describe('useTerminalSocket', () => {
+  const path = '/api/setup-tests/3f2b9c1e-0000-4000-8000-000000000001/terminal';
+  const socketSetup = (onSessionEnd: () => void | Promise<boolean>) => {
+    const write = vi.fn<LiveTerminalHandle['write']>();
+    const term: RefObject<LiveTerminalHandle | null> = { current: { write } };
+    const hook = renderHook(() => useTerminalSocket(path, true, term, onSessionEnd), {
+      wrapper: wrapperFor(new QueryClient()),
+    });
+    return { write, hook };
+  };
+
+  it('opens the socket at the given path and writes its bytes to the terminal', () => {
+    const { write, hook } = socketSetup(() => undefined);
+    const ws = latest();
+    expect(ws.url).toBe(`ws://${window.location.host}${path}`);
+    act(() => {
+      ws.open();
+      ws.receive(encode('hello'));
+    });
+    expect(hook.result.current.state).toBe('open');
+    expect(decode(write.mock.calls[0][0] as Uint8Array)).toBe('hello');
+  });
+
+  it('1000 and 4409 call onSessionEnd; the owner ending means no retry', async () => {
+    const onSessionEnd = vi.fn(() => Promise.resolve(false));
+    const { hook } = socketSetup(onSessionEnd);
+    act(() => latest().open());
+    await act(async () => latest().serverClose(1000));
+    expect(onSessionEnd).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.state).toBe('connecting');
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('4409 with the owner still active gives up; 1000 retries', async () => {
+    const stillActive = vi.fn(() => Promise.resolve(true));
+    const { hook } = socketSetup(stillActive);
+    act(() => latest().open());
+    await act(async () => latest().serverClose(4409));
+    await waitFor(() => expect(hook.result.current.state).toBe('gave_up'));
+    act(() => hook.result.current.reconnect());
+    act(() => latest().open());
+    await act(async () => latest().serverClose(1000));
+    await waitFor(() => expect(hook.result.current.state).toBe('retrying'));
   });
 });
 
