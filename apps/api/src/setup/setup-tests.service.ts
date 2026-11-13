@@ -143,8 +143,14 @@ export class SetupTestsService {
       try {
         await this.temporal.workflow.getHandle(setupTestWorkflowId(id)).signal(SIGNAL.endSetupTest);
       } catch (err) {
-        // Best effort: the previous workflow may already be gone. Name only, never the message or arguments.
-        this.log.warn(`could not end previous setup test: ${errorName(err)}`);
+        if (err instanceof WorkflowNotFoundError) {
+          // Not started yet (its creator's start call is still in flight) or already closed: no workflow will end this
+          // row, so close it here. A workflow that starts later sees `ended_at` and does nothing.
+          await this.closeSuperseded(org.orgId, id);
+        } else {
+          // Best effort: the row is left alone. Name only, never the message or arguments.
+          this.log.warn(`could not end previous setup test: ${errorName(err)}`);
+        }
       }
     }
     try {
@@ -155,16 +161,32 @@ export class SetupTestsService {
       });
     } catch (err) {
       // No workflow will ever finalize this row: close it so it is not left "active", and drop the script text.
-      await withOrg(this.db, org.orgId, (tx) =>
-        tx
-          .update(setupTests)
-          .set({ status: 'ended', endedAt: new Date(), scriptBody: null })
-          .where(eq(setupTests.id, dto.id)),
-      ).catch(() => undefined);
+      await this.closeSuperseded(org.orgId, dto.id);
       this.log.error(`could not start setup test workflow: ${errorName(err)}`);
       throw err;
     }
     return dto;
+  }
+
+  /**
+   * Closes a test no workflow will finalize: `ended_at` set (only if still null), script text dropped, and `ended`
+   * status only while it is queued or running (a passed/failed result is kept). Idempotent; failures are logged by name.
+   */
+  private async closeSuperseded(orgId: string, setupTestId: string): Promise<void> {
+    try {
+      await withOrg(this.db, orgId, async (tx) => {
+        await tx
+          .update(setupTests)
+          .set({
+            endedAt: sql`now()`,
+            scriptBody: null,
+            status: sql`case when ${setupTests.status} in ('queued','running') then 'ended' else ${setupTests.status} end`,
+          })
+          .where(and(eq(setupTests.id, setupTestId), isNull(setupTests.endedAt)));
+      });
+    } catch (err) {
+      this.log.error(`could not close setup test: ${errorName(err)}`);
+    }
   }
 
   async latest(org: OrgContext, projectId: string): Promise<SetupTestDto | null> {

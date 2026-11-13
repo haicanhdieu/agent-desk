@@ -34,6 +34,12 @@ export class FakeTemporalClient {
   failing = false;
   /** Awaited before each workflow signal is recorded; may delay or throw (per signal name). */
   signalHook?: (name: unknown) => Promise<void>;
+  /** Returns an error to reject a workflow signal with (nothing is recorded), or undefined to let it through. */
+  signalFailure?: (workflowId: string | undefined, name: unknown) => unknown;
+  /** Awaited before a workflow start is recorded; lets a test hold a start back. */
+  startHook?: (workflowId: string | undefined) => Promise<void>;
+  /** When set, workflow start rejects with it (nothing is recorded). */
+  startError?: unknown;
   /** When set, workflow terminate rejects with it (after recording the call). */
   terminateError?: unknown;
 
@@ -47,6 +53,8 @@ export class FakeTemporalClient {
       workflowId,
       signal: async (...args: unknown[]) => {
         await this.signalHook?.(args[0]);
+        const failure = this.signalFailure?.(workflowId, args[0]);
+        if (failure !== undefined) throw failure;
         this.record({ kind: 'signal', workflowId, args });
       },
       terminate: async (...args: unknown[]) => {
@@ -59,6 +67,8 @@ export class FakeTemporalClient {
   private readonly surface = {
     workflow: {
       start: async (workflowType: unknown, options: { workflowId?: string }) => {
+        await this.startHook?.(options.workflowId);
+        if (this.startError !== undefined) throw this.startError;
         this.record({ kind: 'start', workflowId: options.workflowId, args: [workflowType, options] });
         return this.workflowHandle(options.workflowId);
       },
@@ -104,6 +114,9 @@ export class FakeTemporalClient {
     this.available = true;
     this.failing = false;
     this.signalHook = undefined;
+    this.signalFailure = undefined;
+    this.startHook = undefined;
+    this.startError = undefined;
     this.terminateError = undefined;
   }
 }

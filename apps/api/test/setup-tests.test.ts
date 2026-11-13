@@ -2,6 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import { and, asc, eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { WorkflowNotFoundError } from '@temporalio/client';
 import { createParser, type EventSourceMessage } from 'eventsource-parser';
 import { setupTestEvents, setupTests, withOrg } from '@agentdesk/db';
 import { SIGNAL, TASK_QUEUE, WORKFLOW, setupTestWorkflowId } from '@agentdesk/core';
@@ -196,6 +197,112 @@ describe('setup test create', () => {
     const res = await create('echo 2');
     expect(res.statusCode).toBe(200);
     expect(t.temporal.callsOfKind('start')).toHaveLength(2);
+  });
+});
+
+const notFound = (workflowId: string | undefined): WorkflowNotFoundError =>
+  new WorkflowNotFoundError('workflow not found (fake)', workflowId ?? '', undefined);
+
+const setStatus = (testId: string, status: string): Promise<void> =>
+  withOrg(t.db, aliceOrg, async (tx) => {
+    await tx.update(setupTests).set({ status }).where(eq(setupTests.id, testId));
+  });
+
+const rowOf = async (testId: string) => (await rowsOfFull()).find((r) => r.id === testId);
+const rowsOfFull = (): Promise<
+  Array<{ id: string; status: string; endedAt: Date | null; scriptBody: string | null }>
+> =>
+  withOrg(t.db, aliceOrg, (tx) =>
+    tx
+      .select({
+        id: setupTests.id,
+        status: setupTests.status,
+        endedAt: setupTests.endedAt,
+        scriptBody: setupTests.scriptBody,
+      })
+      .from(setupTests)
+      .where(eq(setupTests.projectId, projectId)),
+  );
+
+describe('superseded setup tests whose workflow is gone', () => {
+  it.each(['queued', 'running'])('closes a previous %s test when its workflow is not found', async (status) => {
+    const prev = await created('echo prev');
+    await setStatus(prev.id, status);
+    t.temporal.signalFailure = (id) => notFound(id);
+    const next = await created('echo next');
+    const row = await rowOf(prev.id);
+    expect(row?.endedAt).not.toBeNull();
+    expect(row?.scriptBody).toBeNull();
+    expect(row?.status).toBe('ended');
+    // The new test is untouched and is what latest returns.
+    const fresh = await rowOf(next.id);
+    expect(fresh).toMatchObject({ status: 'queued', endedAt: null, scriptBody: 'echo next' });
+    expect(SetupTestDto.parse(expectContract('setupTests.latest', await latest())).id).toBe(next.id);
+    expect(await activeIds()).toEqual([next.id]);
+  });
+
+  it.each(['passed', 'failed'])('closes a previous %s test without changing its status', async (status) => {
+    const prev = await created('echo prev');
+    await setStatus(prev.id, status);
+    t.temporal.signalFailure = (id) => notFound(id);
+    await created('echo next');
+    const row = await rowOf(prev.id);
+    expect(row?.status).toBe(status);
+    expect(row?.endedAt).not.toBeNull();
+    expect(row?.scriptBody).toBeNull();
+  });
+
+  it('leaves a previous test alone when its signal succeeds', async () => {
+    const prev = await created('echo prev');
+    await created('echo next');
+    expect(await rowOf(prev.id)).toMatchObject({ status: 'queued', endedAt: null, scriptBody: 'echo prev' });
+  });
+
+  it('leaves a previous test alone on a signal error other than not-found, and still returns 200', async () => {
+    const prev = await created('echo prev');
+    t.temporal.signalFailure = () => new Error('unavailable SIGNAL_SECRET');
+    const res = await create('echo next');
+    expect(res.statusCode).toBe(200);
+    expect(await rowOf(prev.id)).toMatchObject({ status: 'queued', endedAt: null, scriptBody: 'echo prev' });
+  });
+
+  it('parallel creates: a signal reaching Temporal before the earlier start leaves only the newest active', async () => {
+    const started = new Set<string>();
+    let release: () => void = () => undefined;
+    const signalled = new Promise<void>((r) => {
+      release = r;
+    });
+    let firstStart = true;
+    t.temporal.signalFailure = (id) => {
+      if (id !== undefined && started.has(id)) return undefined;
+      release();
+      return notFound(id);
+    };
+    t.temporal.startHook = async (id) => {
+      // The first start is held back until a later create's signal has hit the not-yet-started workflow.
+      if (firstStart) {
+        firstStart = false;
+        await Promise.race([signalled, sleep(3000)]);
+      }
+      if (id !== undefined) started.add(id);
+    };
+    const results = await Promise.all([create('p1'), create('p2')]);
+    for (const r of results) expectContract('setupTests.create', r);
+    const ordered = await rowsOf();
+    expect(ordered).toHaveLength(2);
+    expect(await activeIds()).toEqual([ordered[1]?.id]);
+    expect(ordered[0]?.scriptBody).toBeNull();
+  });
+
+  it('closes the row, clears the script and leaks no script text when the workflow cannot be started', async () => {
+    t.temporal.startError = new Error('start failed START_SECRET_MARKER');
+    const res = await create('echo START_SECRET_MARKER');
+    expect(res.statusCode).toBeGreaterThanOrEqual(500);
+    expect(res.body).not.toContain('START_SECRET_MARKER');
+    const rows = await rowsOfFull();
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ status: 'ended', scriptBody: null });
+    expect(rows[0]?.endedAt).not.toBeNull();
   });
 });
 
