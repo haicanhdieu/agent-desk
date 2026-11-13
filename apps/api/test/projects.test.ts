@@ -201,6 +201,15 @@ describe('projects', () => {
     expect(((await patch(p.id, { setupStep: 'ready' })).json() as ProjectDto).setupStep).toBe('ready');
   });
 
+  it('setupStep accepts agent → setup → skills and ignores skills → setup', async () => {
+    const p = (await createProject({})).json() as ProjectDto;
+    expect(((await patch(p.id, { setupStep: 'setup' })).json() as ProjectDto).setupStep).toBe('setup');
+    expect(((await patch(p.id, { setupStep: 'skills' })).json() as ProjectDto).setupStep).toBe('skills');
+    const back = await patch(p.id, { setupStep: 'setup' });
+    expect(back.statusCode).toBe(200);
+    expect((back.json() as ProjectDto).setupStep).toBe('skills');
+  });
+
   it('maxConcurrentRuns change signals the gate via signalWithStart', async () => {
     const p = (await createProject({})).json() as ProjectDto;
     t.temporal.reset();

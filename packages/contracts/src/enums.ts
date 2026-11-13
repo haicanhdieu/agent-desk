@@ -12,7 +12,12 @@ export const RunStatus = z.enum([
 ]);
 export type RunStatus = z.infer<typeof RunStatus>;
 
-export const FINAL_RUN_STATUSES = ['succeeded', 'failed', 'cancelled', 'timed_out'] as const satisfies readonly RunStatus[];
+export const FINAL_RUN_STATUSES = [
+  'succeeded',
+  'failed',
+  'cancelled',
+  'timed_out',
+] as const satisfies readonly RunStatus[];
 export const ACTIVE_RUN_STATUSES = ['starting', 'running', 'idle'] as const satisfies readonly RunStatus[];
 
 export const TriggerMode = z.enum(['webhook', 'polling']);
@@ -34,7 +39,7 @@ export type RuleTarget = z.infer<typeof RuleTarget>;
 export const TriggerSource = z.enum(['webhook', 'polling', 'manual']);
 export type TriggerSource = z.infer<typeof TriggerSource>;
 
-export const SetupStep = z.enum(['agent', 'skills', 'rules', 'ready']);
+export const SetupStep = z.enum(['agent', 'setup', 'skills', 'rules', 'ready']);
 export type SetupStep = z.infer<typeof SetupStep>;
 
 export const RunListFilter = z.enum(['needs_you', 'active', 'queued', 'ended', 'all']);
