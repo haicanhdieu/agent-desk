@@ -70,10 +70,14 @@ export const ConfigSchema = z
     RUN_POD_NODE_SELECTOR: optional(jsonValue(z.record(z.string(), z.string()))),
     RUN_POD_TOLERATIONS: optional(jsonValue(z.array(TolerationSchema))),
     RUN_POD_RUNTIME_CLASS: optional(z.string()),
-    /** Approved plugin stores: store name -> marketplace source. Platform config only, never repo text. */
+    /**
+     * Approved plugin stores: store name -> marketplace source, or `builtin` for a store built in to the Claude Code
+     * CLI (nothing to register). Platform config only, never repo text.
+     */
     RUN_PLUGIN_MARKETPLACES: blankDefault(
       jsonValue(z.record(z.string(), z.string())).default({
         'claude-plugins-official': 'anthropics/claude-plugins-official',
+        'anthropic-plugin-directory': 'builtin',
       }),
     ),
     RUN_SETUP_TIMEOUT_SECONDS: blankDefault(z.coerce.number().int().min(1).max(3300).default(600)),

@@ -18,7 +18,10 @@ const base = {
 describe('plugin and setup config', () => {
   it('defaults', () => {
     const c = parseConfig(base);
-    expect(c.RUN_PLUGIN_MARKETPLACES).toEqual({ 'claude-plugins-official': 'anthropics/claude-plugins-official' });
+    expect(c.RUN_PLUGIN_MARKETPLACES).toEqual({
+      'claude-plugins-official': 'anthropics/claude-plugins-official',
+      'anthropic-plugin-directory': 'builtin',
+    });
     expect(c.RUN_SETUP_TIMEOUT_SECONDS).toBe(600);
     expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
   });
