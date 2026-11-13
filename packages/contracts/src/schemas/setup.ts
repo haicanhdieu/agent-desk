@@ -3,10 +3,14 @@ import { Id, Timestamp } from './common';
 
 export const SETUP_SCRIPT_MAX_BYTES = 65536;
 
-/** The limit is in UTF-8 bytes (matches the DB `octet_length` check), not characters. */
+/**
+ * The limit is in UTF-8 bytes (matches the DB `octet_length` check), not characters. NUL is rejected because Postgres
+ * `text` cannot store it: the insert would fail as a 500 instead of a validation error.
+ */
 export const SetupScriptBody = z
   .string()
-  .refine((s) => new TextEncoder().encode(s).length <= SETUP_SCRIPT_MAX_BYTES, 'Setup script is larger than 64 KiB');
+  .refine((s) => new TextEncoder().encode(s).length <= SETUP_SCRIPT_MAX_BYTES, 'Setup script is larger than 64 KiB')
+  .refine((s) => !s.includes('\u0000'), 'Setup script cannot contain a NUL character');
 export type SetupScriptBody = z.infer<typeof SetupScriptBody>;
 
 export const SetupScriptVersionDto = z.object({

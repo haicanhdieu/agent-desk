@@ -51,6 +51,10 @@ describe('setup script contract', () => {
     expect(SetupScriptBody.safeParse('é'.repeat(32768)).success).toBe(true);
     expect(SetupScriptBody.safeParse('é'.repeat(32768) + 'a').success).toBe(false);
   });
+  it('rejects a NUL character (Postgres text cannot store it)', () => {
+    expect(SetupScriptBody.safeParse('a\u0000b').success).toBe(false);
+    expect(SetupScriptBody.safeParse('a\u0001b\tc').success).toBe(true);
+  });
   it('bounds the version param to a Postgres integer', () => {
     const params = routes.setupScript.version.params;
     const projectId = '0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b';
