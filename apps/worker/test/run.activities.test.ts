@@ -437,6 +437,10 @@ describe('activity errors are redacted', () => {
   });
 });
 
+// The fake pod's log up to the agent starting, as lifecycle kinds (one log line each); the first turn finishes next.
+const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
+const FIRST_TURN_LINE = PRELUDE_KINDS.length + 1;
+
 describe('followPodLogs', () => {
   it('writes running then idle, signals turnFinished, stores one redacted scrollback, returns the exit code', async () => {
     const runId = await seedRun(`echo ${CRED} please`);
@@ -455,7 +459,7 @@ describe('followPodLogs', () => {
     const { events } = await load(runId);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     const lifecycle = events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind);
-    expect(lifecycle).toEqual(['checkout', 'plugins_begin', 'plugins_end', 'session_started', 'turn_finished']);
+    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'turn_finished']);
     const scrollback = events.filter((e) => e.type === 'scrollback');
     expect(scrollback).toHaveLength(1);
     const text = String(scrollback[0]?.payload.text);
@@ -469,26 +473,28 @@ describe('followPodLogs', () => {
     await acts.deleteJob(ctx);
   });
 
-  it('Review Focus 3: resumed after cancel at {lastLine: 5}, no duplicate rows and no running after idle', async () => {
+  it('Review Focus 3: resumed after cancel at the first turn line, no duplicate rows and no running after idle', async () => {
     const runId = await seedRun('resume me');
     const ctx = await ctxFor(runId);
     const acts = createRunActivities(deps());
     await acts.createRunSecretAndJob(ctx);
 
     const first = follow(ctx, deps());
-    await until(async () => first.beats.some((b) => lastLineOf(b) >= 5));
+    await until(async () => first.beats.some((b) => lastLineOf(b) >= FIRST_TURN_LINE));
     first.env.cancel();
     await expect(first.promise).rejects.toBeInstanceOf(CancelledFailure);
     expect((await load(runId)).run?.status).toBe('idle');
 
     // The worker restarted: the retry gets the last heartbeat's details.
-    const second = follow(ctx, deps(), { lastLine: 5 });
+    const second = follow(ctx, deps(), { lastLine: FIRST_TURN_LINE });
     await sleep(300);
     // Another turn (the user typed in the terminal).
     const attach = await kube.exec(`run-${runId}`, ['tmux', 'attach', '-t', 'agent'], { tty: true });
     attach.write(new TextEncoder().encode('again\r'));
     await until(
-      async () => (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= 7 && second.beats.length,
+      async () =>
+        (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= FIRST_TURN_LINE + 2 &&
+        second.beats.length,
     );
     attach.close();
     await acts.endSession(ctx);
@@ -503,10 +509,7 @@ describe('followPodLogs', () => {
     const lines = lifecycle.map((e) => e.payload.line);
     expect(new Set(lines).size).toBe(lines.length);
     expect(lifecycle.map((e) => e.payload.kind)).toEqual([
-      'checkout',
-      'plugins_begin',
-      'plugins_end',
-      'session_started',
+      ...PRELUDE_KINDS,
       'turn_finished',
       'turn_started',
       'turn_finished',
@@ -552,6 +555,7 @@ describe('followPodLogs', () => {
       'checkout',
       'plugins_begin',
       'plugins_end',
+      'setup_skipped',
       'plugin_installed',
     ]);
     release();
@@ -592,6 +596,7 @@ describe('followPodLogs', () => {
       'plugin_installed',
       'plugin_failed',
       'plugins_end',
+      'setup_skipped',
       'session_started',
       'turn_finished',
     ]);
