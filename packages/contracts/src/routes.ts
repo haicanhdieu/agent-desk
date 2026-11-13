@@ -37,7 +37,7 @@ const projectParams = z.object({ projectId: z.uuid() });
 const runParams = z.object({ runId: z.uuid() });
 const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
-const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1) });
+const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1).max(2147483647) });
 const empty = z.null();
 
 export const routes = {
