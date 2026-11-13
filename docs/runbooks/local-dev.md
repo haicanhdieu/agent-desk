@@ -51,7 +51,7 @@ App config comes from `.env`. If you change a port there, also change it in `pro
 
 With `AUTH_DEV_LOGIN=true` (the default in `.env.example`):
 
-1. Open `http://localhost:3000/auth/dev-login?handle=me&redirect=/` (use `:5173` instead once the web app's Vite proxy for `/api` and `/auth` is merged). Dev login creates the user and a personal org on first use, and exists only when `NODE_ENV` is not `production`.
+1. Open `http://localhost:5173/auth/dev-login?handle=me&redirect=/` (the web app proxies `/api` and `/auth` to the API; on `:3000` the redirect to `/` would 404 because the API has no root route). Dev login creates the user and a personal org on first use, and exists only when `NODE_ENV` is not `production`.
 2. In the setup flow, choose the **fake** connection and the repo `dev/demo`. Add any string as the agent credential, add the `code-review` skill, and create a rule `code-review`.
 3. Post a comment as if it came from the provider:
 
