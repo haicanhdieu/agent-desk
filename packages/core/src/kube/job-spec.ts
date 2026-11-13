@@ -1,6 +1,6 @@
 import type { V1EnvVar, V1Job, V1Toleration } from '@kubernetes/client-node';
 import type { Config } from '../config';
-import { RUN_CONTAINER, RUN_LABELS, runJobName } from './gateway';
+import { RUN_CONTAINER, RUN_LABELS, SETUP_TEST_KIND, SETUP_TEST_LABELS, runJobName, setupTestJobName } from './gateway';
 
 /** Run pod settings from `RUN_POD_*` config (the infra chart supplies the values). */
 export interface RunPodConfig {
@@ -81,33 +81,32 @@ export function runPodConfigFrom(
   };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function assertUuid(value: string, what: string): void {
+  if (!UUID.test(value)) throw new Error(`invalid ${what} id`);
+}
+
 /**
- * The run Job (spec §8, Architecture §5). The image's entrypoint runs the agent; nothing here builds a command line,
- * so untrusted values (the prompt, refs) are only ever env values. The clone URL and the agent credential come from
- * Secret `run-{runId}` through `envFrom`.
+ * The one place a sandbox Job's pod shape lives (security context, resources, volumes, scheduling), so run Jobs and
+ * setup-test Jobs cannot drift. `name` is also the Secret that reaches the pod through `envFrom`.
  */
-export function buildRunJob(input: RunJobInput): V1Job {
-  const name = runJobName(input.runId);
-  const labels = runLabels(input);
-  const timeout = Math.min(Math.max(1, Math.floor(input.timeoutSeconds)), TIMEOUT_SECONDS_MAX);
-  const env: V1EnvVar[] = [
-    { name: 'CHECKOUT_REF', value: input.checkoutRef },
-    { name: 'PROMPT', value: input.prompt },
-    { name: 'BOT_NAME', value: input.botName },
-    { name: 'BOT_EMAIL', value: input.botEmail },
-    { name: 'PLUGIN_MARKETPLACES', value: JSON.stringify(input.pluginMarketplaces) },
-    { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
-    ...(input.setupScript ? [{ name: 'SETUP_SCRIPT', value: input.setupScript }] : []),
-    ...(input.maxTurns !== null ? [{ name: 'MAX_TURNS', value: String(input.maxTurns) }] : []),
-  ];
-  const p = input.pod;
+function podJob(o: {
+  name: string;
+  labels: Record<string, string>;
+  image: string;
+  env: V1EnvVar[];
+  activeDeadlineSeconds: number;
+  pod: RunPodConfig;
+}): V1Job {
+  const { name, labels, pod: p } = o;
   return {
     apiVersion: 'batch/v1',
     kind: 'Job',
     metadata: { name, labels },
     spec: {
       backoffLimit: 0,
-      activeDeadlineSeconds: timeout + DEADLINE_MARGIN_SECONDS,
+      activeDeadlineSeconds: o.activeDeadlineSeconds,
       ttlSecondsAfterFinished: TTL_AFTER_FINISHED_SECONDS,
       template: {
         metadata: { labels },
@@ -128,9 +127,9 @@ export function buildRunJob(input: RunJobInput): V1Job {
           containers: [
             {
               name: RUN_CONTAINER,
-              image: input.image,
+              image: o.image,
               envFrom: [{ secretRef: { name } }],
-              env,
+              env: o.env,
               resources: {
                 requests: { cpu: p.cpuRequest, memory: p.memoryRequest },
                 limits: { cpu: p.cpuLimit, memory: p.memoryLimit, 'ephemeral-storage': p.ephemeralStorageLimit },
@@ -150,4 +149,86 @@ export function buildRunJob(input: RunJobInput): V1Job {
       },
     },
   };
+}
+
+/**
+ * The run Job (spec §8, Architecture §5). The image's entrypoint runs the agent; nothing here builds a command line,
+ * so untrusted values (the prompt, refs) are only ever env values. The clone URL and the agent credential come from
+ * Secret `run-{runId}` through `envFrom`.
+ */
+export function buildRunJob(input: RunJobInput): V1Job {
+  const timeout = Math.min(Math.max(1, Math.floor(input.timeoutSeconds)), TIMEOUT_SECONDS_MAX);
+  const env: V1EnvVar[] = [
+    { name: 'CHECKOUT_REF', value: input.checkoutRef },
+    { name: 'PROMPT', value: input.prompt },
+    { name: 'BOT_NAME', value: input.botName },
+    { name: 'BOT_EMAIL', value: input.botEmail },
+    { name: 'PLUGIN_MARKETPLACES', value: JSON.stringify(input.pluginMarketplaces) },
+    { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
+    ...(input.setupScript ? [{ name: 'SETUP_SCRIPT', value: input.setupScript }] : []),
+    ...(input.maxTurns !== null ? [{ name: 'MAX_TURNS', value: String(input.maxTurns) }] : []),
+  ];
+  return podJob({
+    name: runJobName(input.runId),
+    labels: runLabels(input),
+    image: input.image,
+    env,
+    activeDeadlineSeconds: timeout + DEADLINE_MARGIN_SECONDS,
+    pod: input.pod,
+  });
+}
+
+export interface SetupTestJobInput {
+  setupTestId: string;
+  orgId: string;
+  projectId: string;
+  image: string;
+  checkoutRef: string;
+  /** The script under test (untrusted text): an env value only. Empty means none. */
+  script: string;
+  pluginMarketplaces: Record<string, string>;
+  setupTimeoutSeconds: number;
+  /** How long the workspace stays up after setup, from platform config (`SETUP_TEST_TTL_SECONDS`). */
+  ttlSeconds: number;
+  botName: string;
+  botEmail: string;
+  pod: RunPodConfig;
+}
+
+export function setupTestLabels(input: {
+  setupTestId: string;
+  orgId: string;
+  projectId: string;
+}): Record<string, string> {
+  return {
+    'app.kubernetes.io/managed-by': 'agentdesk',
+    [SETUP_TEST_LABELS.kind]: SETUP_TEST_KIND,
+    [SETUP_TEST_LABELS.setupTestId]: input.setupTestId,
+    [RUN_LABELS.projectId]: input.projectId,
+    [RUN_LABELS.orgId]: input.orgId,
+  };
+}
+
+/** Setup-test Job: the runner in `RUN_MODE=setup_test` (plugins, setup, then an idle shell). No agent credential, no prompt. */
+export function buildSetupTestJob(input: SetupTestJobInput): V1Job {
+  assertUuid(input.setupTestId, 'setup test');
+  assertUuid(input.orgId, 'org');
+  assertUuid(input.projectId, 'project');
+  const env: V1EnvVar[] = [
+    { name: 'RUN_MODE', value: 'setup_test' },
+    { name: 'CHECKOUT_REF', value: input.checkoutRef },
+    { name: 'BOT_NAME', value: input.botName },
+    { name: 'BOT_EMAIL', value: input.botEmail },
+    { name: 'PLUGIN_MARKETPLACES', value: JSON.stringify(input.pluginMarketplaces) },
+    { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
+    ...(input.script ? [{ name: 'SETUP_SCRIPT', value: input.script }] : []),
+  ];
+  return podJob({
+    name: setupTestJobName(input.setupTestId),
+    labels: setupTestLabels(input),
+    image: input.image,
+    env,
+    activeDeadlineSeconds: input.setupTimeoutSeconds + input.ttlSeconds + 300,
+    pod: input.pod,
+  });
 }

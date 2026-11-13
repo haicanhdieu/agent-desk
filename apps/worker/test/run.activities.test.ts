@@ -104,6 +104,7 @@ function wrapKube(over: Partial<KubeGateway>): KubeGateway {
     exec: (n, c, o) => kube.exec(n, c, o),
     deleteJob: (n) => kube.deleteJob(n),
     listRunJobs: () => kube.listRunJobs(),
+    listSetupTestJobs: () => kube.listSetupTestJobs(),
     listRunSecrets: () => kube.listRunSecrets(),
     ...over,
   };

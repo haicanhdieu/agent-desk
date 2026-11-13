@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FakeKubeGateway } from '../../src/kube/fake-gateway';
-import { buildRunJob } from '../../src/kube/job-spec';
+import { buildRunJob, buildSetupTestJob } from '../../src/kube/job-spec';
 import type { ExecSession } from '../../src/kube/gateway';
 
 const ORG = '22222222-2222-4222-8222-222222222222';
@@ -345,5 +345,57 @@ describe('FakeKubeGateway', () => {
     await c.done;
     expect(c.lines).toEqual(['héllo ✓']);
     await gw.deleteJob(name);
+  });
+
+  it('runs a setup-test job to session started; listSetupTestJobs returns it and listRunJobs does not', async () => {
+    const id = runId();
+    const name = `setup-test-${id}`;
+    const spec = buildSetupTestJob({
+      setupTestId: id,
+      orgId: ORG,
+      projectId: PROJECT,
+      image: 'fake',
+      checkoutRef: 'main',
+      script: 'echo hi',
+      pluginMarketplaces: {},
+      setupTimeoutSeconds: 600,
+      ttlSeconds: 60,
+      botName: 'bot',
+      botEmail: 'bot@x.invalid',
+      pod: {
+        cpuRequest: '1',
+        cpuLimit: '1',
+        memoryRequest: '1Gi',
+        memoryLimit: '1Gi',
+        ephemeralStorageLimit: '1Gi',
+        workspaceSizeLimit: '1Gi',
+      },
+    });
+    await gw.ensureJob(spec);
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    const c = collect(name);
+    await until(async () => c.lines.includes('agentdesk: session started'));
+    expect(c.lines).toContain('agentdesk: setup begin');
+    c.ac.abort();
+    await c.done;
+    expect(await gw.listSetupTestJobs()).toContainEqual({
+      jobName: name,
+      setupTestId: id,
+      orgId: ORG,
+      projectId: PROJECT,
+    });
+    expect((await gw.listRunJobs()).map((j) => j.jobName)).not.toContain(name);
+    await gw.deleteJob(name);
+    expect((await gw.listSetupTestJobs()).map((j) => j.jobName)).not.toContain(name);
+  });
+
+  it('listRunJobs keeps returning only run jobs, and job names outside run-/setup-test- are rejected', async () => {
+    const id = runId();
+    await gw.ensureJob(job(id, 'p'));
+    const names = (await gw.listRunJobs()).map((j) => j.jobName);
+    expect(names.every((n) => n.startsWith('run-'))).toBe(true);
+    expect(names).toContain(`run-${id}`);
+    await expect(gw.getRunPod('other-x')).rejects.toThrow(/invalid job name/);
+    await gw.deleteJob(`run-${id}`);
   });
 });

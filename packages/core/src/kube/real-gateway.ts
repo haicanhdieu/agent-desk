@@ -8,14 +8,18 @@ import { WebSocketHandler } from '@kubernetes/client-node/dist/web-socket-handle
 import {
   RUN_CONTAINER,
   RUN_LABELS,
+  SETUP_TEST_KIND,
+  SETUP_TEST_LABELS,
   kubeStatusOf,
   runRefFromLabels,
+  setupTestRefFromLabels,
   type ExecSession,
   type KubeGateway,
   type RunJobRef,
   type RunPod,
   type RunPodPhase,
   type RunSecretRef,
+  type SetupTestJobRef,
   type V1Job,
 } from './gateway';
 import { FollowLog } from './follow-log';
@@ -221,6 +225,20 @@ export class RealKubeGateway implements KubeGateway {
     const out: RunJobRef[] = [];
     for (const job of list.items) {
       const ref = runRefFromLabels(job.metadata?.labels);
+      const jobName = job.metadata?.name;
+      if (jobName && ref) out.push({ jobName, ...ref });
+    }
+    return out;
+  }
+
+  async listSetupTestJobs(): Promise<SetupTestJobRef[]> {
+    const list = await this.deps.batch.listNamespacedJob({
+      namespace: this.ns,
+      labelSelector: `${SETUP_TEST_LABELS.kind}=${SETUP_TEST_KIND}`,
+    });
+    const out: SetupTestJobRef[] = [];
+    for (const job of list.items) {
+      const ref = setupTestRefFromLabels(job.metadata?.labels);
       const jobName = job.metadata?.name;
       if (jobName && ref) out.push({ jobName, ...ref });
     }
