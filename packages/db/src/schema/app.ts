@@ -214,6 +214,10 @@ export const runs = pgTable(
     setupScriptVersion: integer('setup_script_version'),
     /** Which phase failed: 'setup' (repo setup script) or 'agent'. Null otherwise. */
     failureStage: text('failure_stage'),
+    /** Why a running run is not busy with the agent itself: 'background' work. Null otherwise. */
+    waitingOn: text('waiting_on'),
+    /** One-line note the agent gave when it went idle or done. Null otherwise. */
+    agentNote: text('agent_note'),
   },
   (t) => [
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
@@ -227,8 +231,9 @@ export const runs = pgTable(
     index('runs_inbound_event_idx').on(t.inboundEventId),
     check(
       'runs_status_check',
-      sql`${t.status} in ('queued','starting','running','idle','succeeded','failed','cancelled','timed_out')`,
+      sql`${t.status} in ('queued','starting','running','idle','done','succeeded','failed','cancelled','timed_out')`,
     ),
+    check('runs_waiting_on_check', sql`${t.waitingOn} in ('background')`),
     check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),
     check('runs_trigger_source_check', sql`${t.triggerSource} in ('webhook','polling','manual')`),
     check('runs_failure_stage_check', sql`${t.failureStage} in ('setup','agent')`),

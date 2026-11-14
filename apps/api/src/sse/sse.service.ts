@@ -8,6 +8,7 @@ import {
   RunEventMessage,
   RunStatus,
   type RunStatusEvent,
+  WaitingOn,
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { CONFIG, type Config } from '../config/config.module';
@@ -111,8 +112,8 @@ export class SseService implements OnModuleDestroy {
           seq: max?.m ?? 0,
           exitCode: run.exitCode,
           failureReason: run.failureReason,
-          waitingOn: null,
-          agentNote: null,
+          waitingOn: run.waitingOn === null ? null : WaitingOn.parse(run.waitingOn),
+          agentNote: run.agentNote,
         },
         events: rows.map((e) =>
           RunEventMessage.parse({ seq: e.seq, ts: e.ts.toISOString(), type: e.type, payload: e.payload }),

@@ -94,15 +94,15 @@
   - `SetRunStatusInput` gains `waitingOn?: 'background' | null` and `agentNote?: string | null`.
   - Write rules in `setRunStatusTx`: `idleSince` = `at` when status is `idle` or `done`, else null; `waitingOn` = input value only when status is `running`, else null; `agentNote` = `toAgentNote(input)` only when status is `idle` or `done`, else null.
 
-- [ ] **Step 1: Write failing tests** in `run-status.activity.int.test.ts`:
+- [x] **Step 1: Write failing tests** in `run-status.activity.int.test.ts`:
   - `'done sets idle_since and agent_note; next running clears both'`
   - `'running with waitingOn background stores it; idle clears it'`
   - `'running → running with a new waitingOn writes and appends one status event'`
   - `'agent note is collapsed to one line and capped at 500'`
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run-status` → FAIL.
-- [ ] **Step 3:** Update the Drizzle schema, generate `0009`, check the SQL only drops/re-adds `runs_status_check` and adds the two columns, then implement the write rules. Also make the API/SSE row→DTO mappers (`apps/api/src/runs/runs.service.ts` ~line 126, `apps/api/src/sse/sse.service.ts`) fill `waitingOn` and `agentNote` from the row.
-- [ ] **Step 4:** Run the worker test and `pnpm --filter @agentdesk/api test` → PASS.
-- [ ] **Step 5:** Commit `feat(db): store done status, waiting_on and agent_note on runs` (label `review:sensitive`: migration).
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run-status` → FAIL.
+- [x] **Step 3:** Update the Drizzle schema, generate `0009`, check the SQL only drops/re-adds `runs_status_check` and adds the two columns, then implement the write rules. Also make the API/SSE row→DTO mappers (`apps/api/src/runs/runs.service.ts` ~line 126, `apps/api/src/sse/sse.service.ts`) fill `waitingOn` and `agentNote` from the row.
+- [x] **Step 4:** Run the worker test and `pnpm --filter @agentdesk/api test` → PASS.
+- [x] **Step 5:** Commit `feat(db): store done status, waiting_on and agent_note on runs` (label `review:sensitive`: migration).
 
 ---
 

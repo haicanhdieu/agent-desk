@@ -10,6 +10,7 @@ import {
   RunStatus,
   TicketKind,
   TriggerSource,
+  WaitingOn,
   type IgnoredEventDto,
   type RunDto,
   type RunListQuery,
@@ -131,9 +132,8 @@ export class RunsService {
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
       timeoutSeconds: agent?.timeoutSeconds ?? 1800,
       idleSince: row.idleSince?.toISOString() ?? null,
-      // TODO(task 3): read from the new runs columns once the migration lands.
-      waitingOn: null,
-      agentNote: null,
+      waitingOn: row.waitingOn === null ? null : WaitingOn.parse(row.waitingOn),
+      agentNote: row.agentNote,
     };
   }
 
