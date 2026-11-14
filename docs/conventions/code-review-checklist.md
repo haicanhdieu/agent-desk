@@ -8,7 +8,7 @@ What a reviewer checks on every PR, how to label review comments, and how author
 
 - [ ] **PR is reviewable:** one concern, about 400 lines or fewer, template filled in, CI green (including `pnpm format:check`).
 - [ ] **Context read:** the linked spec, plan, or ADR, so you review against intent, not only the code.
-- [ ] **Sensitive paths:** if the diff touches a path listed in [git-workflow.md](git-workflow.md) section 7, a human reviewer with that area's knowledge is assigned.
+- [ ] **Sensitive paths:** if the diff touches a path listed in [git-workflow.md](git-workflow.md) section 7, the PR has the `review:sensitive` label and gets a security review at high effort.
 
 ## Correctness
 
@@ -121,6 +121,8 @@ Prefix every comment with its severity so the author knows what blocks merge.
 | **blocker:**    | Bug, security or tenancy hole, data loss risk, broken contract, missing required test or spec, violation of a rule in [git-workflow.md](git-workflow.md) | Blocked until fixed or the reviewer agrees otherwise             |
 | **should-fix:** | Real problem that isn't dangerous: unclear design, missing edge case, weak naming, maintainability cost                                                  | Fix in this PR, or open a tracked follow-up the reviewer accepts |
 | **nit:**        | Style or preference, not covered by lint or Prettier. Never comment on what Prettier owns (quotes, wrapping, commas, indentation)                        | Author's choice; never blocks                                    |
+
+The `dev-review` skill rates findings **critical** or **high** (= blocker), **medium** (= should-fix) and **low** (= nit); see [its rubric](../../.agent/skills/dev-review/severity.md).
 
 Also useful: **question:** (you need to understand before judging) and **praise:** (call out good work worth repeating). Comment on the code, not the author. Give a concrete suggestion when you can.
 

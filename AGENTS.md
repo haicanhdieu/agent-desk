@@ -50,7 +50,8 @@ devbox run help
   4. Never run the repo-wide `pnpm format` in a feature commit.
 - **Before saying done:** run `pnpm typecheck` and `pnpm test` for the packages you touched (or `devbox run check`) and report the real results, failures included. `format:check` fails repo-wide until the one-time reformat lands; `fix` covers your files. For e2e, see [tests-and-e2e.md](docs/runbooks/tests-and-e2e.md).
 - **Commits:** Conventional Commits with the package as scope (`feat(contracts): …`). PRs stay around 400 lines or fewer, one concern each.
-- **Human review is required** for sensitive paths: run Job/runner, webhooks, secrets/tokens, auth, terminal, RLS/`withOrg`, migrations. Agents never merge.
+- **Sensitive paths** (run Job/runner, webhooks, secrets/tokens, auth, terminal, RLS/`withOrg`, migrations) get the `review:sensitive` label and a high-effort security review. Only the `dev-review` skill merges, after its review is clean and CI is green; PRs that change agent rules or CI wait for a human.
+- **Skill subagents** are spawned by tier (`high`, `medium`, `low`), never by model name. The models for each tier are set in [`.agent/models.json`](.agent/models.json) ([agent-model-tiers.md](docs/runbooks/agent-model-tiers.md)).
 - **Self-review:** go through [code-review-checklist.md](docs/conventions/code-review-checklist.md) and fill in the PR template.
 - **Never commit** `.env`, credentials, or generated output (`storybook-static/`, `parity-out/`, `.devbox/`).
 - **When docs conflict,** the newer accepted doc wins. Fix the stale one in the same PR, or flag it.

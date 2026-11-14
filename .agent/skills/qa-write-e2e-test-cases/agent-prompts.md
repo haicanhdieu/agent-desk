@@ -6,23 +6,23 @@ Every prompt carries the reading rule, because a subagent does not inherit it fr
 
 `<source list>` is every entry of `scope.json` `sources`, with its sections: the scope doc **and** the sibling specs, ADRs, PRD or Architecture sections and prototype boards found in step 0 of [guides/extracting-rules.md](guides/extracting-rules.md). Never pass only the sections the scope doc cites; a subagent that sees only the scope doc asks questions the sibling sources answer.
 
-## Model and effort
+## Tier and effort
 
-Pass both on every spawn; this skill asks for them explicitly. Do not let a subagent inherit the session model.
+Pass a tier's model and an effort on every spawn. Map the tier to a model with [`.agent/models.json`](../../models.json) (`tiers.<tier>`); never hardcode a model name. No role here uses `high`. Do not let a subagent inherit the session model.
 
-| Agent         | Spawns        | `model`  | `effort` | Why                                                                                  |
-| ------------- | ------------- | -------- | -------- | ------------------------------------------------------------------------------------ |
-| Rule reviewer | 1             | `opus`   | `high`   | A rule it misses is never tested, and it runs once                                   |
-| Case writer   | 1 per cluster | `sonnet` | `medium` | Follows a guide with a worked example; the validator and a reviewer check its output |
-| Case reviewer | 1 per cluster | `sonnet` | `medium` | Compares cases to a short source excerpt with a fixed finding list                   |
+| Agent         | Spawns        | Tier     | `effort` | Why                                                                                         |
+| ------------- | ------------- | -------- | -------- | ------------------------------------------------------------------------------------------- |
+| Rule reviewer | 1             | `medium` | `high`   | A rule it misses is never tested and nothing downstream catches it; depth comes from effort |
+| Case writer   | 1 per cluster | `medium` | `medium` | Follows a guide with a worked example; the validator and a reviewer check its output        |
+| Case reviewer | 1 per cluster | `medium` | `medium` | Compares cases to a short source excerpt with a fixed finding list                          |
 
-Do not use `haiku` for any of them: weak cases cost more to reconcile than they save. Extraction, clustering and reconciling are yours, on the session model.
+Do not use `low` for any of them: their mistakes are omissions and wrong expected results, which the validator cannot see, and weak cases cost more to reconcile than they save. Extraction, clustering and reconciling are yours, on the session model.
 
 In another harness, use its closest equivalent. If it cannot choose a model per subagent, spawn with its default.
 
 ## Rule reviewer (step 3)
 
-Model `opus`, effort `high`.
+Tier `medium`, effort `high`.
 
 ```text
 You are reviewing a list of business rules extracted from requirement documents, to make sure
@@ -55,7 +55,7 @@ Reply with one line: the number of findings by type.
 
 ## Case writer (step 5, one per cluster)
 
-Model `sonnet`, effort `medium`.
+Tier `medium`, effort `medium`.
 
 ```text
 You are writing end-to-end test cases for one cluster of business rules. An engineer or agent
@@ -101,7 +101,7 @@ that belongs to no rule in your cluster.
 
 ## Case reviewer (step 6, one per cluster)
 
-Model `sonnet`, effort `medium`.
+Tier `medium`, effort `medium`.
 
 ```text
 You are reviewing the end-to-end test cases written for one cluster of business rules, to find

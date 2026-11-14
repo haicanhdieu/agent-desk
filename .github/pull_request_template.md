@@ -28,7 +28,7 @@ Full detail: [docs/conventions/code-review-checklist.md](../docs/conventions/cod
 - [ ] Migrations: new migration only; no applied migration edited
 - [ ] No secrets, `.env`, tokens, or credentials committed or logged
 - [ ] Provider-agnostic names (no `github_*`); provider specifics in adapters
-- [ ] Sensitive paths touched (run Job, webhooks, secrets, auth, terminal, RLS, CI)? Human reviewer assigned
+- [ ] Sensitive paths touched (run Job, webhooks, secrets, auth, terminal, RLS, CI)? `review:sensitive` label added
 - [ ] Spec, plan, ADR, or runbook updated if behavior or decisions changed
 - [ ] Authored by an AI agent? Verification output below; judgment calls listed
 
