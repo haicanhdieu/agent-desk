@@ -145,7 +145,7 @@ jobs:
       - name: Merge unit and integration coverage
         run: pnpm --silent exec tsx scripts/coverage-merge.ts coverage-artifacts coverage-merged
       - name: Check coverage
-        run: pnpm --silent exec tsx scripts/coverage-check.ts coverage-merged
+        run: pnpm --silent exec tsx scripts/coverage-check.ts coverage-merged coverage-thresholds.json
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-merged

@@ -1,0 +1,10 @@
+{
+  "packages": {
+    "api": { "lines": 70, "branches": 60 },
+    "worker": { "lines": 68, "branches": 58 },
+    "core": { "lines": 80, "branches": 70 },
+    "db": { "lines": 70, "branches": 60 },
+    "contracts": { "lines": 80, "branches": 70 },
+    "web": { "lines": 60 }
+  }
+}

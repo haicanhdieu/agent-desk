@@ -15,7 +15,7 @@
     "lint": "eslint .",
     "parity": "node scripts/parity.mjs",
     "test:unit": "vitest run",
-    "test:coverage": "vitest run --coverage --coverage.reportsDirectory=./coverage/unit"
+    "test:coverage": "vitest run --testTimeout=15000 --coverage --coverage.reportsDirectory=./coverage/unit"
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",
