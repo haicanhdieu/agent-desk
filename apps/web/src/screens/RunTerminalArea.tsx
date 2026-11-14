@@ -165,22 +165,42 @@ export function RunTerminalArea({
     );
   }
 
+  const note = data.agentNote;
   const notice =
-    status === 'idle' ? (
+    status === 'done' ? (
       <Banner
-        tone="idle"
+        tone="ok"
         flush
         centered
-        icon={<StatusIcon status="idle" size={20} title="Needs you" />}
-        title="The agent finished its turn and is waiting for you"
+        icon={<StatusIcon status="done" size={20} title="Done" />}
+        title="The agent says the task is done"
         actions={
           <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
             Finish run
           </Button>
         }
       >
-        Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while
-        this page is attached.
+        {note && <div>{note}</div>}
+        <div>Review the work, type in the terminal to ask for changes, or Finish to end the run as succeeded.</div>
+      </Banner>
+    ) : status === 'idle' ? (
+      <Banner
+        tone="idle"
+        flush
+        centered
+        icon={<StatusIcon status="idle" size={20} title="Needs you" />}
+        title="The agent is waiting for your answer"
+        actions={
+          <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
+            Finish run
+          </Button>
+        }
+      >
+        {note && <div>{note}</div>}
+        <div>
+          Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while
+          this page is attached.
+        </div>
       </Banner>
     ) : isEnded ? (
       <EndNotice data={data} />
@@ -216,7 +236,7 @@ export function RunTerminalArea({
       {terminal ?? (
         <Terminal
           lines={lines}
-          cursor={status === 'idle'}
+          cursor={status === 'idle' || status === 'done'}
           anchor={status === 'failed' || status === 'timed_out' ? 'top' : 'bottom'}
           dimmed={reconnecting}
         />

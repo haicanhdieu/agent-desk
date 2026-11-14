@@ -27,10 +27,18 @@ const glyphs: Record<RunStatus, ReactNode> = {
       <rect x="7.1" y="4" width="1.8" height="8" rx=".6" fill="var(--on-idle)" />
     </>
   ),
+  // Ring with a tick (the agent says it is done); succeeded is the solid disc, so the two differ by shape too.
   done: (
     <>
-      <circle cx="8" cy="8" r="7" fill="currentColor" />
-      <rect x="7.1" y="4" width="1.8" height="8" rx=".6" fill="var(--on-idle)" />
+      <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path
+        d="M5 8.2l2.1 2.1 3.9-4.3"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.7"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </>
   ),
   succeeded: (

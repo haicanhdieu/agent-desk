@@ -22,6 +22,9 @@
 .st-idle {
   color: var(--idle);
 }
+.st-done {
+  color: var(--ok);
+}
 .st-succeeded {
   color: var(--ok);
 }

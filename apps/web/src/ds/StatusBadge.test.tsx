@@ -41,4 +41,12 @@ describe('StatusBadge', () => {
     const svg = screen.getByTitle('status: idle').querySelector('svg') as SVGElement;
     expect(svg.style.color).toBe('var(--idle)');
   });
+
+  it('done reads Done, not Needs you, in the ok colour', () => {
+    render(<StatusBadge status="done" />);
+    expect(screen.getByText('Done')).toBeInTheDocument();
+    expect(statusTokens.done).toEqual({ label: 'Done', colorVar: '--ok' });
+    const svg = screen.getByTitle('status: done').querySelector('svg') as SVGElement;
+    expect(svg.style.color).toBe('var(--ok)');
+  });
 });

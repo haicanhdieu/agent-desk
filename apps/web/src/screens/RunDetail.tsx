@@ -50,6 +50,8 @@ export interface RunDetailLinks {
 }
 
 const ENDED = ['succeeded', 'failed', 'timed_out', 'cancelled'];
+/** Mirrors the contracts' FINISHABLE_RUN_STATUSES (screens do not import contracts). */
+const FINISHABLE = ['idle', 'done'];
 const FINISH_HINT = 'Finish is available when the agent is waiting for you';
 
 export function RunDetail({
@@ -78,7 +80,7 @@ export function RunDetail({
   const { run } = data;
   const t = run.ticket;
   const ended = ENDED.includes(run.status);
-  const idle = run.status === 'idle';
+  const finishable = FINISHABLE.includes(run.status);
   const busy = pendingNote !== undefined;
 
   const actions = (
@@ -89,9 +91,14 @@ export function RunDetail({
         </Button>
       ) : (
         <>
-          {/* Disabled like the board unless idle; the title explains why. */}
-          <Button icon="check" disabled={!idle || busy} title={idle ? undefined : FINISH_HINT} onClick={onFinish}>
-            {idle ? 'Finish run' : 'Finish'}
+          {/* Disabled like the board unless the run needs you or is done; the title explains why. */}
+          <Button
+            icon="check"
+            disabled={!finishable || busy}
+            title={finishable ? undefined : FINISH_HINT}
+            onClick={onFinish}
+          >
+            {finishable ? 'Finish run' : 'Finish'}
           </Button>
           <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
             Cancel run

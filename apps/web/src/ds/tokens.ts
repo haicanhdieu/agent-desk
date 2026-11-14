@@ -18,7 +18,7 @@ export const statusTokens: Record<RunStatus, { label: string; colorVar: string }
   starting: { label: 'Starting', colorVar: '--run' },
   running: { label: 'Running', colorVar: '--run' },
   idle: { label: 'Needs you', colorVar: '--idle' },
-  done: { label: 'Needs you', colorVar: '--idle' },
+  done: { label: 'Done', colorVar: '--ok' },
   succeeded: { label: 'Succeeded', colorVar: '--ok' },
   failed: { label: 'Failed', colorVar: '--fail' },
   cancelled: { label: 'Cancelled', colorVar: '--off' },

@@ -9,6 +9,7 @@ const entry = 'Screens/Entry';
 const setup = 'Screens/Setup';
 const runs = 'Screens/Runs';
 const detail = 'Screens/Run detail';
+const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
 /** The 30 boards of design/prototype/project/canvas.json, in canvas order. */
@@ -65,6 +66,8 @@ export const stateStories = {
   DeskSetupVersionsError: { title: desk, exportName: 'DeskSetupVersionsError', board: 'DeskSetup' },
   DeskSetupLoading: { title: desk, exportName: 'DeskSetupLoading', board: 'DeskSetup' },
   DeskSetupLoadError: { title: desk, exportName: 'DeskSetupLoadError', board: 'DeskSetup' },
+  RunTerminalAreaDone: { title: terminalArea, exportName: 'Done', board: 'RunIdle' },
+  RunTerminalAreaNeedsYouWithNote: { title: terminalArea, exportName: 'NeedsYouWithNote', board: 'RunIdle' },
   SetupWorkspaceStart: { title: setup, exportName: 'SetupWorkspaceStart', board: 'SetupWorkspace' },
   SetupWorkspaceRunning: { title: setup, exportName: 'SetupWorkspaceRunning', board: 'SetupWorkspace' },
   SetupWorkspaceFailed: { title: setup, exportName: 'SetupWorkspaceFailed', board: 'SetupWorkspace' },

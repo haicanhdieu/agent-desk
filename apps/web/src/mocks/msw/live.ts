@@ -81,7 +81,7 @@ export function setRunStatus(run: RunDto, status: RunStatus): void {
   const at = now();
   run.status = status;
   if (status !== 'queued') run.startedAt ??= at;
-  run.idleSince = status === 'idle' ? at : null;
+  run.idleSince = status === 'idle' || status === 'done' ? at : null;
   if (isFinal(status)) run.finishedAt ??= at;
   // The worker's `status` run event payload.
   const payload = { status, exitCode: run.exitCode, failureReason: run.failureReason };

@@ -251,11 +251,11 @@
   - "Finishing…" clears and the error toast shows on a 409 (existing `onError` path).
   - `applyRunStatus` (`apps/web/src/features/runs/applyEvents.ts`) copies `waitingOn` and `agentNote` from `RunStatusEvent` into cached runs.
 
-- [ ] **Step 1: Write failing tests:** status note for `waitingOn`, Done note, `runDetailKey('done', …)` → `'RunDone'`, Finish button enabled for `done` and disabled for `running`, agent note rendered as text (a note containing `<b>x</b>` shows literally), MSW contract test with the new fields.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/web test` → FAIL.
-- [ ] **Step 3:** Implement with design tokens only; add stories `RunTerminalArea/Done`, `RunTerminalArea/NeedsYouWithNote`, `StatusBadge/Done`.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/web test` and `pnpm --filter @agentdesk/web typecheck` → PASS.
-- [ ] **Step 5:** Commit `feat(web): show done runs, agent notes and finish from done`.
+- [x] **Step 1: Write failing tests:** status note for `waitingOn`, Done note, `runDetailKey('done', …)` → `'RunDone'`, Finish button enabled for `done` and disabled for `running`, agent note rendered as text (a note containing `<b>x</b>` shows literally), MSW contract test with the new fields.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/web test` → FAIL.
+- [x] **Step 3:** Implement with design tokens only; add stories `RunTerminalArea/Done`, `RunTerminalArea/NeedsYouWithNote`, `StatusBadge/Done`.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/web test` and `pnpm --filter @agentdesk/web typecheck` → PASS.
+- [x] **Step 5:** Commit `feat(web): show done runs, agent notes and finish from done`.
 
 ### Task 10: E2E — Finish from Needs you and from Done
 

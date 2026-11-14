@@ -254,7 +254,7 @@ describe('run detail route, live', () => {
     expect(indicator()).toHaveTextContent('Live');
 
     act(() => source.emit('status', statusMsg(61, 'idle', 40), 40));
-    expect(await screen.findByText('The agent finished its turn and is waiting for you')).toBeInTheDocument();
+    expect(await screen.findByText('The agent is waiting for your answer')).toBeInTheDocument();
     const lists = queryClient.getQueriesData<{ items: RunDto[] }>({
       queryKey: ['org', org, 'projects', projectId],
     });
