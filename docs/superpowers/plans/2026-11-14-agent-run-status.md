@@ -122,14 +122,14 @@
   - `agentdesk: state (needs_input|done) <source> <b64|->` → `{ state, source, note? }`; note = `toAgentNote(utf8(base64))`, absent for `-` or empty.
   - Legacy `agentdesk: turn started` → `{ state: 'working' }`; `agentdesk: turn finished` → `{ state: 'needs_input', source: 'undeclared' }`.
 
-- [ ] **Step 1: Write failing tests** (replace the existing `turn_started`/`turn_finished` cases):
+- [x] **Step 1: Write failing tests** (replace the existing `turn_started`/`turn_finished` cases):
   - each of the four protocol forms and both legacy lines map as above (with and without trailing `\r`);
   - note `Buffer.from('Ship it?\nyes').toString('base64')` → `note: 'Ship it? yes'`;
   - stays `kind: 'text'`: unknown source (`done maybe -`), b64 with spaces, b64 longer than 2800 chars, extra field, `xagentdesk: state working`, `agentdesk: state working now`.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/core test -- log-parser` → FAIL.
-- [ ] **Step 3:** Implement with one anchored regex per form: `^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,2800}={0,2}|-)$`. Decode with `Buffer.from(b64, 'base64').toString('utf8')`.
-- [ ] **Step 4:** Run the test → PASS.
-- [ ] **Step 5:** Commit `feat(core): parse agent state protocol lines`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/core test -- log-parser` → FAIL.
+- [x] **Step 3:** Implement with one anchored regex per form: `^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,2800}={0,2}|-)$`. Decode with `Buffer.from(b64, 'base64').toString('utf8')`.
+- [x] **Step 4:** Run the test → PASS.
+- [x] **Step 5:** Commit `feat(core): parse agent state protocol lines`.
 
 ### Task 5: Fake pod and prompt line
 

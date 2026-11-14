@@ -660,17 +660,21 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
                 { onlyFrom: ['starting'] },
               );
             });
-          } else if (parsed.kind === 'turn_started') {
+          } else if (parsed.kind === 'agent_state' && parsed.agent?.state === 'working') {
+            // TODO(task 7): `waiting` and `done` lines are not mapped to run status yet.
             // The agent's own hook says a turn began (terminal input proves nothing). Signal only on a first store: a
             // replayed line must not resume a run whose later turn already finished. The workflow ignores `resumed`
             // unless the run is idle.
             const inserted = await withOrg(db, ctx.orgId, (tx) =>
-              storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text }),
+              storeLineEvent(tx, ctx, 'lifecycle', index, { kind: 'turn_started', text: parsed.text }),
             );
             if (inserted) await deps.signaller.signalRun(ctx.runId, SIGNAL.resumed);
-          } else if (parsed.kind === 'turn_finished') {
+          } else if (parsed.kind === 'agent_state' && parsed.agent?.state === 'needs_input') {
             const { inserted, status } = await withOrg(db, ctx.orgId, async (tx) => {
-              const ins = await storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text });
+              const ins = await storeLineEvent(tx, ctx, 'lifecycle', index, {
+                kind: 'turn_finished',
+                text: parsed.text,
+              });
               if (ins) {
                 await setRunStatusTx(
                   tx,
