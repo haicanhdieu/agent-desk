@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { checkCoverage } from './coverage-check';
+import { checkCoverage, patchLinesThreshold } from './coverage-check';
 
 const PKGS = ['api', 'worker', 'core', 'db', 'web', 'contracts'];
 const pct = { lines: 90, branches: 80, functions: 90, statements: 90 };
@@ -55,5 +55,23 @@ describe('checkCoverage', () => {
     expect(() => checkCoverage(summaryOf(), { packages: { api: { lines: 'high' } } })).toThrow();
     expect(() => checkCoverage(summaryOf(), { packages: { api: { lines: 101 } } })).toThrow();
     expect(() => checkCoverage(summaryOf(), {})).toThrow();
+  });
+});
+
+describe('patch threshold', () => {
+  it('is accepted by the gate schema and read back', () => {
+    const config = { ...thresholdsOf(), patch: { lines: 80 } };
+    expect(checkCoverage(summaryOf(), config)).toEqual([]);
+    expect(patchLinesThreshold(config)).toBe(80);
+  });
+
+  it('is required when asked for', () => {
+    expect(() => patchLinesThreshold(thresholdsOf())).toThrow();
+  });
+
+  it('rejects out-of-range or unknown patch settings', () => {
+    expect(() => patchLinesThreshold({ ...thresholdsOf(), patch: { lines: 101 } })).toThrow();
+    expect(() => checkCoverage(summaryOf(), { ...thresholdsOf(), patch: { lines: 'x' } })).toThrow();
+    expect(() => checkCoverage(summaryOf(), { ...thresholdsOf(), patch: { lines: 80, extra: 1 } })).toThrow();
   });
 });

@@ -136,6 +136,9 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: diff-cover runs `git diff origin/<base>...HEAD`, which needs the merge-base.
+          fetch-depth: 0
       - uses: ./.github/actions/setup
       - uses: actions/download-artifact@v4
         with:
@@ -153,7 +156,7 @@ jobs:
         run: |
           cp coverage-baseline.json "$RUNNER_TEMP/baseline.json"
           if [ "$EVENT" = "pull_request" ]; then
-            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            git fetch --no-tags origin "$BASE_REF"
             if git show "FETCH_HEAD:coverage-baseline.json" > "$RUNNER_TEMP/base-baseline.json" 2>/dev/null; then
               # A PR must not lower the bar by editing the file: compare against the base branch copy.
               cp "$RUNNER_TEMP/base-baseline.json" "$RUNNER_TEMP/baseline.json"
@@ -164,6 +167,28 @@ jobs:
           fi
       - name: Coverage ratchet
         run: pnpm --silent exec tsx scripts/coverage-ratchet.ts --check coverage-merged --baseline "$RUNNER_TEMP/baseline.json"
+      - name: Install diff-cover
+        if: github.event_name == 'pull_request'
+        # Python tool, pinned exactly; kept out of the Node dependencies.
+        run: pipx install diff-cover==11.0.2
+      - name: Patch coverage
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        # Only changed lines that appear in cobertura.xml count. The report covers non-test source files only (see the
+        # coverage exclude lists in vitest config), so tests, stories, mocks, docs and config edits are ignored. A PR with
+        # no measurable changed lines prints "No lines with coverage information in this diff" and passes.
+        run: |
+          threshold="$(pnpm --silent exec tsx scripts/coverage-check.ts --patch-lines coverage-thresholds.json)"
+          if diff-cover coverage-merged/cobertura.xml --compare-branch="origin/$BASE_REF" --fail-under="$threshold" \
+            --format "markdown:$RUNNER_TEMP/patch-coverage.md"; then
+            status=0
+          else
+            status=$?
+            echo "::error::patch coverage is below $threshold%: add tests for the changed lines listed above; do not lower the threshold"
+          fi
+          { echo "## Patch coverage (changed lines, required: $threshold%)"; echo; cat "$RUNNER_TEMP/patch-coverage.md"; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-merged

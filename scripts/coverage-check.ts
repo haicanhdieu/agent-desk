@@ -1,5 +1,6 @@
 // Reads the merged coverage summary and exits 1 when the gate fails.
 // Usage: tsx scripts/coverage-check.ts <merged-dir> [thresholds-file]
+//        tsx scripts/coverage-check.ts --patch-lines [thresholds-file]   (prints the patch coverage threshold)
 //   <merged-dir> is the --out dir of coverage-merge.ts; thresholds-file defaults to coverage-thresholds.json.
 // checkCoverage is the single place gate rules plug in.
 import { readFileSync } from 'node:fs';
@@ -20,7 +21,16 @@ const summarySchema = z.record(z.string(), pctSchema);
 const percent = z.number().min(0).max(100);
 const thresholdsSchema = z.object({
   packages: z.record(z.string(), z.object({ lines: percent, branches: percent.optional() }).strict()),
+  /** Minimum coverage of the lines a PR changes; enforced by diff-cover in CI. */
+  patch: z.object({ lines: percent }).strict().optional(),
 });
+
+/** The required patch coverage (percent of changed lines); throws when the config does not set one. */
+export function patchLinesThreshold(rawThresholds: unknown): number {
+  const { patch } = thresholdsSchema.parse(rawThresholds);
+  if (patch === undefined) throw new Error('coverage thresholds: "patch.lines" is not configured');
+  return patch.lines;
+}
 
 /** Returns one human-readable failure per violated rule; empty means the gate passes. */
 export function checkCoverage(rawSummary: unknown, rawThresholds: unknown): string[] {
@@ -47,6 +57,13 @@ export function checkCoverage(rawSummary: unknown, rawThresholds: unknown): stri
 }
 
 function main(): void {
+  if (process.argv[2] === '--patch-lines') {
+    // Prints the number so a workflow step can pass it to diff-cover without hardcoding it.
+    const file = process.argv[3] ?? 'coverage-thresholds.json';
+    const raw: unknown = JSON.parse(readFileSync(file, 'utf8'));
+    process.stdout.write(`${patchLinesThreshold(raw)}\n`);
+    return;
+  }
   const dir = process.argv[2];
   if (dir === undefined) throw new Error('usage: tsx scripts/coverage-check.ts <merged-dir> [thresholds-file]');
   const thresholdsFile = process.argv[3] ?? 'coverage-thresholds.json';

@@ -139,3 +139,38 @@ describe('renderSummaryTable', () => {
     expect(table).toContain('| core | 80.00% | 70.50% | 90.00% | 81.25% |');
   });
 });
+
+describe('combined cobertura report', () => {
+  const lineHits = (xml: string, file: string): Record<string, number> => {
+    const cls = new RegExp(`<class [^>]*filename="${file.replace(/[./]/g, '\\$&')}"[\\s\\S]*?</class>`).exec(xml);
+    if (cls === null) throw new Error(`${file} not in report`);
+    const hits: Record<string, number> = {};
+    const lines = /<lines>([\s\S]*?)<\/lines>\s*<\/class>/.exec(cls[0])?.[1] ?? '';
+    for (const m of lines.matchAll(/<line number="(\d+)" hits="(\d+)"/g)) hits[m[1] ?? ''] = Number(m[2]);
+    return hits;
+  };
+
+  it('lists files from two packages with repo-relative paths and the merged union of hits', () => {
+    const artifacts = tmp();
+    const out = path.join(tmp(), 'merged');
+    writeArtifact(artifacts, 'coverage-core-unit', fileCov(`${RUNNER}/packages/core/src/a.ts`, 3, [0]));
+    writeArtifact(artifacts, 'coverage-core-integration-1', fileCov(`${RUNNER}/packages/core/src/a.ts`, 3, [1]));
+    writeArtifact(artifacts, 'coverage-api-unit', fileCov(`${RUNNER}/apps/api/src/b.ts`, 2, [1]));
+    mergeArtifacts(artifacts, out);
+    const xml = readFileSync(path.join(out, 'cobertura.xml'), 'utf8');
+    expect(xml).not.toContain(RUNNER);
+    expect(lineHits(xml, 'packages/core/src/a.ts')).toEqual({ '1': 1, '2': 1, '3': 0 });
+    expect(lineHits(xml, 'apps/api/src/b.ts')).toEqual({ '1': 0, '2': 1 });
+  });
+
+  it('ignores an unknown package directory instead of crashing', () => {
+    const artifacts = tmp();
+    const out = path.join(tmp(), 'merged');
+    writeArtifact(artifacts, 'coverage-core-unit', fileCov('packages/core/src/a.ts', 1, [0]));
+    writeArtifact(artifacts, 'something-else', fileCov('packages/zzz/src/z.ts', 1, [0]));
+    mergeArtifacts(artifacts, out);
+    const xml = readFileSync(path.join(out, 'cobertura.xml'), 'utf8');
+    expect(xml).toContain('packages/core/src/a.ts');
+    expect(xml).not.toContain('zzz');
+  });
+});

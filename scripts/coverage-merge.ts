@@ -2,10 +2,13 @@
 // Usage: tsx scripts/coverage-merge.ts <artifact-dir> <out-dir>
 //   <artifact-dir>/<coverage->?<pkg>-<kind>[-<shard>]/coverage-final.json  (as downloaded by actions/download-artifact)
 //   <out-dir>/<pkg>/coverage-final.json, <out-dir>/<pkg>/coverage-summary.json, <out-dir>/summary.json
+//   <out-dir>/cobertura.xml: one report across all packages (repo-relative paths) for diff-cover
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import libCoverage from 'istanbul-lib-coverage';
+import libReport from 'istanbul-lib-report';
+import reports from 'istanbul-reports';
 
 export type CoverageData = libCoverage.CoverageMapData;
 
@@ -90,14 +93,23 @@ function summaryJson(map: libCoverage.CoverageMap): Record<string, unknown> {
   return out;
 }
 
+/** Cobertura is what diff-cover reads. Paths are already repo-relative, so projectRoot = cwd keeps them unchanged. */
+function writeCobertura(map: libCoverage.CoverageMap, outDir: string): void {
+  mkdirSync(outDir, { recursive: true });
+  const context = libReport.createContext({ dir: outDir, coverageMap: map });
+  reports.create('cobertura', { file: 'cobertura.xml', projectRoot: process.cwd() }).execute(context);
+}
+
 export function mergeArtifacts(artifactDir: string, outDir: string, repoRoot?: string): Summary {
   const byPkg = new Map<string, CoverageData[]>();
   for (const artifact of discoverArtifacts(artifactDir)) {
     byPkg.set(artifact.pkg, [...(byPkg.get(artifact.pkg) ?? []), readCoverage(artifact)]);
   }
   const summary: Summary = {};
+  const combined = libCoverage.createCoverageMap({});
   for (const [pkg, inputs] of [...byPkg].sort(([a], [b]) => a.localeCompare(b))) {
     const map = mergeCoverage(inputs, repoRoot);
+    combined.merge(map);
     writeJson(path.join(outDir, pkg, 'coverage-final.json'), map.toJSON());
     writeJson(path.join(outDir, pkg, 'coverage-summary.json'), summaryJson(map));
     const total = map.getCoverageSummary();
@@ -109,6 +121,7 @@ export function mergeArtifacts(artifactDir: string, outDir: string, repoRoot?: s
     };
   }
   writeJson(path.join(outDir, 'summary.json'), summary);
+  writeCobertura(combined, outDir);
   return summary;
 }
 

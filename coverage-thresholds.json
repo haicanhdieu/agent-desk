@@ -6,5 +6,6 @@
     "db": { "lines": 70, "branches": 60 },
     "contracts": { "lines": 80, "branches": 70 },
     "web": { "lines": 60 }
-  }
+  },
+  "patch": { "lines": 80 }
 }
