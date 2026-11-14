@@ -360,6 +360,28 @@ describe('FakeKubeGateway', () => {
     }
   });
 
+  it('reports the exit code the pod wrote when it dies between the exit read and the liveness check', async () => {
+    const name = `run-${runId()}`;
+    const d = join(dir, name);
+    await mkdir(d);
+    await writeFile(join(d, 'job.json'), JSON.stringify({ labels: {}, createdAt: new Date().toISOString() }));
+    await writeFile(join(d, 'pid'), String(process.pid)); // not a fake-pod process, so the liveness check says "dead"
+    // The race: getRunPod has already read `exit` (absent); now the pod writes it and exits before the pid check.
+    // ownedPid is private; spying on it is the only way to land the write at exactly that moment.
+    const owned = vi
+      .spyOn(gw as unknown as { ownedPid: () => Promise<number | null> }, 'ownedPid')
+      .mockImplementation(async () => {
+        await writeFile(join(d, 'exit'), '3');
+        return null;
+      });
+    try {
+      expect(await gw.getRunPod(name)).toMatchObject({ phase: 'Failed', exitCode: 3 });
+    } finally {
+      owned.mockRestore();
+      await gw.deleteJob(name);
+    }
+  });
+
   it('streams a multi-byte character split across reads intact', async () => {
     const name = `run-${runId()}`;
     const d = join(dir, name);
