@@ -46,7 +46,7 @@ Fills [.github/pull_request_template.md](../../../.github/pull_request_template.
 
 ## Linked spec / issue
 
-Refs #<n><, plan: docs/superpowers/plans/<file>.md>
+Closes #<n><, plan: docs/superpowers/plans/<file>.md>
 
 ## Type of change
 

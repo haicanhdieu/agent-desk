@@ -44,7 +44,7 @@ Create a todo per step.
    - **Judgment calls:** each ruling and its cost if wrong ([git-workflow.md §7 rule 8](../../../docs/conventions/git-workflow.md#7-rules-for-ai-agent-authored-changes)), or "None".
    - Delete Screenshots if there's no UI change. Remove every HTML comment from the final body.
 
-5. **Issue links.** Use `Refs #<n>` for every issue, one per line, deduplicated (`owner/repo#<n>` across repos). **Never** `Closes`/`Fixes`/`Resolves #<n>`: an issue closes only after QA passes ([dev-workflow.md](../../../docs/runbooks/dev-workflow.md)). If the caller asks for a closing keyword, explain this and use `Refs`.
+5. **Issue links.** Use `Closes #<n>` for every issue the PR delivers, one per line, deduplicated (`Closes owner/repo#<n>` across repos), so merging closes it. Never a bare `Refs`/`#<n>` for an issue the PR completes ([dev-workflow.md](../../../docs/runbooks/dev-workflow.md)). Use `Refs #<n>` only for an issue that is related but not finished by this PR.
 
 6. **Labels.**
    - `bug` for a bug fix, `enhancement` for a feature.
@@ -53,11 +53,11 @@ Create a todo per step.
 
 7. **Create or update.** Write the body to a file in your scratchpad (never in the repo) and pass it with `--body-file`. Check for an open PR first: `gh pr list --head <branch> --state open --json number,url,isDraft,baseRefName`.
    - None: `gh pr create --base main --head <branch> --title "<title>" --body-file <file> --label …`. Ready for review unless the caller asks for `--draft`.
-   - One: update it (`gh pr edit <n> --title … --body-file … --add-label …`); never open a second. Keep its draft/ready state and its existing `Refs` lines unless the caller replaces them; retarget the base if it differs.
+   - One: update it (`gh pr edit <n> --title … --body-file … --add-label …`); never open a second. Keep its draft/ready state and its existing `Closes`/`Refs` lines unless the caller replaces them; retarget the base if it differs.
    - Several: ask the caller which one.
    - A 403 or "not found" from `gh` or `git push` means the active account can't write here: retry that one command with `GH_TOKEN=$(gh auth token --user <login>) …`. Never run `gh auth switch` or `gh auth setup-git`, and never print the token.
 
-8. **Verify.** Read it back: `gh pr view <n> --json state,isDraft,baseRefName,title,body,labels,url`. It is open, targets the intended base, the title is Conventional Commits, the body has no `<…>` slot or HTML comment left and no closing keyword, and the labels are set. Fix with `gh pr edit` and recheck; if it still fails, report the failure and no URL. Report the PR URL, draft or ready, labels, the preflight commands with real results (failures included), checks not run, and judgment calls.
+8. **Verify.** Read it back: `gh pr view <n> --json state,isDraft,baseRefName,title,body,labels,url`. It is open, targets the intended base, the title is Conventional Commits, the body has no `<…>` slot or HTML comment left and a `Closes #<n>` line for every issue it delivers, and the labels are set. Fix with `gh pr edit` and recheck; if it still fails, report the failure and no URL. Report the PR URL, draft or ready, labels, the preflight commands with real results (failures included), checks not run, and judgment calls.
 
 Do not approve or merge: only `dev-review` merges, after a clean review and green CI. PRs that change agent rules or CI wait for a human.
 
@@ -65,7 +65,7 @@ Do not approve or merge: only `dev-review` merges, after a clean review and gree
 
 | Thought                                              | Reality                                                         |
 | ---------------------------------------------------- | --------------------------------------------------------------- |
-| "`Closes #n` links it nicely"                        | It closes the issue on merge and skips QA. `Refs #n`.           |
+| "`Refs #n` is enough to link it"                     | It leaves the issue open after merge. Use `Closes #n`.          |
 | "CI will catch it, skip preflight"                   | Preflight runs unless the user explicitly says skip.            |
 | "Docker isn't up, integration tests count as passed" | Unavailable is not passed. Report it and stop.                  |
 | "`format:check` fails, so run `pnpm format`"         | Never repo-wide in a feature PR. `devbox run fix` covers yours. |
