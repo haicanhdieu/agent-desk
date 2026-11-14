@@ -1,6 +1,11 @@
 import styles from './SidePanel.module.css';
 
-export interface MeterProps { value: number; max: number; tone?: 'run' | 'late'; 'aria-label': string }
+export interface MeterProps {
+  value: number;
+  max: number;
+  tone?: 'run' | 'late';
+  'aria-label': string;
+}
 
 export function Meter({ value, max, tone = 'run', 'aria-label': label }: MeterProps) {
   const safeMax = Number.isFinite(max) && max > 0 ? max : 0;

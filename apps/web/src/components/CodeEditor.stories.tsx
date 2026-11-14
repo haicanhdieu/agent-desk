@@ -31,7 +31,13 @@ and checked out at \`main\`. Work only in this repository.
 const meta = {
   title: 'Components/CodeEditor',
   component: CodeEditor,
-  decorators: [(Story) => <div style={{ maxWidth: 760, height: 480, display: 'flex', flexDirection: 'column' }}><Story /></div>],
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: 760, height: 480, display: 'flex', flexDirection: 'column' }}>
+        <Story />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof CodeEditor>;
 export default meta;
 type Story = StoryObj<typeof meta>;

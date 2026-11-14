@@ -13,10 +13,18 @@ export const AsLink: Story = { args: { label: 'Queued', count: 1, on: false, hre
 
 function GroupDemo() {
   const [sel, setSel] = useState('All');
-  const items: [string, number][] = [['All', 7], ['Needs you', 1], ['Running', 1], ['Queued', 1], ['Failed', 1]];
+  const items: [string, number][] = [
+    ['All', 7],
+    ['Needs you', 1],
+    ['Running', 1],
+    ['Queued', 1],
+    ['Failed', 1],
+  ];
   return (
     <FilterChips aria-label="Filter runs by status">
-      {items.map(([l, c]) => <FilterChip key={l} label={l} count={c} on={sel === l} onClick={() => setSel(l)} />)}
+      {items.map(([l, c]) => (
+        <FilterChip key={l} label={l} count={c} on={sel === l} onClick={() => setSel(l)} />
+      ))}
     </FilterChips>
   );
 }

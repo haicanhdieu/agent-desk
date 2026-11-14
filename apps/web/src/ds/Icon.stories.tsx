@@ -24,8 +24,12 @@ function Gallery() {
         <h2>StatusIcon</h2>
         {RUN_STATUSES.map((s) => (
           <div key={s} className="row" style={{ gap: 14 }}>
-            <span className="mono faint" style={{ width: 90 }}>{s}</span>
-            {sizes.map((z) => <StatusIcon key={z} status={s} size={z} />)}
+            <span className="mono faint" style={{ width: 90 }}>
+              {s}
+            </span>
+            {sizes.map((z) => (
+              <StatusIcon key={z} status={s} size={z} />
+            ))}
             <span>{statusTokens[s].label}</span>
           </div>
         ))}

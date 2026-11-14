@@ -9,7 +9,13 @@ const meta = {
     body: 'Removes rules, run history and the stored credential. Skills stay in the repo. The GitHub App stays installed until you remove it on GitHub.',
     actionLabel: 'Delete project',
   },
-  decorators: [(S) => <div style={{ width: 620 }}><S /></div>],
+  decorators: [
+    (S) => (
+      <div style={{ width: 620 }}>
+        <S />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof DangerZone>;
 export default meta;
 type Story = StoryObj<typeof meta>;

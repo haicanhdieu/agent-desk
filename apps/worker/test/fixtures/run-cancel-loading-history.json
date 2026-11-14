@@ -65,12 +65,7 @@
         "identity": "replay-fixture",
         "binaryChecksum": "@temporalio/worker@1.25.0+8dcece8c829b06fb356603b25605134b537a657d4330cc24b84e7e83c040ee9d",
         "sdkMetadata": {
-          "coreUsedFlags": [
-            1,
-            2,
-            3,
-            4
-          ],
+          "coreUsedFlags": [1, 2, 3, 4],
           "sdkName": "temporal-typescript",
           "sdkVersion": "1.25.0"
         },
@@ -163,9 +158,7 @@
         "identity": "replay-fixture",
         "binaryChecksum": "@temporalio/worker@1.25.0+8dcece8c829b06fb356603b25605134b537a657d4330cc24b84e7e83c040ee9d",
         "sdkMetadata": {
-          "langUsedFlags": [
-            2
-          ]
+          "langUsedFlags": [2]
         },
         "meteringMetadata": {}
       }

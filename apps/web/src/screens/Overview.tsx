@@ -6,43 +6,61 @@ import { storyHref, type BoardName } from './storyIds';
 import styles from './Overview.module.css';
 
 const groups: { heading: string; items: { board: BoardName; label: string }[] }[] = [
-  { heading: 'Entry', items: [
-    { board: 'SignIn', label: 'Sign in with GitHub' },
-    { board: 'ProjectsEmpty', label: 'Projects, first-time empty state' },
-    { board: 'Projects', label: 'Projects list' },
-  ] },
-  { heading: 'First-run setup', items: [
-    { board: 'Setup1', label: '1. Connect repository, webhook' },
-    { board: 'Setup1Polling', label: '1. Connect repository, polling, first check' },
-    { board: 'Setup1PollingOk', label: '1. Connect repository, polling connected' },
-    { board: 'Setup2', label: '2. Claude credential' },
-    { board: 'Setup3', label: '3. Skills from templates' },
-    { board: 'Setup4', label: '4. First rule' },
-    { board: 'SetupReady', label: 'Ready to trigger' },
-  ] },
-  { heading: 'Runs', items: [
-    { board: 'Runs', label: 'Runs list, project home' },
-    { board: 'RunsProblems', label: 'Runs list with health warnings and ignored commands' },
-    { board: 'NeedsYou', label: 'How "needs you" reaches you outside the app' },
-  ] },
-  { heading: 'Run detail, live', items: [
-    { board: 'RunStarting', label: 'Starting, before the terminal exists' },
-    { board: 'RunRunning', label: 'Running, with cancel confirmation' },
-    { board: 'RunIdle', label: 'Needs you (idle)' },
-    { board: 'RunReconnect', label: 'Reconnecting, laptop 1280, panel collapsed' },
-  ] },
-  { heading: 'Run detail, ended', items: [
-    { board: 'RunSucceeded', label: 'Succeeded, stored scrollback' },
-    { board: 'RunFailed', label: 'Failed, reason above scrollback' },
-    { board: 'RunTimedOut', label: 'Timed out' },
-    { board: 'RunCancelled', label: 'Cancelled, no scrollback' },
-  ] },
-  { heading: 'Desk', items: [
-    { board: 'DeskSkills', label: 'Skills and Markdown editor' },
-    { board: 'DeskSkillDelete', label: 'Delete skill confirmation' },
-    { board: 'DeskRules', label: 'Routing rules, list and edit' },
-    { board: 'DeskAgent', label: 'Agent and settings, replace credential' },
-  ] },
+  {
+    heading: 'Entry',
+    items: [
+      { board: 'SignIn', label: 'Sign in with GitHub' },
+      { board: 'ProjectsEmpty', label: 'Projects, first-time empty state' },
+      { board: 'Projects', label: 'Projects list' },
+    ],
+  },
+  {
+    heading: 'First-run setup',
+    items: [
+      { board: 'Setup1', label: '1. Connect repository, webhook' },
+      { board: 'Setup1Polling', label: '1. Connect repository, polling, first check' },
+      { board: 'Setup1PollingOk', label: '1. Connect repository, polling connected' },
+      { board: 'Setup2', label: '2. Claude credential' },
+      { board: 'Setup3', label: '3. Skills from templates' },
+      { board: 'Setup4', label: '4. First rule' },
+      { board: 'SetupReady', label: 'Ready to trigger' },
+    ],
+  },
+  {
+    heading: 'Runs',
+    items: [
+      { board: 'Runs', label: 'Runs list, project home' },
+      { board: 'RunsProblems', label: 'Runs list with health warnings and ignored commands' },
+      { board: 'NeedsYou', label: 'How "needs you" reaches you outside the app' },
+    ],
+  },
+  {
+    heading: 'Run detail, live',
+    items: [
+      { board: 'RunStarting', label: 'Starting, before the terminal exists' },
+      { board: 'RunRunning', label: 'Running, with cancel confirmation' },
+      { board: 'RunIdle', label: 'Needs you (idle)' },
+      { board: 'RunReconnect', label: 'Reconnecting, laptop 1280, panel collapsed' },
+    ],
+  },
+  {
+    heading: 'Run detail, ended',
+    items: [
+      { board: 'RunSucceeded', label: 'Succeeded, stored scrollback' },
+      { board: 'RunFailed', label: 'Failed, reason above scrollback' },
+      { board: 'RunTimedOut', label: 'Timed out' },
+      { board: 'RunCancelled', label: 'Cancelled, no scrollback' },
+    ],
+  },
+  {
+    heading: 'Desk',
+    items: [
+      { board: 'DeskSkills', label: 'Skills and Markdown editor' },
+      { board: 'DeskSkillDelete', label: 'Delete skill confirmation' },
+      { board: 'DeskRules', label: 'Routing rules, list and edit' },
+      { board: 'DeskAgent', label: 'Agent and settings, replace credential' },
+    ],
+  },
 ];
 
 const statusNotes: Record<RunStatus, string> = {
@@ -56,7 +74,16 @@ const statusNotes: Record<RunStatus, string> = {
   cancelled: 'Stopped by you',
 };
 
-const statusOrder: RunStatus[] = ['queued', 'starting', 'running', 'idle', 'succeeded', 'failed', 'timed_out', 'cancelled'];
+const statusOrder: RunStatus[] = [
+  'queued',
+  'starting',
+  'running',
+  'idle',
+  'succeeded',
+  'failed',
+  'timed_out',
+  'cancelled',
+];
 
 const surfaces = [
   { label: 'Ground', token: 'bg', cls: styles.ground },
@@ -91,7 +118,11 @@ export function Overview() {
               <h2 className="h3">{g.heading}</h2>
               <ul className={styles.list}>
                 {g.items.map((it) => (
-                  <li key={it.board}><a href={storyHref(it.board)} target="_top">{it.label}</a></li>
+                  <li key={it.board}>
+                    <a href={storyHref(it.board)} target="_top">
+                      {it.label}
+                    </a>
+                  </li>
                 ))}
               </ul>
             </section>
@@ -107,7 +138,9 @@ export function Overview() {
           <div className={styles.statuses}>
             {statusOrder.map((s) => (
               <div key={s} className={`row ${styles.statusRow}`}>
-                <span className={styles.statusCell}><StatusBadge status={s} /></span>
+                <span className={styles.statusCell}>
+                  <StatusBadge status={s} />
+                </span>
                 <span className={`muted ${styles.statusNote}`}>{statusNotes[s]}</span>
               </div>
             ))}
@@ -118,7 +151,9 @@ export function Overview() {
           <div className={`row ${styles.swatches}`}>
             {surfaces.map((s) => (
               <div key={s.label} className={`muted ${styles.swatch} ${s.cls}`}>
-                {s.label}<br /><span className="mono">{tokenValue(s.token)}</span>
+                {s.label}
+                <br />
+                <span className="mono">{tokenValue(s.token)}</span>
               </div>
             ))}
           </div>

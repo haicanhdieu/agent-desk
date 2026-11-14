@@ -3,14 +3,25 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { RUN_STATUSES, statusTokens } from './tokens';
 
-const css = readFileSync(resolve(process.cwd(), 'src/ds/tokens.css'), 'utf8')
-  .replace(/\s+/g, '')
-  .toLowerCase();
+const css = readFileSync(resolve(process.cwd(), 'src/ds/tokens.css'), 'utf8').replace(/\s+/g, '').toLowerCase();
 
 const core: Record<string, string> = {
-  bg: '#15181E', panel: '#1B1F26', raised: '#232832', line: '#2C323D', line2: '#3A4150',
-  text: '#E3E6EB', muted: '#A3ABB8', faint: '#8A93A2', accent: '#93A9FF', term: '#0F1216',
-  run: '#52C4D9', idle: '#F5B83D', ok: '#6CCF96', fail: '#F2776B', late: '#EE9A57', off: '#9AA2AF',
+  bg: '#15181E',
+  panel: '#1B1F26',
+  raised: '#232832',
+  line: '#2C323D',
+  line2: '#3A4150',
+  text: '#E3E6EB',
+  muted: '#A3ABB8',
+  faint: '#8A93A2',
+  accent: '#93A9FF',
+  term: '#0F1216',
+  run: '#52C4D9',
+  idle: '#F5B83D',
+  ok: '#6CCF96',
+  fail: '#F2776B',
+  late: '#EE9A57',
+  off: '#9AA2AF',
 };
 
 describe('tokens.css', () => {

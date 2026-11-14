@@ -8,7 +8,9 @@ export function StepList({ items }: { items: ReactNode[] }) {
     <ol className={styles.stepList}>
       {items.map((body, i) => (
         <li key={i} className={styles.stepItem}>
-          <div><StepNumber n={i + 1} /></div>
+          <div>
+            <StepNumber n={i + 1} />
+          </div>
           <div className={styles.stepBody}>{body}</div>
         </li>
       ))}

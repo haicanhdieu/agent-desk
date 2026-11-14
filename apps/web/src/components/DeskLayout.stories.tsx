@@ -4,7 +4,11 @@ import { AppShell } from './AppShell';
 import { DeskLayout } from './DeskLayout';
 import { TopBar } from './TopBar';
 
-const meta = { title: 'Components/DeskLayout', component: DeskLayout, parameters: { layout: 'fullscreen' } } satisfies Meta<typeof DeskLayout>;
+const meta = {
+  title: 'Components/DeskLayout',
+  component: DeskLayout,
+  parameters: { layout: 'fullscreen' },
+} satisfies Meta<typeof DeskLayout>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 
@@ -17,7 +21,15 @@ export const Skills: Story = {
   render: (args) => (
     <AppShell
       height={520}
-      topBar={<TopBar variant="project" user={{ login: 'kim-hale', initials: 'KH' }} project={{ org: 'harbor-labs', name: 'invoicer-api', repoUrl: '#' }} active="desk" needsYou={1} />}
+      topBar={
+        <TopBar
+          variant="project"
+          user={{ login: 'kim-hale', initials: 'KH' }}
+          project={{ org: 'harbor-labs', name: 'invoicer-api', repoUrl: '#' }}
+          active="desk"
+          needsYou={1}
+        />
+      }
     >
       <DeskLayout {...args} />
     </AppShell>
@@ -26,10 +38,24 @@ export const Skills: Story = {
 
 export const Polling: Story = {
   ...Skills,
-  args: { ...Skills.args, active: 'agent', repo: { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: true, status: connections.pollingOk } },
+  args: {
+    ...Skills.args,
+    active: 'agent',
+    repo: { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: true, status: connections.pollingOk },
+  },
 };
 
 export const PollingFailed: Story = {
   ...Skills,
-  args: { ...Skills.args, active: 'agent', repo: { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: false, status: connections.pollingRevoked } },
+  args: {
+    ...Skills.args,
+    active: 'agent',
+    repo: {
+      org: 'harbor-labs',
+      name: 'invoicer-api',
+      branch: 'main',
+      connected: false,
+      status: connections.pollingRevoked,
+    },
+  },
 };

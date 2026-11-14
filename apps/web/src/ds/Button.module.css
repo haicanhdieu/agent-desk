@@ -1,20 +1,77 @@
 .btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
-  height: 32px; padding: 0 12px; border-radius: var(--radius-6);
-  border: 1px solid var(--line2); background: var(--raised); color: var(--text);
-  font-family: inherit; font-weight: 500; font-size: var(--fs-13_5);
-  cursor: pointer; white-space: nowrap; text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: var(--radius-6);
+  border: 1px solid var(--line2);
+  background: var(--raised);
+  color: var(--text);
+  font-family: inherit;
+  font-weight: 500;
+  font-size: var(--fs-13_5);
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
 }
-.btn:hover { border-color: var(--hover-line); text-decoration: none; }
-.btn.primary { background: var(--text); color: var(--on-primary); border-color: var(--text); }
-.btn.go { background: var(--idle); color: var(--on-idle); border-color: var(--idle); }
-.btn.danger { color: var(--fail); border-color: var(--banner-err-line); background: var(--danger-bg); }
-.btn.solid-danger { background: var(--fail); color: var(--on-danger); border-color: var(--fail); }
-.btn.ghost { background: transparent; border-color: transparent; color: var(--muted); }
-.btn.ghost:hover { color: var(--text); border-color: var(--line2); }
-.btn:disabled { opacity: .45; cursor: not-allowed; }
-.lg { height: 40px; padding: 0 18px; font-size: var(--fs-14_5); }
-.sm { height: 26px; padding: 0 9px; font-size: var(--fs-12_5); }
-.iconbtn { width: 32px; padding: 0; }
-.iconbtn.sm { width: 26px; padding: 0; }
-.iconbtn.lg { width: 40px; padding: 0; }
+.btn:hover {
+  border-color: var(--hover-line);
+  text-decoration: none;
+}
+.btn.primary {
+  background: var(--text);
+  color: var(--on-primary);
+  border-color: var(--text);
+}
+.btn.go {
+  background: var(--idle);
+  color: var(--on-idle);
+  border-color: var(--idle);
+}
+.btn.danger {
+  color: var(--fail);
+  border-color: var(--banner-err-line);
+  background: var(--danger-bg);
+}
+.btn.solid-danger {
+  background: var(--fail);
+  color: var(--on-danger);
+  border-color: var(--fail);
+}
+.btn.ghost {
+  background: transparent;
+  border-color: transparent;
+  color: var(--muted);
+}
+.btn.ghost:hover {
+  color: var(--text);
+  border-color: var(--line2);
+}
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.lg {
+  height: 40px;
+  padding: 0 18px;
+  font-size: var(--fs-14_5);
+}
+.sm {
+  height: 26px;
+  padding: 0 9px;
+  font-size: var(--fs-12_5);
+}
+.iconbtn {
+  width: 32px;
+  padding: 0;
+}
+.iconbtn.sm {
+  width: 26px;
+  padding: 0;
+}
+.iconbtn.lg {
+  width: 40px;
+  padding: 0;
+}

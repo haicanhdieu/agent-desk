@@ -19,13 +19,29 @@ export function RuleRow({ rule, stats, warning, selected, onToggle, onSelect, on
     </span>
   );
   return (
-    <div className={[styles.ruleRow, selected && styles.selected].filter(Boolean).join(' ')} aria-current={selected ? 'true' : undefined}>
+    <div
+      className={[styles.ruleRow, selected && styles.selected].filter(Boolean).join(' ')}
+      aria-current={selected ? 'true' : undefined}
+    >
       <Toggle aria-label={`Enable rule /${rule.command}`} checked={rule.enabled} onChange={onToggle} />
       <div className={styles.ruleBody}>
         {onSelect ? (
-          <button type="button" className={styles.ruleSelect} aria-label={`Edit rule /${rule.command}`} onClick={onSelect}>{sentence}</button>
-        ) : sentence}
-        {warning && <InlineStatus tone="idle" icon={<Icon name="warning" size={14} />}>{warning}</InlineStatus>}
+          <button
+            type="button"
+            className={styles.ruleSelect}
+            aria-label={`Edit rule /${rule.command}`}
+            onClick={onSelect}
+          >
+            {sentence}
+          </button>
+        ) : (
+          sentence
+        )}
+        {warning && (
+          <InlineStatus tone="idle" icon={<Icon name="warning" size={14} />}>
+            {warning}
+          </InlineStatus>
+        )}
       </div>
       <span className={styles.stats}>{stats}</span>
       <IconButton icon="more" aria-label={`More actions for /${rule.command}`} onClick={onMore} />

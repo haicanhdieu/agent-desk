@@ -19,8 +19,8 @@ export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
         <div className={styles.signInCopy}>
           <h1>Hand GitHub issues to Claude Code, and watch every run live.</h1>
           <p className={`muted ${styles.lead}`}>
-            Comment a command on an issue. Agent Desk starts the matching skill in its own container, links the run
-            back to the ticket, and lets you step into the terminal when the agent needs you.
+            Comment a command on an issue. Agent Desk starts the matching skill in its own container, links the run back
+            to the ticket, and lets you step into the terminal when the agent needs you.
           </p>
           <div className={styles.cta}>
             {error && <Banner tone="err" live="assertive" title={error} />}
@@ -29,7 +29,13 @@ export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
               size="lg"
               icon="github"
               href={signInHref}
-              onClick={onSignIn && ((e) => { e.preventDefault(); onSignIn(); })}
+              onClick={
+                onSignIn &&
+                ((e) => {
+                  e.preventDefault();
+                  onSignIn();
+                })
+              }
             >
               Sign in with GitHub
             </Button>
@@ -41,11 +47,15 @@ export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
         <p className={`faint ${styles.poc}`}>Proof of concept. Single user per project.</p>
       </div>
       <section className={styles.signInRight} aria-labelledby="two-runs">
-        <p id="two-runs" className={`muted ${styles.kicker}`}>One ticket, two runs</p>
+        <p id="two-runs" className={`muted ${styles.kicker}`}>
+          One ticket, two runs
+        </p>
         <StepList
           items={[
             <>
-              <span>You comment <CommandChip>/code-build</CommandChip> on</span>
+              <span>
+                You comment <CommandChip>/code-build</CommandChip> on
+              </span>
               <StepLine>
                 <TicketRef kind="issue" number={142} />
                 <b style={{ fontWeight: 600 }}>Export invoices as CSV from the billing page</b>
@@ -56,9 +66,13 @@ export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
               <span className="muted">Run 60 builds the feature and opens</span>
               <TicketRef kind="pr" number={148} />
             </StepLine>,
-            <span>The agent comments <CommandChip>/code-review</CommandChip> on the PR, which starts the next run</span>,
+            <span>
+              The agent comments <CommandChip>/code-review</CommandChip> on the PR, which starts the next run
+            </span>,
             <StepLine>
-              <StatusBadge status="idle" variant="pill">Needs you</StatusBadge>
+              <StatusBadge status="idle" variant="pill">
+                Needs you
+              </StatusBadge>
               <span className="muted">Run 62 asks you one question in the terminal</span>
             </StepLine>,
           ]}

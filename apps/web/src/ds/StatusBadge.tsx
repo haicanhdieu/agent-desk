@@ -13,7 +13,8 @@ export interface StatusBadgeProps {
 export function StatusBadge({ status, variant = 'text', size = 14, children }: StatusBadgeProps) {
   const token = statusTokens[status] ?? statusTokens.queued;
   const cls = [styles.st, styles[`st-${status}`] ?? styles['st-queued'], variant === 'pill' && styles['st-pill']]
-    .filter(Boolean).join(' ');
+    .filter(Boolean)
+    .join(' ');
   const solid = status === 'idle' && variant === 'pill';
   return (
     <span className={cls} title={`status: ${status}`}>

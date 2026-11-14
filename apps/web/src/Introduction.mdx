@@ -10,12 +10,12 @@ source of truth; start from **Screens / Overview** for an index of all 24 boards
 
 ## Where things live
 
-| Layer | Folder | Story title | Put it here when |
-| --- | --- | --- | --- |
-| Tokens | `src/ds/tokens.css` | `Foundations/<Topic>` | It is a colour, radius, type size or other design value. |
-| Primitive | `src/ds/` | `Primitives/<Name>` | It is a single control with no product knowledge: button, badge, input, dialog. |
-| Composite | `src/components/` | `Components/<Name>` | It composes primitives and knows the product: run row, side panel, top bar. |
-| Screen | `src/screens/` | `Screens/<Group>` | It is one page or state of the prototype, assembled from composites and mock data. |
+| Layer     | Folder              | Story title           | Put it here when                                                                   |
+| --------- | ------------------- | --------------------- | ---------------------------------------------------------------------------------- |
+| Tokens    | `src/ds/tokens.css` | `Foundations/<Topic>` | It is a colour, radius, type size or other design value.                           |
+| Primitive | `src/ds/`           | `Primitives/<Name>`   | It is a single control with no product knowledge: button, badge, input, dialog.    |
+| Composite | `src/components/`   | `Components/<Name>`   | It composes primitives and knows the product: run row, side panel, top bar.        |
+| Screen    | `src/screens/`      | `Screens/<Group>`     | It is one page or state of the prototype, assembled from composites and mock data. |
 
 Import primitives from `@/ds`, composites from `@/components`, mock data from `@/mocks`. Primitives never import from
 `components/` or `screens/`.

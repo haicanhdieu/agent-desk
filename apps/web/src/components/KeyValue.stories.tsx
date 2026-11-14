@@ -1,7 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { KeyValue } from './KeyValue';
 
-const meta = { title: 'Components/KeyValue', component: KeyValue, decorators: [(S) => <div style={{ width: 312 }}><S /></div>] } satisfies Meta<typeof KeyValue>;
+const meta = {
+  title: 'Components/KeyValue',
+  component: KeyValue,
+  decorators: [
+    (S) => (
+      <div style={{ width: 312 }}>
+        <S />
+      </div>
+    ),
+  ],
+} satisfies Meta<typeof KeyValue>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

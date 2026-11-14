@@ -22,7 +22,11 @@ const { privateKey } = generateKeyPairSync('rsa', {
 });
 const clock = { now: () => new Date('2026-11-12T10:30:00Z') };
 
+// Captured before any test fakes timers, so a test can still wait in real time.
+const realSetTimeout = globalThis.setTimeout;
+
 let agent: MockAgent;
+let fetchFn: typeof fetch;
 let clients: GithubClients;
 const gh = () => agent.get('https://api.github.com');
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -30,8 +34,7 @@ const JSON_HEADERS = { 'content-type': 'application/json' };
 beforeEach(() => {
   agent = new MockAgent();
   agent.disableNetConnect();
-  const fetchFn: typeof fetch = (input, init) =>
-    undiciFetch(input as never, { ...(init as object), dispatcher: agent }) as never;
+  fetchFn = (input, init) => undiciFetch(input as never, { ...(init as object), dispatcher: agent }) as never;
   clients = new GithubClients({ appId: '1', privateKey, fetch: fetchFn });
 });
 afterEach(async () => {
@@ -206,14 +209,23 @@ describe('github pollEvents', () => {
         .intercept({ path: path(SINCE), method: 'GET' })
         .reply(401, '{"message":"Bad credentials"}', { headers: JSON_HEADERS })
         .persist();
+      // A slow runner: every request takes real time, longer than a handful of event-loop turns.
+      const slowClients = new GithubClients({
+        appId: '1',
+        privateKey,
+        fetch: (input, init) => new Promise<void>((r) => realSetTimeout(r, 25)).then(() => fetchFn(input, init)),
+      });
       let result: unknown;
-      const pending = board()
+      const pending = new GithubBoardAdapter(slowClients, clock)
         .pollEvents(project, { since: SINCE, etag: null })
         .then((r) => (result = r));
-      // Real I/O happens between the faked retry timers, so alternate: let I/O run, then move the clock.
-      for (let i = 0; i < 100 && result === undefined; i++) {
+      // Real I/O happens between the faked retry timers: let it run, and move the clock only when a retry timer is
+      // waiting. Bounded by real time, not by a loop count, so a slow runner cannot end the loop early.
+      const deadline = performance.now() + 20_000;
+      while (result === undefined) {
+        if (performance.now() > deadline) throw new Error('pollEvents did not settle within 20 s of real time');
         await new Promise((r) => setImmediate(r));
-        await vi.advanceTimersByTimeAsync(1000);
+        if (vi.getTimerCount() > 0) await vi.advanceTimersByTimeAsync(1000);
       }
       await pending;
       expect(result).toEqual({ kind: 'revoked' });

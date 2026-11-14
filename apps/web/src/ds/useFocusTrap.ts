@@ -14,8 +14,7 @@ export interface FocusTrapOptions {
   onEscape?: () => void;
 }
 
-const focusables = (root: HTMLElement) =>
-  Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE));
+const focusables = (root: HTMLElement) => Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE));
 
 /** Manual focus management shared by Dialog (modal) and Popover (non-modal). */
 export function useFocusTrap(ref: RefObject<HTMLElement | null>, opts: FocusTrapOptions) {

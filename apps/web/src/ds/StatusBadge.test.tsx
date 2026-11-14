@@ -16,7 +16,11 @@ describe('StatusBadge', () => {
   });
 
   it('shows children instead of the label', () => {
-    render(<StatusBadge status="idle" variant="pill">1 run</StatusBadge>);
+    render(
+      <StatusBadge status="idle" variant="pill">
+        1 run
+      </StatusBadge>,
+    );
     expect(screen.getByText('1 run')).toBeInTheDocument();
     expect(screen.queryByText('Needs you')).toBeNull();
   });

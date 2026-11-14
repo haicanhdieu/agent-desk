@@ -16,12 +16,22 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const artboard = (height: number): NonNullable<Story['decorators']> => [
-  (S) => <div style={{ width: 1440, height }}><AppShell height={height} topBar={null}><S /></AppShell></div>,
+  (S) => (
+    <div style={{ width: 1440, height }}>
+      <AppShell height={height} topBar={null}>
+        <S />
+      </AppShell>
+    </div>
+  ),
 ];
 
 const project = projects[0];
 const common = {
-  project, user, needsYou: 1, slots: { used: 2, total: 2 }, today: 'Today: 9 runs, 1 failed',
+  project,
+  user,
+  needsYou: 1,
+  slots: { used: 2, total: 2 },
+  today: 'Today: 9 runs, 1 failed',
 };
 const counts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 6, all: 9, ignored: 3 };
 
@@ -38,7 +48,8 @@ export const Runs: Story = {
       needsYouRun={{
         run: runs.find((r) => r.id === 62)!,
         askedAgo: '3 minutes ago',
-        slotNote: 'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
+        slotNote:
+          'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
         href: '/runs/62',
       }}
     />
@@ -46,7 +57,9 @@ export const Runs: Story = {
 };
 
 const credentialWarning: RunsProblemsWarning = {
-  tone: 'warn', icon: 'key', title: 'The Claude credential was rejected',
+  tone: 'warn',
+  icon: 'key',
+  title: 'The Claude credential was rejected',
   body: 'Run 56 failed with 401 at 11:29. New runs will fail the same way until you replace the credential.',
   actions: [{ label: 'Replace credential', href: '/desk/agent' }],
 };

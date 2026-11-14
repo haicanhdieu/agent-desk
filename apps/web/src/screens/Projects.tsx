@@ -32,13 +32,17 @@ export function Projects({ user, projects, newHref, projectHref = () => '/runs',
       <main className={styles.listMain}>
         <div className={styles.listHead}>
           <h1>Projects</h1>
-          <Button variant="primary" icon="plus" href={newHref}>New project</Button>
+          <Button variant="primary" icon="plus" href={newHref}>
+            New project
+          </Button>
         </div>
         <p className={`muted ${styles.listIntro}`}>
           After sign-in you land on the runs of the project you used last. This list is one click away on the logo.
         </p>
         <DataTable columns={columns}>
-          {projects.map((p) => <ProjectRow key={p.id} project={p} href={projectHref(p)} switchToPollingHref={switchToPollingHref?.(p)} />)}
+          {projects.map((p) => (
+            <ProjectRow key={p.id} project={p} href={projectHref(p)} switchToPollingHref={switchToPollingHref?.(p)} />
+          ))}
         </DataTable>
       </main>
     </>

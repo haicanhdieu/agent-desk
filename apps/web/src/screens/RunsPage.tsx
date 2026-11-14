@@ -34,7 +34,18 @@ const chips: { filter: RunsFilter; label: string }[] = [
 
 /** Top bar plus the single <main> shared by the Runs boards: header, search, chips. */
 export function RunsPage({
-  project, user, needsYou, slots, today, filter, counts, onFilter, filterHref, links, banners, children,
+  project,
+  user,
+  needsYou,
+  slots,
+  today,
+  filter,
+  counts,
+  onFilter,
+  filterHref,
+  links,
+  banners,
+  children,
 }: RunsPageProps) {
   return (
     <>
@@ -54,14 +65,22 @@ export function RunsPage({
             <span className={`muted ${styles.runsMeta}`}>
               <span className={styles.runsSlots}>
                 <Icon name="play" size={12} />
-                <span>Slots <b className={styles.slotNum}>{slots.used} of {slots.total}</b> in use</span>
+                <span>
+                  Slots{' '}
+                  <b className={styles.slotNum}>
+                    {slots.used} of {slots.total}
+                  </b>{' '}
+                  in use
+                </span>
               </span>
               <span>{today}</span>
             </span>
           </div>
           <div className={styles.runsTools}>
             <SearchInput placeholder="Ticket number or title" aria-label="Search runs" />
-            <Button icon="rule" aria-pressed="true">Grouped by ticket</Button>
+            <Button icon="rule" aria-pressed="true">
+              Grouped by ticket
+            </Button>
           </div>
         </div>
         <div className={styles.chipRow}>

@@ -36,5 +36,9 @@ export function FilterChip({ label, count, icon, on, onClick, href }: FilterChip
 }
 
 export function FilterChips({ 'aria-label': ariaLabel, children }: { 'aria-label': string; children: ReactNode }) {
-  return <div role="group" aria-label={ariaLabel} className={styles.filters}>{children}</div>;
+  return (
+    <div role="group" aria-label={ariaLabel} className={styles.filters}>
+      {children}
+    </div>
+  );
 }

@@ -16,22 +16,34 @@ export function ProjectRow({ project: p, href, onMore, switchToPollingHref = '#'
   return (
     <tr>
       <td className={styles.projectCell}>
-        <AppLink href={href} className={styles.name}>{p.name}</AppLink>
-        <span className={styles.repo} title={p.repo}>{p.repo}</span>
+        <AppLink href={href} className={styles.name}>
+          {p.name}
+        </AppLink>
+        <span className={styles.repo} title={p.repo}>
+          {p.repo}
+        </span>
       </td>
       <td className={styles.connection}>
         {tone === 'ok' && (
           <span className={styles.okRow}>
-            <span title="status: succeeded" className={styles.glyph}><StatusIcon status="succeeded" size={12} title="status: succeeded" /></span>
+            <span title="status: succeeded" className={styles.glyph}>
+              <StatusIcon status="succeeded" size={12} title="status: succeeded" />
+            </span>
             {text}
           </span>
         )}
         {tone === 'warn' && (
           <>
-            <InlineStatus tone="idle" icon={<Icon name="warning" size={14} />}>{text}</InlineStatus>
+            <InlineStatus tone="idle" icon={<Icon name="warning" size={14} />}>
+              {text}
+            </InlineStatus>
             {mode === 'webhook' && (
               <span className={styles.connAction}>
-                <Button size="sm" href={switchToPollingHref} aria-label={`${connectionCopy.switchToPolling} for ${p.name}`}>
+                <Button
+                  size="sm"
+                  href={switchToPollingHref}
+                  aria-label={`${connectionCopy.switchToPolling} for ${p.name}`}
+                >
                   {connectionCopy.switchToPolling}
                 </Button>
               </span>
@@ -41,16 +53,24 @@ export function ProjectRow({ project: p, href, onMore, switchToPollingHref = '#'
         {tone === 'err' && (
           <InlineStatus
             tone="err"
-            icon={<span title="status: failed" className={styles.glyph}><StatusIcon status="failed" size={12} title="status: failed" /></span>}
+            icon={
+              <span title="status: failed" className={styles.glyph}>
+                <StatusIcon status="failed" size={12} title="status: failed" />
+              </span>
+            }
           >
             {text}
           </InlineStatus>
         )}
       </td>
       <td>
-        {p.needsYou > 0
-          ? <StatusBadge status="idle" variant="pill">{p.needsYou} {p.needsYou === 1 ? 'run' : 'runs'}</StatusBadge>
-          : <span className={styles.noneText}>None</span>}
+        {p.needsYou > 0 ? (
+          <StatusBadge status="idle" variant="pill">
+            {p.needsYou} {p.needsYou === 1 ? 'run' : 'runs'}
+          </StatusBadge>
+        ) : (
+          <span className={styles.noneText}>None</span>
+        )}
       </td>
       <td className="num">{p.running}</td>
       <td className="num">{p.queued}</td>
