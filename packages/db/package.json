@@ -11,7 +11,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:unit": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests",
+    "test:integration": "vitest run .int.test.ts --passWithNoTests"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.10.0",

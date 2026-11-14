@@ -12,7 +12,9 @@
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
     "test": "vitest run",
     "start": "tsx src/main.ts",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:unit": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests",
+    "test:integration": "vitest run .int.test.ts --passWithNoTests"
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",
