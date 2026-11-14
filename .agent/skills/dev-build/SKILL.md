@@ -127,7 +127,7 @@ Self-review the diff against [code-review-checklist.md](../../../docs/convention
 Invoke the **`create-pr`** skill ([create-pr/SKILL.md](../create-pr/SKILL.md)). It owns the title, body template, labels, local preflight and the `gh pr create` call; do not write a PR body or run `gh pr create` yourself. Run it from the worktree. Pass it:
 
 - head branch `<branch>`, base `main`, and push authorization (`git push -u origin <branch>` is allowed);
-- type `bugfix` or `feature` (from step 2), `agent-authored: true`, and the issue number (it writes `Refs #<n>`, never `Closes`/`Fixes`: QA closes the issue);
+- type `bugfix` or `feature` (from step 2), `agent-authored: true`, and the issue number (it writes `Closes #<n>`, so merging closes the issue);
 - the summary, root cause (bugs), verification results from step 6, the subagents' JUDGMENT CALLS and your own, and the plan path for a feature.
 
 Keep the PR's "Authored by an AI agent (`dev-build`)" attribution out of the body; `agent-authored` is the label. If `create-pr` stops on a failed preflight, treat it like a step 6 failure.
@@ -152,7 +152,7 @@ These hold even when the user says to hurry or to skip a step. Say so in your re
 | "Tests mostly pass; open the PR and note it"       | Fix or block. A PR is only opened on green verification.  |
 | "There's already a branch for this, I'll reuse it" | Someone owns it. Stop and report (step 1).                |
 | "I'll branch from my current checkout"             | Branch from freshly fetched `origin/main`, in a worktree. |
-| "`Closes #n` links the PR nicely"                  | It closes the issue on merge and skips QA. `Refs #n`.     |
+| "`Refs #n` links the PR well enough"               | It leaves the issue open after merge. `Closes #n`.        |
 | "The user said skip the test / just build it"      | The rules still apply. Explain why in the report.         |
 | "I'll ask in the terminal and wait"                | Post on the issue, set Blocked, stop.                     |
 | "Small fix nearby, I'll include it"                | Out of scope. Mention it in the PR instead.               |

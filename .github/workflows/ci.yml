@@ -16,6 +16,32 @@ env:
   TZ: UTC
 
 jobs:
+  # Docs-only PRs (Markdown only) skip the code gates; format still runs. The workflow itself always runs so the
+  # required `gate / ci-passed` check is always reported. See scripts/ci-changes.ts for the rule (fails safe to "code").
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      code: ${{ steps.diff.outputs.code }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            echo "code=true" >> "$GITHUB_OUTPUT"
+          else
+            git fetch --no-tags origin "$BASE_REF"
+            pnpm --silent exec tsx scripts/ci-changes.ts "origin/$BASE_REF" >> "$GITHUB_OUTPUT"
+          fi
+          cat "$GITHUB_OUTPUT"
+
   format:
     name: static / format
     runs-on: ubuntu-24.04
@@ -26,6 +52,8 @@ jobs:
       - run: pnpm format:check
 
   lint:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: static / lint
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -35,6 +63,8 @@ jobs:
       - run: pnpm lint
 
   typecheck:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: static / typecheck
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -44,6 +74,8 @@ jobs:
       - run: pnpm typecheck
 
   unit:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: test / unit
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -90,6 +122,8 @@ jobs:
           retention-days: 7
 
   plan:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     name: test / plan
     runs-on: ubuntu-24.04
     timeout-minutes: 20
@@ -217,15 +251,22 @@ jobs:
   gate:
     name: gate / ci-passed
     if: always()
-    needs: [format, lint, typecheck, unit, plan, integration, coverage]
+    needs: [changes, format, lint, typecheck, unit, plan, integration, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
-      - name: Every needed job must have succeeded
+      - name: Every needed job must have succeeded (code gates may be skipped only for docs-only changes)
         env:
-          RESULTS: ${{ join(needs.*.result, ' ') }}
+          CODE: ${{ needs.changes.outputs.code }}
+          ALWAYS: ${{ needs.changes.result }} ${{ needs.format.result }}
+          CODE_GATES: ${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.unit.result }} ${{ needs.plan.result }} ${{ needs.integration.result }} ${{ needs.coverage.result }}
         run: |
-          echo "needed job results: $RESULTS"
-          for r in $RESULTS; do
+          echo "code=$CODE always: $ALWAYS code gates: $CODE_GATES"
+          for r in $ALWAYS; do
             [ "$r" = "success" ] || { echo "::error::a needed job ended as '$r'"; exit 1; }
+          done
+          for r in $CODE_GATES; do
+            [ "$r" = "success" ] && continue
+            [ "$r" = "skipped" ] && [ "$CODE" = "false" ] && continue
+            echo "::error::a code gate ended as '$r' (code=$CODE)"; exit 1
           done

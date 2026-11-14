@@ -132,7 +132,7 @@ If `main` moved and the merge is refused as out of date, go back to step 5.
 
 ### 7. Hand off to QA
 
-1. If the PR used `Closes`/`Fixes` and the issue was closed by the merge, reopen it: `gh issue reopen <n>`. QA closes it, not the merge.
+1. The merge closes the issue through the PR's `Closes #<n>`. If it is still open (the PR body lacks a closing keyword), close it with `gh issue close <n>`. QA reopens it if the test fails.
 2. `board.sh status <n> QA`.
 3. Post the **Merged** comment from [comments.md](comments.md) on the issue.
 4. Remove the worktree: `git worktree remove "$root-wt/pr-<pr>"`.
