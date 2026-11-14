@@ -3,8 +3,12 @@ import { AppLink, Button, CountBadge, Icon, InlineStatus, Popover, Skeleton } fr
 import styles from './Chrome.module.css';
 
 /** What the switcher menu shows: the projects, or why it has none yet. */
-export type ProjectSwitchMenu =
-  { status: 'loading' } | { status: 'error'; onRetry?(): void } | { status: 'ready'; items: ProjectMenuProps['items'] };
+export type ProjectSwitchMenu = (
+  { status: 'loading' } | { status: 'error'; onRetry?(): void } | { status: 'ready'; items: ProjectMenuProps['items'] }
+) & {
+  /** Called when the menu opens, so the list can be fetched lazily. */
+  onOpen?(): void;
+};
 
 export interface ProjectSwitchProps {
   org: string;
@@ -55,6 +59,11 @@ function ProjectSwitchWithMenu({ org, project, menu }: { org: string; project: s
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
+  const { onOpen } = menu;
+
+  useEffect(() => {
+    if (open) onOpen?.();
+  }, [open, onOpen]);
 
   // An outside press closes the menu; Escape is handled by the Popover, which also returns focus to the button.
   useEffect(() => {

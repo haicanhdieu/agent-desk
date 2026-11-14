@@ -30,6 +30,15 @@ describe('ProjectSwitch menu', () => {
     expect(button()).not.toHaveAttribute('aria-expanded');
   });
 
+  it('calls onOpen when the menu opens, not before', async () => {
+    const onOpen = vi.fn();
+    const user = setup({ status: 'loading', onOpen });
+    expect(onOpen).not.toHaveBeenCalled();
+    await user.click(button());
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('status')).toHaveTextContent('Loading projects');
+  });
+
   it('click toggles the menu and aria-expanded', async () => {
     const user = setup(ready);
     expect(button()).toHaveAttribute('aria-expanded', 'false');

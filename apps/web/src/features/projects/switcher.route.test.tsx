@@ -9,6 +9,18 @@ const base = `/o/alice/p/${ids.project.invoicerApi}`;
 const switcher = () => screen.getByRole('button', { name: /^Switch project/ });
 
 describe('project switcher in the top bar', () => {
+  it('does not request the project list until the menu opens', async () => {
+    const { user } = await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    expect(mockDb.requests('GET', '/api/projects')).toBe(0);
+
+    await user.click(switcher());
+
+    const menu = await screen.findByRole('dialog', { name: 'Projects' });
+    await within(menu).findAllByRole('link');
+    expect(mockDb.requests('GET', '/api/projects')).toBe(1);
+  });
+
   it('opens a list of the org projects, marks the current one and links to the others', async () => {
     const { user } = await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
