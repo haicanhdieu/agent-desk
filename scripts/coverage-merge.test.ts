@@ -158,7 +158,13 @@ describe('combined cobertura report', () => {
     writeArtifact(artifacts, 'coverage-api-unit', fileCov(`${RUNNER}/apps/api/src/b.ts`, 2, [1]));
     mergeArtifacts(artifacts, out);
     const xml = readFileSync(path.join(out, 'cobertura.xml'), 'utf8');
-    expect(xml).not.toContain(RUNNER);
+    // `<source>` is the machine's cwd (on a runner that is RUNNER itself), so only the per-file paths are asserted.
+    const filenames = [...xml.matchAll(/filename="([^"]+)"/g)].map((m) => m[1]);
+    expect(filenames.sort()).toEqual(['apps/api/src/b.ts', 'packages/core/src/a.ts']);
+    for (const name of filenames) {
+      expect(name?.startsWith('/')).toBe(false);
+      expect(name).not.toContain(RUNNER);
+    }
     expect(lineHits(xml, 'packages/core/src/a.ts')).toEqual({ '1': 1, '2': 1, '3': 0 });
     expect(lineHits(xml, 'apps/api/src/b.ts')).toEqual({ '1': 0, '2': 1 });
   });
