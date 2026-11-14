@@ -20,6 +20,7 @@ devbox run dev        # .env + pnpm install, then postgres, temporal, migrate, a
 devbox run stop
 devbox run fix        # prettier --write + eslint --fix on changed files only; re-stages staged files
 devbox run check      # format:check + lint + typecheck + test
+pnpm test:unit:coverage  # unit coverage report per package
 devbox run e2e-local  # e2e against the running stack
 devbox run db-reset   # wipe local Postgres/Temporal/fake state
 devbox run help
@@ -50,6 +51,7 @@ devbox run help
   4. Never run the repo-wide `pnpm format` in a feature commit.
 - **Before saying done:** run `pnpm typecheck` and `pnpm test` for the packages you touched (or `devbox run check`) and report the real results, failures included. `format:check` fails repo-wide until the one-time reformat lands; `fix` covers your files. For e2e, see [tests-and-e2e.md](docs/runbooks/tests-and-e2e.md).
 - **Commits:** Conventional Commits with the package as scope (`feat(contracts): …`). PRs stay around 400 lines or fewer, one concern each.
+- **Coverage gate:** CI fails on per-package floors, a drop below `coverage-baseline.json`, under 80% coverage on changed lines, and per-group floors on sensitive paths. Never lower thresholds or the baseline, add ignore comments or widen coverage excludes to make it pass; a justified exception goes in a `## Coverage exceptions` section of the PR body. Those protected files wait for a human ([testing.md](docs/conventions/testing.md) §10).
 - **Sensitive paths** (run Job/runner, webhooks, secrets/tokens, auth, terminal, RLS/`withOrg`, migrations) get the `review:sensitive` label and a high-effort security review. Only the `dev-review` skill merges, after its review is clean and CI is green; PRs that change agent rules or CI wait for a human.
 - **Skill subagents** are spawned by tier (`high`, `medium`, `low`), never by model name. The models for each tier are set in [`.agent/models.json`](.agent/models.json) ([agent-model-tiers.md](docs/runbooks/agent-model-tiers.md)).
 - **Self-review:** go through [code-review-checklist.md](docs/conventions/code-review-checklist.md) and fill in the PR template.
