@@ -1,0 +1,93 @@
+// Guard: tests that need Docker (they reach `@agentdesk/db/testing`, which starts Testcontainers Postgres)
+// must be named `*.int.test.ts`; `*.int.test.ts` files must actually need it.
+// Usage: tsx scripts/check-test-split.ts   (exit 1 and list offenders when the split is wrong)
+import { execFileSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { z } from 'zod';
+
+const DOCKER_SPECS = new Set(['@agentdesk/db/testing', '@testcontainers/postgresql']);
+// The same module, reached by relative path from inside packages/db.
+const DOCKER_FILE = 'packages/db/src/testing.ts';
+const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g;
+
+const isTest = (p: string): boolean => /\.test\.tsx?$/.test(p);
+const isInt = (p: string): boolean => /\.int\.test\.tsx?$/.test(p);
+
+function resolveRelative(from: string, spec: string, files: Record<string, string>): string | undefined {
+  const base = path.posix.join(path.posix.dirname(from), spec.replace(/\.(?:js|ts|tsx)$/, ''));
+  return [`${base}.ts`, `${base}.tsx`, `${base}/index.ts`, `${base}/index.tsx`].find((c) => c in files);
+}
+
+function reachesDocker(start: string, files: Record<string, string>): boolean {
+  const seen = new Set<string>();
+  const stack = [start];
+  while (stack.length > 0) {
+    const file = stack.pop();
+    if (file === undefined || seen.has(file)) continue;
+    seen.add(file);
+    if (file === DOCKER_FILE) return true;
+    for (const match of (files[file] ?? '').matchAll(IMPORT_RE)) {
+      const spec = match[1];
+      if (spec === undefined) continue;
+      if (DOCKER_SPECS.has(spec)) return true;
+      if (spec.startsWith('.')) {
+        const next = resolveRelative(file, spec, files);
+        if (next !== undefined) stack.push(next);
+      }
+    }
+  }
+  return false;
+}
+
+/** `files` maps repo-relative path to source. Returns tests whose name disagrees with whether they need Docker. */
+export function findMisnamed(files: Record<string, string>): string[] {
+  return Object.keys(files)
+    .filter(isTest)
+    .filter((file) => reachesDocker(file, files) !== isInt(file))
+    .sort();
+}
+
+/** Short package names (`apps/api` -> `api`) that own integration tests but differ from the keys of the shard map. */
+export function findShardGaps(paths: string[], shardPackages: string[]): string[] {
+  const owners = new Set(
+    paths
+      .filter(isInt)
+      .map((p) => p.split('/')[1])
+      .filter((name): name is string => name !== undefined),
+  );
+  const listed = new Set(shardPackages);
+  return [
+    ...new Set([...owners].filter((o) => !listed.has(o)).concat([...listed].filter((l) => !owners.has(l)))),
+  ].sort();
+}
+
+function main(): void {
+  const tracked = execFileSync(
+    'git',
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', 'apps', 'packages', 'images'],
+    {
+      encoding: 'utf8',
+    },
+  )
+    .split('\0')
+    .filter((f) => /\.tsx?$/.test(f));
+  const files: Record<string, string> = {};
+  for (const f of tracked) files[f] = readFileSync(f, 'utf8');
+  const offenders = findMisnamed(files);
+  const shardMap: unknown = JSON.parse(readFileSync('.github/ci-shards.json', 'utf8'));
+  const gaps = findShardGaps(Object.keys(files), Object.keys(z.record(z.string(), z.number()).parse(shardMap)));
+  for (const pkg of gaps) {
+    console.error(`test-split: .github/ci-shards.json and the *.int.test.ts files disagree about package "${pkg}"`);
+  }
+  for (const f of offenders) {
+    const msg = isInt(f)
+      ? 'is named *.int.test.ts but never reaches @agentdesk/db/testing'
+      : 'reaches @agentdesk/db/testing (Docker) but is not named *.int.test.ts';
+    console.error(`test-split: ${f} ${msg}`);
+  }
+  process.exit(offenders.length + gaps.length > 0 ? 1 : 0);
+}
+
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) main();

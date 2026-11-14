@@ -9,7 +9,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "test:unit": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests",
+    "test:integration": "vitest run .int.test.ts --passWithNoTests"
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",

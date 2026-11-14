@@ -90,14 +90,17 @@ Link the doc from the PR. Reviewers block a PR whose behavior isn't described in
 
 `ci.yml` runs on every PR and every push to `main`. The order matches the local commands; run them before pushing.
 
-| Step             | Command                                                                       | Fails on                                                      |
-| ---------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------- |
-| 1. Format        | `pnpm format:check`                                                           | Any file not Prettier-formatted (fix with `pnpm format`)      |
-| 2. Lint          | `pnpm lint`                                                                   | Lint errors                                                   |
-| 3. Typecheck     | `pnpm typecheck`                                                              | Any TypeScript error                                          |
-| 4. Test          | `pnpm test`                                                                   | Unit, workflow, contract, and database tests (Testcontainers) |
-| 5. Build         | `pnpm build`                                                                  | Any package or app build, including the web app               |
-| 6. Deploy checks | `helm lint`, `helm template`, `kubeconform`, `conftest`, `shellcheck`, `bats` | Chart, policy (P1 to P5), or host script errors               |
+| Job (check name)                     | Command                                                                       | Fails on                                                       |
+| ------------------------------------ | ----------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `static / format`                    | `pnpm format:check`                                                           | Any file not Prettier-formatted (fix with `pnpm format`)       |
+| `static / lint`                      | `pnpm lint`                                                                   | Lint errors, or a test whose `*.int.test.ts` name is wrong     |
+| `static / typecheck`                 | `pnpm typecheck`                                                              | Any TypeScript error                                           |
+| `test / unit`                        | `pnpm test:unit`, `pnpm test:scripts`                                         | Unit, workflow, contract and script tests (no Docker)          |
+| `test / integration (<pkg> <i>/<n>)` | `pnpm --filter @agentdesk/<pkg> test:integration --shard=<i>/<n>`             | Database and API integration tests (Testcontainers), per shard |
+| `gate / ci-passed`                   | aggregates every job above                                                    | Any job that did not succeed. **The only required check.**     |
+| Build, deploy checks (planned)       | `pnpm build`, `helm lint`, `helm template`, `kubeconform`, `conftest`, `bats` | Build, chart, policy (P1 to P5), or host script errors         |
+
+Jobs run in parallel, each capped at 20 minutes. Set `gate / ci-passed` as the only required status check in branch protection, so changing a shard count never renames a required check.
 
 E2E (`e2e.yml`) runs against a local k3s cluster. See [testing.md](testing.md). A gate that is flaky is a bug: fix or quarantine it in a tracked PR, never retry until green and merge.
 
