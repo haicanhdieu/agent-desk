@@ -1,7 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { StartupChecklist } from './StartupChecklist';
 
-const meta = { title: 'Components/StartupChecklist', component: StartupChecklist } satisfies Meta<typeof StartupChecklist>;
+const meta = { title: 'Components/StartupChecklist', component: StartupChecklist } satisfies Meta<
+  typeof StartupChecklist
+>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

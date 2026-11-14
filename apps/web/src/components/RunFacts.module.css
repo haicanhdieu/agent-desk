@@ -1,18 +1,73 @@
-.note { margin: 0; }
-.note12 { font-size: var(--fs-12_5); }
-.note13 { font-size: var(--fs-13); }
-.muted { color: var(--muted); }
-.faint { color: var(--faint); }
-.note b { font-weight: 600; color: var(--text); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-12_5); }
+.note {
+  margin: 0;
+}
+.note12 {
+  font-size: var(--fs-12_5);
+}
+.note13 {
+  font-size: var(--fs-13);
+}
+.muted {
+  color: var(--muted);
+}
+.faint {
+  color: var(--faint);
+}
+.note b {
+  font-weight: 600;
+  color: var(--text);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12_5);
+}
 
-.stat { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--fs-13); }
-.stat b { font-weight: 600; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: var(--fs-13); }
+.stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: var(--fs-13);
+}
+.stat b {
+  font-weight: 600;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-13);
+}
 
-.actor { display: flex; align-items: center; gap: 6px; }
-.actorNote { font-size: var(--fs-12); color: var(--faint); }
-.rule { font-size: var(--fs-12_5); }
-.model { font-size: var(--fs-12); color: var(--faint); font-family: var(--mono); }
+.actor {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.actorNote {
+  font-size: var(--fs-12);
+  color: var(--faint);
+}
+.rule {
+  font-size: var(--fs-12_5);
+}
+.model {
+  font-size: var(--fs-12);
+  color: var(--faint);
+  font-family: var(--mono);
+}
 
-.popTitle { display: flex; align-items: center; gap: 10px; font-weight: 600; color: var(--text); }
-.popBody { margin: 0; font-size: var(--fs-13); color: var(--muted); }
-.popActions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.popTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+  color: var(--text);
+}
+.popBody {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.popActions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}

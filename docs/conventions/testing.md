@@ -6,7 +6,7 @@ Tests are the contract between the parallel backend and frontend streams and the
 **Applies to:** every package: `apps/api`, `apps/worker`, `apps/web`, `packages/contracts`, `packages/core`, `packages/db`. Source of truth: §9 of `docs/superpowers/specs/2026-11-12-control-plane-design.md`, §7 of `docs/superpowers/specs/2026-11-12-frontend-design.md`, and both localhost plans.
 Related: [architecture.md](architecture.md), [backend.md](backend.md), [database.md](database.md), [frontend.md](frontend.md), [security.md](security.md), [typescript.md](typescript.md), [git-workflow.md](git-workflow.md), [code-review-checklist.md](code-review-checklist.md).
 
-> Status: Vitest runs today in `apps/web` and `packages/contracts`. `api`, `worker`, `core` and `db` have no `test` script yet; Testcontainers, `@temporalio/testing`, MSW, Playwright e2e and coverage reporting arrive with the backend and frontend plans. CI does not exist yet (owned by the infra spec): every "in CI" rule below is (planned) until it does.
+> Status: Vitest runs in every package; Testcontainers and `@temporalio/testing` are in use, while MSW, Playwright e2e and coverage reporting are still arriving with the frontend plans. The `ci` workflow (`.github/workflows/ci.yml`) runs format, lint, typecheck, unit and sharded integration tests on every PR; see §9.
 
 ## 1. Test pyramid per layer
 
@@ -37,6 +37,7 @@ Related: [architecture.md](architecture.md), [backend.md](backend.md), [database
   - `apps/web`, `packages/contracts`: colocated `X.test.ts(x)` next to `X.ts(x)`; cross-cutting web tests in `src/test/`. Vitest in web only collects `src/**/*.test.{ts,tsx}`.
   - `apps/api`, `apps/worker`, `packages/core`, `packages/db`: `test/**/*.test.ts` mirroring the source area (`test/adapters/fake.test.ts`); helpers in `test/helpers/`, recorded data in `test/fixtures/`. Small pure helpers may be colocated (`apps/api/src/auth/slug.test.ts`).
   - Web route tests: `*.route.test.tsx`; Playwright specs: `*.spec.ts` under `apps/web/e2e/{mock,local}/`.
+- **MUST** name every test that needs Docker (it reaches `@agentdesk/db/testing`, directly or through a helper) `*.int.test.ts`, and every other test `*.test.ts`. Why: CI runs unit and integration tests as separate, sharded jobs; `pnpm lint` fails when a name and its imports disagree (`scripts/check-test-split.ts`).
 - **MUST** name `describe` after the unit and `it` after the behaviour, in plain words. Why: the failure line should read as the broken rule.
 
 ```ts
@@ -133,7 +134,9 @@ Commands for every level (unit, one file, watch, mocked e2e, full local e2e) are
 
 - Integration tests start their own Postgres through Testcontainers; the dev stack (`devbox run dev`, Postgres on 54329, Temporal on 7233) is for local development and e2e, not for `pnpm test`.
 - `vitest.workspace.ts` at the root is not read by Vitest 5; run tests through `pnpm test` / `--filter`. Moving to a root `vitest.config.ts` with `test.projects` is (planned).
-- **MUST** have `pnpm test`, `pnpm typecheck` and `pnpm lint` green before asking for review. In CI: (planned).
+- Scripts per package: `test:unit` (no Docker), `test:integration` (Docker; accepts `--shard=i/n`), and `test` (both). CI runs them as the jobs `test / unit` and `test / integration (<pkg> <i>/<n>)`.
+- **Sharding:** `.github/ci-shards.json` maps a package to its shard count (`{"db": 1, "api": 1, ...}`). Raise a number when that package's integration job passes ~8 minutes; the hard cap is 20 minutes per job.
+- **MUST** have `pnpm test`, `pnpm typecheck` and `pnpm lint` green before asking for review. CI re-runs them; the only required status check is `gate / ci-passed`.
 
 ## Checklist
 

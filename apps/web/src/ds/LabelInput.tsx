@@ -13,7 +13,13 @@ export interface LabelInputProps {
 }
 
 export function LabelInput({
-  labels, onAdd, onRemove, id, placeholder, 'aria-describedby': describedBy, 'aria-invalid': invalid,
+  labels,
+  onAdd,
+  onRemove,
+  id,
+  placeholder,
+  'aria-describedby': describedBy,
+  'aria-invalid': invalid,
 }: LabelInputProps) {
   const [text, setText] = useState('');
 

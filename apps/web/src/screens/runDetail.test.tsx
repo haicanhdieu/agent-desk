@@ -62,8 +62,14 @@ describe('RunDetail actions', () => {
 
 describe('RunDetail top bar elapsed', () => {
   it.each([
-    ['RunStarting', '0:24'], ['RunRunning', '7:40'], ['RunIdle', '4:51'], ['RunReconnect', '9:02'],
-    ['RunSucceeded', '6m 12s'], ['RunFailed', '1m 10s'], ['RunTimedOut', '30m 00s'], ['RunCancelled', '7m 50s'],
+    ['RunStarting', '0:24'],
+    ['RunRunning', '7:40'],
+    ['RunIdle', '4:51'],
+    ['RunReconnect', '9:02'],
+    ['RunSucceeded', '6m 12s'],
+    ['RunFailed', '1m 10s'],
+    ['RunTimedOut', '30m 00s'],
+    ['RunCancelled', '7m 50s'],
   ] as [RunDetailKey, string][])('%s shows %s', (k, text) => {
     show(k);
     expect(within(screen.getByRole('banner')).getByText(text)).toBeInTheDocument();
@@ -106,7 +112,8 @@ describe('RunDetail reconnecting and collapsed panel', () => {
     show('RunReconnect', { panelCollapsed: true });
     expect(screen.getByRole('button', { name: 'Expand context panel (])' })).toBeInTheDocument();
     const rail = screen.getByRole('complementary', { name: 'Run context, collapsed' });
-    for (const name of ['Issue #139', 'Running', 'Chain: 1 of 2']) expect(within(rail).getByRole('img', { name })).toBeInTheDocument();
+    for (const name of ['Issue #139', 'Running', 'Chain: 1 of 2'])
+      expect(within(rail).getByRole('img', { name })).toBeInTheDocument();
     expect(screen.queryByRole('complementary', { name: 'Run context' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Ticket' })).not.toBeInTheDocument();
     expect(screen.queryByText('Chain on this ticket')).not.toBeInTheDocument();
@@ -181,7 +188,10 @@ describe('RunDetail per state', () => {
 
   it('cancelled: off banner, no scrollback saved, event log, branch link', () => {
     show('RunCancelled');
-    expect(screen.getByText('Cancelled by kim-hale at 13:10:41.').closest('[class*="banner"]')).toHaveClass('off', 'flush');
+    expect(screen.getByText('Cancelled by kim-hale at 13:10:41.').closest('[class*="banner"]')).toHaveClass(
+      'off',
+      'flush',
+    );
     expect(screen.getByRole('heading', { name: 'No scrollback was saved' })).toBeInTheDocument();
     expect(screen.getByText('Pod removed, run cancelled')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Branch ad/120-dark-mode on GitHub' })).toBeInTheDocument();
@@ -212,7 +222,12 @@ describe('RunDetail app props', () => {
 
   it('links set the breadcrumb and Desk hrefs; cancelBody replaces the confirmation text', () => {
     show('RunRunning', {
-      links: { projects: '/o/a/projects', runs: '/o/a/p/1/runs', skills: '/o/a/p/1/desk/skills', rules: '/o/a/p/1/desk/rules' },
+      links: {
+        projects: '/o/a/projects',
+        runs: '/o/a/p/1/runs',
+        skills: '/o/a/p/1/desk/skills',
+        rules: '/o/a/p/1/desk/rules',
+      },
       cancelConfirmOpen: true,
       cancelBody: 'Stops the pod.',
     });

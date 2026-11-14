@@ -28,7 +28,9 @@ export function NeedsYouBanner({ run, askedAgo, slotNote, href, onFinish }: Need
       }
       actions={
         <>
-          <Button variant="go" icon="terminal" href={href}>Answer in terminal</Button>
+          <Button variant="go" icon="terminal" href={href}>
+            Answer in terminal
+          </Button>
           <Button onClick={onFinish}>Finish run</Button>
         </>
       }

@@ -4,8 +4,19 @@ import { CommitSummary } from './CommitSummary';
 const meta = {
   title: 'Components/CommitSummary',
   component: CommitSummary,
-  args: { branch: 'main', author: 'agent-desk[bot]', message: 'Add Agent Desk skills: code-build, code-review', files: ['.claude/skills/code-build/SKILL.md', '.claude/skills/code-review/SKILL.md'] },
-  decorators: [(S) => <div style={{ width: 640 }}><S /></div>],
+  args: {
+    branch: 'main',
+    author: 'agent-desk[bot]',
+    message: 'Add Agent Desk skills: code-build, code-review',
+    files: ['.claude/skills/code-build/SKILL.md', '.claude/skills/code-review/SKILL.md'],
+  },
+  decorators: [
+    (S) => (
+      <div style={{ width: 640 }}>
+        <S />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof CommitSummary>;
 export default meta;
 type Story = StoryObj<typeof meta>;

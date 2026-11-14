@@ -33,17 +33,33 @@ describe('Meter', () => {
 
 describe('SidePanel / SideRail / Section', () => {
   it('is a labelled aside, default "Run context"', () => {
-    render(<SidePanel><Section title="Time" aside={<span>max 10 runs</span>}>x</Section></SidePanel>);
+    render(
+      <SidePanel>
+        <Section title="Time" aside={<span>max 10 runs</span>}>
+          x
+        </Section>
+      </SidePanel>,
+    );
     expect(screen.getByRole('complementary', { name: 'Run context' })).toHaveClass(styles.side);
     expect(screen.getByText('Time')).toBeInTheDocument();
     expect(screen.getByText('max 10 runs')).toBeInTheDocument();
   });
   it('rail has expand button and named items', async () => {
     const onExpand = vi.fn();
-    render(<SideRail onExpand={onExpand} items={[{ icon: <svg />, title: 'Issue #139' }, { icon: <svg />, title: 'Running' }, { icon: <svg />, title: 'Chain: 1 of 2' }]} />);
+    render(
+      <SideRail
+        onExpand={onExpand}
+        items={[
+          { icon: <svg />, title: 'Issue #139' },
+          { icon: <svg />, title: 'Running' },
+          { icon: <svg />, title: 'Chain: 1 of 2' },
+        ]}
+      />,
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Expand context panel (])' }));
     expect(onExpand).toHaveBeenCalled();
-    for (const n of ['Issue #139', 'Running', 'Chain: 1 of 2']) expect(screen.getByRole('img', { name: n })).toHaveAttribute('title', n);
+    for (const n of ['Issue #139', 'Running', 'Chain: 1 of 2'])
+      expect(screen.getByRole('img', { name: n })).toHaveAttribute('title', n);
   });
   it('rail with no items still renders the button', () => {
     render(<SideRail items={[]} />);
@@ -53,7 +69,15 @@ describe('SidePanel / SideRail / Section', () => {
 
 describe('KeyValue', () => {
   it('renders dt/dd pairs and term width', () => {
-    const { container } = render(<KeyValue termWidth={120} items={[{ term: 'Skill', value: 'code-build' }, { term: 'Agent', value: 'Claude' }]} />);
+    const { container } = render(
+      <KeyValue
+        termWidth={120}
+        items={[
+          { term: 'Skill', value: 'code-build' },
+          { term: 'Agent', value: 'Claude' },
+        ]}
+      />,
+    );
     expect(container.querySelectorAll('dt')).toHaveLength(2);
     expect(container.querySelectorAll('dd')).toHaveLength(2);
     expect(container.querySelector('dt')).toHaveTextContent('Skill');
@@ -68,9 +92,28 @@ describe('KeyValue', () => {
 
 describe('ChainTimeline', () => {
   const steps: ChainStep[] = [
-    { runId: 60, command: '/code-build', ticket: { kind: 'issue', number: 139 }, note: 'Succeeded in 6m 12s', status: 'succeeded', href: '/runs/60' },
-    { runId: 61, command: '/code-review', ticket: { kind: 'pr', number: 148 }, note: 'This run', status: 'running', here: true },
-    { command: '/code-fix', context: 'on the PR it opens', note: 'Starts when the agent posts the command', status: 'future' },
+    {
+      runId: 60,
+      command: '/code-build',
+      ticket: { kind: 'issue', number: 139 },
+      note: 'Succeeded in 6m 12s',
+      status: 'succeeded',
+      href: '/runs/60',
+    },
+    {
+      runId: 61,
+      command: '/code-review',
+      ticket: { kind: 'pr', number: 148 },
+      note: 'This run',
+      status: 'running',
+      here: true,
+    },
+    {
+      command: '/code-fix',
+      context: 'on the PR it opens',
+      note: 'Starts when the agent posts the command',
+      status: 'future',
+    },
   ];
   it('marks only the here step with aria-current and the here class', () => {
     render(<ChainTimeline steps={steps} />);
@@ -107,7 +150,14 @@ describe('ChainTimeline', () => {
 });
 
 describe('TicketSummary', () => {
-  const ticket = { kind: 'issue' as const, number: 139, title: 'Rate-limit the public webhook endpoint', labels: [{ name: 'api', color: '#52C4D9' }], state: 'Open', href: 'https://github.com/x/y/issues/139' };
+  const ticket = {
+    kind: 'issue' as const,
+    number: 139,
+    title: 'Rate-limit the public webhook endpoint',
+    labels: [{ name: 'api', color: '#52C4D9' }],
+    state: 'Open',
+    href: 'https://github.com/x/y/issues/139',
+  };
   it('renders link, title, labels and state', () => {
     render(<TicketSummary ticket={ticket} />);
     expect(screen.getByRole('link', { name: 'Open in GitHub' })).toHaveAttribute('href', ticket.href);

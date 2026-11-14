@@ -34,16 +34,16 @@ The PoC proves one loop end to end: a GitHub issue goes from "written" to "merge
 
 The initial idea used "desk" for a team of agents. This spec narrows the vocabulary to seven terms; "Desk" becomes the configuration area of a project.
 
-| Concept | Definition | PoC implementation |
-| --- | --- | --- |
-| Project | Top-level container owned by a user. Holds one workspace, one board, agents, and rules. | One project = one GitHub repo |
-| Desk | The admin area of a project where the user configures everything below. | Web UI pages |
-| Workspace | The code, document, and skill base an agent is launched in. | The GitHub repo, cloned per run |
-| Board | Where tickets live and where agents report. | GitHub Issues and pull requests of the same repo |
-| Skill | A named, user-written procedure an agent follows. | `.claude/skills/<name>/SKILL.md` in the repo |
-| Agent | A CLI agent profile: provider, model, credentials, limits. | Claude Code only |
-| Routing rule | "When a ticket matches X, run skill Y with agent Z." | Slash command in a comment, plus optional label filter |
-| Run | One execution of one skill by one agent for one ticket. | One Kubernetes Job |
+| Concept      | Definition                                                                              | PoC implementation                                     |
+| ------------ | --------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Project      | Top-level container owned by a user. Holds one workspace, one board, agents, and rules. | One project = one GitHub repo                          |
+| Desk         | The admin area of a project where the user configures everything below.                 | Web UI pages                                           |
+| Workspace    | The code, document, and skill base an agent is launched in.                             | The GitHub repo, cloned per run                        |
+| Board        | Where tickets live and where agents report.                                             | GitHub Issues and pull requests of the same repo       |
+| Skill        | A named, user-written procedure an agent follows.                                       | `.claude/skills/<name>/SKILL.md` in the repo           |
+| Agent        | A CLI agent profile: provider, model, credentials, limits.                              | Claude Code only                                       |
+| Routing rule | "When a ticket matches X, run skill Y with agent Z."                                    | Slash command in a comment, plus optional label filter |
+| Run          | One execution of one skill by one agent for one ticket.                                 | One Kubernetes Job                                     |
 
 Two rules follow from this model:
 
@@ -83,53 +83,53 @@ Persona: the same developer, running Agent Desk on a laptop or inside a locked-d
 
 P0 is required for the PoC demo. P1 is built only if time allows.
 
-| ID | Requirement | Priority |
-| --- | --- | --- |
-| **Projects and desk** |  |  |
-| FR-1 | Sign in with GitHub; a user sees only their own projects. | P0 |
-| FR-2 | Create, list, update, delete projects. A project binds to one repo through a GitHub App installation. | P0 |
-| FR-3 | Store one agent credential per project as a secret; never display it after save. | P0 |
-| FR-4 | Set a per-project limit on concurrent runs (default 2). | P0 |
-| **Triggers** |  |  |
-| FR-22 | Each project has a trigger mode: Webhook (default) or Polling. The user picks it during setup and can change it later in project settings. | P0 |
-| FR-23 | In Polling mode, Agent Desk checks the repo for new issue and PR comments on an interval of 5, 10, 15, or 30 min (default and minimum 5 min). No public URL or webhook relay is needed. | P0 |
-| FR-24 | Polled comments go through the same rules, authorization, and guards as webhook comments. A comment starts at most one run, even if it is seen by both webhook and polling (for example right after a mode switch). | P0 |
-| FR-25 | The project shows its connection status: "Polling every 5 min" or "Last event: X (webhook)" when healthy, "No webhooks for 2 days" with a "Switch to polling" action when webhooks go silent, and "Polling failed: reason" (for example token revoked, or rate limited with a retry time) when polling fails. | P0 |
-| **Skills** |  |  |
-| FR-5 | List skills found in the repo under `.claude/skills/`. | P0 |
-| FR-6 | Create, edit, delete a skill in a web Markdown editor; each save is a commit to the default branch. | P0 |
-| FR-7 | Starter templates for `code-build` and `code-review`. | P1 |
-| **Routing rules** |  |  |
-| FR-8 | CRUD rules with: slash command, optional label filter, target (issue, PR, or both), agent, skill. | P0 |
-| FR-9 | Only commands from users with write access to the repo, or from the Agent Desk bot, start a run. | P0 |
-| FR-10 | Chain guard: at most N runs per ticket (default 10), and one active run per ticket and skill. | P0 |
-| FR-11 | Trigger on label-added events without a command. | P1 |
-| **Runs** |  |  |
-| FR-12 | A matching event creates a run in a new container with the repo cloned at the right ref (default branch for issues, PR head for PRs). | P0 |
-| FR-13 | The agent can read and write issues, comments, labels, branches, and PRs on that repo only. | P0 |
-| FR-14 | Agent Desk posts a start comment with the run link and a finish comment with status and duration. | P0 |
-| FR-15 | Runs stop at a timeout (default 30 min) and are marked `timed_out`. | P0 |
-| FR-16 | Manual "Run skill on ticket" and "Retry" from the web UI. | P1 |
-| **Dashboard** |  |  |
-| FR-17 | List runs per project with status, ticket, skill, agent, start time, duration. | P0 |
-| FR-18 | Run detail page streams the agent's messages and tool calls live, and replays them after the run ends. | P0 |
-| FR-19 | Cancel a running run. | P0 |
-| FR-20 | Send a follow-up message to a running agent from the web. | P1 |
-| FR-21 | Show token usage and cost per run, when the CLI reports it. | P1 |
+| ID                    | Requirement                                                                                                                                                                                                                                                                                                   | Priority |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| **Projects and desk** |                                                                                                                                                                                                                                                                                                               |          |
+| FR-1                  | Sign in with GitHub; a user sees only their own projects.                                                                                                                                                                                                                                                     | P0       |
+| FR-2                  | Create, list, update, delete projects. A project binds to one repo through a GitHub App installation.                                                                                                                                                                                                         | P0       |
+| FR-3                  | Store one agent credential per project as a secret; never display it after save.                                                                                                                                                                                                                              | P0       |
+| FR-4                  | Set a per-project limit on concurrent runs (default 2).                                                                                                                                                                                                                                                       | P0       |
+| **Triggers**          |                                                                                                                                                                                                                                                                                                               |          |
+| FR-22                 | Each project has a trigger mode: Webhook (default) or Polling. The user picks it during setup and can change it later in project settings.                                                                                                                                                                    | P0       |
+| FR-23                 | In Polling mode, Agent Desk checks the repo for new issue and PR comments on an interval of 5, 10, 15, or 30 min (default and minimum 5 min). No public URL or webhook relay is needed.                                                                                                                       | P0       |
+| FR-24                 | Polled comments go through the same rules, authorization, and guards as webhook comments. A comment starts at most one run, even if it is seen by both webhook and polling (for example right after a mode switch).                                                                                           | P0       |
+| FR-25                 | The project shows its connection status: "Polling every 5 min" or "Last event: X (webhook)" when healthy, "No webhooks for 2 days" with a "Switch to polling" action when webhooks go silent, and "Polling failed: reason" (for example token revoked, or rate limited with a retry time) when polling fails. | P0       |
+| **Skills**            |                                                                                                                                                                                                                                                                                                               |          |
+| FR-5                  | List skills found in the repo under `.claude/skills/`.                                                                                                                                                                                                                                                        | P0       |
+| FR-6                  | Create, edit, delete a skill in a web Markdown editor; each save is a commit to the default branch.                                                                                                                                                                                                           | P0       |
+| FR-7                  | Starter templates for `code-build` and `code-review`.                                                                                                                                                                                                                                                         | P1       |
+| **Routing rules**     |                                                                                                                                                                                                                                                                                                               |          |
+| FR-8                  | CRUD rules with: slash command, optional label filter, target (issue, PR, or both), agent, skill.                                                                                                                                                                                                             | P0       |
+| FR-9                  | Only commands from users with write access to the repo, or from the Agent Desk bot, start a run.                                                                                                                                                                                                              | P0       |
+| FR-10                 | Chain guard: at most N runs per ticket (default 10), and one active run per ticket and skill.                                                                                                                                                                                                                 | P0       |
+| FR-11                 | Trigger on label-added events without a command.                                                                                                                                                                                                                                                              | P1       |
+| **Runs**              |                                                                                                                                                                                                                                                                                                               |          |
+| FR-12                 | A matching event creates a run in a new container with the repo cloned at the right ref (default branch for issues, PR head for PRs).                                                                                                                                                                         | P0       |
+| FR-13                 | The agent can read and write issues, comments, labels, branches, and PRs on that repo only.                                                                                                                                                                                                                   | P0       |
+| FR-14                 | Agent Desk posts a start comment with the run link and a finish comment with status and duration.                                                                                                                                                                                                             | P0       |
+| FR-15                 | Runs stop at a timeout (default 30 min) and are marked `timed_out`.                                                                                                                                                                                                                                           | P0       |
+| FR-16                 | Manual "Run skill on ticket" and "Retry" from the web UI.                                                                                                                                                                                                                                                     | P1       |
+| **Dashboard**         |                                                                                                                                                                                                                                                                                                               |          |
+| FR-17                 | List runs per project with status, ticket, skill, agent, start time, duration.                                                                                                                                                                                                                                | P0       |
+| FR-18                 | Run detail page streams the agent's messages and tool calls live, and replays them after the run ends.                                                                                                                                                                                                        | P0       |
+| FR-19                 | Cancel a running run.                                                                                                                                                                                                                                                                                         | P0       |
+| FR-20                 | Send a follow-up message to a running agent from the web.                                                                                                                                                                                                                                                     | P1       |
+| FR-21                 | Show token usage and cost per run, when the CLI reports it.                                                                                                                                                                                                                                                   | P1       |
 
 ## 6. Scope
 
-| Area | In the PoC | Deferred |
-| --- | --- | --- |
-| Board | GitHub Issues and PRs of one repo per project | Jira, Trello, local file board, GitHub Projects column moves |
-| Agent | Claude Code CLI, headless | Codex, Cursor, mixed-agent chains |
-| Trigger | Slash command in a comment, label filter; delivered by webhook or by polling, per project | Label-only, assignee, ticket type, schedules; polling of events other than comments |
-| Workspace | One GitHub repo, cloned fresh per run | Multiple repos, file storage, persistent workspaces |
-| Skills | Stored in the repo, edited in web UI | Skill library shared across projects, versioning UI |
-| Tools | Git, `gh` CLI, whatever the runner image ships | MCP servers |
-| Runtime | Kubernetes Jobs on a local cluster; image built with Podman or Docker | Autoscaling, multi-cluster, warm pools |
-| Dashboard | Live read-only stream, cancel, history | Full remote terminal, takeover, multi-run grid |
-| Users | Single user per project, GitHub sign-in | Teams, roles, organizations |
+| Area      | In the PoC                                                                                | Deferred                                                                            |
+| --------- | ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Board     | GitHub Issues and PRs of one repo per project                                             | Jira, Trello, local file board, GitHub Projects column moves                        |
+| Agent     | Claude Code CLI, headless                                                                 | Codex, Cursor, mixed-agent chains                                                   |
+| Trigger   | Slash command in a comment, label filter; delivered by webhook or by polling, per project | Label-only, assignee, ticket type, schedules; polling of events other than comments |
+| Workspace | One GitHub repo, cloned fresh per run                                                     | Multiple repos, file storage, persistent workspaces                                 |
+| Skills    | Stored in the repo, edited in web UI                                                      | Skill library shared across projects, versioning UI                                 |
+| Tools     | Git, `gh` CLI, whatever the runner image ships                                            | MCP servers                                                                         |
+| Runtime   | Kubernetes Jobs on a local cluster; image built with Podman or Docker                     | Autoscaling, multi-cluster, warm pools                                              |
+| Dashboard | Live read-only stream, cancel, history                                                    | Full remote terminal, takeover, multi-run grid                                      |
+| Users     | Single user per project, GitHub sign-in                                                   | Teams, roles, organizations                                                         |
 
 Non-functional targets for the PoC, chosen to be checkable rather than ambitious:
 
@@ -163,14 +163,14 @@ Acceptance checks beyond the happy path:
 
 **Risks**
 
-| Risk | Impact | Mitigation in the PoC |
-| --- | --- | --- |
-| Prompt injection through ticket text | Agent performs unintended actions with repo write access | Write-access check on triggers, token scoped to one repo, no other secrets in the container, restricted network egress |
-| Runaway chains or cost | Agents trigger each other without end | Chain guard, timeout, concurrency limit, per-run turn limit |
-| Handoff depends on the model remembering to post the next command | Chain stalls silently | Finish comment always posted by the system; open question Q1 |
-| Agent merges bad code | Broken default branch | Branch protection on the sample repo; `code-review` may be configured to approve only |
-| Webhooks cannot reach a local cluster or a locked-down network | No triggers without a public URL | Polling mode, which needs only outbound calls to GitHub; it is also the recommended path for local development |
-| Polling is slower | Runs and chain handoffs start up to one interval (5 to 30 min) late | Default to the 5 min minimum; use Webhook mode where latency matters. API budget is not a concern: at most 12 requests per hour per repo against 5000 per installation, unchanged results cost nothing, and a rate-limit response still backs off with a visible status |
+| Risk                                                              | Impact                                                              | Mitigation in the PoC                                                                                                                                                                                                                                                   |
+| ----------------------------------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Prompt injection through ticket text                              | Agent performs unintended actions with repo write access            | Write-access check on triggers, token scoped to one repo, no other secrets in the container, restricted network egress                                                                                                                                                  |
+| Runaway chains or cost                                            | Agents trigger each other without end                               | Chain guard, timeout, concurrency limit, per-run turn limit                                                                                                                                                                                                             |
+| Handoff depends on the model remembering to post the next command | Chain stalls silently                                               | Finish comment always posted by the system; open question Q1                                                                                                                                                                                                            |
+| Agent merges bad code                                             | Broken default branch                                               | Branch protection on the sample repo; `code-review` may be configured to approve only                                                                                                                                                                                   |
+| Webhooks cannot reach a local cluster or a locked-down network    | No triggers without a public URL                                    | Polling mode, which needs only outbound calls to GitHub; it is also the recommended path for local development                                                                                                                                                          |
+| Polling is slower                                                 | Runs and chain handoffs start up to one interval (5 to 30 min) late | Default to the 5 min minimum; use Webhook mode where latency matters. API budget is not a concern: at most 12 requests per hour per repo against 5000 per installation, unchanged results cost nothing, and a rate-limit response still backs off with a visible status |
 
 **Open questions**
 

@@ -9,10 +9,16 @@ const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join('
 export type TextInputProps = { mono?: boolean; numeric?: boolean } & InputHTMLAttributes<HTMLInputElement>;
 
 export function TextInput({ mono, numeric, className, type = 'text', ...rest }: TextInputProps) {
-  return <input type={type} {...rest} className={cx(styles.input, mono && styles.mono, numeric && styles.num, className)} />;
+  return (
+    <input type={type} {...rest} className={cx(styles.input, mono && styles.mono, numeric && styles.num, className)} />
+  );
 }
 
-export function PrefixInput({ prefix, className, ...rest }: { prefix: string } & InputHTMLAttributes<HTMLInputElement>) {
+export function PrefixInput({
+  prefix,
+  className,
+  ...rest
+}: { prefix: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className={cx(styles.wrap, styles.prefix, className)} aria-invalid={rest['aria-invalid']}>
       <span aria-hidden="true">{prefix}</span>
@@ -30,11 +36,22 @@ export function UnitInput({ unit, className, ...rest }: { unit: string } & Input
   );
 }
 
-export function PasswordInput({ revealLabel, className, ...rest }: { revealLabel: string } & InputHTMLAttributes<HTMLInputElement>) {
+export function PasswordInput({
+  revealLabel,
+  className,
+  ...rest
+}: { revealLabel: string } & InputHTMLAttributes<HTMLInputElement>) {
   const [shown, setShown] = useState(false);
   return (
     <div className={cx(styles.wrap, styles.pw, className)} aria-invalid={rest['aria-invalid']}>
-      <input autoComplete="new-password" data-1p-ignore data-lpignore="true" spellCheck={false} {...rest} type={shown ? 'text' : 'password'} />
+      <input
+        autoComplete="new-password"
+        data-1p-ignore
+        data-lpignore="true"
+        spellCheck={false}
+        {...rest}
+        type={shown ? 'text' : 'password'}
+      />
       <IconButton
         icon="eye"
         size="sm"
@@ -46,7 +63,11 @@ export function PasswordInput({ revealLabel, className, ...rest }: { revealLabel
   );
 }
 
-export function SearchInput({ placeholder, className, ...rest }: { placeholder: string } & InputHTMLAttributes<HTMLInputElement>) {
+export function SearchInput({
+  placeholder,
+  className,
+  ...rest
+}: { placeholder: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className={cx(styles.wrap, styles.search, className)}>
       <Icon name="search" size={14} />
@@ -55,9 +76,21 @@ export function SearchInput({ placeholder, className, ...rest }: { placeholder: 
   );
 }
 
-export function StaticInput({ icon, children, 'aria-labelledby': labelledBy }: { icon?: IconName; children: ReactNode; 'aria-labelledby'?: string }) {
+export function StaticInput({
+  icon,
+  children,
+  'aria-labelledby': labelledBy,
+}: {
+  icon?: IconName;
+  children: ReactNode;
+  'aria-labelledby'?: string;
+}) {
   return (
-    <div className={cx(styles.wrap, styles.static)} role={labelledBy ? 'group' : undefined} aria-labelledby={labelledBy}>
+    <div
+      className={cx(styles.wrap, styles.static)}
+      role={labelledBy ? 'group' : undefined}
+      aria-labelledby={labelledBy}
+    >
       {icon && <Icon name={icon} size={14} />}
       <span>{children}</span>
     </div>

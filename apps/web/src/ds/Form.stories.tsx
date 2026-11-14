@@ -1,14 +1,32 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
-  Button, Checkbox, Field, LabelInput, PasswordInput, PrefixInput, RadioCard, SearchInput,
-  SegmentedControl, Select, StaticInput, TextInput, Toggle, UnitInput,
+  Button,
+  Checkbox,
+  Field,
+  LabelInput,
+  PasswordInput,
+  PrefixInput,
+  RadioCard,
+  SearchInput,
+  SegmentedControl,
+  Select,
+  StaticInput,
+  TextInput,
+  Toggle,
+  UnitInput,
 } from '.';
 
 const meta = {
   title: 'Primitives/Form',
   parameters: { layout: 'padded' },
-  decorators: [(Story) => <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 18 }}><Story /></div>],
+  decorators: [
+    (Story) => (
+      <div style={{ maxWidth: 560, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        <Story />
+      </div>
+    ),
+  ],
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -25,8 +43,12 @@ export const TextInputs: Story = {
       <Field label="Token">
         {({ id }) => <PasswordInput id={id} revealLabel="Show token" defaultValue="hunter2" />}
       </Field>
-      <Field label="Search" labelAs="span">{() => <SearchInput placeholder="Search runs" aria-label="Search runs" />}</Field>
-      <Field label="Commit to" labelAs="span">{() => <StaticInput icon="branch">main, default branch</StaticInput>}</Field>
+      <Field label="Search" labelAs="span">
+        {() => <SearchInput placeholder="Search runs" aria-label="Search runs" />}
+      </Field>
+      <Field label="Commit to" labelAs="span">
+        {() => <StaticInput icon="branch">main, default branch</StaticInput>}
+      </Field>
     </>
   ),
 };
@@ -41,7 +63,9 @@ export const ErrorAndDisabled: Story = {
       </Field>
       <Field label="With agent" help="One agent per project in the PoC.">
         {({ id, describedBy }) => (
-          <Select id={id} aria-describedby={describedBy} disabled><option>Claude (opus)</option></Select>
+          <Select id={id} aria-describedby={describedBy} disabled>
+            <option>Claude (opus)</option>
+          </Select>
         )}
       </Field>
       <Field label="Agent" help="Claude Code CLI.">
@@ -54,7 +78,12 @@ export const ErrorAndDisabled: Story = {
 export const Selects: Story = {
   render: () => (
     <Field label="Model">
-      {({ id }) => <Select id={id}><option>opus (latest Opus)</option><option>sonnet</option></Select>}
+      {({ id }) => (
+        <Select id={id}>
+          <option>opus (latest Opus)</option>
+          <option>sonnet</option>
+        </Select>
+      )}
     </Field>
   ),
 };
@@ -68,7 +97,11 @@ function SegDemo() {
           aria-label="Posted on"
           value={v}
           onChange={setV}
-          options={[{ value: 'ticket', label: 'Ticket' }, { value: 'pr', label: 'Pull request' }, { value: 'both', label: 'Both' }]}
+          options={[
+            { value: 'ticket', label: 'Ticket' },
+            { value: 'pr', label: 'Pull request' },
+            { value: 'both', label: 'Both' },
+          ]}
         />
       )}
     </Field>

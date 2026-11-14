@@ -11,7 +11,9 @@ export function EventLog({ events, timeWidth = 62 }: EventLogProps) {
     <div className={styles.events}>
       {events.map((e, i) => (
         <div key={i} className={styles.event}>
-          <span className={styles.eventAt} style={{ width: timeWidth }}>{e.at}</span>
+          <span className={styles.eventAt} style={{ width: timeWidth }}>
+            {e.at}
+          </span>
           <span>{e.text}</span>
         </div>
       ))}

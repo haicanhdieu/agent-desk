@@ -72,7 +72,8 @@ describe('CodeEditor', () => {
   it('resets textarea scroll to 0 if it ever moves', () => {
     render(<CodeEditor value="abc" aria-label="x" />);
     const ta = screen.getByRole('textbox') as HTMLTextAreaElement;
-    ta.scrollLeft = 7; ta.scrollTop = 3;
+    ta.scrollLeft = 7;
+    ta.scrollTop = 3;
     fireEvent.scroll(ta);
     expect(ta.scrollLeft).toBe(0);
     expect(ta.scrollTop).toBe(0);

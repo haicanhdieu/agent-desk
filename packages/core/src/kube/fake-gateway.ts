@@ -118,6 +118,18 @@ function killGroup(pid: number): void {
   }
 }
 
+/** The pod state for a pod whose `exit` file holds `raw`. */
+function exitedPod(jobName: string, raw: string): RunPod {
+  const code = Number.parseInt(raw, 10);
+  return {
+    name: jobName,
+    phase: code === 0 ? 'Succeeded' : 'Failed',
+    pendingSince: null,
+    reason: code === 0 ? null : 'Error',
+    exitCode: Number.isNaN(code) ? 1 : code,
+  };
+}
+
 /**
  * KUBE_MODE=fake: each Job is a detached child process running `fake-pod.mjs` with file-backed state under
  * `<dir>/<jobName>/`, so the whole run flow (logs, attach, kill-session, exit codes) works without a cluster.
@@ -213,18 +225,12 @@ export class FakeKubeGateway implements KubeGateway {
     const jobRaw = await readOrNull(join(dir, 'job.json'));
     if (jobRaw === null) return null;
     const exit = await readOrNull(join(dir, 'exit'));
-    if (exit !== null) {
-      const code = Number.parseInt(exit, 10);
-      return {
-        name: jobName,
-        phase: code === 0 ? 'Succeeded' : 'Failed',
-        pendingSince: null,
-        reason: code === 0 ? null : 'Error',
-        exitCode: Number.isNaN(code) ? 1 : code,
-      };
-    }
+    if (exit !== null) return exitedPod(jobName, exit);
     const pid = await readPid(dir);
     if (pid !== null && (await this.ownedPid(jobName, dir)) === null) {
+      // The pod may have written `exit` and died after the read above; only a pod with no exit file was killed.
+      const late = await readOrNull(join(dir, 'exit'));
+      if (late !== null) return exitedPod(jobName, late);
       return { name: jobName, phase: 'Failed', pendingSince: null, reason: 'Killed', exitCode: 137 };
     }
     if (existsSync(join(dir, 'started'))) {

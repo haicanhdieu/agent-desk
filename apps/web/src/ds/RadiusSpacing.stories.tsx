@@ -13,7 +13,15 @@ function RadiusAndSpacing() {
         <div className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
           {radii.map((r) => (
             <div key={r} style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
-              <div style={{ width: 72, height: 48, background: 'var(--raised)', border: '1px solid var(--line2)', borderRadius: `var(--radius-${r})` }} />
+              <div
+                style={{
+                  width: 72,
+                  height: 48,
+                  background: 'var(--raised)',
+                  border: '1px solid var(--line2)',
+                  borderRadius: `var(--radius-${r})`,
+                }}
+              />
               <span className="mono faint">--radius-{r}</span>
             </div>
           ))}
@@ -23,7 +31,9 @@ function RadiusAndSpacing() {
         <h2>Spacing (px, used for gap and padding)</h2>
         {spaces.map((s) => (
           <div key={s} className="row">
-            <span className="mono faint" style={{ width: 40 }}>{s}</span>
+            <span className="mono faint" style={{ width: 40 }}>
+              {s}
+            </span>
             <div style={{ width: s, height: 12, background: 'var(--accent)' }} />
           </div>
         ))}

@@ -3,8 +3,19 @@ import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
-  Checkbox, Field, LabelInput, PasswordInput, PrefixInput, RadioCard, SearchInput,
-  SegmentedControl, Select, StaticInput, TextInput, Toggle, UnitInput,
+  Checkbox,
+  Field,
+  LabelInput,
+  PasswordInput,
+  PrefixInput,
+  RadioCard,
+  SearchInput,
+  SegmentedControl,
+  Select,
+  StaticInput,
+  TextInput,
+  Toggle,
+  UnitInput,
 } from '.';
 
 describe('Field', () => {
@@ -28,7 +39,11 @@ describe('Field', () => {
   });
 
   it('labelAs="span" renders a non-label flabel', () => {
-    const { container } = render(<Field label="Posted on" labelAs="span">{() => <div />}</Field>);
+    const { container } = render(
+      <Field label="Posted on" labelAs="span">
+        {() => <div />}
+      </Field>,
+    );
     expect(container.querySelector('label')).toBeNull();
     expect(screen.getByText('Posted on')).toHaveClass('flabel');
   });
@@ -62,7 +77,11 @@ describe('inputs', () => {
   });
 
   it('Select passes disabled through', () => {
-    render(<Select aria-label="Agent" disabled><option>Claude</option></Select>);
+    render(
+      <Select aria-label="Agent" disabled>
+        <option>Claude</option>
+      </Select>,
+    );
     expect(screen.getByLabelText('Agent')).toBeDisabled();
   });
 });
@@ -73,8 +92,15 @@ function Seg({ onChange }: { onChange?: (v: string) => void }) {
     <SegmentedControl
       aria-label="Posted on"
       value={v}
-      options={[{ value: 'a', label: 'Alpha' }, { value: 'b', label: 'Beta' }, { value: 'c', label: 'Gamma' }]}
-      onChange={(n) => { setV(n); onChange?.(n); }}
+      options={[
+        { value: 'a', label: 'Alpha' },
+        { value: 'b', label: 'Beta' },
+        { value: 'c', label: 'Gamma' },
+      ]}
+      onChange={(n) => {
+        setV(n);
+        onChange?.(n);
+      }}
     />
   );
 }
@@ -116,7 +142,17 @@ describe('SegmentedControl', () => {
   });
 
   it('value matching no option keeps the first option tabbable', () => {
-    render(<SegmentedControl aria-label="x" value="zzz" options={[{ value: 'a', label: 'A' }, { value: 'b', label: 'B' }]} onChange={() => {}} />);
+    render(
+      <SegmentedControl
+        aria-label="x"
+        value="zzz"
+        options={[
+          { value: 'a', label: 'A' },
+          { value: 'b', label: 'B' },
+        ]}
+        onChange={() => {}}
+      />,
+    );
     expect(screen.getByRole('radio', { name: 'A' })).toHaveAttribute('tabindex', '0');
   });
 });
@@ -148,7 +184,17 @@ describe('Checkbox / RadioCard', () => {
 
   it('RadioCard is selectable by clicking its title text', async () => {
     const onChange = vi.fn();
-    render(<RadioCard type="radio" name="repo" checked={false} onChange={onChange} title="acme/web" description="Default" aside={<button>Preview</button>} />);
+    render(
+      <RadioCard
+        type="radio"
+        name="repo"
+        checked={false}
+        onChange={onChange}
+        title="acme/web"
+        description="Default"
+        aside={<button>Preview</button>}
+      />,
+    );
     await userEvent.click(screen.getByText('acme/web'));
     expect(onChange).toHaveBeenCalledWith(true);
     expect(screen.getByRole('radio', { name: /acme\/web/ })).toBeInTheDocument();
@@ -178,7 +224,9 @@ describe('LabelInput', () => {
 
   it('Backspace on empty removes last; not when typing; not with no labels', async () => {
     const onRemove = vi.fn();
-    const { rerender } = render(<LabelInput labels={['a', 'b']} onAdd={() => {}} onRemove={onRemove} placeholder="Add label" />);
+    const { rerender } = render(
+      <LabelInput labels={['a', 'b']} onAdd={() => {}} onRemove={onRemove} placeholder="Add label" />,
+    );
     const input = screen.getByPlaceholderText('Add label');
     await userEvent.type(input, 'x{Backspace}');
     expect(onRemove).not.toHaveBeenCalled();

@@ -11,9 +11,7 @@ export interface SegmentedControlProps<T extends string> {
   'aria-invalid'?: boolean;
 }
 
-export function SegmentedControl<T extends string>({
-  value, options, onChange, ...aria
-}: SegmentedControlProps<T>) {
+export function SegmentedControl<T extends string>({ value, options, onChange, ...aria }: SegmentedControlProps<T>) {
   const refs = useRef<Array<HTMLButtonElement | null>>([]);
   const found = options.findIndex((o) => o.value === value);
   const current = found === -1 ? 0 : found;
@@ -28,8 +26,12 @@ export function SegmentedControl<T extends string>({
   const onKeyDown = (e: KeyboardEvent) => {
     if (options.length === 0) return;
     const keys: Record<string, number> = {
-      ArrowRight: current + 1, ArrowDown: current + 1, ArrowLeft: current - 1, ArrowUp: current - 1,
-      Home: 0, End: options.length - 1,
+      ArrowRight: current + 1,
+      ArrowDown: current + 1,
+      ArrowLeft: current - 1,
+      ArrowUp: current - 1,
+      Home: 0,
+      End: options.length - 1,
     };
     if (!(e.key in keys)) return;
     e.preventDefault();
@@ -41,7 +43,9 @@ export function SegmentedControl<T extends string>({
       {options.map((o, i) => (
         <button
           key={o.value}
-          ref={(el) => { refs.current[i] = el; }}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
           type="button"
           role="radio"
           aria-checked={i === found}

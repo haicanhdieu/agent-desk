@@ -38,6 +38,10 @@
     "typecheck": {
       "dependsOn": ["^typecheck"]
     },
-    "lint": {}
+    "lint": {},
+    "test:unit": {},
+    "test:integration": {
+      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"]
+    }
   }
 }

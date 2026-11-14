@@ -5,15 +5,17 @@
   "scripts": {
     "dev": "bash scripts/dev.sh up",
     "build": "turbo run build",
-    "test": "turbo run test",
+    "test": "turbo run test && pnpm test:scripts",
     "typecheck": "turbo run typecheck && tsc -p scripts",
-    "lint": "turbo run lint && eslint scripts eslint.config.mjs",
+    "lint": "turbo run lint && eslint scripts eslint.config.mjs && tsx scripts/check-test-split.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "pnpm --filter @agentdesk/api migrate",
     "dev:down": "bash scripts/dev.sh down",
     "stop": "bash scripts/dev.sh down",
-    "test:e2e:local": "tsx scripts/e2e-local.ts"
+    "test:e2e:local": "tsx scripts/e2e-local.ts",
+    "test:scripts": "vitest run --root scripts",
+    "test:unit": "turbo run test:unit"
   },
   "devDependencies": {
     "@agentdesk/contracts": "workspace:*",

@@ -9,8 +9,16 @@ function Harness({ onClose }: { onClose: () => void }) {
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(true)}>Cancel run</button>
-      <Popover open={open} label="Confirm cancel" onClose={() => { onClose(); setOpen(false); }}>
-        <button>Keep running</button><button>Cancel it</button>
+      <Popover
+        open={open}
+        label="Confirm cancel"
+        onClose={() => {
+          onClose();
+          setOpen(false);
+        }}
+      >
+        <button>Keep running</button>
+        <button>Cancel it</button>
       </Popover>
     </div>
   );
@@ -18,7 +26,11 @@ function Harness({ onClose }: { onClose: () => void }) {
 
 describe('Popover', () => {
   it('renders nothing when closed', () => {
-    render(<Popover open={false} label="L">x</Popover>);
+    render(
+      <Popover open={false} label="L">
+        x
+      </Popover>,
+    );
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
@@ -38,7 +50,14 @@ describe('Popover', () => {
   });
 
   it('status role does not move focus', () => {
-    render(<><button>Before</button><Popover open label="Reconnecting" role="status"><button>Retry</button></Popover></>);
+    render(
+      <>
+        <button>Before</button>
+        <Popover open label="Reconnecting" role="status">
+          <button>Retry</button>
+        </Popover>
+      </>,
+    );
     const pop = screen.getByRole('status', { name: 'Reconnecting' });
     expect(pop.contains(document.activeElement)).toBe(false);
   });
@@ -57,7 +76,11 @@ describe('Popover', () => {
   it('status role ignores Escape', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<Popover open label="Reconnecting" role="status" onClose={onClose}>x</Popover>);
+    render(
+      <Popover open label="Reconnecting" role="status" onClose={onClose}>
+        x
+      </Popover>,
+    );
     await user.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();
   });
@@ -65,7 +88,11 @@ describe('Popover', () => {
   it('removes the listener after unmount', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    const { unmount } = render(<Popover open label="L" onClose={onClose}><button>a</button></Popover>);
+    const { unmount } = render(
+      <Popover open label="L" onClose={onClose}>
+        <button>a</button>
+      </Popover>,
+    );
     unmount();
     await user.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();

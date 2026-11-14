@@ -65,12 +65,7 @@
         "identity": "replay-fixture",
         "binaryChecksum": "@temporalio/worker@1.25.0+0ec66c4997385b10db0bf55d56c8cfe6a40232688c0e391a8d95ea3dcdd32127",
         "sdkMetadata": {
-          "coreUsedFlags": [
-            3,
-            1,
-            4,
-            2
-          ],
+          "coreUsedFlags": [3, 1, 4, 2],
           "sdkName": "temporal-typescript",
           "sdkVersion": "1.25.0"
         },
@@ -327,9 +322,7 @@
         "identity": "replay-fixture",
         "binaryChecksum": "@temporalio/worker@1.25.0+0ec66c4997385b10db0bf55d56c8cfe6a40232688c0e391a8d95ea3dcdd32127",
         "sdkMetadata": {
-          "langUsedFlags": [
-            2
-          ]
+          "langUsedFlags": [2]
         },
         "meteringMetadata": {}
       }
@@ -688,9 +681,7 @@
           "backoffCoefficient": 2,
           "maximumInterval": "60s",
           "maximumAttempts": 5,
-          "nonRetryableErrorTypes": [
-            "PodPendingTimeout"
-          ]
+          "nonRetryableErrorTypes": ["PodPendingTimeout"]
         }
       }
     },

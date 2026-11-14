@@ -1,31 +1,107 @@
 /* step list (sign-in hero) */
-.stepList { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-width: 520px; }
-.stepItem { display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 14px; padding-bottom: 22px; }
-.stepItem > :first-child { display: flex; flex-direction: column; align-items: center; }
-.stepBody { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; }
-.stepLine { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.stepList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  max-width: 520px;
+}
+.stepItem {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: 22px;
+}
+.stepItem > :first-child {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.stepBody {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 2px;
+}
+.stepLine {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 
 /* step cards (empty projects) */
 .cards {
-  list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
-  border: 1px solid var(--line); border-radius: var(--radius-10); overflow: hidden;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border: 1px solid var(--line);
+  border-radius: var(--radius-10);
+  overflow: hidden;
 }
-.card { padding: 16px; display: flex; flex-direction: column; gap: 8px; border-right: 1px solid var(--line); background: var(--panel); }
-.cardTitle { font-weight: 600; }
-.cardBody { font-size: var(--fs-13); color: var(--muted); }
+.card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+.cardTitle {
+  font-weight: 600;
+}
+.cardBody {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
 
 /* project row */
-.name { color: var(--text); font-weight: 600; }
-.repo {
-  display: block; max-width: 36ch; font-family: var(--mono); font-size: var(--fs-12); color: var(--faint);
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+.name {
+  color: var(--text);
+  font-weight: 600;
 }
-.projectCell { max-width: 0; width: 28%; } /* max-width: 0 lets the ellipsis work inside a table cell */
-.connection { font-size: var(--fs-13); }
-.connection > span { font-size: var(--fs-13); } /* InlineStatus sets its own 12.5px; the board uses 13px */
-.okRow { display: inline-flex; align-items: center; gap: 6px; }
-.connAction { display: block; margin-top: 6px; }
-.lastRun { font-size: var(--fs-13); color: var(--muted); }
-.noneText { color: var(--faint); }
-.end { text-align: right; }
-.glyph { display: inline-flex; }
+.repo {
+  display: block;
+  max-width: 36ch;
+  font-family: var(--mono);
+  font-size: var(--fs-12);
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.projectCell {
+  max-width: 0;
+  width: 28%;
+} /* max-width: 0 lets the ellipsis work inside a table cell */
+.connection {
+  font-size: var(--fs-13);
+}
+.connection > span {
+  font-size: var(--fs-13);
+} /* InlineStatus sets its own 12.5px; the board uses 13px */
+.okRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.connAction {
+  display: block;
+  margin-top: 6px;
+}
+.lastRun {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.noneText {
+  color: var(--faint);
+}
+.end {
+  text-align: right;
+}
+.glyph {
+  display: inline-flex;
+}

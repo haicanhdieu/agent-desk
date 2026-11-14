@@ -22,7 +22,12 @@ export function ChainTimeline({ steps }: { steps: ChainStep[] }) {
             <span className={styles.crow}>
               {s.runId !== undefined && <b>Run {s.runId}</b>}
               <CommandChip>{s.command}</CommandChip>
-              {s.ticket && (<><span className="faint">on</span><TicketRef kind={s.ticket.kind} number={s.ticket.number} /></>)}
+              {s.ticket && (
+                <>
+                  <span className="faint">on</span>
+                  <TicketRef kind={s.ticket.kind} number={s.ticket.number} />
+                </>
+              )}
               {!s.ticket && s.context && <span>{s.context}</span>}
             </span>
             <span className={styles.cnote}>{s.note}</span>
@@ -33,14 +38,18 @@ export function ChainTimeline({ steps }: { steps: ChainStep[] }) {
           <li key={i} className={cls} aria-current={s.here ? 'step' : undefined}>
             <div className={styles.cicon}>
               <StatusIcon
-                status={future ? 'queued' : s.status as RunStatus}
+                status={future ? 'queued' : (s.status as RunStatus)}
                 size={16}
                 title={future ? 'Not started' : statusTokens[s.status as RunStatus].label}
               />
             </div>
-            {s.href && !future
-              ? <AppLink className={styles.cbox} href={s.href}>{body}</AppLink>
-              : <div className={styles.cbox}>{body}</div>}
+            {s.href && !future ? (
+              <AppLink className={styles.cbox} href={s.href}>
+                {body}
+              </AppLink>
+            ) : (
+              <div className={styles.cbox}>{body}</div>
+            )}
           </li>
         );
       })}

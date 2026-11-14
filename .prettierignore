@@ -15,3 +15,5 @@ playwright-report
 test-results
 .superpowers
 docs/superpowers
+**/migrations/meta
+apps/web/public/mockServiceWorker.js

@@ -28,7 +28,18 @@ export interface BannerProps {
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(' ');
 
 export function Banner({
-  tone, icon, iconColor, title, children, actions, actionsPlacement = 'end', flush, prominent, centered, inlineTitle, live,
+  tone,
+  icon,
+  iconColor,
+  title,
+  children,
+  actions,
+  actionsPlacement = 'end',
+  flush,
+  prominent,
+  centered,
+  inlineTitle,
+  live,
 }: BannerProps) {
   const role = live === 'assertive' ? 'alert' : live === 'polite' ? 'status' : undefined;
   const actionsNode = actions ? (
@@ -36,7 +47,14 @@ export function Banner({
   ) : null;
   return (
     <div
-      className={cx(styles.banner, styles[tone], flush && styles.flush, prominent && styles.prominent, centered && styles.centered, inlineTitle && styles.inlineTitle)}
+      className={cx(
+        styles.banner,
+        styles[tone],
+        flush && styles.flush,
+        prominent && styles.prominent,
+        centered && styles.centered,
+        inlineTitle && styles.inlineTitle,
+      )}
       role={role}
     >
       {icon && (

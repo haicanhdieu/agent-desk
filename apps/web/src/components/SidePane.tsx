@@ -2,7 +2,13 @@ import { useId, type ReactNode } from 'react';
 import { IconButton } from '@/ds';
 import styles from './Composites.module.css';
 
-export interface SidePaneProps { title: string; width?: number; onClose(): void; children: ReactNode; footer?: ReactNode }
+export interface SidePaneProps {
+  title: string;
+  width?: number;
+  onClose(): void;
+  children: ReactNode;
+  footer?: ReactNode;
+}
 
 export function SidePane({ title, width = 560, onClose, children, footer }: SidePaneProps) {
   const id = useId();

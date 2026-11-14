@@ -17,7 +17,13 @@ export { Popover, type PopoverProps } from './Popover';
 export { useFocusTrap, type FocusTrapOptions } from './useFocusTrap';
 export { Field, type FieldProps } from './Field';
 export {
-  TextInput, PrefixInput, UnitInput, PasswordInput, SearchInput, StaticInput, type TextInputProps,
+  TextInput,
+  PrefixInput,
+  UnitInput,
+  PasswordInput,
+  SearchInput,
+  StaticInput,
+  type TextInputProps,
 } from './TextInput';
 export { Select } from './Select';
 export { SegmentedControl, type SegmentedControlProps } from './SegmentedControl';
