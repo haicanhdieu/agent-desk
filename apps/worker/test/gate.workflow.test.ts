@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
 import { Worker } from '@temporalio/worker';
 import type { WorkflowHandle } from '@temporalio/client';
-import { GATE_CONTINUE_AS_NEW_AFTER, SIGNAL, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
+import { GATE_CONTINUE_AS_NEW_AFTER, SIGNAL, UPDATE, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
 import * as signals from '../src/workflows/signals';
 import { gateState, type GateState } from '../src/workflows/signals';
 import { CONTINUE_AS_NEW_AFTER } from '../src/workflows/gate.workflow';
@@ -68,6 +68,8 @@ describe('constants', () => {
     expect(signals.granted.name).toBe(SIGNAL.granted);
     expect(signals.cancel.name).toBe(SIGNAL.cancel);
     expect(signals.finish.name).toBe(SIGNAL.finish);
+    expect(signals.agentState.name).toBe(SIGNAL.agentState);
+    expect(UPDATE.finishRun).toBe(signals.finishRun.name);
     expect(signals.turnFinished.name).toBe(SIGNAL.turnFinished);
     expect(signals.resumed.name).toBe(SIGNAL.resumed);
     expect(signals.terminalAttached.name).toBe(SIGNAL.terminalAttached);

@@ -172,7 +172,7 @@
     - Hard timeout while `agent_done` → outcome `succeeded` (record the phase when `stop('timed_out')` fires).
   - Legacy handlers stay registered for old histories: `turnFinished`, `resumed`, `finish` (the `finish` signal now accepts `idle` or `agent_done`).
 
-- [ ] **Step 1: Write failing tests** in `run.workflow.test.ts`:
+- [x] **Step 1: Write failing tests** in `run.workflow.test.ts`:
   - `'agentState done → done status; idle timer → endSession → succeeded'`
   - `'agentState waiting keeps running and never starts the idle timer'`
   - `'agentState working while done writes running and stops the idle timer'` (Review Focus 5)
@@ -180,10 +180,10 @@
   - `'finishRun while running is rejected with NotFinishable and the run keeps going'` (Review Focus 2)
   - `'hard timeout while done → succeeded; while idle → timed_out'`
   - existing `'replay: …'` test still passes with the unchanged fixtures.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run.workflow` → FAIL.
-- [ ] **Step 3:** Implement. If the replay test reports nondeterminism, gate the new command-producing paths with `patched('agent-status-v1')`.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
-- [ ] **Step 5:** Commit `feat(worker): done phase, agent state signal and finish update`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run.workflow` → FAIL.
+- [x] **Step 3:** Implement. If the replay test reports nondeterminism, gate the new command-producing paths with `patched('agent-status-v1')`.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
+- [x] **Step 5:** Commit `feat(worker): done phase, agent state signal and finish update`.
 
 ### Task 7: followPodLogs — map protocol lines to status
 
