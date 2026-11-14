@@ -64,6 +64,8 @@ function fromSummary(r: RunSummary): RunDto {
     costUsd: final ? Math.round(duration * 0.35) / 100 : null,
     timeoutSeconds: 1800,
     idleSince: r.status === 'idle' ? at('14:11') : null,
+    waitingOn: null,
+    agentNote: null,
   };
 }
 
@@ -97,6 +99,8 @@ const ended = (
   costUsd: 1.2,
   timeoutSeconds: 1800,
   idleSince: null,
+  waitingOn: null,
+  agentNote: null,
 });
 
 const issue = (number: number, title: string): Ticket => ({ kind: 'issue', number, title, labels: [], href: '' });

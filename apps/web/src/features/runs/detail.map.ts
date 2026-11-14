@@ -31,6 +31,7 @@ export function runDetailKey(status: RunStatus, terminalState?: 'reconnect'): Ru
       return 'RunStarting';
     case 'running':
     case 'idle':
+    case 'done':
       if (terminalState === 'reconnect') return 'RunReconnect';
       return status === 'running' ? 'RunRunning' : 'RunIdle';
     case 'succeeded':

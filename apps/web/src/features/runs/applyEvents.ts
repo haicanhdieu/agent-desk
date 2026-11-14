@@ -59,7 +59,7 @@ const matches = (filter: RunListFilter, status: RunStatus): boolean => {
     case 'needs_you':
       return status === 'idle';
     case 'active':
-      return status === 'starting' || status === 'running' || status === 'idle';
+      return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
     case 'queued':
       return status === 'queued';
     case 'ended':
@@ -78,7 +78,7 @@ const countedIn = (key: CountKey, status: RunStatus): boolean => {
     case 'needsYou':
       return status === 'idle';
     case 'running':
-      return status === 'starting' || status === 'running' || status === 'idle';
+      return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
     case 'queued':
       return status === 'queued';
   }

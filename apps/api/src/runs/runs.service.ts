@@ -131,6 +131,9 @@ export class RunsService {
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
       timeoutSeconds: agent?.timeoutSeconds ?? 1800,
       idleSince: row.idleSince?.toISOString() ?? null,
+      // TODO(task 3): read from the new runs columns once the migration lands.
+      waitingOn: null,
+      agentNote: null,
     };
   }
 

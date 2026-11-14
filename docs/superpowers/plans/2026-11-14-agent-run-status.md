@@ -70,14 +70,14 @@
   - `toAgentNote(raw: string): string` — collapses line terminators and control chars to a space, trims, slices to 500.
   - `RunDto` and `RunStatusEvent` gain `waitingOn: WaitingOn.nullable()` and `agentNote: AgentNote.nullable()`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
   - `toAgentNote('a\nb\r\nc\u001b[31m')` → `'a b c [31m'` without the ESC char; `toAgentNote('x'.repeat(600)).length` → `500`.
   - `AgentNote.safeParse('a\nb').success` → `false`.
   - `RunStatus.parse('done')` → `'done'`; `FINISHABLE_RUN_STATUSES` equals `['idle','done']`.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/contracts test` → FAIL.
-- [ ] **Step 3:** Implement the interfaces above.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/contracts test` and `pnpm typecheck` → contracts PASS; typecheck errors elsewhere are expected (exhaustive `switch`es on `RunStatus` in web/api) — note them, they are fixed in their own tasks; if any prevents this PR's CI from passing, add the `done` case with the same behaviour as `idle` in that file within this PR.
-- [ ] **Step 5:** Commit `feat(contracts): add done run status and agent state schema`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/contracts test` → FAIL.
+- [x] **Step 3:** Implement the interfaces above.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/contracts test` and `pnpm typecheck` → contracts PASS; typecheck errors elsewhere are expected (exhaustive `switch`es on `RunStatus` in web/api) — note them, they are fixed in their own tasks; if any prevents this PR's CI from passing, add the `done` case with the same behaviour as `idle` in that file within this PR.
+- [x] **Step 5:** Commit `feat(contracts): add done run status and agent state schema`.
 
 ### Task 3: DB — status constraint and new columns; status writer
 

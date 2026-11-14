@@ -27,6 +27,12 @@ const glyphs: Record<RunStatus, ReactNode> = {
       <rect x="7.1" y="4" width="1.8" height="8" rx=".6" fill="var(--on-idle)" />
     </>
   ),
+  done: (
+    <>
+      <circle cx="8" cy="8" r="7" fill="currentColor" />
+      <rect x="7.1" y="4" width="1.8" height="8" rx=".6" fill="var(--on-idle)" />
+    </>
+  ),
   succeeded: (
     <>
       <circle cx="8" cy="8" r="7" fill="currentColor" />

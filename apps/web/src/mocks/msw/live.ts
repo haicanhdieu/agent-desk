@@ -49,6 +49,8 @@ export function statusMessage(run: RunDto, seq: number): RunStatusEvent {
     seq,
     exitCode: run.exitCode,
     failureReason: run.failureReason,
+    waitingOn: run.waitingOn,
+    agentNote: run.agentNote,
   };
 }
 
