@@ -75,3 +75,20 @@ See [storybook-and-parity.md](storybook-and-parity.md).
 | Playwright                         | `pnpm --filter @agentdesk/web exec playwright show-report`; rerun with `--headed` or `--debug`                         |
 | e2e-local stuck waiting for `idle` | Temporal UI http://localhost:8233: find the run's workflow and read its history; worker logs in the TUI                |
 | Flaky timing                       | Tests must inject time and ids ([testing.md](../conventions/testing.md)). Treat the flake as a bug, don't add retries. |
+
+## 7. Coverage
+
+Rules and thresholds: [testing.md](../conventions/testing.md) §10. Coverage is off in plain `test` runs.
+
+```sh
+pnpm test:unit:coverage                                   # unit coverage, every package, no Docker
+pnpm --filter @agentdesk/db test:integration:coverage     # integration coverage (Docker); also api, worker, core
+pnpm --filter @agentdesk/web test:coverage                # one package, unit (web and contracts have no integration tests)
+```
+
+- Reports land in `<pkg>/coverage/unit` and `<pkg>/coverage/integration` (`text-summary` in the terminal, `lcov` and `coverage-final.json` on disk). The directories are git-ignored.
+- On Podman, integration coverage needs `TESTCONTAINERS_RYUK_DISABLED=true` ([§2](#2-unit-and-integration-tests)).
+- A local run covers one kind at a time. CI merges unit and integration per package, so its numbers are higher than either local report alone.
+- **Reading CI:** open the `test / coverage` job. Its log prints a summary table (lines and branches per package), then the floor, ratchet, patch-coverage and guard steps. The patch step lists uncovered changed lines in the job summary. The merged report is uploaded as the `coverage-merged` artifact.
+- **Raising the baseline:** after you add tests, download the `coverage-merged` artifact and run `pnpm --silent exec tsx scripts/coverage-ratchet.ts --update <dir>` (it only raises `coverage-baseline.json`), then commit the file with the PR that raised coverage. CI prints a notice when a package is more than 1 point above its baseline.
+- **Exception:** put a `## Coverage exceptions` section in the PR body saying what and why; a human reviews the PR.

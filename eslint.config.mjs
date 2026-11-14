@@ -6,7 +6,15 @@ import tseslint from 'typescript-eslint';
 
 export default defineConfig(
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/.turbo/**', '.agentdesk/**', 'apps/web/**', 'design/**'],
+    ignores: [
+      '**/node_modules/**',
+      '**/dist/**',
+      '**/coverage/**',
+      '**/.turbo/**',
+      '.agentdesk/**',
+      'apps/web/**',
+      'design/**',
+    ],
   },
   js.configs.recommended,
   tseslint.configs.recommended,

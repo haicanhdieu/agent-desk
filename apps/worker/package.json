@@ -14,7 +14,10 @@
     "test": "vitest run",
     "lint": "eslint .",
     "test:unit": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests",
-    "test:integration": "vitest run .int.test.ts --passWithNoTests"
+    "test:integration": "vitest run .int.test.ts --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
+    "test:unit:coverage": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests --coverage --coverage.reportsDirectory=./coverage/unit",
+    "test:integration:coverage": "vitest run .int.test.ts --passWithNoTests --coverage --coverage.reportsDirectory=./coverage/integration"
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",
@@ -44,6 +47,7 @@
     "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.1.0",
     "testcontainers": "^12.2.1",
     "tsx": "^4.23.15",
     "vitest": "^5.1.0"

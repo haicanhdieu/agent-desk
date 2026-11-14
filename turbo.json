@@ -40,6 +40,16 @@
     },
     "lint": {},
     "test:unit": {},
+    "test:coverage": {
+      "outputs": ["coverage/**"]
+    },
+    "test:unit:coverage": {
+      "outputs": ["coverage/**"]
+    },
+    "test:integration:coverage": {
+      "outputs": ["coverage/**"],
+      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"]
+    },
     "test:integration": {
       "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"]
     }

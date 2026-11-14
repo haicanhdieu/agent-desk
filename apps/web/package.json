@@ -14,7 +14,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "parity": "node scripts/parity.mjs",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --testTimeout=15000 --coverage --coverage.reportsDirectory=./coverage/unit"
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",
@@ -43,6 +44,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.3.0",
+    "@vitest/coverage-v8": "^5.1.0",
     "axe-core": "^4.14.0",
     "eslint": "^10.14.0",
     "eslint-config-prettier": "10.1.8",

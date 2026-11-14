@@ -1,0 +1,49 @@
+{
+  "packages": {
+    "api": { "lines": 70, "branches": 60 },
+    "worker": { "lines": 68, "branches": 58 },
+    "core": { "lines": 80, "branches": 70 },
+    "db": { "lines": 70, "branches": 60 },
+    "contracts": { "lines": 80, "branches": 70 },
+    "web": { "lines": 60 }
+  },
+  "patch": { "lines": 80 },
+  "sensitive": [
+    { "name": "auth", "globs": ["apps/api/src/auth/**"], "lines": 90, "branches": 72 },
+    {
+      "name": "webhooks",
+      "globs": ["apps/api/src/intake/**", "packages/core/src/adapters/github/webhook.ts"],
+      "lines": 90,
+      "branches": 75
+    },
+    {
+      "name": "secrets-tokens",
+      "globs": [
+        "apps/api/src/secrets/**",
+        "packages/core/src/secrets/**",
+        "packages/core/src/redact.ts",
+        "packages/core/src/adapters/github/app.ts"
+      ],
+      "lines": 84,
+      "branches": 73
+    },
+    { "name": "terminal", "globs": ["apps/api/src/terminal/**"], "lines": 90, "branches": 77 },
+    {
+      "name": "tenancy",
+      "globs": ["packages/db/src/withOrg.ts", "packages/db/src/functions.ts"],
+      "lines": 89,
+      "branches": 85
+    },
+    {
+      "name": "run-sandbox",
+      "globs": [
+        "apps/api/src/kube/**",
+        "packages/core/src/kube/gateway.ts",
+        "packages/core/src/kube/job-spec.ts",
+        "packages/core/src/kube/real-gateway.ts"
+      ],
+      "lines": 86,
+      "branches": 65
+    }
+  ]
+}

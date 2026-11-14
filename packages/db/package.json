@@ -13,7 +13,10 @@
     "db:generate": "drizzle-kit generate",
     "lint": "eslint .",
     "test:unit": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests",
-    "test:integration": "vitest run .int.test.ts --passWithNoTests"
+    "test:integration": "vitest run .int.test.ts --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
+    "test:unit:coverage": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests --coverage --coverage.reportsDirectory=./coverage/unit",
+    "test:integration:coverage": "vitest run .int.test.ts --passWithNoTests --coverage --coverage.reportsDirectory=./coverage/integration"
   },
   "dependencies": {
     "@opentelemetry/api": "^1.10.0",
@@ -24,6 +27,7 @@
     "@better-auth/cli": "^1.4.21",
     "@testcontainers/postgresql": "^12.2.1",
     "@types/pg": "^8.23.1",
+    "@vitest/coverage-v8": "^5.1.0",
     "better-auth": "^1.7.22",
     "drizzle-kit": "^0.31.11",
     "testcontainers": "^12.2.1",

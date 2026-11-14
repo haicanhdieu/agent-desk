@@ -7,10 +7,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "lint": "eslint .",
-    "test:unit": "vitest run"
+    "test:unit": "vitest run",
+    "test:coverage": "vitest run --coverage --coverage.reportsDirectory=./coverage/unit"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@vitest/coverage-v8": "^5.1.0",
     "vitest": "^5.1.0"
   }
 }

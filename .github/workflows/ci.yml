@@ -50,8 +50,44 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm test:unit
+      - run: pnpm test:unit:coverage
       - run: pnpm test:scripts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-api-unit
+          path: apps/api/coverage/unit/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-worker-unit
+          path: apps/worker/coverage/unit/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-web-unit
+          path: apps/web/coverage/unit/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-core-unit
+          path: packages/core/coverage/unit/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-db-unit
+          path: packages/db/coverage/unit/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-contracts-unit
+          path: packages/contracts/coverage/unit/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
 
   plan:
     name: test / plan
@@ -85,12 +121,103 @@ jobs:
             sleep $((attempt * 10))
           done
           exit 1
-      - run: pnpm --filter "@agentdesk/${{ matrix.pkg }}" test:integration --shard=${{ matrix.shard }}/${{ matrix.total }}
+      - run: pnpm --filter "@agentdesk/${{ matrix.pkg }}" test:integration:coverage --shard=${{ matrix.shard }}/${{ matrix.total }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.pkg }}-integration-${{ matrix.shard }}
+          path: ${{ format('{0}/{1}', contains('api worker', matrix.pkg) && 'apps' || 'packages', matrix.pkg) }}/coverage/integration/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+
+  coverage:
+    name: test / coverage
+    needs: [unit, integration]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history: diff-cover runs `git diff origin/<base>...HEAD`, which needs the merge-base.
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          path: coverage-artifacts
+          merge-multiple: false
+      - name: Merge unit and integration coverage
+        run: pnpm --silent exec tsx scripts/coverage-merge.ts coverage-artifacts coverage-merged
+      - name: Check coverage
+        run: pnpm --silent exec tsx scripts/coverage-check.ts coverage-merged coverage-thresholds.json
+      - name: Pick the baseline to compare against
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          cp coverage-baseline.json "$RUNNER_TEMP/baseline.json"
+          if [ "$EVENT" = "pull_request" ]; then
+            git fetch --no-tags origin "$BASE_REF"
+            if git show "FETCH_HEAD:coverage-baseline.json" > "$RUNNER_TEMP/base-baseline.json" 2>/dev/null; then
+              # A PR must not lower the bar by editing the file: compare against the base branch copy.
+              cp "$RUNNER_TEMP/base-baseline.json" "$RUNNER_TEMP/baseline.json"
+              pnpm --silent exec tsx scripts/coverage-ratchet.ts --compare "$RUNNER_TEMP/base-baseline.json" coverage-baseline.json
+            else
+              echo "::notice::$BASE_REF has no coverage-baseline.json yet; using this PR's copy as the baseline"
+            fi
+          fi
+      - name: Coverage ratchet
+        run: pnpm --silent exec tsx scripts/coverage-ratchet.ts --check coverage-merged --baseline "$RUNNER_TEMP/baseline.json"
+      - name: Install diff-cover
+        if: github.event_name == 'pull_request'
+        # Python tool, pinned exactly; kept out of the Node dependencies.
+        run: pipx install diff-cover==11.0.2
+      - name: Patch coverage
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        # Only changed lines that appear in cobertura.xml count. The report covers non-test source files only (see the
+        # coverage exclude lists in vitest config), so tests, stories, mocks, docs and config edits are ignored. A PR with
+        # no measurable changed lines prints "No lines with coverage information in this diff" and passes.
+        run: |
+          threshold="$(pnpm --silent exec tsx scripts/coverage-check.ts --patch-lines coverage-thresholds.json)"
+          if diff-cover coverage-merged/cobertura.xml --compare-branch="origin/$BASE_REF" --fail-under="$threshold" \
+            --format "markdown:$RUNNER_TEMP/patch-coverage.md"; then
+            status=0
+          else
+            status=$?
+            echo "::error::patch coverage is below $threshold%: add tests for the changed lines listed above; do not lower the threshold"
+          fi
+          { echo "## Patch coverage (changed lines, required: $threshold%)"; echo; cat "$RUNNER_TEMP/patch-coverage.md"; } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"
+      - name: Coverage guard
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          # Untrusted text: only ever read from the environment by the script, never expanded into the shell.
+          PR_BODY: ${{ github.event.pull_request.body }}
+        # Fails on added coverage ignore comments, widened coverage excludes and lowered thresholds unless the PR body has
+        # a "## Coverage exceptions" section. Base-branch copies of the protected files are compared; a file missing on
+        # base is a first introduction. Editing protected files only prints a notice (a human reviews them).
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          git diff --unified=0 "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/pr.diff"
+          mkdir -p "$RUNNER_TEMP/guard-base"
+          git ls-files -- coverage-thresholds.json ':(glob)**/vitest.config.ts' ':(glob)**/vite.config.ts' | while read -r f; do
+            mkdir -p "$RUNNER_TEMP/guard-base/$(dirname "$f")"
+            git show "origin/$BASE_REF:$f" > "$RUNNER_TEMP/guard-base/$f" 2>/dev/null || rm -f "$RUNNER_TEMP/guard-base/$f"
+          done
+          pnpm --silent exec tsx scripts/coverage-guard.ts "$RUNNER_TEMP/pr.diff" --base-dir "$RUNNER_TEMP/guard-base"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-merged
+          path: coverage-merged
+          if-no-files-found: error
+          retention-days: 7
 
   gate:
     name: gate / ci-passed
     if: always()
-    needs: [format, lint, typecheck, unit, plan, integration]
+    needs: [format, lint, typecheck, unit, plan, integration, coverage]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:

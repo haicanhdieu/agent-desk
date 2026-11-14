@@ -6,7 +6,7 @@ Tests are the contract between the parallel backend and frontend streams and the
 **Applies to:** every package: `apps/api`, `apps/worker`, `apps/web`, `packages/contracts`, `packages/core`, `packages/db`. Source of truth: §9 of `docs/superpowers/specs/2026-11-12-control-plane-design.md`, §7 of `docs/superpowers/specs/2026-11-12-frontend-design.md`, and both localhost plans.
 Related: [architecture.md](architecture.md), [backend.md](backend.md), [database.md](database.md), [frontend.md](frontend.md), [security.md](security.md), [typescript.md](typescript.md), [git-workflow.md](git-workflow.md), [code-review-checklist.md](code-review-checklist.md).
 
-> Status: Vitest runs in every package; Testcontainers and `@temporalio/testing` are in use, while MSW, Playwright e2e and coverage reporting are still arriving with the frontend plans. The `ci` workflow (`.github/workflows/ci.yml`) runs format, lint, typecheck, unit and sharded integration tests on every PR; see §9.
+> Status: Vitest runs in every package; Testcontainers and `@temporalio/testing` are in use, while MSW and Playwright e2e are still arriving with the frontend plans. The `ci` workflow (`.github/workflows/ci.yml`) runs format, lint, typecheck, unit and sharded integration tests plus a coverage gate on every PR; see §9 and §10.
 
 ## 1. Test pyramid per layer
 
@@ -118,7 +118,7 @@ expectContract('runs.byNumber', await app.inject({ method: 'GET', url: ownRunUrl
 
 ## 8. Coverage expectations
 
-No coverage tool is installed yet (`@vitest/coverage-v8` and thresholds are planned). Until then reviewers check behaviour coverage:
+The coverage gate (§10) sets a numeric floor. It does not replace behaviour coverage, which reviewers still check:
 
 - Every mapper, parser, guard and schema rule: unit tested, including edge values (0, empty, max, unknown enum).
 - Every API route: happy path, auth (401), wrong org (404, never 403 leaks), validation (400 with pointers), conflict (409) where applicable.
@@ -138,6 +138,18 @@ Commands for every level (unit, one file, watch, mocked e2e, full local e2e) are
 - **Sharding:** `.github/ci-shards.json` maps a package to its shard count (`{"db": 1, "api": 1, ...}`). Raise a number when that package's integration job passes ~8 minutes; the hard cap is 20 minutes per job.
 - **MUST** have `pnpm test`, `pnpm typecheck` and `pnpm lint` green before asking for review. CI re-runs them; the only required status check is `gate / ci-passed`.
 
+## 10. Coverage gate
+
+CI measures line and branch coverage (vitest v8) from unit and integration tests together, and fails on a package floor, a drop against the baseline, low coverage on changed lines, or a sensitive-path floor. Design and rationale: [2026-11-14-coverage-gate-design.md](../superpowers/specs/2026-11-14-coverage-gate-design.md). Local commands and reading the CI summary: [tests-and-e2e.md](../runbooks/tests-and-e2e.md) §7.
+
+- **MUST NOT** lower `coverage-thresholds.json` or `coverage-baseline.json`, add a `v8`/`c8`/`istanbul ignore` comment, or widen a coverage `exclude` (or narrow an `include`) to get the gate green. Why: each hides the problem instead of testing it.
+- **MUST** start a bug fix with a failing test (§6) even when coverage is already above the floor. Why: coverage is a floor, not proof that a behaviour is pinned.
+- **MUST** cover at least 80% of the changed lines of a PR (patch coverage, from `diff-cover`). Why: new code is where untested behaviour enters.
+- **MUST** keep sensitive paths at their per-group floors in `coverage-thresholds.json` (auth, webhooks, secrets-tokens, terminal, tenancy, run-sandbox). Why: a regression there is a security bug; the target is 90% lines and 85% branches.
+- **MUST** raise `coverage-baseline.json` in the PR that raised coverage, using `--update` (it only ever raises). Why: the ratchet then protects the gain.
+- **MUST** request an exception in a `## Coverage exceptions` section of the PR body (at least a sentence saying what and why) when an ignore comment, wider exclude or lower threshold is truly needed. Why: the guard fails without it, and PRs that touch the protected coverage files wait for a human approval.
+- e2e and visual parity are not measured; `images/runner` has a coverage config but is not gated.
+
 ## Checklist
 
 - [ ] Behaviour tested at the lowest layer that proves it; e2e only for the flow.
@@ -150,4 +162,5 @@ Commands for every level (unit, one file, watch, mocked e2e, full local e2e) are
 - [ ] Test files named and placed per package convention; test names read as rules.
 - [ ] No secrets in fixtures; no state shared between tests.
 - [ ] New stories pass smoke + axe; parity checked for touched boards.
+- [ ] Changed lines at least 80% covered; no ignore comment, wider exclude or lowered threshold without a `## Coverage exceptions` section.
 - [ ] `pnpm test`, `pnpm typecheck`, `pnpm lint` green.

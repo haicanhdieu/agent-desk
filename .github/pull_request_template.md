@@ -32,6 +32,10 @@ Full detail: [docs/conventions/code-review-checklist.md](../docs/conventions/cod
 - [ ] Spec, plan, ADR, or runbook updated if behavior or decisions changed
 - [ ] Authored by an AI agent? Verification output below; judgment calls listed
 
+## Coverage exceptions
+
+<!-- Delete if none. Required when you add a coverage ignore comment, widen coverage excludes, or lower a threshold: say what and why. -->
+
 ## Test evidence
 
 <!-- Commands run and their result (paste output or summary). For E2E or manual checks, the steps you took. -->

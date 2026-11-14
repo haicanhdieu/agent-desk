@@ -1,0 +1,8 @@
+{
+  "api": { "lines": 92.8, "branches": 78.8 },
+  "worker": { "lines": 70.8, "branches": 60.2 },
+  "core": { "lines": 86.8, "branches": 73.1 },
+  "db": { "lines": 72.4, "branches": 78.8 },
+  "contracts": { "lines": 100, "branches": 87.3 },
+  "web": { "lines": 95.4, "branches": 88.1 }
+}

@@ -9,6 +9,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'coverage',
       'storybook-static',
       'parity-out',
       'test-results',

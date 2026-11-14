@@ -39,5 +39,20 @@ export default defineConfig(({ mode }) => ({
     setupFiles: ['./src/test/setup.ts'],
     css: { include: [/tokens\.css/], modules: { classNameStrategy: 'non-scoped' } },
     include: ['src/**/*.test.{ts,tsx}'],
+    coverage: {
+      provider: 'v8',
+      reporter: ['json', 'json-summary', 'lcov', 'text-summary'],
+      reportsDirectory: './coverage',
+      include: ['src/**/*.{ts,tsx}'],
+      exclude: [
+        '**/*.d.ts',
+        '**/*.test.{ts,tsx}',
+        '**/*.stories.{ts,tsx}',
+        '**/mocks/**',
+        '**/fixtures/**',
+        '**/test/**',
+        'src/app/routeTree.gen.ts',
+      ],
+    },
   },
 }));

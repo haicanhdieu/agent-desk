@@ -12,3 +12,4 @@ dist
 .devbox/
 .playwright-mcp/
 .temp/
+coverage
