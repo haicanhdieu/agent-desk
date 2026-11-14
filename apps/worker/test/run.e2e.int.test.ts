@@ -5,14 +5,15 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { eq } from 'drizzle-orm';
 import { TestWorkflowEnvironment } from '@temporalio/testing';
+import { ApplicationFailure, WorkflowUpdateFailedError } from '@temporalio/client';
 import { Worker } from '@temporalio/worker';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
   FakeKubeGateway,
   FakeStore,
   MemorySecretStore,
-  SIGNAL,
   TASK_QUEUE,
+  UPDATE,
   WORKFLOW,
   createAdapterRegistry,
   parseConfig,
@@ -155,9 +156,22 @@ describe('RunWorkflow end to end (KUBE_MODE=fake, fake provider)', () => {
         const [r] = await withOrg(db, ORG, (tx) => tx.select().from(runs).where(eq(runs.id, runId)));
         return r?.status === 'idle';
       });
-      // Wait until the workflow itself has seen the turn end, then finish the run.
-      await until(async () => (await handle.query<{ phase: string }>('state')).phase === 'idle');
-      await handle.signal(SIGNAL.finish);
+      // Finish as soon as the database shows idle. The activity writes idle, then signals, so the workflow may be a
+      // moment behind: it rejects with NotFinishable until it has seen the turn end (the API answers 409 then).
+      await until(async () => {
+        try {
+          await handle.executeUpdate(UPDATE.finishRun);
+          return true;
+        } catch (err) {
+          if (
+            err instanceof WorkflowUpdateFailedError &&
+            err.cause instanceof ApplicationFailure &&
+            err.cause.type === 'NotFinishable'
+          )
+            return false;
+          throw err;
+        }
+      });
       expect(await handle.result()).toMatchObject({ status: 'succeeded', exitCode: 0 });
 
       // Reconcile against the real server: the gate is open and holds no dead runs.

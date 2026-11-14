@@ -9,9 +9,9 @@ const GATE_PREFIX = 'gate-';
 /** Temporal client calls used by activities (signals to runs, reconcile's workflow checks). */
 export function temporalOps(client: Client): RunSignaller & ReconcileTemporal {
   return {
-    async signalRun(runId, signal) {
+    async signalRun(runId, signal, arg) {
       try {
-        await client.workflow.getHandle(runWorkflowId(runId)).signal(signal);
+        await client.workflow.getHandle(runWorkflowId(runId)).signal(signal, ...(arg !== undefined ? [arg] : []));
       } catch (err) {
         // The workflow closed (cancel, hard timeout) while this activity was still running: nobody to tell.
         if (!(err instanceof WorkflowNotFoundError)) throw err;

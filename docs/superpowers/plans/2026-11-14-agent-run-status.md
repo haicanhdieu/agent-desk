@@ -198,16 +198,16 @@
   - `agentNote` = `redact(note, secrets)` (same `secrets` the activity uses for scrollback) before `setRunStatusTx`.
   - Signal `agentState` with the state when the line was first stored, or (replay) when the current status still equals the mapped status — same rule as today's `turn_finished`.
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - `'done line writes done with a redacted note and signals agentState done'` (note contains the run token → stored as the redaction marker; Review Focus 1)
   - `'waiting line writes running with waitingOn background'`
   - `'legacy turn finished still writes idle and signals'`
   - `'replayed done line does not re-signal after the run moved on'`
   - in `run.e2e.int.test.ts`: remove the "wait until the workflow itself has seen the turn end" workaround and assert finish still succeeds (now through `finishRun`).
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/worker test` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
-- [ ] **Step 5:** Commit `feat(worker): map agent state lines to run status`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/worker test` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
+- [x] **Step 5:** Commit `feat(worker): map agent state lines to run status`.
 
 ---
 

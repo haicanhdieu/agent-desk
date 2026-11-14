@@ -1,7 +1,7 @@
 import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { Provider, RunStatus, TicketKind } from '@agentdesk/contracts';
+import { Provider, RunStatus, TicketKind, type AgentState } from '@agentdesk/contracts';
 import {
   IDLE_END_SECONDS,
   SIGNAL,
@@ -63,8 +63,22 @@ import {
 } from './run.activities';
 
 /** Sends a signal to `run-{runId}`; a closed or missing workflow is not an error (activities may outlive it). */
+/** The run status a protocol state maps to. */
+function mapAgentState(state: AgentState): { status: 'running' | 'idle' | 'done'; waitingOn: 'background' | null } {
+  switch (state) {
+    case 'working':
+      return { status: 'running', waitingOn: null };
+    case 'waiting':
+      return { status: 'running', waitingOn: 'background' };
+    case 'needs_input':
+      return { status: 'idle', waitingOn: null };
+    case 'done':
+      return { status: 'done', waitingOn: null };
+  }
+}
+
 export interface RunSignaller {
-  signalRun(runId: string, signal: string): Promise<void>;
+  signalRun(runId: string, signal: string, arg?: string): Promise<void>;
 }
 
 export type RunActivityConfig = Pick<
@@ -660,34 +674,46 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
                 { onlyFrom: ['starting'] },
               );
             });
-          } else if (parsed.kind === 'agent_state' && parsed.agent?.state === 'working') {
-            // TODO(task 7): `waiting` and `done` lines are not mapped to run status yet.
-            // The agent's own hook says a turn began (terminal input proves nothing). Signal only on a first store: a
-            // replayed line must not resume a run whose later turn already finished. The workflow ignores `resumed`
-            // unless the run is idle.
-            const inserted = await withOrg(db, ctx.orgId, (tx) =>
-              storeLineEvent(tx, ctx, 'lifecycle', index, { kind: 'turn_started', text: parsed.text }),
-            );
-            if (inserted) await deps.signaller.signalRun(ctx.runId, SIGNAL.resumed);
-          } else if (parsed.kind === 'agent_state' && parsed.agent?.state === 'needs_input') {
+          } else if (parsed.kind === 'agent_state' && parsed.agent) {
+            const agent = parsed.agent;
+            const mapped = mapAgentState(agent.state);
+            // The note is redacted with the run's secrets before it reaches the status row; the event keeps no note.
+            const agentNote = agent.note !== undefined ? redact(agent.note, secrets) : undefined;
             const { inserted, status } = await withOrg(db, ctx.orgId, async (tx) => {
               const ins = await storeLineEvent(tx, ctx, 'lifecycle', index, {
-                kind: 'turn_finished',
-                text: parsed.text,
+                kind: 'agent_state',
+                state: agent.state,
+                source: agent.source ?? null,
+                waitingOn: agent.waitingOn ?? null,
               });
-              if (ins) {
+              const [before] = await tx
+                .select({ status: runs.status, waitingOn: runs.waitingOn })
+                .from(runs)
+                .where(eq(runs.id, ctx.runId));
+              // A `working` line while already plainly running changes nothing: no duplicate status event.
+              const unchanged =
+                mapped.status === 'running' && before?.status === 'running' && before.waitingOn === mapped.waitingOn;
+              if (ins && !unchanged) {
                 await setRunStatusTx(
                   tx,
-                  { orgId: ctx.orgId, runId: ctx.runId, status: 'idle', at: now() },
-                  { onlyFrom: ['starting', 'running'] },
+                  {
+                    orgId: ctx.orgId,
+                    runId: ctx.runId,
+                    status: mapped.status,
+                    waitingOn: mapped.waitingOn,
+                    ...(agentNote !== undefined ? { agentNote } : {}),
+                    at: now(),
+                  },
+                  { onlyFrom: ['starting', 'running', 'idle', 'done'] },
                 );
               }
               const [cur] = await tx.select({ status: runs.status }).from(runs).where(eq(runs.id, ctx.runId));
               return { inserted: ins, status: cur?.status };
             });
-            // A replayed line (crash after the write, before the signal) re-signals only while the run is still idle;
-            // the workflow ignores turnFinished unless it is running.
-            if (inserted || status === 'idle') await deps.signaller.signalRun(ctx.runId, SIGNAL.turnFinished);
+            // A replayed line (crash after the write, before the signal) re-signals only while the run still shows
+            // the status this line mapped to; the workflow ignores a signal that does not apply to its phase.
+            if (inserted || status === mapped.status)
+              await deps.signaller.signalRun(ctx.runId, SIGNAL.agentState, agent.state);
           } else if (parsed.kind === 'scrollback_begin') {
             block = new ScrollbackBlock(index, SCROLLBACK_MAX_CHARS);
             return 'skipDurable';

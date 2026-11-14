@@ -36,9 +36,9 @@ let kube: FakeKubeGateway;
 let config: Config;
 let store: FakeStore;
 const secrets = new MemorySecretStore();
-const signals: { runId: string; signal: string }[] = [];
+const signals: { runId: string; signal: string; arg?: string }[] = [];
 const signaller: RunSignaller = {
-  signalRun: async (runId, signal) => void signals.push({ runId, signal }),
+  signalRun: async (runId, signal, arg) => void signals.push({ runId, signal, ...(arg !== undefined ? { arg } : {}) }),
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -463,14 +463,16 @@ const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skippe
 const FIRST_TURN_LINE = PRELUDE_KINDS.length + 2;
 
 describe('followPodLogs', () => {
-  it('writes running then idle, signals turnFinished, stores one redacted scrollback, returns the exit code', async () => {
+  it('writes running then idle, signals agentState needs_input, stores one redacted scrollback, returns the exit code', async () => {
     const runId = await seedRun(`echo ${CRED} please`);
     const ctx = await ctxFor(runId);
     const acts = createRunActivities(deps());
     await acts.createRunSecretAndJob(ctx);
     const f = follow(ctx, deps());
     await until(async () => (await load(runId)).run?.status === 'idle');
-    await until(async () => signals.some((s) => s.runId === runId && s.signal === 'turnFinished'));
+    await until(async () =>
+      signals.some((s) => s.runId === runId && s.signal === 'agentState' && s.arg === 'needs_input'),
+    );
     await acts.endSession(ctx);
     const result = await f.promise;
     expect(result.exitCode).toBe(0);
@@ -480,7 +482,7 @@ describe('followPodLogs', () => {
     const { events } = await load(runId);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     const lifecycle = events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind);
-    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'turn_started', 'turn_finished']);
+    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'agent_state', 'agent_state']);
     const scrollback = events.filter((e) => e.type === 'scrollback');
     expect(scrollback).toHaveLength(1);
     const text = String(scrollback[0]?.payload.text);
@@ -531,17 +533,116 @@ describe('followPodLogs', () => {
     expect(new Set(lines).size).toBe(lines.length);
     expect(lifecycle.map((e) => e.payload.kind)).toEqual([
       ...PRELUDE_KINDS,
-      'turn_started',
-      'turn_finished',
-      'turn_started',
-      'turn_finished',
+      'agent_state',
+      'agent_state',
+      'agent_state',
+      'agent_state',
     ]);
-    // The agent's own turn-start lines (not terminal input) signal resumed once each (first turn, then the typed one),
-    // even across the replaying retry.
-    expect(signals.filter((s) => s.runId === runId && s.signal === 'resumed')).toHaveLength(2);
+    // The agent's own `working` lines (not terminal input) signal agentState working once each (first turn, then the
+    // typed one), even across the replaying retry.
+    expect(signals.filter((s) => s.runId === runId && s.signal === 'agentState' && s.arg === 'working')).toHaveLength(
+      2,
+    );
     expect(events.filter((e) => e.type === 'scrollback')).toHaveLength(1);
-    expect(await statuses(runId)).toEqual(['running', 'idle']);
+    // The typed turn's `working` line resumes the run, its end line idles it again; the replays change nothing.
+    expect(await statuses(runId)).toEqual(['running', 'idle', 'running', 'idle']);
     await acts.deleteJob(ctx);
+  });
+
+  describe('agent state lines', () => {
+    const b64 = (t: string) => Buffer.from(t, 'utf8').toString('base64');
+    const rewrite = (map: (line: string) => string) =>
+      wrapKube({
+        async *streamLogs(n, s) {
+          for await (const line of kube.streamLogs(n, s)) yield map(line);
+        },
+      });
+    const agentSignals = (runId: string) => signals.filter((s) => s.runId === runId && s.signal === 'agentState');
+
+    it('done line writes done with a redacted note and signals agentState done', async () => {
+      const runId = await seedRun('finish --fake-done');
+      const ctx = await ctxFor(runId);
+      const leaky = rewrite((l) =>
+        l.startsWith('agentdesk: state done ') ? `agentdesk: state done declared ${b64(`all done ${CRED}`)}` : l,
+      );
+      const acts = createRunActivities(deps({ kube: leaky }));
+      await acts.createRunSecretAndJob(ctx);
+      const f = follow(ctx, deps({ kube: leaky }));
+      await until(async () => (await load(runId)).run?.status === 'done');
+      await until(async () => agentSignals(runId).some((s) => s.arg === 'done'));
+      await acts.endSession(ctx);
+      await f.promise;
+
+      const { run, events } = await load(runId);
+      expect(run?.agentNote).toContain('all done');
+      expect(run?.agentNote).not.toContain(CRED);
+      expect(JSON.stringify(events)).not.toContain(CRED);
+      const stored = events.filter((e) => e.type === 'lifecycle' && e.payload.kind === 'agent_state');
+      expect(stored.map((e) => e.payload.state)).toEqual(['working', 'done']);
+      expect(stored[1]?.payload).toMatchObject({ state: 'done', source: 'declared', waitingOn: null });
+      expect(JSON.stringify(stored)).not.toContain('all done');
+      expect(await statuses(runId)).toEqual(['running', 'done']);
+      await acts.deleteJob(ctx);
+    });
+
+    it('waiting line writes running with waitingOn background', async () => {
+      const runId = await seedRun('build --fake-background');
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx);
+      const f = follow(ctx, deps());
+      await until(async () => (await load(runId)).run?.status === 'idle');
+      await acts.endSession(ctx);
+      await f.promise;
+      const status = (await load(runId)).events.filter((e) => e.type === 'status');
+      expect(status.map((e) => [e.payload.status, e.payload.waitingOn])).toEqual([
+        ['running', null],
+        ['running', 'background'],
+        ['running', null],
+        ['idle', null],
+      ]);
+      await acts.deleteJob(ctx);
+    });
+
+    it('legacy turn finished still writes idle and signals', async () => {
+      const runId = await seedRun('legacy');
+      const ctx = await ctxFor(runId);
+      const legacy = rewrite((l) =>
+        l === 'agentdesk: state working'
+          ? 'agentdesk: turn started'
+          : l.startsWith('agentdesk: state needs_input ')
+            ? 'agentdesk: turn finished'
+            : l,
+      );
+      const acts = createRunActivities(deps({ kube: legacy }));
+      await acts.createRunSecretAndJob(ctx);
+      const f = follow(ctx, deps({ kube: legacy }));
+      await until(async () => (await load(runId)).run?.status === 'idle');
+      await until(async () => agentSignals(runId).some((s) => s.arg === 'needs_input'));
+      await acts.endSession(ctx);
+      await f.promise;
+      expect(await statuses(runId)).toEqual(['running', 'idle']);
+      await acts.deleteJob(ctx);
+    });
+
+    it('replayed done line does not re-signal after the run moved on', async () => {
+      const runId = await seedRun('replay --fake-done');
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx);
+      const first = follow(ctx, deps());
+      await until(async () => agentSignals(runId).some((s) => s.arg === 'done'));
+      await acts.endSession(ctx);
+      await first.promise;
+      expect(agentSignals(runId).filter((s) => s.arg === 'done')).toHaveLength(1);
+
+      await asOwner((c) => c.query(`update runs set status = 'running' where id = $1`, [runId]));
+      const replay = follow(ctx, deps(), { lastLine: 0 });
+      await replay.promise;
+      expect(agentSignals(runId).filter((s) => s.arg === 'done')).toHaveLength(1);
+      expect((await load(runId)).run?.status).toBe('running');
+      await acts.deleteJob(ctx);
+    });
   });
 
   it('stays starting through plugin lines, running only from session started', async () => {
@@ -623,8 +724,8 @@ describe('followPodLogs', () => {
       'plugins_end',
       'setup_skipped',
       'session_started',
-      'turn_started',
-      'turn_finished',
+      'agent_state',
+      'agent_state',
     ]);
     expect(lifecycle[0]?.payload.sha).toMatch(/^[0-9a-f]{40}$/);
     expect(lifecycle[2]?.payload).toMatchObject({ kind: 'plugin_output', text: 'noisy output', truncated: false });
@@ -864,8 +965,16 @@ describe('followPodLogs', () => {
     const ctx = await ctxFor(runId);
     const acts = createRunActivities(deps());
     await acts.createRunSecretAndJob(ctx);
-    const f = follow(ctx, deps());
-    await until(async () => (await load(runId)).events.some((e) => e.type === 'lifecycle'));
+    // Agent state lines would move an idle run (that is their job); this test is about `session_started` only.
+    const quiet = wrapKube({
+      async *streamLogs(n, s) {
+        for await (const line of kube.streamLogs(n, s)) if (!line.startsWith('agentdesk: state ')) yield line;
+      },
+    });
+    const f = follow(ctx, deps({ kube: quiet }));
+    await until(async () =>
+      (await load(runId)).events.some((e) => e.type === 'lifecycle' && e.payload.kind === 'session_started'),
+    );
     await acts.endSession(ctx);
     await f.promise;
     expect(await statuses(runId)).toEqual([]);
