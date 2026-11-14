@@ -19,7 +19,9 @@ All four `check` gates must pass before you ask for review ([git-workflow.md](..
 ## 2. Unit and integration tests
 
 ```sh
-devbox run test                                              # every package (turbo, cached)
+devbox run test                                              # every package, unit + integration (turbo, cached)
+pnpm test:unit                                               # unit tests only, no Docker needed
+pnpm --filter @agentdesk/db test:integration --shard=1/2     # one shard of a package's integration tests (what CI runs)
 pnpm --filter @agentdesk/web test                            # one package
 pnpm --filter @agentdesk/web test src/ds/Button.test.tsx     # one file
 pnpm --filter @agentdesk/web exec vitest run -t "toRunSummary"  # by test name
@@ -30,6 +32,9 @@ Run these inside `devbox shell`, or prefix them with `devbox run --`.
 
 - Backend integration tests start their own Postgres through Testcontainers, so a container engine must be running (`docker ps`). They do **not** use the dev database on 54329.
 - `pnpm test` doesn't need the dev stack running.
+- Docker-backed tests are named `*.int.test.ts`; everything else is a unit test. `pnpm lint` checks the naming.
+- On Podman, set `TESTCONTAINERS_RYUK_DISABLED=true` (see [testing.md](../conventions/testing.md) §4).
+- In CI, shard counts live in `.github/ci-shards.json`. If a CI check fails, rerun the failing command from the job (names above) locally.
 - If turbo replays a stale result, run `pnpm turbo run test --force`.
 
 ## 3. Mocked end-to-end (frontend only, no backend)
