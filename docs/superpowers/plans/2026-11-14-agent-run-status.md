@@ -262,10 +262,10 @@
 **Files:**
 - Modify: `apps/web/e2e/local/run.spec.ts`, `scripts/e2e-local.ts`
 
-- [ ] **Step 1:** Update the existing local spec's lifecycle check from `turn_finished` events to `agent_state` events with `state: 'needs_input'`; keep "Finish from Needs you → succeeded".
-- [ ] **Step 2:** Add test `'a --fake-done run shows Done and Finish closes it as succeeded'`, and in `scripts/e2e-local.ts` a scenario `done: comment with --fake-done -> run done -> finish -> succeeded`.
+- [x] **Step 1:** Update the existing local spec's lifecycle check from `turn_finished` events to `agent_state` events with `state: 'needs_input'`; keep "Finish from Needs you → succeeded".
+- [x] **Step 2:** Add test `'a --fake-done run shows Done and Finish closes it as succeeded'`, and in `scripts/e2e-local.ts` a scenario `done: comment with --fake-done -> run done -> finish -> succeeded`.
 - [ ] **Step 3:** Run `devbox run dev` then `devbox run e2e-local` → all scenarios PASS (see `docs/runbooks/tests-and-e2e.md`).
-- [ ] **Step 4:** Commit `test(web): e2e finish from needs you and from done`.
+- [x] **Step 4:** Commit `test(web): e2e finish from needs you and from done`.
 
 ---
 

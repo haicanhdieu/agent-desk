@@ -1,5 +1,5 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { expect, test, type APIResponse } from '@playwright/test';
+import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { InstallResponse, RunDto, RunLogResponse } from '@agentdesk/contracts';
 import { z } from 'zod';
 
@@ -31,15 +31,8 @@ test.beforeAll(async ({ request }) => {
   expect(ready?.ok(), `${API}/readyz is not ready: start the stack with \`pnpm dev\` at the repo root`).toBe(true);
 });
 
-test('a comment on the fake board becomes a live run: idle, terminal echo, finish, read-only scrollback', async ({
-  page,
-}) => {
-  const consoleErrors: string[] = [];
-  page.on('console', (m) => {
-    if (m.type() === 'error') consoleErrors.push(m.text());
-  });
-  page.on('pageerror', (e) => consoleErrors.push(e.message));
-
+/** Dev login, then the five setup steps against the fake board; ends on the project's Runs page. */
+async function signInAndCreateProject(page: Page): Promise<{ handle: string; projectId: string }> {
   // Sign in: dev login creates the user and a personal org, sets the session cookie and sends us to the projects.
   const handle = `e2e-${randomBytes(4).toString('hex')}`;
   await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
@@ -82,6 +75,42 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
   const projectId = /\/p\/([0-9a-f-]+)\/runs$/.exec(page.url())?.[1];
   expect(projectId, page.url()).toBeTruthy();
+  return { handle, projectId: projectId ?? '' };
+}
+
+/** A pull request on the fake board with a webhook comment; returns the run it created. */
+async function commentOnNewTicket(page: Page, handle: string, projectId: string, body: string): Promise<string> {
+  const ticketNumber = randomInt(100_000, 1_000_000_000);
+  await ok(
+    await page.request.post('/dev/fake/tickets', {
+      data: { repoPath: REPO, number: ticketNumber, kind: 'pr', title: `e2e ${handle}` },
+    }),
+    201,
+    'fake ticket',
+  );
+  const comment = CommentResult.parse(
+    await ok(
+      await page.request.post('/dev/fake/comments', {
+        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId },
+      }),
+      201,
+      'fake comment',
+    ),
+  );
+  expect(comment.runId, `comment outcome ${comment.outcome}`).toBeTruthy();
+  return comment.runId ?? '';
+}
+
+test('a comment on the fake board becomes a live run: idle, terminal echo, finish, read-only scrollback', async ({
+  page,
+}) => {
+  const consoleErrors: string[] = [];
+  page.on('console', (m) => {
+    if (m.type() === 'error') consoleErrors.push(m.text());
+  });
+  page.on('pageerror', (e) => consoleErrors.push(e.message));
+
+  const { handle, projectId } = await signInAndCreateProject(page);
 
   // A pull request on the fake board, and `/code-review` on it delivered as a webhook.
   const ticketNumber = randomInt(100_000, 1_000_000_000);
@@ -123,13 +152,15 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   // The typed line starts a second turn in the pod; Finish is a 409 unless the run is idle, and "Needs you" may still be
   // the pre-turn status. The browser may never see `running` (the API signals `resumed` only when it knows the run is
   // idle, re-reading that at most every 5 s, and the turn is 2 s), so wait for proof the turn ended: a second
-  // `turn_finished` lifecycle event in the run log with the run idle.
+  // `agent_state` lifecycle event with state `needs_input` in the run log with the run idle.
   const runId = comment.runId ?? '';
   await expect
     .poll(
       async () => {
         const log = RunLogResponse.parse(await ok(await page.request.get(`/api/runs/${runId}/log`), 200, 'run log'));
-        const turns = log.items.filter((e) => e.type === 'lifecycle' && e.payload['kind'] === 'turn_finished').length;
+        const turns = log.items.filter(
+          (e) => e.type === 'lifecycle' && e.payload['kind'] === 'agent_state' && e.payload['state'] === 'needs_input',
+        ).length;
         const run = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run'));
         return `${turns >= 2 ? 'second turn finished' : `${turns} turn(s)`}, ${run.status}`;
       },
@@ -147,4 +178,22 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   await expect(terminal).toContainText('Fake Claude Code', { timeout: 15_000 });
 
   expect(consoleErrors).toEqual([]);
+});
+
+test('a --fake-done run shows Done and Finish closes it as succeeded', async ({ page }) => {
+  const { handle, projectId } = await signInAndCreateProject(page);
+  await commentOnNewTicket(page, handle, projectId, '/code-review --fake-done');
+
+  const runLink = page.getByRole('link', { name: 'Run 1', exact: true });
+  await expect(runLink).toBeVisible({ timeout: 30_000 });
+  await runLink.click();
+
+  // The fake pod declares `done` at the end of its first turn: the Done status and its banner, not Needs you.
+  const header = page.getByRole('banner');
+  await expect(header.getByText('Done', { exact: true })).toBeVisible({ timeout: 60_000 });
+  await expect(header.getByText('Needs you', { exact: true })).toHaveCount(0);
+  await expect(page.getByText('The agent says the task is done')).toBeVisible();
+
+  await page.getByRole('region', { name: 'Terminal' }).getByRole('button', { name: 'Finish run' }).click();
+  await expect(header.getByText('Succeeded', { exact: true })).toBeVisible({ timeout: 30_000 });
 });
