@@ -22,11 +22,21 @@ export function Field({ label, labelAs = 'label', help, error, className, childr
       {labelAs === 'label' ? (
         <label htmlFor={id}>{label}</label>
       ) : (
-        <span id={labelId} className={styles.flabel}>{label}</span>
+        <span id={labelId} className={styles.flabel}>
+          {label}
+        </span>
       )}
       {children({ id, describedBy, invalid: error ? true : undefined, labelId })}
-      {help && <span id={helpId} className={styles.help}>{help}</span>}
-      {error && <span id={errorId} className={styles.error}>{error}</span>}
+      {help && (
+        <span id={helpId} className={styles.help}>
+          {help}
+        </span>
+      )}
+      {error && (
+        <span id={errorId} className={styles.error}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }

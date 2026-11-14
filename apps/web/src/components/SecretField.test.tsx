@@ -32,7 +32,15 @@ describe('SecretField', () => {
   it('replacing: submit passes the typed value; Cancel calls onCancel; blank submit disabled', async () => {
     const onSubmit = vi.fn();
     const onCancel = vi.fn();
-    render(<SecretField state="replacing" credentialType="oauth_token" savedInfo={info} onSubmit={onSubmit} onCancel={onCancel} />);
+    render(
+      <SecretField
+        state="replacing"
+        credentialType="oauth_token"
+        savedInfo={info}
+        onSubmit={onSubmit}
+        onCancel={onCancel}
+      />,
+    );
     const submit = screen.getByRole('button', { name: 'Test and replace' });
     expect(submit).toBeDisabled();
     await userEvent.type(screen.getByLabelText('New token'), 'sk-abc');
@@ -52,7 +60,9 @@ describe('SecretField', () => {
 
   it('credential type change is reported', async () => {
     const onType = vi.fn();
-    render(<SecretField state="replacing" credentialType="oauth_token" savedInfo={info} onCredentialTypeChange={onType} />);
+    render(
+      <SecretField state="replacing" credentialType="oauth_token" savedInfo={info} onCredentialTypeChange={onType} />,
+    );
     await userEvent.click(screen.getByRole('radio', { name: 'API key' }));
     expect(onType).toHaveBeenCalledWith('api_key');
   });

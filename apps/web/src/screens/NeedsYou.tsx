@@ -26,7 +26,9 @@ export interface NeedsYouProps {
 }
 
 const boardRun = runFixtures.find((r) => r.id === 62);
-const boardRuns: NeedsYouRun[] = boardRun ? [{ run: boardRun, href: '/runs/62', idleAt: '14:13', endsAt: '14:23' }] : [];
+const boardRuns: NeedsYouRun[] = boardRun
+  ? [{ run: boardRun, href: '/runs/62', idleAt: '14:13', endsAt: '14:23' }]
+  : [];
 
 const ticketLabel = (r: RunSummary) => `${r.ticket.kind === 'pr' ? 'PR' : 'issue'} #${r.ticket.number}`;
 
@@ -38,7 +40,8 @@ export function NeedsYou({ project, projects, runs = boardRuns, projectHref = ()
       <div className={styles.needsHead}>
         <h1>Where "needs you" shows up</h1>
         <p className={`muted ${styles.needsIntro}`}>
-          An idle run holds a slot and ends on its own after 10 minutes with no one attached, so the signal has to reach you in GitHub, in another tab, or in another project. Same amber, same caret icon, same words everywhere.
+          An idle run holds a slot and ends on its own after 10 minutes with no one attached, so the signal has to reach
+          you in GitHub, in another tab, or in another project. Same amber, same caret icon, same words everywhere.
         </p>
       </div>
       <div className={styles.needsGrid}>
@@ -52,8 +55,19 @@ export function NeedsYou({ project, projects, runs = boardRuns, projectHref = ()
               ({project.needsYou}) Needs you, {project.name}
             </div>
             <div className={mock.tabIdle}>
-              <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="9" /><path d="M8.5 12.5 11 15l4.5-5.5" />
+              <svg
+                aria-hidden="true"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.75"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <circle cx="12" cy="12" r="9" />
+                <path d="M8.5 12.5 11 15l4.5-5.5" />
               </svg>
               Export invoices as CSV, PR #148
             </div>
@@ -74,7 +88,7 @@ export function NeedsYou({ project, projects, runs = boardRuns, projectHref = ()
             />
           </div>
         </SurfaceCard>
-        <SurfaceCard caption="On GitHub: the bot edits its own start comment as the run changes state, so the ticket shows &quot;waiting for your input&quot; without a new comment or extra notification noise.">
+        <SurfaceCard caption='On GitHub: the bot edits its own start comment as the run changes state, so the ticket shows "waiting for your input" without a new comment or extra notification noise.'>
           {runs.length === 0 && none}
           {runs.map(({ run, href, idleAt, endsAt }) => (
             <GitHubComment
@@ -83,9 +97,12 @@ export function NeedsYou({ project, projects, runs = boardRuns, projectHref = ()
               bot
               meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
             >
-              <span><b>Run {run.id}</b> <span className="mono">{run.skill}</span> is waiting for your input.</span>
+              <span>
+                <b>Run {run.id}</b> <span className="mono">{run.skill}</span> is waiting for your input.
+              </span>
               <span className={`muted ${styles.ghSub}`}>
-                Started {run.startedAt} by a <span className="mono">{run.command}</span> comment from {run.triggeredBy.login}. It ends on its own at {endsAt} if nobody opens it.
+                Started {run.startedAt} by a <span className="mono">{run.command}</span> comment from{' '}
+                {run.triggeredBy.login}. It ends on its own at {endsAt} if nobody opens it.
               </span>
               <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
             </GitHubComment>
@@ -97,10 +114,14 @@ export function NeedsYou({ project, projects, runs = boardRuns, projectHref = ()
               <Icon name="brand" size={28} strokeWidth={1.4} />
               <div className={mock.notifyText}>
                 <b>Run {first.run.id} needs you</b>
-                <span className="muted">{first.run.skill} on {ticketLabel(first.run)} asked a question</span>
+                <span className="muted">
+                  {first.run.skill} on {ticketLabel(first.run)} asked a question
+                </span>
               </div>
             </div>
-          ) : none}
+          ) : (
+            none
+          )}
         </SurfaceCard>
       </div>
     </main>

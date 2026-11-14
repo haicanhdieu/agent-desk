@@ -7,7 +7,9 @@ export function CodeBlock({ caption, code, onCopy }: { caption: ReactNode; code:
     <div className={styles.code}>
       <div className={styles.codeCap}>
         <span>{caption}</span>
-        <Button size="sm" icon="copy" onClick={onCopy}>Copy</Button>
+        <Button size="sm" icon="copy" onClick={onCopy}>
+          Copy
+        </Button>
       </div>
       <pre className={styles.codePre}>{code}</pre>
     </div>

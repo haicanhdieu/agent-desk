@@ -26,16 +26,16 @@ GitHub events enter through the webhook intake, or through the poller for projec
 
 Eight tables hold all state. Skills are not stored; they are read from and written to the repo through the GitHub API.
 
-| Table | Key columns | Notes |
-| --- | --- | --- |
-| `users` | id, github\_user\_id, login | Created at first GitHub sign-in |
-| `projects` | id, owner\_user\_id, name, repo\_full\_name, installation\_id, trigger\_mode (`webhook`, `polling`), poll\_interval\_seconds, max\_concurrent\_runs, max\_runs\_per\_ticket | One repo per project in the PoC. `poll_interval_seconds` is one of 300, 600, 900, 1800 (default 300) |
-| `agents` | id, project\_id, name, provider (`claude`), model, credential\_secret\_name, max\_turns, timeout\_seconds | Credential value lives in a Kubernetes Secret, not in Postgres |
-| `rules` | id, project\_id, command, label\_filter\[\], target (`issue`, `pr`, `any`), agent\_id, skill\_name, enabled | Unique on (project\_id, command) |
-| `runs` | id, project\_id, rule\_id, agent\_id, skill\_name, ticket\_number, ticket\_kind, ref, args, status, job\_name, trigger\_source (`webhook`, `polling`, `manual`), trigger\_comment\_id, trigger\_delivery\_id, triggered\_by, queued\_at, started\_at, finished\_at, exit\_code, cost\_usd | Also the work queue. Unique on (project\_id, trigger\_comment\_id), so one comment starts at most one run whichever path saw it |
-| `run_events` | run\_id, seq, ts, type, payload (jsonb) | PoC: lifecycle lines (turn finished, final scrollback). MVP: one row per agent event |
-| `webhook_deliveries` | delivery\_id, comment\_id, received\_at, event, action, outcome | Dedupe and debugging; also feeds "Last event" on the project |
-| `poll_cursors` | project\_id, repo, since, etag, last\_polled\_at, last\_error, next\_poll\_at | One row per polled repo. Primary key (project\_id, repo). Written only by the poller |
+| Table                | Key columns                                                                                                                                                                                                                                                                               | Notes                                                                                                                           |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `users`              | id, github\_user\_id, login                                                                                                                                                                                                                                                               | Created at first GitHub sign-in                                                                                                 |
+| `projects`           | id, owner\_user\_id, name, repo\_full\_name, installation\_id, trigger\_mode (`webhook`, `polling`), poll\_interval\_seconds, max\_concurrent\_runs, max\_runs\_per\_ticket                                                                                                               | One repo per project in the PoC. `poll_interval_seconds` is one of 300, 600, 900, 1800 (default 300)                            |
+| `agents`             | id, project\_id, name, provider (`claude`), model, credential\_secret\_name, max\_turns, timeout\_seconds                                                                                                                                                                                 | Credential value lives in a Kubernetes Secret, not in Postgres                                                                  |
+| `rules`              | id, project\_id, command, label\_filter\[\], target (`issue`, `pr`, `any`), agent\_id, skill\_name, enabled                                                                                                                                                                               | Unique on (project\_id, command)                                                                                                |
+| `runs`               | id, project\_id, rule\_id, agent\_id, skill\_name, ticket\_number, ticket\_kind, ref, args, status, job\_name, trigger\_source (`webhook`, `polling`, `manual`), trigger\_comment\_id, trigger\_delivery\_id, triggered\_by, queued\_at, started\_at, finished\_at, exit\_code, cost\_usd | Also the work queue. Unique on (project\_id, trigger\_comment\_id), so one comment starts at most one run whichever path saw it |
+| `run_events`         | run\_id, seq, ts, type, payload (jsonb)                                                                                                                                                                                                                                                   | PoC: lifecycle lines (turn finished, final scrollback). MVP: one row per agent event                                            |
+| `webhook_deliveries` | delivery\_id, comment\_id, received\_at, event, action, outcome                                                                                                                                                                                                                           | Dedupe and debugging; also feeds "Last event" on the project                                                                    |
+| `poll_cursors`       | project\_id, repo, since, etag, last\_polled\_at, last\_error, next\_poll\_at                                                                                                                                                                                                             | One row per polled repo. Primary key (project\_id, repo). Written only by the poller                                            |
 
 Run status moves forward with one loop: `queued` → `starting` → `running` ⇄ `idle` → one of `succeeded`, `failed`, `cancelled`, `timed_out`. `idle` means the agent finished a turn and waits for the user (section 6).
 
@@ -87,13 +87,13 @@ When a project switches to Polling, its cursor starts at the switch time, so his
 
 **Rate limits and polling failures.** An installation gets 5000 REST requests per hour. Polling costs at most one request per repo per interval, before 304s: 12 per hour at 5 min, 2 at 30 min. Even 100 repos at the 5-minute minimum use about a quarter of the budget, so polling is not a rate-limit risk. The same budget also pays for token minting, status comments, skill edits, `GetTicket`, and the agents' own `gh` calls, which are the larger share during a run and the likelier cause of a rate-limit response.
 
-| Situation | Detection | Result |
-| --- | --- | --- |
-| Nothing new | 304 | No cost; `last_polled_at` updated |
-| Rate limited | 403 or 429 with `X-RateLimit-Remaining: 0` or `Retry-After` | `next_poll_at` set to the reset time; status "Polling failed: rate limited, retry in N min" |
-| Installation removed or token revoked | 401, or 404 on the repo | Polling paused for the project; status "Polling failed: token revoked"; resumes when the installation is back |
-| Network error or GitHub 5xx | Request error | Exponential back-off from one interval up to 1 hour; `last_error` recorded |
-| Control plane restarts | Cursor in Postgres | Resumes from `since`; nothing missed, duplicates absorbed by step 9 |
+| Situation                             | Detection                                                   | Result                                                                                                        |
+| ------------------------------------- | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Nothing new                           | 304                                                         | No cost; `last_polled_at` updated                                                                             |
+| Rate limited                          | 403 or 429 with `X-RateLimit-Remaining: 0` or `Retry-After` | `next_poll_at` set to the reset time; status "Polling failed: rate limited, retry in N min"                   |
+| Installation removed or token revoked | 401, or 404 on the repo                                     | Polling paused for the project; status "Polling failed: token revoked"; resumes when the installation is back |
+| Network error or GitHub 5xx           | Request error                                               | Exponential back-off from one interval up to 1 hour; `last_error` recorded                                    |
+| Control plane restarts                | Cursor in Postgres                                          | Resumes from `since`; nothing missed, duplicates absorbed by step 9                                           |
 
 Any successful poll clears `last_error`. The project status reads "Polling every 5 min" when healthy and shows `last_polled_at` as "Last checked". In Webhook mode the status comes from the newest `webhook_deliveries` row ("Last event: X (webhook)"), and no delivery for 2 days shows "No webhooks for 2 days" with a "Switch to polling" action.
 
@@ -194,14 +194,14 @@ spec:
 
 **Failure handling**
 
-| Situation | Detection | Result |
-| --- | --- | --- |
-| Agent exits non-zero | Job condition `Failed` | Run `failed`; finish comment includes the tail of the final scrollback |
-| Timeout | `DeadlineExceeded` | Run `timed_out` |
-| User cancels | API call deletes the Job with foreground propagation | Run `cancelled` |
-| Image pull or scheduling error | Pod stuck `Pending` for over 2 minutes | Run `failed` with the pod event message |
-| Idle timeout | Run idle with no terminal attached for 10 minutes (default) | Controller ends the tmux session, the Job completes, run succeeded |
-| Control plane restarts | On startup, list Jobs by label and compare with `runs` | Status reconciled; log following resumes |
+| Situation                      | Detection                                                   | Result                                                                 |
+| ------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
+| Agent exits non-zero           | Job condition `Failed`                                      | Run `failed`; finish comment includes the tail of the final scrollback |
+| Timeout                        | `DeadlineExceeded`                                          | Run `timed_out`                                                        |
+| User cancels                   | API call deletes the Job with foreground propagation        | Run `cancelled`                                                        |
+| Image pull or scheduling error | Pod stuck `Pending` for over 2 minutes                      | Run `failed` with the pod event message                                |
+| Idle timeout                   | Run idle with no terminal attached for 10 minutes (default) | Controller ends the tmux session, the Job completes, run succeeded     |
+| Control plane restarts         | On startup, list Jobs by label and compare with `runs`      | Status reconciled; log following resumes                               |
 
 ## 6. Live streaming and interaction
 
@@ -242,15 +242,15 @@ In the MVP, approach B becomes the default view and the terminal from A stays av
 - **Frontend.** `@assistant-ui/react` or a custom transcript renderer: messages, tool calls, diffs, and permission cards.
 - **Why both.** B gives searchable history, structured permission prompts, and a mobile-friendly view. A gives exact CLI fidelity for power users.
 
-| Aspect | A: terminal (PoC) | B: structured stream (MVP default) |
-| --- | --- | --- |
-| Fidelity | Exact CLI experience | Chat-style rendering of SDK events |
-| Build effort | Lowest: tmux, xterm.js, an exec relay | Higher: Node runner, event protocol, replay, renderer |
-| History and search | Final scrollback only, plain text | Every event stored as jsonb, searchable |
-| Permission prompts | Bypassed in the PoC; answered in the terminal if enabled | Structured cards through `canUseTool`, kept in the database |
-| Reconnect | tmux keeps the session; the screen redraws | Replay from the database by last sequence number |
-| Mobile | A terminal on a small screen | Mobile-friendly view |
-| Security | `pods/exec` is shell-equivalent; per-run owner check; runner needs no path back | Outbound WebSocket with a per-run token; runner needs a path to the control plane |
+| Aspect             | A: terminal (PoC)                                                               | B: structured stream (MVP default)                                                |
+| ------------------ | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Fidelity           | Exact CLI experience                                                            | Chat-style rendering of SDK events                                                |
+| Build effort       | Lowest: tmux, xterm.js, an exec relay                                           | Higher: Node runner, event protocol, replay, renderer                             |
+| History and search | Final scrollback only, plain text                                               | Every event stored as jsonb, searchable                                           |
+| Permission prompts | Bypassed in the PoC; answered in the terminal if enabled                        | Structured cards through `canUseTool`, kept in the database                       |
+| Reconnect          | tmux keeps the session; the screen redraws                                      | Replay from the database by last sequence number                                  |
+| Mobile             | A terminal on a small screen                                                    | Mobile-friendly view                                                              |
+| Security           | `pods/exec` is shell-equivalent; per-run owner check; runner needs no path back | Outbound WebSocket with a per-run token; runner needs a path to the control plane |
 
 ## 7. GitHub integration, secrets, and security
 
@@ -258,21 +258,21 @@ One GitHub App provides sign-in, webhooks, and repo access (including the API ca
 
 **GitHub App**
 
-| Setting | Value |
-| --- | --- |
-| Repository permissions | Contents: read/write · Issues: read/write · Pull requests: read/write · Metadata: read |
-| Webhook events | Issue comment (PoC) · Issues, Pull request (later) |
-| Webhook URL | `POST /webhooks/github` on the control plane. Optional: a deployment where every project uses Polling can leave the App webhook inactive |
-| User sign-in | The App's OAuth flow; session cookie on the web UI |
-| Skill editing | Contents API, commits to the default branch as the bot |
+| Setting                | Value                                                                                                                                    |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Repository permissions | Contents: read/write · Issues: read/write · Pull requests: read/write · Metadata: read                                                   |
+| Webhook events         | Issue comment (PoC) · Issues, Pull request (later)                                                                                       |
+| Webhook URL            | `POST /webhooks/github` on the control plane. Optional: a deployment where every project uses Polling can leave the App webhook inactive |
+| User sign-in           | The App's OAuth flow; session cookie on the web UI                                                                                       |
+| Skill editing          | Contents API, commits to the default branch as the bot                                                                                   |
 
 **Secrets**
 
-| Secret | Stored in | Reaches the run container |
-| --- | --- | --- |
-| App private key, webhook secret (webhook only) | Kubernetes Secret in the control-plane namespace | No |
-| Claude credential per project | Kubernetes Secret in the control-plane namespace, referenced by name from `agents` | Yes, copied into the per-run Secret |
-| Installation token | Minted per run, never persisted | Yes |
+| Secret                                         | Stored in                                                                          | Reaches the run container           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------- | ----------------------------------- |
+| App private key, webhook secret (webhook only) | Kubernetes Secret in the control-plane namespace                                   | No                                  |
+| Claude credential per project                  | Kubernetes Secret in the control-plane namespace, referenced by name from `agents` | Yes, copied into the per-run Secret |
+| Installation token                             | Minted per run, never persisted                                                    | Yes                                 |
 
 **Threat model for the PoC**
 
@@ -296,45 +296,45 @@ The control plane is a single deployable (a modular monolith) that serves the we
 
 **API surface**
 
-| Method and path | Purpose |
-| --- | --- |
-| `GET /auth/github`, `GET /auth/github/callback` | Sign-in |
-| `POST /webhooks/github` | Webhook intake |
-| `GET, POST /api/projects` · `GET, PATCH, DELETE /api/projects/{id}` | Project CRUD, including `trigger_mode` and `poll_interval_seconds` |
-| `GET /api/projects/{id}/connection` | Trigger mode and status: last event (webhook) or last checked, interval, and last error (polling) |
-| `PUT /api/projects/{id}/agent` | Set model, limits, and credential |
-| `GET /api/projects/{id}/skills` · `GET, PUT, DELETE /api/projects/{id}/skills/{name}` | Skills, proxied to the repo |
-| `GET, POST /api/projects/{id}/rules` · `PATCH, DELETE /api/rules/{id}` | Rule CRUD |
-| `GET /api/projects/{id}/runs` · `GET /api/runs/{id}` | Run list and detail |
-| `GET /api/runs/{id}/events?after={seq}` | Run status and lifecycle updates (SSE) |
-| `POST /api/runs/{id}/cancel` | Cancel |
-| `GET /api/runs/{id}/terminal` | Terminal WebSocket, project owner only |
-| `POST /api/runs/{id}/finish` | Finish an idle run |
-| `POST /api/projects/{id}/runs` | Manual run (P1) |
+| Method and path                                                                       | Purpose                                                                                           |
+| ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `GET /auth/github`, `GET /auth/github/callback`                                       | Sign-in                                                                                           |
+| `POST /webhooks/github`                                                               | Webhook intake                                                                                    |
+| `GET, POST /api/projects` · `GET, PATCH, DELETE /api/projects/{id}`                   | Project CRUD, including `trigger_mode` and `poll_interval_seconds`                                |
+| `GET /api/projects/{id}/connection`                                                   | Trigger mode and status: last event (webhook) or last checked, interval, and last error (polling) |
+| `PUT /api/projects/{id}/agent`                                                        | Set model, limits, and credential                                                                 |
+| `GET /api/projects/{id}/skills` · `GET, PUT, DELETE /api/projects/{id}/skills/{name}` | Skills, proxied to the repo                                                                       |
+| `GET, POST /api/projects/{id}/rules` · `PATCH, DELETE /api/rules/{id}`                | Rule CRUD                                                                                         |
+| `GET /api/projects/{id}/runs` · `GET /api/runs/{id}`                                  | Run list and detail                                                                               |
+| `GET /api/runs/{id}/events?after={seq}`                                               | Run status and lifecycle updates (SSE)                                                            |
+| `POST /api/runs/{id}/cancel`                                                          | Cancel                                                                                            |
+| `GET /api/runs/{id}/terminal`                                                         | Terminal WebSocket, project owner only                                                            |
+| `POST /api/runs/{id}/finish`                                                          | Finish an idle run                                                                                |
+| `POST /api/projects/{id}/runs`                                                        | Manual run (P1)                                                                                   |
 
 **Modules inside the service**
 
-| Module | Responsibility |
-| --- | --- |
-| Webhook intake | Verify, dedupe, parse into a `TicketEvent` |
-| Poller | For projects in Polling mode: list new comments with conditional requests, advance `poll_cursors`, back off on errors, emit `TicketEvent`s |
-| Router | Authorize, match rules, apply guards, enqueue |
-| Run controller | Claim queued runs, create Jobs, watch status, end idle runs, reconcile |
-| Terminal relay and log follower | Relay the terminal WebSocket to pod exec; follow pod logs, store lifecycle lines and the final log, push status over SSE |
-| GitHub adapter | App auth, tokens, comments, contents API |
-| Desk API | Projects, agents, rules, skills |
+| Module                          | Responsibility                                                                                                                             |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Webhook intake                  | Verify, dedupe, parse into a `TicketEvent`                                                                                                 |
+| Poller                          | For projects in Polling mode: list new comments with conditional requests, advance `poll_cursors`, back off on errors, emit `TicketEvent`s |
+| Router                          | Authorize, match rules, apply guards, enqueue                                                                                              |
+| Run controller                  | Claim queued runs, create Jobs, watch status, end idle runs, reconcile                                                                     |
+| Terminal relay and log follower | Relay the terminal WebSocket to pod exec; follow pod logs, store lifecycle lines and the final log, push status over SSE                   |
+| GitHub adapter                  | App auth, tokens, comments, contents API                                                                                                   |
+| Desk API                        | Projects, agents, rules, skills                                                                                                            |
 
 **Suggested stack**
 
-| Layer | Choice | Why |
-| --- | --- | --- |
-| Control plane | ASP.NET Core (.NET), with the official Kubernetes client and Octokit | Hosted background services fit the controller loops; TypeScript with Fastify is an equal alternative |
-| Database | Postgres | Config, queue, and event log in one place |
-| Web UI | React single-page app served by the control plane | Three screens: desk, run list, run detail |
-| Cluster | kind or k3d locally | Both run on Docker; kind also supports Podman |
-| Runner image | Built with Podman or Docker, loaded into the local cluster; includes tmux | No registry needed for the PoC |
-| Packaging | Plain Kubernetes manifests with Kustomize | Helm is unnecessary at this size |
-| Terminal | @xterm/xterm with @xterm/addon-fit in the React app | Shows the real Claude Code UI from the tmux session |
+| Layer         | Choice                                                                    | Why                                                                                                  |
+| ------------- | ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| Control plane | ASP.NET Core (.NET), with the official Kubernetes client and Octokit      | Hosted background services fit the controller loops; TypeScript with Fastify is an equal alternative |
+| Database      | Postgres                                                                  | Config, queue, and event log in one place                                                            |
+| Web UI        | React single-page app served by the control plane                         | Three screens: desk, run list, run detail                                                            |
+| Cluster       | kind or k3d locally                                                       | Both run on Docker; kind also supports Podman                                                        |
+| Runner image  | Built with Podman or Docker, loaded into the local cluster; includes tmux | No registry needed for the PoC                                                                       |
+| Packaging     | Plain Kubernetes manifests with Kustomize                                 | Helm is unnecessary at this size                                                                     |
+| Terminal      | @xterm/xterm with @xterm/addon-fit in the React app                       | Shows the real Claude Code UI from the tmux session                                                  |
 
 **Deployment layout**
 
@@ -345,26 +345,26 @@ The control plane is a single deployable (a modular monolith) that serves the we
 
 **Configuration**
 
-| Setting | Default | Notes |
-| --- | --- | --- |
-| Project `trigger_mode` | `webhook` | Chosen in the setup "connect" step; changeable in project settings |
-| Project `poll_interval_seconds` | 300 | 300, 600, 900, or 1800; other values, including anything below 300, are rejected |
-| `POLL_TICK_SECONDS` (service) | 5 | How often the poller looks for due cursors |
-| `POLL_MAX_BACKOFF_SECONDS` (service) | 3600 | Cap for error back-off; rate-limit waits follow GitHub's reset time instead |
-| `WEBHOOK_SILENT_WARN_HOURS` (service) | 48 | Threshold for "No webhooks for 2 days" |
+| Setting                               | Default   | Notes                                                                            |
+| ------------------------------------- | --------- | -------------------------------------------------------------------------------- |
+| Project `trigger_mode`                | `webhook` | Chosen in the setup "connect" step; changeable in project settings               |
+| Project `poll_interval_seconds`       | 300       | 300, 600, 900, or 1800; other values, including anything below 300, are rejected |
+| `POLL_TICK_SECONDS` (service)         | 5         | How often the poller looks for due cursors                                       |
+| `POLL_MAX_BACKOFF_SECONDS` (service)  | 3600      | Cap for error back-off; rate-limit waits follow GitHub's reset time instead      |
+| `WEBHOOK_SILENT_WARN_HOURS` (service) | 48        | Threshold for "No webhooks for 2 days"                                           |
 
 ## 9. Key decisions and evolution
 
-| Decision | PoC choice | Alternative set aside | Revisit when |
-| --- | --- | --- | --- |
-| Trigger mechanism | Per project: GitHub App webhooks (default) or polling with conditional requests, both feeding one router | GitHub Actions as the runner; polling as a dev-only fallback | Users need lower latency without a public URL, or GitHub adds a pull-based events feed |
-| Handoff | Slash-command comment written by the skill | `onSuccess` action declared on the rule | Chains stall because the model forgets the comment |
-| Rule storage | Postgres | YAML in the repo | Users want rules reviewed and versioned with skills |
-| Queue | Postgres table with `SKIP LOCKED` | NATS, Temporal | Multiple control-plane replicas or long multi-step workflows |
-| Run isolation | One Job per run, fresh clone | Long-lived agent pods, persistent volumes | Clone and dependency install dominate run time |
-| Streaming | Terminal via tmux, pods/exec, and xterm.js | Structured stream only | The MVP adds the structured stream (approach B) as the default view |
-| Agent abstraction | `AgentRunner` interface, Claude only | Generic CLI plugin system | Adding Codex: new image, new log parser, same Job flow |
-| Board abstraction | `BoardAdapter` interface, GitHub only | Unified ticket model up front | Adding Jira: tickets and code live in different systems, so workspace and board must be configured separately |
+| Decision          | PoC choice                                                                                               | Alternative set aside                                        | Revisit when                                                                                                  |
+| ----------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Trigger mechanism | Per project: GitHub App webhooks (default) or polling with conditional requests, both feeding one router | GitHub Actions as the runner; polling as a dev-only fallback | Users need lower latency without a public URL, or GitHub adds a pull-based events feed                        |
+| Handoff           | Slash-command comment written by the skill                                                               | `onSuccess` action declared on the rule                      | Chains stall because the model forgets the comment                                                            |
+| Rule storage      | Postgres                                                                                                 | YAML in the repo                                             | Users want rules reviewed and versioned with skills                                                           |
+| Queue             | Postgres table with `SKIP LOCKED`                                                                        | NATS, Temporal                                               | Multiple control-plane replicas or long multi-step workflows                                                  |
+| Run isolation     | One Job per run, fresh clone                                                                             | Long-lived agent pods, persistent volumes                    | Clone and dependency install dominate run time                                                                |
+| Streaming         | Terminal via tmux, pods/exec, and xterm.js                                                               | Structured stream only                                       | The MVP adds the structured stream (approach B) as the default view                                           |
+| Agent abstraction | `AgentRunner` interface, Claude only                                                                     | Generic CLI plugin system                                    | Adding Codex: new image, new log parser, same Job flow                                                        |
+| Board abstraction | `BoardAdapter` interface, GitHub only                                                                    | Unified ticket model up front                                | Adding Jira: tickets and code live in different systems, so workspace and board must be configured separately |
 
 **After the PoC, in likely order**
 

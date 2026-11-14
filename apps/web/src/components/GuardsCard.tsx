@@ -12,16 +12,25 @@ export function GuardsCard({ maxRunsPerTicket, changeHref, ignoredHref }: Guards
   const titleId = useId();
   return (
     <section className={styles.card} aria-labelledby={titleId}>
-      <h2 id={titleId} className={`h3 ${styles.cardTitle}`}><Icon name="lock" size={16} />Guards on every rule</h2>
+      <h2 id={titleId} className={`h3 ${styles.cardTitle}`}>
+        <Icon name="lock" size={16} />
+        Guards on every rule
+      </h2>
       <ul className={styles.guards}>
-        <li><span className={styles.strong}>Who can trigger:</span> repo owners, members and collaborators, and <span className={styles.monoText}>agent-desk[bot]</span>. Anyone else is ignored.</li>
+        <li>
+          <span className={styles.strong}>Who can trigger:</span> repo owners, members and collaborators, and{' '}
+          <span className={styles.monoText}>agent-desk[bot]</span>. Anyone else is ignored.
+        </li>
         <li>
           <span className={styles.strong}>Runs per ticket:</span> at most <b>{maxRunsPerTicket}</b>.{' '}
           {changeHref && <AppLink href={changeHref}>Change</AppLink>}
         </li>
-        <li><span className={styles.strong}>One at a time:</span> a ticket can have only one active run per skill.</li>
         <li>
-          Ignored commands are listed under {ignoredHref ? <AppLink href={ignoredHref}>Runs, Ignored</AppLink> : 'Runs, Ignored'} with the reason.
+          <span className={styles.strong}>One at a time:</span> a ticket can have only one active run per skill.
+        </li>
+        <li>
+          Ignored commands are listed under{' '}
+          {ignoredHref ? <AppLink href={ignoredHref}>Runs, Ignored</AppLink> : 'Runs, Ignored'} with the reason.
         </li>
       </ul>
     </section>

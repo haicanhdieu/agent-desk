@@ -26,7 +26,8 @@ export const connectionCopy = {
   pingReceived: (at: string) => `Webhook ping received at ${at}`,
   pingReceivedBody: 'GitHub can reach Agent Desk. Comments on this repository will arrive within seconds.',
   pingHelpTitle: 'If the ping does not arrive',
-  pingHelpBody: 'On a local cluster GitHub cannot reach you. Choose Polling instead, or start the webhook relay and press',
+  pingHelpBody:
+    'On a local cluster GitHub cannot reach you. Choose Polling instead, or start the webhook relay and press',
   pingHelpCheckAgain: 'Check again',
   pingHelpTail: '. Until then this step shows "Waiting for webhook ping".',
 
@@ -37,7 +38,8 @@ export const connectionCopy = {
   pollingCheckedBody: (interval: PollInterval) =>
     `Agent Desk can read comments on this repository. A new command starts a run within ${minutes(interval)}.`,
   pollingCostTitle: 'Polling and the GitHub rate limit',
-  pollingCostBody: 'Each check is one request per repository, so 12 an hour at 5 min. GitHub gives the app 5,000 an hour, and a check with no new comments does not count.',
+  pollingCostBody:
+    'Each check is one request per repository, so 12 an hour at 5 min. GitHub gives the app 5,000 an hour, and a check with no new comments does not count.',
 
   // Project connection status (Projects list, project switcher, Desk side nav).
   connected: 'Connected',
@@ -71,7 +73,7 @@ export const connectionCopy = {
   lastChecked: (at: string) => `Last checked: ${at} (polling)`,
   triggerTerm: 'Trigger',
   triggerSummary: (mode: TriggerMode, interval: PollInterval = DEFAULT_POLL_INTERVAL) =>
-    (mode === 'webhook' ? 'Webhook' : `Polling every ${interval}`),
+    mode === 'webhook' ? 'Webhook' : `Polling every ${interval}`,
 } as const;
 
 /** Ready-made statuses for the mocks and stories. */
@@ -79,8 +81,16 @@ export const connections = {
   webhookOk: { mode: 'webhook', tone: 'ok', text: connectionCopy.connected },
   webhookSilent: { mode: 'webhook', tone: 'warn', text: connectionCopy.webhookSilent('2 days') },
   pollingOk: { mode: 'polling', tone: 'ok', text: connectionCopy.polling(DEFAULT_POLL_INTERVAL) },
-  pollingRevoked: { mode: 'polling', tone: 'err', text: connectionCopy.pollingFailed(connectionCopy.reasons.tokenRevoked) },
-  pollingRateLimited: { mode: 'polling', tone: 'err', text: connectionCopy.pollingFailed(connectionCopy.reasons.rateLimited(5)) },
+  pollingRevoked: {
+    mode: 'polling',
+    tone: 'err',
+    text: connectionCopy.pollingFailed(connectionCopy.reasons.tokenRevoked),
+  },
+  pollingRateLimited: {
+    mode: 'polling',
+    tone: 'err',
+    text: connectionCopy.pollingFailed(connectionCopy.reasons.rateLimited(5)),
+  },
 } satisfies Record<string, ConnectionStatus>;
 
 /** Short warning in the project switcher, or undefined when the connection is fine. */
@@ -91,7 +101,9 @@ export function menuWarning(c: ConnectionStatus): string | undefined {
 /** Banners above the runs list when commands may be missed. */
 export const connectionWarnings = {
   webhookSilent: {
-    tone: 'err', icon: 'warning', title: 'No webhooks from GitHub since 11:42',
+    tone: 'err',
+    icon: 'warning',
+    title: 'No webhooks from GitHub since 11:42',
     body: 'Comments posted since then have not started runs. The last delivery attempt failed with HTTP 502 at the relay. Start the webhook relay and redeliver missed events from the app settings in GitHub, or switch this project to polling, which needs no public URL.',
     actions: [
       { label: connectionCopy.switchToPolling, href: '/desk/agent', variant: 'primary' },
@@ -100,7 +112,9 @@ export const connectionWarnings = {
     ],
   },
   pollingFailed: {
-    tone: 'err', icon: 'warning', title: connectionCopy.pollingFailed(connectionCopy.reasons.tokenRevoked),
+    tone: 'err',
+    icon: 'warning',
+    title: connectionCopy.pollingFailed(connectionCopy.reasons.tokenRevoked),
     body: `The last good check was at 11:42. ${connectionCopy.pollingFailedBody} Reinstall the GitHub App or give it access to this repository again.`,
     actions: [
       { label: connectionCopy.retryNow, icon: 'refresh' },

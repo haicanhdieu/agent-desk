@@ -35,7 +35,11 @@ export function TriggerModeSetting({ mode, interval, onChange, error }: TriggerM
         />
       )}
       <span className={styles.triggerHelp}>{c.triggerModeHelp}</span>
-      {error && <span id={errorId} className={styles.triggerError}>{error}</span>}
+      {error && (
+        <span id={errorId} className={styles.triggerError}>
+          {error}
+        </span>
+      )}
     </div>
   );
 }

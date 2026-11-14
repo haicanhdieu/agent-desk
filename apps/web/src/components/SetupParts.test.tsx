@@ -10,7 +10,12 @@ import { RuleForm } from './RuleForm';
 
 describe('GuardsCard ids', () => {
   it('two instances get distinct labelled regions', () => {
-    render(<><GuardsCard maxRunsPerTicket={1} /><GuardsCard maxRunsPerTicket={2} /></>);
+    render(
+      <>
+        <GuardsCard maxRunsPerTicket={1} />
+        <GuardsCard maxRunsPerTicket={2} />
+      </>,
+    );
     const regions = screen.getAllByRole('region', { name: 'Guards on every rule' });
     expect(regions).toHaveLength(2);
     const ids = screen.getAllByRole('heading', { level: 2 }).map((h) => h.id);
@@ -21,7 +26,9 @@ describe('GuardsCard ids', () => {
 describe('FollowUpRule', () => {
   it('reads the board copy and toggles', async () => {
     const onChange = vi.fn();
-    const { container } = render(<FollowUpRule command="code-review" target="pr" skill="code-review" enabled onChange={onChange} />);
+    const { container } = render(
+      <FollowUpRule command="code-review" target="pr" skill="code-review" enabled onChange={onChange} />,
+    );
     expect(container).toHaveTextContent('Also add the follow-up rule/code-reviewon pull requests, runcode-review');
     await userEvent.click(screen.getByRole('switch', { name: 'Also add code-review rule' }));
     expect(onChange).toHaveBeenCalledWith(false);
@@ -31,7 +38,14 @@ describe('FollowUpRule', () => {
 describe('SkillTemplateCard', () => {
   it('is a checkbox with note and a Preview link', async () => {
     const onChange = vi.fn();
-    render(<SkillTemplateCard template={{ name: 'code-build', note: 'chains to code-review', description: 'd' }} checked onChange={onChange} previewHref="/p" />);
+    render(
+      <SkillTemplateCard
+        template={{ name: 'code-build', note: 'chains to code-review', description: 'd' }}
+        checked
+        onChange={onChange}
+        previewHref="/p"
+      />,
+    );
     expect(screen.getByRole('checkbox')).toBeChecked();
     expect(screen.getByText('chains to code-review')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Preview code-build' })).toHaveAttribute('href', '/p');
@@ -53,7 +67,15 @@ describe('Stepper ready', () => {
 
 describe('SecretField entry options', () => {
   it('hideSubmit drops the button; custom reveal label and help show', () => {
-    render(<SecretField state="entering" credentialType="oauth_token" hideSubmit revealLabel="Show token while typing" entryHelp="Use a dedicated token." />);
+    render(
+      <SecretField
+        state="entering"
+        credentialType="oauth_token"
+        hideSubmit
+        revealLabel="Show token while typing"
+        entryHelp="Use a dedicated token."
+      />,
+    );
     expect(screen.queryByRole('button', { name: 'Save and test' })).toBeNull();
     expect(screen.getByRole('button', { name: 'Show token while typing' })).toBeInTheDocument();
     expect(screen.getByText('Use a dedicated token.')).toBeInTheDocument();
@@ -63,7 +85,14 @@ describe('SecretField entry options', () => {
 describe('RuleForm agentModel', () => {
   it('labels the agent option with the model', () => {
     render(
-      <RuleForm value={{ command: 'a', target: 'issue', labels: [], skill: 's', agent: 'Claude', enabled: true }} skills={['s']} agents={['Claude']} agentModel="opus" agentLocked onChange={() => {}} />,
+      <RuleForm
+        value={{ command: 'a', target: 'issue', labels: [], skill: 's', agent: 'Claude', enabled: true }}
+        skills={['s']}
+        agents={['Claude']}
+        agentModel="opus"
+        agentLocked
+        onChange={() => {}}
+      />,
     );
     expect(screen.getByLabelText('With agent')).toHaveDisplayValue('Claude (opus)');
   });

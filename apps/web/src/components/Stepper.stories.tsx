@@ -7,7 +7,17 @@ const steps = [
   { label: 'Add skills', optional: true, detail: 'code-build, code-review' },
   { label: 'Add first rule' },
 ];
-const meta = { title: 'Components/Stepper', component: Stepper, decorators: [(S) => <div style={{ width: 260 }}><S /></div>] } satisfies Meta<typeof Stepper>;
+const meta = {
+  title: 'Components/Stepper',
+  component: Stepper,
+  decorators: [
+    (S) => (
+      <div style={{ width: 260 }}>
+        <S />
+      </div>
+    ),
+  ],
+} satisfies Meta<typeof Stepper>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

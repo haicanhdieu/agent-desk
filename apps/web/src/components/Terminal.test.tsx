@@ -9,8 +9,18 @@ import { TerminalBar } from './TerminalBar';
 import styles from './Terminal.module.css';
 
 const toneClass: Record<TermTone, string> = {
-  dim: 'tDim', bold: 'tB', cyan: 'tCy', green: 'tGr', red: 'tRd', yellow: 'tYl', magenta: 'tMag',
-  accent: 'tAcc', add: 'tAdd', del: 'tDel', dot: 'tDot', dotw: 'tDotw',
+  dim: 'tDim',
+  bold: 'tB',
+  cyan: 'tCy',
+  green: 'tGr',
+  red: 'tRd',
+  yellow: 'tYl',
+  magenta: 'tMag',
+  accent: 'tAcc',
+  add: 'tAdd',
+  del: 'tDel',
+  dot: 'tDot',
+  dotw: 'tDotw',
 };
 
 describe('Terminal', () => {
@@ -72,14 +82,22 @@ describe('TerminalPane', () => {
   });
 
   it('omits notice and overlay when not given', () => {
-    const { container } = render(<TerminalPane bar={<div>bar</div>}><div>body</div></TerminalPane>);
+    const { container } = render(
+      <TerminalPane bar={<div>bar</div>}>
+        <div>body</div>
+      </TerminalPane>,
+    );
     expect(container.querySelector(`.${styles.scrim}`)).toBeNull();
   });
 });
 
 describe('TerminalPlaceholder', () => {
   it('renders title and body, not a blank panel', () => {
-    render(<TerminalPlaceholder title="Starting the agent" body="Opens by itself.">extra</TerminalPlaceholder>);
+    render(
+      <TerminalPlaceholder title="Starting the agent" body="Opens by itself.">
+        extra
+      </TerminalPlaceholder>,
+    );
     expect(screen.getByRole('heading', { name: 'Starting the agent' })).toBeInTheDocument();
     expect(screen.getByText('Opens by itself.')).toBeInTheDocument();
     expect(screen.getByText('extra')).toBeInTheDocument();
@@ -118,7 +136,16 @@ describe('TerminalBar', () => {
   it('shows size and wires Find / Copy all', async () => {
     const onFind = vi.fn();
     const onCopyAll = vi.fn();
-    render(<TerminalBar views={views} activeView="term" connection={<span>c</span>} size="132×44" onFind={onFind} onCopyAll={onCopyAll} />);
+    render(
+      <TerminalBar
+        views={views}
+        activeView="term"
+        connection={<span>c</span>}
+        size="132×44"
+        onFind={onFind}
+        onCopyAll={onCopyAll}
+      />,
+    );
     expect(screen.getByText('132×44')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Find in scrollback' }));
     await userEvent.click(screen.getByRole('button', { name: 'Copy all' }));
@@ -129,7 +156,9 @@ describe('TerminalBar', () => {
   it('omits size when absent and reports a change for an enabled tab', async () => {
     const onViewChange = vi.fn();
     const two = [views[0], { id: 'other', label: 'Other', icon: 'terminal' as const }];
-    const { container } = render(<TerminalBar views={two} activeView="term" connection={null} onViewChange={onViewChange} />);
+    const { container } = render(
+      <TerminalBar views={two} activeView="term" connection={null} onViewChange={onViewChange} />,
+    );
     expect(container.querySelector(`.${styles.size}`)).toBeNull();
     await userEvent.click(screen.getByRole('tab', { name: 'Other' }));
     expect(onViewChange).toHaveBeenCalledWith('other');
@@ -175,7 +204,14 @@ describe('StartupChecklist', () => {
 
 describe('EventLog', () => {
   it('renders each timestamp and text', () => {
-    render(<EventLog events={[{ at: '13:02:55', text: 'Comment received' }, { at: '13:03:06', text: <b>Running</b> }]} />);
+    render(
+      <EventLog
+        events={[
+          { at: '13:02:55', text: 'Comment received' },
+          { at: '13:03:06', text: <b>Running</b> },
+        ]}
+      />,
+    );
     expect(screen.getByText('13:02:55')).toBeInTheDocument();
     expect(screen.getByText('13:03:06')).toBeInTheDocument();
     expect(screen.getByText('Running')).toBeInTheDocument();

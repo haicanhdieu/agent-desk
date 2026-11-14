@@ -109,7 +109,15 @@ describe('Breadcrumb ellipsis', () => {
 
 describe('SubNav', () => {
   it('headings are direct children of the nav so only the first is :first-child', () => {
-    render(<SubNav aria-label="D" groups={[{ heading: 'One', items: [{ label: 'x', href: '/x' }] }, { heading: 'Two', content: 'c' }]} />);
+    render(
+      <SubNav
+        aria-label="D"
+        groups={[
+          { heading: 'One', items: [{ label: 'x', href: '/x' }] },
+          { heading: 'Two', content: 'c' },
+        ]}
+      />,
+    );
     const nav = screen.getByRole('navigation', { name: 'D' });
     expect(screen.getByText('One').parentElement).toBe(nav);
     expect(screen.getByText('Two').parentElement).toBe(nav);
@@ -120,7 +128,13 @@ describe('SubNav', () => {
       <SubNav
         aria-label="Desk"
         groups={[
-          { heading: 'Desk', items: [{ label: 'Skills', href: '/s', active: true }, { label: 'Rules', href: '/r' }] },
+          {
+            heading: 'Desk',
+            items: [
+              { label: 'Skills', href: '/s', active: true },
+              { label: 'Rules', href: '/r' },
+            ],
+          },
           { heading: 'Repository', content: <span>Connected</span> },
         ]}
       />,

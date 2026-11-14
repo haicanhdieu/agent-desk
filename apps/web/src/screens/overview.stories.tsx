@@ -8,7 +8,13 @@ const meta = {
   component: Overview,
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
-  decorators: [(S) => <div style={{ width: 1440, height: 900 }}><S /></div>],
+  decorators: [
+    (S) => (
+      <div style={{ width: 1440, height: 900 }}>
+        <S />
+      </div>
+    ),
+  ],
 } satisfies Meta<typeof Overview>;
 export default meta;
 type Story = StoryObj<typeof meta>;

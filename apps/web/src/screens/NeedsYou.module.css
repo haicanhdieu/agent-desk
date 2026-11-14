@@ -1,17 +1,63 @@
 /* Board-specific mocks of things outside the app: browser tab strip and desktop notification. */
-.tabStrip { display: flex; align-items: flex-end; gap: 2px; background: var(--chrome-bg); padding: 8px 8px 0; }
+.tabStrip {
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  background: var(--chrome-bg);
+  padding: 8px 8px 0;
+}
 .tabActive {
-  display: flex; align-items: center; gap: 8px; padding: 8px 14px; min-width: 300px;
-  background: var(--panel); border-radius: var(--radius-8) var(--radius-8) 0 0; font-size: var(--fs-13);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  min-width: 300px;
+  background: var(--panel);
+  border-radius: var(--radius-8) var(--radius-8) 0 0;
+  font-size: var(--fs-13);
 }
-.tabIdle { display: flex; align-items: center; gap: 8px; padding: 8px 14px; font-size: var(--fs-13); color: var(--muted); }
-.favicon { position: relative; display: inline-flex; }
+.tabIdle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.favicon {
+  position: relative;
+  display: inline-flex;
+}
 .faviconDot {
-  position: absolute; right: -3px; top: -3px; width: 8px; height: 8px; border-radius: 50%;
-  background: var(--idle); border: 2px solid var(--panel);
+  position: absolute;
+  right: -3px;
+  top: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--idle);
+  border: 2px solid var(--panel);
 }
-.menuWrap { border-top: 1px solid var(--line); }
-.notify { display: flex; gap: 12px; padding: 14px 16px; background: var(--notify-bg); }
-.notifyText { display: flex; flex-direction: column; gap: 2px; font-size: var(--fs-13_5); }
-.notifyText b { font-weight: 600; }
-.none { margin: 0; padding: 14px 16px; font-size: var(--fs-13); }
+.menuWrap {
+  border-top: 1px solid var(--line);
+}
+.notify {
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--notify-bg);
+}
+.notifyText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--fs-13_5);
+}
+.notifyText b {
+  font-weight: 600;
+}
+.none {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: var(--fs-13);
+}

@@ -1,7 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import {
-  Button, Field, Icon, InlineStatus, PasswordInput, SegmentedControl, StatusIcon,
-} from '@/ds';
+import { Button, Field, Icon, InlineStatus, PasswordInput, SegmentedControl, StatusIcon } from '@/ds';
 import styles from './SecretField.module.css';
 
 export type SecretFieldState = 'empty' | 'entering' | 'saved' | 'replacing';
@@ -40,10 +38,25 @@ const typeOptions: { value: CredentialType; label: string }[] = [
 
 /** Owns the typed secret; mounted only while entering so it always starts empty and is dropped on unmount. */
 function SecretEntry({
-  label, help, error, submitLabel, revealLabel, hideSubmit, onSubmit, onCancel, onValueChange,
+  label,
+  help,
+  error,
+  submitLabel,
+  revealLabel,
+  hideSubmit,
+  onSubmit,
+  onCancel,
+  onValueChange,
 }: {
-  label: string; help?: string; error?: string; submitLabel: string; revealLabel?: string; hideSubmit?: boolean;
-  onSubmit?(v: string): void; onCancel?(): void; onValueChange?(v: string): void;
+  label: string;
+  help?: string;
+  error?: string;
+  submitLabel: string;
+  revealLabel?: string;
+  hideSubmit?: boolean;
+  onSubmit?(v: string): void;
+  onCancel?(): void;
+  onValueChange?(v: string): void;
 }) {
   const [value, setValue] = useState('');
   const submit = (e: FormEvent) => {
@@ -69,8 +82,16 @@ function SecretEntry({
       </Field>
       {(!hideSubmit || onCancel) && (
         <div className={styles.actions}>
-          {onCancel && <Button variant="ghost" onClick={onCancel}>Cancel</Button>}
-          {!hideSubmit && <Button type="submit" variant="primary" disabled={!value}>{submitLabel}</Button>}
+          {onCancel && (
+            <Button variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
+          {!hideSubmit && (
+            <Button type="submit" variant="primary" disabled={!value}>
+              {submitLabel}
+            </Button>
+          )}
         </div>
       )}
     </form>
@@ -78,14 +99,31 @@ function SecretEntry({
 }
 
 export function SecretField({
-  state, credentialType, onCredentialTypeChange, savedInfo, onReplace, onCancel, onSubmit, submitLabel,
-  entryHelp, revealLabel, hideSubmit, error, onValueChange,
+  state,
+  credentialType,
+  onCredentialTypeChange,
+  savedInfo,
+  onReplace,
+  onCancel,
+  onSubmit,
+  submitLabel,
+  entryHelp,
+  revealLabel,
+  hideSubmit,
+  error,
+  onValueChange,
 }: SecretFieldProps) {
   if (state === 'empty' || state === 'entering') {
     return (
       <SecretEntry
-        label="Token" help={entryHelp} error={error} revealLabel={revealLabel} hideSubmit={hideSubmit}
-        submitLabel={submitLabel ?? 'Save and test'} onSubmit={onSubmit} onValueChange={onValueChange}
+        label="Token"
+        help={entryHelp}
+        error={error}
+        revealLabel={revealLabel}
+        hideSubmit={hideSubmit}
+        submitLabel={submitLabel ?? 'Save and test'}
+        onSubmit={onSubmit}
+        onValueChange={onValueChange}
       />
     );
   }
@@ -98,9 +136,7 @@ export function SecretField({
         <Icon name="key" size={18} />
         <div className={styles.info}>
           <b>{typeName[credentialType]}</b>
-          <span>
-            {savedInfo ? `Set ${savedInfo.setAt} by ${savedInfo.setBy}. ` : ''}Hidden for good after saving.
-          </span>
+          <span>{savedInfo ? `Set ${savedInfo.setAt} by ${savedInfo.setBy}. ` : ''}Hidden for good after saving.</span>
         </div>
         {status && (
           <InlineStatus
@@ -110,7 +146,9 @@ export function SecretField({
             {status.text}
           </InlineStatus>
         )}
-        <Button size="sm" aria-expanded={replacing} onClick={onReplace}>Replace</Button>
+        <Button size="sm" aria-expanded={replacing} onClick={onReplace}>
+          Replace
+        </Button>
       </div>
       {replacing && (
         <div className={styles.panel}>

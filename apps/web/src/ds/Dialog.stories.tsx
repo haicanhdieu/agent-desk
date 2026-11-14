@@ -9,7 +9,9 @@ function Demo({ destructive }: { destructive?: boolean }) {
   const [open, setOpen] = useState(false);
   return (
     <div style={stage}>
-      <Button data-testid="opener" onClick={() => setOpen(true)}>Open dialog</Button>
+      <Button data-testid="opener" onClick={() => setOpen(true)}>
+        Open dialog
+      </Button>
       <Dialog
         open={open}
         title={destructive ? 'Delete this desk?' : 'Rename desk'}

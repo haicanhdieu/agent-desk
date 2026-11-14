@@ -13,22 +13,52 @@ export interface CommitBarProps {
   pending?: boolean;
 }
 
-export function CommitBar({ message, onMessageChange, branch, dirty, onDiscard, onCommit, note, pending = false }: CommitBarProps) {
+export function CommitBar({
+  message,
+  onMessageChange,
+  branch,
+  dirty,
+  onDiscard,
+  onCommit,
+  note,
+  pending = false,
+}: CommitBarProps) {
   return (
     <div className={styles.commitBar}>
       <div className={styles.commitRow}>
         <Field className={styles.commitMsg} label="Commit message">
-          {({ id }) => <TextInput mono id={id} value={message} readOnly={!onMessageChange} onChange={(e) => onMessageChange?.(e.target.value)} />}
+          {({ id }) => (
+            <TextInput
+              mono
+              id={id}
+              value={message}
+              readOnly={!onMessageChange}
+              onChange={(e) => onMessageChange?.(e.target.value)}
+            />
+          )}
         </Field>
         <Field className={styles.commitTo} label="Commit to" labelAs="span">
           {({ labelId }) => (
             <StaticInput icon="branch" aria-labelledby={labelId}>
-              <span className={styles.branchSpan}><span className={styles.monoText}>{branch}</span><span className={styles.faintText}>default branch</span></span>
+              <span className={styles.branchSpan}>
+                <span className={styles.monoText}>{branch}</span>
+                <span className={styles.faintText}>default branch</span>
+              </span>
             </StaticInput>
           )}
         </Field>
-        <Button variant="ghost" onClick={onDiscard}>Discard</Button>
-        <Button variant="primary" icon="commit" disabled={!dirty || pending} aria-busy={pending || undefined} onClick={onCommit}>Commit to {branch}</Button>
+        <Button variant="ghost" onClick={onDiscard}>
+          Discard
+        </Button>
+        <Button
+          variant="primary"
+          icon="commit"
+          disabled={!dirty || pending}
+          aria-busy={pending || undefined}
+          onClick={onCommit}
+        >
+          Commit to {branch}
+        </Button>
       </div>
       <p className={styles.note}>{note}</p>
     </div>

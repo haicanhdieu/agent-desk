@@ -41,7 +41,16 @@ export interface RadioCardProps {
   faintDescription?: boolean;
 }
 
-export function RadioCard({ type, name, checked, onChange, title, description, aside, faintDescription }: RadioCardProps) {
+export function RadioCard({
+  type,
+  name,
+  checked,
+  onChange,
+  title,
+  description,
+  aside,
+  faintDescription,
+}: RadioCardProps) {
   const id = useId();
   const titleId = `${id}-title`;
   const descId = `${id}-desc`;
@@ -67,8 +76,14 @@ export function RadioCard({ type, name, checked, onChange, title, description, a
           )}
         </span>
         <span className={styles['rc-body']}>
-          <span id={titleId} className={styles['rc-title']}>{title}</span>
-          {description && <span id={descId} className={cx(styles['rc-desc'], faintDescription && styles.faint)}>{description}</span>}
+          <span id={titleId} className={styles['rc-title']}>
+            {title}
+          </span>
+          {description && (
+            <span id={descId} className={cx(styles['rc-desc'], faintDescription && styles.faint)}>
+              {description}
+            </span>
+          )}
         </span>
       </label>
       {aside && <span className={styles['rc-aside']}>{aside}</span>}

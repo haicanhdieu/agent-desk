@@ -29,33 +29,49 @@ and checked out at \`main\`. Work only in this repository.
 - Keep the PR under 400 changed lines; split the work if it grows.`;
 
 // Only code-build's source appears on the boards; the other bodies are minimal frontmatter plus the board description.
-const stub = (name: string, description: string) => `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`;
+const stub = (name: string, description: string) =>
+  `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`;
 
 const lastCommit = 'a91c3e2, 2 days ago';
 
 export const skills: Skill[] = [
   {
-    name: 'code-build', description: 'Implement a user-story issue end to end and open a PR.', body: codeBuildBody,
-    ruleSummary: '2 rules', path: '.claude/skills/code-build/SKILL.md', lastCommit,
+    name: 'code-build',
+    description: 'Implement a user-story issue end to end and open a PR.',
+    body: codeBuildBody,
+    ruleSummary: '2 rules',
+    path: '.claude/skills/code-build/SKILL.md',
+    lastCommit,
   },
   {
-    name: 'code-review', description: 'Review a PR, fix small issues, approve or request changes.',
+    name: 'code-review',
+    description: 'Review a PR, fix small issues, approve or request changes.',
     body: stub('code-review', 'Review a PR, fix small issues, approve or request changes.'),
-    ruleSummary: '1 rule', path: '.claude/skills/code-review/SKILL.md', lastCommit,
+    ruleSummary: '1 rule',
+    path: '.claude/skills/code-review/SKILL.md',
+    lastCommit,
   },
   {
-    name: 'code-e2e', description: 'Reproduce and fix a flaky end-to-end test.',
+    name: 'code-e2e',
+    description: 'Reproduce and fix a flaky end-to-end test.',
     body: stub('code-e2e', 'Reproduce and fix a flaky end-to-end test.'),
-    ruleSummary: '1 rule', path: '.claude/skills/code-e2e/SKILL.md', lastCommit,
+    ruleSummary: '1 rule',
+    path: '.claude/skills/code-e2e/SKILL.md',
+    lastCommit,
   },
   {
-    name: 'qa-e2e', description: 'Exploratory QA pass with Playwright on a PR preview.',
+    name: 'qa-e2e',
+    description: 'Exploratory QA pass with Playwright on a PR preview.',
     body: stub('qa-e2e', 'Exploratory QA pass with Playwright on a PR preview.'),
-    ruleSummary: '1 rule, off', path: '.claude/skills/qa-e2e/SKILL.md', lastCommit,
+    ruleSummary: '1 rule, off',
+    path: '.claude/skills/qa-e2e/SKILL.md',
+    lastCommit,
   },
 ];
 
 // The template list lives with the setup flow (features/setup/templates.ts, with bodies); stories get the card text.
 export const skillTemplates: SkillTemplate[] = SKILL_TEMPLATES.map(({ name, description, note }) => ({
-  name, description, ...(note !== undefined && { note }),
+  name,
+  description,
+  ...(note !== undefined && { note }),
 }));

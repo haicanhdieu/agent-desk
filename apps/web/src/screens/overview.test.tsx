@@ -8,14 +8,17 @@ describe('Overview', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Proof-of-concept screens' })).toBeInTheDocument();
     const links = within(screen.getByRole('main')).getAllByRole('link');
     expect(links).toHaveLength(25);
-    expect(screen.getByRole('link', { name: 'Sign in with GitHub' })).toHaveAttribute('href', '?path=/story/screens-entry--sign-in');
+    expect(screen.getByRole('link', { name: 'Sign in with GitHub' })).toHaveAttribute(
+      'href',
+      '?path=/story/screens-entry--sign-in',
+    );
     for (const a of links) expect(a).toHaveAttribute('target', '_top');
     expect(container.querySelectorAll('[title^="status: "]')).toHaveLength(8);
   });
 
   it('shows swatch values read from tokens.css', () => {
     render(<Overview />);
-    expect(screen.getByText('#15181E')).toBeInTheDocument();
-    expect(screen.getByText('#0F1216')).toBeInTheDocument();
+    expect(screen.getByText('#15181e')).toBeInTheDocument();
+    expect(screen.getByText('#0f1216')).toBeInTheDocument();
   });
 });

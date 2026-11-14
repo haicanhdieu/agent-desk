@@ -1,8 +1,14 @@
-export type RunStatus =
-  | 'queued' | 'starting' | 'running' | 'idle' | 'succeeded' | 'failed' | 'cancelled' | 'timed_out';
+export type RunStatus = 'queued' | 'starting' | 'running' | 'idle' | 'succeeded' | 'failed' | 'cancelled' | 'timed_out';
 
 export const RUN_STATUSES: readonly RunStatus[] = [
-  'queued', 'starting', 'running', 'idle', 'succeeded', 'failed', 'cancelled', 'timed_out',
+  'queued',
+  'starting',
+  'running',
+  'idle',
+  'succeeded',
+  'failed',
+  'cancelled',
+  'timed_out',
 ];
 
 export const statusTokens: Record<RunStatus, { label: string; colorVar: string }> = {

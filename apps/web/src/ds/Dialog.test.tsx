@@ -9,8 +9,20 @@ function Harness({ onClose = () => {} }: { onClose?: () => void }) {
   return (
     <div style={{ position: 'relative' }}>
       <button onClick={() => setOpen(true)}>Open</button>
-      <Dialog open={open} title="Delete it?" onClose={() => { onClose(); setOpen(false); }}
-        footer={<><button>Cancel</button><button>Confirm</button></>}>
+      <Dialog
+        open={open}
+        title="Delete it?"
+        onClose={() => {
+          onClose();
+          setOpen(false);
+        }}
+        footer={
+          <>
+            <button>Cancel</button>
+            <button>Confirm</button>
+          </>
+        }
+      >
         <input aria-label="Name" />
       </Dialog>
     </div>
@@ -19,12 +31,20 @@ function Harness({ onClose = () => {} }: { onClose?: () => void }) {
 
 describe('Dialog', () => {
   it('renders nothing when closed', () => {
-    render(<Dialog open={false} title="T" onClose={() => {}}>x</Dialog>);
+    render(
+      <Dialog open={false} title="T" onClose={() => {}}>
+        x
+      </Dialog>,
+    );
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 
   it('is a modal dialog named by its h2 title, absolutely positioned (no portal)', () => {
-    const { container } = render(<Dialog open title="Delete it?" onClose={() => {}}>x</Dialog>);
+    const { container } = render(
+      <Dialog open title="Delete it?" onClose={() => {}}>
+        x
+      </Dialog>,
+    );
     const dlg = screen.getByRole('dialog', { name: 'Delete it?' });
     expect(dlg).toHaveAttribute('aria-modal', 'true');
     expect(screen.getByRole('heading', { level: 2, name: 'Delete it?' })).toBeInTheDocument();
@@ -62,7 +82,11 @@ describe('Dialog', () => {
   it('Escape works when focus is on body after clicking the scrim or dialog text', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    render(<Dialog open title="Delete it?" onClose={onClose}>x</Dialog>);
+    render(
+      <Dialog open title="Delete it?" onClose={onClose}>
+        x
+      </Dialog>,
+    );
     await user.click(screen.getByRole('heading', { name: 'Delete it?' }));
     (document.activeElement as HTMLElement).blur();
     expect(document.body).toHaveFocus();
@@ -78,7 +102,11 @@ describe('Dialog', () => {
   it('removes the listener on unmount', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-    const { unmount } = render(<Dialog open title="T" onClose={onClose}>x</Dialog>);
+    const { unmount } = render(
+      <Dialog open title="T" onClose={onClose}>
+        x
+      </Dialog>,
+    );
     unmount();
     await user.keyboard('{Escape}');
     expect(onClose).not.toHaveBeenCalled();

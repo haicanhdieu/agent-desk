@@ -14,22 +14,54 @@ const outDir = resolve(root, 'parity-out');
 const canvas = JSON.parse(readFileSync(join(protoDir, 'canvas.json'), 'utf8'));
 
 // Same rule as src/screens/storyIds.ts: kebab-case of title and export name.
-const kebab = (s) => s.replace(/([a-z])([A-Z0-9])/g, '$1-$2').replace(/([0-9])([A-Z])/g, '$1-$2').replace(/[^a-zA-Z0-9]+/g, '-').replace(/^-|-$/g, '').toLowerCase();
+const kebab = (s) =>
+  s
+    .replace(/([a-z])([A-Z0-9])/g, '$1-$2')
+    .replace(/([0-9])([A-Z])/g, '$1-$2')
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase();
 const stories = {
-  Main: ['Screens/Overview', 'Main'], NeedsYou: ['Screens/Runs', 'NeedsYou'], SignIn: ['Screens/Entry', 'SignIn'],
-  ProjectsEmpty: ['Screens/Entry', 'ProjectsEmpty'], Projects: ['Screens/Entry', 'Projects'],
-  Setup1: ['Screens/Setup', 'Setup1'], Setup1Polling: ['Screens/Setup', 'Setup1Polling'],
-  Setup1PollingOk: ['Screens/Setup', 'Setup1PollingOk'], Setup2: ['Screens/Setup', 'Setup2'], Setup3: ['Screens/Setup', 'Setup3'],
-  Setup4: ['Screens/Setup', 'Setup4'], SetupReady: ['Screens/Setup', 'SetupReady'],
-  Runs: ['Screens/Runs', 'Runs'], RunsProblems: ['Screens/Runs', 'RunsProblems'],
-  ...Object.fromEntries(['Starting', 'Running', 'Idle', 'Reconnect', 'Succeeded', 'Failed', 'TimedOut', 'Cancelled'].map((s) => [`Run${s}`, ['Screens/Run detail', `Run${s}`]])),
-  ...Object.fromEntries(['Skills', 'SkillDelete', 'Rules', 'Agent'].map((s) => [`Desk${s}`, ['Screens/Desk', `Desk${s}`]])),
+  Main: ['Screens/Overview', 'Main'],
+  NeedsYou: ['Screens/Runs', 'NeedsYou'],
+  SignIn: ['Screens/Entry', 'SignIn'],
+  ProjectsEmpty: ['Screens/Entry', 'ProjectsEmpty'],
+  Projects: ['Screens/Entry', 'Projects'],
+  Setup1: ['Screens/Setup', 'Setup1'],
+  Setup1Polling: ['Screens/Setup', 'Setup1Polling'],
+  Setup1PollingOk: ['Screens/Setup', 'Setup1PollingOk'],
+  Setup2: ['Screens/Setup', 'Setup2'],
+  Setup3: ['Screens/Setup', 'Setup3'],
+  Setup4: ['Screens/Setup', 'Setup4'],
+  SetupReady: ['Screens/Setup', 'SetupReady'],
+  Runs: ['Screens/Runs', 'Runs'],
+  RunsProblems: ['Screens/Runs', 'RunsProblems'],
+  ...Object.fromEntries(
+    ['Starting', 'Running', 'Idle', 'Reconnect', 'Succeeded', 'Failed', 'TimedOut', 'Cancelled'].map((s) => [
+      `Run${s}`,
+      ['Screens/Run detail', `Run${s}`],
+    ]),
+  ),
+  ...Object.fromEntries(
+    ['Skills', 'SkillDelete', 'Rules', 'Agent'].map((s) => [`Desk${s}`, ['Screens/Desk', `Desk${s}`]]),
+  ),
 };
 
-const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml', '.woff2': 'font/woff2', '.map': 'application/json' };
+const types = {
+  '.html': 'text/html',
+  '.js': 'text/javascript',
+  '.css': 'text/css',
+  '.json': 'application/json',
+  '.svg': 'image/svg+xml',
+  '.woff2': 'font/woff2',
+  '.map': 'application/json',
+};
 const server = createServer((req, res) => {
   const p = join(staticDir, decodeURIComponent(new URL(req.url, 'http://x').pathname));
-  if (!p.startsWith(staticDir) || !existsSync(p) || !statSync(p).isFile()) { res.writeHead(404).end(); return; }
+  if (!p.startsWith(staticDir) || !existsSync(p) || !statSync(p).isFile()) {
+    res.writeHead(404).end();
+    return;
+  }
   res.writeHead(200, { 'content-type': types[extname(p)] ?? 'application/octet-stream' }).end(readFileSync(p));
 });
 if (!existsSync(staticDir)) throw new Error('storybook-static missing: run pnpm build-storybook first');
@@ -37,7 +69,9 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const base = `http://127.0.0.1:${server.address().port}`;
 
 mkdirSync(outDir, { recursive: true });
-const browser = await chromium.launch(process.env.PARITY_CHROMIUM ? { executablePath: process.env.PARITY_CHROMIUM } : {}); // or run: npx playwright install chromium
+const browser = await chromium.launch(
+  process.env.PARITY_CHROMIUM ? { executablePath: process.env.PARITY_CHROMIUM } : {},
+); // or run: npx playwright install chromium
 let pairs = 0;
 try {
   for (const file of canvas.order) {

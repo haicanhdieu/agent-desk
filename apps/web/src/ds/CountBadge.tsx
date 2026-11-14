@@ -8,5 +8,9 @@ export interface CountBadgeProps {
 
 export function CountBadge({ count, label, title }: CountBadgeProps) {
   if (!count) return null;
-  return <span className={styles['count-idle']} title={title}>{label ? `${count} ${label}` : count}</span>;
+  return (
+    <span className={styles['count-idle']} title={title}>
+      {label ? `${count} ${label}` : count}
+    </span>
+  );
 }
