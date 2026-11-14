@@ -297,7 +297,7 @@
   - Notes are passed through a `toAgentNote`-equivalent (one line, 500 chars) then base64; untrusted text never reaches a shell.
   - Dockerfile: `ENV DISABLE_AUTOUPDATER=1`; copy `agentdesk-status.mjs` to `/usr/local/lib/agentdesk/` with an executable wrapper `/usr/local/bin/agentdesk-status` (`exec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"`); copy `hook.mjs` to `/usr/local/lib/agentdesk/agents/claude/`; copy `managed-settings.json` to `/etc/claude-code/managed-settings.json` (root-owned, 0644) registering `UserPromptSubmit`, `PreToolUse` (matcher `*`), `PostToolUse` (matcher `AskUserQuestion`), `Notification`, `Stop`, `StopFailure` → `node /usr/local/lib/agentdesk/agents/claude/hook.mjs`.
 
-- [ ] **Step 1: Write failing tests** in `claude-hook.test.ts` (run `hook.mjs` with a temp state dir and temp out file, feeding fixtures):
+- [x] **Step 1: Write failing tests** in `claude-hook.test.ts` (run `hook.mjs` with a temp state dir and temp out file, feeding fixtures):
   - the six spike scenarios from spec §3 produce: background shell → `waiting background`; subagent → `waiting background`; wake-up → `working`; AskUserQuestion → `needs_input question …` then `working`; plain question with `needs_input` declared → `needs_input declared …`; done declared → `done declared …`;
   - `'declared done wins over running background tasks'`;
   - `'undeclared stop blocks once with the exact reason, then falls back to needs_input undeclared'`;
@@ -307,11 +307,11 @@
   - `'note with newline, 10 kB and $(rm -rf /) is one line, ≤500 chars, base64, and nothing is executed'`;
   - `'invalid JSON on stdin emits nothing and exits 0'`.
   - `agentdesk-status.test.ts`: valid states write `declared`; bad state → exit 2 and no write.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/runner test` → FAIL.
-- [ ] **Step 3:** Implement scripts, settings and Dockerfile.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/runner test` → PASS; `podman build -t agentdesk-runner:dev images/runner` succeeds and `podman run --rm --entrypoint sh agentdesk-runner:dev -c 'ls -l /etc/claude-code/managed-settings.json && command -v agentdesk-status'` shows both.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/runner test` → FAIL.
+- [x] **Step 3:** Implement scripts, settings and Dockerfile.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/runner test` → PASS; `podman build -t agentdesk-runner:dev images/runner` succeeds and `podman run --rm --entrypoint sh agentdesk-runner:dev -c 'ls -l /etc/claude-code/managed-settings.json && command -v agentdesk-status'` shows both.
 - [ ] **Step 5:** Manual smoke (record in the PR): run the image against a scratch repo with a real token, give a prompt that backgrounds `sleep 30` and then declares done; the run shows Running during the sleep and Done at the end.
-- [ ] **Step 6:** Commit `feat(runner): claude code status adapter and agentdesk-status command`.
+- [x] **Step 6:** Commit `feat(runner): claude code status adapter and agentdesk-status command`.
 
 ### Task 12: Docs — bring older docs in line
 

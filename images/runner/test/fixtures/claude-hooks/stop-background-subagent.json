@@ -1,0 +1,10 @@
+{
+  "session_id": "s1",
+  "transcript_path": "/workspace/repo/.claude/t.jsonl",
+  "cwd": "/workspace/repo",
+  "hook_event_name": "Stop",
+  "stop_hook_active": false,
+  "last_assistant_message": "Delegated.",
+  "background_tasks": [{ "type": "subagent", "status": "running" }],
+  "session_crons": []
+}

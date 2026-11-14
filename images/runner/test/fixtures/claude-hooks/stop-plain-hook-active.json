@@ -1,0 +1,10 @@
+{
+  "session_id": "s1",
+  "transcript_path": "/workspace/repo/.claude/t.jsonl",
+  "cwd": "/workspace/repo",
+  "hook_event_name": "Stop",
+  "stop_hook_active": true,
+  "last_assistant_message": "Should I use Postgres?",
+  "background_tasks": [],
+  "session_crons": []
+}
