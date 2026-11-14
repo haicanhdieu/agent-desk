@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { WorkflowNotFoundError } from '@temporalio/client';
+import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError } from '@temporalio/client';
 import { sql } from 'drizzle-orm';
+import { UPDATE } from '@agentdesk/core';
 import { inboundEvents, runEvents, runs, withOrg } from '@agentdesk/db';
 import type { IgnoredEventDto, RunDto, RunListResponse, RunLogResponse } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
@@ -206,14 +207,46 @@ describe('cancel and finish', () => {
     expect(t.temporal.calls).toHaveLength(0);
   });
 
-  it('finish on an idle run is 202 and signals finish; status is untouched', async () => {
+  it('finish on an idle run is 202 and runs the finish update; status is untouched', async () => {
     const run = await insertRun({ status: 'idle', workflowId: `run-x` });
     t.temporal.reset();
     const res = await post(`/api/runs/${run.id}/finish`);
     expect(res.statusCode).toBe(202);
     expectContract('runs.finish', res);
-    expect(t.temporal.callsOfKind('signal')).toMatchObject([{ workflowId: `run-${run.id}`, args: ['finish'] }]);
+    expect(t.temporal.callsOfKind('update')).toMatchObject([{ workflowId: `run-${run.id}`, args: [UPDATE.finishRun] }]);
+    expect(t.temporal.callsOfKind('signal')).toHaveLength(0);
     expect(((await get(`/api/runs/${run.id}`)).json() as RunDto).status).toBe('idle');
+  });
+
+  it('finish in done → 202 (accepted) via the finish update', async () => {
+    const run = await insertRun({ status: 'done', workflowId: `run-x` });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/finish`);
+    expect(res.statusCode).toBe(202);
+    expect(t.temporal.callsOfKind('update')).toMatchObject([{ workflowId: `run-${run.id}`, args: [UPDATE.finishRun] }]);
+  });
+
+  it('finish rejected by the workflow → 409 with its message', async () => {
+    const run = await insertRun({ status: 'idle', workflowId: `run-x` });
+    t.temporal.reset();
+    const message = 'Only a run that needs you or is done can be finished (phase is running)';
+    t.temporal.updateFailure = () =>
+      new WorkflowUpdateFailedError(
+        'Workflow Update failed',
+        ApplicationFailure.nonRetryable(message, 'NotFinishable'),
+      );
+    const res = await post(`/api/runs/${run.id}/finish`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe(message);
+  });
+
+  it('finish when the workflow has just completed → 409 Run is no longer active', async () => {
+    const run = await insertRun({ status: 'idle', workflowId: `run-x` });
+    t.temporal.reset();
+    t.temporal.updateFailure = (id) => new WorkflowNotFoundError('gone', id ?? '', undefined);
+    const res = await post(`/api/runs/${run.id}/finish`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe('Run is no longer active');
   });
 
   it('cancel on a final run is 409', async () => {

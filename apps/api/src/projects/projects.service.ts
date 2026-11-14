@@ -52,7 +52,7 @@ export function assertRepoPathShape(repoPath: string): void {
 }
 
 /** Non-final run statuses: a project with any of these cannot be deleted. */
-const LIVE_STATUSES = ['queued', 'starting', 'running', 'idle'];
+const LIVE_STATUSES = ['queued', 'starting', 'running', 'idle', 'done'];
 
 /** 409: deleting a project while it has live runs would orphan their workflows, Jobs and tokens. */
 export class ActiveRunsConflictException extends ConflictException {
@@ -81,7 +81,7 @@ export class ProjectsService {
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
   ) {}
 
-  /** One grouped query for all requested projects. needsYou = idle runs; running = live jobs (starting, running, idle). */
+  /** One grouped query for all requested projects. needsYou = idle runs; running = live jobs (starting, running, idle, done). */
   private async countsFor(tx: Tx, projectIds: string[]): Promise<Map<string, Counts>> {
     const out = new Map<string, Counts>();
     if (projectIds.length === 0) return out;
@@ -89,7 +89,7 @@ export class ProjectsService {
       .select({
         projectId: runs.projectId,
         needsYou: sql<number>`count(*) filter (where ${runs.status} = 'idle')::int`,
-        running: sql<number>`count(*) filter (where ${runs.status} in ('starting','running','idle'))::int`,
+        running: sql<number>`count(*) filter (where ${runs.status} in ('starting','running','idle','done'))::int`,
         queued: sql<number>`count(*) filter (where ${runs.status} = 'queued')::int`,
         lastRunAt: sql<Date | null>`max(${runs.queuedAt})`,
       })

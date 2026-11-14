@@ -225,11 +225,11 @@
   - `finish`: 409 when the DB status is not in `FINISHABLE_RUN_STATUSES` (message `Only a run that needs you or is done can be finished (status is <status>)`); otherwise `getHandle(id).executeUpdate(UPDATE.finishRun)`; a `WorkflowUpdateFailedError` whose cause type is `NotFinishable` → 409 with the workflow's message; `WorkflowNotFoundError` → 409 `Run is no longer active` (as today).
   - `done` is live (`LIVE_STATUSES`, `running` count) and terminal-attachable (`active`); `needsYou` still counts only `idle`.
 
-- [ ] **Step 1: Write failing tests:** `'finish in done → 204'`, `'finish rejected by the workflow → 409 with its message'` (stub the Temporal handle as the existing tests do), `'done run counts as running, not needs you'`, `'terminal attach allowed for a done run'`.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/api test` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/api test` → PASS.
-- [ ] **Step 5:** Commit `feat(api): finish runs through the workflow update; done is live`.
+- [x] **Step 1: Write failing tests:** `'finish in done → 204'`, `'finish rejected by the workflow → 409 with its message'` (stub the Temporal handle as the existing tests do), `'done run counts as running, not needs you'`, `'terminal attach allowed for a done run'`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/api test` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/api test` → PASS.
+- [x] **Step 5:** Commit `feat(api): finish runs through the workflow update; done is live`.
 
 ---
 

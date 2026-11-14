@@ -1,11 +1,12 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { WorkflowNotFoundError, type Client } from '@temporalio/client';
+import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError, type Client } from '@temporalio/client';
 import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import { agents, inboundEvents, projects, runEvents, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
   ACTIVE_RUN_STATUSES,
   FINAL_RUN_STATUSES,
+  FINISHABLE_RUN_STATUSES,
   FailureStage,
   RunStatus,
   TicketKind,
@@ -17,7 +18,7 @@ import {
   type RunListResponse,
   type RunLogResponse,
 } from '@agentdesk/contracts';
-import { SIGNAL, TASK_QUEUE, WORKFLOW, runWorkflowId } from '@agentdesk/core';
+import { SIGNAL, TASK_QUEUE, UPDATE, WORKFLOW, runWorkflowId } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
 import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
@@ -290,11 +291,26 @@ export class RunsService {
     await this.signal(workflowId, SIGNAL.cancel);
   }
 
+  /**
+   * Finish is a workflow update: the workflow's own validator decides, and its answer is what the caller gets. The DB
+   * status is only a cheap pre-check; the workflow phase is authoritative.
+   */
   async finish(org: OrgContext, runId: string): Promise<void> {
     const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
-    if (run.status !== 'idle')
-      throw new ConflictException(`Only an idle run can be finished (status is ${run.status})`);
-    await this.signal(runWorkflowId(run.id), SIGNAL.finish);
+    if (!(FINISHABLE_RUN_STATUSES as readonly string[]).includes(run.status))
+      throw new ConflictException(`Only a run that needs you or is done can be finished (status is ${run.status})`);
+    try {
+      await this.temporal.workflow.getHandle(runWorkflowId(run.id)).executeUpdate(UPDATE.finishRun);
+    } catch (err) {
+      if (err instanceof WorkflowNotFoundError) throw new ConflictException('Run is no longer active');
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'NotFinishable'
+      )
+        throw new ConflictException(err.cause.message);
+      throw err;
+    }
   }
 
   private async signal(workflowId: string, name: string): Promise<void> {
