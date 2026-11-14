@@ -5,6 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { z } from 'zod';
 
 const DOCKER_SPECS = new Set(['@agentdesk/db/testing', '@testcontainers/postgresql']);
 // The same module, reached by relative path from inside packages/db.
@@ -48,10 +49,24 @@ export function findMisnamed(files: Record<string, string>): string[] {
     .sort();
 }
 
+/** Short package names (`apps/api` -> `api`) that own integration tests but differ from the keys of the shard map. */
+export function findShardGaps(paths: string[], shardPackages: string[]): string[] {
+  const owners = new Set(
+    paths
+      .filter(isInt)
+      .map((p) => p.split('/')[1])
+      .filter((name): name is string => name !== undefined),
+  );
+  const listed = new Set(shardPackages);
+  return [
+    ...new Set([...owners].filter((o) => !listed.has(o)).concat([...listed].filter((l) => !owners.has(l)))),
+  ].sort();
+}
+
 function main(): void {
   const tracked = execFileSync(
     'git',
-    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', 'apps', 'packages'],
+    ['ls-files', '-z', '--cached', '--others', '--exclude-standard', 'apps', 'packages', 'images'],
     {
       encoding: 'utf8',
     },
@@ -61,13 +76,18 @@ function main(): void {
   const files: Record<string, string> = {};
   for (const f of tracked) files[f] = readFileSync(f, 'utf8');
   const offenders = findMisnamed(files);
+  const shardMap: unknown = JSON.parse(readFileSync('.github/ci-shards.json', 'utf8'));
+  const gaps = findShardGaps(Object.keys(files), Object.keys(z.record(z.string(), z.number()).parse(shardMap)));
+  for (const pkg of gaps) {
+    console.error(`test-split: .github/ci-shards.json and the *.int.test.ts files disagree about package "${pkg}"`);
+  }
   for (const f of offenders) {
     const msg = isInt(f)
       ? 'is named *.int.test.ts but never reaches @agentdesk/db/testing'
       : 'reaches @agentdesk/db/testing (Docker) but is not named *.int.test.ts';
     console.error(`test-split: ${f} ${msg}`);
   }
-  process.exit(offenders.length > 0 ? 1 : 0);
+  process.exit(offenders.length + gaps.length > 0 ? 1 : 0);
 }
 
 if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) main();

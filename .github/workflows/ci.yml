@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -63,7 +63,9 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
       - id: matrix
-        run: echo "matrix=$(pnpm --silent exec tsx scripts/ci-matrix.ts)" >> "$GITHUB_OUTPUT"
+        run: |
+          matrix="$(pnpm --silent exec tsx scripts/ci-matrix.ts)"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
 
   integration:
     name: test / integration (${{ matrix.pkg }} ${{ matrix.shard }}/${{ matrix.total }})

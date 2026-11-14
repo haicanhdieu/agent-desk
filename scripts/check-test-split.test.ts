@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findMisnamed } from './check-test-split';
+import { findMisnamed, findShardGaps } from './check-test-split';
 
 const DB = "import { startPg } from '@agentdesk/db/testing';\nexport const x = startPg;\n";
 
@@ -49,5 +49,19 @@ describe('findMisnamed', () => {
       'packages/db/src/testing.ts': "import { PostgreSqlContainer } from '@testcontainers/postgresql';\n",
     };
     expect(findMisnamed(files)).toEqual(['packages/db/test/a.test.ts']);
+  });
+});
+
+describe('findShardGaps', () => {
+  it('flags a package with integration tests that is missing from the shard map', () => {
+    expect(findShardGaps(['packages/foo/test/a.int.test.ts', 'apps/api/test/b.int.test.ts'], ['api'])).toEqual(['foo']);
+  });
+
+  it('flags a shard-map package that has no integration tests', () => {
+    expect(findShardGaps(['apps/api/test/b.int.test.ts'], ['api', 'db'])).toEqual(['db']);
+  });
+
+  it('accepts a shard map that matches the packages with integration tests', () => {
+    expect(findShardGaps(['apps/api/test/b.int.test.ts', 'packages/db/test/c.int.test.ts'], ['api', 'db'])).toEqual([]);
   });
 });
