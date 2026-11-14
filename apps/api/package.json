@@ -14,7 +14,10 @@
     "start": "tsx src/main.ts",
     "lint": "eslint .",
     "test:unit": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests",
-    "test:integration": "vitest run .int.test.ts --passWithNoTests"
+    "test:integration": "vitest run .int.test.ts --passWithNoTests",
+    "test:coverage": "vitest run --coverage",
+    "test:unit:coverage": "vitest run --exclude '**/*.int.test.ts' --passWithNoTests --coverage --coverage.reportsDirectory=./coverage/unit",
+    "test:integration:coverage": "vitest run .int.test.ts --passWithNoTests --coverage --coverage.reportsDirectory=./coverage/integration"
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",
@@ -50,6 +53,7 @@
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "^5.1.0",
     "eventsource-parser": "^4.1.3",
     "testcontainers": "^12.2.1",
     "tsx": "^4.23.15",
