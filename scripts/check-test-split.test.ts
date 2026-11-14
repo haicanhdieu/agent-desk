@@ -41,4 +41,13 @@ describe('findMisnamed', () => {
     };
     expect(findMisnamed(files)).toEqual(['pkg/test/a.test.ts']);
   });
+
+  it('treats the db package testing source file as the Docker module', () => {
+    const files = {
+      'packages/db/test/a.test.ts': "import { pg } from './helpers/pg';\n",
+      'packages/db/test/helpers/pg.ts': "import { startPg } from '../../src/testing';\n",
+      'packages/db/src/testing.ts': "import { PostgreSqlContainer } from '@testcontainers/postgresql';\n",
+    };
+    expect(findMisnamed(files)).toEqual(['packages/db/test/a.test.ts']);
+  });
 });

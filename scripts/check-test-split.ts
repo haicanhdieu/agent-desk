@@ -6,7 +6,9 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
-const DOCKER_MODULE = '@agentdesk/db/testing';
+const DOCKER_SPECS = new Set(['@agentdesk/db/testing', '@testcontainers/postgresql']);
+// The same module, reached by relative path from inside packages/db.
+const DOCKER_FILE = 'packages/db/src/testing.ts';
 const IMPORT_RE = /(?:\bfrom\s*|\bimport\s*\(?\s*|\brequire\s*\(\s*)['"]([^'"]+)['"]/g;
 
 const isTest = (p: string): boolean => /\.test\.tsx?$/.test(p);
@@ -24,10 +26,11 @@ function reachesDocker(start: string, files: Record<string, string>): boolean {
     const file = stack.pop();
     if (file === undefined || seen.has(file)) continue;
     seen.add(file);
+    if (file === DOCKER_FILE) return true;
     for (const match of (files[file] ?? '').matchAll(IMPORT_RE)) {
       const spec = match[1];
       if (spec === undefined) continue;
-      if (spec === DOCKER_MODULE) return true;
+      if (DOCKER_SPECS.has(spec)) return true;
       if (spec.startsWith('.')) {
         const next = resolveRelative(file, spec, files);
         if (next !== undefined) stack.push(next);
