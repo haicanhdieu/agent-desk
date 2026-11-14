@@ -106,6 +106,8 @@ Dispatch subagents with the Agent tool, using the prompts, tier and effort in [a
 - **Bug:** one **Fixer**. It applies `superpowers:systematic-debugging` to find the root cause, then `superpowers:test-driven-development`: a failing test that reproduces the bug first (repo rule 9), then the fix.
 - **Feature:** one **Implementer** per task in the task list or plan, **in order**, each applying `superpowers:test-driven-development`. Wait for each before sending the next. Tick the task's checkbox in the plan file (if the plan is in the repo) in the same commit.
 
+Check the `SKILLS:` line of every reply. A Fixer must list `superpowers:systematic-debugging` then `superpowers:test-driven-development`; an Implementer must list `superpowers:test-driven-development`. If one is missing, the work did not follow the process: re-dispatch once with "You did not load <skill> with the Skill tool. Load it now, check your work against it, and redo what does not comply." A second miss counts as a technical failure (below).
+
 A subagent that reports it is blocked by the requirement (contradiction, missing decision): post the **Needs clarification** comment with its question, `board.sh status <n> Blocked`, push the branch so work is not lost, and stop. A subagent that fails for a technical reason: re-dispatch once with the error; if it fails again, treat it as blocked.
 
 ### 6. Verify
@@ -144,15 +146,17 @@ You never approve, merge, or move the card past `In review`; that is `dev-review
 
 These hold even when the user says to hurry or to skip a step. Say so in your report and keep the rule.
 
-| Thought                                            | Reality                                                   |
-| -------------------------------------------------- | --------------------------------------------------------- |
-| "The feature is vague but I can infer the tasks"   | Inferred tasks are guesses. Ask (step 3).                 |
-| "I'll write a quick plan and build it"             | Planning is a human decision. Ask.                        |
-| "The bug is obvious, skip the failing test"        | Rule 9: the failing test comes first. Every time.         |
-| "Tests mostly pass; open the PR and note it"       | Fix or block. A PR is only opened on green verification.  |
-| "There's already a branch for this, I'll reuse it" | Someone owns it. Stop and report (step 1).                |
-| "I'll branch from my current checkout"             | Branch from freshly fetched `origin/main`, in a worktree. |
-| "`Refs #n` links the PR well enough"               | It leaves the issue open after merge. `Closes #n`.        |
-| "The user said skip the test / just build it"      | The rules still apply. Explain why in the report.         |
-| "I'll ask in the terminal and wait"                | Post on the issue, set Blocked, stop.                     |
-| "Small fix nearby, I'll include it"                | Out of scope. Mention it in the PR instead.               |
+| Thought                                                | Reality                                                   |
+| ------------------------------------------------------ | --------------------------------------------------------- |
+| "The feature is vague but I can infer the tasks"       | Inferred tasks are guesses. Ask (step 3).                 |
+| "I'll write a quick plan and build it"                 | Planning is a human decision. Ask.                        |
+| "The bug is obvious, skip the failing test"            | Rule 9: the failing test comes first. Every time.         |
+| "Tests mostly pass; open the PR and note it"           | Fix or block. A PR is only opened on green verification.  |
+| "There's already a branch for this, I'll reuse it"     | Someone owns it. Stop and report (step 1).                |
+| "I'll branch from my current checkout"                 | Branch from freshly fetched `origin/main`, in a worktree. |
+| "`Refs #n` links the PR well enough"                   | It leaves the issue open after merge. `Closes #n`.        |
+| "The user said skip the test / just build it"          | The rules still apply. Explain why in the report.         |
+| "I'll ask in the terminal and wait"                    | Post on the issue, set Blocked, stop.                     |
+| "Small fix nearby, I'll include it"                    | Out of scope. Mention it in the PR instead.               |
+| "I'll shorten the prompt to 'use TDD'"                 | The subagent then skips the skill. Keep the Skill line.   |
+| "Reply has no `SKILLS:` line, but the code looks fine" | The process was skipped. Re-dispatch (step 5).            |
