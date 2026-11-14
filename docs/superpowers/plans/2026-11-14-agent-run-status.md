@@ -142,11 +142,11 @@
   - Fake pod: a turn starts with `agentdesk: state working` and ends with `agentdesk: state needs_input declared <b64("Fake agent is waiting")>`; when the prompt contains `--fake-done` (detected the same way as `--fake-fail`) it ends with `agentdesk: state done declared <b64("Fake agent finished")>`; `--fake-background` emits `agentdesk: state waiting background`, then after `FAKE_TURN_MS` a wake-up `working` and the normal end.
   - `buildPrompt` returns exactly five lines; line 5, exact copy: ``Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.``
 
-- [ ] **Step 1: Write failing tests:** update `fake-gateway.test.ts` expectations to the new lines (keep the "typed line queues a turn" test, now asserting `state working` between two ends); add `'--fake-done ends the turn with state done'`; prompt test asserts five lines and the exact line 5.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/core test` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/core test` → PASS.
-- [ ] **Step 5:** Commit `feat(core): fake pod and prompt speak the agent state protocol`.
+- [x] **Step 1: Write failing tests:** update `fake-gateway.test.ts` expectations to the new lines (keep the "typed line queues a turn" test, now asserting `state working` between two ends); add `'--fake-done ends the turn with state done'`; prompt test asserts five lines and the exact line 5.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/core test` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/core test` → PASS.
+- [x] **Step 5:** Commit `feat(core): fake pod and prompt speak the agent state protocol`.
 
 ---
 

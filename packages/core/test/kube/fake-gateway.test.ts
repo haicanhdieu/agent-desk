@@ -77,6 +77,8 @@ function collect(name: string) {
 }
 
 const decoder = new TextDecoder();
+const b64 = (t: string): string => Buffer.from(t, 'utf8').toString('base64');
+const NEEDS = `agentdesk: state needs_input declared ${b64('Fake agent is waiting')}`;
 
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'fake-kube-'));
@@ -93,7 +95,7 @@ afterAll(async () => {
 });
 
 describe('FakeKubeGateway', () => {
-  it('ensureJob twice starts one process; streamLogs yields session started then turn finished', async () => {
+  it('ensureJob twice starts one process; streamLogs yields session started then the state protocol', async () => {
     const id = runId();
     const name = `run-${id}`;
     await Promise.all([gw.ensureJob(job(id, 'do it')), gw.ensureJob(job(id, 'do it'))]);
@@ -107,14 +109,15 @@ describe('FakeKubeGateway', () => {
     });
     expect(pod.name).toBe(name);
     const c = collect(pod.name);
-    await until(async () => c.lines.length >= 6);
-    expect(c.lines.slice(0, 6)).toEqual([
+    await until(async () => c.lines.length >= 7);
+    expect(c.lines.slice(0, 7)).toEqual([
       `agentdesk: checkout ${'0'.repeat(40)}`,
       'agentdesk: plugins begin',
       'agentdesk: plugins end',
       'agentdesk: setup skipped (no script)',
       'agentdesk: session started',
-      'agentdesk: turn finished',
+      'agentdesk: state working',
+      `agentdesk: state needs_input declared ${b64('Fake agent is waiting')}`,
     ]);
     c.ac.abort();
     await c.done;
@@ -142,11 +145,12 @@ describe('FakeKubeGateway', () => {
 
     const c = collect(name);
     // Session started, first turn, and the turn after `hello`.
-    await until(async () => c.lines.filter((l) => l === 'agentdesk: turn finished').length >= 2);
-    // A typed line starts a turn (the runner's UserPromptSubmit hook), before that turn finishes.
-    const started = c.lines.indexOf('agentdesk: turn started');
-    expect(started).toBeGreaterThan(c.lines.indexOf('agentdesk: turn finished'));
-    expect(started).toBeLessThan(c.lines.lastIndexOf('agentdesk: turn finished'));
+    await until(async () => c.lines.filter((l) => l === NEEDS).length >= 2);
+    // A typed line starts a turn (state working) between the two ends.
+    const firstEnd = c.lines.indexOf(NEEDS);
+    const working = c.lines.indexOf('agentdesk: state working', firstEnd);
+    expect(working).toBeGreaterThan(firstEnd);
+    expect(working).toBeLessThan(c.lines.lastIndexOf(NEEDS));
 
     const kill = await gw.exec(name, ['tmux', 'kill-session', '-t', 'agent'], { tty: false });
     const code = await new Promise<number>((r) => kill.onClose(r));
@@ -183,8 +187,35 @@ describe('FakeKubeGateway', () => {
     expect(pod.exitCode).toBe(3);
     const c = collect(name);
     await c.done;
-    expect(c.lines).toContain('agentdesk: turn finished');
+    expect(c.lines).toContain(NEEDS);
     expect(c.lines).toContain('agentdesk: final scrollback end');
+    await gw.deleteJob(name);
+  });
+
+  it('--fake-done ends the turn with state done', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'Arguments from the user: --fake-done'));
+    const c = collect(name);
+    await until(async () => c.lines.includes(`agentdesk: state done declared ${b64('Fake agent finished')}`));
+    expect(c.lines).not.toContain(NEEDS);
+    c.ac.abort();
+    await c.done;
+    await gw.deleteJob(name);
+  });
+
+  it('--fake-background emits state waiting background, then wakes up and ends the turn', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'Arguments from the user: --fake-background'));
+    const c = collect(name);
+    await until(async () => c.lines.includes(NEEDS));
+    const waiting = c.lines.indexOf('agentdesk: state waiting background');
+    expect(waiting).toBeGreaterThan(c.lines.indexOf('agentdesk: session started'));
+    expect(c.lines.indexOf('agentdesk: state working', waiting)).toBeGreaterThan(waiting);
+    expect(c.lines.indexOf(NEEDS)).toBeGreaterThan(waiting);
+    c.ac.abort();
+    await c.done;
     await gw.deleteJob(name);
   });
 
@@ -238,7 +269,7 @@ describe('FakeKubeGateway', () => {
       s.write(new TextEncoder().encode('echo hi\r'));
       await until(async () => screen.includes('echo hi'));
       await sleep(400); // longer than turnMs: a turn marker would have appeared by now
-      expect(c.lines.some((l) => l.startsWith('agentdesk: turn'))).toBe(false);
+      expect(c.lines.some((l) => l.startsWith('agentdesk: turn') || l.startsWith('agentdesk: state'))).toBe(false);
       const kill = await gw.exec(name, ['tmux', 'kill-session', '-t', 'agent'], { tty: false });
       await new Promise<number>((r) => kill.onClose(r));
       await c.done;

@@ -459,7 +459,8 @@ describe('activity errors are redacted', () => {
 
 // The fake pod's log up to the agent starting, as lifecycle kinds (one log line each); the first turn finishes next.
 const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
-const FIRST_TURN_LINE = PRELUDE_KINDS.length + 1;
+// The fake pod's first turn logs `state working` then `state needs_input`; the first turn's end is the first replayable boundary.
+const FIRST_TURN_LINE = PRELUDE_KINDS.length + 2;
 
 describe('followPodLogs', () => {
   it('writes running then idle, signals turnFinished, stores one redacted scrollback, returns the exit code', async () => {
@@ -479,7 +480,7 @@ describe('followPodLogs', () => {
     const { events } = await load(runId);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     const lifecycle = events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind);
-    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'turn_finished']);
+    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'turn_started', 'turn_finished']);
     const scrollback = events.filter((e) => e.type === 'scrollback');
     expect(scrollback).toHaveLength(1);
     const text = String(scrollback[0]?.payload.text);
@@ -530,12 +531,14 @@ describe('followPodLogs', () => {
     expect(new Set(lines).size).toBe(lines.length);
     expect(lifecycle.map((e) => e.payload.kind)).toEqual([
       ...PRELUDE_KINDS,
+      'turn_started',
       'turn_finished',
       'turn_started',
       'turn_finished',
     ]);
-    // The agent's own turn-start line (not terminal input) resumes the run, once, even across the replaying retry.
-    expect(signals.filter((s) => s.runId === runId && s.signal === 'resumed')).toHaveLength(1);
+    // The agent's own turn-start lines (not terminal input) signal resumed once each (first turn, then the typed one),
+    // even across the replaying retry.
+    expect(signals.filter((s) => s.runId === runId && s.signal === 'resumed')).toHaveLength(2);
     expect(events.filter((e) => e.type === 'scrollback')).toHaveLength(1);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     await acts.deleteJob(ctx);
@@ -620,6 +623,7 @@ describe('followPodLogs', () => {
       'plugins_end',
       'setup_skipped',
       'session_started',
+      'turn_started',
       'turn_finished',
     ]);
     expect(lifecycle[0]?.payload.sha).toMatch(/^[0-9a-f]{40}$/);
