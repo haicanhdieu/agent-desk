@@ -131,7 +131,7 @@ gh pr create --base main --head <branch> --title "<type>(<scope>): <summary>" --
 ```
 
 - Title: Conventional Commits with the package scope ([git-workflow.md §2](../../../docs/conventions/git-workflow.md#2-commits)). Spanning packages, use the scope where the change starts (usually `contracts`).
-- Body: the **PR body** in [comments.md](comments.md), which fills the repo's PR template. It says `Refs #<n>`, **never** `Closes`/`Fixes #<n>`: merging must not close the issue, QA does.
+- Body: the **PR body** in [comments.md](comments.md), which fills the repo's PR template. It says `Closes #<n>` for the issue, so merging closes it.
 - Add `review:sensitive` when `git diff --name-only origin/main...` touches a [sensitive path](../../../docs/conventions/git-workflow.md#sensitive-paths). When in doubt, add it.
 - Write the body and comments to files in your scratchpad (or `mktemp`), never in the repo.
 
@@ -155,7 +155,7 @@ These hold even when the user says to hurry or to skip a step. Say so in your re
 | "Tests mostly pass; open the PR and note it"       | Fix or block. A PR is only opened on green verification.  |
 | "There's already a branch for this, I'll reuse it" | Someone owns it. Stop and report (step 1).                |
 | "I'll branch from my current checkout"             | Branch from freshly fetched `origin/main`, in a worktree. |
-| "`Closes #n` links the PR nicely"                  | It closes the issue on merge and skips QA. `Refs #n`.     |
+| "`Refs #n` links the PR well enough"               | It leaves the issue open after merge. `Closes #n`.        |
 | "The user said skip the test / just build it"      | The rules still apply. Explain why in the report.         |
 | "I'll ask in the terminal and wait"                | Post on the issue, set Blocked, stop.                     |
 | "Small fix nearby, I'll include it"                | Out of scope. Mention it in the PR instead.               |

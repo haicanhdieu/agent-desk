@@ -44,7 +44,7 @@ Other labels:
 | `agent-authored`   | PR    | Written by an agent (`dev-build`, or fixes from `dev-review`).                                                                    |
 | `review:sensitive` | PR    | Touches a [sensitive path](../conventions/git-workflow.md#sensitive-paths). `dev-review` runs its security review at high effort. |
 
-PRs say `Refs #<n>`, **not** `Closes #<n>`: merging must not close the issue, or it would skip QA. QA closes it.
+PRs say `Closes #<n>` for each issue they deliver, so merging closes it. Use `Refs #<n>` only for related issues the PR does not finish. The card still moves to **QA** after merge; a failed QA reopens the issue.
 
 ## 3. Triage: make a ticket Ready
 
@@ -122,8 +122,8 @@ To review by hand instead, use [code-review-checklist.md](../conventions/code-re
 ## 7. QA test _(manual until the qa-test skill lands)_
 
 1. Test the change on QA (or locally with `devbox run e2e-local`).
-2. **Pass:** close the issue with a comment saying what you tested, then `board.sh status <n> Done`.
-3. **Fail:** comment what failed (steps, expected, actual), add `qa:failed`, and move it to **Ready**. `dev-build` will take it as a bug fix on a new branch.
+2. **Pass:** comment what you tested (the merge already closed the issue; close it if not), then `board.sh status <n> Done`.
+3. **Fail:** reopen the issue, comment what failed (steps, expected, actual), add `qa:failed`, and move it to **Ready**. `dev-build` will take it as a bug fix on a new branch.
 
 ## Troubleshooting
 
@@ -132,7 +132,7 @@ To review by hand instead, use [code-review-checklist.md](../conventions/code-re
 | `board.sh` or `gh pr create` fails with 403 / not found            | The active `gh` account can't write to the repo or project. Pass a token for one that can, per command: `GH_TOKEN=$(gh auth token --user <login>) bash …`. Don't `gh auth switch`.             |
 | `board has no Status option '…'`                                   | Spelling is exact and case-sensitive: `Backlog`, `Ready`, `In progress`, `Blocked`, `In review`, `QA`, `Done`.                                                                                 |
 | Card and label disagree                                            | Someone changed one by hand. Rerun `board.sh status <n> "<Status>"` with the right column; it fixes both.                                                                                      |
-| Issue closed when the PR merged, skipping QA                       | The PR body used `Closes`/`Fixes #<n>`. Reopen the issue and move it to **QA**. Use `Refs #<n>` next time.                                                                                     |
+| Issue still open after the PR merged                               | The PR body used `Refs #<n>`. Close the issue by hand and use `Closes #<n>` next time.                                                                                                         |
 | `dev-build` says "already in progress" but nobody is on it         | A run died. Check for an open PR or a pushed branch for the issue; if none, move the card to **Ready** and run again.                                                                          |
 | `dev-review` merged before CI finished                             | `main` has no required status checks, and auto-merge was used anyway. Make `gate / ci-passed` required in branch protection ([git-workflow.md §6](../conventions/git-workflow.md#6-ci-gates)). |
 | `dev-review` can't create its worktree: branch already checked out | `dev-build`'s worktree still holds it. The skill reuses it if it is clean; otherwise `git worktree remove <path>` after checking nothing is unpushed.                                          |

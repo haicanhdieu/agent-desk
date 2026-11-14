@@ -20,9 +20,9 @@
 
 ## Linked spec / issue
 
-<!-- One `Refs #<n>` per issue. Never Closes/Fixes: QA closes issues. Spec, plan or ADR paths; "None" only for fixes, refactors, deps. -->
+<!-- One `Closes #<n>` per issue the PR delivers (`Refs #<n>` only for related issues it does not finish). Spec, plan or ADR paths; "None" only for fixes, refactors, deps. -->
 
-Refs #<n>
+Closes #<n>
 Spec / plan / ADR: <docs/superpowers/... or None>
 
 ## Type of change
