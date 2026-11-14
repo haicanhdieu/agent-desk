@@ -81,7 +81,13 @@ describe('setRunStatus', () => {
       expect(run?.finishedAt).toBeNull();
       expect(events).toHaveLength(1);
       expect(events[0]?.type).toBe('status');
-      expect(events[0]?.payload).toEqual({ status: 'running', exitCode: null, failureReason: null });
+      expect(events[0]?.payload).toEqual({
+        status: 'running',
+        exitCode: null,
+        failureReason: null,
+        waitingOn: null,
+        agentNote: null,
+      });
       await sleep(300);
       expect(got).toEqual([{ orgId: ORG, runId, seq: 1 }]);
     } finally {
@@ -112,6 +118,78 @@ describe('setRunStatus', () => {
     expect(run?.exitCode).toBe(2);
     expect(run?.failureReason).toBe('boom');
     expect(events.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
+  });
+
+  it('done sets idle_since and agent_note; next running clears both', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'running', at: '2026-11-12T10:00:00.000Z' });
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'done',
+      agentNote: 'All finished',
+      at: '2026-11-12T10:01:00.000Z',
+    });
+    const done = (await load(runId)).run;
+    expect(done?.status).toBe('done');
+    expect(done?.idleSince?.toISOString()).toBe('2026-11-12T10:01:00.000Z');
+    expect(done?.agentNote).toBe('All finished');
+    await setRunStatus(db, { orgId: ORG, runId, status: 'running', at: '2026-11-12T10:02:00.000Z' });
+    const next = (await load(runId)).run;
+    expect(next?.idleSince).toBeNull();
+    expect(next?.agentNote).toBeNull();
+  });
+
+  it('running with waitingOn background stores it; idle clears it', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'running',
+      waitingOn: 'background',
+      at: '2026-11-12T10:00:00.000Z',
+    });
+    expect((await load(runId)).run?.waitingOn).toBe('background');
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'idle',
+      waitingOn: 'background',
+      at: '2026-11-12T10:01:00.000Z',
+    });
+    expect((await load(runId)).run?.waitingOn).toBeNull();
+  });
+
+  it('running → running with a new waitingOn writes and appends one status event', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'running', at: '2026-11-12T10:00:00.000Z' });
+    const res = await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'running',
+      waitingOn: 'background',
+      at: '2026-11-12T10:01:00.000Z',
+    });
+    expect(res.seq).toBe(2);
+    const { run, events } = await load(runId);
+    expect(run?.waitingOn).toBe('background');
+    expect(events.map((e) => e.seq)).toEqual([1, 2]);
+    expect(events[1]?.payload).toMatchObject({ status: 'running', waitingOn: 'background', agentNote: null });
+  });
+
+  it('agent note is collapsed to one line and capped at 500', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'idle',
+      agentNote: `line one\nline two\r\n${'x'.repeat(600)}`,
+      at: '2026-11-12T10:00:00.000Z',
+    });
+    const note = (await load(runId)).run?.agentNote ?? '';
+    expect(note.startsWith('line one line two ')).toBe(true);
+    expect(note).not.toMatch(/[\r\n]/);
+    expect(note.length).toBe(500);
   });
 
   it('persists failure_stage with the final status, and leaves it null otherwise', async () => {

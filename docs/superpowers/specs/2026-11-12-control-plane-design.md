@@ -64,7 +64,7 @@ Application tables (every one has `org_id uuid not null` unless noted):
 | `poll_cursors` | org_id, project_id, since, etag, last_polled_at, last_error, next_poll_at, paused_reason | Primary key (project_id) |
 | `audit_log` | id, org_id, actor_user_id, action, target_type, target_id, payload (jsonb), at | Written by an interceptor on mutating Desk calls |
 
-Run status is unchanged: `queued` → `starting` → `running` ⇄ `idle` → `succeeded` | `failed` | `cancelled` | `timed_out`.
+Run status is unchanged: `queued` → `starting` → `running` ⇄ `idle` ⇄ `done` → `succeeded` | `failed` | `cancelled` | `timed_out`.
 
 ### 4.2 Row-level security
 
@@ -126,14 +126,14 @@ The router is a pure function over (event, project, rules, run counts) so pollin
 4. Start `followPodLogs` (long-running, heartbeat 10 s, heartbeat timeout 60 s). It resumes from the last stored `run_events.seq` after a retry. It:
    - fails non-retryably if the pod stays `Pending` for over 2 min (reason: pod event message);
    - calls `setRunStatus(running)` at the first log line;
-   - signals `resumed` on the `UserPromptSubmit`-hook line and `turnFinished` on the Stop-hook line;
+   - parses the `agentdesk: state …` protocol lines and signals `agentState` (`working`, `waiting background`, `needs_input`, `done`; see [ADR 0020](../../adr/0020-agent-status-protocol.md)); the legacy `turn started` / `turn finished` lines are still parsed for one release;
    - stores lifecycle lines and the final scrollback (redacted) in `run_events`;
    - completes with the container exit code.
 5. **Main loop.** State: `running` or `idle`, `terminalAttached` count. Events:
-   - `turnFinished` → `idle`; `resumed` → `running`;
+   - `agentState`: `working` / `waiting background` → `running`; `needs_input` → `idle`; `done` → `done`;
    - `terminalAttached` / `terminalDetached` → adjust count;
-   - idle timer: 10 min in `idle` with no terminal attached → end session (outcome `succeeded`);
-   - `finish` signal (only in `idle`) → end session (`succeeded`);
+   - idle timer: 10 min in `idle` or `done` with no terminal attached → end session (outcome `succeeded`);
+   - `finishRun` update (only in `idle` or `done`; otherwise rejected, API answers 409) → end session (`succeeded`);
    - `cancel` signal → delete Job (`cancelled`);
    - hard timer at `timeout_seconds` (≤ 3300 s, so the 1-hour token stays valid) → delete Job (`timed_out`);
    - `followPodLogs` completes → exit code 0 → `succeeded`, non-zero → `failed`.
@@ -221,7 +221,7 @@ The runner image is built in the infra spec. The control plane depends on this c
 
 - Env: `REPO_CLONE_URL` (includes the workspace token), the code host adapter's `runEnv` (GitHub: `GH_TOKEN`, the same token, so `gh` is authenticated), `CHECKOUT_REF`, `PROMPT`, `BOT_NAME`, `BOT_EMAIL`, `MAX_TURNS`, plus the agent credential from the per-run Secret.
 - The entrypoint clones, fetches and checks out `CHECKOUT_REF`, starts Claude Code interactively in tmux session `agent` with `--permission-mode bypassPermissions`, waits for the pane to die, prints the scrollback and exits with the agent's status.
-- Log lines, one per line on stdout: `agentdesk: session started`, `agentdesk: turn started` (from the UserPromptSubmit hook), `agentdesk: turn finished` (from the Stop hook), `agentdesk: final scrollback begin`, `agentdesk: final scrollback end`.
+- Log lines, one per line on stdout: `agentdesk: session started`, `agentdesk: state working`, `agentdesk: state waiting background`, `agentdesk: state needs_input <source> <note-b64>`, `agentdesk: state done <source> <note-b64>` (from the agent adapter's hooks and the `agentdesk-status` command, [ADR 0020](../../adr/0020-agent-status-protocol.md); the old `turn started` / `turn finished` lines are still parsed for one release), `agentdesk: final scrollback begin`, `agentdesk: final scrollback end`.
 - Plugins phase (after checkout, before the agent; [ADR 0019](../../adr/0019-repo-setup-and-approved-store-plugins.md)): `select-plugins.mjs` picks the repo's enabled plugins from approved stores; the entrypoint runs `claude plugin marketplace add <source>` then `claude plugin install <plugin>@<store>`, each under `timeout 120` with stdin closed and values as separate argv elements. A failure warns and the run continues.
 - Added env: `PLUGIN_MARKETPLACES` (JSON `{ "<name>": "<source>" }`, optional; platform default `{"claude-plugins-official":"anthropics/claude-plugins-official"}`). Test seams only: `AGENTDESK_REPO_DIR` (default `/workspace/repo`), `AGENTDESK_LIB_DIR` (default `/usr/local/lib/agentdesk`). Setup phase: `SETUP_SCRIPT` (optional script text), `SETUP_TIMEOUT_SECONDS` (digits only, else 600; counted inside the run's own timeout), `RUN_MODE` (`setup_test` runs the setup phase and then starts `bash -l` in tmux session `agent` instead of the agent, whether setup passed or failed; claude is never started). `SETUP_SCRIPT` is unset before tmux starts, so neither the agent nor the terminal inherits it. It is not erased from the pod: the entrypoint (PID 1) keeps it in `/proc/1/environ`, readable by any process of the same uid, and it stays in the Job spec.
 - Added log lines, each a whole stdout line: `agentdesk: checkout <sha>`, `agentdesk: plugins begin`, `agentdesk: plugin installed <id>`, `agentdesk: plugin skipped <id> (store not approved)`, `agentdesk: plugin failed <id>`, `agentdesk: plugins end`. Plugin command output is printed with line prefix `plugin| `, so that output cannot form a marker.

@@ -42,7 +42,7 @@ export function runTarget(signalWithRetry: RunSignaller, path: string): Terminal
       if (!row) return null;
       return {
         createdBy: row.createdBy,
-        active: row.status === 'running' || row.status === 'idle',
+        active: row.status === 'running' || row.status === 'idle' || row.status === 'done',
         jobName: runJobName(id),
       };
     },

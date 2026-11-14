@@ -38,6 +38,7 @@ describe('runDetailKey', () => {
     ['starting', 'RunStarting'],
     ['running', 'RunRunning'],
     ['idle', 'RunIdle'],
+    ['done', 'RunDone'],
     ['succeeded', 'RunSucceeded'],
     ['failed', 'RunFailed'],
     ['timed_out', 'RunTimedOut'],
@@ -49,6 +50,7 @@ describe('runDetailKey', () => {
   it('a running run whose terminal is reconnecting → RunReconnect', () => {
     expect(runDetailKey('running', 'reconnect')).toBe('RunReconnect');
     expect(runDetailKey('idle', 'reconnect')).toBe('RunReconnect');
+    expect(runDetailKey('done', 'reconnect')).toBe('RunReconnect');
   });
 
   it('every status of a mapped run gives the key of its board', () => {
@@ -59,6 +61,20 @@ describe('runDetailKey', () => {
     ] as [RunStatus, RunDetailKey][]) {
       expect(runDetailKey(detail(run({ status })).run.status)).toBe(key);
     }
+  });
+});
+
+describe('toRunDetail, agent note', () => {
+  const live = (over: Partial<RunDto>) =>
+    detail(run({ status: 'idle', startedAt: local(14, 5), finishedAt: null, idleSince: local(14, 10), ...over }));
+
+  it('carries the agent note for a run that needs you or is done', () => {
+    expect(live({ agentNote: 'Which database?' }).agentNote).toBe('Which database?');
+    expect(live({ status: 'done', agentNote: 'All set' }).agentNote).toBe('All set');
+  });
+
+  it('has no agent note when the run has none', () => {
+    expect(live({ agentNote: null }).agentNote).toBeUndefined();
   });
 });
 

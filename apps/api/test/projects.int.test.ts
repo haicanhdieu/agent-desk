@@ -251,6 +251,20 @@ describe('projects', () => {
     expect(dto.lastRunAt).not.toBeNull();
   });
 
+  it('done run counts as running, not needs you', async () => {
+    const p = (await createProject({})).json() as ProjectDto;
+    const orgId = await aliceOrgId();
+    await asOrg(
+      orgId,
+      `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref, status, trigger_source)
+       values ($1,$2,'/x','x','a#1','issue','main','done','manual')`,
+      [orgId, p.id],
+    );
+    const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+    const dto = expectContract('projects.get', get) as ProjectDto;
+    expect(dto.counts).toEqual({ needsYou: 0, running: 1, queued: 0 });
+  });
+
   it('webhook connection reports the newest webhook delivery', async () => {
     const p = (await createProject({})).json() as ProjectDto;
     const empty = await t.app.inject({
@@ -314,7 +328,7 @@ describe('projects', () => {
       return secret;
     }
 
-    it.each(['queued', 'starting', 'running', 'idle'])(
+    it.each(['queued', 'starting', 'running', 'idle', 'done'])(
       'a %s run blocks the delete with a 409 problem and nothing is removed',
       async (status) => {
         const p = (await createProject({ triggerMode: 'polling' })).json() as ProjectDto;

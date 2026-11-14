@@ -60,6 +60,46 @@ describe('RunDetail actions', () => {
   });
 });
 
+describe('RunDetail done and agent notes', () => {
+  it('done: Finish run is enabled in the top bar and the banner', () => {
+    show('RunDone');
+    const buttons = screen.getAllByRole('button', { name: 'Finish run' });
+    expect(buttons).toHaveLength(2);
+    for (const b of buttons) expect(b).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Finish' })).not.toBeInTheDocument();
+  });
+
+  it('done: banner title and body, with no agent note', () => {
+    show('RunDone');
+    expect(screen.getByText('The agent says the task is done')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Review the work, type in the terminal to ask for changes, or Finish to end the run as succeeded.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('done: the agent note shows above the body as plain text, never markup', () => {
+    const data = { ...runDetails.RunDone, agentNote: '<b>x</b> opened PR #9' };
+    const { container } = render(<RunDetail data={data} lines={linesFor('RunDone')} needsYou={1} />);
+    expect(screen.getByText('<b>x</b> opened PR #9')).toBeInTheDocument();
+    expect([...container.querySelectorAll('b')].some((b) => b.textContent === 'x')).toBe(false);
+  });
+
+  it('done: Finish is held while a finish is in flight', () => {
+    show('RunDone', { pendingNote: 'Finishing…' });
+    for (const b of screen.getAllByRole('button', { name: 'Finish run' })) expect(b).toBeDisabled();
+  });
+
+  it('needs you: the agent note shows above the existing body', () => {
+    const data = { ...runDetails.RunIdle, agentNote: 'Which database should I use?' };
+    render(<RunDetail data={data} lines={linesFor('RunIdle')} needsYou={1} />);
+    expect(screen.getByText('The agent is waiting for your answer')).toBeInTheDocument();
+    expect(screen.getByText('Which database should I use?')).toBeInTheDocument();
+    expect(screen.getByText(/Type your answer in the terminal below/)).toBeInTheDocument();
+  });
+});
+
 describe('RunDetail top bar elapsed', () => {
   it.each([
     ['RunStarting', '0:24'],
@@ -149,7 +189,7 @@ describe('RunDetail per state', () => {
 
   it('idle: amber notice, cursor, Waiting for you with the amber timer note', () => {
     const { container } = show('RunIdle');
-    expect(screen.getByText('The agent finished its turn and is waiting for you')).toBeInTheDocument();
+    expect(screen.getByText('The agent is waiting for your answer')).toBeInTheDocument();
     expect(container.querySelector('[class*="cursor"]')).not.toBeNull();
     expect(screen.getByText('Waiting for you')).toBeInTheDocument();
     expect(screen.getByText('Timer paused')).toBeInTheDocument();

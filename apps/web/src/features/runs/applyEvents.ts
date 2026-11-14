@@ -49,7 +49,9 @@ function patched(run: CachedRun, e: StatusChange): CachedRun {
       failureReason: e.failureReason,
     }),
     startedAt: run.startedAt ?? (status === 'queued' ? null : at),
-    idleSince: status === 'idle' ? (run.idleSince ?? at) : null,
+    // The run stream carries the agent's state; the project stream does not, so those leave it as cached.
+    ...('waitingOn' in e && { waitingOn: e.waitingOn, agentNote: e.agentNote }),
+    idleSince: status === 'idle' || status === 'done' ? (run.idleSince ?? at) : null,
     finishedAt: isFinal(status) ? (run.finishedAt ?? at) : null,
   };
 }
@@ -59,7 +61,7 @@ const matches = (filter: RunListFilter, status: RunStatus): boolean => {
     case 'needs_you':
       return status === 'idle';
     case 'active':
-      return status === 'starting' || status === 'running' || status === 'idle';
+      return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
     case 'queued':
       return status === 'queued';
     case 'ended':
@@ -78,7 +80,7 @@ const countedIn = (key: CountKey, status: RunStatus): boolean => {
     case 'needsYou':
       return status === 'idle';
     case 'running':
-      return status === 'starting' || status === 'running' || status === 'idle';
+      return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
     case 'queued':
       return status === 'queued';
   }

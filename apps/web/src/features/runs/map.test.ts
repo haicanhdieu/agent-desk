@@ -102,6 +102,26 @@ describe('toRunSummary', () => {
   });
 });
 
+describe('toRunSummary, agent state notes', () => {
+  it('running on background work says so', () => {
+    const s = toRunSummary(run({ status: 'running', waitingOn: 'background', finishedAt: null }), now);
+    expect(s.statusNote).toBe('Waiting on background work');
+  });
+
+  it('running with nothing to wait on has no note', () => {
+    const s = toRunSummary(run({ status: 'running', waitingOn: null, finishedAt: null }), now);
+    expect(s.statusNote).toBeUndefined();
+  });
+
+  it('done: how long ago and the auto-finish time', () => {
+    const s = toRunSummary(
+      run({ status: 'done', startedAt: local(14, 9), finishedAt: null, idleSince: local(14, 17) }),
+      now,
+    );
+    expect(s.statusNote).toBe('Done 3m ago. Auto-finish after 10m unattended');
+  });
+});
+
 describe('groupByTicket', () => {
   const summary = (number: number, ticketNumber: number) =>
     toRunSummary(

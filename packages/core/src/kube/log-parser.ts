@@ -1,7 +1,8 @@
+import { AgentState, AgentStateSource, toAgentNote } from '@agentdesk/contracts';
+
 export type LogLineKind =
   | 'session_started'
-  | 'turn_started'
-  | 'turn_finished'
+  | 'agent_state'
   | 'scrollback_begin'
   | 'scrollback_end'
   | 'checkout'
@@ -25,13 +26,12 @@ export interface ParsedLogLine {
   pluginId?: string;
   exitCode?: number;
   sha?: string;
+  agent?: { state: AgentState; source?: AgentStateSource; waitingOn?: 'background'; note?: string };
 }
 
 /** The runner's stdout protocol (spec §8). A marker must be the whole line (surrounding whitespace ignored). */
 const MARKERS: Record<string, Exclude<LogLineKind, 'text'>> = {
   'agentdesk: session started': 'session_started',
-  'agentdesk: turn started': 'turn_started',
-  'agentdesk: turn finished': 'turn_finished',
   'agentdesk: final scrollback begin': 'scrollback_begin',
   'agentdesk: final scrollback end': 'scrollback_end',
   'agentdesk: plugins begin': 'plugins_begin',
@@ -49,6 +49,11 @@ const PLUGIN = new RegExp(`^agentdesk: plugin (installed|failed) (${ID})$`);
 const PLUGIN_SKIPPED = new RegExp(`^agentdesk: plugin skipped (${ID}) \\(store not approved\\)$`);
 const SETUP_FAILED = /^agentdesk: setup failed exit=(\d{1,3})$/;
 
+const STATE_WORKING = /^agentdesk: state working$/;
+const STATE_WAITING = /^agentdesk: state waiting background$/;
+const STATE_DECIDED =
+  /^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,2800}={0,2}|-)$/;
+
 const PLUGIN_KINDS = { installed: 'plugin_installed', failed: 'plugin_failed' } as const;
 
 export function parseLogLine(line: string): ParsedLogLine {
@@ -57,6 +62,8 @@ export function parseLogLine(line: string): ParsedLogLine {
   const trimmed = line.trim();
   const kind = Object.hasOwn(MARKERS, trimmed) ? MARKERS[trimmed] : undefined;
   if (kind) return { kind, text: trimmed };
+  const agent = parseAgentState(trimmed);
+  if (agent) return { kind: 'agent_state', text: trimmed, agent };
   const checkout = CHECKOUT.exec(trimmed);
   if (checkout?.[1]) return { kind: 'checkout', text: trimmed, sha: checkout[1] };
   const plugin = PLUGIN.exec(trimmed);
@@ -68,4 +75,20 @@ export function parseLogLine(line: string): ParsedLogLine {
   const failed = SETUP_FAILED.exec(trimmed);
   if (failed?.[1]) return { kind: 'setup_failed', text: trimmed, exitCode: Number.parseInt(failed[1], 10) };
   return { kind: 'text', text: line };
+}
+
+type AgentLine = NonNullable<ParsedLogLine['agent']>;
+
+function parseAgentState(trimmed: string): AgentLine | undefined {
+  if (STATE_WORKING.test(trimmed) || trimmed === 'agentdesk: turn started') return { state: 'working' };
+  if (STATE_WAITING.test(trimmed)) return { state: 'waiting', waitingOn: 'background' };
+  if (trimmed === 'agentdesk: turn finished') return { state: 'needs_input', source: 'undeclared' };
+  const m = STATE_DECIDED.exec(trimmed);
+  if (!m) return undefined;
+  const [, state, source, payload] = m;
+  if (!state || !source || !payload) return undefined;
+  const base: AgentLine = { state: AgentState.parse(state), source: AgentStateSource.parse(source) };
+  if (payload === '-') return base;
+  const note = toAgentNote(Buffer.from(payload, 'base64').toString('utf8'));
+  return note ? { ...base, note } : base;
 }

@@ -21,6 +21,8 @@ export const SIGNAL = {
   releaseSlot: 'releaseSlot',
   /** RunWorkflow: the gate granted a slot. */
   granted: 'granted',
+  /** RunWorkflow: the agent declared its state. Args: ['working' | 'waiting' | 'needs_input' | 'done']. */
+  agentState: 'agentState',
   turnFinished: 'turnFinished',
   resumed: 'resumed',
   terminalAttached: 'terminalAttached',
@@ -29,6 +31,11 @@ export const SIGNAL = {
   cancel: 'cancel',
   /** SetupTestWorkflow: end the test now (cancels setup, then deletes the workspace). */
   endSetupTest: 'endSetupTest',
+} as const;
+
+export const UPDATE = {
+  /** RunWorkflow: end an idle or done run; resolves `{ accepted: true }` or fails `NotFinishable`. */
+  finishRun: 'finishRun',
 } as const;
 
 export const QUERY = {

@@ -1,6 +1,7 @@
 # 0011. Claude Code interactive in tmux with bypass permissions
 
 - Status: Accepted
+- Partly superseded by [0020](0020-agent-status-protocol.md) (hooks and run status)
 - Date: 2026-11-11
 - Source: Architecture (PoC) §5 (Runner image, entrypoint), §6 (approach A, Run completion and idle), §7 threat model; control plane design §8
 

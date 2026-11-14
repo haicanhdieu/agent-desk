@@ -270,7 +270,7 @@ describe('routeEvent', () => {
 });
 
 describe('buildPrompt', () => {
-  it('renders the four-line template for an issue', () => {
+  it('renders the five-line template for an issue', () => {
     expect(
       buildPrompt({
         skillName: 'code-review',
@@ -285,11 +285,12 @@ describe('buildPrompt', () => {
         'Read the ticket and all its comments with the gh CLI before you start.',
         'Arguments from the user: fast',
         'When done, report on the ticket as the skill instructs.',
+        'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
       ].join('\n'),
     );
   });
 
-  it('always yields four lines even with newline-bearing values', () => {
+  it('always yields five lines even with newline-bearing values', () => {
     const out = buildPrompt({
       skillName: 'a\nb\r\nc\u2028d',
       ticketKind: 'issue',
@@ -297,7 +298,7 @@ describe('buildPrompt', () => {
       repoPath: 'x\ny/z',
       args: 'l1\nl2\u2029l3',
     });
-    expect(out.split('\n')).toHaveLength(4);
+    expect(out.split('\n')).toHaveLength(5);
     expect(out).toContain('Use the skill "a b c d" on issue #1 in x y/z.');
     expect(out).toContain('Arguments from the user: l1 l2 l3');
   });

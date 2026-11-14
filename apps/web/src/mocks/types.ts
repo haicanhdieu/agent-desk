@@ -110,6 +110,8 @@ export type RunDetailData = {
   lifecycle?: { at: string; text: string }[];
   startup?: { label: string; detail?: string; at?: string; state: 'done' | 'active' | 'pending' }[];
   idle?: { since: string; endsAt: string; slotNote: string };
+  /** What the agent said when it asked a question or declared the task done; untrusted, shown as plain text. */
+  agentNote?: string;
   time?: { elapsed: string; limit: string; percent: number };
   connection: { state: ConnectionState; label: string };
   termSize?: string;
@@ -124,6 +126,7 @@ export type RunDetailKey =
   | 'RunStarting'
   | 'RunRunning'
   | 'RunIdle'
+  | 'RunDone'
   | 'RunReconnect'
   | 'RunSucceeded'
   | 'RunFailed'

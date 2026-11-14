@@ -1,6 +1,6 @@
 import { ApplicationFailure } from '@temporalio/activity';
 import { eq } from 'drizzle-orm';
-import { FINAL_RUN_STATUSES, RunStatus } from '@agentdesk/contracts';
+import { FINAL_RUN_STATUSES, RunStatus, toAgentNote, type WaitingOn } from '@agentdesk/contracts';
 import { notifyRunStatus, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
 import { appendRunEvent, currentSeq } from './run-events';
 
@@ -14,6 +14,10 @@ export interface SetRunStatusInput {
   failureReason?: string;
   /** Written with the final status: `setup` (workspace setup failed), `agent` (the agent exited non-zero); else null. */
   failureStage?: 'setup' | 'agent';
+  /** Why a `running` run is not busy with the agent itself. Written only with `running`; else cleared. */
+  waitingOn?: WaitingOn | null;
+  /** Agent's note, already redacted. Written only with `idle` or `done` (collapsed to one line, capped); else cleared. */
+  agentNote?: string | null;
   /** ISO timestamp of the transition. */
   at: string;
 }
@@ -64,13 +68,19 @@ export async function setRunStatusTx(
     return { seq: await currentSeq(tx, runId), changed: false, previous };
   }
 
+  const parked = status === 'idle' || status === 'done';
+  const waitingOn = status === 'running' ? (input.waitingOn ?? null) : null;
+  const agentNote = parked && input.agentNote != null ? toAgentNote(input.agentNote) : null;
+
   await tx
     .update(runs)
     .set({
       status,
       ...(status === 'running' && run.startedAt === null ? { startedAt: at } : {}),
       ...(isFinal(status) ? { finishedAt: at } : {}),
-      idleSince: status === 'idle' ? at : null,
+      idleSince: parked ? at : null,
+      waitingOn,
+      agentNote,
       ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
       ...(input.failureReason !== undefined ? { failureReason: input.failureReason } : {}),
       ...(input.failureStage !== undefined && isFinal(status) ? { failureStage: input.failureStage } : {}),
@@ -79,7 +89,13 @@ export async function setRunStatusTx(
   const ev = await appendRunEvent(tx, orgId, {
     runId,
     type: 'status',
-    payload: { status, exitCode: input.exitCode ?? null, failureReason: input.failureReason ?? null },
+    payload: {
+      status,
+      exitCode: input.exitCode ?? null,
+      failureReason: input.failureReason ?? null,
+      waitingOn,
+      agentNote,
+    },
     ts: at,
   });
   if (!ev) throw ApplicationFailure.nonRetryable('setRunStatus: run not found');

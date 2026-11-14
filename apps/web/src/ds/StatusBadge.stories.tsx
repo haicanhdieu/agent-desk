@@ -35,3 +35,15 @@ function Gallery() {
 const meta = { title: 'Primitives/StatusBadge', component: Gallery } satisfies Meta<typeof Gallery>;
 export default meta;
 export const All: StoryObj<typeof meta> = {};
+
+/** Declared finish: its own label and tick glyph, not "Needs you". */
+export const Done: StoryObj<typeof StatusBadge> = {
+  render: () => (
+    <div style={page}>
+      <section className="row" style={{ gap: 16 }}>
+        <StatusBadge status="done" />
+        <StatusBadge status="done" variant="pill" />
+      </section>
+    </div>
+  ),
+};
