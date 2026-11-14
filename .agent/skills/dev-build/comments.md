@@ -1,4 +1,6 @@
-# Comments and PR body
+# Comments
+
+The PR body is owned by the `create-pr` skill, not this file.
 
 Post comments with `gh issue comment <n> --body-file <file>`. Write them in plain everyday language and keep them short ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty.
 
@@ -34,47 +36,3 @@ For a feature with no task list, question 1 is always: "Can you add a task list 
 <For a bug: "Root cause: <one line>.">
 This issue stays open until QA passes.
 ```
-
-## PR body
-
-Fills [.github/pull_request_template.md](../../../.github/pull_request_template.md). Tick only boxes that are true.
-
-````markdown
-## Summary
-
-<what changes and why, 1–3 sentences>
-
-## Linked spec / issue
-
-Closes #<n><, plan: docs/superpowers/plans/<file>.md>
-
-## Type of change
-
-- [x] <feat | fix>
-
-## Checklist
-
-<the template's checklist, each box ticked only if true>
-
-## Test evidence
-
-<For a bug: root cause, and the test that failed before and passes now.>
-
-```text
-<commands run in step 6 and their real output summary>
-```
-
-## Judgment calls
-
-<each ruling and its cost if wrong, from the subagents' JUDGMENT CALLS and your own; or "None">
-
-## Risk and rollback
-
-<what could break, who is affected; rollback: revert this PR>
-
----
-
-Authored by an AI agent (`dev-build`). `dev-review` reviews and merges it.
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
-````
