@@ -46,7 +46,9 @@ export function RunsProblems({ warnings, ignored, filter = 'ignored', ...page }:
           icon={<Icon name={w.icon} size={16} />}
           title={w.title}
           actions={w.actions.map((a) => (
-            <Button key={a.label} variant={a.variant} icon={a.icon} href={a.href} onClick={a.onClick}>{a.label}</Button>
+            <Button key={a.label} variant={a.variant} icon={a.icon} href={a.href} onClick={a.onClick}>
+              {a.label}
+            </Button>
           ))}
         >
           {w.body}
@@ -63,7 +65,9 @@ export function RunsProblems({ warnings, ignored, filter = 'ignored', ...page }:
         <EmptyState title="No ignored commands" />
       ) : (
         <DataTable columns={columns}>
-          {ignored.map((item, i) => <IgnoredRow key={`${i}-${item.at}-${item.ticket.number}-${item.command}`} item={item} />)}
+          {ignored.map((item, i) => (
+            <IgnoredRow key={`${i}-${item.at}-${item.ticket.number}-${item.command}`} item={item} />
+          ))}
         </DataTable>
       )}
     </RunsPage>

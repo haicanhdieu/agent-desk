@@ -15,12 +15,24 @@ export interface ProjectNavProps {
 export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref = '/desk' }: ProjectNavProps) {
   return (
     <nav className={styles.tabs} aria-label="Project">
-      <AppLink href={runsHref} className={active === 'runs' ? styles.on : undefined} aria-current={active === 'runs' ? 'page' : undefined}>
+      <AppLink
+        href={runsHref}
+        className={active === 'runs' ? styles.on : undefined}
+        aria-current={active === 'runs' ? 'page' : undefined}
+      >
         <Icon name="runs" size={15} />
         Runs
-        <CountBadge count={needsYou} label="needs you" title={needsYou ? `${needsYou} ${needsYou === 1 ? 'run needs' : 'runs need'} you` : undefined} />
+        <CountBadge
+          count={needsYou}
+          label="needs you"
+          title={needsYou ? `${needsYou} ${needsYou === 1 ? 'run needs' : 'runs need'} you` : undefined}
+        />
       </AppLink>
-      <AppLink href={deskHref} className={active === 'desk' ? styles.on : undefined} aria-current={active === 'desk' ? 'page' : undefined}>
+      <AppLink
+        href={deskHref}
+        className={active === 'desk' ? styles.on : undefined}
+        aria-current={active === 'desk' ? 'page' : undefined}
+      >
         <Icon name="desk" size={15} />
         Desk
       </AppLink>

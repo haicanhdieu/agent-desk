@@ -24,13 +24,15 @@ export function ProjectsEmpty({ user, createHref }: ProjectsEmptyProps) {
           <div className={styles.emptyHead}>
             <h1>Create your first project</h1>
             <p className="muted">
-              A project connects one GitHub repository. Setup takes about five minutes, and you finish ready to
-              trigger a run from an issue comment.
+              A project connects one GitHub repository. Setup takes about five minutes, and you finish ready to trigger
+              a run from an issue comment.
             </p>
           </div>
           <StepCardGrid steps={steps} />
           <div className={styles.emptyActions}>
-            <Button variant="primary" size="lg" icon="plus" href={createHref}>Create project</Button>
+            <Button variant="primary" size="lg" icon="plus" href={createHref}>
+              Create project
+            </Button>
             <span className={`faint ${styles.emptyNote}`}>
               You can delete a project at any time. Nothing is written to the repo until you save a skill.
             </span>

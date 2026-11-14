@@ -11,6 +11,10 @@ export const WithBodyAndAction: Story = {
   args: {
     title: 'No runs yet',
     body: 'Comment /build on a GitHub issue to start the first run.',
-    action: <Button variant="primary" href="#">Open GitHub</Button>,
+    action: (
+      <Button variant="primary" href="#">
+        Open GitHub
+      </Button>
+    ),
   },
 };

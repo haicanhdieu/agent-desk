@@ -25,7 +25,17 @@ export function TopBarSeparator() {
   return <span className={styles.sep} aria-hidden="true" />;
 }
 
-export function TopBar({ variant, user, project, active, needsYou, breadcrumb, children, actions, links }: TopBarProps) {
+export function TopBar({
+  variant,
+  user,
+  project,
+  active,
+  needsYou,
+  breadcrumb,
+  children,
+  actions,
+  links,
+}: TopBarProps) {
   const projectsHref = links?.projects ?? '/projects';
   const avatar = <Avatar initials={user.initials} kind={user.bot ? 'bot' : 'user'} title={user.login} />;
   const bell = <IconButton icon="bell" aria-label="Notifications on" />;
@@ -62,7 +72,11 @@ export function TopBar({ variant, user, project, active, needsYou, breadcrumb, c
       {project && <ProjectSwitch org={project.org} project={project.name} />}
       <ProjectNav active={active} needsYou={needsYou} runsHref={links?.runs} deskHref={links?.desk} />
       <span className={styles.grow} />
-      {project && <Button variant="ghost" size="sm" href={project.repoUrl} icon="external">Repo on GitHub</Button>}
+      {project && (
+        <Button variant="ghost" size="sm" href={project.repoUrl} icon="external">
+          Repo on GitHub
+        </Button>
+      )}
       {bell}
       {avatar}
     </header>

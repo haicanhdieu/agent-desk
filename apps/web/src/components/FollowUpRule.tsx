@@ -10,7 +10,11 @@ export interface FollowUpRuleProps {
   onChange?(v: boolean): void;
 }
 
-const WHERE: Record<RuleTarget, string> = { issue: 'on issues', pr: 'on pull requests', any: 'on issues and pull requests' };
+const WHERE: Record<RuleTarget, string> = {
+  issue: 'on issues',
+  pr: 'on pull requests',
+  any: 'on issues and pull requests',
+};
 
 /** One-line opt-in to a second rule that follows the first (Setup 4). */
 export function FollowUpRule({ command, target, skill, enabled, onChange }: FollowUpRuleProps) {

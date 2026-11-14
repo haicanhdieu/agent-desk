@@ -36,9 +36,7 @@ export const credentialDetail = (agent: AgentDto): string | undefined =>
     : undefined;
 
 export type SetupPolling =
-  | { state: 'checking' }
-  | { state: 'ok'; lastChecked: string }
-  | { state: 'failed'; reason: string };
+  { state: 'checking' } | { state: 'ok'; lastChecked: string } | { state: 'failed'; reason: string };
 
 /** Step `repo` revisited: what the server heard since the project was created. */
 export function triggerProgress(dto: ProjectConnectionDto, now: Date): { pingAt?: string; polling?: SetupPolling } {

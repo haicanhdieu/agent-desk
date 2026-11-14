@@ -47,10 +47,23 @@ const views: { value: View; label: string }[] = [
 
 /** The editor column for one skill. Keyed by `editorKey` (default: the skill name), so the draft and view reset when it changes. */
 function SkillEditor({
-  skill, dirty: markedDirty, changedLines, view: initialView, commitMessage, committing, onDelete, onCommit,
+  skill,
+  dirty: markedDirty,
+  changedLines,
+  view: initialView,
+  commitMessage,
+  committing,
+  onDelete,
+  onCommit,
 }: {
-  skill: Skill; dirty: boolean; changedLines: number[]; view: View; commitMessage: string; committing: boolean;
-  onDelete?(name: string): void; onCommit?(body: string, message: string): void;
+  skill: Skill;
+  dirty: boolean;
+  changedLines: number[];
+  view: View;
+  commitMessage: string;
+  committing: boolean;
+  onDelete?(name: string): void;
+  onCommit?(body: string, message: string): void;
 }) {
   const [view, setView] = useState<View>(initialView);
   const [value, setValue] = useState(skill.body);
@@ -63,16 +76,25 @@ function SkillEditor({
       <div className={styles.skillHead}>
         <div className={styles.skillHeadText}>
           <span className={styles.skillTitleRow}>
-            <h2 className={`mono ${styles.skillTitle}`} title={skill.name}>{skill.name}</h2>
+            <h2 className={`mono ${styles.skillTitle}`} title={skill.name}>
+              {skill.name}
+            </h2>
             {dirty && <LabelChip name="Unsaved changes" tone="idle" />}
           </span>
           <span className={`faint ${styles.skillMeta}`}>
             <span className="mono">{skill.path}</span>
-            {hash && <>, last commit <span className="mono">{hash}</span>{ago && <>, {ago}</>}</>}
+            {hash && (
+              <>
+                , last commit <span className="mono">{hash}</span>
+                {ago && <>, {ago}</>}
+              </>
+            )}
           </span>
         </div>
         <SegmentedControl aria-label="Editor view" value={view} options={views} onChange={(v) => setView(v as View)} />
-        <Button variant="ghost" size="sm" icon="external" href="https://github.com/">History</Button>
+        <Button variant="ghost" size="sm" icon="external" href="https://github.com/">
+          History
+        </Button>
         <IconButton icon="trash" aria-label="Delete skill" onClick={() => onDelete?.(skill.name)} />
       </div>
       <CodeEditor
@@ -97,8 +119,23 @@ function SkillEditor({
 }
 
 export function DeskSkills({
-  frame, skills, activeName, dirty = false, changedLines = [], view = 'edit', deleting, rulesUsing = [],
-  commitMessage = '', committing = false, editorKey, skillHref, onSelect, onDelete, onCloseDelete, onConfirmDelete, onCommit,
+  frame,
+  skills,
+  activeName,
+  dirty = false,
+  changedLines = [],
+  view = 'edit',
+  deleting,
+  rulesUsing = [],
+  commitMessage = '',
+  committing = false,
+  editorKey,
+  skillHref,
+  onSelect,
+  onDelete,
+  onCloseDelete,
+  onConfirmDelete,
+  onCommit,
 }: DeskSkillsProps) {
   const active = skills.find((s) => s.name === activeName) ?? skills[0];
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
@@ -110,7 +147,9 @@ export function DeskSkills({
             branch="main"
             activeName={active?.name}
             skills={skills.map((s) => ({
-              name: s.name, description: s.description, ruleSummary: s.ruleSummary,
+              name: s.name,
+              description: s.description,
+              ruleSummary: s.ruleSummary,
               ...(skillHref && { href: skillHref(s.name) }),
             }))}
             onSelect={onSelect}
@@ -131,8 +170,18 @@ export function DeskSkills({
             ) : (
               <EmptyState
                 title="No skills yet"
-                body={<>A skill is a <span className="mono">SKILL.md</span> file under <span className="mono">.claude/skills/</span>. Start from one of the starter templates, or create a skill from scratch.</>}
-                action={<Button variant="primary" icon="plus">New skill</Button>}
+                body={
+                  <>
+                    A skill is a <span className="mono">SKILL.md</span> file under{' '}
+                    <span className="mono">.claude/skills/</span>. Start from one of the starter templates, or create a
+                    skill from scratch.
+                  </>
+                }
+                action={
+                  <Button variant="primary" icon="plus">
+                    New skill
+                  </Button>
+                }
               />
             )}
           </main>
@@ -145,13 +194,22 @@ export function DeskSkills({
           path={`.claude/skills/${doomed.name}/`}
           branch="main"
           defaultMessage={`Remove ${doomed.name} skill`}
-          warning={rulesUsing.length > 0 ? (
-            <>
-              {rulesUsing.length === 1 ? 'Rule' : 'Rules'}{' '}
-              {rulesUsing.map((c, i) => <span key={c}>{i > 0 && ', '}<CommandChip>{c}</CommandChip></span>)}{' '}
-              {rulesUsing.length === 1 ? 'uses' : 'use'} this skill. {rulesUsing.length === 1 ? 'It' : 'They'} will be disabled, and comments with {rulesUsing.length === 1 ? 'that command' : 'those commands'} will show as ignored.
-            </>
-          ) : undefined}
+          warning={
+            rulesUsing.length > 0 ? (
+              <>
+                {rulesUsing.length === 1 ? 'Rule' : 'Rules'}{' '}
+                {rulesUsing.map((c, i) => (
+                  <span key={c}>
+                    {i > 0 && ', '}
+                    <CommandChip>{c}</CommandChip>
+                  </span>
+                ))}{' '}
+                {rulesUsing.length === 1 ? 'uses' : 'use'} this skill. {rulesUsing.length === 1 ? 'It' : 'They'} will be
+                disabled, and comments with {rulesUsing.length === 1 ? 'that command' : 'those commands'} will show as
+                ignored.
+              </>
+            ) : undefined
+          }
           onClose={() => onCloseDelete?.()}
           onConfirm={(m) => onConfirmDelete?.(m)}
         />

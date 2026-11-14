@@ -31,7 +31,20 @@ export interface SetupLayoutProps {
   };
 }
 
-export function SetupLayout({ user, projectName, steps, current, ready, stepLabel, title, intro, header, children, aside, footer }: SetupLayoutProps) {
+export function SetupLayout({
+  user,
+  projectName,
+  steps,
+  current,
+  ready,
+  stepLabel,
+  title,
+  intro,
+  header,
+  children,
+  aside,
+  footer,
+}: SetupLayoutProps) {
   return (
     <>
       <TopBar variant="global" user={user} />
@@ -55,27 +68,39 @@ export function SetupLayout({ user, projectName, steps, current, ready, stepLabe
             )}
             {children}
             {footer && (
-            <div className={styles.setupFoot}>
-              {footer.back && <Button variant="ghost" icon="chevron-left" href={footer.back}>Back</Button>}
-              <span className={styles.spacer} />
-              {footer.onSkip ? (
-                <Button variant="ghost" onClick={footer.onSkip} disabled={footer.next.pending}>Skip</Button>
-              ) : (
-                footer.skip && <Button variant="ghost" href={footer.skip}>Skip</Button>
-              )}
-              {footer.next.onClick ? (
-                <Button
-                  variant="primary"
-                  onClick={footer.next.onClick}
-                  disabled={footer.next.disabled || footer.next.pending}
-                  aria-busy={footer.next.pending || undefined}
-                >
-                  {footer.next.label}
-                </Button>
-              ) : (
-                <Button variant="primary" href={footer.next.href ?? '#'} disabled={footer.next.disabled}>{footer.next.label}</Button>
-              )}
-            </div>
+              <div className={styles.setupFoot}>
+                {footer.back && (
+                  <Button variant="ghost" icon="chevron-left" href={footer.back}>
+                    Back
+                  </Button>
+                )}
+                <span className={styles.spacer} />
+                {footer.onSkip ? (
+                  <Button variant="ghost" onClick={footer.onSkip} disabled={footer.next.pending}>
+                    Skip
+                  </Button>
+                ) : (
+                  footer.skip && (
+                    <Button variant="ghost" href={footer.skip}>
+                      Skip
+                    </Button>
+                  )
+                )}
+                {footer.next.onClick ? (
+                  <Button
+                    variant="primary"
+                    onClick={footer.next.onClick}
+                    disabled={footer.next.disabled || footer.next.pending}
+                    aria-busy={footer.next.pending || undefined}
+                  >
+                    {footer.next.label}
+                  </Button>
+                ) : (
+                  <Button variant="primary" href={footer.next.href ?? '#'} disabled={footer.next.disabled}>
+                    {footer.next.label}
+                  </Button>
+                )}
+              </div>
             )}
           </div>
           {aside && <aside className={styles.setupAside}>{aside}</aside>}

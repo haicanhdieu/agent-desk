@@ -17,10 +17,21 @@ import { ConfirmDeleteDialog } from './ConfirmDeleteDialog';
 import { SidePane } from './SidePane';
 import { SurfaceCard } from './SurfaceCard';
 
-const rule: RuleDraft = { command: 'code-build', target: 'issue', labels: ['user-story'], skill: 'code-build', agent: 'Claude', enabled: true };
+const rule: RuleDraft = {
+  command: 'code-build',
+  target: 'issue',
+  labels: ['user-story'],
+  skill: 'code-build',
+  agent: 'Claude',
+  enabled: true,
+};
 
 describe('Stepper', () => {
-  const steps = [{ label: 'Add skills', detail: 'harbor-labs/invoicer-api' }, { label: 'Add first rule', optional: true }, { label: 'Ready' }];
+  const steps = [
+    { label: 'Add skills', detail: 'harbor-labs/invoicer-api' },
+    { label: 'Add first rule', optional: true },
+    { label: 'Ready' },
+  ];
   it('marks exactly one step current and step 0 done without a digit', () => {
     render(<Stepper steps={steps} current={1} />);
     const items = within(screen.getByRole('list')).getAllByRole('listitem');
@@ -43,7 +54,9 @@ describe('Stepper', () => {
 describe('RuleSentence', () => {
   it('slots variant reads the full sentence', () => {
     const { container } = render(<RuleSentence rule={rule} variant="slots" />);
-    expect(container.textContent).toBe('When a comment starting with /code-build is posted on an issue labelled user-story, run skill code-build with agent Claude.');
+    expect(container.textContent).toBe(
+      'When a comment starting with /code-build is posted on an issue labelled user-story, run skill code-build with agent Claude.',
+    );
   });
   it('pr with no labels omits the label clause', () => {
     const { container } = render(<RuleSentence rule={{ ...rule, target: 'pr', labels: [] }} variant="slots" />);
@@ -60,7 +73,9 @@ describe('RuleSentence', () => {
   });
   it('plain variant', () => {
     const { container } = render(<RuleSentence rule={rule} variant="plain" />);
-    expect(container.textContent).toBe('When /code-build is posted on an issue labelled user-story, run code-build with Claude');
+    expect(container.textContent).toBe(
+      'When /code-build is posted on an issue labelled user-story, run code-build with Claude',
+    );
     const pr = render(<RuleSentence rule={{ ...rule, target: 'pr', labels: [] }} variant="plain" />);
     expect(pr.container.textContent).toBe('When /code-build is posted on a pull request, run code-build with Claude');
   });
@@ -119,7 +134,14 @@ describe('RuleRow', () => {
     expect(onToggle).toHaveBeenLastCalledWith(true);
   });
   it('shows stats, warning text and a More button', () => {
-    render(<RuleRow rule={row} stats="Never ran" warning="Skill docs-update is not in .claude/skills/ on main." onToggle={() => {}} />);
+    render(
+      <RuleRow
+        rule={row}
+        stats="Never ran"
+        warning="Skill docs-update is not in .claude/skills/ on main."
+        onToggle={() => {}}
+      />,
+    );
     expect(screen.getByText('Never ran')).toBeInTheDocument();
     expect(screen.getByText(/Skill docs-update is not in/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More actions for /code-build' })).toBeInTheDocument();
@@ -198,7 +220,14 @@ describe('CommitBar', () => {
 
 describe('CommitSummary', () => {
   it('lists the files and message', () => {
-    render(<CommitSummary branch="main" author="agent-desk[bot]" message="Add skills" files={['.claude/skills/a/SKILL.md', '.claude/skills/b/SKILL.md']} />);
+    render(
+      <CommitSummary
+        branch="main"
+        author="agent-desk[bot]"
+        message="Add skills"
+        files={['.claude/skills/a/SKILL.md', '.claude/skills/b/SKILL.md']}
+      />,
+    );
     expect(screen.getByText(/One commit to/)).toHaveTextContent('One commit to main as agent-desk[bot]');
     expect(screen.getByLabelText('Commit message')).toHaveValue('Add skills');
     expect(screen.getAllByRole('listitem')).toHaveLength(2);
@@ -217,27 +246,41 @@ describe('CodeBlock', () => {
 
 describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', () => {
   it('SettingsSection renders heading, description and content', () => {
-    render(<SettingsSection title="Limits" description="Guards."><p>body</p></SettingsSection>);
+    render(
+      <SettingsSection title="Limits" description="Guards.">
+        <p>body</p>
+      </SettingsSection>,
+    );
     expect(screen.getByRole('heading', { name: 'Limits' })).toBeInTheDocument();
     expect(screen.getByText('Guards.')).toBeInTheDocument();
     expect(screen.getByText('body')).toBeInTheDocument();
   });
   it('DangerZone action fires', async () => {
     const onAction = vi.fn();
-    render(<DangerZone title="Delete project" body="Removes rules." actionLabel="Delete project" onAction={onAction} />);
+    render(
+      <DangerZone title="Delete project" body="Removes rules." actionLabel="Delete project" onAction={onAction} />,
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Delete project' }));
     expect(onAction).toHaveBeenCalled();
   });
   it('SidePane is a labelled complementary region and Close fires', async () => {
     const onClose = vi.fn();
-    render(<SidePane title="Edit rule" onClose={onClose} footer={<span>foot</span>}><p>x</p></SidePane>);
+    render(
+      <SidePane title="Edit rule" onClose={onClose} footer={<span>foot</span>}>
+        <p>x</p>
+      </SidePane>,
+    );
     const pane = screen.getByRole('complementary', { name: 'Edit rule' });
     expect(within(pane).getByText('foot')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(onClose).toHaveBeenCalled();
   });
   it('SurfaceCard shows children and caption', () => {
-    render(<SurfaceCard caption="Browser tab: title prefix."><span>mock</span></SurfaceCard>);
+    render(
+      <SurfaceCard caption="Browser tab: title prefix.">
+        <span>mock</span>
+      </SurfaceCard>,
+    );
     expect(screen.getByText('mock')).toBeInTheDocument();
     expect(screen.getByText('Browser tab: title prefix.')).toBeInTheDocument();
   });
@@ -269,7 +312,16 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
   });
   it('SetupLayout without back/skip renders only next', () => {
     render(
-      <SetupLayout user={{ login: 'k' }} projectName="p" steps={[{ label: 'One' }]} current={0} stepLabel="Step 1 of 1" title="T" intro="i" footer={{ next: { label: 'Go', href: '/g' } }}>
+      <SetupLayout
+        user={{ login: 'k' }}
+        projectName="p"
+        steps={[{ label: 'One' }]}
+        current={0}
+        stepLabel="Step 1 of 1"
+        title="T"
+        intro="i"
+        footer={{ next: { label: 'Go', href: '/g' } }}
+      >
         <p>c</p>
       </SetupLayout>,
     );
@@ -284,16 +336,40 @@ describe('ConfirmDeleteDialog', () => {
     const onConfirm = vi.fn();
     const onClose = vi.fn();
     render(
-      <ConfirmDeleteDialog open name="code-e2e" path=".claude/skills/code-e2e/" branch="main" defaultMessage="Remove code-e2e skill" onClose={onClose} onConfirm={onConfirm} {...extra} />,
+      <ConfirmDeleteDialog
+        open
+        name="code-e2e"
+        path=".claude/skills/code-e2e/"
+        branch="main"
+        defaultMessage="Remove code-e2e skill"
+        onClose={onClose}
+        onConfirm={onConfirm}
+        {...extra}
+      />,
     );
-    return { onConfirm, onClose, btn: () => screen.getByRole('button', { name: 'Delete and commit' }), typed: () => screen.getByLabelText(/Type code-e2e to confirm/) };
+    return {
+      onConfirm,
+      onClose,
+      btn: () => screen.getByRole('button', { name: 'Delete and commit' }),
+      typed: () => screen.getByLabelText(/Type code-e2e to confirm/),
+    };
   };
   it('is named and renders nothing when closed', () => {
     setup();
     expect(screen.getByRole('dialog', { name: 'Delete skill code-e2e?' })).toBeInTheDocument();
   });
   it('closed renders no dialog', () => {
-    render(<ConfirmDeleteDialog open={false} name="code-e2e" path="p" branch="main" defaultMessage="m" onClose={() => {}} onConfirm={() => {}} />);
+    render(
+      <ConfirmDeleteDialog
+        open={false}
+        name="code-e2e"
+        path="p"
+        branch="main"
+        defaultMessage="m"
+        onClose={() => {}}
+        onConfirm={() => {}}
+      />,
+    );
     expect(screen.queryByRole('dialog')).toBeNull();
   });
   it('stays disabled for empty, near-miss, wrong case and whitespace; enables on exact match', async () => {

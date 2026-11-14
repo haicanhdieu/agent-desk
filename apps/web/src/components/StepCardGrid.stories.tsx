@@ -1,7 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { StepCardGrid } from './StepCardGrid';
 
-const meta = { title: 'Components/StepCardGrid', component: StepCardGrid, parameters: { layout: 'padded' } } satisfies Meta<typeof StepCardGrid>;
+const meta = {
+  title: 'Components/StepCardGrid',
+  component: StepCardGrid,
+  parameters: { layout: 'padded' },
+} satisfies Meta<typeof StepCardGrid>;
 export default meta;
 type Story = StoryObj<typeof meta>;
 

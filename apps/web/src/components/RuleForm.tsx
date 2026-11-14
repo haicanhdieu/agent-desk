@@ -25,7 +25,16 @@ const TARGETS: { value: RuleTarget; label: string }[] = [
 /** Keep a saved value selectable even when it is no longer in the option list (e.g. a deleted skill). */
 const withCurrent = (opts: string[], cur: string) => (opts.includes(cur) ? opts : [cur, ...opts]);
 
-export function RuleForm({ value, skills, agents, onChange, agentLocked, agentModel, spacious, errors }: RuleFormProps) {
+export function RuleForm({
+  value,
+  skills,
+  agents,
+  onChange,
+  agentLocked,
+  agentModel,
+  spacious,
+  errors,
+}: RuleFormProps) {
   const set = (patch: Partial<RuleDraft>) => onChange({ ...value, ...patch });
   return (
     <div className={spacious ? `${styles.form} ${styles.formSpacious}` : styles.form}>
@@ -33,17 +42,39 @@ export function RuleForm({ value, skills, agents, onChange, agentLocked, agentMo
         <RuleSentence rule={value} variant="slots" />
       </div>
       <div className={styles.grid2}>
-        <Field label="Command" help="First line of the comment. Text after it is passed to the agent." error={errors?.command}>
+        <Field
+          label="Command"
+          help="First line of the comment. Text after it is passed to the agent."
+          error={errors?.command}
+        >
           {({ id, describedBy, invalid }) => (
-            <PrefixInput prefix="/" id={id} aria-describedby={describedBy} aria-invalid={invalid} value={value.command} onChange={(e) => set({ command: e.target.value })} />
+            <PrefixInput
+              prefix="/"
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+              value={value.command}
+              onChange={(e) => set({ command: e.target.value })}
+            />
           )}
         </Field>
         <Field label="Posted on" labelAs="span" error={errors?.target}>
           {({ labelId, describedBy, invalid }) => (
-            <SegmentedControl aria-labelledby={labelId} aria-describedby={describedBy} aria-invalid={invalid} value={value.target} options={TARGETS} onChange={(target) => set({ target })} />
+            <SegmentedControl
+              aria-labelledby={labelId}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+              value={value.target}
+              options={TARGETS}
+              onChange={(target) => set({ target })}
+            />
           )}
         </Field>
-        <Field label="Only if the ticket has all labels" help="Optional. Leave empty to match any ticket." error={errors?.labels}>
+        <Field
+          label="Only if the ticket has all labels"
+          help="Optional. Leave empty to match any ticket."
+          error={errors?.labels}
+        >
           {({ id, describedBy, invalid }) => (
             <LabelInput
               id={id}
@@ -56,17 +87,44 @@ export function RuleForm({ value, skills, agents, onChange, agentLocked, agentMo
             />
           )}
         </Field>
-        <Field label="Run skill" help={<>From <span className="mono">.claude/skills/</span> on main.</>} error={errors?.skill}>
+        <Field
+          label="Run skill"
+          help={
+            <>
+              From <span className="mono">.claude/skills/</span> on main.
+            </>
+          }
+          error={errors?.skill}
+        >
           {({ id, describedBy, invalid }) => (
-            <Select mono id={id} aria-describedby={describedBy} aria-invalid={invalid} value={value.skill} onChange={(e) => set({ skill: e.target.value })}>
-              {withCurrent(skills, value.skill).map((s) => <option key={s}>{s}</option>)}
+            <Select
+              mono
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
+              value={value.skill}
+              onChange={(e) => set({ skill: e.target.value })}
+            >
+              {withCurrent(skills, value.skill).map((s) => (
+                <option key={s}>{s}</option>
+              ))}
             </Select>
           )}
         </Field>
         <Field label="With agent" help="One agent per project in the PoC.">
           {({ id, describedBy }) => (
-            <Select id={id} aria-describedby={describedBy} disabled={agentLocked} value={value.agent} onChange={(e) => set({ agent: e.target.value })}>
-              {withCurrent(agents, value.agent).map((a) => <option key={a} value={a}>{agentModel ? `${a} (${agentModel})` : a}</option>)}
+            <Select
+              id={id}
+              aria-describedby={describedBy}
+              disabled={agentLocked}
+              value={value.agent}
+              onChange={(e) => set({ agent: e.target.value })}
+            >
+              {withCurrent(agents, value.agent).map((a) => (
+                <option key={a} value={a}>
+                  {agentModel ? `${a} (${agentModel})` : a}
+                </option>
+              ))}
             </Select>
           )}
         </Field>

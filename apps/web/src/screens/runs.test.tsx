@@ -7,11 +7,20 @@ import { NeedsYou } from './NeedsYou';
 const counts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 6, all: 9, ignored: 3 };
 const project = projects[0];
 const base = {
-  project, user, needsYou: 1, slots: { used: 2, total: 2 }, today: 'Today: 9 runs, 1 failed', counts, groups: ticketGroups,
+  project,
+  user,
+  needsYou: 1,
+  slots: { used: 2, total: 2 },
+  today: 'Today: 9 runs, 1 failed',
+  counts,
+  groups: ticketGroups,
 };
 const needsYouRun = {
-  run: runs.find((r) => r.id === 62)!, askedAgo: '3 minutes ago', href: '/runs/62',
-  slotNote: 'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
+  run: runs.find((r) => r.id === 62)!,
+  askedAgo: '3 minutes ago',
+  href: '/runs/62',
+  slotNote:
+    'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
 };
 const runIds = () =>
   screen.queryAllByRole('link', { name: /^Run \d+$/ }).map((a) => Number(a.textContent!.replace('Run ', '')));
@@ -50,7 +59,11 @@ describe('Runs', () => {
   it('orders group #131 rows 55, 56, 57 with tree mid, mid, last', () => {
     const { container } = render(<Runs {...base} filter="all" />);
     const rows = ['Run 55', 'Run 56', 'Run 57'].map((t) => screen.getByRole('link', { name: t }).closest('tr')!);
-    expect(rows.map((r) => r.nextElementSibling === rows[rows.indexOf(r) + 1] || r === rows[2])).toEqual([true, true, true]);
+    expect(rows.map((r) => r.nextElementSibling === rows[rows.indexOf(r) + 1] || r === rows[2])).toEqual([
+      true,
+      true,
+      true,
+    ]);
     const trees = rows.map((r) => r.querySelector('span[aria-hidden="true"]')!.className);
     expect(trees[0]).toMatch(/mid/);
     expect(trees[1]).toMatch(/mid/);
@@ -122,18 +135,34 @@ describe('Runs', () => {
 describe('RunsProblems', () => {
   const warnings = [
     {
-      tone: 'err' as const, icon: 'warning' as const, title: 'No webhooks from GitHub since 11:42',
+      tone: 'err' as const,
+      icon: 'warning' as const,
+      title: 'No webhooks from GitHub since 11:42',
       body: 'Comments posted since then have not started runs.',
-      actions: [{ label: 'Check again', icon: 'refresh' as const }, { label: 'Connection details', href: '/desk/agent', variant: 'ghost' as const }],
+      actions: [
+        { label: 'Check again', icon: 'refresh' as const },
+        { label: 'Connection details', href: '/desk/agent', variant: 'ghost' as const },
+      ],
     },
     {
-      tone: 'warn' as const, icon: 'key' as const, title: 'The Claude credential was rejected',
-      body: 'Run 56 failed with 401 at 11:29.', actions: [{ label: 'Replace credential', href: '/desk/agent' }],
+      tone: 'warn' as const,
+      icon: 'key' as const,
+      title: 'The Claude credential was rejected',
+      body: 'Run 56 failed with 401 at 11:29.',
+      actions: [{ label: 'Replace credential', href: '/desk/agent' }],
     },
   ];
 
   it('lists each ignored command with reason and detail', () => {
-    render(<RunsProblems {...base} filter="ignored" counts={{ ...counts, ignored: 5 }} warnings={warnings} ignored={ignored} />);
+    render(
+      <RunsProblems
+        {...base}
+        filter="ignored"
+        counts={{ ...counts, ignored: 5 }}
+        warnings={warnings}
+        ignored={ignored}
+      />,
+    );
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 2, name: 'Ignored commands' })).toBeInTheDocument();
     const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
@@ -173,7 +202,11 @@ describe('NeedsYou', () => {
   it('lists the given idle runs with their hrefs, or says none need you', () => {
     const run = runs.find((r) => r.id === 62)!;
     const { unmount } = render(
-      <NeedsYou project={project} projects={projects} runs={[{ run, href: '/p/x/runs/62', idleAt: '14:13', endsAt: '14:23' }]} />,
+      <NeedsYou
+        project={project}
+        projects={projects}
+        runs={[{ run, href: '/p/x/runs/62', idleAt: '14:13', endsAt: '14:23' }]}
+      />,
     );
     expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', '/p/x/runs/62');
     unmount();

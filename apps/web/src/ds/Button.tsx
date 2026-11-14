@@ -20,17 +20,17 @@ export type ButtonProps = AsButton | AsAnchor;
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(' ');
 
 function classes(variant: Variant, size: Size, extra?: string, className?: string) {
-  return cx(
-    styles.btn,
-    variant !== 'default' && styles[variant],
-    size !== 'md' && styles[size],
-    extra,
-    className,
-  );
+  return cx(styles.btn, variant !== 'default' && styles[variant], size !== 'md' && styles[size], extra, className);
 }
 
 export function Button({
-  variant = 'default', size = 'md', icon, iconRight, className, children, ...rest
+  variant = 'default',
+  size = 'md',
+  icon,
+  iconRight,
+  className,
+  children,
+  ...rest
 }: ButtonProps) {
   const cls = classes(variant, size, undefined, className);
   const content = (
@@ -43,7 +43,11 @@ export function Button({
   if (rest.href !== undefined) {
     const { disabled, ...anchor } = rest;
     if (!disabled) {
-      return <AppLink {...anchor} className={cls}>{content}</AppLink>;
+      return (
+        <AppLink {...anchor} className={cls}>
+          {content}
+        </AppLink>
+      );
     }
     return (
       <button type="button" disabled className={cls} aria-label={anchor['aria-label']}>
@@ -65,15 +69,9 @@ export type IconButtonProps = {
   size?: Size;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'aria-label'>;
 
-export function IconButton({
-  icon, variant = 'ghost', size = 'md', className, ...rest
-}: IconButtonProps) {
+export function IconButton({ icon, variant = 'ghost', size = 'md', className, ...rest }: IconButtonProps) {
   return (
-    <button
-      type="button"
-      {...rest}
-      className={classes(variant, size, styles.iconbtn, className)}
-    >
+    <button type="button" {...rest} className={classes(variant, size, styles.iconbtn, className)}>
       <Icon name={icon} size={16} />
     </button>
   );

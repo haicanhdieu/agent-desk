@@ -12,7 +12,15 @@ export interface TerminalBarProps {
   onCopyAll?(): void;
 }
 
-export function TerminalBar({ views, activeView, connection, size, onViewChange, onFind, onCopyAll }: TerminalBarProps) {
+export function TerminalBar({
+  views,
+  activeView,
+  connection,
+  size,
+  onViewChange,
+  onFind,
+  onCopyAll,
+}: TerminalBarProps) {
   return (
     <div className={styles.termbar}>
       <div className={styles.tabs} role="tablist" aria-label="Run view">
@@ -31,7 +39,12 @@ export function TerminalBar({ views, activeView, connection, size, onViewChange,
             >
               <Icon name={v.icon} size={14} />
               {v.label}
-              {v.soon && <> <span className={styles.soonTag}>{v.soon}</span></>}
+              {v.soon && (
+                <>
+                  {' '}
+                  <span className={styles.soonTag}>{v.soon}</span>
+                </>
+              )}
             </button>
           );
         })}
@@ -40,8 +53,12 @@ export function TerminalBar({ views, activeView, connection, size, onViewChange,
       {connection}
       <span className={styles.sep} aria-hidden="true" />
       {size && <span className={styles.size}>{size}</span>}
-      <Button variant="ghost" size="sm" icon="search" aria-label="Find in scrollback" onClick={onFind}>Find</Button>
-      <Button variant="ghost" size="sm" icon="copy" onClick={onCopyAll}>Copy all</Button>
+      <Button variant="ghost" size="sm" icon="search" aria-label="Find in scrollback" onClick={onFind}>
+        Find
+      </Button>
+      <Button variant="ghost" size="sm" icon="copy" onClick={onCopyAll}>
+        Copy all
+      </Button>
     </div>
   );
 }

@@ -7,14 +7,32 @@ import { EmptyState } from './EmptyState';
 import { FilterChip, FilterChips } from './FilterChip';
 import { RunRow, TicketGroupRow } from './RunRow';
 
-const ticket = { kind: 'issue' as const, number: 142, title: 'Export invoices', labels: [], href: 'https://github.com/x/142' };
+const ticket = {
+  kind: 'issue' as const,
+  number: 142,
+  title: 'Export invoices',
+  labels: [],
+  href: 'https://github.com/x/142',
+};
 const run: RunSummary = {
-  id: 62, status: 'idle', command: '/review', skill: 'code-review', agent: 'claude', model: 'opus',
-  ticket, triggeredBy: { login: 'agent-desk[bot]', bot: true }, startedAt: '14:09', duration: '4m 51s',
+  id: 62,
+  status: 'idle',
+  command: '/review',
+  skill: 'code-review',
+  agent: 'claude',
+  model: 'opus',
+  ticket,
+  triggeredBy: { login: 'agent-desk[bot]', bot: true },
+  startedAt: '14:09',
+  duration: '4m 51s',
 };
 
 function inTable(ui: React.ReactNode) {
-  return render(<table><tbody>{ui}</tbody></table>);
+  return render(
+    <table>
+      <tbody>{ui}</tbody>
+    </table>,
+  );
 }
 
 describe('RunRow', () => {
@@ -48,7 +66,14 @@ describe('RunRow', () => {
   });
 
   it('shows status note, short issue ref, and actions', () => {
-    inTable(<RunRow run={{ ...run, statusNote: 'Waiting 3m', ticket: { ...ticket, kind: 'pr', number: 148 } }} tree="last" href="/r" actions={<button>Finish</button>} />);
+    inTable(
+      <RunRow
+        run={{ ...run, statusNote: 'Waiting 3m', ticket: { ...ticket, kind: 'pr', number: 148 } }}
+        tree="last"
+        href="/r"
+        actions={<button>Finish</button>}
+      />,
+    );
     expect(screen.getByText('Waiting 3m')).toBeInTheDocument();
     expect(screen.getByText('PR #148')).toBeInTheDocument();
     expect(screen.getByText('agent-desk[bot]')).toBeInTheDocument();
@@ -65,7 +90,10 @@ describe('TicketGroupRow', () => {
   const long = 'A'.repeat(200);
   const group: TicketGroup = {
     ticket: { ...ticket, title: long, labels: [{ name: 'user-story', color: '#7C8FD8' }] },
-    chainNote: 'Issue #142 → PR #148', runsUsed: 2, runsMax: 10, runs: [],
+    chainNote: 'Issue #142 → PR #148',
+    runsUsed: 2,
+    runsMax: 10,
+    runs: [],
   };
 
   it('long title is ellipsised with full text in title attr', () => {
@@ -94,8 +122,16 @@ describe('TicketGroupRow', () => {
 describe('DataTable', () => {
   it('renders th scope=col headers', () => {
     render(
-      <DataTable columns={[{ key: 'a', header: 'Name' }, { key: 'b', header: 'Count', align: 'right', width: 80 }]}>
-        <tr><td>x</td><td>1</td></tr>
+      <DataTable
+        columns={[
+          { key: 'a', header: 'Name' },
+          { key: 'b', header: 'Count', align: 'right', width: 80 },
+        ]}
+      >
+        <tr>
+          <td>x</td>
+          <td>1</td>
+        </tr>
       </DataTable>,
     );
     expect(screen.getByRole('columnheader', { name: 'Name' })).toHaveAttribute('scope', 'col');
@@ -121,7 +157,11 @@ describe('FilterChip', () => {
   });
 
   it('FilterChips is a named group', () => {
-    render(<FilterChips aria-label="Filter runs"><FilterChip label="All" on onClick={() => {}} /></FilterChips>);
+    render(
+      <FilterChips aria-label="Filter runs">
+        <FilterChip label="All" on onClick={() => {}} />
+      </FilterChips>,
+    );
     expect(screen.getByRole('group', { name: 'Filter runs' })).toBeInTheDocument();
   });
 });

@@ -50,12 +50,19 @@ function rowActions(run: RunSummary, runHref: (r: RunSummary) => string) {
   if (run.status === 'idle') {
     return (
       <>
-        <Button variant="go" size="sm" href={runHref(run)}>Open terminal</Button>{' '}
+        <Button variant="go" size="sm" href={runHref(run)}>
+          Open terminal
+        </Button>{' '}
         <Button size="sm">Finish</Button>
       </>
     );
   }
-  if (run.status === 'running') return <Button size="sm" href={runHref(run)}>Watch</Button>;
+  if (run.status === 'running')
+    return (
+      <Button size="sm" href={runHref(run)}>
+        Watch
+      </Button>
+    );
   return null;
 }
 
@@ -76,9 +83,15 @@ export function Runs({ groups, needsYouRun, filter, runHref = defaultRunHref, sh
           title="No runs match this filter"
           body="Runs appear here when a ticket comment starts one."
           action={
-            showAllHref !== undefined
-              ? <Button variant="ghost" href={showAllHref}>Show all runs</Button>
-              : <Button variant="ghost" onClick={() => page.onFilter?.('all')}>Show all runs</Button>
+            showAllHref !== undefined ? (
+              <Button variant="ghost" href={showAllHref}>
+                Show all runs
+              </Button>
+            ) : (
+              <Button variant="ghost" onClick={() => page.onFilter?.('all')}>
+                Show all runs
+              </Button>
+            )
           }
         />
       ) : (

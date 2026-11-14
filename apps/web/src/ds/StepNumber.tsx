@@ -8,5 +8,15 @@ export interface StepNumberProps {
 
 export function StepNumber({ n, state = 'todo' }: StepNumberProps) {
   const cls = [styles.sn, state !== 'todo' && styles[state]].filter(Boolean).join(' ');
-  return <span className={cls}>{state === 'done' ? <Icon name="check" size={14} strokeWidth={2.4} /> : state === 'ready' ? <Icon name="play" size={11} strokeWidth={2} /> : n}</span>;
+  return (
+    <span className={cls}>
+      {state === 'done' ? (
+        <Icon name="check" size={14} strokeWidth={2.4} />
+      ) : state === 'ready' ? (
+        <Icon name="play" size={11} strokeWidth={2} />
+      ) : (
+        n
+      )}
+    </span>
+  );
 }

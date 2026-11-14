@@ -13,7 +13,8 @@
     "test:e2e:local": "E2E_TARGET=local playwright test e2e/local",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "parity": "node scripts/parity.mjs"
+    "parity": "node scripts/parity.mjs",
+    "test:unit": "vitest run"
   },
   "dependencies": {
     "@agentdesk/contracts": "workspace:*",

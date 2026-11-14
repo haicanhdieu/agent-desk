@@ -3,12 +3,21 @@ import { ignored } from '@/mocks';
 import { DataTable } from './DataTable';
 import { IgnoredRow } from './IgnoredRow';
 
-const columns = ['Time', 'Ticket', 'Command', 'Author', 'Why nothing ran', ''].map((h) => ({ key: h || 'more', header: h || <span className="sr-only">Actions</span> }));
+const columns = ['Time', 'Ticket', 'Command', 'Author', 'Why nothing ran', ''].map((h) => ({
+  key: h || 'more',
+  header: h || <span className="sr-only">Actions</span>,
+}));
 const meta = {
   title: 'Components/IgnoredRow',
   component: IgnoredRow,
   parameters: { layout: 'padded' },
-  decorators: [(S) => <DataTable columns={columns}><S /></DataTable>],
+  decorators: [
+    (S) => (
+      <DataTable columns={columns}>
+        <S />
+      </DataTable>
+    ),
+  ],
 } satisfies Meta<typeof IgnoredRow>;
 export default meta;
 type Story = StoryObj<typeof meta>;

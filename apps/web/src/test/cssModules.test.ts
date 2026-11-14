@@ -37,7 +37,8 @@ describe('CSS modules', () => {
       for (const m of src.matchAll(new RegExp(`\\b${ident}\\[\\s*['"]([^'"]+)['"]\\s*\\]`, 'g'))) used.add(m[1]);
       for (const key of used) {
         checked += 1;
-        if (!defined.has(key)) problems.push(`${file.slice(root.length + 1)}: ${ident}.${key} is not defined in ${rel}`);
+        if (!defined.has(key))
+          problems.push(`${file.slice(root.length + 1)}: ${ident}.${key} is not defined in ${rel}`);
       }
     }
   }

@@ -73,7 +73,7 @@ describe('plugins panel', () => {
     const res = await plugins(projectId);
     expect(res.statusCode).toBe(200);
     expect(expectContract('setup.plugins', res) as PluginsDto).toEqual({
-      approvedStores: ['claude-plugins-official'],
+      approvedStores: ['anthropic-plugin-directory', 'claude-plugins-official'],
       plugins: [
         {
           id: 'superpowers@claude-plugins-official',
@@ -90,7 +90,7 @@ describe('plugins panel', () => {
   it('a repo without a settings file is an empty list, not an error', async () => {
     const { projectId } = await projectWith(null);
     expect(expectContract('setup.plugins', await plugins(projectId))).toEqual({
-      approvedStores: ['claude-plugins-official'],
+      approvedStores: ['anthropic-plugin-directory', 'claude-plugins-official'],
       plugins: [],
       settingsError: null,
     });
@@ -117,7 +117,7 @@ describe('plugins panel', () => {
       const res = await plugins(projectId);
       expect(res.statusCode).toBe(200);
       expect(expectContract('setup.plugins', res)).toEqual({
-        approvedStores: ['claude-plugins-official'],
+        approvedStores: ['anthropic-plugin-directory', 'claude-plugins-official'],
         plugins: [],
         settingsError: 'unreadable',
       });

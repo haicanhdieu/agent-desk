@@ -16,7 +16,11 @@ describe('Button', () => {
 
   it('does not fire onClick when disabled', async () => {
     const onClick = vi.fn();
-    render(<Button disabled onClick={onClick}>Go</Button>);
+    render(
+      <Button disabled onClick={onClick}>
+        Go
+      </Button>,
+    );
     await userEvent.click(screen.getByRole('button', { name: 'Go' }));
     expect(onClick).not.toHaveBeenCalled();
   });
@@ -27,7 +31,11 @@ describe('Button', () => {
   });
 
   it('renders a disabled button instead of a link when disabled with href', () => {
-    render(<Button href="/x" disabled>Open</Button>);
+    render(
+      <Button href="/x" disabled>
+        Open
+      </Button>,
+    );
     expect(screen.queryByRole('link')).toBeNull();
     expect(screen.getByRole('button', { name: 'Open' })).toBeDisabled();
   });

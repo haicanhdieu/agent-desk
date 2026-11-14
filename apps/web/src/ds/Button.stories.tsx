@@ -13,9 +13,13 @@ function Gallery() {
         <h2>Variants by size</h2>
         {variants.map((v) => (
           <div key={v} className="row" style={{ gap: 12 }}>
-            <span className="mono faint" style={{ width: 100 }}>{v}</span>
+            <span className="mono faint" style={{ width: 100 }}>
+              {v}
+            </span>
             {sizes.map((s) => (
-              <Button key={s} variant={v} size={s}>{v} {s}</Button>
+              <Button key={s} variant={v} size={s}>
+                {v} {s}
+              </Button>
             ))}
           </div>
         ))}
@@ -23,10 +27,16 @@ function Gallery() {
       <section className="row" style={{ gap: 12, flexWrap: 'wrap' }}>
         <Button icon="plus">With icon</Button>
         <Button iconRight="chevron-right">Icon right</Button>
-        <Button aria-pressed={true} icon="runs">Grouped by ticket</Button>
+        <Button aria-pressed={true} icon="runs">
+          Grouped by ticket
+        </Button>
         <Button disabled>Disabled</Button>
-        <Button href="#link" iconRight="external">Link</Button>
-        <Button href="#link" disabled>Disabled link</Button>
+        <Button href="#link" iconRight="external">
+          Link
+        </Button>
+        <Button href="#link" disabled>
+          Disabled link
+        </Button>
       </section>
       <section className="row" style={{ gap: 12 }}>
         <IconButton icon="more" aria-label="More actions" />

@@ -9,14 +9,24 @@ function Gallery() {
       <h1>StatusBadge</h1>
       {(['text', 'pill'] as const).map((v) => (
         <section key={v} className="row" style={{ gap: 16, flexWrap: 'wrap' }}>
-          <span className="mono faint" style={{ width: 40 }}>{v}</span>
-          {RUN_STATUSES.map((s) => <StatusBadge key={s} status={s} variant={v} />)}
+          <span className="mono faint" style={{ width: 40 }}>
+            {v}
+          </span>
+          {RUN_STATUSES.map((s) => (
+            <StatusBadge key={s} status={s} variant={v} />
+          ))}
         </section>
       ))}
       <section className="row" style={{ gap: 16 }}>
-        <span className="mono faint" style={{ width: 40 }}>custom</span>
-        <StatusBadge status="idle" variant="pill">1 run</StatusBadge>
-        <StatusBadge status="running" variant="pill">2 runs</StatusBadge>
+        <span className="mono faint" style={{ width: 40 }}>
+          custom
+        </span>
+        <StatusBadge status="idle" variant="pill">
+          1 run
+        </StatusBadge>
+        <StatusBadge status="running" variant="pill">
+          2 runs
+        </StatusBadge>
       </section>
     </div>
   );

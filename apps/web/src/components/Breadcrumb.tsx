@@ -13,11 +13,27 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
         const last = i === items.length - 1;
         return (
           <Fragment key={i}>
-            {i > 0 && <span className={styles.sepch} aria-hidden="true">/</span>}
+            {i > 0 && (
+              <span className={styles.sepch} aria-hidden="true">
+                /
+              </span>
+            )}
             {last || !item.href ? (
-              <b className={styles.crumb} aria-current={last ? 'page' : undefined} title={typeof item.label === 'string' ? item.label : undefined}>{item.label}</b>
+              <b
+                className={styles.crumb}
+                aria-current={last ? 'page' : undefined}
+                title={typeof item.label === 'string' ? item.label : undefined}
+              >
+                {item.label}
+              </b>
             ) : (
-              <AppLink href={item.href} className={styles.crumb} title={typeof item.label === 'string' ? item.label : undefined}>{item.label}</AppLink>
+              <AppLink
+                href={item.href}
+                className={styles.crumb}
+                title={typeof item.label === 'string' ? item.label : undefined}
+              >
+                {item.label}
+              </AppLink>
             )}
           </Fragment>
         );

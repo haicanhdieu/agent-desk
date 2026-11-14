@@ -15,7 +15,9 @@ export function StartupChecklist({ steps }: { steps: StartupStep[] }) {
     <ol className={styles.checklist}>
       {steps.map((s, i) => (
         <li key={i} className={styles.step}>
-          <span className={styles.glyph}><StatusIcon status={glyph[s.state]} size={16} title={glyph[s.state]} /></span>
+          <span className={styles.glyph}>
+            <StatusIcon status={glyph[s.state]} size={16} title={glyph[s.state]} />
+          </span>
           <div className={styles.stepText}>
             <span className={s.state === 'pending' ? styles.pending : undefined}>{s.label}</span>
             {s.detail && <span className={styles.detail}>{s.detail}</span>}

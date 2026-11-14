@@ -1,7 +1,10 @@
 import type { CSSProperties, ReactNode } from 'react';
 import styles from './SidePanel.module.css';
 
-export interface KeyValueProps { items: { term: string; value: ReactNode }[]; termWidth?: number }
+export interface KeyValueProps {
+  items: { term: string; value: ReactNode }[];
+  termWidth?: number;
+}
 
 export function KeyValue({ items, termWidth = 96 }: KeyValueProps) {
   return (

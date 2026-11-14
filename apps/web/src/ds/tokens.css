@@ -1,55 +1,129 @@
 :root {
   /* core palette (dark theme only) */
-  --bg: #15181E; --panel: #1B1F26; --raised: #232832; --line: #2C323D; --line2: #3A4150;
-  --text: #E3E6EB; --muted: #A3ABB8; --faint: #8A93A2; --accent: #93A9FF; --term: #0F1216;
-  --run: #52C4D9; --idle: #F5B83D; --ok: #6CCF96; --fail: #F2776B; --late: #EE9A57; --off: #9AA2AF;
+  --bg: #15181e;
+  --panel: #1b1f26;
+  --raised: #232832;
+  --line: #2c323d;
+  --line2: #3a4150;
+  --text: #e3e6eb;
+  --muted: #a3abb8;
+  --faint: #8a93a2;
+  --accent: #93a9ff;
+  --term: #0f1216;
+  --run: #52c4d9;
+  --idle: #f5b83d;
+  --ok: #6ccf96;
+  --fail: #f2776b;
+  --late: #ee9a57;
+  --off: #9aa2af;
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
 
   /* surfaces */
-  --input-bg: #12151A; --cmd-bg: #262C38; --cmd-text: #D7DDF0;
-  --row-group: #191D24; --row-needs: #221D13;
-  --term-bar: #13161B; --term-bar-line: #1F242C; --term-text: #D5DAE1; --ln: #5C6575;
-  --hover-line: #566078; --select-line: #7C8FD8; --select-bg: #1E2333; --slot-line: #6B7690;
-  --chrome-bg: #0F1115; --notify-bg: #2A2E37;
+  --input-bg: #12151a;
+  --cmd-bg: #262c38;
+  --cmd-text: #d7ddf0;
+  --row-group: #191d24;
+  --row-needs: #221d13;
+  --term-bar: #13161b;
+  --term-bar-line: #1f242c;
+  --term-text: #d5dae1;
+  --ln: #5c6575;
+  --hover-line: #566078;
+  --select-line: #7c8fd8;
+  --select-bg: #1e2333;
+  --slot-line: #6b7690;
+  --chrome-bg: #0f1115;
+  --notify-bg: #2a2e37;
 
   /* controls */
-  --toggle-off: var(--line2); --toggle-on: #4E6BD8; --toggle-knob: #C9CFDA; --toggle-knob-on: #FFFFFF;
-  --avatar-bg: #3B4A6B; --avatar-text: #DCE3F5; --avatar-bot-bg: #2F3A36; --avatar-bot-text: #BFE6D2;
+  --toggle-off: var(--line2);
+  --toggle-on: #4e6bd8;
+  --toggle-knob: #c9cfda;
+  --toggle-knob-on: #ffffff;
+  --avatar-bg: #3b4a6b;
+  --avatar-text: #dce3f5;
+  --avatar-bot-bg: #2f3a36;
+  --avatar-bot-text: #bfe6d2;
 
   /* text on solid fills */
-  --on-idle: #1A1405; --on-primary: #14171C; --on-danger: #1E0E0C;
-  --on-ok: #0F1A13; --on-accent: #11131A; --on-late: #1F130A;
+  --on-idle: #1a1405;
+  --on-primary: #14171c;
+  --on-danger: #1e0e0c;
+  --on-ok: #0f1a13;
+  --on-accent: #11131a;
+  --on-late: #1f130a;
 
   /* banners */
-  --banner-warn-bg: #251F14; --banner-warn-line: #5B4520;
-  --banner-err-bg: #261A1A; --banner-err-line: #5A3431;
-  --banner-late-bg: #261D16; --banner-late-line: #5A3F2A;
-  --banner-ok-bg: #17221C; --banner-ok-line: #2D4A3A;
-  --banner-idle-bg: #2A2214; --banner-idle-line: var(--idle);
-  --banner-off-bg: var(--panel); --banner-off-line: var(--line2);
-  --danger-bg: #2A1E1F;
+  --banner-warn-bg: #251f14;
+  --banner-warn-line: #5b4520;
+  --banner-err-bg: #261a1a;
+  --banner-err-line: #5a3431;
+  --banner-late-bg: #261d16;
+  --banner-late-line: #5a3f2a;
+  --banner-ok-bg: #17221c;
+  --banner-ok-line: #2d4a3a;
+  --banner-idle-bg: #2a2214;
+  --banner-idle-line: var(--idle);
+  --banner-off-bg: var(--panel);
+  --banner-off-line: var(--line2);
+  --danger-bg: #2a1e1f;
 
   /* terminal */
-  --term-dim: #7E8796; --term-bold: #EEF1F5; --term-cyan: #6FD0E0; --term-green: #7AD69F;
-  --term-red: #F28A80; --term-yellow: #F2C46B; --term-magenta: #C8A2F0; --term-accent: #B9C6FF;
-  --term-add-bg: rgba(122, 214, 159, .08); --term-del-bg: rgba(242, 138, 128, .08);
-  --editor-changed-bg: rgba(122, 214, 159, .07);
-  --md-h: #B9C6FF; --md-k: #C8A2F0; --md-c: #7AD69F; --md-f: #7E8796;
+  --term-dim: #7e8796;
+  --term-bold: #eef1f5;
+  --term-cyan: #6fd0e0;
+  --term-green: #7ad69f;
+  --term-red: #f28a80;
+  --term-yellow: #f2c46b;
+  --term-magenta: #c8a2f0;
+  --term-accent: #b9c6ff;
+  --term-add-bg: rgba(122, 214, 159, 0.08);
+  --term-del-bg: rgba(242, 138, 128, 0.08);
+  --editor-changed-bg: rgba(122, 214, 159, 0.07);
+  --md-h: #b9c6ff;
+  --md-k: #c8a2f0;
+  --md-c: #7ad69f;
+  --md-f: #7e8796;
 
   /* overlays */
-  --scrim: rgba(10, 12, 16, .62); --term-scrim: rgba(15, 18, 22, .55);
-  --shadow-dialog: 0 20px 60px rgba(0, 0, 0, .5); --shadow-pop: 0 14px 40px rgba(0, 0, 0, .55);
+  --scrim: rgba(10, 12, 16, 0.62);
+  --term-scrim: rgba(15, 18, 22, 0.55);
+  --shadow-dialog: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --shadow-pop: 0 14px 40px rgba(0, 0, 0, 0.55);
 
   /* label dots */
-  --label-story: #7C8FD8; --label-api: var(--run); --label-bug: var(--fail); --label-e2e: #C8A2F0;
+  --label-story: #7c8fd8;
+  --label-api: var(--run);
+  --label-bug: var(--fail);
+  --label-e2e: #c8a2f0;
 
   /* radius */
-  --radius-3: 3px; --radius-4: 4px; --radius-5: 5px; --radius-6: 6px;
-  --radius-8: 8px; --radius-9: 9px; --radius-10: 10px; --radius-pill: 999px;
+  --radius-3: 3px;
+  --radius-4: 4px;
+  --radius-5: 5px;
+  --radius-6: 6px;
+  --radius-8: 8px;
+  --radius-9: 9px;
+  --radius-10: 10px;
+  --radius-pill: 999px;
 
   /* type scale */
-  --fs-9_5: 9.5px; --fs-11: 11px; --fs-11_5: 11.5px; --fs-12: 12px; --fs-12_5: 12.5px;
-  --fs-13: 13px; --fs-13_5: 13.5px; --fs-14: 14px; --fs-14_5: 14.5px; --fs-15: 15px;
-  --fs-16: 16px; --fs-18: 18px; --fs-20: 20px; --fs-22: 22px; --fs-28: 28px; --fs-34: 34px; --fs-36: 36px;
+  --fs-9_5: 9.5px;
+  --fs-11: 11px;
+  --fs-11_5: 11.5px;
+  --fs-12: 12px;
+  --fs-12_5: 12.5px;
+  --fs-13: 13px;
+  --fs-13_5: 13.5px;
+  --fs-14: 14px;
+  --fs-14_5: 14.5px;
+  --fs-15: 15px;
+  --fs-16: 16px;
+  --fs-18: 18px;
+  --fs-20: 20px;
+  --fs-22: 22px;
+  --fs-28: 28px;
+  --fs-34: 34px;
+  --fs-36: 36px;
 }

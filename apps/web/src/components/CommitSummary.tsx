@@ -16,18 +16,28 @@ export function CommitSummary({ branch, author, message, files, onMessageChange,
     <div className={styles.summary}>
       <span className={styles.summaryHead}>
         <Icon name="commit" size={16} />
-        <span>One commit to <span className={styles.monoText}>{branch}</span> as <span className={styles.monoText}>{author}</span></span>
+        <span>
+          One commit to <span className={styles.monoText}>{branch}</span> as{' '}
+          <span className={styles.monoText}>{author}</span>
+        </span>
       </span>
       <Field label="Commit message" error={error}>
         {({ id, describedBy, invalid }) => (
           <TextInput
-            mono id={id} aria-describedby={describedBy} aria-invalid={invalid} value={message} readOnly={!onMessageChange}
+            mono
+            id={id}
+            aria-describedby={describedBy}
+            aria-invalid={invalid}
+            value={message}
+            readOnly={!onMessageChange}
             onChange={(e) => onMessageChange?.(e.target.value)}
           />
         )}
       </Field>
       <ul className={styles.files}>
-        {files.map((f) => <li key={f}>+ {f}</li>)}
+        {files.map((f) => (
+          <li key={f}>+ {f}</li>
+        ))}
       </ul>
     </div>
   );

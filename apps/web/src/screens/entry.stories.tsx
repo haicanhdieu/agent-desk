@@ -10,7 +10,13 @@ const meta = {
   title: 'Screens/Entry',
   parameters: { layout: 'fullscreen' },
   globals: viewport(1440, 900),
-  decorators: [(S) => <AppShell height={900} topBar={null}><S /></AppShell>],
+  decorators: [
+    (S) => (
+      <AppShell height={900} topBar={null}>
+        <S />
+      </AppShell>
+    ),
+  ],
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
