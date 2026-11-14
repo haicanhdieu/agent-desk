@@ -45,7 +45,7 @@ gh pr checks <pr>
 - **Issue:** the `Refs|Closes|Fixes|Resolves #<n>` in the body. No issue: continue, and skip every board step.
 - If the issue's card is not `In review`, run `board.sh status <n> "In review"`.
 - **Sensitive:** the PR touches a [sensitive path](../../../docs/conventions/git-workflow.md#sensitive-paths) (check `files`). Add the label `review:sensitive` if missing. The security reviewer then runs at high effort.
-- **Agent rules or CI:** the PR changes `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agent/skills/`, `.github/workflows/`, `CODEOWNERS` or branch protection. Review, fix and get CI green as usual, but in step 6 do not merge: post the Review comment saying it waits for a human approval ([git-workflow.md §7 rule 7](../../../docs/conventions/git-workflow.md#7-rules-for-ai-agent-authored-changes)), leave the card at `In review`, report and stop.
+- **Agent rules or CI:** the PR changes `AGENTS.md`, `CLAUDE.md`, `.claude/`, `.agent/skills/`, `.github/workflows/`, `CODEOWNERS`, branch protection, `coverage-thresholds.json`, `coverage-baseline.json`, `scripts/coverage-*.ts` or a vitest/vite config (`vitest.config.ts`, `vite.config.ts`). Review, fix and get CI green as usual, but in step 6 do not merge: post the Review comment saying it waits for a human approval ([git-workflow.md §7 rule 7](../../../docs/conventions/git-workflow.md#7-rules-for-ai-agent-authored-changes)), leave the card at `In review`, report and stop.
 
 ### 2. Set up the worktree, rebase, fix conflicts
 

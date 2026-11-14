@@ -189,6 +189,24 @@ jobs:
           fi
           { echo "## Patch coverage (changed lines, required: $threshold%)"; echo; cat "$RUNNER_TEMP/patch-coverage.md"; } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
+      - name: Coverage guard
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          # Untrusted text: only ever read from the environment by the script, never expanded into the shell.
+          PR_BODY: ${{ github.event.pull_request.body }}
+        # Fails on added coverage ignore comments, widened coverage excludes and lowered thresholds unless the PR body has
+        # a "## Coverage exceptions" section. Base-branch copies of the protected files are compared; a file missing on
+        # base is a first introduction. Editing protected files only prints a notice (a human reviews them).
+        run: |
+          git fetch --no-tags origin "$BASE_REF"
+          git diff --unified=0 "origin/$BASE_REF...HEAD" > "$RUNNER_TEMP/pr.diff"
+          mkdir -p "$RUNNER_TEMP/guard-base"
+          git ls-files -- coverage-thresholds.json ':(glob)**/vitest.config.ts' ':(glob)**/vite.config.ts' | while read -r f; do
+            mkdir -p "$RUNNER_TEMP/guard-base/$(dirname "$f")"
+            git show "origin/$BASE_REF:$f" > "$RUNNER_TEMP/guard-base/$f" 2>/dev/null || rm -f "$RUNNER_TEMP/guard-base/$f"
+          done
+          pnpm --silent exec tsx scripts/coverage-guard.ts "$RUNNER_TEMP/pr.diff" --base-dir "$RUNNER_TEMP/guard-base"
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-merged
