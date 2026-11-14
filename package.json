@@ -13,7 +13,8 @@
     "db:migrate": "pnpm --filter @agentdesk/api migrate",
     "dev:down": "bash scripts/dev.sh down",
     "stop": "bash scripts/dev.sh down",
-    "test:e2e:local": "tsx scripts/e2e-local.ts"
+    "test:e2e:local": "tsx scripts/e2e-local.ts",
+    "test:scripts": "vitest run --root scripts"
   },
   "devDependencies": {
     "@agentdesk/contracts": "workspace:*",
