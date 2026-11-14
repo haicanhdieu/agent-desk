@@ -48,7 +48,7 @@ Never fill a gap from the code, from the app, or from what seems likely.
 
 ## Who does what
 
-Subagents are plain spawns of the Agent tool; there is nothing else to orchestrate them. Each runs once and writes one file. Spawn each on the model and effort [agent-prompts.md](agent-prompts.md) gives it, never on the session model by default.
+Subagents are plain spawns of the Agent tool; there is nothing else to orchestrate them. Each runs once and writes one file. Spawn each on the tier (model from `.agent/models.json`) and effort [agent-prompts.md](agent-prompts.md) gives it, never on the session model by default.
 
 | Step                         | Who                                           | Spawns        |
 | ---------------------------- | --------------------------------------------- | ------------- |
@@ -63,16 +63,16 @@ A scope of 20 rules in 4 clusters costs 9 spawns. Do not add review rounds, per-
 
 ## Files
 
-| File                                                                         | Use                                         |
-| ---------------------------------------------------------------------------- | ------------------------------------------- |
-| [schemas.md](schemas.md)                                                     | The JSON every step writes                  |
-| [agent-prompts.md](agent-prompts.md)                                         | The prompt, model and effort for each spawn |
-| [guides/extracting-rules.md](guides/extracting-rules.md)                     | Step 2 (you)                                |
-| [guides/reviewing-rules.md](guides/reviewing-rules.md)                       | Step 3 (rule reviewer)                      |
-| [guides/clustering-rules.md](guides/clustering-rules.md)                     | Step 4 (you)                                |
-| [guides/writing-cases.md](guides/writing-cases.md)                           | Step 5 (case writers)                       |
-| [guides/reviewing-cases.md](guides/reviewing-cases.md)                       | Step 6 (case reviewers)                     |
-| [guides/checking-existing-coverage.md](guides/checking-existing-coverage.md) | Duplicate check inside steps 5 and 6        |
+| File                                                                         | Use                                        |
+| ---------------------------------------------------------------------------- | ------------------------------------------ |
+| [schemas.md](schemas.md)                                                     | The JSON every step writes                 |
+| [agent-prompts.md](agent-prompts.md)                                         | The prompt, tier and effort for each spawn |
+| [guides/extracting-rules.md](guides/extracting-rules.md)                     | Step 2 (you)                               |
+| [guides/reviewing-rules.md](guides/reviewing-rules.md)                       | Step 3 (rule reviewer)                     |
+| [guides/clustering-rules.md](guides/clustering-rules.md)                     | Step 4 (you)                               |
+| [guides/writing-cases.md](guides/writing-cases.md)                           | Step 5 (case writers)                      |
+| [guides/reviewing-cases.md](guides/reviewing-cases.md)                       | Step 6 (case reviewers)                    |
+| [guides/checking-existing-coverage.md](guides/checking-existing-coverage.md) | Duplicate check inside steps 5 and 6       |
 
 Scripts, run from the repo root as `node .agent/skills/qa-write-e2e-test-cases/scripts/<name>.mjs`:
 
@@ -147,7 +147,7 @@ Reply with: the parent issue URL; a table of cluster id, issue number, rules, ca
 | ------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
 | Spawning one agent per rule                                        | One writer and one reviewer per cluster                                           |
 | Running a second review round "to be safe"                         | One round each; unresolved findings become open questions                         |
-| Spawning every subagent on the session model                       | Pass the model and effort from [agent-prompts.md](agent-prompts.md)               |
+| Spawning every subagent on the session model                       | Pass the tier's model and the effort from [agent-prompts.md](agent-prompts.md)    |
 | Spawning a writer to apply review findings                         | Edit the JSON as the proposal says and run `validate.mjs`                         |
 | A cluster of 12 rules because they share a page                    | Split by flow or sub-screen; at most 8 rules                                      |
 | Writing all cases yourself to save spawns                          | Writers per cluster; one context covering every rule thins out the later ones     |

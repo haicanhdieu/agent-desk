@@ -1,0 +1,8 @@
+{
+  "_comment": "Model per tier for every subagent our skills spawn. Skills name a tier, never a model. Change a model here to change it for the whole team. See docs/runbooks/agent-model-tiers.md.",
+  "tiers": {
+    "high": "opus",
+    "medium": "sonnet",
+    "low": "haiku"
+  }
+}

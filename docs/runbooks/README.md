@@ -13,6 +13,8 @@ A runbook says **how to do one task**. Write it as numbered steps with commands 
 | [storybook-and-parity.md](storybook-and-parity.md)         | Run Storybook; screenshot-compare screens with the prototype                                  |
 | [database-local.md](database-local.md)                     | Migrate, open psql, query under RLS, reset, add a migration                                   |
 | [connect-github-app-local.md](connect-github-app-local.md) | Use a real GitHub App and repo instead of the fake provider (optional)                        |
+| [dev-workflow.md](dev-workflow.md)                         | Move a ticket across the board (Ready → In review → QA → Done); run `dev-build`, `dev-review` |
+| [agent-model-tiers.md](agent-model-tiers.md)               | Change which model each subagent tier (high, medium, low) uses for the whole team             |
 
 ## Operations
 
