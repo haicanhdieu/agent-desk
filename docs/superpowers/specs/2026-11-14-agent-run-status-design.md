@@ -291,8 +291,11 @@ Left to the builder: hook script language (bash + jq or a small Node script, bot
 declaration file location, UI copy and icon for Done, PR split (expected: contracts + db; core parser + fake pod;
 runner adapter; worker; web).
 
-Open check before relying on it: confirm on 2.1.323 that a repo `.claude/settings.json` with `disableAllHooks: true`
-does not disable managed hooks.
+Checked on 2.1.323 (runner image built from `images/runner`): with a managed `SessionStart` hook in
+`/etc/claude-code/managed-settings.json` and a repo `.claude/settings.json` containing `disableAllHooks: true`, the managed
+hook still fired (`managed-fired` in the output). The repo's own hook did not fire, and the image's user-level hook
+(`agentdesk: turn started`) also did not fire in that run, though it did in a control run without the repo setting. So a repo
+can switch off user-level hooks but not managed ones. The managed-settings choice holds.
 
 ## 9. Sources
 

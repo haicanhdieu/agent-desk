@@ -41,12 +41,12 @@
 **Files:**
 - Modify: `docs/superpowers/specs/2026-11-14-agent-run-status-design.md` (§8 "Open check": record the result)
 
-- [ ] **Step 1:** Build the current runner image: `podman build -t agentdesk-runner:check images/runner`.
-- [ ] **Step 2:** In a scratch dir create `managed-settings.json` with a `SessionStart` hook `echo managed-fired >> /tmp/out` and a repo dir whose `.claude/settings.json` is `{"disableAllHooks": true, "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo repo-fired >> /tmp/out"}]}]}}`.
-- [ ] **Step 3:** Run `podman run --rm -v <scratch>/managed-settings.json:/etc/claude-code/managed-settings.json:ro -v <repo>:/workspace/r -w /workspace/r --entrypoint bash agentdesk-runner:check -c 'echo hi | claude -p x >/dev/null 2>&1; cat /tmp/out'`. `SessionStart` fires before any API call, so no credentials are needed.
+- [x] **Step 1:** Build the current runner image: `podman build -t agentdesk-runner:check images/runner`.
+- [x] **Step 2:** In a scratch dir create `managed-settings.json` with a `SessionStart` hook `echo managed-fired >> /tmp/out` and a repo dir whose `.claude/settings.json` is `{"disableAllHooks": true, "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo repo-fired >> /tmp/out"}]}]}}`.
+- [x] **Step 3:** Run `podman run --rm -v <scratch>/managed-settings.json:/etc/claude-code/managed-settings.json:ro -v <repo>:/workspace/r -w /workspace/r --entrypoint bash agentdesk-runner:check -c 'echo hi | claude -p x >/dev/null 2>&1; cat /tmp/out'`. `SessionStart` fires before any API call, so no credentials are needed.
   Expected: output contains `managed-fired`.
-- [ ] **Step 4:** Record the result in spec §8. **If `managed-fired` is missing, stop and ask the human** (the managed-settings choice in spec §6.2 no longer holds).
-- [ ] **Step 5:** Commit `docs(adr): record managed hooks precedence check`.
+- [x] **Step 4:** Record the result in spec §8. **If `managed-fired` is missing, stop and ask the human** (the managed-settings choice in spec §6.2 no longer holds).
+- [x] **Step 5:** Commit `docs(adr): record managed hooks precedence check`.
 
 ---
 
