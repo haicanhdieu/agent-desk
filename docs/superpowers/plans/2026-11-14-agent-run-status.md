@@ -318,8 +318,8 @@
 **Files:**
 - Modify: `docs/adr/0011-interactive-claude-code-in-tmux.md` (add under Status: `Partly superseded by [0020](0020-agent-status-protocol.md) (hooks and run status)`), `docs/superpowers/specs/2026-11-12-control-plane-design.md` (§4.1 status line adds `done`; §6.2 main loop events; §8 marker list → protocol lines), `docs/superpowers/specs/2026-11-14-agent-run-status-design.md` (Status: Accepted).
 
-- [ ] **Step 1:** Make the edits; run `devbox run fix` → `fix: clean.`
-- [ ] **Step 2:** Commit `docs(adr): point run status docs at ADR 0020`. Ships in PR F.
+- [x] **Step 1:** Make the edits; run `devbox run fix` → `fix: clean.`
+- [x] **Step 2:** Commit `docs(adr): point run status docs at ADR 0020`. Ships in PR F.
 
 ---
 

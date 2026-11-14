@@ -1,6 +1,6 @@
 # 0020. Agent-neutral status protocol with per-agent adapters and declared outcomes
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-14
 - Source: [Agent run status design](../superpowers/specs/2026-11-14-agent-run-status-design.md) §4, §5, §6
 

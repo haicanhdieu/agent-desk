@@ -1,7 +1,7 @@
 # Agent Run Status — Design
 
 - Date: 2026-11-14
-- Status: Draft
+- Status: Accepted
 - Related: [ADR 0011](../../adr/0011-interactive-claude-code-in-tmux.md) (updated by [ADR 0020](../../adr/0020-agent-status-protocol.md)), [control plane design](2026-11-12-control-plane-design.md) §6.2, §8
 
 ## 1. Intent
