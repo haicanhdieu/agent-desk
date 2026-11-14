@@ -80,27 +80,28 @@ The choice and the concrete rules that follow from it.
 
 ## Index
 
-| #                                                      | Title                                                                  | Status   | Date       |
-| ------------------------------------------------------ | ---------------------------------------------------------------------- | -------- | ---------- |
-| [0001](0001-pnpm-turborepo-monorepo.md)                | pnpm workspaces and Turborepo monorepo                                 | Accepted | 2026-11-12 |
-| [0002](0002-nestjs-on-fastify-backend.md)              | NestJS on Fastify for the control plane                                | Accepted | 2026-11-12 |
-| [0003](0003-vite-spa-tanstack-router.md)               | Vite SPA with TanStack Router and org-scoped URLs                      | Accepted | 2026-11-12 |
-| [0004](0004-contracts-first-zod-schemas.md)            | Contracts-first shared Zod schemas                                     | Accepted | 2026-11-12 |
-| [0005](0005-provider-agnostic-naming-adapter-seams.md) | Provider-agnostic naming with adapter seams                            | Accepted | 2026-11-12 |
-| [0006](0006-tenant-ready-schema-with-rls.md)           | Tenant-ready schema: `org_id` everywhere and Postgres RLS              | Accepted | 2026-11-12 |
-| [0007](0007-drizzle-for-data-access.md)                | Drizzle for data access and migrations                                 | Accepted | 2026-11-12 |
-| [0008](0008-better-auth-in-process.md)                 | better-auth in process for authentication                              | Accepted | 2026-11-12 |
-| [0009](0009-temporal-for-durable-work.md)              | Temporal for the run lifecycle and background work                     | Accepted | 2026-11-12 |
-| [0010](0010-one-kubernetes-job-per-run.md)             | One Kubernetes Job per run as the sandbox                              | Accepted | 2026-11-11 |
-| [0011](0011-interactive-claude-code-in-tmux.md)        | Claude Code interactive in tmux with bypass permissions                | Accepted | 2026-11-11 |
-| [0012](0012-credentials-in-kubernetes-secrets.md)      | Agent credentials in Kubernetes Secrets, never in Postgres             | Accepted | 2026-11-11 |
-| [0013](0013-webhook-and-polling-intake.md)             | Webhook and polling intake feeding one router                          | Accepted | 2026-11-11 |
-| [0014](0014-terminal-over-websocket-exec-relay.md)     | Terminal: xterm.js over a WebSocket relayed to `pods/exec`             | Accepted | 2026-11-11 |
-| [0015](0015-live-updates-over-sse.md)                  | Live run updates over SSE fed by Postgres NOTIFY                       | Accepted | 2026-11-12 |
-| [0016](0016-qa-on-separate-k3s-in-shared-podman.md)    | QA on a separate k3s container in the Mac mini's shared Podman machine | Accepted | 2026-11-12 |
-| [0017](0017-helm-chart-delivered-by-flux.md)           | One Helm chart delivered by Flux from OCI release bundles              | Accepted | 2026-11-12 |
-| [0018](0018-portable-app-layer-target-contracts.md)    | Portable app layer: targets supply capabilities behind fixed names     | Accepted | 2026-11-12 |
-| [0019](0019-repo-setup-and-approved-store-plugins.md)  | Repo setup script and plugins from approved stores only                | Accepted | 2026-11-13 |
+| #                                                      | Title                                                                       | Status   | Date       |
+| ------------------------------------------------------ | --------------------------------------------------------------------------- | -------- | ---------- |
+| [0001](0001-pnpm-turborepo-monorepo.md)                | pnpm workspaces and Turborepo monorepo                                      | Accepted | 2026-11-12 |
+| [0002](0002-nestjs-on-fastify-backend.md)              | NestJS on Fastify for the control plane                                     | Accepted | 2026-11-12 |
+| [0003](0003-vite-spa-tanstack-router.md)               | Vite SPA with TanStack Router and org-scoped URLs                           | Accepted | 2026-11-12 |
+| [0004](0004-contracts-first-zod-schemas.md)            | Contracts-first shared Zod schemas                                          | Accepted | 2026-11-12 |
+| [0005](0005-provider-agnostic-naming-adapter-seams.md) | Provider-agnostic naming with adapter seams                                 | Accepted | 2026-11-12 |
+| [0006](0006-tenant-ready-schema-with-rls.md)           | Tenant-ready schema: `org_id` everywhere and Postgres RLS                   | Accepted | 2026-11-12 |
+| [0007](0007-drizzle-for-data-access.md)                | Drizzle for data access and migrations                                      | Accepted | 2026-11-12 |
+| [0008](0008-better-auth-in-process.md)                 | better-auth in process for authentication                                   | Accepted | 2026-11-12 |
+| [0009](0009-temporal-for-durable-work.md)              | Temporal for the run lifecycle and background work                          | Accepted | 2026-11-12 |
+| [0010](0010-one-kubernetes-job-per-run.md)             | One Kubernetes Job per run as the sandbox                                   | Accepted | 2026-11-11 |
+| [0011](0011-interactive-claude-code-in-tmux.md)        | Claude Code interactive in tmux with bypass permissions                     | Accepted | 2026-11-11 |
+| [0012](0012-credentials-in-kubernetes-secrets.md)      | Agent credentials in Kubernetes Secrets, never in Postgres                  | Accepted | 2026-11-11 |
+| [0013](0013-webhook-and-polling-intake.md)             | Webhook and polling intake feeding one router                               | Accepted | 2026-11-11 |
+| [0014](0014-terminal-over-websocket-exec-relay.md)     | Terminal: xterm.js over a WebSocket relayed to `pods/exec`                  | Accepted | 2026-11-11 |
+| [0015](0015-live-updates-over-sse.md)                  | Live run updates over SSE fed by Postgres NOTIFY                            | Accepted | 2026-11-12 |
+| [0016](0016-qa-on-separate-k3s-in-shared-podman.md)    | QA on a separate k3s container in the Mac mini's shared Podman machine      | Accepted | 2026-11-12 |
+| [0017](0017-helm-chart-delivered-by-flux.md)           | One Helm chart delivered by Flux from OCI release bundles                   | Accepted | 2026-11-12 |
+| [0018](0018-portable-app-layer-target-contracts.md)    | Portable app layer: targets supply capabilities behind fixed names          | Accepted | 2026-11-12 |
+| [0019](0019-repo-setup-and-approved-store-plugins.md)  | Repo setup script and plugins from approved stores only                     | Accepted | 2026-11-13 |
+| [0020](0020-agent-status-protocol.md)                  | Agent-neutral status protocol with per-agent adapters and declared outcomes | Proposed | 2026-11-14 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the
