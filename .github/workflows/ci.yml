@@ -146,6 +146,24 @@ jobs:
         run: pnpm --silent exec tsx scripts/coverage-merge.ts coverage-artifacts coverage-merged
       - name: Check coverage
         run: pnpm --silent exec tsx scripts/coverage-check.ts coverage-merged coverage-thresholds.json
+      - name: Pick the baseline to compare against
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          cp coverage-baseline.json "$RUNNER_TEMP/baseline.json"
+          if [ "$EVENT" = "pull_request" ]; then
+            git fetch --no-tags --depth=1 origin "$BASE_REF"
+            if git show "FETCH_HEAD:coverage-baseline.json" > "$RUNNER_TEMP/base-baseline.json" 2>/dev/null; then
+              # A PR must not lower the bar by editing the file: compare against the base branch copy.
+              cp "$RUNNER_TEMP/base-baseline.json" "$RUNNER_TEMP/baseline.json"
+              pnpm --silent exec tsx scripts/coverage-ratchet.ts --compare "$RUNNER_TEMP/base-baseline.json" coverage-baseline.json
+            else
+              echo "::notice::$BASE_REF has no coverage-baseline.json yet; using this PR's copy as the baseline"
+            fi
+          fi
+      - name: Coverage ratchet
+        run: pnpm --silent exec tsx scripts/coverage-ratchet.ts --check coverage-merged --baseline "$RUNNER_TEMP/baseline.json"
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-merged
