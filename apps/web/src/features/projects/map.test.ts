@@ -1,6 +1,6 @@
 import type { ProjectConnectionDto, ProjectDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { pollIntervalLabel, toConnectionStatus, toProject } from './map';
+import { pollIntervalLabel, toConnectionStatus, toProject, toProjectMenuItems } from './map';
 
 const now = new Date('2026-11-12T12:00:00.000Z');
 const DAY = 24 * 60 * 60 * 1000;
@@ -119,5 +119,40 @@ describe('toProject', () => {
 
   it('shows a dash when the project never ran', () => {
     expect(toProject({ ...dto, lastRunAt: null }, conn, 'alice', now).lastRun).toBe('—');
+  });
+});
+
+describe('toProjectMenuItems', () => {
+  const base = {
+    codeConnectionId: 'c1',
+    boardConnectionId: 'c1',
+    triggerMode: 'webhook',
+    pollIntervalSeconds: 300,
+    maxConcurrentRuns: 2,
+    maxRunsPerTicket: 10,
+    setupStep: 'ready',
+    createdAt: ago(30 * DAY),
+    lastRunAt: null,
+  } as const;
+  const dtos: ProjectDto[] = [
+    {
+      ...base,
+      id: 'p1',
+      name: 'invoicer-api',
+      repoPath: 'o/invoicer-api',
+      counts: { needsYou: 2, running: 2, queued: 0 },
+    },
+    { ...base, id: 'p2', name: 'docs-site', repoPath: 'o/docs-site', counts: { needsYou: 0, running: 0, queued: 0 } },
+  ];
+
+  it('marks the current project and links each row through the given href', () => {
+    expect(toProjectMenuItems(dtos, 'p2', (id) => `/runs/${id}`)).toEqual([
+      { name: 'invoicer-api', needsYou: 2, current: false, href: '/runs/p1' },
+      { name: 'docs-site', needsYou: 0, current: true, href: '/runs/p2' },
+    ]);
+  });
+
+  it('gives an empty list for no projects', () => {
+    expect(toProjectMenuItems([], 'p1', (id) => id)).toEqual([]);
   });
 });

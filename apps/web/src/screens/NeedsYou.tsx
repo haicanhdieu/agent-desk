@@ -1,5 +1,13 @@
 import { AppLink, Icon } from '@/ds';
-import { GitHubComment, ProjectMenu, ProjectStrip, SurfaceCard, TopBar, type TopBarProps } from '@/components';
+import {
+  GitHubComment,
+  ProjectMenu,
+  ProjectStrip,
+  SurfaceCard,
+  TopBar,
+  type ProjectSwitchMenu,
+  type TopBarProps,
+} from '@/components';
 import { menuWarning } from '@/mocks/connection';
 import { runs as runFixtures } from '@/mocks';
 import type { Actor, Project, RunSummary } from '@/mocks/types';
@@ -22,7 +30,7 @@ export interface NeedsYouProps {
   /** Href of a project in the switcher; defaults to '#'. */
   projectHref?(p: Project): string;
   /** In the app the page gets the project top bar; the board has none. */
-  topBar?: { user: Actor; links?: TopBarProps['links'] };
+  topBar?: { user: Actor; links?: TopBarProps['links']; projectMenu?: ProjectSwitchMenu };
 }
 
 const boardRun = runFixtures.find((r) => r.id === 62);
@@ -135,6 +143,7 @@ export function NeedsYou({ project, projects, runs = boardRuns, projectHref = ()
         user={topBar.user}
         needsYou={project.needsYou}
         links={topBar.links}
+        projectMenu={topBar.projectMenu}
         project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
       />
       {main}

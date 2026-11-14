@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import { connectionCopy } from '@/mocks';
-import { ProjectMenu, ProjectSwitch } from './ProjectSwitch';
+import { ProjectMenu, ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
 
 const meta = { title: 'Components/ProjectSwitch', component: ProjectSwitch } satisfies Meta<typeof ProjectSwitch>;
 export default meta;
@@ -51,3 +52,29 @@ export const MenuWithPolling: Story = {
     </div>
   ),
 };
+
+const items = [
+  { name: 'invoicer-api', needsYou: 1, current: true, href: '#' },
+  { name: 'invoicer-web', needsYou: 0, href: '#' },
+  { name: 'docs-site', needsYou: 0, href: '#' },
+];
+const openOnLoad: Story['play'] = async ({ canvasElement }) => {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch project/ }));
+};
+const menuStory = (menu: ProjectSwitchMenu): Story => ({
+  args: { org: 'harbor-labs', project: 'invoicer-api', menu },
+  decorators: [
+    (Story) => (
+      <div style={{ minHeight: 220 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: openOnLoad,
+});
+
+/** The live switcher: the button opens the menu (Escape or an outside click closes it, arrow keys move). */
+export const WithMenu = menuStory({ status: 'ready', items });
+export const MenuLoading = menuStory({ status: 'loading' });
+export const MenuEmpty = menuStory({ status: 'ready', items: [] });
+export const MenuError = menuStory({ status: 'error', onRetry: () => undefined });

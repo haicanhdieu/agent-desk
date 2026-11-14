@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { DeskLayout, TopBar } from '@/components';
+import { DeskLayout, TopBar, type ProjectSwitchMenu } from '@/components';
 import { Banner, Button, Icon } from '@/ds';
 import type { Actor, ConnectionStatus } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -32,6 +32,8 @@ export interface DeskFrameData {
   connection: ConnectionStatus;
   /** Defaults to the relative hrefs of the prototype ("/runs", "skills", …). */
   links?: DeskLinks;
+  /** The project menu behind the top bar's switcher. */
+  projectMenu?: ProjectSwitchMenu;
   /** Shown above every board but the Setup tab, which has its own last-test banner. */
   warning?: FrameWarning;
 }
@@ -43,6 +45,7 @@ export function DeskFrame({
   project,
   connection,
   links,
+  projectMenu,
   warning,
   children,
 }: DeskFrameData & { active: 'skills' | 'rules' | 'agent' | 'setup'; children?: ReactNode }) {
@@ -55,6 +58,7 @@ export function DeskFrame({
         needsYou={project.needsYou}
         project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
         links={links}
+        projectMenu={projectMenu}
       />
       <DeskLayout
         active={active}
