@@ -23,7 +23,7 @@ If neither is given, ask for one. Ask nothing else.
 | File                                 | Use                                                     |
 | ------------------------------------ | ------------------------------------------------------- |
 | [agent-prompts.md](agent-prompts.md) | Prompt, tier and effort for the fixer and implementer   |
-| [comments.md](comments.md)           | The issue comments and PR body you post, word for word  |
+| [comments.md](comments.md)           | The issue comments you post, word for word              |
 | `scripts/board.sh`                   | Move the card and swap the `status:*` label in one call |
 
 Run it from your main checkout (the worktree is cut from `main` and may not have this skill yet): `bash <main checkout>/.agent/skills/dev-build/scripts/board.sh status <n> "<Status>"`. Below, `board.sh` means that full command. Statuses: `Ready`, `In progress`, `Blocked`, `In review`. Never set the board or a `status:*` label by hand.
@@ -124,16 +124,13 @@ Self-review the diff against [code-review-checklist.md](../../../docs/convention
 
 ### 7. Open the PR
 
-```sh
-git -C <worktree> push -u origin <branch>
-gh pr create --base main --head <branch> --title "<type>(<scope>): <summary>" --body-file <body.md> \
-  --label <bug|enhancement> --label agent-authored [--label review:sensitive]
-```
+Invoke the **`create-pr`** skill ([create-pr/SKILL.md](../create-pr/SKILL.md)). It owns the title, body template, labels, local preflight and the `gh pr create` call; do not write a PR body or run `gh pr create` yourself. Run it from the worktree. Pass it:
 
-- Title: Conventional Commits with the package scope ([git-workflow.md §2](../../../docs/conventions/git-workflow.md#2-commits)). Spanning packages, use the scope where the change starts (usually `contracts`).
-- Body: the **PR body** in [comments.md](comments.md), which fills the repo's PR template. It says `Refs #<n>`, **never** `Closes`/`Fixes #<n>`: merging must not close the issue, QA does.
-- Add `review:sensitive` when `git diff --name-only origin/main...` touches a [sensitive path](../../../docs/conventions/git-workflow.md#sensitive-paths). When in doubt, add it.
-- Write the body and comments to files in your scratchpad (or `mktemp`), never in the repo.
+- head branch `<branch>`, base `main`, and push authorization (`git push -u origin <branch>` is allowed);
+- type `bugfix` or `feature` (from step 2), `agent-authored: true`, and the issue number (it writes `Refs #<n>`, never `Closes`/`Fixes`: QA closes the issue);
+- the summary, root cause (bugs), verification results from step 6, the subagents' JUDGMENT CALLS and your own, and the plan path for a feature.
+
+Keep the PR's "Authored by an AI agent (`dev-build`)" attribution out of the body; `agent-authored` is the label. If `create-pr` stops on a failed preflight, treat it like a step 6 failure.
 
 Then:
 
