@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { ProjectConnectionDto, ProjectDto } from '@agentdesk/contracts';
 import type { Actor, ConnectionStatus, Project } from '@/mocks/types';
-import type { TopBarProps } from '@/components';
+import type { ProjectSwitchMenu, TopBarProps } from '@/components';
 import { projectPaths, useDeskFrame } from '../desk/frame';
 import { toConnectionStatus, toProject } from '../projects/map';
 import { projectsQueries } from '../projects/queries';
@@ -15,6 +15,7 @@ export interface ProjectPage {
   user: Actor;
   paths: ReturnType<typeof projectPaths>;
   links: NonNullable<TopBarProps['links']>;
+  projectMenu: ProjectSwitchMenu;
 }
 
 /** Project, connection, user and links for the Runs and Needs-you pages, from the `$project` layout's cache. */
@@ -32,6 +33,7 @@ export function useProjectPage(org: string, projectId: string, now: Date): Proje
     user: frame.user,
     paths,
     links: { projects: paths.projects, runs: paths.runs, desk: paths.skills },
+    projectMenu: frame.projectMenu ?? { status: 'loading' },
   };
 }
 

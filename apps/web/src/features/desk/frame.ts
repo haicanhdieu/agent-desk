@@ -3,6 +3,7 @@ import type { Actor } from '@/mocks/types';
 import type { DeskFrameData } from '@/screens';
 import { sessionQuery } from '../auth/session';
 import { toConnectionStatus, toProject } from '../projects/map';
+import { useProjectMenu } from '../projects/menu';
 import { projectsQueries } from '../projects/queries';
 import { useSetupWarning } from '../setup-script/useSetupWarning';
 
@@ -34,10 +35,12 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
   const user: Actor = { login: handle, initials: handle.slice(0, 2).toUpperCase() };
   const paths = projectPaths(org, projectId);
   const warning = useSetupWarning(org, projectId);
+  const projectMenu = useProjectMenu(org, projectId);
   return {
     user,
     project: { org: owner, name: project.name, repo: project.repo, needsYou: project.needsYou },
     connection,
+    projectMenu,
     links: {
       projects: paths.projects,
       runs: paths.runs,

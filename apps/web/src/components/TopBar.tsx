@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Avatar, Button, IconButton } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import { Brand } from './Brand';
-import { ProjectSwitch } from './ProjectSwitch';
+import { ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
 import { Breadcrumb } from './Breadcrumb';
 import { ProjectNav } from './ProjectNav';
 import styles from './Chrome.module.css';
@@ -11,6 +11,8 @@ export interface TopBarProps {
   variant: 'global' | 'project' | 'run';
   user: Actor;
   project?: { org: string; name: string; repoUrl: string };
+  /** The project menu behind the switcher button; without it the button does nothing. */
+  projectMenu?: ProjectSwitchMenu;
   active?: 'runs' | 'desk';
   needsYou?: number;
   breadcrumb?: { label: ReactNode; href?: string }[];
@@ -29,6 +31,7 @@ export function TopBar({
   variant,
   user,
   project,
+  projectMenu,
   active,
   needsYou,
   breadcrumb,
@@ -69,7 +72,7 @@ export function TopBar({
     <header className={styles.top}>
       <Brand href={projectsHref} />
       <span className={styles.sep} />
-      {project && <ProjectSwitch org={project.org} project={project.name} />}
+      {project && <ProjectSwitch org={project.org} project={project.name} menu={projectMenu} />}
       <ProjectNav active={active} needsYou={needsYou} runsHref={links?.runs} deskHref={links?.desk} />
       <span className={styles.grow} />
       {project && (

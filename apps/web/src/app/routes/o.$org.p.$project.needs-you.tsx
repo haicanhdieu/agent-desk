@@ -49,7 +49,7 @@ function NeedsYouRoute() {
       projects={projects}
       runs={runs}
       projectHref={(p) => projectPaths(org, p.id).needsYou}
-      topBar={{ user: page.user, links: page.links }}
+      topBar={{ user: page.user, links: page.links, projectMenu: page.projectMenu }}
     />
   );
 }

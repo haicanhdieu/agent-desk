@@ -5,7 +5,13 @@ export { RunRow, TicketGroupRow, type RunRowProps } from './RunRow';
 export { EmptyState, type EmptyStateProps } from './EmptyState';
 export { Brand, type BrandProps } from './Brand';
 export { Breadcrumb, type BreadcrumbProps } from './Breadcrumb';
-export { ProjectSwitch, ProjectMenu, type ProjectSwitchProps, type ProjectMenuProps } from './ProjectSwitch';
+export {
+  ProjectSwitch,
+  ProjectMenu,
+  type ProjectSwitchProps,
+  type ProjectSwitchMenu,
+  type ProjectMenuProps,
+} from './ProjectSwitch';
 export { TopBar, TopBarSeparator, type TopBarProps } from './TopBar';
 export { SubNav, type SubNavProps } from './SubNav';
 export { AppShell, type AppShellProps } from './AppShell';

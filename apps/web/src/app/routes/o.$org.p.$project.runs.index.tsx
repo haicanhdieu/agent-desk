@@ -69,6 +69,7 @@ function RunsRoute() {
     project: page.project,
     user: page.user,
     links: page.links,
+    projectMenu: page.projectMenu,
     needsYou: dto.counts.needsYou,
     // Idle runs hold a slot too.
     // counts.running is every live job (starting, running, idle): each holds a slot.

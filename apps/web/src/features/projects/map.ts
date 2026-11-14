@@ -1,4 +1,5 @@
 import type { ProjectConnectionDto, ProjectDto } from '@agentdesk/contracts';
+import type { ProjectMenuProps } from '@/components';
 import type { ConnectionStatus, PollInterval, Project } from '@/mocks/types';
 import { relativeTime } from '../relativeTime';
 
@@ -74,4 +75,18 @@ export function toProject(dto: ProjectDto, connection: ConnectionStatus, org: st
     queued: dto.counts.queued,
     lastRun: dto.lastRunAt ? relativeTime(dto.lastRunAt, now) : '—',
   };
+}
+
+/** The top bar's project menu rows: the org's projects, the current one marked, each linking to its Runs page. */
+export function toProjectMenuItems(
+  dtos: ProjectDto[],
+  currentId: string,
+  runsHref: (projectId: string) => string,
+): ProjectMenuProps['items'] {
+  return dtos.map((dto) => ({
+    name: dto.name,
+    needsYou: dto.counts.needsYou,
+    current: dto.id === currentId,
+    href: runsHref(dto.id),
+  }));
 }
