@@ -166,6 +166,56 @@ function phasesOf(test: SetupTestDto, parsed: Parsed[], plugins: { state: string
   return [clone, pluginsPhase, setup, shell];
 }
 
+/** bash names the script by its temp path ("/tmp/tmp.Ab1: line 11: ..."); the person knows it as the setup script. */
+const scriptName = (text: string) =>
+  text.replace(/^\/tmp\/tmp\.[A-Za-z0-9]+: line (\d+): /gm, 'setup script, line $1: ');
+
+const EXIT_MEANING: Record<number, string> = {
+  126: 'command not executable',
+  127: 'command not found',
+  130: 'interrupted',
+  137: 'killed, out of memory or timed out',
+};
+const DETAIL_MAX = 200;
+
+/**
+ * Why setup failed, in words: what the exit code means, the failing line of the script (only when the test ran the saved
+ * script, so the line is the one shown) and the output that line printed. Undefined unless setup failed or timed out.
+ */
+function failureOf(test: SetupTestDto, parsed: Parsed[], script: SetupScriptDto | null): SetupTestView['failure'] {
+  const marker = resultMarker(parsed);
+  if (marker?.p.kind === 'setup_timed_out') {
+    return { title: 'Setup script timed out', detail: 'It did not finish within the time limit and was stopped.' };
+  }
+  if (marker?.p.kind !== 'setup_failed') return undefined;
+  const code = marker.p.exitCode ?? test.exitCode ?? 1;
+  const meaning = EXIT_MEANING[code];
+  const output = parsed
+    .flatMap(({ p }) => (p.kind === 'setup_output' ? scriptName(p.text ?? '').split(/\r?\n/) : []))
+    .map((l) => l.trim())
+    .filter((l) => l !== '');
+  const at = output
+    .map((l) => /^setup script, line (\d+): (.*)$/.exec(l))
+    .filter((m) => m !== null)
+    .at(-1);
+  const lineNo = at ? Number(at[1]) : undefined;
+  const message = (at ? at[2] : output.at(-1)) ?? undefined;
+  const source =
+    lineNo !== undefined && script !== null && test.matchesCurrentScript
+      ? script.body.split('\n')[lineNo - 1]?.trim()
+      : undefined;
+  const detail = [
+    source ? `Line ${lineNo} of the script: ${source.slice(0, DETAIL_MAX)}.` : undefined,
+    message ? `Output: ${message.slice(0, DETAIL_MAX)}` : undefined,
+  ]
+    .filter((x): x is string => x !== undefined)
+    .join(' ');
+  return {
+    title: `Setup script failed: exit ${code}${meaning ? ` (${meaning})` : ''}`,
+    detail: detail === '' ? 'The script printed no output. Open the log below.' : detail,
+  };
+}
+
 const markerTone: Partial<Record<Kind, TermTone>> = {
   plugin_installed: 'green',
   plugin_skipped: 'yellow',
@@ -186,7 +236,7 @@ function logLines(parsed: Parsed[]): TermLine[] {
   for (const { p } of parsed) {
     const text = p.text ?? p.kind;
     if (p.kind === 'setup_output' || p.kind === 'plugin_output') {
-      lines.push(...plainLines(text.replace(/\r?\n$/, '')));
+      lines.push(...plainLines(scriptName(text).replace(/\r?\n$/, '')));
       if (p.truncated === true) lines.push([{ text: '[output truncated]', tone: 'dim' }]);
       continue;
     }
@@ -237,9 +287,17 @@ function setupOutcome(test: SetupTestDto, parsed: Parsed[], result: Result): str
 
 function lastTestOf(test: SetupTestDto, parsed: Parsed[], now: Date): LastSetupTest | undefined {
   const result = resultOf(test, parsed);
-  if (result === undefined) return undefined;
+  // Still running: nothing to report yet.
+  if (result === undefined && !isEnded(test)) return undefined;
   const created = new Date(test.createdAt);
   const when = sameDay(created, now) ? `Today ${clockTime(test.createdAt)}` : relativeTime(test.createdAt, now);
+  if (result === undefined) {
+    return {
+      result: 'ended',
+      matchesSaved: false,
+      summary: `${when} by ${test.startedBy}. The test ended before setup finished.`,
+    };
+  }
   const took = test.finishedAt === null ? '' : `, ${shortDuration(Date.parse(test.finishedAt) - created.getTime())}`;
   const { installed, skipped, failed } = test.plugins;
   const parts = [
@@ -261,11 +319,13 @@ function testView(test: SetupTestDto, parsed: Parsed[], script: SetupScriptDto |
   // A test that ended without a result shows as failed in its log.
   const status: SetupTestView['status'] = resultOf(test, parsed) ?? (isEnded(test) ? 'failed' : 'running');
   const sha = test.checkoutSha ?? parsed.find((x) => x.p.kind === 'checkout')?.p.sha;
+  const failure = failureOf(test, parsed, script);
   const view: SetupTestView = {
     status,
     phases: phasesOf(test, parsed, states, now),
     plugins: states,
     lines: logLines(parsed),
+    ...(failure && { failure }),
     ...(ended && { view: 'log' as const }),
     scriptLabel: test.matchesCurrentScript && script !== null ? `Version ${script.version}` : 'Draft, not saved',
     checkout: sha === undefined ? 'Cloning…' : sha.slice(0, SHA7),

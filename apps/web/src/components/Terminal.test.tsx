@@ -224,3 +224,21 @@ describe('EventLog', () => {
     expect(screen.queryByText('1')).toBeNull();
   });
 });
+
+describe('Terminal scrollable', () => {
+  const lines = [[{ text: 'a very long output line '.repeat(20) }]];
+
+  it('is keyboard-focusable and marked scrollable, so a long log can be read in full', () => {
+    render(<Terminal lines={lines} scrollable aria-label="Setup log" />);
+    const log = screen.getByRole('log', { name: 'Setup log' });
+    expect(log).toHaveAttribute('tabindex', '0');
+    expect(log.className).toContain(styles.scroll);
+  });
+
+  it('the default stays a clipped, non-focusable transcript', () => {
+    render(<Terminal lines={lines} aria-label="Run log" />);
+    const log = screen.getByRole('log', { name: 'Run log' });
+    expect(log).not.toHaveAttribute('tabindex');
+    expect(log.className).not.toContain(styles.scroll);
+  });
+});

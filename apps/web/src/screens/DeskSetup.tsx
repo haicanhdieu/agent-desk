@@ -37,7 +37,8 @@ export interface SavedSetupScript {
 
 /** The latest finished test, shown when no test workspace is open. */
 export interface LastSetupTest {
-  result: 'passed' | 'failed';
+  /** `ended`: the workspace is gone and no result was recorded (it could not start, died, or was ended early). */
+  result: 'passed' | 'failed' | 'ended';
   /** The test ran exactly the saved script (by hash). */
   matchesSaved: boolean;
   /** "Today 14:22 by kim-hale, 2m 41s. Clone, 2 plugins installed, 1 blocked, setup exited 0." */
@@ -51,6 +52,8 @@ export interface SetupTestView {
   plugins: PluginListProps['plugins'];
   lines: TermLine[];
   view?: 'log' | 'terminal';
+  /** Why setup failed, in words (exit code meaning, failing script line, its output). Only for a failed setup. */
+  failure?: { title: string; detail: string };
   /** "Draft, 1 line changed from v4" or "Version 4". */
   scriptLabel: string;
   checkout: string;
@@ -104,6 +107,20 @@ function LastTestBanner({ lastTest, onViewLog }: { lastTest?: LastSetupTest; onV
       </Banner>
     );
   }
+  if (lastTest.result === 'ended') {
+    return (
+      <Banner
+        tone="warn"
+        icon={<Icon name="warning" size={16} />}
+        title="Last test ended without a result"
+        live="polite"
+        centered
+      >
+        {lastTest.summary} The test workspace could not start or was ended before setup finished. If you did not end it,
+        check that the cluster is reachable and the worker is running, then test again.
+      </Banner>
+    );
+  }
   const passed = lastTest.result === 'passed';
   const title = passed
     ? lastTest.matchesSaved
@@ -152,7 +169,14 @@ export function DeskSetup({
   const saved = script?.body ?? '';
   const [value, setValue] = useState(draft ?? (script ? script.body : SETUP_SCRIPT_STARTER));
   const [note, setNote] = useState('');
-  const [view, setView] = useState(test?.view ?? 'terminal');
+  // A failed setup opens on the log: its output is the reason, and the shell has nothing to show for it.
+  const failed = test?.status === 'failed';
+  const [view, setView] = useState(test?.view ?? (failed ? 'log' : 'terminal'));
+  const [sawFailed, setSawFailed] = useState(failed);
+  if (failed !== sawFailed) {
+    setSawFailed(failed);
+    if (failed) setView('log');
+  }
   const dirty = value !== saved;
   const nextVersion = (script?.version ?? 0) + 1;
 
@@ -245,6 +269,13 @@ export function DeskSetup({
                 </StatusBadge>
                 <SetupPhases phases={test.phases} />
               </div>
+              {test.failure && (
+                <div className={styles.setupFailure}>
+                  <Banner tone="err" icon={<Icon name="warning" size={16} />} title={test.failure.title} live="polite">
+                    {test.failure.detail}
+                  </Banner>
+                </div>
+              )}
               <TerminalPane
                 bar={
                   <TerminalBar
@@ -266,8 +297,16 @@ export function DeskSetup({
                   />
                 }
               >
-                {test.terminal ?? (
-                  <Terminal lines={test.lines} cursor={view === 'terminal'} aria-label="Test workspace terminal" />
+                {/* The Log tab is always the stored log; the live shell only replaces it on the Terminal tab. */}
+                {test.terminal && view === 'terminal' ? (
+                  test.terminal
+                ) : (
+                  <Terminal
+                    lines={test.lines}
+                    cursor={view === 'terminal'}
+                    scrollable
+                    aria-label="Test workspace terminal"
+                  />
                 )}
               </TerminalPane>
             </>

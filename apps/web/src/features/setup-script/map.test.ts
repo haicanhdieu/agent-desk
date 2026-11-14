@@ -205,10 +205,11 @@ describe('toDeskSetupProps', () => {
         });
       }
 
-      it('ended without a result (status ended): no banner; the log shows as failed', () => {
+      it('ended without a result (status ended): the banner says so; the log shows as failed', () => {
         const latest = test({ status: 'ended', exitCode: null, finishedAt: null, endedAt: local(14, 25) });
         const p = toDeskSetupProps(data({ latest }), now, { showEnded: true });
-        expect(p.lastTest).toBeUndefined();
+        expect(p.lastTest).toMatchObject({ result: 'ended', matchesSaved: false });
+        expect(p.lastTest?.summary).toContain('ended before setup finished');
         expect(p.test).toMatchObject({ status: 'failed', view: 'log' });
         expect(props({ latest }).test).toBeUndefined();
       });
@@ -229,8 +230,8 @@ describe('toDeskSetupProps', () => {
       });
     });
 
-    it('a test ended before setup finished has no result', () => {
-      expect(props({ latest: test({ status: 'ended', endedAt: local(14, 25) }) }).lastTest).toBeUndefined();
+    it('a test ended before setup finished reports "ended", never a pass or a fail', () => {
+      expect(props({ latest: test({ status: 'ended', endedAt: local(14, 25) }) }).lastTest?.result).toBe('ended');
     });
 
     it('no test at all: no banner data', () => {
@@ -503,5 +504,51 @@ describe('toSetupStepTest', () => {
     const latest = test({ status: 'failed', exitCode: 1, finishedAt: local(14, 23), checkoutSha: SHA });
     const view = toDeskSetupProps({ script: script(), versions: [], plugins: noPlugins, latest, events: [] }, now);
     expect(toSetupStepTest(view)).toMatchObject({ state: 'failed', title: 'Setup failed' });
+  });
+});
+
+describe('a failed setup explains itself', () => {
+  const failedRun = (exitCode: number, output: string) =>
+    props({
+      script: script({ body: '#!/usr/bin/env bash\nset -e\necho hi\nsudo apt-get update\n' }),
+      latest: test({ status: 'failed', exitCode, finishedAt: local(14, 23), checkoutSha: SHA }),
+      events: [
+        ev(local(14, 22, 10), { kind: 'setup_begin', text: 'agentdesk: setup begin' }),
+        ev(local(14, 22, 11), { kind: 'setup_output', text: output, truncated: false }),
+        ev(local(14, 22, 12), { kind: 'setup_failed', text: `agentdesk: setup failed exit=${exitCode}`, exitCode }),
+      ],
+    });
+
+  it('names the exit code, quotes the failing script line and the error output', () => {
+    const p = failedRun(127, '/tmp/tmp.U1RRh1KlsN: line 4: sudo: command not found\n');
+    expect(p.test?.failure).toEqual({
+      title: 'Setup script failed: exit 127 (command not found)',
+      detail: 'Line 4 of the script: sudo apt-get update. Output: sudo: command not found',
+    });
+  });
+
+  it('shows the script as "setup script, line N" instead of the runner temp path', () => {
+    const p = failedRun(127, '/tmp/tmp.U1RRh1KlsN: line 4: sudo: command not found\n');
+    const text = p.test?.lines.map((l) => l.map((x) => x.text).join('')).join('\n');
+    expect(text).toContain('setup script, line 4: sudo: command not found');
+    expect(text).not.toContain('/tmp/tmp.');
+  });
+
+  it('without a line number, still gives the exit meaning; the draft script is not quoted when it differs', () => {
+    const p = failedRun(1, 'npm ERR! missing script\n');
+    expect(p.test?.failure?.title).toBe('Setup script failed: exit 1');
+    expect(p.test?.failure?.detail).toBe('Output: npm ERR! missing script');
+    const draft = props({
+      latest: test({ status: 'failed', matchesCurrentScript: false, finishedAt: local(14, 23) }),
+      events: [
+        ev(local(14, 22, 11), { kind: 'setup_output', text: 'x: line 2: boom\n', truncated: false }),
+        ev(local(14, 22, 12), { kind: 'setup_failed', text: 'agentdesk: setup failed exit=2', exitCode: 2 }),
+      ],
+    });
+    expect(draft.test?.failure?.detail).not.toContain('of the script:');
+  });
+
+  it('a passing or running test has no failure summary', () => {
+    expect(props({ latest: test({ status: 'running' }) }).test?.failure).toBeUndefined();
   });
 });

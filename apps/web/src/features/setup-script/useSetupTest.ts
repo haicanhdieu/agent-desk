@@ -21,7 +21,7 @@ const empty = (id: string | undefined): State => ({ id, test: null, events: [] }
  * The setup test's event stream (spec §5.5): `status` frames (the test) and `event` frames (its log) from
  * `setupTests.events`, while `testId` is set and the test has not ended. The browser reconnects by itself and sends
  * `Last-Event-ID`; only when it gives up (CLOSED) does the hook open a new stream with `after=` the last `seq` seen,
- * backing off and stopping after STREAM_MAX_ATTEMPTS failures in a row. A test that has ended ends the stream. A new
+ * backing off and stopping after STREAM_MAX_ATTEMPTS failures in a row. A test that has ended ends the stream once its backlog has been read. A new
  * `testId` starts from nothing.
  */
 export function useSetupTest(testId: string | undefined): SetupTestStream {
@@ -44,7 +44,12 @@ export function useSetupTest(testId: string | undefined): SetupTestStream {
         attempts = 0;
       });
       es.addEventListener('error', () => {
-        if (done || es.readyState !== EventSource.CLOSED) return;
+        // The test has ended and the server closed the stream after its backlog: stop, do not let the browser reconnect.
+        if (done) {
+          es.close();
+          return;
+        }
+        if (es.readyState !== EventSource.CLOSED) return;
         es.close();
         if (attempts >= STREAM_MAX_ATTEMPTS) return;
         retry = setTimeout(connect, streamRetryDelay(attempts));
@@ -61,8 +66,9 @@ export function useSetupTest(testId: string | undefined): SetupTestStream {
         if (!t || t.id !== testId) return;
         update((s) => ({ ...s, test: t }));
         if (t.endedAt === null && t.status !== 'ended') return;
+        // The server sends the status first, then the stored events, then ends the stream. Closing here would drop the
+        // backlog of a test that had already ended, so only mark it done: the stream's own end closes it (above).
         done = true;
-        es.close();
       });
     };
 

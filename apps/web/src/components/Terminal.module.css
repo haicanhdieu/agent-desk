@@ -92,6 +92,12 @@
   white-space: pre;
   position: relative;
 }
+.term.scroll {
+  overflow-y: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  justify-content: flex-start;
+}
 .term.top {
   justify-content: flex-start;
 }

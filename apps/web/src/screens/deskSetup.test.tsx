@@ -50,6 +50,14 @@ describe('DeskSetup', () => {
     expect(screen.queryByText(/No versions yet/)).not.toBeInTheDocument();
   });
 
+  it('warns when the last test ended without a result', () => {
+    render(
+      <DeskSetup {...props} lastTest={{ result: 'ended', matchesSaved: false, summary: 'Today 14:22 by kim.' }} />,
+    );
+    expect(screen.getByText('Last test ended without a result')).toBeInTheDocument();
+    expect(screen.getByText(/could not start/i)).toBeInTheDocument();
+  });
+
   it('warns when the last pass was on an older script', () => {
     render(<DeskSetup {...props} lastTest={{ result: 'passed', matchesSaved: false, summary: 'On version 3.' }} />);
     expect(screen.getByText('Last test passed, but the script changed since')).toBeInTheDocument();
@@ -87,6 +95,53 @@ describe('DeskSetup', () => {
     expect(screen.getByText('Repo token only. Claude is not started.')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'End test' }));
     expect(onEndTest).toHaveBeenCalled();
+  });
+
+  describe('with the live terminal attached', () => {
+    const live = {
+      status: 'failed' as const,
+      phases: setupPhases.failed,
+      plugins: setupPlugins.result,
+      lines: setupTestTerminal,
+      scriptLabel: 'Draft',
+      checkout: 'main a91c3e2',
+      started: '14:31',
+      endsIn: '13 min',
+      terminal: <div data-testid="live-shell">runner$</div>,
+    };
+
+    it('a failed setup opens on the log, so the reason is visible without a click', () => {
+      render(<DeskSetup {...props} test={live} />);
+      expect(screen.getByRole('log', { name: 'Test workspace terminal' })).toHaveTextContent(
+        'agentdesk: setup failed exit=1',
+      );
+      expect(screen.queryByTestId('live-shell')).not.toBeInTheDocument();
+    });
+
+    it('a failed setup shows what failed above the log', () => {
+      render(
+        <DeskSetup
+          {...props}
+          test={{
+            ...live,
+            failure: {
+              title: 'Setup script failed: exit 127 (command not found)',
+              detail: 'Line 11 of the script: sudo x.',
+            },
+          }}
+        />,
+      );
+      expect(screen.getByText('Setup script failed: exit 127 (command not found)')).toBeInTheDocument();
+      expect(screen.getByText('Line 11 of the script: sudo x.')).toBeInTheDocument();
+    });
+
+    it('the Terminal tab shows the live shell, the Log tab the stored log', async () => {
+      render(<DeskSetup {...props} test={{ ...live, status: 'passed' }} />);
+      await userEvent.click(screen.getByRole('tab', { name: 'Log' }));
+      expect(screen.getByRole('log', { name: 'Test workspace terminal' })).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('tab', { name: 'Terminal' }));
+      expect(screen.getByTestId('live-shell')).toBeInTheDocument();
+    });
   });
 
   it('has loading and error states', () => {

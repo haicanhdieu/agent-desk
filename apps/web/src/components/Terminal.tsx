@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import styles from './Terminal.module.css';
 
 export type TermTone =
@@ -28,17 +28,25 @@ export interface TerminalProps {
   cursor?: boolean;
   anchor?: 'bottom' | 'top';
   dimmed?: boolean;
+  /** A log to read in full: long lines wrap, the pane scrolls (keyboard too) and opens at the end. */
+  scrollable?: boolean;
   'aria-label'?: string;
 }
 
-/** Read-only transcript. Long lines are clipped (`white-space: pre`), never wrapped. */
+/** Read-only transcript. Long lines are clipped (`white-space: pre`) unless `scrollable`. */
 export function Terminal({
   lines,
   cursor,
   anchor = 'bottom',
   dimmed,
+  scrollable,
   'aria-label': label = 'Claude Code terminal',
 }: TerminalProps) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (scrollable && el) el.scrollTop = el.scrollHeight;
+  }, [scrollable, lines.length]);
   const rows = cursor && lines.length === 0 ? [[]] : lines;
   // The cursor sits on the input prompt row (a lone "> ") when there is one, otherwise on the last row.
   let last = rows.length - 1;
@@ -50,7 +58,9 @@ export function Terminal({
   }
   return (
     <div
-      className={cx(styles.term, anchor === 'top' && styles.top, dimmed && styles.dimmed)}
+      ref={ref}
+      className={cx(styles.term, anchor === 'top' && styles.top, dimmed && styles.dimmed, scrollable && styles.scroll)}
+      {...(scrollable && { tabIndex: 0 })}
       role="log"
       aria-live="off"
       aria-label={label}

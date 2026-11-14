@@ -446,6 +446,9 @@
   flex-direction: column;
   border-bottom: 1px solid var(--line);
 }
+.setupFailure {
+  padding: 0 16px 8px;
+}
 .setupPhaseBar {
   display: flex;
   align-items: center;
