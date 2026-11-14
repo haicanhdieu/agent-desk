@@ -1,0 +1,102 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  TZ: UTC
+
+jobs:
+  format:
+    name: static / format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm format:check
+
+  lint:
+    name: static / lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm lint
+
+  typecheck:
+    name: static / typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm typecheck
+
+  unit:
+    name: test / unit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm test:unit
+      - run: pnpm test:scripts
+
+  plan:
+    name: test / plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - id: matrix
+        run: echo "matrix=$(pnpm --silent exec tsx scripts/ci-matrix.ts)" >> "$GITHUB_OUTPUT"
+
+  integration:
+    name: test / integration (${{ matrix.pkg }} ${{ matrix.shard }}/${{ matrix.total }})
+    needs: plan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - name: Pull the Postgres image (retry on registry limits)
+        run: |
+          for attempt in 1 2 3; do
+            docker pull postgres:18 && exit 0
+            sleep $((attempt * 10))
+          done
+          exit 1
+      - run: pnpm --filter "@agentdesk/${{ matrix.pkg }}" test:integration --shard=${{ matrix.shard }}/${{ matrix.total }}
+
+  gate:
+    name: gate / ci-passed
+    if: always()
+    needs: [format, lint, typecheck, unit, plan, integration]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every needed job must have succeeded
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "needed job results: $RESULTS"
+          for r in $RESULTS; do
+            [ "$r" = "success" ] || { echo "::error::a needed job ended as '$r'"; exit 1; }
+          done
