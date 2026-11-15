@@ -21,7 +21,8 @@ export const projectFixtures: ProjectDto[] = [
     triggerMode: 'webhook',
     pollIntervalSeconds: 300,
     createdAt: '2026-09-02T09:20:00.000Z',
-    counts: { needsYou: 1, running: 2, queued: 1 },
+    // Run 62 is idle, run 64 is paused: both need a person; only run 62 holds a pod.
+    counts: { needsYou: 2, running: 2, queued: 1 },
     lastRunAt: '2026-11-12T14:12:00.000Z',
   },
   {

@@ -149,7 +149,7 @@ describe('runs route', () => {
     try {
       await renderRoute(`${base}/runs`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
-      expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('1');
+      expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('2');
       // Run 61 goes idle while the tab is in the background; the cached data is now past its 30 s stale time.
       const run61 = mockDb.state.runs.find((r) => r.number === 61);
       if (!run61) throw new Error('run 61 fixture missing');
@@ -160,7 +160,7 @@ describe('runs route', () => {
         focusManager.setFocused(false);
         focusManager.setFocused(true);
       });
-      await waitFor(() => expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('2'));
+      await waitFor(() => expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('3'));
       const row61 = screen.getByRole('link', { name: 'Run 61' }).closest('tr');
       if (!row61) throw new Error('row 61 missing');
       expect(within(row61).getByText(/Waiting \dm/)).toBeInTheDocument();
@@ -232,7 +232,7 @@ describe('needs-you route', () => {
     const link = await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
     expect(link).toHaveAttribute('href', `${base}/runs/62`);
     expect(screen.getByText('Run 62 needs you')).toBeInTheDocument();
-    expect(screen.getByText('(1) Needs you, invoicer-api')).toBeInTheDocument();
+    expect(screen.getByText('(2) Needs you, invoicer-api')).toBeInTheDocument();
     expect(queries.some((q) => new URLSearchParams(q).get('filter') === 'needs_you')).toBe(true);
   });
 

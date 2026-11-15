@@ -89,7 +89,8 @@ describe('MSW handlers cover the contract', () => {
       'billing-jobs',
     ]);
     await expect(api.projects.get({ params: { projectId: P } })).resolves.toMatchObject({
-      counts: { needsYou: 1, running: 2, queued: 1 },
+      // Run 62 is idle and run 64 is paused: both need a person.
+      counts: { needsYou: 2, running: 2, queued: 1 },
     });
     await expect(api.projects.connection({ params: { projectId: P } })).resolves.toMatchObject({ mode: 'webhook' });
     await expect(api.projects.ignored({ params: { projectId: P } })).resolves.toHaveLength(5);
@@ -112,7 +113,7 @@ describe('MSW handlers cover the contract', () => {
 
   it('filters and pages runs', async () => {
     const needsYou = await api.runs.list({ params: { projectId: P }, query: { filter: 'needs_you' } });
-    // The list holds paused runs too (the project's needsYou count does not).
+    // The list and the project's needsYou count hold idle and paused runs.
     expect(needsYou.items.map((r) => r.number)).toEqual([64, 62]);
     const ended = await api.runs.list({ params: { projectId: P }, query: { filter: 'ended' } });
     expect(ended.items.map((r) => r.number)).toEqual([66, 65, 60, 57, 56, 55, 54, 52]);
@@ -255,7 +256,8 @@ describe('MSW handler semantics', () => {
     const again = await rejection(api.runs.cancel({ params: { runId: run62.id } }));
     expect(again).toMatchObject({ status: 409, title: 'Run already ended' });
     await expect(api.projects.get({ params: { projectId: P } })).resolves.toMatchObject({
-      counts: { needsYou: 0, running: 0, queued: 1 },
+      // Run 64 is still paused, so it still needs a person.
+      counts: { needsYou: 1, running: 0, queued: 1 },
     });
   });
 

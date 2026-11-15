@@ -67,8 +67,8 @@ function toProjectDto(row: ProjectRow): ProjectDto {
   return {
     ...row,
     counts: {
-      needsYou: runs.filter((r) => r.status === 'idle').length,
-      // As the API counts them: live jobs, idle included (needsYou is a subset).
+      needsYou: runs.filter((r) => r.status === 'idle' || r.status === 'paused').length,
+      // As the API counts them: live jobs, idle included; a paused run has no pod, so it is in needsYou only.
       running: runs.filter((r) => isActive(r.status)).length,
       queued: runs.filter((r) => r.status === 'queued').length,
     },
@@ -136,7 +136,7 @@ function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
 const matchesFilter = (filter: RunListFilter | undefined, s: RunStatus): boolean => {
   switch (filter) {
     case 'needs_you':
-      // As the API: the list holds paused runs too; the project's needsYou count (toProjectDto) is idle runs only.
+      // As the API: idle and paused runs, the same rule as the project's needsYou count (toProjectDto).
       return s === 'idle' || s === 'paused';
     case 'active':
       return isActive(s);

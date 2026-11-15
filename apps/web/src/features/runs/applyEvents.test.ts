@@ -239,7 +239,7 @@ describe('applyRunStatus', () => {
     expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)?.pausedAt).toBe('2026-11-12T14:30:00.000Z');
   });
 
-  it('a paused run is in the needs-you list, but the project needs-you count stays idle runs only', () => {
+  it('a paused run is in the needs-you list and counts as needs you in the project, but is no longer a live job', () => {
     const qc = seeded();
     const before = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
     applyRunStatus(qc, org, projectId, status(61, 'paused', 30));
@@ -248,8 +248,25 @@ describe('applyRunStatus', () => {
     // Run 61 is not cached in the needs-you list: that list is refetched to pick up the paused run.
     expect(qc.getQueryState(runsQueries.list(org, projectId, 'needs_you').queryKey)?.isInvalidated).toBe(true);
     const after = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+    expect(after?.needsYou).toBe((before?.needsYou ?? 0) + 1);
+    expect(after?.running).toBe((before?.running ?? 0) - 1);
+  });
+
+  it('an idle run that is paused stays in needs you and leaves the live jobs', () => {
+    const qc = seeded();
+    const before = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+    applyRunStatus(qc, org, projectId, status(62, 'paused', 30));
+    const after = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
     expect(after?.needsYou).toBe(before?.needsYou);
     expect(after?.running).toBe((before?.running ?? 0) - 1);
+  });
+
+  it('a paused run that is resumed leaves needs you when it starts', () => {
+    const qc = seeded();
+    applyRunStatus(qc, org, projectId, status(62, 'paused', 30));
+    applyRunStatus(qc, org, projectId, status(62, 'queued', 31));
+    const counts = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+    expect(counts).toEqual({ needsYou: 0, running: 1, queued: 2 });
   });
 
   it('a paused run stays in the needs-you list when it was already there as idle', () => {

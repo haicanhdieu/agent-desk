@@ -61,7 +61,7 @@ function patched(run: CachedRun, e: StatusChange): CachedRun {
 const matches = (filter: RunListFilter, status: RunStatus): boolean => {
   switch (filter) {
     case 'needs_you':
-      // The list holds paused runs too; the project's needs-you count (countedIn) does not.
+      // The same rule as the project's needs-you count (countedIn).
       return status === 'idle' || status === 'paused';
     case 'active':
       return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
@@ -81,7 +81,8 @@ const COUNT_KEYS: readonly CountKey[] = ['needsYou', 'running', 'queued'];
 const countedIn = (key: CountKey, status: RunStatus): boolean => {
   switch (key) {
     case 'needsYou':
-      return status === 'idle';
+      // The `needs_you` list: a paused run waits for a person too (it has no pod, so it is not in `running`).
+      return status === 'idle' || status === 'paused';
     case 'running':
       return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
     case 'queued':

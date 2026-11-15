@@ -306,23 +306,24 @@ describe('run detail route, live', () => {
       run.open();
       project.open();
     });
-    expect(counts()).toMatchObject({ counts: { needsYou: 1 } });
+    // Run 62 is idle and run 64 is paused: both need a person.
+    expect(counts()).toMatchObject({ counts: { needsYou: 2 } });
     dbRun(62).status = 'succeeded';
     dbRun(62).finishedAt = new Date().toISOString();
     act(() => run.emit('status', statusMsg(62, 'succeeded', 40), 40));
     expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
-    expect(counts()).toMatchObject({ counts: { needsYou: 0 } });
+    expect(counts()).toMatchObject({ counts: { needsYou: 1 } });
     const sources = FakeEventSource.instances.length;
 
     act(() => project.emit('run', { runId: runId(62), number: 62, status: 'idle', seq: 30 }));
     expect(queryClient.getQueryData(runsQueries.detail(org, projectId, 62).queryKey)?.status).toBe('succeeded');
     expect(screen.getByText(/^Succeeded in /)).toBeInTheDocument();
-    expect(counts()).toMatchObject({ counts: { needsYou: 0 } });
+    expect(counts()).toMatchObject({ counts: { needsYou: 1 } });
     expect(FakeEventSource.instances).toHaveLength(sources);
     act(() => project.emit('run', { runId: runId(62), number: 62, status: 'succeeded', seq: 40 }));
-    expect(counts()).toMatchObject({ counts: { needsYou: 0 } });
+    expect(counts()).toMatchObject({ counts: { needsYou: 1 } });
     expect(FakeEventSource.instances).toHaveLength(sources);
-    await waitFor(() => expect(counts()).toMatchObject({ counts: { needsYou: 0 } }));
+    await waitFor(() => expect(counts()).toMatchObject({ counts: { needsYou: 1 } }));
   });
 
   it('a refetch of the log while streaming keeps the events the stream added', async () => {
@@ -362,7 +363,7 @@ describe('project events', () => {
     const all = queryClient.getQueryData(runsQueries.list(org, projectId, 'all').queryKey);
     expect(all?.items.find((r) => r.number === 61)?.status).toBe('idle');
     expect(queryClient.getQueryData(['org', org, 'projects', projectId])).toMatchObject({
-      counts: { needsYou: 2, running: 2 },
+      counts: { needsYou: 3, running: 2 },
     });
   });
 
