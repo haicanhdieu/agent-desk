@@ -1,5 +1,6 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { WorkflowNotFoundError, type Client } from '@temporalio/client';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   agents,
   connections,
@@ -24,10 +25,11 @@ import {
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { isUniqueViolation } from '../common/pg-errors';
-import { credentialSecretName, type AdapterRegistry, type SecretStore } from '@agentdesk/core';
+import { SIGNAL, credentialSecretName, runWorkflowId, type AdapterRegistry, type SecretStore } from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
+import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { SECRET_STORE } from '../secrets/secret-store.module';
 import { ProjectSchedules } from './project-schedules';
 
@@ -53,7 +55,7 @@ export function assertRepoPathShape(repoPath: string): void {
 }
 
 /** Non-final run statuses: a project with any of these cannot be deleted. */
-const LIVE_STATUSES = ['queued', 'starting', 'running', 'idle', 'done'];
+const LIVE_STATUSES = ['queued', 'starting', 'running', 'idle', 'done', 'paused'];
 
 /** 409: deleting a project while it has live runs would orphan their workflows, Jobs and tokens. */
 export class ActiveRunsConflictException extends ConflictException {
@@ -80,6 +82,7 @@ export class ProjectsService {
     @Inject(ADAPTER_REGISTRY) private readonly registry: AdapterRegistry,
     @Inject(ProjectSchedules) private readonly schedules: ProjectSchedules,
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
+    @Inject(TEMPORAL_CLIENT) private readonly temporal: Client,
   ) {}
 
   /** One grouped query for all requested projects. needsYou = idle runs; running = live jobs (starting, running, idle, done). */
@@ -286,6 +289,25 @@ export class ProjectsService {
         .where(and(eq(runs.projectId, projectId), inArray(runs.status, LIVE_STATUSES)))
         .limit(1);
       if (live) throw new ActiveRunsConflictException();
+      // A succeeded run that keeps its session still has a workflow and a volume: tell it to let go before the rows go.
+      const kept = await tx
+        .select({ id: runs.id })
+        .from(runs)
+        .where(
+          and(
+            eq(runs.projectId, projectId),
+            eq(runs.status, 'succeeded'),
+            isNotNull(runs.sessionExpiresAt),
+            sql`${runs.sessionExpiresAt} > now()`,
+          ),
+        );
+      for (const r of kept) {
+        try {
+          await this.temporal.workflow.getHandle(runWorkflowId(r.id)).signal(SIGNAL.dropSession);
+        } catch (err) {
+          if (!(err instanceof WorkflowNotFoundError)) throw err;
+        }
+      }
       const rows = await tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId));
       await tx.delete(projects).where(eq(projects.id, projectId));
       return rows.map((r) => r.id);

@@ -234,6 +234,60 @@ describe('run events stream', () => {
     expect(last).toMatchObject({ status: 'failed', exitCode: 2, failureReason: 'boom' });
   });
 
+  it('keeps the stream of a succeeded run with a kept session open and delivers a later queued frame', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject, 'succeeded');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx
+        .update(runs)
+        .set({ sessionExpiresAt: new Date(Date.now() + 3_600_000) })
+        .where(eq(runs.id, runId)),
+    );
+    const s = await open(`/api/runs/${runId}/events`, alice);
+    try {
+      await s.waitFor((m) => ofType(m, 'status').length >= 1);
+      await sleep(200);
+      expect(s.messages.some((m) => m.event === 'status' && m.data.includes('"succeeded"'))).toBe(true);
+      await commit(aliceOrg, runId, 'queued');
+      await s.waitFor((m) => ofType(m, 'status').some((x) => x.data.includes('"queued"')));
+    } finally {
+      s.abort();
+    }
+  });
+
+  it('ends the stream of an expired run', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject, 'expired');
+    const s = await open(`/api/runs/${runId}/events`, alice);
+    await s.closed;
+    expect(ofType(s.messages, 'status')).toHaveLength(1);
+  });
+
+  it('a project stream passes succeeded then queued for a kept-session run, and resync re-sends it', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject, 'succeeded');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx
+        .update(runs)
+        .set({ sessionExpiresAt: new Date(Date.now() + 3_600_000) })
+        .where(eq(runs.id, runId)),
+    );
+    const s = await open(`/api/projects/${aliceProject}/events`, alice);
+    try {
+      await sleep(200);
+      // Force a resync (LISTEN reconnect path): a kept-session run must be part of it.
+      await t.db.pool.query(
+        "select pg_terminate_backend(pid) from pg_stat_activity where query like 'LISTEN run_status%' and pid <> pg_backend_pid()",
+      );
+      await s.waitFor(
+        (m) => ofType(m, 'run').some((x) => x.data.includes(runId) && x.data.includes('"succeeded"')),
+        10000,
+      );
+      await commit(aliceOrg, runId, 'succeeded');
+      await commit(aliceOrg, runId, 'queued');
+      await s.waitFor((m) => ofType(m, 'run').some((x) => x.data.includes(runId) && x.data.includes('"queued"')));
+    } finally {
+      s.abort();
+    }
+  });
+
   it('sends the backlog then closes for an already-final run', async () => {
     const runId = await insertRun(aliceOrg, aliceProject, 'succeeded');
     await addEvents(aliceOrg, runId, 2);

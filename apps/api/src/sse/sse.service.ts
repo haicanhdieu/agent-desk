@@ -4,6 +4,7 @@ import { and, asc, eq, gt, inArray, notInArray, or, sql } from 'drizzle-orm';
 import { projects, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
 import {
   FINAL_RUN_STATUSES,
+  isSettled,
   ProjectRunEvent,
   RunEventMessage,
   RunStatus,
@@ -195,7 +196,7 @@ export class SseService implements OnModuleDestroy {
         cur = next;
       }
       sendStatus({ ...cur.status, seq: Math.max(cur.status.seq, lastSeq) });
-      if (isFinal(cur.status.status)) writer.end();
+      if (isSettled(cur.status, new Date())) writer.end();
     };
 
     const flush = async (): Promise<void> => {
@@ -228,7 +229,9 @@ export class SseService implements OnModuleDestroy {
       if (prev) {
         if (prev.status === status && prev.seq === seq) return;
         // A stale resync must never overwrite a fresher frame.
-        if (prev.seq > seq || (isFinal(prev.status) && !isFinal(status))) return;
+        if (prev.seq > seq) return;
+        // A final run never comes back, except a succeeded one re-opened from its kept session.
+        if (isFinal(prev.status) && !isFinal(status) && !(prev.status === 'succeeded' && status === 'queued')) return;
       }
       lastFrame.set(runId, { status, seq });
       writer.event('run', ProjectRunEvent.parse({ runId, number, status, seq }));
@@ -249,10 +252,13 @@ export class SseService implements OnModuleDestroy {
             .where(
               and(
                 eq(runs.projectId, projectId),
-                // Unfinished runs, plus runs this stream last saw as unfinished (they may have finished in the gap).
-                seenOpen.length > 0
-                  ? or(notInArray(runs.status, [...FINAL_RUN_STATUSES]), inArray(runs.id, seenOpen))
-                  : notInArray(runs.status, [...FINAL_RUN_STATUSES]),
+                // Unfinished runs, runs that still keep a session (they can be re-opened), plus runs this stream last
+                // saw as unfinished (they may have finished in the gap).
+                or(
+                  notInArray(runs.status, [...FINAL_RUN_STATUSES]),
+                  gt(runs.sessionExpiresAt, sql`now()`),
+                  seenOpen.length > 0 ? inArray(runs.id, seenOpen) : undefined,
+                ),
               ),
             )
             .limit(RESYNC_LIMIT),

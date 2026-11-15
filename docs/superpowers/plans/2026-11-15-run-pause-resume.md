@@ -446,7 +446,7 @@ Behaviour:
 - SSE: the run stream is closed only when `isSettled`; the guard that drops a frame going from a final status to a non-final one lets `succeeded → queued` through; the re-send query after a reconnect also includes runs with `session_expires_at` in the future.
 - Terminal attach is unchanged: no pod means refused.
 
-- [ ] **Step 1: Write failing integration tests:**
+- [x] **Step 1: Write failing integration tests:**
   - resume a `paused` run → 204 and the fake Temporal client saw the `resumeRun` update;
   - resume a `succeeded` run with a kept session → 204; with an expired or null session → 409;
   - resume a `running` run → 409; resume a run of another org → 404; resume without a session → 401 (authz);
@@ -456,10 +456,10 @@ Behaviour:
   - list `needs_you` returns idle and paused runs; `ended` returns an expired run;
   - deleting a project with a `paused` run → 409; with only a `succeeded` kept-session run → deleted, and `dropSession` was signalled;
   - SSE: a stream on a `succeeded` kept-session run stays open and delivers a later `queued` frame; a stream on an `expired` run ends.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(api): resume endpoint and kept-session handling`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(api): resume endpoint and kept-session handling`.
 
 ---
 

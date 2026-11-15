@@ -2,7 +2,7 @@ import type { QueryResultRow } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { WorkflowNotFoundError } from '@temporalio/client';
 import type { ProjectDto } from '@agentdesk/contracts';
-import { credentialSecretName } from '@agentdesk/core';
+import { SIGNAL, credentialSecretName } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -328,7 +328,7 @@ describe('projects', () => {
       return secret;
     }
 
-    it.each(['queued', 'starting', 'running', 'idle', 'done'])(
+    it.each(['queued', 'starting', 'running', 'idle', 'done', 'paused'])(
       'a %s run blocks the delete with a 409 problem and nothing is removed',
       async (status) => {
         const p = (await createProject({ triggerMode: 'polling' })).json() as ProjectDto;
@@ -356,6 +356,46 @@ describe('projects', () => {
       expect(await t.secrets.get(secret)).toBeNull();
       const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
       expect(get.statusCode).toBe(404);
+    });
+
+    it('with a succeeded run that keeps its session: deletes the project and signals dropSession to that run', async () => {
+      const p = (await createProject({})).json() as ProjectDto;
+      const orgId = await aliceOrgId();
+      const kept = await asOrg(
+        orgId,
+        `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                           trigger_source, session_expires_at)
+         values ($1,$2,'fix','fix','1','issue','main','succeeded','manual', now() + interval '1 hour') returning id`,
+        [orgId, p.id],
+      );
+      await asOrg(
+        orgId,
+        `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref, status, trigger_source)
+         values ($1,$2,'fix','fix','2','issue','main','succeeded','manual')`,
+        [orgId, p.id],
+      );
+      t.temporal.reset();
+      const res = await t.app.inject({ method: 'DELETE', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+      expect(res.statusCode).toBe(204);
+      expect(t.temporal.callsOfKind('signal')).toMatchObject([
+        { workflowId: `run-${String(kept.rows[0]?.id)}`, args: [SIGNAL.dropSession] },
+      ]);
+    });
+
+    it('a dropSession signal to a workflow that is gone does not fail the delete', async () => {
+      const p = (await createProject({})).json() as ProjectDto;
+      const orgId = await aliceOrgId();
+      await asOrg(
+        orgId,
+        `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                           trigger_source, session_expires_at)
+         values ($1,$2,'fix','fix','1','issue','main','succeeded','manual', now() + interval '1 hour')`,
+        [orgId, p.id],
+      );
+      t.temporal.reset();
+      t.temporal.signalFailure = (id) => new WorkflowNotFoundError('gone', id ?? '', undefined);
+      const res = await t.app.inject({ method: 'DELETE', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+      expect(res.statusCode).toBe(204);
     });
 
     it('a missing gate workflow is fine: still 204 and the Secret is deleted', async () => {

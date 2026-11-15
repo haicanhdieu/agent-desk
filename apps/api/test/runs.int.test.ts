@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError } from '@temporalio/client';
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { UPDATE } from '@agentdesk/core';
-import { inboundEvents, runEvents, runs, withOrg } from '@agentdesk/db';
+import { agents, inboundEvents, runEvents, runs, withOrg } from '@agentdesk/db';
 import type { IgnoredEventDto, RunDto, RunListResponse, RunLogResponse } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
@@ -194,6 +194,154 @@ describe('run reads', () => {
     expect(capped.items).toHaveLength(5000);
     expect(capped.items[0]?.seq).toBe(4);
     expect(capped.items[4999]?.seq).toBe(5003);
+  });
+});
+
+describe('resume, paused and kept sessions', () => {
+  const later = () => new Date(Date.now() + 3_600_000);
+  const earlier = () => new Date(Date.now() - 3_600_000);
+
+  async function agentWithCredential(set: boolean): Promise<string> {
+    const [row] = await withOrg(t.db, orgId, (tx) =>
+      tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId)).limit(1),
+    );
+    if (!row) throw new Error('no agent');
+    await withOrg(t.db, orgId, (tx) =>
+      tx
+        .update(agents)
+        .set(
+          set
+            ? { credentialSecretName: 'org-x-agent-y', credentialType: 'api_key' }
+            : { credentialSecretName: null, credentialType: null },
+        )
+        .where(eq(agents.id, row.id)),
+    );
+    return row.id;
+  }
+
+  it('resume on a paused run is 204 and sends the resumeRun update', async () => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ status: 'paused', workflowId: 'run-x', agentId, sessionExpiresAt: later() });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/resume`);
+    expect(res.statusCode).toBe(204);
+    expectContract('runs.resume', res);
+    expect(t.temporal.callsOfKind('update')).toMatchObject([{ workflowId: `run-${run.id}`, args: [UPDATE.resumeRun] }]);
+  });
+
+  it('resume on a succeeded run with a kept session is 204', async () => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ status: 'succeeded', workflowId: 'run-x', agentId, sessionExpiresAt: later() });
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/resume`)).statusCode).toBe(204);
+    expect(t.temporal.callsOfKind('update')).toHaveLength(1);
+  });
+
+  it.each([
+    ['an expired session', { status: 'succeeded', sessionExpiresAt: earlier() }],
+    ['no session', { status: 'succeeded', sessionExpiresAt: null }],
+    ['a running run', { status: 'running', sessionExpiresAt: null }],
+  ])('resume on %s is a 409 and sends nothing', async (_name, over) => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ ...over, workflowId: 'run-x', agentId });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/resume`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe(
+      'Only a paused run, or a finished run whose session is still kept, can be resumed',
+    );
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+
+  it("resume on another org's run is 404 and without a session is 401", async () => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ status: 'paused', workflowId: 'run-x', agentId, sessionExpiresAt: later() });
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/resume`, bob)).statusCode).toBe(404);
+    const anon = await t.app.inject({ method: 'POST', url: `/api/runs/${run.id}/resume` });
+    expect(anon.statusCode).toBe(401);
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+
+  it('resume answered NotResumable by the workflow is a 409 with its message', async () => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ status: 'paused', workflowId: 'run-x', agentId, sessionExpiresAt: later() });
+    t.temporal.reset();
+    const message = 'This run is already being resumed';
+    t.temporal.updateFailure = () =>
+      new WorkflowUpdateFailedError('Workflow Update failed', ApplicationFailure.nonRetryable(message, 'NotResumable'));
+    const res = await post(`/api/runs/${run.id}/resume`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe(message);
+  });
+
+  it('resume with the workflow gone, or completed mid-update, is a 409 Run is no longer active', async () => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ status: 'paused', workflowId: 'run-x', agentId, sessionExpiresAt: later() });
+    for (const failure of [
+      new WorkflowNotFoundError('gone', 'x', undefined),
+      new WorkflowUpdateFailedError(
+        'Workflow Update failed',
+        ApplicationFailure.nonRetryable('completed', 'AcceptedUpdateCompletedWorkflow'),
+      ),
+    ]) {
+      t.temporal.reset();
+      t.temporal.updateFailure = () => failure;
+      const res = await post(`/api/runs/${run.id}/resume`);
+      expect(res.statusCode).toBe(409);
+      expect((res.json() as { detail: string }).detail).toBe('Run is no longer active');
+    }
+  });
+
+  it('resume failing for any other reason is not hidden as a 409', async () => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ status: 'paused', workflowId: 'run-x', agentId, sessionExpiresAt: later() });
+    t.temporal.reset();
+    t.temporal.updateFailure = () => new Error('temporal is down');
+    expect((await post(`/api/runs/${run.id}/resume`)).statusCode).toBe(500);
+  });
+
+  it('resume when the agent credential was removed is a 409 and sends nothing', async () => {
+    const agentId = await agentWithCredential(false);
+    const run = await insertRun({ status: 'paused', workflowId: 'run-x', agentId, sessionExpiresAt: later() });
+    const noAgent = await insertRun({ status: 'paused', workflowId: 'run-x', sessionExpiresAt: later() });
+    for (const id of [run.id, noAgent.id]) {
+      t.temporal.reset();
+      const res = await post(`/api/runs/${id}/resume`);
+      expect(res.statusCode).toBe(409);
+      expect((res.json() as { detail: string }).detail).toBe(
+        'This project has no agent credential, so the run cannot be resumed',
+      );
+      expect(t.temporal.calls).toHaveLength(0);
+    }
+    await agentWithCredential(true);
+  });
+
+  it('finish on a paused run is 202 via the finish update', async () => {
+    const run = await insertRun({ status: 'paused', workflowId: 'run-x' });
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/finish`)).statusCode).toBe(202);
+    expect(t.temporal.callsOfKind('update')).toMatchObject([{ workflowId: `run-${run.id}`, args: [UPDATE.finishRun] }]);
+  });
+
+  it('cancel on a succeeded run with a kept session stays a 409', async () => {
+    const run = await insertRun({ status: 'succeeded', sessionExpiresAt: later() });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/cancel`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe('Run already succeeded');
+  });
+
+  it('list needs_you returns idle and paused runs; ended returns an expired run', async () => {
+    const { projectId: pid } = await makeProject(t, alice, await installFake(t, alice));
+    const idle = await insertRun({ status: 'idle' }, pid);
+    const paused = await insertRun({ status: 'paused' }, pid);
+    const expired = await insertRun({ status: 'expired' }, pid);
+    await insertRun({ status: 'running' }, pid);
+    const needs = (await listRuns('?filter=needs_you', pid)).json() as RunListResponse;
+    expect(needs.items.map((r) => r.id).sort()).toEqual([idle.id, paused.id].sort());
+    const ended = (await listRuns('?filter=ended', pid)).json() as RunListResponse;
+    expect(ended.items.map((r) => r.id)).toEqual([expired.id]);
   });
 });
 

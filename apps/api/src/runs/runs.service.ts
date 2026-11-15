@@ -13,6 +13,7 @@ import {
   TicketKind,
   TriggerSource,
   WaitingOn,
+  canResume,
   type IgnoredEventDto,
   type RunDto,
   type RunListQuery,
@@ -192,7 +193,7 @@ export class RunsService {
       const conds: (SQL | undefined)[] = [eq(runs.projectId, projectId)];
       switch (q.filter) {
         case 'needs_you':
-          conds.push(eq(runs.status, 'idle'));
+          conds.push(inArray(runs.status, ['idle', 'paused']));
           break;
         case 'active':
           conds.push(inArray(runs.status, [...ACTIVE_RUN_STATUSES]));
@@ -313,6 +314,54 @@ export class RunsService {
       )
         throw new ConflictException(err.cause.message);
       // The server fails an accepted update when the workflow completes before the handler returns.
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'AcceptedUpdateCompletedWorkflow'
+      )
+        throw new ConflictException('Run is no longer active');
+      throw err;
+    }
+  }
+
+  /**
+   * Resume is a workflow update that is accepted at once (the pod starts afterwards). The DB status and the agent row
+   * are cheap pre-checks; the workflow's own validator decides, so a second press while resuming is a 409.
+   */
+  async resume(org: OrgContext, runId: string): Promise<void> {
+    const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
+    if (
+      !canResume(
+        { status: RunStatus.parse(run.status), sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null },
+        new Date(),
+      )
+    )
+      throw new ConflictException('Only a paused run, or a finished run whose session is still kept, can be resumed');
+    const agentId = run.agentId;
+    const agent =
+      agentId === null
+        ? undefined
+        : (
+            await withOrg(this.db, org.orgId, (tx) =>
+              tx
+                .select({ credentialSecretName: agents.credentialSecretName })
+                .from(agents)
+                .where(eq(agents.id, agentId))
+                .limit(1),
+            )
+          )[0];
+    if (!agent || agent.credentialSecretName === null)
+      throw new ConflictException('This project has no agent credential, so the run cannot be resumed');
+    try {
+      await this.temporal.workflow.getHandle(runWorkflowId(run.id)).executeUpdate(UPDATE.resumeRun);
+    } catch (err) {
+      if (err instanceof WorkflowNotFoundError) throw new ConflictException('Run is no longer active');
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'NotResumable'
+      )
+        throw new ConflictException(err.cause.message);
       if (
         err instanceof WorkflowUpdateFailedError &&
         err.cause instanceof ApplicationFailure &&
