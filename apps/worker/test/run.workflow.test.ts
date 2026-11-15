@@ -87,6 +87,8 @@ interface Script {
   refreshFailFirst?: number;
   /** Every refreshWorkspaceToken attempt throws a non-retryable error. */
   refreshFailsForGood?: boolean;
+  /** How long parkRun says the session is kept (seconds from `at`); unset means nothing is kept (null expiry). */
+  parkKeepSeconds?: number;
   /** What createRunSecretAndJob and refreshWorkspaceToken report as the next refresh delay (seconds). */
   plannedRefreshSeconds?: number;
 }
@@ -204,10 +206,15 @@ function activities(): RunActivities {
     async deleteRunVolume(ctx) {
       script(ctx.runId).calls.push('deleteRunVolume');
     },
-    // Not called by the workflow yet (parking is Task 9); recorded so a call is visible.
     async parkRun(ctx, input) {
-      script(ctx.runId).calls.push(`parkRun:${input.kind}`);
-      return { status: input.kind === 'done' ? 'succeeded' : 'paused', sessionExpiresAt: null };
+      const s = script(ctx.runId);
+      s.calls.push(`parkRun:${input.kind}`);
+      // Like the real activity, the expiry counts from the workflow's own `at`, so time skipping cannot make it stale.
+      const sessionExpiresAt =
+        s.parkKeepSeconds === undefined
+          ? null
+          : new Date(Date.parse(input.at) + s.parkKeepSeconds * 1000).toISOString();
+      return { status: input.kind === 'done' ? 'succeeded' : 'paused', sessionExpiresAt };
     },
     async endKeptSession(ctx, reason) {
       script(ctx.runId).calls.push(`endKeptSession:${reason}`);
@@ -387,7 +394,8 @@ describe('RunWorkflow', () => {
     expect(out.status).toBe('succeeded');
     expect(count(s, 'endSession')).toBe(1);
     expect((s.endSessionAt ?? 0) - t0).toBeGreaterThanOrEqual(900);
-    expectFinishOnce(s);
+    // Nothing kept: the run closes as succeeded; a person-needed run gets the paused note, not a finish comment.
+    expect(count(s, 'postComment:paused')).toBe(1);
   });
 
   it('idle timer does not fire while a terminal is attached; fires idle-end after the last detach', async () => {
@@ -496,7 +504,7 @@ describe('RunWorkflow', () => {
   });
 
   it('a history near the limit ends the run as failed with a plain reason, and cleanup runs', async () => {
-    const s = newRun({ historyEventLimit: 40 });
+    const s = newRun({ historyEventLimit: 45 });
     const h = await start(s);
     await s.logsStarted.promise;
     await waitPhase(h, 'running');
@@ -835,7 +843,9 @@ describe('RunWorkflow', () => {
     await waitPhase(h, 'agent_done');
     expect((await h.result()).status).toBe('succeeded');
     expect(count(s, 'endSession')).toBe(1);
-    expect(statuses(s)).toEqual(['starting', 'running', 'running', 'done', 'succeeded']);
+    // Nothing kept: parkRun writes the final status, so the workflow writes no `succeeded` of its own.
+    expect(statuses(s)).toEqual(['starting', 'running', 'running', 'done']);
+    expect(count(s, 'parkRun:done')).toBe(1);
   });
 
   it('agentState waiting keeps running and never starts the idle timer', async () => {
@@ -973,11 +983,188 @@ describe('RunWorkflow', () => {
     expect(s.calls.indexOf('deleteJob')).toBeLessThan(s.calls.indexOf('deleteRunVolume'));
   });
 
+  describe('parking (pause-resume)', () => {
+    /** Idle (or done) run whose idle timer fires after 1 s; resolves once the workflow is parked. */
+    async function parkedRun(
+      kind: 'needs_input' | 'done',
+      over: Partial<RunContext> = {},
+      keep: number | undefined = 3600,
+    ) {
+      const s = newRun({ idleEndSeconds: 1, ...over });
+      s.parkKeepSeconds = keep;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, kind);
+      await waitPhase(h, 'parked');
+      return { s, h };
+    }
+
+    it('idle: ends the session, frees the slot, parks as needs_input, posts the paused comment, keeps the volume', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      expect(s.calls.slice(s.calls.indexOf('followPodLogs') + 1)).toEqual([
+        'endSession',
+        'ensureJobGone',
+        'parkRun:needs_input',
+        'postComment:paused',
+      ]);
+      await gateForgot(s);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(count(s, 'postComment:finish')).toBe(0);
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      expect((await state(h)).phase).toBe('parked');
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('done: parks as done and posts the normal finish comment as succeeded', async () => {
+      const { s, h } = await parkedRun('done');
+      expect(count(s, 'parkRun:done')).toBe(1);
+      expect(count(s, 'postComment:paused')).toBe(0);
+      expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded' });
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect((await state(h)).phase).toBe('parked');
+      await h.signal(signals.dropSession);
+      expect((await h.result()).status).toBe('succeeded');
+    });
+
+    it('a parked needs_input run whose keep time passes expires: session ended, volume deleted, finish comment expired', async () => {
+      // Real seconds, not 3600: other tests leave activities in flight, which stops the test server skipping time.
+      const { s, h } = await parkedRun('needs_input', {}, 2);
+      const out = await h.result();
+      expect(out).toEqual({ status: 'expired' });
+      expect(count(s, 'endKeptSession:expired')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'postComment:finish')).toBe(1);
+      expect(s.comments.find((c) => c.kind === 'finish')?.details).toMatchObject({ status: 'expired' });
+      expect((await state(h)).phase).toBe('done');
+      captured['run-park-expire'] = h;
+    });
+
+    it('a parked done run whose keep time passes ends its session without a second comment and stays succeeded', async () => {
+      const { s, h } = await parkedRun('done', {}, 2);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'endKeptSession:expired')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'postComment:finish')).toBe(1);
+    });
+
+    it('dropSession on a parked done run ends the session as dropped and deletes the volume', async () => {
+      const { s, h } = await parkedRun('done');
+      await h.signal(signals.dropSession);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'endKeptSession:dropped')).toBe(1);
+      expect(count(s, 'endKeptSession:expired')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'postComment:finish')).toBe(1);
+    });
+
+    it('dropSession on a parked needs_input run is ignored', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      await h.signal(signals.dropSession);
+      await sleepReal(300);
+      expect((await state(h)).phase).toBe('parked');
+      expect(count(s, 'endKeptSession:dropped')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('finishRun on a parked needs_input run is accepted: volume deleted, succeeded with no session, finish comment', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(s.statuses.at(-1)).toMatchObject({ status: 'succeeded', session: null });
+      expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded' });
+      expect(count(s, 'endKeptSession:expired')).toBe(0);
+    });
+
+    it('finishRun on a parked done run is rejected with NotFinishable', async () => {
+      const { h } = await parkedRun('done');
+      await expect(h.executeUpdate(signals.finishRun)).rejects.toMatchObject({ cause: { type: 'NotFinishable' } });
+      expect((await state(h)).phase).toBe('parked');
+      await h.signal(signals.dropSession);
+      await h.result();
+    });
+
+    it('cancel on a parked needs_input run ends it as cancelled and deletes the volume', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      expect(s.statuses.at(-1)).toMatchObject({ status: 'cancelled', session: null });
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expectFinishOnce(s);
+    });
+
+    it('cancel on a parked done run changes nothing', async () => {
+      const { s, h } = await parkedRun('done');
+      await h.signal(signals.cancel);
+      await sleepReal(300);
+      expect((await state(h)).phase).toBe('parked');
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.dropSession);
+      await h.result();
+    });
+
+    it('nothing kept (null expiry): the volume is deleted and the run closes as succeeded without finalize', async () => {
+      const { s, h } = await parkedRunOrClosed('done');
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'ensureJobGone')).toBe(1);
+      expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded' });
+      expect(statuses(s)).toEqual(['starting', 'running']);
+    });
+
+    async function parkedRunOrClosed(kind: 'needs_input' | 'done') {
+      const s = newRun({ idleEndSeconds: 1 });
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, kind);
+      return { s, h };
+    }
+
+    it('Review Focus 1: attach and working after the session end began still park; no running status after the park', async () => {
+      const s = newRun({ idleEndSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.agentState, 'working');
+      await sleepReal(200);
+      expect((await state(h)).phase).toBe('ending');
+      s.logs.resolve({ exitCode: 0 });
+      await waitPhase(h, 'parked');
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      expect((await state(h)).terminalAttached).toBe(0);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a person pressing Finish on a live idle run ends it: volume deleted, succeeded, never parked', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      await h.executeUpdate(signals.finishRun);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(s.statuses.at(-1)).toMatchObject({ status: 'succeeded', session: null });
+    });
+  });
+
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
     expect(Object.keys(captured).sort()).toEqual([
       'run-cancel-loading',
       'run-cancel-starting',
       'run-idle-finish',
+      'run-park-expire',
       'run-success',
       'run-token-refresh',
     ]);
@@ -990,7 +1177,9 @@ describe('RunWorkflow', () => {
         await writeFile(fixture(name), json + '\n');
       }
     }
-    for (const name of Object.keys(captured)) {
+    // Review Focus 5: `run-idle-timer` was recorded before the pause-resume patch (idle timer, succeeded, no park). A run
+    // like it must replay on the old path: parking it now would be a non-determinism error.
+    for (const name of [...Object.keys(captured), 'run-idle-timer']) {
       const json: unknown = JSON.parse(await readFile(fixture(name), 'utf8'));
       await Worker.runReplayHistory({ workflowsPath }, json, `fixture-${name}`);
     }

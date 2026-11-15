@@ -18,6 +18,7 @@ import type { FinishDetails, FollowPodLogsResult, RunActivities, RunContext } fr
 import {
   agentState,
   cancel,
+  dropSession,
   finish,
   finishRun,
   granted,
@@ -29,6 +30,7 @@ import {
   turnFinished,
   type RunPhase,
 } from './signals';
+import { cancelEffect, parkKindOf, type ParkKind } from './park';
 import { ACTIVITY_RETRY as RETRY } from './retry';
 import { historyTooLong, refreshWaitSeconds, type TokenRefreshPlan } from './token-refresh';
 
@@ -54,14 +56,16 @@ const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
 const TOKEN_REFRESH_PATCH = 'token-refresh';
 /** Marks runs whose cleanup deletes the run volume, so a run already in `finalize` at deploy time replays unchanged. */
 const RUN_VOLUME_PATCH = 'run-volume';
+/** Marks runs that park on idle instead of ending; evaluated once, right after `loadRun`. */
+const PAUSE_RESUME_PATCH = 'pause-resume';
 /** Plain-language reason shown on the run when its history grew too long. */
 export const HISTORY_TOO_LONG_REASON =
   'The run was stopped because its activity log grew too long for the scheduler to keep tracking. Start a new run to continue.';
 const FAILURE_REASON_MAX = 1000;
 const SCROLLBACK_TAIL_MAX = 4000;
 
-type FinalStatus = 'succeeded' | 'failed' | 'cancelled' | 'timed_out';
-const FINAL: readonly string[] = ['succeeded', 'failed', 'cancelled', 'timed_out'] satisfies FinalStatus[];
+type FinalStatus = 'succeeded' | 'failed' | 'cancelled' | 'timed_out' | 'expired';
+const FINAL: readonly string[] = ['succeeded', 'failed', 'cancelled', 'timed_out', 'expired'] satisfies FinalStatus[];
 const isFinal = (s: RunStatus): s is FinalStatus => FINAL.includes(s);
 const ALREADY_FINAL = 'already_final';
 
@@ -79,6 +83,8 @@ export interface RunOutcome {
 interface Outcome extends RunOutcome {
   /** The container exited on its own, so the Job only needs to be confirmed gone; otherwise it is deleted. */
   podExited: boolean;
+  /** The status and finish comment are already written (a parked run that ended): skip `finalize`. */
+  settled?: true;
   scrollbackTail?: string;
   failureStage?: 'setup' | 'agent';
 }
@@ -144,6 +150,15 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   /** Bumped on every state change the idle timer cares about; a changed value restarts the timer. */
   let epoch = 0;
   let stopReason: 'cancelled' | 'timed_out' | undefined;
+  /** `patched('pause-resume')`, read once after `loadRun`; false keeps today's behaviour for runs that started before. */
+  let pauseResume = false;
+  /** What the run was doing when the idle timer fired; set only with `pauseResume`. */
+  let parkKind: ParkKind | undefined;
+  /** `dropSession` arrived for a run that is (or is about to be) parked as done. */
+  let dropRequested = false;
+  /** Seconds the run's pods have used so far; the next pod's allowance is the rest of the limit. */
+  let usedSeconds = 0;
+  let podStartedMs = 0;
 
   let ctx: RunContext | undefined;
   let slotRequested = false;
@@ -154,6 +169,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   const hardTimer = new CancellationScope();
   const stop = (reason: 'cancelled' | 'timed_out'): void => {
     if (stopReason !== undefined || phase === 'finalizing' || phase === 'done') return;
+    // A parked done run is a finished run: cancel does nothing to it.
+    if (reason === 'cancelled' && cancelEffect(phase, parkKind, true) === 'ignore') return;
     stopReason = reason;
     if (reason === 'timed_out') phaseAtTimeout = phase;
     body.cancel();
@@ -201,16 +218,25 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     },
     {
       validator: () => {
-        const rejection = finishRunRejection(phase, ending);
+        const rejection = finishRunRejection(phase, ending, parkKind);
         if (rejection !== undefined) throw ApplicationFailure.nonRetryable(rejection, 'NotFinishable');
       },
     },
   );
   setHandler(cancel, () => stop('cancelled'));
+  // Only a done run's kept session is dropped (the per-project cap, a deleted project); a paused run keeps its own.
+  setHandler(dropSession, () => {
+    if (parkKind === 'done') dropRequested = true;
+  });
 
   const status = (
     s: RunStatus,
-    extra: { exitCode?: number; failureReason?: string; failureStage?: 'setup' | 'agent' } = {},
+    extra: {
+      exitCode?: number;
+      failureReason?: string;
+      failureStage?: 'setup' | 'agent';
+      session?: null;
+    } = {},
   ) => act.setRunStatus({ orgId, runId, status: s, ...extra, at: new Date().toISOString() });
 
   async function run(): Promise<Outcome | typeof ALREADY_FINAL> {
@@ -218,6 +244,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     const c = ctx;
     // A run another execution already finished (a reset, or a start racing a finished run) is left alone.
     if (isFinal(c.status)) return ALREADY_FINAL;
+    pauseResume = patched(PAUSE_RESUME_PATCH);
 
     // 1. Acquire a slot.
     phase = 'waiting_slot';
@@ -240,6 +267,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     await status('starting');
     // The workspace token is minted inside this activity and never enters workflow history (ruling R19).
     jobMayExist = true;
+    podStartedMs = Date.now();
     const created = await settled.createRunSecretAndJob(c);
     await settled.postComment(c, 'start');
 
@@ -309,6 +337,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       const p = currentPhase();
       if (idleTimerApplies(p, attached, ending)) {
         if (!(await condition(wake, idleMs))) {
+          // Recorded before `ending`: once the session end has begun nothing may bring the run back to `running`.
+          if (pauseResume) parkKind = parkKindOf(currentPhase());
           ending = true;
           phase = 'ending';
           await act.endSession(c);
@@ -331,6 +361,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         podExited: true,
       };
     }
+    if (pauseResume && ending && parkKind !== undefined && !finishRequested) return park(c, parkKind);
     // Ended by us (finish or idle end): the session was idle, so the run succeeded whatever tmux's exit status was.
     if (ending || exitCode === 0) return { status: 'succeeded', exitCode, podExited: true };
     return {
@@ -346,6 +377,54 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     };
   }
 
+  /**
+   * The idle timer stopped the pod: free it and the slot, keep the volume, then wait in `parked` for a finish, a cancel,
+   * a drop or the expiry. Resume (Task 10) joins the same wait.
+   */
+  async function park(c: RunContext, kind: ParkKind): Promise<Outcome> {
+    hardTimer.cancel();
+    usedSeconds += Math.max(0, Math.floor((Date.now() - podStartedMs) / 1000));
+    attached = 0;
+    log.info('run parked', { usedSeconds });
+    await act.ensureJobGone(c);
+    slotRequested = false;
+    await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
+    const parked = await act.parkRun(c, { kind, at: new Date().toISOString() });
+    if (kind === 'needs_input') await act.postComment(c, 'paused');
+    else await act.postComment(c, 'finish', { status: 'succeeded' });
+    // `ending` described the pod's session end, which is over; a person Finish sets it again.
+    ending = false;
+    phase = 'parked';
+    if (parked.sessionExpiresAt === null) {
+      await act.deleteRunVolume(c);
+      return { status: 'succeeded', podExited: true, settled: true };
+    }
+    const expiresMs = Date.parse(parked.sessionExpiresAt);
+    for (;;) {
+      const left = expiresMs - Date.now();
+      if (left > 0 && !finishRequested && !dropRequested) {
+        await condition(() => finishRequested || dropRequested, left);
+        continue;
+      }
+      if (finishRequested) {
+        // Person Finish on a paused run: nothing more to keep.
+        ending = true;
+        await act.deleteRunVolume(c);
+        await status('succeeded', { session: null });
+        await act.postComment(c, 'finish', { status: 'succeeded' });
+        return { status: 'succeeded', podExited: true, settled: true };
+      }
+      const reason = dropRequested ? 'dropped' : 'expired';
+      await act.endKeptSession(c, reason, new Date().toISOString());
+      await act.deleteRunVolume(c);
+      if (kind === 'needs_input') {
+        await act.postComment(c, 'finish', { status: 'expired' });
+        return { status: 'expired', podExited: true, settled: true };
+      }
+      return { status: 'succeeded', podExited: true, settled: true };
+    }
+  }
+
   let outcome: Outcome | typeof ALREADY_FINAL;
   try {
     outcome = await body.run(run);
@@ -358,6 +437,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     phase = 'done';
     hardTimer.cancel();
     return { status: ctx?.status && isFinal(ctx.status) ? ctx.status : 'failed' };
+  }
+  if (outcome.settled) {
+    phase = 'done';
+    return { status: outcome.status };
   }
   return finalize(outcome);
 
@@ -394,6 +477,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       }
       statusError = await attempt('setRunStatus', () =>
         status(o.status, {
+          ...(pauseResume ? { session: null } : {}),
           ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),
           ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
           ...(o.failureStage !== undefined ? { failureStage: o.failureStage } : {}),

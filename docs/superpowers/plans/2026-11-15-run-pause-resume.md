@@ -349,7 +349,7 @@ Behaviour (only when `patched('pause-resume')` is true; otherwise the code path 
 6. `finalize` (cancel, failure, hard timeout, person Finish, agent exit) always calls `deleteRunVolume` after the Job is gone, and writes its final status with `session: null`.
 7. The terminal `attached` counter is reset to 0 when the pod is gone.
 
-- [ ] **Step 1: Write failing workflow tests** (Temporal test environment with mocked activities, like the existing ones):
+- [x] **Step 1: Write failing workflow tests** (Temporal test environment with mocked activities, like the existing ones):
   - idle, nobody attached, idle time passes → activities called in order `endSession`, `ensureJobGone`, `parkRun({ kind: 'needs_input' })`, `postComment('paused')`; the gate received `releaseSlot`; `state` query phase is `parked`; `deleteRunVolume` not called;
   - done → `parkRun({ kind: 'done' })`, `postComment('finish')` with status `succeeded`, phase `parked`;
   - parked `needs_input`, time skips past the expiry → `endKeptSession('expired')`, `deleteRunVolume`, finish comment with `expired`, workflow result `{ status: 'expired' }`;
@@ -364,11 +364,11 @@ Behaviour (only when `patched('pause-resume')` is true; otherwise the code path 
   - **Review Focus 1:** `terminalAttached` and an `agentState('working')` signal delivered after `endSession` started and before the logs end → the run still parks and no `running` status is written after the park;
   - a person presses Finish on a live idle run → final `succeeded`, `deleteRunVolume` called, `parkRun` not called;
   - **Review Focus 5:** `run-idle-finish-history.json`, `run-success-history.json`, `run-cancel-*.json` and `run-token-refresh-history.json` replay without a non-determinism error; a test that runs the idle timer with the patch reported as absent sees `succeeded` and no `parkRun` call.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
-- [ ] **Step 3: Implement.** Keep `run.workflow.ts` as Temporal glue; put any new pure decision in `park.ts` with a unit test.
-- [ ] **Step 4: Record the new replay fixture** from a park-then-expire run and add it to the replay test.
-- [ ] **Step 5: Run** — expect PASS.
-- [ ] **Step 6: Commit** `feat(worker): park idle and done runs and expire kept sessions`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
+- [x] **Step 3: Implement.** Keep `run.workflow.ts` as Temporal glue; put any new pure decision in `park.ts` with a unit test.
+- [x] **Step 4: Record the new replay fixture** from a park-then-expire run and add it to the replay test.
+- [x] **Step 5: Run** — expect PASS.
+- [x] **Step 6: Commit** `feat(worker): park idle and done runs and expire kept sessions`.
 
 ### Task 10: Workflow: resume, fallback and the time limit
 
