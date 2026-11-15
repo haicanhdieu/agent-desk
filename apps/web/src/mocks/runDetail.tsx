@@ -7,14 +7,14 @@ const RULE_BUILD = '/code-build on issues labelled user-story';
 const RULE_REVIEW = '/code-review on pull requests';
 
 /**
- * Run 60's final prompt (prototype board RunPrompt): the skill template, rendered for issue #142. The template's last
- * line (the `agentdesk-status` instruction) is left out: the FR-3 fixture scan in mocks.test.ts flags its `sk-`.
+ * Run 60's final prompt (prototype board RunPrompt): the skill template, rendered for issue #142.
  */
 const RUN_60_PROMPT = [
   'Use the skill "code-build" on issue #142 in harbor-labs/invoicer-api.',
   'Read the ticket and all its comments with the gh CLI before you start.',
   'Arguments from the user: use the existing CSV helper in src/export',
   'When done, report on the ticket as the skill instructs.',
+  'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
 ].join('\n');
 
 const runningLifecycle = [

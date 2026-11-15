@@ -9,7 +9,7 @@ rule quickly by typing what the agent should do, without first writing and commi
 **either** a skill **or** a custom prompt, never both.
 
 Users write only their own instructions. Agent Desk still adds the fixed system part (which ticket, read the comments,
-the arguments, report back). Users cannot edit the system part, but they can always see it: as a preview in the rule
+the arguments, report back, report status with `agentdesk-status`). Users cannot edit the system part, but they can always see it: as a preview in the rule
 form, and as the final prompt on each run.
 
 ## Goals
@@ -49,13 +49,14 @@ The user picked **A**, with one addition: the system part is not editable but mu
 
 ### Prompt shape
 
-A skill rule keeps today's four-line template exactly. A prompt rule renders as:
+A skill rule keeps today's five-line template exactly. A prompt rule renders as:
 
 ```
 <custom prompt, kept as written, multi-line>
 Ticket: <issue|pull request> #<n> in <repo>. Read it and all its comments with the gh CLI before you start.
 Arguments from the user: <args, collapsed to one line>
 When done, report on the ticket.
+Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.
 ```
 
 - The custom prompt is written by a signed-in org member through the rules screen, so it keeps its line breaks.

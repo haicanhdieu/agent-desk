@@ -133,7 +133,8 @@ describe('mock fixtures', () => {
       terminalByRun,
       ticketGroups,
     });
-    expect(text).not.toMatch(/sk-|token=/);
+    // `sk-` only as a token start: the prompt template's `agentdesk-status` command is not a key.
+    expect(text).not.toMatch(/(?<![\w-])sk-|token=/);
   });
 
   it('copies board values faithfully', () => {

@@ -15,6 +15,7 @@ export const promptSystemLines = [
   'Ticket: <issue or PR #number> in harbor-labs/invoicer-api. Read it and all its comments with the gh CLI before you start.',
   'Arguments from the user: <text after /command>',
   'When done, report on the ticket.',
+  'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
 ];
 
 // Prototype board: DeskRules.
