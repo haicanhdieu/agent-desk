@@ -60,6 +60,7 @@ import {
   type FollowPass,
   type LineEventTable,
 } from './follow-core';
+import { nextRefreshDelaySeconds, type TokenRefreshPlan } from '../workflows/token-refresh';
 import { appendRunEvent } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
 import {
@@ -406,41 +407,44 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     });
   }
 
-  async function refreshWorkspaceToken(ctx: RunContext): Promise<void> {
+  async function refreshWorkspaceToken(ctx: RunContext): Promise<TokenRefreshPlan | undefined> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
-    if (isFinal(d.status)) return;
+    if (isFinal(d.status)) return undefined;
     const name = runJobName(ctx.runId);
     let known: string[] = [];
     try {
       const codeHost = deps.adapters.codeHost(providerOf(d.code.provider));
       // The token stays inside this activity (ruling R19); a failure message must not carry it either.
-      const { token } = await codeHost.mintWorkspaceToken(toAdapterProject(d, d.code.externalId));
+      const { token, expiresAt } = await codeHost.mintWorkspaceToken(toAdapterProject(d, d.code.externalId));
       known = [token];
       if ((await kube.readSecret(name)) === null) {
         throw ApplicationFailure.nonRetryable('the run Secret is gone, so there is nothing to refresh');
       }
       await kube.replaceSecretData(name, { [WORKSPACE_TOKEN_KEY]: token });
+      return { nextRefreshSeconds: nextRefreshDelaySeconds(expiresAt, clock.now()) };
     } catch (err) {
       throw safeError(err, known, 'refresh workspace token');
     }
   }
 
-  async function createRunSecretAndJob(ctx: RunContext): Promise<void> {
+  async function createRunSecretAndJob(ctx: RunContext): Promise<TokenRefreshPlan | undefined> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
-    if (isFinal(d.status)) return;
+    if (isFinal(d.status)) return undefined;
     const cred = await credentialEnv(ctx);
     if (!cred) throw ApplicationFailure.nonRetryable('the agent has no credential set');
     const name = runJobName(ctx.runId);
     const project: AdapterProject = toAdapterProject(d, d.code.externalId);
     let known = secretValues(cred);
+    let plan: TokenRefreshPlan | undefined;
     try {
       const setupScript = await recordedSetupScript(ctx);
       // The script is untrusted text: keep it out of an error too (the failure reason is posted to the ticket).
       if (setupScript !== null && setupScript.length >= MIN_SECRET_LENGTH) known = [...known, setupScript];
       const codeHost = deps.adapters.codeHost(providerOf(d.code.provider));
       // The token stays inside this activity: it goes into the run Secret and nowhere else (ruling R19).
-      const { token } = await codeHost.mintWorkspaceToken(project);
+      const { token, expiresAt } = await codeHost.mintWorkspaceToken(project);
       known = [...known, token];
+      plan = { nextRefreshSeconds: nextRefreshDelaySeconds(expiresAt, clock.now()) };
       // The repo URL carries no credential. The token is its own key, mounted as a file so a refresh reaches the
       // running pod (ADR 0021); only the repo URL and the agent credential become env vars.
       await kube.ensureSecret(
@@ -484,6 +488,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       throw safeError(err, known, 'create run Job');
     }
     await withOrg(db, ctx.orgId, (tx) => tx.update(runs).set({ jobName: name }).where(eq(runs.id, ctx.runId)));
+    return plan;
   }
 
   // ---- postComment

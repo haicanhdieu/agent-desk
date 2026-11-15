@@ -11,6 +11,7 @@ import {
   proxyActivities,
   setHandler,
   sleep,
+  workflowInfo,
 } from '@temporalio/workflow';
 import type { RunStatus } from '@agentdesk/contracts';
 import type { FinishDetails, FollowPodLogsResult, RunActivities, RunContext } from '../activities/run.activities';
@@ -29,6 +30,9 @@ import {
   type RunPhase,
 } from './signals';
 import { ACTIVITY_RETRY as RETRY } from './retry';
+import { historyTooLong, refreshWaitSeconds, type TokenRefreshPlan } from './token-refresh';
+
+export { TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT } from './token-refresh';
 import {
   acceptsLegacyFinish,
   finishRunRejection,
@@ -46,18 +50,11 @@ export const IDLE_END_SECONDS_DEFAULT = 600;
 const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 /** followPodLogs may run for the whole run; it gets this much beyond the hard timer before Temporal gives up. */
 const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
-/**
- * The workspace token lives one hour, so it is replaced every 45 minutes: 15 minutes of margin for the kubelet to sync
- * the mounted Secret and for retries (ADR 0021). Mirrors nothing in core; the token's hour is the provider's.
- */
-export const TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT = 2700;
-/** A refresh that failed after the activity's own retries is tried again this often, then more slowly. */
-const TOKEN_REFRESH_RETRY_SECONDS = 60;
-const TOKEN_REFRESH_RETRY_SLOW_SECONDS = 300;
-/** Quick retries last about 15 minutes (the margin); after that the slow rate keeps the history small over days. */
-const TOKEN_REFRESH_QUICK_RETRIES = 15;
 /** Marks runs that refresh their token, so a run started before this existed replays unchanged. */
 const TOKEN_REFRESH_PATCH = 'token-refresh';
+/** Plain-language reason shown on the run when its history grew too long. */
+export const HISTORY_TOO_LONG_REASON =
+  'The run was stopped because its activity log grew too long for the scheduler to keep tracking. Start a new run to continue.';
 const FAILURE_REASON_MAX = 1000;
 const SCROLLBACK_TAIL_MAX = 4000;
 
@@ -241,7 +238,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     await status('starting');
     // The workspace token is minted inside this activity and never enters workflow history (ruling R19).
     jobMayExist = true;
-    await settled.createRunSecretAndJob(c);
+    const created = await settled.createRunSecretAndJob(c);
     await settled.postComment(c, 'start');
 
     // 4. Follow the logs.
@@ -268,13 +265,17 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // 4b. Keep the workspace token fresh for as long as the pod runs (ADR 0021). A workflow that started before this
     // existed replays without it.
     if (patched(TOKEN_REFRESH_PATCH)) {
-      const refreshMs = (c.tokenRefreshSeconds ?? TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT) * 1000;
-      void refreshTokenWhileRunning(c, refreshMs, () => logsDone);
+      // `created` is undefined for a result recorded before the activity reported a delay.
+      void refreshTokenWhileRunning(c, created?.nextRefreshSeconds, () => logsDone);
     }
 
     // 5. Main loop.
     const idleMs = (c.idleEndSeconds ?? IDLE_END_SECONDS_DEFAULT) * 1000;
     while (!logsDone) {
+      // Temporal ends a workflow at 51,200 events with no cleanup; finish as failed well before that (spec, History size).
+      if (historyTooLong(workflowInfo().historyLength, c.historyEventLimit)) {
+        throw ApplicationFailure.nonRetryable(HISTORY_TOO_LONG_REASON);
+      }
       if (resumePending) {
         resumePending = false;
         wroteRunningSinceTurn = true;
@@ -295,7 +296,13 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       }
       const seen = epoch;
       // Every term must turn false once handled, or condition() resolves at once and the loop spins.
-      const wake = () => epoch !== seen || logsDone || (finishRequested && !ending) || resumePending || idleFixPending;
+      const wake = () =>
+        epoch !== seen ||
+        historyTooLong(workflowInfo().historyLength, c.historyEventLimit) ||
+        logsDone ||
+        (finishRequested && !ending) ||
+        resumePending ||
+        idleFixPending;
       // phase is read through a call: signal handlers change it between awaits, which TS narrowing cannot see.
       const p = currentPhase();
       if (idleTimerApplies(p, attached, ending)) {
@@ -416,23 +423,25 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
 }
 
 /**
- * Replaces the run's workspace token every `intervalMs` until `logsDone`. Durable timers, so a worker restart changes
+ * Replaces the run's workspace token as often as `refreshWaitSeconds` says until `logsDone`. Durable timers, so a worker restart changes
  * nothing. A failure after the activity's retries is logged (the error kind only) and tried again; a failure that can
  * never succeed (the Secret is gone) ends the loop. A missed refresh never ends the run: git and `gh` only fail if the
  * token really expires. Cancelling the run cancels the wait.
  */
-async function refreshTokenWhileRunning(c: RunContext, intervalMs: number, isDone: () => boolean): Promise<void> {
+async function refreshTokenWhileRunning(
+  c: RunContext,
+  firstPlannedSeconds: number | undefined,
+  isDone: () => boolean,
+): Promise<void> {
   let failures = 0;
+  let plannedSeconds = firstPlannedSeconds;
   try {
     for (;;) {
-      const waitMs =
-        failures === 0
-          ? intervalMs
-          : (failures <= TOKEN_REFRESH_QUICK_RETRIES ? TOKEN_REFRESH_RETRY_SECONDS : TOKEN_REFRESH_RETRY_SLOW_SECONDS) *
-            1000;
-      if (await condition(isDone, waitMs)) return;
+      const waitSeconds = refreshWaitSeconds({ failures, overrideSeconds: c.tokenRefreshSeconds, plannedSeconds });
+      if (await condition(isDone, waitSeconds * 1000)) return;
       try {
-        await act.refreshWorkspaceToken(c);
+        const plan: TokenRefreshPlan | undefined = await act.refreshWorkspaceToken(c);
+        plannedSeconds = plan?.nextRefreshSeconds;
         failures = 0;
       } catch (err) {
         if (isCancellation(err)) return;

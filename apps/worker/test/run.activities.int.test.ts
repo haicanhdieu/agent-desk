@@ -218,7 +218,7 @@ describe('loadRun', () => {
 });
 
 /** Adapters whose workspace token changes on every mint, to prove a refresh rotates it. */
-function rotatingAdapters(): { adapters: RunActivityDeps['adapters']; mints: () => number } {
+function rotatingAdapters(ttlMs = 0): { adapters: RunActivityDeps['adapters']; mints: () => number } {
   const base = createAdapterRegistry(config, { now: () => new Date() });
   let n = 0;
   return {
@@ -227,13 +227,31 @@ function rotatingAdapters(): { adapters: RunActivityDeps['adapters']; mints: () 
       ...base,
       codeHost: (provider) =>
         Object.assign(Object.create(base.codeHost(provider)) as object, {
-          mintWorkspaceToken: async () => ({ token: `ghs_rotated${++n}ABCDEFGHIJKLMNOPQRST`, expiresAt: new Date() }),
+          mintWorkspaceToken: async () => ({
+            token: `ghs_rotated${++n}ABCDEFGHIJKLMNOPQRST`,
+            expiresAt: new Date(Date.now() + ttlMs),
+          }),
         }) as unknown as ReturnType<RunActivityDeps['adapters']['codeHost']>,
     },
   };
 }
 
 describe('refreshWorkspaceToken', () => {
+  it('reports the next refresh as about 75% of the token life left, for the mint and for each refresh', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const { adapters } = rotatingAdapters(3_600_000);
+    const acts = createRunActivities(deps({ adapters }));
+    const created = await acts.createRunSecretAndJob(ctx);
+    const refreshed = await acts.refreshWorkspaceToken(ctx);
+    for (const plan of [created, refreshed]) {
+      expect(plan?.nextRefreshSeconds).toBeGreaterThanOrEqual(2690);
+      expect(plan?.nextRefreshSeconds).toBeLessThanOrEqual(2700);
+      expect(JSON.stringify(plan)).not.toContain('ghs_rotated');
+    }
+    await acts.deleteJob(ctx);
+  });
+
   it('mints a new token into the existing run Secret and leaves the rest and the pod env alone', async () => {
     const runId = await seedRun('x');
     const ctx = await ctxFor(runId);

@@ -58,6 +58,7 @@ This supersedes the 3300 s cap and "keep `timeout_seconds` ≤ 3300 so the token
 - Deploy order matters: the runner image with the token-file support must be live (`RUNNER_IMAGE`) before the worker
   that creates token-file Jobs, or every clone fails.
 - A 7-day run holds a concurrency slot for its whole life.
+- `RunWorkflow` has no `continueAsNew`. A run whose history reaches 45,000 events (heavy signal traffic over days) is finished as failed with a plain reason so cleanup still runs, instead of being terminated by Temporal at 51,200. A real `continueAsNew` is a follow-up.
 
 ## Links
 

@@ -1,4 +1,5 @@
 import type { RunStatus } from '@agentdesk/contracts';
+import type { TokenRefreshPlan } from '../workflows/token-refresh';
 import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activity';
 
 /**
@@ -28,6 +29,8 @@ export interface RunContext {
   idleEndSeconds?: number;
   /** Seconds between workspace-token refreshes. Normally 2700 (45 min of the token's hour); a field like `idleEndSeconds`. */
   tokenRefreshSeconds?: number;
+  /** History length at which the run is finished as failed (default 45000, below Temporal's 51,200); a test seam. */
+  historyEventLimit?: number;
 }
 
 export interface RequestSlotInput {
@@ -79,15 +82,15 @@ export interface RunActivities {
   setRunStatus(input: SetRunStatusInput): Promise<SetRunStatusResult>;
   /**
    * Mints the workspace token (CodeHostAdapter.mintWorkspaceToken) and creates Secret and Job `run-{runId}` with it;
-   * already exists → success. The token never leaves the activity.
+   * already exists → success. The token never leaves the activity; the result says when to refresh it.
    */
-  createRunSecretAndJob(ctx: RunContext): Promise<void>;
+  createRunSecretAndJob(ctx: RunContext): Promise<TokenRefreshPlan | undefined>;
   /**
    * Mints a new workspace token and writes it into the existing run Secret; the pod reads it from a mounted file, so
    * the pod keeps running (ADR 0021). A finished run is a no-op; a missing Secret fails non-retryably. The token never
    * leaves the activity.
    */
-  refreshWorkspaceToken(ctx: RunContext): Promise<void>;
+  refreshWorkspaceToken(ctx: RunContext): Promise<TokenRefreshPlan | undefined>;
   /** Idempotent via `runs.outbox.{kind}`. */
   postComment(ctx: RunContext, kind: CommentKind, details?: FinishDetails): Promise<void>;
   /**
