@@ -265,6 +265,25 @@ describe('projects', () => {
     expect(dto.counts).toEqual({ needsYou: 0, running: 1, queued: 0 });
   });
 
+  it('a paused run counts as needs you, like the needs_you list, but not as running', async () => {
+    const p = (await createProject({})).json() as ProjectDto;
+    const orgId = await aliceOrgId();
+    const ins = (status: string, ref: string) =>
+      asOrg(
+        orgId,
+        `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, checkout_ref, status, trigger_source)
+         values ($1,$2,'/x','x',$3,'issue','main',$4,'manual')`,
+        [orgId, p.id, ref, status],
+      );
+    await ins('idle', 'a#1');
+    await ins('paused', 'a#2');
+    await ins('paused', 'a#3');
+    const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
+    const dto = expectContract('projects.get', get) as ProjectDto;
+    // A paused run has no pod: it waits for a person, but it is not a live job.
+    expect(dto.counts).toEqual({ needsYou: 3, running: 1, queued: 0 });
+  });
+
   it('webhook connection reports the newest webhook delivery', async () => {
     const p = (await createProject({})).json() as ProjectDto;
     const empty = await t.app.inject({

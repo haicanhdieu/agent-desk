@@ -85,14 +85,14 @@ export class ProjectsService {
     @Inject(TEMPORAL_CLIENT) private readonly temporal: Client,
   ) {}
 
-  /** One grouped query for all requested projects. needsYou = idle runs; running = live jobs (starting, running, idle, done). */
+  /** One grouped query for all requested projects. needsYou = idle and paused runs (the `needs_you` list); running = live jobs (starting, running, idle, done; a paused run has no pod). */
   private async countsFor(tx: Tx, projectIds: string[]): Promise<Map<string, Counts>> {
     const out = new Map<string, Counts>();
     if (projectIds.length === 0) return out;
     const rows = await tx
       .select({
         projectId: runs.projectId,
-        needsYou: sql<number>`count(*) filter (where ${runs.status} = 'idle')::int`,
+        needsYou: sql<number>`count(*) filter (where ${runs.status} in ('idle','paused'))::int`,
         running: sql<number>`count(*) filter (where ${runs.status} in ('starting','running','idle','done'))::int`,
         queued: sql<number>`count(*) filter (where ${runs.status} = 'queued')::int`,
         lastRunAt: sql<Date | null>`max(${runs.queuedAt})`,
