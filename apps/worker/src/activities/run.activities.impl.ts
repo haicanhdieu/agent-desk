@@ -15,6 +15,7 @@ import {
   WORKSPACE_TOKEN_KEY,
   TMUX_KILL,
   buildPrompt,
+  promptSourceOf,
   buildRunJob,
   credentialSecretName,
   parseLogLine,
@@ -226,7 +227,8 @@ interface RunDetails {
   number: number;
   status: RunStatus;
   command: string;
-  skillName: string;
+  skillName: string | null;
+  prompt: string | null;
   ticketRef: string;
   ticketKind: TicketKind;
   ticketNumber: number;
@@ -261,6 +263,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         status: runs.status,
         command: runs.command,
         skillName: runs.skillName,
+        prompt: runs.prompt,
         ticketRef: runs.ticketRef,
         ticketKind: runs.ticketKind,
         ticketNumber: runs.ticketNumber,
@@ -292,6 +295,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       status: RunStatus.parse(r.status),
       command: r.command,
       skillName: r.skillName,
+      prompt: r.prompt,
       ticketRef: r.ticketRef,
       ticketKind: TicketKind.parse(r.ticketKind),
       ticketNumber: Number.isInteger(ticketNumber) ? ticketNumber : 0,
@@ -498,12 +502,20 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         runLabels(ctx),
       );
       const prompt = buildPrompt({
-        skillName: d.skillName,
+        ...promptSourceOf(d),
         ticketKind: d.ticketKind,
         ticketNumber: d.ticketNumber,
         repoPath: d.repoPath,
         args: d.args,
       });
+      // Recorded once (only while null), redacted with the same list as run output. The PROMPT env stays as built.
+      const finalPrompt = redact(prompt, await redactionList(ctx));
+      await withOrg(db, ctx.orgId, (tx) =>
+        tx
+          .update(runs)
+          .set({ finalPrompt })
+          .where(and(eq(runs.id, ctx.runId), isNull(runs.finalPrompt))),
+      );
       const job = buildRunJob({
         runId: ctx.runId,
         orgId: ctx.orgId,
@@ -574,7 +586,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   ) {
     const link = runLink(ctx, d);
     if (kind === 'start') {
-      return `Agent Desk started run #${d.number} (\`/${oneLine(d.command)}\`, skill \`${oneLine(d.skillName)}\`).\n\nFollow it here: ${link}`;
+      const via = d.prompt !== null ? 'custom prompt' : `skill \`${oneLine(d.skillName ?? '')}\``;
+      return `Agent Desk started run #${d.number} (\`/${oneLine(d.command)}\`, ${via}).\n\nFollow it here: ${link}`;
     }
     if (kind === 'paused') {
       return `Agent Desk run #${d.number} is paused: the agent is waiting for an answer, and its pod was stopped after the idle time.\n\nResume it here: ${link}`;

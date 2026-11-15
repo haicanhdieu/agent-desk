@@ -152,17 +152,17 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 - Consumes: `promptSourceOf`, `buildPrompt` (Task 1); `runs.prompt`, `runs.finalPrompt` (Task 2).
 - Produces: `RunDetails.skillName: string | null`, `RunDetails.prompt: string | null`.
 
-- [ ] **Step 1: Write the failing tests** (add a `seedPromptRun(prompt: string, args: string)` helper next to `seedRun`, inserting `skill_name null, prompt $x`):
+- [x] **Step 1: Write the failing tests** (add a `seedPromptRun(prompt: string, args: string)` helper next to `seedRun`, inserting `skill_name null, prompt $x`):
   - `describe('createRunSecretAndJob prompt')`:
     - `it('a prompt run gets the custom prompt then the system lines in PROMPT')`: pod env `PROMPT` starts with the prompt, contains `'Ticket: issue #7 in dev/demo.'`, does not contain `'Use the skill'`.
     - `it('stores the final prompt once, redacted with the run secrets')` (Review Focus 2 and 5): prompt `` `use ${CRED} now` ``; after two `createRunSecretAndJob` calls, `run.finalPrompt` contains `'use *** now'` and not `CRED`; `env.PROMPT` contains `CRED`; then set `final_prompt` to `'first'` as owner, call again, it stays `'first'`.
     - `it('a skill run records its five-line prompt')`: `seedRun('please fix')` → `finalPrompt` equals `env.PROMPT`.
     - `it('uses the prompt copied onto the run, not the rule's current text')` (Review Focus 3): seed a rule with prompt `'old'`, a run with `rule_id` and prompt `'old'`, update the rule to `'new'`, create the Job → `PROMPT` starts with `'old'`.
   - In `describe('postComment')`: `it('the start comment of a prompt run says custom prompt')` → posted text contains ``(`/fix`, custom prompt)`` and not `skill`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts -t "prompt"` — expect FAIL.
-- [ ] **Step 3: Implement**: `details()` selects `prompt: runs.prompt`; `createRunSecretAndJob` calls `buildPrompt({ ...promptSourceOf(d), ticketKind, ticketNumber, repoPath, args })`; after `kube.ensureSecret(...)` and before `kube.ensureJob(job)`, inside the existing `try`: `const finalPrompt = redact(prompt, await redactionList(ctx))` and `tx.update(runs).set({ finalPrompt }).where(and(eq(runs.id, ctx.runId), isNull(runs.finalPrompt)))` in `withOrg`. `commentText('start')` writes `custom prompt` when `d.prompt !== null`, else today's skill text (with `d.skillName ?? ''` for the type). The prompt never goes into an error or log; `safeError` already wraps the block.
-- [ ] **Step 4: Run** the worker activity tests, `pnpm --filter @agentdesk/worker test:unit` (replay histories) and `pnpm --filter @agentdesk/worker typecheck` — PASS. No workflow code changes, so no new replay test.
-- [ ] **Step 5: Commit** `feat(worker): build the prompt from the run, store a redacted final prompt, say custom prompt in the start comment`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts -t "prompt"` — expect FAIL.
+- [x] **Step 3: Implement**: `details()` selects `prompt: runs.prompt`; `createRunSecretAndJob` calls `buildPrompt({ ...promptSourceOf(d), ticketKind, ticketNumber, repoPath, args })`; after `kube.ensureSecret(...)` and before `kube.ensureJob(job)`, inside the existing `try`: `const finalPrompt = redact(prompt, await redactionList(ctx))` and `tx.update(runs).set({ finalPrompt }).where(and(eq(runs.id, ctx.runId), isNull(runs.finalPrompt)))` in `withOrg`. `commentText('start')` writes `custom prompt` when `d.prompt !== null`, else today's skill text (with `d.skillName ?? ''` for the type). The prompt never goes into an error or log; `safeError` already wraps the block.
+- [x] **Step 4: Run** the worker activity tests, `pnpm --filter @agentdesk/worker test:unit` (replay histories) and `pnpm --filter @agentdesk/worker typecheck` — PASS. No workflow code changes, so no new replay test.
+- [x] **Step 5: Commit** `feat(worker): build the prompt from the run, store a redacted final prompt, say custom prompt in the start comment`.
 
 ### Task 6: Rules service for both kinds (api)
 
