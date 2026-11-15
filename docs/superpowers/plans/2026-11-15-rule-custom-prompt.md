@@ -134,13 +134,13 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 - Consumes: `RuleDto` from Task 3, `runs.prompt` from Task 2.
 - Produces: `RuleRow = Pick<RuleDto, 'id' | 'command' | 'labelFilter' | 'target' | 'agentId' | 'skillName' | 'prompt' | 'enabled'>`; `RouteInput.counts = { runsForTicket: number; activeSkillsOnTicket: string[]; activeRuleIdsOnTicket: string[] }`.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
   - `router.test.ts`: the `rule()` factory gains `prompt: null`; `it('a prompt rule is blocked by its own active run, by rule id')` → `ignored_active_run`, detail `rule /triage already has an active run on this ticket`; `it('an active prompt run blocks neither another prompt rule nor a skill rule')` (Review Focus 4); `it('a prompt rule is not blocked by an active skill of the same name')`.
   - `intake.int.test.ts`: `it('a prompt rule copies its prompt onto the run with a null skill name')` (seed a rule with `skillName: null, prompt: 'Triage this.\nAdd labels.'`; run row has `prompt` as written, `skillName: null`, `ruleId` = the rule); `it('guards: an active run of the same prompt rule')` mirroring the existing skill guard test (second event → `ignored_active_run`; after `succeeded` → `run_created`).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts test/intake.int.test.ts` — expect FAIL.
-- [ ] **Step 3: Implement**: guard is `rule.prompt !== null ? counts.activeRuleIdsOnTicket.includes(rule.id) : rule.skillName !== null && counts.activeSkillsOnTicket.includes(rule.skillName)`, keeping the existing skill detail text. In `decideInTx`, map `prompt: r.prompt`; replace the `selectDistinct({ skillName })` query with one `select({ skillName: runs.skillName, ruleId: runs.ruleId })` over active runs on the ticket and build both lists, dropping nulls; insert `skillName: decision.rule.skillName, prompt: decision.rule.prompt`.
-- [ ] **Step 4: Run** the core tests and `pnpm --filter @agentdesk/core typecheck` — PASS.
-- [ ] **Step 5: Commit** `feat(core): route prompt rules by rule id and copy the prompt onto the run`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts test/intake.int.test.ts` — expect FAIL.
+- [x] **Step 3: Implement**: guard is `rule.prompt !== null ? counts.activeRuleIdsOnTicket.includes(rule.id) : rule.skillName !== null && counts.activeSkillsOnTicket.includes(rule.skillName)`, keeping the existing skill detail text. In `decideInTx`, map `prompt: r.prompt`; replace the `selectDistinct({ skillName })` query with one `select({ skillName: runs.skillName, ruleId: runs.ruleId })` over active runs on the ticket and build both lists, dropping nulls; insert `skillName: decision.rule.skillName, prompt: decision.rule.prompt`.
+- [x] **Step 4: Run** the core tests and `pnpm --filter @agentdesk/core typecheck` — PASS.
+- [x] **Step 5: Commit** `feat(core): route prompt rules by rule id and copy the prompt onto the run`.
 
 ### Task 5: Worker prompt, `final_prompt`, start comment (worker, sensitive: run Job, redaction)
 

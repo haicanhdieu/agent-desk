@@ -17,6 +17,7 @@ const rule = (over: Partial<RuleRow> = {}): RuleRow => ({
   target: 'any',
   agentId: 'a1',
   skillName: 'code-review',
+  prompt: null,
   enabled: true,
   ...over,
 });
@@ -53,7 +54,7 @@ function input(over: Partial<RouteInput> = {}) {
     project: { id: 'p1', maxRunsPerTicket: 3 },
     rules: [rule()],
     ticket,
-    counts: { runsForTicket: 0, activeSkillsOnTicket: [] },
+    counts: { runsForTicket: 0, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] },
     botLogin: 'agentdesk[bot]',
     ...over,
   };
@@ -209,23 +210,65 @@ describe('routeEvent', () => {
   });
 
   it('ignores at max runs, allows below it', async () => {
-    const at = await routeEvent(input({ counts: { runsForTicket: 3, activeSkillsOnTicket: [] } }).base);
+    const at = await routeEvent(
+      input({ counts: { runsForTicket: 3, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(at).toMatchObject({ outcome: 'ignored_max_runs' });
-    const over = await routeEvent(input({ counts: { runsForTicket: 4, activeSkillsOnTicket: [] } }).base);
+    const over = await routeEvent(
+      input({ counts: { runsForTicket: 4, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(over).toMatchObject({ outcome: 'ignored_max_runs' });
-    const below = await routeEvent(input({ counts: { runsForTicket: 2, activeSkillsOnTicket: [] } }).base);
+    const below = await routeEvent(
+      input({ counts: { runsForTicket: 2, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(below.kind).toBe('run');
   });
 
   it('ignores while the same skill is active, not other skills', async () => {
-    const same = await routeEvent(input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['code-review'] } }).base);
+    const same = await routeEvent(
+      input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(same).toMatchObject({ outcome: 'ignored_active_run' });
-    const other = await routeEvent(input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['triage'] } }).base);
+    const other = await routeEvent(
+      input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['triage'], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(other.kind).toBe('run');
   });
 
+  it('a prompt rule is blocked by its own active run, by rule id', async () => {
+    const promptRule = rule({ id: 'p1', command: 'triage', skillName: null, prompt: 'Triage this.' });
+    const base = input({
+      event: event({ body: '/triage' }),
+      rules: [promptRule],
+      counts: { runsForTicket: 0, activeSkillsOnTicket: [], activeRuleIdsOnTicket: ['p1'] },
+    }).base;
+    expect(await routeEvent(base)).toEqual({
+      kind: 'ignored',
+      outcome: 'ignored_active_run',
+      detail: 'rule /triage already has an active run on this ticket',
+    });
+  });
+
+  it('an active prompt run blocks neither another prompt rule nor a skill rule', async () => {
+    const other = rule({ id: 'p2', command: 'triage', skillName: null, prompt: 'Triage this.' });
+    const counts = { runsForTicket: 0, activeSkillsOnTicket: [], activeRuleIdsOnTicket: ['p1'] };
+    const promptRun = await routeEvent(input({ event: event({ body: '/triage' }), rules: [other], counts }).base);
+    expect(promptRun.kind).toBe('run');
+    const skillRun = await routeEvent(input({ rules: [rule()], counts }).base);
+    expect(skillRun.kind).toBe('run');
+  });
+
+  it('a prompt rule is not blocked by an active skill of the same name', async () => {
+    const promptRule = rule({ id: 'p1', command: 'code-review', skillName: null, prompt: 'Review.' });
+    const counts = { runsForTicket: 0, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] };
+    const d = await routeEvent(input({ rules: [promptRule], counts }).base);
+    expect(d.kind).toBe('run');
+  });
+
   it('applies max runs before the active-run guard', async () => {
-    const d = await routeEvent(input({ counts: { runsForTicket: 3, activeSkillsOnTicket: ['code-review'] } }).base);
+    const d = await routeEvent(
+      input({ counts: { runsForTicket: 3, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(d).toMatchObject({ outcome: 'ignored_max_runs' });
   });
 
