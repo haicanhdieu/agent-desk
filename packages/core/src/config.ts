@@ -81,7 +81,7 @@ export const ConfigSchema = z
         'anthropic-plugin-directory': 'builtin',
       }),
     ),
-    /** Storage class of per-run volumes; unset uses the cluster default. */
+    /** Storage class of per-run volumes; unset uses the cluster default (dev only: required in production, see below). */
     RUN_VOLUME_STORAGE_CLASS: optional(z.string()),
     /** Finished runs per project whose kept session (volume) survives; older ones are cleaned up. */
     RUN_KEPT_DONE_SESSIONS_PER_PROJECT: blankDefault(z.coerce.number().int().min(0).default(10)),
@@ -126,6 +126,14 @@ export const ConfigSchema = z
           code: 'custom',
           path: ['KUBE_MODE'],
           message: 'must be kubeconfig or incluster in production (fake is dev only)',
+        });
+      }
+      if (cfg.RUN_VOLUME_STORAGE_CLASS === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['RUN_VOLUME_STORAGE_CLASS'],
+          message:
+            'must name a storage class with reclaimPolicy Delete in production (the cluster default can retain deleted run data)',
         });
       }
     }

@@ -103,8 +103,30 @@ describe('production refuses dev-only settings', () => {
   });
 
   it('accepts a real KUBE_MODE in production and keeps the fake default in development', () => {
-    expect(parseConfig({ ...base, NODE_ENV: 'production', KUBE_MODE: 'incluster' }).KUBE_MODE).toBe('incluster');
+    const prod = { ...base, NODE_ENV: 'production', KUBE_MODE: 'incluster', RUN_VOLUME_STORAGE_CLASS: 'delete-class' };
+    expect(parseConfig(prod).KUBE_MODE).toBe('incluster');
     expect(parseConfig(base).KUBE_MODE).toBe('fake');
+  });
+
+  describe('RUN_VOLUME_STORAGE_CLASS', () => {
+    const prod = { ...base, NODE_ENV: 'production', KUBE_MODE: 'incluster' };
+
+    it('is required in production, so run volumes never land on a retaining cluster default', () => {
+      expect(() => parseConfig(prod)).toThrow(/RUN_VOLUME_STORAGE_CLASS/);
+      expect(() => parseConfig({ ...prod, RUN_VOLUME_STORAGE_CLASS: '' })).toThrow(/RUN_VOLUME_STORAGE_CLASS/);
+      expect(() => parseConfig({ ...prod, RUN_VOLUME_STORAGE_CLASS: '  ' })).toThrow(/RUN_VOLUME_STORAGE_CLASS/);
+    });
+
+    it('accepts a named class in production', () => {
+      expect(parseConfig({ ...prod, RUN_VOLUME_STORAGE_CLASS: 'delete-class' }).RUN_VOLUME_STORAGE_CLASS).toBe(
+        'delete-class',
+      );
+    });
+
+    it('stays optional in development and test', () => {
+      expect(parseConfig(base).RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+      expect(parseConfig({ ...base, NODE_ENV: 'test' }).RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+    });
   });
 });
 
