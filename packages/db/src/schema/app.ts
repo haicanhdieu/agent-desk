@@ -135,7 +135,10 @@ export const rules = pgTable(
     agentId: uuid('agent_id')
       .notNull()
       .references(() => agents.id),
-    skillName: text('skill_name').notNull(),
+    /** Exactly one of skillName and prompt is set (rules_skill_or_prompt_check). */
+    skillName: text('skill_name'),
+    /** Custom prompt, up to 4000 characters; stored as written. */
+    prompt: text('prompt'),
     enabled: boolean('enabled').notNull().default(true),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
@@ -144,6 +147,8 @@ export const rules = pgTable(
     index('rules_org_idx').on(t.orgId),
     index('rules_agent_idx').on(t.agentId),
     check('rules_target_check', sql`${t.target} in ('issue','pr','any')`),
+    check('rules_skill_or_prompt_check', sql`(${t.skillName} is null) <> (${t.prompt} is null)`),
+    check('rules_prompt_length_check', sql`char_length(${t.prompt}) <= 4000`),
     orgPolicy(),
   ],
 );
@@ -190,7 +195,12 @@ export const runs = pgTable(
     ruleId: uuid('rule_id').references(() => rules.id, { onDelete: 'set null' }),
     agentId: uuid('agent_id').references(() => agents.id, { onDelete: 'set null' }),
     command: text('command').notNull(),
-    skillName: text('skill_name').notNull(),
+    /** Null for a custom-prompt run. */
+    skillName: text('skill_name'),
+    /** Custom prompt copied from the rule at intake; null for a skill run. */
+    prompt: text('prompt'),
+    /** Final prompt sent to the agent, redacted; written once, null until the Job is created. */
+    finalPrompt: text('final_prompt'),
     ticketRef: text('ticket_ref').notNull(),
     ticketKind: text('ticket_kind').notNull(),
     ticketNumber: integer('ticket_number'),

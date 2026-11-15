@@ -78,22 +78,22 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 
 **Files:**
 - Modify: `packages/db/src/schema/app.ts` (`rules` at ~L115, `runs` at ~L184)
-- Create: `packages/db/migrations/0011_rule_custom_prompt.sql` + `meta/0011_snapshot.json` + `_journal.json` entry, generated with `pnpm --filter @agentdesk/db exec drizzle-kit generate --name rule_custom_prompt`
+- Create: `packages/db/migrations/0012_rule_custom_prompt.sql` + `meta/0012_snapshot.json` + `_journal.json` entry, generated with `pnpm --filter @agentdesk/db exec drizzle-kit generate --name rule_custom_prompt`
 - Test: `packages/db/test/migrate.int.test.ts`
 
 **Interfaces:**
 - Produces: `rules.prompt: string | null`, `rules.skillName: string | null`, `runs.prompt: string | null`, `runs.finalPrompt: string | null`, `runs.skillName: string | null` (Drizzle `$inferSelect`).
 - Constraints: `rules_skill_or_prompt_check` = `(skill_name is null) <> (prompt is null)`; `rules_prompt_length_check` = `char_length(prompt) <= 4000`.
 
-- [ ] **Step 1: Write the failing tests** in `migrate.int.test.ts` (as `agentdesk_app` through `withOrg` where rows are inserted; reuse the file's `query` helper and an org/project/agent seeded like the other tests):
+- [x] **Step 1: Write the failing tests** in `migrate.int.test.ts` (as `agentdesk_app` through `withOrg` where rows are inserted; reuse the file's `query` helper and an org/project/agent seeded like the other tests):
   - `it('a rule needs exactly one of skill_name and prompt')`: insert with both → error code `23514` naming `rules_skill_or_prompt_check`; with neither → same; with only `prompt` → ok.
   - `it('a rule prompt is at most 4000 characters')`: `'x'.repeat(4000)` ok, `4001` → `rules_prompt_length_check`.
   - `it('runs keep prompt and final_prompt and allow a null skill_name')`: insert a run with `skill_name null, prompt 'p'` → ok; columns exist and are nullable (`information_schema.columns`).
-  - `it('the custom prompt migration changes no rows')`: read `0011_rule_custom_prompt.sql`, `not.toMatch(/\b(update|delete|insert)\b/i)` (same pattern as the 0010 test).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts` — expect FAIL.
-- [ ] **Step 3: Edit the schema**: `rules.skillName` drop `.notNull()`, add `prompt: text('prompt')`, add the two `check(...)`s; `runs.skillName` drop `.notNull()`, add `prompt: text('prompt')`, `finalPrompt: text('final_prompt')`. Generate, then read the SQL: each new check must be `ADD CONSTRAINT … NOT VALID` followed by `VALIDATE CONSTRAINT` (database.md §5, as in `0009_past_phantom_reporter.sql`); hand-edit the generated SQL only to add that split. Existing rows all have a skill name, so validation passes.
-- [ ] **Step 4: Run** the db tests (including `rls.int.test.ts`) and `pnpm --filter @agentdesk/db typecheck` — PASS. Note: if `0011` is already taken on main (the pause/resume plan also plans `0011_run_pause_resume.sql`), regenerate on top of main with the next number; never renumber a merged migration.
-- [ ] **Step 5: Commit** `feat(db): nullable skill name, rule and run prompt, run final prompt`.
+  - `it('the custom prompt migration changes no rows')`: read `0012_rule_custom_prompt.sql`, `not.toMatch(/\b(update|delete|insert)\b/i)` (same pattern as the 0010 test).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts` — expect FAIL.
+- [x] **Step 3: Edit the schema**: `rules.skillName` drop `.notNull()`, add `prompt: text('prompt')`, add the two `check(...)`s; `runs.skillName` drop `.notNull()`, add `prompt: text('prompt')`, `finalPrompt: text('final_prompt')`. Generate, then read the SQL: each new check must be `ADD CONSTRAINT … NOT VALID` followed by `VALIDATE CONSTRAINT` (database.md §5, as in `0009_past_phantom_reporter.sql`); hand-edit the generated SQL only to add that split. Existing rows all have a skill name, so validation passes.
+- [x] **Step 4: Run** the db tests (including `rls.int.test.ts`) and `pnpm --filter @agentdesk/db typecheck` — PASS. Note: if `0011` is already taken on main (the pause/resume plan also plans `0011_run_pause_resume.sql`), regenerate on top of main with the next number; never renumber a merged migration.
+- [x] **Step 5: Commit** `feat(db): nullable skill name, rule and run prompt, run final prompt`.
 
 ### Task 3: Contracts
 

@@ -344,6 +344,79 @@ describe('bootstrap and migrations', () => {
       ).rejects.toMatchObject({ code: '23514' });
     });
 
+    describe('rule custom prompt', () => {
+      let agentId = '';
+
+      beforeAll(async () => {
+        await inOrg(async (c) => {
+          const a = await c.query<{ id: string }>(
+            `insert into agents (org_id, project_id, name, model) values ($1, $2, 'a1', 'm') returning id`,
+            [orgId, projectId],
+          );
+          agentId = a.rows[0]?.id ?? '';
+        });
+      });
+
+      async function insertRule(command: string, skillName: string | null, prompt: string | null): Promise<void> {
+        await inOrg(async (c) => {
+          await c.query(
+            `insert into rules (org_id, project_id, command, agent_id, skill_name, prompt)
+             values ($1, $2, $3, $4, $5, $6)`,
+            [orgId, projectId, command, agentId, skillName, prompt],
+          );
+        });
+      }
+
+      it('a rule needs exactly one of skill_name and prompt', async () => {
+        await expect(insertRule('/both', 'fix', 'p')).rejects.toMatchObject({
+          code: '23514',
+          constraint: 'rules_skill_or_prompt_check',
+        });
+        await expect(insertRule('/none', null, null)).rejects.toMatchObject({
+          code: '23514',
+          constraint: 'rules_skill_or_prompt_check',
+        });
+        await expect(insertRule('/prompt-only', null, 'p')).resolves.toBeUndefined();
+        await expect(insertRule('/skill-only', 'fix', null)).resolves.toBeUndefined();
+      });
+
+      it('a rule prompt is at most 4000 characters', async () => {
+        await expect(insertRule('/len-ok', null, 'x'.repeat(4000))).resolves.toBeUndefined();
+        await expect(insertRule('/len-bad', null, 'x'.repeat(4001))).rejects.toMatchObject({
+          code: '23514',
+          constraint: 'rules_prompt_length_check',
+        });
+      });
+
+      it('runs keep prompt and final_prompt and allow a null skill_name', async () => {
+        await inOrg((c) =>
+          c
+            .query(
+              `insert into runs (org_id, project_id, skill_name, prompt, ticket_ref, ticket_kind, checkout_ref, status,
+                                 trigger_source, trigger_comment_id, command)
+               values ($1, $2, null, 'p', 'dev/demo#2', 'issue', 'main', 'queued', 'webhook', 'c-prompt', '/p')`,
+              [orgId, projectId],
+            )
+            .then(() => undefined),
+        );
+        const cols = await query<{ column_name: string; is_nullable: string }>(
+          env.ownerUrl,
+          `select column_name, is_nullable from information_schema.columns
+           where table_name = 'runs' and column_name in ('skill_name','prompt','final_prompt') order by 1`,
+        );
+        expect(cols).toEqual([
+          { column_name: 'final_prompt', is_nullable: 'YES' },
+          { column_name: 'prompt', is_nullable: 'YES' },
+          { column_name: 'skill_name', is_nullable: 'YES' },
+        ]);
+      });
+
+      it('the custom prompt migration changes no rows', async () => {
+        const sqlText = await readFile(new URL('../migrations/0012_rule_custom_prompt.sql', import.meta.url), 'utf8');
+        expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
+      });
+    });
+
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,
