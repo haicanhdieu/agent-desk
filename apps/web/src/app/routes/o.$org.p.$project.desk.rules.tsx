@@ -9,6 +9,7 @@ import { projectPaths, useDeskFrame } from '@/features/desk/frame';
 import { toRule } from '@/features/desk/map';
 import { useDeleteRule, useToggleRule } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
+import { usePromptPreview } from '@/features/desk/promptPreview';
 import { useRuleForm } from '@/features/desk/rules.form';
 import { projectsQueries } from '@/features/projects/queries';
 import { DeskRules, RulePane } from '@/screens';
@@ -111,6 +112,7 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
     onSaved: onClose,
   });
   const { values } = form;
+  const promptPreview = usePromptPreview(org, projectId, true);
   return (
     <RulePane
       title={rule ? 'Edit rule' : 'New rule'}
@@ -121,11 +123,16 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
         skill: values.skillName,
         agent: agent.name,
         enabled: values.enabled,
+        kind: values.kind,
+        prompt: values.prompt,
       }}
       skills={skills}
       agentModel={agent.model}
+      promptPreview={promptPreview}
       onChange={(d) =>
         form.change({
+          kind: d.kind ?? 'skill',
+          prompt: d.prompt ?? '',
           command: d.command,
           labelFilter: d.labels,
           target: d.target,

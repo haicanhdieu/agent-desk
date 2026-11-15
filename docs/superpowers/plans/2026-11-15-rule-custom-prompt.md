@@ -245,7 +245,7 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 - Consumes: `usePromptPreview` (Task 8), `CreateRuleRequest`, `UpdateRuleRequest`, `RuleKind`.
 - Produces: `RuleValues = { kind: RuleKind; command; labelFilter; target; skillName: string; prompt: string; enabled }` (form-local view of the two contract branches, built from `CreateSkillRuleRequest` and `CreatePromptRuleRequest` types, not redeclared); `toCreateRequest(v: RuleValues): CreateRuleRequest` drops the other kind's field; `changedFields(base, value)` sends `kind` plus the new kind's field on a switch, else only the current kind's field when changed, and never the other kind's field.
 
-- [ ] **Step 1: Write the failing tests** in `rules.route.test.tsx`:
+- [x] **Step 1: Write the failing tests** in `rules.route.test.tsx`:
   - `it('New rule offers Skill / Custom prompt and shows the server system lines under the prompt')` (label "Added by Agent Desk (can't be edited)", the `agentdesk-status` line from MSW).
   - `it('saves a custom prompt rule and lists it as Custom prompt with its first line')`.
   - `it('switching an edited skill rule to Custom prompt sends kind and prompt only')` (Review Focus 1; capture the PATCH body).
@@ -253,10 +253,10 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
   - `it('a server 422 on /prompt shows under the prompt field')`.
   - `it('when the preview fails, the form still saves and Retry refetches')`.
   - `changedFields` unit cases in a new `apps/web/src/features/desk/rules.form.test.ts`: switch both ways, prompt edit, no change → `{}`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/desk` — expect FAIL.
-- [ ] **Step 3: Implement**: `useRuleForm` default `kind` from `initial?.kind ?? 'skill'`, `prompt: initial?.prompt ?? ''`; register `kind` and `prompt` fields; `SCREEN_FIELD.prompt = 'prompt'`, `RULE_POINTERS['/prompt'] = 'prompt'`, `SCHEMA_MESSAGE.prompt = 'Write what the agent should do, up to 4,000 characters.'`; validator `onDynamic: CreateRuleRequest` (extra keys are stripped by Zod objects; if TanStack Form's Standard Schema typing rejects it, validate `toCreateRequest(value)` in a function validator instead). Create submits `toCreateRequest(value)`. `RuleEditor` passes `promptPreview={usePromptPreview(org, projectId, true)}` and maps `kind`/`prompt` both ways between `RuleDraft` and the form.
-- [ ] **Step 4: Run** the desk tests and `pnpm --filter @agentdesk/web typecheck` (setup route may still fail until Task 10) — desk tests PASS.
-- [ ] **Step 5: Commit** `feat(web): rule form saves skill and custom prompt rules`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/desk` — expect FAIL.
+- [x] **Step 3: Implement**: `useRuleForm` default `kind` from `initial?.kind ?? 'skill'`, `prompt: initial?.prompt ?? ''`; register `kind` and `prompt` fields; `SCREEN_FIELD.prompt = 'prompt'`, `RULE_POINTERS['/prompt'] = 'prompt'`, `SCHEMA_MESSAGE.prompt = 'Write what the agent should do, up to 4,000 characters.'`; validator `onDynamic: CreateRuleRequest` (extra keys are stripped by Zod objects; if TanStack Form's Standard Schema typing rejects it, validate `toCreateRequest(value)` in a function validator instead). Create submits `toCreateRequest(value)`. `RuleEditor` passes `promptPreview={usePromptPreview(org, projectId, true)}` and maps `kind`/`prompt` both ways between `RuleDraft` and the form.
+- [x] **Step 4: Run** the desk tests and `pnpm --filter @agentdesk/web typecheck` (setup route may still fail until Task 10) — desk tests PASS.
+- [x] **Step 5: Commit** `feat(web): rule form saves skill and custom prompt rules`.
 
 ### Task 10: Setup step 4 and run detail wiring
 
