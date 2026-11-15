@@ -20,12 +20,11 @@
   - New statuses: `paused` (not active, not final), `expired` (final).
   - `pausedKeepSeconds`: default `604800`, range `3600` to `2592000`.
   - `doneKeepSeconds`: default `86400`, range `0` to `604800`; `0` means no session is kept.
-  - `RESUME_MIN_SECONDS = 3600`: a resume is refused when less than this is left of the time limit (total pod time never exceeds the limit).
-  - `RUN_KEPT_DONE_SESSIONS_PER_PROJECT`: default `10`; `RUN_PAUSED_SESSIONS_PER_PROJECT`: default `20`; `RUN_KEPT_SESSIONS_PER_ORG`: default `100`. All min `0`; `0` means that kind is not kept. At the paused or org cap a new idle stop writes `expired` with a `session_not_kept` event (never `succeeded`); a done stop writes `succeeded` without a session.
-  - `RUN_VOLUME_STORAGE_CLASS`: required when `NODE_ENV=production`.
+  - `RESUME_MIN_SECONDS = 3600`: a resumed pod's time allowance is never less.
+  - `RUN_KEPT_DONE_SESSIONS_PER_PROJECT`: default `10`.
   - Storage class name on the cluster: `agentdesk-run-volumes` (`rancher.io/local-path`, `reclaimPolicy: Delete`, `WaitForFirstConsumer`).
   - Resume route: `POST /api/runs/:runId/resume`.
-  - Runner: `RUN_MODE=resume`; resume command for Claude Code is `claude --permission-mode bypassPermissions --continue`; exit code `79` when no saved session is found. A missing claim at resume is `SessionVolumeMissing` (same outcome: the session is lost and expires at once).
+  - Runner: `RUN_MODE=resume`; resume command for Claude Code is `claude --permission-mode bypassPermissions --continue`; exit code `79` when no saved session is found.
 - New workflow behaviour is behind `patched('pause-resume')`, evaluated once right after `loadRun`. A run that started before the deploy has no volume and keeps today's behaviour (idle end writes `succeeded`).
 - UI labels: `paused` → "Paused", `expired` → "Expired". Buttons: "Resume" (paused run), "Re-open session" (succeeded run with a kept session).
 
@@ -34,24 +33,21 @@
 1. **A person attaches, or the agent starts working, in the same moment the idle timer fires.** Expected: once the session end has begun the run parks; it never ends up `running` with no pod. Pinned in Task 9.
 2. **Resume pressed twice, or pressed while a resume is already queued or starting.** Expected: the second call gets a 409 with a plain message; one pod, one slot request. Pinned in Tasks 10 and 12.
 3. **The keep time runs out while a resume is queued for a slot.** Expected: the resume wins; the expiry timer is off from the moment a resume is accepted and is re-armed with the original deadline only if the resume falls back. Pinned in Task 10.
-4. **The volume is gone or empty at resume** (node wiped, deleted by hand). Expected: the claim is missing (`SessionVolumeMissing`) or the runner exits `79`; the session is treated as lost, the run is expired at once with a "Resume failed: the saved session is gone" event, and nothing is retried. Pinned in Tasks 3, 7 and 10.
+4. **The volume is gone or empty at resume** (node wiped, deleted by hand). Expected: the runner exits `79`, the run goes back to its kept state with a "Resume failed: no saved session was found" event, and nothing is retried in a loop. Pinned in Tasks 3 and 10.
 5. **A run that started before the deploy reaches its idle timer after the deploy.** Expected: old behaviour (`succeeded`, no volume call, no park). Pinned in Task 9 (replay of `run-idle-finish-history.json`).
-6. **Resumes cannot extend the time limit.** Expected: a resume with less than `RESUME_MIN_SECONDS` of the limit left is rejected `NotResumable`. Pinned in Tasks 8 and 10.
-7. **Kept volumes are bounded per project and org, and an idle stop over the cap is never shown as Succeeded.** Pinned in Task 7.
 
 ## File Map
 
 | Area | Files | Responsibility |
 | --- | --- | --- |
 | contracts | `packages/contracts/src/enums.ts`, `schemas/runs.ts`, `schemas/agents.ts`, `schemas/events.ts`, `routes.ts` | Statuses, groups, session fields, keep settings, resume route |
-| db | `packages/db/src/schema/app.ts`, `packages/db/migrations/0011_run_pause_resume.sql`, `0012_run_status_check_validate.sql`, `0013_runs_session_idx.sql` | Columns, checks, index |
+| db | `packages/db/src/schema/app.ts`, `packages/db/migrations/0011_run_pause_resume.sql` | Columns and checks |
 | core | `packages/core/src/kube/{gateway,real-gateway,fake-gateway,job-spec}.ts`, `packages/core/src/config.ts`, `packages/core/src/temporal-names.ts` | Volume methods, Job on a volume, config, signal names |
 | runner | `images/runner/{Dockerfile,entrypoint.sh}`, `images/runner/agents/claude/commands.sh` | Home on the volume, session marker, resume mode |
 | worker | `apps/worker/src/activities/{run-status.activity,session.activity,run.activities,run.activities.impl,reconcile.activity}.ts`, `apps/worker/src/workflows/{signals,agent-phase,park,run.workflow}.ts` | Status rules, park and expiry, resume, cleanup |
 | api | `apps/api/src/runs/{runs.controller,runs.service}.ts`, `apps/api/src/agents/agents.service.ts`, `apps/api/src/projects/projects.service.ts`, `apps/api/src/sse/sse.service.ts` | Resume endpoint, filters, settings, delete guard, live updates |
 | web | `apps/web/src/ds/{tokens.ts,StatusIcon.tsx,Chips.module.css,StatusBadge.stories.tsx}`, `apps/web/src/features/runs/*`, `apps/web/src/features/desk/agent.form.ts`, routes `o.$org.p.$project.{runs.$run,runs.index,needs-you,desk.agent}.tsx`, `apps/web/src/mocks/*` | Statuses, actions, settings |
-| config | `.env.example` | New keys (with the schema in core) |
-| docs | `docs/adr/0022-pause-and-resume-runs-on-a-per-run-volume.md`, notes in ADR 0010 and 0020, `docs/conventions/security.md`, `docs/conventions/architecture.md` §6, `docs/superpowers/specs/2026-11-12-infra-design.md` §5.4, §6.1, §6.2, §6.6 | Decision record and corrections |
+| docs | `docs/adr/0022-pause-and-resume-runs-on-a-per-run-volume.md`, notes in ADR 0010 and 0020, `docs/conventions/security.md`, `docs/superpowers/specs/2026-11-12-infra-design.md` §5.4, §6.1, §6.6 | Decision record and corrections |
 
 ---
 
@@ -66,9 +62,9 @@ Throwaway. Nothing from this task is committed except the result line in the spe
 - Modify: `docs/superpowers/specs/2026-11-15-run-pause-resume-design.md` (the "`--continue` is unproven here" bullet)
 
 - [ ] **Step 1: Build the current runner image locally** (see `docs/runbooks/local-dev.md` for the image name and build command).
-- [ ] **Step 2: Start container A** by running the real `images/runner/entrypoint.sh` start path (not a hand-made tmux command) with a host folder mounted at `/workspace`, `HOME=/workspace/home`, a real agent credential from your local `.env`, and a tiny test repo. Use the prompt "Reply with the word PINEAPPLE and then ask me one question." Wait for the turn to end.
+- [ ] **Step 2: Start container A** with a host folder mounted at `/workspace`, `HOME=/workspace/home`, a real agent credential from your local `.env`, and a tiny test repo. Start `claude --permission-mode bypassPermissions "Reply with the word PINEAPPLE and then ask me one question."` inside tmux, as the entrypoint does. Wait for the turn to end.
 - [ ] **Step 3: Kill the tmux session** (`tmux kill-session -t agent`), then remove container A.
-- [ ] **Step 4: Start container B** on the same host folder and `HOME`, with the real entrypoint's resume path (apply the Task 3 resume changes to a scratch copy of the entrypoint, including the skeleton overwrite and the `.claude.json` merge), capture the pane.
+- [ ] **Step 4: Start container B** on the same host folder and `HOME`, run `claude --permission-mode bypassPermissions --continue` in `/workspace/repo` inside tmux, capture the pane.
 - [ ] **Step 5: Check three things.** The pane shows the earlier conversation (PINEAPPLE and the question). Typing an answer produces a new turn. The pod's stdout shows `agentdesk: state …` lines for the new turn (hooks still fire).
 - [ ] **Step 6: Record the result.** Replace the spec bullet with one line: the Claude Code version tested, the date, and "confirmed" or what failed. Commit as `docs(specs): record the resume spike result`.
 
@@ -122,14 +118,14 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test` — expect FAIL.
 - [ ] **Step 3: Implement** the items under Produces. Export `session.ts` from the package index.
 - [ ] **Step 4: Make the repo compile.** Add `paused` (label "Paused", colour `--idle`) and `expired` (label "Expired", colour `--off`) to `statusTokens`; return `null` for the two new run fields and the defaults for the two agent fields in the API mappers; add the fields to web mock builders. No other behaviour.
-- [ ] **Step 5: Write ADR 0022** from the spec (Context, Decision, Alternatives table from the spec's Approaches, Consequences from "Limits and risks", plus: kept volumes are secret-bearing data, and the one deletion of run events (older scrollbacks)), and add a one-line "Amended by 0022" note to ADR 0010 and ADR 0020.
+- [ ] **Step 5: Write ADR 0022** from the spec (Context, Decision, Alternatives table from the spec's Approaches, Consequences from "Limits and risks"), and add a one-line "Amended by 0022" note to ADR 0010 and ADR 0020.
 - [ ] **Step 6: Run** `pnpm --filter @agentdesk/contracts test && pnpm typecheck` — expect PASS.
 - [ ] **Step 7: Commit** `feat(contracts): paused and expired run statuses, kept sessions, resume route`.
 
 ### Task 2: Columns and checks
 
 **Files:**
-- Create three migrations (generate with the repo's Drizzle command, see `docs/conventions/database.md` §5; hand-edit the SQL where noted): `0011_run_pause_resume.sql` (columns, the agents checks, the new status check as `NOT VALID`), `0012_run_status_check_validate.sql` (`VALIDATE CONSTRAINT` only), `0013_runs_session_idx.sql` (the index, `CREATE INDEX CONCURRENTLY`, alone in its file so it runs outside a transaction)
+- Create: `packages/db/migrations/0011_run_pause_resume.sql` (generate with the repo's Drizzle command, see `docs/conventions/database.md`)
 - Modify: `packages/db/src/schema/app.ts`
 - Test: the existing migration test file in `packages/db` (follow the `0010` guard test)
 - Modify: `apps/api/src/runs/runs.service.ts`, `apps/api/src/agents/agents.service.ts` (read and write the real columns)
@@ -137,15 +133,15 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 **Interfaces — Produces:**
 - `runs.pausedAt` (`paused_at`), `runs.sessionExpiresAt` (`session_expires_at`), both nullable timestamps.
 - `agents.pausedKeepSeconds` (`paused_keep_seconds`, not null, default 604800), `agents.doneKeepSeconds` (`done_keep_seconds`, not null, default 86400).
-- Checks: `runs_status_check` dropped and re-added with `'paused','expired'` added, `NOT VALID` in 0011 and validated in 0012; `agents_paused_keep_check` (`between 3600 and 2592000`); `agents_done_keep_check` (`between 0 and 604800`) (the agents table is small, so these are added plainly).
-- Partial index `runs_kept_session_idx` on `(org_id, project_id, status, session_expires_at) where session_expires_at is not null` (serves the per-project and per-org cap counts and the oldest-first drop query without scanning ended runs).
+- Checks: `runs_status_check` re-created with `'paused','expired'` added; `agents_paused_keep_check` (`between 3600 and 2592000`); `agents_done_keep_check` (`between 0 and 604800`).
+- Index `runs_project_session_idx` on `(project_id, session_expires_at)`.
 
-- [ ] **Step 1: Write failing tests:** the migration applies on a database at `0010`; a row with status `paused` inserts; `paused_keep_seconds = 3599` is rejected; existing agent rows get `604800` and `86400`; the migration files contain no `update`, `delete` or `insert` on `runs`; 0011 adds the status check `NOT VALID` and 0012 only validates it; 0013 uses `CONCURRENTLY` and holds no other statement.
+- [ ] **Step 1: Write failing tests:** the migration applies on a database at `0010`; a row with status `paused` inserts; `paused_keep_seconds = 3599` is rejected; existing agent rows get `604800` and `86400`; the migration file contains no `update`, `delete` or `insert` on `runs`.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/db test` — expect FAIL.
 - [ ] **Step 3: Implement** the schema change and generate the migration. Comment in the schema that the literals mirror the contracts constants (db cannot import contracts).
 - [ ] **Step 4: Wire the API mappers** to the new columns; `PUT` agent writes the two fields when present. Extend `apps/api/test/agents.int.test.ts`: saving `pausedKeepSeconds: 86400` round-trips; omitting it keeps the stored value.
 - [ ] **Step 5: Run** `pnpm --filter @agentdesk/db test && pnpm --filter @agentdesk/api test` — expect PASS.
-- [ ] **Step 6: Commit** `feat(db): session columns on runs and keep settings on agents` (one commit, the three files).
+- [ ] **Step 6: Commit** `feat(db): session columns on runs and keep settings on agents`.
 
 ---
 
@@ -160,22 +156,17 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 
 **Interfaces — Produces:**
 - Image: baked home content is copied to `/usr/local/share/agentdesk/home-skel/` (same files as `/home/runner` has today). `/home/runner` stays as is for setup-test pods.
-- Entrypoint, every mode (start and resume): `mkdir -p "$HOME"`, then copy the skeleton into `$HOME` **overwriting** the skeleton's own files (settings, hooks), so platform-owned files are restored on resume; files not in the skeleton are never touched. Test seam env `AGENTDESK_HOME_SKEL` (like `AGENTDESK_LIB_DIR`).
-- `~/.claude.json`: written only when absent; when present, the trust entry for `$REPO_DIR` is merged in with `node` (already in the image), not overwritten. Runs in both modes.
-- After clone and checkout (normal mode), `git remote set-url origin` to `REPO_CLONE_URL` with its userinfo removed, so `.git/config` never holds the token.
+- Entrypoint, every mode: `mkdir -p "$HOME"`, then copy the skeleton into `$HOME` without overwriting existing files. Test seam env `AGENTDESK_HOME_SKEL` (like `AGENTDESK_LIB_DIR`).
 - Marker file `"$HOME/.agentdesk/session-started"`, written right after the tmux session is created in normal mode.
 - `agents/claude/commands.sh` defines two shell variables used as the tmux command: `AGENT_START_CMD='exec claude --permission-mode bypassPermissions "$PROMPT"'` and `AGENT_RESUME_CMD='exec claude --permission-mode bypassPermissions --continue'`. The entrypoint sources the file for the agent named by env `AGENT` (default `claude`; the name is matched against a fixed list, never used as a path from untrusted input).
 - `RUN_MODE=resume`: skips clone, checkout, plugins and setup; registers the git credential helper as today; `cd "$REPO_DIR"`; if the marker or `$REPO_DIR/.git` is missing prints `agentdesk: resume failed (no saved session)` and exits `79`; otherwise prints `agentdesk: session resumed`, starts tmux with `AGENT_RESUME_CMD`, prints `agentdesk: session started`, and continues with the existing wait and final-scrollback code.
 
 - [ ] **Step 1: Write failing tests** (use the existing harness and stubs):
   - normal mode: after start, the marker exists and `$HOME/.claude/settings.json` equals the skeleton's;
-  - a file in `$HOME` that is not in the skeleton is kept; a skeleton file edited on the volume is restored (also in resume mode);
-  - `~/.claude.json` already present with other keys: the other keys survive and the trust entry is added;
-  - after start, `git config --get remote.origin.url` has no token, and a recursive grep of the workspace for the token value finds nothing;
+  - a file already in `$HOME` is not overwritten by the skeleton copy;
   - `RUN_MODE=resume` with marker and repo: stdout has `agentdesk: session resumed` then `agentdesk: session started`; the `git` stub was not called with `clone`; the `claude` stub got `--continue` and no prompt argument; no `plugins begin` or `setup begin` line;
   - `RUN_MODE=resume` without the marker: exit code `79`, stdout has `agentdesk: resume failed (no saved session)`, tmux stub not started;
   - `RUN_MODE=resume` with `SETUP_SCRIPT` set: the script is not run;
-  - `RUN_MODE=resume` with a skeleton file tampered on the volume: restored before the agent starts;
   - Dockerfile test: the skeleton folder is copied and owned by `10001`.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test` — expect FAIL.
 - [ ] **Step 3: Implement.**
@@ -195,15 +186,13 @@ export interface RunVolumeRef { name: string; runId: string; orgId: string; proj
 ensureVolumeClaim(name: string, spec: { size: string; storageClass?: string }, labels: Record<string, string>): Promise<void>; // already exists → success
 deleteVolumeClaim(name: string): Promise<void>; // missing → success
 listRunVolumeClaims(): Promise<RunVolumeRef[]>; // claims carrying the run labels
-volumeClaimExists(name: string): Promise<boolean>; // resume checks this before creating a Job
-canManageVolumeClaims(): Promise<boolean>; // self access review: may this service account create claims in the runs namespace
 export const runVolumeName = (runId: string): string => `run-${runId}`;
 ```
 
 - Claim spec: `accessModes: ['ReadWriteOnce']`, `resources.requests.storage = size`, `storageClassName` only when given.
-- Config (schema in `packages/core/src/config.ts`, plus `.env.example`, plus the `agentdesk-config` key list in infra design §6.2, same change, per architecture §7): `RUN_VOLUME_STORAGE_CLASS` (optional string, blank means unset; **required when `NODE_ENV=production`**, because the cluster default may retain data), `RUN_KEPT_DONE_SESSIONS_PER_PROJECT` (int, min 0, default 10), `RUN_PAUSED_SESSIONS_PER_PROJECT` (int, min 0, default 20), `RUN_KEPT_SESSIONS_PER_ORG` (int, min 0, default 100).
+- Config: `RUN_VOLUME_STORAGE_CLASS` (optional string, blank means unset), `RUN_KEPT_DONE_SESSIONS_PER_PROJECT` (int, min 0, default 10).
 
-- [ ] **Step 1: Write failing tests:** ensure twice succeeds and creates one claim with the labels and size; delete of a missing claim succeeds; list returns only claims with run labels and maps them with `runRefFromLabels`; with `storageClass` unset the body has no `storageClassName`; `volumeClaimExists` true and false; `canManageVolumeClaims` follows the review's `allowed`; config: production without `RUN_VOLUME_STORAGE_CLASS` fails, development without it passes, a cap of `0` parses, a negative cap fails.
+- [ ] **Step 1: Write failing tests:** ensure twice succeeds and creates one claim with the labels and size; delete of a missing claim succeeds; list returns only claims with run labels and maps them with `runRefFromLabels`; with `storageClass` unset the body has no `storageClassName`.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test:unit` — expect FAIL.
 - [ ] **Step 3: Implement** in the real and fake gateways, following the Secret methods' error handling (`kubeStatusOf`, 404 and 409).
 - [ ] **Step 4: Run** — expect PASS.
@@ -214,8 +203,7 @@ export const runVolumeName = (runId: string): string => `run-${runId}`;
 **Files:**
 - Modify: `packages/core/src/kube/job-spec.ts`
 - Test: `packages/core/test/kube/job-spec.test.ts`
-- Modify: `docs/conventions/security.md` (workspace is a per-run volume), `docs/superpowers/specs/2026-11-12-infra-design.md` §5.4, §6.1, §6.2, §6.6
-- Modify: the worker bootstrap (where `KubeGateway` is built) for the startup check
+- Modify: `docs/conventions/security.md` (workspace is a per-run volume), `docs/superpowers/specs/2026-11-12-infra-design.md` §5.4, §6.1, §6.6
 
 **Interfaces — Produces:**
 - `RunJobInput` gains `resume: boolean` and `deadlineSeconds: number` (replaces the use of `timeoutSeconds` for `activeDeadlineSeconds`; still `+ 120`).
@@ -226,10 +214,7 @@ export const runVolumeName = (runId: string): string => `run-${runId}`;
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test:unit` — expect FAIL.
 - [ ] **Step 3: Implement.** Update the one caller in `apps/worker/src/activities/run.activities.impl.ts` to pass `resume: false` and `deadlineSeconds: ctx.timeoutSeconds`, and to call `ensureVolumeClaim(runVolumeName(runId), { size: RUN_POD_WORKSPACE_SIZE_LIMIT, storageClass }, runLabels(...))` before the Job. `deleteJob` and `ensureJobGone` keep deleting only the Job and Secret.
 - [ ] **Step 4: Add a temporary volume delete to `finalize`'s cleanup path** so this PR does not leak volumes: after the Job is gone, call a new activity `deleteRunVolume(ctx): Promise<void>` (deletes the claim; missing → success). Guard the new call with `patched('run-volume')`, so a run that was already in `finalize` when the worker restarted replays unchanged; add the existing replay fixtures to the check. Extend `run.activities.int.test.ts`: after a run ends, the fake gateway has no claim for it.
-- [ ] **Step 4b: Fail fast on a missing Role.** At worker startup, when the gateway is the real one, call `canManageVolumeClaims()` and refuse to start with "the worker may not create volume claims in {namespace}; apply the platform Role first" when false. Test with the fake gateway set to deny: bootstrap throws; allow: starts.
-- [ ] **Step 5: Update the docs** listed above: storage class `agentdesk-run-volumes`, the worker Role gains `persistentvolumeclaims` (create, get, list, delete), run pods use a per-run volume, deploy order (class and Role before the worker), the new config keys in §6.2.
-
-**PR 2 preconditions (put this checklist in the PR body):** storage class `agentdesk-run-volumes` exists with `reclaimPolicy: Delete`; the worker Role has `persistentvolumeclaims`; `RUN_VOLUME_STORAGE_CLASS` is set; the runner image with the volume-aware entrypoint is live. Phase B makes every run need these, so the worker must not deploy before them.
+- [ ] **Step 5: Update the docs** listed above: storage class `agentdesk-run-volumes`, the worker Role gains `persistentvolumeclaims` (create, get, list, delete), run pods use a per-run volume, deploy order (class and Role before the worker).
 - [ ] **Step 6: Run** `pnpm --filter @agentdesk/core test && pnpm --filter @agentdesk/worker test` — expect PASS. Then `devbox run e2e-local` and confirm a run starts, the agent can write in `/workspace/repo` and `$HOME`, and the claim is gone after the run ends.
 - [ ] **Step 7: Commit** `feat(core): run Jobs use a per-run volume`.
 
@@ -252,11 +237,9 @@ session?: { expiresAt: string } | null;
 keepAgentNote?: boolean;
 /** Allow leaving `succeeded` when the row has session_expires_at in the future at `at` (re-open). */
 reopen?: boolean;
-/** Put a failed resume back: allowed only from `queued` or `starting` to `paused` or `succeeded`; writes these values back (re-open cleared finishedAt and exitCode). */
-restore?: { pausedAt: string | null; sessionExpiresAt: string; finishedAt: string | null; exitCode: number | null };
 ```
 
-Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not reset). A transition out of a final status stays a no-op, except `succeeded → queued` with `reopen: true` and a kept session; that write clears `finishedAt` and `exitCode`. A final status other than `succeeded` clears `sessionExpiresAt`. `restoreParked` and `endKeptSession` (Task 7) write only through `setRunStatusTx` (architecture §6: sole writer of `runs.status`), using `restore` and `session: null`; `endKeptSession` on a `succeeded` run changes no status, only clears the session. The status event payload gains `pausedAt` and `sessionExpiresAt`.
+Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not reset). A transition out of a final status stays a no-op, except `succeeded → queued` with `reopen: true` and a kept session; that write clears `finishedAt` and `exitCode`. A final status other than `succeeded` clears `sessionExpiresAt`. The status event payload gains `pausedAt` and `sessionExpiresAt`.
 
 - [ ] **Step 1: Write failing tests:**
   - `idle → paused` with `session: { expiresAt }` and `keepAgentNote`: row has status `paused`, the note unchanged, `pausedAt = at`, `sessionExpiresAt` set;
@@ -265,10 +248,7 @@ Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not re
   - `succeeded → queued` with `reopen` and a past or null expiry: `changed: false`;
   - `failed → queued` with `reopen`: `changed: false`;
   - `paused → expired`: `sessionExpiresAt` null, `finishedAt` set;
-  - `paused → cancelled`: `sessionExpiresAt` null;
-  - `restore` from `queued` to `succeeded`: `finishedAt`, `exitCode`, `sessionExpiresAt` equal the originals; `restore` from `starting` to `paused`: `pausedAt` and expiry restored;
-  - `restore` from `running` or `failed` to `paused`: `changed: false`;
-  - `session: null` on a `succeeded` row: status unchanged, `sessionExpiresAt` null.
+  - `paused → cancelled`: `sessionExpiresAt` null.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** — expect PASS.
@@ -285,18 +265,14 @@ Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not re
 
 ```ts
 export type ParkKind = 'needs_input' | 'done';
-export interface ParkResult {
-  status: 'paused' | 'succeeded' | 'expired'; /** `expired`: an idle run that could not be kept (cap reached). */
-  /** null: nothing kept (keep setting 0, or a cap reached; a `session_not_kept` event says why). */ sessionExpiresAt: string | null;
-  pausedAt: string | null; finishedAt: string | null; exitCode: number | null; /** kept by the workflow for a failed resume */
-}
-/** Reads the agent's keep setting (defaults when the agent row is gone), applies the caps (below), writes the parked status
- *  and session in one transaction, and for kind `done` signals `dropSession` to the oldest kept succeeded ones. */
+export interface ParkResult { status: 'paused' | 'succeeded'; /** null: nothing kept (doneKeepSeconds = 0). */ sessionExpiresAt: string | null }
+/** Reads the agent's keep setting (defaults when the agent row is gone), writes the parked status and session in one
+ *  transaction, and for kind `done` applies the per-project cap by signalling `dropSession` to the oldest kept ones. */
 parkRun(ctx: RunContext, input: { kind: ParkKind; at: string }): Promise<ParkResult>;
 /** `expired`: paused → status expired; succeeded → clears session_expires_at and notifies. `dropped`: same for succeeded; a paused run is never dropped. */
 endKeptSession(ctx: RunContext, reason: 'expired' | 'dropped', at: string): Promise<void>;
-/** Puts a run whose resume failed back: status `paused` or `succeeded` with the same expiry, finishedAt and exitCode (via `setRunStatusTx` with `restore`), plus a `lifecycle` event `resume_failed` with a redacted one-line reason. */
-restoreParked(ctx: RunContext, input: { kind: ParkKind; parked: ParkResult; reason: string; at: string }): Promise<void>;
+/** Puts a run whose resume failed back: status `paused` or `succeeded` with the same expiry, plus a `lifecycle` event `resume_failed` with a redacted one-line reason. */
+restoreParked(ctx: RunContext, input: { kind: ParkKind; sessionExpiresAt: string; reason: string; at: string }): Promise<void>;
 deleteRunVolume(ctx: RunContext): Promise<void>; // from Task 5
 createRunSecretAndJob(ctx: RunContext, opts?: { resume?: boolean; deadlineSeconds?: number }): Promise<TokenRefreshPlan | undefined>;
 followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLogsResult>;
@@ -305,25 +281,20 @@ followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLo
 - `CommentKind` gains `'paused'` (idempotent through `runs.outbox.paused`, so it posts once per run).
 - `SIGNAL.sessionStarted = 'sessionStarted'`, `SIGNAL.dropSession = 'dropSession'`, `UPDATE.resumeRun = 'resumeRun'` in `temporal-names.ts`.
 - `followPodLogs`: sends the `sessionStarted` signal to the run workflow when it stores `session_started`. With `resume: true` it does not write `running` on the first log line, reports `failureStage: undefined` and a new result field `resumeFailed?: true` when the pod exited `79` before `session_started`, and the stored `session_started` check looks only at events after the resume began.
-- With `createRunSecretAndJob(..., { resume: true })` the agent and credential are read fresh from the database; a missing agent or credential fails non-retryably with type `NoAgentCredential`. It does not call `ensureVolumeClaim`: it calls `volumeClaimExists` and, when the claim is missing, fails non-retryably with type `SessionVolumeMissing` (an empty claim must never be created on resume).
-- Only the latest scrollback is kept per run: when `followPodLogs` stores a `final_scrollback` event it deletes the run's earlier ones in the same transaction.
-- Caps (all counts over the partial index `runs_kept_session_idx`, under `withOrg`, bounded by the cap): `parkRun` first checks the org count against `RUN_KEPT_SESSIONS_PER_ORG` and, for `needs_input`, the project's paused count against `RUN_PAUSED_SESSIONS_PER_PROJECT`; at the cap (or cap `0`) nothing is kept: `needs_input` → `expired`, `done` → `succeeded`, `sessionExpiresAt: null`, event `session_not_kept` with the reason. For `done`, with `RUN_KEPT_DONE_SESSIONS_PER_PROJECT = c`: `c = 0` keeps nothing; otherwise count the project's kept succeeded runs `n` and signal `dropSession` to the oldest `max(n - (c - 1), 0)` (`ORDER BY session_expires_at ASC LIMIT` that number), so after this session is kept there are at most `c`.
+- With `createRunSecretAndJob(..., { resume: true })` the agent and credential are read fresh from the database; a missing agent or credential fails non-retryably with type `NoAgentCredential`.
 
 - [ ] **Step 1: Write failing tests:**
   - `parkRun` `needs_input`: status `paused`, expiry = `at` + the agent's `pausedKeepSeconds`;
   - `parkRun` `done` with `doneKeepSeconds = 0`: status `succeeded`, `sessionExpiresAt: null`;
-  - `parkRun` `done` with 10 kept sessions already in the project and the cap at 10: only the oldest kept run's workflow receives `dropSession` (fake Temporal client), paused runs are not counted and not signalled; with 11 kept, the two oldest; with the cap at 1, all kept ones; with the cap at 0: nothing kept, `sessionExpiresAt: null`, no signal;
-  - `parkRun` `needs_input` with the project at `RUN_PAUSED_SESSIONS_PER_PROJECT`: status `expired`, `sessionExpiresAt: null`, a `session_not_kept` event, never `succeeded`; at the org cap the same for both kinds (`done` → `succeeded`); cap `0` likewise;
-  - `followPodLogs` storing a second scrollback leaves exactly one `final_scrollback` event for the run;
-  - `createRunSecretAndJob` with `resume: true` and no claim: fails with `SessionVolumeMissing`, no claim created, no Job;
+  - `parkRun` `done` with 10 kept sessions already in the project and the cap at 10: the oldest kept run's workflow receives `dropSession` (fake Temporal client), paused runs are not counted and not signalled;
   - `parkRun` with the agent row deleted: uses `604800` and `86400`;
   - `endKeptSession('expired')` on a paused run: status `expired`; on a succeeded run: status stays `succeeded`, `sessionExpiresAt` null;
   - `endKeptSession('dropped')` on a paused run: nothing changes;
-  - `restoreParked`: status, expiry, `finishedAt` and `exitCode` restored (through `setRunStatusTx`), a `resume_failed` event stored, the reason redacted and capped;
+  - `restoreParked`: status and expiry restored, a `resume_failed` event stored, the reason redacted and capped;
   - `followPodLogs` with `resume: true`: no `running` write on the first line; `sessionStarted` signal sent; exit `79` gives `resumeFailed: true`;
   - comment kind `paused` posts once across two calls.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
-- [ ] **Step 3: Implement.** All queries under `withOrg`. Implement the cap rules above exactly (no negative `OFFSET`).
+- [ ] **Step 3: Implement.** All queries under `withOrg`. `parkRun`'s cap query: succeeded runs of the project with `session_expires_at > at`, ordered by `session_expires_at`, skipping the newest `cap - 1`.
 - [ ] **Step 4: Run** — expect PASS.
 - [ ] **Step 5: Commit** `feat(worker): activities for parking, expiring and resuming a session`.
 
@@ -344,17 +315,17 @@ export type ParkKind = 'needs_input' | 'done';
 export const parkKindOf = (phase: RunPhase): ParkKind | undefined; // 'idle' → 'needs_input', 'agent_done' → 'done', else undefined
 export const phaseOfParkKind = (kind: ParkKind): 'idle' | 'agent_done';
 export const statusOfParkKind = (kind: ParkKind): 'idle' | 'done';
-/** Seconds the next pod may run: the unused part of the limit (`limit - used`, floor 0). */
-export function sessionAllowanceSeconds(limitSeconds: number, usedSeconds: number): number;
-/** Why a resume is refused, or undefined when allowed. Allowed only in phase 'parked' and when at least RESUME_MIN_SECONDS of the limit is left. */
-export function resumeRejection(phase: RunPhase, limitSeconds: number, usedSeconds: number): string | undefined; // 'resuming' → 'This run is already being resumed'; other phase → 'Only a paused run, or a finished run whose session is still kept, can be resumed'; too little left → 'This run has used its time limit'
+/** Seconds the next pod may run: the unused part of the limit, never less than RESUME_MIN_SECONDS on a resume. */
+export function sessionAllowanceSeconds(limitSeconds: number, usedSeconds: number, isResume: boolean): number;
+/** Why a resume is refused, or undefined when allowed. Allowed only in phase 'parked'. */
+export function resumeRejection(phase: RunPhase): string | undefined; // 'resuming' → 'This run is already being resumed'; other → 'Only a paused run, or a finished run whose session is still kept, can be resumed'
 /** What a cancel does in this phase. */
 export function cancelEffect(phase: RunPhase, kind: ParkKind | undefined, sessionUp: boolean): 'stop_run' | 'abort_resume' | 'ignore';
 ```
 
 `cancelEffect`: `resuming` with `sessionUp` false → `abort_resume`; `parked` with kind `done` → `ignore` (the run already succeeded); everything else → `stop_run`. Also extend `finishRunRejection` in `agent-phase.ts`: `parked` is finishable when the kind is `needs_input`, and rejected for kind `done` with "This run already finished".
 
-- [ ] **Step 1: Write failing tests** covering each line above, including `sessionAllowanceSeconds(86400, 3600) === 82800`, `sessionAllowanceSeconds(86400, 0) === 86400`, `sessionAllowanceSeconds(86400, 90000) === 0`; `resumeRejection('parked', 86400, 82800)` is undefined (exactly `RESUME_MIN_SECONDS` left) and `resumeRejection('parked', 86400, 82801)` is 'This run has used its time limit'.
+- [ ] **Step 1: Write failing tests** covering each line above, including `sessionAllowanceSeconds(86400, 86280, true) === 3600`, `sessionAllowanceSeconds(86400, 3600, true) === 82800`, `sessionAllowanceSeconds(86400, 0, false) === 86400`.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test:unit` — expect FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** — expect PASS.
@@ -363,7 +334,7 @@ export function cancelEffect(phase: RunPhase, kind: ParkKind | undefined, sessio
 ### Task 9: Workflow: park instead of ending, and expire
 
 **Files:**
-- Modify: `apps/worker/src/workflows/run.workflow.ts`, `docs/conventions/architecture.md` §6
+- Modify: `apps/worker/src/workflows/run.workflow.ts`
 - Test: `apps/worker/test/run.workflow.test.ts`; new fixture `apps/worker/test/fixtures/run-park-expire-history.json`
 
 **Interfaces — Consumes:** Tasks 6 to 8. **Produces:** `RunOutcome.status` may be `'expired'`; local `FinalStatus` and `FINAL` gain `'expired'`.
@@ -372,7 +343,7 @@ Behaviour (only when `patched('pause-resume')` is true; otherwise the code path 
 
 1. When the idle timer fires, record `parkKind = parkKindOf(phase)` before setting `ending`, then end the session as today.
 2. After the logs end with `ending` true and `parkKind` set and no `finishRequested`: cancel the hard timer and add the elapsed seconds of this pod to `usedSeconds`; `ensureJobGone`; release the slot (`slotRequested = false`); `parkRun`; for `needs_input` post the `paused` comment, for `done` post the normal finish comment; set `phase = 'parked'`.
-3. If `parkRun` returned `sessionExpiresAt: null`: delete the volume and return the workflow result `parkRun`'s `status` (`succeeded`, or `expired` for an idle run over a cap) without calling `finalize` (status is already written; `needs_input` posts the finish comment with status `expired`, `done` its normal one). Keep the `ParkResult` in a workflow variable for a failed resume.
+3. If `parkRun` returned `sessionExpiresAt: null`: delete the volume and return the workflow result `succeeded` without calling `finalize` (status and comment are already written).
 4. While parked, wait for the first of: the `resumeRun` update (Task 10), a `finishRun` update (kind `needs_input` only → delete the volume, write `succeeded` with `session: null`, post the finish comment, close), a cancel (`cancelEffect`: `stop_run` → `finalize` with `cancelled`; `ignore` → nothing), `dropSession` (kind `done` only), or a durable timer until `sessionExpiresAt`.
 5. On expiry or drop: `endKeptSession`, `deleteRunVolume`, and for kind `needs_input` post the finish comment with status `expired`. Result status: `expired` or `succeeded`.
 6. `finalize` (cancel, failure, hard timeout, person Finish, agent exit) always calls `deleteRunVolume` after the Job is gone, and writes its final status with `session: null`.
@@ -396,7 +367,6 @@ Behaviour (only when `patched('pause-resume')` is true; otherwise the code path 
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
 - [ ] **Step 3: Implement.** Keep `run.workflow.ts` as Temporal glue; put any new pure decision in `park.ts` with a unit test.
 - [ ] **Step 4: Record the new replay fixture** from a park-then-expire run and add it to the replay test.
-- [ ] **Step 4b: Update `docs/conventions/architecture.md` §6** in this PR: the status line gains `paused` and `expired` (`idle → paused → queued` on resume, `paused → expired`); the final-status rule gets the one exception (`succeeded` with a kept session may go back to `queued`, and `restore` may put a failed resume back); the writers table gains `runs.paused_at` and `runs.session_expires_at` (sole writer `setRunStatus`, through `parkRun`, `endKeptSession`, `restoreParked`) and the PVC `run-{runId}` row (`createRunSecretAndJob`, `deleteRunVolume`, reconcile).
 - [ ] **Step 5: Run** — expect PASS.
 - [ ] **Step 6: Commit** `feat(worker): park idle and done runs and expire kept sessions`.
 
@@ -410,12 +380,11 @@ Behaviour (only when `patched('pause-resume')` is true; otherwise the code path 
 
 Behaviour:
 
-1. `resumeRun` update: the validator throws `ApplicationFailure.nonRetryable(resumeRejection(phase, c.timeoutSeconds, usedSeconds), 'NotResumable')` when rejected. The handler sets `phase = 'resuming'`, turns the expiry timer off, and returns `{ accepted: true }` at once (the API does not wait for the pod).
-2. The resume attempt runs in its own cancellation scope: write `queued` (`reopen: true`, `keepAgentNote: true`); request a slot and wait for `granted`; write `starting`; `createRunSecretAndJob(c, { resume: true, deadlineSeconds: allowance })` where `allowance = sessionAllowanceSeconds(c.timeoutSeconds, usedSeconds)` (at least `RESUME_MIN_SECONDS` by the validator); start the hard timer for `allowance`; start `followPodLogs(c, { resume: true })` and the token refresh loop.
+1. `resumeRun` update: the validator throws `ApplicationFailure.nonRetryable(resumeRejection(phase), 'NotResumable')` when rejected. The handler sets `phase = 'resuming'`, turns the expiry timer off, and returns `{ accepted: true }` at once (the API does not wait for the pod).
+2. The resume attempt runs in its own cancellation scope: write `queued` (`reopen: true`, `keepAgentNote: true`); request a slot and wait for `granted`; write `starting`; `createRunSecretAndJob(c, { resume: true, deadlineSeconds: allowance })` where `allowance = sessionAllowanceSeconds(c.timeoutSeconds, usedSeconds, true)`; start the hard timer for `allowance`; start `followPodLogs(c, { resume: true })` and the token refresh loop.
 3. When `sessionStarted` arrives: `sessionUp = true`; `phase = phaseOfParkKind(kind)`; write `statusOfParkKind(kind)` with `keepAgentNote: true` and `session: null`; then the normal main loop runs (idle timer included, so an unattended resumed run parks again with a fresh keep time).
-4. Session lost: if `createRunSecretAndJob` fails with `SessionVolumeMissing`, or the pod exits `79` before `sessionStarted` (`resumeFailed`): delete the Job and Secret, release the slot, then `endKeptSession('expired')` (through `setRunStatusTx`), `deleteRunVolume`, store the `resume_failed` event "the saved session is gone"; the result is `expired` (paused) or `succeeded` (kept-session run). No retry.
-5. Fallback: if the attempt fails or the pod exits before `sessionStarted` for any other reason (activity failure, `PodPendingTimeout`, `NoAgentCredential`), or a cancel arrives with `cancelEffect` = `abort_resume`: delete the Job and Secret, release the slot, cancel the hard timer without adding to `usedSeconds`, call `restoreParked` with the saved `ParkResult` and a plain reason (`the pod could not start`, `the agent or its credential is missing`, `the resume was cancelled`), set `phase = 'parked'` and re-arm the expiry timer for the original deadline. If that deadline has already passed, expire at once.
-6. After `sessionUp`, everything ends by the normal rules through `finalize`. A second `succeeded` for a run whose finish comment was already posted does not post again (the outbox key already exists).
+4. Fallback: if the attempt fails or the pod exits before `sessionStarted` (activity failure, `PodPendingTimeout`, `resumeFailed`, `NoAgentCredential`), or a cancel arrives with `cancelEffect` = `abort_resume`: delete the Job and Secret, release the slot, cancel the hard timer without adding to `usedSeconds`, call `restoreParked` with the original `sessionExpiresAt` and a plain reason (`no saved session was found`, `the pod could not start`, `the agent or its credential is missing`, `the resume was cancelled`), set `phase = 'parked'` and re-arm the expiry timer for the original deadline. If that deadline has already passed, expire at once.
+5. After `sessionUp`, everything ends by the normal rules through `finalize`. A second `succeeded` for a run whose finish comment was already posted does not post again (the outbox key already exists).
 
 - [ ] **Step 1: Write failing workflow tests:**
   - parked `needs_input` → `resumeRun` → statuses written in order `queued`, `starting`, then `idle` after `sessionStarted`; the gate got `requestSlot`; `createRunSecretAndJob` called with `{ resume: true, deadlineSeconds }`; `followPodLogs` called with `{ resume: true }`;
@@ -423,13 +392,12 @@ Behaviour:
   - a resumed run left unattended for the idle time parks again and `parkRun` is called a second time;
   - **Review Focus 2:** a second `resumeRun` while `resuming` is rejected with type `NotResumable` and message "This run is already being resumed"; `requestSlot` called once;
   - **Review Focus 3:** `resumeRun` accepted, the slot is not granted, time skips past the original expiry → `endKeptSession` not called; then `granted` arrives and the resume completes;
-  - **Review Focus 4:** `followPodLogs` returns `{ exitCode: 79, resumeFailed: true }` → `endKeptSession('expired')`, `deleteRunVolume`, event "the saved session is gone", slot released, no `restoreParked`, workflow closes `expired`; `createRunSecretAndJob` failing with `SessionVolumeMissing` → same, with the pod never started and `requestSlot` released;
-  - re-open of a `succeeded` run then a failure other than a lost volume (`PodPendingTimeout`) → `restoreParked` receives the original `finishedAt` and `exitCode`;
+  - **Review Focus 4:** `followPodLogs` returns `{ exitCode: 79, resumeFailed: true }` → `restoreParked` called with reason `no saved session was found` and the original expiry; phase `parked`; `deleteJob` called; slot released; `deleteRunVolume` not called;
   - `createRunSecretAndJob` fails with `NoAgentCredential` → `restoreParked` with `the agent or its credential is missing`;
   - `cancel` while `resuming` before `sessionStarted` → `restoreParked` with `the resume was cancelled`, status not `cancelled`;
   - `cancel` after `sessionStarted` → final `cancelled`, volume deleted;
   - fallback after the original expiry has passed → `restoreParked` then expiry runs at once;
-  - **Review Focus 6:** limit 86400, first pod ran 82800 s, resume → `deadlineSeconds` is `3600`; first pod ran 3600 s → `82800`; time spent parked is not counted; first pod ran 86280 s → `resumeRun` rejected `NotResumable` "This run has used its time limit", no slot requested, still `parked`; two resumes of 40000 s each on a 86400 limit: the third resume is rejected;
+  - time limit: limit 86400, first pod ran 86280 s, resume → `deadlineSeconds` is `3600`; first pod ran 3600 s → `82800`; time spent parked is not counted;
   - the hard timer fires in a resumed pod → final `timed_out` (or `succeeded` when the phase was `agent_done`, as today), volume deleted.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
 - [ ] **Step 3: Implement.**
@@ -446,13 +414,12 @@ Behaviour:
 **Interfaces — Produces:** `ReconcileResult` gains `deletedVolumes: number` and `expiredRuns: number`. Constant `SESSION_EXPIRY_GRACE_SECONDS = 3600`.
 
 Rules, added after the existing ones, per org under `withOrg`:
-- A volume is deleted when its run is missing; or `isSettled(run, now)`; or the run's workflow is closed; or the run's status is `paused` or `succeeded` and `sessionExpiresAt` is older than `now - 3600 s`. A run in `queued`, `starting` or any live status is never deleted on expiry alone (a resumed run may wait for a slot).
-- Open workflows come from one Temporal visibility listing per reconcile pass (open run workflows, paged), turned into a set; no per-run `isWorkflowOpen` call.
+- A volume is deleted when its run is missing; or `isSettled(run, now)`; or the run has `sessionExpiresAt` older than `now - 3600 s`; or the run's workflow is closed.
 - A run with status `paused` whose workflow is closed is written as `expired` (through `setRunStatusTx`, `session: null`) and its volume deleted.
 - A `succeeded` run with a kept session whose workflow is closed gets `sessionExpiresAt` cleared.
 - Existing Job and Secret rules must not treat a run with a kept session as leaked: such a run legitimately has a volume and no Job or Secret. The existing rule "a Secret whose Job is gone while the run is past `starting`" stays (a parked run has no Secret).
 
-- [ ] **Step 1: Write failing tests,** one per rule above, plus: a volume of a `paused` run with an open workflow and a future expiry is kept; a volume of a `running` run is kept; a volume of a `queued` (resumed) run whose `sessionExpiresAt` is more than an hour old and whose workflow is open is kept; with 500 volume-holding runs only one visibility listing is made; a failure deleting one volume is logged (error name only) and the next one is still processed.
+- [ ] **Step 1: Write failing tests,** one per rule above, plus: a volume of a `paused` run with an open workflow and a future expiry is kept; a volume of a `running` run is kept; a failure deleting one volume is logged (error name only) and the next one is still processed.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** — expect PASS.
@@ -476,7 +443,7 @@ Behaviour:
 - `cancel`: a `succeeded` run with a kept session stays a 409 "Run already succeeded".
 - List filters: `needs_you` → status in (`idle`, `paused`); `ended` → final statuses (now including `expired`); `active` unchanged.
 - Project delete: `LIVE_STATUSES` gains `'paused'`. Before deleting, signal `dropSession` to the workflow of every `succeeded` run of the project with a kept session (ignore `WorkflowNotFoundError`).
-- SSE: the run stream is closed only when `isSettled`; the guard that drops a frame going from a final status to a non-final one (`sse.service.ts`, `emit`) lets `succeeded → queued` through. The project resync (`LIMIT 200`, no `ORDER BY` today) must not let paused runs push live runs out: run two bounded queries, live statuses (`queued`, `starting`, `running`, `idle`, `done`) first with `ORDER BY` a stable key and their own limit, then a separate bounded query for `paused` runs and runs with `session_expires_at` in the future; emit both. `paused` is excluded from the unfinished-run filter of the first query.
+- SSE: the run stream is closed only when `isSettled`; the guard that drops a frame going from a final status to a non-final one lets `succeeded → queued` through; the re-send query after a reconnect also includes runs with `session_expires_at` in the future.
 - Terminal attach is unchanged: no pod means refused.
 
 - [ ] **Step 1: Write failing integration tests:**
@@ -488,8 +455,7 @@ Behaviour:
   - finish a `paused` run → 204;
   - list `needs_you` returns idle and paused runs; `ended` returns an expired run;
   - deleting a project with a `paused` run → 409; with only a `succeeded` kept-session run → deleted, and `dropSession` was signalled;
-  - SSE: a stream on a `succeeded` kept-session run stays open and delivers a later `queued` frame; a stream on an `expired` run ends;
-  - SSE resync: a project with 250 `paused` runs and 3 live runs: after a LISTEN reconnect all 3 live runs are re-sent, and the paused ones are re-sent up to their own limit.
+  - SSE: a stream on a `succeeded` kept-session run stays open and delivers a later `queued` frame; a stream on an `expired` run ends.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test` — expect FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** — expect PASS.
