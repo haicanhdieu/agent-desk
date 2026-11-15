@@ -28,6 +28,30 @@ if [ "$kube_mode" != kubeconfig ]; then
   echo "runner-image: skipped (KUBE_MODE=${kube_mode:-unset}, not kubeconfig)"
   exit 0
 fi
+# Only the characters a container reference uses; never starts with "-" (would read as a podman flag).
+case "$image" in
+  -* | *[!A-Za-z0-9._/:@-]*)
+    echo "runner-image: skipped (invalid RUNNER_IMAGE '$image')"
+    exit 0
+    ;;
+esac
+
+# Full reference as the container runtime resolves it (and as k3s lists it): :latest when untagged, docker.io/library/
+# for a bare name, docker.io/ for ns/name, the first segment as the registry when it has a "." or ":" or is localhost.
+normalize_ref() {
+  local ref="$1"
+  case "${ref##*/}" in *[:@]*) ;; *) ref="$ref:latest" ;; esac
+  case "$ref" in
+    */*)
+      case "${ref%%/*}" in
+        *[.:]* | localhost) printf '%s\n' "$ref" ;;
+        *) printf 'docker.io/%s\n' "$ref" ;;
+      esac
+      ;;
+    *) printf 'docker.io/library/%s\n' "$ref" ;;
+  esac
+}
+ref="$(normalize_ref "$image")"
 if ! command -v "$podman" >/dev/null 2>&1 || [ -z "$("$podman" ps --filter "name=^${k3s}\$" --format '{{.Names}}' 2>/dev/null)" ]; then
   echo "runner-image: skipped (no running '$k3s' container; see connect-github-app-local.md section 4)"
   exit 0
@@ -47,7 +71,7 @@ current="$(
 )"
 
 in_k3s() {
-  "$podman" exec "$k3s" ctr -n k8s.io images ls -q 2>/dev/null | grep -qxF "docker.io/library/$image"
+  "$podman" exec "$k3s" ctr -n k8s.io images ls -q 2>/dev/null | grep -qxF -- "$ref"
 }
 
 if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$current" ] && in_k3s; then
@@ -57,9 +81,9 @@ fi
 
 echo "runner-image: images/runner changed or image missing; rebuilding ($current)"
 "$podman" build -q -t "localhost/$image" images/runner >/dev/null
-# k3s resolves the docker.io/library/ name, which a plain `podman build -t $image` does not create.
-"$podman" tag "localhost/$image" "docker.io/library/$image"
-"$podman" save "docker.io/library/$image" | "$podman" exec -i "$k3s" ctr -n k8s.io images import - >/dev/null
+# k3s resolves the full normalized name, which a plain `podman build -t $image` does not create.
+"$podman" tag "localhost/$image" "$ref"
+"$podman" save "$ref" | "$podman" exec -i "$k3s" ctr -n k8s.io images import - >/dev/null
 mkdir -p "$(dirname "$stamp")"
 printf '%s\n' "$current" >"$stamp"
 echo "runner-image: loaded into $k3s. Runs started from now use it; running pods keep the old one."

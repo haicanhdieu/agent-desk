@@ -44,8 +44,11 @@ beforeEach(() => {
 echo "$@" >> "${calls}"
 case "$1" in
   ps) echo agentdesk-k3s ;;
-  save) echo image-bytes ;;
-  exec) case "$*" in *"images ls"*) [ -f "${dir}/imported" ] && echo "docker.io/library/\${RUNNER_IMAGE:-agentdesk-runner:dev}" ;; *import*) touch "${dir}/imported" ;; esac ;;
+  save) echo "$2" > "${dir}/saved"; echo image-bytes ;;
+  exec) case "$*" in
+    *"images ls"*) [ -f "${dir}/imported" ] && { ref="$(cat "${dir}/saved")"; case "\${ref##*/}" in *:*) echo "$ref" ;; *) echo "$ref:latest" ;; esac; } ;;
+    *import*) cat >/dev/null; touch "${dir}/imported" ;;
+  esac ;;
 esac
 exit 0
 `,
@@ -115,6 +118,39 @@ describe('scripts/runner-image.sh', () => {
     writeFileSync(calls, '');
     expect(run({ RUNNER_IMAGE: 'agentdesk-runner:mine' }).out).toContain('up to date');
   });
+
+  it('treats a tagless RUNNER_IMAGE as :latest so the second run is up to date', () => {
+    expect(run({ RUNNER_IMAGE: 'agentdesk-runner' }).status).toBe(0);
+    expect(readFileSync(calls, 'utf8')).toContain('save docker.io/library/agentdesk-runner:latest');
+    writeFileSync(calls, '');
+    const second = run({ RUNNER_IMAGE: 'agentdesk-runner' });
+    expect(second.out).toContain('up to date');
+    expect(built()).toBe(false);
+  });
+
+  it.each([
+    ['ghcr.io/acme/runner:dev', 'ghcr.io/acme/runner:dev'],
+    ['localhost:5000/runner', 'localhost:5000/runner:latest'],
+    ['myorg/runner:dev', 'docker.io/myorg/runner:dev'],
+  ])('tags and saves %s as %s', (image, ref) => {
+    expect(run({ RUNNER_IMAGE: image }).status).toBe(0);
+    const log = readFileSync(calls, 'utf8');
+    expect(log).toContain(` ${ref}\n`);
+    expect(log).toContain(`save ${ref}\n`);
+    expect(log).not.toContain('docker.io/library/');
+    writeFileSync(calls, '');
+    expect(run({ RUNNER_IMAGE: image }).out).toContain('up to date');
+  });
+
+  it.each(['-bad', 'a b:dev', 'x;rm -rf:dev', '$(id)'])(
+    'skips an invalid RUNNER_IMAGE %j without building',
+    (image) => {
+      const r = run({ RUNNER_IMAGE: image });
+      expect(r.status).toBe(0);
+      expect(r.out).toContain('runner-image: skipped (invalid RUNNER_IMAGE');
+      expect(built()).toBe(false);
+    },
+  );
 
   it('does nothing outside KUBE_MODE=kubeconfig', () => {
     const r = run({ KUBE_MODE: 'fake' });
