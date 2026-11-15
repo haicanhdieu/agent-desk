@@ -5,7 +5,9 @@
 import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-const NOTE_MAX = 500;
+// Twice the stored cap (AGENT_NOTE_MAX in contracts): the worker redacts the full text, then cuts to 500.
+// 1000 chars is at most 4000 UTF-8 bytes = 5336 base64 chars, within the parser's 5400 limit.
+const NOTE_MAX = 1000;
 const BLOCK_REASON =
   'Before ending your turn, run `agentdesk-status done "<summary>"` if the task is complete, or `agentdesk-status needs_input "<the question>"` if you need an answer from the human. Then end your turn.';
 
@@ -13,7 +15,7 @@ const stateDir = process.env.AGENTDESK_STATE_DIR || '/home/runner/.agentdesk';
 const out = process.env.AGENTDESK_STATUS_OUT || '/proc/1/fd/1';
 const stateFile = join(stateDir, 'state.json');
 
-// Same rules as toAgentNote in packages/contracts: one line, control chars to space, trimmed, capped.
+// Same rules as toAgentNote in packages/contracts: one line, control chars to space, trimmed, capped (see NOTE_MAX).
 const toNote = (raw) =>
   typeof raw === 'string'
     ? raw

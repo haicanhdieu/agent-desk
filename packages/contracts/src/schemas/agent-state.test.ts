@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AgentNote, FINISHABLE_RUN_STATUSES, RunStatus, toAgentNote } from '../index';
+import { AgentNote, FINISHABLE_RUN_STATUSES, RunStatus, toAgentNote, toAgentNoteWire } from '../index';
 
 describe('toAgentNote', () => {
   it('collapses line terminators and control chars to a space', () => {
@@ -10,6 +10,13 @@ describe('toAgentNote', () => {
 
   it('caps the note at 500 chars', () => {
     expect(toAgentNote('x'.repeat(600)).length).toBe(500);
+  });
+});
+
+describe('toAgentNoteWire', () => {
+  it('sanitizes like toAgentNote but keeps up to 1000 chars for redaction before the 500 cap', () => {
+    expect(toAgentNoteWire('a\nb\u001b')).toBe('a b');
+    expect(toAgentNoteWire('x'.repeat(1500)).length).toBe(1000);
   });
 });
 

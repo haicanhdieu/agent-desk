@@ -97,6 +97,16 @@ describe('parseLogLine agent state protocol', () => {
     }
   });
 
+  it('keeps up to 1000 chars of note so the worker can redact before capping', () => {
+    const line = `agentdesk: state done declared ${b64('y'.repeat(1500))}`;
+    expect(parseLogLine(line).agent?.note).toBe('y'.repeat(1000));
+  });
+
+  it('accepts a 1000-char note made of 4-byte characters', () => {
+    const line = `agentdesk: state done declared ${b64('\u{1F600}'.repeat(500))}`;
+    expect(parseLogLine(line).agent?.note).toBeDefined();
+  });
+
   it('omits the note when the payload decodes to nothing', () => {
     expect(parseLogLine(`agentdesk: state done declared ${b64(' \n ')}`).agent).toEqual({
       state: 'done',
@@ -107,7 +117,7 @@ describe('parseLogLine agent state protocol', () => {
   it.each([
     'agentdesk: state done maybe -',
     'agentdesk: state done declared a b',
-    `agentdesk: state done declared ${'A'.repeat(2801)}`,
+    `agentdesk: state done declared ${'A'.repeat(5401)}`,
     'agentdesk: state done declared - extra',
     'xagentdesk: state working',
     'agentdesk: state working now',

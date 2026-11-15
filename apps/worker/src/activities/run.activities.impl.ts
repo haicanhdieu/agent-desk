@@ -1,7 +1,7 @@
 import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { Provider, RunStatus, TicketKind, type AgentState } from '@agentdesk/contracts';
+import { Provider, RunStatus, TicketKind, toAgentNote, type AgentState } from '@agentdesk/contracts';
 import {
   IDLE_END_SECONDS,
   SIGNAL,
@@ -678,7 +678,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             const agent = parsed.agent;
             const mapped = mapAgentState(agent.state);
             // The note is redacted with the run's secrets before it reaches the status row; the event keeps no note.
-            const agentNote = agent.note !== undefined ? redact(agent.note, secrets) : undefined;
+            // Redact the whole text first, then cap: cutting first could split a secret and leave a prefix behind.
+            const agentNote = agent.note !== undefined ? toAgentNote(redact(agent.note, secrets)) : undefined;
             const { inserted, status } = await withOrg(db, ctx.orgId, async (tx) => {
               const ins = await storeLineEvent(tx, ctx, 'lifecycle', index, {
                 kind: 'agent_state',

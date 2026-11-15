@@ -154,7 +154,7 @@ describe('claude hook rules', () => {
     expect(await lines()).toEqual([]);
   });
 
-  it('note with newline, 10 kB and $(rm -rf /) is one line, <=500 chars, base64, and nothing is executed', async () => {
+  it('note with newline, 10 kB and $(rm -rf /) is one line, <=1000 chars, base64, and nothing is executed', async () => {
     const marker = join(root, 'pwned');
     const nasty = `line1\nline2 $(touch ${marker}) \`touch ${marker}\` ${'x'.repeat(10_000)}`;
     await declare('needs_input', nasty);
@@ -165,7 +165,7 @@ describe('claude hook rules', () => {
     expect(m).not.toBeNull();
     const note = Buffer.from(m?.[1] ?? '', 'base64').toString('utf8');
     expect(note).not.toMatch(/[\r\n]/);
-    expect(note.length).toBeLessThanOrEqual(500);
+    expect(note.length).toBe(1000);
     expect(note.startsWith('line1 line2 $(touch')).toBe(true);
     expect(existsSync(marker)).toBe(false);
   });

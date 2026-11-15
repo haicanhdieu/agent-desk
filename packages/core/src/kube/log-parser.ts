@@ -1,4 +1,4 @@
-import { AgentState, AgentStateSource, toAgentNote } from '@agentdesk/contracts';
+import { AgentState, AgentStateSource, toAgentNoteWire } from '@agentdesk/contracts';
 
 export type LogLineKind =
   | 'session_started'
@@ -52,7 +52,7 @@ const SETUP_FAILED = /^agentdesk: setup failed exit=(\d{1,3})$/;
 const STATE_WORKING = /^agentdesk: state working$/;
 const STATE_WAITING = /^agentdesk: state waiting background$/;
 const STATE_DECIDED =
-  /^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,2800}={0,2}|-)$/;
+  /^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,5400}={0,2}|-)$/;
 
 const PLUGIN_KINDS = { installed: 'plugin_installed', failed: 'plugin_failed' } as const;
 
@@ -89,6 +89,7 @@ function parseAgentState(trimmed: string): AgentLine | undefined {
   if (!state || !source || !payload) return undefined;
   const base: AgentLine = { state: AgentState.parse(state), source: AgentStateSource.parse(source) };
   if (payload === '-') return base;
-  const note = toAgentNote(Buffer.from(payload, 'base64').toString('utf8'));
+  // Not yet capped to the stored length: the worker redacts the whole text first, then caps (toAgentNote).
+  const note = toAgentNoteWire(Buffer.from(payload, 'base64').toString('utf8'));
   return note ? { ...base, note } : base;
 }

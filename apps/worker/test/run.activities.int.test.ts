@@ -585,6 +585,28 @@ describe('followPodLogs', () => {
       await acts.deleteJob(ctx);
     });
 
+    it('a secret straddling the 500-char note cap never leaves a prefix in the stored note', async () => {
+      const runId = await seedRun('finish --fake-done');
+      const ctx = await ctxFor(runId);
+      // The credential starts 10 chars before the cap, so truncating first would cut it mid-value.
+      const note = `${'x'.repeat(490)}${CRED} tail`;
+      const leaky = rewrite((l) =>
+        l.startsWith('agentdesk: state done ') ? `agentdesk: state done declared ${b64(note)}` : l,
+      );
+      const acts = createRunActivities(deps({ kube: leaky }));
+      await acts.createRunSecretAndJob(ctx);
+      const f = follow(ctx, deps({ kube: leaky }));
+      await until(async () => (await load(runId)).run?.status === 'done');
+      await acts.endSession(ctx);
+      await f.promise;
+
+      const { run, events } = await load(runId);
+      expect(run?.agentNote?.length).toBeLessThanOrEqual(500);
+      for (const prefix of [CRED, CRED.slice(0, 10), CRED.slice(0, 3)]) expect(run?.agentNote).not.toContain(prefix);
+      for (const prefix of [CRED, CRED.slice(0, 10)]) expect(JSON.stringify(events)).not.toContain(prefix);
+      await acts.deleteJob(ctx);
+    });
+
     it('waiting line writes running with waitingOn background', async () => {
       const runId = await seedRun('build --fake-background');
       const ctx = await ctxFor(runId);
