@@ -258,6 +258,32 @@ describe('MSW handler semantics', () => {
     });
   });
 
+  it('finishes a done run, and answers 409 for a run that is only running', async () => {
+    const run61 = await api.runs.byNumber({ params: { projectId: P, number: 61 } });
+    const run62 = await api.runs.byNumber({ params: { projectId: P, number: 62 } });
+    const row = mockDb.state.runs.find((r) => r.id === run62.id);
+    if (!row) throw new Error('run 62 missing');
+    row.status = 'done';
+    row.agentNote = 'Export is ready';
+    const done = await api.runs.get({ params: { runId: run62.id } });
+    expect(done).toMatchObject({ status: 'done', agentNote: 'Export is ready', waitingOn: null });
+
+    const notFinishable = await rejection(api.runs.finish({ params: { runId: run61.id } }));
+    expect(notFinishable.status).toBe(409);
+    await expect(api.runs.get({ params: { runId: run61.id } })).resolves.toMatchObject({ status: 'running' });
+
+    await expect(api.runs.finish({ params: { runId: run62.id } })).resolves.toBeNull();
+    await expect(api.runs.get({ params: { runId: run62.id } })).resolves.toMatchObject({ status: 'succeeded' });
+  });
+
+  it('serves waitingOn on a running run', async () => {
+    const run61 = await api.runs.byNumber({ params: { projectId: P, number: 61 } });
+    const row = mockDb.state.runs.find((r) => r.id === run61.id);
+    if (!row) throw new Error('run 61 missing');
+    row.waitingOn = 'background';
+    await expect(api.runs.get({ params: { runId: run61.id } })).resolves.toMatchObject({ waitingOn: 'background' });
+  });
+
   describe('workspace setup', () => {
     const EMPTY = ids.project.docsSite;
     const sha256 = async (text: string) =>

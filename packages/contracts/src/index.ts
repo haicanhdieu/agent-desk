@@ -7,6 +7,7 @@ export * from './schemas/projects';
 export * from './schemas/agents';
 export * from './schemas/skills';
 export * from './schemas/rules';
+export * from './schemas/agent-state';
 export * from './schemas/runs';
 export * from './schemas/events';
 export * from './schemas/setup';

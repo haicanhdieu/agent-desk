@@ -14,8 +14,10 @@ import {
 import type { RunStatus } from '@agentdesk/contracts';
 import type { FinishDetails, FollowPodLogsResult, RunActivities, RunContext } from '../activities/run.activities';
 import {
+  agentState,
   cancel,
   finish,
+  finishRun,
   granted,
   releaseSlot,
   resumed,
@@ -26,6 +28,16 @@ import {
   type RunPhase,
 } from './signals';
 import { ACTIVITY_RETRY as RETRY } from './retry';
+import {
+  acceptsLegacyFinish,
+  finishRunRejection,
+  finishRunSettled,
+  idleFixStatus,
+  idleTimerApplies,
+  nextTurnState,
+  stoppedStatus,
+  type TurnEvent,
+} from './agent-phase';
 
 /** Mirrors IDLE_END_SECONDS in @agentdesk/core (workflow code cannot import core); used when loadRun gives none. */
 export const IDLE_END_SECONDS_DEFAULT = 600;
@@ -97,9 +109,12 @@ function failureReason(err: unknown): string {
  * scope; so does a Temporal-level cancellation of the workflow. The cancellation reaches whatever is in flight
  * (waiting for the slot, a starting activity, the main loop, followPodLogs) and lands in the same `finalize`.
  *
- * Status writes: the workflow writes `starting`, `running` after `resumed` (plus `idle` again when the next turn ends,
- * since followPodLogs' `idle` may have landed before that `running`), and the final status. `followPodLogs` writes
- * `running` on the first log line and `idle` on each Stop-hook line (then signals `turnFinished`); it signals `resumed` on each UserPromptSubmit-hook line.
+ * Status writes: the workflow writes `starting`, `running` after an agent `working` state (or the legacy `resumed`),
+ * the final status, and re-writes `idle` or `done` after a turn ends when it had written `running` since (followPodLogs'
+ * write may be older). `followPodLogs` writes `running` on the first log line and on each agent_state line (`working`,
+ * and `waiting` with `waitingOn`), `idle` for `needs_input`, `done` for `done`, and signals `agentState` for each; the
+ * workflow never writes `running` for `waiting`, so `waitingOn` survives. A declared `done` is the `agent_done` phase
+ * (the idle timer and `finishRun` apply), distinct from the workflow's own `done`.
  */
 export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> {
   const { orgId, runId } = input;
@@ -108,6 +123,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let isGranted = false;
   let finishRequested = false;
   let resumePending = false;
+  /** The Job's session is being ended (finish, idle end); also what a `finishRun` update waits for. */
+  let ending = false;
+  /** The phase when the hard timer fired: a run that had declared done counts as succeeded. */
+  let phaseAtTimeout: RunPhase | undefined;
   /** The workflow wrote `running` (after `resumed`) since the last turn ended. */
   let wroteRunningSinceTurn = false;
   /** A turn ended after (or while) the workflow wrote `running`: followPodLogs' `idle` may be older, so write it again. */
@@ -126,6 +145,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   const stop = (reason: 'cancelled' | 'timed_out'): void => {
     if (stopReason !== undefined || phase === 'finalizing' || phase === 'done') return;
     stopReason = reason;
+    if (reason === 'timed_out') phaseAtTimeout = phase;
     body.cancel();
   };
 
@@ -134,22 +154,17 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   setHandler(granted, () => {
     isGranted = true;
   });
-  setHandler(turnFinished, () => {
-    if (phase !== 'running') return;
-    phase = 'idle';
-    resumePending = false;
-    if (wroteRunningSinceTurn) {
-      wroteRunningSinceTurn = false;
-      idleFixPending = true;
-    }
+  // The decisions live in ./agent-phase (pure, unit-tested); this only applies the result and restarts the idle timer.
+  const onTurn = (event: TurnEvent): void => {
+    const next = nextTurnState({ phase, finishRequested, resumePending, wroteRunningSinceTurn, idleFixPending }, event);
+    if (next === undefined) return;
+    ({ phase, resumePending, wroteRunningSinceTurn, idleFixPending } = next);
     epoch += 1;
-  });
-  setHandler(resumed, () => {
-    if (phase !== 'idle' || finishRequested) return;
-    phase = 'running';
-    resumePending = true;
-    epoch += 1;
-  });
+  };
+  setHandler(agentState, onTurn);
+  // Legacy signals, kept for histories recorded before `agentState`.
+  setHandler(turnFinished, () => onTurn('needs_input'));
+  setHandler(resumed, () => onTurn('working'));
   setHandler(terminalAttached, () => {
     attached += 1;
     epoch += 1;
@@ -158,10 +173,29 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     attached = Math.max(0, attached - 1);
     epoch += 1;
   });
-  // Honoured only while idle (the API answers 409 otherwise); a finish sent while running is dropped, not deferred.
+  // Legacy signal: honoured only while idle or done; a finish sent while running is dropped, not deferred.
   setHandler(finish, () => {
-    if (phase === 'idle') finishRequested = true;
+    if (acceptsLegacyFinish(phase)) finishRequested = true;
   });
+  // The API's finish: rejected unless the run needs a person or is done, else answered once the session is ending.
+  setHandler(
+    finishRun,
+    async () => {
+      finishRequested = true;
+      await condition(() => finishRunSettled(ending, phase));
+      // The run was finalized (pod exit, cancel, timeout) before the session could be ended.
+      if (!ending) {
+        throw ApplicationFailure.nonRetryable('The run finished before it could be ended', 'NotFinishable');
+      }
+      return { accepted: true as const };
+    },
+    {
+      validator: () => {
+        const rejection = finishRunRejection(phase, ending);
+        if (rejection !== undefined) throw ApplicationFailure.nonRetryable(rejection, 'NotFinishable');
+      },
+    },
+  );
   setHandler(cancel, () => stop('cancelled'));
 
   const status = (
@@ -222,7 +256,6 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
 
     // 5. Main loop.
     const idleMs = (c.idleEndSeconds ?? IDLE_END_SECONDS_DEFAULT) * 1000;
-    let ending = false;
     while (!logsDone) {
       if (resumePending) {
         resumePending = false;
@@ -232,7 +265,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       }
       if (idleFixPending) {
         idleFixPending = false;
-        if (currentPhase() === 'idle') await status('idle');
+        const fix = idleFixStatus(currentPhase());
+        if (fix !== undefined) await status(fix);
         continue;
       }
       if (!ending && finishRequested) {
@@ -245,7 +279,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       // Every term must turn false once handled, or condition() resolves at once and the loop spins.
       const wake = () => epoch !== seen || logsDone || (finishRequested && !ending) || resumePending || idleFixPending;
       // phase is read through a call: signal handlers change it between awaits, which TS narrowing cannot see.
-      if (!ending && currentPhase() === 'idle' && attached === 0) {
+      const p = currentPhase();
+      if (idleTimerApplies(p, attached, ending)) {
         if (!(await condition(wake, idleMs))) {
           ending = true;
           phase = 'ending';
@@ -288,8 +323,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   try {
     outcome = await body.run(run);
   } catch (err) {
-    if (isCancellation(err)) outcome = { status: stopReason ?? 'cancelled', podExited: false };
-    else outcome = { status: 'failed', failureReason: failureReason(err), podExited: false };
+    if (isCancellation(err)) {
+      outcome = { status: stoppedStatus(stopReason, phaseAtTimeout), podExited: false };
+    } else outcome = { status: 'failed', failureReason: failureReason(err), podExited: false };
   }
   if (outcome === ALREADY_FINAL) {
     phase = 'done';

@@ -65,7 +65,7 @@ function RunDetailRoute() {
   useFinalLogReload(org, projectId, number, final);
   // The live terminal, while the run is running or idle. The socket opens once the (lazy) terminal has mounted, so
   // no output arrives before there is a terminal to write it to.
-  const live = dto.status === 'running' || dto.status === 'idle';
+  const live = dto.status === 'running' || dto.status === 'idle' || dto.status === 'done';
   const termRef = useRef<LiveTerminalHandle | null>(null);
   const [termReady, setTermReady] = useState(false);
   const attachTerm = useCallback((handle: LiveTerminalHandle | null) => {

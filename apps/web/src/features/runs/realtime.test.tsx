@@ -33,6 +33,8 @@ const statusMsg = (n: number, status: RunDto['status'], seq: number) => ({
   seq,
   exitCode: status === 'succeeded' ? 0 : null,
   failureReason: null,
+  waitingOn: null,
+  agentNote: null,
 });
 const fixture = (n: number): RunDto => {
   const r = runFixtures.find((x) => x.projectId === projectId && x.number === n);
@@ -252,7 +254,7 @@ describe('run detail route, live', () => {
     expect(indicator()).toHaveTextContent('Live');
 
     act(() => source.emit('status', statusMsg(61, 'idle', 40), 40));
-    expect(await screen.findByText('The agent finished its turn and is waiting for you')).toBeInTheDocument();
+    expect(await screen.findByText('The agent is waiting for your answer')).toBeInTheDocument();
     const lists = queryClient.getQueriesData<{ items: RunDto[] }>({
       queryKey: ['org', org, 'projects', projectId],
     });

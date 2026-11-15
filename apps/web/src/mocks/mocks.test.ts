@@ -90,11 +90,12 @@ describe('mock fixtures', () => {
     ).toEqual([54, 56, 58, 60, 61, 62]);
   });
 
-  it('has nine run details whose status matches the board name', () => {
+  it('has ten run details whose status matches the board name', () => {
     const expected = {
       RunStarting: 'starting',
       RunRunning: 'running',
       RunIdle: 'idle',
+      RunDone: 'done',
       RunReconnect: 'running',
       RunSucceeded: 'succeeded',
       RunFailed: 'failed',

@@ -258,6 +258,25 @@ describe('createSetupTestJob', () => {
     expect(message).not.toContain(CLONE_TOKEN);
     expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
   });
+
+  it('a project without a default branch fails non-retryably and creates nothing', async () => {
+    const ref = await seedTest();
+    const setBranch = (branch: string | null) =>
+      asOwner((c) => c.query('update projects set default_branch = $1 where id = $2', [branch, projectId]));
+    await setBranch(null);
+    try {
+      const err = await createSetupTestActivities(deps())
+        .createSetupTestJob(ref)
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApplicationFailure);
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+      expect((err as ApplicationFailure).message).toContain('no default branch');
+    } finally {
+      await setBranch('trunk');
+    }
+    expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
+    expect(await kube.getRunPod(setupTestJobName(ref.setupTestId))).toBeNull();
+  });
 });
 
 describe('followSetupTestLogs', () => {
@@ -502,6 +521,26 @@ describe('followSetupTestLogs', () => {
     expect(err).toBeInstanceOf(ApplicationFailure);
     expect((err as ApplicationFailure).nonRetryable).toBe(true);
     expect((err as ApplicationFailure).type).toBe(POD_PENDING_TIMEOUT); // same typed failure as the run path
+  });
+
+  it('a missing test fails non-retryably', async () => {
+    const err = await follow(deps(), { orgId: ORG, setupTestId: '99999999-9999-4999-8999-999999999999' }).promise.catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).message).toBe('setup test not found');
+  });
+
+  it('a test that already ended without a result returns null and never reads the pod log', async () => {
+    const ref = await seedTest(SCRIPT, 'ended');
+    await asOwner((c) => c.query('update setup_tests set ended_at = now() where id = $1', [ref.setupTestId]));
+    const gw = wrapKube({
+      streamLogs: () => {
+        throw new Error('must not stream');
+      },
+    });
+    expect(await follow(deps({ kube: gw }), ref).promise).toBeNull();
   });
 });
 

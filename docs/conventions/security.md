@@ -75,7 +75,7 @@ These hold for every run pod on every target. The worker builds the Job (`buildR
 - **MUST** run as non-root (uid 10001) under `restricted` Pod Security, no privilege escalation, all capabilities dropped, `RuntimeDefault` seccomp, with CPU/memory/ephemeral-storage limits and an `emptyDir` workspace size limit.
 - **MUST** keep `backoffLimit: 0` and `activeDeadlineSeconds = timeout_seconds + 120` as the backstop to the workflow timer.
 - **MUST** pin the runner image (and Claude Code version) by digest. _Why:_ a floating tag is an unreviewed code change inside every run.
-- Pod output is untrusted. A pod can print `agentdesk: turn started` or `agentdesk: turn finished` at will; **MUST NOT** let a pod's output affect anything beyond its own run (no cross-run, cross-project or cross-org effect, no Kubernetes call derived from log content).
+- Pod output is untrusted. A pod can print any `agentdesk: state …` line (or a legacy `turn started` / `turn finished` line, still parsed for one release) at will; **MUST NOT** let a pod's output affect anything beyond its own run (no cross-run, cross-project or cross-org effect, no Kubernetes call derived from log content).
 - Repo content runs code in the pod (`.claude/settings.json` hooks, `.mcp.json`). This is accepted only because of the invariants above; weakening any of them reopens it.
 
 ## 5. Untrusted input

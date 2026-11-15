@@ -106,6 +106,38 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     termSize: '132×44',
   },
 
+  RunDone: {
+    run: {
+      ...runsById[62],
+      status: 'done',
+      statusNote: 'Done 3m ago. Auto-finish after 10m unattended',
+    },
+    elapsed: '4:51',
+    rule: RULE_REVIEW,
+    triggerNote: 'comment by run 60',
+    startedAt: '14:09:07',
+    chain: [
+      {
+        runId: 60,
+        command: '/code-build',
+        ticket: { kind: 'issue', number: 142 },
+        note: 'Succeeded in 6m 12s, opened PR #148',
+        status: 'succeeded',
+        href: '/runs/60',
+      },
+      {
+        runId: 62,
+        command: '/code-review',
+        ticket: { kind: 'pr', number: 148 },
+        note: 'This run',
+        status: 'done',
+        here: true,
+      },
+    ],
+    connection: { state: 'live', label: 'Live, attached as kim-hale' },
+    termSize: '132×44',
+  },
+
   RunReconnect: {
     // Collapsed side rail on the board ("Chain: 1 of 2"): same run as RunRunning, but the board's top bar shows elapsed 9:02.
     run: runsById[61],

@@ -1,0 +1,17 @@
+{
+  "session_id": "s1",
+  "transcript_path": "/workspace/repo/.claude/t.jsonl",
+  "cwd": "/workspace/repo",
+  "hook_event_name": "PreToolUse",
+  "tool_name": "AskUserQuestion",
+  "tool_input": {
+    "questions": [
+      {
+        "question": "Which database?",
+        "header": "DB",
+        "options": [{ "label": "pg" }, { "label": "sqlite" }],
+        "multiSelect": false
+      }
+    ]
+  }
+}

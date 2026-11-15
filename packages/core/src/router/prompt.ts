@@ -12,7 +12,7 @@ export interface PromptInput {
 /** Collapses line terminators so an interpolated value can never add lines to the template. */
 const oneLine = (v: string): string => v.replace(/[\r\n\u2028\u2029]+/g, ' ');
 
-/** The fixed four-line prompt template (Architecture section 5). Always exactly four lines. */
+/** The fixed five-line prompt template (Architecture section 5). Always exactly five lines. */
 export function buildPrompt(p: PromptInput): string {
   const kind = p.ticketKind === 'pr' ? 'pull request' : 'issue';
   return [
@@ -20,5 +20,6 @@ export function buildPrompt(p: PromptInput): string {
     'Read the ticket and all its comments with the gh CLI before you start.',
     `Arguments from the user: ${oneLine(p.args)}`,
     'When done, report on the ticket as the skill instructs.',
+    'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
   ].join('\n');
 }

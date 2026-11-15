@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
+import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
 
 export const TicketDto = z.object({
@@ -40,6 +41,10 @@ export const RunDto = z.object({
   costUsd: z.number().nullable(),
   timeoutSeconds: z.number().int(),
   idleSince: Timestamp.nullable(),
+  /** Set while the run is Running only because background work is pending. */
+  waitingOn: WaitingOn.nullable(),
+  /** Latest one-line note from the agent, if any. */
+  agentNote: AgentNote.nullable(),
 });
 export type RunDto = z.infer<typeof RunDto>;
 

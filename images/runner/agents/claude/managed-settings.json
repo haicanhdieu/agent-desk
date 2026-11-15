@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      { "hooks": [{ "type": "command", "command": "node /usr/local/lib/agentdesk/agents/claude/hook.mjs" }] }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [{ "type": "command", "command": "node /usr/local/lib/agentdesk/agents/claude/hook.mjs" }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "AskUserQuestion",
+        "hooks": [{ "type": "command", "command": "node /usr/local/lib/agentdesk/agents/claude/hook.mjs" }]
+      }
+    ],
+    "Notification": [
+      { "hooks": [{ "type": "command", "command": "node /usr/local/lib/agentdesk/agents/claude/hook.mjs" }] }
+    ],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "node /usr/local/lib/agentdesk/agents/claude/hook.mjs" }] }],
+    "StopFailure": [
+      { "hooks": [{ "type": "command", "command": "node /usr/local/lib/agentdesk/agents/claude/hook.mjs" }] }
+    ]
+  }
+}

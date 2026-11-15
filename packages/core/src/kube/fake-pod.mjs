@@ -8,9 +8,11 @@
 //   - a failed setup in a real run exits 78 before `session started`, like the runner;
 //   - RUN_MODE=setup_test: session started after the setup markers (pass or fail), the pane is a shell that echoes typed
 //     lines, and no turn markers are ever logged;
-//   - after FAKE_TURN_MS (default 2000) log `agentdesk: turn finished`;
-//   - each `\r`-terminated line appended to `input` is echoed to `pane`, logs `agentdesk: turn started` (the runner's
-//     UserPromptSubmit hook; the first turn's start is implicit, the run is already running), then another turn finishes;
+//   - a turn logs `agentdesk: state working` and, after FAKE_TURN_MS (default 2000), ends with
+//     `agentdesk: state needs_input declared <b64>` (or `state done declared <b64>` when PROMPT contains `--fake-done`);
+//     with `--fake-background` the turn first logs `state waiting background`, then after FAKE_TURN_MS a wake-up
+//     `state working`, and after another FAKE_TURN_MS the normal end;
+//   - each `\r`-terminated line appended to `input` is echoed to `pane` and queues another turn after the current one;
 //   - on `kill`: log the scrollback (begin marker, pane lines, end marker), write `exit` 0 and exit.
 //   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback);
 //     `--fake-pending`: never start (the pod stays Pending) until killed.
@@ -77,24 +79,37 @@ if (prompt.includes('--fake-pending')) {
   }
 
   const fail = prompt.includes('--fake-fail');
+  const done = prompt.includes('--fake-done');
+  const background = prompt.includes('--fake-background');
+  const b64 = (t) => Buffer.from(t, 'utf8').toString('base64');
+  const endLine = done
+    ? `agentdesk: state done declared ${b64('Fake agent finished')}`
+    : `agentdesk: state needs_input declared ${b64('Fake agent is waiting')}`;
   // A line typed while a turn is in progress queues one more turn after it (like a prompt typed mid-turn).
   let turnTimer = null;
   let queued = 0;
-  const scheduleTurn = (typed = false) => {
+  const endTurn = () => {
+    turnTimer = null;
+    log(endLine);
+    if (fail) return finish(3);
+    if (queued > 0) {
+      queued -= 1;
+      scheduleTurn();
+    }
+  };
+  const scheduleTurn = () => {
     if (turnTimer) {
       queued += 1;
       return;
     }
-    if (typed) log('agentdesk: turn started');
-    turnTimer = setTimeout(() => {
-      turnTimer = null;
-      log('agentdesk: turn finished');
-      if (fail) return finish(3);
-      if (queued > 0) {
-        queued -= 1;
-        scheduleTurn(true);
-      }
-    }, turnMs);
+    log('agentdesk: state working');
+    if (background) {
+      log('agentdesk: state waiting background');
+      turnTimer = setTimeout(() => {
+        log('agentdesk: state working');
+        turnTimer = setTimeout(endTurn, turnMs);
+      }, turnMs);
+    } else turnTimer = setTimeout(endTurn, turnMs);
   };
   if (!setupTest) scheduleTurn();
 
@@ -115,7 +130,7 @@ if (prompt.includes('--fake-pending')) {
       const line = pending.slice(0, i).replace(/\n/g, '');
       pending = pending.slice(i + 1);
       pane(setupTest ? `${line}\r\n$ ` : `${line}\r\n`);
-      if (!setupTest) scheduleTurn(true);
+      if (!setupTest) scheduleTurn();
     }
   }, TICK_MS);
 }

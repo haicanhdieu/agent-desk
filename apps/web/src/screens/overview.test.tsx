@@ -13,7 +13,7 @@ describe('Overview', () => {
       '?path=/story/screens-entry--sign-in',
     );
     for (const a of links) expect(a).toHaveAttribute('target', '_top');
-    expect(container.querySelectorAll('[title^="status: "]')).toHaveLength(8);
+    expect(container.querySelectorAll('[title^="status: "]')).toHaveLength(9);
   });
 
   it('shows swatch values read from tokens.css', () => {

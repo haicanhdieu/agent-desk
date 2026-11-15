@@ -393,6 +393,15 @@ describe('terminal relay', () => {
     await c.closed;
   });
 
+  it('terminal attach allowed for a done run', async () => {
+    const runId = await makeRun('done');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    c.ws.close();
+    await c.closed;
+  });
+
   it('forwards a resize text frame to the session, and ignores malformed ones', async () => {
     const runId = await makeRun('running');
     resizes.length = 0;

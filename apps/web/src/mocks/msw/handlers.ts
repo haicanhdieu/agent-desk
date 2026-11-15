@@ -1,5 +1,6 @@
 import {
   ACTIVE_RUN_STATUSES,
+  FINISHABLE_RUN_STATUSES,
   type RouteDef,
   FINAL_RUN_STATUSES,
   type ProjectConnectionDto,
@@ -469,7 +470,7 @@ const impl: Impl = {
     const { user } = session();
     const run = runOf(params.runId);
     if (isFinal(run.status)) throw conflict('Run already ended');
-    if (run.status !== 'running' && run.status !== 'idle') throw conflict('Run is not attached yet');
+    if (!FINISHABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Run is not waiting for you or done');
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
     return null;
   },

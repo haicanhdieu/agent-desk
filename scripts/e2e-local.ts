@@ -4,6 +4,7 @@
  *   1. webhook: comment delivered as a webhook -> run idle -> terminal echo -> finish -> succeeded + start/finish comments
  *   2. polling: comment picked up by the poll Schedule (triggered via the Temporal client) -> same assertions
  *   3. failure: comment with `--fake-fail` -> run failed + finish comment
+ *   4. done: comment with `--fake-done` -> run done -> finish -> succeeded
  *
  * Env: E2E_BASE_URL (default http://localhost:3000); PUBLIC_ORIGIN, TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE come from the
  * repo's .env when set there. Exit code 0 only when every scenario passes.
@@ -444,6 +445,30 @@ async function failureScenario(name: string): Promise<void> {
   }
 }
 
+async function doneScenario(name: string): Promise<void> {
+  let s: Setup | undefined;
+  let runId: string | undefined;
+  try {
+    s = await setup(name, 'webhook');
+    const result = await comment(s, '/code-review --fake-done', 'webhook');
+    runId = result.runId;
+    assert(runId, `webhook: no runId (outcome ${result.outcome})`);
+    logStep(name, `webhook delivered, run ${runId}`);
+    const done = await waitForRun(s, runId, (st) => st === 'done' || isFinal(st), IDLE_TIMEOUT_MS);
+    assert(done.status === 'done', `run ${runId}: expected done, got ${done.status} (${done.failureReason ?? ''})`);
+    logStep(name, `run #${done.number} done`);
+
+    const stream = readRunStream(s, runId, FINAL_TIMEOUT_MS);
+    await s.session.call('POST', `/api/runs/${runId}/finish`, { expect: [202] });
+    logStep(name, 'finish accepted (202)');
+    const statuses = await stream;
+    assert(statuses.at(-1) === 'succeeded', `SSE: expected final status succeeded, saw ${statuses.join(',')}`);
+    logStep(name, `SSE ended with succeeded (${statuses.join(' -> ')})`);
+  } finally {
+    await cleanup(name, s, runId);
+  }
+}
+
 /** Saves the project's setup script as its next version (`baseVersion` null for the first). */
 async function putScript(s: Setup, body: string, baseVersion: number | null): Promise<SetupScriptDto> {
   return s.session.json(
@@ -532,6 +557,7 @@ async function main(): Promise<number> {
     ['webhook', webhookScenario],
     ['polling', pollingScenario],
     ['failure', failureScenario],
+    ['done', doneScenario],
     ['setup', setupScenario],
     ['setup-failure', setupFailureScenario],
   ];

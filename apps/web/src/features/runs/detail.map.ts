@@ -31,8 +31,9 @@ export function runDetailKey(status: RunStatus, terminalState?: 'reconnect'): Ru
       return 'RunStarting';
     case 'running':
     case 'idle':
+    case 'done':
       if (terminalState === 'reconnect') return 'RunReconnect';
-      return status === 'running' ? 'RunRunning' : 'RunIdle';
+      return status === 'running' ? 'RunRunning' : status === 'idle' ? 'RunIdle' : 'RunDone';
     case 'succeeded':
       return 'RunSucceeded';
     case 'failed':
@@ -368,6 +369,7 @@ export function toRunDetail(
         percent: Math.min(100, Math.round((elapsedMs / (run.timeoutSeconds * 1000)) * 100)),
       },
     }),
+    ...((run.status === 'idle' || run.status === 'done') && run.agentNote !== null && { agentNote: run.agentNote }),
     connection: connection(run, lines),
     ...(note && { endNote: note }),
   };

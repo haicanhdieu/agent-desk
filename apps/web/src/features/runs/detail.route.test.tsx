@@ -48,7 +48,7 @@ afterEach(() => {
 describe('run detail route', () => {
   it('an idle run renders the idle state with Finish enabled', async () => {
     await renderRoute(`${base}/runs/62`);
-    expect(await screen.findByText('The agent finished its turn and is waiting for you')).toBeInTheDocument();
+    expect(await screen.findByText('The agent is waiting for your answer')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toHaveTextContent('Run 62');
     const finish = screen.getAllByRole('button', { name: 'Finish run' });
     expect(finish).toHaveLength(2);
@@ -194,7 +194,7 @@ describe('run detail route', () => {
     it('keeps "Finishing…" after the settle refetch, buttons held, no second POST', async () => {
       const { user } = await finishAccepted();
       expect(within(banner()).getByText('Finishing…')).toBeInTheDocument();
-      expect(screen.getByText('The agent finished its turn and is waiting for you')).toBeInTheDocument();
+      expect(screen.getByText('The agent is waiting for your answer')).toBeInTheDocument();
       const buttons = screen.getAllByRole('button', { name: 'Finish run' });
       for (const b of buttons) expect(b).toBeDisabled();
       expect(screen.getByRole('button', { name: 'Cancel run' })).toBeDisabled();

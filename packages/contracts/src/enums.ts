@@ -5,6 +5,7 @@ export const RunStatus = z.enum([
   'starting',
   'running',
   'idle',
+  'done',
   'succeeded',
   'failed',
   'cancelled',
@@ -18,7 +19,9 @@ export const FINAL_RUN_STATUSES = [
   'cancelled',
   'timed_out',
 ] as const satisfies readonly RunStatus[];
-export const ACTIVE_RUN_STATUSES = ['starting', 'running', 'idle'] as const satisfies readonly RunStatus[];
+export const ACTIVE_RUN_STATUSES = ['starting', 'running', 'idle', 'done'] as const satisfies readonly RunStatus[];
+/** Statuses a person may Finish (needs you, or the agent declared done). */
+export const FINISHABLE_RUN_STATUSES = ['idle', 'done'] as const satisfies readonly RunStatus[];
 
 export const TriggerMode = z.enum(['webhook', 'polling']);
 export type TriggerMode = z.infer<typeof TriggerMode>;

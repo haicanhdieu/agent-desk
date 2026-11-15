@@ -4,6 +4,7 @@ export type FakeCallKind =
   | 'start'
   | 'signal'
   | 'signalWithStart'
+  | 'update'
   | 'scheduleCreate'
   | 'scheduleUpdate'
   | 'scheduleDelete'
@@ -23,7 +24,7 @@ export interface FakeCall {
 
 /**
  * Records the Temporal client calls the API makes. `client` is the object to inject as TEMPORAL_CLIENT; it
- * implements only the surface the API uses (workflow.start/signalWithStart/getHandle().signal|terminate,
+ * implements only the surface the API uses (workflow.start/signalWithStart/getHandle().signal|executeUpdate|terminate,
  * schedule.create/getHandle().update|delete|pause|unpause|trigger, workflowService.getSystemInfo).
  */
 export class FakeTemporalClient {
@@ -36,6 +37,8 @@ export class FakeTemporalClient {
   signalHook?: (name: unknown) => Promise<void>;
   /** Returns an error to reject a workflow signal with (nothing is recorded), or undefined to let it through. */
   signalFailure?: (workflowId: string | undefined, name: unknown) => unknown;
+  /** Returns an error to reject a workflow update with (nothing is recorded), or undefined to let it through. */
+  updateFailure?: (workflowId: string | undefined, name: unknown) => unknown;
   /** Awaited before a workflow start is recorded; lets a test hold a start back. */
   startHook?: (workflowId: string | undefined) => Promise<void>;
   /** When set, workflow start rejects with it (nothing is recorded). */
@@ -56,6 +59,11 @@ export class FakeTemporalClient {
         const failure = this.signalFailure?.(workflowId, args[0]);
         if (failure !== undefined) throw failure;
         this.record({ kind: 'signal', workflowId, args });
+      },
+      executeUpdate: async (...args: unknown[]) => {
+        const failure = this.updateFailure?.(workflowId, args[0]);
+        if (failure !== undefined) throw failure;
+        this.record({ kind: 'update', workflowId, args });
       },
       terminate: async (...args: unknown[]) => {
         this.record({ kind: 'terminate', workflowId, args });
@@ -115,6 +123,7 @@ export class FakeTemporalClient {
     this.failing = false;
     this.signalHook = undefined;
     this.signalFailure = undefined;
+    this.updateFailure = undefined;
     this.startHook = undefined;
     this.startError = undefined;
     this.terminateError = undefined;

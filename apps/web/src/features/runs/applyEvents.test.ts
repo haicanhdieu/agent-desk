@@ -70,6 +70,41 @@ describe('applyRunEvent', () => {
   });
 });
 
+describe('applyRunStatus, agent state', () => {
+  it('copies waitingOn and agentNote from the run stream event into the cached run', () => {
+    const qc = seeded();
+    applyRunStatus(qc, org, projectId, {
+      ...status(61, 'idle'),
+      waitingOn: null,
+      agentNote: 'Which database?',
+    });
+    expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)?.agentNote).toBe('Which database?');
+    applyRunStatus(qc, org, projectId, {
+      ...status(61, 'running', 21),
+      waitingOn: 'background',
+      agentNote: null,
+    });
+    const detail = qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey);
+    expect(detail?.waitingOn).toBe('background');
+    expect(detail?.agentNote).toBeNull();
+  });
+
+  it('a project stream event (no agent state) leaves them alone', () => {
+    const qc = seeded();
+    applyRunStatus(qc, org, projectId, { ...status(61, 'running'), waitingOn: 'background', agentNote: null });
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 61), number: 61, status: 'running', seq: 22 });
+    expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)?.waitingOn).toBe('background');
+  });
+
+  it('done is not a needs-you run but still holds a slot', () => {
+    const qc = seeded();
+    applyRunStatus(qc, org, projectId, { ...status(61, 'done'), waitingOn: null, agentNote: null });
+    const counts = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+    expect(counts?.needsYou).toBe(1);
+    expect(counts?.running).toBe(2);
+  });
+});
+
 describe('applyRunStatus', () => {
   it('patches the detail and every cached list row; a row that no longer fits its filter leaves it', () => {
     const qc = seeded();

@@ -59,6 +59,13 @@ function statusNote(dto: RunDto, now: Date): string | undefined {
       const waited = Math.max(0, Math.floor((now.getTime() - Date.parse(dto.idleSince)) / MIN));
       return `Waiting ${waited}m. Auto-finish after ${IDLE_END_MINUTES}m unattended`;
     }
+    case 'running':
+      return dto.waitingOn === 'background' ? 'Waiting on background work' : undefined;
+    case 'done': {
+      if (!dto.idleSince) return undefined;
+      const ago = Math.max(0, Math.floor((now.getTime() - Date.parse(dto.idleSince)) / MIN));
+      return `Done ${ago}m ago. Auto-finish after ${IDLE_END_MINUTES}m unattended`;
+    }
     case 'failed':
     case 'timed_out':
       return dto.failureReason ?? undefined;

@@ -41,12 +41,12 @@
 **Files:**
 - Modify: `docs/superpowers/specs/2026-11-14-agent-run-status-design.md` (§8 "Open check": record the result)
 
-- [ ] **Step 1:** Build the current runner image: `podman build -t agentdesk-runner:check images/runner`.
-- [ ] **Step 2:** In a scratch dir create `managed-settings.json` with a `SessionStart` hook `echo managed-fired >> /tmp/out` and a repo dir whose `.claude/settings.json` is `{"disableAllHooks": true, "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo repo-fired >> /tmp/out"}]}]}}`.
-- [ ] **Step 3:** Run `podman run --rm -v <scratch>/managed-settings.json:/etc/claude-code/managed-settings.json:ro -v <repo>:/workspace/r -w /workspace/r --entrypoint bash agentdesk-runner:check -c 'echo hi | claude -p x >/dev/null 2>&1; cat /tmp/out'`. `SessionStart` fires before any API call, so no credentials are needed.
+- [x] **Step 1:** Build the current runner image: `podman build -t agentdesk-runner:check images/runner`.
+- [x] **Step 2:** In a scratch dir create `managed-settings.json` with a `SessionStart` hook `echo managed-fired >> /tmp/out` and a repo dir whose `.claude/settings.json` is `{"disableAllHooks": true, "hooks": {"SessionStart": [{"hooks": [{"type": "command", "command": "echo repo-fired >> /tmp/out"}]}]}}`.
+- [x] **Step 3:** Run `podman run --rm -v <scratch>/managed-settings.json:/etc/claude-code/managed-settings.json:ro -v <repo>:/workspace/r -w /workspace/r --entrypoint bash agentdesk-runner:check -c 'echo hi | claude -p x >/dev/null 2>&1; cat /tmp/out'`. `SessionStart` fires before any API call, so no credentials are needed.
   Expected: output contains `managed-fired`.
-- [ ] **Step 4:** Record the result in spec §8. **If `managed-fired` is missing, stop and ask the human** (the managed-settings choice in spec §6.2 no longer holds).
-- [ ] **Step 5:** Commit `docs(adr): record managed hooks precedence check`.
+- [x] **Step 4:** Record the result in spec §8. **If `managed-fired` is missing, stop and ask the human** (the managed-settings choice in spec §6.2 no longer holds).
+- [x] **Step 5:** Commit `docs(adr): record managed hooks precedence check`.
 
 ---
 
@@ -70,14 +70,14 @@
   - `toAgentNote(raw: string): string` — collapses line terminators and control chars to a space, trims, slices to 500.
   - `RunDto` and `RunStatusEvent` gain `waitingOn: WaitingOn.nullable()` and `agentNote: AgentNote.nullable()`.
 
-- [ ] **Step 1: Write failing tests**
+- [x] **Step 1: Write failing tests**
   - `toAgentNote('a\nb\r\nc\u001b[31m')` → `'a b c [31m'` without the ESC char; `toAgentNote('x'.repeat(600)).length` → `500`.
   - `AgentNote.safeParse('a\nb').success` → `false`.
   - `RunStatus.parse('done')` → `'done'`; `FINISHABLE_RUN_STATUSES` equals `['idle','done']`.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/contracts test` → FAIL.
-- [ ] **Step 3:** Implement the interfaces above.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/contracts test` and `pnpm typecheck` → contracts PASS; typecheck errors elsewhere are expected (exhaustive `switch`es on `RunStatus` in web/api) — note them, they are fixed in their own tasks; if any prevents this PR's CI from passing, add the `done` case with the same behaviour as `idle` in that file within this PR.
-- [ ] **Step 5:** Commit `feat(contracts): add done run status and agent state schema`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/contracts test` → FAIL.
+- [x] **Step 3:** Implement the interfaces above.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/contracts test` and `pnpm typecheck` → contracts PASS; typecheck errors elsewhere are expected (exhaustive `switch`es on `RunStatus` in web/api) — note them, they are fixed in their own tasks; if any prevents this PR's CI from passing, add the `done` case with the same behaviour as `idle` in that file within this PR.
+- [x] **Step 5:** Commit `feat(contracts): add done run status and agent state schema`.
 
 ### Task 3: DB — status constraint and new columns; status writer
 
@@ -94,15 +94,15 @@
   - `SetRunStatusInput` gains `waitingOn?: 'background' | null` and `agentNote?: string | null`.
   - Write rules in `setRunStatusTx`: `idleSince` = `at` when status is `idle` or `done`, else null; `waitingOn` = input value only when status is `running`, else null; `agentNote` = `toAgentNote(input)` only when status is `idle` or `done`, else null.
 
-- [ ] **Step 1: Write failing tests** in `run-status.activity.int.test.ts`:
+- [x] **Step 1: Write failing tests** in `run-status.activity.int.test.ts`:
   - `'done sets idle_since and agent_note; next running clears both'`
   - `'running with waitingOn background stores it; idle clears it'`
   - `'running → running with a new waitingOn writes and appends one status event'`
   - `'agent note is collapsed to one line and capped at 500'`
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run-status` → FAIL.
-- [ ] **Step 3:** Update the Drizzle schema, generate `0009`, check the SQL only drops/re-adds `runs_status_check` and adds the two columns, then implement the write rules. Also make the API/SSE row→DTO mappers (`apps/api/src/runs/runs.service.ts` ~line 126, `apps/api/src/sse/sse.service.ts`) fill `waitingOn` and `agentNote` from the row.
-- [ ] **Step 4:** Run the worker test and `pnpm --filter @agentdesk/api test` → PASS.
-- [ ] **Step 5:** Commit `feat(db): store done status, waiting_on and agent_note on runs` (label `review:sensitive`: migration).
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run-status` → FAIL.
+- [x] **Step 3:** Update the Drizzle schema, generate `0009`, check the SQL only drops/re-adds `runs_status_check` and adds the two columns, then implement the write rules. Also make the API/SSE row→DTO mappers (`apps/api/src/runs/runs.service.ts` ~line 126, `apps/api/src/sse/sse.service.ts`) fill `waitingOn` and `agentNote` from the row.
+- [x] **Step 4:** Run the worker test and `pnpm --filter @agentdesk/api test` → PASS.
+- [x] **Step 5:** Commit `feat(db): store done status, waiting_on and agent_note on runs` (label `review:sensitive`: migration).
 
 ---
 
@@ -122,14 +122,14 @@
   - `agentdesk: state (needs_input|done) <source> <b64|->` → `{ state, source, note? }`; note = `toAgentNote(utf8(base64))`, absent for `-` or empty.
   - Legacy `agentdesk: turn started` → `{ state: 'working' }`; `agentdesk: turn finished` → `{ state: 'needs_input', source: 'undeclared' }`.
 
-- [ ] **Step 1: Write failing tests** (replace the existing `turn_started`/`turn_finished` cases):
+- [x] **Step 1: Write failing tests** (replace the existing `turn_started`/`turn_finished` cases):
   - each of the four protocol forms and both legacy lines map as above (with and without trailing `\r`);
   - note `Buffer.from('Ship it?\nyes').toString('base64')` → `note: 'Ship it? yes'`;
   - stays `kind: 'text'`: unknown source (`done maybe -`), b64 with spaces, b64 longer than 2800 chars, extra field, `xagentdesk: state working`, `agentdesk: state working now`.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/core test -- log-parser` → FAIL.
-- [ ] **Step 3:** Implement with one anchored regex per form: `^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,2800}={0,2}|-)$`. Decode with `Buffer.from(b64, 'base64').toString('utf8')`.
-- [ ] **Step 4:** Run the test → PASS.
-- [ ] **Step 5:** Commit `feat(core): parse agent state protocol lines`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/core test -- log-parser` → FAIL.
+- [x] **Step 3:** Implement with one anchored regex per form: `^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,2800}={0,2}|-)$`. Decode with `Buffer.from(b64, 'base64').toString('utf8')`.
+- [x] **Step 4:** Run the test → PASS.
+- [x] **Step 5:** Commit `feat(core): parse agent state protocol lines`.
 
 ### Task 5: Fake pod and prompt line
 
@@ -142,11 +142,11 @@
   - Fake pod: a turn starts with `agentdesk: state working` and ends with `agentdesk: state needs_input declared <b64("Fake agent is waiting")>`; when the prompt contains `--fake-done` (detected the same way as `--fake-fail`) it ends with `agentdesk: state done declared <b64("Fake agent finished")>`; `--fake-background` emits `agentdesk: state waiting background`, then after `FAKE_TURN_MS` a wake-up `working` and the normal end.
   - `buildPrompt` returns exactly five lines; line 5, exact copy: ``Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.``
 
-- [ ] **Step 1: Write failing tests:** update `fake-gateway.test.ts` expectations to the new lines (keep the "typed line queues a turn" test, now asserting `state working` between two ends); add `'--fake-done ends the turn with state done'`; prompt test asserts five lines and the exact line 5.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/core test` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/core test` → PASS.
-- [ ] **Step 5:** Commit `feat(core): fake pod and prompt speak the agent state protocol`.
+- [x] **Step 1: Write failing tests:** update `fake-gateway.test.ts` expectations to the new lines (keep the "typed line queues a turn" test, now asserting `state working` between two ends); add `'--fake-done ends the turn with state done'`; prompt test asserts five lines and the exact line 5.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/core test` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/core test` → PASS.
+- [x] **Step 5:** Commit `feat(core): fake pod and prompt speak the agent state protocol`.
 
 ---
 
@@ -172,7 +172,7 @@
     - Hard timeout while `agent_done` → outcome `succeeded` (record the phase when `stop('timed_out')` fires).
   - Legacy handlers stay registered for old histories: `turnFinished`, `resumed`, `finish` (the `finish` signal now accepts `idle` or `agent_done`).
 
-- [ ] **Step 1: Write failing tests** in `run.workflow.test.ts`:
+- [x] **Step 1: Write failing tests** in `run.workflow.test.ts`:
   - `'agentState done → done status; idle timer → endSession → succeeded'`
   - `'agentState waiting keeps running and never starts the idle timer'`
   - `'agentState working while done writes running and stops the idle timer'` (Review Focus 5)
@@ -180,10 +180,10 @@
   - `'finishRun while running is rejected with NotFinishable and the run keeps going'` (Review Focus 2)
   - `'hard timeout while done → succeeded; while idle → timed_out'`
   - existing `'replay: …'` test still passes with the unchanged fixtures.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run.workflow` → FAIL.
-- [ ] **Step 3:** Implement. If the replay test reports nondeterminism, gate the new command-producing paths with `patched('agent-status-v1')`.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
-- [ ] **Step 5:** Commit `feat(worker): done phase, agent state signal and finish update`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/worker test -- run.workflow` → FAIL.
+- [x] **Step 3:** Implement. If the replay test reports nondeterminism, gate the new command-producing paths with `patched('agent-status-v1')`.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
+- [x] **Step 5:** Commit `feat(worker): done phase, agent state signal and finish update`.
 
 ### Task 7: followPodLogs — map protocol lines to status
 
@@ -198,16 +198,16 @@
   - `agentNote` = `redact(note, secrets)` (same `secrets` the activity uses for scrollback) before `setRunStatusTx`.
   - Signal `agentState` with the state when the line was first stored, or (replay) when the current status still equals the mapped status — same rule as today's `turn_finished`.
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - `'done line writes done with a redacted note and signals agentState done'` (note contains the run token → stored as the redaction marker; Review Focus 1)
   - `'waiting line writes running with waitingOn background'`
   - `'legacy turn finished still writes idle and signals'`
   - `'replayed done line does not re-signal after the run moved on'`
   - in `run.e2e.int.test.ts`: remove the "wait until the workflow itself has seen the turn end" workaround and assert finish still succeeds (now through `finishRun`).
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/worker test` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
-- [ ] **Step 5:** Commit `feat(worker): map agent state lines to run status`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/worker test` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/worker test` → PASS.
+- [x] **Step 5:** Commit `feat(worker): map agent state lines to run status`.
 
 ---
 
@@ -225,11 +225,11 @@
   - `finish`: 409 when the DB status is not in `FINISHABLE_RUN_STATUSES` (message `Only a run that needs you or is done can be finished (status is <status>)`); otherwise `getHandle(id).executeUpdate(UPDATE.finishRun)`; a `WorkflowUpdateFailedError` whose cause type is `NotFinishable` → 409 with the workflow's message; `WorkflowNotFoundError` → 409 `Run is no longer active` (as today).
   - `done` is live (`LIVE_STATUSES`, `running` count) and terminal-attachable (`active`); `needsYou` still counts only `idle`.
 
-- [ ] **Step 1: Write failing tests:** `'finish in done → 204'`, `'finish rejected by the workflow → 409 with its message'` (stub the Temporal handle as the existing tests do), `'done run counts as running, not needs you'`, `'terminal attach allowed for a done run'`.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/api test` → FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/api test` → PASS.
-- [ ] **Step 5:** Commit `feat(api): finish runs through the workflow update; done is live`.
+- [x] **Step 1: Write failing tests:** `'finish in done → 204'`, `'finish rejected by the workflow → 409 with its message'` (stub the Temporal handle as the existing tests do), `'done run counts as running, not needs you'`, `'terminal attach allowed for a done run'`.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/api test` → FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/api test` → PASS.
+- [x] **Step 5:** Commit `feat(api): finish runs through the workflow update; done is live`.
 
 ---
 
@@ -251,21 +251,21 @@
   - "Finishing…" clears and the error toast shows on a 409 (existing `onError` path).
   - `applyRunStatus` (`apps/web/src/features/runs/applyEvents.ts`) copies `waitingOn` and `agentNote` from `RunStatusEvent` into cached runs.
 
-- [ ] **Step 1: Write failing tests:** status note for `waitingOn`, Done note, `runDetailKey('done', …)` → `'RunDone'`, Finish button enabled for `done` and disabled for `running`, agent note rendered as text (a note containing `<b>x</b>` shows literally), MSW contract test with the new fields.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/web test` → FAIL.
-- [ ] **Step 3:** Implement with design tokens only; add stories `RunTerminalArea/Done`, `RunTerminalArea/NeedsYouWithNote`, `StatusBadge/Done`.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/web test` and `pnpm --filter @agentdesk/web typecheck` → PASS.
-- [ ] **Step 5:** Commit `feat(web): show done runs, agent notes and finish from done`.
+- [x] **Step 1: Write failing tests:** status note for `waitingOn`, Done note, `runDetailKey('done', …)` → `'RunDone'`, Finish button enabled for `done` and disabled for `running`, agent note rendered as text (a note containing `<b>x</b>` shows literally), MSW contract test with the new fields.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/web test` → FAIL.
+- [x] **Step 3:** Implement with design tokens only; add stories `RunTerminalArea/Done`, `RunTerminalArea/NeedsYouWithNote`, `StatusBadge/Done`.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/web test` and `pnpm --filter @agentdesk/web typecheck` → PASS.
+- [x] **Step 5:** Commit `feat(web): show done runs, agent notes and finish from done`.
 
 ### Task 10: E2E — Finish from Needs you and from Done
 
 **Files:**
 - Modify: `apps/web/e2e/local/run.spec.ts`, `scripts/e2e-local.ts`
 
-- [ ] **Step 1:** Update the existing local spec's lifecycle check from `turn_finished` events to `agent_state` events with `state: 'needs_input'`; keep "Finish from Needs you → succeeded".
-- [ ] **Step 2:** Add test `'a --fake-done run shows Done and Finish closes it as succeeded'`, and in `scripts/e2e-local.ts` a scenario `done: comment with --fake-done -> run done -> finish -> succeeded`.
+- [x] **Step 1:** Update the existing local spec's lifecycle check from `turn_finished` events to `agent_state` events with `state: 'needs_input'`; keep "Finish from Needs you → succeeded".
+- [x] **Step 2:** Add test `'a --fake-done run shows Done and Finish closes it as succeeded'`, and in `scripts/e2e-local.ts` a scenario `done: comment with --fake-done -> run done -> finish -> succeeded`.
 - [ ] **Step 3:** Run `devbox run dev` then `devbox run e2e-local` → all scenarios PASS (see `docs/runbooks/tests-and-e2e.md`).
-- [ ] **Step 4:** Commit `test(web): e2e finish from needs you and from done`.
+- [x] **Step 4:** Commit `test(web): e2e finish from needs you and from done`.
 
 ---
 
@@ -297,7 +297,7 @@
   - Notes are passed through a `toAgentNote`-equivalent (one line, 500 chars) then base64; untrusted text never reaches a shell.
   - Dockerfile: `ENV DISABLE_AUTOUPDATER=1`; copy `agentdesk-status.mjs` to `/usr/local/lib/agentdesk/` with an executable wrapper `/usr/local/bin/agentdesk-status` (`exec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"`); copy `hook.mjs` to `/usr/local/lib/agentdesk/agents/claude/`; copy `managed-settings.json` to `/etc/claude-code/managed-settings.json` (root-owned, 0644) registering `UserPromptSubmit`, `PreToolUse` (matcher `*`), `PostToolUse` (matcher `AskUserQuestion`), `Notification`, `Stop`, `StopFailure` → `node /usr/local/lib/agentdesk/agents/claude/hook.mjs`.
 
-- [ ] **Step 1: Write failing tests** in `claude-hook.test.ts` (run `hook.mjs` with a temp state dir and temp out file, feeding fixtures):
+- [x] **Step 1: Write failing tests** in `claude-hook.test.ts` (run `hook.mjs` with a temp state dir and temp out file, feeding fixtures):
   - the six spike scenarios from spec §3 produce: background shell → `waiting background`; subagent → `waiting background`; wake-up → `working`; AskUserQuestion → `needs_input question …` then `working`; plain question with `needs_input` declared → `needs_input declared …`; done declared → `done declared …`;
   - `'declared done wins over running background tasks'`;
   - `'undeclared stop blocks once with the exact reason, then falls back to needs_input undeclared'`;
@@ -307,19 +307,19 @@
   - `'note with newline, 10 kB and $(rm -rf /) is one line, ≤500 chars, base64, and nothing is executed'`;
   - `'invalid JSON on stdin emits nothing and exits 0'`.
   - `agentdesk-status.test.ts`: valid states write `declared`; bad state → exit 2 and no write.
-- [ ] **Step 2:** Run `pnpm --filter @agentdesk/runner test` → FAIL.
-- [ ] **Step 3:** Implement scripts, settings and Dockerfile.
-- [ ] **Step 4:** Run `pnpm --filter @agentdesk/runner test` → PASS; `podman build -t agentdesk-runner:dev images/runner` succeeds and `podman run --rm --entrypoint sh agentdesk-runner:dev -c 'ls -l /etc/claude-code/managed-settings.json && command -v agentdesk-status'` shows both.
+- [x] **Step 2:** Run `pnpm --filter @agentdesk/runner test` → FAIL.
+- [x] **Step 3:** Implement scripts, settings and Dockerfile.
+- [x] **Step 4:** Run `pnpm --filter @agentdesk/runner test` → PASS; `podman build -t agentdesk-runner:dev images/runner` succeeds and `podman run --rm --entrypoint sh agentdesk-runner:dev -c 'ls -l /etc/claude-code/managed-settings.json && command -v agentdesk-status'` shows both.
 - [ ] **Step 5:** Manual smoke (record in the PR): run the image against a scratch repo with a real token, give a prompt that backgrounds `sleep 30` and then declares done; the run shows Running during the sleep and Done at the end.
-- [ ] **Step 6:** Commit `feat(runner): claude code status adapter and agentdesk-status command`.
+- [x] **Step 6:** Commit `feat(runner): claude code status adapter and agentdesk-status command`.
 
 ### Task 12: Docs — bring older docs in line
 
 **Files:**
 - Modify: `docs/adr/0011-interactive-claude-code-in-tmux.md` (add under Status: `Partly superseded by [0020](0020-agent-status-protocol.md) (hooks and run status)`), `docs/superpowers/specs/2026-11-12-control-plane-design.md` (§4.1 status line adds `done`; §6.2 main loop events; §8 marker list → protocol lines), `docs/superpowers/specs/2026-11-14-agent-run-status-design.md` (Status: Accepted).
 
-- [ ] **Step 1:** Make the edits; run `devbox run fix` → `fix: clean.`
-- [ ] **Step 2:** Commit `docs(adr): point run status docs at ADR 0020`. Ships in PR F.
+- [x] **Step 1:** Make the edits; run `devbox run fix` → `fix: clean.`
+- [x] **Step 2:** Commit `docs(adr): point run status docs at ADR 0020`. Ships in PR F.
 
 ---
 

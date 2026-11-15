@@ -19,10 +19,20 @@ RUN groupadd -g 10001 runner \
 COPY --chown=10001:10001 settings.json /home/runner/.claude/settings.json
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY select-plugins.mjs /usr/local/lib/agentdesk/select-plugins.mjs
+# Status protocol: agent-neutral declare command + the Claude Code adapter (hooks via managed settings,
+# which a repo's .claude/settings.json cannot override).
+COPY agentdesk-status.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs
+COPY agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/hook.mjs
+COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
 RUN chmod 0755 /usr/local/bin/entrypoint.sh \
- && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs
+ && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \
+    /usr/local/lib/agentdesk/agents/claude/hook.mjs /etc/claude-code/managed-settings.json \
+ && printf '#!/bin/sh\nexec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"\n' > /usr/local/bin/agentdesk-status \
+ && chmod 0755 /usr/local/bin/agentdesk-status \
+ && mkdir -p /home/runner/.agentdesk && chown 10001:10001 /home/runner/.agentdesk
 
 USER 10001:10001
 ENV HOME=/home/runner
+ENV DISABLE_AUTOUPDATER=1
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
