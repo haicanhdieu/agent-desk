@@ -139,10 +139,8 @@ union: `{ skillName } | { customPrompt }` plus the ticket fields it already take
 - **Human review:** the prompt template is listed as sensitive in `docs/conventions/security.md`, and this adds a
   migration.
 - **Rules:** contracts first, never edit an applied migration, and no provider names in new fields.
-- **PR size:** around 400 lines each, so this splits into about three PRs:
-  1. contracts, db, core
-  2. worker, api
-  3. web
+- **PR size:** one PR for the whole feature (contracts, db, core, worker, api, web), by user decision (2026-11-15). It
+  is over the ~400-line guideline on purpose, and the PR body says so.
 
 ## Left to the builder
 
