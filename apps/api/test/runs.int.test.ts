@@ -262,6 +262,19 @@ describe('cancel and finish', () => {
     expect((res.json() as { detail: string }).detail).toBe('Run is no longer active');
   });
 
+  it('finish failing for any other reason is not hidden as a 409', async () => {
+    const run = await insertRun({ status: 'idle', workflowId: `run-x` });
+    for (const failure of [
+      new WorkflowUpdateFailedError('Workflow Update failed', ApplicationFailure.nonRetryable('boom', 'SomethingElse')),
+      new Error('temporal is down'),
+    ]) {
+      t.temporal.reset();
+      t.temporal.updateFailure = () => failure;
+      const res = await post(`/api/runs/${run.id}/finish`);
+      expect(res.statusCode).toBe(500);
+    }
+  });
+
   it('cancel on a final run is 409', async () => {
     const run = await insertRun({ status: 'succeeded' });
     t.temporal.reset();
