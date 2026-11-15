@@ -53,7 +53,7 @@ This supersedes the 3300 s cap and "keep `timeout_seconds` ≤ 3300 so the token
 - New moving part: a durable refresh loop. A missed refresh means pushes fail once the token expires (the run is
   not killed).
 - The runner image changes (credential helper, `gh` wrapper); a custom runner image must do the same.
-- The redaction list is re-read every 30 s during a run and keeps the first read's values plus the 8 most recent rotated ones. A rotated token is redacted by exact value from the next re-read, normally before the pod's mounted file updates (1-2 min); a value older than about 6 h is no longer in the list (tokens live 1 h).
+- The redaction list is re-read every 30 s during a run and keeps the first read's values plus the 8 most recent rotated ones. A rotated token is redacted by exact value from the next re-read. This narrows the gap but does not close it: the kubelet can update the pod's file within seconds of the Secret write, so for up to 30 s only the token-shaped patterns apply (a provider with a new token shape must add a pattern). A value older than about 6 h is no longer in the list (tokens live 1 h). The list is kept per follower attempt, so a worker restart starts it again from the current values.
 - The workflow change needs `patched()` for in-flight runs.
 - Deploy order matters: the runner image with the token-file support must be live (`RUNNER_IMAGE`) before the worker
   that creates token-file Jobs, or every clone fails.
