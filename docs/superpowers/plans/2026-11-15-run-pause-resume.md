@@ -161,17 +161,17 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 - `agents/claude/commands.sh` defines two shell variables used as the tmux command: `AGENT_START_CMD='exec claude --permission-mode bypassPermissions "$PROMPT"'` and `AGENT_RESUME_CMD='exec claude --permission-mode bypassPermissions --continue'`. The entrypoint sources the file for the agent named by env `AGENT` (default `claude`; the name is matched against a fixed list, never used as a path from untrusted input).
 - `RUN_MODE=resume`: skips clone, checkout, plugins and setup; registers the git credential helper as today; `cd "$REPO_DIR"`; if the marker or `$REPO_DIR/.git` is missing prints `agentdesk: resume failed (no saved session)` and exits `79`; otherwise prints `agentdesk: session resumed`, starts tmux with `AGENT_RESUME_CMD`, prints `agentdesk: session started`, and continues with the existing wait and final-scrollback code.
 
-- [ ] **Step 1: Write failing tests** (use the existing harness and stubs):
+- [x] **Step 1: Write failing tests** (use the existing harness and stubs):
   - normal mode: after start, the marker exists and `$HOME/.claude/settings.json` equals the skeleton's;
   - a file already in `$HOME` is not overwritten by the skeleton copy;
   - `RUN_MODE=resume` with marker and repo: stdout has `agentdesk: session resumed` then `agentdesk: session started`; the `git` stub was not called with `clone`; the `claude` stub got `--continue` and no prompt argument; no `plugins begin` or `setup begin` line;
   - `RUN_MODE=resume` without the marker: exit code `79`, stdout has `agentdesk: resume failed (no saved session)`, tmux stub not started;
   - `RUN_MODE=resume` with `SETUP_SCRIPT` set: the script is not run;
   - Dockerfile test: the skeleton folder is copied and owned by `10001`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/runner test` — expect PASS.
-- [ ] **Step 5: Commit** `feat(runner): keep home on the workspace volume and add resume mode`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/runner test` — expect PASS.
+- [x] **Step 5: Commit** `feat(runner): keep home on the workspace volume and add resume mode`.
 
 ### Task 4: KubeGateway volume methods
 

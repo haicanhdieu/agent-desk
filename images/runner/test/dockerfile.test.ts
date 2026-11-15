@@ -24,4 +24,11 @@ describe('runner Dockerfile', () => {
     expect(text.indexOf('sha256sum -c -')).toBeGreaterThan(text.indexOf('githubcli-archive-keyring.gpg -o'));
     expect(text.indexOf('sha256sum -c -')).toBeLessThan(text.indexOf('github-cli.list'));
   });
+
+  it('copies the baked home into a skeleton folder owned by 10001, and ships the agent command file', async () => {
+    const text = await readFile(dockerfile, 'utf8');
+    expect(text).toContain('/usr/local/share/agentdesk/home-skel');
+    expect(text).toMatch(/chown -R 10001:10001[^\n]*\/usr\/local\/share\/agentdesk\/home-skel/);
+    expect(text).toContain('agents/claude/commands.sh');
+  });
 });

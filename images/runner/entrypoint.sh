@@ -2,13 +2,33 @@
 # Runner entrypoint (control-plane spec §8). Env: REPO_CLONE_URL (holds a token), GH_TOKEN (same token, set by the
 # provider adapter so `gh` works), CHECKOUT_REF, PROMPT, BOT_NAME, BOT_EMAIL, PLUGIN_MARKETPLACES (JSON
 # {store: source}, optional), SETUP_SCRIPT (optional), SETUP_TIMEOUT_SECONDS (digits, else 600), RUN_MODE (`setup_test`
-# opens an idle shell instead of the agent), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR and
-# AGENTDESK_LIB_DIR are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
+# opens an idle shell instead of the agent; `resume` continues a saved session on the run volume), AGENT (fixed list,
+# default claude), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR, AGENTDESK_LIB_DIR and
+# AGENTDESK_HOME_SKEL are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
 # No `set -x`: the clone URL is a secret.
 set -euo pipefail
 
 REPO_DIR="${AGENTDESK_REPO_DIR:-/workspace/repo}"
 LIB_DIR="${AGENTDESK_LIB_DIR:-/usr/local/lib/agentdesk}"
+HOME_SKEL="${AGENTDESK_HOME_SKEL:-/usr/local/share/agentdesk/home-skel}"
+
+# HOME may be on the per-run volume (empty on the first start): create it and fill in the baked files without
+# overwriting anything already there (a resumed run keeps its own settings and conversation).
+mkdir -p "$HOME"
+if [ -d "$HOME_SKEL" ]; then
+  cp -R -n "$HOME_SKEL/." "$HOME/" || true
+fi
+
+# The agent name picks a command file from a fixed list; the value is never used as a path.
+case "${AGENT:-claude}" in
+  claude) AGENT_DIR=claude ;;
+  *)
+    echo 'agentdesk: unsupported agent' >&2
+    exit 2
+    ;;
+esac
+# shellcheck source=/dev/null
+. "$LIB_DIR/agents/$AGENT_DIR/commands.sh"
 
 # A rotating workspace token lives in a mounted file (AGENTDESK_TOKEN_FILE). git reads it through the credential helper
 # on every call; the `gh` wrapper on PATH does the same. Without the file, REPO_CLONE_URL / GH_TOKEN carry the token.
@@ -16,6 +36,16 @@ if [ -n "${AGENTDESK_TOKEN_FILE:-}" ]; then
   git config --global credential.helper "$LIB_DIR/git-credential-agentdesk"
 fi
 
+if [ "${RUN_MODE:-}" = resume ]; then
+  # Resume: the volume holds the repo, home and conversation. No clone, checkout, plugins or setup.
+  if [ ! -f "$HOME/.agentdesk/session-started" ] || [ ! -d "$REPO_DIR/.git" ]; then
+    echo 'agentdesk: resume failed (no saved session)'
+    exit 79
+  fi
+  cd "$REPO_DIR"
+  echo 'agentdesk: session resumed'
+else
+# Fresh start (not reindented to keep the diff small): clone, checkout, plugins, setup.
 git clone --quiet -- "$REPO_CLONE_URL" "$REPO_DIR" 2>&1 | sed 's#://[^@/]*@#://***@#g' >&2
 cd "$REPO_DIR"
 git config user.name "${BOT_NAME:-agentdesk}"
@@ -137,16 +167,24 @@ if [ "$setup_failed" = 1 ] && [ "${RUN_MODE:-}" != setup_test ]; then
   exit 78
 fi
 
+fi
+
 if [ "${RUN_MODE:-}" = setup_test ]; then
   session_cmd='exec bash -l'
+elif [ "${RUN_MODE:-}" = resume ]; then
+  session_cmd="$AGENT_RESUME_CMD"
 else
-  session_cmd='exec claude --permission-mode bypassPermissions "$PROMPT"'
+  session_cmd="$AGENT_START_CMD"
 fi
 
 # remain-on-exit keeps the dead pane so its exit status and scrollback can be read. It is set before new-session (same
 # tmux invocation, after start-server) so a command that dies at once still leaves its pane and output behind.
 tmux start-server \; set-option -g remain-on-exit on \; \
   new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$session_cmd"
+if [ "${RUN_MODE:-}" != resume ] && [ "${RUN_MODE:-}" != setup_test ]; then
+  mkdir -p "$HOME/.agentdesk"
+  : > "$HOME/.agentdesk/session-started"
+fi
 echo 'agentdesk: session started'
 
 while [ "$(tmux display-message -p -t agent '#{pane_dead}' 2>/dev/null || echo 1)" != 1 ]; do
