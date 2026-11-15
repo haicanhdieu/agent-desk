@@ -178,6 +178,19 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 .sentence{font-size:16px;line-height:1.9}
 .sentence .cmd,.sentence .slot{font-size:14px}
 .slot{display:inline-flex;align-items:center;gap:6px;border-bottom:1.5px dashed #6B7690;padding:0 2px;font-weight:600}
+/* rule custom prompt */
+.textarea{display:block;min-height:132px;border:1px solid var(--line2);background:#12151A;border-radius:6px;padding:8px 10px;color:var(--text);width:100%;line-height:1.5;resize:vertical}
+.textarea.bad{border-color:var(--fail)}
+.ferr{font-size:12.5px;color:var(--fail)}
+.counter{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--faint)}
+.counter.over{color:var(--fail)}
+.sys-l{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--muted)}
+.sys{margin:0;display:flex;flex-direction:column;border:1px dashed var(--line2);border-radius:6px;background:var(--panel);padding:10px 12px;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--faint);white-space:pre-wrap;overflow-wrap:anywhere}
+.sys .ph{color:var(--muted);font-style:italic}
+.sys.err{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;font-family:var(--sans);white-space:normal}
+.skel{display:block;height:12px;border-radius:6px;background:var(--raised)}
+.pfirst{display:inline-block;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;color:var(--muted)}
+.prompt-box{margin:0;max-height:220px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#12151A;font-family:var(--mono);font-size:12px;line-height:1.55;color:#D5DAE1;white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 </helmet>
 <div class="app" style="min-height:900px;height:900px;position:relative;overflow:hidden;">
@@ -243,7 +256,7 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 <dt>Triggered by</dt><dd><span class="row" style="gap:6px"><span class="avatar sm" aria-hidden="true">KH</span>kim-hale</span> <a href="https://github.com/" class="faint" style="font-size:12px">comment</a></dd>
 <dt>Agent</dt><dd>Claude <span class="faint mono" style="font-size:12px">opus</span></dd>
 <dt>Started</dt><dd class="num">14:02:32</dd><dt>Ended</dt><dd class="num">14:08:44</dd>
-</dl></section><section class="sec"><div class="sec-h"><span>Chain on this ticket</span><span class="faint num">max 10 runs</span></div><div class="chain"><div class="cstep here"><div style="padding-top:2px"><span class="st st-succeeded"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
+</dl></section><section class="sec"><div class="sec-h"><span>Prompt</span><button class="btn ghost sm" aria-expanded="false">Show<svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg></button></div></section><section class="sec"><div class="sec-h"><span>Chain on this ticket</span><span class="faint num">max 10 runs</span></div><div class="chain"><div class="cstep here"><div style="padding-top:2px"><span class="st st-succeeded"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><path d="M4.8 8.2l2.2 2.2 4.2-4.6" fill="none" stroke="#0F1A13" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>
 <div class="cbox"><span class="row" style="gap:6px"><b style="font-weight:600">Run 60</b><code class="cmd">/code-build</code> on <span class="kind"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/></svg><span class="tref">Issue #142</span></span></span><span class="faint" style="font-size:12px">This run</span></div></div><div class="cstep "><div style="padding-top:2px"><span class="st st-idle"><svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16"><circle cx="8" cy="8" r="7" fill="currentColor"/><rect x="7.1" y="4" width="1.8" height="8" rx=".6" fill="#1A1405"/></svg></span></div>
 <div class="cbox"><a href="RunIdle.dc.html" class="row" style="gap:6px;color:var(--text)"><b style="font-weight:600">Run 62</b><code class="cmd">/code-review</code> on <span class="kind"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5.5" r="2"/><circle cx="6" cy="18.5" r="2"/><circle cx="18" cy="18.5" r="2"/><path d="M6 7.5v9M18 16.5V10a3 3 0 0 0-3-3h-4M13 4.5 10.5 7 13 9.5"/></svg><span class="tref">PR #148</span></span></a><span class="faint" style="font-size:12px">Needs you</span></div></div></div></section></aside>
 </div>

@@ -1,5 +1,6 @@
-import { Field, LabelInput, PrefixInput, Select, SegmentedControl, Toggle } from '@/ds';
-import { RuleSentence, type RuleDraft, type RuleTarget } from './RuleSentence';
+import { Field, LabelInput, PrefixInput, Select, SegmentedControl, TextArea, Toggle } from '@/ds';
+import { PromptSystemPart, type PromptPreview } from './PromptSystemPart';
+import { RuleSentence, type RuleDraft, type RuleKind, type RuleTarget } from './RuleSentence';
 import styles from './Composites.module.css';
 
 export interface RuleFormProps {
@@ -13,8 +14,21 @@ export interface RuleFormProps {
   /** Setup page spacing: 24px between the sentence card and the fields (the desk pane keeps 16px). */
   spacious?: boolean;
   /** Field-level messages (e.g. from a problem+json response); the field is marked invalid and described by it. */
-  errors?: Partial<Record<'command' | 'labels' | 'target' | 'skill', string>>;
+  errors?: Partial<Record<'command' | 'labels' | 'target' | 'skill' | 'prompt', string>>;
+  /**
+   * The system lines Agent Desk adds to a custom prompt. With it, the form offers Skill / Custom prompt; without it
+   * (the live app until the contracts carry prompt rules) it stays skill only.
+   */
+  promptPreview?: PromptPreview;
 }
+
+/** Longest custom prompt the API accepts (prototype value, see CONTRACT-GAPS.md). */
+export const PROMPT_MAX = 4000;
+
+const KINDS: { value: RuleKind; label: string }[] = [
+  { value: 'skill', label: 'Skill' },
+  { value: 'prompt', label: 'Custom prompt' },
+];
 
 const TARGETS: { value: RuleTarget; label: string }[] = [
   { value: 'issue', label: 'Issue' },
@@ -34,8 +48,11 @@ export function RuleForm({
   agentModel,
   spacious,
   errors,
+  promptPreview,
 }: RuleFormProps) {
   const set = (patch: Partial<RuleDraft>) => onChange({ ...value, ...patch });
+  const kind: RuleKind = promptPreview ? (value.kind ?? 'skill') : 'skill';
+  const promptLength = (value.prompt ?? '').length;
   return (
     <div className={spacious ? `${styles.form} ${styles.formSpacious}` : styles.form}>
       <div className={styles.sentenceCard}>
@@ -87,30 +104,78 @@ export function RuleForm({
             />
           )}
         </Field>
-        <Field
-          label="Run skill"
-          help={
-            <>
-              From <span className="mono">.claude/skills/</span> on main.
-            </>
-          }
-          error={errors?.skill}
-        >
-          {({ id, describedBy, invalid }) => (
-            <Select
-              mono
-              id={id}
-              aria-describedby={describedBy}
-              aria-invalid={invalid}
-              value={value.skill}
-              onChange={(e) => set({ skill: e.target.value })}
+        {promptPreview && (
+          <Field label="Run" labelAs="span">
+            {({ labelId }) => (
+              <SegmentedControl
+                aria-labelledby={labelId}
+                value={kind}
+                options={KINDS}
+                onChange={(next) => set({ kind: next })}
+              />
+            )}
+          </Field>
+        )}
+        {!promptPreview || kind === 'skill' ? (
+          <Field
+            label={promptPreview ? 'Skill' : 'Run skill'}
+            help={
+              <>
+                From <span className="mono">.claude/skills/</span> on main.
+              </>
+            }
+            error={errors?.skill}
+          >
+            {({ id, describedBy, invalid }) => (
+              <Select
+                mono
+                id={id}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
+                value={value.skill}
+                onChange={(e) => set({ skill: e.target.value })}
+              >
+                {withCurrent(skills, value.skill).map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </Select>
+            )}
+          </Field>
+        ) : (
+          <>
+            <Field
+              className={styles.full}
+              label="Prompt"
+              help={
+                <span className={styles.promptHelp}>
+                  <span>Don&apos;t paste passwords or tokens. This text is stored.</span>
+                  <span
+                    className={[styles.counter, promptLength > PROMPT_MAX && styles.counterOver]
+                      .filter(Boolean)
+                      .join(' ')}
+                  >
+                    {promptLength} / {PROMPT_MAX}
+                  </span>
+                </span>
+              }
+              error={errors?.prompt}
             >
-              {withCurrent(skills, value.skill).map((s) => (
-                <option key={s}>{s}</option>
-              ))}
-            </Select>
-          )}
-        </Field>
+              {({ id, describedBy, invalid }) => (
+                <TextArea
+                  id={id}
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid}
+                  placeholder="Tell the agent what to do on the ticket"
+                  value={value.prompt ?? ''}
+                  onChange={(e) => set({ prompt: e.target.value })}
+                />
+              )}
+            </Field>
+            <div className={styles.full}>
+              <PromptSystemPart preview={promptPreview} />
+            </div>
+          </>
+        )}
         <Field label="With agent" help="One agent per project in the PoC.">
           {({ id, describedBy }) => (
             <Select

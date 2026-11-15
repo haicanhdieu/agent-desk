@@ -31,19 +31,38 @@ const stories = {
   Setup1Polling: ['Screens/Setup', 'Setup1Polling'],
   Setup1PollingOk: ['Screens/Setup', 'Setup1PollingOk'],
   Setup2: ['Screens/Setup', 'Setup2'],
+  SetupWorkspace: ['Screens/Setup', 'SetupWorkspace'],
   Setup3: ['Screens/Setup', 'Setup3'],
   Setup4: ['Screens/Setup', 'Setup4'],
   SetupReady: ['Screens/Setup', 'SetupReady'],
   Runs: ['Screens/Runs', 'Runs'],
   RunsProblems: ['Screens/Runs', 'RunsProblems'],
   ...Object.fromEntries(
-    ['Starting', 'Running', 'Idle', 'Reconnect', 'Succeeded', 'Failed', 'TimedOut', 'Cancelled'].map((s) => [
-      `Run${s}`,
-      ['Screens/Run detail', `Run${s}`],
-    ]),
+    [
+      'Starting',
+      'Running',
+      'Idle',
+      'Reconnect',
+      'Succeeded',
+      'Prompt',
+      'Failed',
+      'SetupFailed',
+      'TimedOut',
+      'Cancelled',
+    ].map((s) => [`Run${s}`, ['Screens/Run detail', `Run${s}`]]),
   ),
   ...Object.fromEntries(
-    ['Skills', 'SkillDelete', 'Rules', 'Agent'].map((s) => [`Desk${s}`, ['Screens/Desk', `Desk${s}`]]),
+    [
+      'Skills',
+      'SkillDelete',
+      'Rules',
+      'RulesPrompt',
+      'RulesPromptNew',
+      'RulesPromptError',
+      'Agent',
+      'Setup',
+      'SetupTest',
+    ].map((s) => [`Desk${s}`, ['Screens/Desk', `Desk${s}`]]),
   ),
 };
 

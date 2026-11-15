@@ -57,10 +57,22 @@ describe('mock fixtures', () => {
     expect(agentSettings.idleEndMinutes).toBe(10);
   });
 
-  it('points every enabled rule at an existing skill unless it carries a warning', () => {
+  it('points every enabled skill rule at an existing skill unless it carries a warning', () => {
     const names = skills.map((s) => s.name);
-    for (const r of rules.filter((x) => x.enabled && !x.warning)) expect(names).toContain(r.skill);
+    for (const r of rules.filter((x) => x.enabled && !x.warning && x.kind !== 'prompt')) {
+      expect(names).toContain(r.skill);
+    }
     expect(rules.find((r) => r.warning)?.command).toBe('docs-update');
+  });
+
+  it('gives every prompt rule a prompt within the limit and no skill', () => {
+    const prompts = rules.filter((r) => r.kind === 'prompt');
+    expect(prompts.map((r) => r.command)).toEqual(['triage']);
+    for (const r of prompts) {
+      expect(r.skill).toBe('');
+      expect(r.prompt?.length).toBeGreaterThan(0);
+      expect(r.prompt?.length).toBeLessThanOrEqual(4000);
+    }
   });
 
   it('has the five boards of ignored commands and four projects', () => {
@@ -121,7 +133,8 @@ describe('mock fixtures', () => {
       terminalByRun,
       ticketGroups,
     });
-    expect(text).not.toMatch(/sk-|token=/);
+    // `sk-` only as a token start: the prompt template's `agentdesk-status` command is not a key.
+    expect(text).not.toMatch(/(?<![\w-])sk-|token=/);
   });
 
   it('copies board values faithfully', () => {

@@ -12,6 +12,7 @@ import {
   SegmentedControl,
   Select,
   StaticInput,
+  TextArea,
   TextInput,
   Toggle,
   UnitInput,
@@ -77,6 +78,34 @@ export const TextInputs: Story = {
       <Field label="Commit to" labelAs="span">
         {() => <StaticInput icon="branch">main, default branch</StaticInput>}
       </Field>
+    </>
+  ),
+};
+
+export const TextAreas: Story = {
+  name: 'Text area',
+  render: () => (
+    <>
+      <Field label="Prompt" help="Multi-line. Resize with the handle.">
+        {({ id, describedBy }) => (
+          <TextArea
+            id={id}
+            aria-describedby={describedBy}
+            defaultValue={'Triage this issue.\nAdd one of the labels bug, feature or question.'}
+          />
+        )}
+      </Field>
+      <Field label="Empty" help="Placeholder text shows until the user types.">
+        {({ id, describedBy }) => (
+          <TextArea id={id} aria-describedby={describedBy} rows={3} placeholder="Tell the agent what to do" />
+        )}
+      </Field>
+      <Field label="Invalid" error="Keep it under 4,000 characters.">
+        {({ id, describedBy, invalid }) => (
+          <TextArea id={id} aria-describedby={describedBy} aria-invalid={invalid} rows={3} defaultValue="Too long" />
+        )}
+      </Field>
+      <Field label="Disabled">{({ id }) => <TextArea id={id} rows={3} disabled defaultValue="Read only" />}</Field>
     </>
   ),
 };

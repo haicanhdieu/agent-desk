@@ -15,8 +15,8 @@ type StoryModule = { default: { title: string; excludeStories?: unknown; include
 const modules = Object.values(import.meta.glob<StoryModule>('../screens/*.stories.tsx', { eager: true }));
 
 describe('storybook coverage of prototype boards', () => {
-  it('lists exactly the 30 boards of canvas.json, in order', () => {
-    expect(order).toHaveLength(30);
+  it('lists exactly the 34 boards of canvas.json, in order', () => {
+    expect(order).toHaveLength(34);
     expect(Object.keys(boardStories)).toEqual(order);
   });
 

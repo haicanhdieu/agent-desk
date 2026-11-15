@@ -1,6 +1,15 @@
 import { useState, type ReactNode } from 'react';
 import { Banner, Button, Icon } from '@/ds';
-import { EmptyState, GuardsCard, RuleForm, RuleRow, SidePane, type RuleDraft, type RuleFormProps } from '@/components';
+import {
+  EmptyState,
+  GuardsCard,
+  RuleForm,
+  RuleRow,
+  SidePane,
+  type PromptPreview,
+  type RuleDraft,
+  type RuleFormProps,
+} from '@/components';
 import type { Rule } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
@@ -18,6 +27,8 @@ export interface DeskRulesProps {
   guardLinks?: { change?: string; ignored?: string };
   /** The open rule form (a `RulePane` driven by the app); replaces the local edit pane. */
   form?: ReactNode;
+  /** System lines for custom prompt rules; with it the local edit pane offers Skill / Custom prompt. */
+  promptPreview?: PromptPreview;
   onToggle?(id: string, enabled: boolean): void;
   onCreate?(): void;
   onEdit?(id: string): void;
@@ -41,6 +52,8 @@ export interface RulePaneProps {
   /** A failed save that names no field. */
   formError?: string;
   saving?: boolean;
+  /** With it, the form offers Skill / Custom prompt (see `RuleFormProps.promptPreview`). */
+  promptPreview?: PromptPreview;
 }
 
 /** The rule side pane: the rule form with Delete, Cancel and Save. Controlled: the caller owns the draft. */
@@ -56,6 +69,7 @@ export function RulePane({
   errors,
   formError,
   saving,
+  promptPreview,
 }: RulePaneProps) {
   return (
     <SidePane
@@ -92,6 +106,7 @@ export function RulePane({
         agentModel={agentModel}
         onChange={onChange}
         errors={errors}
+        promptPreview={promptPreview}
       />
     </SidePane>
   );
@@ -101,12 +116,14 @@ export function RulePane({
 function LocalRulePane({
   rule,
   skills,
+  promptPreview,
   onClose,
   onSave,
   onDelete,
 }: {
   rule: Rule;
   skills: string[];
+  promptPreview?: PromptPreview;
   onClose(): void;
   onSave?(draft: RuleDraft): void;
   onDelete?(): void;
@@ -118,12 +135,15 @@ function LocalRulePane({
     skill: rule.skill,
     agent: rule.agent,
     enabled: rule.enabled,
+    kind: rule.kind,
+    prompt: rule.prompt,
   });
   return (
     <RulePane
       title="Edit rule"
       value={draft}
       skills={skills}
+      promptPreview={promptPreview}
       onChange={setDraft}
       onClose={onClose}
       onSave={() => onSave?.(draft)}
@@ -140,6 +160,7 @@ export function DeskRules({
   maxRunsPerTicket,
   guardLinks,
   form,
+  promptPreview,
   onToggle,
   onCreate,
   onEdit,
@@ -202,6 +223,7 @@ export function DeskRules({
               key={editing.id}
               rule={editing}
               skills={skills}
+              promptPreview={promptPreview}
               onClose={() => onClose?.()}
               onSave={(d) => onSave?.(editing.id, d)}
               onDelete={() => onDelete?.(editing.id)}

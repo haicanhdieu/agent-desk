@@ -178,6 +178,19 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 .sentence{font-size:16px;line-height:1.9}
 .sentence .cmd,.sentence .slot{font-size:14px}
 .slot{display:inline-flex;align-items:center;gap:6px;border-bottom:1.5px dashed #6B7690;padding:0 2px;font-weight:600}
+/* rule custom prompt */
+.textarea{display:block;min-height:132px;border:1px solid var(--line2);background:#12151A;border-radius:6px;padding:8px 10px;color:var(--text);width:100%;line-height:1.5;resize:vertical}
+.textarea.bad{border-color:var(--fail)}
+.ferr{font-size:12.5px;color:var(--fail)}
+.counter{font-variant-numeric:tabular-nums;white-space:nowrap;color:var(--faint)}
+.counter.over{color:var(--fail)}
+.sys-l{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:500;color:var(--muted)}
+.sys{margin:0;display:flex;flex-direction:column;border:1px dashed var(--line2);border-radius:6px;background:var(--panel);padding:10px 12px;font-family:var(--mono);font-size:12.5px;line-height:1.6;color:var(--faint);white-space:pre-wrap;overflow-wrap:anywhere}
+.sys .ph{color:var(--muted);font-style:italic}
+.sys.err{flex-direction:row;align-items:center;justify-content:space-between;gap:12px;font-family:var(--sans);white-space:normal}
+.skel{display:block;height:12px;border-radius:6px;background:var(--raised)}
+.pfirst{display:inline-block;max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;vertical-align:bottom;color:var(--muted)}
+.prompt-box{margin:0;max-height:220px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#12151A;font-family:var(--mono);font-size:12px;line-height:1.55;color:#D5DAE1;white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 </helmet>
 <div class="app" style="min-height:900px;height:900px;position:relative;overflow:hidden;">
@@ -203,7 +216,8 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 <div class="field"><label for="rc">Command</label><div class="prefix"><span>/</span><input id="rc" value="code-build"></div><span class="help">First line of the comment. Text after it is passed to the agent.</span></div>
 <div class="field"><span class="flabel">Posted on</span><div class="seg" role="group" aria-label="Posted on"><button class="on" aria-pressed="true">Issue</button><button class="" aria-pressed="false">Pull request</button><button class="" aria-pressed="false">Any</button></div></div>
 <div class="field"><label for="rl">Only if the ticket has all labels</label><div class="row" style="flex-wrap:wrap;gap:6px;min-height:34px;border:1px solid var(--line2);border-radius:6px;padding:4px 8px;background:#12151A"><span class="lbl" style="height:24px">user-story <button class="btn ghost" style="height:16px;width:16px;padding:0;border:0" aria-label="Remove label user-story"><svg aria-hidden="true" class="" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button></span><input id="rl" placeholder="Add label" style="border:0;background:transparent;flex:1;min-width:80px;height:24px"></div><span class="help">Optional. Leave empty to match any ticket.</span></div>
-<div class="field"><label for="rs">Run skill</label><select id="rs" class="input mono"><option>code-build</option></select><span class="help">From <span class="mono">.claude/skills/</span> on main.</span></div>
+<div class="field"><span class="flabel">Run</span><div class="seg" role="group" aria-label="Run"><button class="on" aria-pressed="true">Skill</button><button class="" aria-pressed="false">Custom prompt</button></div></div>
+<div class="field"><label for="rs">Skill</label><select id="rs" class="input mono"><option>code-build</option></select><span class="help">From <span class="mono">.claude/skills/</span> on main.</span></div>
 <div class="field"><label for="ra">With agent</label><select id="ra" class="input" disabled><option>Claude (opus)</option></select><span class="help">One agent per project in the PoC.</span></div>
 <div class="field"><span class="flabel">Enabled</span><span class="row" style="gap:10px;height:34px"><button class="toggle on" aria-pressed="true" aria-label="Rule enabled"></button><span class="muted" style="font-size:13px">Matches new comments right away</span></span></div>
 </div>

@@ -249,6 +249,38 @@
    "h": 900,
    "title": "Desk \u2014 workspace setup, test failed, terminal open",
    "expand": "fill"
+  },
+  "RunPrompt.dc.html": {
+   "x": 7600,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 60 \u2014 succeeded, prompt section open",
+   "expand": "fill"
+  },
+  "DeskRulesPrompt.dc.html": {
+   "x": 9120,
+   "y": 7780,
+   "w": 1440,
+   "h": 1080,
+   "title": "Desk \u2014 routing rules, custom prompt",
+   "expand": "fill"
+  },
+  "DeskRulesPromptNew.dc.html": {
+   "x": 10640,
+   "y": 7780,
+   "w": 1440,
+   "h": 1080,
+   "title": "Desk \u2014 routing rules, new custom prompt, preview loading",
+   "expand": "fill"
+  },
+  "DeskRulesPromptError.dc.html": {
+   "x": 12160,
+   "y": 7780,
+   "w": 1440,
+   "h": 1080,
+   "title": "Desk \u2014 routing rules, prompt too long, preview failed",
+   "expand": "fill"
   }
  },
  "order": [
@@ -272,6 +304,7 @@
   "RunIdle.dc.html",
   "RunReconnect.dc.html",
   "RunSucceeded.dc.html",
+  "RunPrompt.dc.html",
   "RunFailed.dc.html",
   "RunSetupFailed.dc.html",
   "RunTimedOut.dc.html",
@@ -279,6 +312,9 @@
   "DeskSkills.dc.html",
   "DeskSkillDelete.dc.html",
   "DeskRules.dc.html",
+  "DeskRulesPrompt.dc.html",
+  "DeskRulesPromptNew.dc.html",
+  "DeskRulesPromptError.dc.html",
   "DeskAgent.dc.html",
   "DeskSetup.dc.html",
   "DeskSetupTest.dc.html"
@@ -324,14 +360,14 @@
    "y": 6260,
    "text": "Run detail, ended",
    "kind": "title1",
-   "maxW": 7520
+   "maxW": 9040
   },
   "t-desk": {
    "x": 0,
    "y": 7540,
    "text": "Desk",
    "kind": "title1",
-   "maxW": 9040
+   "maxW": 13600
   }
  },
  "designSystems": []

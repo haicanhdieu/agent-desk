@@ -5,7 +5,9 @@ import {
   connectionCopy,
   connections,
   deskFrame,
+  promptSystemLines,
   rules,
+  TRIAGE_PROMPT,
   setupDraft,
   setupPhases,
   setupPlugins,
@@ -21,7 +23,8 @@ import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkil
 import { StatusIcon } from '@/ds';
 import { viewport } from './viewports';
 
-// Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules, DeskSetup, DeskSetupTest 1440x900; DeskAgent 1440x1320.
+// Artboards come from canvas.json: DeskSkills, DeskSkillDelete, DeskRules, DeskSetup, DeskSetupTest 1440x900; DeskAgent 1440x1320;
+// DeskRulesPrompt, DeskRulesPromptNew, DeskRulesPromptError 1440x1080.
 const meta = {
   title: 'Screens/Desk',
   parameters: { layout: 'fullscreen' },
@@ -92,6 +95,99 @@ export const DeskRules: Story = {
       skills={skills.map((s) => s.name)}
       editingId="r2"
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      promptPreview={promptReady}
+    />
+  ),
+};
+
+const promptReady = { state: 'ready', systemLines: promptSystemLines } as const;
+
+/** Editing a custom prompt rule: the prompt, its counter and the read-only lines Agent Desk adds. */
+export const DeskRulesPrompt: Story = {
+  name: 'Routing rules, custom prompt',
+  decorators: artboard(1080),
+  globals: viewport(1440, 1080),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      rules={rules}
+      skills={skills.map((s) => s.name)}
+      editingId="r6"
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      promptPreview={promptReady}
+    />
+  ),
+};
+
+/** New custom prompt rule: nothing typed yet, the system lines still loading. */
+export const DeskRulesPromptNew: Story = {
+  name: 'Routing rules, new custom prompt',
+  decorators: artboard(1080),
+  globals: viewport(1440, 1080),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      rules={rules}
+      skills={skills.map((s) => s.name)}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      form={
+        <RulePane
+          title="New rule"
+          value={{
+            command: 'release-notes',
+            target: 'pr',
+            labels: [],
+            skill: '',
+            kind: 'prompt',
+            prompt: '',
+            agent: 'Claude',
+            enabled: true,
+          }}
+          skills={skills.map((s) => s.name)}
+          promptPreview={{ state: 'loading' }}
+          onChange={() => undefined}
+          onClose={() => undefined}
+          onSave={() => undefined}
+        />
+      }
+    />
+  ),
+};
+
+/** Prompt over the limit, and the system lines failed to load. */
+export const DeskRulesPromptError: Story = {
+  name: 'Routing rules, custom prompt errors',
+  decorators: artboard(1080),
+  globals: viewport(1440, 1080),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      rules={rules}
+      skills={skills.map((s) => s.name)}
+      editingId="r6"
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      form={
+        <RulePane
+          title="Edit rule"
+          value={{
+            command: 'triage',
+            target: 'issue',
+            labels: [],
+            skill: '',
+            kind: 'prompt',
+            prompt: `${TRIAGE_PROMPT}\n${'Check every linked issue as well. '.repeat(120)}`,
+            agent: 'Claude',
+            enabled: true,
+          }}
+          skills={skills.map((s) => s.name)}
+          promptPreview={{ state: 'error', onRetry: () => undefined }}
+          errors={{ prompt: 'Keep the prompt to 4000 characters or fewer.' }}
+          onChange={() => undefined}
+          onClose={() => undefined}
+          onSave={() => undefined}
+          onDelete={() => undefined}
+        />
+      }
     />
   ),
 };

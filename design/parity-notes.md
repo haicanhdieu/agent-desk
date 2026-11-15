@@ -107,3 +107,33 @@ Not yet run through `parity.mjs`; side by side in a browser only.
 - RunSetupFailed (1440x900): Run 58, "Setup failed" pill and banner, setup log as scrollback, side panel "Setup: Version 5".
 - The sample repo is .NET, but the runner image has only Node 22, git and gh, so the sample script installs the .NET SDK
   into `$HOME`. Open question for the spec: `export PATH=...` in the setup script does not reach the agent's shell.
+
+## Rule custom prompt (prototype states, now in Storybook)
+
+Spec: `docs/superpowers/specs/2026-11-13-rule-custom-prompt-design.md`. Four new boards, so `parity.mjs` finds 34
+(the script now also maps SetupWorkspace, RunSetupFailed, DeskSetup and DeskSetupTest, which it was missing).
+Copy must match exactly.
+
+- DeskRules: new row `/triage` (5th of 6), "run **Custom prompt** <first line of the prompt> with Claude", the first line
+  cut with an ellipsis. The edit pane gains a "Run" segmented control (Skill / Custom prompt) after the labels field; the
+  skill select is now labelled "Skill" and sits beside "With agent", with "Enabled" on its own row.
+- DeskRulesPrompt (new, 1440x1080): `/triage` selected; Custom prompt chosen. "Prompt" textarea, help "Don't paste
+  passwords or tokens. This text is stored." with the counter "213 / 4000" on the right. Below it, the read-only block
+  "Added by Agent Desk (can't be edited)" (lock icon, dashed border, faint mono text, placeholders in italics) and the
+  note "Your prompt comes first. These lines always follow it." The sentence reads "run a custom prompt with agent Claude".
+- DeskRulesPromptNew (new, 1440x1080): "New rule" `/release-notes` on pull requests, empty prompt ("0 / 4000", placeholder
+  "Tell the agent what to do on the ticket"), the system block loading (three skeleton lines). No Delete button.
+- DeskRulesPromptError (new, 1440x1080): prompt over the limit (counter red "4294 / 4000", textarea border red, error
+  "Keep the prompt to 4000 characters or fewer.") and the system block failed: "Could not load the lines Agent Desk adds.
+  They are still added to every run." with a small Retry button.
+- Setup4: the same "Run" segmented control, Skill chosen (board still says "Step 4 of 4", as before). The prompt form in
+  setup is the state story `Setup4Prompt` (1440x1080), no board.
+- RunSucceeded: new side panel section "Prompt" after "Run", collapsed, with a ghost "Show" button and a chevron.
+- RunPrompt (new, 1440x900): RunSucceeded with the Prompt section open ("Hide"), the final prompt in a scrollable mono box
+  (max 220px).
+- RunCancelled: the Prompt section reads "Not recorded" (a run started before prompts were kept), no button.
+- The system lines follow the spec's three lines. Today's template (`packages/core/src/router/prompt.ts`) also ends with
+  an `agentdesk-status` line; the boards and fixtures leave it out (open question for the backend PR, and the FR-3 fixture
+  scan flags its `sk-`).
+- Pixel check: the new pane and side panel content match their boards; the remaining differences on these boards are
+  the pre-existing Desk frame and list drift noted above.

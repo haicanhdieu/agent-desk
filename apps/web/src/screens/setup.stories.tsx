@@ -1,7 +1,17 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell } from '@/components';
 import { CommandChip } from '@/ds';
-import { agentSettings, connectionCopy, rules, setupPlugins, setupScript, skillTemplates, user } from '@/mocks';
+import {
+  agentSettings,
+  connectionCopy,
+  promptSystemLines,
+  rules,
+  setupPlugins,
+  setupScript,
+  skillTemplates,
+  TRIAGE_PROMPT,
+  user,
+} from '@/mocks';
 import { Setup1 as Setup1Screen } from './Setup1';
 import { Setup2 as Setup2Screen } from './Setup2';
 import { Setup3 as Setup3Screen } from './Setup3';
@@ -177,6 +187,26 @@ export const Setup4: Story = {
       skills={['code-build', 'code-review']}
       followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+    />
+  ),
+};
+
+/** The first rule as a custom prompt (state of board Setup4; taller so the system lines fit). */
+export const Setup4Prompt: Story = {
+  name: 'Setup 4, first rule as a custom prompt',
+  parameters: { artboardHeight: 1080 },
+  globals: viewport(1440, 1080),
+  render: () => (
+    <Setup4Screen
+      user={user}
+      projectName={projectName}
+      repo={repo}
+      rule={{ ...rule, command: 'triage', labels: [], skill: '', kind: 'prompt', prompt: TRIAGE_PROMPT }}
+      skills={['code-build', 'code-review']}
+      followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
     />
   ),
 };

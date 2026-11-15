@@ -24,7 +24,9 @@ export {
   PasswordInput,
   SearchInput,
   StaticInput,
+  TextArea,
   type TextInputProps,
+  type TextAreaProps,
 } from './TextInput';
 export { Select } from './Select';
 export {

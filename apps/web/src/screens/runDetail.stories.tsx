@@ -46,6 +46,12 @@ export const RunSucceeded: Story = {
   globals: viewport(1440, 900),
   args: { data: runDetails.RunSucceeded, lines: terminalByRun[60], needsYou: 1 },
 };
+/** Run 60 with its Prompt section open (prototype board RunPrompt). */
+export const RunPrompt: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: { ...runDetails.RunSucceeded, promptOpen: true }, lines: terminalByRun[60], needsYou: 1 },
+};
 export const RunFailed: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),

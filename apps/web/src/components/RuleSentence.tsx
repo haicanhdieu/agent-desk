@@ -3,6 +3,8 @@ import { CommandChip } from '@/ds';
 import styles from './Composites.module.css';
 
 export type RuleTarget = 'issue' | 'pr' | 'any';
+/** What a rule runs: a skill from the repo, or a custom prompt typed in the form. */
+export type RuleKind = 'skill' | 'prompt';
 export type RuleDraft = {
   command: string;
   target: RuleTarget;
@@ -10,7 +12,18 @@ export type RuleDraft = {
   skill: string;
   agent: string;
   enabled: boolean;
+  /** Prototype only until the contracts carry it (apps/web/CONTRACT-GAPS.md); absent means `skill`. */
+  kind?: RuleKind;
+  /** The custom prompt of a `prompt` rule, as written (multi-line). */
+  prompt?: string;
 };
+
+/** The first non-empty line of a custom prompt, shown where a skill rule shows its skill name. */
+export const promptFirstLine = (prompt: string | undefined) =>
+  (prompt ?? '')
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .find(Boolean) ?? '';
 
 const TARGET_WORDS: Record<RuleTarget, string> = {
   issue: 'an issue',
@@ -33,7 +46,15 @@ export function RuleSentence({ rule, variant }: { rule: RuleDraft; variant: 'slo
             labelled <b>{labels}</b>
           </>
         )}
-        , run <span className={styles.plainSkill}>{rule.skill}</span> with {rule.agent}
+        , run{' '}
+        {rule.kind === 'prompt' ? (
+          <>
+            <b>Custom prompt</b> <span className={styles.plainPrompt}>{promptFirstLine(rule.prompt)}</span>
+          </>
+        ) : (
+          <span className={styles.plainSkill}>{rule.skill}</span>
+        )}{' '}
+        with {rule.agent}
       </span>
     );
   }
@@ -43,7 +64,9 @@ export function RuleSentence({ rule, variant }: { rule: RuleDraft; variant: 'slo
   return (
     <p className={styles.sentence}>
       When a comment starting with {cmd} is posted on {slot(TARGET_WORDS[rule.target])}
-      {labels && <> labelled {slot(labels)}</>}, run skill {slot(rule.skill, true)} with agent {slot(rule.agent)}.
+      {labels && <> labelled {slot(labels)}</>},{' '}
+      {rule.kind === 'prompt' ? <>run {slot('a custom prompt')}</> : <>run skill {slot(rule.skill, true)}</>} with agent{' '}
+      {slot(rule.agent)}.
     </p>
   );
 }

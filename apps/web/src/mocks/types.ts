@@ -112,6 +112,13 @@ export type RunDetailData = {
   idle?: { since: string; endsAt: string; slotNote: string };
   /** What the agent said when it asked a question or declared the task done; untrusted, shown as plain text. */
   agentNote?: string;
+  /**
+   * The prompt the run started with, secrets redacted; `null` = started before prompts were recorded ("Not recorded");
+   * absent = no Prompt section (boards not yet updated). Prototype only, see apps/web/CONTRACT-GAPS.md.
+   */
+  finalPrompt?: string | null;
+  /** The Prompt section starts expanded. */
+  promptOpen?: boolean;
   time?: { elapsed: string; limit: string; percent: number };
   connection: { state: ConnectionState; label: string };
   termSize?: string;

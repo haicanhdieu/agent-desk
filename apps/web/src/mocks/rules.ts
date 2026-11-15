@@ -1,5 +1,23 @@
 import type { Rule } from './types';
 
+/** A custom prompt rule (prototype boards DeskRules, DeskRulesPrompt). */
+export const TRIAGE_PROMPT = [
+  'Triage this issue: add one of the labels bug, feature or question, and a size label (S, M or L).',
+  'If a bug report has no steps to reproduce, ask for them in a comment.',
+  'Do not change any code or open a pull request.',
+].join('\n');
+
+/**
+ * What Agent Desk appends to a custom prompt, as the prompt preview would serve it for harbor-labs/invoicer-api
+ * (placeholders in angle brackets). Prototype boards DeskRulesPrompt, DeskRulesPromptNew.
+ */
+export const promptSystemLines = [
+  'Ticket: <issue or PR #number> in harbor-labs/invoicer-api. Read it and all its comments with the gh CLI before you start.',
+  'Arguments from the user: <text after /command>',
+  'When done, report on the ticket.',
+  'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
+];
+
 // Prototype board: DeskRules.
 export const rules: Rule[] = [
   {
@@ -31,6 +49,18 @@ export const rules: Rule[] = [
     agent: 'Claude',
     enabled: true,
     stats: '3 runs this week, last 10:02',
+  },
+  {
+    id: 'r6',
+    command: 'triage',
+    target: 'issue',
+    labels: [],
+    skill: '',
+    kind: 'prompt',
+    prompt: TRIAGE_PROMPT,
+    agent: 'Claude',
+    enabled: true,
+    stats: '5 runs this week, last 13:40',
   },
   {
     id: 'r4',
