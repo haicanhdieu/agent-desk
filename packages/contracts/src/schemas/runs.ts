@@ -55,6 +55,10 @@ export const RunDto = z.object({
 });
 export type RunDto = z.infer<typeof RunDto>;
 
+/** A run in a list: the detail shape without the prompt texts (up to ~4 KB each), which only run detail needs. */
+export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true });
+export type RunListItem = z.infer<typeof RunListItem>;
+
 export const RunListQuery = z.object({
   filter: RunListFilter.optional(),
   ticket: z.string().optional(),
@@ -64,7 +68,7 @@ export const RunListQuery = z.object({
 export type RunListQuery = z.infer<typeof RunListQuery>;
 
 export const RunListResponse = z.object({
-  items: z.array(RunDto),
+  items: z.array(RunListItem),
   nextCursor: z.string().nullable(),
 });
 export type RunListResponse = z.infer<typeof RunListResponse>;

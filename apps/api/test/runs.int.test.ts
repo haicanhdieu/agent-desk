@@ -175,6 +175,25 @@ describe('run reads', () => {
     });
   });
 
+  it('list items omit the prompt texts that run detail carries', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const p = await insertRun({ skillName: null, prompt: 'p', finalPrompt: 'p\nTicket: x' }, pid);
+    await insertRun({}, pid);
+    const res = await listRuns('', pid);
+    expectContract('runs.list', res);
+    const raw = (res.json() as { items: Record<string, unknown>[] }).items;
+    expect(raw).toHaveLength(2);
+    for (const item of raw) {
+      expect(item).not.toHaveProperty('prompt');
+      expect(item).not.toHaveProperty('finalPrompt');
+    }
+    expect(raw.map((r) => r.ruleKind).sort()).toEqual(['prompt', 'skill']);
+    expect(await get(`/api/runs/${p.id}`).then((r) => r.json())).toMatchObject({
+      prompt: 'p',
+      finalPrompt: 'p\nTicket: x',
+    });
+  });
+
   it("other org's resources are 404", async () => {
     const run = await insertRun();
     expect((await get(`/api/projects/${projectId}/runs/${run.number}`, bob)).statusCode).toBe(404);

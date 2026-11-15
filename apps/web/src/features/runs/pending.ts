@@ -1,4 +1,4 @@
-import type { RunDto } from '@agentdesk/contracts';
+import type { RunListItem } from '@agentdesk/contracts';
 import type { QueryClient } from '@tanstack/react-query';
 import { isFinal } from './map';
 
@@ -48,7 +48,7 @@ export function clearPendingAction(qc: QueryClient, runId: string): void {
  * Fresh run data with the pending note re-applied. A final run ends the entry instead (and keeps no note). Run
  * queryFns pass every loaded run through this.
  */
-export function withPendingNote<T extends RunDto>(qc: QueryClient, run: T): T & { statusNote?: string } {
+export function withPendingNote<T extends RunListItem>(qc: QueryClient, run: T): T & { statusNote?: string } {
   const entry = entriesOf(qc).get(run.id);
   if (!entry) return run;
   if (isFinal(run.status)) {

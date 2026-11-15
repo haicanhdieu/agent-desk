@@ -2,7 +2,7 @@ import {
   FINAL_RUN_STATUSES,
   type IgnoredEventDto,
   type ProjectConnectionDto,
-  type RunDto,
+  type RunListItem,
   type RunListFilter,
 } from '@agentdesk/contracts';
 import { connectionCopy } from '@/mocks/connection';
@@ -48,9 +48,9 @@ export function safeHref(url: string): string {
 /** Label colours arrive as 6-digit hex without '#'; anything else gets no swatch. */
 const labelColor = (color: string) => (/^[0-9a-f]{6}$/i.test(color) ? `#${color.toLowerCase()}` : '');
 
-export const isFinal = (status: RunDto['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
+export const isFinal = (status: RunListItem['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
 
-function statusNote(dto: RunDto, now: Date): string | undefined {
+function statusNote(dto: RunListItem, now: Date): string | undefined {
   switch (dto.status) {
     case 'queued':
       return 'Waiting for a slot';
@@ -79,7 +79,7 @@ function statusNote(dto: RunDto, now: Date): string | undefined {
 }
 
 /** Final runs: start to finish. Paused runs: start to the pause. Runs still going: start to now. Queued runs: none. */
-export function duration(dto: RunDto, now: Date): string | undefined {
+export function duration(dto: RunListItem, now: Date): string | undefined {
   if (!dto.startedAt) return undefined;
   const start = Date.parse(dto.startedAt);
   if (isFinal(dto.status)) return dto.finishedAt ? formatDuration(Date.parse(dto.finishedAt) - start) : undefined;
@@ -118,7 +118,7 @@ export function toRunSummary(dto: CachedRun, now: Date): RunSummary {
 export const ticketKey = (t: { kind: string; number: number }): string => `${t.kind}:${t.number}`;
 
 /** Runs per ticket over a run list (pass the unfiltered list so filters don't shrink "N of max runs"). */
-export function runsPerTicket(runs: RunDto[]): Map<string, number> {
+export function runsPerTicket(runs: RunListItem[]): Map<string, number> {
   const used = new Map<string, number>();
   for (const r of runs) used.set(ticketKey(r.ticket), (used.get(ticketKey(r.ticket)) ?? 0) + 1);
   return used;
@@ -157,7 +157,7 @@ export function groupByTicket(
  */
 export function chipCounts(
   counts: { needsYou: number; running: number; queued: number },
-  all: RunDto[],
+  all: RunListItem[],
 ): Record<RunListFilter, number> {
   return {
     needs_you: counts.needsYou,
@@ -172,7 +172,7 @@ const sameLocalDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 /** "Today: 9 runs, 1 failed" over the runs queued today (local day). */
-export function todaySummary(runs: RunDto[], now: Date): string {
+export function todaySummary(runs: RunListItem[], now: Date): string {
   const today = runs.filter((r) => sameLocalDay(new Date(r.queuedAt), now));
   const failed = today.filter((r) => r.status === 'failed').length;
   const n = today.length;

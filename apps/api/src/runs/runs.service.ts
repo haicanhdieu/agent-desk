@@ -16,6 +16,7 @@ import {
   canResume,
   type IgnoredEventDto,
   type RunDto,
+  type RunListItem,
   type RunListQuery,
   type RunListResponse,
   type RunLogResponse,
@@ -104,6 +105,11 @@ export class RunsService {
   ) {}
 
   private toDto(row: RunRow, agent: AgentInfo | undefined): RunDto {
+    return { ...this.toListItem(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
+  }
+
+  /** The run without its prompt texts: what a list carries (see RunListItem). */
+  private toListItem(row: RunRow, agent: AgentInfo | undefined): RunListItem {
     return {
       id: row.id,
       number: row.number,
@@ -112,8 +118,6 @@ export class RunsService {
       command: row.command,
       ruleKind: row.prompt !== null ? 'prompt' : 'skill',
       skillName: row.skillName,
-      prompt: row.prompt,
-      finalPrompt: row.finalPrompt,
       // The agent row can be gone (agent_id is ON DELETE SET NULL); the DTO still needs a shape.
       agent: { name: agent?.name ?? '(deleted agent)', model: agent?.model ?? 'unknown' },
       ticket: {
@@ -161,9 +165,9 @@ export class RunsService {
     return this.toDto(row, row.agentId === null ? undefined : (await this.agentsFor(tx, [row])).get(row.agentId));
   }
 
-  private async dtos(tx: Tx, rows: RunRow[]): Promise<RunDto[]> {
+  private async listItems(tx: Tx, rows: RunRow[]): Promise<RunListItem[]> {
     const ag = await this.agentsFor(tx, rows);
-    return rows.map((r) => this.toDto(r, r.agentId === null ? undefined : ag.get(r.agentId)));
+    return rows.map((r) => this.toListItem(r, r.agentId === null ? undefined : ag.get(r.agentId)));
   }
 
   private async requireProject(tx: Tx, projectId: string): Promise<void> {
@@ -225,7 +229,7 @@ export class RunsService {
       const last = page[page.length - 1];
       const nextCursor = rows.length > q.limit && last ? encodeCursor({ t: last.queuedAtText, i: last.run.id }) : null;
       return {
-        items: await this.dtos(
+        items: await this.listItems(
           tx,
           page.map((r) => r.run),
         ),

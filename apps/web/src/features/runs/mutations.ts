@@ -18,7 +18,7 @@ export interface RunRef {
   number: number;
 }
 
-const withNote = (r: CachedRun, statusNote: string | undefined): CachedRun => ({ ...r, statusNote });
+const withNote = <T extends CachedRun>(r: T, statusNote: string | undefined): T => ({ ...r, statusNote });
 
 const listsKey = (org: string, projectId: string) => [...runsKey(org, projectId), 'list'] as const;
 
