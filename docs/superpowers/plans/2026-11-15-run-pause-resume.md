@@ -241,7 +241,7 @@ reopen?: boolean;
 
 Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not reset). A transition out of a final status stays a no-op, except `succeeded → queued` with `reopen: true` and a kept session; that write clears `finishedAt` and `exitCode`. A final status other than `succeeded` clears `sessionExpiresAt`. The status event payload gains `pausedAt` and `sessionExpiresAt`.
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - `idle → paused` with `session: { expiresAt }` and `keepAgentNote`: row has status `paused`, the note unchanged, `pausedAt = at`, `sessionExpiresAt` set;
   - `done → succeeded` with `session`: `finishedAt` set, note kept, `sessionExpiresAt` set;
   - `succeeded → queued` with `reopen` and a future expiry: `changed: true`, `finishedAt` null;
@@ -249,10 +249,10 @@ Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not re
   - `failed → queued` with `reopen`: `changed: false`;
   - `paused → expired`: `sessionExpiresAt` null, `finishedAt` set;
   - `paused → cancelled`: `sessionExpiresAt` null.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): status writer understands kept sessions`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): status writer understands kept sessions`.
 
 ### Task 7: Session activities
 

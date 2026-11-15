@@ -17,9 +17,9 @@ describe('setRunStatusTx input validation', () => {
   const tx: Tx = Object.create(null);
 
   it('rejects an unknown status non-retryably, naming it', async () => {
-    await expect(setRunStatusTx(tx, withStatus('paused'))).rejects.toMatchObject({
+    await expect(setRunStatusTx(tx, withStatus('bogus'))).rejects.toMatchObject({
       nonRetryable: true,
-      message: 'unknown run status: paused',
+      message: 'unknown run status: bogus',
     });
   });
 
