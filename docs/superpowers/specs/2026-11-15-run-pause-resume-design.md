@@ -178,7 +178,7 @@ Succeeded run with a kept session:
 
 ## Limits and risks
 
-- **`--continue` is unproven here.** The plan's first step is a throwaway test on the pinned Claude Code version: start a session, kill it at a turn boundary, start a new container on the same home and repo folders, run `claude --continue`, and check that the conversation is back and the status hooks still fire. If it fails, the design comes back for review before anything else is built.
+- **`--continue` is confirmed.** Spike on Claude Code 2.1.323 (2026-11-15): in a new container on the same volume and `HOME`, `claude --continue` brought the conversation back, a typed answer started a new turn, and the `agentdesk: state` hook lines fired for it.
 - **Open question menus are not restored.** The person sees the agent's last question as text and types the answer.
 - **Volume size is not enforced on `local-path`.** The `emptyDir` size limit evicted a pod that wrote too much; a `local-path` volume does not. One run can use more than 4Gi. Accepted for the PoC and written down in the ADR; a storage class with quotas fixes it later.
 - **One node.** A `local-path` volume lives on one node. More nodes need shared storage or approach 2.
