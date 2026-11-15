@@ -34,6 +34,10 @@ case "$image" in
     echo "runner-image: skipped (invalid RUNNER_IMAGE '$image')"
     exit 0
     ;;
+  *@*)
+    echo "runner-image: skipped (digest-pinned RUNNER_IMAGE is pulled, not built locally)"
+    exit 0
+    ;;
 esac
 
 # Full reference as the container runtime resolves it (and as k3s lists it): :latest when untagged, docker.io/library/
@@ -80,9 +84,11 @@ if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$current" ] && in_k3s; then
 fi
 
 echo "runner-image: images/runner changed or image missing; rebuilding ($current)"
-"$podman" build -q -t "localhost/$image" images/runner >/dev/null
+# Fixed build tag: RUNNER_IMAGE may carry a registry port (localhost:5000/x), which is not valid inside a build tag.
+build_tag="localhost/agentdesk-runner-build:local"
+"$podman" build -q -t "$build_tag" images/runner >/dev/null
 # k3s resolves the full normalized name, which a plain `podman build -t $image` does not create.
-"$podman" tag "localhost/$image" "$ref"
+"$podman" tag "$build_tag" "$ref"
 "$podman" save "$ref" | "$podman" exec -i "$k3s" ctr -n k8s.io images import - >/dev/null
 mkdir -p "$(dirname "$stamp")"
 printf '%s\n' "$current" >"$stamp"

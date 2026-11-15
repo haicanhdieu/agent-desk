@@ -42,7 +42,13 @@ beforeEach(() => {
     join(dir, 'podman'),
     `#!/bin/sh
 echo "$@" >> "${calls}"
+# Mimic podman's reference validation: no "@" and no colon before the last slash.
+valid() { printf '%s\\n' "$1" | grep -Eq '^[a-z0-9][a-z0-9._/-]*(:[A-Za-z0-9._-]+)?$'; }
+# A tag destination may carry a registry port (host:5000/name:tag), but never a digest.
+ref_ok() { printf '%s\\n' "$1" | grep -Eq '^[a-z0-9][a-z0-9._-]*(:[0-9]+)?(/[a-z0-9._-]+)*(:[A-Za-z0-9._-]+)?$'; }
 case "$1" in
+  build) [ "$2" = -q ] && [ "$3" = -t ] && ! valid "$4" && { echo "invalid tag $4" >&2; exit 125; } ;;
+  tag) { valid "$2" && ref_ok "$3"; } || { echo "invalid tag $3" >&2; exit 125; } ;;
   ps) echo agentdesk-k3s ;;
   save) echo "$2" > "${dir}/saved"; echo image-bytes ;;
   exec) case "$*" in
@@ -111,8 +117,8 @@ describe('scripts/runner-image.sh', () => {
     const r = run({ RUNNER_IMAGE: 'agentdesk-runner:mine' });
     expect(r.status).toBe(0);
     const log = readFileSync(calls, 'utf8');
-    expect(log).toContain('build -q -t localhost/agentdesk-runner:mine');
-    expect(log).toContain('tag localhost/agentdesk-runner:mine docker.io/library/agentdesk-runner:mine');
+    expect(log).toContain('build -q -t localhost/agentdesk-runner-build:local');
+    expect(log).toContain('tag localhost/agentdesk-runner-build:local docker.io/library/agentdesk-runner:mine');
     expect(log).toContain('save docker.io/library/agentdesk-runner:mine');
     expect(log).not.toContain('agentdesk-runner:dev');
     writeFileSync(calls, '');
@@ -140,6 +146,13 @@ describe('scripts/runner-image.sh', () => {
     expect(log).not.toContain('docker.io/library/');
     writeFileSync(calls, '');
     expect(run({ RUNNER_IMAGE: image }).out).toContain('up to date');
+  });
+
+  it('skips a digest-pinned RUNNER_IMAGE without any podman call', () => {
+    const r = run({ RUNNER_IMAGE: `ghcr.io/acme/runner@sha256:${'a'.repeat(64)}` });
+    expect(r.status).toBe(0);
+    expect(r.out).toContain('runner-image: skipped (digest-pinned RUNNER_IMAGE is pulled, not built locally)');
+    expect(readFileSync(calls, 'utf8')).toBe('');
   });
 
   it.each(['-bad', 'a b:dev', 'x;rm -rf:dev', '$(id)'])(
