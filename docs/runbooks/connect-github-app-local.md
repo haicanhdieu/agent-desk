@@ -68,7 +68,7 @@ podman save docker.io/library/agentdesk-runner:dev | podman exec -i agentdesk-k3
 
 **Always point `KUBECONFIG` at the dedicated file.** If it is empty, the client may use your current kubectl context, which can be a shared or production cluster. Runs execute untrusted repo code with `bypassPermissions`.
 
-Re-import the image after every rebuild.
+`devbox run dev` rebuilds and re-imports the runner image on its own when `images/runner` changed (`devbox run runner-image` does it by hand). Running pods keep the old image; start a new run to use the new one.
 
 ## 5. Clean up
 

@@ -7,8 +7,9 @@
   "shell": {
     "scripts": {
       "setup": ["[ -f .env ] || cp .env.example .env", "pnpm install --frozen-lockfile"],
-      "dev": ["devbox run setup", "devbox services up"],
-      "dev-bg": ["devbox run setup", "devbox services up -b"],
+      "dev": ["devbox run setup", "devbox run runner-image", "devbox services up"],
+      "dev-bg": ["devbox run setup", "devbox run runner-image", "devbox services up -b"],
+      "runner-image": ["bash scripts/runner-image.sh"],
       "stop": [
         "devbox services stop",
         "docker-compose -f \"$AGENTDESK_COMPOSE_FILE\" stop",
@@ -37,6 +38,7 @@
       ],
       "help": [
         "echo 'dev | dev-bg | stop        start (TUI / background) or stop the local stack'",
+        "echo 'runner-image   rebuild + load the runner image into local k3s if images/runner changed (dev does this)'",
         "echo 'dev-mock | storybook | parity   frontend without a backend'",
         "echo 'test | typecheck | lint | format | format-check | fix | fix-staged | check   quality gates'",
         "echo 'e2e-mock | e2e-local | playwright-install   end-to-end tests'",

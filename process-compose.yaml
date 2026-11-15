@@ -39,7 +39,10 @@ processes:
   migrate:
     command: pnpm --filter @agentdesk/api run migrate
     availability:
-      restart: 'no'
+      # Retry if Postgres blips (crash recovery) right as we connect; a clean exit is not restarted.
+      restart: on_failure
+      backoff_seconds: 3
+      max_restarts: 10
       exit_on_end: false
     depends_on:
       postgres:

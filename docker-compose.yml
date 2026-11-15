@@ -1,6 +1,9 @@
 services:
   postgres:
     image: postgres:18
+    # Run a tiny init as PID 1. Without it the postmaster is PID 1 and treats an orphaned probe
+    # process dying (e.g. SIGPIPE from a healthcheck exec) as a backend crash -> crash restart.
+    init: true
     environment:
       POSTGRES_PASSWORD: postgres
     ports:
