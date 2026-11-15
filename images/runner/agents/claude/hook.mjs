@@ -30,10 +30,10 @@ const readState = () => {
     return {};
   }
 };
-const writeState = (s) => {
+const writeState = (json) => {
   mkdirSync(stateDir, { recursive: true });
   const tmp = `${stateFile}.${process.pid}.tmp`;
-  writeFileSync(tmp, JSON.stringify(s));
+  writeFileSync(tmp, json);
   renameSync(tmp, stateFile);
 };
 
@@ -53,6 +53,8 @@ if (!input || typeof input !== 'object' || Array.isArray(input)) process.exit(0)
 const state = readState();
 let last = typeof state.last === 'string' ? state.last : undefined;
 let declared = state.declared;
+const snapshot = () => JSON.stringify({ ...(declared ? { declared } : {}), ...(last ? { last } : {}) });
+const initial = snapshot();
 const emit = (word, rest) => {
   appendFileSync(out, `agentdesk: state ${word}${rest ? ` ${rest}` : ''}\n`);
   last = word;
@@ -103,4 +105,6 @@ switch (input.hook_event_name) {
     break;
 }
 
-writeState({ ...(declared ? { declared } : {}), ...(last ? { last } : {}) });
+// PreToolUse fires on every tool call: leave the disk alone when nothing changed.
+const next = snapshot();
+if (next !== initial) writeState(next);

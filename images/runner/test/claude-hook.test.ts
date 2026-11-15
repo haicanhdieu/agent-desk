@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -168,6 +168,17 @@ describe('claude hook rules', () => {
     expect(note.length).toBeLessThanOrEqual(500);
     expect(note.startsWith('line1 line2 $(touch')).toBe(true);
     expect(existsSync(marker)).toBe(false);
+  });
+
+  it('a PreToolUse while already working does not rewrite the state file', async () => {
+    await send('user-prompt-submit');
+    const file = join(stateDir, 'state.json');
+    const before = await stat(file);
+    for (let i = 0; i < 3; i++) await send('pre-tool-bash');
+    const after = await stat(file);
+    expect(after.ino).toBe(before.ino);
+    expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect(await lines()).toEqual(['agentdesk: state working']);
   });
 
   it('invalid JSON on stdin emits nothing and exits 0', async () => {
