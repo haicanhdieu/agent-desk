@@ -533,9 +533,9 @@ Run page header, exact copy:
 - Modify: `docs/runbooks/local-dev.md` (one paragraph: how to see a run pause quickly by lowering the idle time)
 
 - [x] **Step 1: Write the e2e:** start a run that asks a question; with the idle time set low for the test, wait for "Paused"; check the pod is gone and a queued run starts; press Resume; check the terminal shows the earlier conversation; answer; the run continues.
-- [ ] **Step 2: Run** `devbox run e2e-local` — expect FAIL, then implement what is missing (test seams only), then PASS.
-- [ ] **Step 3: Run** `devbox run check` and report the real result.
-- [ ] **Step 4: Commit** `test(e2e): pause and resume a run on the local stack`.
+- [x] **Step 2: Run** `devbox run e2e-local` — expect FAIL, then implement what is missing (test seams only), then PASS.
+- [x] **Step 3: Run** `devbox run check` and report the real result.
+- [x] **Step 4: Commit** `test(e2e): pause and resume a run on the local stack`.
 
 ---
 
