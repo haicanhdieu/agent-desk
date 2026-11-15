@@ -162,6 +162,8 @@ const SetupMarkerPayload = z.object({
   kind: z.string(),
   exitCode: z.number().int().optional(),
 });
+/** The `finish` outbox marker; `status` is absent on markers written before it was recorded. */
+const FinishMarker = z.object({ status: z.string().optional() });
 const StoredCredential = z.object({ type: z.string(), value: z.string().min(1) });
 
 const isFinal = (s: RunStatus): boolean =>
@@ -599,7 +601,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
 
   async function postComment(ctx: RunContext, kind: CommentKind, fd?: FinishDetails): Promise<void> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
-    if (d.outbox[kind] !== undefined) return; // already posted
+    // The finish comment names the end status, so a re-opened run that ends differently posts again; the same status
+    // does not. Marker without a status (written before statuses were recorded) counts as posted.
+    const status = kind === 'finish' ? (fd?.status ?? d.status) : undefined;
+    const stored = d.outbox[kind];
+    if (stored !== undefined) {
+      const storedStatus = FinishMarker.safeParse(stored).data?.status;
+      if (status === undefined || storedStatus === undefined || storedStatus === status) return; // already posted
+    }
     const secrets = secretValues(await credentialEnv(ctx));
     const text = commentText(ctx, d, kind, fd, secrets);
     let commentId: string;
@@ -611,11 +620,17 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
     // At least once: a crash between the post and this write posts again on retry.
     await withOrg(db, ctx.orgId, async (tx) => {
-      const marker = JSON.stringify({ [kind]: { commentId, at: now() } });
+      const marker = JSON.stringify({ [kind]: { commentId, at: now(), ...(status !== undefined && { status }) } });
+      // Write only if nothing is stored yet, or (finish) the stored status is recorded and differs: a concurrent
+      // retry of the same status loses this race and does not append a second event.
+      const notYetPosted =
+        status === undefined
+          ? sql`not (${runs.outbox} ? ${kind})`
+          : sql`(not (${runs.outbox} ? ${kind}) or ${runs.outbox} -> ${kind} ->> 'status' is distinct from ${status} and ${runs.outbox} -> ${kind} ? 'status')`;
       const updated = await tx
         .update(runs)
         .set({ outbox: sql`${runs.outbox} || ${marker}::jsonb` })
-        .where(and(eq(runs.id, ctx.runId), sql`not (${runs.outbox} ? ${kind})`))
+        .where(and(eq(runs.id, ctx.runId), notYetPosted))
         .returning({ id: runs.id });
       if (updated.length > 0) {
         await appendRunEvent(tx, ctx.orgId, { runId: ctx.runId, type: 'comment', payload: { kind, commentId } });

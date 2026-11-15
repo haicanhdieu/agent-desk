@@ -1280,6 +1280,43 @@ describe('postComment', () => {
   });
 });
 
+describe('postComment finish after a re-open', () => {
+  it('posts a finish comment again when the end status differs, and once per status', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'finish', { status: 'succeeded' });
+    await acts.postComment(ctx, 'finish', { status: 'succeeded' });
+    expect((await store.listPosted()).slice(before)).toHaveLength(1);
+    const failed = { status: 'failed' as const, exitCode: 1, failureReason: 'agent exited with code 1' };
+    await acts.postComment(ctx, 'finish', failed);
+    await acts.postComment(ctx, 'finish', failed);
+    const posted = (await store.listPosted()).slice(before);
+    expect(posted).toHaveLength(2);
+    expect(posted[0]?.body).toContain('**succeeded**');
+    expect(posted[1]?.body).toContain('**failed**');
+    const { run, events } = await load(runId);
+    expect(run?.outbox.finish).toMatchObject({ status: 'failed' });
+    expect(events.filter((e) => e.type === 'comment').map((e) => e.payload.kind)).toEqual(['finish', 'finish']);
+  });
+
+  it('treats a finish marker without a status (written before this change) as already posted', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    await withOrg(db, ORG, (tx) =>
+      tx
+        .update(runs)
+        .set({ outbox: { finish: { commentId: 'c1', at: new Date().toISOString() } } })
+        .where(eq(runs.id, runId)),
+    );
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'finish', { status: 'failed' });
+    expect((await store.listPosted()).slice(before)).toHaveLength(0);
+  });
+});
+
 describe('postComment setup failure', () => {
   it('says setup failed and the agent did not start, with the reason and the run link', async () => {
     const runId = await seedRun('x');
