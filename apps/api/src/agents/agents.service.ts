@@ -2,6 +2,8 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { agents, withOrg, type Db } from '@agentdesk/db';
 import {
+  AGENT_DONE_KEEP_SECONDS_DEFAULT,
+  AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
   CredentialType,
   type AgentDto,
   type PutAgentRequest,
@@ -25,6 +27,9 @@ function toDto(row: AgentRow): AgentDto {
     model: row.model,
     maxTurns: row.maxTurns,
     timeoutSeconds: row.timeoutSeconds,
+    // Columns arrive with the migration; until then every agent has the defaults.
+    pausedKeepSeconds: AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
+    doneKeepSeconds: AGENT_DONE_KEEP_SECONDS_DEFAULT,
     credential: {
       set: type !== null && row.credentialUpdatedAt !== null,
       type,

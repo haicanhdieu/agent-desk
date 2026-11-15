@@ -39,7 +39,10 @@ export function runDetailKey(status: RunStatus, terminalState?: 'reconnect'): Ru
     case 'timed_out':
       return 'RunTimedOut';
     case 'cancelled':
+    case 'expired':
       return 'RunCancelled';
+    case 'paused':
+      return 'RunIdle';
   }
 }
 

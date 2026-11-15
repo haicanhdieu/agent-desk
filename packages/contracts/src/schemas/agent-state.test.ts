@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { AgentNote, FINISHABLE_RUN_STATUSES, RunStatus, toAgentNote, toAgentNoteWire } from '../index';
+import {
+  ACTIVE_RUN_STATUSES,
+  AgentNote,
+  FINAL_RUN_STATUSES,
+  FINISHABLE_RUN_STATUSES,
+  RunStatus,
+  toAgentNote,
+  toAgentNoteWire,
+} from '../index';
 
 describe('toAgentNote', () => {
   it('collapses line terminators and control chars to a space', () => {
@@ -34,6 +42,18 @@ describe('run status', () => {
     expect(RunStatus.parse('done')).toBe('done');
   });
   it('lists finishable statuses', () => {
-    expect([...FINISHABLE_RUN_STATUSES]).toEqual(['idle', 'done']);
+    expect([...FINISHABLE_RUN_STATUSES]).toEqual(['idle', 'done', 'paused']);
+  });
+});
+
+describe('pause statuses', () => {
+  it('knows paused and expired', () => {
+    expect(RunStatus.parse('paused')).toBe('paused');
+    expect(RunStatus.parse('expired')).toBe('expired');
+  });
+  it('puts expired in final, paused in neither active nor final', () => {
+    expect(FINAL_RUN_STATUSES).toContain('expired');
+    expect(FINAL_RUN_STATUSES).not.toContain('paused');
+    expect(ACTIVE_RUN_STATUSES).not.toContain('paused');
   });
 });

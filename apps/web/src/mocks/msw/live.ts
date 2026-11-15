@@ -51,6 +51,8 @@ export function statusMessage(run: RunDto, seq: number): RunStatusEvent {
     failureReason: run.failureReason,
     waitingOn: run.waitingOn,
     agentNote: run.agentNote,
+    pausedAt: run.pausedAt,
+    sessionExpiresAt: run.sessionExpiresAt,
   };
 }
 

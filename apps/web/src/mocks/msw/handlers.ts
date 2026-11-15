@@ -257,6 +257,8 @@ const impl: Impl = {
       model: 'opus',
       maxTurns: null,
       timeoutSeconds: 1800,
+      pausedKeepSeconds: 604800,
+      doneKeepSeconds: 86400,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
     return toProjectDto(row);
@@ -474,6 +476,11 @@ const impl: Impl = {
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
     return null;
   },
+  'runs.resume': ({ params }) => {
+    session();
+    runOf(params.runId);
+    throw conflict('Resume is not available yet');
+  },
 };
 
 // As the API answers (Nest: 201 for a POST without @HttpCode).
@@ -483,6 +490,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'rules.create': 201,
   'runs.cancel': 202,
   'runs.finish': 202,
+  'runs.resume': 202,
   'setupTests.end': 202,
 };
 

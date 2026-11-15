@@ -66,6 +66,8 @@ function fromSummary(r: RunSummary): RunDto {
     idleSince: r.status === 'idle' ? at('14:11') : null,
     waitingOn: null,
     agentNote: null,
+    pausedAt: null,
+    sessionExpiresAt: null,
   };
 }
 
@@ -101,6 +103,8 @@ const ended = (
   idleSince: null,
   waitingOn: null,
   agentNote: null,
+  pausedAt: null,
+  sessionExpiresAt: null,
 });
 
 const issue = (number: number, title: string): Ticket => ({ kind: 'issue', number, title, labels: [], href: '' });

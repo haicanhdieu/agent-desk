@@ -73,6 +73,8 @@ const statusNotes: Record<RunStatus, string> = {
   failed: 'Agent exited non-zero or pod failed',
   timed_out: 'Hit the run time limit',
   cancelled: 'Stopped by you',
+  paused: 'Stopped after the idle time; can be resumed',
+  expired: 'Paused and not resumed in time; the saved session was deleted',
 };
 
 const statusOrder: RunStatus[] = [
@@ -85,6 +87,8 @@ const statusOrder: RunStatus[] = [
   'failed',
   'timed_out',
   'cancelled',
+  'paused',
+  'expired',
 ];
 
 const surfaces = [

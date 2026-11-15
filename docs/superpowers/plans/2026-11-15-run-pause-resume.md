@@ -92,7 +92,7 @@ Throwaway. Nothing from this task is committed except the result line in the spe
 - `agents.ts`: `AGENT_PAUSED_KEEP_SECONDS_MIN/MAX/DEFAULT = 3600/2592000/604800`, `AGENT_DONE_KEEP_SECONDS_MIN/MAX/DEFAULT = 0/604800/86400`. `AgentDto` gains `pausedKeepSeconds`, `doneKeepSeconds` (ints). `PutAgentRequest` gains both as optional (absent keeps the stored value), messages "A paused run must be kept between 1 hour and 30 days" and "A finished run's session can be kept for at most 7 days".
 - `routes.runs.resume = { method: 'POST', path: '/api/runs/:runId/resume', params: runParams, response: empty }`.
 
-- [ ] **Step 1: Write failing tests** in `session.test.ts` and extend `agent-state.test.ts`:
+- [x] **Step 1: Write failing tests** in `session.test.ts` and extend `agent-state.test.ts`:
 
 ```ts
 expect(RunStatus.parse('paused')).toBe('paused');
@@ -115,12 +115,12 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60, doneKeepSecon
 expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).toBe(true);
 ```
 
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test` — expect FAIL.
-- [ ] **Step 3: Implement** the items under Produces. Export `session.ts` from the package index.
-- [ ] **Step 4: Make the repo compile.** Add `paused` (label "Paused", colour `--idle`) and `expired` (label "Expired", colour `--off`) to `statusTokens`; return `null` for the two new run fields and the defaults for the two agent fields in the API mappers; add the fields to web mock builders. No other behaviour.
-- [ ] **Step 5: Write ADR 0022** from the spec (Context, Decision, Alternatives table from the spec's Approaches, Consequences from "Limits and risks"), and add a one-line "Amended by 0022" note to ADR 0010 and ADR 0020.
-- [ ] **Step 6: Run** `pnpm --filter @agentdesk/contracts test && pnpm typecheck` — expect PASS.
-- [ ] **Step 7: Commit** `feat(contracts): paused and expired run statuses, kept sessions, resume route`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test` — expect FAIL.
+- [x] **Step 3: Implement** the items under Produces. Export `session.ts` from the package index.
+- [x] **Step 4: Make the repo compile.** Add `paused` (label "Paused", colour `--idle`) and `expired` (label "Expired", colour `--off`) to `statusTokens`; return `null` for the two new run fields and the defaults for the two agent fields in the API mappers; add the fields to web mock builders. No other behaviour.
+- [x] **Step 5: Write ADR 0022** from the spec (Context, Decision, Alternatives table from the spec's Approaches, Consequences from "Limits and risks"), and add a one-line "Amended by 0022" note to ADR 0010 and ADR 0020.
+- [x] **Step 6: Run** `pnpm --filter @agentdesk/contracts test && pnpm typecheck` — expect PASS.
+- [x] **Step 7: Commit** `feat(contracts): paused and expired run statuses, kept sessions, resume route`.
 
 ### Task 2: Columns and checks
 

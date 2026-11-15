@@ -35,6 +35,8 @@ const statusMsg = (n: number, status: RunDto['status'], seq: number) => ({
   failureReason: null,
   waitingOn: null,
   agentNote: null,
+  pausedAt: null,
+  sessionExpiresAt: null,
 });
 const fixture = (n: number): RunDto => {
   const r = runFixtures.find((x) => x.projectId === projectId && x.number === n);

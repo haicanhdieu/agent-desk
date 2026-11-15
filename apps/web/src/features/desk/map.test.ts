@@ -77,6 +77,8 @@ const agent: AgentDto = {
   model: 'opus',
   maxTurns: null,
   timeoutSeconds: 1800,
+  pausedKeepSeconds: 604800,
+  doneKeepSeconds: 86400,
   credential: { set: true, type: 'oauth_token', updatedAt: null, setBy: null },
 };
 

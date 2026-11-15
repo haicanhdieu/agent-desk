@@ -1,6 +1,6 @@
 # 0010. One Kubernetes Job per run as the sandbox
 
-- Status: Accepted. The 3300 s cap and the one-hour token delivery are amended by [0021](0021-run-time-limit-7-days-with-token-refresh.md).
+- Status: Accepted. The 3300 s cap and the one-hour token delivery are amended by [0021](0021-run-time-limit-7-days-with-token-refresh.md). Amended by [0022](0022-pause-and-resume-runs-on-a-per-run-volume.md): a run's workspace is a per-run volume that outlives its Job.
 - Date: 2026-11-11
 - Source: PRD (PoC) §3 (Run), G2; Architecture (PoC) §1 "Runs are cattle", §5, §7, §9 (Run isolation); control plane design §6.2, §8; infra design §6.5
 

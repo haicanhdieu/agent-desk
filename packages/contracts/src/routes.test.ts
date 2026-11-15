@@ -33,7 +33,8 @@ describe('contracts', () => {
     const flat = flattenRoutes(routes);
     expect(Object.keys(flat)).toContain('runs.list');
     expect(Object.keys(flat)).toContain('agents.putCredential');
-    expect(Object.keys(flat)).toHaveLength(40);
+    expect(flat['runs.resume']).toMatchObject({ method: 'POST', path: '/api/runs/:runId/resume' });
+    expect(Object.keys(flat)).toHaveLength(41);
   });
   it('rejects timeoutSeconds above 7 days', () => {
     expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 604801 }).success).toBe(false);

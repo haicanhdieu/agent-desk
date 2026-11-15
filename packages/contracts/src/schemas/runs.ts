@@ -45,6 +45,10 @@ export const RunDto = z.object({
   waitingOn: WaitingOn.nullable(),
   /** Latest one-line note from the agent, if any. */
   agentNote: AgentNote.nullable(),
+  /** When the idle timer last stopped the pod; null otherwise. */
+  pausedAt: Timestamp.nullable(),
+  /** While a session is kept (paused or succeeded), when it is deleted; null otherwise. */
+  sessionExpiresAt: Timestamp.nullable(),
 });
 export type RunDto = z.infer<typeof RunDto>;
 
