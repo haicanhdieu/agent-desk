@@ -265,13 +265,13 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 - Modify: the run detail route only if it filters `RunDetailData` (Task 8 already sets `finalPrompt`; `RunSidePanel` renders `RunPromptSection` when it is defined)
 - Test: `apps/web/src/features/setup/setup.route.test.tsx`, `apps/web/src/features/runs/detail.route.test.tsx`
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
   - `setup.route.test.tsx`: `it('the first rule can be a custom prompt and saves with kind prompt')` (assert on the MSW db rules: `[command, kind, prompt]`); update the existing assertion at L96 to include `kind`.
   - `detail.route.test.tsx`: `it('shows the final prompt of a run behind Show, and Not recorded for an older run')`.
-- [ ] **Step 2: Run** both files — expect FAIL.
-- [ ] **Step 3: Implement** the setup wiring; the follow-up rule stays a skill rule.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test` and `pnpm --filter @agentdesk/web typecheck` — PASS (stories smoke/axe included).
-- [ ] **Step 5: Commit** `feat(web): custom prompt in setup and the run prompt section on run detail`.
+- [x] **Step 2: Run** both files — expect FAIL.
+- [x] **Step 3: Implement** the setup wiring; the follow-up rule stays a skill rule.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test` and `pnpm --filter @agentdesk/web typecheck` — PASS (stories smoke/axe included).
+- [x] **Step 5: Commit** `feat(web): custom prompt in setup and the run prompt section on run detail`.
 
 ### Task 11: Close contract gaps, docs, final check
 

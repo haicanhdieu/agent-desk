@@ -93,9 +93,9 @@ describe('setup flow', () => {
     await user.click(await screen.findByRole('button', { name: 'Save rules and finish' }));
     await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
     const rules = mockDb.state.rules.filter((r) => r.projectId === created.id);
-    expect(rules.map((r) => [r.command, r.target, r.skillName])).toEqual([
-      ['code-build', 'issue', 'code-build'],
-      ['code-review', 'pr', 'code-review'],
+    expect(rules.map((r) => [r.command, r.kind, r.target, r.skillName])).toEqual([
+      ['code-build', 'skill', 'issue', 'code-build'],
+      ['code-review', 'skill', 'pr', 'code-review'],
     ]);
     expect(projectRow(created.id).setupStep).toBe('ready');
 
@@ -103,6 +103,21 @@ describe('setup flow', () => {
     expect(await screen.findByRole('heading', { name: 'Trigger your first run from GitHub' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Go to runs' })).toHaveAttribute('href', `/o/alice/p/${created.id}/runs`);
     expect(screen.getByText('Polling every 10 min')).toBeInTheDocument();
+  });
+
+  it('the first rule can be a custom prompt and saves with kind prompt', async () => {
+    const id = seedAt('rules');
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    await user.click(await screen.findByRole('radio', { name: 'Custom prompt' }));
+    expect(screen.getByText("Added by Agent Desk (can't be edited)")).toBeInTheDocument();
+    // The seeded project already has /code-build, and the step skips commands that exist.
+    await user.clear(screen.getByLabelText('Command'));
+    await user.type(screen.getByLabelText('Command'), 'summarize');
+    await user.type(screen.getByLabelText('Prompt'), 'Triage this issue.');
+    await user.click(screen.getByRole('button', { name: 'Save rules and finish' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    const rules = mockDb.state.rules.filter((r) => r.projectId === id && r.command === 'summarize');
+    expect(rules.map((r) => [r.command, r.kind, r.prompt])).toEqual([['summarize', 'prompt', 'Triage this issue.']]);
   });
 
   it('a reload of a later step resumes at the step the server has', async () => {

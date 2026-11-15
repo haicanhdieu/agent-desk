@@ -1,5 +1,5 @@
 import { focusManager } from '@tanstack/react-query';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { scrollbackText } from '@/mocks/dto/events';
 import { ids } from '@/mocks/dto/ids';
@@ -59,6 +59,18 @@ describe('run detail route', () => {
     expect(
       within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByRole('link', { name: /^Runs/ }),
     ).toHaveAttribute('href', `${base}/runs`);
+  });
+
+  it('shows the final prompt of a run behind Show, and Not recorded for an older run', async () => {
+    const recorded = await renderRoute(`${base}/runs/60`);
+    const show = await screen.findByRole('button', { name: 'Show' });
+    expect(show).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByRole('region', { name: 'Final prompt' })).not.toBeInTheDocument();
+    await recorded.user.click(show);
+    expect(await screen.findByRole('region', { name: 'Final prompt' })).toBeVisible();
+    cleanup();
+    await renderRoute(`${base}/runs/62`);
+    expect(await screen.findByText('Not recorded')).toBeInTheDocument();
   });
 
   it("shows the signed-in user in the top bar and the project's run limit per ticket", async () => {
