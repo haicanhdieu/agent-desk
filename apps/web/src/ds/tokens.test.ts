@@ -39,9 +39,9 @@ describe('tokens.css', () => {
 });
 
 describe('statusTokens', () => {
-  it('covers the 9 statuses', () => {
+  it('covers the 11 statuses', () => {
     expect(Object.keys(statusTokens)).toEqual([...RUN_STATUSES]);
-    expect(RUN_STATUSES).toHaveLength(9);
+    expect(RUN_STATUSES).toHaveLength(11);
   });
   it('has labels and color vars', () => {
     expect(statusTokens.idle.label).toBe('Needs you');

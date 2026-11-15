@@ -2,6 +2,7 @@ import { runsById } from './runs';
 import type { RunDetailData, RunDetailKey } from './types';
 
 // Prototype boards: RunStarting, RunRunning, RunIdle, RunReconnect, RunSucceeded, RunFailed, RunTimedOut, RunCancelled.
+// RunPaused and RunExpired are the pause and resume states (ADR 0022); they have no prototype board.
 const GH = 'https://github.com/';
 const RULE_BUILD = '/code-build on issues labelled user-story';
 const RULE_REVIEW = '/code-review on pull requests';
@@ -368,5 +369,65 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
       body: <>The pod was removed 4 s later and a &quot;cancelled&quot; comment was posted on issue #120.</>,
       actions: [{ label: 'Branch ad/120-dark-mode on GitHub', href: GH, icon: 'branch' }],
     },
+  },
+
+  RunPaused: {
+    run: { ...runsById[62], id: 64, status: 'paused', statusNote: 'Can be resumed for 5 days' },
+    elapsed: '4:51',
+    rule: RULE_REVIEW,
+    triggerNote: 'comment by run 60',
+    startedAt: '14:09:07',
+    chain: [
+      {
+        runId: 64,
+        command: '/code-review',
+        ticket: { kind: 'pr', number: 148 },
+        note: 'This run',
+        status: 'paused',
+        here: true,
+      },
+    ],
+    lifecycle: [
+      { at: '14:09:07', text: 'Comment received, rule matched' },
+      { at: '14:13:58', text: 'Needs you' },
+      { at: '14:24:00', text: 'Stopped after 10 minutes with no one attached; session saved' },
+    ],
+    agentNote: 'Should the export include voided invoices?',
+    session: {
+      state: 'paused',
+      headline: 'Can be resumed for 5 days',
+      detail: 'Paused 12 min ago after no one was attached',
+    },
+    connection: { state: 'ended', label: 'Paused' },
+  },
+
+  RunExpired: {
+    run: {
+      ...runsById[62],
+      id: 66,
+      status: 'expired',
+      statusNote: 'The saved session was deleted',
+      duration: '14m 53s',
+    },
+    elapsed: '14m 53s',
+    rule: RULE_REVIEW,
+    triggerNote: 'comment by run 60',
+    startedAt: '14:09:07',
+    endedAt: '14:24:00',
+    chain: [
+      {
+        runId: 66,
+        command: '/code-review',
+        ticket: { kind: 'pr', number: 148 },
+        note: 'This run',
+        status: 'expired',
+        here: true,
+      },
+    ],
+    session: {
+      state: 'expired',
+      headline: 'Nobody resumed this run in time. The saved session was deleted.',
+    },
+    connection: { state: 'ended', label: 'Ended' },
   },
 };

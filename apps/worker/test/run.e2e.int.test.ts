@@ -183,6 +183,8 @@ describe('RunWorkflow end to end (KUBE_MODE=fake, fake provider)', () => {
         releasedSlots: 0,
         deletedSetupTestJobs: 0,
         deletedSetupTestSecrets: 0,
+        deletedVolumes: expect.any(Number) as number,
+        expiredRuns: 0,
       });
     });
 

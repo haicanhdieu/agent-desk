@@ -1,4 +1,5 @@
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -278,6 +279,117 @@ describe('entrypoint setup phase', () => {
     it('with no script is skipped and still opens a shell', async () => {
       const r = await runEntrypoint({ RUN_MODE: 'setup_test' }, {});
       expect(r.stdout).toContain('agentdesk: setup skipped (no script)');
+      expect(started(r)).toBe(true);
+    });
+  });
+});
+
+describe('entrypoint home on the volume and resume mode', () => {
+  const tmuxCalls = (r: Result) => r.calls.filter((c) => c.cmd === 'tmux');
+  const newSession = (r: Result) => tmuxCalls(r).find((c) => c.argv.includes('new-session'));
+  const mkHome = (files: Record<string, string> = {}) => {
+    const home = mkdtempSync(join(tmpdir(), 'home-'));
+    for (const [p, c] of Object.entries(files)) {
+      mkdirSync(join(home, p, '..'), { recursive: true });
+      writeFileSync(join(home, p), c);
+    }
+    return home;
+  };
+  const skel = () => mkHome({ '.claude/settings.json': '{"skel":true}', '.claude/keep.txt': 'from-skel' });
+  const resumable = () => {
+    const home = mkHome({ '.agentdesk/session-started': '' });
+    const repo = mkHome();
+    mkdirSync(join(repo, '.git'));
+    return { home, repo };
+  };
+
+  it('copies the skeleton into HOME and writes the session marker after the session starts', async () => {
+    const home = mkHome();
+    const r = await runEntrypoint({ HOME: home, AGENTDESK_HOME_SKEL: skel() }, {});
+    expect(readFileSync(join(home, '.claude/settings.json'), 'utf8')).toBe('{"skel":true}');
+    expect(existsSync(join(home, '.agentdesk/session-started'))).toBe(true);
+    expect(started(r)).toBe(true);
+  });
+
+  it('creates HOME when it does not exist yet', async () => {
+    const home = join(mkHome(), 'nested', 'home');
+    await runEntrypoint({ HOME: home, AGENTDESK_HOME_SKEL: skel() }, {});
+    expect(existsSync(join(home, '.claude/settings.json'))).toBe(true);
+  });
+
+  it('does not overwrite a file already in HOME with the skeleton copy', async () => {
+    const home = mkHome({ '.claude/keep.txt': 'mine' });
+    await runEntrypoint({ HOME: home, AGENTDESK_HOME_SKEL: skel() }, {});
+    expect(readFileSync(join(home, '.claude/keep.txt'), 'utf8')).toBe('mine');
+  });
+
+  it('normal mode starts the agent with the prompt command', async () => {
+    const r = await runEntrypoint({}, {});
+    expect(newSession(r)?.argv.at(-1)).toBe('exec claude --permission-mode bypassPermissions "$PROMPT"');
+  });
+
+  it('an unknown AGENT is rejected and never used as a path', async () => {
+    const r = await runEntrypoint({ AGENT: '../../etc' }, {});
+    expect(r.exitCode).not.toBe(0);
+    expect(newSession(r)).toBeUndefined();
+  });
+
+  describe('RUN_MODE=resume', () => {
+    it('continues the saved session without cloning, plugins or setup', async () => {
+      const { home, repo } = resumable();
+      const r = await runEntrypoint(
+        { RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, AGENTDESK_HOME_SKEL: skel() },
+        {},
+      );
+      const at = (l: string) => r.stdout.indexOf(l);
+      expect(at('agentdesk: session resumed')).toBeGreaterThan(-1);
+      expect(at('agentdesk: session resumed')).toBeLessThan(at('agentdesk: session started'));
+      expect(r.calls.some((c) => c.cmd === 'git' && c.argv[0] === 'clone')).toBe(false);
+      const cmd = newSession(r)?.argv.at(-1);
+      expect(cmd).toBe('exec claude --permission-mode bypassPermissions --continue');
+      expect(cmd).not.toContain('PROMPT');
+      expect(newSession(r)?.argv).toContain(repo);
+      expect(r.stdout).not.toContain('agentdesk: plugins begin');
+      expect(r.stdout).not.toContain('agentdesk: setup begin');
+      expect(r.exitCode).toBe(0);
+    });
+
+    it('registers the git credential helper when a token file is set', async () => {
+      const { home, repo } = resumable();
+      const r = await runEntrypoint(
+        { RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, AGENTDESK_TOKEN_FILE: '/tmp/t' },
+        {},
+      );
+      expect(
+        r.calls.some((c) => c.cmd === 'git' && c.argv.join(' ').startsWith('config --global credential.helper')),
+      ).toBe(true);
+    });
+
+    it('fails with 79 and no tmux when the marker is missing', async () => {
+      const { repo } = resumable();
+      const r = await runEntrypoint({ RUN_MODE: 'resume', HOME: mkHome(), AGENTDESK_REPO_DIR: repo }, {});
+      expect(r.exitCode).toBe(79);
+      expect(r.stdout).toContain('agentdesk: resume failed (no saved session)');
+      expect(tmuxCalls(r)).toEqual([]);
+    });
+
+    it('fails with 79 when the repo is missing', async () => {
+      const { home } = resumable();
+      const r = await runEntrypoint({ RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: join(home, 'nope') }, {});
+      expect(r.exitCode).toBe(79);
+      expect(r.stdout).toContain('agentdesk: resume failed (no saved session)');
+      expect(tmuxCalls(r)).toEqual([]);
+    });
+
+    it('does not run SETUP_SCRIPT', async () => {
+      const { home, repo } = resumable();
+      const probe = join(tmpdir(), `resume-probe-${process.pid}-${Date.now()}`);
+      const r = await runEntrypoint(
+        { RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, SETUP_SCRIPT: `touch ${probe}` },
+        {},
+      );
+      expect(existsSync(probe)).toBe(false);
+      expect(r.calls.some((c) => c.cmd === 'timeout')).toBe(false);
       expect(started(r)).toBe(true);
     });
   });

@@ -17,9 +17,9 @@ describe('setRunStatusTx input validation', () => {
   const tx: Tx = Object.create(null);
 
   it('rejects an unknown status non-retryably, naming it', async () => {
-    await expect(setRunStatusTx(tx, withStatus('paused'))).rejects.toMatchObject({
+    await expect(setRunStatusTx(tx, withStatus('bogus'))).rejects.toMatchObject({
       nonRetryable: true,
-      message: 'unknown run status: paused',
+      message: 'unknown run status: bogus',
     });
   });
 
@@ -28,5 +28,11 @@ describe('setRunStatusTx input validation', () => {
       nonRetryable: true,
       message: 'setRunStatus: invalid timestamp',
     });
+  });
+
+  it('rejects an invalid session expiry non-retryably', async () => {
+    await expect(
+      setRunStatusTx(tx, { ...withStatus('paused'), session: { expiresAt: 'not a date' } }),
+    ).rejects.toMatchObject({ nonRetryable: true, message: 'setRunStatus: invalid session expiry' });
   });
 });

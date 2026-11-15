@@ -28,6 +28,7 @@ Related: [architecture.md](architecture.md), [backend.md](backend.md), [database
 - **MUST** add a database integration test for every new table with `org_id`, proving org A cannot read or write org B's rows. Why: RLS is our tenancy boundary (see [database.md](database.md), [security.md](security.md)).
 - **MUST** assert every API response with `expectContract`, and every MSW fixture with its contracts schema (`mocks/msw/contract.test.ts`). Why: both sides drift independently; contract tests catch it.
 - **MUST** test workflows in the time-skipping environment, never with real sleeps, and add a replay test when changing workflow code. Why: Temporal determinism bugs only show on replay.
+- **MAY** run a workflow in-process with `test/helpers/fake-workflow-runtime.ts`, only to make its lines visible to v8 coverage; it supplements and never replaces the time-skipping and replay tests, which stay the check for ordering, retries, cancellation and replay. Why: the Temporal sandbox hides workflow code from v8 coverage, but the fake skips replay, retries and real cancellation.
 - **MUST NOT** mock Postgres (no pg-mem, no SQLite, no repository stubs in integration tests). Why: RLS, policies, `SECURITY DEFINER` functions and NOTIFY only exist in real Postgres.
 - **MUST** connect integration tests as `agentdesk_app` (not the owner or superuser). Why: owners bypass RLS and hide leaks.
 

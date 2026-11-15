@@ -29,6 +29,7 @@ export function eventsFor(run: RunDto): RunEventDto[] {
     push(plus(run.startedAt, 16), 'lifecycle', { text: 'Claude Code started' });
   }
   if (run.idleSince) push(run.idleSince, 'status', { status: 'idle' });
+  if (run.pausedAt) push(run.pausedAt, 'status', { status: 'paused' });
   if (run.finishedAt && isFinal(run.status)) {
     const text = scrollbackText(run.number);
     if (text !== undefined && run.projectId === ids.project.invoicerApi) {

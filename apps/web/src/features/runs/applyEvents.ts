@@ -51,6 +51,8 @@ function patched(run: CachedRun, e: StatusChange): CachedRun {
     startedAt: run.startedAt ?? (status === 'queued' ? null : at),
     // The run stream carries the agent's state; the project stream does not, so those leave it as cached.
     ...('waitingOn' in e && { waitingOn: e.waitingOn, agentNote: e.agentNote }),
+    // Likewise the kept session (ADR 0022): set when the run parks, cleared when it resumes.
+    ...('pausedAt' in e && { pausedAt: e.pausedAt, sessionExpiresAt: e.sessionExpiresAt }),
     idleSince: status === 'idle' || status === 'done' ? (run.idleSince ?? at) : null,
     finishedAt: isFinal(status) ? (run.finishedAt ?? at) : null,
   };
@@ -59,7 +61,8 @@ function patched(run: CachedRun, e: StatusChange): CachedRun {
 const matches = (filter: RunListFilter, status: RunStatus): boolean => {
   switch (filter) {
     case 'needs_you':
-      return status === 'idle';
+      // The same rule as the project's needs-you count (countedIn).
+      return status === 'idle' || status === 'paused';
     case 'active':
       return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
     case 'queued':
@@ -78,7 +81,8 @@ const COUNT_KEYS: readonly CountKey[] = ['needsYou', 'running', 'queued'];
 const countedIn = (key: CountKey, status: RunStatus): boolean => {
   switch (key) {
     case 'needsYou':
-      return status === 'idle';
+      // The `needs_you` list: a paused run waits for a person too (it has no pod, so it is not in `running`).
+      return status === 'idle' || status === 'paused';
     case 'running':
       return status === 'starting' || status === 'running' || status === 'idle' || status === 'done';
     case 'queued':
@@ -106,6 +110,14 @@ function listScope(key: QueryKey): { filter: RunListFilter; ticket: unknown } | 
 }
 
 /**
+ * A change out of a final status is stale, except a resume: a succeeded run with a kept session goes back to
+ * `queued` (ADR 0022). Its seq is newer than the one that ended it, so the seq check above still drops the lagging
+ * copy of the end.
+ */
+const leavesFinal = (from: RunStatus, to: RunStatus): boolean =>
+  isFinal(from) && !isFinal(to) && !(from === 'succeeded' && to === 'queued');
+
+/**
  * Applies a status change to the run's detail and its row in every cached runs list, and moves the project counts.
  * A row that no longer matches its list's filter leaves the list; a list the run now belongs to but does not hold
  * (or whose membership cannot be told) is invalidated, as is the project when the run's previous status is unknown.
@@ -117,7 +129,7 @@ export function applyRunStatus(qc: QueryClient, org: string, projectId: string, 
   // lagging project stream), or one that would take a final run back to an active status, is stale.
   const applied = appliedSeqsOf(qc);
   const last = applied.get(e.runId);
-  if ((last !== undefined && e.seq <= last) || (before !== undefined && isFinal(before.status) && !isFinal(e.status))) {
+  if ((last !== undefined && e.seq <= last) || (before !== undefined && leavesFinal(before.status, e.status))) {
     return;
   }
   applied.set(e.runId, e.seq);

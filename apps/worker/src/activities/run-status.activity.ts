@@ -18,6 +18,12 @@ export interface SetRunStatusInput {
   waitingOn?: WaitingOn | null;
   /** Agent's note, already redacted. Written only with `idle` or `done` (collapsed to one line, capped); else cleared. */
   agentNote?: string | null;
+  /** Set or clear the kept session. `{ expiresAt }` sets session_expires_at and paused_at = at; `null` clears session_expires_at. Absent leaves both alone. */
+  session?: { expiresAt: string } | null;
+  /** Leave agent_note as it is (used for paused, and for the statuses of a resume). */
+  keepAgentNote?: boolean;
+  /** Allow leaving `succeeded` when the row has session_expires_at in the future at `at` (re-open). */
+  reopen?: boolean;
   /** ISO timestamp of the transition. */
   at: string;
 }
@@ -28,7 +34,8 @@ export interface SetRunStatusResult {
 
 /**
  * The only writer of `runs.status` after insert. One transaction: lock the run row, update it, append a `status`
- * run_event with the next per-run seq, and queue the NOTIFY. A transition out of a final status is a no-op.
+ * run_event with the next per-run seq, and queue the NOTIFY. A transition out of a final status is a no-op, except
+ * re-opening a `succeeded` run that still has a kept session (`reopen`).
  */
 export async function setRunStatus(db: Db, input: SetRunStatusInput): Promise<SetRunStatusResult> {
   const { seq } = await withOrg(db, input.orgId, (tx) => setRunStatusTx(tx, input));
@@ -57,20 +64,53 @@ export async function setRunStatusTx(
   const at = new Date(input.at);
   if (Number.isNaN(at.getTime())) throw ApplicationFailure.nonRetryable('setRunStatus: invalid timestamp');
 
+  let sessionExpiresAt: Date | null | undefined;
+  if (input.session) {
+    sessionExpiresAt = new Date(input.session.expiresAt);
+    if (Number.isNaN(sessionExpiresAt.getTime())) {
+      throw ApplicationFailure.nonRetryable('setRunStatus: invalid session expiry');
+    }
+  } else if (input.session === null) {
+    sessionExpiresAt = null;
+  }
+
   const [run] = await tx
-    .select({ status: runs.status, startedAt: runs.startedAt })
+    .select({
+      status: runs.status,
+      startedAt: runs.startedAt,
+      agentNote: runs.agentNote,
+      pausedAt: runs.pausedAt,
+      sessionExpiresAt: runs.sessionExpiresAt,
+    })
     .from(runs)
     .where(eq(runs.id, runId))
     .for('update');
   if (!run) throw ApplicationFailure.nonRetryable('setRunStatus: run not found');
   const previous = RunStatus.parse(run.status);
-  if (isFinal(previous) || (opts.onlyFrom && !opts.onlyFrom.includes(previous))) {
+  const reopening =
+    input.reopen === true &&
+    previous === 'succeeded' &&
+    status === 'queued' &&
+    run.sessionExpiresAt !== null &&
+    run.sessionExpiresAt.getTime() > at.getTime();
+  if ((isFinal(previous) && !reopening) || (opts.onlyFrom && !opts.onlyFrom.includes(previous))) {
     return { seq: await currentSeq(tx, runId), changed: false, previous };
   }
 
   const parked = status === 'idle' || status === 'done';
   const waitingOn = status === 'running' ? (input.waitingOn ?? null) : null;
-  const agentNote = parked && input.agentNote != null ? toAgentNote(input.agentNote) : null;
+  const agentNote = input.keepAgentNote
+    ? run.agentNote
+    : parked && input.agentNote != null
+      ? toAgentNote(input.agentNote)
+      : null;
+  // A final status other than `succeeded` ends the kept session; `succeeded` keeps whatever is set or given.
+  const endsSession = isFinal(status) && status !== 'succeeded';
+  const newExpiry = endsSession ? null : sessionExpiresAt === undefined ? run.sessionExpiresAt : sessionExpiresAt;
+  // paused_at means "the pod was last stopped by the idle timer". A session sets it; `session: null` on a live status
+  // (the resume succeeded, the kept session is over) clears it. Everything else keeps it: queued/starting are written
+  // mid-resume and a failed resume restores the parked run as it was, and finals keep it as history.
+  const pausedAt = input.session ? at : input.session === null && !isFinal(status) ? null : run.pausedAt;
 
   await tx
     .update(runs)
@@ -78,10 +118,14 @@ export async function setRunStatusTx(
       status,
       ...(status === 'running' && run.startedAt === null ? { startedAt: at } : {}),
       ...(isFinal(status) ? { finishedAt: at } : {}),
-      idleSince: parked ? at : null,
+      ...(reopening ? { finishedAt: null, exitCode: null } : {}),
+      pausedAt,
+      ...(endsSession || sessionExpiresAt !== undefined ? { sessionExpiresAt: newExpiry } : {}),
+      // `paused` is parked: idle_since stays as the idle write left it.
+      ...(status === 'paused' ? {} : { idleSince: parked ? at : null }),
       waitingOn,
       agentNote,
-      ...(input.exitCode !== undefined ? { exitCode: input.exitCode } : {}),
+      ...(input.exitCode !== undefined && !reopening ? { exitCode: input.exitCode } : {}),
       ...(input.failureReason !== undefined ? { failureReason: input.failureReason } : {}),
       ...(input.failureStage !== undefined && isFinal(status) ? { failureStage: input.failureStage } : {}),
     })
@@ -95,6 +139,8 @@ export async function setRunStatusTx(
       failureReason: input.failureReason ?? null,
       waitingOn,
       agentNote,
+      pausedAt: pausedAt?.toISOString() ?? null,
+      sessionExpiresAt: newExpiry?.toISOString() ?? null,
     },
     ts: at,
   });

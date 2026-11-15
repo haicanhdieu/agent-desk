@@ -93,6 +93,10 @@ export type AgentSettings = {
     status?: { tone: 'ok' | 'err'; text: string };
   };
   timeoutMinutes: number;
+  /** How long a paused run is kept before it expires. */
+  pausedKeepMinutes: number;
+  /** How long a finished run's session can be re-opened; 0 keeps none. */
+  doneKeepMinutes: number;
   idleEndMinutes: number;
   maxConcurrent: number;
   maxRunsPerTicket: number;
@@ -127,6 +131,11 @@ export type RunDetailData = {
   failureStage?: 'setup' | 'agent';
   /** The setup script version the run used, and how it ended. */
   setup?: { version: number; note?: string };
+  /**
+   * A kept or expired session (ADR 0022). `headline` shows above the agent note, `detail` below it;
+   * `resumeFailure` is the error banner above the buttons after a resume that fell back.
+   */
+  session?: { state: 'paused' | 'kept' | 'expired'; headline?: string; detail?: string; resumeFailure?: string };
 };
 
 export type RunDetailKey =
@@ -139,4 +148,6 @@ export type RunDetailKey =
   | 'RunFailed'
   | 'RunSetupFailed'
   | 'RunTimedOut'
-  | 'RunCancelled';
+  | 'RunCancelled'
+  | 'RunPaused'
+  | 'RunExpired';

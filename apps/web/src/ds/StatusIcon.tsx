@@ -82,6 +82,15 @@ const glyphs: Record<RunStatus, ReactNode> = {
       <path d="M4 12 12 4" stroke="currentColor" strokeWidth="1.6" />
     </>
   ),
+  // Ring with two bars: stopped, can be resumed.
+  paused: (
+    <>
+      <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+      <path d="M6.3 5v6M9.7 5v6" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+    </>
+  ),
+  // Dashed ring: the saved session is gone.
+  expired: <circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeDasharray="2.4 2.4" />,
 };
 
 export function StatusIcon({ status, size = 14, title, inheritColor }: StatusIconProps) {

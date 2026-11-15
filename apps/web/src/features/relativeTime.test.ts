@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { relativeTime } from './relativeTime';
+import { relativeTime, timeLeft } from './relativeTime';
 
 const now = new Date('2026-11-12T12:00:00.000Z');
 const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
@@ -24,5 +24,24 @@ describe('relativeTime', () => {
 
   it('treats a future timestamp as just now', () => {
     expect(relativeTime(ago(-5 * MIN), now)).toBe('just now');
+  });
+});
+
+describe('timeLeft', () => {
+  const ahead = (ms: number) => new Date(now.getTime() + ms).toISOString();
+  it.each([
+    ['under a minute', 20_000, 'less than a minute'],
+    ['1 minute', MIN, '1 min'],
+    ['several minutes', 45 * MIN + 30_000, '45 min'],
+    ['1 hour', HOUR, '1 hour'],
+    ['several hours', 5 * HOUR + 59 * MIN, '5 hours'],
+    ['1 day', DAY, '1 day'],
+    ['several days', 6 * DAY + 23 * HOUR, '6 days'],
+  ])('%s', (_name, ms, text) => {
+    expect(timeLeft(ahead(ms), now)).toBe(text);
+  });
+
+  it('a time that has passed is "less than a minute"', () => {
+    expect(timeLeft(ahead(-5 * MIN), now)).toBe('less than a minute');
   });
 });

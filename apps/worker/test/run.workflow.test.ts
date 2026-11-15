@@ -6,7 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Worker } from '@temporalio/worker';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import { ApplicationFailure, CancelledFailure, Context } from '@temporalio/activity';
-import type { WorkflowHandle } from '@temporalio/client';
+import { WorkflowNotFoundError, type WorkflowHandle } from '@temporalio/client';
 import { IDLE_END_SECONDS, QUERY, TASK_QUEUE, WORKFLOW, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
 import type { RunStatus } from '@agentdesk/contracts';
 import * as signals from '../src/workflows/signals';
@@ -87,8 +87,28 @@ interface Script {
   refreshFailFirst?: number;
   /** Every refreshWorkspaceToken attempt throws a non-retryable error. */
   refreshFailsForGood?: boolean;
+  /** How long parkRun says the session is kept (seconds from `at`); unset means nothing is kept (null expiry). */
+  parkKeepSeconds?: number;
   /** What createRunSecretAndJob and refreshWorkspaceToken report as the next refresh delay (seconds). */
   plannedRefreshSeconds?: number;
+  /** The options of every createRunSecretAndJob call, in order (undefined for the first pod). */
+  createOpts: ({ resume?: boolean; deadlineSeconds?: number } | undefined)[];
+  /** The options of every followPodLogs call, in order. */
+  followOpts: ({ resume?: boolean } | undefined)[];
+  /** Settles the current resumed pod's `followPodLogs` (a fresh one per resume). */
+  resumeLogs: Deferred<FollowPodLogsResult>;
+  /** The resumed pod's followPodLogs has started. */
+  resumeFollowStarted: Deferred<void>;
+  /** When set, a resumed pod's followPodLogs returns this at once. */
+  resumeResult?: FollowPodLogsResult;
+  /** When set, a resumed pod's createRunSecretAndJob throws a non-retryable failure of this type. */
+  resumeCreateFailure?: string;
+  /** What endSession resolves: the current pod's logs. */
+  currentLogs?: Deferred<FollowPodLogsResult>;
+  /** The inputs of every restoreParked call. */
+  restores: { kind: string; sessionExpiresAt: string; reason: string }[];
+  /** The expiry the latest parkRun reported. */
+  lastExpiry?: string;
 }
 
 const scripts = new Map<string, Script>();
@@ -155,9 +175,13 @@ function activities(): RunActivities {
       }
       return s.plannedRefreshSeconds === undefined ? undefined : { nextRefreshSeconds: s.plannedRefreshSeconds };
     },
-    async createRunSecretAndJob(ctx) {
+    async createRunSecretAndJob(ctx, opts) {
       const s = script(ctx.runId);
       s.calls.push('createRunSecretAndJob');
+      s.createOpts.push(opts);
+      if (opts?.resume && s.resumeCreateFailure !== undefined) {
+        throw ApplicationFailure.nonRetryable('the agent or its credential is missing', s.resumeCreateFailure);
+      }
       // Stands in for the real mint: the token is used here (written to the run Secret) and never returned.
       s.secretData = { REPO_CLONE_URL: `https://x-access-token:${TOKEN}@example.test/repo.git` };
       s.jobCalled.resolve();
@@ -178,9 +202,19 @@ function activities(): RunActivities {
       }
       s.comments.push(details ? { kind, details } : { kind });
     },
-    async followPodLogs(ctx) {
+    async followPodLogs(ctx, opts) {
       const s = script(ctx.runId);
       s.calls.push('followPodLogs');
+      s.followOpts.push(opts);
+      if (opts?.resume) {
+        s.resumeFollowStarted.resolve();
+        if (s.resumeResult) return s.resumeResult;
+        s.resumeLogs = deferred();
+        s.currentLogs = s.resumeLogs;
+        return untilSettledOrCancelled(s.resumeLogs.promise, () => {
+          s.logsCancelled = true;
+        });
+      }
       if (s.firstLine)
         s.statuses.push({ orgId: ctx.orgId, runId: ctx.runId, status: 'running', at: new Date().toISOString() });
       s.logsStarted.resolve();
@@ -193,13 +227,35 @@ function activities(): RunActivities {
       s.calls.push('endSession');
       s.endSessionAt = Date.now();
       s.endSessionCalled.resolve();
-      if (s.endSessionExits) s.logs.resolve({ exitCode: 0 });
+      if (s.endSessionExits) (s.currentLogs ?? s.logs).resolve({ exitCode: 0 });
     },
     async deleteJob(ctx) {
       script(ctx.runId).calls.push('deleteJob');
     },
     async ensureJobGone(ctx) {
       script(ctx.runId).calls.push('ensureJobGone');
+    },
+    async deleteRunVolume(ctx) {
+      script(ctx.runId).calls.push('deleteRunVolume');
+    },
+    async parkRun(ctx, input) {
+      const s = script(ctx.runId);
+      s.calls.push(`parkRun:${input.kind}`);
+      // Like the real activity, the expiry counts from the workflow's own `at`, so time skipping cannot make it stale.
+      const sessionExpiresAt =
+        s.parkKeepSeconds === undefined
+          ? null
+          : new Date(Date.parse(input.at) + s.parkKeepSeconds * 1000).toISOString();
+      if (sessionExpiresAt !== null) s.lastExpiry = sessionExpiresAt;
+      return { status: input.kind === 'done' ? 'succeeded' : 'paused', sessionExpiresAt };
+    },
+    async endKeptSession(ctx, reason) {
+      script(ctx.runId).calls.push(`endKeptSession:${reason}`);
+    },
+    async restoreParked(ctx, input) {
+      const s = script(ctx.runId);
+      s.calls.push('restoreParked');
+      s.restores.push({ kind: input.kind, sessionExpiresAt: input.sessionExpiresAt, reason: input.reason });
     },
   };
 }
@@ -228,6 +284,11 @@ function newRun(over: Partial<RunContext> = {}, opts: Partial<Pick<Script, 'firs
     logsCancelled: false,
     jobCalled: deferred(),
     endSessionCalled: deferred(),
+    createOpts: [],
+    followOpts: [],
+    resumeLogs: deferred(),
+    resumeFollowStarted: deferred(),
+    restores: [],
   };
   scripts.set(runId, s);
   return s;
@@ -317,6 +378,7 @@ describe('RunWorkflow', () => {
       'postComment:start',
       'followPodLogs',
       'ensureJobGone',
+      'deleteRunVolume',
       'postComment:finish',
     ]);
     expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded', exitCode: 0 });
@@ -372,7 +434,8 @@ describe('RunWorkflow', () => {
     expect(out.status).toBe('succeeded');
     expect(count(s, 'endSession')).toBe(1);
     expect((s.endSessionAt ?? 0) - t0).toBeGreaterThanOrEqual(900);
-    expectFinishOnce(s);
+    // Nothing kept: the run closes as succeeded; a person-needed run gets the paused note, not a finish comment.
+    expect(count(s, 'postComment:paused')).toBe(1);
   });
 
   it('idle timer does not fire while a terminal is attached; fires idle-end after the last detach', async () => {
@@ -481,7 +544,7 @@ describe('RunWorkflow', () => {
   });
 
   it('a history near the limit ends the run as failed with a plain reason, and cleanup runs', async () => {
-    const s = newRun({ historyEventLimit: 40 });
+    const s = newRun({ historyEventLimit: 45 });
     const h = await start(s);
     await s.logsStarted.promise;
     await waitPhase(h, 'running');
@@ -491,7 +554,13 @@ describe('RunWorkflow', () => {
     });
     // Each signal adds events; the run must end on its own once the (lowered) limit is reached.
     for (let i = 0; i < 100 && !done; i++) {
-      await h.signal(signals.terminalAttached);
+      try {
+        await h.signal(signals.terminalAttached);
+      } catch (err) {
+        // The run ended on its own between the `done` check and the signal: that is the outcome under test.
+        if (!(err instanceof WorkflowNotFoundError)) throw err;
+        break;
+      }
       await sleepReal(20);
     }
     const out = await outcome;
@@ -820,7 +889,9 @@ describe('RunWorkflow', () => {
     await waitPhase(h, 'agent_done');
     expect((await h.result()).status).toBe('succeeded');
     expect(count(s, 'endSession')).toBe(1);
-    expect(statuses(s)).toEqual(['starting', 'running', 'running', 'done', 'succeeded']);
+    // Nothing kept: parkRun writes the final status, so the workflow writes no `succeeded` of its own.
+    expect(statuses(s)).toEqual(['starting', 'running', 'running', 'done']);
+    expect(count(s, 'parkRun:done')).toBe(1);
   });
 
   it('agentState waiting keeps running and never starts the idle timer', async () => {
@@ -949,11 +1020,437 @@ describe('RunWorkflow', () => {
     expect((await hi.result()).status).toBe('timed_out');
   });
 
+  it('finalize deletes the run volume once, after the Job is gone', async () => {
+    const s = newRun({ timeoutSeconds: 1 });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    expect((await h.result()).status).toBe('timed_out');
+    expect(count(s, 'deleteRunVolume')).toBe(1);
+    expect(s.calls.indexOf('deleteJob')).toBeLessThan(s.calls.indexOf('deleteRunVolume'));
+  });
+
+  describe('parking (pause-resume)', () => {
+    /** Idle (or done) run whose idle timer fires after 1 s; resolves once the workflow is parked. */
+    async function parkedRun(
+      kind: 'needs_input' | 'done',
+      over: Partial<RunContext> = {},
+      keep: number | undefined = 3600,
+    ) {
+      const s = newRun({ idleEndSeconds: 1, ...over });
+      s.parkKeepSeconds = keep;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, kind);
+      await waitPhase(h, 'parked');
+      return { s, h };
+    }
+
+    it('idle: ends the session, frees the slot, parks as needs_input, posts the paused comment, keeps the volume', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      expect(s.calls.slice(s.calls.indexOf('followPodLogs') + 1)).toEqual([
+        'endSession',
+        'deleteJob',
+        'parkRun:needs_input',
+        'postComment:paused',
+      ]);
+      // A finished Job must not survive the park: a resume would otherwise follow its exited pod (ensureJob keeps it).
+      expect(count(s, 'ensureJobGone')).toBe(0);
+      await gateForgot(s);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(count(s, 'postComment:finish')).toBe(0);
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      expect((await state(h)).phase).toBe('parked');
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('done: parks as done and posts the normal finish comment as succeeded', async () => {
+      const { s, h } = await parkedRun('done');
+      expect(count(s, 'parkRun:done')).toBe(1);
+      expect(count(s, 'postComment:paused')).toBe(0);
+      expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded' });
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect((await state(h)).phase).toBe('parked');
+      await h.signal(signals.dropSession);
+      expect((await h.result()).status).toBe('succeeded');
+    });
+
+    it('a parked needs_input run whose keep time passes expires: session ended, volume deleted, finish comment expired', async () => {
+      // Real seconds, not 3600: other tests leave activities in flight, which stops the test server skipping time.
+      const { s, h } = await parkedRun('needs_input', {}, 2);
+      const out = await h.result();
+      expect(out).toEqual({ status: 'expired' });
+      expect(count(s, 'endKeptSession:expired')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'postComment:finish')).toBe(1);
+      expect(s.comments.find((c) => c.kind === 'finish')?.details).toMatchObject({ status: 'expired' });
+      expect((await state(h)).phase).toBe('done');
+      captured['run-park-expire'] = h;
+    });
+
+    it('a parked done run whose keep time passes ends its session without a second comment and stays succeeded', async () => {
+      const { s, h } = await parkedRun('done', {}, 2);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'endKeptSession:expired')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'postComment:finish')).toBe(1);
+    });
+
+    it('dropSession on a parked done run ends the session as dropped and deletes the volume', async () => {
+      const { s, h } = await parkedRun('done');
+      await h.signal(signals.dropSession);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'endKeptSession:dropped')).toBe(1);
+      expect(count(s, 'endKeptSession:expired')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'postComment:finish')).toBe(1);
+    });
+
+    it('dropSession on a parked needs_input run is ignored', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      await h.signal(signals.dropSession);
+      await sleepReal(300);
+      expect((await state(h)).phase).toBe('parked');
+      expect(count(s, 'endKeptSession:dropped')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('finishRun on a parked needs_input run is accepted: volume deleted, succeeded with no session, finish comment', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(s.statuses.at(-1)).toMatchObject({ status: 'succeeded', session: null });
+      expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded' });
+      expect(count(s, 'endKeptSession:expired')).toBe(0);
+    });
+
+    it('finishRun on a parked done run is rejected with NotFinishable', async () => {
+      const { h } = await parkedRun('done');
+      await expect(h.executeUpdate(signals.finishRun)).rejects.toMatchObject({ cause: { type: 'NotFinishable' } });
+      expect((await state(h)).phase).toBe('parked');
+      await h.signal(signals.dropSession);
+      await h.result();
+    });
+
+    it('cancel on a parked needs_input run ends it as cancelled and deletes the volume', async () => {
+      const { s, h } = await parkedRun('needs_input');
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      expect(s.statuses.at(-1)).toMatchObject({ status: 'cancelled', session: null });
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expectFinishOnce(s);
+    });
+
+    it('cancel on a parked done run changes nothing', async () => {
+      const { s, h } = await parkedRun('done');
+      await h.signal(signals.cancel);
+      await sleepReal(300);
+      expect((await state(h)).phase).toBe('parked');
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.dropSession);
+      await h.result();
+    });
+
+    it('nothing kept (null expiry): the volume is deleted and the run closes as succeeded without finalize', async () => {
+      const { s, h } = await parkedRunOrClosed('done');
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'deleteJob')).toBe(1);
+      expect(count(s, 'ensureJobGone')).toBe(0);
+      expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded' });
+      expect(statuses(s)).toEqual(['starting', 'running']);
+    });
+
+    async function parkedRunOrClosed(kind: 'needs_input' | 'done') {
+      const s = newRun({ idleEndSeconds: 1 });
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, kind);
+      return { s, h };
+    }
+
+    it('Review Focus 1: attach and working after the session end began still park; no running status after the park', async () => {
+      const s = newRun({ idleEndSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.agentState, 'working');
+      await sleepReal(200);
+      expect((await state(h)).phase).toBe('ending');
+      s.logs.resolve({ exitCode: 0 });
+      await waitPhase(h, 'parked');
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      expect((await state(h)).terminalAttached).toBe(0);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a person pressing Finish on a live idle run ends it: volume deleted, succeeded, never parked', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      await h.executeUpdate(signals.finishRun);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(s.statuses.at(-1)).toMatchObject({ status: 'succeeded', session: null });
+    });
+  });
+
+  describe('resuming (pause-resume)', () => {
+    /** A run parked after 1 s idle (kept `keep` s); resolves once parked. */
+    async function parked(kind: 'needs_input' | 'done', over: Partial<RunContext> = {}, keep = 3600) {
+      const s = newRun({ idleEndSeconds: 1, ...over });
+      s.parkKeepSeconds = keep;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, kind);
+      await waitPhase(h, 'parked');
+      return { s, h };
+    }
+    /** Presses Resume and waits until the resumed pod's Job is requested. */
+    async function resume(s: Script, h: WorkflowHandle) {
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await waitFor(() => count(s, 'createRunSecretAndJob') >= 2, 'resume Job');
+    }
+    /** A resumed run that is up and held live: a terminal is attached so the idle timer stays off. */
+    async function live(kind: 'needs_input' | 'done', over: Partial<RunContext> = {}) {
+      const { s, h } = await parked(kind, over);
+      await resume(s, h);
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(s).at(-1) === (kind === 'done' ? 'done' : 'idle'), 'resumed status');
+      await h.signal(signals.terminalAttached);
+      return { s, h };
+    }
+
+    it('needs_input: queued, starting, then idle after sessionStarted; Job and logs started in resume mode', async () => {
+      const { s, h } = await parked('needs_input');
+      await resume(s, h);
+      expect((await state(h)).phase).toBe('resuming');
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(s).at(-1) === 'idle', 'idle after resume');
+      expect(statuses(s)).toEqual(['starting', 'running', 'queued', 'starting', 'idle']);
+      expect(s.statuses[2]).toMatchObject({ status: 'queued', reopen: true, keepAgentNote: true });
+      expect(s.statuses[4]).toMatchObject({ status: 'idle', keepAgentNote: true, session: null });
+      expect(count(s, 'requestSlot')).toBe(2);
+      expect(s.createOpts[1]).toEqual({ resume: true, deadlineSeconds: 3600 });
+      expect(s.followOpts[1]).toEqual({ resume: true });
+      await h.signal(signals.terminalAttached);
+      expect((await state(h)).phase).toBe('idle');
+      // A repeated sessionStarted changes nothing.
+      await h.signal(signals.sessionStarted);
+      await sleepReal(200);
+      expect(statuses(s)).toHaveLength(5);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      captured['run-park-resume'] = h;
+    });
+
+    it('done: the queued write re-opens and the run ends the resume in done, not idle', async () => {
+      const { s, h } = await live('done');
+      expect(s.statuses.find((x) => x.status === 'queued')).toMatchObject({ reopen: true, keepAgentNote: true });
+      expect(statuses(s).at(-1)).toBe('done');
+      expect((await state(h)).phase).toBe('agent_done');
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('a resumed run left unattended parks again with a fresh keep time', async () => {
+      const { s, h } = await parked('needs_input');
+      await resume(s, h);
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => count(s, 'parkRun:needs_input') === 2, 'second park');
+      await waitPhase(h, 'parked');
+      expect(count(s, 'endSession')).toBe(2);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('Review Focus 2: a second resume while resuming is rejected and asks for one slot only', async () => {
+      const { s, h } = await parked('needs_input');
+      s.jobHold = deferred();
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await waitFor(() => count(s, 'createRunSecretAndJob') >= 2, 'resume Job');
+      await expect(h.executeUpdate(signals.resumeRun)).rejects.toMatchObject({
+        cause: { type: 'NotResumable', message: 'This run is already being resumed' },
+      });
+      expect(count(s, 'requestSlot')).toBe(2);
+      s.jobHold.resolve();
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(s).at(-1) === 'idle', 'idle');
+      await h.executeUpdate(signals.resumeRun).then(
+        () => {
+          throw new Error('a live run must not be resumable');
+        },
+        () => undefined,
+      );
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('Review Focus 3: the keep time runs out while the resume waits for a slot; the resume still wins', async () => {
+      const projectId = randomUUID();
+      const { s, h } = await parked('needs_input', { projectId, maxConcurrentRuns: 1 }, 2);
+      // Another run takes the only slot, so the resume has to queue.
+      const other = newRun({ projectId, maxConcurrentRuns: 1 });
+      const ho = await start(other);
+      await other.logsStarted.promise;
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await sleepReal(3000);
+      expect(count(s, 'endKeptSession:expired')).toBe(0);
+      expect((await state(h)).phase).toBe('resuming');
+      expect(count(s, 'createRunSecretAndJob')).toBe(1);
+      other.logs.resolve({ exitCode: 0 });
+      await ho.result();
+      await waitFor(() => count(s, 'createRunSecretAndJob') === 2, 'resume Job after the slot');
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(s).at(-1) === 'idle', 'idle');
+      expect(count(s, 'endKeptSession:expired')).toBe(0);
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('Review Focus 4: exit 79 before the session started puts the run back; nothing is retried, volume kept', async () => {
+      const { s, h } = await parked('needs_input');
+      s.resumeResult = { exitCode: 79, resumeFailed: true };
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await waitFor(() => count(s, 'restoreParked') === 1, 'restoreParked');
+      await waitPhase(h, 'parked');
+      expect(s.restores).toEqual([
+        { kind: 'needs_input', sessionExpiresAt: s.lastExpiry, reason: 'no saved session was found' },
+      ]);
+      expect(count(s, 'deleteJob')).toBe(2); // the park's, and the failed resume's
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(count(s, 'createRunSecretAndJob')).toBe(2);
+      expect(statuses(s)).toEqual(['starting', 'running', 'queued', 'starting']);
+      await gateForgot(s);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('a missing agent credential puts the run back with a plain reason', async () => {
+      const { s, h } = await parked('needs_input');
+      s.resumeCreateFailure = 'NoAgentCredential';
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await waitFor(() => count(s, 'restoreParked') === 1, 'restoreParked');
+      expect(s.restores[0]?.reason).toBe('the agent or its credential is missing');
+      await waitPhase(h, 'parked');
+      expect(count(s, 'deleteJob')).toBe(2); // the park's, and the failed resume's
+      await gateForgot(s);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a pod that exits before the session started puts the run back with a plain reason', async () => {
+      const { s, h } = await parked('done');
+      s.resumeResult = { exitCode: 1 };
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await waitFor(() => count(s, 'restoreParked') === 1, 'restoreParked');
+      expect(s.restores[0]).toMatchObject({ kind: 'done', reason: 'the pod could not start' });
+      await waitPhase(h, 'parked');
+      await h.signal(signals.dropSession);
+      await h.result();
+    });
+
+    it('cancel while resuming, before the session started, cancels only the resume', async () => {
+      const { s, h } = await parked('needs_input');
+      s.jobHold = deferred();
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await waitFor(() => count(s, 'createRunSecretAndJob') >= 2, 'resume Job');
+      await h.signal(signals.cancel);
+      await waitFor(() => count(s, 'restoreParked') === 1, 'restoreParked');
+      expect(s.restores[0]?.reason).toBe('the resume was cancelled');
+      await waitPhase(h, 'parked');
+      expect(statuses(s)).not.toContain('cancelled');
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await gateForgot(s);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('cancel after the session started ends the run as cancelled and deletes the volume', async () => {
+      const { s, h } = await live('needs_input');
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      expect(s.statuses.at(-1)).toMatchObject({ status: 'cancelled', session: null });
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'restoreParked')).toBe(0);
+    });
+
+    it('a fallback after the original expiry has passed restores the run and then expires it at once', async () => {
+      const { s, h } = await parked('needs_input', {}, 2);
+      s.jobHold = deferred();
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await waitFor(() => count(s, 'createRunSecretAndJob') >= 2, 'resume Job');
+      await sleepReal(2500);
+      expect(count(s, 'endKeptSession:expired')).toBe(0);
+      await h.signal(signals.cancel);
+      expect(await h.result()).toEqual({ status: 'expired' });
+      expect(s.calls.indexOf('restoreParked')).toBeLessThan(s.calls.indexOf('endKeptSession:expired'));
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+    });
+
+    it('time limit: the resumed pod gets the rest of the limit, never less than an hour; parked time is not counted', async () => {
+      const big = await parked('needs_input', { timeoutSeconds: 7200 });
+      await sleepReal(2500);
+      await resume(big.s, big.h);
+      const allowance = big.s.createOpts[1]?.deadlineSeconds ?? 0;
+      // Used time is the first pod's ~1 s idle wait; the 2.5 s spent parked must not be in it.
+      expect(allowance).toBeGreaterThanOrEqual(7197);
+      expect(allowance).toBeLessThanOrEqual(7199);
+      await big.h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(big.s).at(-1) === 'idle', 'idle');
+      await big.h.signal(signals.terminalAttached);
+      await big.h.signal(signals.cancel);
+      await big.h.result();
+
+      const small = await parked('needs_input', { timeoutSeconds: 100 });
+      await resume(small.s, small.h);
+      expect(small.s.createOpts[1]?.deadlineSeconds).toBe(3600);
+      await small.h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(small.s).at(-1) === 'idle', 'idle');
+      await small.h.signal(signals.terminalAttached);
+      await small.h.signal(signals.cancel);
+      await small.h.result();
+    });
+
+    it('the hard timer fires in a resumed pod: timed_out, volume deleted (succeeded when it had declared done)', async () => {
+      // `resumeMinSeconds` is the test seam for the one-hour floor, so the allowance (limit 5 s, ~1 s used) is real seconds.
+      const over = { timeoutSeconds: 5, resumeMinSeconds: 1 };
+      const a = await live('needs_input', over);
+      expect(a.s.createOpts[1]?.deadlineSeconds).toBeGreaterThanOrEqual(3);
+      expect(a.s.createOpts[1]?.deadlineSeconds).toBeLessThanOrEqual(4);
+      expect((await a.h.result()).status).toBe('timed_out');
+      expect(count(a.s, 'deleteRunVolume')).toBe(1);
+      expect(a.s.statuses.at(-1)).toMatchObject({ status: 'timed_out', session: null });
+
+      const b = await live('done', over);
+      expect((await b.h.result()).status).toBe('succeeded');
+      expect(count(b.s, 'deleteRunVolume')).toBe(1);
+    });
+  });
+
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
     expect(Object.keys(captured).sort()).toEqual([
       'run-cancel-loading',
       'run-cancel-starting',
       'run-idle-finish',
+      'run-park-expire',
+      'run-park-resume',
       'run-success',
       'run-token-refresh',
     ]);
@@ -966,7 +1463,9 @@ describe('RunWorkflow', () => {
         await writeFile(fixture(name), json + '\n');
       }
     }
-    for (const name of Object.keys(captured)) {
+    // Review Focus 5: `run-idle-timer` was recorded before the pause-resume patch (idle timer, succeeded, no park). A run
+    // like it must replay on the old path: parking it now would be a non-determinism error.
+    for (const name of [...Object.keys(captured), 'run-idle-timer']) {
       const json: unknown = JSON.parse(await readFile(fixture(name), 'utf8'));
       await Worker.runReplayHistory({ workflowsPath }, json, `fixture-${name}`);
     }

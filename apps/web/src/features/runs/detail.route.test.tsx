@@ -250,3 +250,148 @@ describe('run detail route, failed in setup', () => {
     expect(document.body.textContent).not.toMatch(/NaN|Invalid/);
   });
 });
+
+describe('run detail route, paused runs and kept sessions', () => {
+  const PAUSED = 64;
+  const KEPT = 65;
+  const EXPIRED = 66;
+  const resumePosts = (n: number) => mockDb.requests('POST', `/api/runs/${runId(n)}/resume`);
+
+  /** Holds the resume answer until `release()`, then 204. */
+  function holdResume() {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      routeHandler('runs.resume', async () => {
+        await gate;
+        return jsonResponse(null, 204);
+      }),
+    );
+    return () => release();
+  }
+
+  it('a paused run shows the note, how long it can be resumed, when it paused, Resume and Finish', async () => {
+    await renderRoute(`${base}/runs/${PAUSED}`);
+    expect(await within(banner()).findByText('Paused')).toBeInTheDocument();
+    expect(screen.getByText(/^Can be resumed for \d+ days?$/)).toBeInTheDocument();
+    expect(screen.getByText('Should the export include voided invoices?')).toBeInTheDocument();
+    expect(screen.getByText(/^Paused .* after no one was attached$/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Re-open session')).not.toBeInTheDocument();
+  });
+
+  it('Resume posts once and the page then shows Queued', async () => {
+    const { user } = await renderRoute(`${base}/runs/${PAUSED}`);
+    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(await within(banner()).findByText('Queued')).toBeInTheDocument();
+    expect(resumePosts(PAUSED)).toBe(1);
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Can be resumed for/)).not.toBeInTheDocument();
+  });
+
+  it('while the resume request is in flight both buttons are disabled and nothing more is sent', async () => {
+    const release = holdResume();
+    const { user } = await renderRoute(`${base}/runs/${PAUSED}`);
+    const resume = await screen.findByRole('button', { name: 'Resume' });
+    await user.click(resume);
+    await waitFor(() => expect(resume).toBeDisabled());
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeDisabled();
+    await user.click(resume);
+    expect(resumePosts(PAUSED)).toBe(1);
+    release();
+  });
+
+  it('a 409 shows the server message in a toast and the button works again', async () => {
+    const { user } = await renderRoute(`${base}/runs/${PAUSED}`, {
+      scenario: () => scenarios.problem('runs.resume', { status: 409, title: 'This run is already being resumed' }),
+    });
+    const resume = await screen.findByRole('button', { name: 'Resume' });
+    await user.click(resume);
+    expect(await screen.findByRole('alert')).toHaveTextContent('This run is already being resumed');
+    await waitFor(() => expect(resume).toBeEnabled());
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
+  });
+
+  it('Finish on a paused run posts to finish', async () => {
+    const { user } = await renderRoute(`${base}/runs/${PAUSED}`);
+    await user.click(await screen.findByRole('button', { name: 'Finish' }));
+    await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${runId(PAUSED)}/finish`)).toBe(1));
+  });
+
+  it('a succeeded run with a kept session shows when it is kept until and Re-open session', async () => {
+    const { user } = await renderRoute(`${base}/runs/${KEPT}`);
+    expect(await screen.findByText(/^Session kept until /)).toBeInTheDocument();
+    expect(screen.getByText('Opened PR #148 with the CSV export and tests.')).toBeInTheDocument();
+    expect(within(banner()).getByText('Succeeded')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Re-open session' }));
+    expect(await within(banner()).findByText('Queued')).toBeInTheDocument();
+    expect(resumePosts(KEPT)).toBe(1);
+    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+  });
+
+  it('a succeeded run whose kept time has passed has no Re-open session', async () => {
+    dbRun(KEPT).sessionExpiresAt = new Date(Date.now() - 60_000).toISOString();
+    await renderRoute(`${base}/runs/${KEPT}`);
+    expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Session kept until /)).not.toBeInTheDocument();
+  });
+
+  it('the Re-open session button goes away when the kept time passes while the page is open', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date', 'setInterval', 'clearInterval'] });
+    dbRun(KEPT).sessionExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
+    await renderRoute(`${base}/runs/${KEPT}`);
+    expect(await screen.findByRole('button', { name: 'Re-open session' })).toBeInTheDocument();
+    await act(async () => {
+      vi.setSystemTime(Date.now() + 11 * 60_000);
+      await vi.advanceTimersByTimeAsync(30_000);
+    });
+    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Session kept until /)).not.toBeInTheDocument();
+  });
+
+  it('an expired run shows the expired line and no action buttons', async () => {
+    await renderRoute(`${base}/runs/${EXPIRED}`);
+    expect(await within(banner()).findByText('Expired')).toBeInTheDocument();
+    expect(screen.getByText('Nobody resumed this run in time. The saved session was deleted.')).toBeInTheDocument();
+    for (const name of ['Resume', 'Re-open session', 'Finish', 'Finish run', 'Cancel run']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
+  });
+
+  it('a resume_failed event last shows the error banner above the buttons', async () => {
+    const events = mockDb.state.runEvents[runId(PAUSED)] ?? [];
+    events.push({
+      seq: (events.at(-1)?.seq ?? 0) + 1,
+      ts: new Date().toISOString(),
+      type: 'lifecycle',
+      payload: { kind: 'resume_failed', reason: 'no saved session was found' },
+    });
+    mockDb.state.runEvents[runId(PAUSED)] = events;
+    await renderRoute(`${base}/runs/${PAUSED}`);
+    const alert = await screen.findByText('Resume failed: no saved session was found');
+    const resume = screen.getByRole('button', { name: 'Resume' });
+    expect(alert.compareDocumentPosition(resume) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(resume).toBeEnabled();
+  });
+
+  it('shows the stored scrollback of a paused run, read-only', async () => {
+    const events = mockDb.state.runEvents[runId(PAUSED)] ?? [];
+    events.push({
+      seq: (events.at(-1)?.seq ?? 0) + 1,
+      ts: new Date().toISOString(),
+      type: 'scrollback',
+      payload: { text: 'paused scrollback' },
+    });
+    mockDb.state.runEvents[runId(PAUSED)] = events;
+    await renderRoute(`${base}/runs/${PAUSED}`);
+    await screen.findByRole('group', { name: 'Claude Code terminal' });
+    const term = FakeXterm.latest();
+    expect(term.options.disableStdin).toBe(true);
+    expect(term.writes).toEqual(['paused scrollback']);
+  });
+});

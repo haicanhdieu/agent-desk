@@ -66,4 +66,11 @@ export class RunsController {
     await this.service.finish(org, p.runId);
     return null;
   }
+
+  @Post(routePath(routes.runs.resume))
+  @HttpCode(204)
+  async resume(@CurrentOrg() org: OrgContext, @Param(RunParam) p: { runId: string }): Promise<null> {
+    await this.service.resume(org, p.runId);
+    return null;
+  }
 }

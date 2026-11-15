@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createDb, listenRunStatus, withOrg, runEvents, runs, type Db, type RunStatusMessage } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import { eq } from 'drizzle-orm';
-import { setRunStatus } from '../src/activities/run-status.activity';
+import { setRunStatus, setRunStatusTx, type SetRunStatusInput } from '../src/activities/run-status.activity';
 import { appendRunEvent } from '../src/activities/run-events';
 
 const ORG = '33333333-3333-4333-8333-333333333333';
@@ -87,6 +87,8 @@ describe('setRunStatus', () => {
         failureReason: null,
         waitingOn: null,
         agentNote: null,
+        pausedAt: null,
+        sessionExpiresAt: null,
       });
       await sleep(300);
       expect(got).toEqual([{ orgId: ORG, runId, seq: 1 }]);
@@ -280,5 +282,176 @@ describe('setRunStatus', () => {
     await expect(setRunStatus(db, { orgId: ORG, runId, status: 'running', at: 'nope' })).rejects.toMatchObject({
       nonRetryable: true,
     });
+  });
+});
+
+const setRunStatusTxForTest = (runId: string, rest: Omit<SetRunStatusInput, 'orgId' | 'runId'>) =>
+  withOrg(db, ORG, (tx) => setRunStatusTx(tx, { orgId: ORG, runId, ...rest }));
+
+describe('setRunStatus kept sessions', () => {
+  const T0 = '2026-11-12T10:00:00.000Z';
+  const T1 = '2026-11-12T10:10:00.000Z';
+  const T2 = '2026-11-12T11:00:00.000Z';
+  const EXP = '2026-11-19T10:10:00.000Z';
+
+  it('idle to paused with a session keeps the note and idle_since, sets paused_at and the expiry', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'idle', agentNote: 'Which database?', at: T0 });
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'paused',
+      session: { expiresAt: EXP },
+      keepAgentNote: true,
+      at: T1,
+    });
+    const { run, events } = await load(runId);
+    expect(run?.status).toBe('paused');
+    expect(run?.agentNote).toBe('Which database?');
+    expect(run?.idleSince?.toISOString()).toBe(T0);
+    expect(run?.pausedAt?.toISOString()).toBe(T1);
+    expect(run?.sessionExpiresAt?.toISOString()).toBe(EXP);
+    expect(events[1]?.payload).toMatchObject({
+      status: 'paused',
+      agentNote: 'Which database?',
+      pausedAt: T1,
+      sessionExpiresAt: EXP,
+    });
+  });
+
+  it('done to succeeded with a session sets finished_at, keeps the note and sets the expiry', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'done', agentNote: 'Opened PR #1', at: T0 });
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'succeeded',
+      session: { expiresAt: EXP },
+      keepAgentNote: true,
+      at: T1,
+    });
+    const run = (await load(runId)).run;
+    expect(run?.status).toBe('succeeded');
+    expect(run?.finishedAt?.toISOString()).toBe(T1);
+    expect(run?.agentNote).toBe('Opened PR #1');
+    expect(run?.sessionExpiresAt?.toISOString()).toBe(EXP);
+  });
+
+  it('succeeded to queued with reopen and a future expiry writes and clears finished_at and exit_code', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'succeeded',
+      exitCode: 0,
+      session: { expiresAt: EXP },
+      at: T0,
+    });
+    const res = await setRunStatusTxForTest(runId, { status: 'queued', reopen: true, keepAgentNote: true, at: T1 });
+    expect(res.changed).toBe(true);
+    const run = (await load(runId)).run;
+    expect(run?.status).toBe('queued');
+    expect(run?.finishedAt).toBeNull();
+    expect(run?.exitCode).toBeNull();
+    expect(run?.sessionExpiresAt?.toISOString()).toBe(EXP);
+  });
+
+  it('reopen with a past or missing expiry is a no-op', async () => {
+    const past = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId: past, status: 'succeeded', session: { expiresAt: T1 }, at: T0 });
+    expect((await setRunStatusTxForTest(past, { status: 'queued', reopen: true, at: T2 })).changed).toBe(false);
+    expect((await load(past)).run?.status).toBe('succeeded');
+    const none = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId: none, status: 'succeeded', at: T0 });
+    expect((await setRunStatusTxForTest(none, { status: 'queued', reopen: true, at: T1 })).changed).toBe(false);
+  });
+
+  it('reopen does not leave failed', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'failed', at: T0 });
+    expect((await setRunStatusTxForTest(runId, { status: 'queued', reopen: true, at: T1 })).changed).toBe(false);
+    expect((await load(runId)).run?.status).toBe('failed');
+  });
+
+  it('paused to expired clears the expiry and sets finished_at', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+    await setRunStatus(db, { orgId: ORG, runId, status: 'expired', at: T1 });
+    const run = (await load(runId)).run;
+    expect(run?.status).toBe('expired');
+    expect(run?.sessionExpiresAt).toBeNull();
+    expect(run?.finishedAt?.toISOString()).toBe(T1);
+  });
+
+  it('paused to cancelled clears the expiry', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+    await setRunStatus(db, { orgId: ORG, runId, status: 'cancelled', at: T1 });
+    expect((await load(runId)).run?.sessionExpiresAt).toBeNull();
+  });
+
+  it.each(['idle', 'done', 'running'] as const)(
+    'paused_at is cleared (row and event) when a paused run goes %s with session null',
+    async (to) => {
+      const runId = await seedRun();
+      await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+      expect((await load(runId)).run?.pausedAt?.toISOString()).toBe(T0);
+      await setRunStatus(db, { orgId: ORG, runId, status: to, session: null, at: T1 });
+      const { run, events } = await load(runId);
+      expect(run?.pausedAt).toBeNull();
+      expect(events[1]?.payload).toMatchObject({ status: to, pausedAt: null });
+      // Idempotent: the same call again leaves the same row.
+      await setRunStatus(db, { orgId: ORG, runId, status: to, session: null, at: T1 });
+      expect((await load(runId)).run?.pausedAt).toBeNull();
+    },
+  );
+
+  it.each(['queued', 'starting'] as const)(
+    'paused_at is kept (row and event) when a paused run goes %s with no session (mid-resume)',
+    async (to) => {
+      const runId = await seedRun();
+      await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+      await setRunStatus(db, { orgId: ORG, runId, status: to, keepAgentNote: true, at: T1 });
+      const { run, events } = await load(runId);
+      expect(run?.pausedAt?.toISOString()).toBe(T0);
+      expect(events[1]?.payload).toMatchObject({ status: to, pausedAt: T0 });
+    },
+  );
+
+  it('a paused write without a session keeps paused_at; with a session it moves to the new time', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', at: T1 });
+    expect((await load(runId)).run?.pausedAt?.toISOString()).toBe(T0);
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T2 });
+    expect((await load(runId)).run?.pausedAt?.toISOString()).toBe(T2);
+  });
+
+  it('paused to expired keeps paused_at as history', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+    await setRunStatus(db, { orgId: ORG, runId, status: 'expired', at: T1 });
+    const { run, events } = await load(runId);
+    expect(run?.pausedAt?.toISOString()).toBe(T0);
+    expect(events[1]?.payload).toMatchObject({ status: 'expired', pausedAt: T0 });
+  });
+
+  it('a no-op write (onlyFrom mismatch) leaves paused_at alone', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+    const res = await withOrg(db, ORG, (tx) =>
+      setRunStatusTx(tx, { orgId: ORG, runId, status: 'idle', session: null, at: T1 }, { onlyFrom: ['running'] }),
+    );
+    expect(res.changed).toBe(false);
+    expect((await load(runId)).run?.pausedAt?.toISOString()).toBe(T0);
+  });
+
+  it('session null clears the expiry; absent leaves it', async () => {
+    const runId = await seedRun();
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', at: T1 });
+    expect((await load(runId)).run?.sessionExpiresAt?.toISOString()).toBe(EXP);
+    await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: null, at: T2 });
+    expect((await load(runId)).run?.sessionExpiresAt).toBeNull();
   });
 });

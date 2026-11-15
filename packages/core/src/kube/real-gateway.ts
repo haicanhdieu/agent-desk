@@ -19,6 +19,7 @@ import {
   type RunPod,
   type RunPodPhase,
   type RunSecretRef,
+  type RunVolumeRef,
   type SetupTestJobRef,
   type SetupTestSecretRef,
   type V1Job,
@@ -35,6 +36,9 @@ export type KubeCoreApi = Pick<
   | 'deleteNamespacedSecret'
   | 'listNamespacedPod'
   | 'listNamespacedSecret'
+  | 'createNamespacedPersistentVolumeClaim'
+  | 'deleteNamespacedPersistentVolumeClaim'
+  | 'listNamespacedPersistentVolumeClaim'
 >;
 /** The one call the gateway makes: follow a container's log into `stream` (the options-only form of `Log.log`). */
 export type KubeLogApi = Pick<FollowLog, 'log'>;
@@ -141,6 +145,46 @@ export class RealKubeGateway implements KubeGateway {
 
   async deleteSecret(name: string): Promise<void> {
     await this.deps.core.deleteNamespacedSecret({ name, namespace: this.ns }).then(() => undefined, ignore(404));
+  }
+
+  async ensureVolumeClaim(
+    name: string,
+    spec: { size: string; storageClass?: string },
+    labels: Record<string, string>,
+  ): Promise<void> {
+    await this.deps.core
+      .createNamespacedPersistentVolumeClaim({
+        namespace: this.ns,
+        body: {
+          metadata: { name, namespace: this.ns, labels },
+          spec: {
+            accessModes: ['ReadWriteOnce'],
+            resources: { requests: { storage: spec.size } },
+            ...(spec.storageClass ? { storageClassName: spec.storageClass } : {}),
+          },
+        },
+      })
+      .then(() => undefined, ignore(409));
+  }
+
+  async deleteVolumeClaim(name: string): Promise<void> {
+    await this.deps.core
+      .deleteNamespacedPersistentVolumeClaim({ name, namespace: this.ns })
+      .then(() => undefined, ignore(404));
+  }
+
+  async listRunVolumeClaims(): Promise<RunVolumeRef[]> {
+    const list = await this.deps.core.listNamespacedPersistentVolumeClaim({
+      namespace: this.ns,
+      labelSelector: RUN_LABELS.runId,
+    });
+    const out: RunVolumeRef[] = [];
+    for (const claim of list.items) {
+      const ref = runRefFromLabels(claim.metadata?.labels);
+      const name = claim.metadata?.name;
+      if (name && ref) out.push({ name, ...ref });
+    }
+    return out;
   }
 
   async ensureJob(spec: V1Job): Promise<void> {

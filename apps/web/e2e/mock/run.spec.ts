@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { INVOICER_API, ORG, SCRIPTED_RUN } from './mock';
+import { INVOICER_API, ORG, PAUSED_RUN, SCRIPTED_RUN } from './mock';
 
 // The scripted run takes about 16 s from queued to idle (mock.ts).
 test.describe.configure({ timeout: 60_000 });
@@ -30,4 +30,18 @@ test('a live run starts, goes idle, echoes the terminal and finishes as succeede
   await expect(view.getByRole('tab', { name: 'Final scrollback', selected: true })).toBeVisible();
   await expect(view.getByText(/^Ended, read-only/)).toBeVisible();
   await expect(terminal).toContainText('> hello e2e');
+});
+
+test('a paused run is resumed: Queued, then Running with the terminal', async ({ page }) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/${PAUSED_RUN}`);
+  const header = page.getByRole('banner');
+  await expect(header.getByText('Paused', { exact: true })).toBeVisible();
+  await expect(page.getByText(/^Can be resumed for /)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await expect(header.getByText('Queued', { exact: true })).toBeVisible();
+  await expect(header.getByText('Running', { exact: true })).toBeVisible({ timeout: 15_000 });
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await expect(terminal).toContainText(`run ${PAUSED_RUN}`);
 });

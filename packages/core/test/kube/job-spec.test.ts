@@ -23,7 +23,8 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   gitHost: 'fake.invalid',
   cliTokenEnvName: 'GH_TOKEN',
   maxTurns: 30,
-  timeoutSeconds: 1800,
+  deadlineSeconds: 1800,
+  resume: false,
   botName: 'agentdesk[bot]',
   botEmail: 'bot@example.invalid',
   pluginMarketplaces: { 'claude-plugins-official': 'anthropics/claude-plugins-official' },
@@ -92,7 +93,7 @@ describe('buildRunJob', () => {
       limits: { cpu: '2', memory: '4Gi', 'ephemeral-storage': '4Gi' },
     });
     expect(pod?.volumes).toEqual([
-      { name: 'workspace', emptyDir: { sizeLimit: '2Gi' } },
+      { name: 'workspace', persistentVolumeClaim: { claimName: `run-${RUN}` } },
       {
         name: 'workspace-token',
         secret: { secretName: `run-${RUN}`, items: [{ key: 'workspace-token', path: 'token' }], defaultMode: 0o440 },
@@ -144,6 +145,7 @@ describe('buildRunJob', () => {
     expect(env).toEqual({
       CHECKOUT_REF: 'main',
       PROMPT: 'Use the skill "fix" on issue #1 in dev/demo.\n$(rm -rf /); `id`',
+      HOME: '/workspace/home',
       BOT_NAME: 'agentdesk[bot]',
       BOT_EMAIL: 'bot@example.invalid',
       MAX_TURNS: '30',
@@ -160,6 +162,30 @@ describe('buildRunJob', () => {
     expect(repoUrl?.valueFrom?.secretKeyRef?.key).toBe('REPO_CLONE_URL');
   });
 
+  it('keeps the workspace on a per-run claim: no emptyDir, no subPath, HOME on the volume', () => {
+    const pod = buildRunJob(input()).spec?.template.spec;
+    const workspace = pod?.volumes?.find((v) => v.name === 'workspace');
+    expect(workspace).toEqual({ name: 'workspace', persistentVolumeClaim: { claimName: `run-${RUN}` } });
+    expect(JSON.stringify(pod?.volumes)).not.toContain('emptyDir');
+    expect(pod?.containers[0]?.volumeMounts?.some((m) => m.subPath !== undefined)).toBe(false);
+    expect(pod?.containers[0]?.env).toContainEqual({ name: 'HOME', value: '/workspace/home' });
+  });
+
+  it('resume mode sets RUN_MODE=resume and drops the prompt, checkout, setup and plugin env', () => {
+    const env =
+      buildRunJob(input({ resume: true, setupScript: 'npm ci' })).spec?.template.spec?.containers[0]?.env ?? [];
+    const names = env.map((e) => e.name);
+    expect(env).toContainEqual({ name: 'RUN_MODE', value: 'resume' });
+    for (const gone of ['PROMPT', 'CHECKOUT_REF', 'SETUP_SCRIPT', 'PLUGIN_MARKETPLACES'])
+      expect(names).not.toContain(gone);
+    expect(env).toContainEqual({ name: 'HOME', value: '/workspace/home' });
+  });
+
+  it('a normal run has no RUN_MODE', () => {
+    const env = buildRunJob(input()).spec?.template.spec?.containers[0]?.env ?? [];
+    expect(env.some((e) => e.name === 'RUN_MODE')).toBe(false);
+  });
+
   it('omits MAX_TURNS when unset', () => {
     const job = buildRunJob(input({ maxTurns: null }));
     const env = job.spec?.template.spec?.containers[0]?.env ?? [];
@@ -167,12 +193,12 @@ describe('buildRunJob', () => {
   });
 
   it('sets the deadline to the limit plus 120 s with no cap, up to 7 days (ADR 0021)', () => {
-    expect(buildRunJob(input({ timeoutSeconds: 9999 })).spec?.activeDeadlineSeconds).toBe(10119);
-    expect(buildRunJob(input({ timeoutSeconds: 604800 })).spec?.activeDeadlineSeconds).toBe(604920);
+    expect(buildRunJob(input({ deadlineSeconds: 9999 })).spec?.activeDeadlineSeconds).toBe(10119);
+    expect(buildRunJob(input({ deadlineSeconds: 604800 })).spec?.activeDeadlineSeconds).toBe(604920);
   });
 
   it('never sets a deadline below one second', () => {
-    expect(buildRunJob(input({ timeoutSeconds: 0 })).spec?.activeDeadlineSeconds).toBe(121);
+    expect(buildRunJob(input({ deadlineSeconds: 0 })).spec?.activeDeadlineSeconds).toBe(121);
   });
 
   it('adds nodeSelector, tolerations and runtimeClassName when configured', () => {
@@ -238,13 +264,13 @@ const setupInput = (over: Partial<SetupTestJobInput> = {}): SetupTestJobInput =>
 });
 
 describe('buildSetupTestJob', () => {
-  it('shares securityContext, resources, volumes and mounts with buildRunJob', () => {
+  it('shares securityContext, resources and mounts with buildRunJob', () => {
     const podOf = (j: ReturnType<typeof buildRunJob>) => j.spec?.template.spec;
     const run = podOf(buildRunJob(input({ pod: { ...input().pod, nodeSelector: { pool: 'runs' } } })));
     const test = podOf(buildSetupTestJob(setupInput({ pod: { ...input().pod, nodeSelector: { pool: 'runs' } } })));
     expect(test?.securityContext).toEqual(run?.securityContext);
-    expect(test?.volumes?.find((v) => v.name === 'workspace')).toEqual(
-      run?.volumes?.find((v) => v.name === 'workspace'),
+    expect(test?.volumes?.find((v) => v.name === 'workspace-token')?.secret?.defaultMode).toBe(
+      run?.volumes?.find((v) => v.name === 'workspace-token')?.secret?.defaultMode,
     );
     expect(test?.nodeSelector).toEqual(run?.nodeSelector);
     expect(test?.automountServiceAccountToken).toBe(false);
@@ -252,6 +278,15 @@ describe('buildSetupTestJob', () => {
     expect(test?.containers[0]?.securityContext).toEqual(run?.containers[0]?.securityContext);
     expect(test?.containers[0]?.volumeMounts).toEqual(run?.containers[0]?.volumeMounts);
     expect(test?.volumes?.find((v) => v.name === 'workspace-token')?.secret?.secretName).toBe(`setup-test-${TEST_ID}`);
+  });
+
+  it('keeps the emptyDir with its size limit and no HOME override', () => {
+    const pod = buildSetupTestJob(setupInput()).spec?.template.spec;
+    expect(pod?.volumes?.find((v) => v.name === 'workspace')).toEqual({
+      name: 'workspace',
+      emptyDir: { sizeLimit: '2Gi' },
+    });
+    expect(pod?.containers[0]?.env?.some((e) => e.name === 'HOME')).toBe(false);
   });
 
   it('is named and labelled by setup test id only, with no run id label', () => {

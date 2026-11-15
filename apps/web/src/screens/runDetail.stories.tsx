@@ -73,3 +73,54 @@ export const RunCancelled: Story = {
   globals: viewport(1440, 900),
   args: { data: runDetails.RunCancelled, needsYou: 1 },
 };
+
+/** Paused by the idle timer: how long it can be resumed, the agent note, Resume and Finish. */
+export const RunPaused: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunPaused, lines: terminalByRun[62], needsYou: 1, onResume: () => {} },
+};
+/** A resume in flight: both buttons wait. */
+export const RunPausedResuming: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunPaused, lines: terminalByRun[62], needsYou: 1, resuming: true },
+};
+/** The resume fell back: the error sits above the buttons and the run can be resumed again. */
+export const RunResumeFailed: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: {
+    data: {
+      ...runDetails.RunPaused,
+      session: {
+        ...runDetails.RunPaused.session,
+        state: 'paused',
+        resumeFailure: 'Resume failed: no saved session was found',
+      },
+    },
+    lines: terminalByRun[62],
+    needsYou: 1,
+  },
+};
+/** Succeeded with its session kept: Re-open session until the kept time passes. */
+export const RunSucceededKept: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: {
+    data: {
+      ...runDetails.RunSucceeded,
+      agentNote: 'Opened PR #148 with the CSV export and tests.',
+      session: { state: 'kept', detail: 'Session kept until 13 Nov, 14:20' },
+    },
+    lines: terminalByRun[60],
+    needsYou: 1,
+    onResume: () => {},
+  },
+};
+/** Nobody resumed it in time: the saved session was deleted, no actions. */
+export const RunExpired: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunExpired, needsYou: 1 },
+};

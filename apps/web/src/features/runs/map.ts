@@ -15,7 +15,7 @@ import type {
   TicketGroup,
 } from '@/mocks/types';
 import { IDLE_END_MINUTES } from '../desk/agent.form';
-import { relativeTime } from '../relativeTime';
+import { relativeTime, timeLeft } from '../relativeTime';
 import type { CachedRun } from './queries';
 
 const MIN = 60_000;
@@ -69,16 +69,21 @@ function statusNote(dto: RunDto, now: Date): string | undefined {
     case 'failed':
     case 'timed_out':
       return dto.failureReason ?? undefined;
+    case 'paused':
+      return dto.sessionExpiresAt ? `Can be resumed for ${timeLeft(dto.sessionExpiresAt, now)}` : 'Can be resumed';
+    case 'expired':
+      return 'The saved session was deleted';
     default:
       return undefined;
   }
 }
 
-/** Final runs: start to finish. Runs still going: start to now. Queued runs: none. */
+/** Final runs: start to finish. Paused runs: start to the pause. Runs still going: start to now. Queued runs: none. */
 export function duration(dto: RunDto, now: Date): string | undefined {
   if (!dto.startedAt) return undefined;
   const start = Date.parse(dto.startedAt);
   if (isFinal(dto.status)) return dto.finishedAt ? formatDuration(Date.parse(dto.finishedAt) - start) : undefined;
+  if (dto.status === 'paused' && dto.pausedAt) return formatDuration(Date.parse(dto.pausedAt) - start);
   return formatDuration(now.getTime() - start);
 }
 

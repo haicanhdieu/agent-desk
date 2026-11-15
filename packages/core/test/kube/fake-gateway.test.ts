@@ -20,7 +20,7 @@ const job = (id: string, prompt: string, extraEnv: Record<string, string> = {}) 
   for (const [name, value] of Object.entries(extraEnv)) container?.env?.push({ name, value });
   return j;
 };
-const jobFor = (id: string, prompt: string) =>
+const jobFor = (id: string, prompt: string, resume = false) =>
   buildRunJob({
     runId: id,
     orgId: ORG,
@@ -33,7 +33,8 @@ const jobFor = (id: string, prompt: string) =>
     gitHost: 'fake.invalid',
     cliTokenEnvName: 'GH_TOKEN',
     maxTurns: null,
-    timeoutSeconds: 60,
+    deadlineSeconds: 60,
+    resume,
     botName: 'bot',
     botEmail: 'bot@x.invalid',
     pluginMarketplaces: {},
@@ -77,6 +78,16 @@ function collect(name: string) {
     for await (const l of gw.streamLogs(name, ac.signal)) lines.push(l);
   })();
   return { lines, ac, done };
+}
+
+/** The pod's current screen, read through an attach session. */
+async function gwPane(name: string): Promise<string> {
+  const s = await gw.exec(name, ['tmux', 'attach', '-t', 'agent'], { tty: true });
+  let screen = '';
+  s.onData((d) => (screen += decoder.decode(d)));
+  await sleep(120);
+  s.close();
+  return screen;
 }
 
 const decoder = new TextDecoder();
@@ -126,6 +137,35 @@ describe('FakeKubeGateway', () => {
     await c.done;
     await gw.deleteJob(name);
     expect(await gw.getRunPod(name)).toBeNull();
+  });
+
+  it('a resumed Job on the same volume continues the conversation; with the volume deleted it exits 79', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const labels = { 'agentdesk/run-id': id };
+    await gw.ensureVolumeClaim(name, { size: '1Gi' }, labels);
+    await gw.ensureJob(job(id, 'remember this'));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    await until(async () => (await gw.getRunPod(name)) && (await gwPane(name)).includes('remember this'));
+    await gw.deleteJob(name); // the idle stop: the pod is gone, the volume stays
+
+    await gw.ensureJob(jobFor(id, '', true));
+    const c = collect(name);
+    await until(async () => c.lines.includes('agentdesk: session started'));
+    expect(c.lines.slice(0, 2)).toEqual(['agentdesk: session resumed', 'agentdesk: session started']);
+    expect(await gwPane(name)).toContain('remember this');
+    c.ac.abort();
+    await c.done;
+    await gw.deleteJob(name);
+
+    await gw.deleteVolumeClaim(name);
+    await gw.ensureJob(jobFor(id, '', true));
+    const pod = await until(async () => {
+      const p = await gw.getRunPod(name);
+      return p?.phase === 'Failed' || p?.phase === 'Succeeded' ? p : null;
+    });
+    expect(pod.exitCode).toBe(79);
+    await gw.deleteJob(name);
   });
 
   it('exec attach streams the pane, echoes input lines; kill-session exits 0 with the scrollback', async () => {
@@ -509,5 +549,36 @@ describe('FakeKubeGateway', () => {
     expect(names).toContain(`run-${id}`);
     await expect(gw.getRunPod('other-x')).rejects.toThrow(/invalid job name/);
     await gw.deleteJob(`run-${id}`);
+  });
+
+  it('volume claims: ensure twice keeps one claim, list returns labelled claims, delete is idempotent', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const labels = { 'agentdesk/run-id': id, 'agentdesk/org-id': ORG, 'agentdesk/project-id': PROJECT };
+    await gw.ensureVolumeClaim(name, { size: '4Gi' }, labels);
+    await gw.ensureVolumeClaim(name, { size: '4Gi' }, labels);
+    const mine = (await gw.listRunVolumeClaims()).filter((c) => c.name === name);
+    expect(mine).toEqual([{ name, runId: id, orgId: ORG, projectId: PROJECT }]);
+    const bare = `run-${runId()}`;
+    await gw.ensureVolumeClaim(bare, { size: '4Gi' }, { other: 'x' });
+    expect((await gw.listRunVolumeClaims()).map((c) => c.name)).not.toContain(bare);
+    await gw.deleteVolumeClaim(name);
+    await gw.deleteVolumeClaim(name);
+    await gw.deleteVolumeClaim(bare);
+    expect((await gw.listRunVolumeClaims()).map((c) => c.name)).not.toContain(name);
+  });
+
+  it('lists no volume claims before any was created', async () => {
+    const empty = await mkdtemp(join(tmpdir(), 'fake-kube-empty-'));
+    try {
+      expect(await new FakeKubeGateway(empty).listRunVolumeClaims()).toEqual([]);
+    } finally {
+      await rm(empty, { recursive: true, force: true });
+    }
+  });
+
+  it('volume claim names are validated', async () => {
+    await expect(gw.ensureVolumeClaim('../x', { size: '1Gi' }, {})).rejects.toThrow(/invalid/);
+    await expect(gw.deleteVolumeClaim('../x')).rejects.toThrow(/invalid/);
   });
 });

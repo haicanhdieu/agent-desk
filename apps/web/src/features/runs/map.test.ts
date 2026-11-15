@@ -33,6 +33,32 @@ describe('toRunSummary, failed in setup', () => {
   });
 });
 
+describe('toRunSummary, paused and expired', () => {
+  it('paused: the duration stops at the pause and the note says how long it can be resumed', () => {
+    const s = toRunSummary(
+      run({
+        status: 'paused',
+        startedAt: local(13, 2),
+        finishedAt: null,
+        pausedAt: local(13, 14, 4),
+        sessionExpiresAt: new Date(now.getTime() + 3 * 24 * 3_600_000).toISOString(),
+      }),
+      now,
+    );
+    expect(s.duration).toBe('12m 04s');
+    expect(s.statusNote).toBe('Can be resumed for 3 days');
+  });
+
+  it('expired: its note says the saved session was deleted', () => {
+    const s = toRunSummary(
+      run({ status: 'expired', startedAt: local(13, 2), finishedAt: local(13, 14, 4), sessionExpiresAt: null }),
+      now,
+    );
+    expect(s.statusNote).toBe('The saved session was deleted');
+    expect(s.duration).toBe('12m 04s');
+  });
+});
+
 describe('toRunSummary', () => {
   it('maps a final run: number, slash command, ticket, local start time, "12m 04s" duration', () => {
     const s = toRunSummary(
@@ -165,8 +191,8 @@ describe('chipCounts', () => {
       needs_you: 1,
       active: 2,
       queued: 1,
-      ended: 6,
-      all: 9,
+      ended: 8,
+      all: 12,
     });
   });
 });

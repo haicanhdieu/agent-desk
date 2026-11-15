@@ -86,6 +86,9 @@ function wrapKube(over: Partial<KubeGateway>): KubeGateway {
     listSetupTestJobs: () => kube.listSetupTestJobs(),
     listRunSecrets: () => kube.listRunSecrets(),
     listSetupTestSecrets: () => kube.listSetupTestSecrets(),
+    ensureVolumeClaim: (n, s, l) => kube.ensureVolumeClaim(n, s, l),
+    deleteVolumeClaim: (n) => kube.deleteVolumeClaim(n),
+    listRunVolumeClaims: () => kube.listRunVolumeClaims(),
     ...over,
   };
 }

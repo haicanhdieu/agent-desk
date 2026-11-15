@@ -2,6 +2,7 @@
 // imports, so the same inputs always give the same answer on replay. It lives outside run.workflow.ts because workflow
 // code runs in Temporal's sandbox, where coverage cannot see it; the workflow keeps only the Temporal glue.
 import type { AgentState } from '@agentdesk/contracts';
+import type { ParkKind } from './park';
 import type { RunPhase } from './signals';
 
 /** What the main loop reads and the signal handlers change; `phase` is the part the `state` query shows. */
@@ -65,12 +66,15 @@ function resumed(s: TurnState, writeRunning: boolean): TurnState | undefined {
 export const acceptsLegacyFinish = (phase: RunPhase): boolean => atTurnBoundary(phase);
 
 /** Why a `finishRun` update is refused (a message for the caller), or `undefined` when it is accepted. */
-export function finishRunRejection(phase: RunPhase, ending: boolean): string | undefined {
-  if (!atTurnBoundary(phase) || ending) {
-    return `Only a run that needs you or is done can be finished (phase is ${phase})`;
+export function finishRunRejection(phase: RunPhase, ending: boolean, parkKind?: ParkKind): string | undefined {
+  if (phase === 'parked' && !ending) {
+    return parkKind === 'done' ? 'This run already finished' : parkKind === 'needs_input' ? undefined : generic(phase);
   }
+  if (!atTurnBoundary(phase) || ending) return generic(phase);
   return undefined;
 }
+
+const generic = (phase: RunPhase): string => `Only a run that needs you or is done can be finished (phase is ${phase})`;
 
 /** A `finishRun` update waits for this: the session is ending, or the run was finalized before it could be. */
 export const finishRunSettled = (ending: boolean, phase: RunPhase): boolean =>

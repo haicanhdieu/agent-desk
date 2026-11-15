@@ -1,5 +1,6 @@
 import {
   ACTIVE_RUN_STATUSES,
+  canResume,
   FINISHABLE_RUN_STATUSES,
   type RouteDef,
   FINAL_RUN_STATUSES,
@@ -31,7 +32,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
-import { appendRunEvent, endSetupTest, rememberSetupTestScript, setRunStatus } from './live';
+import { appendRunEvent, endSetupTest, rememberSetupTestScript, scriptRun, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
 // handler requires a session (401 otherwise), scopes reads to the active org (another org's record is a 404, as
@@ -66,8 +67,8 @@ function toProjectDto(row: ProjectRow): ProjectDto {
   return {
     ...row,
     counts: {
-      needsYou: runs.filter((r) => r.status === 'idle').length,
-      // As the API counts them: live jobs, idle included (needsYou is a subset).
+      needsYou: runs.filter((r) => r.status === 'idle' || r.status === 'paused').length,
+      // As the API counts them: live jobs, idle included; a paused run has no pod, so it is in needsYou only.
       running: runs.filter((r) => isActive(r.status)).length,
       queued: runs.filter((r) => r.status === 'queued').length,
     },
@@ -135,7 +136,8 @@ function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
 const matchesFilter = (filter: RunListFilter | undefined, s: RunStatus): boolean => {
   switch (filter) {
     case 'needs_you':
-      return s === 'idle';
+      // As the API: idle and paused runs, the same rule as the project's needsYou count (toProjectDto).
+      return s === 'idle' || s === 'paused';
     case 'active':
       return isActive(s);
     case 'queued':
@@ -257,6 +259,8 @@ const impl: Impl = {
       model: 'opus',
       maxTurns: null,
       timeoutSeconds: 1800,
+      pausedKeepSeconds: 604800,
+      doneKeepSeconds: 86400,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
     return toProjectDto(row);
@@ -301,6 +305,8 @@ const impl: Impl = {
     agent.model = body.model;
     agent.maxTurns = body.maxTurns ?? null;
     agent.timeoutSeconds = body.timeoutSeconds;
+    agent.pausedKeepSeconds = body.pausedKeepSeconds ?? agent.pausedKeepSeconds;
+    agent.doneKeepSeconds = body.doneKeepSeconds ?? agent.doneKeepSeconds;
     return agent;
   },
   'agents.putCredential': ({ params, body }) => {
@@ -472,6 +478,33 @@ const impl: Impl = {
     if (isFinal(run.status)) throw conflict('Run already ended');
     if (!FINISHABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Run is not waiting for you or done');
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
+    return null;
+  },
+  'runs.resume': ({ params }) => {
+    const { user } = session();
+    const run = runOf(params.runId);
+    // As the API: 409 with a plain message when the run cannot be resumed, is already being resumed, or has no
+    // credential to resume with.
+    if (run.status === 'queued' || run.status === 'starting') throw conflict('This run is already being resumed');
+    if (!canResume(run, new Date())) {
+      throw conflict('Only a paused run, or a finished run whose session is still kept, can be resumed');
+    }
+    if (!agentOf(run.projectId).credential.set) {
+      throw conflict('This project has no agent credential, so the run cannot be resumed');
+    }
+    run.pausedAt = null;
+    run.sessionExpiresAt = null;
+    run.finishedAt = null;
+    run.exitCode = null;
+    run.failureReason = null;
+    appendRunEvent(run, 'lifecycle', { text: `Resume requested by ${user.handle}` });
+    setRunStatus(run, 'queued');
+    // Like a new run: a slot, the pod, then the agent is back (open event streams and the fake terminal follow).
+    scriptRun(run.id, [
+      { afterMs: 1_500, status: 'starting' },
+      { afterMs: 1_500, lifecycle: 'Pod running' },
+      { afterMs: 1_000, lifecycle: 'Session resumed', status: 'running' },
+    ]);
     return null;
   },
 };

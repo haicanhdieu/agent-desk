@@ -1,4 +1,4 @@
-import { AppLink, Icon } from '@/ds';
+import { AppLink, Button, Icon, StatusBadge } from '@/ds';
 import {
   GitHubComment,
   ProjectMenu,
@@ -25,8 +25,11 @@ export interface NeedsYouRun {
 export interface NeedsYouProps {
   project: Project;
   projects: Project[];
-  /** Idle runs of the project; defaults to the board's Run 62. */
+  /** Idle and paused runs of the project; defaults to the board's Run 62. */
   runs?: NeedsYouRun[];
+  /** Resume a paused run (its row has a Resume button); `resuming` is the number of the run being resumed. */
+  onResume?(run: RunSummary): void;
+  resuming?: number;
   /** Href of a project in the switcher; defaults to '#'. */
   projectHref?(p: Project): string;
   /** In the app the page gets the project top bar; the board has none. */
@@ -40,8 +43,17 @@ const boardRuns: NeedsYouRun[] = boardRun
 
 const ticketLabel = (r: RunSummary) => `${r.ticket.kind === 'pr' ? 'PR' : 'issue'} #${r.ticket.number}`;
 
-export function NeedsYou({ project, projects, runs = boardRuns, projectHref = () => '#', topBar }: NeedsYouProps) {
-  const first = runs[0];
+export function NeedsYou({
+  project,
+  projects,
+  runs = boardRuns,
+  onResume,
+  resuming,
+  projectHref = () => '#',
+  topBar,
+}: NeedsYouProps) {
+  // The desktop notification is for a run that asked something; a paused run has nothing to ask.
+  const first = runs.find((r) => r.run.status === 'idle');
   const none = <p className={`muted ${mock.none}`}>No runs need you right now.</p>;
   const main = (
     <main className={styles.needsMain}>
@@ -98,23 +110,48 @@ export function NeedsYou({ project, projects, runs = boardRuns, projectHref = ()
         </SurfaceCard>
         <SurfaceCard caption='On GitHub: the bot edits its own start comment as the run changes state, so the ticket shows "waiting for your input" without a new comment or extra notification noise.'>
           {runs.length === 0 && none}
-          {runs.map(({ run, href, idleAt, endsAt }) => (
-            <GitHubComment
-              key={run.id}
-              author="agent-desk[bot]"
-              bot
-              meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
-            >
-              <span>
-                <b>Run {run.id}</b> <span className="mono">{run.skill}</span> is waiting for your input.
-              </span>
-              <span className={`muted ${styles.ghSub}`}>
-                Started {run.startedAt} by a <span className="mono">{run.command}</span> comment from{' '}
-                {run.triggeredBy.login}. It ends on its own at {endsAt} if nobody opens it.
-              </span>
-              <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
-            </GitHubComment>
-          ))}
+          {runs.map(({ run, href, idleAt, endsAt }) =>
+            run.status === 'paused' ? (
+              <GitHubComment
+                key={run.id}
+                author="agent-desk[bot]"
+                bot
+                meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
+              >
+                <span>{`Run ${run.id} is paused and can be resumed.`}</span>
+                <span className={`muted ${styles.ghSub}`}>{run.statusNote}</span>
+                <span className={mock.pausedActions}>
+                  <StatusBadge status="paused" variant="pill" />
+                  <Button
+                    size="sm"
+                    variant="go"
+                    icon="play"
+                    disabled={resuming !== undefined}
+                    onClick={() => onResume?.(run)}
+                  >
+                    Resume
+                  </Button>
+                </span>
+                <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
+              </GitHubComment>
+            ) : (
+              <GitHubComment
+                key={run.id}
+                author="agent-desk[bot]"
+                bot
+                meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
+              >
+                <span>
+                  <b>Run {run.id}</b> <span className="mono">{run.skill}</span> is waiting for your input.
+                </span>
+                <span className={`muted ${styles.ghSub}`}>
+                  Started {run.startedAt} by a <span className="mono">{run.command}</span> comment from{' '}
+                  {run.triggeredBy.login}. It ends on its own at {endsAt} if nobody opens it.
+                </span>
+                <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
+              </GitHubComment>
+            ),
+          )}
         </SurfaceCard>
         <SurfaceCard caption="Desktop notification, opt-in from the bell in the top bar. Sent once when a run becomes idle, again 2 minutes before auto-finish.">
           {first ? (

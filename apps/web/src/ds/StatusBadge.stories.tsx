@@ -47,3 +47,20 @@ export const Done: StoryObj<typeof StatusBadge> = {
     </div>
   ),
 };
+
+/** A kept session (paused, can be resumed) and one that was deleted (expired), as text and pill. */
+export const PausedAndExpired: StoryObj<typeof StatusBadge> = {
+  render: () => (
+    <div style={page}>
+      {(['text', 'pill'] as const).map((v) => (
+        <section key={v} className="row" style={{ gap: 16 }}>
+          <span className="mono faint" style={{ width: 40 }}>
+            {v}
+          </span>
+          <StatusBadge status="paused" variant={v} />
+          <StatusBadge status="expired" variant={v} />
+        </section>
+      ))}
+    </div>
+  ),
+};

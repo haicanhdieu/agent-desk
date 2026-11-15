@@ -1,4 +1,4 @@
-import { appendFileSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -133,6 +133,57 @@ describe('fake-pod.mjs', () => {
     it('with --fake-pending ends after the max lifetime', async () => {
       await boot({ PROMPT: '--fake-pending', FAKE_MAX_LIFE_MS: '500' });
       expect(exitCodeOf(() => advance(1000))).toBe(0);
+    });
+  });
+
+  describe('resume', () => {
+    let volume: string;
+    beforeEach(() => {
+      volume = mkdtempSync(join(tmpdir(), 'fake-pod-volume-'));
+    });
+    afterEach(() => rmSync(volume, { recursive: true, force: true }));
+    const readVolume = (name: string): string =>
+      existsSync(join(volume, name)) ? readFileSync(join(volume, name), 'utf8') : '';
+
+    it('a fresh start on a volume saves the session marker and keeps a copy of the conversation', async () => {
+      await boot({ PROMPT: 'first question', FAKE_VOLUME_DIR: volume });
+      expect(readVolume('session-started')).not.toBe('');
+      expect(readVolume('pane')).toBe(read('pane'));
+      expect(readVolume('pane')).toContain('first question');
+    });
+
+    it('exits 79 with no saved session', async () => {
+      await expect(boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume })).rejects.toMatchObject({ code: 79 });
+      expect(read('exit')).toBe('79');
+      expect(logLines()).toEqual(['agentdesk: resume failed (no saved session)']);
+    });
+
+    it('exits 79 when the pod has no volume at all', async () => {
+      await expect(boot({ RUN_MODE: 'resume' })).rejects.toMatchObject({ code: 79 });
+    });
+
+    it('resumes the saved conversation: no checkout, no turn, typed input starts one', async () => {
+      await boot({ PROMPT: 'first question', FAKE_VOLUME_DIR: volume });
+      advance(TURN_MS);
+      writeFileSync(join(dir, 'kill'), '');
+      expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
+
+      rmSync(dir, { recursive: true, force: true });
+      mkdirSync(dir); // a new pod, a new state dir; only the volume carries over
+      // The first pod is gone: its input timer must not stand in for the resumed pod's (it watches the same path here).
+      vi.clearAllTimers();
+      await boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume });
+      expect(logLines()).toEqual(['agentdesk: session resumed', 'agentdesk: session started']);
+      expect(read('pane')).toContain('first question');
+      advance(TURN_MS * 3);
+      expect(stateLines()).toEqual([]);
+
+      appendFileSync(join(dir, 'input'), 'and now\r');
+      advance(TICK_MS);
+      expect(read('pane')).toContain('and now');
+      expect(stateLines()).toEqual(['agentdesk: state working']);
+      advance(TURN_MS);
+      expect(stateLines()).toEqual(['agentdesk: state working', NEEDS_INPUT]);
     });
   });
 

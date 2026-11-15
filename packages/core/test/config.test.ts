@@ -24,6 +24,26 @@ describe('plugin and setup config', () => {
     });
     expect(c.RUN_SETUP_TIMEOUT_SECONDS).toBe(600);
     expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
+    expect(c.RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+    expect(c.RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(10);
+    expect(c.RUN_IDLE_END_SECONDS).toBe(600);
+  });
+  it('RUN_IDLE_END_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
+    expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '5' }).RUN_IDLE_END_SECONDS).toBe(5);
+    expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '' }).RUN_IDLE_END_SECONDS).toBe(600);
+    expect(() => parseConfig({ ...base, RUN_IDLE_END_SECONDS: '0' })).toThrow('RUN_IDLE_END_SECONDS');
+  });
+  it('parses volume settings; blank storage class is unset, zero kept sessions is allowed', () => {
+    expect(parseConfig({ ...base, RUN_VOLUME_STORAGE_CLASS: 'agentdesk-run-volumes' }).RUN_VOLUME_STORAGE_CLASS).toBe(
+      'agentdesk-run-volumes',
+    );
+    expect(parseConfig({ ...base, RUN_VOLUME_STORAGE_CLASS: '' }).RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+    expect(parseConfig({ ...base, RUN_KEPT_DONE_SESSIONS_PER_PROJECT: '0' }).RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(
+      0,
+    );
+    expect(() => parseConfig({ ...base, RUN_KEPT_DONE_SESSIONS_PER_PROJECT: '-1' })).toThrow(
+      'RUN_KEPT_DONE_SESSIONS_PER_PROJECT',
+    );
   });
   it('parses overrides and blank falls back to defaults', () => {
     const c = parseConfig({
@@ -83,8 +103,30 @@ describe('production refuses dev-only settings', () => {
   });
 
   it('accepts a real KUBE_MODE in production and keeps the fake default in development', () => {
-    expect(parseConfig({ ...base, NODE_ENV: 'production', KUBE_MODE: 'incluster' }).KUBE_MODE).toBe('incluster');
+    const prod = { ...base, NODE_ENV: 'production', KUBE_MODE: 'incluster', RUN_VOLUME_STORAGE_CLASS: 'delete-class' };
+    expect(parseConfig(prod).KUBE_MODE).toBe('incluster');
     expect(parseConfig(base).KUBE_MODE).toBe('fake');
+  });
+
+  describe('RUN_VOLUME_STORAGE_CLASS', () => {
+    const prod = { ...base, NODE_ENV: 'production', KUBE_MODE: 'incluster' };
+
+    it('is required in production, so run volumes never land on a retaining cluster default', () => {
+      expect(() => parseConfig(prod)).toThrow(/RUN_VOLUME_STORAGE_CLASS/);
+      expect(() => parseConfig({ ...prod, RUN_VOLUME_STORAGE_CLASS: '' })).toThrow(/RUN_VOLUME_STORAGE_CLASS/);
+      expect(() => parseConfig({ ...prod, RUN_VOLUME_STORAGE_CLASS: '  ' })).toThrow(/RUN_VOLUME_STORAGE_CLASS/);
+    });
+
+    it('accepts a named class in production', () => {
+      expect(parseConfig({ ...prod, RUN_VOLUME_STORAGE_CLASS: 'delete-class' }).RUN_VOLUME_STORAGE_CLASS).toBe(
+        'delete-class',
+      );
+    });
+
+    it('stays optional in development and test', () => {
+      expect(parseConfig(base).RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+      expect(parseConfig({ ...base, NODE_ENV: 'test' }).RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+    });
   });
 });
 

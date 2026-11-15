@@ -36,13 +36,20 @@ COPY bin/gh /usr/local/lib/agentdesk/bin/gh
 COPY agentdesk-status.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs
 COPY agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/hook.mjs
 COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
+COPY agents/claude/commands.sh /usr/local/lib/agentdesk/agents/claude/commands.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credential-agentdesk \
     /usr/local/lib/agentdesk/bin/gh \
  && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \
-    /usr/local/lib/agentdesk/agents/claude/hook.mjs /etc/claude-code/managed-settings.json \
+    /usr/local/lib/agentdesk/agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/commands.sh \
+    /etc/claude-code/managed-settings.json \
  && printf '#!/bin/sh\nexec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"\n' > /usr/local/bin/agentdesk-status \
  && chmod 0755 /usr/local/bin/agentdesk-status \
  && mkdir -p /home/runner/.agentdesk && chown 10001:10001 /home/runner/.agentdesk
+# Run pods keep HOME on the per-run volume; the entrypoint copies this skeleton into it without overwriting.
+# /home/runner itself stays as is for setup-test pods.
+RUN mkdir -p /usr/local/share/agentdesk \
+ && cp -a /home/runner /usr/local/share/agentdesk/home-skel \
+ && chown -R 10001:10001 /usr/local/share/agentdesk/home-skel
 
 USER 10001:10001
 ENV HOME=/home/runner

@@ -1,5 +1,6 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { and, eq, inArray, sql } from 'drizzle-orm';
+import { WorkflowNotFoundError, type Client } from '@temporalio/client';
+import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   agents,
   connections,
@@ -24,10 +25,11 @@ import {
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { isUniqueViolation } from '../common/pg-errors';
-import { credentialSecretName, type AdapterRegistry, type SecretStore } from '@agentdesk/core';
+import { SIGNAL, credentialSecretName, runWorkflowId, type AdapterRegistry, type SecretStore } from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
+import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { SECRET_STORE } from '../secrets/secret-store.module';
 import { ProjectSchedules } from './project-schedules';
 
@@ -53,7 +55,7 @@ export function assertRepoPathShape(repoPath: string): void {
 }
 
 /** Non-final run statuses: a project with any of these cannot be deleted. */
-const LIVE_STATUSES = ['queued', 'starting', 'running', 'idle', 'done'];
+const LIVE_STATUSES = ['queued', 'starting', 'running', 'idle', 'done', 'paused'];
 
 /** 409: deleting a project while it has live runs would orphan their workflows, Jobs and tokens. */
 export class ActiveRunsConflictException extends ConflictException {
@@ -80,16 +82,17 @@ export class ProjectsService {
     @Inject(ADAPTER_REGISTRY) private readonly registry: AdapterRegistry,
     @Inject(ProjectSchedules) private readonly schedules: ProjectSchedules,
     @Inject(SECRET_STORE) private readonly secrets: SecretStore,
+    @Inject(TEMPORAL_CLIENT) private readonly temporal: Client,
   ) {}
 
-  /** One grouped query for all requested projects. needsYou = idle runs; running = live jobs (starting, running, idle, done). */
+  /** One grouped query for all requested projects. needsYou = idle and paused runs (the `needs_you` list); running = live jobs (starting, running, idle, done; a paused run has no pod). */
   private async countsFor(tx: Tx, projectIds: string[]): Promise<Map<string, Counts>> {
     const out = new Map<string, Counts>();
     if (projectIds.length === 0) return out;
     const rows = await tx
       .select({
         projectId: runs.projectId,
-        needsYou: sql<number>`count(*) filter (where ${runs.status} = 'idle')::int`,
+        needsYou: sql<number>`count(*) filter (where ${runs.status} in ('idle','paused'))::int`,
         running: sql<number>`count(*) filter (where ${runs.status} in ('starting','running','idle','done'))::int`,
         queued: sql<number>`count(*) filter (where ${runs.status} = 'queued')::int`,
         lastRunAt: sql<Date | null>`max(${runs.queuedAt})`,
@@ -277,7 +280,7 @@ export class ProjectsService {
    * schedule and the agents' credential Secrets.
    */
   async remove(org: OrgContext, projectId: string): Promise<void> {
-    const agentIds = await withOrg(this.db, org.orgId, async (tx) => {
+    const { agentIds, keptRunIds } = await withOrg(this.db, org.orgId, async (tx) => {
       // FOR UPDATE: a run insert (FK share lock on this row) waits, so no run can appear between the check and delete.
       await this.load(tx, projectId, true);
       const [live] = await tx
@@ -286,10 +289,38 @@ export class ProjectsService {
         .where(and(eq(runs.projectId, projectId), inArray(runs.status, LIVE_STATUSES)))
         .limit(1);
       if (live) throw new ActiveRunsConflictException();
+      // Collected here, signalled after the commit.
+      const kept = await tx
+        .select({ id: runs.id })
+        .from(runs)
+        .where(
+          and(
+            eq(runs.projectId, projectId),
+            eq(runs.status, 'succeeded'),
+            isNotNull(runs.sessionExpiresAt),
+            sql`${runs.sessionExpiresAt} > now()`,
+          ),
+        );
       const rows = await tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId));
       await tx.delete(projects).where(eq(projects.id, projectId));
-      return rows.map((r) => r.id);
+      return { agentIds: rows.map((r) => r.id), keptRunIds: kept.map((r) => r.id) };
     });
+    // After the commit (database.md §6: no Temporal call inside a transaction): a succeeded run that keeps its session
+    // still has a workflow and a volume, so tell it to let go. A failed signal is logged; the daily reconcile sweep
+    // removes the volume. A workflow that already closed is fine.
+    for (const runId of keptRunIds) {
+      await this.bestEffort(
+        'drop kept session',
+        async () => {
+          try {
+            await this.temporal.workflow.getHandle(runWorkflowId(runId)).signal(SIGNAL.dropSession);
+          } catch (err) {
+            if (!(err instanceof WorkflowNotFoundError)) throw err;
+          }
+        },
+        projectId,
+      );
+    }
     await this.bestEffort('terminate gate', () => this.schedules.terminateGate(projectId), projectId);
     await this.bestEffort('delete schedule', () => this.schedules.remove(projectId), projectId);
     for (const agentId of agentIds) {

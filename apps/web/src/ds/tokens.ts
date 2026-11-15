@@ -1,5 +1,15 @@
 export type RunStatus =
-  'queued' | 'starting' | 'running' | 'idle' | 'done' | 'succeeded' | 'failed' | 'cancelled' | 'timed_out';
+  | 'queued'
+  | 'starting'
+  | 'running'
+  | 'idle'
+  | 'done'
+  | 'succeeded'
+  | 'failed'
+  | 'cancelled'
+  | 'timed_out'
+  | 'paused'
+  | 'expired';
 
 export const RUN_STATUSES: readonly RunStatus[] = [
   'queued',
@@ -11,6 +21,8 @@ export const RUN_STATUSES: readonly RunStatus[] = [
   'failed',
   'cancelled',
   'timed_out',
+  'paused',
+  'expired',
 ];
 
 export const statusTokens: Record<RunStatus, { label: string; colorVar: string }> = {
@@ -23,6 +35,8 @@ export const statusTokens: Record<RunStatus, { label: string; colorVar: string }
   failed: { label: 'Failed', colorVar: '--fail' },
   cancelled: { label: 'Cancelled', colorVar: '--off' },
   timed_out: { label: 'Timed out', colorVar: '--late' },
+  paused: { label: 'Paused', colorVar: '--idle' },
+  expired: { label: 'Expired', colorVar: '--off' },
 };
 
 /** Shared tone vocabulary for banners and inline status text. */

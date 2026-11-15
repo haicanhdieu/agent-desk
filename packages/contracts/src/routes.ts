@@ -239,6 +239,7 @@ export const routes = {
     log: { method: 'GET', path: '/api/runs/:runId/log', params: runParams, response: RunLogResponse },
     cancel: { method: 'POST', path: '/api/runs/:runId/cancel', params: runParams, response: empty },
     finish: { method: 'POST', path: '/api/runs/:runId/finish', params: runParams, response: empty },
+    resume: { method: 'POST', path: '/api/runs/:runId/resume', params: runParams, response: empty },
     /** SSE (text/event-stream): `event: status` (RunStatusEvent) then `event: event` (RunEventMessage) frames. */
     events: {
       method: 'GET',

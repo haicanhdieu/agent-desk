@@ -28,6 +28,9 @@ function kubeWith(over: Partial<KubeGateway>): KubeGateway {
     listSetupTestJobs: async () => [],
     listRunSecrets: async () => [],
     listSetupTestSecrets: async () => [],
+    ensureVolumeClaim: unused,
+    deleteVolumeClaim: unused,
+    listRunVolumeClaims: async () => [],
     ...over,
   };
 }
@@ -52,6 +55,8 @@ describe('reconcile with malformed labels', () => {
       kube: kubeWith({
         listRunJobs: async () => [{ jobName: 'run-job', runId: 'bad', ...BAD }],
         listRunSecrets: async () => [{ secretName: 'run-orphan', runId: 'bad', ...BAD }],
+        listRunVolumeClaims: async () => [{ name: 'run-vol', runId: 'bad', ...BAD }],
+        deleteVolumeClaim: async (name) => void deleted.push(`volume:${name}`),
         listSetupTestJobs: async () => [{ jobName: 'st-job', setupTestId: 'bad', ...BAD }],
         listSetupTestSecrets: async () => [{ secretName: 'st-orphan', setupTestId: 'bad', ...BAD }],
         deleteJob: async (name) => void deleted.push(`job:${name}`),
@@ -64,11 +69,14 @@ describe('reconcile with malformed labels', () => {
       releasedSlots: 0,
       deletedSetupTestJobs: 1,
       deletedSetupTestSecrets: 1,
+      deletedVolumes: 1,
+      expiredRuns: 0,
     });
     expect(deleted).toEqual([
       'job:run-job',
       'secret:run-job',
       'secret:run-orphan',
+      'volume:run-vol',
       'job:st-job',
       'secret:st-job',
       'secret:st-orphan',
@@ -96,6 +104,8 @@ describe('reconcile failure handling', () => {
       kube: kubeWith({
         listRunJobs: async () => [{ jobName: 'run-job', runId: 'bad', ...BAD }],
         listRunSecrets: async () => [{ secretName: 'run-orphan', runId: 'bad', ...BAD }],
+        listRunVolumeClaims: async () => [{ name: 'run-vol', runId: 'bad', ...BAD }],
+        deleteVolumeClaim: fail,
         listSetupTestJobs: async () => [{ jobName: 'st-job', setupTestId: 'bad', ...BAD }],
         listSetupTestSecrets: async () => [{ secretName: 'st-orphan', setupTestId: 'bad', ...BAD }],
         deleteJob: fail,
@@ -108,10 +118,13 @@ describe('reconcile failure handling', () => {
       releasedSlots: 0,
       deletedSetupTestJobs: 0,
       deletedSetupTestSecrets: 0,
+      deletedVolumes: 0,
+      expiredRuns: 0,
     });
     expect(warnings.map((w) => w.msg)).toEqual([
       'reconcile: job cleanup failed',
       'reconcile: secret cleanup failed',
+      'reconcile: volume cleanup failed',
       'reconcile: setup test job cleanup failed',
       'reconcile: setup test secret cleanup failed',
       'reconcile: gate cleanup failed',

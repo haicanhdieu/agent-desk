@@ -141,6 +141,60 @@ describe('desk agent route', () => {
     expect(agentRow().timeoutSeconds).toBe(1800);
   });
 
+  it('shows the keep times from the agent: 7 days and 24 hours', async () => {
+    await openPage();
+    expect(field('Keep a paused run for')).toHaveValue('7');
+    expect(screen.getByLabelText('Keep a paused run for unit')).toHaveValue('days');
+    expect(field("Keep a finished run's session for")).toHaveValue('24');
+    expect(screen.getByLabelText("Keep a finished run's session for unit")).toHaveValue('hours');
+    expect(screen.getByText('After this, a paused run expires and its saved session is deleted.')).toBeInTheDocument();
+    expect(screen.getByText('How long a finished run can be re-opened. 0 turns this off.')).toBeInTheDocument();
+  });
+
+  it('saving 3 days for a paused run sends pausedKeepSeconds 259200', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    const paused = field('Keep a paused run for');
+    await user.clear(paused);
+    await user.type(paused, '3');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
+    expect(sent).toEqual([
+      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, pausedKeepSeconds: 259200 } },
+    ]);
+    expect(agentRow().pausedKeepSeconds).toBe(259200);
+  });
+
+  it('0 for a finished run sends doneKeepSeconds 0', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    const done = field("Keep a finished run's session for");
+    await user.clear(done);
+    await user.type(done, '0');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
+    expect(sent).toEqual([
+      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, doneKeepSeconds: 0 } },
+    ]);
+    expect(agentRow().doneKeepSeconds).toBe(0);
+  });
+
+  it('31 days for a paused run shows the contract message and saves nothing', async () => {
+    const { user } = await openPage();
+    const paused = field('Keep a paused run for');
+    await user.selectOptions(screen.getByLabelText('Keep a paused run for unit'), 'days');
+    await user.clear(paused);
+    await user.type(paused, '31');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('A paused run must be kept between 1 hour and 30 days')).toBeInTheDocument();
+    expect(paused).toHaveAttribute('aria-invalid', 'true');
+    expect(paused).toHaveValue('31');
+    expect(screen.queryByText('Limits saved')).toBeNull();
+    expect(agentRow().pausedKeepSeconds).toBe(604800);
+  });
+
   it('saving limits sends only the changed fields, and the agent body comes from the freshly fetched agent', async () => {
     const sent = captureWrites();
     const { user } = await openPage();

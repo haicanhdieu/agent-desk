@@ -21,11 +21,20 @@ import { createDb, runEvents, runs, setupScriptVersions, withOrg, type Db } from
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { FollowPodLogsResult, RunContext } from '../src/activities/run.activities';
 import { createRunActivities, type RunActivityDeps, type RunSignaller } from '../src/activities/run.activities.impl';
+import { appendRunEvent } from '../src/activities/run-events';
+import { setRunStatus } from '../src/activities/run-status.activity';
 import { reconcile, type ReconcileTemporal } from '../src/activities/reconcile.activity';
 
 const ORG = '44444444-4444-4444-8444-444444444444';
 const SETUP_LIMITS = { ttlSeconds: 900, setupTimeoutSeconds: 600 };
-const NO_SETUP_TEST_DELETES = { deletedSetupTestJobs: 0, deletedSetupTestSecrets: 0 };
+// Volumes of earlier tests' runs may still be in the shared fake cluster, so their count is not pinned here
+// (reconcile.int.test.ts pins volume behaviour).
+const NO_SETUP_TEST_DELETES = {
+  deletedSetupTestJobs: 0,
+  deletedSetupTestSecrets: 0,
+  deletedVolumes: expect.any(Number) as number,
+  expiredRuns: 0,
+};
 const AGENT = '55555555-5555-4555-8555-555555555555';
 const CRED = 'sk-ant-oat01-CREDENTIAL-VALUE-xyz';
 let pgx: TestPg;
@@ -110,6 +119,9 @@ function wrapKube(over: Partial<KubeGateway>): KubeGateway {
     listSetupTestJobs: () => kube.listSetupTestJobs(),
     listRunSecrets: () => kube.listRunSecrets(),
     listSetupTestSecrets: () => kube.listSetupTestSecrets(),
+    ensureVolumeClaim: (n, s, l) => kube.ensureVolumeClaim(n, s, l),
+    deleteVolumeClaim: (n) => kube.deleteVolumeClaim(n),
+    listRunVolumeClaims: () => kube.listRunVolumeClaims(),
     ...over,
   };
 }
@@ -127,12 +139,12 @@ const statuses = async (runId: string): Promise<unknown[]> =>
   (await load(runId)).events.filter((e) => e.type === 'status').map((e) => e.payload.status);
 
 /** Runs followPodLogs in an activity context, recording heartbeats. */
-function follow(ctx: RunContext, d: RunActivityDeps, heartbeatDetails?: unknown) {
+function follow(ctx: RunContext, d: RunActivityDeps, heartbeatDetails?: unknown, opts?: { resume?: boolean }) {
   const env = new MockActivityEnvironment(heartbeatDetails === undefined ? {} : { heartbeatDetails });
   const beats: unknown[] = [];
   env.on('heartbeat', (b: unknown) => beats.push(b));
   const acts = createRunActivities(d);
-  const promise: Promise<FollowPodLogsResult> = env.run(acts.followPodLogs, ctx);
+  const promise: Promise<FollowPodLogsResult> = env.run(acts.followPodLogs, ctx, opts);
   promise.catch(() => undefined);
   return { env, beats, promise };
 }
@@ -208,6 +220,15 @@ describe('loadRun', () => {
     });
   });
 
+  it('takes the idle end from config (RUN_IDLE_END_SECONDS), so the local stack can pause quickly', async () => {
+    const runId = await seedRun('x', 'queued');
+    const quick = await createRunActivities(deps({ config: { ...config, RUN_IDLE_END_SECONDS: 7 } })).loadRun(
+      ORG,
+      runId,
+    );
+    expect(quick.idleEndSeconds).toBe(7);
+  });
+
   it('missing run → non-retryable', async () => {
     const err = await createRunActivities(deps())
       .loadRun(ORG, '99999999-9999-4999-8999-999999999999')
@@ -235,6 +256,33 @@ function rotatingAdapters(ttlMs = 0): { adapters: RunActivityDeps['adapters']; m
     },
   };
 }
+
+describe('run volume', () => {
+  it('createRunSecretAndJob makes the per-run claim before the Job, and the Job mounts it', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps({ adapters: rotatingAdapters().adapters }));
+    await acts.createRunSecretAndJob(ctx);
+    const claims = await kube.listRunVolumeClaims();
+    expect(claims).toContainEqual({ name: `run-${runId}`, runId, orgId: ORG, projectId });
+    const jobs = await kube.listRunJobs();
+    expect(jobs.some((j) => j.runId === runId)).toBe(true);
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+
+  it('deleteJob keeps the claim; deleteRunVolume removes it, twice is fine', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps({ adapters: rotatingAdapters().adapters }));
+    await acts.createRunSecretAndJob(ctx);
+    await acts.deleteJob(ctx);
+    expect((await kube.listRunVolumeClaims()).some((c) => c.runId === runId)).toBe(true);
+    await acts.deleteRunVolume(ctx);
+    await acts.deleteRunVolume(ctx);
+    expect((await kube.listRunVolumeClaims()).some((c) => c.runId === runId)).toBe(false);
+  });
+});
 
 describe('refreshWorkspaceToken', () => {
   it('reports the next refresh as about 75% of the token life left, for the mint and for each refresh', async () => {
@@ -1232,6 +1280,43 @@ describe('postComment', () => {
   });
 });
 
+describe('postComment finish after a re-open', () => {
+  it('posts a finish comment again when the end status differs, and once per status', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'finish', { status: 'succeeded' });
+    await acts.postComment(ctx, 'finish', { status: 'succeeded' });
+    expect((await store.listPosted()).slice(before)).toHaveLength(1);
+    const failed = { status: 'failed' as const, exitCode: 1, failureReason: 'agent exited with code 1' };
+    await acts.postComment(ctx, 'finish', failed);
+    await acts.postComment(ctx, 'finish', failed);
+    const posted = (await store.listPosted()).slice(before);
+    expect(posted).toHaveLength(2);
+    expect(posted[0]?.body).toContain('**succeeded**');
+    expect(posted[1]?.body).toContain('**failed**');
+    const { run, events } = await load(runId);
+    expect(run?.outbox.finish).toMatchObject({ status: 'failed' });
+    expect(events.filter((e) => e.type === 'comment').map((e) => e.payload.kind)).toEqual(['finish', 'finish']);
+  });
+
+  it('treats a finish marker without a status (written before this change) as already posted', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    await withOrg(db, ORG, (tx) =>
+      tx
+        .update(runs)
+        .set({ outbox: { finish: { commentId: 'c1', at: new Date().toISOString() } } })
+        .where(eq(runs.id, runId)),
+    );
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'finish', { status: 'failed' });
+    expect((await store.listPosted()).slice(before)).toHaveLength(0);
+  });
+});
+
 describe('postComment setup failure', () => {
   it('says setup failed and the agent did not start, with the reason and the run link', async () => {
     const runId = await seedRun('x');
@@ -1342,5 +1427,215 @@ describe('no leaked fake pods', () => {
       }
     });
     expect(alive).toEqual([]);
+  });
+});
+
+describe('postComment paused', () => {
+  it('posts once across two calls, with the run link, and records the outbox key', async () => {
+    const runId = await seedRun('x', 'paused');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'paused');
+    await acts.postComment(ctx, 'paused');
+    const posted = (await store.listPosted()).slice(before);
+    expect(posted).toHaveLength(1);
+    const number = (await load(runId)).run?.number;
+    expect(posted[0]?.body).toContain('is paused');
+    expect(posted[0]?.body).not.toContain('finished');
+    expect(posted[0]?.body).toContain(`http://localhost:5173/o/acme/p/${projectId}/runs/${number}`);
+    const { run, events } = await load(runId);
+    expect(Object.keys(run?.outbox ?? {})).toEqual(['paused']);
+    expect(events.filter((e) => e.type === 'comment').map((e) => e.payload.kind)).toEqual(['paused']);
+  });
+});
+
+describe('resume mode', () => {
+  const RESUME_LINES = ['agentdesk: session started'];
+
+  /** A pod that has already exited with `exitCode` after logging `lines` (a new pod: its log starts at line 1). */
+  function exitedPodKube(lines: string[], exitCode: number): KubeGateway {
+    return wrapKube({
+      getRunPod: async (name) => ({ name, phase: 'Succeeded', pendingSince: null, reason: null, exitCode }),
+      streamLogs: async function* () {
+        for (const l of lines) yield l;
+      },
+      readSecret: async () => ({ x: 'y' }),
+    });
+  }
+
+  /** The first pod's session and the resume's `starting` write, as the workflow leaves them before the resumed pod. */
+  async function seedParkedAndRestarted(): Promise<RunContext> {
+    const runId = await seedRun('x', 'paused');
+    // The first pod: its log lines were 1..N, so the resumed pod's line 1 collides with a stored line.
+    await withOrg(db, ORG, async (tx) => {
+      await appendRunEvent(tx, ORG, { runId, type: 'lifecycle', payload: { line: 1, kind: 'session_started' } });
+      await appendRunEvent(tx, ORG, { runId, type: 'scrollback', payload: { line: 2, text: 'old', truncated: false } });
+    });
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'queued',
+      reopen: true,
+      keepAgentNote: true,
+      at: new Date().toISOString(),
+    });
+    await setRunStatus(db, {
+      orgId: ORG,
+      runId,
+      status: 'starting',
+      keepAgentNote: true,
+      at: new Date().toISOString(),
+    });
+    return ctxFor(runId);
+  }
+
+  it('followPodLogs with resume: stores and signals session_started, writes no running status', async () => {
+    const ctx = await seedParkedAndRestarted();
+    const k = exitedPodKube(RESUME_LINES, 0);
+    const f = follow(ctx, deps({ kube: k }), undefined, { resume: true });
+    const result = await f.promise;
+    expect(result).toMatchObject({ exitCode: 0, agentStarted: true });
+    expect(result.resumeFailed).toBeUndefined();
+    const { run, events } = await load(ctx.runId);
+    // The resumed pod's line 1 is not mistaken for the first pod's line 1.
+    expect(events.filter((e) => e.payload.kind === 'session_started')).toHaveLength(2);
+    expect(run?.status).toBe('starting');
+    expect(await statuses(ctx.runId)).toEqual(['queued', 'starting']);
+    expect(signals.filter((s) => s.runId === ctx.runId && s.signal === 'sessionStarted')).toHaveLength(1);
+  });
+
+  it('a fresh start still writes running at session_started and also signals sessionStarted', async () => {
+    const runId = await seedRun('x', 'starting');
+    const ctx = await ctxFor(runId);
+    await follow(ctx, deps({ kube: exitedPodKube(RESUME_LINES, 0) })).promise;
+    expect(await statuses(runId)).toEqual(['running']);
+    expect(signals.filter((s) => s.runId === runId && s.signal === 'sessionStarted')).toHaveLength(1);
+  });
+
+  it('exit 79 before session_started is resumeFailed, not a setup failure, even with an earlier session on record', async () => {
+    const ctx = await seedParkedAndRestarted();
+    const result = await follow(ctx, deps({ kube: exitedPodKube([], 79) }), undefined, { resume: true }).promise;
+    expect(result).toMatchObject({ exitCode: 79, agentStarted: false, resumeFailed: true });
+    expect(result.failureStage).toBeUndefined();
+    expect(signals.filter((s) => s.runId === ctx.runId && s.signal === 'sessionStarted')).toHaveLength(0);
+  });
+
+  it('exit 79 after session_started is not resumeFailed', async () => {
+    const ctx = await seedParkedAndRestarted();
+    const result = await follow(ctx, deps({ kube: exitedPodKube(RESUME_LINES, 79) }), undefined, { resume: true })
+      .promise;
+    expect(result.resumeFailed).toBeUndefined();
+    expect(result.agentStarted).toBe(true);
+  });
+
+  it('createRunSecretAndJob with resume: resume mode, no prompt, the given deadline, claim reused', async () => {
+    const runId = await seedRun('do not pass again', 'queued');
+    const ctx = await ctxFor(runId);
+    let spec: Parameters<KubeGateway['ensureJob']>[0] | undefined;
+    const k = wrapKube({
+      ensureJob: async (j) => {
+        spec = j;
+        await kube.ensureJob(j);
+      },
+    });
+    const acts = createRunActivities(deps({ kube: k }));
+    await acts.createRunSecretAndJob(ctx, { resume: true, deadlineSeconds: 5000 });
+    const env = await kube.podEnv(`run-${runId}`);
+    expect(env?.RUN_MODE).toBe('resume');
+    expect(env?.PROMPT).toBeUndefined();
+    expect(spec?.spec?.activeDeadlineSeconds).toBe(5000 + 120);
+    expect(await kube.listRunVolumeClaims()).toContainEqual(expect.objectContaining({ name: `run-${runId}` }));
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+
+  it('createRunSecretAndJob with resume starts a NEW pod after a park, not the finished one', async () => {
+    const runId = await seedRun('park me', 'starting');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect((await kube.podEnv(`run-${runId}`))?.RUN_MODE).not.toBe('resume');
+    await until(async () => (await kube.getRunPod(`run-${runId}`))?.phase === 'Running');
+    // The idle end: the session is killed, the pod exits 0 and the finished Job is left behind.
+    await acts.endSession(ctx);
+    const finished = await until(async () => {
+      const pod = await kube.getRunPod(`run-${runId}`);
+      return pod?.exitCode === 0 ? pod : null;
+    });
+    expect(finished.phase).toBe('Succeeded');
+    // Park: the Job and Secret go (the volume stays), so the resume cannot adopt the finished pod.
+    await acts.deleteJob(ctx);
+    expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    expect((await kube.listRunVolumeClaims()).some((c) => c.runId === runId)).toBe(true);
+    await acts.createRunSecretAndJob(ctx, { resume: true });
+    expect((await kube.podEnv(`run-${runId}`))?.RUN_MODE).toBe('resume');
+    const resumed = await until(async () => {
+      const pod = await kube.getRunPod(`run-${runId}`);
+      return pod?.phase === 'Running' ? pod : null;
+    });
+    expect(resumed.exitCode).toBeNull();
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+
+  it('createRunSecretAndJob with resume while the old pod is still there fails retryably and creates nothing', async () => {
+    const runId = await seedRun('x', 'queued');
+    const ctx = await ctxFor(runId);
+    const created: string[] = [];
+    const k = wrapKube({
+      // The old Job is still being deleted (foreground deletion): its pod is still listed.
+      getRunPod: async (name) => ({ name, phase: 'Running', pendingSince: null, reason: null, exitCode: null }),
+      ensureSecret: async (n, d, l) => {
+        created.push(`secret:${n}`);
+        await kube.ensureSecret(n, d, l);
+      },
+      ensureJob: async (j) => {
+        created.push(`job:${j.metadata?.name ?? ''}`);
+        await kube.ensureJob(j);
+      },
+    });
+    const err = await createRunActivities(deps({ kube: k }))
+      .createRunSecretAndJob(ctx, { resume: true })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(false);
+    expect(created).toEqual([]);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('createRunSecretAndJob with resume reads the agent and credential fresh from the database', async () => {
+    const runId = await seedRun('x', 'queued');
+    // The context was loaded when the agent was gone; the run row has an agent now.
+    const stale = { ...(await ctxFor(runId)), agentId: null };
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(stale, { resume: true });
+    expect((await kube.podEnv(`run-${runId}`))?.CLAUDE_CODE_OAUTH_TOKEN).toBe(CRED);
+    await acts.deleteJob(stale);
+    await acts.deleteRunVolume(stale);
+  });
+
+  it('createRunSecretAndJob with resume and no agent fails non-retryably as NoAgentCredential', async () => {
+    const runId = await seedRun('x', 'queued');
+    await asOwner((c) => c.query('update runs set agent_id = null where id = $1', [runId]));
+    const err = await createRunActivities(deps())
+      .createRunSecretAndJob(await ctxFor(runId), { resume: true })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).type).toBe('NoAgentCredential');
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('createRunSecretAndJob with resume and no credential fails non-retryably as NoAgentCredential', async () => {
+    const runId = await seedRun('x', 'queued');
+    const ctx = await ctxFor(runId);
+    const empty = new MemorySecretStore();
+    const err = await createRunActivities(deps({ secrets: empty }))
+      .createRunSecretAndJob(ctx, { resume: true })
+      .catch((e: unknown) => e);
+    expect((err as ApplicationFailure).type).toBe('NoAgentCredential');
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
   });
 });

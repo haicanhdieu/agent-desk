@@ -18,6 +18,7 @@ import {
   type RunJobRef,
   type RunPod,
   type RunSecretRef,
+  type RunVolumeRef,
   type SetupTestJobRef,
   type SetupTestSecretRef,
   type V1Job,
@@ -30,9 +31,13 @@ const RUN_JOB_NAME = /^run-[a-z0-9-]{1,60}$/;
 const SETUP_TEST_JOB_NAME = /^setup-test-[a-z0-9-]{1,60}$/;
 const TICK_MS = 50;
 const SECRETS_DIR = '.secrets';
+const VOLUMES_DIR = '.volumes';
+/** What a pod saved on its volume (session marker, conversation), one directory per claim. */
+const VOLUME_DATA_DIR = '.volume-data';
 
 const JobFile = z.object({ labels: z.record(z.string(), z.string()), createdAt: z.string() });
 const SecretFile = z.object({ labels: z.record(z.string(), z.string()), data: z.record(z.string(), z.string()) });
+const VolumeFile = z.object({ labels: z.record(z.string(), z.string()), size: z.string() });
 const execFileAsync = promisify(execFile);
 
 export interface FakeKubeOptions {
@@ -188,6 +193,50 @@ export class FakeKubeGateway implements KubeGateway {
     await rm(this.secretFile(name), { force: true });
   }
 
+  private volumeFile(name: string): string {
+    if (!RUN_JOB_NAME.test(name)) throw new Error('fake kube: invalid volume name');
+    return join(this.dir, VOLUMES_DIR, `${name}.json`);
+  }
+
+  async ensureVolumeClaim(
+    name: string,
+    spec: { size: string; storageClass?: string },
+    labels: Record<string, string>,
+  ): Promise<void> {
+    const file = this.volumeFile(name);
+    await mkdir(join(this.dir, VOLUMES_DIR), { recursive: true });
+    try {
+      await writeFile(file, JSON.stringify({ labels, size: spec.size }), { flag: 'wx' });
+    } catch (err) {
+      if (err instanceof Error && 'code' in err && err.code === 'EEXIST') return; // already exists → success
+      throw err;
+    }
+  }
+
+  async deleteVolumeClaim(name: string): Promise<void> {
+    await rm(this.volumeFile(name), { force: true });
+    await rm(join(this.dir, VOLUME_DATA_DIR, name), { recursive: true, force: true });
+  }
+
+  async listRunVolumeClaims(): Promise<RunVolumeRef[]> {
+    let files: string[];
+    try {
+      files = await readdir(join(this.dir, VOLUMES_DIR));
+    } catch {
+      return [];
+    }
+    const out: RunVolumeRef[] = [];
+    for (const file of files) {
+      const name = file.replace(/\.json$/, '');
+      if (!RUN_JOB_NAME.test(name)) continue;
+      const raw = await readOrNull(join(this.dir, VOLUMES_DIR, file));
+      const parsed = raw === null ? null : VolumeFile.safeParse(JSON.parse(raw));
+      const ref = parsed?.success ? runRefFromLabels(parsed.data.labels) : null;
+      if (ref) out.push({ name, ...ref });
+    }
+    return out;
+  }
+
   async ensureJob(spec: V1Job): Promise<void> {
     const name = spec.metadata?.name ?? '';
     const dir = this.jobDir(name);
@@ -217,6 +266,15 @@ export class FakeKubeGateway implements KubeGateway {
     }
     this.envs.set(name, env);
 
+    // The Job's claim (if its claim exists) is where the pod keeps its session; set after the Job's own env so the
+    // spec cannot point the pod elsewhere.
+    const claim = spec.spec?.template.spec?.volumes?.find((v) => v.persistentVolumeClaim)?.persistentVolumeClaim
+      ?.claimName;
+    const volumeEnv: Record<string, string> =
+      claim !== undefined && RUN_JOB_NAME.test(claim) && existsSync(this.volumeFile(claim))
+        ? { FAKE_VOLUME_DIR: join(this.dir, VOLUME_DATA_DIR, claim) }
+        : {};
+
     // Env values reach the child as data; there is no shell anywhere on this path.
     const child = spawn(process.execPath, [FAKE_POD, dir], {
       detached: true,
@@ -225,6 +283,7 @@ export class FakeKubeGateway implements KubeGateway {
         PATH: process.env.PATH ?? '',
         ...(this.opts.turnMs !== undefined ? { FAKE_TURN_MS: String(this.opts.turnMs) } : {}),
         ...env,
+        ...volumeEnv,
       },
     });
     child.on('error', () => undefined);

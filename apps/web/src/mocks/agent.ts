@@ -11,6 +11,8 @@ export const agentSettings: AgentSettings = {
     status: { tone: 'err', text: 'Rejected at 11:29' },
   },
   timeoutMinutes: 30,
+  pausedKeepMinutes: 10080,
+  doneKeepMinutes: 1440,
   idleEndMinutes: 10,
   maxConcurrent: 2,
   maxRunsPerTicket: 10,

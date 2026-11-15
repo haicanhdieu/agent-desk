@@ -37,11 +37,11 @@ describe('runs route', () => {
   it('lists every run grouped by ticket, newest group first, with counts on the chips', async () => {
     await renderRoute(`${base}/runs`);
     expect(await screen.findByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
-    expect(runNumbers().sort((a, b) => a - b)).toEqual([52, 54, 55, 56, 57, 60, 61, 62, 63]);
-    // Groups by newest run: #151 (63), PR #148 (62), #139 (61), #142 (60), PR #133 (57), ...
-    expect(runNumbers().slice(0, 4)).toEqual([63, 62, 61, 60]);
+    expect(runNumbers().sort((a, b) => a - b)).toEqual([52, 54, 55, 56, 57, 60, 61, 62, 63, 64, 65, 66]);
+    // Groups by newest run: #152 (66), #151 (65), #150 (64), #151 (63), PR #148 (62), #139 (61), ...
+    expect(runNumbers().slice(0, 6)).toEqual([66, 65, 64, 63, 62, 61]);
     expect(screen.getByRole('link', { name: 'Run 62' })).toHaveAttribute('href', `${base}/runs/62`);
-    expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveTextContent('9');
+    expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveTextContent('12');
     expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveAttribute('aria-current', 'page');
     expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveAttribute(
       'href',
@@ -53,19 +53,19 @@ describe('runs route', () => {
     expect(screen.getByText('2 of 2')).toBeInTheDocument();
   });
 
-  it('?filter=needs_you requests filter=needs_you and shows only idle runs', async () => {
+  it('?filter=needs_you requests filter=needs_you and shows the idle and paused runs', async () => {
     const queries = captureRunListQueries();
     await renderRoute(`${base}/runs?filter=needs_you`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
     expect(queries.some((q) => new URLSearchParams(q).get('filter') === 'needs_you')).toBe(true);
-    expect(runNumbers()).toEqual([62]);
+    expect(runNumbers()).toEqual([64, 62]);
     expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveAttribute('aria-current', 'page');
   });
 
   it('?filter=bogus falls back to all', async () => {
     const { router } = await renderRoute(`${base}/runs?filter=bogus`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    expect(runNumbers()).toHaveLength(9);
+    expect(runNumbers()).toHaveLength(12);
     expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveAttribute('aria-current', 'page');
     expect(router.state.location.search).toEqual({});
   });
@@ -149,7 +149,7 @@ describe('runs route', () => {
     try {
       await renderRoute(`${base}/runs`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
-      expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('1');
+      expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('2');
       // Run 61 goes idle while the tab is in the background; the cached data is now past its 30 s stale time.
       const run61 = mockDb.state.runs.find((r) => r.number === 61);
       if (!run61) throw new Error('run 61 fixture missing');
@@ -160,7 +160,7 @@ describe('runs route', () => {
         focusManager.setFocused(false);
         focusManager.setFocused(true);
       });
-      await waitFor(() => expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('2'));
+      await waitFor(() => expect(within(chips()).getByRole('link', { name: /^Needs you/ })).toHaveTextContent('3'));
       const row61 = screen.getByRole('link', { name: 'Run 61' }).closest('tr');
       if (!row61) throw new Error('row 61 missing');
       expect(within(row61).getByText(/Waiting \dm/)).toBeInTheDocument();
@@ -195,9 +195,9 @@ describe('runs route', () => {
       seedMany();
       await renderRoute(`${base}/runs`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
-      expect(runNumbers()).toHaveLength(9 + 120 + 2);
-      expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveTextContent('131');
-      expect(within(chips()).getByRole('link', { name: /^Ended/ })).toHaveTextContent(String(6 + 122));
+      expect(runNumbers()).toHaveLength(12 + 120 + 2);
+      expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveTextContent('134');
+      expect(within(chips()).getByRole('link', { name: /^Ended/ })).toHaveTextContent(String(8 + 122));
     });
 
     it('?ticket= asks the server for the ticket ref and finds its oldest runs', async () => {
@@ -232,7 +232,7 @@ describe('needs-you route', () => {
     const link = await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
     expect(link).toHaveAttribute('href', `${base}/runs/62`);
     expect(screen.getByText('Run 62 needs you')).toBeInTheDocument();
-    expect(screen.getByText('(1) Needs you, invoicer-api')).toBeInTheDocument();
+    expect(screen.getByText('(2) Needs you, invoicer-api')).toBeInTheDocument();
     expect(queries.some((q) => new URLSearchParams(q).get('filter') === 'needs_you')).toBe(true);
   });
 
@@ -246,8 +246,50 @@ describe('needs-you route', () => {
     expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', `${base}/runs/62`);
   });
 
+  it('lists a paused run with the Paused badge and a Resume button that resumes it', async () => {
+    const { user } = await renderRoute(`${base}/needs-you`);
+    expect(await screen.findByRole('link', { name: 'Open run 64 in Agent Desk' })).toHaveAttribute(
+      'href',
+      `${base}/runs/64`,
+    );
+    expect(screen.getByTitle('status: paused')).toHaveTextContent('Paused');
+    expect(screen.getByText('Run 64 is paused and can be resumed.')).toBeInTheDocument();
+    // The idle run has no Resume.
+    expect(screen.getAllByRole('button', { name: 'Resume' })).toHaveLength(1);
+    await user.click(screen.getByRole('button', { name: 'Resume' }));
+    await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${ids.run(1, 64)}/resume`)).toBe(1));
+    await waitFor(() =>
+      expect(screen.queryByRole('link', { name: 'Open run 64 in Agent Desk' })).not.toBeInTheDocument(),
+    );
+  });
+
+  it('an idle run that was paused earlier lists from its idle time, not the old pause time', async () => {
+    const stale = '2026-11-01T03:07:00.000Z';
+    mockDb.state.runs = mockDb.state.runs.map((r) => (r.number === 62 ? { ...r, pausedAt: stale } : r));
+    const idleSince = mockDb.state.runs.find((r) => r.number === 62)?.idleSince;
+    expect(idleSince).toBeTruthy();
+    await renderRoute(`${base}/needs-you`);
+    await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
+    const hhmm = (iso: string) => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    expect(hhmm(stale)).not.toBe(hhmm(idleSince ?? ''));
+    expect(screen.getByText(new RegExp(`edited ${hhmm(idleSince ?? '')}`))).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`edited ${hhmm(stale)}`))).not.toBeInTheDocument();
+  });
+
+  it('a Resume that the server refuses shows its message', async () => {
+    const { user } = await renderRoute(`${base}/needs-you`, {
+      scenario: () => scenarios.problem('runs.resume', { status: 409, title: 'This run is already being resumed' }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Resume' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('This run is already being resumed');
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+  });
+
   it('says so when no run needs you', async () => {
-    mockDb.state.runs = mockDb.state.runs.filter((r) => r.status !== 'idle');
+    mockDb.state.runs = mockDb.state.runs.filter((r) => r.status !== 'idle' && r.status !== 'paused');
     await renderRoute(`${base}/needs-you`);
     expect(await screen.findAllByText('No runs need you right now.')).not.toHaveLength(0);
     expect(screen.queryByRole('link', { name: /^Open run/ })).not.toBeInTheDocument();

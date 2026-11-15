@@ -25,6 +25,15 @@ export interface FinishRunResult {
 /** Ends an idle or done run; resolves once the workflow has begun ending the session (the workflow's real answer). */
 export const finishRun = defineUpdate<FinishRunResult>('finishRun');
 export const cancel = defineSignal<[]>('cancel');
+/** The runner reported the (resumed) session is up. May arrive repeatedly; repeats are ignored. */
+export const sessionStarted = defineSignal<[]>('sessionStarted');
+/** Drop the kept session (volume) and close; sent when the project is deleted. */
+export const dropSession = defineSignal<[]>('dropSession');
+export interface ResumeRunResult {
+  accepted: true;
+}
+/** Resumes a parked run; resolves once the workflow has accepted it (the workflow's real answer). */
+export const resumeRun = defineUpdate<ResumeRunResult>('resumeRun');
 
 // Setup test signals
 export const endSetupTest = defineSignal<[]>('endSetupTest');
@@ -48,7 +57,11 @@ export type RunPhase =
   | 'agent_done'
   | 'ending'
   | 'finalizing'
-  | 'done';
+  | 'done'
+  /** The pod is stopped and the slot freed; the run waits for resume, finish, cancel or expiry. */
+  | 'parked'
+  /** A resume was accepted and is queued or starting; no session is up yet. */
+  | 'resuming';
 
 export interface RunState {
   phase: RunPhase;

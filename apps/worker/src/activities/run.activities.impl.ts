@@ -1,5 +1,5 @@
 import { ApplicationFailure } from '@temporalio/common';
-import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   AGENT_TIMEOUT_SECONDS_DEFAULT,
@@ -10,7 +10,6 @@ import {
   type AgentState,
 } from '@agentdesk/contracts';
 import {
-  IDLE_END_SECONDS,
   REPO_URL_KEY,
   SIGNAL,
   WORKSPACE_TOKEN_KEY,
@@ -23,6 +22,7 @@ import {
   runJobName,
   runLabels,
   runPodConfigFrom,
+  runVolumeName,
   toAdapterProject,
   type AdapterProject,
   type AdapterRegistry,
@@ -64,6 +64,7 @@ import {
 import { nextRefreshDelaySeconds, type TokenRefreshPlan } from '../workflows/token-refresh';
 import { appendRunEvent } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
+import { createSessionActivities } from './session.activity';
 import {
   type CommentKind,
   type FinishDetails,
@@ -108,6 +109,9 @@ export type RunActivityConfig = Pick<
   | 'RUN_POD_NODE_SELECTOR'
   | 'RUN_POD_TOLERATIONS'
   | 'RUN_POD_RUNTIME_CLASS'
+  | 'RUN_VOLUME_STORAGE_CLASS'
+  | 'RUN_KEPT_DONE_SESSIONS_PER_PROJECT'
+  | 'RUN_IDLE_END_SECONDS'
 >;
 
 export interface RunActivityTiming {
@@ -143,6 +147,8 @@ const SCROLLBACK_TAIL_CHARS = 4000;
 const TEXT_TAIL_LINES = 50;
 /** The runner entrypoint's exit code for a failed (or timed out) setup in a real run. */
 const SETUP_FAILED_EXIT_CODE = 78;
+/** The runner entrypoint's exit code for a resume with no saved session on the volume. */
+const RESUME_FAILED_EXIT_CODE = 79;
 const COMMENT_TAIL_CHARS = 2000;
 const COMMENT_REASON_CHARS = 500;
 
@@ -156,6 +162,8 @@ const SetupMarkerPayload = z.object({
   kind: z.string(),
   exitCode: z.number().int().optional(),
 });
+/** The `finish` outbox marker; `status` is absent on markers written before it was recorded. */
+const FinishMarker = z.object({ status: z.string().optional() });
 const StoredCredential = z.object({ type: z.string(), value: z.string().min(1) });
 
 const isFinal = (s: RunStatus): boolean =>
@@ -233,6 +241,8 @@ interface RunDetails {
   code: { provider: string; externalId: string };
   board: { provider: string; externalId: string };
   maxTurns: number | null;
+  /** `runs.agent_id` now (null when the agent was deleted); resume reads it fresh instead of trusting a RunContext. */
+  agentId: string | null;
 }
 
 export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
@@ -266,6 +276,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         boardProvider: board.provider,
         boardExternalId: board.externalId,
         maxTurns: agents.maxTurns,
+        agentId: runs.agentId,
       })
       .from(runs)
       .innerJoin(projects, eq(projects.id, runs.projectId))
@@ -295,6 +306,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       code: { provider: r.codeProvider, externalId: r.codeExternalId },
       board: { provider: r.boardProvider, externalId: r.boardExternalId },
       maxTurns: r.maxTurns,
+      agentId: r.agentId,
     };
   }
 
@@ -368,7 +380,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       // An agent deleted after queueing: fall back to the agents.timeout_seconds default.
       timeoutSeconds: row.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       maxConcurrentRuns: row.maxConcurrentRuns,
-      idleEndSeconds: IDLE_END_SECONDS,
+      idleEndSeconds: deps.config.RUN_IDLE_END_SECONDS,
     };
   }
 
@@ -428,17 +440,49 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
   }
 
-  async function createRunSecretAndJob(ctx: RunContext): Promise<TokenRefreshPlan | undefined> {
+  async function createRunSecretAndJob(
+    ctx: RunContext,
+    opts: { resume?: boolean; deadlineSeconds?: number } = {},
+  ): Promise<TokenRefreshPlan | undefined> {
+    const resume = opts.resume === true;
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return undefined;
-    const cred = await credentialEnv(ctx);
-    if (!cred) throw ApplicationFailure.nonRetryable('the agent has no credential set');
+    // A resume happens long after `ctx` was loaded: the agent and its credential are read fresh (the agent may be gone).
+    const cred = await credentialEnv(resume ? { ...ctx, agentId: d.agentId } : ctx);
+    if (!cred) {
+      throw resume
+        ? ApplicationFailure.create({
+            type: 'NoAgentCredential',
+            nonRetryable: true,
+            message: 'the agent or its credential is missing',
+          })
+        : ApplicationFailure.nonRetryable('the agent has no credential set');
+    }
     const name = runJobName(ctx.runId);
+    if (resume) {
+      // Park deleted the Job, but a foreground delete may still be in progress, and `ensureJob` would not replace a Job
+      // that exists. Fail retryably so the activity retry waits it out; if it never clears, the workflow restores the
+      // parked run.
+      let stillThere: boolean;
+      try {
+        stillThere = (await kube.getRunPod(name)) !== null;
+      } catch (err) {
+        throw safeError(err, [], 'create run Job');
+      }
+      if (stillThere) {
+        throw ApplicationFailure.create({
+          type: 'RunJobStillPresent',
+          nonRetryable: false,
+          message: 'create run Job: the parked run Job is still being deleted',
+        });
+      }
+    }
     const project: AdapterProject = toAdapterProject(d, d.code.externalId);
     let known = secretValues(cred);
     let plan: TokenRefreshPlan | undefined;
     try {
-      const setupScript = await recordedSetupScript(ctx);
+      // The setup script does not run again on resume.
+      const setupScript = resume ? null : await recordedSetupScript(ctx);
       // The script is untrusted text: keep it out of an error too (the failure reason is posted to the ticket).
       if (setupScript !== null && setupScript.length >= MIN_SECRET_LENGTH) known = [...known, setupScript];
       const codeHost = deps.adapters.codeHost(providerOf(d.code.provider));
@@ -472,7 +516,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         gitHost: new URL(codeHost.repoUrl(project)).host,
         cliTokenEnvName: codeHost.cliTokenEnvName(),
         maxTurns: d.maxTurns,
-        timeoutSeconds: ctx.timeoutSeconds,
+        deadlineSeconds: opts.deadlineSeconds ?? ctx.timeoutSeconds,
+        resume,
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
         pluginMarketplaces: deps.config.RUN_PLUGIN_MARKETPLACES,
@@ -480,6 +525,15 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         setupScript,
         pod: runPodConfigFrom(deps.config),
       });
+      // The per-run volume holds the workspace and the agent's home; it outlives the pod.
+      await kube.ensureVolumeClaim(
+        runVolumeName(ctx.runId),
+        {
+          size: deps.config.RUN_POD_WORKSPACE_SIZE_LIMIT,
+          ...(deps.config.RUN_VOLUME_STORAGE_CLASS ? { storageClass: deps.config.RUN_VOLUME_STORAGE_CLASS } : {}),
+        },
+        runLabels(ctx),
+      );
       try {
         await kube.ensureJob(job);
       } catch (err) {
@@ -522,6 +576,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     if (kind === 'start') {
       return `Agent Desk started run #${d.number} (\`/${oneLine(d.command)}\`, skill \`${oneLine(d.skillName)}\`).\n\nFollow it here: ${link}`;
     }
+    if (kind === 'paused') {
+      return `Agent Desk run #${d.number} is paused: the agent is waiting for an answer, and its pod was stopped after the idle time.\n\nResume it here: ${link}`;
+    }
     const status = fd?.status ?? d.status;
     const took = duration(d);
     const setupFailed = fd?.failureStage === 'setup';
@@ -544,7 +601,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
 
   async function postComment(ctx: RunContext, kind: CommentKind, fd?: FinishDetails): Promise<void> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
-    if (d.outbox[kind] !== undefined) return; // already posted
+    // The finish comment names the end status, so a re-opened run that ends differently posts again; the same status
+    // does not. Marker without a status (written before statuses were recorded) counts as posted.
+    const status = kind === 'finish' ? (fd?.status ?? d.status) : undefined;
+    const stored = d.outbox[kind];
+    if (stored !== undefined) {
+      const storedStatus = FinishMarker.safeParse(stored).data?.status;
+      if (status === undefined || storedStatus === undefined || storedStatus === status) return; // already posted
+    }
     const secrets = secretValues(await credentialEnv(ctx));
     const text = commentText(ctx, d, kind, fd, secrets);
     let commentId: string;
@@ -556,11 +620,17 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
     // At least once: a crash between the post and this write posts again on retry.
     await withOrg(db, ctx.orgId, async (tx) => {
-      const marker = JSON.stringify({ [kind]: { commentId, at: now() } });
+      const marker = JSON.stringify({ [kind]: { commentId, at: now(), ...(status !== undefined && { status }) } });
+      // Write only if nothing is stored yet, or (finish) the stored status is recorded and differs: a concurrent
+      // retry of the same status loses this race and does not append a second event.
+      const notYetPosted =
+        status === undefined
+          ? sql`not (${runs.outbox} ? ${kind})`
+          : sql`(not (${runs.outbox} ? ${kind}) or ${runs.outbox} -> ${kind} ->> 'status' is distinct from ${status} and ${runs.outbox} -> ${kind} ? 'status')`;
       const updated = await tx
         .update(runs)
         .set({ outbox: sql`${runs.outbox} || ${marker}::jsonb` })
-        .where(and(eq(runs.id, ctx.runId), sql`not (${runs.outbox} ? ${kind})`))
+        .where(and(eq(runs.id, ctx.runId), notYetPosted))
         .returning({ id: runs.id });
       if (updated.length > 0) {
         await appendRunEvent(tx, ctx.orgId, { runId: ctx.runId, type: 'comment', payload: { kind, commentId } });
@@ -571,7 +641,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   // ---- followPodLogs
 
   /** The run's events as the shared line-event store sees them. */
-  const runEventTable = (ctx: RunContext): LineEventTable<'lifecycle' | 'scrollback'> => ({
+  const runEventTable = (ctx: RunContext, floor: number): LineEventTable<'lifecycle' | 'scrollback'> => ({
     lock: async (tx) => {
       await tx.select({ id: runs.id }).from(runs).where(eq(runs.id, ctx.runId)).for('update');
     },
@@ -583,6 +653,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           and(
             eq(runEvents.runId, ctx.runId),
             inArray(runEvents.type, [...types]),
+            // A resumed pod's log starts again at line 1: only events since the latest start can be duplicates.
+            gt(runEvents.seq, floor),
             sql`(${runEvents.payload} ->> 'line')::int = ${line}`,
           ),
         )
@@ -593,14 +665,37 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       (await appendRunEvent(tx, ctx.orgId, { runId: ctx.runId, type, payload })) !== null,
   });
 
-  /** Inserts a lifecycle/scrollback row for log line `line` unless one exists. Returns whether it inserted. */
+  /** Inserts a lifecycle/scrollback row for log line `line` (since `floor`) unless one exists. Returns whether it inserted. */
   const storeLineEvent = (
     tx: Tx,
     ctx: RunContext,
+    floor: number,
     type: 'lifecycle' | 'scrollback',
     line: number,
     payload: Record<string, unknown>,
-  ): Promise<boolean> => storeLineEventIn(tx, runEventTable(ctx), ['lifecycle', 'scrollback'], type, line, payload);
+  ): Promise<boolean> =>
+    storeLineEventIn(tx, runEventTable(ctx, floor), ['lifecycle', 'scrollback'], type, line, payload);
+
+  /**
+   * Seq of the run's latest `starting` status event: where the current pod's story begins (the first start, or the
+   * latest resume). Log line numbers restart with every pod, so line dedupe and the `session_started` check only look
+   * at events after it. 0 when none is stored.
+   */
+  async function latestStartSeq(ctx: RunContext): Promise<number> {
+    const [row] = await withOrg(db, ctx.orgId, (tx) =>
+      tx
+        .select({ seq: sql<number>`coalesce(max(${runEvents.seq}), 0)::int` })
+        .from(runEvents)
+        .where(
+          and(
+            eq(runEvents.runId, ctx.runId),
+            eq(runEvents.type, 'status'),
+            sql`${runEvents.payload} ->> 'status' = 'starting'`,
+          ),
+        ),
+    );
+    return row?.seq ?? 0;
+  }
 
   /**
    * What the stored run events say about the pre-agent phase: whether `session_started` was stored and, if not, whether
@@ -610,6 +705,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   async function findSetupState(
     ctx: RunContext,
     exitCode: number,
+    floor: number,
   ): Promise<{ agentStarted: boolean; setup: { exitCode?: number } | null }> {
     const rows = await withOrg(db, ctx.orgId, (tx) =>
       tx
@@ -619,6 +715,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           and(
             eq(runEvents.runId, ctx.runId),
             eq(runEvents.type, 'lifecycle'),
+            gt(runEvents.seq, floor),
             sql`${runEvents.payload} ->> 'kind' in ('setup_failed', 'setup_timed_out', 'session_started')`,
           ),
         )
@@ -657,7 +754,11 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     return outputBudget(rows.map((r) => r.payload));
   }
 
-  async function followPodLogs(ctx: RunContext): Promise<FollowPodLogsResult> {
+  async function followPodLogs(ctx: RunContext, opts: { resume?: boolean } = {}): Promise<FollowPodLogsResult> {
+    const resume = opts.resume === true;
+    // Read on first use (after the pod wait), once per attempt.
+    let floorRead: Promise<number> | undefined;
+    const floorOf = (): Promise<number> => (floorRead ??= latestStartSeq(ctx));
     let scrollbackTail: string | undefined;
     const textTail: string[] = [];
     let secrets: string[] = [];
@@ -670,7 +771,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       const text = redact(block.text(), secrets);
       const begin = block.begin;
       const truncated = block.truncated || !block.closed;
-      await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'scrollback', begin, { text, truncated }));
+      const floor = await floorOf();
+      await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, floor, 'scrollback', begin, { text, truncated }));
       scrollbackTail = text.slice(-SCROLLBACK_TAIL_CHARS);
       block = null;
       pass.markDurable(lastIndex);
@@ -689,7 +791,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         },
         storedBudget: () => storedOutputBudget(ctx),
         storeLifecycle: async (line, payload) => {
-          await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, 'lifecycle', line, payload));
+          const floor = await floorOf();
+          await withOrg(db, ctx.orgId, (tx) => storeLineEvent(tx, ctx, floor, 'lifecycle', line, payload));
         },
         beginPass: () => {
           block = null;
@@ -704,17 +807,23 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         },
         onParsed: async (pass, parsed, line) => {
           const index = pass.index;
+          const floor = await floorOf();
           if (parsed.kind === 'session_started') {
             // Only the runner's own marker starts the session; setup/plugin output is prefixed and parses as output.
-            // `onlyFrom` keeps a replayed line harmless.
+            // `onlyFrom` keeps a replayed line harmless. A resumed run is not written `running`: the workflow
+            // writes the state it was stopped in (`idle` or `done`) when it sees the signal below.
             await withOrg(db, ctx.orgId, async (tx) => {
-              await storeLineEvent(tx, ctx, 'lifecycle', index, { kind: parsed.kind, text: parsed.text });
-              await setRunStatusTx(
-                tx,
-                { orgId: ctx.orgId, runId: ctx.runId, status: 'running', at: now() },
-                { onlyFrom: ['starting'] },
-              );
+              await storeLineEvent(tx, ctx, floor, 'lifecycle', index, { kind: parsed.kind, text: parsed.text });
+              if (!resume) {
+                await setRunStatusTx(
+                  tx,
+                  { orgId: ctx.orgId, runId: ctx.runId, status: 'running', at: now() },
+                  { onlyFrom: ['starting'] },
+                );
+              }
             });
+            // Also on a replayed line (a crash between the write and the signal): the workflow ignores a repeat.
+            await deps.signaller.signalRun(ctx.runId, SIGNAL.sessionStarted);
           } else if (parsed.kind === 'agent_state' && parsed.agent) {
             const agent = parsed.agent;
             const mapped = mapAgentState(agent.state);
@@ -722,7 +831,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             // Redact the whole text first, then cap: cutting first could split a secret and leave a prefix behind.
             const agentNote = agent.note !== undefined ? toAgentNote(redact(agent.note, secrets)) : undefined;
             const { inserted, status } = await withOrg(db, ctx.orgId, async (tx) => {
-              const ins = await storeLineEvent(tx, ctx, 'lifecycle', index, {
+              const ins = await storeLineEvent(tx, ctx, floor, 'lifecycle', index, {
                 kind: 'agent_state',
                 state: agent.state,
                 source: agent.source ?? null,
@@ -776,7 +885,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           await pass.flushPending();
           pass.markDurable(pass.index);
           pass.beat();
-          const pre = await findSetupState(ctx, exitCode);
+          const pre = await findSetupState(ctx, exitCode, resume ? await floorOf() : 0);
+          // The runner exits 79 when the volume holds no started session: nothing to continue (not a setup failure).
+          const resumeFailed = resume && exitCode === RESUME_FAILED_EXIT_CODE && !pre.agentStarted;
           const tail =
             scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
           return {
@@ -784,8 +895,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
               exitCode,
               ...(tail !== undefined ? { scrollbackTail: tail } : {}),
               agentStarted: pre.agentStarted,
-              ...(pre.setup ? { failureStage: 'setup' as const } : {}),
-              ...(pre.setup?.exitCode !== undefined ? { setupExitCode: pre.setup.exitCode } : {}),
+              ...(resumeFailed ? { resumeFailed: true as const } : {}),
+              ...(pre.setup && !resumeFailed ? { failureStage: 'setup' as const } : {}),
+              ...(pre.setup?.exitCode !== undefined && !resumeFailed ? { setupExitCode: pre.setup.exitCode } : {}),
             },
           };
         },
@@ -856,6 +968,22 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
   }
 
+  /** Deletes the run's volume claim; missing → success. Only the workflow's cleanup calls this. */
+  async function deleteRunVolume(ctx: RunContext): Promise<void> {
+    try {
+      await kube.deleteVolumeClaim(runVolumeName(ctx.runId));
+    } catch (err) {
+      throw safeError(err, [], 'delete run volume');
+    }
+  }
+
+  const session = createSessionActivities({
+    db,
+    config: deps.config,
+    signaller: deps.signaller,
+    redactionValues: async (ctx) => secretValues(await credentialEnv(ctx)),
+  });
+
   return {
     loadRun: guarded('load run', loadRun),
     createRunSecretAndJob: guarded('create run Job', createRunSecretAndJob),
@@ -865,5 +993,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     endSession: guarded('end session', endSession),
     deleteJob: guarded('delete run Job', deleteJob),
     ensureJobGone: guarded('clean up run Job', ensureJobGone),
+    deleteRunVolume: guarded('delete run volume', deleteRunVolume),
+    parkRun: guarded('park run', session.parkRun),
+    endKeptSession: guarded('end kept session', session.endKeptSession),
+    restoreParked: guarded('restore parked run', session.restoreParked),
   };
 }

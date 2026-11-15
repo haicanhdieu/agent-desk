@@ -183,6 +183,8 @@ TLS terminates at Cloudflare (Universal SSL covers `qa-desk.myairi.app`); traffi
 
 `StorageClass/local-path-retain` (provisioner `rancher.io/local-path`, `reclaimPolicy: Retain`, `volumeBindingMode: WaitForFirstConsumer`) annotated as the default, and the bundled `local-path` class un-defaulted. Deleting a PVC never deletes Postgres data. Data lives in the `agentdesk-k3s-state` volume.
 
+`StorageClass/agentdesk-run-volumes` (provisioner `rancher.io/local-path`, `reclaimPolicy: Delete`, `volumeBindingMode: WaitForFirstConsumer`, not default) backs the per-run workspace volumes of run pods. Deleting a run's claim deletes its files. The worker is given the name through `RUN_VOLUME_STORAGE_CLASS`. It must exist before the worker creates a run Job.
+
 ### 5.5 Not included for QA
 
 cert-manager, External Secrets Operator, CloudNativePG, Cloudflare Access, Postgres backups (QA data is disposable; cloud targets use managed backups), metrics-server, a Temporal UI Deployment.
@@ -231,13 +233,13 @@ One `HTTPRoute/agentdesk` on `Gateway/edge`, hostname `values.publicHost`:
 
 - `ResourceQuota`: `limits.memory` 1536 Mi, `requests.memory` 768 Mi, `pods` 2 (one finishing while the next starts). Values: `runs.maxConcurrent`, `runs.resources`. Setup-test pods ([ADR 0019](../../adr/0019-repo-setup-and-approved-store-plugins.md)) run in this namespace with the run pod's resources and count against this quota: an open test (kept for `SETUP_TEST_TTL_SECONDS`) can block a run pod, which then fails after the 2 min Pending limit. Follow-up: give setup tests their own quota (or namespace) sized for one open test per project.
 - `LimitRange` with the run pod defaults.
-- Pod Security `restricted`. Run pods (created by the worker) use uid 10001, `automountServiceAccountToken: false`, an `emptyDir` workspace with `sizeLimit: 4Gi`, and `ephemeral-storage` limit 4 Gi.
+- Pod Security `restricted`. Run pods (created by the worker) use uid 10001, `automountServiceAccountToken: false`, a per-run workspace volume (`PersistentVolumeClaim` `run-{runId}` of 4 Gi from `agentdesk-run-volumes`, mounted at `/workspace`; setup-test pods keep an `emptyDir` with `sizeLimit: 4Gi`), and `ephemeral-storage` limit 4 Gi.
 - NetworkPolicy: deny all ingress. Egress allowed to DNS (kube-system) and to `0.0.0.0/0` **except** `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, `169.254.0.0/16`. This blocks the cluster, the Podman network, the LAN, and cloud metadata endpoints with the same rule on every target. Run pods must also reach the plugin marketplace sources (GitHub) and package registries ([ADR 0019](../../adr/0019-repo-setup-and-approved-store-plugins.md)); any future egress allowlist has to include them.
 - Optional values for cloud targets: `runs.nodeSelector`, `runs.tolerations`, `runs.runtimeClassName`.
 
 ### 6.6 RBAC
 
-- SAs `agentdesk-api` and `agentdesk-worker`. In `agentdesk-runs`: a Role on `jobs`, `pods`, `pods/log`, `pods/exec` and `secrets` (create, get, list, watch, delete). In `agentdesk`: a Role on `secrets` (agent credentials, via `SecretStore`). Nothing cluster-wide.
+- SAs `agentdesk-api` and `agentdesk-worker`. In `agentdesk-runs`: a Role on `jobs`, `pods`, `pods/log`, `pods/exec` and `secrets` (create, get, list, watch, delete), and on `persistentvolumeclaims` (create, get, list, delete). Deploy order: the storage class and this Role go in before the worker that uses them. In `agentdesk`: a Role on `secrets` (agent credentials, via `SecretStore`). Nothing cluster-wide.
 - App pods mount their SA token only where needed (api and worker).
 
 ### 6.7 `agentdesk` network policy

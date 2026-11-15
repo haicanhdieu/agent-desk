@@ -10,6 +10,8 @@ export const RunStatus = z.enum([
   'failed',
   'cancelled',
   'timed_out',
+  'paused',
+  'expired',
 ]);
 export type RunStatus = z.infer<typeof RunStatus>;
 
@@ -18,10 +20,11 @@ export const FINAL_RUN_STATUSES = [
   'failed',
   'cancelled',
   'timed_out',
+  'expired',
 ] as const satisfies readonly RunStatus[];
 export const ACTIVE_RUN_STATUSES = ['starting', 'running', 'idle', 'done'] as const satisfies readonly RunStatus[];
-/** Statuses a person may Finish (needs you, or the agent declared done). */
-export const FINISHABLE_RUN_STATUSES = ['idle', 'done'] as const satisfies readonly RunStatus[];
+/** Statuses a person may Finish (needs you, the agent declared done, or paused). */
+export const FINISHABLE_RUN_STATUSES = ['idle', 'done', 'paused'] as const satisfies readonly RunStatus[];
 
 export const TriggerMode = z.enum(['webhook', 'polling']);
 export type TriggerMode = z.infer<typeof TriggerMode>;

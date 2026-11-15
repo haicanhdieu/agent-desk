@@ -36,6 +36,8 @@ export function toAgentSettings(agent: AgentDto, project: ProjectDto, now: Date)
 export function limitsOf(agent: AgentDto, project: ProjectDto): AgentLimits {
   return {
     timeoutMinutes: Math.round(agent.timeoutSeconds / 60),
+    pausedKeepMinutes: Math.round(agent.pausedKeepSeconds / 60),
+    doneKeepMinutes: Math.round(agent.doneKeepSeconds / 60),
     idleEndMinutes: IDLE_END_MINUTES,
     maxConcurrent: project.maxConcurrentRuns,
     maxRunsPerTicket: project.maxRunsPerTicket,
@@ -45,6 +47,8 @@ export function limitsOf(agent: AgentDto, project: ProjectDto): AgentLimits {
 export interface LimitsRequests {
   project?: Pick<UpdateProjectRequest, 'maxConcurrentRuns' | 'maxRunsPerTicket'>;
   timeoutSeconds?: number;
+  pausedKeepSeconds?: number;
+  doneKeepSeconds?: number;
 }
 
 /**
@@ -61,12 +65,16 @@ export function limitsRequests(base: AgentLimits, next: AgentLimits): LimitsRequ
   return {
     ...(Object.keys(project).length > 0 && { project }),
     ...(changed('timeoutMinutes') && { timeoutSeconds: Math.round(next.timeoutMinutes * 60) }),
+    ...(changed('pausedKeepMinutes') && { pausedKeepSeconds: Math.round(next.pausedKeepMinutes * 60) }),
+    ...(changed('doneKeepMinutes') && { doneKeepSeconds: Math.round(next.doneKeepMinutes * 60) }),
   };
 }
 
 /** problem+json pointers of the two limit requests → the screen's limit fields. */
 export const LIMIT_POINTERS: Record<string, LimitField> = {
   '/timeoutSeconds': 'timeoutMinutes',
+  '/pausedKeepSeconds': 'pausedKeepMinutes',
+  '/doneKeepSeconds': 'doneKeepMinutes',
   '/maxConcurrentRuns': 'maxConcurrent',
   '/maxRunsPerTicket': 'maxRunsPerTicket',
 };
@@ -76,10 +84,13 @@ const isLimitField = (k: string): k is LimitField => LIMIT_FIELDS.has(k);
 
 /** True when a limits save has something to send. */
 export const hasLimitChanges = (req: LimitsRequests): boolean =>
-  req.project !== undefined || req.timeoutSeconds !== undefined;
+  req.project !== undefined ||
+  req.timeoutSeconds !== undefined ||
+  req.pausedKeepSeconds !== undefined ||
+  req.doneKeepSeconds !== undefined;
 
 /**
- * Saves the limits: `projects.update` for the run limits and `agents.put` for the timeout, in parallel. `agents.put`
+ * Saves the limits: `projects.update` for the run limits and `agents.put` for the timeout and keep times, in parallel. `agents.put`
  * replaces the agent, so its other fields come from the agent fetched right before the write. Field messages come
  * from the problem pointers; one save at a time.
  */
@@ -100,14 +111,29 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
       maxRunsPerTicket: saved.maxRunsPerTicket,
     };
   };
-  const saveTimeout = async (timeoutSeconds: number) => {
+  const saveAgent = async (
+    changes: Pick<LimitsRequests, 'timeoutSeconds' | 'pausedKeepSeconds' | 'doneKeepSeconds'>,
+  ) => {
     const agent = await qc.fetchQuery({ ...deskQueries.agent(org, projectId), staleTime: 0 });
+    // `agents.put` replaces the agent: the run time limit is always sent, the keep times only when changed (absent
+    // keeps the stored value).
     const saved = await api.agents.put({
       params: { projectId },
-      body: { model: agent.model, timeoutSeconds, ...(agent.maxTurns !== null && { maxTurns: agent.maxTurns }) },
+      body: {
+        model: agent.model,
+        timeoutSeconds: changes.timeoutSeconds ?? agent.timeoutSeconds,
+        ...(agent.maxTurns !== null && { maxTurns: agent.maxTurns }),
+        ...(changes.pausedKeepSeconds !== undefined && { pausedKeepSeconds: changes.pausedKeepSeconds }),
+        ...(changes.doneKeepSeconds !== undefined && { doneKeepSeconds: changes.doneKeepSeconds }),
+      },
     });
     qc.setQueryData(deskQueries.agent(org, projectId).queryKey, saved);
-    base.current = { ...base.current, timeoutMinutes: Math.round(saved.timeoutSeconds / 60) };
+    base.current = {
+      ...base.current,
+      timeoutMinutes: Math.round(saved.timeoutSeconds / 60),
+      pausedKeepMinutes: Math.round(saved.pausedKeepSeconds / 60),
+      doneKeepMinutes: Math.round(saved.doneKeepSeconds / 60),
+    };
   };
 
   const save = async (next: AgentLimits) => {
@@ -120,10 +146,11 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
     setErrors({});
     setFormError(undefined);
     try {
-      const { project, timeoutSeconds } = requests;
+      const { project, ...agentChanges } = requests;
+      const agentChanged = hasLimitChanges(agentChanges);
       const results = await Promise.allSettled([
         project && saveProject(project),
-        timeoutSeconds !== undefined && saveTimeout(timeoutSeconds),
+        agentChanged && saveAgent(agentChanges),
       ]);
       const fields: Partial<Record<LimitField, string>> = {};
       const forms: string[] = [];

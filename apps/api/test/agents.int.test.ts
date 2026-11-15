@@ -70,6 +70,20 @@ describe('agents', () => {
     expect(b).toMatchObject({ model: 'sonnet', maxTurns: 10, timeoutSeconds: 60 });
   });
 
+  it('PUT saves the keep settings and omitting them keeps the stored values', async () => {
+    const saved = expectContract(
+      'agents.put',
+      await putAgent({ model: 'sonnet', timeoutSeconds: 86400, pausedKeepSeconds: 86400, doneKeepSeconds: 0 }),
+    );
+    expect(saved).toMatchObject({ pausedKeepSeconds: 86400, doneKeepSeconds: 0 });
+    const kept = expectContract('agents.put', await putAgent({ model: 'opus', timeoutSeconds: 86400 }));
+    expect(kept).toMatchObject({ pausedKeepSeconds: 86400, doneKeepSeconds: 0 });
+    expect(expectContract('agents.get', await getAgent())).toMatchObject({
+      pausedKeepSeconds: 86400,
+      doneKeepSeconds: 0,
+    });
+  });
+
   it('PUT accepts a limit over the old 3300 s cap, up to 7 days', async () => {
     const res = await putAgent({ model: 'sonnet', timeoutSeconds: 4000 });
     expect(res.statusCode).toBe(200);

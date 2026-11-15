@@ -25,6 +25,8 @@ function toDto(row: AgentRow): AgentDto {
     model: row.model,
     maxTurns: row.maxTurns,
     timeoutSeconds: row.timeoutSeconds,
+    pausedKeepSeconds: row.pausedKeepSeconds,
+    doneKeepSeconds: row.doneKeepSeconds,
     credential: {
       set: type !== null && row.credentialUpdatedAt !== null,
       type,
@@ -55,7 +57,14 @@ export class AgentsService {
     return withOrg(this.db, org.orgId, async (tx) => {
       const [row] = await tx
         .update(agents)
-        .set({ model: body.model, maxTurns: body.maxTurns ?? null, timeoutSeconds: body.timeoutSeconds })
+        .set({
+          model: body.model,
+          maxTurns: body.maxTurns ?? null,
+          timeoutSeconds: body.timeoutSeconds,
+          // Absent keeps the stored value (undefined is skipped by drizzle).
+          pausedKeepSeconds: body.pausedKeepSeconds,
+          doneKeepSeconds: body.doneKeepSeconds,
+        })
         .where(eq(agents.projectId, projectId))
         .returning();
       if (!row) throw new NotFoundException('Agent not found');

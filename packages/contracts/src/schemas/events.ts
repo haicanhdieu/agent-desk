@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { RunStatus } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
-import { Id } from './common';
+import { Id, Timestamp } from './common';
 import { RunEventDto } from './runs';
 
 /** SSE `event: status` on GET /api/runs/:id/events */
@@ -14,6 +14,8 @@ export const RunStatusEvent = z.object({
   failureReason: z.string().nullable(),
   waitingOn: WaitingOn.nullable(),
   agentNote: AgentNote.nullable(),
+  pausedAt: Timestamp.nullable(),
+  sessionExpiresAt: Timestamp.nullable(),
 });
 export type RunStatusEvent = z.infer<typeof RunStatusEvent>;
 

@@ -30,6 +30,11 @@ function mocks() {
     listNamespacedSecret: vi.fn(async (_: { namespace: string; labelSelector?: string }) => ({
       items: [] as { metadata?: { name?: string; labels?: Record<string, string> } }[],
     })),
+    createNamespacedPersistentVolumeClaim: vi.fn(async (_: { namespace: string; body: unknown }) => ({})),
+    deleteNamespacedPersistentVolumeClaim: vi.fn(async (_: { name: string; namespace: string }) => ({})),
+    listNamespacedPersistentVolumeClaim: vi.fn(async (_: { namespace: string; labelSelector?: string }) => ({
+      items: [] as { metadata?: { name?: string; labels?: Record<string, string> } }[],
+    })),
   };
   const log = { log: vi.fn() };
   const sent: Buffer[] = [];
@@ -355,5 +360,61 @@ describe('RealKubeGateway', () => {
     m.closeSocket();
     expect(codes).toEqual([0]);
     expect(m.ws.path).toContain('tty=false');
+  });
+});
+
+describe('RealKubeGateway volume claims', () => {
+  const labels = { 'agentdesk/run-id': 'x', 'agentdesk/org-id': 'o', 'agentdesk/project-id': 'p' };
+
+  it('ensureVolumeClaim creates a ReadWriteOnce claim with the size, labels and storage class; 409 is success', async () => {
+    const m = mocks();
+    await m.gw.ensureVolumeClaim('run-x', { size: '4Gi', storageClass: 'agentdesk-run-volumes' }, labels);
+    expect(m.core.createNamespacedPersistentVolumeClaim).toHaveBeenCalledWith({
+      namespace: NS,
+      body: {
+        metadata: { name: 'run-x', namespace: NS, labels },
+        spec: {
+          accessModes: ['ReadWriteOnce'],
+          resources: { requests: { storage: '4Gi' } },
+          storageClassName: 'agentdesk-run-volumes',
+        },
+      },
+    });
+    m.core.createNamespacedPersistentVolumeClaim.mockRejectedValueOnce(apiErr(409));
+    await m.gw.ensureVolumeClaim('run-x', { size: '4Gi' }, labels);
+    m.core.createNamespacedPersistentVolumeClaim.mockRejectedValueOnce(apiErr(403));
+    await expect(m.gw.ensureVolumeClaim('run-x', { size: '4Gi' }, labels)).rejects.toThrow();
+  });
+
+  it('ensureVolumeClaim leaves storageClassName out when none is given', async () => {
+    const m = mocks();
+    await m.gw.ensureVolumeClaim('run-x', { size: '4Gi' }, labels);
+    const call = m.core.createNamespacedPersistentVolumeClaim.mock.calls[0]?.[0];
+    expect(JSON.stringify(call?.body)).not.toContain('storageClassName');
+  });
+
+  it('deleteVolumeClaim treats 404 as success, other errors propagate', async () => {
+    const m = mocks();
+    m.core.deleteNamespacedPersistentVolumeClaim.mockRejectedValueOnce(apiErr(404));
+    await m.gw.deleteVolumeClaim('run-x');
+    expect(m.core.deleteNamespacedPersistentVolumeClaim).toHaveBeenCalledWith({ name: 'run-x', namespace: NS });
+    m.core.deleteNamespacedPersistentVolumeClaim.mockRejectedValueOnce(apiErr(500));
+    await expect(m.gw.deleteVolumeClaim('run-x')).rejects.toThrow();
+  });
+
+  it('listRunVolumeClaims selects by the run label and skips claims without all run labels', async () => {
+    const m = mocks();
+    m.core.listNamespacedPersistentVolumeClaim.mockResolvedValueOnce({
+      items: [
+        { metadata: { name: 'run-x', labels } },
+        { metadata: { name: 'run-y', labels: { 'agentdesk/run-id': 'y' } } },
+        { metadata: { labels } },
+      ],
+    });
+    expect(await m.gw.listRunVolumeClaims()).toEqual([{ name: 'run-x', runId: 'x', orgId: 'o', projectId: 'p' }]);
+    expect(m.core.listNamespacedPersistentVolumeClaim).toHaveBeenCalledWith({
+      namespace: NS,
+      labelSelector: 'agentdesk/run-id',
+    });
   });
 });

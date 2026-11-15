@@ -22,6 +22,8 @@ const SEEDED_KEY = 'agentdesk.e2e.seeded';
 export const ORG = 'alice';
 export const INVOICER_API = 'a0000000-0000-4000-8000-000000000001';
 export const SCRIPTED_RUN = 63;
+/** A paused run with a kept session (fixtures: dto/runs.ts). */
+export const PAUSED_RUN = 64;
 
 /** The first page load of this test starts signed out (get-session null, API 401). */
 export async function startSignedOut(page: Page): Promise<void> {

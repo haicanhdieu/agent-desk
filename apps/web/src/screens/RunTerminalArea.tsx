@@ -19,9 +19,11 @@ export interface RunTerminalAreaProps {
   lines?: TermLine[];
   /** Replaces the static terminal (the live terminal, Task 14). */
   terminal?: ReactNode;
-  /** A cancel or finish is in flight: Finish waits. */
+  /** A cancel, finish or resume is in flight: Finish, Resume and Re-open session wait. */
   busy?: boolean;
   onFinish?(): void;
+  /** Resume a paused run, or re-open a succeeded run whose session is kept. */
+  onResume?(): void;
   onReconnect?(): void;
   /** Shows the "Connection to the terminal lost" overlay (`false` suppresses it); defaults to the connection reconnecting (the board). */
   reconnectOverlay?: boolean;
@@ -45,7 +47,73 @@ function ActionLabel({ label }: { label: string }) {
   );
 }
 
-function EndNotice({ data }: { data: RunDetailData }) {
+/** Notes under the title: the agent's note, then the session line. */
+function SessionLines({ data }: { data: RunDetailData }) {
+  return (
+    <>
+      {data.agentNote && <div>{data.agentNote}</div>}
+      {data.session?.detail && <div>{data.session.detail}</div>}
+    </>
+  );
+}
+
+/** The error above the buttons when a resume fell back and the run is parked again. */
+function ResumeFailure({ data }: { data: RunDetailData }) {
+  const failure = data.session?.resumeFailure;
+  if (!failure) return null;
+  return <Banner tone="err" flush live="polite" icon={<StatusIcon status="failed" size={18} />} title={failure} />;
+}
+
+function PausedNotice({
+  data,
+  busy,
+  onResume,
+  onFinish,
+}: {
+  data: RunDetailData;
+  busy?: boolean;
+  onResume?(): void;
+  onFinish?(): void;
+}) {
+  return (
+    <>
+      <ResumeFailure data={data} />
+      <Banner
+        tone="idle"
+        flush
+        centered
+        icon={<StatusIcon status="paused" size={20} title="Paused" />}
+        title={data.session?.headline ?? 'Paused: can be resumed'}
+        actions={
+          <>
+            <Button variant="go" icon="play" disabled={busy} onClick={onResume}>
+              Resume
+            </Button>
+            <Button icon="check" disabled={busy} onClick={onFinish}>
+              Finish
+            </Button>
+          </>
+        }
+      >
+        <SessionLines data={data} />
+      </Banner>
+    </>
+  );
+}
+
+function ExpiredNotice({ data }: { data: RunDetailData }) {
+  return (
+    <Banner
+      tone="off"
+      flush
+      centered
+      icon={<StatusIcon status="expired" size={18} title="Expired" />}
+      title={data.session?.headline ?? 'Expired'}
+    />
+  );
+}
+
+function EndNotice({ data, busy, onResume }: { data: RunDetailData; busy?: boolean; onResume?(): void }) {
   const { endNote, run } = data;
   if (!endNote) return null;
   const status = run.status;
@@ -75,12 +143,13 @@ function EndNotice({ data }: { data: RunDetailData }) {
     );
   }
   const succeeded = status === 'succeeded';
-  return (
+  const kept = succeeded && data.session?.state === 'kept';
+  const banner = (
     <Banner
       tone={succeeded ? 'ok' : 'off'}
       flush
       centered
-      inlineTitle
+      inlineTitle={!kept}
       icon={
         <StatusIcon
           status={succeeded ? 'succeeded' : 'cancelled'}
@@ -90,17 +159,33 @@ function EndNotice({ data }: { data: RunDetailData }) {
       }
       title={endNote.title}
       actions={
-        succeeded
-          ? endNote.actions.map((a) => (
+        succeeded ? (
+          <>
+            {endNote.actions.map((a) => (
               <Button key={a.label} size="sm" href={a.href} iconRight={a.icon}>
                 {a.label}
               </Button>
-            ))
-          : undefined
+            ))}
+            {kept && (
+              <Button variant="go" size="sm" icon="play" disabled={busy} onClick={onResume}>
+                Re-open session
+              </Button>
+            )}
+          </>
+        ) : undefined
       }
     >
       {endNote.body}
+      {kept && <SessionLines data={data} />}
     </Banner>
+  );
+  return kept ? (
+    <>
+      <ResumeFailure data={data} />
+      {banner}
+    </>
+  ) : (
+    banner
   );
 }
 
@@ -110,18 +195,24 @@ export function RunTerminalArea({
   terminal,
   busy,
   onFinish,
+  onResume,
   onReconnect,
   reconnectOverlay,
   reconnectBody,
 }: RunTerminalAreaProps) {
   const { run, connection } = data;
   const status = run.status;
-  const isEnded = status === 'succeeded' || status === 'failed' || status === 'timed_out' || status === 'cancelled';
+  const isEnded =
+    status === 'succeeded' ||
+    status === 'failed' ||
+    status === 'timed_out' ||
+    status === 'cancelled' ||
+    status === 'expired';
   const reconnecting = connection.state === 'reconnecting';
 
   const bar = (
     <TerminalBar
-      views={views(isEnded ? 'Final scrollback' : 'Terminal')}
+      views={views(isEnded ? 'Final scrollback' : status === 'paused' ? 'Saved scrollback' : 'Terminal')}
       activeView="term"
       size={data.termSize}
       connection={<ConnectionIndicator state={connection.state} label={connection.label} />}
@@ -202,8 +293,12 @@ export function RunTerminalArea({
           this page is attached.
         </div>
       </Banner>
+    ) : status === 'paused' ? (
+      <PausedNotice data={data} busy={busy} onResume={onResume} onFinish={onFinish} />
+    ) : status === 'expired' ? (
+      <ExpiredNotice data={data} />
     ) : isEnded ? (
-      <EndNotice data={data} />
+      <EndNotice data={data} busy={busy} onResume={onResume} />
     ) : undefined;
 
   const overlay =

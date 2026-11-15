@@ -29,6 +29,8 @@ export interface RunContext {
   idleEndSeconds?: number;
   /** Seconds between workspace-token refreshes. Normally 2700 (45 min of the token's hour); a field like `idleEndSeconds`. */
   tokenRefreshSeconds?: number;
+  /** Floor of a resumed pod's allowance, seconds (default `RESUME_MIN_SECONDS`, 3600); a test seam like `idleEndSeconds`. */
+  resumeMinSeconds?: number;
   /** History length at which the run is finished as failed (default 45000, below Temporal's 51,200); a test seam. */
   historyEventLimit?: number;
 }
@@ -40,7 +42,14 @@ export interface RequestSlotInput {
   limit: number;
 }
 
-export type CommentKind = 'start' | 'finish';
+export type CommentKind = 'start' | 'finish' | 'paused';
+
+export type ParkKind = 'needs_input' | 'done';
+export interface ParkResult {
+  status: 'paused' | 'succeeded';
+  /** Null: nothing kept (doneKeepSeconds = 0). */
+  sessionExpiresAt: string | null;
+}
 
 /** Passed with the `finish` comment. */
 export interface FinishDetails {
@@ -64,6 +73,8 @@ export interface FollowPodLogsResult {
    * agent started). Decided from the database, so it survives activity retries.
    */
   failureStage?: 'setup';
+  /** A resumed pod exited 79 before `session_started`: there was no saved session to continue. Only with `resume: true`. */
+  resumeFailed?: true;
   /** `session_started` is stored for the run: the agent (or idle shell) began. False means the pod died before that. */
   agentStarted?: boolean;
   /** The setup script's exit code from the stored `setup_failed` event, the runner's 78 when it exited so without a marker; absent when setup timed out. */
@@ -84,7 +95,10 @@ export interface RunActivities {
    * Mints the workspace token (CodeHostAdapter.mintWorkspaceToken) and creates Secret and Job `run-{runId}` with it;
    * already exists → success. The token never leaves the activity; the result says when to refresh it.
    */
-  createRunSecretAndJob(ctx: RunContext): Promise<TokenRefreshPlan | undefined>;
+  createRunSecretAndJob(
+    ctx: RunContext,
+    opts?: { resume?: boolean; deadlineSeconds?: number },
+  ): Promise<TokenRefreshPlan | undefined>;
   /**
    * Mints a new workspace token and writes it into the existing run Secret; the pod reads it from a mounted file, so
    * the pod keeps running (ADR 0021). A finished run is a no-op; a missing Secret fails non-retryably. The token never
@@ -98,11 +112,31 @@ export interface RunActivities {
    * Stop-hook line; stores lifecycle lines and the final scrollback. Completes with the container exit code.
    * Throws a non-retryable `PodPendingTimeout` failure (message: the pod event) after 2 min Pending.
    */
-  followPodLogs(ctx: RunContext): Promise<FollowPodLogsResult>;
+  followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLogsResult>;
   /** `tmux kill-session -t agent` in the pod; the entrypoint then prints the scrollback and exits. */
   endSession(ctx: RunContext): Promise<void>;
   /** Deletes Job and Secret `run-{runId}`; missing → success. */
   deleteJob(ctx: RunContext): Promise<void>;
   /** After the pod exited on its own: make sure the Job is completed or gone (and the Secret deleted). */
   ensureJobGone(ctx: RunContext): Promise<void>;
+  /** Deletes the run's volume claim (`run-{runId}`); missing → success. Run after the Job is gone. */
+  deleteRunVolume(ctx: RunContext): Promise<void>;
+  /**
+   * Reads the agent's keep setting (defaults when the agent row is gone), writes the parked status and session in one
+   * transaction, and for kind `done` applies the per-project cap by signalling `dropSession` to the oldest kept ones.
+   */
+  parkRun(ctx: RunContext, input: { kind: ParkKind; at: string }): Promise<ParkResult>;
+  /**
+   * `expired`: paused → status expired; succeeded → clears session_expires_at and notifies. `dropped`: same for
+   * succeeded; a paused run is never dropped.
+   */
+  endKeptSession(ctx: RunContext, reason: 'expired' | 'dropped', at: string): Promise<void>;
+  /**
+   * Puts a run whose resume failed back: status `paused` or `succeeded` with the same expiry, plus a `lifecycle` event
+   * `resume_failed` with a redacted one-line reason.
+   */
+  restoreParked(
+    ctx: RunContext,
+    input: { kind: ParkKind; sessionExpiresAt: string; reason: string; at: string },
+  ): Promise<void>;
 }
