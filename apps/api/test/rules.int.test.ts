@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { projects, runs, withOrg } from '@agentdesk/db';
-import { eq } from 'drizzle-orm';
+import { createHash } from 'node:crypto';
+import { eq, sql } from 'drizzle-orm';
 import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines } from '@agentdesk/core';
 import type { RuleDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
@@ -186,6 +187,37 @@ describe('rules of both kinds', () => {
     const res = await patch(pr.id, { prompt: 'new' });
     expect(res.statusCode).toBe(200);
     expect(expectContract('rules.update', res)).toMatchObject({ kind: 'prompt', prompt: 'new' });
+  });
+});
+
+describe('rule prompt audit', () => {
+  it('audit_log payload carries sha256 and bytes, never the prompt text', async () => {
+    const promptText = 'use SECRET_PROMPT_DO_NOT_LOG';
+    const made = expectContract(
+      'rules.create',
+      await create({
+        kind: 'prompt',
+        command: 'audited',
+        labelFilter: [],
+        target: 'issue',
+        enabled: true,
+        prompt: promptText,
+      }),
+    ) as RuleDto;
+    const edited = 'edited SECRET_PROMPT_DO_NOT_LOG';
+    expect((await patch(made.id, { prompt: edited })).statusCode).toBe(200);
+    const rows = await withOrg(t.db, orgId, (tx) =>
+      tx.execute(
+        sql`select action, payload from audit_log where action in ('POST rules.create', 'PATCH rules.update')`,
+      ),
+    );
+    expect(JSON.stringify(rows.rows)).not.toContain('SECRET_PROMPT_DO_NOT_LOG');
+    const payloads = (rows.rows as { action: string; payload: Record<string, unknown> }[]).filter(
+      (r) => r.action === 'PATCH rules.update',
+    );
+    expect(
+      payloads.some((r) => r.payload['sha256'] === createHash('sha256').update(edited, 'utf8').digest('hex')),
+    ).toBe(true);
   });
 });
 
