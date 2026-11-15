@@ -325,11 +325,11 @@ export function cancelEffect(phase: RunPhase, kind: ParkKind | undefined, sessio
 
 `cancelEffect`: `resuming` with `sessionUp` false → `abort_resume`; `parked` with kind `done` → `ignore` (the run already succeeded); everything else → `stop_run`. Also extend `finishRunRejection` in `agent-phase.ts`: `parked` is finishable when the kind is `needs_input`, and rejected for kind `done` with "This run already finished".
 
-- [ ] **Step 1: Write failing tests** covering each line above, including `sessionAllowanceSeconds(86400, 86280, true) === 3600`, `sessionAllowanceSeconds(86400, 3600, true) === 82800`, `sessionAllowanceSeconds(86400, 0, false) === 86400`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test:unit` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): parked-phase decisions`.
+- [x] **Step 1: Write failing tests** covering each line above, including `sessionAllowanceSeconds(86400, 86280, true) === 3600`, `sessionAllowanceSeconds(86400, 3600, true) === 82800`, `sessionAllowanceSeconds(86400, 0, false) === 86400`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test:unit` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): parked-phase decisions`.
 
 ### Task 9: Workflow: park instead of ending, and expire
 

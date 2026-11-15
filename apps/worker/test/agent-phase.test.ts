@@ -23,6 +23,8 @@ const PHASES: RunPhase[] = [
   'ending',
   'finalizing',
   'done',
+  'parked',
+  'resuming',
 ];
 
 const state = (over: Partial<TurnState> = {}): TurnState => ({
@@ -160,6 +162,20 @@ describe('finishRunRejection', () => {
   it.each(PHASES)('phase %s, already ending: always rejected', (phase) => {
     expect(finishRunRejection(phase, true)).toBe(
       `Only a run that needs you or is done can be finished (phase is ${phase})`,
+    );
+  });
+
+  it('a parked needs_input run can be finished', () => {
+    expect(finishRunRejection('parked', false, 'needs_input')).toBeUndefined();
+  });
+
+  it('a parked done run already finished', () => {
+    expect(finishRunRejection('parked', false, 'done')).toBe('This run already finished');
+  });
+
+  it('a parked run is not finishable once a session end is under way', () => {
+    expect(finishRunRejection('parked', true, 'needs_input')).toBe(
+      'Only a run that needs you or is done can be finished (phase is parked)',
     );
   });
 });
