@@ -280,7 +280,7 @@ export class ProjectsService {
    * schedule and the agents' credential Secrets.
    */
   async remove(org: OrgContext, projectId: string): Promise<void> {
-    const agentIds = await withOrg(this.db, org.orgId, async (tx) => {
+    const { agentIds, keptRunIds } = await withOrg(this.db, org.orgId, async (tx) => {
       // FOR UPDATE: a run insert (FK share lock on this row) waits, so no run can appear between the check and delete.
       await this.load(tx, projectId, true);
       const [live] = await tx
@@ -289,7 +289,7 @@ export class ProjectsService {
         .where(and(eq(runs.projectId, projectId), inArray(runs.status, LIVE_STATUSES)))
         .limit(1);
       if (live) throw new ActiveRunsConflictException();
-      // A succeeded run that keeps its session still has a workflow and a volume: tell it to let go before the rows go.
+      // Collected here, signalled after the commit.
       const kept = await tx
         .select({ id: runs.id })
         .from(runs)
@@ -301,17 +301,26 @@ export class ProjectsService {
             sql`${runs.sessionExpiresAt} > now()`,
           ),
         );
-      for (const r of kept) {
-        try {
-          await this.temporal.workflow.getHandle(runWorkflowId(r.id)).signal(SIGNAL.dropSession);
-        } catch (err) {
-          if (!(err instanceof WorkflowNotFoundError)) throw err;
-        }
-      }
       const rows = await tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId));
       await tx.delete(projects).where(eq(projects.id, projectId));
-      return rows.map((r) => r.id);
+      return { agentIds: rows.map((r) => r.id), keptRunIds: kept.map((r) => r.id) };
     });
+    // After the commit (database.md §6: no Temporal call inside a transaction): a succeeded run that keeps its session
+    // still has a workflow and a volume, so tell it to let go. A failed signal is logged; the daily reconcile sweep
+    // removes the volume. A workflow that already closed is fine.
+    for (const runId of keptRunIds) {
+      await this.bestEffort(
+        'drop kept session',
+        async () => {
+          try {
+            await this.temporal.workflow.getHandle(runWorkflowId(runId)).signal(SIGNAL.dropSession);
+          } catch (err) {
+            if (!(err instanceof WorkflowNotFoundError)) throw err;
+          }
+        },
+        projectId,
+      );
+    }
     await this.bestEffort('terminate gate', () => this.schedules.terminateGate(projectId), projectId);
     await this.bestEffort('delete schedule', () => this.schedules.remove(projectId), projectId);
     for (const agentId of agentIds) {

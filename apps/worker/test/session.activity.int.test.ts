@@ -248,6 +248,14 @@ describe('endKeptSession', () => {
     expect(after.events).toHaveLength(before.events.length);
   });
 
+  it('on a run that no longer exists (its project was deleted) resolves without throwing', async () => {
+    const p = await seedProject();
+    const runId = await seedRun(p, 'succeeded', atPlus(100));
+    const ctx = await ctxFor(runId);
+    await asOwner((c) => c.query('delete from runs where id = $1', [runId]));
+    await expect(acts().endKeptSession(ctx, 'dropped', atPlus(50))).resolves.toBeUndefined();
+  });
+
   it('a second call on an already cleared session writes no second event', async () => {
     const p = await seedProject();
     const runId = await seedRun(p, 'succeeded', atPlus(100));

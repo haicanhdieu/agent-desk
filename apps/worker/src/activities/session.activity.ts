@@ -97,7 +97,8 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
         .from(runs)
         .where(eq(runs.id, ctx.runId))
         .for('update');
-      if (!run) throw ApplicationFailure.nonRetryable('run not found');
+      // The row is gone when its project was deleted: nothing to end, and the workflow still deletes the volume next.
+      if (!run) return;
       const status = RunStatus.parse(run.status);
       if (status === 'paused') {
         // A paused run is never dropped early.
