@@ -112,16 +112,16 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
   - `PromptPreviewDto = z.object({ systemLines: z.array(z.string()) })`
   - route `rules.promptPreview`: `{ method: 'GET', path: '/api/projects/:projectId/rules/prompt-preview', params: projectParams, response: PromptPreviewDto }`
 
-- [ ] **Step 1: Write the failing tests** in `rules.test.ts`:
+- [x] **Step 1: Write the failing tests** in `rules.test.ts`:
   - `it('accepts a skill rule and a prompt rule, and rejects a missing kind')`
   - `it('trims the prompt and bounds it at 4000 characters')`: `' '.repeat(3) + 'x'.repeat(4000) + '\n'` parses to the 4000 x's; 4001 fails at `['prompt']`; `'   \n '` fails.
   - `it('keeps line breaks inside the prompt')`
   - `it('UpdateRuleRequest: kind must come with its own field and never the other')`: `it.each` over `{kind:'prompt'}` ✗ `/prompt`, `{kind:'skill'}` ✗ `/skillName`, `{kind:'prompt',prompt:'p',skillName:'s'}` ✗, `{prompt:'p',skillName:'s'}` ✗, `{prompt:'p'}` ✓, `{enabled:false}` ✓, `{}` ✓.
   - In `routes.test.ts`: `it('registers rules.promptPreview under the project rules path')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test` — expect FAIL.
-- [ ] **Step 3: Implement** the schemas and route above. Update the e2e script body.
-- [ ] **Step 4: Run** contracts tests and `pnpm --filter @agentdesk/contracts typecheck` — PASS. (core, api, worker and web typecheck are now red until their tasks.)
-- [ ] **Step 5: Commit** `feat(contracts): rules bind a skill or a custom prompt; run prompt fields; prompt preview route`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test` — expect FAIL.
+- [x] **Step 3: Implement** the schemas and route above. Update the e2e script body.
+- [x] **Step 4: Run** contracts tests and `pnpm --filter @agentdesk/contracts typecheck` — PASS. (core, api, worker and web typecheck are now red until their tasks.)
+- [x] **Step 5: Commit** `feat(contracts): rules bind a skill or a custom prompt; run prompt fields; prompt preview route`.
 
 ### Task 4: Routing guard and intake copy (core, sensitive: intake)
 

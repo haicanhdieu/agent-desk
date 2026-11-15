@@ -17,6 +17,7 @@ const validRule = {
   command: 'review',
   labelFilter: [],
   target: 'pr',
+  kind: 'skill',
   skillName: 'review',
   enabled: true,
 };
@@ -34,7 +35,7 @@ describe('contracts', () => {
     expect(Object.keys(flat)).toContain('runs.list');
     expect(Object.keys(flat)).toContain('agents.putCredential');
     expect(flat['runs.resume']).toMatchObject({ method: 'POST', path: '/api/runs/:runId/resume' });
-    expect(Object.keys(flat)).toHaveLength(41);
+    expect(Object.keys(flat)).toHaveLength(42);
   });
   it('rejects timeoutSeconds above 7 days', () => {
     expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 604801 }).success).toBe(false);
@@ -98,5 +99,11 @@ describe('contract boundaries', () => {
   });
   it('RunListQuery.limit defaults to 50', () => {
     expect(RunListQuery.parse({}).limit).toBe(50);
+  });
+
+  it('registers rules.promptPreview under the project rules path', () => {
+    const r = flattenRoutes(routes)['rules.promptPreview'];
+    expect(r?.method).toBe('GET');
+    expect(r?.path).toBe('/api/projects/:projectId/rules/prompt-preview');
   });
 });

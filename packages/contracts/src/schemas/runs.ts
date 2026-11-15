@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
+import { RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
 
@@ -22,7 +22,10 @@ export const RunDto = z.object({
   projectId: Id,
   ruleId: Id.nullable(),
   command: z.string(),
-  skillName: z.string(),
+  ruleKind: RuleKind,
+  skillName: z.string().nullable(),
+  prompt: z.string().nullable(),
+  finalPrompt: z.string().nullable(),
   agent: z.object({ name: z.string(), model: z.string() }),
   ticket: TicketDto,
   args: z.string().nullable(),

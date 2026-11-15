@@ -39,6 +39,9 @@ export type Provider = z.infer<typeof Provider>;
 export const TicketKind = z.enum(['issue', 'pr']);
 export type TicketKind = z.infer<typeof TicketKind>;
 
+export const RuleKind = z.enum(['skill', 'prompt']);
+export type RuleKind = z.infer<typeof RuleKind>;
+
 export const RuleTarget = z.enum(['issue', 'pr', 'any']);
 export type RuleTarget = z.infer<typeof RuleTarget>;
 
