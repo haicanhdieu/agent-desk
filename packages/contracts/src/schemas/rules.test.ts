@@ -35,6 +35,7 @@ describe('UpdateRuleRequest', () => {
   it.each([
     [{ kind: 'prompt' }, false, '/prompt'],
     [{ kind: 'skill' }, false, '/skillName'],
+    [{ kind: 'skill', skillName: 's', prompt: 'p' }, false, '/prompt'],
     [{ kind: 'prompt', prompt: 'p', skillName: 's' }, false, null],
     [{ prompt: 'p', skillName: 's' }, false, null],
     [{ prompt: 'p' }, true, null],
