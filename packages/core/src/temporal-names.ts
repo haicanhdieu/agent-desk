@@ -25,6 +25,10 @@ export const SIGNAL = {
   agentState: 'agentState',
   turnFinished: 'turnFinished',
   resumed: 'resumed',
+  /** RunWorkflow: the runner reported `session_started` (the run's pod is up). */
+  sessionStarted: 'sessionStarted',
+  /** RunWorkflow: drop a kept done-session (the per-project cap); ignored for a paused run. */
+  dropSession: 'dropSession',
   terminalAttached: 'terminalAttached',
   terminalDetached: 'terminalDetached',
   finish: 'finish',
@@ -36,6 +40,8 @@ export const SIGNAL = {
 export const UPDATE = {
   /** RunWorkflow: end an idle or done run; resolves `{ accepted: true }` or fails `NotFinishable`. */
   finishRun: 'finishRun',
+  /** RunWorkflow: resume a paused run, or re-open a succeeded run with a kept session. */
+  resumeRun: 'resumeRun',
 } as const;
 
 export const QUERY = {

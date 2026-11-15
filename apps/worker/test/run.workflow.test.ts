@@ -204,6 +204,17 @@ function activities(): RunActivities {
     async deleteRunVolume(ctx) {
       script(ctx.runId).calls.push('deleteRunVolume');
     },
+    // Not called by the workflow yet (parking is Task 9); recorded so a call is visible.
+    async parkRun(ctx, input) {
+      script(ctx.runId).calls.push(`parkRun:${input.kind}`);
+      return { status: input.kind === 'done' ? 'succeeded' : 'paused', sessionExpiresAt: null };
+    },
+    async endKeptSession(ctx, reason) {
+      script(ctx.runId).calls.push(`endKeptSession:${reason}`);
+    },
+    async restoreParked(ctx) {
+      script(ctx.runId).calls.push('restoreParked');
+    },
   };
 }
 

@@ -92,6 +92,10 @@ describe('createActivities', () => {
       'reconcile',
       'loadRun',
       'followPodLogs',
+      'parkRun',
+      'endKeptSession',
+      'restoreParked',
+      'deleteRunVolume',
     ] as const) {
       expect(acts[name], name).toBeTypeOf('function');
     }

@@ -283,7 +283,7 @@ followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLo
 - `followPodLogs`: sends the `sessionStarted` signal to the run workflow when it stores `session_started`. With `resume: true` it does not write `running` on the first log line, reports `failureStage: undefined` and a new result field `resumeFailed?: true` when the pod exited `79` before `session_started`, and the stored `session_started` check looks only at events after the resume began.
 - With `createRunSecretAndJob(..., { resume: true })` the agent and credential are read fresh from the database; a missing agent or credential fails non-retryably with type `NoAgentCredential`.
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - `parkRun` `needs_input`: status `paused`, expiry = `at` + the agent's `pausedKeepSeconds`;
   - `parkRun` `done` with `doneKeepSeconds = 0`: status `succeeded`, `sessionExpiresAt: null`;
   - `parkRun` `done` with 10 kept sessions already in the project and the cap at 10: the oldest kept run's workflow receives `dropSession` (fake Temporal client), paused runs are not counted and not signalled;
@@ -293,10 +293,10 @@ followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLo
   - `restoreParked`: status and expiry restored, a `resume_failed` event stored, the reason redacted and capped;
   - `followPodLogs` with `resume: true`: no `running` write on the first line; `sessionStarted` signal sent; exit `79` gives `resumeFailed: true`;
   - comment kind `paused` posts once across two calls.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
-- [ ] **Step 3: Implement.** All queries under `withOrg`. `parkRun`'s cap query: succeeded runs of the project with `session_expires_at > at`, ordered by `session_expires_at`, skipping the newest `cap - 1`.
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): activities for parking, expiring and resuming a session`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
+- [x] **Step 3: Implement.** All queries under `withOrg`. `parkRun`'s cap query: succeeded runs of the project with `session_expires_at > at`, ordered by `session_expires_at`, skipping the newest `cap - 1`.
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): activities for parking, expiring and resuming a session`.
 
 ### Task 8: Pure decisions for the parked phase
 
