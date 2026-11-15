@@ -160,6 +160,21 @@ describe('run reads', () => {
     expect((await get(`/api/projects/${projectId}/runs/999999`)).statusCode).toBe(404);
   });
 
+  it('a run DTO carries ruleKind, prompt and finalPrompt', async () => {
+    const p = await insertRun({ skillName: null, prompt: 'p', finalPrompt: 'p\nTicket: x' });
+    expect(expectContract('runs.get', await get(`/api/runs/${p.id}`))).toMatchObject({
+      ruleKind: 'prompt',
+      prompt: 'p',
+      finalPrompt: 'p\nTicket: x',
+    });
+    const s = await insertRun();
+    expect(expectContract('runs.get', await get(`/api/runs/${s.id}`))).toMatchObject({
+      ruleKind: 'skill',
+      prompt: null,
+      finalPrompt: null,
+    });
+  });
+
   it("other org's resources are 404", async () => {
     const run = await insertRun();
     expect((await get(`/api/projects/${projectId}/runs/${run.number}`, bob)).statusCode).toBe(404);

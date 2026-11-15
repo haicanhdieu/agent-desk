@@ -110,7 +110,10 @@ export class RunsService {
       projectId: row.projectId,
       ruleId: row.ruleId,
       command: row.command,
+      ruleKind: row.prompt !== null ? 'prompt' : 'skill',
       skillName: row.skillName,
+      prompt: row.prompt,
+      finalPrompt: row.finalPrompt,
       // The agent row can be gone (agent_id is ON DELETE SET NULL); the DTO still needs a shape.
       agent: { name: agent?.name ?? '(deleted agent)', model: agent?.model ?? 'unknown' },
       ticket: {

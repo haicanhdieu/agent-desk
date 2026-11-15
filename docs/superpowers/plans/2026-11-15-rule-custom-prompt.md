@@ -197,13 +197,13 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 - Consumes: `promptSystemLines`, `PROMPT_PREVIEW_TICKET`, `PROMPT_PREVIEW_ARGS` (Task 1); `PromptPreviewDto`, route `rules.promptPreview` (Task 3).
 - Produces: `RulesService.promptPreview(org: OrgContext, projectId: string): Promise<PromptPreviewDto>`.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
   - `rules.int.test.ts`: `it('prompt preview returns every appended line with the project repo and placeholders')` → `expectContract('rules.promptPreview', res)`, `systemLines` toEqual `promptSystemLines({ ticket: PROMPT_PREVIEW_TICKET, repoPath: <project repoPath>, args: PROMPT_PREVIEW_ARGS })` and has 4 lines, the last one with `agentdesk-status`; `it('prompt preview is 401 signed out and 404 for another org project')` (bob's cookie on alice's project).
   - `runs.int.test.ts`: `it('a run DTO carries ruleKind, prompt and finalPrompt')` via `insertRun({ skillName: null, prompt: 'p', finalPrompt: 'p\nTicket: …' })` → `runs.get` returns `ruleKind: 'prompt'`; an `insertRun()` without them → `ruleKind: 'skill', prompt: null, finalPrompt: null`.
-- [ ] **Step 2: Run** both files — expect FAIL.
-- [ ] **Step 3: Implement**: `promptPreview` reads `projects.repoPath` inside `withOrg` (404 `Project not found` when missing) and returns the lines. Controller `@Get(routePath(routes.rules.promptPreview))` with `ProjectParam`, same `CurrentOrg` guard as `list`. `RunsService.toDto` adds `ruleKind`, `prompt`, `finalPrompt`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/api test` and `pnpm --filter @agentdesk/api typecheck` — PASS.
-- [ ] **Step 5: Commit** `feat(api): prompt preview route and run prompt fields`.
+- [x] **Step 2: Run** both files — expect FAIL.
+- [x] **Step 3: Implement**: `promptPreview` reads `projects.repoPath` inside `withOrg` (404 `Project not found` when missing) and returns the lines. Controller `@Get(routePath(routes.rules.promptPreview))` with `ProjectParam`, same `CurrentOrg` guard as `list`. `RunsService.toDto` adds `ruleKind`, `prompt`, `finalPrompt`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/api test` and `pnpm --filter @agentdesk/api typecheck` — PASS.
+- [x] **Step 5: Commit** `feat(api): prompt preview route and run prompt fields`.
 
 ### Task 8: Web data layer: fixtures, MSW, queries, mappers
 

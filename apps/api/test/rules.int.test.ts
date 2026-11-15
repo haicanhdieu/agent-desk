@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { runs, withOrg } from '@agentdesk/db';
+import { projects, runs, withOrg } from '@agentdesk/db';
+import { eq } from 'drizzle-orm';
+import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines } from '@agentdesk/core';
 import type { RuleDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
@@ -184,5 +186,29 @@ describe('rules of both kinds', () => {
     const res = await patch(pr.id, { prompt: 'new' });
     expect(res.statusCode).toBe(200);
     expect(expectContract('rules.update', res)).toMatchObject({ kind: 'prompt', prompt: 'new' });
+  });
+});
+
+describe('prompt preview', () => {
+  const preview = (id = projectId, cookie = alice) =>
+    t.app.inject({ method: 'GET', url: `/api/projects/${id}/rules/prompt-preview`, headers: { cookie } });
+
+  it('returns every appended line with the project repo and placeholders', async () => {
+    const res = await preview();
+    expect(res.statusCode).toBe(200);
+    const dto = expectContract('rules.promptPreview', res) as { systemLines: string[] };
+    const [row] = await withOrg(t.db, orgId, (tx) =>
+      tx.select({ repoPath: projects.repoPath }).from(projects).where(eq(projects.id, projectId)),
+    );
+    expect(dto.systemLines).toEqual(
+      promptSystemLines({ ticket: PROMPT_PREVIEW_TICKET, repoPath: row?.repoPath ?? '', args: PROMPT_PREVIEW_ARGS }),
+    );
+    expect(dto.systemLines).toHaveLength(4);
+    expect(dto.systemLines.at(-1)).toContain('agentdesk-status');
+  });
+
+  it('is 401 signed out and 404 for another org project', async () => {
+    expect((await preview(projectId, '')).statusCode).toBe(401);
+    expect((await preview(projectId, bob)).statusCode).toBe(404);
   });
 });

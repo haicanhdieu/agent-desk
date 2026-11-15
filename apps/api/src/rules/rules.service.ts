@@ -1,8 +1,14 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import { agents, projects, rules, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
-import { RuleTarget, type CreateRuleRequest, type RuleDto, type UpdateRuleRequest } from '@agentdesk/contracts';
-import { SkillNotFoundError } from '@agentdesk/core';
+import {
+  RuleTarget,
+  type PromptPreviewDto,
+  type CreateRuleRequest,
+  type RuleDto,
+  type UpdateRuleRequest,
+} from '@agentdesk/contracts';
+import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines, SkillNotFoundError } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
 import { isUniqueViolation } from '../common/pg-errors';
@@ -60,6 +66,24 @@ export class RulesService {
       enabled: row.enabled,
       stats: { runs30d: stats?.runs30d ?? 0, lastRunAt: stats?.lastRunAt?.toISOString() ?? null },
     };
+  }
+
+  async promptPreview(org: OrgContext, projectId: string): Promise<PromptPreviewDto> {
+    return withOrg(this.db, org.orgId, async (tx) => {
+      const [project] = await tx
+        .select({ repoPath: projects.repoPath })
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+      if (!project) throw new NotFoundException('Project not found');
+      return {
+        systemLines: promptSystemLines({
+          ticket: PROMPT_PREVIEW_TICKET,
+          repoPath: project.repoPath,
+          args: PROMPT_PREVIEW_ARGS,
+        }),
+      };
+    });
   }
 
   private async dtoOf(tx: Tx, row: RuleRow): Promise<RuleDto> {
