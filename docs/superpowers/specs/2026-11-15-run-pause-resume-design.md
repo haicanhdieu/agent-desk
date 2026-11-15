@@ -60,7 +60,7 @@ Two new values in `RunStatus`:
 | Status | Label | Meaning | Pod | Slot | Group |
 | --- | --- | --- | --- | --- | --- |
 | `paused` | Paused | Was waiting for a person; stopped after the idle time; can be resumed | no | no | not active, not final |
-| `expired` | Expired | Was paused and nobody resumed it before the keep time ran out; session deleted | no | no | final |
+| `expired` | Expired | Was paused and nobody resumed it before the keep time ran out, or the session could not be kept because a keep limit was reached (§6); session deleted | no | no | final |
 
 - `ACTIVE_RUN_STATUSES` stays as it is (statuses with a pod). `FINAL_RUN_STATUSES` gains `expired`.
 - `succeeded` keeps its meaning. A stopped `done` run becomes `succeeded` with a kept session (see fields below). When that session expires the run simply stays `succeeded`.
@@ -101,22 +101,22 @@ Two new fields on the agent config (same place as the run time limit, Desk → A
 
 - Each run gets a `PersistentVolumeClaim` named like its Job and Secret (`run-{runId}`), with the run labels, created together with the Secret and Job on first start. It replaces the `emptyDir` workspace.
 - The volume is mounted once, at `/workspace`. The repo stays in `/workspace/repo` and the runner's home folder moves onto the same volume (`HOME=/workspace/home`, set by the Job). One mount and no sub-paths on purpose: a `local-path` volume's root is writable by the runner user, but sub-path folders are created by the kubelet as root and `fsGroup` is not applied to this volume type. Keeping the whole home folder is agent-neutral: any agent's session files, plugins and caches are kept without the worker knowing their paths.
-- The image's baked home content (our settings) moves to a skeleton folder in the image and is copied into the home folder at start without overwriting existing files. Managed settings stay in `/etc` in the image and are never on the volume.
+- The image's baked home content (our settings and hooks) moves to a skeleton folder in the image. At every start, including resume, the skeleton's files are copied into the home folder **overwriting** the volume's copies, so platform-owned settings and hooks cannot be changed by the agent between pause and resume. Files that are not in the skeleton (session data, plugins, caches) are never touched. The runner's `~/.claude.json` stub is written only when absent; when present, only the repo's trust entry is merged in. Managed settings stay in `/etc` in the image and are never on the volume.
 - Size request is the existing `RUN_POD_WORKSPACE_SIZE_LIMIT` (4Gi).
-- Storage class: the QA cluster's default class is `local-path-retain` (infra design §5.4), which keeps the data after a claim is deleted. Run volumes must not use it, or expired sessions would stay on disk. The platform layer adds a class `agentdesk-run-volumes` (provisioner `rancher.io/local-path`, `reclaimPolicy: Delete`, `volumeBindingMode: WaitForFirstConsumer`), and new platform config `RUN_VOLUME_STORAGE_CLASS` names it. Blank means the cluster default, for local dev only. Deleting the claim is then the whole cleanup: one call, nothing cluster-wide.
+- Storage class: the QA cluster's default class is `local-path-retain` (infra design §5.4), which keeps the data after a claim is deleted. Run volumes must not use it, or expired sessions would stay on disk. The platform layer adds a class `agentdesk-run-volumes` (provisioner `rancher.io/local-path`, `reclaimPolicy: Delete`, `volumeBindingMode: WaitForFirstConsumer`), and new platform config `RUN_VOLUME_STORAGE_CLASS` names it. Blank means the cluster default and is accepted only when `NODE_ENV` is not `production` (the config schema requires it in production, architecture §7: a default is only safe when it is safe in production). Deleting the claim is then the whole cleanup: one call, nothing cluster-wide.
 - RBAC: the worker's Role in `agentdesk-runs` gains `persistentvolumeclaims` (create, get, list, delete). Still nothing cluster-wide.
-- Infra work item: the infra design (§5.4, §6.1, §6.6) is updated in the same PR as this change, and the storage class and Role must be live before the worker that creates volumes. The `deploy/` tree is not in the repo yet; whoever lands it applies these two points.
+- Infra work item: the infra design (§5.4, §6.1, §6.2, §6.6) is updated in the same PR as this change (§6.2 lists the `agentdesk-config` keys), and the storage class and Role must be live before the worker that creates volumes. The worker checks this at startup (a self access review for creating claims) and refuses to start when it is not allowed, so a wrong deploy order fails at once instead of failing every run with a 403. The `deploy/` tree is not in the repo yet; whoever lands it applies these two points.
 - `KubeGateway` gains the matching volume methods (ensure, delete, list), with fake-gateway support for tests.
-- No credential is stored on the volume by Agent Desk: the workspace token is a mounted Secret file and the agent credential is an env var, both created fresh for every pod.
+- Credentials on the volume: the clone URL carries the workspace token, so `git clone` would write it into `.git/config`. After the clone and checkout the runner sets `origin` to the same URL without the token (`git remote set-url`); git then uses the credential helper and the mounted token file. A runner test checks that no file under `/workspace` holds the token after start. The agent credential is an env var and is not written by Agent Desk. Even so, a kept volume holds untrusted content and whatever the agent wrote, so the ADR records kept volumes as secret-bearing data: per-run, mounted only by that pod, deleted on expiry.
 
 ### 4. Stopping a run (worker)
 
 When the idle timer fires (same condition as today: at a turn boundary, nobody attached, no session end under way):
 
-1. End the session as today; the runner prints the final scrollback and the pod exits.
+1. End the session as today; the runner prints the final scrollback and the pod exits. The scrollback repeats the whole conversation, so only the latest one is kept per run: storing a new one deletes the run's earlier scrollback events (the one place run events are deleted, limited to that event type; recorded in the ADR).
 2. Delete the Job and the Secret. Keep the volume.
 3. Release the slot.
-4. Write the status: `paused` for a run that was `idle`; `succeeded` for a run that was `done`. Set `pausedAt` and `sessionExpiresAt` (now + the keep setting). With `doneKeepSeconds = 0` the volume is deleted and no session is kept.
+4. Write the status: `paused` for a run that was `idle`; `succeeded` for a run that was `done`. Set `pausedAt` and `sessionExpiresAt` (now + the keep setting). With `doneKeepSeconds = 0`, or when a keep limit in §6 is reached, the volume is deleted and no session is kept: a `done` run is `succeeded` without a session, an `idle` run is `expired` (never `succeeded`), and a run event says why.
 5. Post one ticket comment: for `paused`, that the run is paused waiting for an answer, with the link (first pause of a run only); for `succeeded`, the normal finish comment (first time only; a re-opened run does not post it again).
 
 The run workflow stays open while a session is kept. It is the single owner of the session: it waits for resume, finish, cancel, or a durable expiry timer. On expiry it deletes the volume and writes `expired` (paused) or just clears `sessionExpiresAt` (succeeded), then closes. New workflow code is guarded with `patched()` so runs started before the deploy replay unchanged; those older runs keep today's behaviour.
@@ -132,12 +132,13 @@ A person pressing Finish, a cancel, a failure, a hard timeout, or the agent exit
 - When the session is up, the workflow writes the state the run was stopped in (`idle` or `done`).
 - The resumed pod uses the current runner image.
 - Time limit: the run's limit counts only time with a pod. The workflow carries the used time across pauses and gives the new pod's hard timer and Job deadline the remainder. A paused run cannot time out.
-- Time limit value: the limit is the one the run started with, not the agent's current setting. A resumed pod always gets at least 1 hour (`RESUME_MIN_SECONDS`), even when less of the limit is left, so a resume never starts a pod that is killed minutes later.
+- Time limit value: the limit is the one the run started with, not the agent's current setting. Resume is refused (409 "This run has used its time limit") when less than 1 hour (`RESUME_MIN_SECONDS`) of the limit is left, so total pod time never exceeds the limit and a resume never starts a pod that is killed minutes later. The session stays kept until it expires.
 - Terminal attach to a run without a pod is refused as today; the UI offers Resume instead.
 
 **When a resume goes wrong.** The rule is: a kept session is only given up once the resumed session is really up.
 
-- If the resume fails before the runner reports the session started (no slot because of a cancel of the resume, pod never schedules, marker missing, Secret or Job cannot be created), the workflow deletes the Job and Secret, releases the slot and puts the run back exactly as it was: `paused`, or `succeeded` with its session, with the same `sessionExpiresAt`. The failure reason is stored as a run event and shown on the run page ("Resume failed: …"). The person can try again.
+- If the volume itself is gone (the claim is missing when the resume starts, or the runner exits `79`), the session is lost: retrying cannot help. The run is expired at once (`expired` for a paused run; a succeeded run just loses its session), the volume is deleted, and the run page says "Resume failed: the saved session is gone".
+- If the resume fails before the runner reports the session started (no slot because of a cancel of the resume, pod never schedules, Secret or Job cannot be created), the workflow deletes the Job and Secret, releases the slot and puts the run back exactly as it was: `paused`, or `succeeded` with its session, with the same `sessionExpiresAt`. The failure reason is stored as a run event and shown on the run page ("Resume failed: …"). The person can try again.
 - Once the session is up, it is a live run again and ends by the normal rules. A re-opened succeeded run can therefore end as `failed`, `cancelled` or `timed_out` if that is what then happens; the run page history shows the earlier success and the re-open. No second finish comment is posted for a run that ends `succeeded` again; a different end status posts its normal comment.
 - Cancel pressed while a resume is queued or starting cancels the resume only (back to the kept state). Cancel on a `paused` run ends it as `cancelled`.
 
@@ -148,9 +149,15 @@ A person pressing Finish, a cancel, a failure, a hard timeout, or the agent exit
 
 ### 6. Cleanup (worker)
 
-`reconcile` learns about volumes, with the same per-org lookup as Jobs and Secrets. It deletes a volume when its run is missing, is final with no kept session, or is past `sessionExpiresAt` plus a grace period. A `paused` run whose workflow is closed (terminated) is written as `expired` and its volume deleted. A run with a kept session legitimately has a volume and no Job or Secret.
+`reconcile` learns about volumes, with the same per-org lookup as Jobs and Secrets. It deletes a volume when its run is missing, is final with no kept session, its workflow is closed, or its run is `paused` or `succeeded` and past `sessionExpiresAt` plus a grace period (a resumed run waiting in `queued` or `starting` is not deleted on expiry alone). Whether workflows are open comes from one Temporal visibility listing per pass, not one call per run. A `paused` run whose workflow is closed (terminated) is written as `expired` and its volume deleted. A run with a kept session legitimately has a volume and no Job or Secret.
 
-Disk bound: every kept session expires, and the keep settings have hard upper limits. In addition a platform cap `RUN_KEPT_DONE_SESSIONS_PER_PROJECT` (default 10) drops the oldest kept sessions of succeeded runs first when a new one is kept. Paused runs are never dropped early.
+Disk bound: every kept session expires, and the keep settings have hard upper limits, but that alone does not bound the disk (`local-path` does not enforce volume size, and one tenant could fill the shared node disk). Platform caps, all counted over volumes that are kept (paused and succeeded):
+
+- `RUN_KEPT_DONE_SESSIONS_PER_PROJECT` (default 10): when a new succeeded session is kept, the oldest kept succeeded sessions of the project are dropped. `0` means succeeded sessions are not kept.
+- `RUN_PAUSED_SESSIONS_PER_PROJECT` (default 20): paused runs are never dropped early. When the project is at the cap, a new idle stop does not keep a session: the run is `expired` with a run event "Not kept: this project already has 20 paused runs". `0` means paused sessions are not kept.
+- `RUN_KEPT_SESSIONS_PER_ORG` (default 100): same policy when the org is at the cap, for both kinds (a done run is `succeeded` without a session).
+
+So the kept volumes of one org are at most the org cap times the volume size request.
 
 ### 7. UI (web)
 
@@ -180,7 +187,7 @@ Succeeded run with a kept session:
 
 - **`--continue` is unproven here.** The plan's first step is a throwaway test on the pinned Claude Code version: start a session, kill it at a turn boundary, start a new container on the same home and repo folders, run `claude --continue`, and check that the conversation is back and the status hooks still fire. If it fails, the design comes back for review before anything else is built.
 - **Open question menus are not restored.** The person sees the agent's last question as text and types the answer.
-- **Volume size is not enforced on `local-path`.** The `emptyDir` size limit evicted a pod that wrote too much; a `local-path` volume does not. One run can use more than 4Gi. Accepted for the PoC and written down in the ADR; a storage class with quotas fixes it later.
+- **Volume size is not enforced on `local-path`.** The `emptyDir` size limit evicted a pod that wrote too much; a `local-path` volume does not. One run can use more than 4Gi. The kept-session caps in §6 bound the number of volumes, not their size. Accepted for the PoC and written down in the ADR; a storage class with quotas fixes it later.
 - **One node.** A `local-path` volume lives on one node. More nodes need shared storage or approach 2.
 - **Image changes between pause and resume.** A resumed pod uses the current image; a newer agent CLI may not read an older session. Not guarded.
 - **Workflow history.** Each pause and resume adds events to the same workflow. The existing 45,000-event guard still applies.
@@ -197,7 +204,8 @@ Succeeded run with a kept session:
 - Contracts: new statuses, groups, fields and setting bounds.
 - Worker: workflow tests for stop (both kinds), resume, re-open, finish and cancel while paused, expiry of both kinds, time-limit carry-over, slot release and re-request; a new replay fixture, and the old fixtures still replay.
 - Core: Job spec with the volume and sub-paths; fake gateway volume methods; reconcile volume rules.
-- Runner: `RUN_MODE=resume` skips clone, plugins and setup; missing marker fails; home skeleton copied once.
+- Runner: `RUN_MODE=resume` skips clone, plugins and setup; missing marker fails; skeleton files restored on every start while other home files are kept; no file under `/workspace` holds the workspace token.
+- Config: `RUN_VOLUME_STORAGE_CLASS` required in production; caps accept 0.
 - API: resume authorization and conflict cases.
 - Web: status badge, run page states and stories; e2e for pause then resume on the local stack.
 - Each fix or behaviour starts with a failing test; no network in tests.
