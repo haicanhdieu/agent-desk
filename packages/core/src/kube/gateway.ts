@@ -23,6 +23,9 @@ export const RUN_CONTAINER = 'agent';
 
 export const runJobName = (runId: string): string => `run-${runId}`;
 
+/** Name of a run's volume claim (same as its Job and Secret). */
+export const runVolumeName = (runId: string): string => `run-${runId}`;
+
 export const setupTestJobName = (setupTestId: string): string => `setup-test-${setupTestId}`;
 
 export type RunPodPhase = 'Pending' | 'Running' | 'Succeeded' | 'Failed' | 'Unknown';
@@ -76,6 +79,13 @@ export interface RunSecretRef {
   projectId: string;
 }
 
+export interface RunVolumeRef {
+  name: string;
+  runId: string;
+  orgId: string;
+  projectId: string;
+}
+
 /**
  * The control plane's only access to Kubernetes for runs (namespace `RUNS_NAMESPACE`). Create and delete calls are
  * idempotent: "already exists" and "not found" are success.
@@ -90,6 +100,16 @@ export interface KubeGateway {
   /** Values of a run Secret (used to build the redaction list), or null when it does not exist. */
   readSecret(name: string): Promise<Record<string, string> | null>;
   deleteSecret(name: string): Promise<void>;
+  /** Creates a per-run volume claim; one that already exists is success. */
+  ensureVolumeClaim(
+    name: string,
+    spec: { size: string; storageClass?: string },
+    labels: Record<string, string>,
+  ): Promise<void>;
+  /** Deletes a volume claim (and with the storage class's Delete policy, its data); a missing claim is success. */
+  deleteVolumeClaim(name: string): Promise<void>;
+  /** Volume claims carrying the run labels. */
+  listRunVolumeClaims(): Promise<RunVolumeRef[]>;
   ensureJob(spec: V1Job): Promise<void>;
   getRunPod(jobName: string): Promise<RunPod | null>;
   /** Container log lines from the start, following until the container ends or `signal` aborts. */

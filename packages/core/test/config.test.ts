@@ -24,6 +24,20 @@ describe('plugin and setup config', () => {
     });
     expect(c.RUN_SETUP_TIMEOUT_SECONDS).toBe(600);
     expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
+    expect(c.RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+    expect(c.RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(10);
+  });
+  it('parses volume settings; blank storage class is unset, zero kept sessions is allowed', () => {
+    expect(parseConfig({ ...base, RUN_VOLUME_STORAGE_CLASS: 'agentdesk-run-volumes' }).RUN_VOLUME_STORAGE_CLASS).toBe(
+      'agentdesk-run-volumes',
+    );
+    expect(parseConfig({ ...base, RUN_VOLUME_STORAGE_CLASS: '' }).RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
+    expect(parseConfig({ ...base, RUN_KEPT_DONE_SESSIONS_PER_PROJECT: '0' }).RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(
+      0,
+    );
+    expect(() => parseConfig({ ...base, RUN_KEPT_DONE_SESSIONS_PER_PROJECT: '-1' })).toThrow(
+      'RUN_KEPT_DONE_SESSIONS_PER_PROJECT',
+    );
   });
   it('parses overrides and blank falls back to defaults', () => {
     const c = parseConfig({

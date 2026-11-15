@@ -28,6 +28,9 @@ function kubeWith(over: Partial<KubeGateway>): KubeGateway {
     listSetupTestJobs: async () => [],
     listRunSecrets: async () => [],
     listSetupTestSecrets: async () => [],
+    ensureVolumeClaim: unused,
+    deleteVolumeClaim: unused,
+    listRunVolumeClaims: async () => [],
     ...over,
   };
 }

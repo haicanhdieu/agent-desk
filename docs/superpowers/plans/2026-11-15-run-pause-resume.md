@@ -192,11 +192,11 @@ export const runVolumeName = (runId: string): string => `run-${runId}`;
 - Claim spec: `accessModes: ['ReadWriteOnce']`, `resources.requests.storage = size`, `storageClassName` only when given.
 - Config: `RUN_VOLUME_STORAGE_CLASS` (optional string, blank means unset), `RUN_KEPT_DONE_SESSIONS_PER_PROJECT` (int, min 0, default 10).
 
-- [ ] **Step 1: Write failing tests:** ensure twice succeeds and creates one claim with the labels and size; delete of a missing claim succeeds; list returns only claims with run labels and maps them with `runRefFromLabels`; with `storageClass` unset the body has no `storageClassName`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test:unit` — expect FAIL.
-- [ ] **Step 3: Implement** in the real and fake gateways, following the Secret methods' error handling (`kubeStatusOf`, 404 and 409).
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(core): volume claim methods on KubeGateway`.
+- [x] **Step 1: Write failing tests:** ensure twice succeeds and creates one claim with the labels and size; delete of a missing claim succeeds; list returns only claims with run labels and maps them with `runRefFromLabels`; with `storageClass` unset the body has no `storageClassName`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test:unit` — expect FAIL.
+- [x] **Step 3: Implement** in the real and fake gateways, following the Secret methods' error handling (`kubeStatusOf`, 404 and 409).
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(core): volume claim methods on KubeGateway`.
 
 ### Task 5: Run Job on the volume, with a resume variant
 

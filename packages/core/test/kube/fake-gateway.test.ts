@@ -510,4 +510,26 @@ describe('FakeKubeGateway', () => {
     await expect(gw.getRunPod('other-x')).rejects.toThrow(/invalid job name/);
     await gw.deleteJob(`run-${id}`);
   });
+
+  it('volume claims: ensure twice keeps one claim, list returns labelled claims, delete is idempotent', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const labels = { 'agentdesk/run-id': id, 'agentdesk/org-id': ORG, 'agentdesk/project-id': PROJECT };
+    await gw.ensureVolumeClaim(name, { size: '4Gi' }, labels);
+    await gw.ensureVolumeClaim(name, { size: '4Gi' }, labels);
+    const mine = (await gw.listRunVolumeClaims()).filter((c) => c.name === name);
+    expect(mine).toEqual([{ name, runId: id, orgId: ORG, projectId: PROJECT }]);
+    const bare = `run-${runId()}`;
+    await gw.ensureVolumeClaim(bare, { size: '4Gi' }, { other: 'x' });
+    expect((await gw.listRunVolumeClaims()).map((c) => c.name)).not.toContain(bare);
+    await gw.deleteVolumeClaim(name);
+    await gw.deleteVolumeClaim(name);
+    await gw.deleteVolumeClaim(bare);
+    expect((await gw.listRunVolumeClaims()).map((c) => c.name)).not.toContain(name);
+  });
+
+  it('volume claim names are validated', async () => {
+    await expect(gw.ensureVolumeClaim('../x', { size: '1Gi' }, {})).rejects.toThrow(/invalid/);
+    await expect(gw.deleteVolumeClaim('../x')).rejects.toThrow(/invalid/);
+  });
 });

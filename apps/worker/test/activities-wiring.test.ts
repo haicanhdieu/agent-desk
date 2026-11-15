@@ -21,6 +21,9 @@ const kube: KubeGateway = {
   listSetupTestJobs: async () => [],
   listRunSecrets: async () => [],
   listSetupTestSecrets: async () => [],
+  ensureVolumeClaim: unused,
+  deleteVolumeClaim: unused,
+  listRunVolumeClaims: async () => [],
 };
 
 interface Recorded {

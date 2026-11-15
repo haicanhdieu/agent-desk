@@ -80,6 +80,10 @@ export const ConfigSchema = z
         'anthropic-plugin-directory': 'builtin',
       }),
     ),
+    /** Storage class of per-run volumes; unset uses the cluster default. */
+    RUN_VOLUME_STORAGE_CLASS: optional(z.string()),
+    /** Finished runs per project whose kept session (volume) survives; older ones are cleaned up. */
+    RUN_KEPT_DONE_SESSIONS_PER_PROJECT: blankDefault(z.coerce.number().int().min(0).default(10)),
     RUN_SETUP_TIMEOUT_SECONDS: blankDefault(z.coerce.number().int().min(1).max(3300).default(600)),
     SETUP_TEST_TTL_SECONDS: blankDefault(z.coerce.number().int().min(60).max(3600).default(900)),
     FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
