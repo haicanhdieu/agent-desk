@@ -20,12 +20,14 @@ export interface RunContext {
   agentId: string | null;
   /** Current `runs.status`; a final status makes the workflow return without doing anything. */
   status: RunStatus;
-  /** Hard timer, seconds (≤ 3300, so the one-hour workspace token outlives the run). */
+  /** Hard timer, seconds (60 to 604800; the workspace token is refreshed while the run lasts, ADR 0021). */
   timeoutSeconds: number;
   /** The project's `max_concurrent_runs`; seeds the gate when this run starts it. */
   maxConcurrentRuns: number;
   /** Idle end, seconds. Normally `IDLE_END_SECONDS` (600); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
+  /** Seconds between workspace-token refreshes. Normally 2700 (45 min of the token's hour); a field like `idleEndSeconds`. */
+  tokenRefreshSeconds?: number;
 }
 
 export interface RequestSlotInput {
@@ -80,6 +82,12 @@ export interface RunActivities {
    * already exists → success. The token never leaves the activity.
    */
   createRunSecretAndJob(ctx: RunContext): Promise<void>;
+  /**
+   * Mints a new workspace token and writes it into the existing run Secret; the pod reads it from a mounted file, so
+   * the pod keeps running (ADR 0021). A finished run is a no-op; a missing Secret fails non-retryably. The token never
+   * leaves the activity.
+   */
+  refreshWorkspaceToken(ctx: RunContext): Promise<void>;
   /** Idempotent via `runs.outbox.{kind}`. */
   postComment(ctx: RunContext, kind: CommentKind, details?: FinishDetails): Promise<void>;
   /**

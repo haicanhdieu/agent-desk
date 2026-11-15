@@ -219,7 +219,7 @@ describe('RunDetail per state', () => {
 
   it('timed out: late banner, Change time limit, meter at 100% in the late tone', () => {
     show('RunTimedOut');
-    const banner = screen.getByText('Timed out at the 30 minute limit').closest('[class*="banner"]')!;
+    const banner = screen.getByText('Timed out at the 30 min limit').closest('[class*="banner"]')!;
     expect(banner).toHaveClass('late', 'flush', 'prominent');
     expect(within(banner as HTMLElement).getByRole('link', { name: 'Change time limit' })).toBeInTheDocument();
     expect(within(banner as HTMLElement).getByRole('button', { name: 'Copy /code-e2e' })).toBeInTheDocument();

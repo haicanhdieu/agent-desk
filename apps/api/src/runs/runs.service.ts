@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { agents, inboundEvents, projects, runEvents, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
   ACTIVE_RUN_STATUSES,
+  AGENT_TIMEOUT_SECONDS_DEFAULT,
   FINAL_RUN_STATUSES,
   FINISHABLE_RUN_STATUSES,
   FailureStage,
@@ -131,7 +132,7 @@ export class RunsService {
       failureStage: row.failureStage === null ? null : FailureStage.parse(row.failureStage),
       setupScriptVersion: row.setupScriptVersion,
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
-      timeoutSeconds: agent?.timeoutSeconds ?? 1800,
+      timeoutSeconds: agent?.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       idleSince: row.idleSince?.toISOString() ?? null,
       waitingOn: row.waitingOn === null ? null : WaitingOn.parse(row.waitingOn),
       agentNote: row.agentNote,

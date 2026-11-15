@@ -138,7 +138,8 @@ async function makeRun(status: string, pod = true, projectId = aliceProject): Pr
         image: 'fake',
         prompt: 'do it',
         checkoutRef: 'main',
-        cloneUrlSecretKey: 'REPO_CLONE_URL',
+        credentialEnvKeys: [],
+        gitUsername: 'x-access-token',
         maxTurns: null,
         timeoutSeconds: 120,
         botName: 'bot',
@@ -564,6 +565,7 @@ async function makeSetupTest(
         ttlSeconds: 60,
         botName: 'bot',
         botEmail: 'bot@x.invalid',
+        gitUsername: 'x-access-token',
         pod: {
           cpuRequest: '1',
           cpuLimit: '1',

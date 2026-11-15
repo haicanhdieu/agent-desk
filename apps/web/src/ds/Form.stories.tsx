@@ -15,6 +15,8 @@ import {
   TextInput,
   Toggle,
   UnitInput,
+  DurationInput,
+  type DurationUnit,
 } from '.';
 
 const meta = {
@@ -30,6 +32,32 @@ const meta = {
 } satisfies Meta;
 export default meta;
 type Story = StoryObj<typeof meta>;
+
+function DurationDemo({ initial, invalid }: { initial: DurationUnit; invalid?: boolean }) {
+  const [unit, setUnit] = useState<DurationUnit>(initial);
+  return (
+    <Field
+      label="Run time limit"
+      help="From 1 minute to 7 days."
+      error={invalid ? 'The run time limit can be at most 7 days' : undefined}
+    >
+      {({ id, describedBy, invalid: bad }) => (
+        <DurationInput
+          id={id}
+          aria-describedby={describedBy}
+          aria-invalid={bad}
+          unitLabel="Run time limit unit"
+          unit={unit}
+          onUnitChange={setUnit}
+          defaultValue={invalid ? '8' : '24'}
+        />
+      )}
+    </Field>
+  );
+}
+
+export const Duration: Story = { render: () => <DurationDemo initial="hours" /> };
+export const DurationError: Story = { render: () => <DurationDemo initial="days" invalid /> };
 
 export const TextInputs: Story = {
   render: () => (

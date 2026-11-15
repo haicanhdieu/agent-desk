@@ -95,7 +95,7 @@ describe('projects', () => {
       'select name, model, max_turns, timeout_seconds from agents where project_id = $1',
       [p.id],
     );
-    expect(agents.rows).toEqual([{ name: 'Claude', model: 'sonnet', max_turns: 50, timeout_seconds: 1800 }]);
+    expect(agents.rows).toEqual([{ name: 'Claude', model: 'sonnet', max_turns: 50, timeout_seconds: 86400 }]);
     const cur = await asOrg(await aliceOrgId(), 'select 1 from poll_cursors where project_id = $1', [p.id]);
     expect(cur.rows).toHaveLength(0);
 

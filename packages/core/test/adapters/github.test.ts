@@ -334,22 +334,23 @@ describe('github code host', () => {
       botEmail: 'bot@example.test',
     });
 
-  it('checkoutRef and cloneUrl', () => {
+  it('checkoutRef and repoUrl', () => {
     expect(host().checkoutRef({ kind: 'pr', number: 7 })).toBe('refs/pull/7/head');
     expect(host().checkoutRef({ kind: 'issue', number: 7, defaultBranch: 'trunk' })).toBe('trunk');
     expect(host().checkoutRef({ kind: 'issue', number: 7 })).toBe('main');
-    expect(host().cloneUrl(project, 'tok')).toBe('https://x-access-token:tok@github.com/acme/widgets.git');
+    expect(host().repoUrl(project)).toBe('https://github.com/acme/widgets.git');
     expect(host().installUrl('org', 'st')).toBe('https://github.com/apps/agent-desk/installations/new?state=st');
   });
 
-  it('runEnv hands the workspace token to the agent as GH_TOKEN, so `gh` is authenticated', () => {
-    expect(host().runEnv('tok')).toEqual({ GH_TOKEN: 'tok' });
+  it('repoUrl carries no credential; git sends the workspace token as the x-access-token user', () => {
+    expect(host().repoUrl(project)).not.toMatch(/@/);
+    expect(host().gitCredentialUsername()).toBe('x-access-token');
   });
 
   it('refuses to interpolate unsafe repo paths or branch names', () => {
-    expect(() => host().cloneUrl({ ...project, repoPath: 'acme/widgets@evil.com/x' }, 't')).toThrow();
-    expect(() => host().cloneUrl({ ...project, repoPath: 'acme/../x' }, 't')).toThrow();
-    expect(() => host().cloneUrl({ ...project, repoPath: 'a b/c' }, 't')).toThrow();
+    expect(() => host().repoUrl({ ...project, repoPath: 'acme/widgets@evil.com/x' })).toThrow();
+    expect(() => host().repoUrl({ ...project, repoPath: 'acme/../x' })).toThrow();
+    expect(() => host().repoUrl({ ...project, repoPath: 'a b/c' })).toThrow();
     expect(() => host().checkoutRef({ kind: 'issue', number: 1, defaultBranch: 'main; rm -rf /' })).toThrow();
     expect(() => host().checkoutRef({ kind: 'issue', number: 1, defaultBranch: '--upload-pack=x' })).toThrow();
     expect(() => host().checkoutRef({ kind: 'issue', number: 1, defaultBranch: 'a..b' })).toThrow();

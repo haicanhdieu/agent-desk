@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import {
   Checkbox,
+  DurationInput,
   Field,
   LabelInput,
   PasswordInput,
@@ -74,6 +75,33 @@ describe('inputs', () => {
     expect(screen.getByText('minutes')).toBeInTheDocument();
     expect(screen.getByPlaceholderText('Search runs')).toBeInTheDocument();
     expect(screen.getByText('main, default branch')).toBeInTheDocument();
+  });
+
+  it('DurationInput: a number and a unit control, both labelled, the unit change reported', async () => {
+    const onUnit = vi.fn();
+    render(
+      <DurationInput aria-label="limit" unitLabel="limit unit" unit="hours" onUnitChange={onUnit} defaultValue="24" />,
+    );
+    expect(screen.getByLabelText('limit')).toHaveValue('24');
+    const unit = screen.getByLabelText('limit unit');
+    expect(unit).toHaveValue('hours');
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['minutes', 'hours', 'days']);
+    await userEvent.selectOptions(unit, 'days');
+    expect(onUnit).toHaveBeenCalledWith('days');
+  });
+
+  it('DurationInput marks both controls invalid together', () => {
+    render(
+      <DurationInput
+        aria-label="limit"
+        unitLabel="limit unit"
+        unit="days"
+        onUnitChange={() => undefined}
+        aria-invalid
+      />,
+    );
+    expect(screen.getByLabelText('limit')).toHaveAttribute('aria-invalid', 'true');
+    expect(screen.getByLabelText('limit unit')).toHaveAttribute('aria-invalid', 'true');
   });
 
   it('Select passes disabled through', () => {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import type { ChainStep, ConnectionState, TermLine } from '@/components';
 import { statusTokens } from '@/ds';
 import type { RunDetailData, RunDetailKey } from '@/mocks/types';
+import { clockElapsed, formatLimit } from '../duration';
 import { duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
 import type { CachedRun } from './queries';
 import type { TerminalState } from './useTerminal';
@@ -17,11 +18,8 @@ const clockSeconds = (iso: string): string => {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 };
 
-/** "7:40", the top bar's running clock. */
-const clock = (ms: number): string => {
-  const total = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(total / 60)}:${pad(total % 60)}`;
-};
+/** "7:40", "1:05:03" or "1d 01:01:01", the top bar's running clock. */
+const clock = clockElapsed;
 
 /** The board each status is drawn on; a running (or idle) run whose terminal lost its socket shows RunReconnect. */
 export function runDetailKey(status: RunStatus, terminalState?: 'reconnect'): RunDetailKey {
@@ -259,7 +257,7 @@ function endNote(
     }
     case 'timed_out':
       return {
-        title: `Timed out at the ${Math.round(run.timeoutSeconds / 60)} minute limit`,
+        title: `Timed out at the ${formatLimit(run.timeoutSeconds)} limit`,
         body: run.failureReason ?? '',
         actions: [{ label: 'Change time limit', href: links.agent, icon: 'clock' }],
       };
@@ -365,7 +363,7 @@ export function toRunDetail(
     ...(timed && {
       time: {
         elapsed: clock(elapsedMs),
-        limit: clock(run.timeoutSeconds * 1000),
+        limit: formatLimit(run.timeoutSeconds),
         percent: Math.min(100, Math.round((elapsedMs / (run.timeoutSeconds * 1000)) * 100)),
       },
     }),

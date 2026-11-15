@@ -7,6 +7,7 @@ import {
   getExternalWorkflowHandle,
   isCancellation,
   log,
+  patched,
   proxyActivities,
   setHandler,
   sleep,
@@ -45,9 +46,19 @@ export const IDLE_END_SECONDS_DEFAULT = 600;
 const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 /** followPodLogs may run for the whole run; it gets this much beyond the hard timer before Temporal gives up. */
 const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
+/**
+ * The workspace token lives one hour, so it is replaced every 45 minutes: 15 minutes of margin for the kubelet to sync
+ * the mounted Secret and for retries (ADR 0021). Mirrors nothing in core; the token's hour is the provider's.
+ */
+export const TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT = 2700;
+/** A refresh that failed after the activity's own retries is tried again this often, then more slowly. */
+const TOKEN_REFRESH_RETRY_SECONDS = 60;
+const TOKEN_REFRESH_RETRY_SLOW_SECONDS = 300;
+/** Quick retries last about 15 minutes (the margin); after that the slow rate keeps the history small over days. */
+const TOKEN_REFRESH_QUICK_RETRIES = 15;
+/** Marks runs that refresh their token, so a run started before this existed replays unchanged. */
+const TOKEN_REFRESH_PATCH = 'token-refresh';
 const FAILURE_REASON_MAX = 1000;
-/** Spec cap on `timeout_seconds` (the workspace token lives one hour); the hard timer never exceeds it. */
-const TIMEOUT_SECONDS_MAX = 3300;
 const SCROLLBACK_TAIL_MAX = 4000;
 
 type FinalStatus = 'succeeded' | 'failed' | 'cancelled' | 'timed_out';
@@ -218,9 +229,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     await settled.requestSlot({ projectId: c.projectId, runId, limit: c.maxConcurrentRuns });
     await condition(() => isGranted);
 
-    // 2-3. Start. The hard timer covers everything from here on (the workspace token lives one hour).
+    // 2-3. Start. The hard timer covers everything from here on (up to 7 days; the token is refreshed meanwhile).
     phase = 'starting';
-    const timeoutSeconds = Math.min(c.timeoutSeconds, TIMEOUT_SECONDS_MAX);
+    const timeoutSeconds = c.timeoutSeconds;
     hardTimer
       .run(() => sleep(timeoutSeconds * 1000))
       .then(
@@ -253,6 +264,13 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         logsDone = true;
       },
     );
+
+    // 4b. Keep the workspace token fresh for as long as the pod runs (ADR 0021). A workflow that started before this
+    // existed replays without it.
+    if (patched(TOKEN_REFRESH_PATCH)) {
+      const refreshMs = (c.tokenRefreshSeconds ?? TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT) * 1000;
+      void refreshTokenWhileRunning(c, refreshMs, () => logsDone);
+    }
 
     // 5. Main loop.
     const idleMs = (c.idleEndSeconds ?? IDLE_END_SECONDS_DEFAULT) * 1000;
@@ -394,6 +412,37 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),
       ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
     };
+  }
+}
+
+/**
+ * Replaces the run's workspace token every `intervalMs` until `logsDone`. Durable timers, so a worker restart changes
+ * nothing. A failure after the activity's retries is logged (the error kind only) and tried again; a failure that can
+ * never succeed (the Secret is gone) ends the loop. A missed refresh never ends the run: git and `gh` only fail if the
+ * token really expires. Cancelling the run cancels the wait.
+ */
+async function refreshTokenWhileRunning(c: RunContext, intervalMs: number, isDone: () => boolean): Promise<void> {
+  let failures = 0;
+  try {
+    for (;;) {
+      const waitMs =
+        failures === 0
+          ? intervalMs
+          : (failures <= TOKEN_REFRESH_QUICK_RETRIES ? TOKEN_REFRESH_RETRY_SECONDS : TOKEN_REFRESH_RETRY_SLOW_SECONDS) *
+            1000;
+      if (await condition(isDone, waitMs)) return;
+      try {
+        await act.refreshWorkspaceToken(c);
+        failures = 0;
+      } catch (err) {
+        if (isCancellation(err)) return;
+        failures += 1;
+        log.warn('workspace token refresh failed', { error: errorKind(err), failures });
+        if (err instanceof ActivityFailure && err.cause instanceof ApplicationFailure && err.cause.nonRetryable) return;
+      }
+    }
+  } catch (err) {
+    if (!isCancellation(err)) log.warn('workspace token refresh loop stopped', { error: errorKind(err) });
   }
 }
 

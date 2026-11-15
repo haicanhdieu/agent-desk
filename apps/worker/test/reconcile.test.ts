@@ -16,6 +16,7 @@ const unused = async (): Promise<never> => {
 function kubeWith(over: Partial<KubeGateway>): KubeGateway {
   return {
     ensureSecret: unused,
+    replaceSecretData: unused,
     readSecret: async () => null,
     deleteSecret: async () => undefined,
     ensureJob: unused,

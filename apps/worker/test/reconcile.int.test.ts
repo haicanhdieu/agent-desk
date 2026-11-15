@@ -94,6 +94,7 @@ async function createSetupTestObjects(id: string, o: { org?: string; withJob?: b
         ttlSeconds: 900,
         botName: 'bot',
         botEmail: 'bot@example.test',
+        gitUsername: 'x-access-token',
         pod: runPodConfigFrom(config),
       }),
     );
@@ -229,7 +230,8 @@ describe('reconcile: setup tests', () => {
         image: 'img',
         prompt: 'x',
         checkoutRef: 'main',
-        cloneUrlSecretKey: 'REPO_CLONE_URL',
+        credentialEnvKeys: [],
+        gitUsername: 'x-access-token',
         maxTurns: null,
         timeoutSeconds: 600,
         botName: 'bot',

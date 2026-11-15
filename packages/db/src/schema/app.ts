@@ -99,13 +99,14 @@ export const agents = pgTable(
     credentialUpdatedAt: ts('credential_updated_at'),
     credentialSetBy: text('credential_set_by'),
     maxTurns: integer('max_turns'),
-    timeoutSeconds: integer('timeout_seconds').notNull().default(1800),
+    // Run time limit: 60 s to 7 days, default 24 h (ADR 0021). Mirrors AGENT_TIMEOUT_SECONDS_* in contracts.
+    timeoutSeconds: integer('timeout_seconds').notNull().default(86400),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [
     unique('agents_project_name_key').on(t.projectId, t.name),
     index('agents_org_idx').on(t.orgId),
-    check('agents_timeout_check', sql`${t.timeoutSeconds} between 60 and 3300`),
+    check('agents_timeout_check', sql`${t.timeoutSeconds} between 60 and 604800`),
     check('agents_credential_type_check', sql`${t.credentialType} in ('oauth_token','api_key')`),
     orgPolicy(),
   ],

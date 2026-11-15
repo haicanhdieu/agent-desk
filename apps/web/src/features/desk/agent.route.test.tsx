@@ -63,12 +63,14 @@ async function openPage() {
 }
 
 const field = (label: string) => screen.getByLabelText(label);
+const unitSelect = () => screen.getByLabelText('Run time limit unit');
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 describe('desk agent route', () => {
   it('shows the agent, credential, limits and connection from the API', async () => {
     await openPage();
     expect(field('Run time limit')).toHaveValue('30');
+    expect(unitSelect()).toHaveValue('minutes');
     expect(field('Concurrent runs')).toHaveValue('2');
     expect(field('Runs per ticket')).toHaveValue('10');
     expect(screen.getByText(/^Set .+ by kim-hale\./)).toBeInTheDocument();
@@ -81,12 +83,48 @@ describe('desk agent route', () => {
     expect(await screen.findByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 
-  it('a timeout of 60 min is refused: the /timeoutSeconds message shows on Run time limit and the form stays filled', async () => {
+  it('shows a 24 h limit as 24 hours', async () => {
+    agentRow().timeoutSeconds = 86400;
+    await openPage();
+    expect(field('Run time limit')).toHaveValue('24');
+    expect(unitSelect()).toHaveValue('hours');
+  });
+
+  it('shows a 7 day limit as 7 days', async () => {
+    agentRow().timeoutSeconds = 604800;
+    await openPage();
+    expect(field('Run time limit')).toHaveValue('7');
+    expect(unitSelect()).toHaveValue('days');
+  });
+
+  it('saving 2 days sends 172800 seconds; saving 30 hours sends 108000', async () => {
     const sent = captureWrites();
     const { user } = await openPage();
     const timeout = field('Run time limit');
+    await user.selectOptions(unitSelect(), 'days');
     await user.clear(timeout);
-    await user.type(timeout, '60');
+    await user.type(timeout, '2');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
+    expect(sent).toEqual([{ method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 172800 } }]);
+    expect(agentRow().timeoutSeconds).toBe(172800);
+
+    sent.length = 0;
+    await user.selectOptions(unitSelect(), 'hours');
+    await user.clear(timeout);
+    await user.type(timeout, '30');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    await waitFor(() => expect(agentRow().timeoutSeconds).toBe(108000));
+  });
+
+  it('a limit above 7 days is refused: the /timeoutSeconds message shows on Run time limit and the form stays filled', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    const timeout = field('Run time limit');
+    await user.selectOptions(unitSelect(), 'days');
+    await user.clear(timeout);
+    await user.type(timeout, '8');
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
 
     await waitFor(() => expect(timeout).toHaveAttribute('aria-invalid', 'true'));
@@ -95,10 +133,11 @@ describe('desk agent route', () => {
       .split(' ')
       .map((id) => document.getElementById(id)?.textContent ?? '')
       .join(' ');
-    expect(messages).toMatch(/3300/);
-    expect(timeout).toHaveValue('60');
+    expect(messages).toMatch(/7 days/);
+    expect(timeout).toHaveValue('8');
+    expect(unitSelect()).toHaveValue('days');
     expect(sent.filter((s) => s.method === 'PUT' && s.path === agentPath)).toHaveLength(1);
-    expect(sent[0]?.body).toMatchObject({ timeoutSeconds: 3600 });
+    expect(sent[0]?.body).toMatchObject({ timeoutSeconds: 691200 });
     expect(agentRow().timeoutSeconds).toBe(1800);
   });
 
@@ -163,8 +202,9 @@ describe('desk agent route', () => {
     await user.clear(concurrent);
     await user.type(concurrent, '3');
     const timeout = field('Run time limit');
+    await user.selectOptions(unitSelect(), 'days');
     await user.clear(timeout);
-    await user.type(timeout, '60');
+    await user.type(timeout, '8');
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
 
     await waitFor(() => expect(timeout).toHaveAttribute('aria-invalid', 'true'));
@@ -173,6 +213,7 @@ describe('desk agent route', () => {
     expect(screen.queryByText('Limits saved')).toBeNull();
 
     sent.length = 0;
+    await user.selectOptions(unitSelect(), 'minutes');
     await user.clear(timeout);
     await user.type(timeout, '45');
     await user.click(screen.getByRole('button', { name: 'Save limits' }));

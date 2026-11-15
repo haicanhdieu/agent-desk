@@ -1,5 +1,17 @@
 import { useState, type ReactNode } from 'react';
-import { Banner, Button, Dialog, Field, Icon, Select, TextInput, UnitInput } from '@/ds';
+import {
+  Banner,
+  Button,
+  Dialog,
+  DurationInput,
+  Field,
+  Icon,
+  Select,
+  TextInput,
+  UnitInput,
+  minutesIn,
+  splitMinutes,
+} from '@/ds';
 import {
   DangerZone,
   KeyValue,
@@ -93,8 +105,9 @@ export function DeskAgent({
   const items = [...github.slice(0, at), triggerRow, ...github.slice(at)];
   const [replacing, setReplacing] = useState(replacingCredential);
   const [credType, setCredType] = useState<CredentialType>(settings.credential.type);
+  const [timeoutUnit, setTimeoutUnit] = useState(() => splitMinutes(settings.timeoutMinutes).unit);
   const [limits, setLimits] = useState({
-    timeout: String(settings.timeoutMinutes),
+    timeout: splitMinutes(settings.timeoutMinutes).value,
     idle: String(settings.idleEndMinutes),
     concurrent: String(settings.maxConcurrent),
     perTicket: String(settings.maxRunsPerTicket),
@@ -162,15 +175,17 @@ export function DeskAgent({
           <div className={`${styles.grid2Gap16} ${styles.limitsGrid}`}>
             <Field
               label="Run time limit"
-              help="Max 55. The repo token expires after 60."
+              help="From 1 minute to 7 days. The repo token is renewed while the run lasts."
               error={limitsErrors.timeoutMinutes}
             >
               {({ id, describedBy, invalid }) => (
-                <UnitInput
+                <DurationInput
                   id={id}
                   aria-describedby={describedBy}
                   aria-invalid={invalid}
-                  unit="minutes"
+                  unitLabel="Run time limit unit"
+                  unit={timeoutUnit}
+                  onUnitChange={setTimeoutUnit}
                   value={limits.timeout}
                   onChange={set('timeout')}
                 />
@@ -240,7 +255,7 @@ export function DeskAgent({
               aria-busy={savingLimits || undefined}
               onClick={() =>
                 onSaveLimits?.({
-                  timeoutMinutes: Number(limits.timeout),
+                  timeoutMinutes: minutesIn(limits.timeout, timeoutUnit),
                   idleEndMinutes: Number(limits.idle),
                   maxConcurrent: Number(limits.concurrent),
                   maxRunsPerTicket: Number(limits.perTicket),

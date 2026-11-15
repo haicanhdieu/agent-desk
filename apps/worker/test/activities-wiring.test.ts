@@ -9,6 +9,7 @@ const unused = async (): Promise<never> => {
 
 const kube: KubeGateway = {
   ensureSecret: unused,
+  replaceSecretData: unused,
   readSecret: async () => null,
   deleteSecret: unused,
   ensureJob: unused,

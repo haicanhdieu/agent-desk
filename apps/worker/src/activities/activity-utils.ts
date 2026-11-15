@@ -9,8 +9,6 @@ export const ERROR_MESSAGE_MAX = 500;
 /** Setup/plugin output is stored as one lifecycle event per this many lines, up to this many characters in all. */
 export const SETUP_CHUNK_LINES = 50;
 export const SETUP_OUTPUT_MAX_CHARS = 262_144;
-/** Where the clone URL sits in a sandbox Job's Secret (the runner reads it from here). */
-export const CLONE_URL_KEY = 'REPO_CLONE_URL';
 
 export const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
   new Promise((resolve) => {

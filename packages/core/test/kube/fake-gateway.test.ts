@@ -28,7 +28,8 @@ const jobFor = (id: string, prompt: string) =>
     image: 'fake',
     prompt,
     checkoutRef: 'main',
-    cloneUrlSecretKey: 'REPO_CLONE_URL',
+    credentialEnvKeys: ['TOKEN'],
+    gitUsername: 'x-access-token',
     maxTurns: null,
     timeoutSeconds: 60,
     botName: 'bot',
@@ -318,6 +319,30 @@ describe('FakeKubeGateway', () => {
     await gw.deleteJob(name);
   });
 
+  it('replaceSecretData merges keys into an existing Secret and keeps its labels', async () => {
+    const name = `run-${runId()}`;
+    const labels = { 'agentdesk/run-id': 'x' };
+    await gw.ensureSecret(name, { REPO_CLONE_URL: 'u', 'workspace-token': 'old' }, labels);
+    await gw.replaceSecretData(name, { 'workspace-token': 'new' });
+    expect(await gw.readSecret(name)).toEqual({ REPO_CLONE_URL: 'u', 'workspace-token': 'new' });
+    const file = JSON.parse(await readFile(join(dir, '.secrets', `${name}.json`), 'utf8')) as { labels: unknown };
+    expect(file.labels).toEqual(labels);
+  });
+
+  it('replaceSecretData fails when the Secret does not exist (a refresh must not create one)', async () => {
+    await expect(gw.replaceSecretData(`run-${runId()}`, { 'workspace-token': 'x' })).rejects.toThrow();
+  });
+
+  it('the pod env gets secretKeyRef values but never the workspace token key', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureSecret(name, { REPO_CLONE_URL: 'https://x.invalid/r.git', 'workspace-token': 'tok-secret' }, {});
+    await gw.ensureJob(jobFor(id, 'p'));
+    const env = (gw as unknown as { envs: Map<string, Record<string, string>> }).envs.get(name);
+    expect(env?.REPO_CLONE_URL).toBe('https://x.invalid/r.git');
+    expect(JSON.stringify(env)).not.toContain('tok-secret');
+  });
+
   it('secrets: ensure/read/delete are idempotent; the Secret reaches the pod env; listRunJobs reads labels', async () => {
     const id = runId();
     const name = `run-${id}`;
@@ -444,6 +469,7 @@ describe('FakeKubeGateway', () => {
       ttlSeconds: 60,
       botName: 'bot',
       botEmail: 'bot@x.invalid',
+      gitUsername: 'x-access-token',
       pod: {
         cpuRequest: '1',
         cpuLimit: '1',

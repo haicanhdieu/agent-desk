@@ -1,5 +1,7 @@
 import { useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { Icon } from './Icon';
+import { Select } from './Select';
+import type { DurationUnit } from './duration';
 import { IconButton } from './Button';
 import type { IconName } from './icons';
 import styles from './Form.module.css';
@@ -32,6 +34,43 @@ export function UnitInput({ unit, className, ...rest }: { unit: string } & Input
     <div className={cx(styles.unit, className)}>
       <input type="text" inputMode="numeric" {...rest} className={cx(styles.input, styles.num)} />
       <span>{unit}</span>
+    </div>
+  );
+}
+
+const DURATION_UNITS: readonly DurationUnit[] = ['minutes', 'hours', 'days'];
+
+/** A number with a minutes / hours / days unit control, e.g. the agent's run time limit. */
+export function DurationInput({
+  unit,
+  onUnitChange,
+  unitLabel,
+  className,
+  ...rest
+}: {
+  unit: DurationUnit;
+  onUnitChange: (unit: DurationUnit) => void;
+  /** Accessible name of the unit control. */
+  unitLabel: string;
+} & InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className={cx(styles.unit, className)}>
+      <input type="text" inputMode="numeric" {...rest} className={cx(styles.input, styles.num)} />
+      <Select
+        aria-label={unitLabel}
+        aria-invalid={rest['aria-invalid']}
+        value={unit}
+        onChange={(e) => {
+          const next = DURATION_UNITS.find((u) => u === e.target.value);
+          if (next) onUnitChange(next);
+        }}
+      >
+        {DURATION_UNITS.map((u) => (
+          <option key={u} value={u}>
+            {u}
+          </option>
+        ))}
+      </Select>
     </div>
   );
 }

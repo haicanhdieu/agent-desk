@@ -98,6 +98,7 @@ function deps(over: Partial<RunActivityDeps> = {}): RunActivityDeps {
 function wrapKube(over: Partial<KubeGateway>): KubeGateway {
   return {
     ensureSecret: (n, d, l) => kube.ensureSecret(n, d, l),
+    replaceSecretData: (n, d) => kube.replaceSecretData(n, d),
     readSecret: (n) => kube.readSecret(n),
     deleteSecret: (n) => kube.deleteSecret(n),
     ensureJob: (j) => kube.ensureJob(j),
@@ -216,6 +217,63 @@ describe('loadRun', () => {
   });
 });
 
+/** Adapters whose workspace token changes on every mint, to prove a refresh rotates it. */
+function rotatingAdapters(): { adapters: RunActivityDeps['adapters']; mints: () => number } {
+  const base = createAdapterRegistry(config, { now: () => new Date() });
+  let n = 0;
+  return {
+    mints: () => n,
+    adapters: {
+      ...base,
+      codeHost: (provider) =>
+        Object.assign(Object.create(base.codeHost(provider)) as object, {
+          mintWorkspaceToken: async () => ({ token: `ghs_rotated${++n}ABCDEFGHIJKLMNOPQRST`, expiresAt: new Date() }),
+        }) as unknown as ReturnType<RunActivityDeps['adapters']['codeHost']>,
+    },
+  };
+}
+
+describe('refreshWorkspaceToken', () => {
+  it('mints a new token into the existing run Secret and leaves the rest and the pod env alone', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const { adapters, mints } = rotatingAdapters();
+    const acts = createRunActivities(deps({ adapters }));
+    await acts.createRunSecretAndJob(ctx);
+    const name = `run-${runId}`;
+    const before = await kube.readSecret(name);
+    expect(before?.['workspace-token']).toBe('ghs_rotated1ABCDEFGHIJKLMNOPQRST');
+    const envBefore = JSON.stringify(await kube.podEnv(name));
+    await acts.refreshWorkspaceToken(ctx);
+    expect(mints()).toBe(2);
+    expect(await kube.readSecret(name)).toEqual({ ...before, 'workspace-token': 'ghs_rotated2ABCDEFGHIJKLMNOPQRST' });
+    expect(JSON.stringify(await kube.podEnv(name))).toBe(envBefore);
+    await acts.deleteJob(ctx);
+  });
+
+  it('does nothing for a finished run and never creates a Secret', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const { adapters, mints } = rotatingAdapters();
+    await withOrg(db, ORG, (tx) => tx.update(runs).set({ status: 'succeeded' }).where(eq(runs.id, runId)));
+    await createRunActivities(deps({ adapters })).refreshWorkspaceToken(ctx);
+    expect(mints()).toBe(0);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('fails non-retryably, without a token in the message, when the run Secret is gone', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const { adapters } = rotatingAdapters();
+    const err = await createRunActivities(deps({ adapters }))
+      .refreshWorkspaceToken(ctx)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).message).not.toContain('ghs_rotated');
+  });
+});
+
 describe('createRunSecretAndJob', () => {
   it('creates Secret and Job run-{id} once, with the clone URL and the agent credential in the Secret', async () => {
     const runId = await seedRun('please fix');
@@ -226,7 +284,7 @@ describe('createRunSecretAndJob', () => {
     const name = `run-${runId}`;
     expect(await kube.readSecret(name)).toEqual({
       REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
-      GH_TOKEN: 'fake-workspace-token',
+      'workspace-token': 'fake-workspace-token',
       CLAUDE_CODE_OAUTH_TOKEN: CRED,
     });
     expect((await kube.processIds()).filter((p) => p.jobName === name)).toHaveLength(1);
@@ -236,6 +294,13 @@ describe('createRunSecretAndJob', () => {
     expect(env).toMatchObject({ CHECKOUT_REF: 'main', MAX_TURNS: '25', CLAUDE_CODE_OAUTH_TOKEN: CRED });
     expect(env?.PLUGIN_MARKETPLACES).toBe(JSON.stringify(config.RUN_PLUGIN_MARKETPLACES));
     expect(env?.SETUP_TIMEOUT_SECONDS).toBe(String(config.RUN_SETUP_TIMEOUT_SECONDS));
+    // The workspace token is a mounted file, never an env var, and the repo URL carries no credential.
+    expect(JSON.stringify(env)).not.toContain('fake-workspace-token');
+    expect(env).toMatchObject({
+      REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
+      AGENTDESK_TOKEN_FILE: '/var/run/agentdesk/workspace-token/token',
+      AGENTDESK_GIT_USERNAME: 'x-access-token',
+    });
     expect((await load(runId)).run?.jobName).toBe(name);
     // Nothing about the Secret's values lands in the database.
     expect(JSON.stringify(await load(runId))).not.toContain(CRED);
@@ -463,6 +528,27 @@ const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skippe
 const FIRST_TURN_LINE = PRELUDE_KINDS.length + 2;
 
 describe('followPodLogs', () => {
+  it('redacts the current and an earlier workspace token after a refresh (pattern covers the old one)', async () => {
+    const old = 'ghs_rotated1ABCDEFGHIJKLMNOPQRST';
+    const current = 'ghs_rotated2ABCDEFGHIJKLMNOPQRST';
+    const runId = await seedRun(`echo ${old} then ${current}`);
+    const ctx = await ctxFor(runId);
+    const { adapters } = rotatingAdapters();
+    const acts = createRunActivities(deps({ adapters }));
+    await acts.createRunSecretAndJob(ctx);
+    await acts.refreshWorkspaceToken(ctx);
+    expect((await kube.readSecret(`run-${runId}`))?.['workspace-token']).toBe(current);
+    const f = follow(ctx, deps({ adapters }));
+    await until(async () => (await load(runId)).run?.status === 'idle');
+    await acts.endSession(ctx);
+    const result = await f.promise;
+    expect(result.scrollbackTail).not.toContain('ghs_rotated');
+    const { events } = await load(runId);
+    expect(JSON.stringify(events)).not.toContain('ghs_rotated');
+    expect(JSON.stringify(events)).toContain('***');
+    await acts.deleteJob(ctx);
+  });
+
   it('writes running then idle, signals agentState needs_input, stores one redacted scrollback, returns the exit code', async () => {
     const runId = await seedRun(`echo ${CRED} please`);
     const ctx = await ctxFor(runId);

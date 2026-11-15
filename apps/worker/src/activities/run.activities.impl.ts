@@ -1,10 +1,19 @@
 import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { Provider, RunStatus, TicketKind, toAgentNote, type AgentState } from '@agentdesk/contracts';
+import {
+  AGENT_TIMEOUT_SECONDS_DEFAULT,
+  Provider,
+  RunStatus,
+  TicketKind,
+  toAgentNote,
+  type AgentState,
+} from '@agentdesk/contracts';
 import {
   IDLE_END_SECONDS,
+  REPO_URL_KEY,
   SIGNAL,
+  WORKSPACE_TOKEN_KEY,
   TMUX_KILL,
   buildPrompt,
   buildRunJob,
@@ -36,7 +45,6 @@ import {
 } from '@agentdesk/db';
 import { alias } from 'drizzle-orm/pg-core';
 import {
-  CLONE_URL_KEY,
   ERROR_MESSAGE_MAX,
   MIN_SECRET_LENGTH,
   guarded,
@@ -356,7 +364,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       agentId: row.agentId,
       status: RunStatus.parse(row.status),
       // An agent deleted after queueing: fall back to the agents.timeout_seconds default.
-      timeoutSeconds: row.timeoutSeconds ?? 1800,
+      timeoutSeconds: row.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       maxConcurrentRuns: row.maxConcurrentRuns,
       idleEndSeconds: IDLE_END_SECONDS,
     };
@@ -398,6 +406,25 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     });
   }
 
+  async function refreshWorkspaceToken(ctx: RunContext): Promise<void> {
+    const d = await mustDetails(ctx.orgId, ctx.runId);
+    if (isFinal(d.status)) return;
+    const name = runJobName(ctx.runId);
+    let known: string[] = [];
+    try {
+      const codeHost = deps.adapters.codeHost(providerOf(d.code.provider));
+      // The token stays inside this activity (ruling R19); a failure message must not carry it either.
+      const { token } = await codeHost.mintWorkspaceToken(toAdapterProject(d, d.code.externalId));
+      known = [token];
+      if ((await kube.readSecret(name)) === null) {
+        throw ApplicationFailure.nonRetryable('the run Secret is gone, so there is nothing to refresh');
+      }
+      await kube.replaceSecretData(name, { [WORKSPACE_TOKEN_KEY]: token });
+    } catch (err) {
+      throw safeError(err, known, 'refresh workspace token');
+    }
+  }
+
   async function createRunSecretAndJob(ctx: RunContext): Promise<void> {
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return;
@@ -414,10 +441,13 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       // The token stays inside this activity: it goes into the run Secret and nowhere else (ruling R19).
       const { token } = await codeHost.mintWorkspaceToken(project);
       known = [...known, token];
-      const cloneUrl = codeHost.cloneUrl(project, token);
-      known = [...known, ...secretValues({ cloneUrl })];
-      // The adapter's env (e.g. GH_TOKEN) repeats the token already in the clone URL, so `known` already redacts it.
-      await kube.ensureSecret(name, { [CLONE_URL_KEY]: cloneUrl, ...codeHost.runEnv(token), ...cred }, runLabels(ctx));
+      // The repo URL carries no credential. The token is its own key, mounted as a file so a refresh reaches the
+      // running pod (ADR 0021); only the repo URL and the agent credential become env vars.
+      await kube.ensureSecret(
+        name,
+        { [REPO_URL_KEY]: codeHost.repoUrl(project), [WORKSPACE_TOKEN_KEY]: token, ...cred },
+        runLabels(ctx),
+      );
       const prompt = buildPrompt({
         skillName: d.skillName,
         ticketKind: d.ticketKind,
@@ -432,7 +462,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         image: deps.config.RUNNER_IMAGE,
         prompt,
         checkoutRef: d.checkoutRef,
-        cloneUrlSecretKey: CLONE_URL_KEY,
+        credentialEnvKeys: Object.keys(cred),
+        gitUsername: codeHost.gitCredentialUsername(),
         maxTurns: d.maxTurns,
         timeoutSeconds: ctx.timeoutSeconds,
         botName: deps.config.BOT_NAME,
@@ -818,6 +849,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   return {
     loadRun: guarded('load run', loadRun),
     createRunSecretAndJob: guarded('create run Job', createRunSecretAndJob),
+    refreshWorkspaceToken: guarded('refresh workspace token', refreshWorkspaceToken),
     postComment: guarded('post comment', postComment),
     followPodLogs: guarded('follow pod logs', followPodLogs),
     endSession: guarded('end session', endSession),

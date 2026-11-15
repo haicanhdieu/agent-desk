@@ -3,7 +3,9 @@ import { and, eq, inArray, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { Provider } from '@agentdesk/contracts';
 import {
+  REPO_URL_KEY,
   SetupLogTracker,
+  WORKSPACE_TOKEN_KEY,
   buildSetupTestJob,
   runPodConfigFrom,
   setupTestJobName,
@@ -15,7 +17,7 @@ import {
   type KubeGateway,
 } from '@agentdesk/core';
 import { connections, projects, setupTestEvents, setupTests, withOrg, type Db } from '@agentdesk/db';
-import { CLONE_URL_KEY, MIN_SECRET_LENGTH, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
+import { MIN_SECRET_LENGTH, guarded, oneLine, safeError, secretValues, sleep } from './activity-utils';
 import { followPodLog, outputBudget } from './follow-core';
 import { appendSetupTestEvent, storeSetupLineEvent } from './setup-test-events';
 import type { SetupTestActivities, SetupTestRef, SetupTestResult } from './setup-test.activities';
@@ -131,15 +133,18 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
       // The token stays inside this activity: it goes into the test Secret and nowhere else (ruling R19).
       const { token } = await codeHost.mintWorkspaceToken(project);
       known = [...known, token];
-      const cloneUrl = codeHost.cloneUrl(project, token);
-      known = [...known, ...secretValues({ cloneUrl })];
       const labels = setupTestLabels({
         setupTestId: ref.setupTestId,
         orgId: ref.orgId,
         projectId: row.projectId,
       });
-      // Clone URL and the adapter's env only: a setup test never gets the agent credential.
-      await kube.ensureSecret(name, { [CLONE_URL_KEY]: cloneUrl, ...codeHost.runEnv(token) }, labels);
+      // Repo URL and workspace token only: a setup test never gets the agent credential. It is not refreshed; the test
+      // lives well under the token's hour.
+      await kube.ensureSecret(
+        name,
+        { [REPO_URL_KEY]: codeHost.repoUrl(project), [WORKSPACE_TOKEN_KEY]: token },
+        labels,
+      );
       const job = buildSetupTestJob({
         setupTestId: ref.setupTestId,
         orgId: ref.orgId,
@@ -152,6 +157,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         ttlSeconds,
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
+        gitUsername: codeHost.gitCredentialUsername(),
         pod: runPodConfigFrom(deps.config),
       });
       try {

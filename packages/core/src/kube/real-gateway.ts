@@ -31,6 +31,7 @@ export type KubeCoreApi = Pick<
   CoreV1Api,
   | 'createNamespacedSecret'
   | 'readNamespacedSecret'
+  | 'replaceNamespacedSecret'
   | 'deleteNamespacedSecret'
   | 'listNamespacedPod'
   | 'listNamespacedSecret'
@@ -104,6 +105,26 @@ export class RealKubeGateway implements KubeGateway {
         body: { metadata: { name, namespace: this.ns, labels }, type: 'Opaque', stringData: data },
       })
       .then(() => undefined, ignore(409));
+  }
+
+  async replaceSecretData(name: string, data: Record<string, string>): Promise<void> {
+    const cur = await this.deps.core.readNamespacedSecret({ name, namespace: this.ns });
+    const merged: Record<string, string> = { ...cur.data };
+    for (const [k, v] of Object.entries(data)) merged[k] = Buffer.from(v, 'utf8').toString('base64');
+    await this.deps.core.replaceNamespacedSecret({
+      name,
+      namespace: this.ns,
+      body: {
+        metadata: {
+          name,
+          namespace: this.ns,
+          labels: cur.metadata?.labels,
+          resourceVersion: cur.metadata?.resourceVersion,
+        },
+        type: 'Opaque',
+        data: merged,
+      },
+    });
   }
 
   async readSecret(name: string): Promise<Record<string, string> | null> {

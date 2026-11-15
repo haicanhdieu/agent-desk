@@ -165,6 +165,17 @@ export class FakeKubeGateway implements KubeGateway {
     }
   }
 
+  async replaceSecretData(name: string, data: Record<string, string>): Promise<void> {
+    const file = this.secretFile(name);
+    const raw = await readOrNull(file);
+    if (raw === null) throw new Error('fake kube: secret not found');
+    const parsed = SecretFile.safeParse(JSON.parse(raw));
+    if (!parsed.success) throw new Error('fake kube: corrupt secret file');
+    await writeFile(file, JSON.stringify({ labels: parsed.data.labels, data: { ...parsed.data.data, ...data } }), {
+      mode: 0o600,
+    });
+  }
+
   async readSecret(name: string): Promise<Record<string, string> | null> {
     const raw = await readOrNull(this.secretFile(name));
     if (raw === null) return null;
@@ -194,11 +205,16 @@ export class FakeKubeGateway implements KubeGateway {
 
     const container = spec.spec?.template.spec?.containers[0];
     const env: Record<string, string> = {};
-    for (const from of container?.envFrom ?? []) {
-      const secretName = from.secretRef?.name;
-      if (secretName) Object.assign(env, (await this.readSecret(secretName)) ?? {});
+    // Like the cluster: env comes from literal values and explicit secretKeyRefs only, so the workspace token key (a
+    // mounted file) never becomes an env var.
+    for (const e of container?.env ?? []) {
+      if (e.value !== undefined) env[e.name] = e.value;
+      const ref = e.valueFrom?.secretKeyRef;
+      if (ref?.name && ref.key) {
+        const value = (await this.readSecret(ref.name))?.[ref.key];
+        if (value !== undefined) env[e.name] = value;
+      }
     }
-    for (const e of container?.env ?? []) if (e.value !== undefined) env[e.name] = e.value;
     this.envs.set(name, env);
 
     // Env values reach the child as data; there is no shell anywhere on this path.

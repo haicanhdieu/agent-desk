@@ -27,6 +27,7 @@ function kubeWith(over: Partial<KubeGateway>): KubeGateway {
   };
   return {
     ensureSecret: unused,
+    replaceSecretData: unused,
     readSecret: async () => null,
     deleteSecret: unused,
     ensureJob: unused,

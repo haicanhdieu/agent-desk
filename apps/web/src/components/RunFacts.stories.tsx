@@ -36,7 +36,7 @@ export const Stats: Story = {
       }
       right={
         <span className="faint">
-          limit <span className="num">30:00</span>
+          limit <span className="num">30 min</span>
         </span>
       }
     />

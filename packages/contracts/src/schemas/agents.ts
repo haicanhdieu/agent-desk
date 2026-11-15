@@ -19,10 +19,19 @@ export const AgentDto = z.object({
 });
 export type AgentDto = z.infer<typeof AgentDto>;
 
+/** Run time limit bounds, seconds (ADR 0021): at least a minute, at most 7 days; new agents get 24 h. */
+export const AGENT_TIMEOUT_SECONDS_MIN = 60;
+export const AGENT_TIMEOUT_SECONDS_MAX = 604800;
+export const AGENT_TIMEOUT_SECONDS_DEFAULT = 86400;
+
 export const PutAgentRequest = z.object({
   model: z.string().min(1),
   maxTurns: z.number().int().min(1).optional(),
-  timeoutSeconds: z.number().int().min(60).max(3300),
+  timeoutSeconds: z
+    .number()
+    .int()
+    .min(AGENT_TIMEOUT_SECONDS_MIN, { message: 'The run time limit must be at least 1 minute' })
+    .max(AGENT_TIMEOUT_SECONDS_MAX, { message: 'The run time limit can be at most 7 days' }),
 });
 export type PutAgentRequest = z.infer<typeof PutAgentRequest>;
 
