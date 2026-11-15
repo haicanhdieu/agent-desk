@@ -38,6 +38,16 @@ export interface FollowEnv {
   /** Poll interval while waiting for the pod. */
   pollMs: number;
   heartbeatMs: number;
+  /** How often the redaction list is re-read while following (the workspace token rotates during long runs). */
+  redactionRefreshMs?: number;
+}
+
+/** Default redaction refresh interval; well under the ~45 min token rotation. */
+export const REDACTION_REFRESH_MS = 5 * 60_000;
+
+/** `previous` plus any value of `next` it lacks: an earlier token may still be buffered in the pod or still valid. */
+export function mergeSecrets(previous: readonly string[], next: readonly string[]): string[] {
+  return [...new Set([...previous, ...next])];
 }
 
 // ---- Pending wait
@@ -150,7 +160,10 @@ export interface FollowHooks<R> {
   /** Used in the redacted, bounded error message of an unexpected failure. */
   what: string;
   jobName: string;
-  /** Values to redact from output. Must fail closed: a read error propagates, never "no values". */
+  /**
+   * Values to redact from output. The first read must fail closed: an error propagates, never "no values". It is
+   * re-read periodically; a failed re-read keeps the last good list, and values seen earlier are never dropped.
+   */
   secrets(): Promise<string[]>;
   storedBudget(): Promise<{ chars: number; truncated: boolean }>;
   /** Stores one lifecycle event under the dedupe key `line` (a marker's own line, or a chunk's last line). */
@@ -192,14 +205,29 @@ export async function followPodLog<R>(env: FollowEnv, hooks: FollowHooks<R>): Pr
     }
   };
   let secrets: string[] = [];
+  const refreshMs = env.redactionRefreshMs ?? REDACTION_REFRESH_MS;
+  let refreshedAt = env.clock.now().getTime();
+  /** Re-reads the list when due, accumulating. A failure keeps the last good list (the error may hold secrets). */
+  const refreshSecrets = async (): Promise<void> => {
+    const at = env.clock.now().getTime();
+    if (at - refreshedAt < refreshMs) return;
+    refreshedAt = at;
+    try {
+      secrets = mergeSecrets(secrets, await hooks.secrets());
+    } catch {
+      // keep the last good list; never log the error
+    }
+  };
   try {
-    secrets = await hooks.secrets();
+    secrets = mergeSecrets(secrets, await hooks.secrets());
+    refreshedAt = env.clock.now().getTime();
     for (;;) {
       const pod = await waitForPod(env, hooks.jobName, ac.signal);
       // State of one pass over the log. Output in the tracker's buffer is not durable until stored as a chunk.
       let index = 0;
       let lastOutputIndex = 0;
       let bufferStart = 0;
+      await refreshSecrets();
       hooks.beginPass?.();
       // Seeded from storage so the cap (and the single truncated chunk) hold across re-attaches and retries.
       const budget = await hooks.storedBudget();
@@ -236,6 +264,7 @@ export async function followPodLog<R>(env: FollowEnv, hooks: FollowHooks<R>): Pr
       for await (const line of env.kube.streamLogs(pod.name, ac.signal)) {
         index += 1;
         if (index <= skip) continue;
+        await refreshSecrets();
         if (hooks.onRawLine && (await hooks.onRawLine(pass, line))) continue;
         const parsed = parseLogLine(line);
         const isOutput = parsed.kind === 'setup_output' || parsed.kind === 'plugin_output';

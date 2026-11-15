@@ -53,7 +53,7 @@ This supersedes the 3300 s cap and "keep `timeout_seconds` ≤ 3300 so the token
 - New moving part: a durable refresh loop. A missed refresh means pushes fail once the token expires (the run is
   not killed).
 - The runner image changes (credential helper, `gh` wrapper); a custom runner image must do the same.
-- Rotated tokens are redacted from logs by token-shaped patterns, not by an exact-match list.
+- The redaction list is re-read every few minutes during a run and accumulates earlier tokens, so a rotated token is redacted by exact value only after the next refresh; until then only the token-shaped patterns catch it.
 - The workflow change needs `patched()` for in-flight runs.
 - Deploy order matters: the runner image with the token-file support must be live (`RUNNER_IMAGE`) before the worker
   that creates token-file Jobs, or every clone fails.

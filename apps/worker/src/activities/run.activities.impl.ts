@@ -55,6 +55,7 @@ import {
 } from './activity-utils';
 import {
   followPodLog,
+  mergeSecrets,
   outputBudget,
   storeLineEvent as storeLineEventIn,
   type FollowPass,
@@ -679,7 +680,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         what: 'follow pod logs',
         jobName: runJobName(ctx.runId),
         secrets: async () => {
-          secrets = await redactionList(ctx);
+          // Accumulates: a rotated token is added, earlier ones stay redacted.
+          secrets = mergeSecrets(secrets, await redactionList(ctx));
           return secrets;
         },
         storedBudget: () => storedOutputBudget(ctx),

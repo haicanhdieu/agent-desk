@@ -44,7 +44,7 @@ Env vars are fixed when the container starts, so updating the Secret never chang
 - Adapter seam (provider-agnostic): `CodeHostAdapter.cloneUrl(project, token)` and `runEnv(token)` are replaced by `repoUrl(project)` (no secret) and `gitCredentialUsername()`. GitHub returns `x-access-token`. Provider names stay inside the adapter.
 - Runner image (`images/runner`): `git-credential-agentdesk` answers git's `get` with the token read from the file on each call, and `bin/gh` sets `GH_TOKEN` from the file per invocation and runs the real `gh` (`PATH` starts with its directory). `entrypoint.sh` registers the helper when `AGENTDESK_TOKEN_FILE` is set, then clones the plain URL. Without it nothing changes.
 - The kubelet refreshes a mounted Secret in about 1 to 2 minutes, which the refresh margin covers.
-- Redaction: `followPodLogs` re-reads the run Secret each pass, so the current token is redacted exactly; earlier tokens are caught by the token-shaped patterns in `packages/core/src/redact.ts` (`ghs_…`, `x-access-token:…@`). A test proves both after a rotation. A provider that adds a new token shape must add a pattern.
+- Redaction: `followPodLog` re-reads the redaction list periodically while it follows (every few minutes, on the injectable `redactionRefreshMs`, checked against the `Clock` as lines arrive) and accumulates: a rotated token is added and earlier tokens stay in the list, since an old one may still be in the pod's output buffer or still valid. A failed re-read keeps the last good list and logs nothing. The token-shaped patterns in `packages/core/src/redact.ts` (`ghs_…`, `x-access-token:…@`) remain a second layer. A test rotates a token of an unrelated shape and proves the new and old values are both redacted.
 
 ### 3. Refresh (worker)
 

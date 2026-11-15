@@ -168,6 +168,84 @@ describe('followPodLog bookkeeping (chunk keys and durable line)', () => {
   });
 });
 
+describe('followPodLog redaction refresh (rotated workspace token)', () => {
+  const OLD = 'initial-tok-ABC987';
+  const NEW = 'rotated-tok-XYZ123';
+
+  /** Runs a follow over `steps`: a string is a log line, a function runs between lines (rotation, time passing). */
+  const runFollow = async (opts: {
+    secrets: (clockMs: number) => Promise<string[]>;
+    steps: (adv: (ms: number) => void) => (string | (() => void))[];
+  }): Promise<string> => {
+    let nowMs = 0;
+    const stored: string[] = [];
+    const steps = opts.steps((ms) => (nowMs += ms));
+    const kube = kubeWith({
+      getRunPod: async () => pod('Running'),
+      async *streamLogs() {
+        for (const step of steps) {
+          if (typeof step === 'string') yield step;
+          else step();
+        }
+      },
+    });
+    const hooks: FollowHooks<string> = {
+      what: 'test follow',
+      jobName: 'job',
+      secrets: () => opts.secrets(nowMs),
+      storedBudget: async () => ({ chars: 0, truncated: false }),
+      storeLifecycle: async (_line, payload) => void stored.push(String(payload.text)),
+      afterStream: async (pass) => {
+        await pass.flushPending();
+        return { done: 'finished' };
+      },
+    };
+    const env = {
+      kube,
+      clock: { now: () => new Date(nowMs) },
+      pollMs: 5,
+      heartbeatMs: 1000,
+      pendingLimitMs: 1000,
+      redactionRefreshMs: 500,
+    };
+    await new MockActivityEnvironment().run(() => followPodLog(env, hooks));
+    return stored.join('\n');
+  };
+
+  it('redacts a rotated token of any shape after the refresh interval, and still the old one', async () => {
+    let current = OLD;
+    const stored = await runFollow({
+      secrets: async () => [current],
+      steps: (adv) => [
+        `setup| clone with ${OLD}`,
+        () => {
+          current = NEW; // the token is rotated in the run Secret mid-run
+          adv(1000);
+        },
+        `setup| now ${NEW}`,
+        `setup| stale ${OLD}`,
+      ],
+    });
+    expect(stored).not.toContain(NEW);
+    expect(stored).not.toContain(OLD);
+    expect(stored).toContain('now ');
+  });
+
+  it('keeps the last good list when a refresh fails, without leaking or failing the follow', async () => {
+    let calls = 0;
+    const stored = await runFollow({
+      secrets: async () => {
+        calls += 1;
+        if (calls > 1) throw new Error(`boom ${OLD}`);
+        return [OLD];
+      },
+      steps: (adv) => [() => adv(1000), `setup| ${OLD}`],
+    });
+    expect(calls).toBeGreaterThan(1);
+    expect(stored).not.toContain(OLD);
+  });
+});
+
 describe('appendSeqEvent', () => {
   // The table fakes never touch the transaction; only their call order and the seq they are given matter.
   const tx: Tx = Object.create(null);
