@@ -13,6 +13,8 @@ function isDropped(key: string): boolean {
 export const SCRIPT_FIELD_BY_ACTION: Record<string, string> = {
   'PUT setupScript.put': 'body',
   'POST setupTests.create': 'script',
+  'POST rules.create': 'prompt',
+  'PATCH rules.update': 'prompt',
 };
 
 /**

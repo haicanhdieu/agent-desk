@@ -3,6 +3,7 @@ import {
   canResume,
   FINISHABLE_RUN_STATUSES,
   type RouteDef,
+  type RuleDto,
   FINAL_RUN_STATUSES,
   type ProjectConnectionDto,
   type ProjectDto,
@@ -15,6 +16,7 @@ import {
 } from '@agentdesk/contracts';
 import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
+import { promptPreviewFixture } from '../dto/rules';
 import { noPlugins } from '../dto/setup';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
 import {
@@ -422,11 +424,18 @@ const impl: Impl = {
   'rules.create': ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
     assertUniqueCommand(projectId, body.command);
-    const rule = {
-      ...body,
+    const { kind, command, labelFilter, target, enabled } = body;
+    const rule: RuleDto = {
       id: mockDb.nextId(),
       projectId,
+      command,
+      labelFilter,
+      target,
       agentId: agentOf(projectId).id,
+      kind,
+      skillName: body.kind === 'skill' ? body.skillName : null,
+      prompt: body.kind === 'prompt' ? body.prompt : null,
+      enabled,
       stats: { runs30d: 0, lastRunAt: null },
     };
     db().rules.push(rule);
@@ -435,9 +444,23 @@ const impl: Impl = {
   'rules.update': ({ params, body }) => {
     const rule = ruleOf(params.ruleId);
     if (body.command !== undefined) assertUniqueCommand(rule.projectId, body.command, rule.id);
-    Object.assign(rule, Object.fromEntries(Object.entries(body).filter(([, v]) => v !== undefined)));
+    const { command, labelFilter, target, enabled, kind, skillName, prompt } = body;
+    if (command !== undefined) rule.command = command;
+    if (labelFilter !== undefined) rule.labelFilter = labelFilter;
+    if (target !== undefined) rule.target = target;
+    if (enabled !== undefined) rule.enabled = enabled;
+    // A kind switch sends kind plus the new field and clears the old one.
+    if (kind !== undefined) rule.kind = kind;
+    if (rule.kind === 'skill') {
+      if (skillName !== undefined) rule.skillName = skillName;
+      rule.prompt = null;
+    } else {
+      if (prompt !== undefined) rule.prompt = prompt;
+      rule.skillName = null;
+    }
     return rule;
   },
+  'rules.promptPreview': ({ params }) => promptPreviewFixture(projectRow(params.projectId).repoPath),
   'rules.remove': ({ params }) => {
     const rule = ruleOf(params.ruleId);
     db().rules = db().rules.filter((r) => r.id !== rule.id);

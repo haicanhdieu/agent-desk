@@ -1,8 +1,14 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, eq, gte, inArray, sql } from 'drizzle-orm';
 import { agents, projects, rules, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
-import { RuleTarget, type CreateRuleRequest, type RuleDto, type UpdateRuleRequest } from '@agentdesk/contracts';
-import { SkillNotFoundError } from '@agentdesk/core';
+import {
+  RuleTarget,
+  type PromptPreviewDto,
+  type CreateRuleRequest,
+  type RuleDto,
+  type UpdateRuleRequest,
+} from '@agentdesk/contracts';
+import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines, SkillNotFoundError } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
 import { isUniqueViolation } from '../common/pg-errors';
@@ -54,10 +60,30 @@ export class RulesService {
       labelFilter: row.labelFilter,
       target: RuleTarget.parse(row.target),
       agentId: row.agentId,
+      kind: row.prompt !== null ? 'prompt' : 'skill',
       skillName: row.skillName,
+      prompt: row.prompt,
       enabled: row.enabled,
       stats: { runs30d: stats?.runs30d ?? 0, lastRunAt: stats?.lastRunAt?.toISOString() ?? null },
     };
+  }
+
+  async promptPreview(org: OrgContext, projectId: string): Promise<PromptPreviewDto> {
+    return withOrg(this.db, org.orgId, async (tx) => {
+      const [project] = await tx
+        .select({ repoPath: projects.repoPath })
+        .from(projects)
+        .where(eq(projects.id, projectId))
+        .limit(1);
+      if (!project) throw new NotFoundException('Project not found');
+      return {
+        systemLines: promptSystemLines({
+          ticket: PROMPT_PREVIEW_TICKET,
+          repoPath: project.repoPath,
+          args: PROMPT_PREVIEW_ARGS,
+        }),
+      };
+    });
   }
 
   private async dtoOf(tx: Tx, row: RuleRow): Promise<RuleDto> {
@@ -93,7 +119,7 @@ export class RulesService {
   }
 
   async create(org: OrgContext, projectId: string, body: CreateRuleRequest): Promise<RuleDto> {
-    await this.assertSkillExists(org, projectId, body.skillName);
+    if (body.kind === 'skill') await this.assertSkillExists(org, projectId, body.skillName);
     try {
       return await withOrg(this.db, org.orgId, async (tx) => {
         const agent = (
@@ -109,7 +135,8 @@ export class RulesService {
             labelFilter: body.labelFilter,
             target: body.target,
             agentId: agent.id,
-            skillName: body.skillName,
+            skillName: body.kind === 'skill' ? body.skillName : null,
+            prompt: body.kind === 'prompt' ? body.prompt : null,
             enabled: body.enabled,
           })
           .returning();
@@ -129,14 +156,29 @@ export class RulesService {
       async (tx) => (await tx.select().from(rules).where(eq(rules.id, ruleId)).limit(1))[0],
     );
     if (!existing) throw new NotFoundException('Rule not found');
-    if (body.skillName !== undefined && body.skillName !== existing.skillName) {
+    const existingKind = existing.prompt !== null ? 'prompt' : 'skill';
+    const kind = body.kind ?? existingKind;
+    const mismatch = (pointer: string): UnprocessableProblemException =>
+      new UnprocessableProblemException('Rule kind mismatch', [
+        { pointer, detail: 'Send kind to switch what this rule runs' },
+      ]);
+    if (kind === 'skill' && body.prompt !== undefined) throw mismatch('/prompt');
+    if (kind === 'prompt' && body.skillName !== undefined) throw mismatch('/skillName');
+    if (kind === 'skill' && body.skillName !== undefined && body.skillName !== existing.skillName) {
       await this.assertSkillExists(org, existing.projectId, body.skillName);
     }
     const set: Partial<typeof rules.$inferInsert> = {};
     if (body.command !== undefined) set.command = body.command;
     if (body.labelFilter !== undefined) set.labelFilter = body.labelFilter;
     if (body.target !== undefined) set.target = body.target;
-    if (body.skillName !== undefined) set.skillName = body.skillName;
+    if (kind === 'skill' && body.skillName !== undefined) {
+      set.skillName = body.skillName;
+      set.prompt = null;
+    }
+    if (kind === 'prompt' && body.prompt !== undefined) {
+      set.prompt = body.prompt;
+      set.skillName = null;
+    }
     if (body.enabled !== undefined) set.enabled = body.enabled;
     try {
       return await withOrg(this.db, org.orgId, async (tx) => {

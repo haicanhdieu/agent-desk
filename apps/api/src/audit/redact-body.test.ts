@@ -51,6 +51,18 @@ describe('redactBody script text', () => {
     expect(out).toEqual({ sha256: sha('make test'), bytes: 9, other: 1 });
   });
 
+  it.each(['POST rules.create', 'PATCH rules.update'])('replaces prompt with { sha256, bytes } for %s', (action) => {
+    const prompt = 'use key sk-LEAKED 🚀';
+    const out = redactBody({ kind: 'prompt', command: 'c', prompt }, action);
+    expect(out).toEqual({
+      kind: 'prompt',
+      command: 'c',
+      sha256: sha(prompt),
+      bytes: Buffer.byteLength(prompt, 'utf8'),
+    });
+    expect(JSON.stringify(out)).not.toContain('sk-LEAKED');
+  });
+
   it('leaves body untouched on other actions', () => {
     expect(redactBody({ body: 'x' }, 'PUT skills.put')).toEqual({ body: 'x' });
     expect(redactBody({ body: 'x' })).toEqual({ body: 'x' });

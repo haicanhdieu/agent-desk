@@ -1,4 +1,4 @@
-import type { RunDto, RunEventDto, RunListFilter } from '@agentdesk/contracts';
+import type { RunDto, RunEventDto, RunListFilter, RunListItem } from '@agentdesk/contracts';
 import { queryOptions } from '@tanstack/react-query';
 import { api } from '../api';
 import { withPendingNote } from './pending';
@@ -9,10 +9,13 @@ export const RUN_LIST_PAGE_SIZE = 100;
 export const RUN_LIST_MAX_PAGES = 10;
 
 /**
- * A run as cached: the DTO plus `statusNote`, a client-only note while a cancel or finish is pending ("Cancelling…").
- * Server data never carries it; the queryFns re-apply it to fresh data until the run is final (pending.ts).
+ * A run as cached: the list item plus `statusNote`, a client-only note while a cancel or finish is pending
+ * ("Cancelling…"). Server data never carries it; the queryFns re-apply it to fresh data until the run is final
+ * (pending.ts).
  */
-export type CachedRun = RunDto & { statusNote?: string };
+export type CachedRun = RunListItem & { statusNote?: string };
+/** A run as cached by the detail query: the full DTO (with the prompt texts) plus `statusNote`. */
+export type CachedRunDetail = RunDto & { statusNote?: string };
 
 export interface RunList {
   items: CachedRun[];
@@ -61,7 +64,7 @@ export const runsQueries = {
   detail: (org: string, projectId: string, number: number) =>
     queryOptions({
       queryKey: [...runsKey(org, projectId), number] as const,
-      queryFn: async ({ client }): Promise<CachedRun> =>
+      queryFn: async ({ client }): Promise<CachedRunDetail> =>
         withPendingNote(client, await api.runs.byNumber({ params: { projectId, number } })),
       refetchOnWindowFocus: true,
     }),

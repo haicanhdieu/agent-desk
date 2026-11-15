@@ -286,6 +286,7 @@ async function decideInTx(
     target: RuleTarget.parse(r.target),
     agentId: r.agentId,
     skillName: r.skillName,
+    prompt: r.prompt,
     enabled: r.enabled,
   }));
 
@@ -295,7 +296,7 @@ async function decideInTx(
     .from(runs)
     .where(onTicket);
   const active = await tx
-    .selectDistinct({ skillName: runs.skillName })
+    .select({ skillName: runs.skillName, ruleId: runs.ruleId })
     .from(runs)
     .where(and(onTicket, notInArray(runs.status, FINAL_STATUSES)));
 
@@ -304,7 +305,11 @@ async function decideInTx(
     project: { id: projectId, maxRunsPerTicket: proj.maxRunsPerTicket },
     rules: ruleList,
     ticket: fetchTicket,
-    counts: { runsForTicket: counted?.total ?? 0, activeSkillsOnTicket: active.map((a) => a.skillName) },
+    counts: {
+      runsForTicket: counted?.total ?? 0,
+      activeSkillsOnTicket: [...new Set(active.flatMap((a) => (a.skillName === null ? [] : [a.skillName])))],
+      activeRuleIdsOnTicket: [...new Set(active.flatMap((a) => (a.ruleId === null ? [] : [a.ruleId])))],
+    },
     botLogin: deps.botLogin,
   });
   if (decision.kind === 'ignored') return finish(decision.outcome, decision.detail);
@@ -341,6 +346,7 @@ async function decideInTx(
           agentId: decision.rule.agentId,
           command: decision.command,
           skillName: decision.rule.skillName,
+          prompt: decision.rule.prompt,
           ticketRef: event.ticketRef,
           ticketKind: kind,
           ticketNumber: number ?? null,

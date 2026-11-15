@@ -3,6 +3,7 @@ import {
   ConnectionDto,
   IgnoredEventDto,
   PluginsDto,
+  PromptPreviewDto,
   ProjectConnectionDto,
   ProjectDto,
   RepoDto,
@@ -99,7 +100,7 @@ describe('MSW handlers cover the contract', () => {
     await expect(api.skills.get({ params: { projectId: P, name: 'code-build' } })).resolves.toMatchObject({
       path: '.claude/skills/code-build/SKILL.md',
     });
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(5);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
     const list = await api.runs.list({ params: { projectId: P } });
     expect(list.items.map((r) => r.number)).toEqual([66, 65, 64, 63, 62, 61, 60, 57, 56, 55, 54, 52]);
     await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({
@@ -154,13 +155,27 @@ describe('MSW handler semantics', () => {
   it('creates, updates and deletes rules with a 409 on a duplicate command', async () => {
     const created = await api.rules.create({
       params: { projectId: P },
-      body: { command: 'docs-fix', labelFilter: [], target: 'any', skillName: 'code-build', enabled: true },
+      body: {
+        kind: 'skill',
+        command: 'docs-fix',
+        labelFilter: [],
+        target: 'any',
+        skillName: 'code-build',
+        enabled: true,
+      },
     });
     expect(created.agentId).toBe(ids.agent.invoicerApi);
     const dup = await rejection(
       api.rules.create({
         params: { projectId: P },
-        body: { command: 'code-build', labelFilter: [], target: 'issue', skillName: 'code-build', enabled: true },
+        body: {
+          kind: 'skill',
+          command: 'code-build',
+          labelFilter: [],
+          target: 'issue',
+          skillName: 'code-build',
+          enabled: true,
+        },
       }),
     );
     expect(dup.status).toBe(409);
@@ -178,11 +193,36 @@ describe('MSW handler semantics', () => {
     expect((await rejection(api.rules.remove({ params: { ruleId: created.id } }))).status).toBe(404);
   });
 
+  it('creates a prompt rule and serves the prompt preview', async () => {
+    const created = await api.rules.create({
+      params: { projectId: P },
+      body: { kind: 'prompt', command: 'sweep', labelFilter: [], target: 'issue', prompt: 'Sweep it.', enabled: true },
+    });
+    expect(created).toMatchObject({ kind: 'prompt', prompt: 'Sweep it.', skillName: null });
+    const switched = await api.rules.update({
+      params: { ruleId: created.id },
+      body: { kind: 'skill', skillName: 'code-build' },
+    });
+    expect(switched).toMatchObject({ kind: 'skill', skillName: 'code-build', prompt: null });
+    const preview = await api.rules.promptPreview({ params: { projectId: P } });
+    expect(() => PromptPreviewDto.parse(preview)).not.toThrow();
+    expect(preview.systemLines).toHaveLength(4);
+    expect(preview.systemLines[0]).toContain('harbor-labs/invoicer-api');
+    expect(preview.systemLines[3]).toContain('agentdesk-status');
+  });
+
   it('rejects an invalid body with field pointers', async () => {
     const res = await fetch(`http://localhost:3000/api/projects/${P}/rules`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ command: 'Bad Command', labelFilter: [], target: 'any', skillName: 'x', enabled: true }),
+      body: JSON.stringify({
+        kind: 'skill',
+        command: 'Bad Command',
+        labelFilter: [],
+        target: 'any',
+        skillName: 'x',
+        enabled: true,
+      }),
     });
     expect(res.status).toBe(400);
     const body: unknown = await res.json();
@@ -463,7 +503,7 @@ describe('scenarios', () => {
     const e = await rejection(api.rules.update({ params: { ruleId: ids.rule.r1 }, body: { enabled: false } }));
     expect(e.status).toBe(500);
     expect(e.requestId).toMatch(/^req-mock-/);
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(5);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
   });
 
   it('problem returns the given problem', async () => {
@@ -476,7 +516,7 @@ describe('scenarios', () => {
   });
 
   it('overrides and db changes reset between tests', async () => {
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(5);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
     await expect(api.projects.list()).resolves.toHaveLength(4);
   });
 });

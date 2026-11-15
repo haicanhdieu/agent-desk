@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Ticket, TicketEvent } from '../src/adapters/types';
-import { buildPrompt } from '../src/router/prompt';
+import {
+  PROMPT_PREVIEW_ARGS,
+  PROMPT_PREVIEW_TICKET,
+  buildPrompt,
+  promptSourceOf,
+  promptSystemLines,
+} from '../src/router/prompt';
 import { parseCommand } from '../src/router/parse-command';
 import { routeEvent, type RouteInput, type RuleRow } from '../src/router/route-event';
 
@@ -11,6 +17,7 @@ const rule = (over: Partial<RuleRow> = {}): RuleRow => ({
   target: 'any',
   agentId: 'a1',
   skillName: 'code-review',
+  prompt: null,
   enabled: true,
   ...over,
 });
@@ -47,7 +54,7 @@ function input(over: Partial<RouteInput> = {}) {
     project: { id: 'p1', maxRunsPerTicket: 3 },
     rules: [rule()],
     ticket,
-    counts: { runsForTicket: 0, activeSkillsOnTicket: [] },
+    counts: { runsForTicket: 0, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] },
     botLogin: 'agentdesk[bot]',
     ...over,
   };
@@ -203,23 +210,65 @@ describe('routeEvent', () => {
   });
 
   it('ignores at max runs, allows below it', async () => {
-    const at = await routeEvent(input({ counts: { runsForTicket: 3, activeSkillsOnTicket: [] } }).base);
+    const at = await routeEvent(
+      input({ counts: { runsForTicket: 3, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(at).toMatchObject({ outcome: 'ignored_max_runs' });
-    const over = await routeEvent(input({ counts: { runsForTicket: 4, activeSkillsOnTicket: [] } }).base);
+    const over = await routeEvent(
+      input({ counts: { runsForTicket: 4, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(over).toMatchObject({ outcome: 'ignored_max_runs' });
-    const below = await routeEvent(input({ counts: { runsForTicket: 2, activeSkillsOnTicket: [] } }).base);
+    const below = await routeEvent(
+      input({ counts: { runsForTicket: 2, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(below.kind).toBe('run');
   });
 
   it('ignores while the same skill is active, not other skills', async () => {
-    const same = await routeEvent(input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['code-review'] } }).base);
+    const same = await routeEvent(
+      input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(same).toMatchObject({ outcome: 'ignored_active_run' });
-    const other = await routeEvent(input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['triage'] } }).base);
+    const other = await routeEvent(
+      input({ counts: { runsForTicket: 0, activeSkillsOnTicket: ['triage'], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(other.kind).toBe('run');
   });
 
+  it('a prompt rule is blocked by its own active run, by rule id', async () => {
+    const promptRule = rule({ id: 'p1', command: 'triage', skillName: null, prompt: 'Triage this.' });
+    const base = input({
+      event: event({ body: '/triage' }),
+      rules: [promptRule],
+      counts: { runsForTicket: 0, activeSkillsOnTicket: [], activeRuleIdsOnTicket: ['p1'] },
+    }).base;
+    expect(await routeEvent(base)).toEqual({
+      kind: 'ignored',
+      outcome: 'ignored_active_run',
+      detail: 'rule /triage already has an active run on this ticket',
+    });
+  });
+
+  it('an active prompt run blocks neither another prompt rule nor a skill rule', async () => {
+    const other = rule({ id: 'p2', command: 'triage', skillName: null, prompt: 'Triage this.' });
+    const counts = { runsForTicket: 0, activeSkillsOnTicket: [], activeRuleIdsOnTicket: ['p1'] };
+    const promptRun = await routeEvent(input({ event: event({ body: '/triage' }), rules: [other], counts }).base);
+    expect(promptRun.kind).toBe('run');
+    const skillRun = await routeEvent(input({ rules: [rule()], counts }).base);
+    expect(skillRun.kind).toBe('run');
+  });
+
+  it('a prompt rule is not blocked by an active skill of the same name', async () => {
+    const promptRule = rule({ id: 'p1', command: 'code-review', skillName: null, prompt: 'Review.' });
+    const counts = { runsForTicket: 0, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] };
+    const d = await routeEvent(input({ rules: [promptRule], counts }).base);
+    expect(d.kind).toBe('run');
+  });
+
   it('applies max runs before the active-run guard', async () => {
-    const d = await routeEvent(input({ counts: { runsForTicket: 3, activeSkillsOnTicket: ['code-review'] } }).base);
+    const d = await routeEvent(
+      input({ counts: { runsForTicket: 3, activeSkillsOnTicket: ['code-review'], activeRuleIdsOnTicket: [] } }).base,
+    );
     expect(d).toMatchObject({ outcome: 'ignored_max_runs' });
   });
 
@@ -307,5 +356,77 @@ describe('buildPrompt', () => {
     expect(buildPrompt({ skillName: 's', ticketKind: 'pr', ticketNumber: 1, repoPath: 'a/b', args: '' })).toContain(
       'on pull request #1 in a/b.',
     );
+  });
+});
+
+const STATUS_LINE =
+  'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.';
+
+describe('buildPrompt with a custom prompt', () => {
+  it('renders a custom prompt as written, then the four system lines', () => {
+    expect(
+      buildPrompt({
+        customPrompt: 'Triage this.\nAdd labels.',
+        ticketKind: 'issue',
+        ticketNumber: 7,
+        repoPath: 'acme/app',
+        args: 'fast',
+      }),
+    ).toBe(
+      [
+        'Triage this.',
+        'Add labels.',
+        'Ticket: issue #7 in acme/app. Read it and all its comments with the gh CLI before you start.',
+        'Arguments from the user: fast',
+        'When done, report on the ticket.',
+        STATUS_LINE,
+      ].join('\n'),
+    );
+  });
+
+  it('keeps line breaks in the custom prompt but collapses args and repo to one line', () => {
+    const out = buildPrompt({
+      customPrompt: 'a\nb',
+      ticketKind: 'issue',
+      ticketNumber: 7,
+      repoPath: 'x\ny/z',
+      args: 'l1\nl2 l3',
+    });
+    expect(out.startsWith('a\nb\n')).toBe(true);
+    expect(out).toContain('Arguments from the user: l1 l2 l3');
+    expect(out.split('\n').slice(-4)).toEqual(
+      promptSystemLines({ ticket: 'issue #7', repoPath: 'x y/z', args: 'l1\nl2 l3' }),
+    );
+  });
+
+  it('says pull request for a pr in a custom prompt', () => {
+    expect(buildPrompt({ customPrompt: 'p', ticketKind: 'pr', ticketNumber: 3, repoPath: 'a/b', args: '' })).toContain(
+      'Ticket: pull request #3 in a/b.',
+    );
+  });
+});
+
+describe('promptSystemLines', () => {
+  it('renders the preview placeholders', () => {
+    const lines = promptSystemLines({
+      ticket: PROMPT_PREVIEW_TICKET,
+      repoPath: 'acme/app',
+      args: PROMPT_PREVIEW_ARGS,
+    });
+    expect(lines).toEqual([
+      'Ticket: <issue or PR #number> in acme/app. Read it and all its comments with the gh CLI before you start.',
+      'Arguments from the user: <text after /command>',
+      'When done, report on the ticket.',
+      STATUS_LINE,
+    ]);
+    expect(lines[3]).toMatch(/^Before you end a turn, run `agentdesk-status done/);
+  });
+});
+
+describe('promptSourceOf', () => {
+  it('picks the skill, else the prompt, and throws on neither', () => {
+    expect(promptSourceOf({ skillName: 's', prompt: null })).toEqual({ skillName: 's' });
+    expect(promptSourceOf({ skillName: null, prompt: 'p' })).toEqual({ customPrompt: 'p' });
+    expect(() => promptSourceOf({ skillName: null, prompt: null })).toThrow('run has neither a skill nor a prompt');
   });
 });

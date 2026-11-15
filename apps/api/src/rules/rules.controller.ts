@@ -1,5 +1,11 @@
 import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post } from '@nestjs/common';
-import { routes, type CreateRuleRequest, type RuleDto, type UpdateRuleRequest } from '@agentdesk/contracts';
+import {
+  routes,
+  type CreateRuleRequest,
+  type PromptPreviewDto,
+  type RuleDto,
+  type UpdateRuleRequest,
+} from '@agentdesk/contracts';
 import { CurrentOrg, type OrgContext } from '../auth/org-context';
 import { routePath } from '../common/route-path';
 import { ZodPipe } from '../common/zod-validation';
@@ -17,6 +23,14 @@ export class RulesController {
   @Get(routePath(routes.rules.list))
   list(@CurrentOrg() org: OrgContext, @Param(ProjectParam) p: { projectId: string }): Promise<RuleDto[]> {
     return this.service.list(org, p.projectId);
+  }
+
+  @Get(routePath(routes.rules.promptPreview))
+  promptPreview(
+    @CurrentOrg() org: OrgContext,
+    @Param(ProjectParam) p: { projectId: string },
+  ): Promise<PromptPreviewDto> {
+    return this.service.promptPreview(org, p.projectId);
   }
 
   @Post(routePath(routes.rules.create))

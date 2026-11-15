@@ -1,4 +1,10 @@
-import { hasKeptSession, type ProjectDto, type RunDto, type RunEventDto, type RunStatus } from '@agentdesk/contracts';
+import {
+  hasKeptSession,
+  type ProjectDto,
+  type RunListItem,
+  type RunEventDto,
+  type RunStatus,
+} from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { ChainStep, ConnectionState, TermLine } from '@/components';
 import { statusTokens } from '@/ds';
@@ -6,7 +12,7 @@ import type { RunDetailData, RunDetailKey } from '@/mocks/types';
 import { clockElapsed, formatLimit } from '../duration';
 import { relativeTime, timeLeft } from '../relativeTime';
 import { duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
-import type { CachedRun } from './queries';
+import type { CachedRunDetail } from './queries';
 import type { TerminalState } from './useTerminal';
 
 // Run detail view model (spec §3.2): one RunDetailData per run, for the eight RunDetail boards.
@@ -108,7 +114,7 @@ export function scrollbackText(events: RunEventDto[]): string | undefined {
 }
 
 /** When each startup step happened, from the status and lifecycle events (and the run itself). */
-function startupMarks(run: RunDto, events: RunEventDto[]) {
+function startupMarks(run: RunListItem, events: RunEventDto[]) {
   const statusAt = (s: RunStatus) =>
     events.find((e) => e.type === 'status' && StatusPayload.safeParse(e.payload).data?.status === s)?.ts;
   const lifecycleAt = (re: RegExp) => events.find((e) => e.type === 'lifecycle' && re.test(textOf(e) ?? ''))?.ts;
@@ -121,7 +127,7 @@ function startupMarks(run: RunDto, events: RunEventDto[]) {
   };
 }
 
-function startup(run: RunDto, events: RunEventDto[]): NonNullable<RunDetailData['startup']> {
+function startup(run: RunListItem, events: RunEventDto[]): NonNullable<RunDetailData['startup']> {
   const m = startupMarks(run, events);
   const steps: { label: string; at: string | undefined; detail?: string }[] = [
     {
@@ -159,13 +165,13 @@ function startup(run: RunDto, events: RunEventDto[]): NonNullable<RunDetailData[
   });
 }
 
-function chainNote(r: RunDto, now: Date): string {
+function chainNote(r: RunListItem, now: Date): string {
   const label = statusTokens[r.status].label;
   const took = isFinal(r.status) ? duration(r, now) : undefined;
   return took === undefined ? label : `${label} in ${took}`;
 }
 
-function chain(run: RunDto, ticketRuns: RunDto[], runsHref: string, now: Date): ChainStep[] {
+function chain(run: RunListItem, ticketRuns: RunListItem[], runsHref: string, now: Date): ChainStep[] {
   const runs = ticketRuns.some((r) => r.number === run.number)
     ? ticketRuns.map((r) => (r.number === run.number ? run : r))
     : [...ticketRuns, run];
@@ -196,18 +202,18 @@ export interface RunDetailLinks {
 type EndNote = NonNullable<RunDetailData['endNote']>;
 
 /** A run that failed before the agent started, in the setup script. */
-const failedInSetup = (run: RunDto): boolean => run.status === 'failed' && run.failureStage === 'setup';
+const failedInSetup = (run: RunListItem): boolean => run.status === 'failed' && run.failureStage === 'setup';
 
 /**
  * When the run's work began. `started_at` is set once the session starts, so a run that failed in setup has none:
  * the slot claim (the `starting` status) stands in, then the queue time.
  */
-function workStart(run: RunDto, events: RunEventDto[]): string {
+function workStart(run: RunListItem, events: RunEventDto[]): string {
   if (run.startedAt !== null) return run.startedAt;
   return (run.failureStage === 'setup' ? startupMarks(run, events).slot : undefined) ?? run.queuedAt;
 }
 
-function setupEndNote(run: RunDto, took: string, links: RunDetailLinks): EndNote {
+function setupEndNote(run: RunListItem, took: string, links: RunDetailLinks): EndNote {
   const timedOut = /timed out/i.test(run.failureReason ?? '');
   const cause = timedOut
     ? 'the setup script timed out'
@@ -228,8 +234,8 @@ function setupEndNote(run: RunDto, took: string, links: RunDetailLinks): EndNote
 }
 
 function endNote(
-  run: RunDto,
-  ticketRuns: RunDto[],
+  run: RunListItem,
+  ticketRuns: RunListItem[],
   links: RunDetailLinks,
   now: Date,
   events: RunEventDto[],
@@ -306,7 +312,7 @@ export function terminalConnection(terminal: TerminalState, stream: ConnectionSt
   }
 }
 
-function connection(run: RunDto, lines: TermLine[] | undefined): RunDetailData['connection'] {
+function connection(run: RunListItem, lines: TermLine[] | undefined): RunDetailData['connection'] {
   if (run.status === 'paused') {
     return {
       state: 'ended',
@@ -335,7 +341,7 @@ function resumeFailure(events: RunEventDto[]): string | undefined {
 }
 
 /** The kept (paused, or succeeded with a session that is still kept) or expired session of a run (ADR 0022). */
-function sessionOf(run: RunDto, events: RunEventDto[], now: Date): RunDetailData['session'] {
+function sessionOf(run: RunListItem, events: RunEventDto[], now: Date): RunDetailData['session'] {
   if (run.status === 'expired') {
     return { state: 'expired', headline: 'Nobody resumed this run in time. The saved session was deleted.' };
   }
@@ -360,10 +366,10 @@ function sessionOf(run: RunDto, events: RunEventDto[], now: Date): RunDetailData
  * stored run log. Times are local; the top bar's elapsed is "m:ss" (start, or queue time, to now or to the end).
  */
 export function toRunDetail(
-  run: CachedRun,
+  run: CachedRunDetail,
   events: RunEventDto[],
   project: ProjectDto,
-  ticketRuns: RunDto[],
+  ticketRuns: RunListItem[],
   now: Date,
   links: RunDetailLinks,
 ): RunDetailData {
@@ -386,6 +392,7 @@ export function toRunDetail(
     run: toRunSummary(run, now),
     elapsed: clock(elapsedMs),
     rule: `/${run.command}`,
+    finalPrompt: run.finalPrompt,
     triggerNote: run.triggerSource === 'manual' ? '' : 'comment',
     startedAt: clockSeconds(startIso),
     ...(end !== undefined && {

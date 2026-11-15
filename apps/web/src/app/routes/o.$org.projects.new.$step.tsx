@@ -1,4 +1,4 @@
-import type { ConnectionDto, ProjectDto } from '@agentdesk/contracts';
+import type { ConnectionDto, CreateRuleRequest, ProjectDto } from '@agentdesk/contracts';
 import { useQuery, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound, redirect, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
@@ -10,6 +10,7 @@ import { sessionQuery } from '@/features/auth/session';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
 import { projectPaths } from '@/features/desk/frame';
+import { usePromptPreview } from '@/features/desk/promptPreview';
 import { setupQueries as scriptQueries } from '@/features/setup-script/queries';
 import { useSetupWarning } from '@/features/setup-script/useSetupWarning';
 import { WorkspaceStep } from '@/features/setup/WorkspaceStep';
@@ -374,6 +375,7 @@ const RULE_POINTERS = {
   '/labelFilter': 'labels',
   '/target': 'target',
   '/skillName': 'skill',
+  '/prompt': 'prompt',
 } as const;
 
 const FOLLOW_UP = { command: 'code-review', target: 'pr', skill: 'code-review', enabled: true } as const;
@@ -385,7 +387,8 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { data: skills } = useSuspenseQuery(setupQueries.skills(org, projectId));
   const save = useSaveRulesStep(org);
-  const [errors, setErrors] = useState<StepErrors<'command' | 'labels' | 'target' | 'skill'>>(noErrors);
+  const [errors, setErrors] = useState<StepErrors<'command' | 'labels' | 'target' | 'skill' | 'prompt'>>(noErrors);
+  const promptPreview = usePromptPreview(org, projectId, true);
   const skillNames = skills.map((s) => s.name);
   const rule: RuleDraft = {
     command: 'code-build',
@@ -404,13 +407,19 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       labels: string[];
       skill: string;
       enabled: boolean;
-    }) => ({
-      command: d.command.replace(/^\//, ''),
-      labelFilter: d.labels,
-      target: d.target,
-      skillName: d.skill,
-      enabled: d.enabled,
-    });
+      kind?: RuleDraft['kind'];
+      prompt?: string;
+    }): CreateRuleRequest => {
+      const common = {
+        command: d.command.replace(/^\//, ''),
+        labelFilter: d.labels,
+        target: d.target,
+        enabled: d.enabled,
+      };
+      return d.kind === 'prompt'
+        ? { ...common, kind: 'prompt', prompt: d.prompt ?? '' }
+        : { ...common, kind: 'skill', skillName: d.skill };
+    };
     const rules = [toRequest(r), ...(followUp ? [toRequest({ ...FOLLOW_UP, labels: [] })] : [])];
     try {
       await goTo('ready', await save.mutateAsync({ project, rules }));
@@ -433,6 +442,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       repo={project.repoPath}
       rule={rule}
       skills={skillNames}
+      promptPreview={promptPreview}
       followUp={FOLLOW_UP}
       maxRunsPerTicket={project.maxRunsPerTicket}
       agentModel={agent.model}

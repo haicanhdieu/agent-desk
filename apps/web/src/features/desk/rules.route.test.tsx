@@ -309,6 +309,105 @@ describe('desk rules route', () => {
       expect(within(edit).queryByRole('alert')).toBeNull();
     });
 
+    it('New rule offers Skill / Custom prompt and shows the server system lines under the prompt', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`);
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      expect(within(form).getByRole('radio', { name: 'Skill' })).toHaveAttribute('aria-checked', 'true');
+      await user.click(within(form).getByRole('radio', { name: 'Custom prompt' }));
+      expect(within(form).getByLabelText('Prompt')).toBeInTheDocument();
+      expect(within(form).getByText("Added by Agent Desk (can't be edited)")).toBeInTheDocument();
+      expect(await within(form).findByText(/agentdesk-status done/)).toBeInTheDocument();
+    });
+
+    it('saves a custom prompt rule and lists it as Custom prompt with its first line', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`);
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      await user.type(within(form).getByLabelText('Command'), 'sweep');
+      await user.click(within(form).getByRole('radio', { name: 'Custom prompt' }));
+      await user.type(within(form).getByLabelText('Prompt'), 'Sweep the stale branches');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(projectRules().find((r) => r.command === 'sweep')).toMatchObject({
+        kind: 'prompt',
+        prompt: 'Sweep the stale branches',
+        skillName: null,
+      });
+      const row = screen.getByRole('button', { name: 'Edit rule /sweep' });
+      expect(row).toHaveTextContent('Custom prompt');
+      expect(row).toHaveTextContent('Sweep the stale branches');
+    });
+
+    it('switching an edited skill rule to Custom prompt sends kind and prompt only', async () => {
+      const bodies: unknown[] = [];
+      server.use(
+        http.patch('*/api/rules/:ruleId', async ({ request }) => {
+          bodies.push(await request.clone().json());
+          return undefined;
+        }),
+      );
+      const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`);
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      await user.click(within(edit).getByRole('radio', { name: 'Custom prompt' }));
+      await user.type(within(edit).getByLabelText('Prompt'), 'Review it kindly');
+      await user.click(within(edit).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(bodies).toEqual([{ kind: 'prompt', prompt: 'Review it kindly' }]);
+      expect(ruleRow(ids.rule.r2)).toMatchObject({ kind: 'prompt', prompt: 'Review it kindly', skillName: null });
+    });
+
+    it('a 4001-character prompt shows a field message and sends nothing', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`);
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      const posts = mockDb.requests('POST', `/api/projects/${projectId}/rules`);
+      await user.type(within(form).getByLabelText('Command'), 'long-one');
+      await user.click(within(form).getByRole('radio', { name: 'Custom prompt' }));
+      const prompt = within(form).getByLabelText('Prompt');
+      await user.click(prompt);
+      await user.paste('a'.repeat(4001));
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(prompt).toHaveAttribute('aria-invalid', 'true'));
+      expect(prompt).toHaveAccessibleDescription(/up to 4,000 characters/);
+      expect(mockDb.requests('POST', `/api/projects/${projectId}/rules`)).toBe(posts);
+    });
+
+    it('a server 422 on /prompt shows under the prompt field', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, {
+        scenario: () =>
+          scenarios.problem('rules.create', {
+            status: 422,
+            title: 'Unprocessable',
+            errors: [{ pointer: '/prompt', detail: 'The prompt looks like a secret.' }],
+          }),
+      });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      await user.type(within(form).getByLabelText('Command'), 'sneaky');
+      await user.click(within(form).getByRole('radio', { name: 'Custom prompt' }));
+      await user.type(within(form).getByLabelText('Prompt'), 'hello');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      const prompt = within(form).getByLabelText('Prompt');
+      await waitFor(() => expect(prompt).toHaveAccessibleDescription(/The prompt looks like a secret\./));
+      expect(prompt).toHaveAttribute('aria-invalid', 'true');
+    });
+
+    it('when the preview fails, the form still saves and Retry refetches', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, {
+        scenario: () => scenarios.serverError('rules.promptPreview'),
+      });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      await user.type(within(form).getByLabelText('Command'), 'no-preview');
+      await user.click(within(form).getByRole('radio', { name: 'Custom prompt' }));
+      const retry = await within(form).findByRole('button', { name: /Retry/ });
+      const path = `/api/projects/${projectId}/rules/prompt-preview`;
+      const before = mockDb.requests('GET', path);
+      await user.click(retry);
+      await waitFor(() => expect(mockDb.requests('GET', path)).toBeGreaterThan(before));
+      await user.type(within(form).getByLabelText('Prompt'), 'Do the thing');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(projectRules().find((r) => r.command === 'no-preview')).toMatchObject({ kind: 'prompt' });
+    });
+
     it('Delete removes the rule and closes the pane', async () => {
       const { router, user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r3}`);
       const edit = await screen.findByRole('complementary', {

@@ -25,6 +25,7 @@ import {
   PutSkillResponse,
   RuleDto,
   RunDto,
+  RunListItem,
   RunListResponse,
   RunLogResponse,
   RunStatusEvent,
@@ -186,7 +187,7 @@ async function setup(name: string, mode: 'webhook' | 'polling'): Promise<Setup> 
     'POST',
     `/api/projects/${project.id}/rules`,
     RuleDto,
-    { command: 'code-review', labelFilter: [], target: 'any', skillName: 'code-review', enabled: true },
+    { command: 'code-review', labelFilter: [], target: 'any', kind: 'skill', skillName: 'code-review', enabled: true },
     [200, 201],
   );
   logStep(name, 'rule code-review created');
@@ -229,7 +230,7 @@ async function waitForRun(s: Setup, runId: string, done: (st: RunStatus) => bool
 }
 
 /** Polls the project's run list for the ticket until a run appears. */
-async function waitForFirstRun(s: Setup, ms: number): Promise<RunDto> {
+async function waitForFirstRun(s: Setup, ms: number): Promise<RunListItem> {
   const deadline = Date.now() + ms;
   for (;;) {
     const list = await s.session.json(

@@ -89,6 +89,20 @@ async function seedRun(args: string, status = 'starting'): Promise<string> {
   });
 }
 
+async function seedPromptRun(prompt: string, args: string, ruleId: string | null = null): Promise<string> {
+  return asOwner(async (c) => {
+    const r = await c.query<{ id: string }>(
+      `insert into runs (org_id, project_id, agent_id, command, skill_name, prompt, rule_id, ticket_ref, ticket_kind,
+         ticket_number, checkout_ref, args, status, trigger_source)
+       values ($1, $2, $3, 'fix', null, $4, $6, '7', 'issue', 7, 'main', $5, 'starting', 'manual') returning id`,
+      [ORG, projectId, AGENT, prompt, args, ruleId],
+    );
+    const id = r.rows[0]?.id;
+    if (!id) throw new Error('seed failed');
+    return id;
+  });
+}
+
 function deps(over: Partial<RunActivityDeps> = {}): RunActivityDeps {
   return {
     db,
@@ -406,6 +420,63 @@ describe('createRunSecretAndJob', () => {
     expect(msg).not.toContain(CRED);
     expect(msg).not.toContain('ghs_abcdefghijklmnopqrstuvwxyz');
     expect(msg).toContain('422');
+  });
+});
+
+describe('createRunSecretAndJob prompt', () => {
+  it('a prompt run gets the custom prompt then the system lines in PROMPT', async () => {
+    const runId = await seedPromptRun('Triage this.\nAdd labels.', 'now');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    const prompt = (await kube.podEnv(`run-${runId}`))?.PROMPT ?? '';
+    expect(prompt.startsWith('Triage this.\nAdd labels.')).toBe(true);
+    expect(prompt).toContain('Ticket: issue #7 in dev/demo.');
+    expect(prompt).not.toContain('Use the skill');
+    await acts.deleteJob(await ctxFor(runId));
+  });
+
+  it('stores the final prompt once, redacted with the run secrets', async () => {
+    const runId = await seedPromptRun(`use ${CRED} now`, 'x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    await acts.createRunSecretAndJob(ctx);
+    const { run } = await load(runId);
+    expect(run?.finalPrompt).toContain('use *** now');
+    expect(run?.finalPrompt).not.toContain(CRED);
+    expect((await kube.podEnv(`run-${runId}`))?.PROMPT).toContain(CRED);
+    await asOwner((c) => c.query(`update runs set final_prompt = 'first' where id = $1`, [runId]));
+    await acts.createRunSecretAndJob(ctx);
+    expect((await load(runId)).run?.finalPrompt).toBe('first');
+    await acts.deleteJob(ctx);
+  });
+
+  it('a skill run records its five-line prompt', async () => {
+    const runId = await seedRun('please fix');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    const env = await kube.podEnv(`run-${runId}`);
+    expect(env?.PROMPT).toContain('Use the skill "fix"');
+    expect((await load(runId)).run?.finalPrompt).toBe(env?.PROMPT);
+    await acts.deleteJob(ctx);
+  });
+
+  it("uses the prompt copied onto the run, not the rule's current text", async () => {
+    const ruleId = await asOwner(async (c) => {
+      const r = await c.query<{ id: string }>(
+        `insert into rules (org_id, project_id, command, agent_id, skill_name, prompt)
+         values ($1, $2, 'edited-later', $3, null, 'old') returning id`,
+        [ORG, projectId, AGENT],
+      );
+      return r.rows[0]?.id ?? '';
+    });
+    const runId = await seedPromptRun('old', 'x', ruleId);
+    await asOwner((c) => c.query(`update rules set prompt = 'new' where id = $1`, [ruleId]));
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    expect((await kube.podEnv(`run-${runId}`))?.PROMPT?.startsWith('old')).toBe(true);
+    await acts.deleteJob(await ctxFor(runId));
   });
 });
 
@@ -1277,6 +1348,15 @@ describe('postComment', () => {
     const { run, events } = await load(runId);
     expect(Object.keys(run?.outbox ?? {}).sort()).toEqual(['finish', 'start']);
     expect(events.filter((e) => e.type === 'comment').map((e) => e.payload.kind)).toEqual(['start', 'finish']);
+  });
+  it('the start comment of a prompt run says custom prompt', async () => {
+    const runId = await seedPromptRun('Triage this.', 'x');
+    const ctx = await ctxFor(runId);
+    const before = (await store.listPosted()).length;
+    await createRunActivities(deps()).postComment(ctx, 'start');
+    const body = (await store.listPosted()).slice(before)[0]?.body ?? '';
+    expect(body).toContain('(`/fix`, custom prompt)');
+    expect(body).not.toContain('skill');
   });
 });
 

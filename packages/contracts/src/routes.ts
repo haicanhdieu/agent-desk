@@ -9,7 +9,7 @@ import {
   ProjectDto,
   UpdateProjectRequest,
 } from './schemas/projects';
-import { CreateRuleRequest, RuleDto, UpdateRuleRequest } from './schemas/rules';
+import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
 import {
@@ -151,6 +151,12 @@ export const routes = {
       params: ruleParams,
       body: UpdateRuleRequest,
       response: RuleDto,
+    },
+    promptPreview: {
+      method: 'GET',
+      path: '/api/projects/:projectId/rules/prompt-preview',
+      params: projectParams,
+      response: PromptPreviewDto,
     },
     remove: { method: 'DELETE', path: '/api/rules/:ruleId', params: ruleParams, response: empty },
   },

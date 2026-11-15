@@ -40,7 +40,7 @@ interface Seed {
 }
 
 let seq = 0;
-async function seed(over: { labelFilter?: string[]; maxRunsPerTicket?: number } = {}): Promise<Seed> {
+async function seed(over: { labelFilter?: string[]; maxRunsPerTicket?: number; prompt?: string } = {}): Promise<Seed> {
   seq += 1;
   const orgId = randomUUID();
   const externalId = `fake-${orgId}`;
@@ -75,7 +75,7 @@ async function seed(over: { labelFilter?: string[]; maxRunsPerTicket?: number } 
       orgId,
       projectId: p!.id,
       command: 'code-review',
-      skillName: 'code-review',
+      ...(over.prompt !== undefined ? { skillName: null, prompt: over.prompt } : { skillName: 'code-review' }),
       agentId: a!.id,
       target: 'any',
       labelFilter: over.labelFilter ?? [],
@@ -254,6 +254,26 @@ describe('processTicketEvent', () => {
     expect((await processTicketEvent(h.deps, eventFor(s), 'webhook')).outcome).toBe('run_created');
     expect((await processTicketEvent(h.deps, eventFor(s), 'webhook')).outcome).toBe('ignored_max_runs');
     const t = await seed();
+    expect((await processTicketEvent(h.deps, eventFor(t), 'webhook')).outcome).toBe('run_created');
+    expect((await processTicketEvent(h.deps, eventFor(t), 'webhook')).outcome).toBe('ignored_active_run');
+    await withOrg(db, t.orgId, (tx) =>
+      tx.update(runs).set({ status: 'succeeded' }).where(eq(runs.projectId, t.projectId)),
+    );
+    expect((await processTicketEvent(h.deps, eventFor(t), 'webhook')).outcome).toBe('run_created');
+  });
+
+  it('a prompt rule copies its prompt onto the run with a null skill name', async () => {
+    const s = await seed({ prompt: 'Triage this.\nAdd labels.' });
+    const r = await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect(r.outcome).toBe('run_created');
+    const [run] = await runsOf(s);
+    const [rule] = await withOrg(db, s.orgId, (tx) => tx.select().from(rules).where(eq(rules.projectId, s.projectId)));
+    expect(run).toMatchObject({ prompt: 'Triage this.\nAdd labels.', skillName: null, ruleId: rule?.id });
+  });
+
+  it('guards: an active run of the same prompt rule', async () => {
+    const t = await seed({ prompt: 'Triage this.' });
+    const h = harness();
     expect((await processTicketEvent(h.deps, eventFor(t), 'webhook')).outcome).toBe('run_created');
     expect((await processTicketEvent(h.deps, eventFor(t), 'webhook')).outcome).toBe('ignored_active_run');
     await withOrg(db, t.orgId, (tx) =>

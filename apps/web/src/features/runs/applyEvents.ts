@@ -38,7 +38,7 @@ const listsKey = (org: string, projectId: string) => [...runsKey(org, projectId)
  * The run with the new status. Timestamps the event does not carry are approximated with the client clock (the
  * detail is refetched when the run ends); a pending note ("Cancelling…") rides along.
  */
-function patched(run: CachedRun, e: StatusChange): CachedRun {
+function patched<T extends CachedRun>(run: T, e: StatusChange): T {
   const at = new Date().toISOString();
   const status = e.status;
   return {

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
+import { RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
 
@@ -22,7 +22,10 @@ export const RunDto = z.object({
   projectId: Id,
   ruleId: Id.nullable(),
   command: z.string(),
-  skillName: z.string(),
+  ruleKind: RuleKind,
+  skillName: z.string().nullable(),
+  prompt: z.string().nullable(),
+  finalPrompt: z.string().nullable(),
   agent: z.object({ name: z.string(), model: z.string() }),
   ticket: TicketDto,
   args: z.string().nullable(),
@@ -52,6 +55,10 @@ export const RunDto = z.object({
 });
 export type RunDto = z.infer<typeof RunDto>;
 
+/** A run in a list: the detail shape without the prompt texts (up to ~4 KB each), which only run detail needs. */
+export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true });
+export type RunListItem = z.infer<typeof RunListItem>;
+
 export const RunListQuery = z.object({
   filter: RunListFilter.optional(),
   ticket: z.string().optional(),
@@ -61,7 +68,7 @@ export const RunListQuery = z.object({
 export type RunListQuery = z.infer<typeof RunListQuery>;
 
 export const RunListResponse = z.object({
-  items: z.array(RunDto),
+  items: z.array(RunListItem),
   nextCursor: z.string().nullable(),
 });
 export type RunListResponse = z.infer<typeof RunListResponse>;

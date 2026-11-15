@@ -1,3 +1,4 @@
+import { RULE_PROMPT_MAX } from '@agentdesk/contracts';
 import { Field, LabelInput, PrefixInput, Select, SegmentedControl, TextArea, Toggle } from '@/ds';
 import { PromptSystemPart, type PromptPreview } from './PromptSystemPart';
 import { RuleSentence, type RuleDraft, type RuleKind, type RuleTarget } from './RuleSentence';
@@ -15,15 +16,12 @@ export interface RuleFormProps {
   spacious?: boolean;
   /** Field-level messages (e.g. from a problem+json response); the field is marked invalid and described by it. */
   errors?: Partial<Record<'command' | 'labels' | 'target' | 'skill' | 'prompt', string>>;
-  /**
-   * The system lines Agent Desk adds to a custom prompt. With it, the form offers Skill / Custom prompt; without it
-   * (the live app until the contracts carry prompt rules) it stays skill only.
-   */
+  /** The system lines Agent Desk adds to a custom prompt. With it, the form offers Skill / Custom prompt; without it, skill only. */
   promptPreview?: PromptPreview;
 }
 
-/** Longest custom prompt the API accepts (prototype value, see CONTRACT-GAPS.md). */
-export const PROMPT_MAX = 4000;
+/** Longest custom prompt the API accepts. */
+export const PROMPT_MAX = RULE_PROMPT_MAX;
 
 const KINDS: { value: RuleKind; label: string }[] = [
   { value: 'skill', label: 'Skill' },

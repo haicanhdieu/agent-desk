@@ -35,6 +35,7 @@ export const ids = {
     r3: uuid('e0000000', 3),
     r4: uuid('e0000000', 4),
     r5: uuid('e0000000', 5),
+    r6: uuid('e0000000', 6),
   },
   /** Run ids: project index * 1000 + run number. */
   run: (projectIndex: number, number: number) => uuid('d0000000', projectIndex * 1000 + number),

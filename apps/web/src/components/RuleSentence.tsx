@@ -12,7 +12,7 @@ export type RuleDraft = {
   skill: string;
   agent: string;
   enabled: boolean;
-  /** Prototype only until the contracts carry it (apps/web/CONTRACT-GAPS.md); absent means `skill`. */
+  /** Absent means `skill`. */
   kind?: RuleKind;
   /** The custom prompt of a `prompt` rule, as written (multi-line). */
   prompt?: string;

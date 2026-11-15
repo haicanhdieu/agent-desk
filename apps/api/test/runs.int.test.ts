@@ -160,6 +160,40 @@ describe('run reads', () => {
     expect((await get(`/api/projects/${projectId}/runs/999999`)).statusCode).toBe(404);
   });
 
+  it('a run DTO carries ruleKind, prompt and finalPrompt', async () => {
+    const p = await insertRun({ skillName: null, prompt: 'p', finalPrompt: 'p\nTicket: x' });
+    expect(expectContract('runs.get', await get(`/api/runs/${p.id}`))).toMatchObject({
+      ruleKind: 'prompt',
+      prompt: 'p',
+      finalPrompt: 'p\nTicket: x',
+    });
+    const s = await insertRun();
+    expect(expectContract('runs.get', await get(`/api/runs/${s.id}`))).toMatchObject({
+      ruleKind: 'skill',
+      prompt: null,
+      finalPrompt: null,
+    });
+  });
+
+  it('list items omit the prompt texts that run detail carries', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const p = await insertRun({ skillName: null, prompt: 'p', finalPrompt: 'p\nTicket: x' }, pid);
+    await insertRun({}, pid);
+    const res = await listRuns('', pid);
+    expectContract('runs.list', res);
+    const raw = (res.json() as { items: Record<string, unknown>[] }).items;
+    expect(raw).toHaveLength(2);
+    for (const item of raw) {
+      expect(item).not.toHaveProperty('prompt');
+      expect(item).not.toHaveProperty('finalPrompt');
+    }
+    expect(raw.map((r) => r.ruleKind).sort()).toEqual(['prompt', 'skill']);
+    expect(await get(`/api/runs/${p.id}`).then((r) => r.json())).toMatchObject({
+      prompt: 'p',
+      finalPrompt: 'p\nTicket: x',
+    });
+  });
+
   it("other org's resources are 404", async () => {
     const run = await insertRun();
     expect((await get(`/api/projects/${projectId}/runs/${run.number}`, bob)).statusCode).toBe(404);

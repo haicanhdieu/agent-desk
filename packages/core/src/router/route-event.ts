@@ -3,7 +3,10 @@ import type { Ticket, TicketEvent } from '../adapters/types';
 import { parseCommand } from './parse-command';
 
 /** The slice of a rule the router reads. Structural, so a parsed DB row or a RuleDto both fit. */
-export type RuleRow = Pick<RuleDto, 'id' | 'command' | 'labelFilter' | 'target' | 'agentId' | 'skillName' | 'enabled'>;
+export type RuleRow = Pick<
+  RuleDto,
+  'id' | 'command' | 'labelFilter' | 'target' | 'agentId' | 'skillName' | 'prompt' | 'enabled'
+>;
 
 export type IgnoredOutcome =
   | 'ignored_no_command'
@@ -21,7 +24,7 @@ export interface RouteInput {
   rules: RuleRow[];
   /** Fetches the ticket; called at most once, and only when the kind is unknown or the rule filters on labels. */
   ticket: () => Promise<Ticket>;
-  counts: { runsForTicket: number; activeSkillsOnTicket: string[] };
+  counts: { runsForTicket: number; activeSkillsOnTicket: string[]; activeRuleIdsOnTicket: string[] };
   botLogin: string;
 }
 
@@ -80,7 +83,11 @@ export async function routeEvent(input: RouteInput): Promise<RouteDecision> {
   if (counts.runsForTicket >= project.maxRunsPerTicket) {
     return ignored('ignored_max_runs', `ticket has ${counts.runsForTicket} of ${project.maxRunsPerTicket} runs`);
   }
-  if (counts.activeSkillsOnTicket.includes(rule.skillName)) {
+  if (rule.prompt !== null) {
+    if (counts.activeRuleIdsOnTicket.includes(rule.id)) {
+      return ignored('ignored_active_run', `rule /${rule.command} already has an active run on this ticket`);
+    }
+  } else if (rule.skillName !== null && counts.activeSkillsOnTicket.includes(rule.skillName)) {
     return ignored('ignored_active_run', `skill ${rule.skillName} already has an active run on this ticket`);
   }
 
