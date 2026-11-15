@@ -52,6 +52,8 @@ const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
 /** Marks runs that refresh their token, so a run started before this existed replays unchanged. */
 const TOKEN_REFRESH_PATCH = 'token-refresh';
+/** Marks runs whose cleanup deletes the run volume, so a run already in `finalize` at deploy time replays unchanged. */
+const RUN_VOLUME_PATCH = 'run-volume';
 /** Plain-language reason shown on the run when its history grew too long. */
 export const HISTORY_TOO_LONG_REASON =
   'The run was stopped because its activity log grew too long for the scheduler to keep tracking. Start a new run to continue.';
@@ -387,6 +389,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         await attempt(o.podExited ? 'ensureJobGone' : 'deleteJob', () =>
           o.podExited ? act.ensureJobGone(c) : act.deleteJob(c),
         );
+        // The claim is only deleted after the Job is gone, so no pod still has it mounted.
+        if (patched(RUN_VOLUME_PATCH)) await attempt('deleteRunVolume', () => act.deleteRunVolume(c));
       }
       statusError = await attempt('setRunStatus', () =>
         status(o.status, {

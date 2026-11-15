@@ -105,4 +105,6 @@ export interface RunActivities {
   deleteJob(ctx: RunContext): Promise<void>;
   /** After the pod exited on its own: make sure the Job is completed or gone (and the Secret deleted). */
   ensureJobGone(ctx: RunContext): Promise<void>;
+  /** Deletes the run's volume claim (`run-{runId}`); missing → success. Run after the Job is gone. */
+  deleteRunVolume(ctx: RunContext): Promise<void>;
 }

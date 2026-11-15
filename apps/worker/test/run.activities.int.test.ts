@@ -239,6 +239,33 @@ function rotatingAdapters(ttlMs = 0): { adapters: RunActivityDeps['adapters']; m
   };
 }
 
+describe('run volume', () => {
+  it('createRunSecretAndJob makes the per-run claim before the Job, and the Job mounts it', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps({ adapters: rotatingAdapters().adapters }));
+    await acts.createRunSecretAndJob(ctx);
+    const claims = await kube.listRunVolumeClaims();
+    expect(claims).toContainEqual({ name: `run-${runId}`, runId, orgId: ORG, projectId });
+    const jobs = await kube.listRunJobs();
+    expect(jobs.some((j) => j.runId === runId)).toBe(true);
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+
+  it('deleteJob keeps the claim; deleteRunVolume removes it, twice is fine', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps({ adapters: rotatingAdapters().adapters }));
+    await acts.createRunSecretAndJob(ctx);
+    await acts.deleteJob(ctx);
+    expect((await kube.listRunVolumeClaims()).some((c) => c.runId === runId)).toBe(true);
+    await acts.deleteRunVolume(ctx);
+    await acts.deleteRunVolume(ctx);
+    expect((await kube.listRunVolumeClaims()).some((c) => c.runId === runId)).toBe(false);
+  });
+});
+
 describe('refreshWorkspaceToken', () => {
   it('reports the next refresh as about 75% of the token life left, for the mint and for each refresh', async () => {
     const runId = await seedRun('x');

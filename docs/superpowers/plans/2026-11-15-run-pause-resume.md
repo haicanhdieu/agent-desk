@@ -119,7 +119,7 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 - [x] **Step 3: Implement** the items under Produces. Export `session.ts` from the package index.
 - [x] **Step 4: Make the repo compile.** Add `paused` (label "Paused", colour `--idle`) and `expired` (label "Expired", colour `--off`) to `statusTokens`; return `null` for the two new run fields and the defaults for the two agent fields in the API mappers; add the fields to web mock builders. No other behaviour.
 - [x] **Step 5: Write ADR 0022** from the spec (Context, Decision, Alternatives table from the spec's Approaches, Consequences from "Limits and risks"), and add a one-line "Amended by 0022" note to ADR 0010 and ADR 0020.
-- [x] **Step 6: Run** `pnpm --filter @agentdesk/contracts test && pnpm typecheck` — expect PASS.
+- [ ] **Step 6: Run** `pnpm --filter @agentdesk/contracts test && pnpm typecheck` — expect PASS.
 - [x] **Step 7: Commit** `feat(contracts): paused and expired run statuses, kept sessions, resume route`.
 
 ### Task 2: Columns and checks
@@ -210,13 +210,13 @@ export const runVolumeName = (runId: string): string => `run-${runId}`;
 - `buildRunJob`: the `workspace` volume is `{ persistentVolumeClaim: { claimName: runVolumeName(runId) } }`, mounted at `/workspace`; env adds `{ name: 'HOME', value: '/workspace/home' }`; when `resume` is true env has `RUN_MODE=resume` and omits `PROMPT`, `CHECKOUT_REF`, `SETUP_SCRIPT`, `PLUGIN_MARKETPLACES`.
 - `buildSetupTestJob` is unchanged (still `emptyDir`, no `HOME` override). `podJob` takes `workspaceClaim?: string` to choose.
 
-- [ ] **Step 1: Write failing tests:** run Job has a claim volume named `run-<id>` and no `emptyDir`; has `HOME=/workspace/home`; `resume: true` has `RUN_MODE=resume` and no `PROMPT` or `SETUP_SCRIPT` env; `activeDeadlineSeconds` is `deadlineSeconds + 120`; setup-test Job still has the `emptyDir` with the size limit and no `HOME` env; no mount uses `subPath`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test:unit` — expect FAIL.
-- [ ] **Step 3: Implement.** Update the one caller in `apps/worker/src/activities/run.activities.impl.ts` to pass `resume: false` and `deadlineSeconds: ctx.timeoutSeconds`, and to call `ensureVolumeClaim(runVolumeName(runId), { size: RUN_POD_WORKSPACE_SIZE_LIMIT, storageClass }, runLabels(...))` before the Job. `deleteJob` and `ensureJobGone` keep deleting only the Job and Secret.
-- [ ] **Step 4: Add a temporary volume delete to `finalize`'s cleanup path** so this PR does not leak volumes: after the Job is gone, call a new activity `deleteRunVolume(ctx): Promise<void>` (deletes the claim; missing → success). Guard the new call with `patched('run-volume')`, so a run that was already in `finalize` when the worker restarted replays unchanged; add the existing replay fixtures to the check. Extend `run.activities.int.test.ts`: after a run ends, the fake gateway has no claim for it.
-- [ ] **Step 5: Update the docs** listed above: storage class `agentdesk-run-volumes`, the worker Role gains `persistentvolumeclaims` (create, get, list, delete), run pods use a per-run volume, deploy order (class and Role before the worker).
-- [ ] **Step 6: Run** `pnpm --filter @agentdesk/core test && pnpm --filter @agentdesk/worker test` — expect PASS. Then `devbox run e2e-local` and confirm a run starts, the agent can write in `/workspace/repo` and `$HOME`, and the claim is gone after the run ends.
-- [ ] **Step 7: Commit** `feat(core): run Jobs use a per-run volume`.
+- [x] **Step 1: Write failing tests:** run Job has a claim volume named `run-<id>` and no `emptyDir`; has `HOME=/workspace/home`; `resume: true` has `RUN_MODE=resume` and no `PROMPT` or `SETUP_SCRIPT` env; `activeDeadlineSeconds` is `deadlineSeconds + 120`; setup-test Job still has the `emptyDir` with the size limit and no `HOME` env; no mount uses `subPath`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test:unit` — expect FAIL.
+- [x] **Step 3: Implement.** Update the one caller in `apps/worker/src/activities/run.activities.impl.ts` to pass `resume: false` and `deadlineSeconds: ctx.timeoutSeconds`, and to call `ensureVolumeClaim(runVolumeName(runId), { size: RUN_POD_WORKSPACE_SIZE_LIMIT, storageClass }, runLabels(...))` before the Job. `deleteJob` and `ensureJobGone` keep deleting only the Job and Secret.
+- [x] **Step 4: Add a temporary volume delete to `finalize`'s cleanup path** so this PR does not leak volumes: after the Job is gone, call a new activity `deleteRunVolume(ctx): Promise<void>` (deletes the claim; missing → success). Guard the new call with `patched('run-volume')`, so a run that was already in `finalize` when the worker restarted replays unchanged; add the existing replay fixtures to the check. Extend `run.activities.int.test.ts`: after a run ends, the fake gateway has no claim for it.
+- [x] **Step 5: Update the docs** listed above: storage class `agentdesk-run-volumes`, the worker Role gains `persistentvolumeclaims` (create, get, list, delete), run pods use a per-run volume, deploy order (class and Role before the worker).
+- [x] **Step 6: Run** `pnpm --filter @agentdesk/core test && pnpm --filter @agentdesk/worker test` — expect PASS. Then `devbox run e2e-local` and confirm a run starts, the agent can write in `/workspace/repo` and `$HOME`, and the claim is gone after the run ends.
+- [x] **Step 7: Commit** `feat(core): run Jobs use a per-run volume`.
 
 ---
 

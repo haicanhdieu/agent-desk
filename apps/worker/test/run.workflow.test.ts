@@ -201,6 +201,9 @@ function activities(): RunActivities {
     async ensureJobGone(ctx) {
       script(ctx.runId).calls.push('ensureJobGone');
     },
+    async deleteRunVolume(ctx) {
+      script(ctx.runId).calls.push('deleteRunVolume');
+    },
   };
 }
 
@@ -317,6 +320,7 @@ describe('RunWorkflow', () => {
       'postComment:start',
       'followPodLogs',
       'ensureJobGone',
+      'deleteRunVolume',
       'postComment:finish',
     ]);
     expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded', exitCode: 0 });
@@ -947,6 +951,15 @@ describe('RunWorkflow', () => {
     await hi.signal(signals.agentState, 'needs_input');
     await waitPhase(hi, 'idle');
     expect((await hi.result()).status).toBe('timed_out');
+  });
+
+  it('finalize deletes the run volume once, after the Job is gone', async () => {
+    const s = newRun({ timeoutSeconds: 1 });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    expect((await h.result()).status).toBe('timed_out');
+    expect(count(s, 'deleteRunVolume')).toBe(1);
+    expect(s.calls.indexOf('deleteJob')).toBeLessThan(s.calls.indexOf('deleteRunVolume'));
   });
 
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {

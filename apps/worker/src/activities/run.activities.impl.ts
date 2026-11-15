@@ -23,6 +23,7 @@ import {
   runJobName,
   runLabels,
   runPodConfigFrom,
+  runVolumeName,
   toAdapterProject,
   type AdapterProject,
   type AdapterRegistry,
@@ -108,6 +109,7 @@ export type RunActivityConfig = Pick<
   | 'RUN_POD_NODE_SELECTOR'
   | 'RUN_POD_TOLERATIONS'
   | 'RUN_POD_RUNTIME_CLASS'
+  | 'RUN_VOLUME_STORAGE_CLASS'
 >;
 
 export interface RunActivityTiming {
@@ -472,7 +474,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         gitHost: new URL(codeHost.repoUrl(project)).host,
         cliTokenEnvName: codeHost.cliTokenEnvName(),
         maxTurns: d.maxTurns,
-        timeoutSeconds: ctx.timeoutSeconds,
+        deadlineSeconds: ctx.timeoutSeconds,
+        resume: false,
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
         pluginMarketplaces: deps.config.RUN_PLUGIN_MARKETPLACES,
@@ -480,6 +483,15 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         setupScript,
         pod: runPodConfigFrom(deps.config),
       });
+      // The per-run volume holds the workspace and the agent's home; it outlives the pod.
+      await kube.ensureVolumeClaim(
+        runVolumeName(ctx.runId),
+        {
+          size: deps.config.RUN_POD_WORKSPACE_SIZE_LIMIT,
+          ...(deps.config.RUN_VOLUME_STORAGE_CLASS ? { storageClass: deps.config.RUN_VOLUME_STORAGE_CLASS } : {}),
+        },
+        runLabels(ctx),
+      );
       try {
         await kube.ensureJob(job);
       } catch (err) {
@@ -856,6 +868,15 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
   }
 
+  /** Deletes the run's volume claim; missing → success. Only the workflow's cleanup calls this. */
+  async function deleteRunVolume(ctx: RunContext): Promise<void> {
+    try {
+      await kube.deleteVolumeClaim(runVolumeName(ctx.runId));
+    } catch (err) {
+      throw safeError(err, [], 'delete run volume');
+    }
+  }
+
   return {
     loadRun: guarded('load run', loadRun),
     createRunSecretAndJob: guarded('create run Job', createRunSecretAndJob),
@@ -865,5 +886,6 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     endSession: guarded('end session', endSession),
     deleteJob: guarded('delete run Job', deleteJob),
     ensureJobGone: guarded('clean up run Job', ensureJobGone),
+    deleteRunVolume: guarded('delete run volume', deleteRunVolume),
   };
 }

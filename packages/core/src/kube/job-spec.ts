@@ -1,6 +1,14 @@
 import type { V1EnvVar, V1Job, V1Toleration } from '@kubernetes/client-node';
 import type { Config } from '../config';
-import { RUN_CONTAINER, RUN_LABELS, SETUP_TEST_KIND, SETUP_TEST_LABELS, runJobName, setupTestJobName } from './gateway';
+import {
+  RUN_CONTAINER,
+  RUN_LABELS,
+  SETUP_TEST_KIND,
+  SETUP_TEST_LABELS,
+  runJobName,
+  runVolumeName,
+  setupTestJobName,
+} from './gateway';
 
 /** Run pod settings from `RUN_POD_*` config (the infra chart supplies the values). */
 export interface RunPodConfig {
@@ -32,7 +40,10 @@ export interface RunJobInput {
   /** Env var name the code host's CLI reads its token from (from the adapter). */
   cliTokenEnvName: string;
   maxTurns: number | null;
-  timeoutSeconds: number;
+  /** The pod's time allowance in seconds; `activeDeadlineSeconds` is this + 120 (a backstop to the workflow's timer). */
+  deadlineSeconds: number;
+  /** True for a resumed pod: the runner continues the saved session from the volume (no prompt, checkout or setup). */
+  resume: boolean;
   botName: string;
   botEmail: string;
   /** Approved plugin stores (store -> source) from platform config; reaches the pod as one JSON env value. */
@@ -57,7 +68,7 @@ const TOKEN_FILE = 'token';
 /** The mounted Secret file is readable by the pod's group (`fsGroup`) only. */
 const TOKEN_FILE_MODE = 0o440;
 
-/** `activeDeadlineSeconds` = timeout + this, a backstop to the workflow's hard timer. */
+/** `activeDeadlineSeconds` = deadline + this, a backstop to the workflow's hard timer. */
 const DEADLINE_MARGIN_SECONDS = 120;
 /**
  * Setup-test `activeDeadlineSeconds` = setup timeout + TTL + this: Pending and the clone (420 s), ten plugin commands at
@@ -125,6 +136,8 @@ function podJob(o: {
   gitHost: string;
   cliTokenEnvName: string;
   activeDeadlineSeconds: number;
+  /** A per-run claim to mount as the workspace; without it the workspace is an `emptyDir` (setup-test pods). */
+  workspaceClaim?: string;
   pod: RunPodConfig;
 }): V1Job {
   const { name, labels, pod: p } = o;
@@ -186,7 +199,12 @@ function podJob(o: {
             },
           ],
           volumes: [
-            { name: 'workspace', emptyDir: { sizeLimit: p.workspaceSizeLimit } },
+            {
+              name: 'workspace',
+              ...(o.workspaceClaim !== undefined
+                ? { persistentVolumeClaim: { claimName: o.workspaceClaim } }
+                : { emptyDir: { sizeLimit: p.workspaceSizeLimit } }),
+            },
             {
               name: TOKEN_VOLUME,
               secret: {
@@ -209,17 +227,25 @@ function podJob(o: {
  */
 export function buildRunJob(input: RunJobInput): V1Job {
   // No cap here: the contract bounds the limit (7 days) and the workspace token is refreshed in the pod (ADR 0021).
-  const timeout = Math.max(1, Math.floor(input.timeoutSeconds));
-  const env: V1EnvVar[] = [
-    { name: 'CHECKOUT_REF', value: input.checkoutRef },
-    { name: 'PROMPT', value: input.prompt },
+  const deadline = Math.max(1, Math.floor(input.deadlineSeconds));
+  // The agent's home lives on the volume so a resumed pod finds the conversation.
+  const home: V1EnvVar = { name: 'HOME', value: '/workspace/home' };
+  const common: V1EnvVar[] = [
+    home,
     { name: 'BOT_NAME', value: input.botName },
     { name: 'BOT_EMAIL', value: input.botEmail },
-    { name: 'PLUGIN_MARKETPLACES', value: JSON.stringify(input.pluginMarketplaces) },
     { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
-    ...(input.setupScript ? [{ name: 'SETUP_SCRIPT', value: input.setupScript }] : []),
     ...(input.maxTurns !== null ? [{ name: 'MAX_TURNS', value: String(input.maxTurns) }] : []),
   ];
+  const env: V1EnvVar[] = input.resume
+    ? [{ name: 'RUN_MODE', value: 'resume' }, ...common]
+    : [
+        { name: 'CHECKOUT_REF', value: input.checkoutRef },
+        { name: 'PROMPT', value: input.prompt },
+        { name: 'PLUGIN_MARKETPLACES', value: JSON.stringify(input.pluginMarketplaces) },
+        ...(input.setupScript ? [{ name: 'SETUP_SCRIPT', value: input.setupScript }] : []),
+        ...common,
+      ];
   return podJob({
     name: runJobName(input.runId),
     labels: runLabels(input),
@@ -229,7 +255,8 @@ export function buildRunJob(input: RunJobInput): V1Job {
     gitUsername: input.gitUsername,
     gitHost: input.gitHost,
     cliTokenEnvName: input.cliTokenEnvName,
-    activeDeadlineSeconds: timeout + DEADLINE_MARGIN_SECONDS,
+    activeDeadlineSeconds: deadline + DEADLINE_MARGIN_SECONDS,
+    workspaceClaim: runVolumeName(input.runId),
     pod: input.pod,
   });
 }
