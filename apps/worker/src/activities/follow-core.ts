@@ -42,12 +42,45 @@ export interface FollowEnv {
   redactionRefreshMs?: number;
 }
 
-/** Default redaction refresh interval; well under the ~45 min token rotation. */
-export const REDACTION_REFRESH_MS = 5 * 60_000;
+/**
+ * Default redaction refresh interval. The kubelet updates the mounted token file about 1-2 min after the Secret is
+ * rewritten, so a short interval lets the follower learn a rotated token before the pod can print it.
+ */
+export const REDACTION_REFRESH_MS = 30_000;
 
-/** `previous` plus any value of `next` it lacks: an earlier token may still be buffered in the pod or still valid. */
-export function mergeSecrets(previous: readonly string[], next: readonly string[]): string[] {
-  return [...new Set([...previous, ...next])];
+/** Rotated values kept beyond the first read (one token per ~45 min, so about 6 h, far past a token's 1 h life). */
+export const REDACTION_EXTRA_KEEP = 8;
+
+export interface SecretAccumulator {
+  /** Folds in a fresh read and returns the bounded list: first-read values, then the most recent extras. */
+  merge(next: readonly string[]): string[];
+}
+
+/**
+ * Accumulates redaction values across re-reads without growing for the whole run (`redact` cost is per entry). The
+ * values of the first read (credential and first token) are always kept; of later reads only the latest `maxExtra`
+ * distinct new values stay.
+ */
+export function createSecretAccumulator(maxExtra: number = REDACTION_EXTRA_KEEP): SecretAccumulator {
+  let base: string[] | null = null;
+  let extras: string[] = [];
+  return {
+    merge(next) {
+      if (base === null) {
+        base = [...new Set(next)];
+      } else {
+        const known = new Set([...base, ...extras]);
+        for (const v of next) {
+          if (!known.has(v)) {
+            known.add(v);
+            extras.push(v);
+          }
+        }
+        extras = extras.slice(Math.max(0, extras.length - maxExtra));
+      }
+      return [...base, ...extras];
+    },
+  };
 }
 
 // ---- Pending wait
@@ -205,6 +238,7 @@ export async function followPodLog<R>(env: FollowEnv, hooks: FollowHooks<R>): Pr
     }
   };
   let secrets: string[] = [];
+  const accumulator = createSecretAccumulator();
   const refreshMs = env.redactionRefreshMs ?? REDACTION_REFRESH_MS;
   let refreshedAt = env.clock.now().getTime();
   /** Re-reads the list when due, accumulating. A failure keeps the last good list (the error may hold secrets). */
@@ -213,13 +247,13 @@ export async function followPodLog<R>(env: FollowEnv, hooks: FollowHooks<R>): Pr
     if (at - refreshedAt < refreshMs) return;
     refreshedAt = at;
     try {
-      secrets = mergeSecrets(secrets, await hooks.secrets());
+      secrets = accumulator.merge(await hooks.secrets());
     } catch {
       // keep the last good list; never log the error
     }
   };
   try {
-    secrets = mergeSecrets(secrets, await hooks.secrets());
+    secrets = accumulator.merge(await hooks.secrets());
     refreshedAt = env.clock.now().getTime();
     for (;;) {
       const pod = await waitForPod(env, hooks.jobName, ac.signal);

@@ -55,7 +55,7 @@ import {
 } from './activity-utils';
 import {
   followPodLog,
-  mergeSecrets,
+  createSecretAccumulator,
   outputBudget,
   storeLineEvent as storeLineEventIn,
   type FollowPass,
@@ -661,6 +661,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     let scrollbackTail: string | undefined;
     const textTail: string[] = [];
     let secrets: string[] = [];
+    const secretList = createSecretAccumulator();
     // A scrollback block is only durable once stored as one row, so `durable` never moves past an unfinished block and
     // a new pass re-reads it from its begin line. The block is per pass.
     let block: ScrollbackBlock | null = null;
@@ -682,8 +683,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         what: 'follow pod logs',
         jobName: runJobName(ctx.runId),
         secrets: async () => {
-          // Accumulates: a rotated token is added, earlier ones stay redacted.
-          secrets = mergeSecrets(secrets, await redactionList(ctx));
+          // Accumulates (bounded): a rotated token is added, recent earlier ones stay redacted.
+          secrets = secretList.merge(await redactionList(ctx));
           return secrets;
         },
         storedBudget: () => storedOutputBudget(ctx),
