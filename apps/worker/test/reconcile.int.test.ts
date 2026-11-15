@@ -95,6 +95,8 @@ async function createSetupTestObjects(id: string, o: { org?: string; withJob?: b
         botName: 'bot',
         botEmail: 'bot@example.test',
         gitUsername: 'x-access-token',
+        gitHost: 'fake.invalid',
+        cliTokenEnvName: 'GH_TOKEN',
         pod: runPodConfigFrom(config),
       }),
     );
@@ -232,6 +234,8 @@ describe('reconcile: setup tests', () => {
         checkoutRef: 'main',
         credentialEnvKeys: [],
         gitUsername: 'x-access-token',
+        gitHost: 'fake.invalid',
+        cliTokenEnvName: 'GH_TOKEN',
         maxTurns: null,
         timeoutSeconds: 600,
         botName: 'bot',

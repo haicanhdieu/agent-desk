@@ -27,6 +27,10 @@ export interface RunJobInput {
   credentialEnvKeys: string[];
   /** Username git sends with the workspace token (from the code host adapter). */
   gitUsername: string;
+  /** Host the git credential helper may answer for (from the adapter's repo URL); any other host gets no token. */
+  gitHost: string;
+  /** Env var name the code host's CLI reads its token from (from the adapter). */
+  cliTokenEnvName: string;
   maxTurns: number | null;
   timeoutSeconds: number;
   botName: string;
@@ -118,6 +122,8 @@ function podJob(o: {
   env: V1EnvVar[];
   secretEnvKeys: string[];
   gitUsername: string;
+  gitHost: string;
+  cliTokenEnvName: string;
   activeDeadlineSeconds: number;
   pod: RunPodConfig;
 }): V1Job {
@@ -158,6 +164,8 @@ function podJob(o: {
                 ...secretEnv,
                 { name: 'AGENTDESK_TOKEN_FILE', value: `${TOKEN_DIR}/${TOKEN_FILE}` },
                 { name: 'AGENTDESK_GIT_USERNAME', value: o.gitUsername },
+                { name: 'AGENTDESK_GIT_HOST', value: o.gitHost },
+                { name: 'AGENTDESK_CLI_TOKEN_ENV', value: o.cliTokenEnvName },
                 ...o.env,
               ],
               resources: {
@@ -219,6 +227,8 @@ export function buildRunJob(input: RunJobInput): V1Job {
     env,
     secretEnvKeys: input.credentialEnvKeys,
     gitUsername: input.gitUsername,
+    gitHost: input.gitHost,
+    cliTokenEnvName: input.cliTokenEnvName,
     activeDeadlineSeconds: timeout + DEADLINE_MARGIN_SECONDS,
     pod: input.pod,
   });
@@ -240,6 +250,10 @@ export interface SetupTestJobInput {
   botEmail: string;
   /** Username git sends with the workspace token (from the code host adapter). */
   gitUsername: string;
+  /** Host the git credential helper may answer for (from the adapter's repo URL); any other host gets no token. */
+  gitHost: string;
+  /** Env var name the code host's CLI reads its token from (from the adapter). */
+  cliTokenEnvName: string;
   pod: RunPodConfig;
 }
 
@@ -278,6 +292,8 @@ export function buildSetupTestJob(input: SetupTestJobInput): V1Job {
     env,
     secretEnvKeys: [],
     gitUsername: input.gitUsername,
+    gitHost: input.gitHost,
+    cliTokenEnvName: input.cliTokenEnvName,
     activeDeadlineSeconds: input.setupTimeoutSeconds + input.ttlSeconds + SETUP_TEST_DEADLINE_MARGIN_SECONDS,
     pod: input.pod,
   });

@@ -30,6 +30,8 @@ const jobFor = (id: string, prompt: string) =>
     checkoutRef: 'main',
     credentialEnvKeys: ['TOKEN'],
     gitUsername: 'x-access-token',
+    gitHost: 'fake.invalid',
+    cliTokenEnvName: 'GH_TOKEN',
     maxTurns: null,
     timeoutSeconds: 60,
     botName: 'bot',
@@ -470,6 +472,8 @@ describe('FakeKubeGateway', () => {
       botName: 'bot',
       botEmail: 'bot@x.invalid',
       gitUsername: 'x-access-token',
+      gitHost: 'fake.invalid',
+      cliTokenEnvName: 'GH_TOKEN',
       pod: {
         cpuRequest: '1',
         cpuLimit: '1',

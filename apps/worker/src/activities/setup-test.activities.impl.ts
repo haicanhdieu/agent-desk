@@ -158,6 +158,8 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
         gitUsername: codeHost.gitCredentialUsername(),
+        gitHost: new URL(codeHost.repoUrl(project)).host,
+        cliTokenEnvName: codeHost.cliTokenEnvName(),
         pod: runPodConfigFrom(deps.config),
       });
       try {

@@ -139,6 +139,7 @@ describe('fake code host', () => {
     expect(tok.expiresAt.getTime()).toBeGreaterThan(clock.now().getTime());
     expect(host.repoUrl(project)).toBe('https://fake.invalid/dev/demo.git');
     expect(host.gitCredentialUsername()).toBe('x-access-token');
+    expect(host.cliTokenEnvName()).toBe('GH_TOKEN');
     expect(host.checkoutRef({ kind: 'pr', number: 7 })).toBe('refs/pull/7/head');
     expect(host.checkoutRef({ kind: 'issue', number: 7 })).toBe('main');
   });

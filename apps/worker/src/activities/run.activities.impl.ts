@@ -469,6 +469,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         checkoutRef: d.checkoutRef,
         credentialEnvKeys: Object.keys(cred),
         gitUsername: codeHost.gitCredentialUsername(),
+        gitHost: new URL(codeHost.repoUrl(project)).host,
+        cliTokenEnvName: codeHost.cliTokenEnvName(),
         maxTurns: d.maxTurns,
         timeoutSeconds: ctx.timeoutSeconds,
         botName: deps.config.BOT_NAME,

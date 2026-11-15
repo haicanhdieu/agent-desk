@@ -95,6 +95,8 @@ export interface CodeHostAdapter {
   repoUrl(project: AdapterProject): string;
   /** Username git sends with the workspace token (for GitHub, `x-access-token`). */
   gitCredentialUsername(): string;
+  /** Name of the env var the code host's CLI reads its token from (for GitHub, `GH_TOKEN`); the runner's CLI wrapper exports it from the token file. */
+  cliTokenEnvName(): string;
   checkoutRef(ticket: CheckoutTicket): string;
   listSkills(project: AdapterProject): Promise<SkillSummaryDto[]>;
   readSkill(project: AdapterProject, name: string): Promise<SkillDto>;

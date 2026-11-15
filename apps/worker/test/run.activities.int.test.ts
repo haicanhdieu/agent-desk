@@ -318,6 +318,8 @@ describe('createRunSecretAndJob', () => {
       REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
       AGENTDESK_TOKEN_FILE: '/var/run/agentdesk/workspace-token/token',
       AGENTDESK_GIT_USERNAME: 'x-access-token',
+      AGENTDESK_GIT_HOST: 'fake.invalid',
+      AGENTDESK_CLI_TOKEN_ENV: 'GH_TOKEN',
     });
     expect((await load(runId)).run?.jobName).toBe(name);
     // Nothing about the Secret's values lands in the database.

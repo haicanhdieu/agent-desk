@@ -347,6 +347,10 @@ describe('github code host', () => {
     expect(host().gitCredentialUsername()).toBe('x-access-token');
   });
 
+  it('names GH_TOKEN as the env var the gh CLI reads its token from', () => {
+    expect(host().cliTokenEnvName()).toBe('GH_TOKEN');
+  });
+
   it('refuses to interpolate unsafe repo paths or branch names', () => {
     expect(() => host().repoUrl({ ...project, repoPath: 'acme/widgets@evil.com/x' })).toThrow();
     expect(() => host().repoUrl({ ...project, repoPath: 'acme/../x' })).toThrow();

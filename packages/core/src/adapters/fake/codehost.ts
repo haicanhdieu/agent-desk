@@ -55,6 +55,10 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     return 'x-access-token';
   }
 
+  cliTokenEnvName(): string {
+    return 'GH_TOKEN';
+  }
+
   checkoutRef(ticket: CheckoutTicket): string {
     return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : (ticket.defaultBranch ?? 'main');
   }

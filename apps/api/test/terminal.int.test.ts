@@ -140,6 +140,8 @@ async function makeRun(status: string, pod = true, projectId = aliceProject): Pr
         checkoutRef: 'main',
         credentialEnvKeys: [],
         gitUsername: 'x-access-token',
+        gitHost: 'fake.invalid',
+        cliTokenEnvName: 'GH_TOKEN',
         maxTurns: null,
         timeoutSeconds: 120,
         botName: 'bot',
@@ -566,6 +568,8 @@ async function makeSetupTest(
         botName: 'bot',
         botEmail: 'bot@x.invalid',
         gitUsername: 'x-access-token',
+        gitHost: 'fake.invalid',
+        cliTokenEnvName: 'GH_TOKEN',
         pod: {
           cpuRequest: '1',
           cpuLimit: '1',

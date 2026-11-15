@@ -20,6 +20,8 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   checkoutRef: 'main',
   credentialEnvKeys: ['CLAUDE_CODE_OAUTH_TOKEN'],
   gitUsername: 'x-access-token',
+  gitHost: 'fake.invalid',
+  cliTokenEnvName: 'GH_TOKEN',
   maxTurns: 30,
   timeoutSeconds: 1800,
   botName: 'agentdesk[bot]',
@@ -125,6 +127,14 @@ describe('buildRunJob', () => {
     expect(env).toContainEqual({ name: 'AGENTDESK_GIT_USERNAME', value: 'x-access-token' });
   });
 
+  it('scopes the git credential to the code host and names the CLI token variable', () => {
+    for (const job of [buildRunJob(input()), buildSetupTestJob(setupInput())]) {
+      const env = job.spec?.template.spec?.containers[0]?.env ?? [];
+      expect(env).toContainEqual({ name: 'AGENTDESK_GIT_HOST', value: 'fake.invalid' });
+      expect(env).toContainEqual({ name: 'AGENTDESK_CLI_TOKEN_ENV', value: 'GH_TOKEN' });
+    }
+  });
+
   it('passes the prompt and other values only as env values (no command, no shell)', () => {
     const job = buildRunJob(input());
     const c = job.spec?.template.spec?.containers[0];
@@ -141,6 +151,8 @@ describe('buildRunJob', () => {
       SETUP_TIMEOUT_SECONDS: '600',
       AGENTDESK_TOKEN_FILE: '/var/run/agentdesk/workspace-token/token',
       AGENTDESK_GIT_USERNAME: 'x-access-token',
+      AGENTDESK_GIT_HOST: 'fake.invalid',
+      AGENTDESK_CLI_TOKEN_ENV: 'GH_TOKEN',
     });
     // The repo URL comes from the Secret, never from a literal env value.
     const repoUrl = (c?.env ?? []).find((e) => e.name === 'REPO_CLONE_URL');
@@ -219,6 +231,8 @@ const setupInput = (over: Partial<SetupTestJobInput> = {}): SetupTestJobInput =>
   botName: 'agentdesk[bot]',
   botEmail: 'bot@example.invalid',
   gitUsername: 'x-access-token',
+  gitHost: 'fake.invalid',
+  cliTokenEnvName: 'GH_TOKEN',
   pod: input().pod,
   ...over,
 });
@@ -274,6 +288,8 @@ describe('buildSetupTestJob', () => {
       SETUP_SCRIPT: 'npm ci',
       AGENTDESK_TOKEN_FILE: '/var/run/agentdesk/workspace-token/token',
       AGENTDESK_GIT_USERNAME: 'x-access-token',
+      AGENTDESK_GIT_HOST: 'fake.invalid',
+      AGENTDESK_CLI_TOKEN_ENV: 'GH_TOKEN',
     });
     expect(env).not.toHaveProperty('PROMPT');
     expect(env).not.toHaveProperty('MAX_TURNS');
