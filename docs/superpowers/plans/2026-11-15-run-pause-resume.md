@@ -29,10 +29,6 @@
 - New workflow behaviour is behind `patched('pause-resume')`, evaluated once right after `loadRun`. A run that started before the deploy has no volume and keeps today's behaviour (idle end writes `succeeded`).
 - UI labels: `paused` → "Paused", `expired` → "Expired". Buttons: "Resume" (paused run), "Re-open session" (succeeded run with a kept session).
 
-## Judgment calls
-
-- **One migration, not three (deliberate deviation from `docs/conventions/database.md` §5).** The runner (`packages/db/src/migrate.ts`, drizzle `migrate()`) applies all pending migrations in one transaction, so `CREATE INDEX CONCURRENTLY` would error and a `NOT VALID` then `VALIDATE` split gives no lock benefit. 0011 therefore adds the checks and a plain `CREATE INDEX`. Cost if wrong: both take a lock that blocks writes on `runs` while they run; fine at PoC scale (small table), painful on a large one. Follow-up: add non-transactional migration support to the runner before this runs on a large `runs` table.
-
 ## Review Focus
 
 1. **A person attaches, or the agent starts working, in the same moment the idle timer fires.** Expected: once the session end has begun the run parks; it never ends up `running` with no pod. Pinned in Task 9.
@@ -48,7 +44,7 @@
 | Area | Files | Responsibility |
 | --- | --- | --- |
 | contracts | `packages/contracts/src/enums.ts`, `schemas/runs.ts`, `schemas/agents.ts`, `schemas/events.ts`, `routes.ts` | Statuses, groups, session fields, keep settings, resume route |
-| db | `packages/db/src/schema/app.ts`, `packages/db/migrations/0011_run_pause_resume.sql` | Columns, checks, index |
+| db | `packages/db/src/schema/app.ts`, `packages/db/migrations/0011_run_pause_resume.sql`, `0012_run_status_check_validate.sql`, `0013_runs_session_idx.sql` | Columns, checks, index |
 | core | `packages/core/src/kube/{gateway,real-gateway,fake-gateway,job-spec}.ts`, `packages/core/src/config.ts`, `packages/core/src/temporal-names.ts` | Volume methods, Job on a volume, config, signal names |
 | runner | `images/runner/{Dockerfile,entrypoint.sh}`, `images/runner/agents/claude/commands.sh` | Home on the volume, session marker, resume mode |
 | worker | `apps/worker/src/activities/{run-status.activity,session.activity,run.activities,run.activities.impl,reconcile.activity}.ts`, `apps/worker/src/workflows/{signals,agent-phase,park,run.workflow}.ts` | Status rules, park and expiry, resume, cleanup |
@@ -133,7 +129,7 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 ### Task 2: Columns and checks
 
 **Files:**
-- Create one migration (generate with the repo's Drizzle command, see `docs/conventions/database.md` §5): `0011_run_pause_resume.sql` (columns, the agents checks, the new status check, and a plain `CREATE INDEX` for `runs_kept_session_idx`). One file, deliberately: see the first judgment call below.
+- Create three migrations (generate with the repo's Drizzle command, see `docs/conventions/database.md` §5; hand-edit the SQL where noted): `0011_run_pause_resume.sql` (columns, the agents checks, the new status check as `NOT VALID`), `0012_run_status_check_validate.sql` (`VALIDATE CONSTRAINT` only), `0013_runs_session_idx.sql` (the index, `CREATE INDEX CONCURRENTLY`, alone in its file so it runs outside a transaction)
 - Modify: `packages/db/src/schema/app.ts`
 - Test: the existing migration test file in `packages/db` (follow the `0010` guard test)
 - Modify: `apps/api/src/runs/runs.service.ts`, `apps/api/src/agents/agents.service.ts` (read and write the real columns)
@@ -141,15 +137,15 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 **Interfaces — Produces:**
 - `runs.pausedAt` (`paused_at`), `runs.sessionExpiresAt` (`session_expires_at`), both nullable timestamps.
 - `agents.pausedKeepSeconds` (`paused_keep_seconds`, not null, default 604800), `agents.doneKeepSeconds` (`done_keep_seconds`, not null, default 86400).
-- Checks: `runs_status_check` dropped and re-added with `'paused','expired'` added, added plainly in 0011; `agents_paused_keep_check` (`between 3600 and 2592000`); `agents_done_keep_check` (`between 0 and 604800`) (the agents table is small, so these are added plainly).
+- Checks: `runs_status_check` dropped and re-added with `'paused','expired'` added, `NOT VALID` in 0011 and validated in 0012; `agents_paused_keep_check` (`between 3600 and 2592000`); `agents_done_keep_check` (`between 0 and 604800`) (the agents table is small, so these are added plainly).
 - Partial index `runs_kept_session_idx` on `(org_id, project_id, status, session_expires_at) where session_expires_at is not null` (serves the per-project and per-org cap counts and the oldest-first drop query without scanning ended runs).
 
-- [ ] **Step 1: Write failing tests:** the migration applies on a database at `0010`; a row with status `paused` inserts; `paused_keep_seconds = 3599` is rejected; existing agent rows get `604800` and `86400`; the migration file contains no `update`, `delete` or `insert` on `runs` and no `CONCURRENTLY`; the real migrator (`packages/db/src/migrate.ts`) applies 0011 on a database sitting at `0010` and the index and checks exist afterwards.
+- [ ] **Step 1: Write failing tests:** the migration applies on a database at `0010`; a row with status `paused` inserts; `paused_keep_seconds = 3599` is rejected; existing agent rows get `604800` and `86400`; the migration files contain no `update`, `delete` or `insert` on `runs`; 0011 adds the status check `NOT VALID` and 0012 only validates it; 0013 uses `CONCURRENTLY` and holds no other statement.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/db test` — expect FAIL.
 - [ ] **Step 3: Implement** the schema change and generate the migration. Comment in the schema that the literals mirror the contracts constants (db cannot import contracts).
 - [ ] **Step 4: Wire the API mappers** to the new columns; `PUT` agent writes the two fields when present. Extend `apps/api/test/agents.int.test.ts`: saving `pausedKeepSeconds: 86400` round-trips; omitting it keeps the stored value.
 - [ ] **Step 5: Run** `pnpm --filter @agentdesk/db test && pnpm --filter @agentdesk/api test` — expect PASS.
-- [ ] **Step 6: Commit** `feat(db): session columns on runs and keep settings on agents` (one commit).
+- [ ] **Step 6: Commit** `feat(db): session columns on runs and keep settings on agents` (one commit, the three files).
 
 ---
 
@@ -260,7 +256,7 @@ reopen?: boolean;
 restore?: { pausedAt: string | null; sessionExpiresAt: string; finishedAt: string | null; exitCode: number | null };
 ```
 
-Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not reset). A transition out of a final status stays a no-op, except `succeeded → queued` with `reopen: true` and a kept session; that write clears `finishedAt` and `exitCode`. A final status other than `succeeded` clears `sessionExpiresAt`. `restoreParked` and `endKeptSession` (Task 7) write only through `setRunStatusTx` (architecture §6: sole writer of `runs.status`), using `restore` and `session: null`; `endKeptSession` on a `succeeded` run changes no status, only clears the session; it is not used after a reopen (status `queued` or `starting`): a lost session there goes through `restore` with `session: null` (Task 10). The status event payload gains `pausedAt` and `sessionExpiresAt`.
+Rules: `paused` behaves like a parked status for `idleSince` (kept as is, not reset). A transition out of a final status stays a no-op, except `succeeded → queued` with `reopen: true` and a kept session; that write clears `finishedAt` and `exitCode`. A final status other than `succeeded` clears `sessionExpiresAt`. `restoreParked` and `endKeptSession` (Task 7) write only through `setRunStatusTx` (architecture §6: sole writer of `runs.status`), using `restore` and `session: null`; `endKeptSession` on a `succeeded` run changes no status, only clears the session. The status event payload gains `pausedAt` and `sessionExpiresAt`.
 
 - [ ] **Step 1: Write failing tests:**
   - `idle → paused` with `session: { expiresAt }` and `keepAgentNote`: row has status `paused`, the note unchanged, `pausedAt = at`, `sessionExpiresAt` set;
@@ -311,10 +307,9 @@ followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLo
 - `followPodLogs`: sends the `sessionStarted` signal to the run workflow when it stores `session_started`. With `resume: true` it does not write `running` on the first log line, reports `failureStage: undefined` and a new result field `resumeFailed?: true` when the pod exited `79` before `session_started`, and the stored `session_started` check looks only at events after the resume began.
 - With `createRunSecretAndJob(..., { resume: true })` the agent and credential are read fresh from the database; a missing agent or credential fails non-retryably with type `NoAgentCredential`. It does not call `ensureVolumeClaim`: it calls `volumeClaimExists` and, when the claim is missing, fails non-retryably with type `SessionVolumeMissing` (an empty claim must never be created on resume).
 - Only the latest scrollback is kept per run: when `followPodLogs` stores a `final_scrollback` event it deletes the run's earlier ones in the same transaction.
-- Caps (all counts over the partial index `runs_kept_session_idx`, under `withOrg`, bounded by the cap): the counts and the status write run in one transaction that first takes `pg_advisory_xact_lock(hashtext(org_id))` (per org), so concurrent idle stops cannot all pass the check and overshoot. `parkRun` checks the org count against `RUN_KEPT_SESSIONS_PER_ORG` and, for `needs_input`, the project's paused count against `RUN_PAUSED_SESSIONS_PER_PROJECT`; at the cap (or cap `0`) nothing is kept: `needs_input` → `expired`, `done` → `succeeded`, `sessionExpiresAt: null`, event `session_not_kept` with the reason. For `done`, with `RUN_KEPT_DONE_SESSIONS_PER_PROJECT = c`: `c = 0` keeps nothing; otherwise count the project's kept succeeded runs `n` and signal `dropSession` to the oldest `max(n - (c - 1), 0)` (`ORDER BY session_expires_at ASC LIMIT` that number), so after this session is kept there are at most `c`.
+- Caps (all counts over the partial index `runs_kept_session_idx`, under `withOrg`, bounded by the cap): `parkRun` first checks the org count against `RUN_KEPT_SESSIONS_PER_ORG` and, for `needs_input`, the project's paused count against `RUN_PAUSED_SESSIONS_PER_PROJECT`; at the cap (or cap `0`) nothing is kept: `needs_input` → `expired`, `done` → `succeeded`, `sessionExpiresAt: null`, event `session_not_kept` with the reason. For `done`, with `RUN_KEPT_DONE_SESSIONS_PER_PROJECT = c`: `c = 0` keeps nothing; otherwise count the project's kept succeeded runs `n` and signal `dropSession` to the oldest `max(n - (c - 1), 0)` (`ORDER BY session_expires_at ASC LIMIT` that number), so after this session is kept there are at most `c`.
 
 - [ ] **Step 1: Write failing tests:**
-  - N concurrent `parkRun` calls (real Postgres) with the org at cap minus 1: exactly one keeps its session, the rest are `session_not_kept`; same for the project paused cap;
   - `parkRun` `needs_input`: status `paused`, expiry = `at` + the agent's `pausedKeepSeconds`;
   - `parkRun` `done` with `doneKeepSeconds = 0`: status `succeeded`, `sessionExpiresAt: null`;
   - `parkRun` `done` with 10 kept sessions already in the project and the cap at 10: only the oldest kept run's workflow receives `dropSession` (fake Temporal client), paused runs are not counted and not signalled; with 11 kept, the two oldest; with the cap at 1, all kept ones; with the cap at 0: nothing kept, `sessionExpiresAt: null`, no signal;
@@ -324,7 +319,6 @@ followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLo
   - `parkRun` with the agent row deleted: uses `604800` and `86400`;
   - `endKeptSession('expired')` on a paused run: status `expired`; on a succeeded run: status stays `succeeded`, `sessionExpiresAt` null;
   - `endKeptSession('dropped')` on a paused run: nothing changes;
-  - a `succeeded` run reopened (`queued`, `starting`) then the session is lost (`restore` with `session: null`): the row is `succeeded` with the original `finishedAt` and `exitCode` and a null `sessionExpiresAt`, never `starting`; same for the exit `79` path (Task 10 drives both);
   - `restoreParked`: status, expiry, `finishedAt` and `exitCode` restored (through `setRunStatusTx`), a `resume_failed` event stored, the reason redacted and capped;
   - `followPodLogs` with `resume: true`: no `running` write on the first line; `sessionStarted` signal sent; exit `79` gives `resumeFailed: true`;
   - comment kind `paused` posts once across two calls.
@@ -419,7 +413,7 @@ Behaviour:
 1. `resumeRun` update: the validator throws `ApplicationFailure.nonRetryable(resumeRejection(phase, c.timeoutSeconds, usedSeconds), 'NotResumable')` when rejected. The handler sets `phase = 'resuming'`, turns the expiry timer off, and returns `{ accepted: true }` at once (the API does not wait for the pod).
 2. The resume attempt runs in its own cancellation scope: write `queued` (`reopen: true`, `keepAgentNote: true`); request a slot and wait for `granted`; write `starting`; `createRunSecretAndJob(c, { resume: true, deadlineSeconds: allowance })` where `allowance = sessionAllowanceSeconds(c.timeoutSeconds, usedSeconds)` (at least `RESUME_MIN_SECONDS` by the validator); start the hard timer for `allowance`; start `followPodLogs(c, { resume: true })` and the token refresh loop.
 3. When `sessionStarted` arrives: `sessionUp = true`; `phase = phaseOfParkKind(kind)`; write `statusOfParkKind(kind)` with `keepAgentNote: true` and `session: null`; then the normal main loop runs (idle timer included, so an unattended resumed run parks again with a fresh keep time).
-4. Session lost: if `createRunSecretAndJob` fails with `SessionVolumeMissing`, or the pod exits `79` before `sessionStarted` (`resumeFailed`): delete the Job and Secret, release the slot, then: for a paused run `endKeptSession('expired')` (through `setRunStatusTx`); for a reopened `succeeded` run (resume already wrote `queued` then `starting`) the restore writer instead: `setRunStatusTx` with `restore` (original `finishedAt` and `exitCode` from the saved `ParkResult`) and `session: null`, so the row is `succeeded` again with no session and is never left in `starting`. Then `deleteRunVolume` and store the `resume_failed` event "the saved session is gone"; the result is `expired` (paused) or `succeeded` (kept-session run). No retry.
+4. Session lost: if `createRunSecretAndJob` fails with `SessionVolumeMissing`, or the pod exits `79` before `sessionStarted` (`resumeFailed`): delete the Job and Secret, release the slot, then `endKeptSession('expired')` (through `setRunStatusTx`), `deleteRunVolume`, store the `resume_failed` event "the saved session is gone"; the result is `expired` (paused) or `succeeded` (kept-session run). No retry.
 5. Fallback: if the attempt fails or the pod exits before `sessionStarted` for any other reason (activity failure, `PodPendingTimeout`, `NoAgentCredential`), or a cancel arrives with `cancelEffect` = `abort_resume`: delete the Job and Secret, release the slot, cancel the hard timer without adding to `usedSeconds`, call `restoreParked` with the saved `ParkResult` and a plain reason (`the pod could not start`, `the agent or its credential is missing`, `the resume was cancelled`), set `phase = 'parked'` and re-arm the expiry timer for the original deadline. If that deadline has already passed, expire at once.
 6. After `sessionUp`, everything ends by the normal rules through `finalize`. A second `succeeded` for a run whose finish comment was already posted does not post again (the outbox key already exists).
 
@@ -429,7 +423,7 @@ Behaviour:
   - a resumed run left unattended for the idle time parks again and `parkRun` is called a second time;
   - **Review Focus 2:** a second `resumeRun` while `resuming` is rejected with type `NotResumable` and message "This run is already being resumed"; `requestSlot` called once;
   - **Review Focus 3:** `resumeRun` accepted, the slot is not granted, time skips past the original expiry → `endKeptSession` not called; then `granted` arrives and the resume completes;
-  - **Review Focus 4:** `followPodLogs` returns `{ exitCode: 79, resumeFailed: true }` → `endKeptSession('expired')`, `deleteRunVolume`, event "the saved session is gone", slot released, no `restoreParked`, workflow closes `expired`; for a reopened `succeeded` run the same two failures write `succeeded` back (not `endKeptSession`), with the original `finishedAt` and `exitCode` and a null session; `createRunSecretAndJob` failing with `SessionVolumeMissing` → same, with the pod never started and `requestSlot` released;
+  - **Review Focus 4:** `followPodLogs` returns `{ exitCode: 79, resumeFailed: true }` → `endKeptSession('expired')`, `deleteRunVolume`, event "the saved session is gone", slot released, no `restoreParked`, workflow closes `expired`; `createRunSecretAndJob` failing with `SessionVolumeMissing` → same, with the pod never started and `requestSlot` released;
   - re-open of a `succeeded` run then a failure other than a lost volume (`PodPendingTimeout`) → `restoreParked` receives the original `finishedAt` and `exitCode`;
   - `createRunSecretAndJob` fails with `NoAgentCredential` → `restoreParked` with `the agent or its credential is missing`;
   - `cancel` while `resuming` before `sessionStarted` → `restoreParked` with `the resume was cancelled`, status not `cancelled`;
@@ -453,12 +447,12 @@ Behaviour:
 
 Rules, added after the existing ones, per org under `withOrg`:
 - A volume is deleted when its run is missing; or `isSettled(run, now)`; or the run's workflow is closed; or the run's status is `paused` or `succeeded` and `sessionExpiresAt` is older than `now - 3600 s`. A run in `queued`, `starting` or any live status is never deleted on expiry alone (a resumed run may wait for a slot).
-- Candidates first, from Postgres, bounded: runs holding a kept session (status `paused` or `succeeded` with `sessionExpiresAt` set, ordered by `sessionExpiresAt`, `LIMIT` a page size, past grace first), plus runs matching orphan volumes from the gateway volume list (a volume whose run is missing needs no Temporal call). Then Temporal is asked only about those run ids, in one batch (a visibility query on the id list, chunked); never a listing of every open run workflow, and no per-run `isWorkflowOpen` call. Running runs are not candidates, so the Temporal cost does not grow with them.
+- Open workflows come from one Temporal visibility listing per reconcile pass (open run workflows, paged), turned into a set; no per-run `isWorkflowOpen` call.
 - A run with status `paused` whose workflow is closed is written as `expired` (through `setRunStatusTx`, `session: null`) and its volume deleted.
 - A `succeeded` run with a kept session whose workflow is closed gets `sessionExpiresAt` cleared.
 - Existing Job and Secret rules must not treat a run with a kept session as leaked: such a run legitimately has a volume and no Job or Secret. The existing rule "a Secret whose Job is gone while the run is past `starting`" stays (a parked run has no Secret).
 
-- [ ] **Step 1: Write failing tests,** one per rule above, plus: a volume of a `paused` run with an open workflow and a future expiry is kept; a volume of a `running` run is kept; a volume of a `queued` (resumed) run whose `sessionExpiresAt` is more than an hour old and whose workflow is open is kept; with 500 `running` runs holding volumes and 3 parked candidates, the Temporal batch query names only the 3 ids and its count does not change when the running runs go to 5000; a failure deleting one volume is logged (error name only) and the next one is still processed.
+- [ ] **Step 1: Write failing tests,** one per rule above, plus: a volume of a `paused` run with an open workflow and a future expiry is kept; a volume of a `running` run is kept; a volume of a `queued` (resumed) run whose `sessionExpiresAt` is more than an hour old and whose workflow is open is kept; with 500 volume-holding runs only one visibility listing is made; a failure deleting one volume is logged (error name only) and the next one is still processed.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
 - [ ] **Step 3: Implement.**
 - [ ] **Step 4: Run** — expect PASS.
