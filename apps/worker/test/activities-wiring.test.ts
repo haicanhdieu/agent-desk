@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { createAdapterRegistry, parseConfig, type KubeGateway } from '@agentdesk/core';
 import { createDb } from '@agentdesk/db';
 import { createActivities } from '../src/activities';
+import type { RunContext } from '../src/activities/run.activities';
 
 const unused = async (): Promise<never> => {
   throw new Error('unused');
@@ -128,5 +129,22 @@ describe('createActivities', () => {
   it('reconcile runs against the bound kube and temporal dependencies', async () => {
     await expect(build().reconcile()).resolves.toBeUndefined();
     await expect(build([]).reconcile()).resolves.toBeUndefined();
+  });
+
+  it('deleteRunVolume reports a plain, retryable failure when the cluster refuses', async () => {
+    // The shared kube stub's deleteVolumeClaim throws `unused`.
+    const ctx: RunContext = {
+      orgId: 'o1',
+      runId: '11111111-1111-4111-8111-111111111111',
+      projectId: 'p1',
+      agentId: null,
+      status: 'running',
+      timeoutSeconds: 600,
+      maxConcurrentRuns: 1,
+    };
+    await expect(build().deleteRunVolume(ctx)).rejects.toMatchObject({
+      message: 'delete run volume: unused',
+      nonRetryable: false,
+    });
   });
 });

@@ -6,9 +6,9 @@ import {
   runtime,
   sendSignal,
   settle,
-} from './support/fake-workflow-runtime';
+} from './helpers/fake-workflow-runtime';
 
-vi.mock('@temporalio/workflow', () => import('./support/fake-workflow-runtime'));
+vi.mock('@temporalio/workflow', () => import('./helpers/fake-workflow-runtime'));
 
 import { PollOnceWorkflow, resumePollWorkflow } from '../src/workflows/poll.workflow';
 import { OutboxSweepWorkflow, ReconcileWorkflow } from '../src/workflows/schedules.workflow';

@@ -568,6 +568,15 @@ describe('FakeKubeGateway', () => {
     expect((await gw.listRunVolumeClaims()).map((c) => c.name)).not.toContain(name);
   });
 
+  it('lists no volume claims before any was created', async () => {
+    const empty = await mkdtemp(join(tmpdir(), 'fake-kube-empty-'));
+    try {
+      expect(await new FakeKubeGateway(empty).listRunVolumeClaims()).toEqual([]);
+    } finally {
+      await rm(empty, { recursive: true, force: true });
+    }
+  });
+
   it('volume claim names are validated', async () => {
     await expect(gw.ensureVolumeClaim('../x', { size: '1Gi' }, {})).rejects.toThrow(/invalid/);
     await expect(gw.deleteVolumeClaim('../x')).rejects.toThrow(/invalid/);

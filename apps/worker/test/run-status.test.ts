@@ -29,4 +29,10 @@ describe('setRunStatusTx input validation', () => {
       message: 'setRunStatus: invalid timestamp',
     });
   });
+
+  it('rejects an invalid session expiry non-retryably', async () => {
+    await expect(
+      setRunStatusTx(tx, { ...withStatus('paused'), session: { expiresAt: 'not a date' } }),
+    ).rejects.toMatchObject({ nonRetryable: true, message: 'setRunStatus: invalid session expiry' });
+  });
 });
