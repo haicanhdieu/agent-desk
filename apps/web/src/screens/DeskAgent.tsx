@@ -26,7 +26,8 @@ import type { AgentSettings, ConnectionStatus, PollInterval, TriggerMode } from 
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
-export type LimitField = 'timeoutMinutes' | 'idleEndMinutes' | 'maxConcurrent' | 'maxRunsPerTicket';
+export type LimitField =
+  'timeoutMinutes' | 'pausedKeepMinutes' | 'doneKeepMinutes' | 'idleEndMinutes' | 'maxConcurrent' | 'maxRunsPerTicket';
 export type AgentLimits = Record<LimitField, number>;
 
 export interface DeskAgentProps {
@@ -106,8 +107,12 @@ export function DeskAgent({
   const [replacing, setReplacing] = useState(replacingCredential);
   const [credType, setCredType] = useState<CredentialType>(settings.credential.type);
   const [timeoutUnit, setTimeoutUnit] = useState(() => splitMinutes(settings.timeoutMinutes).unit);
+  const [pausedKeepUnit, setPausedKeepUnit] = useState(() => splitMinutes(settings.pausedKeepMinutes).unit);
+  const [doneKeepUnit, setDoneKeepUnit] = useState(() => splitMinutes(settings.doneKeepMinutes).unit);
   const [limits, setLimits] = useState({
     timeout: splitMinutes(settings.timeoutMinutes).value,
+    pausedKeep: splitMinutes(settings.pausedKeepMinutes).value,
+    doneKeep: splitMinutes(settings.doneKeepMinutes).value,
     idle: String(settings.idleEndMinutes),
     concurrent: String(settings.maxConcurrent),
     perTicket: String(settings.maxRunsPerTicket),
@@ -192,6 +197,42 @@ export function DeskAgent({
               )}
             </Field>
             <Field
+              label="Keep a paused run for"
+              help="After this, a paused run expires and its saved session is deleted."
+              error={limitsErrors.pausedKeepMinutes}
+            >
+              {({ id, describedBy, invalid }) => (
+                <DurationInput
+                  id={id}
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid}
+                  unitLabel="Keep a paused run for unit"
+                  unit={pausedKeepUnit}
+                  onUnitChange={setPausedKeepUnit}
+                  value={limits.pausedKeep}
+                  onChange={set('pausedKeep')}
+                />
+              )}
+            </Field>
+            <Field
+              label="Keep a finished run's session for"
+              help="How long a finished run can be re-opened. 0 turns this off."
+              error={limitsErrors.doneKeepMinutes}
+            >
+              {({ id, describedBy, invalid }) => (
+                <DurationInput
+                  id={id}
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid}
+                  unitLabel="Keep a finished run's session for unit"
+                  unit={doneKeepUnit}
+                  onUnitChange={setDoneKeepUnit}
+                  value={limits.doneKeep}
+                  onChange={set('doneKeep')}
+                />
+              )}
+            </Field>
+            <Field
               label="End idle runs after"
               help="Only counts while no terminal is open."
               error={limitsErrors.idleEndMinutes}
@@ -256,6 +297,8 @@ export function DeskAgent({
               onClick={() =>
                 onSaveLimits?.({
                   timeoutMinutes: minutesIn(limits.timeout, timeoutUnit),
+                  pausedKeepMinutes: minutesIn(limits.pausedKeep, pausedKeepUnit),
+                  doneKeepMinutes: minutesIn(limits.doneKeep, doneKeepUnit),
                   idleEndMinutes: Number(limits.idle),
                   maxConcurrent: Number(limits.concurrent),
                   maxRunsPerTicket: Number(limits.perTicket),

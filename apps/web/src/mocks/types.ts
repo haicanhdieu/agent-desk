@@ -93,6 +93,10 @@ export type AgentSettings = {
     status?: { tone: 'ok' | 'err'; text: string };
   };
   timeoutMinutes: number;
+  /** How long a paused run is kept before it expires. */
+  pausedKeepMinutes: number;
+  /** How long a finished run's session can be re-opened; 0 keeps none. */
+  doneKeepMinutes: number;
   idleEndMinutes: number;
   maxConcurrent: number;
   maxRunsPerTicket: number;

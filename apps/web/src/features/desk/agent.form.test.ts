@@ -22,6 +22,8 @@ describe('toAgentSettings', () => {
       model: 'opus',
       credential: { type: 'oauth_token', setAt: '12 Oct', setBy: 'kim-hale' },
       timeoutMinutes: 30,
+      pausedKeepMinutes: 10080,
+      doneKeepMinutes: 1440,
       idleEndMinutes: IDLE_END_MINUTES,
       maxConcurrent: 2,
       maxRunsPerTicket: 10,
@@ -57,5 +59,16 @@ describe('limitsRequests', () => {
       project: { maxConcurrentRuns: 3 },
       timeoutSeconds: 3600,
     });
+  });
+});
+
+describe('limitsRequests keep times', () => {
+  it('a changed paused keep time is sent in seconds', () => {
+    expect(limitsRequests(base, { ...base, pausedKeepMinutes: 3 * 1440 })).toEqual({ pausedKeepSeconds: 259200 });
+  });
+
+  it('a finished-run keep time of 0 is sent as 0 (no session kept)', () => {
+    expect(limitsRequests(base, { ...base, doneKeepMinutes: 0 })).toEqual({ doneKeepSeconds: 0 });
+    expect(hasLimitChanges(limitsRequests(base, { ...base, doneKeepMinutes: 0 }))).toBe(true);
   });
 });

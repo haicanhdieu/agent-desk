@@ -303,6 +303,8 @@ const impl: Impl = {
     agent.model = body.model;
     agent.maxTurns = body.maxTurns ?? null;
     agent.timeoutSeconds = body.timeoutSeconds;
+    agent.pausedKeepSeconds = body.pausedKeepSeconds ?? agent.pausedKeepSeconds;
+    agent.doneKeepSeconds = body.doneKeepSeconds ?? agent.doneKeepSeconds;
     return agent;
   },
   'agents.putCredential': ({ params, body }) => {

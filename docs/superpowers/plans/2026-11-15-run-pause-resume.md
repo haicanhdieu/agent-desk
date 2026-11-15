@@ -477,11 +477,11 @@ Two `DurationInput` fields under "Run time limit":
 
 The form model stays in minutes like the time limit (`splitMinutes`, `minutesIn`). Validation messages are the contract's.
 
-- [ ] **Step 1: Write failing tests:** the form loads `604800` as "7 days" and `86400` as "1 day"; saving "3 days" sends `pausedKeepSeconds: 259200`; "0" for the finished field sends `doneKeepSeconds: 0`; 31 days shows "A paused run must be kept between 1 hour and 30 days" and does not submit.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test` — expect FAIL.
-- [ ] **Step 3: Implement.** Design tokens only; loading and error states follow the existing fields.
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(web): keep-time settings for paused and finished runs`.
+- [x] **Step 1: Write failing tests:** the form loads `604800` as "7 days" and `86400` as "1 day"; saving "3 days" sends `pausedKeepSeconds: 259200`; "0" for the finished field sends `doneKeepSeconds: 0`; 31 days shows "A paused run must be kept between 1 hour and 30 days" and does not submit.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test` — expect FAIL.
+- [x] **Step 3: Implement.** Design tokens only; loading and error states follow the existing fields.
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(web): keep-time settings for paused and finished runs`.
 
 ### Task 14: Paused and Expired in the UI, Resume and Re-open
 
