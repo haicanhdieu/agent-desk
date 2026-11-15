@@ -1,5 +1,6 @@
 import {
   ACTIVE_RUN_STATUSES,
+  canResume,
   FINISHABLE_RUN_STATUSES,
   type RouteDef,
   FINAL_RUN_STATUSES,
@@ -31,7 +32,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
-import { appendRunEvent, endSetupTest, rememberSetupTestScript, setRunStatus } from './live';
+import { appendRunEvent, endSetupTest, rememberSetupTestScript, scriptRun, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
 // handler requires a session (401 otherwise), scopes reads to the active org (another org's record is a 404, as
@@ -135,7 +136,8 @@ function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
 const matchesFilter = (filter: RunListFilter | undefined, s: RunStatus): boolean => {
   switch (filter) {
     case 'needs_you':
-      return s === 'idle';
+      // As the API: the list holds paused runs too; the project's needsYou count (toProjectDto) is idle runs only.
+      return s === 'idle' || s === 'paused';
     case 'active':
       return isActive(s);
     case 'queued':
@@ -479,9 +481,31 @@ const impl: Impl = {
     return null;
   },
   'runs.resume': ({ params }) => {
-    session();
-    runOf(params.runId);
-    throw conflict('Resume is not available yet');
+    const { user } = session();
+    const run = runOf(params.runId);
+    // As the API: 409 with a plain message when the run cannot be resumed, is already being resumed, or has no
+    // credential to resume with.
+    if (run.status === 'queued' || run.status === 'starting') throw conflict('This run is already being resumed');
+    if (!canResume(run, new Date())) {
+      throw conflict('Only a paused run, or a finished run whose session is still kept, can be resumed');
+    }
+    if (!agentOf(run.projectId).credential.set) {
+      throw conflict('This project has no agent credential, so the run cannot be resumed');
+    }
+    run.pausedAt = null;
+    run.sessionExpiresAt = null;
+    run.finishedAt = null;
+    run.exitCode = null;
+    run.failureReason = null;
+    appendRunEvent(run, 'lifecycle', { text: `Resume requested by ${user.handle}` });
+    setRunStatus(run, 'queued');
+    // Like a new run: a slot, the pod, then the agent is back (open event streams and the fake terminal follow).
+    scriptRun(run.id, [
+      { afterMs: 1_500, status: 'starting' },
+      { afterMs: 1_500, lifecycle: 'Pod running' },
+      { afterMs: 1_000, lifecycle: 'Session resumed', status: 'running' },
+    ]);
+    return null;
   },
 };
 
@@ -492,7 +516,6 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'rules.create': 201,
   'runs.cancel': 202,
   'runs.finish': 202,
-  'runs.resume': 202,
   'setupTests.end': 202,
 };
 

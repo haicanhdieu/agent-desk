@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell } from '@/components';
-import { connectionWarnings, ignored, projects, runs, ticketGroups, user } from '@/mocks';
+import { connectionWarnings, ignored, projects, runDetails, runs, ticketGroups, user } from '@/mocks';
 import { NeedsYou as NeedsYouScreen } from './NeedsYou';
 import { Runs as RunsScreen } from './Runs';
 import { RunsProblems as RunsProblemsScreen, type RunsProblemsWarning } from './RunsProblems';
@@ -111,4 +111,27 @@ export const NeedsYouNone: Story = {
   decorators: artboard(740),
   globals: viewport(1440, 740),
   render: () => <NeedsYouScreen project={{ ...project, needsYou: 0 }} projects={projects.slice(0, 3)} runs={[]} />,
+};
+
+/** A paused run beside the idle one: the Paused badge and a Resume button. */
+export const NeedsYouPaused: Story = {
+  name: 'Where needs you shows up, a paused run',
+  decorators: artboard(740),
+  globals: viewport(1440, 740),
+  render: () => (
+    <NeedsYouScreen
+      project={project}
+      projects={projects.slice(0, 3)}
+      runs={[
+        {
+          run: { ...runDetails.RunPaused.run },
+          href: '/runs/64',
+          idleAt: '14:24',
+          endsAt: '14:34',
+        },
+        ...runs.filter((r) => r.id === 62).map((run) => ({ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:23' })),
+      ]}
+      onResume={() => {}}
+    />
+  ),
 };

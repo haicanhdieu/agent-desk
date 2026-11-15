@@ -1,10 +1,13 @@
 import { useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
+import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
+import { useToast } from '@/ds';
 import { projectPaths } from '@/features/desk/frame';
 import { toConnectionStatus, toProject } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
 import { clockTime, idleEndsAt, toRunSummary } from '@/features/runs/map';
+import { useResumeRun } from '@/features/runs/mutations';
 import { runHref, useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
 import { NeedsYou, type NeedsYouRun } from '@/screens';
@@ -22,6 +25,8 @@ export const Route = createFileRoute('/o/$org/p/$project/needs-you')({
 function NeedsYouRoute() {
   const { org, project: projectId } = Route.useParams();
   const now = useNow();
+  const toast = useToast();
+  const resume = useResumeRun(org, projectId, { onError: (e) => toast.show(toastFromError(e)) });
   const page = useProjectPage(org, projectId, now);
   const { data: idle } = useSuspenseQuery(runsQueries.list(org, projectId, 'needs_you'));
   const { data: dtos } = useSuspenseQuery(projectsQueries.list(org));
@@ -34,7 +39,8 @@ function NeedsYouRoute() {
   });
 
   const runs: NeedsYouRun[] = idle.items.map((r) => {
-    const since = r.idleSince ?? r.startedAt ?? r.queuedAt;
+    // A paused run lists from the moment it paused.
+    const since = r.pausedAt ?? r.idleSince ?? r.startedAt ?? r.queuedAt;
     return {
       run: toRunSummary(r, now),
       href: runHref(page.paths, r.number),
@@ -48,6 +54,11 @@ function NeedsYouRoute() {
       project={page.project}
       projects={projects}
       runs={runs}
+      onResume={(r) => {
+        const dto = idle.items.find((x) => x.number === r.id);
+        if (dto) resume.mutate({ id: dto.id, number: dto.number });
+      }}
+      resuming={resume.isPending ? resume.variables.number : undefined}
       projectHref={(p) => projectPaths(org, p.id).needsYou}
       topBar={{ user: page.user, links: page.links, projectMenu: page.projectMenu }}
     />

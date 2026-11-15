@@ -109,8 +109,40 @@ const ended = (
 
 const issue = (number: number, title: string): Ticket => ({ kind: 'issue', number, title, labels: [], href: '' });
 
+const inMs = (ms: number) => new Date(Date.now() + ms).toISOString();
+const HOUR_MS = 3_600_000;
+
+/** A run of invoicer-api (project 1) in a kept or expired state (ADR 0022), built on an ended run. */
+const parked = (number: number, ticket: Ticket, over: Partial<RunDto>): RunDto => ({
+  ...ended(1, ids.project.invoicerApi, repoPath, number, '2026-11-12T13:30:00.000Z', ticket),
+  ...over,
+});
+
 export const runFixtures: RunDto[] = [
   ...Object.values(runsById).map(fromSummary),
+  // Run 64 paused by the idle timer, run 65 succeeded with its session kept, run 66 never resumed.
+  parked(64, issue(150, 'Add an audit trail to the CSV export'), {
+    status: 'paused',
+    finishedAt: null,
+    exitCode: null,
+    costUsd: null,
+    pausedAt: '2026-11-12T13:40:00.000Z',
+    sessionExpiresAt: inMs(5 * 24 * HOUR_MS + HOUR_MS),
+    agentNote: 'Should the export include voided invoices?',
+  }),
+  parked(65, issue(153, 'Rename the export columns'), {
+    status: 'succeeded',
+    sessionExpiresAt: inMs(20 * HOUR_MS),
+    agentNote: 'Opened PR #148 with the CSV export and tests.',
+  }),
+  parked(66, issue(152, 'Drop the legacy invoice export'), {
+    status: 'expired',
+    exitCode: null,
+    costUsd: null,
+    pausedAt: '2026-11-04T13:40:00.000Z',
+    finishedAt: '2026-11-11T13:40:00.000Z',
+    sessionExpiresAt: null,
+  }),
   // Last runs of the other projects (Projects board: "Run 19, yesterday", "Run 4, 12 Oct", "Run 31, 3 hours ago").
   ended(
     2,

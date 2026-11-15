@@ -16,3 +16,16 @@ export function relativeTime(iso: string, now: Date): string {
   if (diff < 2 * DAY) return 'yesterday';
   return `${at.getUTCDate()} ${MONTHS[at.getUTCMonth()]}`;
 }
+
+/** How long until `iso`, rounded down: "less than a minute", "45 min", "5 hours", "6 days". A past time is "less than a minute". */
+export function timeLeft(iso: string, now: Date): string {
+  const diff = new Date(iso).getTime() - now.getTime();
+  if (diff < MIN) return 'less than a minute';
+  if (diff < HOUR) return `${Math.floor(diff / MIN)} min`;
+  if (diff < DAY) {
+    const hours = Math.floor(diff / HOUR);
+    return `${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+  const days = Math.floor(diff / DAY);
+  return `${days} ${days === 1 ? 'day' : 'days'}`;
+}

@@ -131,6 +131,11 @@ export type RunDetailData = {
   failureStage?: 'setup' | 'agent';
   /** The setup script version the run used, and how it ended. */
   setup?: { version: number; note?: string };
+  /**
+   * A kept or expired session (ADR 0022). `headline` shows above the agent note, `detail` below it;
+   * `resumeFailure` is the error banner above the buttons after a resume that fell back.
+   */
+  session?: { state: 'paused' | 'kept' | 'expired'; headline?: string; detail?: string; resumeFailure?: string };
 };
 
 export type RunDetailKey =
@@ -143,4 +148,6 @@ export type RunDetailKey =
   | 'RunFailed'
   | 'RunSetupFailed'
   | 'RunTimedOut'
-  | 'RunCancelled';
+  | 'RunCancelled'
+  | 'RunPaused'
+  | 'RunExpired';

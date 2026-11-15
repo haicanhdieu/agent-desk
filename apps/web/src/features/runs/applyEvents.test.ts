@@ -179,6 +179,86 @@ describe('applyRunStatus', () => {
     expect(fresh.getQueryData(runsQueries.detail(org, projectId, 55).queryKey)?.status).toBe('succeeded');
   });
 
+  it('a resume takes a succeeded run back to queued: applied, finish time cleared, counts move', () => {
+    const qc = seeded();
+    qc.setQueryData(runsQueries.detail(org, projectId, 60).queryKey, run(60));
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 60), number: 60, status: 'queued', seq: 40 });
+    const detail = qc.getQueryData(runsQueries.detail(org, projectId, 60).queryKey);
+    expect(detail?.status).toBe('queued');
+    expect(detail?.finishedAt).toBeNull();
+    expect(qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts.queued).toBe(2);
+    // Anything else out of a final status is still dropped.
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 60), number: 60, status: 'succeeded', seq: 41 });
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 60), number: 60, status: 'idle', seq: 42 });
+    expect(qc.getQueryData(runsQueries.detail(org, projectId, 60).queryKey)?.status).toBe('succeeded');
+  });
+
+  it('a run status event brings pausedAt and sessionExpiresAt into the cached run', () => {
+    const qc = seeded();
+    const paused = {
+      ...status(61, 'paused', 30),
+      waitingOn: null,
+      agentNote: null,
+      pausedAt: '2026-11-12T14:30:00.000Z',
+      sessionExpiresAt: '2026-11-19T14:30:00.000Z',
+    };
+    applyRunStatus(qc, org, projectId, paused);
+    const detail = qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey);
+    expect(detail).toMatchObject({
+      status: 'paused',
+      pausedAt: '2026-11-12T14:30:00.000Z',
+      sessionExpiresAt: '2026-11-19T14:30:00.000Z',
+      finishedAt: null,
+    });
+    const row = qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey)?.items.find((r) => r.number === 61);
+    expect(row?.pausedAt).toBe('2026-11-12T14:30:00.000Z');
+    // Resumed: both go.
+    applyRunStatus(qc, org, projectId, {
+      ...status(61, 'queued', 31),
+      waitingOn: null,
+      agentNote: null,
+      pausedAt: null,
+      sessionExpiresAt: null,
+    });
+    expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)).toMatchObject({
+      pausedAt: null,
+      sessionExpiresAt: null,
+    });
+  });
+
+  it('the project stream (no session fields) leaves pausedAt and sessionExpiresAt as cached', () => {
+    const qc = seeded();
+    applyRunStatus(qc, org, projectId, {
+      ...status(61, 'paused', 30),
+      waitingOn: null,
+      agentNote: null,
+      pausedAt: '2026-11-12T14:30:00.000Z',
+      sessionExpiresAt: '2026-11-19T14:30:00.000Z',
+    });
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 61), number: 61, status: 'paused', seq: 31 });
+    expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)?.pausedAt).toBe('2026-11-12T14:30:00.000Z');
+  });
+
+  it('a paused run is in the needs-you list, but the project needs-you count stays idle runs only', () => {
+    const qc = seeded();
+    const before = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+    applyRunStatus(qc, org, projectId, status(61, 'paused', 30));
+    const needs = qc.getQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey)?.items.map((r) => r.number);
+    expect(needs).toContain(62);
+    // Run 61 is not cached in the needs-you list: that list is refetched to pick up the paused run.
+    expect(qc.getQueryState(runsQueries.list(org, projectId, 'needs_you').queryKey)?.isInvalidated).toBe(true);
+    const after = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+    expect(after?.needsYou).toBe(before?.needsYou);
+    expect(after?.running).toBe((before?.running ?? 0) - 1);
+  });
+
+  it('a paused run stays in the needs-you list when it was already there as idle', () => {
+    const qc = seeded();
+    applyRunStatus(qc, org, projectId, status(62, 'paused', 30));
+    const needs = qc.getQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey)?.items.map((r) => r.number);
+    expect(needs).toEqual([62]);
+  });
+
   it('an uncached run also invalidates the ticket lists its status fits', () => {
     const qc = seeded();
     const ticketList = runsQueries.list(org, projectId, 'all', '12').queryKey;

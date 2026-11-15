@@ -1,9 +1,10 @@
-import type { ProjectDto, RunDto, RunEventDto, RunStatus } from '@agentdesk/contracts';
+import { hasKeptSession, type ProjectDto, type RunDto, type RunEventDto, type RunStatus } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { ChainStep, ConnectionState, TermLine } from '@/components';
 import { statusTokens } from '@/ds';
 import type { RunDetailData, RunDetailKey } from '@/mocks/types';
 import { clockElapsed, formatLimit } from '../duration';
+import { relativeTime, timeLeft } from '../relativeTime';
 import { duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
 import type { CachedRun } from './queries';
 import type { TerminalState } from './useTerminal';
@@ -39,16 +40,18 @@ export function runDetailKey(status: RunStatus, terminalState?: 'reconnect'): Ru
     case 'timed_out':
       return 'RunTimedOut';
     case 'cancelled':
-    case 'expired':
       return 'RunCancelled';
     case 'paused':
-      return 'RunIdle';
+      return 'RunPaused';
+    case 'expired':
+      return 'RunExpired';
   }
 }
 
 // Event payloads are untrusted: only these shapes are read, anything else is skipped.
 const TextPayload = z.object({ text: z.string() });
 const StatusPayload = z.object({ status: z.string() });
+const ResumeFailedPayload = z.object({ kind: z.literal('resume_failed'), reason: z.string().optional() });
 
 const textOf = (e: RunEventDto): string | undefined => TextPayload.safeParse(e.payload).data?.text;
 
@@ -231,7 +234,8 @@ function endNote(
   now: Date,
   events: RunEventDto[],
 ): EndNote | undefined {
-  if (!isFinal(run.status)) return undefined;
+  // An expired run says so in its session lines, not in an end note.
+  if (!isFinal(run.status) || run.status === 'expired') return undefined;
   const took =
     (failedInSetup(run) && run.finishedAt
       ? formatDuration(Date.parse(run.finishedAt) - Date.parse(workStart(run, events)))
@@ -303,9 +307,52 @@ export function terminalConnection(terminal: TerminalState, stream: ConnectionSt
 }
 
 function connection(run: RunDto, lines: TermLine[] | undefined): RunDetailData['connection'] {
+  if (run.status === 'paused') {
+    return {
+      state: 'ended',
+      label: lines === undefined ? 'Paused' : `Paused, read-only, ${lines.length.toLocaleString('en-US')} lines`,
+    };
+  }
   if (!isFinal(run.status)) return { state: 'none', label: 'No terminal yet' };
   if (lines === undefined) return { state: 'ended', label: 'Ended' };
   return { state: 'ended', label: `Ended, read-only, ${lines.length.toLocaleString('en-US')} lines` };
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Local "13 Nov, 09:05". */
+const dateTime = (iso: string): string => {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/** The reason of a resume that fell back, when it is the latest event of the run (the run is parked again). */
+function resumeFailure(events: RunEventDto[]): string | undefined {
+  const last = events.at(-1);
+  const failed = last?.type === 'lifecycle' ? ResumeFailedPayload.safeParse(last.payload) : undefined;
+  if (!failed?.success) return undefined;
+  return failed.data.reason ? `Resume failed: ${failed.data.reason}` : 'Resume failed';
+}
+
+/** The kept (paused, or succeeded with a session that is still kept) or expired session of a run (ADR 0022). */
+function sessionOf(run: RunDto, events: RunEventDto[], now: Date): RunDetailData['session'] {
+  if (run.status === 'expired') {
+    return { state: 'expired', headline: 'Nobody resumed this run in time. The saved session was deleted.' };
+  }
+  const failure = resumeFailure(events);
+  const failed = failure === undefined ? {} : { resumeFailure: failure };
+  if (run.status === 'paused') {
+    return {
+      state: 'paused',
+      ...(run.sessionExpiresAt !== null && { headline: `Can be resumed for ${timeLeft(run.sessionExpiresAt, now)}` }),
+      ...(run.pausedAt !== null && { detail: `Paused ${relativeTime(run.pausedAt, now)} after no one was attached` }),
+      ...failed,
+    };
+  }
+  if (run.status === 'succeeded' && run.sessionExpiresAt !== null && hasKeptSession(run, now)) {
+    return { state: 'kept', detail: `Session kept until ${dateTime(run.sessionExpiresAt)}`, ...failed };
+  }
+  return undefined;
 }
 
 /**
@@ -322,9 +369,11 @@ export function toRunDetail(
 ): RunDetailData {
   const final = isFinal(run.status);
   const startIso = workStart(run, events);
-  const endMs = final && run.finishedAt ? Date.parse(run.finishedAt) : now.getTime();
+  // A paused run's clock stopped when its pod did.
+  const stoppedAt = final ? run.finishedAt : run.status === 'paused' ? run.pausedAt : null;
+  const endMs = stoppedAt ? Date.parse(stoppedAt) : now.getTime();
   const elapsedMs = endMs - Date.parse(startIso);
-  const lines = final ? scrollbackLines(events) : undefined;
+  const lines = final || run.status === 'paused' ? scrollbackLines(events) : undefined;
   const lifecycle = events.flatMap((e) => {
     const text = e.type === 'lifecycle' ? textOf(e) : undefined;
     return text === undefined ? [] : [{ at: clockSeconds(e.ts), text }];
@@ -332,6 +381,7 @@ export function toRunDetail(
   const timed = run.startedAt !== null && (run.status === 'running' || run.status === 'timed_out');
   const end = final && run.finishedAt ? clockSeconds(run.finishedAt) : undefined;
   const note = endNote(run, ticketRuns, links, now, events);
+  const session = sessionOf(run, events, now);
   return {
     run: toRunSummary(run, now),
     elapsed: clock(elapsedMs),
@@ -370,7 +420,9 @@ export function toRunDetail(
         percent: Math.min(100, Math.round((elapsedMs / (run.timeoutSeconds * 1000)) * 100)),
       },
     }),
-    ...((run.status === 'idle' || run.status === 'done') && run.agentNote !== null && { agentNote: run.agentNote }),
+    ...((run.status === 'idle' || run.status === 'done' || run.status === 'paused' || session?.state === 'kept') &&
+      run.agentNote !== null && { agentNote: run.agentNote }),
+    ...(session && { session }),
     connection: connection(run, lines),
     ...(note && { endNote: note }),
   };

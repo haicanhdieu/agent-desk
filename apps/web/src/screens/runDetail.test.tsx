@@ -8,7 +8,7 @@ const linesFor = (k: RunDetailKey) => terminalByRun[runDetails[k].run.id];
 const show = (k: RunDetailKey, extra: Partial<React.ComponentProps<typeof RunDetail>> = {}) =>
   render(<RunDetail data={runDetails[k]} lines={linesFor(k)} needsYou={1} {...extra} />);
 
-const ended: RunDetailKey[] = ['RunSucceeded', 'RunFailed', 'RunTimedOut', 'RunCancelled'];
+const ended: RunDetailKey[] = ['RunSucceeded', 'RunFailed', 'RunTimedOut', 'RunCancelled', 'RunExpired'];
 const FINISH_TITLE = 'Finish is available when the agent is waiting for you';
 
 describe('RunDetail actions', () => {
@@ -97,6 +97,84 @@ describe('RunDetail done and agent notes', () => {
     expect(screen.getByText('The agent is waiting for your answer')).toBeInTheDocument();
     expect(screen.getByText('Which database should I use?')).toBeInTheDocument();
     expect(screen.getByText(/Type your answer in the terminal below/)).toBeInTheDocument();
+  });
+});
+
+describe('RunDetail paused, kept and expired sessions', () => {
+  const kept = {
+    ...runDetails.RunSucceeded,
+    agentNote: 'Opened PR #148.',
+    session: { state: 'kept', detail: 'Session kept until 13 Nov, 09:05' },
+  } as const;
+
+  it('paused: the lines around the agent note, then Resume and Finish; no Cancel, no disabled Finish', () => {
+    show('RunPaused');
+    const text = screen.getByText(/^Can be resumed for/);
+    const note = screen.getByText(runDetails.RunPaused.agentNote ?? 'missing note');
+    const since = screen.getByText(/^Paused .* after no one was attached$/);
+    expect(text.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(note.compareDocumentPosition(since) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View ticket' })).toBeInTheDocument();
+  });
+
+  it('paused: the buttons call back', async () => {
+    const onResume = vi.fn();
+    const onFinish = vi.fn();
+    show('RunPaused', { onResume, onFinish });
+    await userEvent.click(screen.getByRole('button', { name: 'Resume' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Finish' }));
+    expect(onResume).toHaveBeenCalledTimes(1);
+    expect(onFinish).toHaveBeenCalledTimes(1);
+  });
+
+  it('paused: both buttons wait while a resume is in flight', () => {
+    show('RunPaused', { resuming: true });
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeDisabled();
+  });
+
+  it('paused: both buttons wait while a finish is in flight', () => {
+    show('RunPaused', { pendingNote: 'Finishing…' });
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeDisabled();
+  });
+
+  it('paused: a resume failure is an error banner above the buttons', () => {
+    const data = {
+      ...runDetails.RunPaused,
+      session: { state: 'paused', resumeFailure: 'Resume failed: no pod' },
+    } as const;
+    render(<RunDetail data={data} needsYou={1} />);
+    const failure = screen.getByText('Resume failed: no pod');
+    expect(failure.compareDocumentPosition(screen.getByRole('button', { name: 'Resume' }))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it('succeeded with a kept session: the note, the kept-until line and Re-open session', async () => {
+    const onResume = vi.fn();
+    render(<RunDetail data={kept} lines={linesFor('RunSucceeded')} needsYou={1} onResume={onResume} />);
+    expect(screen.getByText('Opened PR #148.')).toBeInTheDocument();
+    expect(screen.getByText('Session kept until 13 Nov, 09:05')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Re-open session' }));
+    expect(onResume).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
+  });
+
+  it('succeeded without a kept session has no Re-open session', () => {
+    show('RunSucceeded');
+    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+  });
+
+  it('expired: the expired line and no action buttons', () => {
+    show('RunExpired');
+    expect(screen.getByText('Nobody resumed this run in time. The saved session was deleted.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^(Resume|Finish|Cancel|Re-open)/ })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'View ticket' })).toBeInTheDocument();
   });
 });
 

@@ -511,7 +511,7 @@ Run page header, exact copy:
 - Run list: `paused` and `expired` badges; live updates apply `pausedAt` and `sessionExpiresAt` from the status event.
 - Stories for both new badges (text and pill variants) and for the three new header states.
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - `StatusBadge` renders "Paused" and "Expired";
   - detail route, paused run: shows the note, "Can be resumed for", Resume and Finish; clicking Resume calls `POST /api/runs/:id/resume` and the page then shows "Queued";
   - detail route, succeeded with a future `sessionExpiresAt`: shows "Re-open session"; with a past one: does not;
@@ -520,11 +520,11 @@ Run page header, exact copy:
   - a `resume_failed` event shows the banner;
   - needs-you route lists a paused run;
   - `applyEvents`: a status event `succeeded → queued` is applied (not dropped as a change out of a final status).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test` — expect FAIL.
-- [ ] **Step 3: Implement.** Mock handlers gain the resume route and paused/expired/kept-session sample runs.
-- [ ] **Step 4: Add a mock e2e** in `apps/web/e2e/mock/run.spec.ts`: open a paused run, press Resume, see the terminal.
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web test:e2e:mock` — expect PASS.
-- [ ] **Step 6: Commit** `feat(web): paused and expired runs, resume and re-open`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test` — expect FAIL.
+- [x] **Step 3: Implement.** Mock handlers gain the resume route and paused/expired/kept-session sample runs.
+- [x] **Step 4: Add a mock e2e** in `apps/web/e2e/mock/run.spec.ts`: open a paused run, press Resume, see the terminal.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web test:e2e:mock` — expect PASS.
+- [x] **Step 6: Commit** `feat(web): paused and expired runs, resume and re-open`.
 
 ### Task 15: End-to-end on the local stack
 

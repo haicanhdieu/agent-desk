@@ -76,3 +76,24 @@ export const useCancelRun = (org: string, projectId: string, { onError }: { onEr
 /** Finish an idle (or running) run as succeeded: "Finishing…" until it is final; `onError` after the note is removed. */
 export const useFinishRun = (org: string, projectId: string, { onError }: { onError?(e: unknown): void } = {}) =>
   useRunAction('finish', org, projectId, onError);
+
+/**
+ * Resume a paused run, or re-open a succeeded run whose session is kept (ADR 0022). The API answers 204 once the
+ * resume is accepted; the run is then queued again (the event stream or the refetch below shows it). `isPending`
+ * holds until the run and the lists are refetched, so the buttons stay disabled until the page shows the new status.
+ * A 409 (not resumable, already being resumed, no credential) goes to `onError` with the server's message.
+ */
+export function useResumeRun(org: string, projectId: string, { onError }: { onError?(e: unknown): void } = {}) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (run: RunRef) => api.runs.resume({ params: { runId: run.id } }),
+    onError: (e) => onError?.(e),
+    onSettled: async (_res, _e, run) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: runsQueries.detail(org, projectId, run.number).queryKey }),
+        qc.invalidateQueries({ queryKey: listsKey(org, projectId) }),
+        qc.invalidateQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey, exact: true }),
+      ]);
+    },
+  });
+}

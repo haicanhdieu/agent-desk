@@ -100,7 +100,7 @@ describe('MSW handlers cover the contract', () => {
     });
     await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(5);
     const list = await api.runs.list({ params: { projectId: P } });
-    expect(list.items.map((r) => r.number)).toEqual([63, 62, 61, 60, 57, 56, 55, 54, 52]);
+    expect(list.items.map((r) => r.number)).toEqual([66, 65, 64, 63, 62, 61, 60, 57, 56, 55, 54, 52]);
     await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({
       status: 'idle',
     });
@@ -112,17 +112,18 @@ describe('MSW handlers cover the contract', () => {
 
   it('filters and pages runs', async () => {
     const needsYou = await api.runs.list({ params: { projectId: P }, query: { filter: 'needs_you' } });
-    expect(needsYou.items.map((r) => r.number)).toEqual([62]);
+    // The list holds paused runs too (the project's needsYou count does not).
+    expect(needsYou.items.map((r) => r.number)).toEqual([64, 62]);
     const ended = await api.runs.list({ params: { projectId: P }, query: { filter: 'ended' } });
-    expect(ended.items.map((r) => r.number)).toEqual([60, 57, 56, 55, 54, 52]);
+    expect(ended.items.map((r) => r.number)).toEqual([66, 65, 60, 57, 56, 55, 54, 52]);
     const page1 = await api.runs.list({ params: { projectId: P }, query: { limit: 4 } });
-    expect(page1.items.map((r) => r.number)).toEqual([63, 62, 61, 60]);
+    expect(page1.items.map((r) => r.number)).toEqual([66, 65, 64, 63]);
     expect(page1.nextCursor).not.toBeNull();
     const page2 = await api.runs.list({
       params: { projectId: P },
       query: { limit: 4, cursor: page1.nextCursor ?? undefined },
     });
-    expect(page2.items.map((r) => r.number)).toEqual([57, 56, 55, 54]);
+    expect(page2.items.map((r) => r.number)).toEqual([62, 61, 60, 57]);
     const byTicket = await api.runs.list({
       params: { projectId: P },
       query: { ticket: '133' },
@@ -274,6 +275,66 @@ describe('MSW handler semantics', () => {
 
     await expect(api.runs.finish({ params: { runId: run62.id } })).resolves.toBeNull();
     await expect(api.runs.get({ params: { runId: run62.id } })).resolves.toMatchObject({ status: 'succeeded' });
+  });
+
+  describe('resume', () => {
+    const runOf = (n: number) => api.runs.byNumber({ params: { projectId: P, number: n } });
+    const resume = async (n: number) => api.runs.resume({ params: { runId: (await runOf(n)).id } });
+
+    it('resumes a paused run: 204, queued again, pause and expiry cleared', async () => {
+      const run = await runOf(64);
+      expect(run).toMatchObject({ status: 'paused' });
+      const res = await fetch(`http://localhost:3000/api/runs/${run.id}/resume`, { method: 'POST' });
+      expect(res.status).toBe(204);
+      await expect(api.runs.get({ params: { runId: run.id } })).resolves.toMatchObject({
+        status: 'queued',
+        pausedAt: null,
+        sessionExpiresAt: null,
+        finishedAt: null,
+      });
+      await expect(api.projects.get({ params: { projectId: P } })).resolves.toMatchObject({
+        counts: { queued: 2 },
+      });
+    });
+
+    it('re-opens a succeeded run whose session is still kept', async () => {
+      await expect(resume(65)).resolves.toBeNull();
+      await expect(runOf(65)).resolves.toMatchObject({ status: 'queued', finishedAt: null });
+    });
+
+    it('a second resume is a 409 saying it is already being resumed', async () => {
+      await resume(64);
+      expect(await rejection(resume(64))).toMatchObject({ status: 409, title: 'This run is already being resumed' });
+    });
+
+    it('409 for an expired run, a succeeded run without a kept session and a running run', async () => {
+      const message = 'Only a paused run, or a finished run whose session is still kept, can be resumed';
+      expect(await rejection(resume(66))).toMatchObject({ status: 409, title: message });
+      expect(await rejection(resume(60))).toMatchObject({ status: 409, title: message });
+      expect(await rejection(resume(61))).toMatchObject({ status: 409, title: message });
+      const kept = mockDb.state.runs.find((r) => r.number === 65);
+      if (!kept) throw new Error('run 65 missing');
+      kept.sessionExpiresAt = new Date(Date.now() - 1000).toISOString();
+      expect(await rejection(resume(65))).toMatchObject({ status: 409, title: message });
+    });
+
+    it('409 when the project has no agent credential', async () => {
+      const agent = mockDb.state.agents.find((a) => a.projectId === P);
+      if (!agent) throw new Error('agent missing');
+      agent.credential = { set: false, type: null, updatedAt: null, setBy: null };
+      expect(await rejection(resume(64))).toMatchObject({
+        status: 409,
+        title: 'This project has no agent credential, so the run cannot be resumed',
+      });
+      await expect(runOf(64)).resolves.toMatchObject({ status: 'paused' });
+    });
+
+    it('a run of another org is not found', async () => {
+      const res = await fetch('http://localhost:3000/api/runs/00000000-0000-4000-8000-00000000dead/resume', {
+        method: 'POST',
+      });
+      expect(res.status).toBe(404);
+    });
   });
 
   it('serves waitingOn on a running run', async () => {

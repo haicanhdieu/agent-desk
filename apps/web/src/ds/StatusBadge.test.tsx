@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { StatusBadge } from './StatusBadge';
@@ -48,5 +50,21 @@ describe('StatusBadge', () => {
     expect(statusTokens.done).toEqual({ label: 'Done', colorVar: '--ok' });
     const svg = screen.getByTitle('status: done').querySelector('svg') as SVGElement;
     expect(svg.style.color).toBe('var(--ok)');
+  });
+
+  it.each(RUN_STATUSES)('Chips.module.css styles the text colour of %s', (s) => {
+    const css = readFileSync(resolve(__dirname, 'Chips.module.css'), 'utf8');
+    expect(css).toMatch(new RegExp(`\\.st-${s}\\s*\\{`));
+  });
+
+  it('paused and expired pills keep their own class', () => {
+    render(
+      <>
+        <StatusBadge status="paused" variant="pill" />
+        <StatusBadge status="expired" variant="pill" />
+      </>,
+    );
+    expect(screen.getByTitle('status: paused')).toHaveClass('st-pill', 'st-paused');
+    expect(screen.getByTitle('status: expired')).toHaveClass('st-pill', 'st-expired');
   });
 });

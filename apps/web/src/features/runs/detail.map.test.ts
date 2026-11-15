@@ -43,6 +43,8 @@ describe('runDetailKey', () => {
     ['failed', 'RunFailed'],
     ['timed_out', 'RunTimedOut'],
     ['cancelled', 'RunCancelled'],
+    ['paused', 'RunPaused'],
+    ['expired', 'RunExpired'],
   ] as [RunStatus, RunDetailKey][])('%s → %s', (status, key) => {
     expect(runDetailKey(status)).toBe(key);
   });
@@ -75,6 +77,108 @@ describe('toRunDetail, agent note', () => {
 
   it('has no agent note when the run has none', () => {
     expect(live({ agentNote: null }).agentNote).toBeUndefined();
+  });
+});
+
+describe('toRunDetail, paused, kept and expired sessions', () => {
+  const HOUR = 3_600_000;
+  const ahead = (ms: number) => new Date(now.getTime() + ms).toISOString();
+  const paused = (over: Partial<RunDto> = {}) =>
+    run({
+      status: 'paused',
+      startedAt: local(14, 0),
+      finishedAt: null,
+      idleSince: null,
+      pausedAt: local(14, 10),
+      sessionExpiresAt: ahead(6 * 24 * HOUR + HOUR),
+      agentNote: 'Which database?',
+      ...over,
+    });
+  const kept = (over: Partial<RunDto> = {}) =>
+    run({
+      status: 'succeeded',
+      startedAt: local(14, 0),
+      finishedAt: local(14, 10),
+      sessionExpiresAt: new Date(2026, 10, 13, 9, 5).toISOString(),
+      agentNote: 'All set',
+      ...over,
+    });
+  const lifecycleEvent = (payload: Record<string, unknown>) => ev(local(14, 11), 'lifecycle', payload);
+
+  it('paused: the lines above and below the agent note, and the note', () => {
+    const d = detail(paused());
+    expect(d.session).toEqual({
+      state: 'paused',
+      headline: 'Can be resumed for 6 days',
+      detail: 'Paused 2 min ago after no one was attached',
+    });
+    expect(d.agentNote).toBe('Which database?');
+  });
+
+  it('paused: the clock stops at the pause and the terminal bar says paused', () => {
+    const d = detail(paused());
+    expect(d.elapsed).toBe('10:00');
+    expect(d.connection).toEqual({ state: 'ended', label: 'Paused' });
+    expect(d.endNote).toBeUndefined();
+  });
+
+  it('paused with a stored scrollback: the line count in the terminal bar', () => {
+    const d = detail(paused(), [ev(local(14, 10), 'scrollback', { text: 'a\nb' })]);
+    expect(d.connection).toEqual({ state: 'ended', label: 'Paused, read-only, 2 lines' });
+  });
+
+  it('paused without times: only what is known', () => {
+    const d = detail(paused({ pausedAt: null, sessionExpiresAt: null }));
+    expect(d.session).toEqual({ state: 'paused' });
+  });
+
+  it('succeeded with a kept session: when it is deleted, and the note', () => {
+    const d = detail(kept());
+    expect(d.session).toEqual({ state: 'kept', detail: 'Session kept until 13 Nov, 09:05' });
+    expect(d.agentNote).toBe('All set');
+    expect(d.endNote?.title).toMatch(/^Succeeded in /);
+  });
+
+  it('succeeded whose session time has passed: no session and no note, as today', () => {
+    const d = detail(kept({ sessionExpiresAt: new Date(now.getTime() - 1000).toISOString() }));
+    expect(d.session).toBeUndefined();
+    expect(d.agentNote).toBeUndefined();
+    const none = detail(kept({ sessionExpiresAt: null }));
+    expect(none.session).toBeUndefined();
+  });
+
+  it('expired: says nobody resumed it in time and that the session was deleted', () => {
+    const d = detail(
+      run({ status: 'expired', startedAt: local(14, 0), finishedAt: local(14, 12), sessionExpiresAt: null }),
+    );
+    expect(d.session).toEqual({
+      state: 'expired',
+      headline: 'Nobody resumed this run in time. The saved session was deleted.',
+    });
+    expect(d.connection).toEqual({ state: 'ended', label: 'Ended' });
+    expect(d.endNote).toBeUndefined();
+  });
+
+  it('a resume_failed event last, on a parked run: the failure reason', () => {
+    const events = [
+      ev(local(14, 10), 'status', { status: 'paused' }),
+      lifecycleEvent({ kind: 'resume_failed', reason: 'no saved session was found' }),
+    ];
+    expect(detail(paused(), events).session?.resumeFailure).toBe('Resume failed: no saved session was found');
+    expect(detail(kept(), events).session?.resumeFailure).toBe('Resume failed: no saved session was found');
+  });
+
+  it('a resume_failed event that is not the latest, or a run that is not parked: no failure', () => {
+    const failed = lifecycleEvent({ kind: 'resume_failed', reason: 'no saved session was found' });
+    const later = ev(local(14, 12), 'status', { status: 'queued' });
+    expect(detail(paused(), [failed, later]).session?.resumeFailure).toBeUndefined();
+    const live = run({ status: 'running', startedAt: local(14, 0), finishedAt: null });
+    expect(detail(live, [failed]).session).toBeUndefined();
+  });
+
+  it('a resume_failed event without a text reason shows the plain message', () => {
+    const events = [lifecycleEvent({ kind: 'resume_failed' })];
+    expect(detail(paused(), events).session?.resumeFailure).toBe('Resume failed');
   });
 });
 

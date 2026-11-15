@@ -15,7 +15,7 @@ import {
   toRunDetail,
 } from '@/features/runs/detail.map';
 import { isFinal } from '@/features/runs/map';
-import { useCancelRun, useFinishRun } from '@/features/runs/mutations';
+import { useCancelRun, useFinishRun, useResumeRun } from '@/features/runs/mutations';
 import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
 import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
@@ -78,6 +78,8 @@ function RunDetailRoute() {
   const onError = (e: unknown) => toast.show(toastFromError(e));
   const cancel = useCancelRun(org, projectId, { onError });
   const finish = useFinishRun(org, projectId, { onError });
+  // A 409 (not resumable, already being resumed, no credential) toasts the server's message.
+  const resume = useResumeRun(org, projectId, { onError });
 
   const { paths } = page;
   const target = { id: dto.id, number };
@@ -86,11 +88,13 @@ function RunDetailRoute() {
     agent: paths.agent,
     setup: paths.setup,
   });
-  const data = final
+  // No pod (final, or paused): the terminal bar says so and the stored scrollback shows.
+  const stored = final || dto.status === 'paused';
+  const data = stored
     ? mapped
     : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
-  // A finished run's stored scrollback in the same terminal, read-only, written once.
-  const scrollback = final ? scrollbackText(events) : undefined;
+  // A finished or paused run's stored scrollback in the same terminal, read-only, written once.
+  const scrollback = stored ? scrollbackText(events) : undefined;
   // Keyed by the scrollback event too, so a later (re-stored) scrollback opens a new terminal with it.
   const scrollbackSeq = events.filter((e) => e.type === 'scrollback').at(-1)?.seq;
   let terminal: ReactNode;
@@ -114,7 +118,7 @@ function RunDetailRoute() {
   return (
     <RunDetail
       data={data}
-      lines={final ? scrollbackLines(events) : undefined}
+      lines={stored ? scrollbackLines(events) : undefined}
       terminal={terminal}
       // The "terminal lost" overlay belongs to a live terminal that gave up; never to queued, starting or final runs.
       onReconnect={live ? term.reconnect : undefined}
@@ -148,6 +152,8 @@ function RunDetailRoute() {
         cancel(target);
       }}
       onFinish={() => finish(target)}
+      onResume={() => resume.mutate(target)}
+      resuming={resume.isPending}
     />
   );
 }

@@ -20,6 +20,10 @@ export interface RunDetailProps {
   onCancelClose?(): void;
   onCancelConfirm?(): void;
   onFinish?(): void;
+  /** Resume a paused run, or re-open a succeeded run whose session is kept. */
+  onResume?(): void;
+  /** A resume request is in flight: Resume, Re-open session and Finish wait. */
+  resuming?: boolean;
   onReconnect?(): void;
   onTogglePanel?(): void;
   /** Replaces the static terminal of a running, idle or ended run (the live terminal). */
@@ -49,8 +53,8 @@ export interface RunDetailLinks {
   setup?: string;
 }
 
-const ENDED = ['succeeded', 'failed', 'timed_out', 'cancelled'];
-/** Mirrors the contracts' FINISHABLE_RUN_STATUSES (screens do not import contracts). */
+const ENDED = ['succeeded', 'failed', 'timed_out', 'cancelled', 'expired'];
+/** Mirrors the contracts' FINISHABLE_RUN_STATUSES (screens do not import contracts); a paused run has its own Finish. */
 const FINISHABLE = ['idle', 'done'];
 const FINISH_HINT = 'Finish is available when the agent is waiting for you';
 
@@ -66,6 +70,8 @@ export function RunDetail({
   onCancelClose,
   onCancelConfirm,
   onFinish,
+  onResume,
+  resuming,
   onReconnect,
   onTogglePanel,
   terminal,
@@ -81,11 +87,13 @@ export function RunDetail({
   const t = run.ticket;
   const ended = ENDED.includes(run.status);
   const finishable = FINISHABLE.includes(run.status);
-  const busy = pendingNote !== undefined;
+  // A paused run's buttons (Resume, Finish) are in the notice above the terminal, so the top bar only links out.
+  const parked = run.status === 'paused';
+  const busy = pendingNote !== undefined || resuming === true;
 
   const actions = (
     <>
-      {ended ? (
+      {ended || parked ? (
         <Button icon="external" href={t.href}>
           View ticket
         </Button>
@@ -160,6 +168,7 @@ export function RunDetail({
           terminal={terminal}
           busy={busy}
           onFinish={onFinish}
+          onResume={onResume}
           onReconnect={onReconnect}
           reconnectOverlay={reconnectOverlay}
           reconnectBody={reconnectBody}
