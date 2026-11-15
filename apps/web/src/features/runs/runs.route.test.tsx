@@ -71,19 +71,25 @@ describe('runs route', () => {
   });
 
   it('?filter=ignored shows the ignored commands with their reasons and the connection warning', async () => {
-    await renderRoute(`${base}/runs?filter=ignored`);
-    expect(await screen.findByRole('heading', { level: 2, name: 'Ignored commands' })).toBeInTheDocument();
-    const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
-    expect(rows).toHaveLength(5);
-    expect(within(rows[0] as HTMLElement).getByText('Not a collaborator')).toBeInTheDocument();
-    expect(within(rows[0] as HTMLElement).getByText('/code-build')).toBeInTheDocument();
-    expect(screen.getByText('Ticket reached its run limit')).toBeInTheDocument();
-    expect(screen.getByText('Same skill already running')).toBeInTheDocument();
-    expect(screen.getByText("Ticket labels don't match")).toBeInTheDocument();
-    expect(screen.getByText('No rule for this command')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute('aria-current', 'page');
-    // invoicer-api's webhook is healthy: no banner.
-    expect(screen.queryByText(/No webhooks from GitHub/)).not.toBeInTheDocument();
+    // The webhook fixtures are dated 12 Nov; pin the clock near them so "silent for too long" does not depend on today.
+    vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date'], now: new Date('2026-11-12T15:00:00.000Z') });
+    try {
+      await renderRoute(`${base}/runs?filter=ignored`);
+      expect(await screen.findByRole('heading', { level: 2, name: 'Ignored commands' })).toBeInTheDocument();
+      const rows = within(screen.getByRole('table')).getAllByRole('row').slice(1);
+      expect(rows).toHaveLength(5);
+      expect(within(rows[0] as HTMLElement).getByText('Not a collaborator')).toBeInTheDocument();
+      expect(within(rows[0] as HTMLElement).getByText('/code-build')).toBeInTheDocument();
+      expect(screen.getByText('Ticket reached its run limit')).toBeInTheDocument();
+      expect(screen.getByText('Same skill already running')).toBeInTheDocument();
+      expect(screen.getByText("Ticket labels don't match")).toBeInTheDocument();
+      expect(screen.getByText('No rule for this command')).toBeInTheDocument();
+      expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute('aria-current', 'page');
+      // invoicer-api's webhook is healthy: no banner.
+      expect(screen.queryByText(/No webhooks from GitHub/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('shows the silent-webhook warning on the problems view of a silent project', async () => {
