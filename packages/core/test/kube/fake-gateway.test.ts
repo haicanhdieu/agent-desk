@@ -20,7 +20,7 @@ const job = (id: string, prompt: string, extraEnv: Record<string, string> = {}) 
   for (const [name, value] of Object.entries(extraEnv)) container?.env?.push({ name, value });
   return j;
 };
-const jobFor = (id: string, prompt: string) =>
+const jobFor = (id: string, prompt: string, resume = false) =>
   buildRunJob({
     runId: id,
     orgId: ORG,
@@ -34,7 +34,7 @@ const jobFor = (id: string, prompt: string) =>
     cliTokenEnvName: 'GH_TOKEN',
     maxTurns: null,
     deadlineSeconds: 60,
-    resume: false,
+    resume,
     botName: 'bot',
     botEmail: 'bot@x.invalid',
     pluginMarketplaces: {},
@@ -78,6 +78,16 @@ function collect(name: string) {
     for await (const l of gw.streamLogs(name, ac.signal)) lines.push(l);
   })();
   return { lines, ac, done };
+}
+
+/** The pod's current screen, read through an attach session. */
+async function gwPane(name: string): Promise<string> {
+  const s = await gw.exec(name, ['tmux', 'attach', '-t', 'agent'], { tty: true });
+  let screen = '';
+  s.onData((d) => (screen += decoder.decode(d)));
+  await sleep(120);
+  s.close();
+  return screen;
 }
 
 const decoder = new TextDecoder();
@@ -127,6 +137,35 @@ describe('FakeKubeGateway', () => {
     await c.done;
     await gw.deleteJob(name);
     expect(await gw.getRunPod(name)).toBeNull();
+  });
+
+  it('a resumed Job on the same volume continues the conversation; with the volume deleted it exits 79', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const labels = { 'agentdesk/run-id': id };
+    await gw.ensureVolumeClaim(name, { size: '1Gi' }, labels);
+    await gw.ensureJob(job(id, 'remember this'));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    await until(async () => (await gw.getRunPod(name)) && (await gwPane(name)).includes('remember this'));
+    await gw.deleteJob(name); // the idle stop: the pod is gone, the volume stays
+
+    await gw.ensureJob(jobFor(id, '', true));
+    const c = collect(name);
+    await until(async () => c.lines.includes('agentdesk: session started'));
+    expect(c.lines.slice(0, 2)).toEqual(['agentdesk: session resumed', 'agentdesk: session started']);
+    expect(await gwPane(name)).toContain('remember this');
+    c.ac.abort();
+    await c.done;
+    await gw.deleteJob(name);
+
+    await gw.deleteVolumeClaim(name);
+    await gw.ensureJob(jobFor(id, '', true));
+    const pod = await until(async () => {
+      const p = await gw.getRunPod(name);
+      return p?.phase === 'Failed' || p?.phase === 'Succeeded' ? p : null;
+    });
+    expect(pod.exitCode).toBe(79);
+    await gw.deleteJob(name);
   });
 
   it('exec attach streams the pane, echoes input lines; kill-session exits 0 with the scrollback', async () => {

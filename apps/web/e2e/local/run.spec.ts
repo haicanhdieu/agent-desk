@@ -1,4 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { InstallResponse, RunDto, RunLogResponse } from '@agentdesk/contracts';
 import { z } from 'zod';
@@ -196,4 +198,85 @@ test('a --fake-done run shows Done and Finish closes it as succeeded', async ({ 
 
   await page.getByRole('region', { name: 'Terminal' }).getByRole('button', { name: 'Finish run' }).click();
   await expect(header.getByText('Succeeded', { exact: true })).toBeVisible({ timeout: 30_000 });
+});
+
+/*
+ * Pause and resume (ADR 0022). Needs a stack whose worker has a short idle time, which would break the tests above (a
+ * pod would be stopped between idle and attach), so it only runs when asked:
+ *
+ *   RUN_IDLE_END_SECONDS=5 devbox run dev-bg   # then
+ *   E2E_IDLE_END_SECONDS=5 devbox run e2e-local
+ *
+ * The run page is not opened while waiting for the pause: attaching a terminal stops the idle timer.
+ */
+const IDLE_END_SECONDS = Number.parseInt(process.env['E2E_IDLE_END_SECONDS'] ?? '', 10);
+const FAKE_STATE_DIR =
+  process.env['E2E_FAKE_STATE_DIR'] ?? fileURLToPath(new URL('../../../../.agentdesk/fake', import.meta.url));
+
+test.describe('pause and resume', () => {
+  test.skip(
+    !Number.isFinite(IDLE_END_SECONDS),
+    'set E2E_IDLE_END_SECONDS to the stack worker RUN_IDLE_END_SECONDS (see the comment above)',
+  );
+
+  async function statusOf(page: Page, runId: string): Promise<string> {
+    return RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run')).status;
+  }
+
+  test('an idle run pauses, frees its slot for a queued run, and resumes with its conversation', async ({ page }) => {
+    const waitMs = (IDLE_END_SECONDS + 60) * 1000;
+    const { handle, projectId } = await signInAndCreateProject(page);
+
+    // One slot, so the second run queues behind the first.
+    await ok(
+      await page.request.patch(`/api/projects/${projectId}`, { data: { maxConcurrentRuns: 1 } }),
+      200,
+      'project limit',
+    );
+    const first = await commentOnNewTicket(page, handle, projectId, '/code-review');
+    const second = await commentOnNewTicket(page, handle, projectId, '/code-review');
+    await expect.poll(() => statusOf(page, second), { timeout: 30_000 }).toBe('queued');
+
+    // The first run asks its question (needs you), nobody attaches, and the idle time stops its pod.
+    await expect.poll(() => statusOf(page, first), { timeout: waitMs }).toBe('paused');
+    expect(existsSync(`${FAKE_STATE_DIR}/kube/run-${first}`), 'the paused run still has a pod').toBe(false);
+
+    // Its slot went to the queued run.
+    await expect.poll(() => statusOf(page, second), { timeout: waitMs }).not.toBe('queued');
+
+    // Resume it from the run page. It queues behind the second run until that one pauses too.
+    const firstNumber = RunDto.parse(await ok(await page.request.get(`/api/runs/${first}`), 200, 'run')).number;
+    await page.goto(`/o/${handle}/p/${projectId}/runs/${firstNumber}`);
+    const header = page.getByRole('banner');
+    await expect(header.getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Resume' }).click();
+    await expect(header.getByText('Needs you', { exact: true })).toBeVisible({ timeout: waitMs });
+
+    // The resumed pod shows the earlier conversation (it only exists on the volume), and takes an answer.
+    const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+    await expect(terminal).toContainText('Fake Claude Code', { timeout: 15_000 });
+    await terminal.click();
+    await page.keyboard.type('answer');
+    await page.keyboard.press('Enter');
+    await expect(terminal).toContainText(/\banswer\b/);
+
+    // The answer starts a new turn that ends needs_input again (the second one in the run's log).
+    await expect
+      .poll(
+        async () => {
+          const log = RunLogResponse.parse(await ok(await page.request.get(`/api/runs/${first}/log`), 200, 'run log'));
+          return log.items.filter(
+            (e) =>
+              e.type === 'lifecycle' && e.payload['kind'] === 'agent_state' && e.payload['state'] === 'needs_input',
+          ).length;
+        },
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThanOrEqual(2);
+    await expect(header.getByText('Needs you', { exact: true })).toBeVisible({ timeout: 15_000 });
+
+    // Clean up so the pods do not outlive the test.
+    await ok(await page.request.post(`/api/runs/${first}/cancel`), 202, 'cancel first').catch(() => null);
+    await ok(await page.request.post(`/api/runs/${second}/cancel`), 202, 'cancel second').catch(() => null);
+  });
 });

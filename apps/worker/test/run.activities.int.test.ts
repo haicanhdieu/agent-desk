@@ -220,6 +220,15 @@ describe('loadRun', () => {
     });
   });
 
+  it('takes the idle end from config (RUN_IDLE_END_SECONDS), so the local stack can pause quickly', async () => {
+    const runId = await seedRun('x', 'queued');
+    const quick = await createRunActivities(deps({ config: { ...config, RUN_IDLE_END_SECONDS: 7 } })).loadRun(
+      ORG,
+      runId,
+    );
+    expect(quick.idleEndSeconds).toBe(7);
+  });
+
   it('missing run → non-retryable', async () => {
     const err = await createRunActivities(deps())
       .loadRun(ORG, '99999999-9999-4999-8999-999999999999')

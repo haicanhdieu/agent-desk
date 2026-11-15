@@ -13,11 +13,15 @@
 //     with `--fake-background` the turn first logs `state waiting background`, then after FAKE_TURN_MS a wake-up
 //     `state working`, and after another FAKE_TURN_MS the normal end;
 //   - each `\r`-terminated line appended to `input` is echoed to `pane` and queues another turn after the current one;
+//   - FAKE_VOLUME_DIR is the run's volume (the gateway sets it from the Job's claim): a fresh start saves a
+//     `session-started` marker there and mirrors the pane to `pane`; RUN_MODE=resume with no marker logs
+//     `agentdesk: resume failed (no saved session)` and exits 79, otherwise logs `agentdesk: session resumed`, replays
+//     the saved pane and waits for input (no checkout, plugins, setup or first turn), like the real runner;
 //   - on `kill`: log the scrollback (begin marker, pane lines, end marker), write `exit` 0 and exit.
 //   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback);
 //     `--fake-pending`: never start (the pod stays Pending) until killed.
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
-import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
 
@@ -27,12 +31,18 @@ const file = (n) => join(dir, n);
 const prompt = process.env.PROMPT ?? '';
 const setupScript = process.env.SETUP_SCRIPT ?? '';
 const setupTest = process.env.RUN_MODE === 'setup_test';
+const resume = process.env.RUN_MODE === 'resume';
+const volumeDir = process.env.FAKE_VOLUME_DIR ?? '';
+const volumeFile = (n) => join(volumeDir, n);
 const turnMs = Number.parseInt(process.env.FAKE_TURN_MS ?? '', 10) || 2000;
 const maxLifeMs = Number.parseInt(process.env.FAKE_MAX_LIFE_MS ?? '', 10) || 60 * 60 * 1000;
 const TICK_MS = 50;
 
 const log = (line) => appendFileSync(file('log'), `${line}\n`);
-const pane = (text) => appendFileSync(file('pane'), text);
+const pane = (text) => {
+  appendFileSync(file('pane'), text);
+  if (volumeDir !== '' && !setupTest) appendFileSync(volumeFile('pane'), text);
+};
 
 let finished = false;
 function finish(code) {
@@ -56,26 +66,43 @@ if (prompt.includes('--fake-pending')) {
   }, TICK_MS);
 } else {
   writeFileSync(file('started'), new Date().toISOString());
-  log(`agentdesk: checkout ${'0'.repeat(40)}`);
-  log('agentdesk: plugins begin');
-  log('agentdesk: plugins end');
-  let setupFailed = false;
-  if (setupScript === '') {
-    log('agentdesk: setup skipped (no script)');
+  if (resume) {
+    if (volumeDir === '' || !existsSync(volumeFile('session-started'))) {
+      log('agentdesk: resume failed (no saved session)');
+      writeFileSync(file('exit'), '79');
+      process.exit(79);
+    }
+    log('agentdesk: session resumed');
+    log('agentdesk: session started');
+    // Replay the saved conversation into this pod's pane (not mirrored again: the volume already holds it).
+    if (existsSync(volumeFile('pane'))) writeFileSync(file('pane'), readFileSync(volumeFile('pane')));
   } else {
-    log('agentdesk: setup begin');
-    setupFailed = setupScript.includes('--fake-setup-fail');
-    log(setupFailed ? 'agentdesk: setup failed exit=1' : 'agentdesk: setup passed');
-  }
-  if (setupFailed && !setupTest) {
-    writeFileSync(file('exit'), '78');
-    process.exit(78);
-  }
-  log('agentdesk: session started');
-  if (setupTest) pane('$ ');
-  else {
-    pane('\u001b[1mFake Claude Code\u001b[0m (agentdesk fake pod)\r\n> ');
-    pane(`${prompt.split(/\r?\n/).join('\r\n')}\r\n`);
+    log(`agentdesk: checkout ${'0'.repeat(40)}`);
+    log('agentdesk: plugins begin');
+    log('agentdesk: plugins end');
+    let setupFailed = false;
+    if (setupScript === '') {
+      log('agentdesk: setup skipped (no script)');
+    } else {
+      log('agentdesk: setup begin');
+      setupFailed = setupScript.includes('--fake-setup-fail');
+      log(setupFailed ? 'agentdesk: setup failed exit=1' : 'agentdesk: setup passed');
+    }
+    if (setupFailed && !setupTest) {
+      writeFileSync(file('exit'), '78');
+      process.exit(78);
+    }
+    if (volumeDir !== '' && !setupTest) {
+      mkdirSync(volumeDir, { recursive: true });
+      writeFileSync(volumeFile('pane'), '');
+      writeFileSync(volumeFile('session-started'), new Date().toISOString());
+    }
+    log('agentdesk: session started');
+    if (setupTest) pane('$ ');
+    else {
+      pane('\u001b[1mFake Claude Code\u001b[0m (agentdesk fake pod)\r\n> ');
+      pane(`${prompt.split(/\r?\n/).join('\r\n')}\r\n`);
+    }
   }
 
   const fail = prompt.includes('--fake-fail');
@@ -111,7 +138,7 @@ if (prompt.includes('--fake-pending')) {
       }, turnMs);
     } else turnTimer = setTimeout(endTurn, turnMs);
   };
-  if (!setupTest) scheduleTurn();
+  if (!setupTest && !resume) scheduleTurn();
 
   let inputOffset = 0;
   let pending = '';
@@ -130,7 +157,7 @@ if (prompt.includes('--fake-pending')) {
       const line = pending.slice(0, i).replace(/\n/g, '');
       pending = pending.slice(i + 1);
       pane(setupTest ? `${line}\r\n$ ` : `${line}\r\n`);
-      if (!setupTest) scheduleTurn();
+      if (!setupTest && !resume) scheduleTurn();
     }
   }, TICK_MS);
 }

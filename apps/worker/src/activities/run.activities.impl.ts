@@ -10,7 +10,6 @@ import {
   type AgentState,
 } from '@agentdesk/contracts';
 import {
-  IDLE_END_SECONDS,
   REPO_URL_KEY,
   SIGNAL,
   WORKSPACE_TOKEN_KEY,
@@ -112,6 +111,7 @@ export type RunActivityConfig = Pick<
   | 'RUN_POD_RUNTIME_CLASS'
   | 'RUN_VOLUME_STORAGE_CLASS'
   | 'RUN_KEPT_DONE_SESSIONS_PER_PROJECT'
+  | 'RUN_IDLE_END_SECONDS'
 >;
 
 export interface RunActivityTiming {
@@ -378,7 +378,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       // An agent deleted after queueing: fall back to the agents.timeout_seconds default.
       timeoutSeconds: row.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       maxConcurrentRuns: row.maxConcurrentRuns,
-      idleEndSeconds: IDLE_END_SECONDS,
+      idleEndSeconds: deps.config.RUN_IDLE_END_SECONDS,
     };
   }
 

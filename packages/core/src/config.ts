@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
+import { IDLE_END_SECONDS } from './temporal-names';
 
 /** Env values arrive as strings; blank means "unset" (`.env.example` lists optional keys with empty values). */
 const blankToUndefined = (v: unknown): unknown => (typeof v === 'string' && v.trim() === '' ? undefined : v);
@@ -84,6 +85,8 @@ export const ConfigSchema = z
     RUN_VOLUME_STORAGE_CLASS: optional(z.string()),
     /** Finished runs per project whose kept session (volume) survives; older ones are cleaned up. */
     RUN_KEPT_DONE_SESSIONS_PER_PROJECT: blankDefault(z.coerce.number().int().min(0).default(10)),
+    /** Idle time before a run's pod is stopped (the run pauses). A test seam: lower it to see a pause quickly. */
+    RUN_IDLE_END_SECONDS: blankDefault(z.coerce.number().int().min(1).default(IDLE_END_SECONDS)),
     RUN_SETUP_TIMEOUT_SECONDS: blankDefault(z.coerce.number().int().min(1).max(3300).default(600)),
     SETUP_TEST_TTL_SECONDS: blankDefault(z.coerce.number().int().min(60).max(3600).default(900)),
     FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
