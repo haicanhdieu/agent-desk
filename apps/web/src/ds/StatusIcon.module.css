@@ -1,0 +1,19 @@
+/* `starting` ring: rotate around its own centre (fill-box), so the dashes circle like a loader. */
+.spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Motion off: the dashed ring stays as a static glyph, so status is still carried by shape. */
+@media (prefers-reduced-motion: reduce) {
+  .spin {
+    animation: none;
+  }
+}
