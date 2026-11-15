@@ -2,8 +2,6 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { agents, withOrg, type Db } from '@agentdesk/db';
 import {
-  AGENT_DONE_KEEP_SECONDS_DEFAULT,
-  AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
   CredentialType,
   type AgentDto,
   type PutAgentRequest,
@@ -27,9 +25,8 @@ function toDto(row: AgentRow): AgentDto {
     model: row.model,
     maxTurns: row.maxTurns,
     timeoutSeconds: row.timeoutSeconds,
-    // Columns arrive with the migration; until then every agent has the defaults.
-    pausedKeepSeconds: AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
-    doneKeepSeconds: AGENT_DONE_KEEP_SECONDS_DEFAULT,
+    pausedKeepSeconds: row.pausedKeepSeconds,
+    doneKeepSeconds: row.doneKeepSeconds,
     credential: {
       set: type !== null && row.credentialUpdatedAt !== null,
       type,
@@ -60,7 +57,14 @@ export class AgentsService {
     return withOrg(this.db, org.orgId, async (tx) => {
       const [row] = await tx
         .update(agents)
-        .set({ model: body.model, maxTurns: body.maxTurns ?? null, timeoutSeconds: body.timeoutSeconds })
+        .set({
+          model: body.model,
+          maxTurns: body.maxTurns ?? null,
+          timeoutSeconds: body.timeoutSeconds,
+          // Absent keeps the stored value (undefined is skipped by drizzle).
+          pausedKeepSeconds: body.pausedKeepSeconds,
+          doneKeepSeconds: body.doneKeepSeconds,
+        })
         .where(eq(agents.projectId, projectId))
         .returning();
       if (!row) throw new NotFoundException('Agent not found');

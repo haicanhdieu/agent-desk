@@ -114,8 +114,8 @@ export class SseService implements OnModuleDestroy {
           failureReason: run.failureReason,
           waitingOn: run.waitingOn === null ? null : WaitingOn.parse(run.waitingOn),
           agentNote: run.agentNote,
-          pausedAt: null,
-          sessionExpiresAt: null,
+          pausedAt: run.pausedAt?.toISOString() ?? null,
+          sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null,
         },
         events: rows.map((e) =>
           RunEventMessage.parse({ seq: e.seq, ts: e.ts.toISOString(), type: e.type, payload: e.payload }),

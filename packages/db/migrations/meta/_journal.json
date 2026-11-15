@@ -78,6 +78,13 @@
       "when": 1794720481122,
       "tag": "0010_agent_timeout_7_days",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794743315624,
+      "tag": "0011_run_pause_resume",
+      "breakpoints": true
     }
   ]
 }

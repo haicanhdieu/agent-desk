@@ -136,12 +136,12 @@ expect(PutAgentRequest.safeParse({ model: 'm', timeoutSeconds: 60 }).success).to
 - Checks: `runs_status_check` re-created with `'paused','expired'` added; `agents_paused_keep_check` (`between 3600 and 2592000`); `agents_done_keep_check` (`between 0 and 604800`).
 - Index `runs_project_session_idx` on `(project_id, session_expires_at)`.
 
-- [ ] **Step 1: Write failing tests:** the migration applies on a database at `0010`; a row with status `paused` inserts; `paused_keep_seconds = 3599` is rejected; existing agent rows get `604800` and `86400`; the migration file contains no `update`, `delete` or `insert` on `runs`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db test` — expect FAIL.
-- [ ] **Step 3: Implement** the schema change and generate the migration. Comment in the schema that the literals mirror the contracts constants (db cannot import contracts).
-- [ ] **Step 4: Wire the API mappers** to the new columns; `PUT` agent writes the two fields when present. Extend `apps/api/test/agents.int.test.ts`: saving `pausedKeepSeconds: 86400` round-trips; omitting it keeps the stored value.
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/db test && pnpm --filter @agentdesk/api test` — expect PASS.
-- [ ] **Step 6: Commit** `feat(db): session columns on runs and keep settings on agents`.
+- [x] **Step 1: Write failing tests:** the migration applies on a database at `0010`; a row with status `paused` inserts; `paused_keep_seconds = 3599` is rejected; existing agent rows get `604800` and `86400`; the migration file contains no `update`, `delete` or `insert` on `runs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db test` — expect FAIL.
+- [x] **Step 3: Implement** the schema change and generate the migration. Comment in the schema that the literals mirror the contracts constants (db cannot import contracts).
+- [x] **Step 4: Wire the API mappers** to the new columns; `PUT` agent writes the two fields when present. Extend `apps/api/test/agents.int.test.ts`: saving `pausedKeepSeconds: 86400` round-trips; omitting it keeps the stored value.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/db test && pnpm --filter @agentdesk/api test` — expect PASS.
+- [x] **Step 6: Commit** `feat(db): session columns on runs and keep settings on agents`.
 
 ---
 

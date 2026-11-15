@@ -136,9 +136,8 @@ export class RunsService {
       idleSince: row.idleSince?.toISOString() ?? null,
       waitingOn: row.waitingOn === null ? null : WaitingOn.parse(row.waitingOn),
       agentNote: row.agentNote,
-      // Columns arrive with the migration; until then no run is paused or keeps a session.
-      pausedAt: null,
-      sessionExpiresAt: null,
+      pausedAt: row.pausedAt?.toISOString() ?? null,
+      sessionExpiresAt: row.sessionExpiresAt?.toISOString() ?? null,
     };
   }
 

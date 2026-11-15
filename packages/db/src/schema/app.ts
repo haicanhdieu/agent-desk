@@ -101,12 +101,18 @@ export const agents = pgTable(
     maxTurns: integer('max_turns'),
     // Run time limit: 60 s to 7 days, default 24 h (ADR 0021). Mirrors AGENT_TIMEOUT_SECONDS_* in contracts.
     timeoutSeconds: integer('timeout_seconds').notNull().default(86400),
+    // Kept-session settings. The literals mirror AGENT_PAUSED_KEEP_SECONDS_* and AGENT_DONE_KEEP_SECONDS_* in
+    // @agentdesk/contracts (db cannot import contracts): paused 1 h to 30 days, default 7 days; done 0 to 7 days, default 24 h.
+    pausedKeepSeconds: integer('paused_keep_seconds').notNull().default(604800),
+    doneKeepSeconds: integer('done_keep_seconds').notNull().default(86400),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [
     unique('agents_project_name_key').on(t.projectId, t.name),
     index('agents_org_idx').on(t.orgId),
     check('agents_timeout_check', sql`${t.timeoutSeconds} between 60 and 604800`),
+    check('agents_paused_keep_check', sql`${t.pausedKeepSeconds} between 3600 and 2592000`),
+    check('agents_done_keep_check', sql`${t.doneKeepSeconds} between 0 and 604800`),
     check('agents_credential_type_check', sql`${t.credentialType} in ('oauth_token','api_key')`),
     orgPolicy(),
   ],
@@ -219,6 +225,10 @@ export const runs = pgTable(
     waitingOn: text('waiting_on'),
     /** One-line note the agent gave when it went idle or done. Null otherwise. */
     agentNote: text('agent_note'),
+    /** When the run was paused (its pod stopped, files and conversation kept). Null otherwise. */
+    pausedAt: ts('paused_at'),
+    /** When the kept session (paused, or succeeded and kept) is discarded. Null when nothing is kept. */
+    sessionExpiresAt: ts('session_expires_at'),
   },
   (t) => [
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
@@ -230,9 +240,11 @@ export const runs = pgTable(
     index('runs_project_queued_idx').on(t.projectId, t.queuedAt.desc().nullsFirst(), t.id),
     index('runs_agent_idx').on(t.agentId),
     index('runs_inbound_event_idx').on(t.inboundEventId),
+    index('runs_project_session_idx').on(t.projectId, t.sessionExpiresAt),
+    // Status literals mirror RUN_STATUSES in @agentdesk/contracts (db cannot import contracts).
     check(
       'runs_status_check',
-      sql`${t.status} in ('queued','starting','running','idle','done','succeeded','failed','cancelled','timed_out')`,
+      sql`${t.status} in ('queued','starting','running','idle','paused','done','succeeded','failed','cancelled','timed_out','expired')`,
     ),
     check('runs_waiting_on_check', sql`${t.waitingOn} in ('background')`),
     check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),

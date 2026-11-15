@@ -77,6 +77,48 @@ describe('bootstrap and migrations', () => {
     expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
   });
 
+  it('the pause and resume migration changes no runs rows', async () => {
+    const sqlText = await readFile(new URL('../migrations/0011_run_pause_resume.sql', import.meta.url), 'utf8');
+    expect(sqlText).not.toMatch(/\b(update|delete|insert)\s+(from\s+|into\s+)?"?runs"?/i);
+  });
+
+  it('agents keep settings default to 7 days paused and 24 h done, with range checks', async () => {
+    const cols = await query<{ column_name: string; column_default: string; is_nullable: string }>(
+      env.ownerUrl,
+      `select column_name, column_default, is_nullable from information_schema.columns
+       where table_name = 'agents' and column_name in ('paused_keep_seconds','done_keep_seconds') order by 1`,
+    );
+    expect(cols).toEqual([
+      { column_name: 'done_keep_seconds', column_default: '86400', is_nullable: 'NO' },
+      { column_name: 'paused_keep_seconds', column_default: '604800', is_nullable: 'NO' },
+    ]);
+    const checks = await query<{ conname: string; def: string }>(
+      env.ownerUrl,
+      `select conname, pg_get_constraintdef(oid) as def from pg_constraint
+       where conname in ('agents_paused_keep_check','agents_done_keep_check') order by 1`,
+    );
+    expect(checks.map((c) => c.conname)).toEqual(['agents_done_keep_check', 'agents_paused_keep_check']);
+    expect(checks[0]?.def).toMatch(/>= 0\).*<= 604800/);
+    expect(checks[1]?.def).toMatch(/>= 3600\).*<= 2592000/);
+  });
+
+  it('runs have nullable paused_at and session_expires_at, and the session index exists', async () => {
+    const cols = await query<{ column_name: string; is_nullable: string; data_type: string }>(
+      env.ownerUrl,
+      `select column_name, is_nullable, data_type from information_schema.columns
+       where table_name = 'runs' and column_name in ('paused_at','session_expires_at') order by 1`,
+    );
+    expect(cols).toEqual([
+      { column_name: 'paused_at', is_nullable: 'YES', data_type: 'timestamp with time zone' },
+      { column_name: 'session_expires_at', is_nullable: 'YES', data_type: 'timestamp with time zone' },
+    ]);
+    const [idx] = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where indexname = 'runs_project_session_idx'",
+    );
+    expect(idx?.indexdef).toContain('(project_id, session_expires_at)');
+  });
+
   it('all app tables have org_id not null (except inbound_events)', async () => {
     const rows = await query<{ table_name: string; is_nullable: string; data_type: string }>(
       env.ownerUrl,
@@ -255,6 +297,41 @@ describe('bootstrap and migrations', () => {
           c.query(`update runs set failure_stage = 'bogus' where trigger_comment_id = 'c-2'`).then(() => undefined),
         ),
       ).rejects.toMatchObject({ code: '23514' });
+    });
+
+    it('runs accept paused and expired, still reject unknown statuses', async () => {
+      for (const status of ['paused', 'expired']) {
+        await inOrg((c) =>
+          c.query(`update runs set status = '${status}' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        );
+      }
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set status = 'bogus' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
+    it('agents reject paused_keep_seconds 3599 and done_keep_seconds out of range; existing rows get defaults', async () => {
+      const ins = (extra: string) =>
+        inOrg((c) =>
+          c
+            .query(
+              `insert into agents (org_id, project_id, name, model${extra ? ', ' + extra.split('=')[0] : ''})
+               values ($1, $2, 'a-${randomUUID()}', 'm'${extra ? ', ' + extra.split('=')[1] : ''})`,
+              [orgId, projectId],
+            )
+            .then(() => undefined),
+        );
+      await expect(ins('paused_keep_seconds=3599')).rejects.toMatchObject({ code: '23514' });
+      await expect(ins('done_keep_seconds=604801')).rejects.toMatchObject({ code: '23514' });
+      await ins('');
+      const rows = await query<{ paused_keep_seconds: number; done_keep_seconds: number }>(
+        env.adminUrl.replace(/\/[^/]*$/, '/agentdesk'),
+        'select paused_keep_seconds, done_keep_seconds from agents',
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      for (const r of rows) expect(r).toEqual({ paused_keep_seconds: 604800, done_keep_seconds: 86400 });
     });
 
     it('projects accept the setup onboarding step, keep existing steps valid and reject unknown ones', async () => {
