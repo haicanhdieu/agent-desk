@@ -279,7 +279,7 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 - Modify: `apps/web/CONTRACT-GAPS.md` (remove the three rows for `kind`/`prompt`, `rules.promptPreview` and `ruleKind`/`prompt`/`finalPrompt`; add one line under "Resolved" naming them)
 - Modify: `docs/conventions/security.md` §8 only if the prompt template bullet needs "custom prompt rules" named (it already lists "the prompt template")
 
-- [ ] **Step 1:** Edit the docs. Run `pnpm --filter @agentdesk/web parity` locally for DeskRulesPrompt, DeskRulesPromptNew, DeskRulesPromptError, RunPrompt (review by hand; not part of `pnpm test`).
-- [ ] **Step 2: Run** `devbox run check` and `pnpm test:unit:coverage`; report real results. `format:check` may fail repo-wide (known); `devbox run fix` covers changed files.
-- [ ] **Step 3: Commit** `docs(web): close the rule custom prompt contract gaps`.
+- [x] **Step 1:** Edit the docs. Run `pnpm --filter @agentdesk/web parity` locally for DeskRulesPrompt, DeskRulesPromptNew, DeskRulesPromptError, RunPrompt (review by hand; not part of `pnpm test`).
+- [x] **Step 2: Run** `devbox run check` and `pnpm test:unit:coverage`; report real results. `format:check` may fail repo-wide (known); `devbox run fix` covers changed files.
+- [x] **Step 3: Commit** `docs(web): close the rule custom prompt contract gaps`.
 - [ ] **Step 4: PR** via the `create-pr` skill: label `review:sensitive`; body states the over-size decision, the accepted RBAC risk, and the judgment calls (write-once `final_prompt`, "Custom prompt" in the run list skill column, `kind` required on create).
