@@ -39,8 +39,8 @@ function NeedsYouRoute() {
   });
 
   const runs: NeedsYouRun[] = idle.items.map((r) => {
-    // A paused run lists from the moment it paused.
-    const since = r.pausedAt ?? r.idleSince ?? r.startedAt ?? r.queuedAt;
+    // A paused run lists from the moment it paused; pausedAt is history once it has been resumed.
+    const since = (r.status === 'paused' ? r.pausedAt : null) ?? r.idleSince ?? r.startedAt ?? r.queuedAt;
     return {
       run: toRunSummary(r, now),
       href: runHref(page.paths, r.number),

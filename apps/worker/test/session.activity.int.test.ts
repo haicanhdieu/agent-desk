@@ -5,6 +5,7 @@ import { FakeKubeGateway, MemorySecretStore, createAdapterRegistry, parseConfig,
 import { createDb, runEvents, runs, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { RunContext } from '../src/activities/run.activities';
+import { setRunStatus } from '../src/activities/run-status.activity';
 import { createRunActivities, type RunActivityDeps, type RunSignaller } from '../src/activities/run.activities.impl';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -294,6 +295,26 @@ describe('restoreParked', () => {
     expect(text).not.toContain(CRED);
     expect(text).not.toContain('\n');
     expect(text.length).toBeLessThanOrEqual(500);
+  });
+
+  it('a failed resume (paused, queued, starting, restoreParked) leaves paused_at as it was', async () => {
+    const p = await seedProject();
+    const runId = await seedRun(p, 'idle', atPlus(5000), 'Which database?');
+    const base = { orgId: ORG, runId, keepAgentNote: true };
+    await setRunStatus(db, { ...base, status: 'paused', session: { expiresAt: atPlus(5000) }, at: atPlus(10) });
+    await setRunStatus(db, { ...base, status: 'queued', at: atPlus(20) });
+    await setRunStatus(db, { ...base, status: 'starting', at: atPlus(30) });
+    await acts().restoreParked(await ctxFor(runId), {
+      kind: 'needs_input',
+      sessionExpiresAt: atPlus(5000),
+      reason: 'pod failed',
+      at: atPlus(60),
+    });
+    const { run, events } = await load(runId);
+    expect(run?.status).toBe('paused');
+    expect(run?.pausedAt?.toISOString()).toBe(atPlus(10));
+    const last = events.filter((e) => e.type === 'status').at(-1);
+    expect(last?.payload).toMatchObject({ status: 'paused', pausedAt: atPlus(10) });
   });
 
   it('puts a done run back as succeeded with its session', async () => {

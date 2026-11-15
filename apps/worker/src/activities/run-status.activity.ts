@@ -107,7 +107,10 @@ export async function setRunStatusTx(
   // A final status other than `succeeded` ends the kept session; `succeeded` keeps whatever is set or given.
   const endsSession = isFinal(status) && status !== 'succeeded';
   const newExpiry = endsSession ? null : sessionExpiresAt === undefined ? run.sessionExpiresAt : sessionExpiresAt;
-  const pausedAt = input.session ? at : run.pausedAt;
+  // paused_at means "the pod was last stopped by the idle timer". A session sets it; `session: null` on a live status
+  // (the resume succeeded, the kept session is over) clears it. Everything else keeps it: queued/starting are written
+  // mid-resume and a failed resume restores the parked run as it was, and finals keep it as history.
+  const pausedAt = input.session ? at : input.session === null && !isFinal(status) ? null : run.pausedAt;
 
   await tx
     .update(runs)
@@ -116,7 +119,7 @@ export async function setRunStatusTx(
       ...(status === 'running' && run.startedAt === null ? { startedAt: at } : {}),
       ...(isFinal(status) ? { finishedAt: at } : {}),
       ...(reopening ? { finishedAt: null, exitCode: null } : {}),
-      ...(input.session ? { pausedAt: at } : {}),
+      pausedAt,
       ...(endsSession || sessionExpiresAt !== undefined ? { sessionExpiresAt: newExpiry } : {}),
       // `paused` is parked: idle_since stays as the idle write left it.
       ...(status === 'paused' ? {} : { idleSince: parked ? at : null }),

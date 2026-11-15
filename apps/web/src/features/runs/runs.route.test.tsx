@@ -263,6 +263,22 @@ describe('needs-you route', () => {
     );
   });
 
+  it('an idle run that was paused earlier lists from its idle time, not the old pause time', async () => {
+    const stale = '2026-11-01T03:07:00.000Z';
+    mockDb.state.runs = mockDb.state.runs.map((r) => (r.number === 62 ? { ...r, pausedAt: stale } : r));
+    const idleSince = mockDb.state.runs.find((r) => r.number === 62)?.idleSince;
+    expect(idleSince).toBeTruthy();
+    await renderRoute(`${base}/needs-you`);
+    await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
+    const hhmm = (iso: string) => {
+      const d = new Date(iso);
+      return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+    expect(hhmm(stale)).not.toBe(hhmm(idleSince ?? ''));
+    expect(screen.getByText(new RegExp(`edited ${hhmm(idleSince ?? '')}`))).toBeInTheDocument();
+    expect(screen.queryByText(new RegExp(`edited ${hhmm(stale)}`))).not.toBeInTheDocument();
+  });
+
   it('a Resume that the server refuses shows its message', async () => {
     const { user } = await renderRoute(`${base}/needs-you`, {
       scenario: () => scenarios.problem('runs.resume', { status: 409, title: 'This run is already being resumed' }),
