@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Ticket, TicketEvent } from '../src/adapters/types';
-import { buildPrompt } from '../src/router/prompt';
+import {
+  PROMPT_PREVIEW_ARGS,
+  PROMPT_PREVIEW_TICKET,
+  buildPrompt,
+  promptSourceOf,
+  promptSystemLines,
+} from '../src/router/prompt';
 import { parseCommand } from '../src/router/parse-command';
 import { routeEvent, type RouteInput, type RuleRow } from '../src/router/route-event';
 
@@ -307,5 +313,77 @@ describe('buildPrompt', () => {
     expect(buildPrompt({ skillName: 's', ticketKind: 'pr', ticketNumber: 1, repoPath: 'a/b', args: '' })).toContain(
       'on pull request #1 in a/b.',
     );
+  });
+});
+
+const STATUS_LINE =
+  'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.';
+
+describe('buildPrompt with a custom prompt', () => {
+  it('renders a custom prompt as written, then the four system lines', () => {
+    expect(
+      buildPrompt({
+        customPrompt: 'Triage this.\nAdd labels.',
+        ticketKind: 'issue',
+        ticketNumber: 7,
+        repoPath: 'acme/app',
+        args: 'fast',
+      }),
+    ).toBe(
+      [
+        'Triage this.',
+        'Add labels.',
+        'Ticket: issue #7 in acme/app. Read it and all its comments with the gh CLI before you start.',
+        'Arguments from the user: fast',
+        'When done, report on the ticket.',
+        STATUS_LINE,
+      ].join('\n'),
+    );
+  });
+
+  it('keeps line breaks in the custom prompt but collapses args and repo to one line', () => {
+    const out = buildPrompt({
+      customPrompt: 'a\nb',
+      ticketKind: 'issue',
+      ticketNumber: 7,
+      repoPath: 'x\ny/z',
+      args: 'l1\nl2 l3',
+    });
+    expect(out.startsWith('a\nb\n')).toBe(true);
+    expect(out).toContain('Arguments from the user: l1 l2 l3');
+    expect(out.split('\n').slice(-4)).toEqual(
+      promptSystemLines({ ticket: 'issue #7', repoPath: 'x y/z', args: 'l1\nl2 l3' }),
+    );
+  });
+
+  it('says pull request for a pr in a custom prompt', () => {
+    expect(buildPrompt({ customPrompt: 'p', ticketKind: 'pr', ticketNumber: 3, repoPath: 'a/b', args: '' })).toContain(
+      'Ticket: pull request #3 in a/b.',
+    );
+  });
+});
+
+describe('promptSystemLines', () => {
+  it('renders the preview placeholders', () => {
+    const lines = promptSystemLines({
+      ticket: PROMPT_PREVIEW_TICKET,
+      repoPath: 'acme/app',
+      args: PROMPT_PREVIEW_ARGS,
+    });
+    expect(lines).toEqual([
+      'Ticket: <issue or PR #number> in acme/app. Read it and all its comments with the gh CLI before you start.',
+      'Arguments from the user: <text after /command>',
+      'When done, report on the ticket.',
+      STATUS_LINE,
+    ]);
+    expect(lines[3]).toMatch(/^Before you end a turn, run `agentdesk-status done/);
+  });
+});
+
+describe('promptSourceOf', () => {
+  it('picks the skill, else the prompt, and throws on neither', () => {
+    expect(promptSourceOf({ skillName: 's', prompt: null })).toEqual({ skillName: 's' });
+    expect(promptSourceOf({ skillName: null, prompt: 'p' })).toEqual({ customPrompt: 'p' });
+    expect(() => promptSourceOf({ skillName: null, prompt: null })).toThrow('run has neither a skill nor a prompt');
   });
 });

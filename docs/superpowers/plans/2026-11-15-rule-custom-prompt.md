@@ -62,17 +62,17 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
   - `PROMPT_PREVIEW_TICKET = '<issue or PR #number>'`, `PROMPT_PREVIEW_ARGS = '<text after /command>'`
   - `promptSourceOf(row: { skillName: string | null; prompt: string | null }): PromptSource` — throws `Error('run has neither a skill nor a prompt')` when both are null; prompt wins only when `skillName` is null (the DB check makes "both" impossible on rules).
 
-- [ ] **Step 1: Write the failing tests** in `router.test.ts`:
+- [x] **Step 1: Write the failing tests** in `router.test.ts`:
   - `it('renders a custom prompt as written, then the four system lines')`: `buildPrompt({ customPrompt: 'Triage this.\nAdd labels.', ticketKind: 'issue', ticketNumber: 7, repoPath: 'acme/app', args: 'fast' })` equals the five-plus-one lines from Global Constraints with `Ticket: issue #7 in acme/app. …`.
   - `it('keeps line breaks in the custom prompt but collapses args and repo to one line')`: custom `'a\nb'`, args `'l1\nl2 l3'` → output starts `'a\nb\n'`, contains `'Arguments from the user: l1 l2 l3'`, and `out.split('\n').slice(-4)` equals `promptSystemLines({ ticket: 'issue #7', repoPath, args })`.
   - `it('says pull request for a pr in a custom prompt')`.
   - `it('promptSystemLines with the preview placeholders')`: `promptSystemLines({ ticket: PROMPT_PREVIEW_TICKET, repoPath: 'acme/app', args: PROMPT_PREVIEW_ARGS })` toEqual the four lines with placeholders; last line starts ``'Before you end a turn, run `agentdesk-status done'``.
   - `it('promptSourceOf picks the skill, else the prompt, and throws on neither')`.
   - Existing skill tests stay unchanged (they pin the five-line skill template).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts` — expect FAIL (`promptSystemLines` not exported).
-- [ ] **Step 3: Implement** in `prompt.ts`. The skill branch keeps today's array; the prompt branch is `[p.customPrompt, ...promptSystemLines({ ticket: \`${kind} #${p.ticketNumber}\`, repoPath: p.repoPath, args: p.args })].join('\n')`. `promptSystemLines` applies `oneLine` to `repoPath` and `args`. Discriminate with `'customPrompt' in p`. Update the doc comment ("five lines for a skill rule; custom prompt plus four lines otherwise").
-- [ ] **Step 4: Run** the router tests and `pnpm --filter @agentdesk/core typecheck` — PASS (the worker call site still passes `{ skillName }`, which fits the union).
-- [ ] **Step 5: Commit** `feat(core): custom prompt branch in buildPrompt with shared system lines`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts` — expect FAIL (`promptSystemLines` not exported).
+- [x] **Step 3: Implement** in `prompt.ts`. The skill branch keeps today's array; the prompt branch is `[p.customPrompt, ...promptSystemLines({ ticket: \`${kind} #${p.ticketNumber}\`, repoPath: p.repoPath, args: p.args })].join('\n')`. `promptSystemLines` applies `oneLine` to `repoPath` and `args`. Discriminate with `'customPrompt' in p`. Update the doc comment ("five lines for a skill rule; custom prompt plus four lines otherwise").
+- [x] **Step 4: Run** the router tests and `pnpm --filter @agentdesk/core typecheck` — PASS (the worker call site still passes `{ skillName }`, which fits the union).
+- [x] **Step 5: Commit** `feat(core): custom prompt branch in buildPrompt with shared system lines`.
 
 ### Task 2: Schema and migration (db, sensitive: migration)
 
