@@ -419,11 +419,11 @@ Rules, added after the existing ones, per org under `withOrg`:
 - A `succeeded` run with a kept session whose workflow is closed gets `sessionExpiresAt` cleared.
 - Existing Job and Secret rules must not treat a run with a kept session as leaked: such a run legitimately has a volume and no Job or Secret. The existing rule "a Secret whose Job is gone while the run is past `starting`" stays (a parked run has no Secret).
 
-- [ ] **Step 1: Write failing tests,** one per rule above, plus: a volume of a `paused` run with an open workflow and a future expiry is kept; a volume of a `running` run is kept; a failure deleting one volume is logged (error name only) and the next one is still processed.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): reconcile cleans up run volumes`.
+- [x] **Step 1: Write failing tests,** one per rule above, plus: a volume of a `paused` run with an open workflow and a future expiry is kept; a volume of a `running` run is kept; a failure deleting one volume is logged (error name only) and the next one is still processed.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): reconcile cleans up run volumes`.
 
 ---
 

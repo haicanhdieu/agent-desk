@@ -1,7 +1,9 @@
 import { inArray } from 'drizzle-orm';
-import { FINAL_RUN_STATUSES } from '@agentdesk/contracts';
+import { FINAL_RUN_STATUSES, isSettled, RunStatus } from '@agentdesk/contracts';
 import { runWorkflowId, type Clock, type KubeGateway } from '@agentdesk/core';
 import { runs, setupTests, withOrg, type Db } from '@agentdesk/db';
+import { and, eq } from 'drizzle-orm';
+import { setRunStatusTx } from './run-status.activity';
 
 /** The Temporal operations reconcile needs (implemented over the client in temporal-ops.ts). */
 export interface ReconcileTemporal {
@@ -32,6 +34,9 @@ export interface ReconcileDeps {
 /** Slack on top of ttl + setup timeout before a setup test's Job or Secret counts as leaked. */
 const SETUP_TEST_GRACE_SECONDS = 600;
 
+/** A kept session's volume is deleted this long after `sessionExpiresAt` if its workflow has not already done so. */
+export const SESSION_EXPIRY_GRACE_SECONDS = 3600;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const isFinal = (s: string): boolean => (FINAL_RUN_STATUSES as readonly string[]).includes(s);
 
@@ -43,6 +48,10 @@ export interface ReconcileResult {
   /** Setup-test Jobs and Secrets deleted (their test is missing, ended or overdue); never run objects. */
   deletedSetupTestJobs: number;
   deletedSetupTestSecrets: number;
+  /** Run volume claims deleted (run missing, settled, session long expired, or workflow closed). */
+  deletedVolumes: number;
+  /** Paused runs whose workflow was closed, written as `expired`. */
+  expiredRuns: number;
 }
 
 /** Statuses during which a Secret may legitimately exist without its Job (createRunSecretAndJob in flight). */
@@ -57,6 +66,10 @@ const CREATING = new Set(['queued', 'starting']);
  *     `releaseSlot`).
  * (4) Deletes setup-test Jobs and Secrets whose test row is missing, has `ended_at`, or is older than
  *     `created_at + ttl + setup timeout + 600 s` (a Secret is also deleted when its Job never existed).
+ * (5) Deletes run volume claims whose run is missing or settled, whose kept session expired over
+ *     SESSION_EXPIRY_GRACE_SECONDS ago, or whose workflow is closed. A `paused` run with a closed workflow is first
+ *     written as `expired`; a `succeeded` run with a kept session and a closed workflow loses its session expiry.
+ *     A run with a kept session has a volume and no Job or Secret; that is not a leak.
  * Runs are looked up per org from the objects' labels, each under `withOrg`. Every step is idempotent; a failure on
  * one object is logged (error name only) and skipped.
  */
@@ -68,6 +81,8 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
     releasedSlots: 0,
     deletedSetupTestJobs: 0,
     deletedSetupTestSecrets: 0,
+    deletedVolumes: 0,
+    expiredRuns: 0,
   };
   const warn = (msg: string, meta: Record<string, unknown>, err: unknown): void =>
     deps.log?.warn(msg, { ...meta, error: err instanceof Error ? err.name : 'unknown' });
@@ -136,6 +151,8 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
     }
   }
 
+  await reconcileVolumes(deps, out, warn, isOpen);
+
   await reconcileSetupTests(deps, out, warn);
 
   for (const projectId of await temporal.listOpenGateProjectIds()) {
@@ -150,6 +167,73 @@ export async function reconcile(deps: ReconcileDeps): Promise<ReconcileResult> {
     }
   }
   return out;
+}
+
+/** Run volume claims, judged per run under `withOrg`. A malformed label belongs to no run (run missing → deleted). */
+async function reconcileVolumes(
+  deps: ReconcileDeps,
+  out: ReconcileResult,
+  warn: (msg: string, meta: Record<string, unknown>, err: unknown) => void,
+  isOpen: (runId: string) => Promise<boolean>,
+): Promise<void> {
+  const { db, kube } = deps;
+  const now = (deps.clock ?? { now: () => new Date() }).now();
+  const volumes = await kube.listRunVolumeClaims();
+  const idsByOrg = new Map<string, Set<string>>();
+  for (const v of volumes) {
+    if (!UUID.test(v.orgId) || !UUID.test(v.runId)) continue;
+    idsByOrg.set(v.orgId, (idsByOrg.get(v.orgId) ?? new Set()).add(v.runId));
+  }
+  const rows = new Map<string, { status: string; sessionExpiresAt: Date | null }>();
+  for (const [orgId, ids] of idsByOrg) {
+    const found = await withOrg(db, orgId, (tx) =>
+      tx
+        .select({ id: runs.id, orgId: runs.orgId, status: runs.status, sessionExpiresAt: runs.sessionExpiresAt })
+        .from(runs)
+        .where(inArray(runs.id, [...ids])),
+    );
+    for (const r of found) rows.set(`${r.orgId}/${r.id}`, r);
+  }
+
+  for (const v of volumes) {
+    try {
+      const row = rows.get(`${v.orgId}/${v.runId}`);
+      const parsed = row ? RunStatus.safeParse(row.status) : null;
+      let doDelete = row === undefined || parsed === null || !parsed.success;
+      if (row && parsed?.success) {
+        const status = parsed.data;
+        const closed = !(await isOpen(v.runId));
+        const expiresAt = row.sessionExpiresAt;
+        const longExpired =
+          expiresAt !== null && expiresAt.getTime() < now.getTime() - SESSION_EXPIRY_GRACE_SECONDS * 1000;
+        doDelete =
+          closed || longExpired || isSettled({ status, sessionExpiresAt: expiresAt?.toISOString() ?? null }, now);
+        if (closed && status === 'paused') {
+          const changed = await withOrg(db, v.orgId, async (tx) => {
+            const res = await setRunStatusTx(
+              tx,
+              { orgId: v.orgId, runId: v.runId, status: 'expired', session: null, at: now.toISOString() },
+              { onlyFrom: ['paused'] },
+            );
+            return res.changed;
+          });
+          if (changed) out.expiredRuns += 1;
+        } else if (closed && status === 'succeeded' && expiresAt !== null) {
+          await withOrg(db, v.orgId, (tx) =>
+            tx
+              .update(runs)
+              .set({ sessionExpiresAt: null })
+              .where(and(eq(runs.id, v.runId), eq(runs.status, 'succeeded'))),
+          );
+        }
+      }
+      if (!doDelete) continue;
+      await kube.deleteVolumeClaim(v.name);
+      out.deletedVolumes += 1;
+    } catch (err) {
+      warn('reconcile: volume cleanup failed', { volume: v.name }, err);
+    }
+  }
 }
 
 /**

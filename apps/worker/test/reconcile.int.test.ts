@@ -11,6 +11,7 @@ import {
   parseConfig,
   runJobName,
   runLabels,
+  runVolumeName,
   runPodConfigFrom,
   setupTestJobName,
   setupTestLabels,
@@ -252,5 +253,161 @@ describe('reconcile: setup tests', () => {
     expect(await exists(name)).toEqual({ job: true, secret: true });
     await kube.deleteJob(name);
     await kube.deleteSecret(name);
+  });
+});
+
+interface SeedVolumeRun {
+  status: string;
+  sessionExpiresAt?: Date | null;
+}
+
+async function seedRunWith(o: SeedVolumeRun): Promise<string> {
+  return asOwner(async (c) => {
+    const r = await c.query<{ id: string }>(
+      `insert into runs (org_id, project_id, command, skill_name, ticket_ref, ticket_kind, ticket_number, checkout_ref,
+         args, status, trigger_source, session_expires_at, paused_at, finished_at)
+       values ($1, $2, 'fix', 'fix', '7', 'issue', 7, 'main', '', $3, 'manual', $4, $5, $6) returning id`,
+      [
+        ORG,
+        projectId,
+        o.status,
+        o.sessionExpiresAt ?? null,
+        o.status === 'paused' ? new Date() : null,
+        ['succeeded', 'expired'].includes(o.status) ? new Date() : null,
+      ],
+    );
+    const id = r.rows[0]?.id;
+    if (!id) throw new Error('seed failed');
+    return id;
+  });
+}
+
+const volumeNames = async (): Promise<string[]> => (await kube.listRunVolumeClaims()).map((v) => v.name);
+const addVolume = (runId: string): Promise<void> =>
+  kube.ensureVolumeClaim(runVolumeName(runId), { size: '1Gi' }, runLabels({ runId, orgId: ORG, projectId }));
+const rowOf = async (id: string): Promise<{ status: string; session_expires_at: Date | null }> =>
+  asOwner(async (c) => {
+    const r = await c.query<{ status: string; session_expires_at: Date | null }>(
+      `select status, session_expires_at from runs where id = $1`,
+      [id],
+    );
+    const row = r.rows[0];
+    if (!row) throw new Error('missing');
+    return row;
+  });
+const inFuture = (s: number): Date => new Date(Date.now() + s * 1000);
+const openSet = (id: string): Set<string> => new Set([`run-${id}`]);
+
+describe('reconcile: run volumes', () => {
+  it('deletes the volume of a run that does not exist', async () => {
+    const id = randomUUID();
+    await addVolume(id);
+    const out = await run();
+    expect(await volumeNames()).not.toContain(runVolumeName(id));
+    expect(out.deletedVolumes).toBeGreaterThanOrEqual(1);
+  });
+
+  it('deletes the volume of a settled run (final, no kept session)', async () => {
+    const id = await seedRunWith({ status: 'failed' });
+    await addVolume(id);
+    await run(undefined, openSet(id));
+    expect(await volumeNames()).not.toContain(runVolumeName(id));
+  });
+
+  it('keeps the volume of a succeeded run whose kept session has not expired', async () => {
+    const id = await seedRunWith({ status: 'succeeded', sessionExpiresAt: inFuture(7200) });
+    await addVolume(id);
+    await run(undefined, openSet(id));
+    expect(await volumeNames()).toContain(runVolumeName(id));
+    await kube.deleteVolumeClaim(runVolumeName(id));
+  });
+
+  it('deletes the volume when the session expired more than 3600 s ago, keeps it inside the grace', async () => {
+    const expires = new Date(Date.now() + 10_000_000);
+    const id = await seedRunWith({ status: 'paused', sessionExpiresAt: expires });
+    await addVolume(id);
+    await run({ now: () => new Date(expires.getTime() + 3599 * 1000) }, openSet(id));
+    expect(await volumeNames()).toContain(runVolumeName(id));
+    await run({ now: () => new Date(expires.getTime() + 3601 * 1000) }, openSet(id));
+    expect(await volumeNames()).not.toContain(runVolumeName(id));
+  });
+
+  it('deletes the volume of a running run whose workflow is closed', async () => {
+    const id = await seedRunWith({ status: 'running' });
+    await addVolume(id);
+    await run(); // no open workflows
+    expect(await volumeNames()).not.toContain(runVolumeName(id));
+  });
+
+  it('keeps the volume of a running run with an open workflow', async () => {
+    const id = await seedRunWith({ status: 'running' });
+    await addVolume(id);
+    await run(undefined, openSet(id));
+    expect(await volumeNames()).toContain(runVolumeName(id));
+    await kube.deleteVolumeClaim(runVolumeName(id));
+  });
+
+  it('keeps the volume of a paused run with an open workflow and a future expiry', async () => {
+    const id = await seedRunWith({ status: 'paused', sessionExpiresAt: inFuture(7200) });
+    await addVolume(id);
+    const out = await run(undefined, openSet(id));
+    expect(await volumeNames()).toContain(runVolumeName(id));
+    expect((await rowOf(id)).status).toBe('paused');
+    expect(out.expiredRuns).toBe(0);
+    await kube.deleteVolumeClaim(runVolumeName(id));
+  });
+
+  it('writes a paused run with a closed workflow as expired and deletes its volume', async () => {
+    const id = await seedRunWith({ status: 'paused', sessionExpiresAt: inFuture(7200) });
+    await addVolume(id);
+    const out = await run();
+    const row = await rowOf(id);
+    expect(row.status).toBe('expired');
+    expect(row.session_expires_at).toBeNull();
+    expect(await volumeNames()).not.toContain(runVolumeName(id));
+    expect(out.expiredRuns).toBeGreaterThanOrEqual(1);
+  });
+
+  it('clears the kept session of a succeeded run whose workflow is closed, and deletes its volume', async () => {
+    const id = await seedRunWith({ status: 'succeeded', sessionExpiresAt: inFuture(7200) });
+    await addVolume(id);
+    await run();
+    const row = await rowOf(id);
+    expect(row.status).toBe('succeeded');
+    expect(row.session_expires_at).toBeNull();
+    expect(await volumeNames()).not.toContain(runVolumeName(id));
+  });
+
+  it('logs a failed volume delete by error name only and still processes the next volume', async () => {
+    const a = randomUUID();
+    const b = randomUUID();
+    await addVolume(a);
+    await addVolume(b);
+    const warnings: { msg: string; meta?: Record<string, unknown> }[] = [];
+    const failing = new Proxy(kube, {
+      get(target, prop, receiver) {
+        if (prop === 'deleteVolumeClaim') {
+          return async (name: string) => {
+            if (name === runVolumeName(a)) throw new Error('secret-ish detail');
+            await target.deleteVolumeClaim(name);
+          };
+        }
+        const v: unknown = Reflect.get(target, prop, receiver);
+        return typeof v === 'function' ? v.bind(target) : v;
+      },
+    });
+    await reconcile({
+      db,
+      kube: failing,
+      temporal: noTemporal(),
+      setupTest: LIMITS,
+      log: { warn: (msg, meta) => void warnings.push({ msg, ...(meta ? { meta } : {}) }) },
+    });
+    const names = await volumeNames();
+    expect(names).toContain(runVolumeName(a));
+    expect(names).not.toContain(runVolumeName(b));
+    expect(JSON.stringify(warnings)).not.toContain('secret-ish');
+    expect(warnings.some((w) => w.meta?.error === 'Error')).toBe(true);
+    await kube.deleteVolumeClaim(runVolumeName(a));
   });
 });

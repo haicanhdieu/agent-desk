@@ -27,7 +27,14 @@ import { reconcile, type ReconcileTemporal } from '../src/activities/reconcile.a
 
 const ORG = '44444444-4444-4444-8444-444444444444';
 const SETUP_LIMITS = { ttlSeconds: 900, setupTimeoutSeconds: 600 };
-const NO_SETUP_TEST_DELETES = { deletedSetupTestJobs: 0, deletedSetupTestSecrets: 0 };
+// Volumes of earlier tests' runs may still be in the shared fake cluster, so their count is not pinned here
+// (reconcile.int.test.ts pins volume behaviour).
+const NO_SETUP_TEST_DELETES = {
+  deletedSetupTestJobs: 0,
+  deletedSetupTestSecrets: 0,
+  deletedVolumes: expect.any(Number) as number,
+  expiredRuns: 0,
+};
 const AGENT = '55555555-5555-4555-8555-555555555555';
 const CRED = 'sk-ant-oat01-CREDENTIAL-VALUE-xyz';
 let pgx: TestPg;

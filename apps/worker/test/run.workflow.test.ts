@@ -6,7 +6,7 @@ import { readFile, writeFile } from 'node:fs/promises';
 import { Worker } from '@temporalio/worker';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import { ApplicationFailure, CancelledFailure, Context } from '@temporalio/activity';
-import type { WorkflowHandle } from '@temporalio/client';
+import { WorkflowNotFoundError, type WorkflowHandle } from '@temporalio/client';
 import { IDLE_END_SECONDS, QUERY, TASK_QUEUE, WORKFLOW, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
 import type { RunStatus } from '@agentdesk/contracts';
 import * as signals from '../src/workflows/signals';
@@ -554,7 +554,13 @@ describe('RunWorkflow', () => {
     });
     // Each signal adds events; the run must end on its own once the (lowered) limit is reached.
     for (let i = 0; i < 100 && !done; i++) {
-      await h.signal(signals.terminalAttached);
+      try {
+        await h.signal(signals.terminalAttached);
+      } catch (err) {
+        // The run ended on its own between the `done` check and the signal: that is the outcome under test.
+        if (!(err instanceof WorkflowNotFoundError)) throw err;
+        break;
+      }
       await sleepReal(20);
     }
     const out = await outcome;
