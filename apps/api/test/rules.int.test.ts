@@ -29,7 +29,7 @@ afterAll(async () => {
   await t.close();
 });
 
-const valid = { command: 'fix', labelFilter: ['bug'], target: 'issue', skillName: 'fix', enabled: true };
+const valid = { kind: 'skill', command: 'fix', labelFilter: ['bug'], target: 'issue', skillName: 'fix', enabled: true };
 const create = (payload: object, id = projectId, cookie = alice) =>
   t.app.inject({ method: 'POST', url: `/api/projects/${id}/rules`, headers: { cookie }, payload });
 const patch = (id: string, payload: object, cookie = alice) =>
@@ -129,5 +129,60 @@ describe('rules', () => {
     expect(((await list().then((r) => r.json())) as RuleDto[]).map((r) => r.command)).toEqual(['second']);
     const kept = await withOrg(t.db, orgId, (tx) => tx.select().from(runs));
     expect(kept).toHaveLength(2);
+  });
+});
+
+describe('rules of both kinds', () => {
+  const promptRule = { kind: 'prompt', command: 'triage', labelFilter: [], target: 'issue', enabled: true };
+
+  it('creates a prompt rule without checking skills, keeping line breaks', async () => {
+    const res = await create({ ...promptRule, prompt: 'Triage.\nLabel it.' });
+    expect(res.statusCode).toBe(201);
+    expect(expectContract('rules.create', res)).toMatchObject({
+      kind: 'prompt',
+      prompt: 'Triage.\nLabel it.',
+      skillName: null,
+    });
+  });
+
+  it('a 4001-character prompt is 400 with pointer /prompt', async () => {
+    const res = await create({ ...promptRule, command: 'long', prompt: 'x'.repeat(4001) });
+    expect(res.statusCode).toBe(400);
+    expect(errorsOf(res).map((e) => e.pointer)).toContain('/prompt');
+  });
+
+  it('switches a rule from skill to prompt and back', async () => {
+    const made = expectContract('rules.create', await create({ ...valid, command: 'switcher' })) as RuleDto;
+    const toPrompt = expectContract('rules.update', await patch(made.id, { kind: 'prompt', prompt: 'p' }));
+    expect(toPrompt).toMatchObject({ kind: 'prompt', prompt: 'p', skillName: null });
+    const toSkill = expectContract('rules.update', await patch(made.id, { kind: 'skill', skillName: 'fix' }));
+    expect(toSkill).toMatchObject({ kind: 'skill', prompt: null, skillName: 'fix' });
+    const unknown = await patch(made.id, { kind: 'skill', skillName: 'nope' });
+    expect(unknown.statusCode).toBe(422);
+    expect(errorsOf(unknown).map((e) => e.pointer)).toEqual(['/skillName']);
+  });
+
+  it('a field of the other kind without kind is 422, never 500', async () => {
+    const skillRule = expectContract('rules.create', await create({ ...valid, command: 'sk-only' })) as RuleDto;
+    const a = await patch(skillRule.id, { prompt: 'p' });
+    expect(a.statusCode).toBe(422);
+    expect(errorsOf(a).map((e) => e.pointer)).toEqual(['/prompt']);
+    const pr = expectContract(
+      'rules.create',
+      await create({ ...promptRule, command: 'pr-only', prompt: 'p' }),
+    ) as RuleDto;
+    const b = await patch(pr.id, { skillName: 'fix' });
+    expect(b.statusCode).toBe(422);
+    expect(errorsOf(b).map((e) => e.pointer)).toEqual(['/skillName']);
+  });
+
+  it("edits a prompt rule's text", async () => {
+    const pr = expectContract(
+      'rules.create',
+      await create({ ...promptRule, command: 'editme', prompt: 'old' }),
+    ) as RuleDto;
+    const res = await patch(pr.id, { prompt: 'new' });
+    expect(res.statusCode).toBe(200);
+    expect(expectContract('rules.update', res)).toMatchObject({ kind: 'prompt', prompt: 'new' });
   });
 });

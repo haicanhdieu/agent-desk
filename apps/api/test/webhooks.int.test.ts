@@ -38,7 +38,7 @@ beforeAll(async () => {
     method: 'POST',
     url: `/api/projects/${projectId}/rules`,
     headers: { cookie: alice },
-    payload: { command: 'fix', labelFilter: [], target: 'any', skillName: 'fix', enabled: true },
+    payload: { command: 'fix', labelFilter: [], target: 'any', kind: 'skill', skillName: 'fix', enabled: true },
   });
   if (rule.statusCode !== 201) throw new Error(`rule create failed: ${rule.body}`);
   await new FakeStore(stateDir).addTicket({ repoPath, number: 7, kind: 'issue', title: 'Broken', labels: [] });
@@ -149,7 +149,7 @@ describe('POST /webhooks/:provider', () => {
       method: 'POST',
       url: `/api/projects/${devProjectId}/rules`,
       headers: { cookie: alice },
-      payload: { command: 'fix', labelFilter: [], target: 'any', skillName: 'fix', enabled: true },
+      payload: { command: 'fix', labelFilter: [], target: 'any', kind: 'skill', skillName: 'fix', enabled: true },
     });
     expect(rule.statusCode).toBe(201);
     await new FakeStore(stateDir).addTicket({
@@ -224,7 +224,7 @@ describe('POST /webhooks/:provider', () => {
       method: 'POST',
       url: `/api/projects/${projectId}/rules`,
       headers: { cookie: alice },
-      payload: { command: 'lbl', labelFilter: ['bug'], target: 'any', skillName: 'fix', enabled: true },
+      payload: { command: 'lbl', labelFilter: ['bug'], target: 'any', kind: 'skill', skillName: 'fix', enabled: true },
     });
     expect(rule.statusCode).toBe(201);
     // ticket 4040 does not exist on the fake board, so fetching its labels fails
@@ -238,7 +238,7 @@ describe('POST /webhooks/:provider', () => {
       method: 'POST',
       url: '/api/projects/' + projectId + '/rules',
       headers: { cookie: alice },
-      payload: { command: 'other', labelFilter: [], target: 'any', skillName: 'fix', enabled: true },
+      payload: { command: 'other', labelFilter: [], target: 'any', kind: 'skill', skillName: 'fix', enabled: true },
     });
     expect(res.statusCode).toBe(201);
   });

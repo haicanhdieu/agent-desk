@@ -175,16 +175,16 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
 - Consumes: `CreateRuleRequest`, `UpdateRuleRequest`, `RuleDto` (Task 3).
 - Produces: `RulesService.toDto` sets `kind` derived from `row.prompt`, `prompt: row.prompt`.
 
-- [ ] **Step 1: Write the failing tests** (`expectContract` on every response):
+- [x] **Step 1: Write the failing tests** (`expectContract` on every response):
   - `it('creates a prompt rule without checking skills, keeping line breaks')`: `{ kind: 'prompt', prompt: 'Triage.\nLabel it.', command: 'triage', … }` → 201, `{ kind: 'prompt', prompt: 'Triage.\nLabel it.', skillName: null }`.
   - `it('a 4001-character prompt is 400 with pointer /prompt')`.
   - `it('switches a rule from skill to prompt and back')`: PATCH `{ kind: 'prompt', prompt: 'p' }` → `skillName: null`; PATCH `{ kind: 'skill', skillName: 'fix' }` → `prompt: null`; switching to an unknown skill → 422 `/skillName`.
   - `it('a field of the other kind without kind is 422, never 500')` (Review Focus 1): PATCH `{ prompt: 'p' }` on a skill rule → 422 `/prompt`; `{ skillName: 'fix' }` on a prompt rule → 422 `/skillName`.
   - `it('edits a prompt rule's text')`: PATCH `{ prompt: 'new' }` on a prompt rule → 200.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts` — expect FAIL.
-- [ ] **Step 3: Implement**: `create` calls `assertSkillExists` only for `kind: 'skill'` and inserts `skillName`/`prompt` by kind (the other null). `update`: work out the resulting kind (`body.kind ?? (existing.prompt !== null ? 'prompt' : 'skill')`); a `prompt` sent for a resulting skill rule, or a `skillName` for a resulting prompt rule, throws `UnprocessableProblemException('Rule kind mismatch', [{ pointer, detail: 'Send kind to switch what this rule runs' }])`; on a switch set the other column to `null`; `assertSkillExists` runs when the resulting kind is skill and `skillName` is sent and differs.
-- [ ] **Step 4: Run** the api rules and webhooks tests — PASS.
-- [ ] **Step 5: Commit** `feat(api): rules service creates and edits skill and prompt rules`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts` — expect FAIL.
+- [x] **Step 3: Implement**: `create` calls `assertSkillExists` only for `kind: 'skill'` and inserts `skillName`/`prompt` by kind (the other null). `update`: work out the resulting kind (`body.kind ?? (existing.prompt !== null ? 'prompt' : 'skill')`); a `prompt` sent for a resulting skill rule, or a `skillName` for a resulting prompt rule, throws `UnprocessableProblemException('Rule kind mismatch', [{ pointer, detail: 'Send kind to switch what this rule runs' }])`; on a switch set the other column to `null`; `assertSkillExists` runs when the resulting kind is skill and `skillName` is sent and differs.
+- [x] **Step 4: Run** the api rules and webhooks tests — PASS.
+- [x] **Step 5: Commit** `feat(api): rules service creates and edits skill and prompt rules`.
 
 ### Task 7: Prompt preview route and run DTO (api)
 
