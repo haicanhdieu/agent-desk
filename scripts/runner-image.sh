@@ -19,6 +19,11 @@ kube_mode="${KUBE_MODE:-}"
 if [ -z "$kube_mode" ] && [ -f .env ]; then
   kube_mode="$(sed -n 's/^KUBE_MODE=//p' .env | tail -n 1)"
 fi
+image="${RUNNER_IMAGE:-}"
+if [ -z "$image" ] && [ -f .env ]; then
+  image="$(sed -n 's/^RUNNER_IMAGE=//p' .env | tail -n 1)"
+fi
+image="${image:-agentdesk-runner:dev}"
 if [ "$kube_mode" != kubeconfig ]; then
   echo "runner-image: skipped (KUBE_MODE=${kube_mode:-unset}, not kubeconfig)"
   exit 0
@@ -37,11 +42,12 @@ current="$(
   git ls-files -z --cached --others --exclude-standard -- images/runner \
     ':(exclude)images/runner/test' ':(exclude)images/runner/package.json' \
     ':(exclude)images/runner/tsconfig.json' ':(exclude)images/runner/vitest.config.ts' |
+    while IFS= read -r -d '' f; do if [ -e "$f" ]; then printf '%s\0' "$f"; fi; done |
     xargs -0 "${sha[@]}" | "${sha[@]}" | cut -c1-16
 )"
 
 in_k3s() {
-  "$podman" exec "$k3s" ctr -n k8s.io images ls -q 2>/dev/null | grep -q 'agentdesk-runner:dev'
+  "$podman" exec "$k3s" ctr -n k8s.io images ls -q 2>/dev/null | grep -qxF "docker.io/library/$image"
 }
 
 if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$current" ] && in_k3s; then
@@ -50,10 +56,10 @@ if [ -f "$stamp" ] && [ "$(cat "$stamp")" = "$current" ] && in_k3s; then
 fi
 
 echo "runner-image: images/runner changed or image missing; rebuilding ($current)"
-"$podman" build -q -t localhost/agentdesk-runner:dev images/runner >/dev/null
-# k3s resolves the docker.io/library/ name, which a plain `podman build -t agentdesk-runner:dev` does not create.
-"$podman" tag localhost/agentdesk-runner:dev docker.io/library/agentdesk-runner:dev
-"$podman" save docker.io/library/agentdesk-runner:dev | "$podman" exec -i "$k3s" ctr -n k8s.io images import - >/dev/null
+"$podman" build -q -t "localhost/$image" images/runner >/dev/null
+# k3s resolves the docker.io/library/ name, which a plain `podman build -t $image` does not create.
+"$podman" tag "localhost/$image" "docker.io/library/$image"
+"$podman" save "docker.io/library/$image" | "$podman" exec -i "$k3s" ctr -n k8s.io images import - >/dev/null
 mkdir -p "$(dirname "$stamp")"
 printf '%s\n' "$current" >"$stamp"
 echo "runner-image: loaded into $k3s. Runs started from now use it; running pods keep the old one."

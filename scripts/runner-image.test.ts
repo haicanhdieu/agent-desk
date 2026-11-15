@@ -45,7 +45,7 @@ echo "$@" >> "${calls}"
 case "$1" in
   ps) echo agentdesk-k3s ;;
   save) echo image-bytes ;;
-  exec) case "$*" in *"images ls"*) [ -f "${dir}/imported" ] && echo docker.io/library/agentdesk-runner:dev ;; *import*) touch "${dir}/imported" ;; esac ;;
+  exec) case "$*" in *"images ls"*) [ -f "${dir}/imported" ] && echo "docker.io/library/\${RUNNER_IMAGE:-agentdesk-runner:dev}" ;; *import*) touch "${dir}/imported" ;; esac ;;
 esac
 exit 0
 `,
@@ -95,6 +95,25 @@ describe('scripts/runner-image.sh', () => {
     writeFileSync(calls, '');
     run();
     expect(built()).toBe(true);
+  });
+
+  it('does not abort when a tracked file under images/runner was deleted from the working tree', () => {
+    rmSync(join(dir, 'images/runner/entrypoint.sh'));
+    const r = run();
+    expect(r.status).toBe(0);
+    expect(built()).toBe(true);
+  });
+
+  it('uses RUNNER_IMAGE for the build, tag and import', () => {
+    const r = run({ RUNNER_IMAGE: 'agentdesk-runner:mine' });
+    expect(r.status).toBe(0);
+    const log = readFileSync(calls, 'utf8');
+    expect(log).toContain('build -q -t localhost/agentdesk-runner:mine');
+    expect(log).toContain('tag localhost/agentdesk-runner:mine docker.io/library/agentdesk-runner:mine');
+    expect(log).toContain('save docker.io/library/agentdesk-runner:mine');
+    expect(log).not.toContain('agentdesk-runner:dev');
+    writeFileSync(calls, '');
+    expect(run({ RUNNER_IMAGE: 'agentdesk-runner:mine' }).out).toContain('up to date');
   });
 
   it('does nothing outside KUBE_MODE=kubeconfig', () => {
