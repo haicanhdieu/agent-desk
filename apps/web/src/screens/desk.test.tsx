@@ -157,7 +157,7 @@ describe('DeskRules', () => {
     const sw = screen.getAllByRole('switch', { name: /^Enable rule \// });
     await userEvent.click(sw[0]);
     expect(onToggle).toHaveBeenLastCalledWith('r1', false);
-    await userEvent.click(sw[4]);
+    await userEvent.click(screen.getByRole('switch', { name: 'Enable rule /qa-e2e' }));
     expect(onToggle).toHaveBeenLastCalledWith('r5', true);
   });
 

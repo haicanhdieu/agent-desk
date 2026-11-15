@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 30 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 34 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -34,6 +34,7 @@ export const boardStories = {
   RunIdle: { title: detail, exportName: 'RunIdle' },
   RunReconnect: { title: detail, exportName: 'RunReconnect' },
   RunSucceeded: { title: detail, exportName: 'RunSucceeded' },
+  RunPrompt: { title: detail, exportName: 'RunPrompt' },
   RunFailed: { title: detail, exportName: 'RunFailed' },
   RunSetupFailed: { title: detail, exportName: 'RunSetupFailed' },
   RunTimedOut: { title: detail, exportName: 'RunTimedOut' },
@@ -41,6 +42,9 @@ export const boardStories = {
   DeskSkills: { title: desk, exportName: 'DeskSkills' },
   DeskSkillDelete: { title: desk, exportName: 'DeskSkillDelete' },
   DeskRules: { title: desk, exportName: 'DeskRules' },
+  DeskRulesPrompt: { title: desk, exportName: 'DeskRulesPrompt' },
+  DeskRulesPromptNew: { title: desk, exportName: 'DeskRulesPromptNew' },
+  DeskRulesPromptError: { title: desk, exportName: 'DeskRulesPromptError' },
   DeskAgent: { title: desk, exportName: 'DeskAgent' },
   DeskSetup: { title: desk, exportName: 'DeskSetup' },
   DeskSetupTest: { title: desk, exportName: 'DeskSetupTest' },
@@ -58,6 +62,7 @@ export const stateStories = {
   NeedsYouNone: { title: runs, exportName: 'NeedsYouNone', board: 'NeedsYou' },
   DeskAgentPolling: { title: desk, exportName: 'DeskAgentPolling', board: 'DeskAgent' },
   DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
+  Setup4Prompt: { title: setup, exportName: 'Setup4Prompt', board: 'Setup4' },
   DeskAgentSaveErrors: { title: desk, exportName: 'DeskAgentSaveErrors', board: 'DeskAgent' },
   DeskSkillsSetupWarning: { title: desk, exportName: 'DeskSkillsSetupWarning', board: 'DeskSkills' },
   DeskSetupStale: { title: desk, exportName: 'DeskSetupStale', board: 'DeskSetup' },

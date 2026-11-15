@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { RuleForm, type RuleFormProps } from './RuleForm';
 import type { RuleDraft } from './RuleSentence';
+import { promptSystemLines, TRIAGE_PROMPT } from '@/mocks';
 
 function Stateful(props: Omit<RuleFormProps, 'onChange'>) {
   const [value, setValue] = useState<RuleDraft>(props.value);
@@ -87,5 +88,66 @@ export const WithErrors: Story = {
       enabled: true,
     },
     errors: { command: 'Command already used', skill: 'This skill no longer exists' },
+  },
+};
+
+const ready = { state: 'ready', systemLines: promptSystemLines } as const;
+const triage: RuleDraft = {
+  command: 'triage',
+  target: 'issue',
+  labels: [],
+  skill: '',
+  kind: 'prompt',
+  prompt: TRIAGE_PROMPT,
+  agent: 'Claude (opus)',
+  enabled: true,
+};
+
+/** Skill / Custom prompt offered, skill chosen. */
+export const SkillMode: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    promptPreview: ready,
+    value: { ...triage, command: 'code-build', labels: ['user-story'], skill: 'code-build', kind: 'skill' },
+  },
+};
+export const PromptEmpty: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    promptPreview: ready,
+    value: { ...triage, prompt: '' },
+  },
+};
+export const PromptFilled: Story = {
+  args: { skills, agents, agentLocked: true, onChange: () => {}, promptPreview: ready, value: triage },
+};
+export const PromptOverLimit: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    promptPreview: ready,
+    value: { ...triage, prompt: `${TRIAGE_PROMPT}\n${'Check every linked issue as well. '.repeat(120)}` },
+    errors: { prompt: 'Keep the prompt to 4000 characters or fewer.' },
+  },
+};
+export const PromptPreviewLoading: Story = {
+  args: { skills, agents, agentLocked: true, onChange: () => {}, promptPreview: { state: 'loading' }, value: triage },
+};
+export const PromptPreviewError: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    promptPreview: { state: 'error', onRetry: () => {} },
+    value: triage,
   },
 };

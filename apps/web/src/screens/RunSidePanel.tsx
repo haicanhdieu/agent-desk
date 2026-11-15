@@ -8,6 +8,7 @@ import {
   ModelTag,
   Note,
   RuleText,
+  RunPromptSection,
   Section,
   SidePanel,
   SideRail,
@@ -133,6 +134,9 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
       <Section title="Run">
         <KeyValue items={kv} />
       </Section>
+      {data.finalPrompt !== undefined && (
+        <RunPromptSection finalPrompt={data.finalPrompt} defaultOpen={data.promptOpen} />
+      )}
       {data.time && (
         <Section title="Time">
           <Stat

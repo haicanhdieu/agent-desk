@@ -1,4 +1,4 @@
-import { useState, type InputHTMLAttributes, type ReactNode } from 'react';
+import { useState, type InputHTMLAttributes, type ReactNode, type TextareaHTMLAttributes } from 'react';
 import { Icon } from './Icon';
 import { Select } from './Select';
 import type { DurationUnit } from './duration';
@@ -13,6 +13,15 @@ export type TextInputProps = { mono?: boolean; numeric?: boolean } & InputHTMLAt
 export function TextInput({ mono, numeric, className, type = 'text', ...rest }: TextInputProps) {
   return (
     <input type={type} {...rest} className={cx(styles.input, mono && styles.mono, numeric && styles.num, className)} />
+  );
+}
+
+export type TextAreaProps = { mono?: boolean } & TextareaHTMLAttributes<HTMLTextAreaElement>;
+
+/** Multi-line text, e.g. a rule's custom prompt. Grows only by the user's resize handle. */
+export function TextArea({ mono, className, rows = 6, ...rest }: TextAreaProps) {
+  return (
+    <textarea rows={rows} {...rest} className={cx(styles.input, styles.textarea, mono && styles.mono, className)} />
   );
 }
 

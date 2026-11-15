@@ -6,6 +6,7 @@ import {
   RuleForm,
   SetupLayout,
   type RuleDraft,
+  type PromptPreview,
   type RuleFormProps,
   type RuleTarget,
 } from '@/components';
@@ -31,6 +32,8 @@ export interface Setup4Props extends SetupNav {
   errors?: RuleFormProps['errors'];
   /** A failed save that names no field of the first rule. */
   formError?: string;
+  /** System lines for custom prompt rules; with it the first rule can be a skill or a custom prompt. */
+  promptPreview?: PromptPreview;
 }
 
 export function Setup4({
@@ -51,6 +54,7 @@ export function Setup4({
   saving,
   errors,
   formError,
+  promptPreview,
 }: Setup4Props) {
   const [draft, setDraft] = useState(rule);
   const [follow, setFollow] = useState(followUp.enabled);
@@ -87,6 +91,7 @@ export function Setup4({
         spacious
         onChange={setDraft}
         errors={errors}
+        promptPreview={promptPreview}
       />
       <FollowUpRule
         command={followUp.command}

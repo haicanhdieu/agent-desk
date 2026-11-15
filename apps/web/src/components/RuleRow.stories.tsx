@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { RuleRow } from './RuleRow';
+import { TRIAGE_PROMPT } from '@/mocks';
 
 const rule = {
   id: 'r1',
@@ -45,5 +46,12 @@ export const MissingSkillWarning: Story = {
     stats: 'Never ran',
     warning:
       'Skill docs-update is not in .claude/skills/ on main. Comments with /docs-update are ignored until you add it or pick another skill.',
+  },
+};
+/** A custom prompt rule: "Custom prompt" and the prompt's first line where the skill name goes (cut with an ellipsis). */
+export const CustomPrompt: Story = {
+  args: {
+    rule: { ...rule, id: 'r6', command: 'triage', labels: [], skill: '', kind: 'prompt', prompt: TRIAGE_PROMPT },
+    stats: '5 runs this week, last 13:40',
   },
 };

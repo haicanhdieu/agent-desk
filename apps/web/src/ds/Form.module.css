@@ -54,6 +54,15 @@
   color: var(--faint);
 }
 
+.textarea {
+  display: block;
+  height: auto;
+  min-height: 132px;
+  padding: 8px 10px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
 /* Wrapped chrome: prefix, password, search, static, label input */
 .wrap {
   display: flex;

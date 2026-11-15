@@ -29,7 +29,7 @@ export {
 export { ticketGroups, runs, tickets } from './runs';
 export { ignored } from './ignored';
 export { skills, skillTemplates } from './skills';
-export { rules } from './rules';
+export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';
 export { agentSettings } from './agent';
 export { terminalByRun } from './terminal';
 export { runDetails } from './runDetail';
