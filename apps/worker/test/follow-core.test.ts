@@ -2,8 +2,14 @@ import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
 import { describe, expect, it } from 'vitest';
 import { createAdapterRegistry, parseConfig, type KubeGateway, type RunPod } from '@agentdesk/core';
-import { createDb } from '@agentdesk/db';
-import { followPodLog, waitForPod, type FollowHooks } from '../src/activities/follow-core';
+import { createDb, type Tx } from '@agentdesk/db';
+import {
+  appendSeqEvent,
+  followPodLog,
+  outputBudget,
+  waitForPod,
+  type FollowHooks,
+} from '../src/activities/follow-core';
 import { POD_PENDING_TIMEOUT } from '../src/activities/run.activities';
 import { createRunActivities } from '../src/activities/run.activities.impl';
 
@@ -158,5 +164,56 @@ describe('followPodLog bookkeeping (chunk keys and durable line)', () => {
     ]);
     // Buffered output is not durable: the beat stays at the last stored line (1) until the marker flushes it (4).
     expect(beats).toEqual([0, 1, 1, 1, 4, 4, 5]);
+  });
+});
+
+describe('appendSeqEvent', () => {
+  // The table fakes never touch the transaction; only their call order and the seq they are given matter.
+  const tx: Tx = Object.create(null);
+
+  it('inserts the next seq after locking the owner', async () => {
+    const calls: string[] = [];
+    const result = await appendSeqEvent(tx, {
+      lockOwner: async () => {
+        calls.push('lock');
+        return true;
+      },
+      maxSeq: async () => {
+        calls.push('max');
+        return 4;
+      },
+      insert: async (_tx, seq) => {
+        calls.push(`insert:${seq}`);
+      },
+    });
+    expect(result).toEqual({ seq: 5 });
+    expect(calls).toEqual(['lock', 'max', 'insert:5']);
+  });
+
+  it('returns null and writes nothing when the owner does not exist', async () => {
+    const calls: string[] = [];
+    const result = await appendSeqEvent(tx, {
+      lockOwner: async () => false,
+      maxSeq: async () => {
+        calls.push('max');
+        return 0;
+      },
+      insert: async () => {
+        calls.push('insert');
+      },
+    });
+    expect(result).toBeNull();
+    expect(calls).toEqual([]);
+  });
+});
+
+describe('outputBudget', () => {
+  it('sums stored text (plus a newline each), skips malformed payloads and remembers truncation', () => {
+    expect(outputBudget([])).toEqual({ chars: 0, truncated: false });
+    expect(outputBudget([{ text: 'abc' }, { nope: 1 }, 'junk', { text: 'de', truncated: false }])).toEqual({
+      chars: 4 + 3,
+      truncated: false,
+    });
+    expect(outputBudget([{ text: 'abc', truncated: true }, { text: '' }])).toEqual({ chars: 4 + 1, truncated: true });
   });
 });
