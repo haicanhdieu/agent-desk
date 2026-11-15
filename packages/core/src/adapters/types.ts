@@ -91,12 +91,12 @@ export interface CodeHostAdapter {
   completeInstall(params: Record<string, string>, user: InstallUser): Promise<NewConnection>;
   listRepos(connection: AdapterConnection): Promise<RepoDto[]>;
   mintWorkspaceToken(project: AdapterProject): Promise<{ token: string; expiresAt: Date }>;
-  cloneUrl(project: AdapterProject, token: string): string;
-  /**
-   * Extra env for the run pod so the agent's provider CLI is authenticated with the workspace token (for GitHub,
-   * `GH_TOKEN` for `gh`). The values go into the run Secret only, like the clone URL.
-   */
-  runEnv(token: string): Record<string, string>;
+  /** The repo's clone URL. Carries no credential: the run pod reads the workspace token from a mounted file (ADR 0021). */
+  repoUrl(project: AdapterProject): string;
+  /** Username git sends with the workspace token (for GitHub, `x-access-token`). */
+  gitCredentialUsername(): string;
+  /** Name of the env var the code host's CLI reads its token from (for GitHub, `GH_TOKEN`); the runner's CLI wrapper exports it from the token file. */
+  cliTokenEnvName(): string;
   checkoutRef(ticket: CheckoutTicket): string;
   listSkills(project: AdapterProject): Promise<SkillSummaryDto[]>;
   readSkill(project: AdapterProject, name: string): Promise<SkillDto>;

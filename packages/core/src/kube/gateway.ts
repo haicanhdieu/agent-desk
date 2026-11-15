@@ -82,6 +82,11 @@ export interface RunSecretRef {
  */
 export interface KubeGateway {
   ensureSecret(name: string, data: Record<string, string>, labels: Record<string, string>): Promise<void>;
+  /**
+   * Sets keys in an existing Secret and keeps the rest and its labels. Fails when the Secret is missing (a refresh must
+   * never create one) or changed meanwhile (conflict: the caller retries).
+   */
+  replaceSecretData(name: string, data: Record<string, string>): Promise<void>;
   /** Values of a run Secret (used to build the redaction list), or null when it does not exist. */
   readSecret(name: string): Promise<Record<string, string> | null>;
   deleteSecret(name: string): Promise<void>;

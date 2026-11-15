@@ -83,7 +83,7 @@ export const Running: Story = {
               Elapsed <b className="num">7:40</b>
             </span>
             <span className="faint">
-              limit <span className="num">30:00</span>
+              limit <span className="num">30 min</span>
             </span>
           </div>
           <Meter value={460} max={1800} aria-label="26% of run time limit used" />

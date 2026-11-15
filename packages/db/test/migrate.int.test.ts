@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootstrapDatabase } from '../src/bootstrap';
@@ -55,6 +56,25 @@ describe('bootstrap and migrations', () => {
       "select datname from pg_database where datname in ('agentdesk','temporal','temporal_visibility') order by 1",
     );
     expect(dbs.map((d) => d.datname)).toEqual(['agentdesk', 'temporal', 'temporal_visibility']);
+  });
+
+  it('agents.timeout_seconds allows 60 s to 7 days and defaults to 24 h (ADR 0021)', async () => {
+    const [check] = await query<{ def: string }>(
+      env.ownerUrl,
+      "select pg_get_constraintdef(oid) as def from pg_constraint where conname = 'agents_timeout_check'",
+    );
+    expect(check?.def).toContain('604800');
+    expect(check?.def).not.toContain('3300');
+    const [col] = await query<{ column_default: string }>(
+      env.ownerUrl,
+      "select column_default from information_schema.columns where table_name = 'agents' and column_name = 'timeout_seconds'",
+    );
+    expect(col?.column_default).toBe('86400');
+  });
+
+  it('the run time limit migration changes no rows, so existing agents keep their saved value', async () => {
+    const sqlText = await readFile(new URL('../migrations/0010_agent_timeout_7_days.sql', import.meta.url), 'utf8');
+    expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
   });
 
   it('all app tables have org_id not null (except inbound_events)', async () => {

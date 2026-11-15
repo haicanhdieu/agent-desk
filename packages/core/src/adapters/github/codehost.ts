@@ -110,13 +110,17 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     return { token: t.token, expiresAt: new Date(t.expires_at) };
   }
 
-  cloneUrl(project: AdapterProject, token: string): string {
+  repoUrl(project: AdapterProject): string {
     const { owner, repo } = splitRepoPath(project.repoPath);
-    return `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
+    return `https://github.com/${owner}/${repo}.git`;
   }
 
-  runEnv(token: string): Record<string, string> {
-    return { GH_TOKEN: token };
+  gitCredentialUsername(): string {
+    return 'x-access-token';
+  }
+
+  cliTokenEnvName(): string {
+    return 'GH_TOKEN';
   }
 
   checkoutRef(ticket: CheckoutTicket): string {

@@ -72,7 +72,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     startedAt: '14:05:12',
     chain: runningChain,
     lifecycle: runningLifecycle,
-    time: { elapsed: '7:40', limit: '30:00', percent: 26 },
+    time: { elapsed: '7:40', limit: '30 min', percent: 26 },
     connection: { state: 'live', label: 'Live, attached as kim-hale' },
     termSize: '132×44',
   },
@@ -307,10 +307,10 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
         here: true,
       },
     ],
-    time: { elapsed: '30:00', limit: '30:00', percent: 100 },
+    time: { elapsed: '30:00', limit: '30 min', percent: 100 },
     connection: { state: 'ended', label: 'Ended, read-only, captured on stop' },
     endNote: {
-      title: 'Timed out at the 30 minute limit',
+      title: 'Timed out at the 30 min limit',
       body: (
         <>
           The agent was still running e2e tests. Nothing was pushed: branch{' '}

@@ -18,7 +18,10 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   image: 'agentdesk/runner-claude:poc',
   prompt: 'Use the skill "fix" on issue #1 in dev/demo.\n$(rm -rf /); `id`',
   checkoutRef: 'main',
-  cloneUrlSecretKey: 'REPO_CLONE_URL',
+  credentialEnvKeys: ['CLAUDE_CODE_OAUTH_TOKEN'],
+  gitUsername: 'x-access-token',
+  gitHost: 'fake.invalid',
+  cliTokenEnvName: 'GH_TOKEN',
   maxTurns: 30,
   timeoutSeconds: 1800,
   botName: 'agentdesk[bot]',
@@ -83,16 +86,53 @@ describe('buildRunJob', () => {
       runAsUser: 10001,
       capabilities: { drop: ['ALL'] },
     });
-    expect(c?.envFrom).toEqual([{ secretRef: { name: `run-${RUN}` } }]);
+    expect(c?.envFrom).toBeUndefined();
     expect(c?.resources).toEqual({
       requests: { cpu: '500m', memory: '1Gi' },
       limits: { cpu: '2', memory: '4Gi', 'ephemeral-storage': '4Gi' },
     });
-    expect(pod?.volumes).toEqual([{ name: 'workspace', emptyDir: { sizeLimit: '2Gi' } }]);
-    expect(c?.volumeMounts).toEqual([{ name: 'workspace', mountPath: '/workspace' }]);
+    expect(pod?.volumes).toEqual([
+      { name: 'workspace', emptyDir: { sizeLimit: '2Gi' } },
+      {
+        name: 'workspace-token',
+        secret: { secretName: `run-${RUN}`, items: [{ key: 'workspace-token', path: 'token' }], defaultMode: 0o440 },
+      },
+    ]);
+    expect(c?.volumeMounts).toEqual([
+      { name: 'workspace', mountPath: '/workspace' },
+      { name: 'workspace-token', mountPath: '/var/run/agentdesk/workspace-token', readOnly: true },
+    ]);
     expect(pod?.nodeSelector).toBeUndefined();
     expect(pod?.tolerations).toBeUndefined();
     expect(pod?.runtimeClassName).toBeUndefined();
+  });
+
+  it('takes secrets from explicit keys (no envFrom), so the workspace token never becomes an env var', () => {
+    const env = buildRunJob(input()).spec?.template.spec?.containers[0]?.env ?? [];
+    const fromSecret = env.filter((e) => e.valueFrom?.secretKeyRef).map((e) => e.valueFrom?.secretKeyRef);
+    expect(fromSecret).toEqual([
+      { name: `run-${RUN}`, key: 'REPO_CLONE_URL' },
+      { name: `run-${RUN}`, key: 'CLAUDE_CODE_OAUTH_TOKEN' },
+    ]);
+    expect(env.filter((e) => e.valueFrom).map((e) => e.name)).toEqual(['REPO_CLONE_URL', 'CLAUDE_CODE_OAUTH_TOKEN']);
+    expect(JSON.stringify(env)).not.toContain('"workspace-token"');
+  });
+
+  it('points the runner at the mounted token file and the git username', () => {
+    const env = buildRunJob(input()).spec?.template.spec?.containers[0]?.env ?? [];
+    expect(env).toContainEqual({
+      name: 'AGENTDESK_TOKEN_FILE',
+      value: '/var/run/agentdesk/workspace-token/token',
+    });
+    expect(env).toContainEqual({ name: 'AGENTDESK_GIT_USERNAME', value: 'x-access-token' });
+  });
+
+  it('scopes the git credential to the code host and names the CLI token variable', () => {
+    for (const job of [buildRunJob(input()), buildSetupTestJob(setupInput())]) {
+      const env = job.spec?.template.spec?.containers[0]?.env ?? [];
+      expect(env).toContainEqual({ name: 'AGENTDESK_GIT_HOST', value: 'fake.invalid' });
+      expect(env).toContainEqual({ name: 'AGENTDESK_CLI_TOKEN_ENV', value: 'GH_TOKEN' });
+    }
   });
 
   it('passes the prompt and other values only as env values (no command, no shell)', () => {
@@ -109,16 +149,30 @@ describe('buildRunJob', () => {
       MAX_TURNS: '30',
       PLUGIN_MARKETPLACES: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
       SETUP_TIMEOUT_SECONDS: '600',
+      AGENTDESK_TOKEN_FILE: '/var/run/agentdesk/workspace-token/token',
+      AGENTDESK_GIT_USERNAME: 'x-access-token',
+      AGENTDESK_GIT_HOST: 'fake.invalid',
+      AGENTDESK_CLI_TOKEN_ENV: 'GH_TOKEN',
     });
-    // The clone URL (with its token) comes from the Secret, never from a literal env value.
-    expect(JSON.stringify(job)).not.toContain('REPO_CLONE_URL');
+    // The repo URL comes from the Secret, never from a literal env value.
+    const repoUrl = (c?.env ?? []).find((e) => e.name === 'REPO_CLONE_URL');
+    expect(repoUrl?.value).toBeUndefined();
+    expect(repoUrl?.valueFrom?.secretKeyRef?.key).toBe('REPO_CLONE_URL');
   });
 
-  it('omits MAX_TURNS when unset and clamps the deadline to the 3300 s cap', () => {
-    const job = buildRunJob(input({ maxTurns: null, timeoutSeconds: 9999 }));
+  it('omits MAX_TURNS when unset', () => {
+    const job = buildRunJob(input({ maxTurns: null }));
     const env = job.spec?.template.spec?.containers[0]?.env ?? [];
     expect(env.map((e) => e.name)).not.toContain('MAX_TURNS');
-    expect(job.spec?.activeDeadlineSeconds).toBe(3420);
+  });
+
+  it('sets the deadline to the limit plus 120 s with no cap, up to 7 days (ADR 0021)', () => {
+    expect(buildRunJob(input({ timeoutSeconds: 9999 })).spec?.activeDeadlineSeconds).toBe(10119);
+    expect(buildRunJob(input({ timeoutSeconds: 604800 })).spec?.activeDeadlineSeconds).toBe(604920);
+  });
+
+  it('never sets a deadline below one second', () => {
+    expect(buildRunJob(input({ timeoutSeconds: 0 })).spec?.activeDeadlineSeconds).toBe(121);
   });
 
   it('adds nodeSelector, tolerations and runtimeClassName when configured', () => {
@@ -176,6 +230,9 @@ const setupInput = (over: Partial<SetupTestJobInput> = {}): SetupTestJobInput =>
   ttlSeconds: 1800,
   botName: 'agentdesk[bot]',
   botEmail: 'bot@example.invalid',
+  gitUsername: 'x-access-token',
+  gitHost: 'fake.invalid',
+  cliTokenEnvName: 'GH_TOKEN',
   pod: input().pod,
   ...over,
 });
@@ -186,12 +243,15 @@ describe('buildSetupTestJob', () => {
     const run = podOf(buildRunJob(input({ pod: { ...input().pod, nodeSelector: { pool: 'runs' } } })));
     const test = podOf(buildSetupTestJob(setupInput({ pod: { ...input().pod, nodeSelector: { pool: 'runs' } } })));
     expect(test?.securityContext).toEqual(run?.securityContext);
-    expect(test?.volumes).toEqual(run?.volumes);
+    expect(test?.volumes?.find((v) => v.name === 'workspace')).toEqual(
+      run?.volumes?.find((v) => v.name === 'workspace'),
+    );
     expect(test?.nodeSelector).toEqual(run?.nodeSelector);
     expect(test?.automountServiceAccountToken).toBe(false);
     expect(test?.containers[0]?.resources).toEqual(run?.containers[0]?.resources);
     expect(test?.containers[0]?.securityContext).toEqual(run?.containers[0]?.securityContext);
     expect(test?.containers[0]?.volumeMounts).toEqual(run?.containers[0]?.volumeMounts);
+    expect(test?.volumes?.find((v) => v.name === 'workspace-token')?.secret?.secretName).toBe(`setup-test-${TEST_ID}`);
   });
 
   it('is named and labelled by setup test id only, with no run id label', () => {
@@ -207,7 +267,9 @@ describe('buildSetupTestJob', () => {
     expect(job.metadata?.labels).toEqual(labels);
     expect(job.spec?.template.metadata?.labels).toEqual(labels);
     expect(Object.keys(job.metadata?.labels ?? {})).not.toContain('agentdesk/run-id');
-    expect(job.spec?.template.spec?.containers[0]?.envFrom).toEqual([{ secretRef: { name: `setup-test-${TEST_ID}` } }]);
+    expect(job.spec?.template.spec?.containers[0]?.envFrom).toBeUndefined();
+    const keys = (job.spec?.template.spec?.containers[0]?.env ?? []).map((e) => e.valueFrom?.secretKeyRef);
+    expect(keys.filter(Boolean)).toEqual([{ name: `setup-test-${TEST_ID}`, key: 'REPO_CLONE_URL' }]);
   });
 
   it('runs in setup_test mode with no agent prompt and a deadline of setup + ttl + a pending/clone/plugin margin', () => {
@@ -224,6 +286,10 @@ describe('buildSetupTestJob', () => {
       PLUGIN_MARKETPLACES: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
       SETUP_TIMEOUT_SECONDS: '600',
       SETUP_SCRIPT: 'npm ci',
+      AGENTDESK_TOKEN_FILE: '/var/run/agentdesk/workspace-token/token',
+      AGENTDESK_GIT_USERNAME: 'x-access-token',
+      AGENTDESK_GIT_HOST: 'fake.invalid',
+      AGENTDESK_CLI_TOKEN_ENV: 'GH_TOKEN',
     });
     expect(env).not.toHaveProperty('PROMPT');
     expect(env).not.toHaveProperty('MAX_TURNS');

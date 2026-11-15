@@ -135,6 +135,10 @@
   color: var(--muted);
   font-size: var(--fs-13);
 }
+.unit > select {
+  width: auto;
+  flex: 0 0 auto;
+}
 select.input {
   appearance: auto;
 }

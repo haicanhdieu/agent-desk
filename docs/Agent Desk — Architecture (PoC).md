@@ -124,7 +124,7 @@ Entrypoint, simplified (exact flags are to be confirmed in M1):
 
 ```bash
 set -euo pipefail
-git clone "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git" /workspace
+git clone "https://github.com/${REPO}.git" /workspace   # token comes from a git credential helper reading a mounted file (ADR 0021)
 cd /workspace
 if [ "${TICKET_KIND}" = "pr" ]; then gh pr checkout "${TICKET_NUMBER}"; fi
 git config user.name  "agent-desk[bot]"
@@ -180,6 +180,7 @@ spec:
       containers:
         - name: agent
           image: agentdesk/runner-claude:poc
+          # PoC sketch. Real Jobs use explicit secretKeyRef env plus a mounted token file, no envFrom (ADR 0021).
           envFrom: [{ secretRef: { name: run-{{runId}} } }]
           env:
             - { name: REPO, value: "{{owner/repo}}" }
@@ -254,7 +255,7 @@ In the MVP, approach B becomes the default view and the terminal from A stays av
 
 ## 7. GitHub integration, secrets, and security
 
-One GitHub App provides sign-in, webhooks, and repo access (including the API calls the poller makes); the agent container holds only a one-hour token for one repo plus the Claude credential.
+One GitHub App provides sign-in, webhooks, and repo access (including the API calls the poller makes); the agent container holds only a one-hour token for one repo (replaced before it expires, so runs can last up to 7 days, ADR 0021) plus the Claude credential.
 
 **GitHub App**
 

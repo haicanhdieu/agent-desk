@@ -38,6 +38,49 @@ export interface FollowEnv {
   /** Poll interval while waiting for the pod. */
   pollMs: number;
   heartbeatMs: number;
+  /** How often the redaction list is re-read while following (the workspace token rotates during long runs). */
+  redactionRefreshMs?: number;
+}
+
+/**
+ * Default redaction refresh interval. The kubelet updates the mounted token file about 1-2 min after the Secret is
+ * rewritten, so a short interval lets the follower learn a rotated token before the pod can print it.
+ */
+export const REDACTION_REFRESH_MS = 30_000;
+
+/** Rotated values kept beyond the first read (one token per ~45 min, so about 6 h, far past a token's 1 h life). */
+export const REDACTION_EXTRA_KEEP = 8;
+
+export interface SecretAccumulator {
+  /** Folds in a fresh read and returns the bounded list: first-read values, then the most recent extras. */
+  merge(next: readonly string[]): string[];
+}
+
+/**
+ * Accumulates redaction values across re-reads without growing for the whole run (`redact` cost is per entry). The
+ * values of the first read (credential and first token) are always kept; of later reads only the latest `maxExtra`
+ * distinct new values stay.
+ */
+export function createSecretAccumulator(maxExtra: number = REDACTION_EXTRA_KEEP): SecretAccumulator {
+  let base: string[] | null = null;
+  let extras: string[] = [];
+  return {
+    merge(next) {
+      if (base === null) {
+        base = [...new Set(next)];
+      } else {
+        const known = new Set([...base, ...extras]);
+        for (const v of next) {
+          if (!known.has(v)) {
+            known.add(v);
+            extras.push(v);
+          }
+        }
+        extras = extras.slice(Math.max(0, extras.length - maxExtra));
+      }
+      return [...base, ...extras];
+    },
+  };
 }
 
 // ---- Pending wait
@@ -150,7 +193,10 @@ export interface FollowHooks<R> {
   /** Used in the redacted, bounded error message of an unexpected failure. */
   what: string;
   jobName: string;
-  /** Values to redact from output. Must fail closed: a read error propagates, never "no values". */
+  /**
+   * Values to redact from output. The first read must fail closed: an error propagates, never "no values". It is
+   * re-read periodically; a failed re-read keeps the last good list, and values seen earlier are never dropped.
+   */
   secrets(): Promise<string[]>;
   storedBudget(): Promise<{ chars: number; truncated: boolean }>;
   /** Stores one lifecycle event under the dedupe key `line` (a marker's own line, or a chunk's last line). */
@@ -192,14 +238,30 @@ export async function followPodLog<R>(env: FollowEnv, hooks: FollowHooks<R>): Pr
     }
   };
   let secrets: string[] = [];
+  const accumulator = createSecretAccumulator();
+  const refreshMs = env.redactionRefreshMs ?? REDACTION_REFRESH_MS;
+  let refreshedAt = env.clock.now().getTime();
+  /** Re-reads the list when due, accumulating. A failure keeps the last good list (the error may hold secrets). */
+  const refreshSecrets = async (): Promise<void> => {
+    const at = env.clock.now().getTime();
+    if (at - refreshedAt < refreshMs) return;
+    refreshedAt = at;
+    try {
+      secrets = accumulator.merge(await hooks.secrets());
+    } catch {
+      // keep the last good list; never log the error
+    }
+  };
   try {
-    secrets = await hooks.secrets();
+    secrets = accumulator.merge(await hooks.secrets());
+    refreshedAt = env.clock.now().getTime();
     for (;;) {
       const pod = await waitForPod(env, hooks.jobName, ac.signal);
       // State of one pass over the log. Output in the tracker's buffer is not durable until stored as a chunk.
       let index = 0;
       let lastOutputIndex = 0;
       let bufferStart = 0;
+      await refreshSecrets();
       hooks.beginPass?.();
       // Seeded from storage so the cap (and the single truncated chunk) hold across re-attaches and retries.
       const budget = await hooks.storedBudget();
@@ -236,6 +298,7 @@ export async function followPodLog<R>(env: FollowEnv, hooks: FollowHooks<R>): Pr
       for await (const line of env.kube.streamLogs(pod.name, ac.signal)) {
         index += 1;
         if (index <= skip) continue;
+        await refreshSecrets();
         if (hooks.onRawLine && (await hooks.onRawLine(pass, line))) continue;
         const parsed = parseLogLine(line);
         const isOutput = parsed.kind === 'setup_output' || parsed.kind === 'plugin_output';

@@ -74,6 +74,7 @@ function deps(over: Partial<SetupTestActivityDeps> = {}): SetupTestActivityDeps 
 function wrapKube(over: Partial<KubeGateway>): KubeGateway {
   return {
     ensureSecret: (n, d, l) => kube.ensureSecret(n, d, l),
+    replaceSecretData: (n, d) => kube.replaceSecretData(n, d),
     readSecret: (n) => kube.readSecret(n),
     deleteSecret: (n) => kube.deleteSecret(n),
     ensureJob: (j) => kube.ensureJob(j),
@@ -194,7 +195,7 @@ afterAll(async () => {
 });
 
 describe('createSetupTestJob', () => {
-  it('test pod env has no agent credential; the Secret holds the clone URL and runEnv only', async () => {
+  it('test pod env has no agent credential; the Secret holds the repo URL and the workspace token only', async () => {
     const ref = await seedTest();
     const acts = createSetupTestActivities(deps());
     const out = await acts.createSetupTestJob(ref);
@@ -204,7 +205,7 @@ describe('createSetupTestJob', () => {
     expect(out).toEqual({ ttlSeconds: 120 });
     expect(await kube.readSecret(name)).toEqual({
       REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
-      GH_TOKEN: CLONE_TOKEN,
+      'workspace-token': CLONE_TOKEN,
     });
     expect((await kube.processIds()).filter((p) => p.jobName === name)).toHaveLength(1);
     const env = await kube.podEnv(name);

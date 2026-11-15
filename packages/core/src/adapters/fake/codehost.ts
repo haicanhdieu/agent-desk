@@ -47,12 +47,16 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     return { token: 'fake-workspace-token', expiresAt: new Date(this.clock.now().getTime() + TOKEN_TTL_MS) };
   }
 
-  cloneUrl(project: AdapterProject, _token: string): string {
+  repoUrl(project: AdapterProject): string {
     return `https://fake.invalid/${project.repoPath}.git`;
   }
 
-  runEnv(token: string): Record<string, string> {
-    return { GH_TOKEN: token };
+  gitCredentialUsername(): string {
+    return 'x-access-token';
+  }
+
+  cliTokenEnvName(): string {
+    return 'GH_TOKEN';
   }
 
   checkoutRef(ticket: CheckoutTicket): string {

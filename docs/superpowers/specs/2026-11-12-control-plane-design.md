@@ -56,7 +56,7 @@ Application tables (every one has `org_id uuid not null` unless noted):
 |---|---|---|
 | `connections` | id, org_id, provider, capabilities (`{code, board}`), external_id (text), account_name, config (jsonb), status, linked_by_user_id, created_at | One per connected provider account. GitHub provides both capabilities; Jira would be board only. Unique on (provider, external_id) |
 | `projects` | id, org_id, name, repo_path, code_connection_id, board_connection_id, trigger_mode (`webhook`, `polling`), poll_interval_seconds, max_concurrent_runs, max_runs_per_ticket, created_by | `repo_path` is `owner/repo`, `group/subgroup/repo` or `workspace/repo`. `poll_interval_seconds` ∈ {300, 600, 900, 1800} |
-| `agents` | id, org_id, project_id, name, provider (`claude`), model, credential_secret_name, max_turns, timeout_seconds | `timeout_seconds` ≤ 3300. Credential value only in a Kubernetes Secret |
+| `agents` | id, org_id, project_id, name, provider (`claude`), model, credential_secret_name, max_turns, timeout_seconds | `timeout_seconds` 60 to 604800 (default 86400; ADR 0021). Credential value only in a Kubernetes Secret |
 | `rules` | id, org_id, project_id, command, label_filter[], target (`issue`, `pr`, `any`), agent_id, skill_name, enabled | Unique on (project_id, command) |
 | `runs` | id, number, org_id, project_id, rule_id, agent_id, skill_name, ticket_ref (text), ticket_kind, checkout_ref, args, status, workflow_id, job_name, trigger_source (`webhook`, `polling`, `manual`), trigger_comment_id (text), inbound_event_id, triggered_by, queued_at, started_at, finished_at, exit_code, failure_reason, cost_usd, outbox (jsonb) | Unique on (project_id, trigger_comment_id) and (project_id, number). `number` is a per-project sequence assigned on insert, shown as "Run 62" and used in web URLs. `outbox` records which comments were posted, for idempotency |
 | `run_events` | org_id, run_id, seq, ts, type, payload (jsonb) | Primary key (run_id, seq). Lifecycle lines and final scrollback in the PoC |
@@ -89,7 +89,7 @@ BoardAdapter
 CodeHostAdapter
   installUrl(org) / completeInstall(callbackParams, user) -> Connection
   mintWorkspaceToken(project)                         -> { token, expiresAt }
-  cloneUrl(project) / checkoutRef(ticket)             -> string
+  repoUrl(project) / checkoutRef(ticket)              -> string   (repoUrl carries no credential; gitCredentialUsername() -> string)
   listSkills / readSkill / writeSkill / deleteSkill(project, ...)
 
 TicketEvent { provider, deliveryId, commentId, externalId, repoPath, ticketRef,
@@ -135,7 +135,7 @@ The router is a pure function over (event, project, rules, run counts) so pollin
    - idle timer: 10 min in `idle` or `done` with no terminal attached → end session (outcome `succeeded`);
    - `finishRun` update (only in `idle` or `done`; otherwise rejected, API answers 409) → end session (`succeeded`);
    - `cancel` signal → delete Job (`cancelled`);
-   - hard timer at `timeout_seconds` (≤ 3300 s, so the 1-hour token stays valid) → delete Job (`timed_out`);
+   - hard timer at `timeout_seconds` (up to 7 days; the workspace token is refreshed every 45 min meanwhile, ADR 0021) → delete Job (`timed_out`);
    - `followPodLogs` completes → exit code 0 → `succeeded`, non-zero → `failed`.
    "End session" is an activity that execs `tmux kill-session -t agent` in the pod; the entrypoint then prints scrollback and exits.
 6. **Finally** (non-cancellable scope): ensure the Job is gone or completed, `setRunStatus(final, exitCode, reason)`, `postComment(finish)` with the scrollback tail on failure, `release(runId)` to the gate.
@@ -219,7 +219,7 @@ pino JSON logs with `requestId`, `orgId`, `runId` from AsyncLocalStorage; OpenTe
 
 The runner image is built in the infra spec. The control plane depends on this contract:
 
-- Env: `REPO_CLONE_URL` (includes the workspace token), the code host adapter's `runEnv` (GitHub: `GH_TOKEN`, the same token, so `gh` is authenticated), `CHECKOUT_REF`, `PROMPT`, `BOT_NAME`, `BOT_EMAIL`, `MAX_TURNS`, plus the agent credential from the per-run Secret.
+- Env: `REPO_CLONE_URL` (no credential in it), `AGENTDESK_TOKEN_FILE` and `AGENTDESK_GIT_USERNAME` (the workspace token is a mounted file read by a git credential helper and a `gh` wrapper, ADR 0021), `CHECKOUT_REF`, `PROMPT`, `BOT_NAME`, `BOT_EMAIL`, `MAX_TURNS`, plus the agent credential from the per-run Secret.
 - The entrypoint clones, fetches and checks out `CHECKOUT_REF`, starts Claude Code interactively in tmux session `agent` with `--permission-mode bypassPermissions`, waits for the pane to die, prints the scrollback and exits with the agent's status.
 - Log lines, one per line on stdout: `agentdesk: session started`, `agentdesk: state working`, `agentdesk: state waiting background`, `agentdesk: state needs_input <source> <note-b64>`, `agentdesk: state done <source> <note-b64>` (from the agent adapter's hooks and the `agentdesk-status` command, [ADR 0020](../../adr/0020-agent-status-protocol.md); the old `turn started` / `turn finished` lines are still parsed for one release), `agentdesk: final scrollback begin`, `agentdesk: final scrollback end`.
 - Plugins phase (after checkout, before the agent; [ADR 0019](../../adr/0019-repo-setup-and-approved-store-plugins.md)): `select-plugins.mjs` picks the repo's enabled plugins from approved stores; the entrypoint runs `claude plugin marketplace add <source>` then `claude plugin install <plugin>@<store>`, each under `timeout 120` with stdin closed and values as separate argv elements. A failure warns and the run continues.

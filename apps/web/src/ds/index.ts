@@ -20,12 +20,21 @@ export {
   TextInput,
   PrefixInput,
   UnitInput,
+  DurationInput,
   PasswordInput,
   SearchInput,
   StaticInput,
   type TextInputProps,
 } from './TextInput';
 export { Select } from './Select';
+export {
+  DAYS_FROM_MINUTES,
+  MINUTES_PER_DAY,
+  MINUTES_PER_HOUR,
+  minutesIn,
+  splitMinutes,
+  type DurationUnit,
+} from './duration';
 export { SegmentedControl, type SegmentedControlProps } from './SegmentedControl';
 export { Toggle, type ToggleProps } from './Toggle';
 export { Checkbox, RadioCard, type CheckboxProps, type RadioCardProps } from './Choice';

@@ -6,6 +6,7 @@ import type {
   RuleDto,
 } from '@agentdesk/contracts';
 import type { PollInterval } from '@/mocks/types';
+import { formatLimit } from '../duration';
 import { relativeTime } from '../relativeTime';
 
 const POLL_SECONDS = {
@@ -64,7 +65,7 @@ export function lastEvent(dto: ProjectConnectionDto, now: Date): { mode: 'webhoo
 
 /** SetupReady agent row, e.g. "Claude, opus, 30 min limit, 2 at a time". */
 export const agentSummary = (agent: AgentDto, maxConcurrentRuns: number): string =>
-  `${agent.name}, ${agent.model}, ${Math.round(agent.timeoutSeconds / 60)} min limit, ${maxConcurrentRuns} at a time`;
+  `${agent.name}, ${agent.model}, ${formatLimit(agent.timeoutSeconds)} limit, ${maxConcurrentRuns} at a time`;
 
 const WHERE = { issue: 'on issues', pr: 'on pull requests', any: 'on issues and pull requests' } as const;
 

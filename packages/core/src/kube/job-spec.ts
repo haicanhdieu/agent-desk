@@ -23,8 +23,14 @@ export interface RunJobInput {
   /** Untrusted text (contains the comment's args): passed only as an env value. */
   prompt: string;
   checkoutRef: string;
-  /** Key in the run Secret that holds the clone URL (with the workspace token); reaches the pod via `envFrom`. */
-  cloneUrlSecretKey: string;
+  /** Keys of the agent credential in the run Secret (e.g. `CLAUDE_CODE_OAUTH_TOKEN`); each reaches the pod as an env var. */
+  credentialEnvKeys: string[];
+  /** Username git sends with the workspace token (from the code host adapter). */
+  gitUsername: string;
+  /** Host the git credential helper may answer for (from the adapter's repo URL); any other host gets no token. */
+  gitHost: string;
+  /** Env var name the code host's CLI reads its token from (from the adapter). */
+  cliTokenEnvName: string;
   maxTurns: number | null;
   timeoutSeconds: number;
   botName: string;
@@ -38,8 +44,19 @@ export interface RunJobInput {
   pod: RunPodConfig;
 }
 
-/** Spec cap on `timeout_seconds` (the one-hour workspace token must outlive the run). */
-const TIMEOUT_SECONDS_MAX = 3300;
+/** Key in the run Secret that holds the repo URL (no credentials in it); reaches the pod as env `REPO_CLONE_URL`. */
+export const REPO_URL_KEY = 'REPO_CLONE_URL';
+/**
+ * Key in the run Secret that holds the workspace token. It is mounted as a file, never an env var, so the worker can
+ * rotate it in the running pod (ADR 0021). The kubelet refreshes the mounted file; a container's env never changes.
+ */
+export const WORKSPACE_TOKEN_KEY = 'workspace-token';
+const TOKEN_VOLUME = 'workspace-token';
+const TOKEN_DIR = '/var/run/agentdesk/workspace-token';
+const TOKEN_FILE = 'token';
+/** The mounted Secret file is readable by the pod's group (`fsGroup`) only. */
+const TOKEN_FILE_MODE = 0o440;
+
 /** `activeDeadlineSeconds` = timeout + this, a backstop to the workflow's hard timer. */
 const DEADLINE_MARGIN_SECONDS = 120;
 /**
@@ -94,17 +111,27 @@ function assertUuid(value: string, what: string): void {
 
 /**
  * The one place a sandbox Job's pod shape lives (security context, resources, volumes, scheduling), so run Jobs and
- * setup-test Jobs cannot drift. `name` is also the Secret that reaches the pod through `envFrom`.
+ * setup-test Jobs cannot drift. `name` is also the Secret the pod reads: the repo URL and `secretEnvKeys` become env
+ * vars through explicit `secretKeyRef`s (no `envFrom`, so the workspace token key is never an env var), and the
+ * workspace token key is mounted read-only as a file.
  */
 function podJob(o: {
   name: string;
   labels: Record<string, string>;
   image: string;
   env: V1EnvVar[];
+  secretEnvKeys: string[];
+  gitUsername: string;
+  gitHost: string;
+  cliTokenEnvName: string;
   activeDeadlineSeconds: number;
   pod: RunPodConfig;
 }): V1Job {
   const { name, labels, pod: p } = o;
+  const secretEnv: V1EnvVar[] = [REPO_URL_KEY, ...o.secretEnvKeys].map((key) => ({
+    name: key,
+    valueFrom: { secretKeyRef: { name, key } },
+  }));
   return {
     apiVersion: 'batch/v1',
     kind: 'Job',
@@ -133,8 +160,14 @@ function podJob(o: {
             {
               name: RUN_CONTAINER,
               image: o.image,
-              envFrom: [{ secretRef: { name } }],
-              env: o.env,
+              env: [
+                ...secretEnv,
+                { name: 'AGENTDESK_TOKEN_FILE', value: `${TOKEN_DIR}/${TOKEN_FILE}` },
+                { name: 'AGENTDESK_GIT_USERNAME', value: o.gitUsername },
+                { name: 'AGENTDESK_GIT_HOST', value: o.gitHost },
+                { name: 'AGENTDESK_CLI_TOKEN_ENV', value: o.cliTokenEnvName },
+                ...o.env,
+              ],
               resources: {
                 requests: { cpu: p.cpuRequest, memory: p.memoryRequest },
                 limits: { cpu: p.cpuLimit, memory: p.memoryLimit, 'ephemeral-storage': p.ephemeralStorageLimit },
@@ -146,10 +179,23 @@ function podJob(o: {
                 capabilities: { drop: ['ALL'] },
                 seccompProfile: { type: 'RuntimeDefault' },
               },
-              volumeMounts: [{ name: 'workspace', mountPath: '/workspace' }],
+              volumeMounts: [
+                { name: 'workspace', mountPath: '/workspace' },
+                { name: TOKEN_VOLUME, mountPath: TOKEN_DIR, readOnly: true },
+              ],
             },
           ],
-          volumes: [{ name: 'workspace', emptyDir: { sizeLimit: p.workspaceSizeLimit } }],
+          volumes: [
+            { name: 'workspace', emptyDir: { sizeLimit: p.workspaceSizeLimit } },
+            {
+              name: TOKEN_VOLUME,
+              secret: {
+                secretName: name,
+                items: [{ key: WORKSPACE_TOKEN_KEY, path: TOKEN_FILE }],
+                defaultMode: TOKEN_FILE_MODE,
+              },
+            },
+          ],
         },
       },
     },
@@ -158,11 +204,12 @@ function podJob(o: {
 
 /**
  * The run Job (spec §8, Architecture §5). The image's entrypoint runs the agent; nothing here builds a command line,
- * so untrusted values (the prompt, refs) are only ever env values. The clone URL and the agent credential come from
- * Secret `run-{runId}` through `envFrom`.
+ * so untrusted values (the prompt, refs) are only ever env values. The repo URL and the agent credential come from
+ * Secret `run-{runId}` through `secretKeyRef`s; the workspace token is a mounted file (see `podJob`).
  */
 export function buildRunJob(input: RunJobInput): V1Job {
-  const timeout = Math.min(Math.max(1, Math.floor(input.timeoutSeconds)), TIMEOUT_SECONDS_MAX);
+  // No cap here: the contract bounds the limit (7 days) and the workspace token is refreshed in the pod (ADR 0021).
+  const timeout = Math.max(1, Math.floor(input.timeoutSeconds));
   const env: V1EnvVar[] = [
     { name: 'CHECKOUT_REF', value: input.checkoutRef },
     { name: 'PROMPT', value: input.prompt },
@@ -178,6 +225,10 @@ export function buildRunJob(input: RunJobInput): V1Job {
     labels: runLabels(input),
     image: input.image,
     env,
+    secretEnvKeys: input.credentialEnvKeys,
+    gitUsername: input.gitUsername,
+    gitHost: input.gitHost,
+    cliTokenEnvName: input.cliTokenEnvName,
     activeDeadlineSeconds: timeout + DEADLINE_MARGIN_SECONDS,
     pod: input.pod,
   });
@@ -197,6 +248,12 @@ export interface SetupTestJobInput {
   ttlSeconds: number;
   botName: string;
   botEmail: string;
+  /** Username git sends with the workspace token (from the code host adapter). */
+  gitUsername: string;
+  /** Host the git credential helper may answer for (from the adapter's repo URL); any other host gets no token. */
+  gitHost: string;
+  /** Env var name the code host's CLI reads its token from (from the adapter). */
+  cliTokenEnvName: string;
   pod: RunPodConfig;
 }
 
@@ -233,6 +290,10 @@ export function buildSetupTestJob(input: SetupTestJobInput): V1Job {
     labels: setupTestLabels(input),
     image: input.image,
     env,
+    secretEnvKeys: [],
+    gitUsername: input.gitUsername,
+    gitHost: input.gitHost,
+    cliTokenEnvName: input.cliTokenEnvName,
     activeDeadlineSeconds: input.setupTimeoutSeconds + input.ttlSeconds + SETUP_TEST_DEADLINE_MARGIN_SECONDS,
     pod: input.pod,
   });

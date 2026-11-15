@@ -25,6 +25,7 @@ function mocks() {
       data: {} as Record<string, string>,
     })),
     deleteNamespacedSecret: vi.fn(async (_: { name: string; namespace: string }) => ({})),
+    replaceNamespacedSecret: vi.fn(async (_: { name: string; namespace: string; body: unknown }) => ({})),
     listNamespacedPod: vi.fn(async (_: { namespace: string; labelSelector?: string }) => ({ items: [] as V1Pod[] })),
     listNamespacedSecret: vi.fn(async (_: { namespace: string; labelSelector?: string }) => ({
       items: [] as { metadata?: { name?: string; labels?: Record<string, string> } }[],
@@ -85,6 +86,39 @@ describe('RealKubeGateway', () => {
     });
     m.batch.createNamespacedJob.mockRejectedValueOnce(apiErr(403));
     await expect(m.gw.ensureJob({ metadata: { name: 'run-x' } })).rejects.toThrow();
+  });
+
+  it('replaceSecretData reads, merges the new keys and replaces, keeping labels and resourceVersion', async () => {
+    const m = mocks();
+    m.core.readNamespacedSecret.mockResolvedValueOnce({
+      metadata: { name: 'run-x', namespace: NS, labels: { 'agentdesk/run-id': 'x' }, resourceVersion: '7' },
+      data: {
+        REPO_CLONE_URL: Buffer.from('u').toString('base64'),
+        'workspace-token': Buffer.from('old').toString('base64'),
+      },
+    } as never);
+    await m.gw.replaceSecretData('run-x', { 'workspace-token': 'new' });
+    expect(m.core.replaceNamespacedSecret).toHaveBeenCalledWith({
+      name: 'run-x',
+      namespace: NS,
+      body: {
+        metadata: { name: 'run-x', namespace: NS, labels: { 'agentdesk/run-id': 'x' }, resourceVersion: '7' },
+        type: 'Opaque',
+        data: {
+          REPO_CLONE_URL: Buffer.from('u').toString('base64'),
+          'workspace-token': Buffer.from('new').toString('base64'),
+        },
+      },
+    });
+  });
+
+  it('replaceSecretData does not create a missing Secret and surfaces a conflict', async () => {
+    const m = mocks();
+    m.core.readNamespacedSecret.mockRejectedValueOnce(apiErr(404));
+    await expect(m.gw.replaceSecretData('run-x', { a: 'b' })).rejects.toThrow();
+    expect(m.core.replaceNamespacedSecret).not.toHaveBeenCalled();
+    m.core.replaceNamespacedSecret.mockRejectedValueOnce(apiErr(409));
+    await expect(m.gw.replaceSecretData('run-x', { a: 'b' })).rejects.toThrow();
   });
 
   it('delete calls treat 404 as success and delete the Job in the foreground', async () => {

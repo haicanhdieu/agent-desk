@@ -10,6 +10,12 @@ set -euo pipefail
 REPO_DIR="${AGENTDESK_REPO_DIR:-/workspace/repo}"
 LIB_DIR="${AGENTDESK_LIB_DIR:-/usr/local/lib/agentdesk}"
 
+# A rotating workspace token lives in a mounted file (AGENTDESK_TOKEN_FILE). git reads it through the credential helper
+# on every call; the `gh` wrapper on PATH does the same. Without the file, REPO_CLONE_URL / GH_TOKEN carry the token.
+if [ -n "${AGENTDESK_TOKEN_FILE:-}" ]; then
+  git config --global credential.helper "$LIB_DIR/git-credential-agentdesk"
+fi
+
 git clone --quiet -- "$REPO_CLONE_URL" "$REPO_DIR" 2>&1 | sed 's#://[^@/]*@#://***@#g' >&2
 cd "$REPO_DIR"
 git config user.name "${BOT_NAME:-agentdesk}"

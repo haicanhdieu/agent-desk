@@ -4,7 +4,10 @@ import { describe, expect, it } from 'vitest';
 import { createAdapterRegistry, parseConfig, type KubeGateway, type RunPod } from '@agentdesk/core';
 import { createDb, type Tx } from '@agentdesk/db';
 import {
+  REDACTION_EXTRA_KEEP,
+  REDACTION_REFRESH_MS,
   appendSeqEvent,
+  createSecretAccumulator,
   followPodLog,
   outputBudget,
   waitForPod,
@@ -27,6 +30,7 @@ function kubeWith(over: Partial<KubeGateway>): KubeGateway {
   };
   return {
     ensureSecret: unused,
+    replaceSecretData: unused,
     readSecret: async () => null,
     deleteSecret: unused,
     ensureJob: unused,
@@ -164,6 +168,133 @@ describe('followPodLog bookkeeping (chunk keys and durable line)', () => {
     ]);
     // Buffered output is not durable: the beat stays at the last stored line (1) until the marker flushes it (4).
     expect(beats).toEqual([0, 1, 1, 1, 4, 4, 5]);
+  });
+});
+
+describe('followPodLog redaction refresh (rotated workspace token)', () => {
+  const OLD = 'initial-tok-ABC987';
+  const NEW = 'rotated-tok-XYZ123';
+
+  /** Runs a follow over `steps`: a string is a log line, a function runs between lines (rotation, time passing). */
+  const runFollow = async (opts: {
+    secrets: (clockMs: number) => Promise<string[]>;
+    steps: (adv: (ms: number) => void) => (string | (() => void))[];
+    refreshMs?: number;
+  }): Promise<string> => {
+    let nowMs = 0;
+    const stored: string[] = [];
+    const steps = opts.steps((ms) => (nowMs += ms));
+    const kube = kubeWith({
+      getRunPod: async () => pod('Running'),
+      async *streamLogs() {
+        for (const step of steps) {
+          if (typeof step === 'string') yield step;
+          else step();
+        }
+      },
+    });
+    const hooks: FollowHooks<string> = {
+      what: 'test follow',
+      jobName: 'job',
+      secrets: () => opts.secrets(nowMs),
+      storedBudget: async () => ({ chars: 0, truncated: false }),
+      storeLifecycle: async (_line, payload) => void stored.push(String(payload.text)),
+      afterStream: async (pass) => {
+        await pass.flushPending();
+        return { done: 'finished' };
+      },
+    };
+    const env = {
+      kube,
+      clock: { now: () => new Date(nowMs) },
+      pollMs: 5,
+      heartbeatMs: 1000,
+      pendingLimitMs: 1000,
+      redactionRefreshMs: opts.refreshMs ?? 500,
+    };
+    await new MockActivityEnvironment().run(() => followPodLog(env, hooks));
+    return stored.join('\n');
+  };
+
+  it('redacts a rotated token of any shape after the refresh interval, and still the old one', async () => {
+    let current = OLD;
+    const stored = await runFollow({
+      secrets: async () => [current],
+      steps: (adv) => [
+        `setup| clone with ${OLD}`,
+        () => {
+          current = NEW; // the token is rotated in the run Secret mid-run
+          adv(1000);
+        },
+        `setup| now ${NEW}`,
+        `setup| stale ${OLD}`,
+      ],
+    });
+    expect(stored).not.toContain(NEW);
+    expect(stored).not.toContain(OLD);
+    expect(stored).toContain('now ');
+  });
+
+  it('defaults to a re-read interval of at most 60 s, shorter than the pod token file sync', () => {
+    expect(REDACTION_REFRESH_MS).toBeLessThanOrEqual(60_000);
+  });
+
+  it('redacts a token rotated between two re-reads on the first line after the next re-read', async () => {
+    let current = OLD;
+    const stored = await runFollow({
+      refreshMs: REDACTION_REFRESH_MS,
+      secrets: async () => [current],
+      steps: (adv) => [
+        `setup| clone with ${OLD}`,
+        () => {
+          adv(10_000);
+          current = NEW; // rotated mid-interval, before the next re-read
+          adv(REDACTION_REFRESH_MS - 10_000);
+        },
+        `setup| debug ${NEW}`,
+      ],
+    });
+    expect(stored).not.toContain(NEW);
+    expect(stored).not.toContain(OLD);
+    expect(stored).toContain('debug ');
+  });
+
+  it('keeps the last good list when a refresh fails, without leaking or failing the follow', async () => {
+    let calls = 0;
+    const stored = await runFollow({
+      secrets: async () => {
+        calls += 1;
+        if (calls > 1) throw new Error(`boom ${OLD}`);
+        return [OLD];
+      },
+      steps: (adv) => [() => adv(1000), `setup| ${OLD}`],
+    });
+    expect(calls).toBeGreaterThan(1);
+    expect(stored).not.toContain(OLD);
+  });
+});
+
+describe('createSecretAccumulator', () => {
+  it('keeps first-read values and the newest extras, bounded over many rotations', () => {
+    const acc = createSecretAccumulator();
+    let list = acc.merge(['credential-value', 'token-0']);
+    for (let i = 1; i <= 50; i++) {
+      list = acc.merge(['credential-value', `token-${i}`]);
+      expect(list.length).toBeLessThanOrEqual(2 + REDACTION_EXTRA_KEEP);
+    }
+    expect(list).toContain('credential-value');
+    expect(list).toContain('token-0');
+    expect(list).toContain('token-50');
+    expect(list).toContain(`token-${50 - REDACTION_EXTRA_KEEP + 1}`);
+    expect(list).not.toContain('token-1');
+    expect(list).not.toContain(`token-${50 - REDACTION_EXTRA_KEEP}`);
+  });
+
+  it('dedupes and keeps the list on a repeated read', () => {
+    const acc = createSecretAccumulator();
+    expect(acc.merge(['a', 'a', 'b'])).toEqual(['a', 'b']);
+    expect(acc.merge(['b', 'c'])).toEqual(['a', 'b', 'c']);
+    expect(acc.merge(['b', 'c'])).toEqual(['a', 'b', 'c']);
   });
 });
 

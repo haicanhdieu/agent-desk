@@ -12,6 +12,7 @@ import {
   type Tx,
 } from '@agentdesk/db';
 import {
+  AGENT_TIMEOUT_SECONDS_DEFAULT,
   PollInterval,
   Provider,
   SetupStep,
@@ -204,7 +205,7 @@ export class ProjectsService {
           name: 'Claude',
           model: 'sonnet',
           maxTurns: 50,
-          timeoutSeconds: 1800,
+          timeoutSeconds: AGENT_TIMEOUT_SECONDS_DEFAULT,
         });
         if (row.triggerMode === 'polling') {
           await tx.insert(pollCursors).values({ projectId: row.id, orgId: org.orgId, since: new Date() });

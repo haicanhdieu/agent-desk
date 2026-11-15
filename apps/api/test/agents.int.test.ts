@@ -57,24 +57,32 @@ describe('agents', () => {
       provider: 'claude',
       model: 'sonnet',
       maxTurns: 50,
-      timeoutSeconds: 1800,
+      timeoutSeconds: 86400,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
   });
 
   it('PUT updates settings; omitted maxTurns becomes null', async () => {
-    const res = await putAgent({ model: 'opus', timeoutSeconds: 3300 });
+    const res = await putAgent({ model: 'opus', timeoutSeconds: 604800 });
     const a = expectContract('agents.put', res) as AgentDto;
-    expect(a).toMatchObject({ model: 'opus', maxTurns: null, timeoutSeconds: 3300 });
+    expect(a).toMatchObject({ model: 'opus', maxTurns: null, timeoutSeconds: 604800 });
     const b = expectContract('agents.put', await putAgent({ model: 'sonnet', maxTurns: 10, timeoutSeconds: 60 }));
     expect(b).toMatchObject({ model: 'sonnet', maxTurns: 10, timeoutSeconds: 60 });
   });
 
-  it('PUT with timeoutSeconds 4000 is a 400 with pointer /timeoutSeconds', async () => {
+  it('PUT accepts a limit over the old 3300 s cap, up to 7 days', async () => {
     const res = await putAgent({ model: 'sonnet', timeoutSeconds: 4000 });
+    expect(res.statusCode).toBe(200);
+    expect(expectContract('agents.put', res)).toMatchObject({ timeoutSeconds: 4000 });
+  });
+
+  it('PUT with timeoutSeconds above 7 days is a 400 with pointer /timeoutSeconds and a message naming the limit', async () => {
+    const res = await putAgent({ model: 'sonnet', timeoutSeconds: 604801 });
     expect(res.statusCode).toBe(400);
-    expect((res.json() as { errors: { pointer: string }[] }).errors.map((e) => e.pointer)).toContain('/timeoutSeconds');
-    expect((await putAgent({ model: 'sonnet', timeoutSeconds: 3301 })).statusCode).toBe(400);
+    const errors = (res.json() as { errors: { pointer: string; detail: string }[] }).errors;
+    expect(errors.map((e) => e.pointer)).toContain('/timeoutSeconds');
+    expect(errors.map((e) => e.detail).join(' ')).toMatch(/7 days/);
+    expect((await putAgent({ model: 'sonnet', timeoutSeconds: 59 })).statusCode).toBe(400);
   });
 
   it('is 404 across orgs', async () => {

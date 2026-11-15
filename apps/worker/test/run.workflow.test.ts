@@ -83,6 +83,12 @@ interface Script {
   loadHold?: Deferred<void>;
   /** When set, the next workflow-written `running` status blocks on it (then the hold is cleared). */
   holdNextRunning?: Deferred<void>;
+  /** The first N refreshWorkspaceToken attempts throw a retryable error (the activity retry policy retries them). */
+  refreshFailFirst?: number;
+  /** Every refreshWorkspaceToken attempt throws a non-retryable error. */
+  refreshFailsForGood?: boolean;
+  /** What createRunSecretAndJob and refreshWorkspaceToken report as the next refresh delay (seconds). */
+  plannedRefreshSeconds?: number;
 }
 
 const scripts = new Map<string, Script>();
@@ -140,6 +146,15 @@ function activities(): RunActivities {
       s.statuses.push(input);
       return { seq: s.statuses.length };
     },
+    async refreshWorkspaceToken(ctx) {
+      const s = script(ctx.runId);
+      s.calls.push('refreshWorkspaceToken');
+      if (s.refreshFailsForGood) throw ApplicationFailure.nonRetryable('the run Secret is gone');
+      if (s.refreshFailFirst !== undefined && count(s, 'refreshWorkspaceToken') <= s.refreshFailFirst) {
+        throw new Error('transient');
+      }
+      return s.plannedRefreshSeconds === undefined ? undefined : { nextRefreshSeconds: s.plannedRefreshSeconds };
+    },
     async createRunSecretAndJob(ctx) {
       const s = script(ctx.runId);
       s.calls.push('createRunSecretAndJob');
@@ -152,6 +167,7 @@ function activities(): RunActivities {
       }
       if (s.jobHold)
         await untilSettledOrCancelled(s.jobHold.promise, () => s.calls.push('createRunSecretAndJob:cancelled'));
+      return s.plannedRefreshSeconds === undefined ? undefined : { nextRefreshSeconds: s.plannedRefreshSeconds };
     },
     async postComment(ctx, kind, details) {
       const s = script(ctx.runId);
@@ -378,6 +394,113 @@ describe('RunWorkflow', () => {
     expect((await h.result()).status).toBe('succeeded');
     expect(count(s, 'endSession')).toBe(1);
     expect((s.endSessionAt ?? 0) - detachedAt).toBeGreaterThanOrEqual(900);
+  });
+
+  it('refreshes the workspace token on an interval while the pod runs, and stops when the run ends', async () => {
+    const s = newRun({ tokenRefreshSeconds: 1 });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await waitFor(() => count(s, 'refreshWorkspaceToken') >= 2, 'two refreshes');
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+    const after = count(s, 'refreshWorkspaceToken');
+    await sleepReal(1600);
+    expect(count(s, 'refreshWorkspaceToken')).toBe(after);
+    expect(statuses(s)).toEqual(['starting', 'running', 'succeeded']);
+    await gateForgot(s);
+    captured['run-token-refresh'] = h;
+  });
+
+  it('a transient refresh failure is retried and the run is untouched', async () => {
+    const s = newRun({ tokenRefreshSeconds: 1 });
+    s.refreshFailFirst = 1;
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await waitFor(() => count(s, 'refreshWorkspaceToken') >= 2, 'a retry after the failure');
+    expect((await state(h)).phase).toBe('running');
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+  });
+
+  it('a refresh that fails for good ends the loop but not the run', async () => {
+    const s = newRun({ tokenRefreshSeconds: 1 });
+    s.refreshFailsForGood = true;
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await waitFor(() => count(s, 'refreshWorkspaceToken') === 1, 'the failing refresh');
+    await sleepReal(2500);
+    expect(count(s, 'refreshWorkspaceToken')).toBe(1);
+    expect((await state(h)).phase).toBe('running');
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+  });
+
+  it('the workspace token never appears in refresh calls or history', async () => {
+    const s = newRun({ tokenRefreshSeconds: 1 });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await waitFor(() => count(s, 'refreshWorkspaceToken') >= 1, 'a refresh');
+    s.logs.resolve({ exitCode: 0 });
+    await h.result();
+    expect(JSON.stringify(await h.fetchHistory())).not.toContain(TOKEN);
+  });
+
+  it('uses the refresh delay the activities report when no override is set', async () => {
+    const s = newRun();
+    s.plannedRefreshSeconds = 1;
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await waitFor(() => count(s, 'refreshWorkspaceToken') >= 2, 'two refreshes at the reported delay');
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+  });
+
+  it('a 7 day limit is used as is: the hard timer and the log follower both take it, and the run is not cut short', async () => {
+    const week = 604_800;
+    const s = newRun({ timeoutSeconds: week });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await waitPhase(h, 'running');
+    // Past the old 3300 s cap's worth of margin in every timeout: nothing was clamped.
+    await sleepReal(1500);
+    expect((await state(h)).phase).toBe('running');
+    expect(statuses(s)).toEqual(['starting', 'running']);
+    const events = (await h.fetchHistory()).events ?? [];
+    const timers = events
+      .map((e) => e.timerStartedEventAttributes?.startToFireTimeout?.seconds)
+      .filter((x) => x != null);
+    expect(timers.map(String)).toContain(String(week));
+    const logsScheduled = events.find(
+      (e) => e.activityTaskScheduledEventAttributes?.activityType?.name === 'followPodLogs',
+    );
+    expect(String(logsScheduled?.activityTaskScheduledEventAttributes?.startToCloseTimeout?.seconds)).toBe(
+      String(week + 300),
+    );
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+  });
+
+  it('a history near the limit ends the run as failed with a plain reason, and cleanup runs', async () => {
+    const s = newRun({ historyEventLimit: 40 });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await waitPhase(h, 'running');
+    let done = false;
+    const outcome = h.result().finally(() => {
+      done = true;
+    });
+    // Each signal adds events; the run must end on its own once the (lowered) limit is reached.
+    for (let i = 0; i < 100 && !done; i++) {
+      await h.signal(signals.terminalAttached);
+      await sleepReal(20);
+    }
+    const out = await outcome;
+    expect(out.status).toBe('failed');
+    expect(out.failureReason).toContain('grew too long');
+    expect(count(s, 'deleteJob')).toBe(1);
+    expect(expectFinishOnce(s)).toMatchObject({ status: 'failed' });
+    expect(s.statuses.at(-1)).toMatchObject({ status: 'failed' });
+    await gateForgot(s);
   });
 
   it('hard timeout at timeoutSeconds → deleteJob, timed_out', async () => {
@@ -832,6 +955,7 @@ describe('RunWorkflow', () => {
       'run-cancel-starting',
       'run-idle-finish',
       'run-success',
+      'run-token-refresh',
     ]);
     for (const [name, h] of Object.entries(captured)) {
       const history = await h.fetchHistory();

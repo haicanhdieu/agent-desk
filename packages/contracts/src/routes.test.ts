@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AGENT_TIMEOUT_SECONDS_DEFAULT,
+  AGENT_TIMEOUT_SECONDS_MAX,
+  AGENT_TIMEOUT_SECONDS_MIN,
   SETUP_SCRIPT_MAX_BYTES,
   SetupScriptBody,
   CreateRuleRequest,
@@ -32,8 +35,8 @@ describe('contracts', () => {
     expect(Object.keys(flat)).toContain('agents.putCredential');
     expect(Object.keys(flat)).toHaveLength(40);
   });
-  it('rejects timeoutSeconds above 3300', () => {
-    expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 3301 }).success).toBe(false);
+  it('rejects timeoutSeconds above 7 days', () => {
+    expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 604801 }).success).toBe(false);
   });
   it('accepts only allowed poll intervals', () => {
     expect(UpdateProjectRequest.safeParse({ pollIntervalSeconds: 120 }).success).toBe(false);
@@ -73,9 +76,24 @@ describe('setup script contract', () => {
 });
 
 describe('contract boundaries', () => {
-  it('PutAgentRequest accepts timeoutSeconds 3300 and rejects 3301', () => {
-    expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 3300 }).success).toBe(true);
-    expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 3301 }).success).toBe(false);
+  it('PutAgentRequest accepts timeoutSeconds 60 to 604800 (7 days) and rejects outside', () => {
+    for (const ok of [60, 3301, 86400, 604800]) {
+      expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: ok }).success, String(ok)).toBe(true);
+    }
+    for (const bad of [59, 604801, 1.5]) {
+      expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: bad }).success, String(bad)).toBe(false);
+    }
+  });
+  it('the over-limit message names the limit in days, at the field pointer', () => {
+    const r = PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 604801 });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(['timeoutSeconds']);
+    expect(r.error?.issues[0]?.message).toMatch(/7 days/);
+  });
+  it('exports the run time limit bounds: 60 s, 7 days, default 24 h', () => {
+    expect([AGENT_TIMEOUT_SECONDS_MIN, AGENT_TIMEOUT_SECONDS_MAX, AGENT_TIMEOUT_SECONDS_DEFAULT]).toEqual([
+      60, 604800, 86400,
+    ]);
   });
   it('RunListQuery.limit defaults to 50', () => {
     expect(RunListQuery.parse({}).limit).toBe(50);

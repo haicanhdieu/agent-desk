@@ -1,0 +1,47 @@
+#!/bin/sh
+# `gh` wrapper for run pods. When $AGENTDESK_TOKEN_FILE and $AGENTDESK_CLI_TOKEN_ENV are both set, it exports the
+# variable named by $AGENTDESK_CLI_TOKEN_ENV (the code host adapter picks the name) from the file on every call, so a
+# rotated token is used at once, then runs the real `gh` found on PATH after this directory. Without them it changes
+# nothing. An invalid variable name fails the call. No `set -x`: the token is a secret.
+set -eu
+
+self_dir="$(cd "$(dirname "$0")" && pwd)"
+clean_path=""
+old_ifs="$IFS"
+IFS=':'
+set -f
+for p in ${PATH:-}; do
+  [ "$p" = "$self_dir" ] && continue
+  clean_path="${clean_path:+$clean_path:}$p"
+done
+set +f
+IFS="$old_ifs"
+
+real="$(PATH="$clean_path" command -v gh || true)"
+if [ -z "$real" ]; then
+  echo 'gh: not found' >&2
+  exit 127
+fi
+
+if [ -n "${AGENTDESK_TOKEN_FILE:-}" ] && [ -n "${AGENTDESK_CLI_TOKEN_ENV:-}" ]; then
+  case "$AGENTDESK_CLI_TOKEN_ENV" in
+    [A-Za-z_]*) ;;
+    *)
+      echo 'agentdesk: invalid AGENTDESK_CLI_TOKEN_ENV' >&2
+      exit 1
+      ;;
+  esac
+  case "$AGENTDESK_CLI_TOKEN_ENV" in
+    *[!A-Za-z0-9_]*)
+      echo 'agentdesk: invalid AGENTDESK_CLI_TOKEN_ENV' >&2
+      exit 1
+      ;;
+  esac
+  if [ ! -r "$AGENTDESK_TOKEN_FILE" ]; then
+    echo 'agentdesk: workspace token file is missing or unreadable' >&2
+    exit 1
+  fi
+  token="$(tr -d '\r\n' < "$AGENTDESK_TOKEN_FILE")"
+  export "$AGENTDESK_CLI_TOKEN_ENV=$token"
+fi
+exec "$real" "$@"

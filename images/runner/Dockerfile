@@ -19,12 +19,16 @@ RUN groupadd -g 10001 runner \
 COPY --chown=10001:10001 settings.json /home/runner/.claude/settings.json
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY select-plugins.mjs /usr/local/lib/agentdesk/select-plugins.mjs
+# Rotating workspace token: git credential helper + `gh` wrapper (first on PATH) read $AGENTDESK_TOKEN_FILE per call.
+COPY git-credential-agentdesk /usr/local/lib/agentdesk/git-credential-agentdesk
+COPY bin/gh /usr/local/lib/agentdesk/bin/gh
 # Status protocol: agent-neutral declare command + the Claude Code adapter (hooks via managed settings,
 # which a repo's .claude/settings.json cannot override).
 COPY agentdesk-status.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs
 COPY agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/hook.mjs
 COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
-RUN chmod 0755 /usr/local/bin/entrypoint.sh \
+RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credential-agentdesk \
+    /usr/local/lib/agentdesk/bin/gh \
  && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \
     /usr/local/lib/agentdesk/agents/claude/hook.mjs /etc/claude-code/managed-settings.json \
  && printf '#!/bin/sh\nexec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"\n' > /usr/local/bin/agentdesk-status \
@@ -33,6 +37,7 @@ RUN chmod 0755 /usr/local/bin/entrypoint.sh \
 
 USER 10001:10001
 ENV HOME=/home/runner
+ENV PATH=/usr/local/lib/agentdesk/bin:$PATH
 ENV DISABLE_AUTOUPDATER=1
 WORKDIR /workspace
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]

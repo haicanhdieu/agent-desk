@@ -148,7 +148,24 @@ describe('toRunDetail', () => {
   });
 
   it('time: elapsed against timeoutSeconds, with the percent used', () => {
-    expect(detail(running).time).toEqual({ elapsed: '7:40', limit: '30:00', percent: 26 });
+    expect(detail(running).time).toEqual({ elapsed: '7:40', limit: '30 min', percent: 26 });
+  });
+
+  it('time: a 24 h limit shows as "24 h" and a long elapsed time as h:mm:ss', () => {
+    const long = run({ status: 'running', timeoutSeconds: 86400, startedAt: local(10, 0, 0) });
+    const at = new Date(2026, 10, 12, 11, 5, 3);
+    const d = toRunDetail(long, [], project, [long], at, links);
+    expect(d.time).toEqual({ elapsed: '1:05:03', limit: '24 h', percent: 5 });
+  });
+
+  it('timed out after a multi-day limit names the limit in days', () => {
+    const r = run({
+      status: 'timed_out',
+      timeoutSeconds: 604800,
+      startedAt: local(10, 0, 0),
+      finishedAt: local(10, 0, 0),
+    });
+    expect(detail(r).endNote?.title).toBe('Timed out at the 7 d limit');
   });
 
   describe('startup checklist', () => {
@@ -247,12 +264,12 @@ describe('toRunDetail', () => {
       expect(detail(r).endNote?.actions).toEqual([]);
     });
 
-    it('timed out: the limit in minutes, Change time limit, a full meter', () => {
+    it('timed out: the limit, Change time limit, a full meter', () => {
       const r = ended({ status: 'timed_out', startedAt: local(10, 2, 4), finishedAt: local(10, 32, 4) });
       const d = detail(r);
-      expect(d.endNote?.title).toBe('Timed out at the 30 minute limit');
+      expect(d.endNote?.title).toBe('Timed out at the 30 min limit');
       expect(d.endNote?.actions).toEqual([{ label: 'Change time limit', href: links.agent, icon: 'clock' }]);
-      expect(d.time).toEqual({ elapsed: '30:00', limit: '30:00', percent: 100 });
+      expect(d.time).toEqual({ elapsed: '30:00', limit: '30 min', percent: 100 });
     });
 
     it('cancelled: the time it ended, no actions', () => {
