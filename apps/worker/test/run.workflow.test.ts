@@ -81,6 +81,8 @@ interface Script {
   endSessionCalled: Deferred<void>;
   /** When set, the first loadRun waits for it (or for cancellation); later calls return at once. */
   loadHold?: Deferred<void>;
+  /** When set, the next workflow-written `running` status blocks on it (then the hold is cleared). */
+  holdNextRunning?: Deferred<void>;
 }
 
 const scripts = new Map<string, Script>();
@@ -130,6 +132,11 @@ function activities(): RunActivities {
     },
     async setRunStatus(input) {
       const s = script(input.runId);
+      if (input.status === 'running' && s.holdNextRunning) {
+        const hold = s.holdNextRunning;
+        s.holdNextRunning = undefined;
+        await hold.promise;
+      }
       s.statuses.push(input);
       return { seq: s.statuses.length };
     },
@@ -703,6 +710,58 @@ describe('RunWorkflow', () => {
     expect(count(s, 'endSession')).toBe(0);
     s.logs.resolve({ exitCode: 0 });
     expect((await h.result()).status).toBe('succeeded');
+  });
+
+  it('agentState waiting while idle returns to running without a status write (the activity owns that row)', async () => {
+    const s = newRun({ idleEndSeconds: 1 });
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await h.signal(signals.agentState, 'needs_input');
+    await waitPhase(h, 'idle');
+    await h.signal(signals.agentState, 'waiting');
+    await waitPhase(h, 'running');
+    await sleepReal(1800);
+    expect(statuses(s)).toEqual(['starting', 'running']);
+    expect(count(s, 'endSession')).toBe(0);
+    // A later turn end is still honoured.
+    await h.signal(signals.agentState, 'needs_input');
+    await waitPhase(h, 'idle');
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+  });
+
+  it('agentState waiting while done returns to running without a status write', async () => {
+    const s = newRun();
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await h.signal(signals.agentState, 'done');
+    await waitPhase(h, 'agent_done');
+    await h.signal(signals.agentState, 'waiting');
+    await waitPhase(h, 'running');
+    await sleepReal(300);
+    expect(statuses(s)).toEqual(['starting', 'running']);
+    s.logs.resolve({ exitCode: 0 });
+    expect((await h.result()).status).toBe('succeeded');
+  });
+
+  it('finishRun accepted, then the run is finalized before the session ends → NotFinishable, not a hang', async () => {
+    const s = newRun();
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await h.signal(signals.agentState, 'needs_input');
+    await waitPhase(h, 'idle');
+    // Keep the main loop busy writing `running` so it cannot reach `ending = true` before the cancel lands.
+    const hold = deferred<void>();
+    s.holdNextRunning = hold;
+    await h.signal(signals.agentState, 'working');
+    await waitPhase(h, 'running');
+    await h.signal(signals.agentState, 'needs_input');
+    await waitPhase(h, 'idle');
+    const update = await h.startUpdate(signals.finishRun, { waitForStage: 'ACCEPTED' });
+    await h.signal(signals.cancel);
+    await expect(update.result()).rejects.toMatchObject({ cause: { type: 'NotFinishable' } });
+    hold.resolve();
+    expect((await h.result()).status).toBe('cancelled');
   });
 
   it('agentState working while done writes running and stops the idle timer', async () => {

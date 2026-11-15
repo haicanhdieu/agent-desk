@@ -309,6 +309,13 @@ export class RunsService {
         err.cause.type === 'NotFinishable'
       )
         throw new ConflictException(err.cause.message);
+      // The server fails an accepted update when the workflow completes before the handler returns.
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'AcceptedUpdateCompletedWorkflow'
+      )
+        throw new ConflictException('Run is no longer active');
       throw err;
     }
   }

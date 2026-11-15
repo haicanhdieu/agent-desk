@@ -249,6 +249,19 @@ describe('cancel and finish', () => {
     expect((res.json() as { detail: string }).detail).toBe('Run is no longer active');
   });
 
+  it('finish accepted, then the workflow completes before answering → 409 Run is no longer active', async () => {
+    const run = await insertRun({ status: 'idle', workflowId: `run-x` });
+    t.temporal.reset();
+    t.temporal.updateFailure = () =>
+      new WorkflowUpdateFailedError(
+        'Workflow Update failed',
+        ApplicationFailure.nonRetryable('completed', 'AcceptedUpdateCompletedWorkflow'),
+      );
+    const res = await post(`/api/runs/${run.id}/finish`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe('Run is no longer active');
+  });
+
   it('cancel on a final run is 409', async () => {
     const run = await insertRun({ status: 'succeeded' });
     t.temporal.reset();

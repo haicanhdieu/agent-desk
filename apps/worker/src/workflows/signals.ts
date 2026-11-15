@@ -1,3 +1,4 @@
+import type { AgentState } from '@agentdesk/contracts';
 import { defineQuery, defineSignal, defineUpdate } from '@temporalio/workflow';
 
 // Signal names are the literals shared with the api via @agentdesk/core's SIGNAL (workflow code must not import
@@ -11,7 +12,7 @@ export const setLimit = defineSignal<[number]>('setLimit');
 // Run signals
 export const granted = defineSignal<[]>('granted');
 /** The agent declared its state (agentdesk protocol); mapped to the run phase by RunWorkflow. */
-export const agentState = defineSignal<['working' | 'waiting' | 'needs_input' | 'done']>('agentState');
+export const agentState = defineSignal<[AgentState]>('agentState');
 // Legacy: kept registered so histories recorded before `agentState` still replay.
 export const turnFinished = defineSignal<[]>('turnFinished');
 export const resumed = defineSignal<[]>('resumed');

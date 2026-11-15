@@ -62,7 +62,6 @@ import {
   type RunContext,
 } from './run.activities';
 
-/** Sends a signal to `run-{runId}`; a closed or missing workflow is not an error (activities may outlive it). */
 /** The run status a protocol state maps to. */
 function mapAgentState(state: AgentState): { status: 'running' | 'idle' | 'done'; waitingOn: 'background' | null } {
   switch (state) {
@@ -77,6 +76,7 @@ function mapAgentState(state: AgentState): { status: 'running' | 'idle' | 'done'
   }
 }
 
+/** Sends a signal to `run-{runId}`; a closed or missing workflow is not an error (activities may outlive it). */
 export interface RunSignaller {
   signalRun(runId: string, signal: string, arg?: string): Promise<void>;
 }

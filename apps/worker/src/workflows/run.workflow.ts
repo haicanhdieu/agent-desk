@@ -99,9 +99,12 @@ function failureReason(err: unknown): string {
  * scope; so does a Temporal-level cancellation of the workflow. The cancellation reaches whatever is in flight
  * (waiting for the slot, a starting activity, the main loop, followPodLogs) and lands in the same `finalize`.
  *
- * Status writes: the workflow writes `starting`, `running` after `resumed` (plus `idle` again when the next turn ends,
- * since followPodLogs' `idle` may have landed before that `running`), and the final status. `followPodLogs` writes
- * `running` on the first log line and `idle` on each Stop-hook line (then signals `turnFinished`); it signals `resumed` on each UserPromptSubmit-hook line.
+ * Status writes: the workflow writes `starting`, `running` after an agent `working` state (or the legacy `resumed`),
+ * the final status, and re-writes `idle` or `done` after a turn ends when it had written `running` since (followPodLogs'
+ * write may be older). `followPodLogs` writes `running` on the first log line and on each agent_state line (`working`,
+ * and `waiting` with `waitingOn`), `idle` for `needs_input`, `done` for `done`, and signals `agentState` for each; the
+ * workflow never writes `running` for `waiting`, so `waitingOn` survives. A declared `done` is the `agent_done` phase
+ * (the idle timer and `finishRun` apply), distinct from the workflow's own `done`.
  */
 export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> {
   const { orgId, runId } = input;
@@ -157,10 +160,30 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     resumePending = true;
     epoch += 1;
   };
+  /**
+   * `waiting` (running, held by background tasks) is already written by followPodLogs together with `waitingOn`: the
+   * workflow only moves its phase and must not write `running` itself, which would clear `waitingOn`.
+   */
+  const backToRunning = (): void => {
+    if ((phase !== 'idle' && phase !== 'agent_done') || finishRequested) return;
+    phase = 'running';
+    epoch += 1;
+  };
   setHandler(agentState, (state) => {
-    if (state === 'needs_input') turnEnded('idle');
-    else if (state === 'done') turnEnded('agent_done');
-    else resumeRunning();
+    switch (state) {
+      case 'needs_input':
+        turnEnded('idle');
+        break;
+      case 'done':
+        turnEnded('agent_done');
+        break;
+      case 'working':
+        resumeRunning();
+        break;
+      case 'waiting':
+        backToRunning();
+        break;
+    }
   });
   // Legacy signals, kept for histories recorded before `agentState`.
   setHandler(turnFinished, () => turnEnded('idle'));
@@ -182,7 +205,11 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     finishRun,
     async () => {
       finishRequested = true;
-      await condition(() => ending);
+      await condition(() => ending || phase === 'finalizing' || phase === 'done');
+      // The run was finalized (pod exit, cancel, timeout) before the session could be ended.
+      if (!ending) {
+        throw ApplicationFailure.nonRetryable('The run finished before it could be ended', 'NotFinishable');
+      }
       return { accepted: true as const };
     },
     {
