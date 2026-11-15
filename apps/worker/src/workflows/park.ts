@@ -19,10 +19,15 @@ export const phaseOfParkKind = (kind: ParkKind): 'idle' | 'agent_done' =>
 
 export const statusOfParkKind = (kind: ParkKind): 'idle' | 'done' => (kind === 'needs_input' ? 'idle' : 'done');
 
-/** Seconds the next pod may run: the unused part of the limit, never less than RESUME_MIN_SECONDS on a resume. */
-export function sessionAllowanceSeconds(limitSeconds: number, usedSeconds: number, isResume: boolean): number {
+/** Seconds the next pod may run: the unused part of the limit, never less than RESUME_MIN_SECONDS on a resume (`minSeconds` is a test seam). */
+export function sessionAllowanceSeconds(
+  limitSeconds: number,
+  usedSeconds: number,
+  isResume: boolean,
+  minSeconds: number = RESUME_MIN_SECONDS,
+): number {
   const left = Math.max(0, limitSeconds - usedSeconds);
-  return isResume ? Math.max(left, RESUME_MIN_SECONDS) : left;
+  return isResume ? Math.max(left, minSeconds) : left;
 }
 
 /** Why a resume is refused, or `undefined` when allowed. Allowed only in phase `parked`. */

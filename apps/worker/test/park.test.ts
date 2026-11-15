@@ -50,6 +50,10 @@ describe('sessionAllowanceSeconds', () => {
   it('gives a resume the unused part when it is above the minimum', () => {
     expect(sessionAllowanceSeconds(86400, 3600, true)).toBe(82800);
   });
+  it('uses a given minimum instead of one hour (a test seam)', () => {
+    expect(sessionAllowanceSeconds(100, 99, true, 5)).toBe(5);
+    expect(sessionAllowanceSeconds(100, 10, true, 5)).toBe(90);
+  });
   it('gives a first start the whole limit', () => {
     expect(sessionAllowanceSeconds(86400, 0, false)).toBe(86400);
   });

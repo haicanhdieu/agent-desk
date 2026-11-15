@@ -386,7 +386,7 @@ Behaviour:
 4. Fallback: if the attempt fails or the pod exits before `sessionStarted` (activity failure, `PodPendingTimeout`, `resumeFailed`, `NoAgentCredential`), or a cancel arrives with `cancelEffect` = `abort_resume`: delete the Job and Secret, release the slot, cancel the hard timer without adding to `usedSeconds`, call `restoreParked` with the original `sessionExpiresAt` and a plain reason (`no saved session was found`, `the pod could not start`, `the agent or its credential is missing`, `the resume was cancelled`), set `phase = 'parked'` and re-arm the expiry timer for the original deadline. If that deadline has already passed, expire at once.
 5. After `sessionUp`, everything ends by the normal rules through `finalize`. A second `succeeded` for a run whose finish comment was already posted does not post again (the outbox key already exists).
 
-- [ ] **Step 1: Write failing workflow tests:**
+- [x] **Step 1: Write failing workflow tests:**
   - parked `needs_input` → `resumeRun` → statuses written in order `queued`, `starting`, then `idle` after `sessionStarted`; the gate got `requestSlot`; `createRunSecretAndJob` called with `{ resume: true, deadlineSeconds }`; `followPodLogs` called with `{ resume: true }`;
   - parked `done` → `resumeRun` → ends in `done` (not `idle`), and the `queued` write carries `reopen: true`;
   - a resumed run left unattended for the idle time parks again and `parkRun` is called a second time;
@@ -399,11 +399,11 @@ Behaviour:
   - fallback after the original expiry has passed → `restoreParked` then expiry runs at once;
   - time limit: limit 86400, first pod ran 86280 s, resume → `deadlineSeconds` is `3600`; first pod ran 3600 s → `82800`; time spent parked is not counted;
   - the hard timer fires in a resumed pod → final `timed_out` (or `succeeded` when the phase was `agent_done`, as today), volume deleted.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Record the replay fixture** `run-park-resume-history.json` and add it to the replay test.
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/worker test` — expect PASS.
-- [ ] **Step 6: Commit** `feat(worker): resume a parked run on its volume`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Record the replay fixture** `run-park-resume-history.json` and add it to the replay test.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/worker test` — expect PASS.
+- [x] **Step 6: Commit** `feat(worker): resume a parked run on its volume`.
 
 ### Task 11: Reconcile learns about volumes
 

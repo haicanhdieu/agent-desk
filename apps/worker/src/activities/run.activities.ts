@@ -29,6 +29,8 @@ export interface RunContext {
   idleEndSeconds?: number;
   /** Seconds between workspace-token refreshes. Normally 2700 (45 min of the token's hour); a field like `idleEndSeconds`. */
   tokenRefreshSeconds?: number;
+  /** Floor of a resumed pod's allowance, seconds (default `RESUME_MIN_SECONDS`, 3600); a test seam like `idleEndSeconds`. */
+  resumeMinSeconds?: number;
   /** History length at which the run is finished as failed (default 45000, below Temporal's 51,200); a test seam. */
   historyEventLimit?: number;
 }
