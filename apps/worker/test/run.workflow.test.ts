@@ -1049,10 +1049,12 @@ describe('RunWorkflow', () => {
       const { s, h } = await parkedRun('needs_input');
       expect(s.calls.slice(s.calls.indexOf('followPodLogs') + 1)).toEqual([
         'endSession',
-        'ensureJobGone',
+        'deleteJob',
         'parkRun:needs_input',
         'postComment:paused',
       ]);
+      // A finished Job must not survive the park: a resume would otherwise follow its exited pod (ensureJob keeps it).
+      expect(count(s, 'ensureJobGone')).toBe(0);
       await gateForgot(s);
       expect(count(s, 'deleteRunVolume')).toBe(0);
       expect(count(s, 'postComment:finish')).toBe(0);
@@ -1157,7 +1159,8 @@ describe('RunWorkflow', () => {
       const { s, h } = await parkedRunOrClosed('done');
       expect((await h.result()).status).toBe('succeeded');
       expect(count(s, 'deleteRunVolume')).toBe(1);
-      expect(count(s, 'ensureJobGone')).toBe(1);
+      expect(count(s, 'deleteJob')).toBe(1);
+      expect(count(s, 'ensureJobGone')).toBe(0);
       expect(expectFinishOnce(s)).toMatchObject({ status: 'succeeded' });
       expect(statuses(s)).toEqual(['starting', 'running']);
     });
@@ -1330,7 +1333,7 @@ describe('RunWorkflow', () => {
       expect(s.restores).toEqual([
         { kind: 'needs_input', sessionExpiresAt: s.lastExpiry, reason: 'no saved session was found' },
       ]);
-      expect(count(s, 'deleteJob')).toBe(1);
+      expect(count(s, 'deleteJob')).toBe(2); // the park's, and the failed resume's
       expect(count(s, 'deleteRunVolume')).toBe(0);
       expect(count(s, 'createRunSecretAndJob')).toBe(2);
       expect(statuses(s)).toEqual(['starting', 'running', 'queued', 'starting']);
@@ -1346,7 +1349,7 @@ describe('RunWorkflow', () => {
       await waitFor(() => count(s, 'restoreParked') === 1, 'restoreParked');
       expect(s.restores[0]?.reason).toBe('the agent or its credential is missing');
       await waitPhase(h, 'parked');
-      expect(count(s, 'deleteJob')).toBe(1);
+      expect(count(s, 'deleteJob')).toBe(2); // the park's, and the failed resume's
       await gateForgot(s);
       await h.signal(signals.cancel);
       await h.result();

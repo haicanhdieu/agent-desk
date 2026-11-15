@@ -457,6 +457,24 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         : ApplicationFailure.nonRetryable('the agent has no credential set');
     }
     const name = runJobName(ctx.runId);
+    if (resume) {
+      // Park deleted the Job, but a foreground delete may still be in progress, and `ensureJob` would not replace a Job
+      // that exists. Fail retryably so the activity retry waits it out; if it never clears, the workflow restores the
+      // parked run.
+      let stillThere: boolean;
+      try {
+        stillThere = (await kube.getRunPod(name)) !== null;
+      } catch (err) {
+        throw safeError(err, [], 'create run Job');
+      }
+      if (stillThere) {
+        throw ApplicationFailure.create({
+          type: 'RunJobStillPresent',
+          nonRetryable: false,
+          message: 'create run Job: the parked run Job is still being deleted',
+        });
+      }
+    }
     const project: AdapterProject = toAdapterProject(d, d.code.externalId);
     let known = secretValues(cred);
     let plan: TokenRefreshPlan | undefined;

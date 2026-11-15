@@ -342,7 +342,7 @@ export function cancelEffect(phase: RunPhase, kind: ParkKind | undefined, sessio
 Behaviour (only when `patched('pause-resume')` is true; otherwise the code path is exactly today's):
 
 1. When the idle timer fires, record `parkKind = parkKindOf(phase)` before setting `ending`, then end the session as today.
-2. After the logs end with `ending` true and `parkKind` set and no `finishRequested`: cancel the hard timer and add the elapsed seconds of this pod to `usedSeconds`; `ensureJobGone`; release the slot (`slotRequested = false`); `parkRun`; for `needs_input` post the `paused` comment, for `done` post the normal finish comment; set `phase = 'parked'`.
+2. After the logs end with `ending` true and `parkKind` set and no `finishRequested`: cancel the hard timer and add the elapsed seconds of this pod to `usedSeconds`; `deleteJob` (Job and Secret; not `ensureJobGone`, which keeps a finished Job whose exited pod a resume would then adopt); release the slot (`slotRequested = false`); `parkRun`; for `needs_input` post the `paused` comment, for `done` post the normal finish comment; set `phase = 'parked'`.
 3. If `parkRun` returned `sessionExpiresAt: null`: delete the volume and return the workflow result `succeeded` without calling `finalize` (status and comment are already written).
 4. While parked, wait for the first of: the `resumeRun` update (Task 10), a `finishRun` update (kind `needs_input` only → delete the volume, write `succeeded` with `session: null`, post the finish comment, close), a cancel (`cancelEffect`: `stop_run` → `finalize` with `cancelled`; `ignore` → nothing), `dropSession` (kind `done` only), or a durable timer until `sessionExpiresAt`.
 5. On expiry or drop: `endKeptSession`, `deleteRunVolume`, and for kind `needs_input` post the finish comment with status `expired`. Result status: `expired` or `succeeded`.
@@ -350,7 +350,7 @@ Behaviour (only when `patched('pause-resume')` is true; otherwise the code path 
 7. The terminal `attached` counter is reset to 0 when the pod is gone.
 
 - [x] **Step 1: Write failing workflow tests** (Temporal test environment with mocked activities, like the existing ones):
-  - idle, nobody attached, idle time passes → activities called in order `endSession`, `ensureJobGone`, `parkRun({ kind: 'needs_input' })`, `postComment('paused')`; the gate received `releaseSlot`; `state` query phase is `parked`; `deleteRunVolume` not called;
+  - idle, nobody attached, idle time passes → activities called in order `endSession`, `deleteJob`, `parkRun({ kind: 'needs_input' })`, `postComment('paused')`, and `ensureJobGone` not called; the gate received `releaseSlot`; `state` query phase is `parked`; `deleteRunVolume` not called;
   - done → `parkRun({ kind: 'done' })`, `postComment('finish')` with status `succeeded`, phase `parked`;
   - parked `needs_input`, time skips past the expiry → `endKeptSession('expired')`, `deleteRunVolume`, finish comment with `expired`, workflow result `{ status: 'expired' }`;
   - parked `done`, time skips past the expiry → `endKeptSession('expired')`, `deleteRunVolume`, no second comment, result `{ status: 'succeeded' }`;

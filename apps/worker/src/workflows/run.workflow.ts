@@ -471,7 +471,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   }
 
   /**
-   * The idle timer stopped the pod: free it and the slot, keep the volume, then wait in `parked` for a finish, a cancel,
+   * The idle timer stopped the pod: delete its Job and Secret (a finished Job left behind would be adopted by the resume's
+   * `ensureJob`, so the resume would follow the old exited pod) and free the slot, keep the volume, then wait in `parked` for a finish, a cancel,
    * a drop or the expiry, or for a resume, which returns the resumed pod to the main loop.
    */
   async function park(c: RunContext, kind: ParkKind): Promise<Outcome | { pod: Pod }> {
@@ -480,7 +481,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     attached = 0;
     sessionUp = false;
     log.info('run parked', { usedSeconds });
-    await act.ensureJobGone(c);
+    await act.deleteJob(c);
     slotRequested = false;
     await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
     const parked = await act.parkRun(c, { kind, at: new Date().toISOString() });

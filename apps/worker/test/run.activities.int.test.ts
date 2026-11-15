@@ -1513,6 +1513,60 @@ describe('resume mode', () => {
     await acts.deleteRunVolume(ctx);
   });
 
+  it('createRunSecretAndJob with resume starts a NEW pod after a park, not the finished one', async () => {
+    const runId = await seedRun('park me', 'starting');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    expect((await kube.podEnv(`run-${runId}`))?.RUN_MODE).not.toBe('resume');
+    await until(async () => (await kube.getRunPod(`run-${runId}`))?.phase === 'Running');
+    // The idle end: the session is killed, the pod exits 0 and the finished Job is left behind.
+    await acts.endSession(ctx);
+    const finished = await until(async () => {
+      const pod = await kube.getRunPod(`run-${runId}`);
+      return pod?.exitCode === 0 ? pod : null;
+    });
+    expect(finished.phase).toBe('Succeeded');
+    // Park: the Job and Secret go (the volume stays), so the resume cannot adopt the finished pod.
+    await acts.deleteJob(ctx);
+    expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    expect((await kube.listRunVolumeClaims()).some((c) => c.runId === runId)).toBe(true);
+    await acts.createRunSecretAndJob(ctx, { resume: true });
+    expect((await kube.podEnv(`run-${runId}`))?.RUN_MODE).toBe('resume');
+    const resumed = await until(async () => {
+      const pod = await kube.getRunPod(`run-${runId}`);
+      return pod?.phase === 'Running' ? pod : null;
+    });
+    expect(resumed.exitCode).toBeNull();
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+  });
+
+  it('createRunSecretAndJob with resume while the old pod is still there fails retryably and creates nothing', async () => {
+    const runId = await seedRun('x', 'queued');
+    const ctx = await ctxFor(runId);
+    const created: string[] = [];
+    const k = wrapKube({
+      // The old Job is still being deleted (foreground deletion): its pod is still listed.
+      getRunPod: async (name) => ({ name, phase: 'Running', pendingSince: null, reason: null, exitCode: null }),
+      ensureSecret: async (n, d, l) => {
+        created.push(`secret:${n}`);
+        await kube.ensureSecret(n, d, l);
+      },
+      ensureJob: async (j) => {
+        created.push(`job:${j.metadata?.name ?? ''}`);
+        await kube.ensureJob(j);
+      },
+    });
+    const err = await createRunActivities(deps({ kube: k }))
+      .createRunSecretAndJob(ctx, { resume: true })
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(false);
+    expect(created).toEqual([]);
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
   it('createRunSecretAndJob with resume reads the agent and credential fresh from the database', async () => {
     const runId = await seedRun('x', 'queued');
     // The context was loaded when the agent was gone; the run row has an agent now.
