@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { Icon } from './Icon';
 import { StatusIcon } from './StatusIcon';
 import { iconPaths } from './icons';
-import type { RunStatus } from './tokens';
+import { RUN_STATUSES, type RunStatus } from './tokens';
 
 describe('Icon', () => {
   it('is aria-hidden by default', () => {
@@ -36,5 +38,24 @@ describe('StatusIcon', () => {
     const a = render(<StatusIcon status={'weird' as RunStatus} />).container.innerHTML;
     const b = render(<StatusIcon status="queued" />).container.innerHTML;
     expect(a).toBe(b);
+  });
+
+  it('spins the starting ring so a booting run reads as in progress', () => {
+    const { container } = render(<StatusIcon status="starting" />);
+    const ring = container.querySelector('circle');
+    expect(ring).toHaveAttribute('stroke-dasharray');
+    expect(ring?.getAttribute('class') ?? '').toMatch(/spin/);
+  });
+
+  it.each(RUN_STATUSES.filter((s) => s !== 'starting'))('does not animate the %s glyph', (status) => {
+    const { container } = render(<StatusIcon status={status} />);
+    expect(container.querySelector('[class*="spin"]')).toBeNull();
+  });
+
+  it('defines the spin as a rotation keyframe that stops under prefers-reduced-motion', () => {
+    const css = readFileSync(resolve(__dirname, 'StatusIcon.module.css'), 'utf8');
+    expect(css).toMatch(/\.spin\s*\{[^}]*animation:[^;}]*\bspin\b[^;}]*\binfinite\b/);
+    expect(css).toMatch(/@keyframes\s+spin\s*\{[^]*rotate\(360deg\)/);
+    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^]*\.spin\s*\{[^}]*animation:\s*none/);
   });
 });

@@ -151,7 +151,12 @@ describe('ProjectGateWorkflow', () => {
     // Noise: releasing unknown runs counts as handled signals without changing state. The three requests above count
     // too, so stop exactly at the threshold: signals still arriving while the gate continues as new can stall the
     // next query (intermittent 60 s timeout).
-    for (let i = 0; i < GATE_CONTINUE_AS_NEW_AFTER - 3; i += 1) await gate.signal(signals.releaseSlot, `noise-${i}`);
+    // Order does not matter for noise, so send it in parallel batches: 1000 awaited round trips one by one is what
+    // made this test depend on runner speed.
+    const noise = Array.from({ length: GATE_CONTINUE_AS_NEW_AFTER - 3 }, (_, i) => `noise-${i}`);
+    for (let i = 0; i < noise.length; i += 50) {
+      await Promise.all(noise.slice(i, i + 50).map((id) => gate.signal(signals.releaseSlot, id)));
+    }
     const latest = env.client.workflow.getHandle(gate.workflowId);
     await settle(latest);
     const desc = await latest.describe();

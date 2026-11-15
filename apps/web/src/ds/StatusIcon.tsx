@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import styles from './StatusIcon.module.css';
 import { statusTokens, type RunStatus } from './tokens';
 
 export interface StatusIconProps {
@@ -13,7 +14,16 @@ export interface StatusIconProps {
 const glyphs: Record<RunStatus, ReactNode> = {
   queued: <circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.6" />,
   starting: (
-    <circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" strokeWidth="1.8" strokeDasharray="3 2.4" />
+    <circle
+      className={styles.spin}
+      cx="8"
+      cy="8"
+      r="5.5"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeDasharray="3 2.4"
+    />
   ),
   running: (
     <>
