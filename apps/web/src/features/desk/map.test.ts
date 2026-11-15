@@ -20,7 +20,9 @@ const rule = (command: string, skillName: string, enabled = true): RuleDto => ({
   labelFilter: [],
   target: 'any',
   agentId: '00000000-0000-4000-8000-000000000002',
+  kind: 'skill',
   skillName,
+  prompt: null,
   enabled,
   stats: { runs30d: 0, lastRunAt: null },
 });
@@ -97,6 +99,7 @@ describe('toRule', () => {
   it('maps the DTO to the screen rule with the agent name and stats', () => {
     const dto = { ...rule('code-build', 'code-build'), labelFilter: ['user-story'], target: 'issue' as const };
     expect(toRule(dto, agent, now, ['code-build'])).toEqual({
+      kind: 'skill',
       id: dto.id,
       command: 'code-build',
       target: 'issue',
@@ -112,6 +115,18 @@ describe('toRule', () => {
     expect(toRule(rule('docs-update', 'docs-update'), agent, now, ['code-build']).warning).toBe(
       'Skill docs-update is not in .claude/skills/ on main. Comments with /docs-update are ignored until you add it or pick another skill.',
     );
+  });
+
+  it('maps a prompt rule with its kind and prompt and no skill warning', () => {
+    const dto: RuleDto = { ...rule('triage', 'x'), kind: 'prompt', skillName: null, prompt: 'Triage this.\nBe brief.' };
+    const mapped = toRule(dto, agent, now, ['code-build']);
+    expect(mapped).toMatchObject({ kind: 'prompt', prompt: 'Triage this.\nBe brief.', skill: '' });
+    expect(mapped.warning).toBeUndefined();
+  });
+
+  it('a skill rule maps to kind skill with no prompt', () => {
+    expect(toRule(rule('code-build', 'code-build'), agent, now)).toMatchObject({ kind: 'skill', skill: 'code-build' });
+    expect(toRule(rule('code-build', 'code-build'), agent, now).prompt).toBeUndefined();
   });
 
   it('no skill list, no warning', () => {

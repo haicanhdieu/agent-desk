@@ -1,4 +1,5 @@
 import type { RunDto, TicketDto } from '@agentdesk/contracts';
+import { TRIAGE_PROMPT, promptSystemLines } from '../rules';
 import { runsById } from '../runs';
 import type { RunSummary, Ticket } from '../types';
 import { ids } from './ids';
@@ -29,6 +30,14 @@ const ruleByCommand: Record<string, string> = {
   'code-e2e': ids.rule.r3,
 };
 
+const RUN_60_FINAL_PROMPT = [
+  'Use the skill "code-build" on issue #142 in harbor-labs/invoicer-api.',
+  'Read the ticket and all its comments with the gh CLI before you start.',
+  'Arguments from the user: use the existing CSV helper in src/export',
+  'When done, report on the ticket as the skill instructs.',
+  'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
+].join('\n');
+
 const failure: Partial<Record<RunSummary['status'], { exitCode: number | null; failureReason: string | null }>> = {
   succeeded: { exitCode: 0, failureReason: null },
   failed: { exitCode: 1, failureReason: 'API authentication failed (401)' },
@@ -47,7 +56,11 @@ function fromSummary(r: RunSummary): RunDto {
     projectId: ids.project.invoicerApi,
     ruleId: ruleByCommand[command] ?? null,
     command,
+    ruleKind: 'skill',
     skillName: r.skill,
+    prompt: null,
+    // Run 60 recorded its final prompt; the older runs started before prompts were recorded ("Not recorded").
+    finalPrompt: r.id === 60 ? RUN_60_FINAL_PROMPT : null,
     agent: { name: r.agent, model: r.model },
     ticket: ticketDto(r.ticket),
     args: null,
@@ -84,7 +97,10 @@ const ended = (
   projectId,
   ruleId: null,
   command: 'code-build',
+  ruleKind: 'skill',
   skillName: 'code-build',
+  prompt: null,
+  finalPrompt: null,
   agent: { name: 'Claude', model: 'opus' },
   ticket: ticketDto(ticket, repo),
   args: null,
@@ -107,6 +123,19 @@ const ended = (
   sessionExpiresAt: null,
 });
 
+/** Run 52 ran the custom prompt rule /triage: no skill, the prompt and the final prompt as recorded. */
+const asPromptRun = (r: RunDto): RunDto => ({
+  ...r,
+  ruleId: ids.rule.r6,
+  command: 'triage',
+  ruleKind: 'prompt',
+  skillName: null,
+  prompt: TRIAGE_PROMPT,
+  finalPrompt: [TRIAGE_PROMPT, ...promptSystemLines.map((l) => l.replace('<issue or PR #number>', 'issue #120'))].join(
+    '\n',
+  ),
+});
+
 const issue = (number: number, title: string): Ticket => ({ kind: 'issue', number, title, labels: [], href: '' });
 
 const inMs = (ms: number) => new Date(Date.now() + ms).toISOString();
@@ -119,7 +148,7 @@ const parked = (number: number, ticket: Ticket, over: Partial<RunDto>): RunDto =
 });
 
 export const runFixtures: RunDto[] = [
-  ...Object.values(runsById).map(fromSummary),
+  ...Object.values(runsById).map((r) => (r.id === 52 ? asPromptRun(fromSummary(r)) : fromSummary(r))),
   // Run 64 paused by the idle timer, run 65 succeeded with its session kept, run 66 never resumed.
   parked(64, issue(150, 'Add an audit trail to the CSV export'), {
     status: 'paused',

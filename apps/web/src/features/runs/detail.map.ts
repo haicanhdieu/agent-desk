@@ -386,6 +386,7 @@ export function toRunDetail(
     run: toRunSummary(run, now),
     elapsed: clock(elapsedMs),
     rule: `/${run.command}`,
+    finalPrompt: run.finalPrompt,
     triggerNote: run.triggerSource === 'manual' ? '' : 'comment',
     startedAt: clockSeconds(startIso),
     ...(end !== undefined && {

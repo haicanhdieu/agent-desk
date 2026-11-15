@@ -59,6 +59,13 @@ describe('toRunSummary, paused and expired', () => {
   });
 });
 
+describe('toRunSummary, prompt run', () => {
+  it('shows Custom prompt where a prompt run has no skill', () => {
+    const s = toRunSummary(run({ ruleKind: 'prompt', skillName: null, prompt: 'Triage this.' }), now);
+    expect(s.skill).toBe('Custom prompt');
+  });
+});
+
 describe('toRunSummary', () => {
   it('maps a final run: number, slash command, ticket, local start time, "12m 04s" duration', () => {
     const s = toRunSummary(

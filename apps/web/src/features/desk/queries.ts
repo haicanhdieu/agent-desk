@@ -20,6 +20,13 @@ export const deskQueries = {
       queryKey: [...deskKey(org, projectId), 'rules'] as const,
       queryFn: () => api.rules.list({ params: { projectId } }),
     }),
+  // The lines Agent Desk appends to a custom prompt change only with a deploy or the repo path.
+  promptPreview: (org: string, projectId: string) =>
+    queryOptions({
+      queryKey: [...deskKey(org, projectId), 'promptPreview'] as const,
+      queryFn: () => api.rules.promptPreview({ params: { projectId } }),
+      staleTime: Infinity,
+    }),
   agent: (org: string, projectId: string) =>
     queryOptions({
       queryKey: [...deskKey(org, projectId), 'agent'] as const,

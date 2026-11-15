@@ -32,6 +32,13 @@ const ev = (ts: string, type: RunEventDto['type'], payload: Record<string, unkno
 const detail = (r: RunDto, events: RunEventDto[] = [], ticketRuns: RunDto[] = [r]) =>
   toRunDetail(r, events, project, ticketRuns, now, links);
 
+describe('toRunDetail, final prompt', () => {
+  it('carries the final prompt, and null for a run without one', () => {
+    expect(detail(run({ finalPrompt: 'Do it.\nTicket: issue #1' })).finalPrompt).toBe('Do it.\nTicket: issue #1');
+    expect(detail(run({ finalPrompt: null })).finalPrompt).toBeNull();
+  });
+});
+
 describe('runDetailKey', () => {
   it.each([
     ['queued', 'RunStarting'],

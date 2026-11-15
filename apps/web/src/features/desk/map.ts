@@ -45,13 +45,15 @@ export function ruleStats(stats: RuleDto['stats'], now: Date): string {
  * (comments with its command are ignored until the skill exists).
  */
 export function toRule(dto: RuleDto, agent: AgentDto, now: Date, skillNames?: string[]): Rule {
-  const missing = skillNames !== undefined && !skillNames.includes(dto.skillName);
+  const missing = dto.skillName !== null && skillNames !== undefined && !skillNames.includes(dto.skillName);
   return {
     id: dto.id,
     command: dto.command,
     target: dto.target,
     labels: dto.labelFilter,
-    skill: dto.skillName,
+    skill: dto.skillName ?? '',
+    kind: dto.kind,
+    ...(dto.prompt !== null && { prompt: dto.prompt }),
     agent: agent.name,
     enabled: dto.enabled,
     stats: ruleStats(dto.stats, now),

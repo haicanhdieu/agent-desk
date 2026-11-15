@@ -222,16 +222,16 @@ Shared types change in Tasks 2 and 3, so the repo-wide `pnpm typecheck` is red b
   - `usePromptPreview(org: string, projectId: string, enabled: boolean): PromptPreview` — `useQuery`; pending → `{ state: 'loading' }`, error → `{ state: 'error', onRetry: () => void refetch() }`, data → `{ state: 'ready', systemLines }`. `PromptPreview` is the type in `components/PromptSystemPart.tsx`.
   - `toRule` returns `kind`, `prompt` (as `undefined` when null) and `skill: dto.skillName ?? ''`; no missing-skill warning for a prompt rule.
 
-- [ ] **Step 1: Write the failing tests**:
+- [x] **Step 1: Write the failing tests**:
   - `map.test.ts`: `it('maps a prompt rule with its kind and prompt and no skill warning')`.
   - `runs/map.test.ts`: `it('shows Custom prompt where a prompt run has no skill')` → `toRunSummary(...).skill === 'Custom prompt'`.
   - `detail.map.test.ts`: `it('carries the final prompt, and null for a run without one')`.
   - `contract.test.ts`: `it('creates a prompt rule and serves the prompt preview')` through the MSW client.
   - Create `apps/web/src/features/desk/promptPreview.test.tsx`: `it('maps loading, error with retry, and ready')` with `scenarios.serverError('rules.promptPreview')` and default handlers.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features src/mocks` — expect FAIL.
-- [ ] **Step 3: Implement** the files above. The MSW `rules.promptPreview` handler returns lines for the project's `repoPath` in the same four-line shape (a fixture `promptPreviewFixture(repoPath)` in `mocks/dto/rules.ts`, parsed by `PromptPreviewDto` in `contract.test.ts`); the Storybook `promptSystemLines` in `mocks/rules.ts` stays a view fixture.
-- [ ] **Step 4: Run** the same tests — PASS.
-- [ ] **Step 5: Commit** `feat(web): prompt rule and run fields in fixtures, MSW, queries and mappers`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features src/mocks` — expect FAIL.
+- [x] **Step 3: Implement** the files above. The MSW `rules.promptPreview` handler returns lines for the project's `repoPath` in the same four-line shape (a fixture `promptPreviewFixture(repoPath)` in `mocks/dto/rules.ts`, parsed by `PromptPreviewDto` in `contract.test.ts`); the Storybook `promptSystemLines` in `mocks/rules.ts` stays a view fixture.
+- [x] **Step 4: Run** the same tests — PASS.
+- [x] **Step 5: Commit** `feat(web): prompt rule and run fields in fixtures, MSW, queries and mappers`.
 
 ### Task 9: Rule form and desk rules route
 
