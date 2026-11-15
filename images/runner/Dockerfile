@@ -3,9 +3,18 @@
 FROM node:22-slim
 
 ARG CLAUDE_CODE_VERSION=2.1.323
+# Pinned like Claude Code (security.md). The keyring checksum guards the apt repo's signing key.
+ARG GH_VERSION=2.104.0
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git gh tmux ca-certificates curl openssh-client \
+ && apt-get install -y --no-install-recommends git tmux ca-certificates curl openssh-client \
+ && mkdir -p -m 755 /etc/apt/keyrings \
+ && curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+ && echo "6084d5d7bd8e288441e0e94fc6275570895da18e6751f70f057485dc2d1a811b  /etc/apt/keyrings/githubcli-archive-keyring.gpg" | sha256sum -c - \
+ && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+ && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list \
+ && apt-get update \
+ && apt-get install -y --no-install-recommends "gh=${GH_VERSION}" \
  && rm -rf /var/lib/apt/lists/* \
  && npm install -g "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force
