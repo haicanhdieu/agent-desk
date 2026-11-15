@@ -1,6 +1,6 @@
 # 0010. One Kubernetes Job per run as the sandbox
 
-- Status: Accepted
+- Status: Accepted. The 3300 s cap and the one-hour token delivery are amended by [0021](0021-run-time-limit-7-days-with-token-refresh.md).
 - Date: 2026-11-11
 - Source: PRD (PoC) §3 (Run), G2; Architecture (PoC) §1 "Runs are cattle", §5, §7, §9 (Run isolation); control plane design §6.2, §8; infra design §6.5
 
@@ -22,7 +22,7 @@ Every run is exactly one Kubernetes Job (one pod, one container) in namespace
   the agent credential.
 - `backoffLimit: 0`, `restartPolicy: Never`, `activeDeadlineSeconds` =
   `timeout_seconds` + 120 as a backstop to the workflow's hard timer
-  (`timeout_seconds` ≤ 3300 so the token stays valid).
+  (`timeout_seconds` ≤ 3300 so the token stays valid). _Superseded by 0021: the limit is up to 7 days and the token is refreshed in the pod._
 - Non-root (uid 10001), restricted Pod Security, no service account token,
   `emptyDir` workspace capped at 4 Gi, CPU/memory limits.
 - NetworkPolicy: no ingress; egress to the public internet only, blocking

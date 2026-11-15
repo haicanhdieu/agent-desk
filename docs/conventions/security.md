@@ -13,7 +13,7 @@ Secrets in scope: agent credentials (Claude API key or OAuth token), workspace t
 - **MUST** store secret values only in Kubernetes Secrets (via `SecretStore`, or the infra Secret contract: `agentdesk-db`, `agentdesk-auth`, `agentdesk-github-app`). _Why:_ Postgres is backed up, queried and shown in the UI; Secrets have RBAC and k3s encrypts them at rest (`--secrets-encryption`).
 - **MUST** reference a secret by name in Postgres (`agents.credential_secret_name`, `org-{orgId}-agent-{agentId}`) plus non-secret metadata (`credential_type`, `credential_updated_at`, `credential_set_by`). _Why:_ the row is useful without being dangerous.
 - **MUST NOT** put a secret value in: Postgres (any table, including `audit_log` and `run_events`), logs, Temporal workflow/activity inputs or results, SSE events, API responses, error messages or `problem+json` `detail`, ticket comments, Kubernetes labels/annotations, or a Job's literal `env`. _Why:_ each of those is readable by more people, or retained longer, than the secret should be.
-- **MUST** deliver run secrets to the pod only through the per-run Secret `run-{runId}` via `envFrom`. This includes `REPO_CLONE_URL`, which embeds the token (backend plan Task 14). _Why:_ anyone with `get jobs` can read a Job's literal env.
+- **MUST** deliver run secrets to the pod only through the per-run Secret `run-{runId}`: the repo URL (`REPO_CLONE_URL`, no credential in it) and the agent credential as explicit `secretKeyRef` env vars, and the workspace token as a mounted file (key `workspace-token`), never as an env var. **MUST NOT** use `envFrom` for it. _Why:_ anyone with `get jobs` can read a Job's literal env, and a container's env cannot be rotated while the token must be ([ADR 0021](../adr/0021-run-time-limit-7-days-with-token-refresh.md)).
 - **MUST** treat a credential write as write-only: `PUT /api/agents/:id/credential` returns `{ updatedAt }` only, and no endpoint ever returns the value. The UI shows "set / not set" (FR-3).
 - **MUST** strip secret-bearing keys from audited bodies (`redactBody` drops `value`, `token`, `secret`, `password`) and add any new secret field name to that list.
 - **MUST** fetch secrets inside activities, not pass them through workflow history. _Why:_ Temporal persists inputs and results in its database and shows them in the UI.
@@ -70,7 +70,7 @@ These hold for every run pod on every target. The worker builds the Job (`buildR
 
 - **MUST** set `automountServiceAccountToken: false`. _Why:_ the agent executes untrusted repo code; a token would be cluster access.
 - **MUST** keep the run pod unable to reach the Kubernetes API and cluster-internal addresses: `agentdesk-runs` NetworkPolicy denies all ingress and allows egress only to DNS and `0.0.0.0/0` except `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`, `169.254.0.0/16`. _Why:_ blocks Postgres, Temporal, the LAN, airi on the Mac mini, and cloud metadata.
-- **MUST** mint a workspace token scoped to the project's single repo, with the minimum permissions, expiring in ≤ 1 hour; keep `timeout_seconds` ≤ 3300 so the run never outlives it.
+- **MUST** mint every workspace token scoped to the project's single repo, with the minimum permissions, expiring in ≤ 1 hour, and replace it in the running pod before it expires (the worker's refresh loop, every 45 minutes). `timeout_seconds` is at most 604800 (7 days), so a run holds a sequence of ≤ 1 h tokens, never a longer one. _This supersedes the earlier "keep `timeout_seconds` ≤ 3300" rule ([ADR 0021](../adr/0021-run-time-limit-7-days-with-token-refresh.md))._
 - **MUST** put nothing else in the pod: no App private key, no webhook secret, no database or Temporal access, no other project's credential.
 - **MUST** run as non-root (uid 10001) under `restricted` Pod Security, no privilege escalation, all capabilities dropped, `RuntimeDefault` seccomp, with CPU/memory/ephemeral-storage limits and an `emptyDir` workspace size limit.
 - **MUST** keep `backoffLimit: 0` and `activeDeadlineSeconds = timeout_seconds + 120` as the backstop to the workflow timer.
@@ -147,10 +147,10 @@ If a secret leaks, a run goes rogue or tenant data is exposed, follow [docs/runb
 
 ```
 - [ ] No secret value in Postgres, logs, Temporal inputs/results, SSE, API responses, errors, comments, Job env literals
-- [ ] Secrets referenced by name; delivered to pods only via the per-run Secret (envFrom)
+- [ ] Secrets referenced by name; delivered to pods only via the per-run Secret (`secretKeyRef` env; the workspace token as a mounted file, no `envFrom`)
 - [ ] Run output redacted with the run's token + credential before storage; new token formats added to redact
 - [ ] Webhook: raw body, constant-time compare, verify before any write, fail closed, dedupe
-- [ ] Run pod: no SA token, egress except-list intact, single-repo ≤1h token, timeout ≤3300, non-root restricted, image by digest
+- [ ] Run pod: no SA token, egress except-list intact, single-repo ≤1h token refreshed before expiry, timeout ≤604800, non-root restricted, image by digest
 - [ ] Untrusted text never in shell/exec/tmux/SQL/k8s names; exec uses constant argv; names validated as SlugName
 - [ ] Every route/SSE/WS authenticated + org + project check; terminal close codes 4401/4403/4409; Origin checked
 - [ ] Dev-only surfaces disabled in production

@@ -21,7 +21,7 @@ events or ticket comments. Runs also need a short-lived code host token.
   `{ updatedAt }`; the value is never returned or cached by the web.
 - Per run, the worker copies the credential and a freshly minted one-hour
   workspace token into a per-run Secret `run-{runId}` referenced by the Job.
-  The workspace token is never persisted.
+  The workspace token is never persisted. _Amended by [0021](0021-run-time-limit-7-days-with-token-refresh.md): the token is its own key in that Secret, mounted as a file and replaced about every 45 minutes._
 - Credential values and tokens never reach Postgres, logs, API responses,
   `run_events` or `audit_log`; stored scrollback and logs are redacted as a
   backstop.

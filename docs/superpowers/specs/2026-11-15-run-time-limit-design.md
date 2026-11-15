@@ -1,22 +1,23 @@
 # Run time limit up to 7 days with workspace-token refresh (design)
 
-Status: proposed. Date: 2026-11-15. Issue #34. Decision record: [ADR 0021](../../adr/0021-run-time-limit-7-days-with-token-refresh.md). Amends `2026-11-12-control-plane-design.md` §6.2, §8 and ADR 0010 (the 3300 s cap and the one-hour token rule).
+Status: accepted, implemented in one PR. Date: 2026-11-15. Issue #34. Decision record: [ADR 0021](../../adr/0021-run-time-limit-7-days-with-token-refresh.md). Amends `2026-11-12-control-plane-design.md` §6.2, §8 and ADR 0010 (the 3300 s cap and the one-hour token rule).
 
 ## Problem
 
-An agent run can be useful for a full day, but `timeout_seconds` is capped at 3300 s (about 55 min). The cap exists only because the single-repo workspace token expires after 1 hour and the run must never outlive it.
+An agent run can be useful for a full day, but `timeout_seconds` was capped at 3300 s (about 55 min). The cap existed only because the single-repo workspace token expires after 1 hour and the run must never outlive it.
 
 ## Goals
 
 - A run time limit per agent from 60 s to 604800 s (7 days). New agents default to 86400 s (24 h). Existing agents keep their saved value.
 - The pod keeps a working workspace token for the whole run, without a restart, and each token stays single-repo and at most 1 hour.
-- The UI field takes hours and days, and the run page shows the chosen limit.
+- The UI field takes minutes, hours or days, and the run page shows the chosen limit.
 
 ## Non-goals
 
 - No chained or resumed pods (ADR 0010 stays: one Job per run).
 - No change to the idle timer (10 min with no terminal attached ends an idle run), the slot limits, or `RUN_SETUP_TIMEOUT_SECONDS` (still 1 to 3300, counted inside the run limit).
 - No guard for the Claude credential expiring early (see Assumptions).
+- Setup-test Jobs mount the token the same way but are not refreshed; they live well under an hour.
 
 ## Assumptions
 
@@ -24,70 +25,64 @@ An agent run can be useful for a full day, but `timeout_seconds` is capped at 33
 
 ## Design
 
-### 1. Limits (contracts, db, core, web)
+### 1. Limits (contracts, db, core, worker, web)
 
-- `packages/contracts`: export `AGENT_TIMEOUT_SECONDS_MIN = 60`, `AGENT_TIMEOUT_SECONDS_MAX = 604800`, `AGENT_TIMEOUT_SECONDS_DEFAULT = 86400`. `PutAgentRequest.timeoutSeconds` uses them. The 400 message says the limit in days. `core` and `worker` import the constants; no second copy.
-- `packages/db`: new migration drops `agents_timeout_check` and adds `between 60 and 604800`, and sets the column default to 86400. It does not update rows. `0000_schema.sql` is not edited.
-- Project create inserts the default agent with `AGENT_TIMEOUT_SECONDS_DEFAULT`.
-- `buildRunJob`: drop the `TIMEOUT_SECONDS_MAX` clamp (keep `max(1, floor)`). `activeDeadlineSeconds = timeout + 120`.
-- `run.workflow.ts`: drop the `Math.min(..., TIMEOUT_SECONDS_MAX)`.
-- `apps/web`: the "Run time limit" field takes a number and a unit (minutes, hours, days) and sends seconds. A shared `formatDuration(seconds)` renders "30 min", "24 h", "2 d 3 h" on the setup summary, the run meter and the "Timed out at the … limit" note. Loading, empty and error states unchanged; the field shows the server's `/timeoutSeconds` error.
+- `packages/contracts`: `AGENT_TIMEOUT_SECONDS_MIN = 60`, `AGENT_TIMEOUT_SECONDS_MAX = 604800`, `AGENT_TIMEOUT_SECONDS_DEFAULT = 86400`. `PutAgentRequest.timeoutSeconds` uses them; the over-limit message says "The run time limit can be at most 7 days", at pointer `/timeoutSeconds`. The API and worker import the default; `packages/db` cannot import contracts, so its schema repeats the literals with a comment.
+- `packages/db`: migration `0010_agent_timeout_7_days.sql` drops `agents_timeout_check`, adds `between 60 and 604800` and sets the column default to 86400. It changes no rows, so existing agents keep their value (a test guards that the file has no `update`, `delete` or `insert`). `0000_schema.sql` is not edited.
+- Project create inserts the default agent with `AGENT_TIMEOUT_SECONDS_DEFAULT`; the run list and `loadRun` fall back to it too.
+- `buildRunJob`: no clamp (only `max(1, floor)`). `activeDeadlineSeconds = timeout + 120`.
+- `run.workflow.ts`: the hard timer and the `followPodLogs` `startToCloseTimeout` use the limit as is.
+- `apps/web`: the "Run time limit" field is a `DurationInput` (number plus a minutes/hours/days select, in `ds/` with stories). The form model stays in minutes; `splitMinutes` and `minutesIn` convert for display and entry. `formatLimit(seconds)` ("30 min", "24 h", "2 d 3 h") is used by the setup summary, the run meter's limit and the "Timed out at the … limit" note. The meter's elapsed clock shows `H:MM:SS` and `Dd HH:MM:SS` past an hour and a day.
 
 ### 2. Token delivery: a mounted file, not env
 
-Env vars are fixed when the container starts, so updating the Secret never changes `GH_TOKEN` or a clone URL already in the process. Delivery changes:
+Env vars are fixed when the container starts, so updating the Secret never changes `GH_TOKEN` or a clone URL already in the process. Delivery changed:
 
-- The run Secret `run-{runId}` keeps the agent credential and static values, still via `envFrom`. It no longer holds the token or a clone URL that contains one.
-- A second Secret `run-{runId}-token` holds one key `token`. The Job mounts it as a directory volume at `/var/run/agentdesk/workspace-token` (no `subPath`, because subPath mounts never update). `defaultMode 0440` with `fsGroup 10001`, so uid 10001 can read it.
-- Adapter seam (provider-agnostic): `CodeHostAdapter.cloneUrl(project, token)` becomes `repoUrl(project)` (no secret) plus `gitCredential(): { username }` and `cliEnvName(): string | null`. GitHub returns username `x-access-token` and `GH_TOKEN`. Provider names stay inside the adapter.
-- Runner image (`images/runner`):
-  - `git clone` uses the plain repo URL and a credential helper script that prints `username=…` and `password=$(cat <token file>)` on each call.
-  - A `gh` wrapper earlier on `PATH` sets `GH_TOKEN="$(cat <token file>)"` per invocation and execs the real `gh`.
-  - `entrypoint.sh` no longer needs `REPO_CLONE_URL` or `GH_TOKEN`.
-- The kubelet refreshes a mounted Secret in about 1 to 2 minutes, so each token must have that much margin (see §3).
-- Redaction: rotated tokens are not in the `known` list built at start. They are covered by the token-shaped patterns in `packages/core/src/redact.ts` (`ghs_…`, `x-access-token:…@`). A test asserts a rotated token is redacted from followed pod logs. Providers that add a new token shape must add a pattern.
+- The run Secret `run-{runId}` has three kinds of keys: `REPO_CLONE_URL` (the repo URL, no credential in it), the agent credential (`CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and `workspace-token`.
+- The Job no longer uses `envFrom`. `REPO_CLONE_URL` and the credential keys are explicit `secretKeyRef` env vars, so `workspace-token` is never an env var. It is mounted read-only, key `workspace-token` as file `token`, at `/var/run/agentdesk/workspace-token` (a directory mount, no `subPath`, because subPath mounts never update). `defaultMode 0440` with the pod's `fsGroup 10001`. Env `AGENTDESK_TOKEN_FILE` and `AGENTDESK_GIT_USERNAME` point the runner at it.
+- One Secret, not two, on purpose: `reconcile` keeps a Secret only if its name matches a Job, so a separate `run-{id}-token` Secret would be deleted as an orphan while the run is live. Cleanup, reconcile and the redaction read stay unchanged.
+- Adapter seam (provider-agnostic): `CodeHostAdapter.cloneUrl(project, token)` and `runEnv(token)` are replaced by `repoUrl(project)` (no secret) and `gitCredentialUsername()`. GitHub returns `x-access-token`. Provider names stay inside the adapter.
+- Runner image (`images/runner`): `git-credential-agentdesk` answers git's `get` with the token read from the file on each call, and `bin/gh` sets `GH_TOKEN` from the file per invocation and runs the real `gh` (`PATH` starts with its directory). `entrypoint.sh` registers the helper when `AGENTDESK_TOKEN_FILE` is set, then clones the plain URL. Without it nothing changes.
+- The kubelet refreshes a mounted Secret in about 1 to 2 minutes, which the refresh margin covers.
+- Redaction: `followPodLogs` re-reads the run Secret each pass, so the current token is redacted exactly; earlier tokens are caught by the token-shaped patterns in `packages/core/src/redact.ts` (`ghs_…`, `x-access-token:…@`). A test proves both after a rotation. A provider that adds a new token shape must add a pattern.
 
 ### 3. Refresh (worker)
 
-- New activity `refreshWorkspaceToken(ctx)`: loads the run, mints a new token with the adapter (inside the activity, never in workflow history, ruling R19), and updates Secret `run-{runId}-token`. New gateway method `KubeGateway.replaceSecretData(name, data)` (fake and real), scoped to the run's namespace and labels.
-- Workflow: after `createRunSecretAndJob`, a refresh loop runs next to the logs follower and ends with the run. Every `TOKEN_REFRESH_INTERVAL_SECONDS = 2700` (45 min) it calls the activity. A token lasts 3600 s, so a refresh has 15 min of margin before expiry for the kubelet sync and for retries.
-- Failure handling (judgment call): the activity uses the shared retry policy. If a tick still fails, the workflow records a `lifecycle` event `token_refresh_failed` and tries again every 60 s until success or the run ends. The run is not killed for a missed refresh; pushes fail only if the token actually expires.
-- Time: the loop uses Temporal timers (durable across worker restarts) and the injected `Clock` inside activities.
-- Determinism: the loop is new workflow code that in-flight runs replay. Guard it with `patched('token-refresh')` so runs started before the deploy replay unchanged. Those runs are at most 55 min old and keep their env-based token.
-- History size: 7 d / 45 min is about 224 ticks, a few events each. Well under the history limit; the loop does not share the signal loop's 1000-event `continueAsNew` gate.
+- Activity `refreshWorkspaceToken(ctx)`: loads the run; a finished run is a no-op. It mints a new token with the adapter (inside the activity, never in workflow history, ruling R19) and writes it with `KubeGateway.replaceSecretData(name, data)` (read, merge, replace; keeps labels; fails on a missing Secret or a conflict; never creates). A missing Secret fails non-retryably. Errors pass through `safeError` with the token as a known secret.
+- Workflow: after the logs follower starts, a loop waits `TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT = 2700` (45 min) with `condition(() => logsDone, interval)`, then calls the activity. A token lasts 3600 s, so a refresh has 15 min of margin for the kubelet sync and retries. The loop ends when the pod's logs end or the run is cancelled. `RunContext.tokenRefreshSeconds` overrides the interval (like `idleEndSeconds`; used by tests).
+- Failure handling (judgment call): the activity uses the shared retry policy. If it still fails, the workflow logs a warning (error kind only) and tries again every 60 s for about 15 minutes, then every 5 minutes, so history stays small over days. A failure that can never succeed (non-retryable, e.g. the Secret is gone) ends the loop. The run is never killed for a missed refresh; git and `gh` fail only if the token really expires.
+- Determinism: the loop is new workflow code. It is guarded by `patched('token-refresh')`, so runs started before the deploy replay unchanged. The four older replay fixtures are unmodified and still replay; a new fixture records a run with the loop. Those older runs are at most 55 min old and keep their env token.
+- History size: 7 d / 45 min is about 224 ticks, a few events each, well under the history limit.
 
 ### 4. Long activities
 
-- `followPodLogs` keeps its 10 s heartbeat and 60 s heartbeat timeout. `startToCloseTimeout` becomes limit + margin, up to about 7 days. Because a retry after a worker restart re-attaches to the log stream, the worker test covers a restart mid-run.
-- The hard timer `sleep(timeoutSeconds)` is a durable timer; no change besides removing the clamp.
+- `followPodLogs` keeps its 10 s heartbeat and 60 s heartbeat timeout. Its `startToCloseTimeout` is the limit plus 300 s, up to about 7 days. A worker restart retries the activity, which re-attaches to the log stream.
+- The hard timer `sleep(timeoutSeconds)` is a durable timer.
 
 ## Security
 
 - Every token is single-repo, minimum permission, at most 1 hour. A run now holds a sequence of such tokens, never a longer one. The App private key stays on the worker.
-- The pod can read the current token, as it could read the env var before. No new exposure inside the pod.
-- Sensitive paths touched: run Job/runner, secrets/tokens. The PRs get `review:sensitive` and a high-effort security review.
-- `security.md` §4 (token ≤ 1 h, `timeout_seconds` ≤ 3300) and the checklist line (§153) are rewritten to: each token ≤ 1 h and refreshed before expiry; `timeout_seconds` ≤ 604800.
+- The pod can read the current token, as it could read the env var before. No new exposure inside the pod. Removing the token from env also keeps it out of the Job's container env.
+- Sensitive paths touched: run Job/runner, secrets/tokens. The PR gets `review:sensitive` and a high-effort security review.
+- `security.md` §1 (delivery), §4 (token and timeout) and the checklist are rewritten; ADR 0010, 0012 and 0019 carry amendment notes; the control-plane and setup specs and the PoC architecture sketch are corrected.
 
 ## Testing
 
-- contracts: accepts 60 and 604800, rejects 59 and 604801, message mentions days.
-- db: migration test that the check allows 604800 and rejects 604801, default is 86400, existing rows are unchanged.
-- core: `buildRunJob` deadline for 604800 is 604920 (no clamp); Job mounts the token Secret as a directory and does not put the token in env; adapter seam tests.
-- worker (time-skipping test environment): a run longer than 3300 s ends `timed_out` at the limit; `refreshWorkspaceToken` is called every 2700 s with a fake clock and a fake gateway; a failed refresh retries every 60 s and emits `token_refresh_failed`; a `patched` replay of an old history does not break. No network.
-- runner image: shell tests that the credential helper and `gh` wrapper read the current file content after it changes, and that no token is printed.
-- web: duration field converts units, shows the server error, and the meter and timed-out note show "24 h" style text. Stories for the changed shared component.
-- e2e-local: one run with a short limit (the fake adapter with a 90 s token TTL) pushes after a refresh.
+- contracts: accepts 60, 3301, 86400 and 604800; rejects 59, 604801 and a fraction; the message names 7 days; the bounds are exported.
+- db: the check allows up to 604800 and not 3300, the default is 86400, and the migration changes no rows.
+- core: `buildRunJob` deadline for 604800 is 604920 (no clamp); the Job has no `envFrom`, takes secrets by `secretKeyRef`, mounts the token key as a read-only file and never lists it as env; `replaceSecretData` (real and fake) merges, keeps labels, fails when missing and surfaces a conflict; the fake pod env never carries the token; adapter tests for `repoUrl` and `gitCredentialUsername`.
+- worker: the Secret holds the repo URL, the token key and the credential; the pod env has no token; `refreshWorkspaceToken` rotates the key only, skips a finished run, fails non-retryably when the Secret is gone, and its errors carry no token; the loop refreshes on an interval, stops with the run, retries a transient failure, ends on a permanent one and leaves the run running; a rotated token is redacted; history never holds the token; old and new histories replay. These use real time with short intervals, like the existing timer tests, because time-skipping cannot skip while `followPodLogs` is in flight.
+- runner image: shell tests that the credential helper and `gh` wrapper read the current file content after it changes (and that real `git credential fill` calls the helper), and that the entrypoint registers the helper only when the token file is set.
+- web: duration helpers, the `DurationInput` (labelled controls, unit change, invalid on both), the agent form (24 hours, 7 days, saving 2 days and 30 hours, a limit above 7 days refused with the server message, retry after a failed save), the run meter and timed-out note ("24 h", "7 d") and the elapsed clock.
+- Not run here: Storybook, the Docker image build, and `e2e-local` (they need a cluster or a built image).
 
-## Rollout and PR order
+## Rollout
 
-The limit must not rise before the refresh works, or any run over 1 hour would lose its token. Each PR stays near 400 lines and is one concern:
-
-1. Docs: this spec and ADR 0021 (this PR).
-2. Token delivery: adapter seam, token Secret and mount, runner credential helper and `gh` wrapper, gateway method. Limits unchanged (3300), so behavior is the same.
-3. Refresh loop with `patched`, `refreshWorkspaceToken`, failure handling, worker tests.
-4. Limits: contracts constants, migration, `buildRunJob` and workflow clamps removed, UI duration field and formatting, default 24 h, `security.md`, ADR 0010 note and control-plane spec lines updated, ADR 0021 set to Accepted.
+- **Deploy order:** publish the new runner image, then bump `RUNNER_IMAGE` (pinned by digest), then deploy the worker. A new worker with an old image creates Jobs that expect a token file the image cannot read, so every clone would fail.
+- Runs in flight at the deploy keep their env token and finish within the old cap; the workflow replays them without the refresh loop.
+- Existing agents keep their saved limit; only agents created afterwards default to 24 h.
 
 ## Open points
 
-- Mounted-Secret sync time on the target cluster (k3s today). Measure it in PR 2; the 15 min margin is large, so this is a check and not a risk.
+- Mounted-Secret sync time on the target cluster (k3s today). Measure it on the first real long run; the 15 min margin is large, so this is a check and not a risk.
 - Whether to cap how many 7-day runs one org may hold at once. Existing `maxConcurrentRuns` applies; no new limit now.

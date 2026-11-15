@@ -1,6 +1,6 @@
 # 0021. Run time limit up to 7 days, with the workspace token refreshed inside the running pod
 
-- Status: Proposed
+- Status: Accepted
 - Date: 2026-11-15
 - Source: [Run time limit design](../superpowers/specs/2026-11-15-run-time-limit-design.md) §2, §3; issue #34
 
@@ -16,11 +16,14 @@ rotate it. GitHub installation tokens cannot be made longer than 1 hour.
 Raise the limit to 7 days (604800 s, default 24 h) and keep the one-hour token rule by rotating the token in the
 running pod.
 
-- The token moves out of env into a separate Secret `run-{runId}-token`, mounted as a directory (no `subPath`) so the
-  kubelet updates the file.
-- The runner reads it on each use: a git credential helper and a `gh` wrapper.
-- A Temporal loop in the run workflow calls `refreshWorkspaceToken` every 45 minutes. The token is minted inside the
-  activity and written to the Secret; it never enters workflow history.
+- The token moves out of env into its own key (`workspace-token`) of the existing run Secret `run-{runId}`. The Job
+  mounts only that key as a file, as a directory volume (no `subPath`) so the kubelet updates it. The Job no longer
+  uses `envFrom`: the repo URL and the agent credential are explicit `secretKeyRef` env vars, so the token is never
+  an env var.
+- The runner reads it on each use: a git credential helper and a `gh` wrapper (`AGENTDESK_TOKEN_FILE`).
+- A Temporal loop in the run workflow calls `refreshWorkspaceToken` every 45 minutes (guarded by `patched` so runs
+  started earlier replay unchanged). The token is minted inside the activity and written to the Secret with
+  `KubeGateway.replaceSecretData`; it never enters workflow history.
 - `activeDeadlineSeconds` stays `timeout_seconds + 120`, with no 3300 clamp.
 - Each token is still single-repo, minimum permission and at most 1 hour. The pod is not restarted.
 
@@ -29,12 +32,13 @@ This supersedes the 3300 s cap and "keep `timeout_seconds` ≤ 3300 so the token
 
 ## Alternatives considered
 
-| Alternative                                        | Why rejected                                                                                                     |
-| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| One long-lived token                               | GitHub installation tokens cannot outlive 1 hour; a long-lived credential also breaks the single-repo ≤ 1 h rule |
-| Chain pods, each under 55 min                      | Breaks one Job per run; loses the agent session, unpushed files and the attached terminal at every hop           |
-| Update only the Secret that `envFrom` reads        | The running container's env does not change, so the pod would keep an expired token                              |
-| Raise the cap a little and keep tokens as they are | Does not meet the 7-day goal                                                                                     |
+| Alternative                                        | Why rejected                                                                                                                                               |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| One long-lived token                               | GitHub installation tokens cannot outlive 1 hour; a long-lived credential also breaks the single-repo ≤ 1 h rule                                           |
+| Chain pods, each under 55 min                      | Breaks one Job per run; loses the agent session, unpushed files and the attached terminal at every hop                                                     |
+| Update only the Secret that `envFrom` reads        | The running container's env does not change, so the pod would keep an expired token                                                                        |
+| A second Secret `run-{runId}-token`                | `reconcile` treats any Secret whose name is not a Job name as an orphan, so it would delete a live token; one Secret keeps cleanup and reconcile unchanged |
+| Raise the cap a little and keep tokens as they are | Does not meet the 7-day goal                                                                                                                               |
 
 ## Consequences
 
@@ -51,6 +55,8 @@ This supersedes the 3300 s cap and "keep `timeout_seconds` ≤ 3300 so the token
 - The runner image changes (credential helper, `gh` wrapper); a custom runner image must do the same.
 - Rotated tokens are redacted from logs by token-shaped patterns, not by an exact-match list.
 - The workflow change needs `patched()` for in-flight runs.
+- Deploy order matters: the runner image with the token-file support must be live (`RUNNER_IMAGE`) before the worker
+  that creates token-file Jobs, or every clone fails.
 - A 7-day run holds a concurrency slot for its whole life.
 
 ## Links

@@ -1,6 +1,6 @@
 # 0019. Repo setup script and plugins from approved stores only
 
-- Status: Accepted
+- Status: Accepted. Where it names the clone URL token and `runEnv` in test pods, [0021](0021-run-time-limit-7-days-with-token-refresh.md) applies: the repo URL carries no token and the workspace token is a mounted file (not refreshed in setup tests).
 - Date: 2026-11-13
 - Source: [workspace setup and plugins design](../superpowers/specs/2026-11-13-workspace-setup-and-plugins-design.md) §3 (decisions 1, 2, 7, 8), §5.1
 
