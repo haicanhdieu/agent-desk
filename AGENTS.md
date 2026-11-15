@@ -60,11 +60,13 @@ devbox run help
 
 ## Talking to humans
 
-When you have a concern or a question that needs a human decision, write it in plain everyday language and keep it short. People will not read a long question. Use this template:
+Applies to **every** message that raises a concern, asks a question or needs a human decision, in any place (chat, PR or issue comment, `needs_input` message). Plain everyday words; no jargon dumps, no long file lists.
 
-1. **Problem:** what is wrong or unclear, in one or two sentences.
-2. **Sample:** a small example, only if it is needed and directly related to the problem.
-3. **Solutions:** the realistic options, briefly.
-4. **Suggestion:** which option you recommend, and why in one line.
-
-If you have several questions, ask **one at a time**. Then stop and wait for the human's answer before continuing or asking the next one.
+- **Start with the template.** The ask begins with `Problem:`. No preamble or background before it.
+  1. **Problem:** max 2 sentences.
+  2. **Sample:** optional, max 5 lines.
+  3. **Solutions:** max 3 options, one line each.
+  4. **Suggestion:** one line: the option you pick and why. Not "want me to do it?".
+- **Report and ask separately.** Results first, in a few short lines if needed. Then the template. Never interleave them.
+- **One question per message.** Then stop and wait. Do not queue the next one.
+- **Self-check before sending:** could a human read it and answer in under 30 seconds? If not, cut it.
