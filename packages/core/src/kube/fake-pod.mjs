@@ -157,7 +157,8 @@ if (prompt.includes('--fake-pending')) {
       const line = pending.slice(0, i).replace(/\n/g, '');
       pending = pending.slice(i + 1);
       pane(setupTest ? `${line}\r\n$ ` : `${line}\r\n`);
-      if (!setupTest && !resume) scheduleTurn();
+      // A resumed pod runs no first turn, but a typed line starts one like in a fresh pod.
+      if (!setupTest) scheduleTurn();
     }
   }, TICK_MS);
 }

@@ -170,6 +170,8 @@ describe('fake-pod.mjs', () => {
 
       rmSync(dir, { recursive: true, force: true });
       mkdirSync(dir); // a new pod, a new state dir; only the volume carries over
+      // The first pod is gone: its input timer must not stand in for the resumed pod's (it watches the same path here).
+      vi.clearAllTimers();
       await boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume });
       expect(logLines()).toEqual(['agentdesk: session resumed', 'agentdesk: session started']);
       expect(read('pane')).toContain('first question');
