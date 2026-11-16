@@ -172,8 +172,9 @@ Do this, in order:
    "superpowers:test-driven-development" and follow it: write a test that fails because
    of this bug, see it fail for the right reason, then make the smallest fix that turns
    it green. No network in tests.
-4. Run `devbox run fix` until it prints "fix: clean.", then `pnpm --filter @agentdesk/<pkg> typecheck`
-   and `pnpm --filter @agentdesk/<pkg> test` for each package you touched.
+4. Run `devbox run fix` until it prints "fix: clean.", then run only the tests you added or
+   changed: `pnpm --filter @agentdesk/<pkg> exec vitest run <test files>`. Do not run the package's
+   full suite, typecheck or lint: the Verifier runs them once, after the last task.
 5. Commit with Conventional Commits, package as scope, e.g. `fix(web): …`. End the message
    with the Co-Authored-By trailer your session tells you to use.
 
@@ -224,8 +225,9 @@ Do this, in order:
    "superpowers:test-driven-development" and follow it for every behavior. Do not work
    from memory of it. No network in tests.
 3. If this task is in a plan file, tick its checkbox(es) in the same commit.
-4. Run `devbox run fix` until it prints "fix: clean.", then `pnpm --filter @agentdesk/<pkg> typecheck`
-   and `pnpm --filter @agentdesk/<pkg> test` for each package you touched.
+4. Run `devbox run fix` until it prints "fix: clean.", then run only the tests you added or
+   changed: `pnpm --filter @agentdesk/<pkg> exec vitest run <test files>`. Do not run the package's
+   full suite, typecheck or lint: the Verifier runs them once, after the last task.
 5. Commit with Conventional Commits, package as scope, e.g. `feat(api): …`. End the message
    with the Co-Authored-By trailer your session tells you to use.
 
@@ -297,28 +299,24 @@ Its base is <base> (`origin/main`, or `origin/<integration branch>` for a unit).
 Run the commands below there. Do not edit code, commit, push, or fix anything.
 If a command fails, keep going and run the rest.
 
-0. Run `pnpm env:detect`. If it prints `mode=runner-pod`, devbox and Docker are not there:
-   prefix every pnpm command below with `. scripts/runner-env.sh && `, and run
-   `node scripts/fix-changed.mjs` wherever this prompt says `devbox run fix`
-   (docs/runbooks/runner-pod.md).
-1. Find the touched packages:
-   git diff --name-only <base>...HEAD
-   apps/<x> and packages/<x> map to @agentdesk/<x>; other paths map to no package.
-2. devbox run fix
-   It must print "fix: clean." Then run `git status --porcelain`. If it is not empty, `fix`
-   changed files the builder did not commit: report that as a failure, with the output.
-3. For each touched package, one command at a time:
-   pnpm --filter @agentdesk/<pkg> typecheck
-   pnpm --filter @agentdesk/<pkg> test
-4. <bug only> The regression test must fail without the fix. It is <test file>
+0. Run `pnpm env:detect`. If it prints `mode=runner-pod`, devbox and Docker are not there; the
+   script below handles that itself (it sources `scripts/runner-env.sh` and runs
+   `node scripts/fix-changed.mjs` instead of `devbox run fix`; docs/runbooks/runner-pod.md).
+1. Run the verification script once. It runs `devbox run fix`, then lint and typecheck for each
+   touched package in parallel, then the tests scoped to this change, and prints a block per command:
+   bash <main checkout abs path>/.agent/skills/dev-build/scripts/verify.sh <worktree abs path> <base>
+   It can take several minutes: wait for it. Do not run the commands it runs again yourself, and do
+   not substitute the full `pnpm test`. It exits non-zero if anything failed; keep going either way.
+   If it names an integration test as "unavailable" (no container engine), report that.
+2. <bug only> The regression test must fail without the fix. It is <test file>
    (<test name>). The fix's source files are <list of non-test files changed by the fix>.
-   a. git checkout origin/main -- <those source files>
-   b. run only that test: pnpm --filter @agentdesk/<pkg> test -- <test file> -t "<test name>"
+   a. git checkout <base> -- <those source files>
+   b. run only that test: pnpm --filter @agentdesk/<pkg> exec vitest run <test file> -t "<test name>"
       It must FAIL. If it passes, the test proves nothing: report that as a failure.
    c. git checkout HEAD -- <those source files>, then confirm `git status --porcelain` is empty.
    Always do step c, even if a or b went wrong.
-5. <final verify only (multi-unit), else drop this step> For each touched package:
-   pnpm --filter @agentdesk/<pkg> test:unit:coverage
+3. <final verify only (multi-unit), else drop this step> Instead of step 1, run the script with
+   `--coverage` as a third argument (full unit coverage per touched package), then:
    <and, only if the orchestrator names it: the e2e command the plan or
    docs/runbooks/tests-and-e2e.md requires for this change>
    If a command needs something not running (Docker, the local stack), report it as
@@ -331,11 +329,11 @@ RESULTS: one block per command:
   COMMAND: <exact command>
   EXIT: <exit code>
   OUTPUT (last 20 lines): <verbatim>
-REGRESSION CHECK: <bug only: "failed without the fix as expected" | "PASSED without the fix" | "not run: <why>", with the verbatim last 10 lines of step 4b>
+REGRESSION CHECK: <bug only: "failed without the fix as expected" | "PASSED without the fix" | "not run: <why>", with the verbatim last 10 lines of step 2b>
 TREE CLEAN AFTER: yes | no (<git status --porcelain output>)
 ```
 
-The orchestrator decides pass/fail from exit codes and output, and reruns one command itself before claiming green.
+The orchestrator decides pass/fail from the script's `VERIFY:` line, the exit codes and output, and reruns one command itself before claiming green.
 
 ## Self-reviewer (step 4: read the diff)
 
