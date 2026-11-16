@@ -5,7 +5,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { createLocalTestEnv } from './helpers/temporal-env';
 import { Worker } from '@temporalio/worker';
 import {
   FakeStore,
@@ -413,7 +414,7 @@ describe('PollOnceWorkflow against a Temporal server', () => {
   let worker: Worker;
   let done: Promise<void>;
   beforeAll(async () => {
-    env = await TestWorkflowEnvironment.createLocal();
+    env = await createLocalTestEnv();
     const d = deps({ clock: { now: () => new Date() }, schedules: pollScheduleOps(env.client) });
     worker = await Worker.create({
       connection: env.nativeConnection,

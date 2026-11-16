@@ -30,7 +30,7 @@ pnpm --filter @agentdesk/web exec vitest                     # watch mode
 
 Run these inside `devbox shell`, or prefix them with `devbox run --`.
 
-- Backend integration tests start their own Postgres through Testcontainers, so a container engine must be running (`docker ps`). They do **not** use the dev database on 54329.
+- Backend integration tests start their own Postgres through Testcontainers, so a container engine must be running (`docker ps`). They do **not** use the dev database on 54329. Without a container engine (a runner pod), see [§4a](#4a-in-a-runner-pod).
 - `pnpm test` doesn't need the dev stack running.
 - Docker-backed tests are named `*.int.test.ts`; everything else is a unit test. `pnpm lint` checks the naming.
 - On Podman, set `TESTCONTAINERS_RYUK_DISABLED=true` (see [testing.md](../conventions/testing.md) §4).
@@ -61,6 +61,26 @@ devbox run e2e-local             # scripts/e2e-local.ts, then web Playwright e2e
 `scripts/e2e-local.ts` runs three scenarios: a webhook-mode run, a polling-mode run (it triggers the poll schedule through Temporal), and a run with `--fake-fail` that must end `failed`. The Playwright suite does the same comment → idle → terminal → finish flow through the UI.
 
 The e2e tests create their own users (`e2e-<rand>`), so they can run against a stack you are also using. For a clean slate, run `devbox run db-reset` first.
+
+## 4a. In a runner pod
+
+A runner pod has no Docker and no devbox, so the commands above don't apply as written. Check where you are first:
+
+```sh
+pnpm env:detect        # mode=runner-pod | human-devbox | human-docker | unknown, plus what is installed and a `tests=` hint
+```
+
+When `mode=runner-pod`:
+
+```sh
+RUNNER_SETUP_PROFILE=test bash scripts/runner-setup.sh   # once per pod; the project's setup script may have done it
+source scripts/runner-env.sh                             # in every new shell
+pnpm test:unit                                           # always
+pnpm test                                                # unit + integration, against local Postgres/Temporal binaries
+scripts/runner-stack.sh up && pnpm test:e2e:local        # full local e2e; `scripts/runner-stack.sh down` after
+```
+
+Profiles, the browser suites and the memory/disk budget are in [runner-pod.md](runner-pod.md).
 
 ## 5. Visual parity
 

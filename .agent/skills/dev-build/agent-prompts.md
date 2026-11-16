@@ -299,6 +299,9 @@ Its base is <base> (`origin/main`, or `origin/<integration branch>` for a unit).
 Run the commands below there. Do not edit code, commit, push, or fix anything.
 If a command fails, keep going and run the rest.
 
+0. Run `pnpm env:detect`. If it prints `mode=runner-pod`, devbox and Docker are not there; the
+   script below handles that itself (it sources `scripts/runner-env.sh` and runs
+   `node scripts/fix-changed.mjs` instead of `devbox run fix`; docs/runbooks/runner-pod.md).
 1. Run the verification script once. It runs `devbox run fix`, then lint and typecheck for each
    touched package in parallel, then the tests scoped to this change, and prints a block per command:
    bash <main checkout abs path>/.agent/skills/dev-build/scripts/verify.sh <worktree abs path> <base>

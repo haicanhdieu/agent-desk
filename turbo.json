@@ -33,25 +33,50 @@
       ]
     },
     "test": {
-      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"]
+      "passThroughEnv": [
+        "DOCKER_HOST",
+        "TESTCONTAINERS_*",
+        "TESTCONTAINERS_RYUK_DISABLED",
+        "TEST_PG_*",
+        "TEMPORAL_CLI_PATH",
+        "TEMPORAL_TEST_SERVER_PATH"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^typecheck"]
     },
     "lint": {},
-    "test:unit": {},
+    "test:unit": {
+      "passThroughEnv": ["TEST_PG_*", "TEMPORAL_CLI_PATH", "TEMPORAL_TEST_SERVER_PATH"]
+    },
     "test:coverage": {
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "passThroughEnv": ["TEST_PG_*", "TEMPORAL_CLI_PATH", "TEMPORAL_TEST_SERVER_PATH"]
     },
     "test:unit:coverage": {
-      "outputs": ["coverage/**"]
+      "outputs": ["coverage/**"],
+      "passThroughEnv": ["TEST_PG_*", "TEMPORAL_CLI_PATH", "TEMPORAL_TEST_SERVER_PATH"]
     },
     "test:integration:coverage": {
       "outputs": ["coverage/**"],
-      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"]
+      "passThroughEnv": [
+        "DOCKER_HOST",
+        "TESTCONTAINERS_*",
+        "TESTCONTAINERS_RYUK_DISABLED",
+        "TEST_PG_*",
+        "TEMPORAL_CLI_PATH",
+        "TEMPORAL_TEST_SERVER_PATH"
+      ]
     },
     "test:integration": {
-      "passThroughEnv": ["DOCKER_HOST", "TESTCONTAINERS_*", "TESTCONTAINERS_RYUK_DISABLED"]
+      "passThroughEnv": [
+        "DOCKER_HOST",
+        "TESTCONTAINERS_*",
+        "TESTCONTAINERS_RYUK_DISABLED",
+        "TEST_PG_*",
+        "TEMPORAL_CLI_PATH",
+        "TEMPORAL_TEST_SERVER_PATH"
+      ]
     }
   }
 }

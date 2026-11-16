@@ -44,6 +44,7 @@ export const ConfigSchema = z
   .object({
     NODE_ENV: blankDefault(z.enum(['development', 'test', 'production']).default('development')),
     PORT: blankDefault(z.coerce.number().int().min(1).max(65535).default(3000)),
+    HOST: blankDefault(z.string().min(1).default('0.0.0.0')),
     PUBLIC_ORIGIN: z.url(),
     DATABASE_APP_URL: z.string().min(1),
     DATABASE_OWNER_URL: z.string().min(1),

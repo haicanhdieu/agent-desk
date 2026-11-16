@@ -26,6 +26,8 @@ devbox run db-reset   # wipe local Postgres/Temporal/fake state
 devbox run help
 ```
 
+No devbox or Docker (a runner pod)? Run `pnpm env:detect` first and follow its `tests=` line; the steps are in [runner-pod.md](docs/runbooks/runner-pod.md).
+
 ## Rules ([docs/conventions/](docs/conventions/README.md))
 
 1. **Contracts first:** API changes start in `packages/contracts`; never duplicate those types. (architecture)

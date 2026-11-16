@@ -15,6 +15,7 @@ A runbook says **how to do one task**. Write it as numbered steps with commands 
 | [connect-github-app-local.md](connect-github-app-local.md) | Use a real GitHub App and repo instead of the fake provider (optional)                        |
 | [dev-workflow.md](dev-workflow.md)                         | Move a ticket across the board (Ready → In review → QA → Done); run `dev-build`, `dev-review` |
 | [agent-model-tiers.md](agent-model-tiers.md)               | Change which model each subagent tier (high, medium, low) uses for the whole team             |
+| [runner-pod.md](runner-pod.md)                             | Run the tests and the local e2e stack inside a runner pod (no Docker, no devbox)              |
 
 ## Operations
 
