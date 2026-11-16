@@ -7,12 +7,12 @@ All of SKILL.md holds unless this file says otherwise: Triage, the Advisor and i
 | Term               | Means                                                                                                                                                                                 |
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Integration branch | `<type>/<n>-<slug>`, cut from fresh `origin/main` and pushed. Changes only by the local merges of reviewed units (M3 step 5). Worktree `<root>-wt/<n>`; only step 5 commits in it     |
-| Unit               | One line of Triage's `UNITS`: `U<id>`, its tasks and `depends_on`. About 400 changed lines or fewer                                                                                   |
+| Unit               | One line of Triage's `UNITS`: `U<id>`, its tasks and `depends_on`. About 800 changed lines or fewer                                                                                   |
 | Unit branch        | `<integration>--u<id>` (`--` keeps it apart from slug words and stops it nesting under the integration name), cut from current `origin/<integration>`, worktree `<root>-wt/<n>-u<id>` |
 | Unit commit        | The one squash commit a merged unit leaves on the integration branch; its message ends with the trailer `Unit: U<id>` (resume reads it)                                               |
 | Fix unit           | Added after final verify or review finds a problem: id `<owner id>r<k>` (e.g. `3r1`), one task naming the problem                                                                     |
 
-**Size.** The ~400-line cap ([git-workflow.md §3](../../../docs/conventions/git-workflow.md#3-pull-requests)) applies per unit, not to the final PR, which integrates reviewed units and says so in its body.
+**Size.** The ~800-line cap ([git-workflow.md §3](../../../docs/conventions/git-workflow.md#3-pull-requests)) applies per unit, not to the final PR, which integrates reviewed units and says so in its body.
 
 **Order.** `depends_on` comes from the plan only (Triage rule D). Other cross-unit rules the plan states (deploy or rollout order) are the plan's and humans'; never invent or enforce them.
 
@@ -61,7 +61,7 @@ It cuts `<integration>--u<id>` from the current `origin/<integration>` (so it bu
 ## M3. One unit
 
 1. **Build.** One Implementer per unit task, in order (SKILL.md step 3). `<base>` = `origin/<integration>`, add "of unit U<id>". The git evidence check's base for the first task is `origin/<integration>`. The Implementer keeps working in the unit's worktree; there is no PR.
-2. **Verify.** SKILL.md step 4 with `<base>` = `origin/<integration>`. The Self-reviewer gets only this unit's tasks; scope is those tasks and about 400 changed lines. Failures and findings go to an Implementer of this unit. Never go on over a red round. Run only what `verify.sh` runs (fix, lint, typecheck, scoped tests); never the full suites, CI does that once on the final PR.
+2. **Verify.** SKILL.md step 4 with `<base>` = `origin/<integration>`. The Self-reviewer gets only this unit's tasks; scope is those tasks and about 800 changed lines. Failures and findings go to an Implementer of this unit. Never go on over a red round. Run only what `verify.sh` runs (fix, lint, typecheck, scoped tests); never the full suites, CI does that once on the final PR.
 3. **Internal review.** Sensitive? `git -C <unit worktree> diff --name-only origin/<integration>...HEAD` against [Sensitive paths](../../../docs/conventions/git-workflow.md#sensitive-paths) (the list in [`dev-review/scripts/flags.sh`](../dev-review/scripts/flags.sh) `sensitive()` helps); when in doubt, yes. Spawn a fresh **Reviewer** ([agent-prompts.md](agent-prompts.md#reviewer-multi-unit-internal-review-of-a-unit-and-the-final-review)), tier `medium` (never `high`/opus), effort `high` if sensitive. Never run `dev-review`: it merges to `main` and moves the board.
 
    **Before spawning**, check `model` is `tiers.medium` from `.agent/models.json` (sonnet; not opus even when sensitive), and the filled prompt contains `severity.md`, `## Reviewers`, `code-review-checklist.md` and `Every finding needs a concrete failure scenario`, and its security line is the "yes" form when sensitive.

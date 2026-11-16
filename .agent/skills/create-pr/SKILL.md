@@ -23,7 +23,7 @@ If the title or summary is missing, derive it from `git log origin/main..HEAD` a
 
 Create a todo per step.
 
-1. **Preconditions.** The working tree is clean for the intended change; the branch is not `main`; the diff against `origin/main` holds only the scoped work (one concern, about 400 changed lines or fewer excluding lockfiles and migration snapshots, or a reason in the body). Nothing under "Never commit" in [AGENTS.md](../../../AGENTS.md) is in the diff (`.env`, credentials, `storybook-static/`, `parity-out/`, `.devbox/`). Push only if the caller authorized it; otherwise ask. If a precondition fails and you can't fix it, stop and report; do not open the PR.
+1. **Preconditions.** The working tree is clean for the intended change; the branch is not `main`; the diff against `origin/main` holds only the scoped work (one concern, about 800 changed lines or fewer excluding lockfiles and migration snapshots, or a reason in the body). Nothing under "Never commit" in [AGENTS.md](../../../AGENTS.md) is in the diff (`.env`, credentials, `storybook-static/`, `parity-out/`, `.devbox/`). Push only if the caller authorized it; otherwise ask. If a precondition fails and you can't fix it, stop and report; do not open the PR.
 
 2. **Local CI preflight (default on).** Run the local equivalents of the `ci.yml` jobs feeding `gate / ci-passed`, against the current head. Read [`.github/workflows/ci.yml`](../../../.github/workflows/ci.yml) for the current commands instead of trusting a list here.
    - `devbox run fix` must print `fix: clean.` (it replaces repo-wide `format:check`, which fails until the one-time reformat lands). If it changed files, commit them before continuing.

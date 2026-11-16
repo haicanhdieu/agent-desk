@@ -39,7 +39,7 @@ Spec / plan / ADR: <docs/superpowers/... or None>
 
 Full detail: [docs/conventions/code-review-checklist.md](../docs/conventions/code-review-checklist.md)
 
-- [ ] One concern, about 400 changed lines or fewer (or explained below)
+- [ ] One concern, about 800 changed lines or fewer (or explained below)
 - [ ] `devbox run fix` clean; `lint`, `typecheck`, `test` pass locally for touched packages
 - [ ] Tests added or updated for new behavior and fixed bugs
 - [ ] Shapes from `packages/contracts`; inputs validated with Zod

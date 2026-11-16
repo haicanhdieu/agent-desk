@@ -20,7 +20,7 @@
 
 Full detail: [docs/conventions/code-review-checklist.md](../docs/conventions/code-review-checklist.md)
 
-- [ ] One concern, about 400 changed lines or fewer (or explained below)
+- [ ] One concern, about 800 changed lines or fewer (or explained below)
 - [ ] `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build` pass locally
 - [ ] Tests added or updated for new behavior and fixed bugs
 - [ ] Shapes from `packages/contracts`; inputs validated with Zod

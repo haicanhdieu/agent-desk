@@ -142,7 +142,7 @@ Push (`git -C <worktree> push --force-with-lease origin <HEAD BRANCH>`) and go b
 
 After round 3, any medium or above left comes from a fix, by this rule: revert it, note the limitation, continue to step 5. If a critical or high is left, ask the Advisor (stop condition); **Blocked** with the open findings only on its `needs_human`.
 
-**Docs-only PRs** (spec, plan, ADR): typecheck and tests prove nothing, so your diff read is the only gate; the Verifier still runs `devbox run fix`. A fix rewords, corrects or removes lines, or adds only what the finding needs, proportional to it. The ~400-line PR limit covers docs too, so a fix round must not leave the PR much bigger.
+**Docs-only PRs** (spec, plan, ADR): typecheck and tests prove nothing, so your diff read is the only gate; the Verifier still runs `devbox run fix`. A fix rewords, corrects or removes lines, or adds only what the finding needs, proportional to it. The ~800-line PR limit covers docs too, so a fix round must not leave the PR much bigger.
 
 ### 5. Get CI green
 

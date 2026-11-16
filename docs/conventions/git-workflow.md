@@ -60,7 +60,7 @@ Use [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): 
 ## 3. Pull requests
 
 - **One concern per PR.** A feature, a fix, a refactor, or a dependency bump, not a mix. Unrelated cleanups go in their own PR.
-- **Size:** soft cap of about **400 changed lines** excluding lockfiles, generated migrations snapshots, and fixtures. Above that, split: contracts first, then backend, then frontend; or schema first, then behavior. Say in the description why a larger PR can't be split.
+- **Size:** soft cap of about **800 changed lines** excluding lockfiles, generated migrations snapshots, and fixtures. Above that, split: contracts first, then backend, then frontend; or schema first, then behavior. Say in the description why a larger PR can't be split.
 - Fill in [`.github/pull_request_template.md`](../../.github/pull_request_template.md): summary, linked spec or issue, test evidence, risk and rollback.
 - Open as a draft until CI is green and you have reviewed your own diff.
 - The PR title follows the commit format; it becomes the squash commit message.
