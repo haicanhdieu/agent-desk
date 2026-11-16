@@ -537,6 +537,17 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       if (ending || exitCode === 0) {
         return { status: 'succeeded', ...(exitCode !== undefined ? { exitCode } : {}), podExited: true };
       }
+      // A run that started before `pod-lost-parks`: `followPodLogs` used to throw when the pod vanished after the agent
+      // started, so it failed with this reason, no exit code and no stage. Keep that wording (the result now carries
+      // `podLost` instead of throwing, and `exitCode` is a placeholder -1).
+      if (podLost === true && !podLostParks) {
+        return {
+          status: 'failed',
+          failureReason: 'the run pod disappeared before it reported an exit code',
+          podExited: false,
+          ...(scrollbackTail !== undefined ? { scrollbackTail: scrollbackTail.slice(-SCROLLBACK_TAIL_MAX) } : {}),
+        };
+      }
       return {
         status: 'failed',
         exitCode,
