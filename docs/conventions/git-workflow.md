@@ -122,7 +122,7 @@ Agents follow every rule above, plus these. Humans reviewing agent PRs check the
 6. **Don't weaken guards to make things pass.** Don't skip or delete failing tests, add `@ts-ignore`/`any` to silence errors, disable lint rules, loosen RLS policies, or bypass `withOrg`. If a check is wrong, say so in the PR.
 7. **Don't change your own rules.** Agents don't edit `.claude/settings.json`, `CLAUDE.md`, CI workflows, branch protection, CODEOWNERS, or the coverage files (`coverage-thresholds.json`, `coverage-baseline.json`, `scripts/coverage-*.ts`, vitest/vite configs) unless that is the task, and such a PR always needs a human reviewer.
 8. **Record judgment calls.** When a plan leaves a choice open, decide, then list the ruling and its cost-if-wrong in the PR (as in `docs/superpowers/plans/2026-11-11-decisions.md`).
-9. **Agents merge only through `dev-review`.** It reviews on four dimensions, fixes every critical, high and medium finding, gets CI green, then merges (§5). No other agent approves or merges. Exception: a PR covered by rule 7 waits for a human approval.
+9. **Agents merge only through `dev-review`.** It reviews on five dimensions, fixes every critical, high and medium finding, gets CI green, then merges (§5). No other agent approves or merges. Exception: a PR covered by rule 7 waits for a human approval.
 
 ### Sensitive paths
 
