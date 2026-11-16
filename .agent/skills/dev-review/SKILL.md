@@ -5,7 +5,7 @@ description: Use when asked to review, fix up, get green, or merge a pull reques
 
 # Review, fix and merge a PR
 
-You are the review orchestrator. You take one PR to `main`, review it on four dimensions with subagents, get every critical, high and medium finding fixed and re-reviewed, resolve merge conflicts, get CI green, merge it, and move its issue to **QA** on the [project board](https://github.com/users/haicanhdieu/projects/4/views/1).
+You are the review orchestrator. You take one PR to `main`, review it on five dimensions with subagents, get every critical, high and medium finding fixed and re-reviewed, resolve merge conflicts, get CI green, merge it, and move its issue to **QA** on the [project board](https://github.com/users/haicanhdieu/projects/4/views/1).
 
 This is the **review and merge** step of build → review and merge → QA test → done. Columns, labels and who moves what: [docs/runbooks/dev-workflow.md](../../../docs/runbooks/dev-workflow.md).
 
@@ -64,7 +64,9 @@ After a clean rebase, `git push --force-with-lease`. Never force-push without `-
 
 Get the inputs once: `git diff origin/main...HEAD`, the linked issue (`gh issue view <n> --comments`), and any spec or plan the PR or issue links.
 
-Dispatch the **four reviewers in parallel**, one message with four Agent calls (code quality, architecture, performance, security). Each gets the diff, the issue text, the linked spec or plan, the convention files for its dimension, and [severity.md](severity.md). Each replies with a JSON list of findings.
+Dispatch the **five reviewers in parallel**, one message with five Agent calls (requirements, code quality, architecture, performance, security). Each gets the diff, the issue text, the linked spec or plan, the convention files for its dimension, and [severity.md](severity.md). Each replies with a JSON list of findings.
+
+The **requirements** reviewer checks that the PR fully implements what it was built from: the linked issue (body, acceptance criteria, comments) and every spec or plan the PR body or issue links, or that the PR adds or changes. Find them in step 1 (the `Refs|Closes|Fixes|Resolves` issue, links in the issue and PR body, `docs/superpowers/{specs,plans}/` paths). It lists each requirement and maps it to code and a test; a requirement with no implementation is a finding. With no issue and no spec or plan it returns an empty list.
 
 Then merge their lists yourself:
 
@@ -84,13 +86,13 @@ A fixer may decline a finding with evidence (a test, a spec line). Accept a decl
 
 **Nothing is committed until it has passed review as a diff.** For each group, in order:
 
-1. **Fixer self-review.** Before it returns, the fixer walks its own staged diff against the checklist from step 3.4 and the four dimensions (quality, architecture, performance, security), item by item, and reports each check with the line it looked at. Every new mechanism gets a failure-case pass: concurrency, empty and very large inputs, partial failure and retries, bounds, tenancy, tooling behavior.
+1. **Fixer self-review.** Before it returns, the fixer walks its own staged diff against the checklist from step 3.4 and the five dimensions (requirements, quality, architecture, performance, security), item by item, and reports each check with the line it looked at. Every new mechanism gets a failure-case pass: concurrency, empty and very large inputs, partial failure and retries, bounds, tenancy, tooling behavior.
 2. **Your read.** Read the whole staged diff yourself (`git diff --staged`), not the fixer's summary. `devbox run fix` only checks format. Answer each:
    - Does every hunk trace to one of this group's findings?
    - Does it agree with the rest of the spec, plan and code? Search for the names it touches.
    - Is every tooling claim in it one you verified in step 3?
    - Is every new mechanism the smallest one that closes the finding, with its bounds, failure cases and tests stated?
-3. **Diff review.** Dispatch the four reviewers on the staged diff only, with the same tier and effort as round 1. Their job: does the fix resolve its finding, and does it add a defect of medium or above? A finding on the fix goes back to the same fixer, which amends the staged diff.
+3. **Diff review.** Dispatch the five reviewers on the staged diff only, with the same tier and effort as round 1. Their job: does the fix resolve its finding, and does it add a defect of medium or above? A finding on the fix goes back to the same fixer, which amends the staged diff.
 4. **Commit** only when steps 2 and 3 are clean: `devbox run fix` until `fix: clean.`, then commit (`fix(<pkg>): address review: <summary>`), one commit per group. Allow at most 2 amend loops. If the diff still has medium or above findings after that, discard it (`git restore --staged --worktree -- <files>`), do not commit it, and record the original finding as a known limitation in the PR body (docs: also one line in the doc). Never push an unreviewed or failing fix.
 
 Then verify in the worktree and read the output yourself:
@@ -101,7 +103,7 @@ pnpm --filter @agentdesk/<pkg> typecheck          # once per touched package
 pnpm --filter @agentdesk/<pkg> test
 ```
 
-Push (`git push --force-with-lease`) and go back to **step 3** for a new round. Re-review all four dimensions: a fix can break another one. From round 2, reviewers check only the fixes: does each one resolve its finding, and did it add a defect? Use the same tier and effort as round 1 ([agent-prompts.md](agent-prompts.md)).
+Push (`git push --force-with-lease`) and go back to **step 3** for a new round. Re-review all five dimensions: a fix can break another one. From round 2, reviewers check only the fixes: does each one resolve its finding, and did it add a defect? Use the same tier and effort as round 1 ([agent-prompts.md](agent-prompts.md)).
 
 **Revert, don't deepen.** If a round 2+ finding of medium or above comes from a fix, do not stack another fix on it. `git revert` that fix's commit and record the original finding as a known limitation in the PR body. A critical or high that cannot be fixed cleanly is **Blocked**.
 
@@ -169,8 +171,8 @@ These hold even when the user says to hurry. Say so in your report and keep the 
 | Thought                                             | Reality                                                                           |
 | --------------------------------------------------- | --------------------------------------------------------------------------------- |
 | "It's only medium, merge and fix later"             | Critical, high and medium are fixed before merge. Only low is left.               |
-| "One reviewer is enough for a small PR"             | Four dimensions, every round. Small PRs make cheap reviews.                       |
-| "Re-review only the dimension that had findings"    | A fix can break another dimension. Re-review all four.                            |
+| "One reviewer is enough for a small PR"             | Five dimensions, every round. Small PRs make cheap reviews.                       |
+| "Re-review only the dimension that had findings"    | A fix can break another dimension. Re-review all five.                            |
 | "CI is flaky, re-run until green"                   | A flaky gate is a bug. Block with the evidence.                                   |
 | "Mark the failing test skip / loosen the lint rule" | Never weaken a check to pass. Fix the cause or block.                             |
 | "Auto-merge is on, so I can enable it and leave"    | Without required checks, auto-merge doesn't wait for CI. Check protection first.  |

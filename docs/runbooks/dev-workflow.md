@@ -99,7 +99,7 @@ In Claude Code, from the repo root:
 The skill:
 
 1. Rebases the PR on the latest `main` in its own worktree and resolves conflicts (or blocks if the two sides need a product decision).
-2. Reviews the diff with four agents in parallel: **code quality** (against [docs/conventions/](../conventions/README.md)), **architecture**, **performance** and **security**. Each finding gets a severity:
+2. Reviews the diff with five agents in parallel: **requirements** (does the PR fully implement the issue and its spec or plan), **code quality** (against [docs/conventions/](../conventions/README.md)), **architecture**, **performance** and **security**. Each finding gets a severity:
 
    | Severity | Means                                                                                       | Before merge      |
    | -------- | ------------------------------------------------------------------------------------------- | ----------------- |
@@ -110,7 +110,7 @@ The skill:
 
    Full rubric: [severity.md](../../.agent/skills/dev-review/severity.md). Findings are posted as one comment on the PR per round.
 
-3. Sends agents to fix every critical, high and medium finding, then re-reviews all four dimensions. At most 3 rounds.
+3. Sends agents to fix every critical, high and medium finding, then re-reviews all five dimensions. At most 3 rounds.
 4. Waits for CI and fixes failures this PR caused (at most 3 tries). A failure the PR didn't cause (it fails on `main` too, infra, a flaky test) blocks instead of being re-run.
 5. Squash-merges: with `--auto` if `main` has required status checks, otherwise after it has watched every check go green itself.
 6. Moves the issue to **QA** (reopening it if the merge closed it) and comments.
