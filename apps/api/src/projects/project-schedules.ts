@@ -90,6 +90,11 @@ export class ProjectSchedules {
     }
   }
 
+  /** Runs the project's poll now. `SKIP`: a poll already running is not started twice. Throws ScheduleNotFoundError. */
+  async trigger(projectId: string): Promise<void> {
+    await this.client.schedule.getHandle(pollScheduleId(projectId)).trigger(ScheduleOverlapPolicy.SKIP);
+  }
+
   /** Sets the project's concurrency limit; `signalWithStart` so it works before the gate workflow exists. */
   async setLimit(projectId: string, limit: number): Promise<void> {
     const workflowId = gateWorkflowId(projectId);

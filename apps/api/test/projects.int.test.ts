@@ -1,6 +1,7 @@
 import type { QueryResultRow } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { WorkflowNotFoundError } from '@temporalio/client';
+import { randomUUID } from 'node:crypto';
+import { ScheduleNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
 import type { ProjectDto } from '@agentdesk/contracts';
 import { SIGNAL, credentialSecretName } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
@@ -502,5 +503,77 @@ describe('projects', () => {
     t.temporal.reset();
     await patch(p.id, { triggerMode: 'polling' });
     expect(t.temporal.callsOfKind('scheduleUpdate')).toHaveLength(1);
+  });
+});
+
+describe('POST /api/projects/:projectId/connection/poll (Check now)', () => {
+  const checkNow = (id: string, cookie = alice) =>
+    t.app.inject({ method: 'POST', url: `/api/projects/${id}/connection/poll`, headers: { cookie } });
+  const pollingProject = async (cursor = ''): Promise<string> => {
+    const p = (await createProject({ triggerMode: 'polling' })).json() as ProjectDto;
+    if (cursor) await asOrg(await aliceOrgId(), `update poll_cursors set ${cursor} where project_id = $1`, [p.id]);
+    t.temporal.reset();
+    return p.id;
+  };
+
+  it('triggers the project poll schedule once and answers 202', async () => {
+    const id = await pollingProject();
+    const res = await checkNow(id);
+    expect(res.statusCode).toBe(202);
+    expectContract('projects.pollNow', res);
+    expect(t.temporal.callsOfKind('scheduleTrigger').map((c) => c.scheduleId)).toEqual([`poll-${id}`]);
+  });
+
+  it.each([
+    ['token_revoked', "paused_reason = 'token_revoked'", /token was revoked/],
+    ['rate_limited', "paused_reason = 'rate_limited', next_poll_at = now() + interval '1 hour'", /rate limit/],
+  ])('refuses with 409 and the reason while polling is paused (%s)', async (_name, cursor, reason) => {
+    const id = await pollingProject(cursor);
+    const res = await checkNow(id);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toMatch(reason);
+    expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
+  });
+
+  it('refuses with 409 inside a back-off window, which a poll would skip', async () => {
+    const id = await pollingProject("failures = 1, next_poll_at = now() + interval '10 minutes'");
+    const res = await checkNow(id);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toMatch(/backing off/);
+    expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
+  });
+
+  it('refuses with 409 for a webhook project', async () => {
+    const p = (await createProject({})).json() as ProjectDto;
+    t.temporal.reset();
+    const res = await checkNow(p.id);
+    expect(res.statusCode).toBe(409);
+    expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
+  });
+
+  it('answers 409 when the schedule is missing, and 404 for another org or an unknown project', async () => {
+    const id = await pollingProject();
+    t.temporal.triggerError = new ScheduleNotFoundError('gone', 'poll-x');
+    expect((await checkNow(id)).statusCode).toBe(409);
+    expect((await checkNow(id, bob)).statusCode).toBe(404);
+    expect((await checkNow(randomUUID())).statusCode).toBe(404);
+    expect((await t.app.inject({ method: 'POST', url: `/api/projects/${id}/connection/poll` })).statusCode).toBe(401);
+  });
+
+  it('is 403 for an org member who is neither the owner nor the project creator', async () => {
+    const carol = await loginAs(t, 'carol');
+    const orgId = await aliceOrgId();
+    await t.db.pool.query(
+      `insert into member (id, organization_id, user_id, role, created_at)
+       select $2, $1, id, 'member', now() from "user" where handle = 'carol'`,
+      [orgId, randomUUID()],
+    );
+    await t.db.pool.query(
+      `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'carol')`,
+      [orgId],
+    );
+    const id = await pollingProject();
+    expect((await checkNow(id, carol)).statusCode).toBe(403);
+    expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
   });
 });

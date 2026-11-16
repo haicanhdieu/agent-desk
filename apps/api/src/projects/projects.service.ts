@@ -1,5 +1,5 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { WorkflowNotFoundError, type Client } from '@temporalio/client';
+import { ScheduleNotFoundError, WorkflowNotFoundError, type Client } from '@temporalio/client';
 import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   agents,
@@ -31,6 +31,7 @@ import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { SECRET_STORE } from '../secrets/secret-store.module';
+import { assertCanEditProject } from './project-access';
 import { ProjectSchedules } from './project-schedules';
 
 type ProjectRow = typeof projects.$inferSelect;
@@ -65,6 +66,30 @@ export class ActiveRunsConflictException extends ConflictException {
 }
 
 const STEP_ORDER: readonly SetupStep[] = ['agent', 'setup', 'skills', 'rules', 'ready'];
+
+const utcClock = (d: Date): string => `${d.toISOString().slice(11, 16)} UTC`;
+
+/** Why a poll cannot run now (shown to the user as the 409 detail), or undefined when it can. */
+function pollRefusal(
+  mode: string,
+  cursor: Pick<typeof pollCursors.$inferSelect, 'pausedReason' | 'nextPollAt'> | undefined,
+  now: Date,
+): string | undefined {
+  if (mode !== 'polling')
+    return 'This project uses webhooks, so there is nothing to poll. Switch to polling to check on demand.';
+  const until = cursor?.nextPollAt && cursor.nextPollAt > now ? cursor.nextPollAt : undefined;
+  switch (cursor?.pausedReason) {
+    case undefined:
+    case null:
+      return until && `Polling is backing off after a failed check. The next check is at ${utcClock(until)}.`;
+    case 'token_revoked':
+      return "Polling is paused: the connection's token was revoked. Reconnect it, then check again.";
+    case 'rate_limited':
+      return `Polling is paused: the provider rate limit was hit.${until ? ` It resumes by itself at ${utcClock(until)}.` : ''}`;
+    default:
+      return 'Polling is paused. Check the connection, then try again.';
+  }
+}
 
 interface Counts {
   needsYou: number;
@@ -363,5 +388,26 @@ export class ProjectsService {
         },
       };
     });
+  }
+
+  /**
+   * Check now: runs the project's poll schedule right away. Refused (409, with the reason) when the project is not
+   * polling, polling is paused (revoked token, rate limit) or a back-off window is open: a poll would only skip it.
+   * The poll itself runs on the worker; its result shows up in `connection`. Same access as editing the project.
+   */
+  async pollNow(org: OrgContext, projectId: string): Promise<void> {
+    const refusal = await withOrg(this.db, org.orgId, async (tx) => {
+      await assertCanEditProject(tx, org, projectId);
+      const row = await this.load(tx, projectId);
+      const cursor = (await tx.select().from(pollCursors).where(eq(pollCursors.projectId, projectId)).limit(1))[0];
+      return pollRefusal(row.triggerMode, cursor, new Date());
+    });
+    if (refusal) throw new ConflictException(refusal);
+    try {
+      await this.schedules.trigger(projectId);
+    } catch (err) {
+      if (!(err instanceof ScheduleNotFoundError)) throw err;
+      throw new ConflictException('The poll schedule is missing. Save the trigger settings again to recreate it.');
+    }
   }
 }
