@@ -17,3 +17,29 @@
     animation: none;
   }
 }
+
+/* `running` dot: breathe (scale + fade) around its own centre; the outer ring stays still. */
+.pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.7);
+  }
+}
+
+/* Motion off: the solid dot stays as a static glyph. */
+@media (prefers-reduced-motion: reduce) {
+  .pulse {
+    animation: none;
+  }
+}
