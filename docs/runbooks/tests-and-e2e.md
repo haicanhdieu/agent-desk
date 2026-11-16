@@ -58,7 +58,7 @@ devbox services ls               # wait until api and web are Ready
 devbox run e2e-local             # scripts/e2e-local.ts, then web Playwright e2e/local
 ```
 
-`scripts/e2e-local.ts` runs three scenarios: a webhook-mode run, a polling-mode run (it triggers the poll schedule through Temporal), and a run with `--fake-fail` that must end `failed`. The Playwright suite does the same comment → idle → terminal → finish flow through the UI.
+`scripts/e2e-local.ts` runs three scenarios: a webhook-mode run, a polling-mode run (it triggers the poll schedule through Temporal), and a run with `--fake-fail` whose agent crashes: it must end `paused` with the pause reason `agent_crashed`, its work kept. The Playwright suite does the same comment → idle → terminal → finish flow through the UI.
 
 The e2e tests create their own users (`e2e-<rand>`), so they can run against a stack you are also using. For a clean slate, run `devbox run db-reset` first.
 

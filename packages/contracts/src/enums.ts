@@ -27,7 +27,7 @@ export const ACTIVE_RUN_STATUSES = ['starting', 'running', 'idle', 'done'] as co
 export const FINISHABLE_RUN_STATUSES = ['idle', 'done', 'paused'] as const satisfies readonly RunStatus[];
 
 /** Why a run is paused: the idle timer stopped the pod, or the pod was lost. */
-export const PauseReason = z.enum(['idle_timeout', 'pod_lost']);
+export const PauseReason = z.enum(['idle_timeout', 'pod_lost', 'agent_crashed']);
 export type PauseReason = z.infer<typeof PauseReason>;
 
 export const TriggerMode = z.enum(['webhook', 'polling']);

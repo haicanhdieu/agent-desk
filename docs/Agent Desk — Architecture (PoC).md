@@ -195,14 +195,14 @@ spec:
 
 **Failure handling**
 
-| Situation                      | Detection                                                   | Result                                                                 |
-| ------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Agent exits non-zero           | Job condition `Failed`                                      | Run `failed`; finish comment includes the tail of the final scrollback |
-| Timeout                        | `DeadlineExceeded`                                          | Run `timed_out`                                                        |
-| User cancels                   | API call deletes the Job with foreground propagation        | Run `cancelled`                                                        |
-| Image pull or scheduling error | Pod stuck `Pending` for over 2 minutes                      | Run `failed` with the pod event message                                |
-| Idle timeout                   | Run idle with no terminal attached for 10 minutes (default) | Controller ends the tmux session, the Job completes, run succeeded     |
-| Control plane restarts         | On startup, list Jobs by label and compare with `runs`      | Status reconciled; log following resumes                               |
+| Situation                      | Detection                                                      | Result                                                                                                                                                       |
+| ------------------------------ | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Agent exits non-zero           | Runner end line `agent_exit` with the pod's non-zero exit code | Run `paused` (`agent_crashed`), volume kept, Resume offered ([run terminal lifecycle spec](superpowers/specs/2026-11-16-run-terminal-lifecycle-redesign.md)) |
+| Timeout                        | `DeadlineExceeded`                                             | Run `timed_out`                                                                                                                                              |
+| User cancels                   | API call deletes the Job with foreground propagation           | Run `cancelled`                                                                                                                                              |
+| Image pull or scheduling error | Pod stuck `Pending` for over 2 minutes                         | Run `failed` with the pod event message                                                                                                                      |
+| Idle timeout                   | Run idle with no terminal attached for 10 minutes (default)    | Controller ends the tmux session, the Job completes, run succeeded                                                                                           |
+| Control plane restarts         | On startup, list Jobs by label and compare with `runs`         | Status reconciled; log following resumes                                                                                                                     |
 
 ## 6. Live streaming and interaction
 

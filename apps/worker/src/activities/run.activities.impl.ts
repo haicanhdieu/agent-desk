@@ -767,8 +767,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   }
 
   // The agent shares the container and can print a forged end line: the result is a hint, never authority.
-  /** The reason of the newest stored `session_ended` event after `floor`, if any. */
-  async function findEndReason(ctx: RunContext, floor: number): Promise<EndReason | undefined> {
+  /**
+   * The reason of the newest stored `session_ended` event after `floor`, if any. The entrypoint exits with the code it
+   * prints, so a line whose code differs from the pod's real exit code (`exitCode`, when known) is not the runner's and
+   * is ignored.
+   */
+  async function findEndReason(ctx: RunContext, floor: number, exitCode?: number): Promise<EndReason | undefined> {
     const [row] = await withOrg(db, ctx.orgId, (tx) =>
       tx
         .select({ payload: runEvents.payload })
@@ -785,7 +789,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         .limit(1),
     );
     const parsed = EndMarkerPayload.safeParse(row?.payload);
-    return parsed.success ? parsed.data.reason : undefined;
+    if (!parsed.success) return undefined;
+    if (exitCode !== undefined && parsed.data.code !== exitCode) return undefined;
+    return parsed.data.reason;
   }
 
   /** Output already stored for the run (all passes and attempts): characters spent and whether it was truncated. */
@@ -973,7 +979,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
               },
             };
           }
-          const endReason = await findEndReason(ctx, resume ? await floorOf() : 0);
+          const endReason = await findEndReason(ctx, resume ? await floorOf() : 0, exitCode);
           // The runner exits 79 when the volume holds no started session: nothing to continue (not a setup failure).
           const resumeFailed = resume && exitCode === RESUME_FAILED_EXIT_CODE && !pre.agentStarted;
           return {
@@ -1016,6 +1022,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   // ---- endSession, deleteJob, ensureJobGone
 
   async function endSession(ctx: RunContext): Promise<void> {
+    // Before the exec, so the page can say the session is ending as soon as the end begins. The first moment is kept on
+    // a retry, and the status write that parks or finishes the run clears it.
+    await withOrg(db, ctx.orgId, (tx) =>
+      tx
+        .update(runs)
+        .set({ sessionEndingAt: clock.now() })
+        .where(and(eq(runs.id, ctx.runId), isNull(runs.sessionEndingAt))),
+    );
     try {
       const pod = await kube.getRunPod(runJobName(ctx.runId));
       if (!pod || pod.phase !== 'Running') return; // nothing to end

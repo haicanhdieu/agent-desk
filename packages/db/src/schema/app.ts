@@ -241,7 +241,7 @@ export const runs = pgTable(
     sessionExpiresAt: ts('session_expires_at'),
     /** When the live session is scheduled to end. Null when none is. */
     sessionEndingAt: ts('session_ending_at'),
-    /** Why the run is paused: 'idle_timeout' or 'pod_lost'. Null otherwise. */
+    /** Why the run is paused: 'idle_timeout', 'pod_lost' or 'agent_crashed'. Null otherwise. */
     pauseReason: text('pause_reason'),
   },
   (t) => [
@@ -261,7 +261,7 @@ export const runs = pgTable(
       sql`${t.status} in ('queued','starting','running','idle','paused','done','succeeded','failed','cancelled','timed_out','expired')`,
     ),
     // Literals mirror PauseReason in @agentdesk/contracts.
-    check('runs_pause_reason_check', sql`${t.pauseReason} in ('idle_timeout','pod_lost')`),
+    check('runs_pause_reason_check', sql`${t.pauseReason} in ('idle_timeout','pod_lost','agent_crashed')`),
     check('runs_waiting_on_check', sql`${t.waitingOn} in ('background')`),
     check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),
     check('runs_trigger_source_check', sql`${t.triggerSource} in ('webhook','polling','manual')`),

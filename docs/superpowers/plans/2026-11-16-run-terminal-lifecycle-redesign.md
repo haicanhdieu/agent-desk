@@ -28,7 +28,7 @@
   - Connection id: server-made UUID, checked by regex in the API and in the script.
   - Lease signal every 2 minutes; the workflow drops an id unheard for 5 minutes.
   - Per-run terminal cap stays `MAX_TERMINALS_PER_RUN = 4`.
-  - `pauseReason`: `idle_timeout` | `pod_lost`. `sessionEndingAt`: timestamp or null.
+  - `pauseReason`: `idle_timeout` | `pod_lost` | `agent_crashed`. `sessionEndingAt`: timestamp or null.
   - `patched()` ids: `ending-deadline`, `pod-lost-parks`, `attach-leases`.
   - Idle timer (user decision): `IDLE_END_SECONDS_DEFAULT` 600 → 1800, only in Phase 3a.
 - The status stays `idle`/`done` during `ending`; filters and status tokens do not change.
@@ -47,7 +47,7 @@
 
 Ask each one with the `AGENTS.md` "Talking to humans" template, one at a time, and wait.
 
-- **D1, spec open question 2, before Phase 6:** a run whose agent crashed (`agent_exit`, non-zero code) keeps `failed` and deletes its volume as today, or keeps its volume and offers Resume? Phase 6 as written keeps today's behaviour; if the answer is "keep the volume", add a task to Phase 6 (park with a new `pauseReason` value, which also changes Phase 5's enum) before starting it.
+- **D1, spec open question 2: answered 2026-11-16, option 1.** A run whose agent crashed (`agent_exit`, non-zero code) keeps its volume and offers Resume (it parks like a lost pod, with the new pause reason `agent_crashed`); exit code 0 still means succeeded. Added as Task 6c (data) and in Tasks 6b and 7.
 - **D2, spec open question 3, before Phase 9:** add an "attached but no input for N hours" rule now (inside Phase 9's lease design) or later (separate spec)? Phase 9 as written does not include it.
 
 ## File Map
@@ -246,9 +246,9 @@ Precondition: the Phase 3 runner image is live.
 - Test: `packages/contracts` runs schema test, `packages/db` migration test (follow the `0011`/`0012` guard tests)
 
 **Interfaces — Produces:**
-- `PauseReason = z.enum(['idle_timeout', 'pod_lost'])`.
+- `PauseReason = z.enum(['idle_timeout', 'pod_lost'])` (Task 6c adds `'agent_crashed'`).
 - `RunDto` and `RunStatusEvent` gain `sessionEndingAt: Timestamp.nullable()`, `pauseReason: PauseReason.nullable()`.
-- Columns `runs.session_ending_at` (timestamptz null), `runs.pause_reason` (text null, check `in ('idle_timeout','pod_lost')`).
+- Columns `runs.session_ending_at` (timestamptz null), `runs.pause_reason` (text null, check `in ('idle_timeout','pod_lost')`, Task 6c adds `'agent_crashed'`).
 
 - [x] **Step 1: Write the failing tests:** `RunDto` parses with both fields null and with `pauseReason: 'pod_lost'`; rejects `pauseReason: 'oom'`; migration applies on a db at `0012`; `pause_reason = 'x'` is rejected; the file has no `update`/`delete`/`insert` on `runs`; existing rows read back null.
 - [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/db test` — expect FAIL.
@@ -260,7 +260,7 @@ Precondition: the Phase 3 runner image is live.
 
 ## Phase 6: Worker reads the end, pod lost parks (PR 6) — `review:sensitive` (run Job)
 
-**Stop first:** ask decision point D1. Continue with the plan below only if the answer is "stay `failed`"; otherwise add the extra task first.
+D1 is answered (keep the volume, offer Resume): Task 6c adds `agent_crashed`, Task 6b uses it.
 
 ### Task 6a: Parse the end marker and survive a vanished pod
 
@@ -281,6 +281,23 @@ Precondition: the Phase 3 runner image is live.
 - [x] **Step 4: Run** — expect PASS.
 - [x] **Step 5: Commit** `feat(worker): read how the session ended from the runner`.
 
+### Task 6c: Add the `agent_crashed` pause reason (data plumbing only)
+
+**Files:**
+- Modify: `packages/contracts/src/enums.ts`, `packages/db/src/schema/app.ts`
+- Create: `packages/db/migrations/0014_run_pause_reason_agent_crashed.sql` (+ drizzle meta), generated with `pnpm db:generate`
+- Test: `packages/contracts/src/schemas/runs.test.ts`, `packages/db/test/migrate.int.test.ts`
+
+**Interfaces — Produces:**
+- `PauseReason = z.enum(['idle_timeout', 'pod_lost', 'agent_crashed'])`.
+- Migration 0014 drops and re-adds `runs_pause_reason_check` allowing the three values. Add-only: no row writes, no RLS or grant change, 0013 untouched.
+
+- [x] **Step 1: Failing tests:** `RunDto` and `RunStatusEvent` parse `agent_crashed` and still reject `oom`; the new check accepts the three values and rejects `'x'` with 23514; the 0014 file has no `update`/`delete`/`insert` and no `create policy`/`alter policy`/`grant`.
+- [x] **Step 2: Run** the contracts test, expect FAIL (the db test needs Docker and runs in CI).
+- [x] **Step 3: Implement** enum, schema, generated migration; a second `db:generate` reports no changes.
+- [x] **Step 4: Run** contracts test and all typechecks, expect PASS.
+- [x] **Step 5: Commit** `feat(contracts): add the agent_crashed pause reason`.
+
 ### Task 6b: Outcome decisions, `sessionEndingAt`, pod lost parks, resume while ending
 
 **Files:**
@@ -288,18 +305,18 @@ Precondition: the Phase 3 runner image is live.
 - Test: `apps/worker/test/park.test.ts`, `apps/worker/test/run.workflow.test.ts`, new fixture `run-pod-lost-history.json`
 
 **Interfaces — Produces:**
-- `endOutcome(input: { ending: boolean; finishRequested: boolean; phase: RunPhase; parkKind?: ParkKind; endReason?: EndReason; podLost: boolean; exitCode: number }): { kind: 'park'; parkKind: ParkKind; reason: PauseReason } | { kind: 'succeeded' } | { kind: 'failed' }` in `park.ts`. Rules: `ending` + Finish → succeeded; `ending` (idle timer) → park with `idle_timeout`; `podLost` (or no end line) after start → park, `pod_lost`, kind from phase (`running`/`idle` → `needs_input`, `agent_done` → `done`); `agent_exit` → succeeded on 0, failed otherwise (D1).
+- `endOutcome(input: { ending: boolean; finishRequested: boolean; phase: RunPhase; parkKind?: ParkKind; endReason?: EndReason; podLost: boolean; exitCode: number }): { kind: 'park'; parkKind: ParkKind; reason: PauseReason } | { kind: 'succeeded' } | { kind: 'failed' }` in `park.ts`. Rules: `ending` + Finish → succeeded; `ending` (idle timer) → park with `idle_timeout`; `podLost` (or no end line) after start → park, `pod_lost`, kind from phase (`running`/`idle` → `needs_input`, `agent_done` → `done`); `agent_exit` code 0 → succeeded; non-zero → `{ kind: 'park', parkKind: <from phase as for pod_lost>, reason: 'agent_crashed' }` (D1: answered 2026-11-16, keep the work and offer Resume).
 - `parkRun(ctx, { kind, at, reason: PauseReason })` (reason added; clears `session_ending_at`).
 - `endSession` sets `session_ending_at = now()` before the exec (activity-side, so no new workflow command).
 - `resumeRejection(phase)` accepts `'ending'` (queued): the workflow sets `resumeAccepted` and the park loop runs it right after park.
 - All new workflow branches behind `patched('pod-lost-parks')`, read once after `pauseResume`.
 - `endReason` is a hint, never authority: the agent shares the container and can print a forged `session ended` line. Treat it as untrusted (for example ignore it when its code disagrees with the pod's real exit code).
 
-- [ ] **Step 1: Failing tests:** `endOutcome` table test, one row per rule above (include `running` + `podLost` → `needs_input`/`pod_lost`; `agent_done` + `podLost` → `done`); workflow: fake pod killed while idle → `paused` with `pauseReason='pod_lost'`, volume not deleted; idle timer → `sessionEndingAt` set during ending and null after park, `pauseReason='idle_timeout'`; resume sent while `ending` is accepted and a new pod starts after park; cancel while `ending` still wins (`cancelled`, volume deleted); old fixtures still replay.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- park run.workflow` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm typecheck` — expect PASS; capture the new fixture.
-- [ ] **Step 5: Commit** `feat(worker): park a run whose pod was lost; show the session ending`.
+- [x] **Step 1: Failing tests:** `endOutcome` table test, one row per rule above (include `running` + `podLost` → `needs_input`/`pod_lost`; `agent_done` + `podLost` → `done`); workflow: fake pod killed while idle → `paused` with `pauseReason='pod_lost'`, volume not deleted; idle timer → `sessionEndingAt` set during ending and null after park, `pauseReason='idle_timeout'`; resume sent while `ending` is accepted and a new pod starts after park; cancel while `ending` still wins (`cancelled`, volume deleted); old fixtures still replay.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- park run.workflow` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm typecheck` — expect PASS; capture the new fixture.
+- [x] **Step 5: Commit** `feat(worker): park a run whose pod was lost; show the session ending`.
 
 ---
 
@@ -313,13 +330,14 @@ Precondition: the Phase 3 runner image is live.
 
 **Interfaces — Produces:**
 - `useTerminal`: `CLOSE_SESSION_ENDED = 4410`; `TerminalState` gains `'ended'`. 4410 and 4409 → `onSessionEnd`, no retry. 1000 → refetch; retry only if the run is live and `sessionEndingAt` is null. Back-off only for 1006, 1011, 1013.
-- `detail.map.ts`: `terminalArea(run: RunDto): 'live' | 'pausing' | 'paused' | 'resuming' | 'expired'` and `pauseReasonText(r: PauseReason): string` — "after 30 min with nobody attached" / "the pod stopped unexpectedly (out of memory / evicted)".
+- `detail.map.ts`: `terminalArea(run: RunDto): 'live' | 'pausing' | 'paused' | 'resuming' | 'expired'` and `pauseReasonText(r: PauseReason): string` — "after 30 min with nobody attached" / "the pod stopped unexpectedly (out of memory / evicted)" / "the agent crashed".
 - Copy from spec §5, exactly: "Session ended. Pausing the run…"; "Paused: waiting for your answer. Can be resumed for <N> days." (N from `sessionExpiresAt`, not hard-coded); "Pauses after 30 min with nobody attached"; resumed banner "Resumed. The agent asked: <agentNote>. Background tasks and sub-agents that were running when it paused were stopped."; expired "Nobody resumed this run within <N> days. The saved session was deleted."
+- The paused page shows "Paused: agent crashed (exit code N)" with Resume when `pauseReason = 'agent_crashed'` (add it to `pauseReasonText`, a story and a test).
 - While `sessionEndingAt` is set the run query polls (existing SSE if it carries the field, else `refetchInterval: 2000`).
 
-- [ ] **Step 1: Failing tests:** 4410 → state `ended`, no second socket after the back-off window (fake timers); 1000 with `sessionEndingAt` set → no retry; 1006 → retries; `terminalArea` table test; `pauseReasonText` both values; route test shows the pausing text and no socket while `sessionEndingAt` is set.
+- [ ] **Step 1: Failing tests:** 4410 → state `ended`, no second socket after the back-off window (fake timers); 1000 with `sessionEndingAt` set → no retry; 1006 → retries; `terminalArea` table test; `pauseReasonText` all three values; route test shows the pausing text and no socket while `sessionEndingAt` is set.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test -- useTerminal detail` — expect FAIL.
-- [ ] **Step 3: Implement**, design tokens only. Stories: pausing, paused (idle_timeout), paused (pod_lost), resumed banner, expired, plus loading and error states.
+- [ ] **Step 3: Implement**, design tokens only. Stories: pausing, paused (idle_timeout), paused (pod_lost), paused (agent_crashed), resumed banner, expired, plus loading and error states.
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck` and build Storybook once — expect PASS.
 - [ ] **Step 5: Commit** `feat(web): show pausing, paused and resumed run states`.
 

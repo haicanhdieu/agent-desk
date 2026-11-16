@@ -222,7 +222,11 @@ describe('fake-pod.mjs', () => {
       const lines = logLines();
       expect(lines).toContain(NEEDS_INPUT);
       expect(lines.indexOf('agentdesk: final scrollback begin')).toBeGreaterThan(lines.indexOf(NEEDS_INPUT));
-      expect(lines.at(-1)).toBe('agentdesk: final scrollback end');
+      // The runner's end line follows the scrollback: a crashed agent, not a lost pod.
+      expect(lines.slice(-2)).toEqual([
+        'agentdesk: final scrollback end',
+        'agentdesk: session ended reason=agent_exit code=3',
+      ]);
     });
   });
 

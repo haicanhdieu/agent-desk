@@ -121,6 +121,10 @@ export async function setRunStatusTx(
       ...(reopening ? { finishedAt: null, exitCode: null } : {}),
       pausedAt,
       ...(endsSession || sessionExpiresAt !== undefined ? { sessionExpiresAt: newExpiry } : {}),
+      // The session end is over once the run is parked or final; `endSession` sets it again for the next one.
+      ...(status === 'paused' || isFinal(status) ? { sessionEndingAt: null } : {}),
+      // The resume made the run live again: the pause reason no longer applies. Finals keep it as history.
+      ...(input.session === null && !isFinal(status) ? { pauseReason: null } : {}),
       // `paused` is parked: idle_since stays as the idle write left it.
       ...(status === 'paused' ? {} : { idleSince: parked ? at : null }),
       waitingOn,

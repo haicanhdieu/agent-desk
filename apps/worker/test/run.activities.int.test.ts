@@ -760,6 +760,23 @@ describe('followPodLogs', () => {
     await acts.deleteJob(ctx);
   });
 
+  it('endSession records session_ending_at before ending the session and keeps the first moment on a repeat', async () => {
+    const runId = await seedRun('end me');
+    const ctx = await ctxFor(runId);
+    const first = new Date('2026-04-01T10:00:00.000Z');
+    const acts = createRunActivities(deps({ clock: { now: () => first } }));
+    await acts.createRunSecretAndJob(ctx);
+    const f = follow(ctx, deps());
+    await until(async () => (await load(runId)).run?.status === 'idle');
+    expect((await load(runId)).run?.sessionEndingAt).toBeNull();
+    await acts.endSession(ctx);
+    expect((await load(runId)).run?.sessionEndingAt?.toISOString()).toBe(first.toISOString());
+    await createRunActivities(deps({ clock: { now: () => new Date('2026-04-01T10:05:00.000Z') } })).endSession(ctx);
+    expect((await load(runId)).run?.sessionEndingAt?.toISOString()).toBe(first.toISOString());
+    await f.promise;
+    await acts.deleteJob(ctx);
+  });
+
   it('Review Focus 3: resumed after cancel at the first turn line, no duplicate rows and no running after idle', async () => {
     const runId = await seedRun('resume me');
     const ctx = await ctxFor(runId);
@@ -1239,6 +1256,15 @@ describe('followPodLogs', () => {
         const r = await follow(ctx, deps({ kube: exited(['agentdesk: session started'], 1) })).promise;
         expect(r).toMatchObject({ exitCode: 1, agentStarted: true });
         expect(r.podLost).toBeUndefined();
+        expect(r.endReason).toBeUndefined();
+      });
+
+      it('ignores an end line whose code differs from the pod real exit code (a forged line)', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const lines = ['agentdesk: session started', 'agentdesk: session ended reason=agent_exit code=0'];
+        const r = await follow(ctx, deps({ kube: exited(lines, 137) })).promise;
+        expect(r).toMatchObject({ exitCode: 137, agentStarted: true });
         expect(r.endReason).toBeUndefined();
       });
 

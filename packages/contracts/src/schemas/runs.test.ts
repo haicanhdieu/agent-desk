@@ -65,6 +65,11 @@ describe('RunDto session ending and pause reason', () => {
     expect(r.success && r.data.sessionEndingAt).toBe(NOW);
   });
 
+  it('parses an agent_crashed pause', () => {
+    const r = RunDto.safeParse({ ...run, pauseReason: 'agent_crashed' });
+    expect(r.success && r.data.pauseReason).toBe('agent_crashed');
+  });
+
   it('rejects an unknown pause reason', () => {
     expect(RunDto.safeParse({ ...run, pauseReason: 'oom' }).success).toBe(false);
   });
@@ -83,6 +88,11 @@ describe('RunStatusEvent session ending and pause reason', () => {
     expect(RunStatusEvent.safeParse({ ...event, pauseReason: 'idle_timeout', sessionEndingAt: NOW }).success).toBe(
       true,
     );
+  });
+
+  it('parses an agent_crashed pause', () => {
+    const r = RunStatusEvent.safeParse({ ...event, pauseReason: 'agent_crashed' });
+    expect(r.success && r.data.pauseReason).toBe('agent_crashed');
   });
 
   it('rejects an unknown pause reason', () => {

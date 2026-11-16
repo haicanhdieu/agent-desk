@@ -117,6 +117,8 @@ interface Script {
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   /** The expiry the latest parkRun reported. */
   lastExpiry?: string;
+  /** The pause reason of every parkRun call, in order. */
+  parkReasons: string[];
   /** The input of every recordEndingDeadline call (without the timestamp). */
   endingDeadlines: { scrollbackSaved: boolean }[];
   /** Runs inside deleteJob, before it returns (stands in for the pod dying while the Job is being deleted). */
@@ -266,6 +268,7 @@ function activities(): RunActivities {
     async parkRun(ctx, input) {
       const s = script(ctx.runId);
       s.calls.push(`parkRun:${input.kind}`);
+      s.parkReasons.push(input.reason ?? 'idle_timeout');
       // Like the real activity, the expiry counts from the workflow's own `at`, so time skipping cannot make it stale.
       const sessionExpiresAt =
         s.parkKeepSeconds === undefined
@@ -315,6 +318,7 @@ function newRun(over: Partial<RunContext> = {}, opts: Partial<Pick<Script, 'firs
     resumeFollowStarted: deferred(),
     restores: [],
     endingDeadlines: [],
+    parkReasons: [],
   };
   scripts.set(runId, s);
   return s;
@@ -671,7 +675,7 @@ describe('RunWorkflow', () => {
     await gateForgot(s);
   });
 
-  it('exit code 2 → failed with exitCode 2; finish comment carries the scrollback tail', async () => {
+  it('a result without agentStarted (the old shape) and exit code 2 → failed with exitCode 2; finish comment carries the scrollback tail', async () => {
     const s = newRun();
     const h = await start(s);
     await s.logsStarted.promise;
@@ -739,7 +743,7 @@ describe('RunWorkflow', () => {
     expect(old.statuses.at(-1)).toMatchObject({ failureStage: 'agent' });
   });
 
-  it('infra failure carries no failure stage; an agent non-zero exit carries agent', async () => {
+  it('infra failure carries no failure stage; a non-zero exit in a result without agentStarted carries agent', async () => {
     const infra = newRun({}, { firstLine: false });
     const h1 = await start(infra);
     await infra.logsStarted.promise;
@@ -1606,6 +1610,149 @@ describe('RunWorkflow', () => {
     });
   });
 
+  describe('pod lost and agent crash (pod-lost-parks)', () => {
+    it('a pod killed while idle parks as pod_lost: paused, the volume kept', async () => {
+      const s = newRun({}, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      // The pod is killed (OOM, eviction): no end line, an exit code.
+      s.logs.resolve({ exitCode: 137, agentStarted: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['pod_lost']);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(count(s, 'endSession')).toBe(0);
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      captured['run-pod-lost'] = h;
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+    });
+
+    it('a pod that vanished while the agent worked parks as pod_lost', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      s.logs.resolve({ exitCode: -1, agentStarted: true, podLost: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['pod_lost']);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('an agent that exits non-zero parks as agent_crashed (D1): paused, the volume kept, not failed', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      s.logs.resolve({ exitCode: 1, endReason: 'agent_exit', agentStarted: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['agent_crashed']);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(statuses(s)).not.toContain('failed');
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('an agent that exits non-zero after declaring done parks as a kept done run with agent_crashed', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'done');
+      await waitPhase(h, 'agent_done');
+      s.logs.resolve({ exitCode: 2, endReason: 'agent_exit', agentStarted: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['agent_crashed']);
+      expect(count(s, 'parkRun:done')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.dropSession);
+      expect((await h.result()).status).toBe('succeeded');
+    });
+
+    it('an agent that exits 0 still succeeds', async () => {
+      const s = newRun();
+      const h = await start(s);
+      await s.logsStarted.promise;
+      s.logs.resolve({ exitCode: 0, endReason: 'agent_exit', agentStarted: true });
+      expect(await h.result()).toMatchObject({ status: 'succeeded', exitCode: 0 });
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+    });
+
+    it('the idle timer parks with the idle_timeout reason', async () => {
+      const s = newRun({ idleEndSeconds: 1 });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['idle_timeout']);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a resume sent while the session is ending is accepted and a new pod starts after the park', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 30 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      expect((await state(h)).phase).toBe('ending');
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      // Still ending: the queued resume starts nothing before the park.
+      expect((await state(h)).phase).toBe('ending');
+      expect(count(s, 'createRunSecretAndJob')).toBe(1);
+      await expect(h.executeUpdate(signals.resumeRun)).rejects.toMatchObject({
+        cause: { type: 'NotResumable', message: 'This run is already being resumed' },
+      });
+      s.logs.resolve({ exitCode: 0, agentStarted: true });
+      await waitFor(() => count(s, 'createRunSecretAndJob') >= 2, 'resume Job');
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(s).at(-1) === 'idle', 'idle after resume');
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('a resume is refused while a person Finish is ending the session', async () => {
+      const s = newRun({ endingDeadlineSeconds: 30 }, { endSessionExits: false });
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      await h.executeUpdate(signals.finishRun);
+      await expect(h.executeUpdate(signals.resumeRun)).rejects.toMatchObject({
+        cause: { type: 'NotResumable', message: 'This run is being finished' },
+      });
+      s.logs.resolve({ exitCode: 0, agentStarted: true });
+      expect((await h.result()).status).toBe('succeeded');
+    });
+
+    it('a cancel while the session is ending still wins: cancelled, the volume deleted, no new pod', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 30 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'createRunSecretAndJob')).toBe(1);
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+    });
+  });
+
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
     expect(Object.keys(captured).sort()).toEqual([
       'run-cancel-loading',
@@ -1614,6 +1761,7 @@ describe('RunWorkflow', () => {
       'run-idle-finish',
       'run-park-expire',
       'run-park-resume',
+      'run-pod-lost',
       'run-success',
       'run-token-refresh',
     ]);

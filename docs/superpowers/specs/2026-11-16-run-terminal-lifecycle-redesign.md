@@ -81,7 +81,8 @@ stateDiagram-v2
   resuming --> paused: resume failed (back as it was)
   paused --> expired: keep time over
   paused --> succeeded: Finish
-  running --> failed: agent exited non-zero by itself
+  running --> paused: agent exited non-zero by itself (agent_crashed, work kept)
+  agent_done --> succeeded_kept: agent exited non-zero by itself (agent_crashed)
   running --> succeeded: agent exited 0 by itself
 ```
 
@@ -125,7 +126,9 @@ fallback path, not the main one.
   agent's code.
 - **Worker reading the result.** `followPodLogs` returns the `reason`. The workflow decides:
   - `stop_request` / `signal` / `session_gone` while `ending` → park (as today).
-  - `agent_exit` → succeeded or failed by code (as today; the person or agent quit on purpose).
+  - `agent_exit` → succeeded when the pod's exit code is 0; any other code parks the run (`pauseReason = 'agent_crashed'`,
+    volume kept, Resume offered; decided 2026-11-16, open question 2). The pod's real exit code decides, never the end line
+    alone: the agent shares the container and can print a forged line.
   - No end marker (OOMKilled, evicted, node lost, Job deleted from outside) after the session started → park as
     `paused` with `pauseReason = 'pod_lost'` (a done run becomes `succeeded` with a kept session). Before the session
     started → failed, as today.
@@ -134,7 +137,7 @@ fallback path, not the main one.
   anyway, with "Final scrollback not saved" when none came. Nothing can keep a run in `ending` past
   deadline + grace (about 2 minutes).
 
-`pauseReason` (`idle_timeout` | `pod_lost`) is a new `RunDto` field so the page can say why the run paused.
+`pauseReason` (`idle_timeout` | `pod_lost` | `agent_crashed`) is a new `RunDto` field so the page can say why the run paused.
 
 ## 4. Attach client lifecycle
 
@@ -221,7 +224,7 @@ then it stays as it is. B can come later as an agent setting if people complain.
 | Resume pressed while `ending` | Accepted and recorded; runs right after park (no "try again" error) | §2, workflow test |
 | Resume while a previous resume is starting | Rejected as today ("already being resumed") | existing |
 | Cancel while `ending` | Cancel wins: Job deleted, run `cancelled`, volume deleted | existing `cancelEffect`, test |
-| Agent exits on its own (`/exit`) | `agent_exit` marker → succeeded/failed by code, as today | §3 |
+| Agent exits on its own (`/exit`) | `agent_exit` marker → succeeded on code 0; non-zero → `paused` with `agent_crashed`, volume kept | §3 |
 
 ## 8. Tests
 
@@ -293,6 +296,8 @@ The entrypoint is the only owner of the pod's exit.
 - The workflow's `ending` phase has a deadline; after it the Job is deleted and the run is parked anyway.
 - A pod that ends without that line after the session started is parked as `paused` (`pauseReason=pod_lost`), never
   failed with its volume deleted.
+- An agent that exits non-zero (`agent_exit`) is parked the same way with `pauseReason=agent_crashed`, volume kept;
+  exit code 0 still succeeds.
 - Each terminal socket gets its own attach client (`agentdesk-attach <uuid>`), killed on close (`agentdesk-detach`).
   Attach state in the workflow is a set of leases that expire, not a counter.
 
@@ -327,6 +332,6 @@ The entrypoint is the only owner of the pod's exit.
 
 1. Idle timer for `needs_input`: decided: keep it, raised from 10 to 30 minutes.
 2. Should a run whose agent crashed (`agent_exit`, non-zero) also keep its volume and offer Resume, or stay `failed` as
-   today?
+   today? Decided 2026-11-16: keep the volume and offer Resume (pause reason `agent_crashed`); exit code 0 still succeeds.
 3. A forgotten open browser tab counts as attached and keeps a run's pod for up to 7 days. Add an "attached but no
    input for N hours" rule now, or later?

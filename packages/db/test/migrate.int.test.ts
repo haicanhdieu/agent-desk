@@ -452,6 +452,28 @@ describe('bootstrap and migrations', () => {
       expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
     });
 
+    it('the run pause reason check also accepts agent_crashed and still rejects others', async () => {
+      for (const reason of ['agent_crashed', 'idle_timeout', 'pod_lost']) {
+        await inOrg((c) =>
+          c.query(`update runs set pause_reason = '${reason}' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        );
+      }
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set pause_reason = 'x' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'runs_pause_reason_check' });
+    });
+
+    it('the agent_crashed migration only swaps the check: no row writes, no policy or grant changes', async () => {
+      const sqlText = await readFile(
+        new URL('../migrations/0014_run_pause_reason_agent_crashed.sql', import.meta.url),
+        'utf8',
+      );
+      expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
+      expect(sqlText).not.toMatch(/\b(create\s+policy|alter\s+policy|grant)\b/i);
+    });
+
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,

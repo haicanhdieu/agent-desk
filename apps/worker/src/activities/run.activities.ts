@@ -1,4 +1,4 @@
-import type { RunStatus } from '@agentdesk/contracts';
+import type { PauseReason, RunStatus } from '@agentdesk/contracts';
 import type { EndReason } from '@agentdesk/core';
 import type { TokenRefreshPlan } from '../workflows/token-refresh';
 import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activity';
@@ -123,7 +123,10 @@ export interface RunActivities {
    * Throws a non-retryable `PodPendingTimeout` failure (message: the pod event) after 2 min Pending.
    */
   followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLogsResult>;
-  /** `tmux kill-session -t agent` in the pod; the entrypoint then prints the scrollback and exits. */
+  /**
+   * Records `session_ending_at` (kept if already set) and runs `tmux kill-session -t agent` in the pod; the entrypoint
+   * then prints the scrollback and exits. The column is cleared when the run parks or ends.
+   */
   endSession(ctx: RunContext): Promise<void>;
   /** The ending deadline passed and the Job was deleted: appends a lifecycle event (the text says if scrollback was lost). */
   recordEndingDeadline(ctx: RunContext, input: { scrollbackSaved: boolean; at: string }): Promise<void>;
@@ -136,8 +139,9 @@ export interface RunActivities {
   /**
    * Reads the agent's keep setting (defaults when the agent row is gone), writes the parked status and session in one
    * transaction, and for kind `done` applies the per-project cap by signalling `dropSession` to the oldest kept ones.
+   * Writes `pause_reason` (`idle_timeout` when absent: input scheduled by workflow code from before the reason existed) and clears `session_ending_at` (the session end is over).
    */
-  parkRun(ctx: RunContext, input: { kind: ParkKind; at: string }): Promise<ParkResult>;
+  parkRun(ctx: RunContext, input: { kind: ParkKind; at: string; reason?: PauseReason }): Promise<ParkResult>;
   /**
    * `expired`: paused → status expired; succeeded → clears session_expires_at and notifies. `dropped`: same for
    * succeeded; a paused run is never dropped.

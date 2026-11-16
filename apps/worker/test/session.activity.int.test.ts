@@ -144,7 +144,7 @@ describe('parkRun', () => {
   it('needs_input: status paused, expiry = at + the agent pausedKeepSeconds, the note is kept', async () => {
     const p = await seedProject({ paused: 7200 });
     const runId = await seedRun(p, 'idle', null, 'Which database?');
-    const result = await acts().parkRun(await ctxFor(runId), { kind: 'needs_input', at: AT });
+    const result = await acts().parkRun(await ctxFor(runId), { kind: 'needs_input', at: AT, reason: 'idle_timeout' });
     expect(result).toEqual({ status: 'paused', sessionExpiresAt: atPlus(7200) });
     const { run, events } = await load(runId);
     expect(run?.status).toBe('paused');
@@ -154,10 +154,47 @@ describe('parkRun', () => {
     expect(events.filter((e) => e.type === 'status').map((e) => e.payload.status)).toEqual(['paused']);
   });
 
+  it('writes the pause reason and clears the ending time, for a paused run and for a kept done run', async () => {
+    const p = await seedProject({ paused: 7200, done: 3600 });
+    for (const [kind, status, reason] of [
+      ['needs_input', 'paused', 'pod_lost'],
+      ['done', 'succeeded', 'agent_crashed'],
+    ] as const) {
+      const runId = await seedRun(p, kind === 'done' ? 'done' : 'idle');
+      await asOwner((c) => c.query('update runs set session_ending_at = $2 where id = $1', [runId, AT]));
+      await acts().parkRun(await ctxFor(runId), { kind, at: AT, reason });
+      const { run } = await load(runId);
+      expect(run).toMatchObject({ status, pauseReason: reason, sessionEndingAt: null });
+    }
+  });
+
+  it('a parkRun input without a reason (scheduled by code from before it existed) is stored as idle_timeout', async () => {
+    const p = await seedProject({ paused: 7200 });
+    const runId = await seedRun(p, 'idle');
+    await acts().parkRun(await ctxFor(runId), { kind: 'needs_input', at: AT });
+    expect((await load(runId)).run).toMatchObject({ status: 'paused', pauseReason: 'idle_timeout' });
+  });
+
+  it('a resume that made the run live again clears the pause reason; a failed resume keeps it', async () => {
+    const p = await seedProject({ paused: 7200 });
+    const runId = await seedRun(p, 'idle');
+    const ctx = await ctxFor(runId);
+    await acts().parkRun(ctx, { kind: 'needs_input', at: AT, reason: 'pod_lost' });
+    await acts().restoreParked(ctx, {
+      kind: 'needs_input',
+      sessionExpiresAt: atPlus(7200),
+      reason: 'the pod could not start',
+      at: atPlus(10),
+    });
+    expect((await load(runId)).run?.pauseReason).toBe('pod_lost');
+    await setRunStatus(db, { orgId: ORG, runId, status: 'idle', keepAgentNote: true, session: null, at: atPlus(20) });
+    expect((await load(runId)).run).toMatchObject({ status: 'idle', pauseReason: null });
+  });
+
   it('done with doneKeepSeconds 0: succeeded and nothing is kept', async () => {
     const p = await seedProject({ done: 0 });
     const runId = await seedRun(p, 'done');
-    const result = await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT });
+    const result = await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT, reason: 'idle_timeout' });
     expect(result).toEqual({ status: 'succeeded', sessionExpiresAt: null });
     const { run } = await load(runId);
     expect(run?.status).toBe('succeeded');
@@ -167,7 +204,7 @@ describe('parkRun', () => {
   it('done: succeeded with a kept session of doneKeepSeconds and the summary kept', async () => {
     const p = await seedProject({ done: 3600 });
     const runId = await seedRun(p, 'done', null, 'Opened PR #1');
-    const result = await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT });
+    const result = await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT, reason: 'idle_timeout' });
     expect(result).toEqual({ status: 'succeeded', sessionExpiresAt: atPlus(3600) });
     const { run } = await load(runId);
     expect(run?.status).toBe('succeeded');
@@ -184,7 +221,7 @@ describe('parkRun', () => {
     await seedRun(p, 'succeeded', null);
     await seedRun(p, 'succeeded', atPlus(-5));
     const runId = await seedRun(p, 'done');
-    await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT });
+    await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT, reason: 'idle_timeout' });
     expect(signals).toEqual([{ runId: kept[0], signal: 'dropSession' }]);
     expect(signals.map((s) => s.runId)).not.toContain(paused[0]);
   });
@@ -193,7 +230,7 @@ describe('parkRun', () => {
     const p = await seedProject({ done: 3600 });
     for (let i = 0; i < 9; i++) await seedRun(p, 'succeeded', atPlus(1000 + i * 100));
     const runId = await seedRun(p, 'done');
-    await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT });
+    await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT, reason: 'idle_timeout' });
     expect(signals).toEqual([]);
   });
 
@@ -202,10 +239,13 @@ describe('parkRun', () => {
     const gone = { projectId: p.projectId, agentId: null };
     const idle = await seedRun(gone, 'idle');
     const done = await seedRun(gone, 'done');
-    expect((await acts().parkRun(await ctxFor(idle), { kind: 'needs_input', at: AT })).sessionExpiresAt).toBe(
-      atPlus(604800),
-    );
-    expect((await acts().parkRun(await ctxFor(done), { kind: 'done', at: AT })).sessionExpiresAt).toBe(atPlus(86400));
+    expect(
+      (await acts().parkRun(await ctxFor(idle), { kind: 'needs_input', at: AT, reason: 'idle_timeout' }))
+        .sessionExpiresAt,
+    ).toBe(atPlus(604800));
+    expect(
+      (await acts().parkRun(await ctxFor(done), { kind: 'done', at: AT, reason: 'idle_timeout' })).sessionExpiresAt,
+    ).toBe(atPlus(86400));
   });
 });
 

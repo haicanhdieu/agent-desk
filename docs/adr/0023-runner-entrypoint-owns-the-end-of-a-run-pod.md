@@ -23,6 +23,8 @@ The entrypoint is the only owner of the pod's exit.
 - The workflow's `ending` phase has a deadline; after it the Job is deleted and the run is parked anyway.
 - A pod that ends without that line after the session started is parked as `paused` (`pauseReason=pod_lost`), never
   failed with its volume deleted.
+- An agent that exits non-zero (`agent_exit`) is parked the same way with `pauseReason=agent_crashed`, volume kept;
+  exit code 0 still succeeds.
 - Each terminal socket gets its own attach client (`agentdesk-attach <uuid>`), killed on close (`agentdesk-detach`).
   Attach state in the workflow is a set of leases that expire, not a counter.
 

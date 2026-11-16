@@ -18,7 +18,8 @@
 //     `agentdesk: resume failed (no saved session)` and exits 79, otherwise logs `agentdesk: session resumed`, replays
 //     the saved pane and waits for input (no checkout, plugins, setup or first turn), like the real runner;
 //   - on `kill`: log the scrollback (begin marker, pane lines, end marker), write `exit` 0 and exit.
-//   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback);
+//   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback, then the runner's end line
+//     `agentdesk: session ended reason=agent_exit code=3`, so the workflow sees a crashed agent, not a lost pod);
 //     `--fake-pending`: never start (the pod stays Pending) until killed.
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -45,13 +46,14 @@ const pane = (text) => {
 };
 
 let finished = false;
-function finish(code) {
+function finish(code, endReason) {
   if (finished) return;
   finished = true;
   log('agentdesk: final scrollback begin');
   const screen = existsSync(file('pane')) ? readFileSync(file('pane'), 'utf8') : '';
   for (const line of screen.split(/\r?\n/)) if (line.length > 0) log(line);
   log('agentdesk: final scrollback end');
+  if (endReason) log(`agentdesk: session ended reason=${endReason} code=${code}`);
   writeFileSync(file('exit'), String(code));
   process.exit(code);
 }
@@ -118,7 +120,7 @@ if (prompt.includes('--fake-pending')) {
   const endTurn = () => {
     turnTimer = null;
     log(endLine);
-    if (fail) return finish(3);
+    if (fail) return finish(3, 'agent_exit');
     if (queued > 0) {
       queued -= 1;
       scheduleTurn();

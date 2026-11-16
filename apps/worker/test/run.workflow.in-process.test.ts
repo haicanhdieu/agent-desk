@@ -55,7 +55,7 @@ interface Harness {
   comments: { kind: CommentKind; details?: FinishDetails }[];
   pods: Pod[];
   createOpts: ({ resume?: boolean; deadlineSeconds?: number } | undefined)[];
-  parks: { kind: string }[];
+  parks: { kind: string; reason?: string }[];
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   kept: string[];
   /** `parkRun` keeps the session this many seconds; undefined keeps nothing. */
@@ -152,7 +152,7 @@ function start(
       return Promise.resolve(undefined);
     };
   }
-  a.parkRun = (_c: RunContext, input: { kind: string }): Promise<ParkResult> => {
+  a.parkRun = (_c: RunContext, input: { kind: string; reason?: string }): Promise<ParkResult> => {
     h.parks.push(input);
     h.calls.push(`parkRun:${input.kind}`);
     const expiry = h.keepSeconds === undefined ? null : new Date(Date.now() + h.keepSeconds * 1000).toISOString();
@@ -448,19 +448,16 @@ describe('resume', () => {
     expect(h.statuses.at(-1)).toMatchObject({ status: 'succeeded', session: null });
   });
 
-  it('a re-opened succeeded run whose agent then fails ends failed, with its finish comment', async () => {
+  it('a re-opened succeeded run whose agent then crashes is parked again with its work kept (D1)', async () => {
     const h = start();
     await toParked(h, 'done');
     await resumeToSessionUp(h);
-    h.pods[1]?.exit({ exitCode: 1, agentStarted: true });
+    h.pods[1]?.exit({ exitCode: 1, endReason: 'agent_exit', agentStarted: true });
 
-    await expect(h.done).resolves.toEqual({
-      status: 'failed',
-      exitCode: 1,
-      failureReason: 'agent exited with code 1',
-    });
-    expect(h.statuses.at(-1)).toMatchObject({ status: 'failed', failureStage: 'agent', session: null });
-    expect(h.comments.at(-1)).toMatchObject({ kind: 'finish', details: { status: 'failed', failureStage: 'agent' } });
+    await waitFor('parked again', () => phase() === 'parked');
+    expect(h.parks.at(-1)).toMatchObject({ kind: 'done', reason: 'agent_crashed' });
+    expect(h.calls).not.toContain('deleteRunVolume');
+    expect(h.outcome).toBeUndefined();
   });
 
   it('a resumed run can park again from the new pod, counting the time of both pods', async () => {
@@ -710,5 +707,203 @@ describe('the ending deadline', () => {
 
     await expect(h.done).resolves.toEqual({ status: 'succeeded', exitCode: 0 });
     expect(h.calls).not.toContain('recordEndingDeadline');
+  });
+});
+
+describe('a pod that ends without being asked to', () => {
+  /** The first pod reaches a turn boundary (or keeps working) and then ends by itself. */
+  async function podEnds(h: Harness, result: FollowPodLogsResult, boundary?: 'needs_input' | 'done'): Promise<void> {
+    await toRunning(h);
+    if (boundary) {
+      sendSignal(agentState, boundary);
+      await waitFor('turn boundary', () => phase() === (boundary === 'done' ? 'agent_done' : 'idle'));
+    }
+    h.pods[0]?.exit(result);
+    await waitFor('parked', () => phase() === 'parked');
+  }
+
+  it.each([
+    ['running', undefined, { exitCode: 137, agentStarted: true }, 'needs_input'],
+    ['idle', 'needs_input', { exitCode: 137, agentStarted: true }, 'needs_input'],
+    [
+      'running and the pod vanished',
+      undefined,
+      { exitCode: -1, agentStarted: true, podLost: true as const },
+      'needs_input',
+    ],
+    ['done', 'done', { exitCode: 137, agentStarted: true }, 'done'],
+    ['done and the pod vanished', 'done', { exitCode: -1, agentStarted: true, podLost: true as const }, 'done'],
+  ] as const)('a pod lost while %s parks as pod_lost with the volume kept', async (_when, boundary, result, kind) => {
+    const h = start();
+    await podEnds(h, result, boundary);
+
+    expect(h.parks).toEqual([expect.objectContaining({ kind, reason: 'pod_lost' })]);
+    expect(afterCalls(h, 'followPodLogs')).toEqual([
+      'deleteJob',
+      `parkRun:${kind}`,
+      kind === 'done' ? 'postComment:finish:succeeded' : 'postComment:paused',
+    ]);
+    expect(runtime.externalSignals).toContain('gate-p1:releaseSlot:run1');
+    expect(h.calls).not.toContain('deleteRunVolume');
+    expect(h.outcome).toBeUndefined();
+  });
+
+  it.each([
+    ['running', undefined, 'needs_input'],
+    ['idle', 'needs_input', 'needs_input'],
+    ['done', 'done', 'done'],
+  ] as const)(
+    'an agent that exits non-zero while %s parks as agent_crashed with the volume kept (D1)',
+    async (_w, boundary, kind) => {
+      const h = start();
+      await podEnds(h, { exitCode: 1, endReason: 'agent_exit', agentStarted: true }, boundary);
+
+      expect(h.parks).toEqual([expect.objectContaining({ kind, reason: 'agent_crashed' })]);
+      expect(h.calls).not.toContain('deleteRunVolume');
+      expect(h.calls).not.toContain('ensureJobGone');
+      expect(h.outcome).toBeUndefined();
+    },
+  );
+
+  it('a crashed done run is a kept done run: a drop gives its session up', async () => {
+    const h = start();
+    await podEnds(h, { exitCode: 3, endReason: 'agent_exit', agentStarted: true }, 'done');
+    sendSignal(dropSession);
+
+    await expect(h.done).resolves.toEqual({ status: 'succeeded' });
+    expect(h.kept).toEqual(['dropped']);
+  });
+
+  it('a crashed run can be resumed', async () => {
+    const h = start();
+    await podEnds(h, { exitCode: 1, endReason: 'agent_exit', agentStarted: true });
+    await resumeToSessionUp(h);
+
+    expect(h.pods[1]?.opts).toEqual({ resume: true });
+    expect(phase()).toBe('idle');
+  });
+
+  it('an agent that exits 0 still succeeds and the run is finalized', async () => {
+    const h = start();
+    await toRunning(h);
+    h.pods[0]?.exit({ exitCode: 0, endReason: 'agent_exit', agentStarted: true });
+
+    await expect(h.done).resolves.toEqual({ status: 'succeeded', exitCode: 0 });
+    expect(h.parks).toEqual([]);
+    expect(h.calls).toContain('deleteRunVolume');
+  });
+
+  it('a pod that died before the agent started still fails the run', async () => {
+    const h = start();
+    await toRunning(h);
+    h.pods[0]?.exit({ exitCode: 1, agentStarted: false });
+
+    await expect(h.done).resolves.toMatchObject({
+      status: 'failed',
+      failureReason: 'run exited with code 1 before the agent started',
+    });
+    expect(h.parks).toEqual([]);
+  });
+
+  it('a run that started before pod-lost-parks existed keeps failing on a non-zero exit', async () => {
+    runtime.unpatched.add('pod-lost-parks');
+    const h = start();
+    await toRunning(h);
+    h.pods[0]?.exit({ exitCode: 137, agentStarted: true });
+
+    await expect(h.done).resolves.toMatchObject({ status: 'failed', failureReason: 'agent exited with code 137' });
+    expect(h.parks).toEqual([]);
+  });
+});
+
+describe('the session ending', () => {
+  /** A pod that ignores the end request and keeps running until the test makes it exit. */
+  async function endingWithStuckPod(h: Harness): Promise<void> {
+    runtime.activities.endSession = () => {
+      h.calls.push('endSession');
+      return Promise.resolve();
+    };
+    await toRunning(h);
+    sendSignal(agentState, 'needs_input');
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+    fireTimer(600_000);
+    await waitFor('ending', () => phase() === 'ending');
+  }
+
+  it('the idle timer parks the run with the idle_timeout reason', async () => {
+    const h = start();
+    await toParked(h, 'needs_input');
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input', reason: 'idle_timeout' })]);
+  });
+
+  it('a run that started before pod-lost-parks existed still parks on the idle timer, with the idle_timeout reason', async () => {
+    runtime.unpatched.add('pod-lost-parks');
+    const h = start();
+    await toParked(h, 'needs_input');
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input', reason: 'idle_timeout' })]);
+  });
+
+  it('a resume sent while the session is ending is accepted and starts a new pod right after the park', async () => {
+    const h = start();
+    await endingWithStuckPod(h);
+    await expect(sendUpdate(resumeRun)).resolves.toEqual({ accepted: true });
+    // Still ending: the pod has not ended yet, so nothing is parked or started.
+    expect(phase()).toBe('ending');
+    expect(h.pods).toHaveLength(1);
+
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    sendSignal(sessionStarted);
+    await waitFor('resume finished', () => phase() === 'idle');
+
+    expect(afterCalls(h, 'endSession').slice(0, 4)).toEqual([
+      'deleteJob',
+      'parkRun:needs_input',
+      'postComment:paused',
+      'setRunStatus:queued',
+    ]);
+    expect(h.createOpts[1]).toMatchObject({ resume: true });
+  });
+
+  it('a second resume while one is queued behind the ending is refused', async () => {
+    const h = start();
+    await endingWithStuckPod(h);
+    await sendUpdate(resumeRun);
+    await expect(sendUpdate(resumeRun)).rejects.toThrow('already being resumed');
+  });
+
+  it('a resume is refused while a person Finish is ending the session', async () => {
+    const h = start();
+    runtime.activities.endSession = () => {
+      h.calls.push('endSession');
+      return Promise.resolve();
+    };
+    await toRunning(h);
+    sendSignal(agentState, 'needs_input');
+    await sendUpdate(finishRun);
+    await waitFor('ending', () => phase() === 'ending');
+    await expect(sendUpdate(resumeRun)).rejects.toThrow('being finished');
+
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+  });
+
+  it('a resume is refused while a run that cannot park is ending (it started before pause and resume existed)', async () => {
+    runtime.unpatched.add('pause-resume');
+    const h = start();
+    await endingWithStuckPod(h);
+    await expect(sendUpdate(resumeRun)).rejects.toThrow('Only a paused run');
+  });
+
+  it('a cancel while the session is ending still wins: cancelled, Job and volume deleted, a queued resume dropped', async () => {
+    const h = start();
+    await endingWithStuckPod(h);
+    await sendUpdate(resumeRun);
+    sendSignal(cancel);
+
+    await expect(h.done).resolves.toEqual({ status: 'cancelled' });
+    expect(h.calls).toEqual(expect.arrayContaining(['deleteJob', 'deleteRunVolume']));
+    expect(h.calls).not.toContain('createRunSecretAndJob:resume');
+    expect(h.parks).toEqual([]);
   });
 });

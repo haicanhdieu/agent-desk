@@ -1,6 +1,11 @@
 import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, gt, ne } from 'drizzle-orm';
-import { AGENT_DONE_KEEP_SECONDS_DEFAULT, AGENT_PAUSED_KEEP_SECONDS_DEFAULT, RunStatus } from '@agentdesk/contracts';
+import {
+  AGENT_DONE_KEEP_SECONDS_DEFAULT,
+  AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
+  RunStatus,
+  type PauseReason,
+} from '@agentdesk/contracts';
 import { SIGNAL, redact, type Config } from '@agentdesk/core';
 import { agents, notifyRunStatus, runs, withOrg, type Db } from '@agentdesk/db';
 import { ERROR_MESSAGE_MAX, oneLine } from './activity-utils';
@@ -28,7 +33,11 @@ const parseAt = (at: string): Date => {
 export function createSessionActivities(deps: SessionActivityDeps): SessionActivityImpls {
   const { db } = deps;
 
-  async function parkRun(ctx: RunContext, input: { kind: ParkKind; at: string }): Promise<ParkResult> {
+  async function parkRun(
+    ctx: RunContext,
+    // `reason` is optional: a parkRun scheduled by workflow code from before it existed has none, and idle_timeout was the only reason then.
+    input: { kind: ParkKind; at: string; reason?: PauseReason },
+  ): Promise<ParkResult> {
     const at = parseAt(input.at);
     const { result, drop } = await withOrg(db, ctx.orgId, async (tx) => {
       // The agent row may be gone (deleted after the run was queued): the defaults then apply.
@@ -45,7 +54,7 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
       const keep = keepSeconds > 0;
       const expiresAt = new Date(at.getTime() + keepSeconds * 1000);
       const status = input.kind === 'needs_input' ? 'paused' : 'succeeded';
-      await setRunStatusTx(tx, {
+      const written = await setRunStatusTx(tx, {
         orgId: ctx.orgId,
         runId: ctx.runId,
         status,
@@ -53,6 +62,14 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
         // Nothing kept: clear any earlier session (a re-opened run) and let the note go like any final status.
         ...(keep ? { session: { expiresAt: expiresAt.toISOString() }, keepAgentNote: true } : { session: null }),
       });
+
+      // Why it parked (the status write also cleared `session_ending_at`). A run that was already final is left alone.
+      if (written.changed) {
+        await tx
+          .update(runs)
+          .set({ pauseReason: input.reason ?? 'idle_timeout' })
+          .where(eq(runs.id, ctx.runId));
+      }
 
       // The per-project cap: succeeded runs with a kept session, newest first; all beyond the newest `cap - 1`
       // (this run is the cap-th) are told to drop theirs. Paused runs are never counted.
