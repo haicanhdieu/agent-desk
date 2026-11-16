@@ -230,7 +230,7 @@ describe('loadRun', () => {
       status: 'queued',
       timeoutSeconds: 900,
       maxConcurrentRuns: 3,
-      idleEndSeconds: 600,
+      idleEndSeconds: 1800,
       endingDeadlineSeconds: 90,
     });
   });
