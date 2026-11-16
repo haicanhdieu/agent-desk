@@ -20,7 +20,7 @@ const needsYouRun = {
   askedAgo: '3 minutes ago',
   href: '/runs/62',
   slotNote:
-    'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
+    'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
 };
 const runIds = () =>
   screen.queryAllByRole('link', { name: /^Run \d+$/ }).map((a) => Number(a.textContent!.replace('Run ', '')));
@@ -196,6 +196,8 @@ describe('NeedsYou', () => {
     expect(screen.getAllByRole('figure')).toHaveLength(4);
     expect(screen.getByText('(1) Needs you, invoicer-api')).toBeInTheDocument();
     expect(screen.getByText('Run 62 needs you')).toBeInTheDocument();
+    expect(screen.getByText(/ends on its own after 30 minutes with no one attached/)).toBeInTheDocument();
+    expect(screen.getByText(/ends on its own at 14:43 if nobody opens it/)).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', '/runs/62');
   });
 
@@ -205,7 +207,7 @@ describe('NeedsYou', () => {
       <NeedsYou
         project={project}
         projects={projects}
-        runs={[{ run, href: '/p/x/runs/62', idleAt: '14:13', endsAt: '14:23' }]}
+        runs={[{ run, href: '/p/x/runs/62', idleAt: '14:13', endsAt: '14:43' }]}
       />,
     );
     expect(screen.getByRole('link', { name: 'Open run 62 in Agent Desk' })).toHaveAttribute('href', '/p/x/runs/62');
