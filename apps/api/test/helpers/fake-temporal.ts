@@ -43,6 +43,8 @@ export class FakeTemporalClient {
   startHook?: (workflowId: string | undefined) => Promise<void>;
   /** When set, workflow start rejects with it (nothing is recorded). */
   startError?: unknown;
+  /** When set, schedule trigger rejects with it (nothing is recorded). */
+  triggerError?: unknown;
   /** When set, workflow terminate rejects with it (after recording the call). */
   terminateError?: unknown;
 
@@ -97,7 +99,10 @@ export class FakeTemporalClient {
         delete: async () => void this.record({ kind: 'scheduleDelete', scheduleId, args: [] }),
         pause: async (...args: unknown[]) => void this.record({ kind: 'schedulePause', scheduleId, args }),
         unpause: async (...args: unknown[]) => void this.record({ kind: 'scheduleUnpause', scheduleId, args }),
-        trigger: async (...args: unknown[]) => void this.record({ kind: 'scheduleTrigger', scheduleId, args }),
+        trigger: async (...args: unknown[]) => {
+          if (this.triggerError !== undefined) throw this.triggerError;
+          this.record({ kind: 'scheduleTrigger', scheduleId, args });
+        },
       }),
     },
     workflowService: {
@@ -127,5 +132,6 @@ export class FakeTemporalClient {
     this.startHook = undefined;
     this.startError = undefined;
     this.terminateError = undefined;
+    this.triggerError = undefined;
   }
 }

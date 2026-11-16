@@ -53,4 +53,11 @@ export class ProjectsController {
   connection(@CurrentOrg() org: OrgContext, @Param(IdParam) p: { projectId: string }): Promise<ProjectConnectionDto> {
     return this.service.connection(org, p.projectId);
   }
+
+  @Post(routePath(routes.projects.pollNow))
+  @HttpCode(202)
+  async pollNow(@CurrentOrg() org: OrgContext, @Param(IdParam) p: { projectId: string }): Promise<null> {
+    await this.service.pollNow(org, p.projectId);
+    return null;
+  }
 }

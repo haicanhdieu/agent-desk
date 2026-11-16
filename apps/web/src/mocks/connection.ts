@@ -63,6 +63,7 @@ export const connectionCopy = {
   switchToPolling: 'Switch to polling',
   retryNow: 'Retry now',
   checkNow: 'Check now',
+  checking: 'Checking…',
   checkAgain: 'Check again',
   connectionDetails: 'Connection details',
 

@@ -299,6 +299,18 @@ const impl: Impl = {
     return null;
   },
   'projects.connection': ({ params }) => connectionDto(projectRow(params.projectId)),
+  'projects.pollNow': ({ params }) => {
+    const row = projectRow(params.projectId);
+    const trig = db().triggers[row.id] ?? defaultTriggerState();
+    const reason = trig.polling.pausedReason;
+    if (row.triggerMode !== 'polling')
+      throw new Problem({ status: 409, title: 'Conflict', type: 'conflict', detail: 'This project uses webhooks.' });
+    if (reason)
+      throw new Problem({ status: 409, title: 'Conflict', type: 'conflict', detail: `Polling is paused: ${reason}` });
+    trig.polling.lastCheckedAt = new Date().toISOString();
+    db().triggers[row.id] = trig;
+    return null;
+  },
   'projects.ignored': ({ params }) => db().ignored[projectRow(params.projectId).id] ?? [],
 
   'agents.get': ({ params }) => agentOf(projectRow(params.projectId).id),
@@ -537,6 +549,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'connections.install': 201,
   'projects.create': 201,
   'rules.create': 201,
+  'projects.pollNow': 202,
   'runs.cancel': 202,
   'runs.finish': 202,
   'setupTests.end': 202,

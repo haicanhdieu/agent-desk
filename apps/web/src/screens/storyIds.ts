@@ -67,6 +67,8 @@ export const stateStories = {
   RunSucceededKept: { title: detail, exportName: 'RunSucceededKept', board: 'RunSucceeded' },
   RunExpired: { title: detail, exportName: 'RunExpired', board: 'RunCancelled' },
   DeskAgentPolling: { title: desk, exportName: 'DeskAgentPolling', board: 'DeskAgent' },
+  DeskAgentCheckingNow: { title: desk, exportName: 'DeskAgentCheckingNow', board: 'DeskAgent' },
+  DeskAgentCheckNowRefused: { title: desk, exportName: 'DeskAgentCheckNowRefused', board: 'DeskAgent' },
   DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
   Setup4Prompt: { title: setup, exportName: 'Setup4Prompt', board: 'Setup4' },
   DeskAgentSaveErrors: { title: desk, exportName: 'DeskAgentSaveErrors', board: 'DeskAgent' },

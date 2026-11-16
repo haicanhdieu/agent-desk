@@ -45,6 +45,12 @@ export interface DeskAgentProps {
   onTriggerChange?(trigger: { mode: TriggerMode; interval: PollInterval }): void;
   /** Why the last trigger mode change failed. */
   triggerError?: string;
+  /** Check now (polling mode): poll the connection right away. */
+  onCheckNow?(): void;
+  /** A check is running: Check now is disabled and says so. */
+  checkingNow?: boolean;
+  /** Why the last check failed or was refused (e.g. polling is paused), with what to do about it. */
+  checkNowError?: string;
   onSaveLimits?(limits: AgentLimits): void;
   /** Per-field messages from a refused limits save; the typed values stay. */
   limitsErrors?: Partial<Record<LimitField, string>>;
@@ -78,6 +84,9 @@ export function DeskAgent({
   trigger,
   onTriggerChange,
   triggerError,
+  onCheckNow,
+  checkingNow = false,
+  checkNowError,
   onSaveLimits,
   limitsErrors = {},
   limitsError,
@@ -138,11 +147,14 @@ export function DeskAgent({
                 Send test ping
               </Button>
             ) : (
-              <Button variant="ghost" size="sm" icon="refresh">
-                {c.checkNow}
+              <Button variant="ghost" size="sm" icon="refresh" onClick={onCheckNow} disabled={checkingNow}>
+                {checkingNow ? c.checking : c.checkNow}
               </Button>
             )}
           </div>
+          {checkNowError && (
+            <Banner tone="err" icon={<Icon name="warning" size={16} />} title={checkNowError} live="assertive" />
+          )}
         </SettingsSection>
         <SettingsSection title="Agent" description="Every run in this project uses this agent and credential.">
           <div className={styles.grid2Gap16}>

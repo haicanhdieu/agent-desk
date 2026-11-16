@@ -5,6 +5,7 @@ import { useRef } from 'react';
 import { useToast } from '@/ds';
 import { api } from '../api';
 import { projectsQueries } from '../projects/queries';
+import { waitForPoll } from './checkNow';
 import { deskQueries } from './queries';
 
 // Skill commit and delete (spec §4.3): no optimistic update; the affected desk keys are invalidated on success.
@@ -156,6 +157,26 @@ export function useSaveTrigger(org: string, projectId: string) {
         qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true }),
       ]);
     },
+  });
+}
+
+/**
+ * Check now: asks the API for a poll, then waits for its result to show in the connection status (kept fresh in the
+ * cache meanwhile). Resolves with the connection after the poll; rejects with the API's refusal (paused, backing off)
+ * or a `CheckNowTimeout`.
+ */
+export function useCheckNow(org: string, projectId: string) {
+  const qc = useQueryClient();
+  const connection = projectsQueries.connection(org, projectId);
+  return useMutation({
+    mutationFn: async () => {
+      // The baseline is the server's current value, not the cache's: a scheduled poll may have run since the page loaded.
+      const before = (await qc.fetchQuery({ ...connection, staleTime: 0 })).polling?.lastCheckedAt ?? null;
+      await api.projects.pollNow({ params: { projectId } });
+      return waitForPoll(() => qc.fetchQuery({ ...connection, staleTime: 0 }), before);
+    },
+    // A refusal usually means the status changed under the page: show the current one.
+    onError: () => qc.invalidateQueries({ queryKey: connection.queryKey }),
   });
 }
 

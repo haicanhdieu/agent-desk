@@ -1,8 +1,8 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
-import { mockDb } from '@/mocks/msw/db';
+import { defaultTriggerState, mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
@@ -415,5 +415,113 @@ describe('desk agent route', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
     expect(mockDb.state.projects.some((p) => p.id === projectId)).toBe(false);
     expect(screen.queryByRole('link', { name: 'invoicer-api' })).toBeNull();
+  });
+});
+
+describe('desk agent route: Check now', () => {
+  const pollPath = `${projectPath}/connection/poll`;
+  const checkNow = () => screen.getByRole('button', { name: /^Check(ing)?( now|…)?$/ });
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+  /** The project polls every 5 min and was last checked 3 hours ago; `polling` overrides the cursor. */
+  function pollingProject(polling: Partial<ReturnType<typeof defaultTriggerState>['polling']> = {}) {
+    Object.assign(projectRow(), { triggerMode: 'polling', pollIntervalSeconds: 300 });
+    const state = defaultTriggerState();
+    mockDb.state.triggers[projectId] = {
+      ...state,
+      polling: { ...state.polling, lastCheckedAt: hoursAgo(3), ...polling },
+    };
+  }
+
+  it('a double click sends one poll request, shows Checking while it runs, then shows the new Last checked time', async () => {
+    pollingProject();
+    // A held poll, so the in-flight state can be seen; the test releases it, and it then moves Last checked.
+    let sent = 0;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.post(pollPath, async () => {
+        sent += 1;
+        await gate;
+        const polling = mockDb.state.triggers[projectId]?.polling;
+        if (polling) polling.lastCheckedAt = new Date().toISOString();
+        return new HttpResponse(null, { status: 202 });
+      }),
+    );
+    await openPage();
+    expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
+    const button = checkNow();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(screen.getByRole('button', { name: 'Checking…' })).toBeDisabled();
+    release();
+    expect(await screen.findByText('just now (polling)')).toBeInTheDocument();
+    await waitFor(() => expect(checkNow()).toBeEnabled());
+    expect(checkNow()).toHaveTextContent('Check now');
+    expect(sent).toBe(1);
+  });
+
+  const tick = () => act(() => vi.advanceTimersByTimeAsync(10));
+
+  it('keeps Checking until the poll it started lands, even when the page shows an older Last checked than the server', async () => {
+    let stopReads: (() => void) | undefined;
+    try {
+      pollingProject();
+      await openPage();
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
+      // A scheduled poll ran after the page loaded: the server is ahead of the page's cache.
+      const state = mockDb.state.triggers[projectId];
+      if (state) state.polling.lastCheckedAt = hoursAgo(1);
+      let sent = 0;
+      let statusReads = 0;
+      const onRequest = ({ request }: { request: Request }) => {
+        if (request.method === 'GET' && new URL(request.url).pathname === `${projectPath}/connection`) statusReads += 1;
+      };
+      server.events.on('request:start', onRequest);
+      stopReads = () => server.events.removeListener('request:start', onRequest);
+      // The poll is accepted at once; its result lands only when the test says so.
+      server.use(
+        http.post(pollPath, () => {
+          sent += 1;
+          return new HttpResponse(null, { status: 202 });
+        }),
+      );
+      fireEvent.click(checkNow());
+      // Fake time stands still, so step it in small slices while the mocked requests settle.
+      for (let i = 0; i < 100 && (sent < 1 || statusReads < 1); i += 1) await tick();
+      expect(sent).toBe(1);
+      expect(statusReads).toBeGreaterThan(0);
+      await tick();
+      // Only the older poll has finished so far: that is not this poll's result.
+      expect(screen.getByRole('button', { name: 'Checking…' })).toBeDisabled();
+      const polling = mockDb.state.triggers[projectId]?.polling;
+      if (polling) polling.lastCheckedAt = new Date().toISOString();
+      for (let i = 0; i < 300 && checkNow().hasAttribute('disabled'); i += 1) await tick();
+      expect(screen.getByText('just now (polling)')).toBeInTheDocument();
+      expect(checkNow()).toBeEnabled();
+    } finally {
+      stopReads?.();
+      vi.useRealTimers();
+    }
+  });
+
+  it('while polling is paused it shows the reason, sends no successful poll and leaves Last checked alone', async () => {
+    pollingProject({ pausedReason: 'token_revoked', lastError: 'rejected' });
+    const { user } = await openPage();
+    await user.click(checkNow());
+    expect(await screen.findByRole('alert')).toHaveTextContent('Polling is paused: token_revoked');
+    expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
+    expect(checkNow()).toBeEnabled();
+  });
+
+  it('a server error shows a message and the button is usable again', async () => {
+    pollingProject();
+    const { user } = await openPage();
+    scenarios.serverError('projects.pollNow');
+    await user.click(checkNow());
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not start the check');
+    expect(checkNow()).toBeEnabled();
   });
 });
