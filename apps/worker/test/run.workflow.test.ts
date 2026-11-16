@@ -386,9 +386,9 @@ describe('RunWorkflow', () => {
     expect(ENDING_DEADLINE_SECONDS).toBe(90);
   });
 
-  it('constants: idle end defaults to 10 minutes; the state query name is shared', () => {
+  it('constants: idle end defaults to 30 minutes; the state query name is shared', () => {
     expect(IDLE_END_SECONDS_DEFAULT).toBe(IDLE_END_SECONDS);
-    expect(IDLE_END_SECONDS).toBe(600);
+    expect(IDLE_END_SECONDS).toBe(1800);
     expect(signals.runState.name).toBe(QUERY.runState);
     expect(signals.gateState.name).toBe(QUERY.gateState);
   });

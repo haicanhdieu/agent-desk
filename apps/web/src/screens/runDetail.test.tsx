@@ -272,7 +272,8 @@ describe('RunDetail per state', () => {
     expect(screen.getByText('Waiting for you')).toBeInTheDocument();
     expect(screen.getByText('Timer paused')).toBeInTheDocument();
     expect(screen.getByText('14:13:58')).toBeInTheDocument();
-    expect(screen.getByText('14:26')).toBeInTheDocument();
+    expect(screen.getByText('14:44')).toBeInTheDocument();
+    expect(screen.getByText(/ends as succeeded after 30 minutes/)).toBeInTheDocument();
     expect(screen.getByText('It holds 1 of 2 slots. Run 63 is queued behind it.')).toBeInTheDocument();
   });
 

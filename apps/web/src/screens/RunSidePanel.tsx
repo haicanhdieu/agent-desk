@@ -124,7 +124,7 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
             }
           />
           <Note>
-            With nobody attached it ends as succeeded after 10 minutes. Close this tab now and it ends at{' '}
+            With nobody attached it ends as succeeded after 30 minutes. Close this tab now and it ends at{' '}
             <b>{data.idle.endsAt}</b>.
           </Note>
           <Note>{data.idle.slotNote}</Note>

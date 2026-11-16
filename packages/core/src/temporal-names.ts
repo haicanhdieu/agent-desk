@@ -52,7 +52,7 @@ export const QUERY = {
 } as const;
 
 /** RunWorkflow ends an idle session after this long with no terminal attached. */
-export const IDLE_END_SECONDS = 600;
+export const IDLE_END_SECONDS = 1800;
 
 /** After the session end begins (`ending`), RunWorkflow waits this long for the pod to exit, then deletes the Job. */
 export const ENDING_DEADLINE_SECONDS = 90;

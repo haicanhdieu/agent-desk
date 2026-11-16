@@ -74,7 +74,7 @@ describe('toRunSummary', () => {
 
 - **MUST** inject time: backend code takes `Clock` (`packages/core/src/clock.ts`), web mappers take `now: Date`. **MUST NOT** call `new Date()` / `Date.now()` in logic under test. Why: tests pin exact durations and relative labels.
 - **MUST** use `vi.useFakeTimers()` + `vi.setSystemTime()` for timers (toast auto-dismiss, back-off, 30 s `useNow` tick, 60 s hidden-tab close) and restore with `vi.useRealTimers()` in `afterEach`.
-- **MUST** use the Temporal time-skipping env for workflow timers (idle 10 min, timeouts, sweep).
+- **MUST** use the Temporal time-skipping env for workflow timers (idle 30 min, timeouts, sweep).
 - **MUST NOT** assert on generated UUIDs or `seq` values you did not choose. Seed ids in fixtures, or assert with `expect.any(String)` / relative order.
 - **MUST** pin the time zone for anything that formats local time (`startedAt` "HH:mm"): `TZ=UTC` in the test script (planned) or pass a formatter. Why: CI and laptops differ.
 - **MUST NOT** use `Math.random()` in assertions; e2e handles that need uniqueness (`e2e-<rand>`) are fine.

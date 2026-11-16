@@ -22,6 +22,6 @@ export const Default: Story = {
     askedAgo: '3 minutes ago',
     href: '#',
     slotNote:
-      'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
+      'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
   },
 };

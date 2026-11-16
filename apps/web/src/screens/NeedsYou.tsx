@@ -38,7 +38,7 @@ export interface NeedsYouProps {
 
 const boardRun = runFixtures.find((r) => r.id === 62);
 const boardRuns: NeedsYouRun[] = boardRun
-  ? [{ run: boardRun, href: '/runs/62', idleAt: '14:13', endsAt: '14:23' }]
+  ? [{ run: boardRun, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' }]
   : [];
 
 const ticketLabel = (r: RunSummary) => `${r.ticket.kind === 'pr' ? 'PR' : 'issue'} #${r.ticket.number}`;
@@ -60,7 +60,7 @@ export function NeedsYou({
       <div className={styles.needsHead}>
         <h1>Where "needs you" shows up</h1>
         <p className={`muted ${styles.needsIntro}`}>
-          An idle run holds a slot and ends on its own after 10 minutes with no one attached, so the signal has to reach
+          An idle run holds a slot and ends on its own after 30 minutes with no one attached, so the signal has to reach
           you in GitHub, in another tab, or in another project. Same amber, same caret icon, same words everywhere.
         </p>
       </div>

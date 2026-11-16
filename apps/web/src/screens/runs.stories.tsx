@@ -49,7 +49,7 @@ export const Runs: Story = {
         run: runs.find((r) => r.id === 62)!,
         askedAgo: '3 minutes ago',
         slotNote:
-          'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
+          'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
         href: '/runs/62',
       }}
     />
@@ -127,9 +127,9 @@ export const NeedsYouPaused: Story = {
           run: { ...runDetails.RunPaused.run },
           href: '/runs/64',
           idleAt: '14:24',
-          endsAt: '14:34',
+          endsAt: '14:54',
         },
-        ...runs.filter((r) => r.id === 62).map((run) => ({ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:23' })),
+        ...runs.filter((r) => r.id === 62).map((run) => ({ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' })),
       ]}
       onResume={() => {}}
     />

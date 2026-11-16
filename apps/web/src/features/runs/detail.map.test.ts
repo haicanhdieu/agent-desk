@@ -327,12 +327,12 @@ describe('toRunDetail', () => {
     });
   });
 
-  it('idle: since idleSince, ends 10 minutes later, slot note', () => {
+  it('idle: since idleSince, ends 30 minutes later, slot note', () => {
     const d = detail(run({ status: 'idle', idleSince: local(14, 3, 58) }));
     expect(d.idle).toEqual({
       since: '14:03:58',
-      endsAt: '14:13',
-      slotNote: `It holds one of your ${project.maxConcurrentRuns} slots. It ends on its own after 10 minutes with nobody attached.`,
+      endsAt: '14:33',
+      slotNote: `It holds one of your ${project.maxConcurrentRuns} slots. It ends on its own after 30 minutes with nobody attached.`,
     });
     expect(d.time).toBeUndefined();
   });

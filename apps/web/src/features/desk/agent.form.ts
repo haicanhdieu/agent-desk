@@ -12,10 +12,10 @@ import { deskQueries } from './queries';
 // Desk, Agent & settings (spec §4.3): limits and the credential. Trigger mode and delete are in mutations.ts.
 
 /**
- * The idle timeout is fixed on the server (10 min, control-plane spec §5) and no contract field carries it, so the
+ * The idle timeout is fixed on the server (30 min, control-plane spec §5) and no contract field carries it, so the
  * field shows the server's value read-only and a save never sends it (CONTRACT-GAPS.md).
  */
-export const IDLE_END_MINUTES = 10;
+export const IDLE_END_MINUTES = 30;
 
 /** The Agent & settings screen's view of the agent and project. Pass `useNow()`. */
 export function toAgentSettings(agent: AgentDto, project: ProjectDto, now: Date): AgentSettings {

@@ -19,7 +19,7 @@ type Story = StoryObj<typeof meta>;
 export const Notes: Story = {
   render: () => (
     <>
-      <Note>With nobody attached it ends as succeeded after 10 minutes.</Note>
+      <Note>With nobody attached it ends as succeeded after 30 minutes.</Note>
       <Note tone="faint" size={13}>
         None yet. A link appears here when the agent opens one.
       </Note>

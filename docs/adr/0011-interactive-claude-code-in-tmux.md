@@ -27,7 +27,7 @@ doc refines this to an interactive session.
   `agentdesk: turn finished`; the control plane moves the run to `idle`. A
   `UserPromptSubmit` hook prints `agentdesk: turn started`; that line, not
   terminal input, moves an idle run back to `running`.
-- The run ends on Finish, after 10 min idle with no terminal attached, on cancel
+- The run ends on Finish, after 10 min idle with no terminal attached (now 30 min, 0023 rollout), on cancel
   or on the hard timeout. Ending execs `tmux kill-session -t agent`; the
   entrypoint prints the final scrollback between marker lines and exits with the
   agent's status.
