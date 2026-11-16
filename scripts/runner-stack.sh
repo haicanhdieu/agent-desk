@@ -127,7 +127,7 @@ up() {
     return
   fi
   echo "==> api (:$api_port) and worker"
-  start_bg api pnpm --filter @agentdesk/api dev
+  HOST=127.0.0.1 start_bg api pnpm --filter @agentdesk/api dev
   start_bg worker pnpm --filter @agentdesk/worker dev
   wait_for api 120 api_ready
   echo "==> up. Logs: $logs. Next: pnpm test:e2e:local"

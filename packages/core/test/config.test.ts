@@ -28,6 +28,11 @@ describe('plugin and setup config', () => {
     expect(c.RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(10);
     expect(c.RUN_IDLE_END_SECONDS).toBe(600);
   });
+  it('HOST defaults to all interfaces, can be narrowed, and blank falls back to the default', () => {
+    expect(parseConfig(base).HOST).toBe('0.0.0.0');
+    expect(parseConfig({ ...base, HOST: '127.0.0.1' }).HOST).toBe('127.0.0.1');
+    expect(parseConfig({ ...base, HOST: '' }).HOST).toBe('0.0.0.0');
+  });
   it('RUN_IDLE_END_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
     expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '5' }).RUN_IDLE_END_SECONDS).toBe(5);
     expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '' }).RUN_IDLE_END_SECONDS).toBe(600);
