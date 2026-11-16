@@ -1561,22 +1561,24 @@ describe('RunWorkflow', () => {
     });
 
     it('other wakes during ending do not reset the deadline', async () => {
-      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 3 }, { endSessionExits: false });
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 4 }, { endSessionExits: false });
       s.parkKeepSeconds = 3600;
       const h = await start(s);
       await s.logsStarted.promise;
       await h.signal(signals.agentState, 'needs_input');
       await s.endSessionCalled.promise;
       const t0 = Date.now();
-      // Wake the loop twice, 1.2 s apart: a deadline restarted by either would land after t0 + 5.4 s.
-      await sleepReal(1200);
+      // Two wakes, 0.8 s and 1.6 s in. Without a reset the park lands at about 4.0 s. A reset by the first wake
+      // alone would land at about 4.8 s, by the second alone at about 5.6 s. The 4.4 s ceiling therefore fails if
+      // either wake restarts the deadline, with 0.4 s of slack on each side; the 3.7 s floor catches an early park.
+      await sleepReal(800);
       await h.signal(signals.terminalAttached);
-      await sleepReal(1200);
+      await sleepReal(800);
       await h.signal(signals.terminalDetached);
       await waitPhase(h, 'parked');
       const took = Date.now() - t0;
-      expect(took).toBeGreaterThanOrEqual(2700);
-      expect(took).toBeLessThan(4800);
+      expect(took).toBeGreaterThanOrEqual(3700);
+      expect(took).toBeLessThan(4400);
       expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
       await h.signal(signals.cancel);
       await h.result();
