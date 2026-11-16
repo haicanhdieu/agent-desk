@@ -10,7 +10,9 @@ import {
   type AgentState,
 } from '@agentdesk/contracts';
 import {
+  END_COMMAND,
   END_REASONS,
+  EXEC_NOT_FOUND,
   REPO_URL_KEY,
   SIGNAL,
   WORKSPACE_TOKEN_KEY,
@@ -1022,6 +1024,23 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
 
   // ---- endSession, deleteJob, ensureJobGone
 
+  /** Runs a fixed argv in the pod and resolves with its exit code, or 0 when it did not close in time (nothing to learn). */
+  async function execAndWait(podName: string, command: string[]): Promise<number> {
+    const session = await kube.exec(podName, command, { tty: false });
+    return new Promise<number>((resolve) => {
+      const t = setTimeout(() => {
+        session.close();
+        resolve(0);
+      }, EXEC_CLOSE_WAIT_MS);
+      // The code is returned as is. For `agentdesk-end`, any non-zero code other than 127 means the request may not have
+      // been made; this is not retried here, and the `ending` deadline (the Job is deleted) covers it.
+      session.onClose((code) => {
+        clearTimeout(t);
+        resolve(code);
+      });
+    });
+  }
+
   async function endSession(ctx: RunContext): Promise<void> {
     // Before the exec, so the page can say the session is ending as soon as the end begins. The first moment is kept on
     // a retry, and the status write that parks or finishes the run clears it.
@@ -1039,18 +1058,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     try {
       const pod = await kube.getRunPod(runJobName(ctx.runId));
       if (!pod || pod.phase !== 'Running') return; // nothing to end
-      const session = await kube.exec(pod.name, [...TMUX_KILL], { tty: false });
-      await new Promise<void>((resolve) => {
-        const t = setTimeout(() => {
-          session.close();
-          resolve();
-        }, EXEC_CLOSE_WAIT_MS);
-        // A non-zero code (no such session) means it is already gone: fine either way.
-        session.onClose(() => {
-          clearTimeout(t);
-          resolve();
-        });
-      });
+      // The fixed in-image command asks the runner to end the session. Exit 127 means an old pod image without it: then
+      // (once) the old tmux kill. Remove the fallback 7 days after the new image is live.
+      const code = await execAndWait(pod.name, [...END_COMMAND]);
+      if (code === EXEC_NOT_FOUND) await execAndWait(pod.name, [...TMUX_KILL]);
     } catch (err) {
       throw safeError(err, [], 'end session');
     }

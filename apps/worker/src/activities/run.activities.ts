@@ -124,8 +124,10 @@ export interface RunActivities {
    */
   followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLogsResult>;
   /**
-   * Records `session_ending_at` (kept if already set) and runs `tmux kill-session -t agent` in the pod; the entrypoint
-   * then prints the scrollback and exits. The column is cleared when the run parks or ends.
+   * Records `session_ending_at` (kept if already set) and execs the fixed `agentdesk-end` in the pod, which asks the
+   * entrypoint to end the session (a stop request); the entrypoint then prints the scrollback and exits. Only when that
+   * exec exits 127 (an old pod image without the script) does it run `tmux kill-session -t agent` instead. The column is
+   * cleared when the run parks or ends.
    */
   endSession(ctx: RunContext): Promise<void>;
   /** The ending deadline passed and the Job was deleted: appends a lifecycle event (the text says if scrollback was lost). */

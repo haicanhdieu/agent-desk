@@ -4,7 +4,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { eq } from 'drizzle-orm';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { createLocalTestEnv } from './helpers/temporal-env';
 import { ApplicationFailure, WorkflowUpdateFailedError } from '@temporalio/client';
 import { Worker } from '@temporalio/worker';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -50,7 +51,7 @@ async function until<T>(fn: () => Promise<T | undefined | null | false>, ms = 30
 }
 
 beforeAll(async () => {
-  [env, pgx] = await Promise.all([TestWorkflowEnvironment.createLocal(), startPg()]);
+  [env, pgx] = await Promise.all([createLocalTestEnv(), startPg()]);
   db = createDb(pgx.appUrl);
   dir = await mkdtemp(join(tmpdir(), 'run-e2e-'));
   kube = new FakeKubeGateway(join(dir, 'kube'), { turnMs: 200 });

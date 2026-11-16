@@ -28,7 +28,7 @@ doc refines this to an interactive session.
   `UserPromptSubmit` hook prints `agentdesk: turn started`; that line, not
   terminal input, moves an idle run back to `running`.
 - The run ends on Finish, after 10 min idle with no terminal attached (now 30 min, 0023 rollout), on cancel
-  or on the hard timeout. Ending execs `tmux kill-session -t agent`; the
+  or on the hard timeout. Ending execs the fixed `agentdesk-end` (0023; it was `tmux kill-session -t agent`); the
   entrypoint prints the final scrollback between marker lines and exits with the
   agent's status.
 - Skills are discovered natively from `.claude/skills/` in the cloned repo.

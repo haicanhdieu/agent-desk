@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runEntrypoint } from './harness.js';
 
@@ -463,5 +463,122 @@ describe('entrypoint session end', () => {
       const argvs = tmuxCalls(r).map((c) => c.argv[0]);
       expect(argvs.lastIndexOf('kill-server')).toBeGreaterThan(argvs.lastIndexOf('capture-pane'));
     }
+  });
+});
+
+describe('entrypoint stop request and agent exit file', () => {
+  /** A run dir the test fills before the entrypoint starts (the real one is the in-memory volume /run/agentdesk). */
+  const runDirWith = (files: Record<string, string>) => {
+    const runDir = mkdtempSync(join(tmpdir(), 'run-dir-'));
+    for (const [name, content] of Object.entries(files)) writeFileSync(join(runDir, name), content);
+    return runDir;
+  };
+  const tmuxCalls = (r: Result) => r.calls.filter((c) => c.cmd === 'tmux');
+
+  it('a stop file ends the session with reason stop_request and exit 0', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    expect(r.exitCode).toBe(0);
+    const argvs = tmuxCalls(r).map((c) => c.argv[0]);
+    expect(argvs.lastIndexOf('kill-server')).toBeGreaterThan(argvs.lastIndexOf('capture-pane'));
+  });
+
+  it('an agent-exit file ends the session with reason agent_exit and the file code', async () => {
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': '5\n' }) },
+      {},
+    );
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=5');
+    expect(r.exitCode).toBe(5);
+  });
+
+  it('the stop file wins over the agent-exit file', async () => {
+    const runDir = runDirWith({ stop: '', 'agent-exit': '5\n' });
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDir }, {});
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('both files are checked before the session existence check', async () => {
+    const stop = await runEntrypoint({ STUB_TMUX_MODE: 'incident', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    expect(stop.stdout.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    const exited = await runEntrypoint(
+      { STUB_TMUX_MODE: 'incident', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': '4' }) },
+      {},
+    );
+    expect(exited.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=4');
+    expect(exited.exitCode).toBe(4);
+  });
+
+  it('checks before its first sleep when a file is already there', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    expect(r.calls.filter((c) => c.cmd === 'sleep')).toEqual([]);
+  });
+
+  // The agent shares the container and can write this file, so its content is untrusted.
+  it.each([
+    ['', 1],
+    ['abc\n', 1],
+    ['-1', 1],
+    ['5 ; id', 1],
+    ['1000', 1],
+    ['5\n6\n', 1],
+    ['0x10', 1],
+    ['256', 0],
+    ['259', 3],
+    ['08', 8],
+    ['010', 10],
+    ['255', 255],
+    ['0', 0],
+  ])('agent-exit content %j ends with code %i', async (content, code) => {
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': content }) },
+      {},
+    );
+    expect(r.stdout.at(-1)).toBe(`agentdesk: session ended reason=agent_exit code=${code}`);
+    expect(r.exitCode).toBe(code);
+  });
+
+  it('ignores an agent-exit that is not a regular file (a directory, a link) and falls back to the pane', async () => {
+    const runDir = mkdtempSync(join(tmpdir(), 'run-dir-'));
+    mkdirSync(join(runDir, 'agent-exit'));
+    const dirRes = await runEntrypoint(
+      { STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3', AGENTDESK_RUN_DIR: runDir },
+      {},
+    );
+    expect(dirRes.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+    const linkDir = mkdtempSync(join(tmpdir(), 'run-dir-'));
+    const target = join(linkDir, 'elsewhere');
+    writeFileSync(target, '9\n');
+    symlinkSync(target, join(linkDir, 'agent-exit'));
+    const linkRes = await runEntrypoint(
+      { STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3', AGENTDESK_RUN_DIR: linkDir },
+      {},
+    );
+    expect(linkRes.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+  });
+
+  // A pipe renamed over a checked agent-exit would block the read for good (and PID 1 defers its TERM trap), so the
+  // read is bounded. A `head` that never returns stands in for that pipe; the `timeout` stub ends it after its limit.
+  it('does not hang when reading agent-exit blocks: the read is bounded, and the content counts as invalid', async () => {
+    const blocker = mkdtempSync(join(tmpdir(), 'blocking-head-'));
+    const head = join(blocker, 'head');
+    writeFileSync(head, `#!${process.execPath}\nsetTimeout(() => undefined, 120000);\n`, { mode: 0o755 });
+    const path = [blocker, join(import.meta.dirname, 'stubs'), dirname(process.execPath), '/usr/bin', '/bin'].join(':');
+    const r = await runEntrypoint(
+      { PATH: path, STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': '5\n' }) },
+      {},
+    );
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=1');
+    expect(r.exitCode).toBe(1);
+  });
+
+  it('runs the fixed session command through agentdesk-session and passes only that command', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    const argv = tmuxCalls(r).find((c) => c.argv.includes('new-session'))?.argv ?? [];
+    expect(argv.slice(-2)).toEqual([
+      join(import.meta.dirname, '..', 'bin', 'agentdesk-session'),
+      'exec claude --permission-mode bypassPermissions "$PROMPT"',
+    ]);
   });
 });

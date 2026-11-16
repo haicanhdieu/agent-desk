@@ -10,6 +10,7 @@ import { assertSecretName } from '../secrets/secret-store';
 import {
   CONNECTION_ID_RE,
   TMUX_ATTACH,
+  END_COMMAND,
   TMUX_KILL,
   runRefFromLabels,
   sameCommand,
@@ -99,8 +100,16 @@ function isAlive(pid: number): boolean {
   }
 }
 
-/** The process's command line (`ps -o command=`, macOS and Linux), or null when there is no such process. */
-async function commandLine(pid: number): Promise<string | null> {
+/**
+ * The process's command line, or null when there is no such process. Linux: `/proc/<pid>/cmdline` (the runner image
+ * has no procps); elsewhere (macOS): `ps -o command=`. `procDir` is a test seam.
+ */
+export async function commandLine(pid: number, procDir = '/proc'): Promise<string | null> {
+  if (existsSync(procDir)) {
+    // Any read error (no such pid, or it exited mid-read) means "not our process".
+    const raw = await readFile(join(procDir, String(pid), 'cmdline'), 'utf8').catch(() => null);
+    return raw === null ? null : raw.split('\0').join(' ').trim() || null;
+  }
   try {
     const { stdout } = await execFileAsync('ps', ['-o', 'command=', '-p', String(pid)]);
     return stdout.trim() || null;
@@ -353,6 +362,10 @@ export class FakeKubeGateway implements KubeGateway {
   async exec(podName: string, command: string[], _opts: { tty: boolean }): Promise<ExecSession> {
     const dir = this.jobDir(podName);
     if (!existsSync(join(dir, 'job.json'))) throw new Error('fake kube: pod not found');
+    if (sameCommand(command, END_COMMAND)) {
+      await writeFile(join(dir, 'stop'), '');
+      return closedSession(0);
+    }
     if (sameCommand(command, TMUX_KILL)) {
       await writeFile(join(dir, 'kill'), '');
       return closedSession(0);

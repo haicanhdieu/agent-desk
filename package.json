@@ -12,6 +12,7 @@
     "format:check": "prettier --check .",
     "db:migrate": "pnpm --filter @agentdesk/api migrate",
     "dev:down": "bash scripts/dev.sh down",
+    "env:detect": "bash scripts/detect-env.sh",
     "stop": "bash scripts/dev.sh down",
     "test:e2e:local": "tsx scripts/e2e-local.ts",
     "test:scripts": "vitest run --root scripts",

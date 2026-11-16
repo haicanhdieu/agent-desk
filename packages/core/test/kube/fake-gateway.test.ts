@@ -1,8 +1,9 @@
+import { spawnSync } from 'node:child_process';
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
-import { FakeKubeGateway } from '../../src/kube/fake-gateway';
+import { FakeKubeGateway, commandLine } from '../../src/kube/fake-gateway';
 import { buildRunJob, buildSetupTestJob } from '../../src/kube/job-spec';
 import type { ExecSession } from '../../src/kube/gateway';
 
@@ -208,6 +209,29 @@ describe('FakeKubeGateway', () => {
     expect(scrollback).toContain('hello');
     const pod = await gw.getRunPod(name);
     expect(pod).toMatchObject({ phase: 'Succeeded', exitCode: 0 });
+    await gw.deleteJob(name);
+  });
+
+  it('agentdesk-end exits 0 and the pod ends with the scrollback and reason=stop_request', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'end me'));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    const c = collect(name);
+    const end = await gw.exec(name, ['agentdesk-end'], { tty: false });
+    expect(await new Promise<number>((r) => end.onClose(r))).toBe(0);
+    await c.done; // the stream ends when the pod exits
+    expect(c.lines.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    expect(c.lines.at(-2)).toBe('agentdesk: final scrollback end');
+    expect(await gw.getRunPod(name)).toMatchObject({ phase: 'Succeeded', exitCode: 0 });
+    await gw.deleteJob(name);
+  });
+
+  it('agentdesk-end takes no arguments', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'x'));
+    await expect(gw.exec(name, ['agentdesk-end', 'now'], { tty: false })).rejects.toThrow(/not supported/);
     await gw.deleteJob(name);
   });
 
@@ -621,5 +645,26 @@ describe('FakeKubeGateway', () => {
   it('volume claim names are validated', async () => {
     await expect(gw.ensureVolumeClaim('../x', { size: '1Gi' }, {})).rejects.toThrow(/invalid/);
     await expect(gw.deleteVolumeClaim('../x')).rejects.toThrow(/invalid/);
+  });
+});
+
+describe('commandLine', () => {
+  // The runner image has no procps (`ps`), so on Linux the fake pod's owner check reads /proc instead.
+  it('reads the command line from /proc when the proc dir exists', async () => {
+    const proc = await mkdtemp(join(tmpdir(), 'proc-'));
+    await mkdir(join(proc, '123'));
+    await writeFile(join(proc, '123', 'cmdline'), 'node\0/x/fake-pod.mjs\0/state/job-1\0');
+    try {
+      expect(await commandLine(123, proc)).toBe('node /x/fake-pod.mjs /state/job-1');
+      expect(await commandLine(456, proc)).toBeNull();
+    } finally {
+      await rm(proc, { recursive: true, force: true });
+    }
+  });
+
+  // Skipped where ps itself is missing (the runner image); macOS and CI have it.
+  const hasPs = spawnSync('ps', ['-p', String(process.pid)]).status === 0;
+  it.skipIf(!hasPs)('falls back to ps where there is no proc dir (macOS)', async () => {
+    expect(await commandLine(process.pid, join(tmpdir(), 'no-such-proc-dir'))).toContain('node');
   });
 });

@@ -746,7 +746,8 @@ describe('followPodLogs', () => {
     const { events } = await load(runId);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     const lifecycle = events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind);
-    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'agent_state', 'agent_state']);
+    // The runner's end line (the fake pod logs it after `agentdesk-end`) is the last lifecycle event.
+    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'agent_state', 'agent_state', 'session_ended']);
     const scrollback = events.filter((e) => e.type === 'scrollback');
     expect(scrollback).toHaveLength(1);
     const text = String(scrollback[0]?.payload.text);
@@ -818,6 +819,7 @@ describe('followPodLogs', () => {
       'agent_state',
       'agent_state',
       'agent_state',
+      'session_ended',
     ]);
     // The agent's own `working` lines (not terminal input) signal agentState working once each (first turn, then the
     // typed one), even across the replaying retry.
@@ -1029,6 +1031,7 @@ describe('followPodLogs', () => {
       'session_started',
       'agent_state',
       'agent_state',
+      'session_ended',
     ]);
     expect(lifecycle[0]?.payload.sha).toMatch(/^[0-9a-f]{40}$/);
     expect(lifecycle[2]?.payload).toMatchObject({ kind: 'plugin_output', text: 'noisy output', truncated: false });

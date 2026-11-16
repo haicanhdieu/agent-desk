@@ -320,6 +320,17 @@ describe('fake-pod.mjs', () => {
       expect(lines.at(-1)).toBe('agentdesk: final scrollback end');
     });
 
+    it('a stop marker logs the scrollback, then the runner end line reason=stop_request code=0, and exits 0', async () => {
+      await boot({ PROMPT: 'hi' });
+      writeFileSync(join(dir, 'stop'), '');
+      expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
+      expect(read('exit')).toBe('0');
+      const lines = logLines();
+      expect(lines.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+      expect(lines.at(-2)).toBe('agentdesk: final scrollback end');
+      expect(lines).toContain('> hi');
+    });
+
     it('exits 0 after the max lifetime', async () => {
       await boot({ FAKE_MAX_LIFE_MS: '500' });
       expect(exitCodeOf(() => advance(1000))).toBe(0);

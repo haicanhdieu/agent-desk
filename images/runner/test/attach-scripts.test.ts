@@ -1,5 +1,14 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -208,5 +217,177 @@ describe('agentdesk-detach', () => {
     expect(r.status).toBe(0);
     expect(r.stderr).not.toMatch(/No such process|Operation not permitted/);
     expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
+  });
+});
+
+describe('agentdesk-end', () => {
+  const end = (env: Record<string, string>, ...args: string[]) =>
+    spawnSync('bash', [join(bin, 'agentdesk-end'), ...args], { env, encoding: 'utf8' });
+
+  it('creates the stop file, creating the run dir when it does not exist yet, and exits 0', () => {
+    const t = setup();
+    expect(end(t.env).status).toBe(0);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
+
+  it('is idempotent', () => {
+    const t = setup();
+    expect(end(t.env).status).toBe(0);
+    expect(end(t.env).status).toBe(0);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
+
+  it.each([['extra'], [''], ['../../etc', 'x']])('accepts no arguments: %j exits 2 and writes nothing', (...args) => {
+    const t = setup();
+    const r = end(t.env, ...args);
+    expect(r.status).toBe(2);
+    expect(existsSync(t.runDir) ? readdirSync(t.runDir) : []).toEqual([]);
+  });
+
+  it('never follows a link planted at the stop path: the link is replaced, its target untouched', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'elsewhere');
+    writeFileSync(target, 'keep');
+    symlinkSync(target, join(t.runDir, 'stop'));
+    expect(end(t.env).status).toBe(0);
+    expect(lstatSync(join(t.runDir, 'stop')).isFile()).toBe(true);
+    expect(readFileSync(target, 'utf8')).toBe('keep');
+  });
+
+  it('never descends into a link to a directory planted at the stop path (GNU mv would put the file inside it)', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'somedir');
+    mkdirSync(target);
+    symlinkSync(target, join(t.runDir, 'stop'));
+    expect(end(t.env).status).toBe(0);
+    expect(lstatSync(join(t.runDir, 'stop')).isFile()).toBe(true);
+    expect(readdirSync(target)).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
+
+  it('a real directory at the stop path is left alone and no temporary file is left inside or beside it', () => {
+    const t = setup();
+    mkdirSync(join(t.runDir, 'stop'), { recursive: true });
+    expect(end(t.env).status).toBe(0);
+    expect(readdirSync(join(t.runDir, 'stop'))).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
+});
+
+describe('agentdesk-session', () => {
+  const session = (env: Record<string, string>, ...args: string[]) =>
+    spawnSync('bash', [join(bin, 'agentdesk-session'), ...args], { env, encoding: 'utf8' });
+  const exitFile = (t: ReturnType<typeof setup>) => join(t.runDir, 'agent-exit');
+
+  it.each([
+    ['exit 0', 0],
+    ['exit 5', 5],
+    ['exit 255', 255],
+  ])('runs the command %j and writes its exit code to agent-exit, exiting with it', (cmd, code) => {
+    const t = setup();
+    const r = session(t.env, cmd);
+    expect(r.status).toBe(code);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe(String(code));
+  });
+
+  it('writes 128+n when the agent is killed by a signal', () => {
+    const t = setup();
+    const r = session(t.env, 'kill -KILL $$');
+    expect(r.status).toBe(137);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('137');
+  });
+
+  it('runs the command with the environment it was given, and exec replaces the shell like tmux did', () => {
+    const t = setup();
+    const r = session({ ...t.env, PROMPT: 'p', CODE: '7' }, 'test "$PROMPT" = p && exec bash -c "exit \\$CODE"');
+    expect(r.status).toBe(7);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('7');
+  });
+
+  it('writes atomically: no temporary file is left, and an older file (or a link) is replaced, not followed', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'elsewhere');
+    writeFileSync(target, 'keep');
+    symlinkSync(target, exitFile(t));
+    expect(session(t.env, 'exit 2').status).toBe(2);
+    expect(readdirSync(t.runDir)).toEqual(['agent-exit']);
+    expect(lstatSync(exitFile(t)).isFile()).toBe(true);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('2');
+    expect(readFileSync(target, 'utf8')).toBe('keep');
+  });
+
+  it('never descends into a link to a directory planted at the agent-exit path', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'somedir');
+    mkdirSync(target);
+    symlinkSync(target, exitFile(t));
+    expect(session(t.env, 'exit 3').status).toBe(3);
+    expect(lstatSync(exitFile(t)).isFile()).toBe(true);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('3');
+    expect(readdirSync(target)).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['agent-exit']);
+  });
+
+  it('a real directory at the agent-exit path is left alone, nothing is left inside it, and the exit code still passes on', () => {
+    const t = setup();
+    mkdirSync(exitFile(t), { recursive: true });
+    expect(session(t.env, 'exit 4').status).toBe(4);
+    expect(readdirSync(exitFile(t))).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['agent-exit']);
+  });
+
+  // The agent and the setup_test login shell must see the caller's locale, not one forced by this script.
+  it.each([['en_US.UTF-8'], ['C.UTF-8'], [undefined]])(
+    'the command sees LC_ALL=%s exactly as the caller had it',
+    (lc) => {
+      const t = setup();
+      const out = join(t.dir, 'lc.out');
+      const env: Record<string, string> = { ...t.env, OUT: out };
+      if (lc !== undefined) env.LC_ALL = lc;
+      expect(session(env, 'printf "%s" "${LC_ALL-UNSET}" > "$OUT"').status).toBe(0);
+      expect(readFileSync(out, 'utf8')).toBe(lc ?? 'UNSET');
+    },
+  );
+
+  it.each([[[]], [['']], [['exit 0', 'extra']]])('needs exactly one command: %j exits 2 and writes nothing', (args) => {
+    const t = setup();
+    expect(session(t.env, ...args).status).toBe(2);
+    expect(existsSync(t.runDir) ? readdirSync(t.runDir) : []).toEqual([]);
+  });
+
+  it('still writes the code when its whole process group gets SIGTERM (what tmux does to a pane)', async () => {
+    const t = setup();
+    // The agent is started in the background BEFORE `ready` is printed, so it is certainly a member of the group when
+    // the signal is sent (a command forked at the moment of a group kill can be missed and then outlives it, holding the
+    // output pipe open). A new process group, so signalling it never touches the test runner.
+    const child = spawn('bash', [join(bin, 'agentdesk-session'), 'sleep 60 & echo ready; wait'], {
+      env: t.env,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    // The process ends with its code; wait for that, not for the output pipe to close.
+    const ended = new Promise<number | null>((resolve) => child.on('exit', (code) => resolve(code)));
+    let seen = '';
+    await new Promise<void>((resolve) => {
+      child.stdout?.on('data', (chunk: Buffer) => {
+        seen += chunk.toString();
+        if (seen.split('\n').includes('ready')) resolve();
+      });
+    });
+    try {
+      process.kill(-(child.pid as number), 'SIGTERM');
+      expect(await ended).toBe(143);
+      expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('143');
+    } finally {
+      try {
+        process.kill(-(child.pid as number), 'SIGKILL');
+      } catch {
+        // already gone
+      }
+    }
   });
 });

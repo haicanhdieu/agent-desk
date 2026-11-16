@@ -2,7 +2,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { describe, expect, it } from 'vitest';
-import { FakeKubeGateway, MemorySecretStore, createAdapterRegistry, parseConfig } from '@agentdesk/core';
+import {
+  FakeKubeGateway,
+  MemorySecretStore,
+  TMUX_KILL,
+  createAdapterRegistry,
+  parseConfig,
+  type ExecSession,
+  type KubeGateway,
+  type RunPod,
+} from '@agentdesk/core';
 import { createDb, type Db } from '@agentdesk/db';
 import type { RunContext } from '../src/activities/run.activities';
 import { createRunActivities } from '../src/activities/run.activities.impl';
@@ -39,7 +48,7 @@ function fakeDb(rowChanged: boolean): { db: Db; executed: { sql: string; params:
   return { db: { ...real, orm }, executed };
 }
 
-function activities(db: Db) {
+function activities(db: Db, kube: KubeGateway = new FakeKubeGateway(join(tmpdir(), 'end-session-unused'))) {
   const config = parseConfig({
     NODE_ENV: 'test',
     PUBLIC_ORIGIN: 'http://localhost:5173',
@@ -56,7 +65,7 @@ function activities(db: Db) {
   const clock = { now: () => new Date('2026-01-01T00:00:00Z') };
   return createRunActivities({
     db,
-    kube: new FakeKubeGateway(join(tmpdir(), 'end-session-unused')), // no pod: endSession has nothing to exec
+    kube, // the default has no pod: endSession then has nothing to exec
     adapters: createAdapterRegistry(config, clock),
     secrets: new MemorySecretStore(),
     signaller: { signalRun: async () => undefined },
@@ -81,5 +90,50 @@ describe('endSession notifies the status listeners', () => {
     const { db, executed } = fakeDb(false);
     await activities(db).endSession(CTX);
     expect(notifies(executed)).toEqual([]);
+  });
+});
+
+/** A kube whose run pod is Running and whose exec sessions close with the next scripted exit code. */
+class ScriptedKube extends FakeKubeGateway {
+  readonly execs: string[][] = [];
+  constructor(private readonly codes: number[]) {
+    super(join(tmpdir(), 'end-session-unused'));
+  }
+  override async getRunPod(name: string): Promise<RunPod | null> {
+    return { name, phase: 'Running', pendingSince: null, reason: null, exitCode: null };
+  }
+  override async exec(_pod: string, command: string[]): Promise<ExecSession> {
+    this.execs.push(command);
+    const code = this.codes.shift() ?? 0;
+    return {
+      write: () => undefined,
+      resize: () => undefined,
+      onData: () => undefined,
+      onClose: (cb) => queueMicrotask(() => cb(code)),
+      close: () => undefined,
+    };
+  }
+}
+
+describe('endSession asks the runner to end the session', () => {
+  it('execs the fixed argv agentdesk-end once and nothing else when it works', async () => {
+    const kube = new ScriptedKube([0]);
+    await activities(fakeDb(true).db, kube).endSession(CTX);
+    expect(kube.execs).toEqual([['agentdesk-end']]);
+  });
+
+  it('on exit 127 (an old pod image without the script) falls back to tmux kill-session once', async () => {
+    const kube = new ScriptedKube([127, 0]);
+    await activities(fakeDb(true).db, kube).endSession(CTX);
+    expect(kube.execs).toEqual([['agentdesk-end'], [...TMUX_KILL]]);
+  });
+
+  it('does not fall back on any other exit code, and never retries the fallback', async () => {
+    const other = new ScriptedKube([1]);
+    await activities(fakeDb(true).db, other).endSession(CTX);
+    expect(other.execs).toEqual([['agentdesk-end']]);
+    const missing = new ScriptedKube([127, 127]);
+    await activities(fakeDb(true).db, missing).endSession(CTX);
+    expect(missing.execs).toEqual([['agentdesk-end'], [...TMUX_KILL]]);
   });
 });

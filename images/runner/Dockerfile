@@ -34,6 +34,9 @@ COPY bin/gh /usr/local/lib/agentdesk/bin/gh
 # One named tmux attach client per terminal (pid file under /run/agentdesk, an in-memory volume in the pod).
 COPY bin/agentdesk-attach /usr/local/lib/agentdesk/bin/agentdesk-attach
 COPY bin/agentdesk-detach /usr/local/lib/agentdesk/bin/agentdesk-detach
+# The tmux pane command (writes the agent's exit code) and the worker's stop request (both use /run/agentdesk too).
+COPY bin/agentdesk-session /usr/local/lib/agentdesk/bin/agentdesk-session
+COPY bin/agentdesk-end /usr/local/lib/agentdesk/bin/agentdesk-end
 # Status protocol: agent-neutral declare command + the Claude Code adapter (hooks via managed settings,
 # which a repo's .claude/settings.json cannot override).
 COPY agentdesk-status.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs
@@ -42,7 +45,8 @@ COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
 COPY agents/claude/commands.sh /usr/local/lib/agentdesk/agents/claude/commands.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credential-agentdesk \
     /usr/local/lib/agentdesk/bin/gh /usr/local/lib/agentdesk/bin/agentdesk-attach \
-    /usr/local/lib/agentdesk/bin/agentdesk-detach \
+    /usr/local/lib/agentdesk/bin/agentdesk-detach /usr/local/lib/agentdesk/bin/agentdesk-session \
+    /usr/local/lib/agentdesk/bin/agentdesk-end \
  && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \
     /usr/local/lib/agentdesk/agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/commands.sh \
     /etc/claude-code/managed-settings.json \
