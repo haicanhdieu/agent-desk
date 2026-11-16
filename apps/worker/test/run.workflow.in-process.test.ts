@@ -627,3 +627,88 @@ describe('the run ends before or without parking', () => {
     await expect(h.done).resolves.toEqual({ status: 'timed_out' });
   });
 });
+
+describe('the ending deadline', () => {
+  const DEADLINE_MS = 120 * 1000;
+
+  /** A person Finish on a run that is waiting for them, with a pod that ignores the session end and keeps running. */
+  async function finishWithStuckPod(h: Harness): Promise<void> {
+    runtime.activities.endSession = () => {
+      h.calls.push('endSession');
+      return Promise.resolve();
+    };
+    await toRunning(h);
+    sendSignal(agentState, 'needs_input');
+    await expect(sendUpdate(finishRun)).resolves.toEqual({ accepted: true });
+    await waitFor('ending', () => phase() === 'ending');
+  }
+
+  it('a pod still running when the deadline passes is abandoned: Job deleted, event recorded, run succeeds', async () => {
+    const h = start({ endingDeadlineSeconds: 120 });
+    const recorded: { scrollbackSaved: boolean; at: string }[] = [];
+    runtime.activities.recordEndingDeadline = (_c: RunContext, input: { scrollbackSaved: boolean; at: string }) => {
+      h.calls.push('recordEndingDeadline');
+      recorded.push(input);
+      return Promise.resolve();
+    };
+    await finishWithStuckPod(h);
+    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
+    fireTimer(DEADLINE_MS);
+
+    await expect(h.done).resolves.toEqual({ status: 'succeeded' });
+    expect(afterCalls(h, 'endSession').slice(0, 2)).toEqual(['deleteJob', 'recordEndingDeadline']);
+    expect(recorded).toEqual([{ scrollbackSaved: false, at: expect.any(String) }]);
+  });
+
+  it('a deadline that has already passed abandons the pod without waiting for a timer', async () => {
+    const h = start({ endingDeadlineSeconds: 120 });
+    runtime.activities.recordEndingDeadline = () => {
+      h.calls.push('recordEndingDeadline');
+      return Promise.resolve();
+    };
+    await finishWithStuckPod(h);
+    // The next loop turn reads a clock past the deadline.
+    runtime.activities.endSession = () => Promise.resolve();
+    vi.setSystemTime(new Date(T0.getTime() + 500 * 1000));
+    h.pods[0]?.exit({ exitCode: 0 });
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+  });
+
+  it('a failing event write does not fail the run: the Job is gone, so it still succeeds', async () => {
+    const h = start({ endingDeadlineSeconds: 120 });
+    runtime.activities.recordEndingDeadline = () => {
+      h.calls.push('recordEndingDeadline');
+      return Promise.reject(new Error('run not found'));
+    };
+    await finishWithStuckPod(h);
+    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
+    fireTimer(DEADLINE_MS);
+
+    await expect(h.done).resolves.toEqual({ status: 'succeeded' });
+    expect(h.calls).toContain('recordEndingDeadline');
+  });
+
+  it('a cancel that lands while the event is being written ends the run cancelled', async () => {
+    const h = start({ endingDeadlineSeconds: 120 });
+    runtime.activities.recordEndingDeadline = () => {
+      h.calls.push('recordEndingDeadline');
+      return new Promise<void>(() => undefined);
+    };
+    await finishWithStuckPod(h);
+    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
+    fireTimer(DEADLINE_MS);
+    await waitFor('event write', () => h.calls.includes('recordEndingDeadline'));
+    sendSignal(cancel);
+
+    await expect(h.done).resolves.toEqual({ status: 'cancelled' });
+  });
+
+  it('a pod that exits on its own before the deadline needs no abandon', async () => {
+    const h = start({ endingDeadlineSeconds: 120 });
+    await finishWithStuckPod(h);
+    h.pods[0]?.exit({ exitCode: 0 });
+
+    await expect(h.done).resolves.toEqual({ status: 'succeeded', exitCode: 0 });
+    expect(h.calls).not.toContain('recordEndingDeadline');
+  });
+});
