@@ -202,7 +202,9 @@ end_session() {
 }
 
 # Check first, then sleep, so an already-finished session ends without a 1s delay. `sleep & wait` lets the TERM trap
-# wake the loop at once; the flag check runs right after. Order: trap flag, session gone, agent pane dead.
+# wake the loop, which then sees the flag, so SIGTERM ends the loop within about 1s: a signal that lands between the flag
+# check and `wait` is only seen after the 1s sleep ends, which fits well inside the pod grace
+# period. Order: trap flag, session gone, agent pane dead.
 while :; do
   if [ "$end_reason" = signal ]; then end_session signal 0; fi
   if ! tmux has-session -t '=agent' 2>/dev/null; then end_session session_gone 0; fi

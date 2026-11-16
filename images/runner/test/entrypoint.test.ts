@@ -445,7 +445,11 @@ describe('entrypoint session end', () => {
   });
 
   it('SIGTERM prints the scrollback, then the end line, and exits 0', async () => {
-    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive' }, {}, { signalAfterMs: 1500 });
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', STUB_GIT_CLONE_DELAY_MS: '2000' },
+      {},
+      { signalAfterLine: 'agentdesk: session started' },
+    );
     const begin = r.stdout.indexOf('agentdesk: final scrollback begin');
     expect(begin).toBeGreaterThan(-1);
     expect(r.stdout.indexOf('agentdesk: final scrollback end')).toBeGreaterThan(begin);
