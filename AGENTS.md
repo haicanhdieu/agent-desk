@@ -52,7 +52,7 @@ No devbox or Docker (a runner pod)? Run `pnpm env:detect` first and follow its `
   3. Never hand-fix what the tools can fix.
   4. Never run the repo-wide `pnpm format` in a feature commit.
 - **Before saying done:** run `pnpm typecheck` and `pnpm test` for the packages you touched (or `devbox run check`) and report the real results, failures included. `format:check` fails repo-wide until the one-time reformat lands; `fix` covers your files. For e2e, see [tests-and-e2e.md](docs/runbooks/tests-and-e2e.md).
-- **Commits:** Conventional Commits with the package as scope (`feat(contracts): …`). PRs stay around 400 lines or fewer, one concern each.
+- **Commits:** Conventional Commits with the package as scope (`feat(contracts): …`). PRs stay around 800 lines or fewer, one concern each.
 - **Coverage gate:** CI fails on per-package floors, a drop below `coverage-baseline.json`, under 80% coverage on changed lines, and per-group floors on sensitive paths. Never lower thresholds or the baseline, add ignore comments or widen coverage excludes to make it pass; a justified exception goes in a `## Coverage exceptions` section of the PR body. Those protected files wait for a human ([testing.md](docs/conventions/testing.md) §10).
 - **Sensitive paths** (run Job/runner, webhooks, secrets/tokens, auth, terminal, RLS/`withOrg`, migrations) get the `review:sensitive` label and a high-effort security review. Only the `dev-review` skill merges, after its review is clean and CI is green; PRs that change agent rules or CI wait for a human.
 - **Skill subagents** are spawned by tier (`high`, `medium`, `low`), never by model name. The models for each tier are set in [`.agent/models.json`](.agent/models.json) ([agent-model-tiers.md](docs/runbooks/agent-model-tiers.md)).
