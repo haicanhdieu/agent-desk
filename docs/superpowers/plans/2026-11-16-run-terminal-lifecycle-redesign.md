@@ -250,11 +250,11 @@ Precondition: the Phase 3 runner image is live.
 - `RunDto` and `RunStatusEvent` gain `sessionEndingAt: Timestamp.nullable()`, `pauseReason: PauseReason.nullable()`.
 - Columns `runs.session_ending_at` (timestamptz null), `runs.pause_reason` (text null, check `in ('idle_timeout','pod_lost')`).
 
-- [ ] **Step 1: Write the failing tests:** `RunDto` parses with both fields null and with `pauseReason: 'pod_lost'`; rejects `pauseReason: 'oom'`; migration applies on a db at `0012`; `pause_reason = 'x'` is rejected; the file has no `update`/`delete`/`insert` on `runs`; existing rows read back null.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/db test` — expect FAIL.
-- [ ] **Step 3: Implement**; API mappers read the real columns (null for old rows).
-- [ ] **Step 4: Run** those plus `pnpm typecheck` — expect PASS.
-- [ ] **Step 5: Commit** `feat(contracts): session ending time and pause reason on runs`.
+- [x] **Step 1: Write the failing tests:** `RunDto` parses with both fields null and with `pauseReason: 'pod_lost'`; rejects `pauseReason: 'oom'`; migration applies on a db at `0012`; `pause_reason = 'x'` is rejected; the file has no `update`/`delete`/`insert` on `runs`; existing rows read back null.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/db test` — expect FAIL.
+- [x] **Step 3: Implement**; API mappers read the real columns (null for old rows).
+- [x] **Step 4: Run** those plus `pnpm typecheck` — expect PASS.
+- [x] **Step 5: Commit** `feat(contracts): session ending time and pause reason on runs`.
 
 ---
 
@@ -275,11 +275,11 @@ Precondition: the Phase 3 runner image is live.
 - `FollowPodLogsResult` gains `endReason?: EndReason` (last `session_ended` line seen; stored as a run event so it survives retries) and `podLost?: true` (the pod vanished or ended with no end line after `session_started`).
 - `waitForExit` returns `'gone'` instead of throwing when the pod disappeared; `followPodLogs` maps `'gone'` after `session_started` to `{ podLost: true, exitCode: -1 }` and keeps today's non-retryable failure before it.
 
-- [ ] **Step 1: Failing tests:** parser accepts the four reasons and rejects `reason=evil`, extra text, and 4-digit codes; `followPodLogs` returns `endReason: 'signal'` for a log with the line; returns `podLost: true` when the fake pod is deleted after `session started` with no end line; still throws before `session started`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test -- log-parser && pnpm --filter @agentdesk/worker test -- run.activities` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): read how the session ended from the runner`.
+- [x] **Step 1: Failing tests:** parser accepts the four reasons and rejects `reason=evil`, extra text, and 4-digit codes; `followPodLogs` returns `endReason: 'signal'` for a log with the line; returns `podLost: true` when the fake pod is deleted after `session started` with no end line; still throws before `session started`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test -- log-parser && pnpm --filter @agentdesk/worker test -- run.activities` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): read how the session ended from the runner`.
 
 ### Task 6b: Outcome decisions, `sessionEndingAt`, pod lost parks, resume while ending
 
@@ -293,6 +293,7 @@ Precondition: the Phase 3 runner image is live.
 - `endSession` sets `session_ending_at = now()` before the exec (activity-side, so no new workflow command).
 - `resumeRejection(phase)` accepts `'ending'` (queued): the workflow sets `resumeAccepted` and the park loop runs it right after park.
 - All new workflow branches behind `patched('pod-lost-parks')`, read once after `pauseResume`.
+- `endReason` is a hint, never authority: the agent shares the container and can print a forged `session ended` line. Treat it as untrusted (for example ignore it when its code disagrees with the pod's real exit code).
 
 - [ ] **Step 1: Failing tests:** `endOutcome` table test, one row per rule above (include `running` + `podLost` → `needs_input`/`pod_lost`; `agent_done` + `podLost` → `done`); workflow: fake pod killed while idle → `paused` with `pauseReason='pod_lost'`, volume not deleted; idle timer → `sessionEndingAt` set during ending and null after park, `pauseReason='idle_timeout'`; resume sent while `ending` is accepted and a new pod starts after park; cancel while `ending` still wins (`cancelled`, volume deleted); old fixtures still replay.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- park run.workflow` — expect FAIL.

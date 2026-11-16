@@ -1,4 +1,5 @@
 import type { RunStatus } from '@agentdesk/contracts';
+import type { EndReason } from '@agentdesk/core';
 import type { TokenRefreshPlan } from '../workflows/token-refresh';
 import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activity';
 
@@ -81,6 +82,13 @@ export interface FollowPodLogsResult {
   agentStarted?: boolean;
   /** The setup script's exit code from the stored `setup_failed` event, the runner's 78 when it exited so without a marker; absent when setup timed out. */
   setupExitCode?: number;
+  /** The reason of the last `session_ended` line the runner printed (read from the stored event, so it survives retries). */
+  endReason?: EndReason;
+  /**
+   * After `session_started` the pod no longer exists, or ended with no exit code; `exitCode` is then -1. `endReason`
+   * may still be present (an end line stored before the pod was lost).
+   */
+  podLost?: true;
 }
 
 /** Non-retryable `ApplicationFailure` type thrown by `followPodLogs` when the pod stays Pending for over 2 min. */

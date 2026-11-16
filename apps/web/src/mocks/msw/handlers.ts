@@ -529,6 +529,8 @@ const impl: Impl = {
     }
     run.pausedAt = null;
     run.sessionExpiresAt = null;
+    run.sessionEndingAt = null;
+    run.pauseReason = null;
     run.finishedAt = null;
     run.exitCode = null;
     run.failureReason = null;

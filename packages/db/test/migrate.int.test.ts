@@ -417,6 +417,41 @@ describe('bootstrap and migrations', () => {
       });
     });
 
+    it('runs have nullable session_ending_at and pause_reason; existing rows read back null; the check rejects others', async () => {
+      const cols = await query<{ column_name: string; is_nullable: string; data_type: string }>(
+        env.ownerUrl,
+        `select column_name, is_nullable, data_type from information_schema.columns
+         where table_name = 'runs' and column_name in ('session_ending_at','pause_reason') order by 1`,
+      );
+      expect(cols).toEqual([
+        { column_name: 'pause_reason', is_nullable: 'YES', data_type: 'text' },
+        { column_name: 'session_ending_at', is_nullable: 'YES', data_type: 'timestamp with time zone' },
+      ]);
+      const rows = await query<{ session_ending_at: Date | null; pause_reason: string | null }>(
+        env.ownerUrl.replace(/\/[^/]*$/, '/agentdesk'),
+        `select session_ending_at, pause_reason from runs where trigger_comment_id in ('c-1', 'c-2') order by number`,
+      );
+      expect(rows).toEqual([
+        { session_ending_at: null, pause_reason: null },
+        { session_ending_at: null, pause_reason: null },
+      ]);
+      for (const reason of ['idle_timeout', 'pod_lost']) {
+        await inOrg((c) =>
+          c.query(`update runs set pause_reason = '${reason}' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        );
+      }
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set pause_reason = 'x' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514' });
+    });
+
+    it('the session ending migration changes no runs rows', async () => {
+      const sqlText = await readFile(new URL('../migrations/0013_run_session_ending.sql', import.meta.url), 'utf8');
+      expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
+    });
+
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,

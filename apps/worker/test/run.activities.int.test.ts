@@ -1146,6 +1146,130 @@ describe('followPodLogs', () => {
       expect(r.failureStage).toBeUndefined();
     });
 
+    describe('session end marker and a vanished pod', () => {
+      /** A pod that is there for the pod wait, then gone once the lines were printed (the gateway no longer finds it). */
+      const vanished = (lines: string[]): KubeGateway => {
+        let calls = 0;
+        return wrapKube({
+          readSecret: async () => null,
+          getRunPod: async (name) =>
+            ++calls === 1 ? { name, phase: 'Running', pendingSince: null, reason: null, exitCode: null } : null,
+          streamLogs: async function* () {
+            yield* lines;
+          },
+        });
+      };
+
+      /** A stored end event holds the line number (added by the store), the kind, the reason and the code: no log text. */
+      const expectOnlyEndFields = (payloads: Record<string, unknown>[]): void => {
+        for (const p of payloads) {
+          expect(Object.keys(p).sort()).toEqual(['code', 'kind', 'line', 'reason']);
+          expect(Object.values(p).some((v) => typeof v === 'string' && v.includes('agentdesk:'))).toBe(false);
+        }
+      };
+
+      it('returns the reason from the last end line and stores only the reason and the code', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const lines = [
+          'agentdesk: session started',
+          'agentdesk: session ended reason=agent_exit code=1',
+          'agentdesk: session ended reason=signal code=143',
+        ];
+        const r = await follow(ctx, deps({ kube: exited(lines, 143) })).promise;
+        expect(r).toMatchObject({ exitCode: 143, agentStarted: true, endReason: 'signal' });
+        expect(r.podLost).toBeUndefined();
+        const ended = (await lifecycleOf(runId)).filter((e) => e.payload.kind === 'session_ended');
+        expectOnlyEndFields(ended.map((e) => e.payload));
+        expect(ended.map(({ payload: p }) => ({ kind: p.kind, reason: p.reason, code: p.code }))).toEqual([
+          { kind: 'session_ended', reason: 'agent_exit', code: 1 },
+          { kind: 'session_ended', reason: 'signal', code: 143 },
+        ]);
+      });
+
+      it('reads the end line printed right after the final scrollback block (the runner order)', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const fake = 'agentdesk: session ended reason=signal code=9';
+        const lines = [
+          'agentdesk: session started',
+          'agentdesk: final scrollback begin',
+          'pane one',
+          fake, // a pane line that looks like the end line, before the end marker
+          'agentdesk: final scrollback end',
+          'agentdesk: session ended reason=agent_exit code=0',
+        ];
+        const r = await follow(ctx, deps({ kube: exited(lines, 0) })).promise;
+        expect(r).toMatchObject({ exitCode: 0, endReason: 'agent_exit' });
+        const { events } = await load(runId);
+        const ended = events.filter((e) => e.type === 'lifecycle' && e.payload.kind === 'session_ended');
+        expectOnlyEndFields(ended.map((e) => e.payload));
+        expect(ended.map(({ payload: p }) => ({ kind: p.kind, reason: p.reason, code: p.code }))).toEqual([
+          { kind: 'session_ended', reason: 'agent_exit', code: 0 },
+        ]);
+        const scrollback = events.filter((e) => e.type === 'scrollback');
+        expect(scrollback).toHaveLength(1);
+        expect(String(scrollback[0]?.payload.text)).toBe(`pane one\n${fake}`);
+      });
+
+      it('podLost: the pod ended with no exit code (phase Unknown) after session started', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        let calls = 0;
+        const unknown = wrapKube({
+          readSecret: async () => null,
+          getRunPod: async (name) =>
+            ++calls === 1
+              ? { name, phase: 'Running', pendingSince: null, reason: null, exitCode: null }
+              : { name, phase: 'Unknown', pendingSince: null, reason: 'NodeLost', exitCode: null },
+          streamLogs: async function* () {
+            yield 'agentdesk: session started';
+          },
+        });
+        // A clock that jumps past the exit wait, so the pod that never reports an exit code is judged at once.
+        let t = Date.now();
+        const clock: Clock = { now: () => new Date((t += 30_000)) };
+        const r = await follow(ctx, deps({ kube: unknown, clock })).promise;
+        expect(r).toMatchObject({ exitCode: -1, podLost: true, agentStarted: true });
+      });
+
+      it('a pod that ended with an exit code and no end line is not podLost', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const r = await follow(ctx, deps({ kube: exited(['agentdesk: session started'], 1) })).promise;
+        expect(r).toMatchObject({ exitCode: 1, agentStarted: true });
+        expect(r.podLost).toBeUndefined();
+        expect(r.endReason).toBeUndefined();
+      });
+
+      it('treats an end line with an unknown reason as plain output: no endReason, no event', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const lines = ['agentdesk: session started', 'agentdesk: session ended reason=evil code=0'];
+        const r = await follow(ctx, deps({ kube: exited(lines, 0) })).promise;
+        expect(r.endReason).toBeUndefined();
+        expect((await lifecycleOf(runId)).filter((e) => e.payload.kind === 'session_ended')).toEqual([]);
+      });
+
+      it('podLost: the pod vanished after session started with no end line', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const r = await follow(ctx, deps({ kube: vanished(['agentdesk: session started']) })).promise;
+        expect(r).toMatchObject({ exitCode: -1, podLost: true, agentStarted: true });
+        expect(r.endReason).toBeUndefined();
+      });
+
+      it('still fails without retry when the pod vanished before session started', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const err = await follow(ctx, deps({ kube: vanished(['agentdesk: plugins begin']) })).promise.catch(
+          (e: unknown) => e,
+        );
+        expect(err).toBeInstanceOf(ApplicationFailure);
+        expect((err as ApplicationFailure).nonRetryable).toBe(true);
+      });
+    });
+
     it('a later pass after truncation stores no further output chunks and no second truncated chunk', async () => {
       const runId = await seedRun('x');
       const ctx = await ctxFor(runId);

@@ -12,6 +12,7 @@ import {
   RunStatus,
   TicketKind,
   TriggerSource,
+  PauseReason,
   WaitingOn,
   canResume,
   type IgnoredEventDto,
@@ -146,6 +147,8 @@ export class RunsService {
       agentNote: row.agentNote,
       pausedAt: row.pausedAt?.toISOString() ?? null,
       sessionExpiresAt: row.sessionExpiresAt?.toISOString() ?? null,
+      sessionEndingAt: row.sessionEndingAt?.toISOString() ?? null,
+      pauseReason: row.pauseReason === null ? null : PauseReason.parse(row.pauseReason),
     };
   }
 

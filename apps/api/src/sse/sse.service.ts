@@ -9,6 +9,7 @@ import {
   RunEventMessage,
   RunStatus,
   type RunStatusEvent,
+  PauseReason,
   WaitingOn,
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
@@ -117,6 +118,8 @@ export class SseService implements OnModuleDestroy {
           agentNote: run.agentNote,
           pausedAt: run.pausedAt?.toISOString() ?? null,
           sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null,
+          sessionEndingAt: run.sessionEndingAt?.toISOString() ?? null,
+          pauseReason: run.pauseReason === null ? null : PauseReason.parse(run.pauseReason),
         },
         events: rows.map((e) =>
           RunEventMessage.parse({ seq: e.seq, ts: e.ts.toISOString(), type: e.type, payload: e.payload }),
