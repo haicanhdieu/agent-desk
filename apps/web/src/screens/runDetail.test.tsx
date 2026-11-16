@@ -391,6 +391,25 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
     expect(banner.querySelector('b')).toBeNull();
   });
 
+  it('closed for inactivity: a status region with the text and a Reconnect button, no "connection lost" overlay', async () => {
+    const onReconnect = vi.fn();
+    const body = 'Nobody used this page for <b>4 hours</b>, so the terminal was closed.';
+    render(
+      <RunDetail data={idle} lines={linesFor('RunIdle')} needsYou={1} inactiveBody={body} onReconnect={onReconnect} />,
+    );
+    const region = screen.getByRole('status', { name: 'Terminal closed for inactivity' });
+    expect(within(region).getByText(body)).toBeInTheDocument();
+    expect(region.querySelector('b')).toBeNull();
+    expect(screen.queryByText('Connection to the terminal lost')).not.toBeInTheDocument();
+    await userEvent.click(within(region).getByRole('button', { name: 'Reconnect' }));
+    expect(onReconnect).toHaveBeenCalledTimes(1);
+  });
+
+  it('not inactive: no inactivity overlay', () => {
+    show('RunIdle');
+    expect(screen.queryByText('Terminal closed for inactivity')).not.toBeInTheDocument();
+  });
+
   it('no resumed text: no resumed banner', () => {
     show('RunIdle');
     expect(screen.queryByText(/^Resumed\./)).not.toBeInTheDocument();

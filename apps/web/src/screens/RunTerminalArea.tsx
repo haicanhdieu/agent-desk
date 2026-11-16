@@ -29,6 +29,11 @@ export interface RunTerminalAreaProps {
   reconnectOverlay?: boolean;
   /** The overlay's text; defaults to the board's. */
   reconnectBody?: ReactNode;
+  /**
+   * Shows the "Terminal closed for inactivity" overlay with this text and a Reconnect button (`onReconnect`): the browser
+   * closed the socket because the page was unused, so the run can pause when it is idle. Replaces the reconnect overlay.
+   */
+  inactiveBody?: ReactNode;
 }
 
 const views = (label: string) => [
@@ -221,6 +226,7 @@ export function RunTerminalArea({
   onReconnect,
   reconnectOverlay,
   reconnectBody,
+  inactiveBody,
 }: RunTerminalAreaProps) {
   const { run, connection } = data;
   const status = run.status;
@@ -343,7 +349,26 @@ export function RunTerminalArea({
   ) : undefined;
 
   const overlay =
-    (reconnectOverlay ?? reconnecting) ? (
+    inactiveBody !== undefined ? (
+      <Popover
+        open
+        role="status"
+        label="Terminal closed for inactivity"
+        width={460}
+        style={{ left: '50%', top: '30%', transform: 'translateX(-50%)' }}
+      >
+        <PopoverCard
+          icon={<StatusIcon status="paused" size={18} />}
+          title="Terminal closed for inactivity"
+          body={inactiveBody}
+          actions={
+            <Button size="sm" icon="refresh" onClick={onReconnect}>
+              Reconnect
+            </Button>
+          }
+        />
+      </Popover>
+    ) : (reconnectOverlay ?? reconnecting) ? (
       <Popover
         open
         role="status"
@@ -374,7 +399,7 @@ export function RunTerminalArea({
           lines={lines}
           cursor={status === 'idle' || status === 'done'}
           anchor={status === 'failed' || status === 'timed_out' ? 'top' : 'bottom'}
-          dimmed={reconnecting}
+          dimmed={reconnecting || inactiveBody !== undefined}
         />
       )}
     </TerminalPane>

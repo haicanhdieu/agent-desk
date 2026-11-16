@@ -5,9 +5,13 @@ import type { LiveTerminalHandle, TerminalSize } from '@/components/LiveTerminal
 import { signOutAndRedirect } from '../auth/signOut';
 import { terminalArea } from './detail.map';
 import { runsQueries } from './queries';
+import { TERMINAL_UNUSED_CLOSE_MS, watchUnused } from './unusedWatch';
 
-/** `ended`: the server said the session is over (4410); the page shows the run's own state, nothing retries. */
-export type TerminalState = 'connecting' | 'open' | 'retrying' | 'gave_up' | 'forbidden' | 'ended';
+/**
+ * `ended`: the server said the session is over (4410); the page shows the run's own state, nothing retries.
+ * `inactive`: the page went unused (TERMINAL_UNUSED_CLOSE_MS) and the browser closed the socket; only `reconnect()` opens one.
+ */
+export type TerminalState = 'connecting' | 'open' | 'retrying' | 'gave_up' | 'forbidden' | 'ended' | 'inactive';
 
 /** Waits before each retry after an abnormal close; after the last one the hook gives up (RunReconnect). */
 export const TERMINAL_BACKOFF_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 10_000];
@@ -70,7 +74,9 @@ export type OnSessionEnd = () => void | Promise<boolean>;
  * too, and only an owner still live then retries. Only the network-level closes (1006, 1011, 1013, anything else
  * unlisted) retry after TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open STABLE_OPEN_MS resets
  * the back-off.
- * Unmounting, or `enabled` turning false, closes the socket and cancels a pending retry. Terminal data is never
+ * With `closeWhenUnused`, a page unused for TERMINAL_UNUSED_CLOSE_MS (see `watchUnused`) closes the socket with a normal
+ * close (so the API drops its attach lease), cancels a pending retry and shows `inactive`; only `reconnect()` opens a new
+ * socket, with a fresh timer. Unmounting, or `enabled` turning false, closes the socket and cancels a pending retry. Terminal data is never
  * logged. `onSessionEnd` must be stable (memoised): a new function opens a new connection.
  */
 export function useTerminalSocket(
@@ -78,6 +84,7 @@ export function useTerminalSocket(
   enabled: boolean,
   term: RefObject<LiveTerminalHandle | null>,
   onSessionEnd: OnSessionEnd,
+  closeWhenUnused = false,
 ): UseTerminal {
   // Bumped by reconnect(): a new connection (the effect re-runs).
   const [attempt, setAttempt] = useState(0);
@@ -101,6 +108,10 @@ export function useTerminalSocket(
     let retries = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let stable: ReturnType<typeof setTimeout> | undefined;
+    // Set once the page was unused: the socket's own close event must not start the session-end or retry paths.
+    let closedUnused = false;
+    // Stopped by cleanup and by the closes that end the socket's story (4401, 4403, 4410): the real state must stay.
+    const watch: { stop?: () => void } = {};
     const set = (state: TerminalState) => {
       if (!disposed) setCurrent({ session, state });
     };
@@ -120,7 +131,8 @@ export function useTerminalSocket(
     const sessionEnded = (onStillActive: () => void) => {
       set('connecting');
       void Promise.resolve(onSessionEnd()).then((stillActive) => {
-        if (!disposed && stillActive === true) onStillActive();
+        // Not after the page went unused: that already closed the socket for good (only `reconnect()` opens one).
+        if (!disposed && !closedUnused && stillActive === true) onStillActive();
       });
     };
 
@@ -133,13 +145,16 @@ export function useTerminalSocket(
           sessionEnded(retryLater);
           return;
         case CLOSE_UNAUTHORIZED:
+          watch.stop?.();
           void signOutAndRedirect();
           return;
         case CLOSE_FORBIDDEN:
+          watch.stop?.();
           set('forbidden');
           return;
         case CLOSE_SESSION_ENDED:
           // Pausing or paused: the page shows that once the run is refetched. No retry whatever the refetch says.
+          watch.stop?.();
           set('ended');
           void Promise.resolve(onSessionEnd());
           return;
@@ -170,13 +185,24 @@ export function useTerminalSocket(
         term.current?.write(new Uint8Array(e.data));
       });
       ws.addEventListener('close', (e: CloseEvent) => {
-        if (disposed) return;
+        if (disposed || closedUnused) return;
         onClose(e.code);
       });
     };
 
     connect();
+    watch.stop = closeWhenUnused
+      ? watchUnused(TERMINAL_UNUSED_CLOSE_MS, () => {
+          closedUnused = true;
+          clearTimeout(retry);
+          clearTimeout(stable);
+          socket.current?.close(CLOSE_NORMAL);
+          socket.current = null;
+          set('inactive');
+        })
+      : undefined;
     return () => {
+      watch.stop?.();
       disposed = true;
       clearTimeout(retry);
       clearTimeout(stable);
@@ -184,7 +210,7 @@ export function useTerminalSocket(
       socket.current?.close(1000);
       socket.current = null;
     };
-  }, [enabled, path, session, term, onSessionEnd]);
+  }, [enabled, path, session, term, onSessionEnd, closeWhenUnused]);
 
   const onData = useCallback((data: string) => {
     const ws = socket.current;
@@ -227,5 +253,5 @@ export function useTerminal(
     // Retry only a run that is live and not ending; a paused, ending or final run shows its own state instead.
     return run === undefined || terminalArea(run) === 'live';
   }, [qc, org, projectId, number]);
-  return useTerminalSocket(terminalPath(runId), enabled, term, onSessionEnd);
+  return useTerminalSocket(terminalPath(runId), enabled, term, onSessionEnd, true);
 }

@@ -732,6 +732,7 @@ describe('terminalConnection', () => {
     expect(terminalConnection('gave_up', 'live')).toEqual({ state: 'reconnecting', label: 'Disconnected' });
     expect(terminalConnection('forbidden', 'live')).toEqual({ state: 'none', label: 'No access' });
     expect(terminalConnection('ended', 'live')).toEqual({ state: 'ended', label: 'Session ended' });
+    expect(terminalConnection('inactive', 'live')).toEqual({ state: 'none', label: 'Closed for inactivity' });
   });
 });
 

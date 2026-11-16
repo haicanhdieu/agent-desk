@@ -31,6 +31,8 @@ export const SIGNAL = {
   dropSession: 'dropSession',
   terminalAttached: 'terminalAttached',
   terminalDetached: 'terminalDetached',
+  /** RunWorkflow: the connection ids of the sockets the API holds open for this run. Args: [string[]]. */
+  terminalLease: 'terminalLease',
   finish: 'finish',
   cancel: 'cancel',
   /** SetupTestWorkflow: end the test now (cancels setup, then deletes the workspace). */
@@ -53,6 +55,12 @@ export const QUERY = {
 
 /** RunWorkflow ends an idle session after this long with no terminal attached. */
 export const IDLE_END_SECONDS = 1800;
+
+/** The API tells a run's workflow which terminal sockets are open this often (seconds). */
+export const TERMINAL_LEASE_INTERVAL_SECONDS = 120;
+
+/** RunWorkflow drops a terminal connection id it has not heard about for this long (seconds): an API crash stops blocking the idle timer. */
+export const TERMINAL_LEASE_TTL_SECONDS = 300;
 
 /** After the session end begins (`ending`), RunWorkflow waits this long for the pod to exit, then deletes the Job. */
 export const ENDING_DEADLINE_SECONDS = 90;

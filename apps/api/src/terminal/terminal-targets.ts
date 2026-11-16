@@ -15,20 +15,25 @@ export interface TerminalTarget {
     tx: Tx,
     id: string,
   ): Promise<{ createdBy: string | null; active: boolean; sessionEnded: boolean; jobName: string } | null>;
-  /** Rejects when the signal could not be delivered; the gateway then sends no matching detach. */
-  onAttach?(id: string): Promise<void>;
-  onDetach?(id: string): Promise<void>;
+  /**
+   * `connectionId` is the id the API made for this socket (a UUID, never client text). Rejects when the signal could not
+   * be delivered; the gateway then sends no matching detach and no lease.
+   */
+  onAttach?(id: string, connectionId: string): Promise<void>;
+  onDetach?(id: string, connectionId: string): Promise<void>;
+  /** The connection ids of the sockets still open for this target id; sent on a timer while any is open. */
+  onLease?(id: string, connectionIds: string[]): Promise<void>;
 }
 
 /** Connection-map key: a run id and a setup-test id can never collide. */
 export const terminalKey = (target: Pick<TerminalTarget, 'kind'>, id: string): string => `${target.kind}:${id}`;
 
-/** Delivers a named signal to a run's workflow (with the gateway's retry policy); false when it gave up. */
-export type RunSignaller = (runId: string, name: string) => Promise<boolean>;
+/** Delivers a named signal, with its arguments, to a run's workflow (the gateway's retry policy); false when it gave up. */
+export type RunSignaller = (runId: string, name: string, args: unknown[]) => Promise<boolean>;
 
 export function runTarget(signalWithRetry: RunSignaller, path: string): TerminalTarget {
-  const send = async (id: string, name: string): Promise<void> => {
-    if (!(await signalWithRetry(id, name))) throw new Error('signal not delivered');
+  const send = async (id: string, name: string, args: unknown[]): Promise<void> => {
+    if (!(await signalWithRetry(id, name, args))) throw new Error('signal not delivered');
   };
   return {
     kind: 'run',
@@ -51,8 +56,9 @@ export function runTarget(signalWithRetry: RunSignaller, path: string): Terminal
         jobName: runJobName(id),
       };
     },
-    onAttach: (id) => send(id, SIGNAL.terminalAttached),
-    onDetach: (id) => send(id, SIGNAL.terminalDetached),
+    onAttach: (id, connectionId) => send(id, SIGNAL.terminalAttached, [connectionId]),
+    onDetach: (id, connectionId) => send(id, SIGNAL.terminalDetached, [connectionId]),
+    onLease: (id, connectionIds) => send(id, SIGNAL.terminalLease, [connectionIds]),
   };
 }
 

@@ -38,6 +38,8 @@ export interface RunDetailProps {
   reconnectOverlay?: boolean;
   /** That overlay's text; defaults to the board's. */
   reconnectBody?: ReactNode;
+  /** Shows the "Terminal closed for inactivity" overlay with this text and a Reconnect button (see RunTerminalArea). */
+  inactiveBody?: ReactNode;
   /** The signed-in user in the top bar; defaults to the board's. */
   user?: Actor;
   /** The project's run limit per ticket (the chain's "max N runs"); defaults to the board's 10. */
@@ -80,6 +82,7 @@ export function RunDetail({
   links,
   reconnectOverlay,
   reconnectBody,
+  inactiveBody,
   user = boardUser,
   maxRunsPerTicket,
 }: RunDetailProps) {
@@ -172,6 +175,7 @@ export function RunDetail({
           onReconnect={onReconnect}
           reconnectOverlay={reconnectOverlay}
           reconnectBody={reconnectBody}
+          inactiveBody={inactiveBody}
         />
         <RunSidePanel
           data={data}

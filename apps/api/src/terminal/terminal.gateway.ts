@@ -24,6 +24,7 @@ import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { KUBE_GATEWAY } from '../kube/kube-gateway.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
+import { TerminalLeases } from './terminal-leases';
 import { runTarget, setupTestTarget, terminalKey, type TerminalTarget } from './terminal-targets';
 
 /** Close codes (spec 7.5); the browser treats 4403, 4409 and 4410 as terminal, 4401 as "sign in". */
@@ -100,6 +101,8 @@ interface Conn {
   reauthBusy: boolean;
   /** Resolves true when `terminalAttached` was delivered. `terminalDetached` is sent only after, and only if true. */
   attachSignal?: Promise<boolean>;
+  /** The workflow knows this id and is sent it with every lease signal until the socket closes. */
+  leased: boolean;
 }
 
 const toBuffer = (data: RawData): Buffer =>
@@ -128,6 +131,9 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly detaching = new Set<Promise<void>>();
   /** Test seam: base delay between attach/detach signal retries. */
   signalRetryMs = 100;
+  /** How often a run's live socket ids are signalled to its workflow (test seam; set from config). */
+  leaseIntervalMs: number;
+  private readonly leases: TerminalLeases;
 
   constructor(
     @Inject(HttpAdapterHost) private readonly host: HttpAdapterHost,
@@ -136,7 +142,10 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     @Inject(CONFIG) private readonly config: Config,
     @Inject(KUBE_GATEWAY) private readonly kube: KubeGateway,
     @Inject(TEMPORAL_CLIENT) private readonly temporal: Client,
-  ) {}
+  ) {
+    this.leaseIntervalMs = config.TERMINAL_LEASE_INTERVAL_MS;
+    this.leases = new TerminalLeases(() => this.leaseIntervalMs);
+  }
 
   openCount(): number {
     let n = 0;
@@ -148,7 +157,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const fastify = this.host.httpAdapter.getInstance<FastifyInstance>();
     await fastify.register(websocket, { options: { maxPayload: MAX_FRAME_BYTES } });
     const targets = [
-      runTarget((id, name) => this.signalWithRetry(id, name), routes.runs.terminal.path),
+      runTarget((id, name, args) => this.signalWithRetry(id, name, args), routes.runs.terminal.path),
       setupTestTarget(routes.setupTests.terminal.path),
     ];
     for (const target of targets) {
@@ -168,6 +177,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
         conn.socket.close(CLOSE.goingAway);
       }
     }
+    this.leases.stop();
     if (this.detaching.size === 0) return;
     let timer: NodeJS.Timeout | undefined;
     const limit = new Promise<void>((resolve) => {
@@ -189,6 +199,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       closed: false,
       connId: randomUUID(),
       fellBack: false,
+      leased: false,
       attached: false,
       pending: [],
       pendingBytes: 0,
@@ -274,8 +285,11 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     this.bind(conn, session);
     conn.attached = true;
     this.log.log(`terminal attached ${conn.target.kind}=${conn.runId} user=${conn.userId}`);
-    conn.attachSignal = conn.target.onAttach?.(conn.runId).then(
-      () => true,
+    conn.attachSignal = conn.target.onAttach?.(conn.runId, conn.connId).then(
+      () => {
+        this.beginLease(conn);
+        return true;
+      },
       () => false,
     );
     if (conn.pendingResize) {
@@ -408,9 +422,9 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   /** Best-effort: a failed signal is logged (error name only) and never breaks the relay. True when delivered. */
-  private async signal(runId: string, name: string): Promise<boolean> {
+  private async signal(runId: string, name: string, args: unknown[]): Promise<boolean> {
     try {
-      await this.temporal.workflow.getHandle(runWorkflowId(runId)).signal(name);
+      await this.temporal.workflow.getHandle(runWorkflowId(runId)).signal(name, ...args);
       return true;
     } catch (err) {
       this.log.warn(`terminal signal ${name} failed run=${runId}: ${errorName(err)}`);
@@ -419,9 +433,9 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   /** Up to SIGNAL_ATTEMPTS tries with a short growing backoff (signalRetryMs, 2x each time). */
-  private async signalWithRetry(runId: string, name: string): Promise<boolean> {
+  private async signalWithRetry(runId: string, name: string, args: unknown[]): Promise<boolean> {
     for (let attempt = 1; attempt <= SIGNAL_ATTEMPTS; attempt += 1) {
-      if (await this.signal(runId, name)) return true;
+      if (await this.signal(runId, name, args)) return true;
       if (attempt < SIGNAL_ATTEMPTS) await new Promise((r) => setTimeout(r, this.signalRetryMs * 2 ** (attempt - 1)));
     }
     this.log.error(`terminal signal ${name} gave up run=${runId}`);
@@ -434,7 +448,21 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
    */
   private async detach(conn: Conn, attachSignal: Promise<boolean>): Promise<void> {
     if (!(await attachSignal)) return;
-    await conn.target.onDetach?.(conn.runId).catch(() => undefined); // the run target's signaller already logged the give-up
+    await conn.target.onDetach?.(conn.runId, conn.connId).catch(() => undefined); // the run target's signaller already logged the give-up
+  }
+
+  /**
+   * From here the socket's id is sent to the workflow with its run's other live ids every `leaseIntervalMs`, so an API
+   * crash (no detach) stops holding the idle timer after the lease time. Called only after authz and a delivered attach
+   * signal; never for a socket that already closed (its detach follows the attach signal instead).
+   */
+  private beginLease(conn: Conn): void {
+    if (conn.closed || !conn.target.onLease) return;
+    conn.leased = true;
+    this.leases.track(terminalKey(conn.target, conn.runId), conn.connId, (ids) => {
+      // Best effort: the signaller logged a give-up; the next tick sends the ids again.
+      void conn.target.onLease?.(conn.runId, ids).catch(() => undefined);
+    });
   }
 
   /**
@@ -495,6 +523,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       // the session may already be gone
     }
     this.sendDetach(conn);
+    if (conn.leased) this.leases.untrack(terminalKey(conn.target, conn.runId), conn.connId);
     if (conn.registered) {
       const key = terminalKey(conn.target, conn.runId);
       const set = this.byRun.get(key);

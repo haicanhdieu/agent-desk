@@ -48,7 +48,7 @@
 Ask each one with the `AGENTS.md` "Talking to humans" template, one at a time, and wait.
 
 - **D1, spec open question 2: answered 2026-11-16, option 1.** A run whose agent crashed (`agent_exit`, non-zero code) keeps its volume and offers Resume (it parks like a lost pod, with the new pause reason `agent_crashed`); exit code 0 still means succeeded. Added as Task 6c (data) and in Tasks 6b and 7.
-- **D2, spec open question 3, before Phase 9:** add an "attached but no input for N hours" rule now (inside Phase 9's lease design) or later (separate spec)? Phase 9 as written does not include it.
+- **D2, spec open question 3: answered 2026-11-16, option 3.** A browser-side rule only (no keystroke detection on the server, no workflow change): the web terminal closes itself after the page was unused for a few hours, so a forgotten tab stops renewing its lease and the run can park. Added as Task 9b.
 
 ## File Map
 
@@ -390,7 +390,7 @@ The runner part must be live before the worker part is relied on. Keep one PR, b
 
 ## Phase 9: Attach leases (PR 9) — `review:sensitive` (terminal)
 
-**Stop first:** ask decision point D2. The plan below does not include an "attached but idle for N hours" rule.
+D2 is answered (Task 9b): the lease design itself has no "attached but idle for N hours" rule; the browser closes an unused tab.
 
 ### Task 9: Lease set in the workflow, lease signals from the API
 
@@ -406,11 +406,29 @@ The runner part must be live before the worker part is relied on. Keep one PR, b
 - Workflow under `patched('attach-leases')`: `attached` is `count(leases)`; the idle-timer wait also wakes at `nextExpiryMs` and drops expired ids.
 - API: for each run with open sockets, one `terminalLease` signal with that run's live ids every 2 minutes; stops when the last socket closes; only for sockets that passed authz.
 
-- [ ] **Step 1: Failing tests:** pure: detach before attach → count 0; double detach → count 0; renew of an unknown id → no change; an id unheard for 5 minutes expires, a renewed one does not. Workflow: attach with id, no lease for 5 min (short test values) → idle timer runs and the run parks; legacy no-id signals still count; old fixtures replay. API: lease sent every interval (fake timers) with the live ids; stopped after the last close; never sent for an unauthorized socket.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- attach-leases run.workflow && pnpm --filter @agentdesk/api test -- terminal` — expect FAIL.
-- [ ] **Step 3: Implement.** Lease timing values are test seams via `loadRun`, like `idleEndSeconds`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/api test` — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): attach leases that expire instead of an attach counter` (API part in the same PR; one concern: leases).
+- [x] **Step 1: Failing tests:** pure: detach before attach → count 0; double detach → count 0; renew of an unknown id → no change; an id unheard for 5 minutes expires, a renewed one does not. Workflow: attach with id, no lease for 5 min (short test values) → idle timer runs and the run parks; legacy no-id signals still count; old fixtures replay. API: lease sent every interval (fake timers) with the live ids; stopped after the last close; never sent for an unauthorized socket.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- attach-leases run.workflow && pnpm --filter @agentdesk/api test -- terminal` — expect FAIL.
+- [x] **Step 3: Implement.** Lease timing values are test seams via `loadRun`, like `idleEndSeconds`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/api test` — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): attach leases that expire instead of an attach counter` (API part in the same PR; one concern: leases).
+
+### Task 9b: Close an unused terminal tab in the browser (decision D2, option 3)
+
+**Files:**
+- Create: `apps/web/src/features/runs/unusedWatch.ts` (pure timing helper, DOM events only), `apps/web/src/features/runs/unusedWatch.test.ts`
+- Modify: `apps/web/src/features/runs/useTerminal.ts` (+ `useTerminal.test.tsx`), `apps/web/src/features/runs/detail.map.ts` (+ test), `apps/web/src/screens/{RunTerminalArea,RunDetail}.tsx` (+ story, `storyIds.ts`, `runDetail.test.tsx`), `apps/web/src/app/routes/o.$org.p.$project.runs.$run.tsx`
+
+**Interfaces — Produces:**
+- `TERMINAL_UNUSED_CLOSE_MS = 4 * 60 * 60 * 1000`: one named constant (the human gave no N; 4 hours is a judgment call).
+- A page counts as unused after that long with no `keydown`, `pointerdown`, `wheel` or `touchstart` DOM event (xterm's automatic replies are not DOM events and do not count), or after the tab was continuously hidden (`document.visibilityState === 'hidden'`) that long.
+- When it fires, `useTerminalSocket` (opt-in: only the run terminal, not the setup test) closes the socket with a normal close (1000, so the API drops its lease), does not retry, and sets the new state `inactive`; `reconnect()` opens a fresh socket and restarts the timer.
+- `RunTerminalArea` (`inactiveBody`) shows "Terminal closed for inactivity" with a Reconnect button, as a text-only overlay with design tokens; loading, empty and error states are unchanged.
+
+- [x] **Step 1: Failing tests:** helper: fires after the idle time, an event in between postpones it, each of the four events counts and a `mousemove` or other event does not, hidden for the whole time fires while visible-then-hidden resets, dispose stops it. Hook: closes with 1000 and sets `inactive` without a retry, reconnect resets, `closeWhenUnused` off changes nothing, existing states unchanged. Map and screen: `inactive` label, the overlay text as plain text, a story (`InactiveClosed`) and the smoke test.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/runs src/screens` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** the same files and the stories smoke test — expect PASS.
+- [x] **Step 5: Commit** `feat(web): close an unused terminal tab after a few hours`.
 
 ---
 

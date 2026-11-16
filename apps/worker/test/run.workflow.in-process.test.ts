@@ -28,6 +28,8 @@ import {
   runState,
   sessionStarted,
   terminalAttached,
+  terminalDetached,
+  terminalLease,
   type RunState,
 } from '../src/workflows/signals';
 import type {
@@ -927,5 +929,159 @@ describe('the session ending', () => {
     expect(h.calls).toEqual(expect.arrayContaining(['deleteJob', 'deleteRunVolume']));
     expect(h.calls).not.toContain('createRunSecretAndJob:resume');
     expect(h.parks).toEqual([]);
+  });
+});
+
+describe('attach leases (attach-leases)', () => {
+  const ID_A = '11111111-1111-4111-8111-111111111111';
+  const ID_B = '22222222-2222-4222-8222-222222222222';
+  const TTL = 300_000;
+  const attached = (): number => runQuery<RunState>(runState).terminalAttached;
+  const at = (seconds: number): void => {
+    vi.setSystemTime(new Date(T0.getTime() + seconds * 1000));
+  };
+
+  /** A running pod that needs a person, with the idle timer armed. */
+  async function idleRun(overrides: Partial<RunContext> = {}): Promise<Harness> {
+    const h = start(overrides);
+    await toRunning(h);
+    sendSignal(agentState, 'needs_input');
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+    return h;
+  }
+
+  it('an id that never renews expires after the lease time and the idle timer then parks the run', async () => {
+    const h = await idleRun();
+    sendSignal(terminalAttached, ID_A);
+    await waitFor('lease timer', () => pendingTimers().includes(TTL));
+    expect(pendingTimers()).not.toContain(600_000);
+    expect(attached()).toBe(1);
+
+    at(300);
+    fireTimer(TTL);
+    await waitFor('idle timer back', () => pendingTimers().includes(600_000));
+    expect(attached()).toBe(0);
+
+    at(900);
+    fireTimer(600_000);
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input' })]);
+  });
+
+  it('a renewed id keeps the idle timer off until its renewed lease runs out', async () => {
+    await idleRun();
+    sendSignal(terminalAttached, ID_A);
+    await waitFor('lease timer', () => pendingTimers().includes(TTL));
+
+    at(120);
+    sendSignal(terminalLease, [ID_A]);
+    at(300);
+    fireTimer(TTL);
+    // The old timer fired, but the lease was renewed to 420 s: 120 s remain.
+    await waitFor('shorter lease timer', () => pendingTimers().includes(120_000));
+    expect(attached()).toBe(1);
+    expect(pendingTimers()).not.toContain(600_000);
+
+    at(420);
+    fireTimer(120_000);
+    await waitFor('idle timer back', () => pendingTimers().includes(600_000));
+    expect(attached()).toBe(0);
+  });
+
+  it('a lease for an unknown id holds nothing, and a malformed id is ignored', async () => {
+    await idleRun();
+    sendSignal(terminalLease, [ID_A]);
+    sendSignal(terminalAttached, 'not-an-id');
+    sendSignal(terminalAttached, 42 as unknown as string);
+    sendSignal(terminalLease, 'nope' as unknown as string[]);
+    await settle();
+    expect(attached()).toBe(0);
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+  });
+
+  it('a detach with the id frees the idle timer at once; a second detach and a detach before attach change nothing', async () => {
+    await idleRun();
+    sendSignal(terminalDetached, ID_B);
+    sendSignal(terminalAttached, ID_A);
+    await waitFor('lease timer', () => pendingTimers().includes(TTL));
+    sendSignal(terminalDetached, ID_A);
+    sendSignal(terminalDetached, ID_A);
+    await waitFor('idle timer back', () => pendingTimers().includes(600_000));
+    expect(attached()).toBe(0);
+  });
+
+  it('legacy signals without an id still count, next to leases', async () => {
+    await idleRun();
+    sendSignal(terminalAttached);
+    sendSignal(terminalAttached, ID_A);
+    await settle();
+    expect(attached()).toBe(2);
+    sendSignal(terminalDetached, ID_A);
+    await settle();
+    // The id-less attach is a plain counter: no lease expiry applies to it.
+    expect(attached()).toBe(1);
+    expect(pendingTimers()).not.toContain(600_000);
+    sendSignal(terminalDetached);
+    sendSignal(terminalDetached);
+    await waitFor('idle timer back', () => pendingTimers().includes(600_000));
+    expect(attached()).toBe(0);
+  });
+
+  it('the lease time is a test seam from loadRun', async () => {
+    await idleRun({ leaseTtlSeconds: 60 });
+    sendSignal(terminalAttached, ID_A);
+    await waitFor('short lease timer', () => pendingTimers().includes(60_000));
+  });
+
+  it('a run that started before attach-leases counts every attach as a plain counter and ignores lease signals', async () => {
+    runtime.unpatched.add('attach-leases');
+    await idleRun();
+    sendSignal(terminalAttached, ID_A);
+    sendSignal(terminalLease, [ID_A]);
+    await settle();
+    expect(attached()).toBe(1);
+    expect(pendingTimers()).not.toContain(TTL);
+    expect(pendingTimers()).not.toContain(600_000);
+    sendSignal(terminalDetached);
+    await waitFor('idle timer back', () => pendingTimers().includes(600_000));
+  });
+
+  it('no lease timer is scheduled while the agent works: expired ids are dropped when the loop next runs', async () => {
+    const h = start();
+    await toRunning(h);
+    sendSignal(terminalAttached, ID_A);
+    await settle();
+    expect(phase()).toBe('running');
+    expect(attached()).toBe(1);
+    expect(pendingTimers()).not.toContain(TTL);
+    // A renewal while working also starts nothing.
+    sendSignal(terminalLease, [ID_A]);
+    await settle();
+    expect(pendingTimers()).not.toContain(TTL);
+    // At the turn boundary the lease timer starts, counting from the last renewal.
+    sendSignal(agentState, 'needs_input');
+    await waitFor('lease timer', () => pendingTimers().includes(TTL));
+  });
+
+  it('a lease that expires while the agent works is gone by the time the turn ends', async () => {
+    const h = start();
+    await toRunning(h);
+    sendSignal(terminalAttached, ID_A);
+    at(400);
+    sendSignal(agentState, 'needs_input');
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+    expect(attached()).toBe(0);
+  });
+
+  it('a pod that dies while a terminal is attached parks the run with no leases left', async () => {
+    const h = start({}, { keepSeconds: 3600 });
+    await toRunning(h);
+    sendSignal(agentState, 'needs_input');
+    await waitFor('idle', () => phase() === 'idle');
+    sendSignal(terminalAttached, ID_A);
+    await waitFor('lease timer', () => pendingTimers().includes(TTL));
+    h.pods[0]?.exit({ exitCode: 137, agentStarted: true });
+    await waitFor('parked', () => phase() === 'parked');
+    expect(attached()).toBe(0);
   });
 });
