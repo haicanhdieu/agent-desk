@@ -26,7 +26,7 @@ You keep what is outward-facing or a gate: every issue comment, board move and i
 | 5 Open PR | PR agent                                                   | `low` / `low`                                     |
 | Any step  | Advisor, only for would-be-human questions (max 8 per run) | `high` / `high`                                   |
 
-Multi-unit mode adds a **Reviewer** (`medium` / `medium`, `high` when sensitive) per unit and once for the whole branch.
+Multi-unit mode adds a **Reviewer** (tier `medium`, effort `medium`; effort `high` when sensitive, tier stays `medium`) per unit and once for the whole branch.
 
 A subagent knows only its prompt. Keep each prompt exactly as [agent-prompts.md](agent-prompts.md) gives it.
 
@@ -46,7 +46,7 @@ An issue number or URL (`42`, `#42`, `https://github.com/<owner>/<repo>/issues/4
 
 Run scripts from your main checkout (the worktree is cut from `main` and may lack this skill): `bash <main checkout>/.agent/skills/dev-build/scripts/board.sh status <n> "<Status>"`. Below, `board.sh` and `start.sh` mean that full command. Statuses: `Ready`, `In progress`, `Blocked`, `In review`. Never set the board or a `status:*` label by hand.
 
-**Spawning.** Model from the tier in [`.agent/models.json`](../../models.json), effort from the table in `agent-prompts.md`. Never hardcode a model name.
+**Spawning.** Model from the tier in [`.agent/models.json`](../../models.json), effort from the table in `agent-prompts.md`. Never hardcode a model name. `model` comes only from the tier; a `high` **effort** (sensitive path, Findings checker, Triage) never changes the model: a `medium` tier role stays on `tiers.medium` (sonnet). Before each spawn, check the `model` you pass equals `tiers.<the role's tier>` in `models.json`; only the Advisor is `high` tier (opus).
 
 **GitHub access.** A `gh` or `git push` that fails with 403 or "not found" means the active account can't write here: retry that one command with a token for an account that can (`GH_TOKEN=$(gh auth token --user <login>) …`). Never run `gh auth switch` or `gh auth setup-git`; never print or store the token. A subagent that hits this reports it; you retry.
 
