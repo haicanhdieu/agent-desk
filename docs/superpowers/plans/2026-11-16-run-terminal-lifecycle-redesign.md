@@ -227,11 +227,11 @@ Precondition: the Phase 3 runner image is live.
 - `CLOSE.sessionEnded = 4410`.
 - Fake gateway: `agentdesk-attach <uuid>` behaves like `TMUX_ATTACH` (exit 3 when the fake pod has exited); `agentdesk-detach <uuid>` records the id and returns `closedSession(0)`.
 
-- [ ] **Step 1: Write the failing tests:** each socket execs `agentdesk-attach <its own uuid>` (two sockets → two different ids, both valid UUIDs, not from the client); attach exec closing with exit 3 → socket closed 4410; attach on a run whose pod already exited → 4410; socket close, socket error and API shutdown each run `agentdesk-detach <same id>` once; exec exit 127 on attach → retried once with `TMUX_ATTACH`; `attachCommand('x; rm -rf /')` throws; unauthorized sockets never exec anything.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test -- terminal && pnpm --filter @agentdesk/core test` — expect FAIL.
-- [ ] **Step 3: Implement.** `randomUUID()` per connection on the server; detach is best effort (log error name only, never fail the close). Keep the 4-per-run cap and existing authz order unchanged.
-- [ ] **Step 4: Run** the same commands — expect PASS.
-- [ ] **Step 5: Commit** `feat(api): one attach client per terminal socket, closed with it`.
+- [x] **Step 1: Write the failing tests:** each socket execs `agentdesk-attach <its own uuid>` (two sockets → two different ids, both valid UUIDs, not from the client); attach exec closing with exit 3 → socket closed 4410; attach on a run whose pod already exited → 4410; socket close, socket error and API shutdown each run `agentdesk-detach <same id>` once; exec exit 127 on attach → retried once with `TMUX_ATTACH`; `attachCommand('x; rm -rf /')` throws; unauthorized sockets never exec anything.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test -- terminal && pnpm --filter @agentdesk/core test` — expect FAIL.
+- [x] **Step 3: Implement.** `randomUUID()` per connection on the server; detach is best effort (log error name only, never fail the close). Keep the 4-per-run cap and existing authz order unchanged.
+- [x] **Step 4: Run** the same commands — expect PASS.
+- [x] **Step 5: Commit** `feat(api): one attach client per terminal socket, closed with it`.
 
 ---
 
