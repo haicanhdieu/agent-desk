@@ -1,6 +1,6 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { defaultTriggerState, mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
@@ -455,6 +455,51 @@ describe('desk agent route: Check now', () => {
     await waitFor(() => expect(checkNow()).toBeEnabled());
     expect(checkNow()).toHaveTextContent('Check now');
     expect(sent).toBe(1);
+  });
+
+  const tick = () => act(() => vi.advanceTimersByTimeAsync(10));
+
+  it('keeps Checking until the poll it started lands, even when the page shows an older Last checked than the server', async () => {
+    let stopReads: (() => void) | undefined;
+    try {
+      pollingProject();
+      await openPage();
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+      expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
+      // A scheduled poll ran after the page loaded: the server is ahead of the page's cache.
+      const state = mockDb.state.triggers[projectId];
+      if (state) state.polling.lastCheckedAt = hoursAgo(1);
+      let sent = 0;
+      let statusReads = 0;
+      const onRequest = ({ request }: { request: Request }) => {
+        if (request.method === 'GET' && new URL(request.url).pathname === `${projectPath}/connection`) statusReads += 1;
+      };
+      server.events.on('request:start', onRequest);
+      stopReads = () => server.events.removeListener('request:start', onRequest);
+      // The poll is accepted at once; its result lands only when the test says so.
+      server.use(
+        http.post(pollPath, () => {
+          sent += 1;
+          return new HttpResponse(null, { status: 202 });
+        }),
+      );
+      fireEvent.click(checkNow());
+      // Fake time stands still, so step it in small slices while the mocked requests settle.
+      for (let i = 0; i < 100 && (sent < 1 || statusReads < 1); i += 1) await tick();
+      expect(sent).toBe(1);
+      expect(statusReads).toBeGreaterThan(0);
+      await tick();
+      // Only the older poll has finished so far: that is not this poll's result.
+      expect(screen.getByRole('button', { name: 'Checking…' })).toBeDisabled();
+      const polling = mockDb.state.triggers[projectId]?.polling;
+      if (polling) polling.lastCheckedAt = new Date().toISOString();
+      for (let i = 0; i < 300 && checkNow().hasAttribute('disabled'); i += 1) await tick();
+      expect(screen.getByText('just now (polling)')).toBeInTheDocument();
+      expect(checkNow()).toBeEnabled();
+    } finally {
+      stopReads?.();
+      vi.useRealTimers();
+    }
   });
 
   it('while polling is paused it shows the reason, sends no successful poll and leaves Last checked alone', async () => {

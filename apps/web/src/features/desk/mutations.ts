@@ -170,7 +170,8 @@ export function useCheckNow(org: string, projectId: string) {
   const connection = projectsQueries.connection(org, projectId);
   return useMutation({
     mutationFn: async () => {
-      const before = qc.getQueryData(connection.queryKey)?.polling?.lastCheckedAt ?? null;
+      // The baseline is the server's current value, not the cache's: a scheduled poll may have run since the page loaded.
+      const before = (await qc.fetchQuery({ ...connection, staleTime: 0 })).polling?.lastCheckedAt ?? null;
       await api.projects.pollNow({ params: { projectId } });
       return waitForPoll(() => qc.fetchQuery({ ...connection, staleTime: 0 }), before);
     },

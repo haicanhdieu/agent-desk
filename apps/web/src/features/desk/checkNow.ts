@@ -36,7 +36,7 @@ export async function waitForPoll(
 /** What to tell the user when Check now fails: the server's reason for a refusal, else a retry hint. */
 export function checkNowMessage(e: unknown): string {
   if (e instanceof CheckNowTimeout)
-    return 'No result yet. The check may still be running; the status updates when it finishes.';
+    return 'No result yet. The check may still be running; refresh the page in a moment to see it.';
   if (e instanceof ApiError && e.status < 500 && e.detail !== undefined) return e.detail;
   const id = e instanceof ApiError && e.requestId !== undefined ? ` Request id: ${e.requestId}.` : '';
   return `Could not start the check. Try again in a moment.${id}`;
