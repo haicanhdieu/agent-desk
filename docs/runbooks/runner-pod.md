@@ -76,16 +76,16 @@ The mocked suite needs no stack: `pnpm --filter @agentdesk/web test:e2e:mock` (f
 
 Measured on 2026-11-16 in the runner image (arm64, `--user 10001 --cap-drop ALL --security-opt no-new-privileges --memory 4g`, network off after setup). `memory.peak` is the container cgroup's peak and includes page cache, so it overstates what the pod must really hold.
 
-| Step                                           | Time   | `memory.peak` | Disk                                                                        |
-| ---------------------------------------------- | ------ | ------------- | --------------------------------------------------------------------------- |
-| Setup `full` from scratch (pnpm install ~33 s) | 69 s   | 2.1 GiB       | 2.4 GB total (repo + node_modules 0.9 GB, pnpm store 0.9 GB, tools 0.57 GB) |
-| Setup rerun (everything installed)             | 3 s    |               |                                                                             |
-| `test` profile tools only                      | ~9 s   |               | 254 MB (Postgres 60, Temporal CLI 112, test server 82)                      |
-| `full` adds Chromium + libraries               | ~25 s  |               | 316 MB                                                                      |
-| `pnpm test` (all packages, unit + integration) | ~6 min | 2.9 GiB       |                                                                             |
-| `runner-stack.sh up`                           | 20 s   | 0.9 GiB       |                                                                             |
-| `pnpm test:e2e:local` on the stack             | 30 s   | 1.7 GiB       |                                                                             |
-| Playwright `e2e/local` on the stack (\*)       | 94 s   | 2.4 GiB       |                                                                             |
+| Step                                           | Time      | `memory.peak` | Disk                                                                        |
+| ---------------------------------------------- | --------- | ------------- | --------------------------------------------------------------------------- |
+| Setup `full` from scratch (pnpm install ~33 s) | 69 s      | 2.1 GiB       | 2.4 GB total (repo + node_modules 0.9 GB, pnpm store 0.9 GB, tools 0.57 GB) |
+| Setup rerun (everything installed)             | 3 s       |               |                                                                             |
+| `test` profile tools only                      | ~9 s      |               | 254 MB (Postgres 60, Temporal CLI 112, test server 82)                      |
+| `full` adds Chromium + libraries               | ~25 s     |               | 316 MB                                                                      |
+| `pnpm test` (all packages, unit + integration) | not timed | 2.9 GiB       |                                                                             |
+| `runner-stack.sh up`                           | 20 s      | 0.9 GiB       |                                                                             |
+| `pnpm test:e2e:local` on the stack             | 30 s      | 1.7 GiB       |                                                                             |
+| Playwright `e2e/local` on the stack (\*)       | 94 s      | 2.4 GiB       |                                                                             |
 
 (\*) Run with network on: the app loads Google Fonts, and with no network the spec's "no console errors" check fails on `ERR_INTERNET_DISCONNECTED`. Everything else passed with the network off.
 
