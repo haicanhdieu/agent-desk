@@ -27,6 +27,8 @@ export interface RunContext {
   maxConcurrentRuns: number;
   /** Idle end, seconds. Normally `IDLE_END_SECONDS` (600); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
+  /** Seconds an `ending` session may take before the Job is deleted (normally `ENDING_DEADLINE_SECONDS`, 90); a test seam. */
+  endingDeadlineSeconds?: number;
   /** Seconds between workspace-token refreshes. Normally 2700 (45 min of the token's hour); a field like `idleEndSeconds`. */
   tokenRefreshSeconds?: number;
   /** Floor of a resumed pod's allowance, seconds (default `RESUME_MIN_SECONDS`, 3600); a test seam like `idleEndSeconds`. */
@@ -115,6 +117,8 @@ export interface RunActivities {
   followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLogsResult>;
   /** `tmux kill-session -t agent` in the pod; the entrypoint then prints the scrollback and exits. */
   endSession(ctx: RunContext): Promise<void>;
+  /** The ending deadline passed and the Job was deleted: appends a lifecycle event (the text says if scrollback was lost). */
+  recordEndingDeadline(ctx: RunContext, input: { scrollbackSaved: boolean; at: string }): Promise<void>;
   /** Deletes Job and Secret `run-{runId}`; missing → success. */
   deleteJob(ctx: RunContext): Promise<void>;
   /** After the pod exited on its own: make sure the Job is completed or gone (and the Secret deleted). */

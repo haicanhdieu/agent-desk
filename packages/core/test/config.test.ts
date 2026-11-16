@@ -27,6 +27,12 @@ describe('plugin and setup config', () => {
     expect(c.RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
     expect(c.RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(10);
     expect(c.RUN_IDLE_END_SECONDS).toBe(600);
+    expect(c.RUN_ENDING_DEADLINE_SECONDS).toBe(90);
+  });
+  it('RUN_ENDING_DEADLINE_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
+    expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '5' }).RUN_ENDING_DEADLINE_SECONDS).toBe(5);
+    expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '' }).RUN_ENDING_DEADLINE_SECONDS).toBe(90);
+    expect(() => parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '0' })).toThrow('RUN_ENDING_DEADLINE_SECONDS');
   });
   it('RUN_IDLE_END_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
     expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '5' }).RUN_IDLE_END_SECONDS).toBe(5);

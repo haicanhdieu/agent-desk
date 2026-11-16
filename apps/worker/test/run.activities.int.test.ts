@@ -231,6 +231,7 @@ describe('loadRun', () => {
       timeoutSeconds: 900,
       maxConcurrentRuns: 3,
       idleEndSeconds: 600,
+      endingDeadlineSeconds: 90,
     });
   });
 

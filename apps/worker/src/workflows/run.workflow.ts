@@ -58,6 +58,8 @@ import {
 
 /** Mirrors IDLE_END_SECONDS in @agentdesk/core (workflow code cannot import core); used when loadRun gives none. */
 export const IDLE_END_SECONDS_DEFAULT = 600;
+/** Mirrors ENDING_DEADLINE_SECONDS in @agentdesk/core; used when loadRun gives none. */
+export const ENDING_DEADLINE_SECONDS_DEFAULT = 90;
 /** Mirrors POD_PENDING_TIMEOUT in ../activities/run.activities (a value import would pull activity code in). */
 const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 /** Mirrors the type `createRunSecretAndJob` throws for a resume whose agent or credential is gone. */
@@ -68,6 +70,8 @@ const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
 const TOKEN_REFRESH_PATCH = 'token-refresh';
 /** Marks runs whose cleanup deletes the run volume, so a run already in `finalize` at deploy time replays unchanged. */
 const RUN_VOLUME_PATCH = 'run-volume';
+/** Marks runs whose `ending` has a deadline (then the Job is deleted), so a run already `ending` at deploy time replays unchanged. */
+const ENDING_DEADLINE_PATCH = 'ending-deadline';
 /** Marks runs that park on idle instead of ending; evaluated once, right after `loadRun`. */
 const PAUSE_RESUME_PATCH = 'pause-resume';
 /** Plain-language reason shown on the run when its history grew too long. */
@@ -97,6 +101,10 @@ interface Pod {
   done: boolean;
   result?: FollowPodLogsResult;
   error?: unknown;
+  /** `followPodLogs` runs inside it; cancelling it stops following a pod that will not exit. */
+  scope: CancellationScope;
+  /** The ending deadline passed: the pod was deleted and `done` set without a result. */
+  abandoned: boolean;
 }
 
 interface Outcome extends RunOutcome {
@@ -171,6 +179,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let stopReason: 'cancelled' | 'timed_out' | undefined;
   /** `patched('pause-resume')`, read once after `loadRun`; false keeps today's behaviour for runs that started before. */
   let pauseResume = false;
+  /** `patched('ending-deadline')`, read once right after `pauseResume`. */
+  let endingDeadline = false;
+  /** When the session end began (workflow time); the deadline counts from it. */
+  let endingStartedMs = 0;
   /** What the run was doing when the idle timer fired; set only with `pauseResume`. */
   let parkKind: ParkKind | undefined;
   /** `dropSession` arrived for a run that is (or is about to be) parked as done. */
@@ -313,6 +325,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // A run another execution already finished (a reset, or a start racing a finished run) is left alone.
     if (isFinal(c.status)) return ALREADY_FINAL;
     pauseResume = patched(PAUSE_RESUME_PATCH);
+    endingDeadline = patched(ENDING_DEADLINE_PATCH);
 
     // 1. Acquire a slot.
     phase = 'waiting_slot';
@@ -361,6 +374,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         }
         if (!ending && finishRequested) {
           ending = true;
+          endingStartedMs = Date.now();
           phase = 'ending';
           await act.endSession(c);
           continue;
@@ -381,16 +395,24 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
             // Recorded before `ending`: once the session end has begun nothing may bring the run back to `running`.
             if (pauseResume) parkKind = parkKindOf(currentPhase());
             ending = true;
+            endingStartedMs = Date.now();
             phase = 'ending';
             await act.endSession(c);
           }
+        } else if (ending && endingDeadline) {
+          const left =
+            endingStartedMs + (c.endingDeadlineSeconds ?? ENDING_DEADLINE_SECONDS_DEFAULT) * 1000 - Date.now();
+          if (left <= 0 || !(await condition(wake, left))) await abandonPod(c, current);
         } else {
           await condition(wake);
         }
       }
       if (current.error !== undefined) throw current.error;
-      if (current.result === undefined) throw ApplicationFailure.nonRetryable('followPodLogs returned nothing');
-      const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted } = current.result;
+      if (current.result === undefined && !current.abandoned) {
+        throw ApplicationFailure.nonRetryable('followPodLogs returned nothing');
+      }
+      // An abandoned pod has no result: it is treated as exited while `ending`, so it parks or succeeds below.
+      const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted } = current.result ?? {};
       // The runner stopped the run before the agent started: report the setup failure. The run's exit code is the setup
       // script's (the runner's own 78 only when setup timed out or the script's code is unknown).
       if (failureStage === 'setup') {
@@ -411,7 +433,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         return parked;
       }
       // Ended by us (finish or idle end): the session was idle, so the run succeeded whatever tmux's exit status was.
-      if (ending || exitCode === 0) return { status: 'succeeded', exitCode, podExited: true };
+      if (ending || exitCode === 0) {
+        return { status: 'succeeded', ...(exitCode !== undefined ? { exitCode } : {}), podExited: true };
+      }
       return {
         status: 'failed',
         exitCode,
@@ -424,6 +448,21 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         ...(scrollbackTail !== undefined ? { scrollbackTail: scrollbackTail.slice(-SCROLLBACK_TAIL_MAX) } : {}),
       };
     }
+  }
+
+  /**
+   * The ending deadline passed with the pod still running: delete the Job (the fallback that always ends it), stop
+   * following its logs, say so in the run's events, and let the loop carry on as if the pod had exited.
+   */
+  async function abandonPod(c: RunContext, pod: Pod): Promise<void> {
+    await act.deleteJob(c);
+    pod.abandoned = true;
+    pod.scope.cancel();
+    pod.done = true;
+    await act.recordEndingDeadline(c, {
+      scrollbackSaved: pod.result?.scrollbackTail !== undefined,
+      at: new Date().toISOString(),
+    });
   }
 
   /** The hard timer for one pod. The first pod uses the scope made up front, so a run that never parks replays unchanged. */
@@ -449,17 +488,20 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       heartbeatTimeout: '60s',
       retry: { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] },
     });
-    const pod: Pod = { done: false };
-    (resume ? logsActs.followPodLogs(c, { resume: true }) : logsActs.followPodLogs(c)).then(
-      (r) => {
-        pod.result = r;
-        pod.done = true;
-      },
-      (err: unknown) => {
-        pod.error = err;
-        pod.done = true;
-      },
-    );
+    const pod: Pod = { done: false, scope: new CancellationScope(), abandoned: false };
+    pod.scope
+      .run(() => (resume ? logsActs.followPodLogs(c, { resume: true }) : logsActs.followPodLogs(c)))
+      .then(
+        (r) => {
+          pod.result = r;
+          pod.done = true;
+        },
+        (err: unknown) => {
+          // Cancelling the scope of an abandoned pod is not a failure of the run.
+          if (!pod.abandoned) pod.error = err;
+          pod.done = true;
+        },
+      );
 
     // 4b. Keep the workspace token fresh for as long as the pod runs (ADR 0021). A workflow that started before this
     // existed replays without it.

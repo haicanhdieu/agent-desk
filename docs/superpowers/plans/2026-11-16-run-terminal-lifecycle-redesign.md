@@ -136,7 +136,7 @@ it('kills the tmux server after the scrollback on every end path', async () => {
 - Activity `recordEndingDeadline(ctx: RunContext, input: { scrollbackSaved: boolean; at: string }): Promise<void>` — appends a run event; text when not saved: "The session did not end in time; the pod was stopped. Final scrollback not saved."
 - Workflow behaviour under `patched('ending-deadline')` (read once, right after `pauseResume`): while `ending`, the loop waits `condition(wake, deadlineMs)`; on timeout it calls `act.deleteJob(c)`, cancels `pod.scope`, sets `pod.abandoned = true`, records the event, then continues as if the pod exited: park when `pauseResume && parkKind !== undefined && !finishRequested`, else `succeeded`.
 
-- [ ] **Step 1: Write the failing tests** (real time, short values from `loadRun`, as the existing idle tests do):
+- [x] **Step 1: Write the failing tests** (real time, short values from `loadRun`, as the existing idle tests do):
 
 ```ts
 it('ending deadline: a pod that never exits is deleted and the run parks', async () => {
@@ -157,11 +157,11 @@ it('ENDING_DEADLINE_SECONDS_DEFAULT mirrors core', () => {
 
 Plus in `config.test.ts`: `RUN_ENDING_DEADLINE_SECONDS` defaults to 90, blank is the default, `0` is refused.
 
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow` and `pnpm --filter @agentdesk/core test -- config` — expect FAIL.
-- [ ] **Step 3: Implement** the items under Produces. Cancelling `pod.scope` must not surface as `current.error` (treat a cancellation of an abandoned pod as "exited, no result"; use `scrollbackSaved = pod.result?.scrollbackTail !== undefined`). `park()` already calls `deleteJob`; a second delete is a no-op.
-- [ ] **Step 4: Replay.** Capture `run-ending-deadline-history.json` with `UPDATE_REPLAY_FIXTURES=1`; the existing replay test must pass for all old fixtures (`run-idle-timer`, `run-idle-finish`, `run-park-*`).
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test && pnpm typecheck` — expect PASS.
-- [ ] **Step 6: Commit** `fix(worker): delete the Job and park when a session does not end in time`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow` and `pnpm --filter @agentdesk/core test -- config` — expect FAIL.
+- [x] **Step 3: Implement** the items under Produces. Cancelling `pod.scope` must not surface as `current.error` (treat a cancellation of an abandoned pod as "exited, no result"; use `scrollbackSaved = pod.result?.scrollbackTail !== undefined`). `park()` already calls `deleteJob`; a second delete is a no-op.
+- [x] **Step 4: Replay.** Capture `run-ending-deadline-history.json` with `UPDATE_REPLAY_FIXTURES=1`; the existing replay test must pass for all old fixtures (`run-idle-timer`, `run-idle-finish`, `run-park-*`).
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test && pnpm typecheck` — expect PASS.
+- [x] **Step 6: Commit** `fix(worker): delete the Job and park when a session does not end in time`.
 
 ---
 

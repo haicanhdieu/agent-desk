@@ -7,11 +7,19 @@ import { Worker } from '@temporalio/worker';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import { ApplicationFailure, CancelledFailure, Context } from '@temporalio/activity';
 import { WorkflowNotFoundError, type WorkflowHandle } from '@temporalio/client';
-import { IDLE_END_SECONDS, QUERY, TASK_QUEUE, WORKFLOW, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
+import {
+  ENDING_DEADLINE_SECONDS,
+  IDLE_END_SECONDS,
+  QUERY,
+  TASK_QUEUE,
+  WORKFLOW,
+  gateWorkflowId,
+  runWorkflowId,
+} from '@agentdesk/core';
 import type { RunStatus } from '@agentdesk/contracts';
 import * as signals from '../src/workflows/signals';
 import type { GateState, RunState } from '../src/workflows/signals';
-import { IDLE_END_SECONDS_DEFAULT } from '../src/workflows/run.workflow';
+import { ENDING_DEADLINE_SECONDS_DEFAULT, IDLE_END_SECONDS_DEFAULT } from '../src/workflows/run.workflow';
 import {
   POD_PENDING_TIMEOUT,
   type CommentKind,
@@ -109,6 +117,8 @@ interface Script {
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   /** The expiry the latest parkRun reported. */
   lastExpiry?: string;
+  /** The input of every recordEndingDeadline call (without the timestamp). */
+  endingDeadlines: { scrollbackSaved: boolean }[];
 }
 
 const scripts = new Map<string, Script>();
@@ -232,6 +242,11 @@ function activities(): RunActivities {
     async deleteJob(ctx) {
       script(ctx.runId).calls.push('deleteJob');
     },
+    async recordEndingDeadline(ctx, input) {
+      const s = script(ctx.runId);
+      s.calls.push('recordEndingDeadline');
+      s.endingDeadlines.push({ scrollbackSaved: input.scrollbackSaved });
+    },
     async ensureJobGone(ctx) {
       script(ctx.runId).calls.push('ensureJobGone');
     },
@@ -289,6 +304,7 @@ function newRun(over: Partial<RunContext> = {}, opts: Partial<Pick<Script, 'firs
     resumeLogs: deferred(),
     resumeFollowStarted: deferred(),
     restores: [],
+    endingDeadlines: [],
   };
   scripts.set(runId, s);
   return s;
@@ -355,6 +371,11 @@ afterAll(async () => {
 });
 
 describe('RunWorkflow', () => {
+  it('ENDING_DEADLINE_SECONDS_DEFAULT mirrors core', () => {
+    expect(ENDING_DEADLINE_SECONDS_DEFAULT).toBe(ENDING_DEADLINE_SECONDS);
+    expect(ENDING_DEADLINE_SECONDS).toBe(90);
+  });
+
   it('constants: idle end defaults to 10 minutes; the state query name is shared', () => {
     expect(IDLE_END_SECONDS_DEFAULT).toBe(IDLE_END_SECONDS);
     expect(IDLE_END_SECONDS).toBe(600);
@@ -1444,10 +1465,67 @@ describe('RunWorkflow', () => {
     });
   });
 
+  describe('ending deadline', () => {
+    it('a pod that never exits is deleted and the run parks', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 2 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      const t0 = Date.now();
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      await waitPhase(h, 'parked');
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(2900);
+      expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
+      // The activity hears about the cancel on its next heartbeat.
+      await waitFor(() => s.logsCancelled, 'followPodLogs cancelled');
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      expect(s.endingDeadlines).toEqual([{ scrollbackSaved: false }]);
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      captured['run-ending-deadline'] = h;
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('after Finish the deadline ends the run succeeded, not parked', async () => {
+      const s = newRun({ endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      await h.executeUpdate(signals.finishRun);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+      expect(s.endingDeadlines).toEqual([{ scrollbackSaved: false }]);
+    });
+
+    it('a pod that exits before the deadline does not delete the Job early or record the event', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 5 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      await sleepReal(300);
+      expect(count(s, 'deleteJob')).toBe(0);
+      s.logs.resolve({ exitCode: 0 });
+      await waitPhase(h, 'parked');
+      expect(s.endingDeadlines).toEqual([]);
+      expect(s.logsCancelled).toBe(false);
+      // park() deletes the Job once; the deadline did not.
+      expect(count(s, 'deleteJob')).toBe(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+  });
+
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
     expect(Object.keys(captured).sort()).toEqual([
       'run-cancel-loading',
       'run-cancel-starting',
+      'run-ending-deadline',
       'run-idle-finish',
       'run-park-expire',
       'run-park-resume',

@@ -113,6 +113,7 @@ export type RunActivityConfig = Pick<
   | 'RUN_VOLUME_STORAGE_CLASS'
   | 'RUN_KEPT_DONE_SESSIONS_PER_PROJECT'
   | 'RUN_IDLE_END_SECONDS'
+  | 'RUN_ENDING_DEADLINE_SECONDS'
 >;
 
 export interface RunActivityTiming {
@@ -385,6 +386,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       timeoutSeconds: row.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       maxConcurrentRuns: row.maxConcurrentRuns,
       idleEndSeconds: deps.config.RUN_IDLE_END_SECONDS,
+      endingDeadlineSeconds: deps.config.RUN_ENDING_DEADLINE_SECONDS,
     };
   }
 
@@ -968,6 +970,21 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     }
   }
 
+  async function recordEndingDeadline(ctx: RunContext, input: { scrollbackSaved: boolean; at: string }): Promise<void> {
+    const ts = new Date(input.at);
+    if (Number.isNaN(ts.getTime())) throw ApplicationFailure.nonRetryable('invalid timestamp');
+    const text = `The session did not end in time; the pod was stopped.${input.scrollbackSaved ? '' : ' Final scrollback not saved.'}`;
+    await withOrg(db, ctx.orgId, async (tx) => {
+      const ev = await appendRunEvent(tx, ctx.orgId, {
+        runId: ctx.runId,
+        type: 'lifecycle',
+        payload: { kind: 'ending_deadline', text },
+        ts,
+      });
+      if (!ev) throw ApplicationFailure.nonRetryable('run not found');
+    });
+  }
+
   async function ensureJobGone(ctx: RunContext): Promise<void> {
     const name = runJobName(ctx.runId);
     try {
@@ -1005,6 +1022,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     followPodLogs: guarded('follow pod logs', followPodLogs),
     endSession: guarded('end session', endSession),
     deleteJob: guarded('delete run Job', deleteJob),
+    recordEndingDeadline: guarded('record ending deadline', recordEndingDeadline),
     ensureJobGone: guarded('clean up run Job', ensureJobGone),
     deleteRunVolume: guarded('delete run volume', deleteRunVolume),
     parkRun: guarded('park run', session.parkRun),
