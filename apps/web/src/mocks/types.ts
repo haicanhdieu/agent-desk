@@ -135,7 +135,22 @@ export type RunDetailData = {
    * A kept or expired session (ADR 0022). `headline` shows above the agent note, `detail` below it;
    * `resumeFailure` is the error banner above the buttons after a resume that fell back.
    */
-  session?: { state: 'paused' | 'kept' | 'expired'; headline?: string; detail?: string; resumeFailure?: string };
+  session?: {
+    state: 'paused' | 'kept' | 'expired' | 'none';
+    headline?: string;
+    detail?: string;
+    resumeFailure?: string;
+  };
+  /**
+   * The idle timer or Finish is ending the live session (`sessionEndingAt` set): the terminal is closed, the page says
+   * "Pausing the run…" until the run is parked. `session.state: 'none'` carries only a `resumeFailure` (a queued resume
+   * that had nothing kept to resume from).
+   */
+  pausing?: true;
+  /** A queued or starting run that already ran once: the Resume is in progress. */
+  resuming?: true;
+  /** The banner of a resumed run that has not started a new turn yet; the agent's note is untrusted text inside it. */
+  resumed?: string;
 };
 
 export type RunDetailKey =

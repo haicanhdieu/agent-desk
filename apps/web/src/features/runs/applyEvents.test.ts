@@ -226,6 +226,31 @@ describe('applyRunStatus', () => {
     });
   });
 
+  it('a run status event brings sessionEndingAt and pauseReason into the cached run; the project stream leaves them', () => {
+    const qc = seeded();
+    const key = runsQueries.detail(org, projectId, 61).queryKey;
+    const withSession = (seq: number, sessionEndingAt: string | null, pauseReason: RunDto['pauseReason']) => ({
+      ...status(61, 'running', seq),
+      waitingOn: null,
+      agentNote: null,
+      pausedAt: null,
+      sessionExpiresAt: null,
+      sessionEndingAt,
+      pauseReason,
+    });
+    // Still idle, but the session is ending: the run shows "pausing".
+    applyRunStatus(qc, org, projectId, withSession(30, '2026-11-12T14:30:00.000Z', null));
+    expect(qc.getQueryData(key)).toMatchObject({ status: 'running', sessionEndingAt: '2026-11-12T14:30:00.000Z' });
+    // The project stream does not carry them.
+    applyRunStatus(qc, org, projectId, { runId: ids.run(1, 61), number: 61, status: 'running', seq: 31 });
+    expect(qc.getQueryData(key)?.sessionEndingAt).toBe('2026-11-12T14:30:00.000Z');
+    // Parked: the ending is over and the reason is known.
+    applyRunStatus(qc, org, projectId, { ...withSession(32, null, 'pod_lost'), status: 'paused' });
+    expect(qc.getQueryData(key)).toMatchObject({ status: 'paused', sessionEndingAt: null, pauseReason: 'pod_lost' });
+    const row = qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey)?.items.find((r) => r.number === 61);
+    expect(row).toMatchObject({ sessionEndingAt: null, pauseReason: 'pod_lost' });
+  });
+
   it('the project stream (no session fields) leaves pausedAt and sessionExpiresAt as cached', () => {
     const qc = seeded();
     applyRunStatus(qc, org, projectId, {

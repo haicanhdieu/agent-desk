@@ -109,9 +109,9 @@ describe('RunDetail paused, kept and expired sessions', () => {
 
   it('paused: the lines around the agent note, then Resume and Finish; no Cancel, no disabled Finish', () => {
     show('RunPaused');
-    const text = screen.getByText(/^Can be resumed for/);
+    const text = screen.getByText(/^Paused: waiting for your answer\. Can be resumed for/);
     const note = screen.getByText(runDetails.RunPaused.agentNote ?? 'missing note');
-    const since = screen.getByText(/^Paused .* after no one was attached$/);
+    const since = screen.getByText(/^Paused .*, after 30 min with nobody attached$/);
     expect(text.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(note.compareDocumentPosition(since) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
@@ -172,7 +172,9 @@ describe('RunDetail paused, kept and expired sessions', () => {
 
   it('expired: the expired line and no action buttons', () => {
     show('RunExpired');
-    expect(screen.getByText('Nobody resumed this run in time. The saved session was deleted.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Nobody resumed this run within 7 days. The saved session was deleted.'),
+    ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^(Resume|Finish|Cancel|Re-open)/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'View ticket' })).toBeInTheDocument();
   });
@@ -355,5 +357,75 @@ describe('RunDetail app props', () => {
     expect(within(crumbs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('href', '/o/a/p/1/runs');
     expect(screen.getByRole('link', { name: 'code-build' })).toHaveAttribute('href', '/o/a/p/1/desk/skills');
     expect(screen.getByRole('dialog')).toHaveTextContent('Stops the pod.');
+  });
+});
+
+describe('RunDetail pausing, resumed and pause reasons', () => {
+  const idle = runDetails.RunIdle;
+
+  it('pausing: says so, closes the terminal view, and the idle notice is gone', () => {
+    const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Pausing…' } } as const;
+    render(<RunDetail data={data} needsYou={1} />);
+    expect(screen.getByText('Session ended. Pausing the run…')).toBeInTheDocument();
+    expect(screen.getByText('Pausing…')).toBeInTheDocument();
+    expect(screen.queryByText('The agent is waiting for your answer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
+  });
+
+  it('pausing: the last scrollback shows greyed', () => {
+    const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Pausing…' } } as const;
+    render(<RunDetail data={data} lines={[[{ text: 'last words' }]]} needsYou={1} />);
+    const log = screen.getByRole('log');
+    expect(log).toHaveTextContent('last words');
+    expect(log.className).toMatch(/dimmed/);
+  });
+
+  it('resumed: the banner sits above the idle notice, the note stays text', () => {
+    const text =
+      'Resumed. The agent asked: <b>x</b>. Background tasks and sub-agents that were running when it paused were stopped.';
+    render(<RunDetail data={{ ...idle, resumed: text }} lines={linesFor('RunIdle')} needsYou={1} />);
+    const banner = screen.getByText(text);
+    expect(banner.compareDocumentPosition(screen.getByText('The agent is waiting for your answer'))).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(banner.querySelector('b')).toBeNull();
+  });
+
+  it('no resumed text: no resumed banner', () => {
+    show('RunIdle');
+    expect(screen.queryByText(/^Resumed\./)).not.toBeInTheDocument();
+  });
+
+  it('resuming: a queued run says it is resuming, not starting the agent', () => {
+    render(<RunDetail data={{ ...runDetails.RunStarting, resuming: true }} needsYou={1} />);
+    expect(screen.getByText('Resuming the run')).toBeInTheDocument();
+    expect(screen.queryByText('Starting the agent')).not.toBeInTheDocument();
+    show('RunStarting');
+    expect(screen.getByText('Starting the agent')).toBeInTheDocument();
+  });
+
+  it('a succeeded run with a failed queued resume shows the message and no Re-open session', () => {
+    const data = {
+      ...runDetails.RunSucceeded,
+      session: { state: 'none', resumeFailure: 'Resume failed: nothing was kept to resume from' },
+    } as const;
+    render(<RunDetail data={data} lines={linesFor('RunSucceeded')} needsYou={1} />);
+    expect(screen.getByText('Resume failed: nothing was kept to resume from')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+  });
+
+  it('paused by a crashed agent: the headline with the exit code, and Resume and Finish', () => {
+    const data = {
+      ...runDetails.RunPaused,
+      session: {
+        state: 'paused',
+        headline: 'Paused: agent crashed (exit code 2)',
+        detail: 'Paused 2 min ago, the agent crashed. Can be resumed for 5 days.',
+      },
+    } as const;
+    render(<RunDetail data={data} needsYou={1} onResume={() => {}} />);
+    expect(screen.getByText('Paused: agent crashed (exit code 2)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
   });
 });

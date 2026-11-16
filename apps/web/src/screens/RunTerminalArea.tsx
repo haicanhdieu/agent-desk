@@ -64,6 +64,27 @@ function ResumeFailure({ data }: { data: RunDetailData }) {
   return <Banner tone="err" flush live="polite" icon={<StatusIcon status="failed" size={18} />} title={failure} />;
 }
 
+/** The live session is ending (the idle timer or Finish): the terminal is closed until the run is parked. */
+function PausingNotice() {
+  return (
+    <Banner
+      tone="idle"
+      flush
+      centered
+      live="polite"
+      icon={<StatusIcon status="starting" size={20} title="Pausing" />}
+      title="Session ended. Pausing the run…"
+    >
+      <div>The session is being saved. This page updates by itself when the run is paused.</div>
+    </Banner>
+  );
+}
+
+/** After a Resume, until the agent starts a new turn: what was kept and what was lost. */
+function ResumedBanner({ text }: { text: string }) {
+  return <Banner tone="off" flush icon={<StatusIcon status="running" size={18} title="Resumed" />} title={text} />;
+}
+
 function PausedNotice({
   data,
   busy,
@@ -179,7 +200,8 @@ function EndNotice({ data, busy, onResume }: { data: RunDetailData; busy?: boole
       {kept && <SessionLines data={data} />}
     </Banner>
   );
-  return kept ? (
+  // A succeeded run shows a failed resume above its banner: with a kept session, or a queued Resume that found none.
+  return succeeded ? (
     <>
       <ResumeFailure data={data} />
       {banner}
@@ -223,8 +245,12 @@ export function RunTerminalArea({
     return (
       <TerminalPane bar={bar}>
         <TerminalPlaceholder
-          title="Starting the agent"
-          body="The terminal opens here by itself when Claude Code is ready, usually within a minute. You can leave this page; the run keeps going."
+          title={data.resuming ? 'Resuming the run' : 'Starting the agent'}
+          body={
+            data.resuming
+              ? 'Waiting for a slot, then starting the pod. The terminal opens here by itself when Claude Code is back. You can leave this page.'
+              : 'The terminal opens here by itself when Claude Code is ready, usually within a minute. You can leave this page; the run keeps going.'
+          }
         >
           <StartupChecklist steps={data.startup ?? []} />
           <Note tone="faint">
@@ -256,8 +282,17 @@ export function RunTerminalArea({
     );
   }
 
+  if (data.pausing) {
+    return (
+      <TerminalPane notice={<PausingNotice />} bar={bar}>
+        <Terminal lines={lines} cursor={false} dimmed />
+      </TerminalPane>
+    );
+  }
+
   const note = data.agentNote;
-  const notice =
+  const resumed = data.resumed === undefined ? null : <ResumedBanner text={data.resumed} />;
+  const liveNotice =
     status === 'done' ? (
       <Banner
         tone="ok"
@@ -290,16 +325,22 @@ export function RunTerminalArea({
         {note && <div>{note}</div>}
         <div>
           Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while
-          this page is attached.
+          this page is attached. Pauses after 30 min with nobody attached.
         </div>
       </Banner>
-    ) : status === 'paused' ? (
-      <PausedNotice data={data} busy={busy} onResume={onResume} onFinish={onFinish} />
-    ) : status === 'expired' ? (
-      <ExpiredNotice data={data} />
-    ) : isEnded ? (
-      <EndNotice data={data} busy={busy} onResume={onResume} />
     ) : undefined;
+  const notice = liveNotice ? (
+    <>
+      {resumed}
+      {liveNotice}
+    </>
+  ) : status === 'paused' ? (
+    <PausedNotice data={data} busy={busy} onResume={onResume} onFinish={onFinish} />
+  ) : status === 'expired' ? (
+    <ExpiredNotice data={data} />
+  ) : isEnded ? (
+    <EndNotice data={data} busy={busy} onResume={onResume} />
+  ) : undefined;
 
   const overlay =
     (reconnectOverlay ?? reconnecting) ? (

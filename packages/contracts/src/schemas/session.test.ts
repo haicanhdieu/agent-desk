@@ -14,14 +14,37 @@ describe('hasKeptSession', () => {
 });
 
 describe('canResume', () => {
-  it('allows paused runs and succeeded runs with a kept session', () => {
-    expect(canResume({ status: 'paused', sessionExpiresAt: later }, now)).toBe(true);
-    expect(canResume({ status: 'succeeded', sessionExpiresAt: later }, now)).toBe(true);
-  });
-  it('refuses succeeded runs without a live session and other statuses', () => {
-    expect(canResume({ status: 'succeeded', sessionExpiresAt: null }, now)).toBe(false);
-    expect(canResume({ status: 'succeeded', sessionExpiresAt: earlier }, now)).toBe(false);
-    expect(canResume({ status: 'failed', sessionExpiresAt: later }, now)).toBe(false);
+  const ending = '2026-11-15T11:59:00.000Z';
+  const base = { sessionExpiresAt: null, sessionEndingAt: null };
+  it.each([
+    ['paused', { status: 'paused', sessionExpiresAt: later, sessionEndingAt: null }, true],
+    ['succeeded with a kept session', { status: 'succeeded', sessionExpiresAt: later, sessionEndingAt: null }, true],
+    ['succeeded without a session', { status: 'succeeded', ...base }, false],
+    [
+      'succeeded with an expired session',
+      { status: 'succeeded', sessionExpiresAt: earlier, sessionEndingAt: null },
+      false,
+    ],
+    ['idle whose session is ending', { status: 'idle', sessionExpiresAt: null, sessionEndingAt: ending }, true],
+    ['running whose session is ending', { status: 'running', sessionExpiresAt: null, sessionEndingAt: ending }, true],
+    ['done whose session is ending', { status: 'done', sessionExpiresAt: null, sessionEndingAt: ending }, true],
+    ['idle without sessionEndingAt', { status: 'idle', ...base }, false],
+    ['running without sessionEndingAt', { status: 'running', ...base }, false],
+    [
+      'starting whose sessionEndingAt is set',
+      { status: 'starting', sessionExpiresAt: null, sessionEndingAt: ending },
+      false,
+    ],
+    ['failed with a kept session', { status: 'failed', sessionExpiresAt: later, sessionEndingAt: null }, false],
+    ['failed with sessionEndingAt set', { status: 'failed', sessionExpiresAt: null, sessionEndingAt: ending }, false],
+    [
+      'cancelled with sessionEndingAt set',
+      { status: 'cancelled', sessionExpiresAt: later, sessionEndingAt: ending },
+      false,
+    ],
+    ['expired without a session', { status: 'expired', ...base }, false],
+  ] as const)('%s', (_name, run, expected) => {
+    expect(canResume(run, now)).toBe(expected);
   });
 });
 

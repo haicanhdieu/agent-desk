@@ -17,6 +17,7 @@ import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { RunStatusListener } from './run-status-listener';
 import { SseWriter } from './sse-writer';
+import { statusFrameKey } from './status-key';
 
 const BACKLOG_PAGE = 500;
 const RESYNC_LIMIT = 200;
@@ -164,7 +165,7 @@ export class SseService implements OnModuleDestroy {
     let initial = true;
 
     const sendStatus = (s: RunStatusEvent): void => {
-      const key = JSON.stringify([s.status, s.seq, s.exitCode, s.failureReason]);
+      const key = statusFrameKey(s);
       if (key === lastStatusKey) return;
       lastStatusKey = key;
       // No `id:` on status frames: only events advance the client's Last-Event-ID.

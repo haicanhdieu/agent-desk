@@ -322,6 +322,26 @@ D1 is answered (keep the volume, offer Resume): Task 6c adds `agent_crashed`, Ta
 
 ## Phase 7: Web states (PR 7) — not sensitive
 
+### Task 7a: API, SSE and worker pieces Task 7 depends on
+
+**Files:**
+- Modify: `packages/contracts/src/schemas/session.ts`, `apps/api/src/runs/runs.service.ts`, `apps/api/src/sse/sse.service.ts` (+ new `status-key.ts`), `apps/worker/src/activities/{run.activities.impl,session.activity,run.activities}.ts`, `apps/worker/src/workflows/run.workflow.ts`
+- Test: `packages/contracts/src/schemas/session.test.ts`, `apps/api/src/sse/status-key.test.ts`, `apps/api/test/{runs,sse}.int.test.ts`, `apps/worker/test/{run.activities.end-session,session.activity,run.workflow.in-process}.test.ts`, `apps/worker/test/session.activity.int.test.ts`
+
+**Interfaces — Produces:**
+- `canResume(run: { status; sessionExpiresAt; sessionEndingAt }, now)`: also true for `idle`/`running`/`done` while `sessionEndingAt` is set; `RunsService.resume` uses it (same authorization as Finish; the workflow update still accepts or refuses).
+- `statusFrameKey(frame)` (SSE dedupe key) includes `sessionEndingAt` and `pauseReason`; `endSession` queues `notifyRunStatus` in the same transaction when it set the column.
+- `parkRun` input gains `resumeQueued?: boolean`; with nothing kept it appends a `resume_failed` lifecycle event (fixed text, with `text` for the timeline).
+- The crash exit code needs no API change: the web already loads the run log (`runs.log`), whose `session_ended` events carry `{ line, kind, reason, code }`.
+
+- [x] **Step 1: Resume while ending (API).** Failing `canResume` table test and API cases; extend `canResume`, use it in `RunsService.resume`.
+- [x] **Step 2: SSE shows pausing.** Failing key test and `endSession` notify test; add the NOTIFY and the two key fields.
+- [x] **Step 3: A queued Resume that cannot run.** Failing in-process workflow test and `parkRun` test; pass `resumeQueued`, record the event.
+- [x] **Step 4: Crash exit code.** Checked: readable from the `session_ended` event in the run log; nothing added.
+- [x] **Step 5: Commit** `feat(api): resume while ending; show pausing over SSE; record a resume that cannot run`.
+
+---
+
 ### Task 7: Close codes and pausing/paused/resumed states
 
 **Files:**
@@ -335,11 +355,11 @@ D1 is answered (keep the volume, offer Resume): Task 6c adds `agent_crashed`, Ta
 - The paused page shows "Paused: agent crashed (exit code N)" with Resume when `pauseReason = 'agent_crashed'` (add it to `pauseReasonText`, a story and a test).
 - While `sessionEndingAt` is set the run query polls (existing SSE if it carries the field, else `refetchInterval: 2000`).
 
-- [ ] **Step 1: Failing tests:** 4410 → state `ended`, no second socket after the back-off window (fake timers); 1000 with `sessionEndingAt` set → no retry; 1006 → retries; `terminalArea` table test; `pauseReasonText` all three values; route test shows the pausing text and no socket while `sessionEndingAt` is set.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test -- useTerminal detail` — expect FAIL.
-- [ ] **Step 3: Implement**, design tokens only. Stories: pausing, paused (idle_timeout), paused (pod_lost), paused (agent_crashed), resumed banner, expired, plus loading and error states.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck` and build Storybook once — expect PASS.
-- [ ] **Step 5: Commit** `feat(web): show pausing, paused and resumed run states`.
+- [x] **Step 1: Failing tests:** 4410 → state `ended`, no second socket after the back-off window (fake timers); 1000 with `sessionEndingAt` set → no retry; 1006 → retries; `terminalArea` table test; `pauseReasonText` all three values; route test shows the pausing text and no socket while `sessionEndingAt` is set.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test -- useTerminal detail` — expect FAIL.
+- [x] **Step 3: Implement**, design tokens only. Stories: pausing, paused (idle_timeout), paused (pod_lost), paused (agent_crashed), resumed banner, expired, plus loading and error states.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck` (CI does not build Storybook: `src/test/stories.smoke.test.tsx` renders and axe-checks every story as part of the web tests) — expect PASS.
+- [x] **Step 5: Commit** `feat(web): show pausing, paused and resumed run states`.
 
 ---
 

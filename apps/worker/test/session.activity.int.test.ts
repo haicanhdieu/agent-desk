@@ -201,6 +201,33 @@ describe('parkRun', () => {
     expect(run?.sessionExpiresAt).toBeNull();
   });
 
+  it('a resume queued behind the ending finds nothing kept: one resume_failed lifecycle event says so', async () => {
+    const p = await seedProject({ done: 0 });
+    const runId = await seedRun(p, 'done');
+    await acts().parkRun(await ctxFor(runId), { kind: 'done', at: AT, reason: 'idle_timeout', resumeQueued: true });
+    const { run, events } = await load(runId);
+    expect(run).toMatchObject({ status: 'succeeded', sessionExpiresAt: null });
+    expect(events.filter((e) => e.type === 'lifecycle').map((e) => e.payload)).toEqual([
+      {
+        kind: 'resume_failed',
+        reason: 'nothing was kept to resume from',
+        text: 'The resume could not run: nothing was kept to resume from.',
+      },
+    ]);
+  });
+
+  it('a resume queued behind the ending with a kept session records no event (the resume runs)', async () => {
+    const p = await seedProject({ paused: 7200 });
+    const runId = await seedRun(p, 'idle');
+    await acts().parkRun(await ctxFor(runId), {
+      kind: 'needs_input',
+      at: AT,
+      reason: 'idle_timeout',
+      resumeQueued: true,
+    });
+    expect((await load(runId)).events.filter((e) => e.type === 'lifecycle')).toEqual([]);
+  });
+
   it('done: succeeded with a kept session of doneKeepSeconds and the summary kept', async () => {
     const p = await seedProject({ done: 3600 });
     const runId = await seedRun(p, 'done', null, 'Opened PR #1');

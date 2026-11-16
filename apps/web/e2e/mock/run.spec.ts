@@ -36,7 +36,7 @@ test('a paused run is resumed: Queued, then Running with the terminal', async ({
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/${PAUSED_RUN}`);
   const header = page.getByRole('banner');
   await expect(header.getByText('Paused', { exact: true })).toBeVisible();
-  await expect(page.getByText(/^Can be resumed for /)).toBeVisible();
+  await expect(page.getByText(/^Paused: waiting for your answer\. Can be resumed for /)).toBeVisible();
 
   await page.getByRole('button', { name: 'Resume' }).click();
   await expect(header.getByText('Queued', { exact: true })).toBeVisible();

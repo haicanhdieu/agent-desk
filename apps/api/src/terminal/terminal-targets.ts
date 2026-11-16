@@ -11,7 +11,10 @@ export interface TerminalTarget {
   /** Route path with exactly one `:param`, the target id. */
   path: string;
   /** Org-scoped (the caller passes a `withOrg` tx). `createdBy` is the owning project's creator. */
-  lookup(tx: Tx, id: string): Promise<{ createdBy: string | null; active: boolean; jobName: string } | null>;
+  lookup(
+    tx: Tx,
+    id: string,
+  ): Promise<{ createdBy: string | null; active: boolean; sessionEnded: boolean; jobName: string } | null>;
   /** Rejects when the signal could not be delivered; the gateway then sends no matching detach. */
   onAttach?(id: string): Promise<void>;
   onDetach?(id: string): Promise<void>;
@@ -33,7 +36,7 @@ export function runTarget(signalWithRetry: RunSignaller, path: string): Terminal
     lookup: async (tx, id) => {
       const row = (
         await tx
-          .select({ status: runs.status, createdBy: projects.createdBy })
+          .select({ status: runs.status, sessionEndingAt: runs.sessionEndingAt, createdBy: projects.createdBy })
           .from(runs)
           .innerJoin(projects, eq(projects.id, runs.projectId))
           .where(eq(runs.id, id))
@@ -43,6 +46,8 @@ export function runTarget(signalWithRetry: RunSignaller, path: string): Terminal
       return {
         createdBy: row.createdBy,
         active: row.status === 'running' || row.status === 'idle' || row.status === 'done',
+        // The session is ending (the idle timer or Finish) or already parked: nothing to attach to (4410, no retry).
+        sessionEnded: row.sessionEndingAt !== null || row.status === 'paused',
         jobName: runJobName(id),
       };
     },
@@ -68,6 +73,7 @@ export function setupTestTarget(path: string): TerminalTarget {
       return {
         createdBy: row.createdBy,
         active: row.endedAt === null && row.status !== 'queued',
+        sessionEnded: false,
         jobName: setupTestJobName(id),
       };
     },

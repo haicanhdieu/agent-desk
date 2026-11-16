@@ -160,6 +160,7 @@ export const runFixtures: RunDto[] = [
     exitCode: null,
     costUsd: null,
     pausedAt: '2026-11-12T13:40:00.000Z',
+    pauseReason: 'idle_timeout',
     sessionExpiresAt: inMs(5 * 24 * HOUR_MS + HOUR_MS),
     agentNote: 'Should the export include voided invoices?',
   }),

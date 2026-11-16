@@ -55,7 +55,7 @@ interface Harness {
   comments: { kind: CommentKind; details?: FinishDetails }[];
   pods: Pod[];
   createOpts: ({ resume?: boolean; deadlineSeconds?: number } | undefined)[];
-  parks: { kind: string; reason?: string }[];
+  parks: { kind: string; reason?: string; resumeQueued?: boolean }[];
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   kept: string[];
   /** `parkRun` keeps the session this many seconds; undefined keeps nothing. */
@@ -152,7 +152,10 @@ function start(
       return Promise.resolve(undefined);
     };
   }
-  a.parkRun = (_c: RunContext, input: { kind: string; reason?: string }): Promise<ParkResult> => {
+  a.parkRun = (
+    _c: RunContext,
+    input: { kind: string; reason?: string; resumeQueued?: boolean },
+  ): Promise<ParkResult> => {
     h.parks.push(input);
     h.calls.push(`parkRun:${input.kind}`);
     const expiry = h.keepSeconds === undefined ? null : new Date(Date.now() + h.keepSeconds * 1000).toISOString();
@@ -863,6 +866,25 @@ describe('the session ending', () => {
       'setRunStatus:queued',
     ]);
     expect(h.createOpts[1]).toMatchObject({ resume: true });
+  });
+
+  it('a queued resume that finds nothing kept is told to parkRun, so the run records why it could not run', async () => {
+    const h = start({}, { keepSeconds: null }); // the park keeps nothing
+    await endingWithStuckPod(h);
+    await expect(sendUpdate(resumeRun)).resolves.toEqual({ accepted: true });
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input', resumeQueued: true })]);
+    expect(h.pods).toHaveLength(1); // no pod was started
+    expect(afterCalls(h, 'endSession').slice(0, 3)).toEqual(['deleteJob', 'parkRun:needs_input', 'postComment:paused']);
+  });
+
+  it('a park with no resume queued does not mention one', async () => {
+    const h = start();
+    await toParked(h, 'needs_input');
+    expect(h.parks).toHaveLength(1);
+    expect(h.parks[0]).not.toHaveProperty('resumeQueued');
   });
 
   it('a second resume while one is queued behind the ending is refused', async () => {

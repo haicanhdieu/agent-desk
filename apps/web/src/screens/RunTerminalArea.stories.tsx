@@ -32,3 +32,84 @@ export const NeedsYouWithNote: Story = {
     lines: terminalByRun[62],
   },
 };
+
+const { RunPaused, RunExpired, RunIdle, RunStarting, RunSucceeded } = runDetails;
+const pausedSession = (headline: string, detail: string) => ({ state: 'paused' as const, headline, detail });
+
+/** The idle timer (or Finish) is ending the session: the terminal is closed and its last scrollback greyed, no socket is open, the page updates by itself. */
+export const Pausing: Story = {
+  args: {
+    data: { ...RunIdle, pausing: true, connection: { state: 'none', label: 'Pausing…' } },
+    // The last scrollback, greyed.
+    lines: terminalByRun[62],
+  },
+};
+
+/** Paused by the idle timer: the usual headline and reason. */
+export const PausedIdleTimeout: Story = {
+  args: { data: RunPaused, lines: terminalByRun[62], onResume: () => {}, onFinish: () => {} },
+};
+
+/** Paused because its pod stopped (out of memory, evicted, node lost). */
+export const PausedPodLost: Story = {
+  args: {
+    data: {
+      ...RunPaused,
+      session: pausedSession(
+        'Paused: waiting for your answer. Can be resumed for 5 days.',
+        'Paused 12 min ago, the pod stopped unexpectedly (out of memory / evicted)',
+      ),
+    },
+    lines: terminalByRun[62],
+    onResume: () => {},
+    onFinish: () => {},
+  },
+};
+
+/** Paused because the agent crashed: the exit code is information from the runner's end line. */
+export const PausedAgentCrashed: Story = {
+  args: {
+    data: {
+      ...RunPaused,
+      session: pausedSession(
+        'Paused: agent crashed (exit code 137)',
+        'Paused 12 min ago, the agent crashed. Can be resumed for 5 days.',
+      ),
+    },
+    lines: terminalByRun[62],
+    onResume: () => {},
+    onFinish: () => {},
+  },
+};
+
+/** A resumed run before its next turn: what was kept and what was lost, above the usual notice. */
+export const Resumed: Story = {
+  args: {
+    data: {
+      ...RunIdle,
+      agentNote: 'Should the export include voided invoices?',
+      resumed:
+        'Resumed. The agent asked: Should the export include voided invoices?. Background tasks and sub-agents that were running when it paused were stopped.',
+    },
+    lines: terminalByRun[62],
+  },
+};
+
+/** Nobody resumed it within the keep time. */
+export const Expired: Story = { args: { data: RunExpired } };
+
+/** Loading: a Resume is queued, waiting for a slot and a pod. */
+export const Resuming: Story = {
+  args: { data: { ...RunStarting, resuming: true } },
+};
+
+/** Error: a Resume queued behind the ending found nothing kept, so the run stayed succeeded. */
+export const ResumeFailedNothingKept: Story = {
+  args: {
+    data: {
+      ...RunSucceeded,
+      session: { state: 'none', resumeFailure: 'Resume failed: nothing was kept to resume from' },
+    },
+    lines: terminalByRun[60],
+  },
+};

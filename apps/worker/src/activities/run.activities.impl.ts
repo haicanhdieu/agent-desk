@@ -38,6 +38,7 @@ import {
 import {
   agents,
   connections,
+  notifyRunStatus,
   organization,
   projects,
   runEvents,
@@ -66,7 +67,7 @@ import {
   type LineEventTable,
 } from './follow-core';
 import { nextRefreshDelaySeconds, type TokenRefreshPlan } from '../workflows/token-refresh';
-import { appendRunEvent } from './run-events';
+import { appendRunEvent, currentSeq } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
 import { createSessionActivities } from './session.activity';
 import {
@@ -1024,12 +1025,17 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   async function endSession(ctx: RunContext): Promise<void> {
     // Before the exec, so the page can say the session is ending as soon as the end begins. The first moment is kept on
     // a retry, and the status write that parks or finishes the run clears it.
-    await withOrg(db, ctx.orgId, (tx) =>
-      tx
+    await withOrg(db, ctx.orgId, async (tx) => {
+      const changed = await tx
         .update(runs)
         .set({ sessionEndingAt: clock.now() })
-        .where(and(eq(runs.id, ctx.runId), isNull(runs.sessionEndingAt))),
-    );
+        .where(and(eq(runs.id, ctx.runId), isNull(runs.sessionEndingAt)))
+        .returning({ id: runs.id });
+      // No status or event changes, so the page would never hear of "pausing": wake the open streams (like every status
+      // write does), in this same transaction and only when the column changed.
+      if (changed.length > 0)
+        await notifyRunStatus(tx, { orgId: ctx.orgId, runId: ctx.runId, seq: await currentSeq(tx, ctx.runId) });
+    });
     try {
       const pod = await kube.getRunPod(runJobName(ctx.runId));
       if (!pod || pod.phase !== 'Running') return; // nothing to end

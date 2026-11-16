@@ -36,7 +36,7 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
   async function parkRun(
     ctx: RunContext,
     // `reason` is optional: a parkRun scheduled by workflow code from before it existed has none, and idle_timeout was the only reason then.
-    input: { kind: ParkKind; at: string; reason?: PauseReason },
+    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean },
   ): Promise<ParkResult> {
     const at = parseAt(input.at);
     const { result, drop } = await withOrg(db, ctx.orgId, async (tx) => {
@@ -69,6 +69,20 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
           .update(runs)
           .set({ pauseReason: input.reason ?? 'idle_timeout' })
           .where(eq(runs.id, ctx.runId));
+        // A Resume was accepted while the session was ending, and this park keeps nothing to resume from: say so, so
+        // the person who was told "accepted" can see why no pod started. Fixed text only (no run or user text).
+        if (input.resumeQueued === true && !keep) {
+          await appendRunEvent(tx, ctx.orgId, {
+            runId: ctx.runId,
+            type: 'lifecycle',
+            payload: {
+              kind: 'resume_failed',
+              reason: 'nothing was kept to resume from',
+              text: 'The resume could not run: nothing was kept to resume from.',
+            },
+            ts: at,
+          });
+        }
       }
 
       // The per-project cap: succeeded runs with a kept session, newest first; all beyond the newest `cap - 1`

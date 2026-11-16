@@ -269,6 +269,67 @@ describe('useTerminal', () => {
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 
+  it('4410 → state ended, the run detail is refetched, no retry however long we wait', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { qc, state } = setup();
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    act(() => latest().open());
+    // The run is still live in the cache (the refetch has not brought the ending yet): 4410 still means no retry.
+    await act(async () => latest().serverClose(4410));
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: runsQueries.detail(org, projectId, 62).queryKey });
+    expect(state()).toBe('ended');
+    act(() => vi.advanceTimersByTime(TERMINAL_BACKOFF_MS.reduce((a, b) => a + b, 0) + 60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(state()).toBe('ended');
+  });
+
+  it('after 4410 and a pause and resume, enabling again shows connecting, not ended, until the new socket opens', async () => {
+    const { hook, state } = setup();
+    act(() => latest().open());
+    await act(async () => latest().serverClose(4410));
+    expect(state()).toBe('ended');
+    hook.rerender({ enabled: false });
+    hook.rerender({ enabled: true });
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(state()).toBe('connecting');
+    act(() => latest().open());
+    expect(state()).toBe('open');
+  });
+
+  it('1000 while the run is ending (sessionEndingAt set) → no retry', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { qc, state } = setup();
+    act(() => latest().open());
+    qc.setQueryData(runsQueries.detail(org, projectId, 62).queryKey, {
+      ...fixture(62),
+      sessionEndingAt: '2026-11-12T14:30:00.000Z',
+    });
+    await act(async () => latest().serverClose(1000));
+    expect(state()).toBe('connecting');
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('1000 after the run was paused → no retry', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { qc } = setup();
+    act(() => latest().open());
+    qc.setQueryData(runsQueries.detail(org, projectId, 62).queryKey, { ...fixture(62), status: 'paused' });
+    await act(async () => latest().serverClose(1000));
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it.each([1006, 1011, 1013])('%i still retries with the back-off', (code) => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    const { state } = setup();
+    act(() => latest().open());
+    act(() => latest().serverClose(code));
+    expect(state()).toBe('retrying');
+    act(() => vi.advanceTimersByTime(TERMINAL_BACKOFF_MS[0]));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+  });
+
   it('1000 (the server ended the session) after the run ended → the run is refetched, no retry', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const { qc, state } = setup();
@@ -354,6 +415,16 @@ describe('useTerminalSocket', () => {
     await act(async () => latest().serverClose(1000));
     expect(onSessionEnd).toHaveBeenCalledTimes(1);
     expect(hook.result.current.state).toBe('connecting');
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('4410 → ended and no retry, even if the owner is reported still active; onSessionEnd runs once', async () => {
+    const onSessionEnd = vi.fn(() => Promise.resolve(true));
+    const { hook } = socketSetup(onSessionEnd);
+    act(() => latest().open());
+    await act(async () => latest().serverClose(4410));
+    expect(onSessionEnd).toHaveBeenCalledTimes(1);
+    expect(hook.result.current.state).toBe('ended');
     expect(FakeWebSocket.instances).toHaveLength(1);
   });
 

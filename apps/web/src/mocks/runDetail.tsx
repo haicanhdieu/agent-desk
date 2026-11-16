@@ -395,8 +395,8 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     agentNote: 'Should the export include voided invoices?',
     session: {
       state: 'paused',
-      headline: 'Can be resumed for 5 days',
-      detail: 'Paused 12 min ago after no one was attached',
+      headline: 'Paused: waiting for your answer. Can be resumed for 5 days.',
+      detail: 'Paused 12 min ago, after 30 min with nobody attached',
     },
     connection: { state: 'ended', label: 'Paused' },
   },
@@ -426,7 +426,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     ],
     session: {
       state: 'expired',
-      headline: 'Nobody resumed this run in time. The saved session was deleted.',
+      headline: 'Nobody resumed this run within 7 days. The saved session was deleted.',
     },
     connection: { state: 'ended', label: 'Ended' },
   },

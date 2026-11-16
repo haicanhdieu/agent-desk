@@ -5,11 +5,19 @@ import type { Db } from '@agentdesk/db';
 import type { RunContext } from '../src/activities/run.activities';
 
 const written: Record<string, unknown>[] = [];
+const events: Record<string, unknown>[] = [];
+/** What the agent-row select returns (the keep settings); none means the defaults. */
+let agentRows: { paused: number; done: number }[] = [];
 
 vi.mock('@agentdesk/db', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@agentdesk/db')>();
-  const rows = (): Promise<never[]> => Promise.resolve([]);
-  const chain = { from: () => chain, where: () => chain, then: (r: (v: never[]) => unknown) => rows().then(r) };
+  const rows = (): Promise<unknown[]> => Promise.resolve(agentRows);
+  const chain = {
+    from: () => chain,
+    where: () => chain,
+    orderBy: () => chain,
+    then: (r: (v: unknown[]) => unknown) => rows().then(r),
+  };
   const tx = {
     select: () => chain,
     update: () => ({
@@ -21,6 +29,12 @@ vi.mock('@agentdesk/db', async (importOriginal) => {
   };
   return { ...actual, withOrg: (_db: Db, _org: string, fn: (t: typeof tx) => unknown) => fn(tx) };
 });
+vi.mock('../src/activities/run-events', () => ({
+  appendRunEvent: (_tx: unknown, _org: string, input: { type: string; payload: Record<string, unknown> }) => {
+    events.push(input);
+    return Promise.resolve({ seq: 1 });
+  },
+}));
 vi.mock('../src/activities/run-status.activity', () => ({
   setRunStatusTx: () => Promise.resolve({ seq: 1, changed: true, previous: 'idle' }),
 }));
@@ -31,7 +45,7 @@ const ctx: RunContext = {
   orgId: 'org1',
   runId: 'run1',
   projectId: 'p1',
-  agentId: null,
+  agentId: 'a1',
   status: 'running',
   timeoutSeconds: 3600,
   maxConcurrentRuns: 1,
@@ -56,5 +70,43 @@ describe('parkRun pause reason', () => {
     const old = { kind: 'needs_input', at: '2026-01-01T00:00:00.000Z' } as const;
     await acts.parkRun(ctx, old);
     expect(written).toEqual([{ pauseReason: 'idle_timeout' }]);
+  });
+});
+
+describe('parkRun with a resume queued behind the ending', () => {
+  const at = '2026-01-01T00:00:00.000Z';
+  const reset = (): void => {
+    written.length = 0;
+    events.length = 0;
+    agentRows = [];
+  };
+
+  it('records why the resume could not run when nothing is kept (doneKeepSeconds 0)', async () => {
+    reset();
+    agentRows = [{ paused: 3600, done: 0 }];
+    const parked = await acts.parkRun(ctx, { kind: 'done', at, reason: 'idle_timeout', resumeQueued: true });
+    expect(parked.sessionExpiresAt).toBeNull();
+    expect(events).toEqual([
+      {
+        runId: 'run1',
+        type: 'lifecycle',
+        payload: {
+          kind: 'resume_failed',
+          reason: 'nothing was kept to resume from',
+          text: 'The resume could not run: nothing was kept to resume from.',
+        },
+        ts: new Date(at),
+      },
+    ]);
+  });
+
+  it.each([
+    ['a session is kept', 'needs_input', { paused: 3600, done: 0 }, true],
+    ['no resume was queued', 'done', { paused: 3600, done: 0 }, false],
+  ] as const)('records nothing when %s', async (_name, kind, agent, resumeQueued) => {
+    reset();
+    agentRows = [agent];
+    await acts.parkRun(ctx, { kind, at, reason: 'idle_timeout', ...(resumeQueued ? { resumeQueued } : {}) });
+    expect(events).toEqual([]);
   });
 });

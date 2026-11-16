@@ -11,6 +11,7 @@ import {
   scrollbackLines,
   scrollbackText,
   streamConnection,
+  terminalArea,
   terminalConnection,
   toRunDetail,
 } from '@/features/runs/detail.map';
@@ -63,9 +64,12 @@ function RunDetailRoute() {
   const stream = useRunEvents(org, projectId, number, dto.id, !final);
   // Turned final while open: the run and its log (the final scrollback) reload.
   useFinalLogReload(org, projectId, number, final);
-  // The live terminal, while the run is running or idle. The socket opens once the (lazy) terminal has mounted, so
+  // The live terminal, while the run is running or idle and its session is not ending (then the page says "Pausing"
+  // and opens no socket; the run stream brings the park). The socket opens once the (lazy) terminal has mounted, so
   // no output arrives before there is a terminal to write it to.
-  const live = dto.status === 'running' || dto.status === 'idle' || dto.status === 'done';
+  const area = terminalArea(dto, events);
+  const live = area === 'live';
+  const pausing = area === 'pausing';
   const termRef = useRef<LiveTerminalHandle | null>(null);
   const [termReady, setTermReady] = useState(false);
   const attachTerm = useCallback((handle: LiveTerminalHandle | null) => {
@@ -90,9 +94,10 @@ function RunDetailRoute() {
   });
   // No pod (final, or paused): the terminal bar says so and the stored scrollback shows.
   const stored = final || dto.status === 'paused';
-  const data = stored
-    ? mapped
-    : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
+  const data =
+    stored || pausing
+      ? mapped
+      : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
   // A finished or paused run's stored scrollback in the same terminal, read-only, written once.
   const scrollback = stored ? scrollbackText(events) : undefined;
   // Keyed by the scrollback event too, so a later (re-stored) scrollback opens a new terminal with it.
@@ -118,7 +123,8 @@ function RunDetailRoute() {
   return (
     <RunDetail
       data={data}
-      lines={stored ? scrollbackLines(events) : undefined}
+      // A pausing run greys the last scrollback it has: the terminal is closed, so the stored one stands in.
+      lines={stored || pausing ? scrollbackLines(events) : undefined}
       terminal={terminal}
       // The "terminal lost" overlay belongs to a live terminal that gave up; never to queued, starting or final runs.
       onReconnect={live ? term.reconnect : undefined}

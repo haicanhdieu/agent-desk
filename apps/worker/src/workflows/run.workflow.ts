@@ -596,7 +596,13 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     await act.deleteJob(c);
     slotRequested = false;
     await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
-    const parked = await act.parkRun(c, { kind, at: new Date().toISOString(), reason });
+    // `resumeAccepted` here is a Resume queued behind the ending: the activity records it if nothing is kept to resume from.
+    const parked = await act.parkRun(c, {
+      kind,
+      at: new Date().toISOString(),
+      reason,
+      ...(resumeAccepted ? { resumeQueued: true } : {}),
+    });
     if (kind === 'needs_input') await act.postComment(c, 'paused');
     else await act.postComment(c, 'finish', { status: 'succeeded' });
     // `ending` described the pod's session end, which is over; a person Finish sets it again.

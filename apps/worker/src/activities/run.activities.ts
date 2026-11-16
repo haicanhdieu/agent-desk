@@ -140,8 +140,13 @@ export interface RunActivities {
    * Reads the agent's keep setting (defaults when the agent row is gone), writes the parked status and session in one
    * transaction, and for kind `done` applies the per-project cap by signalling `dropSession` to the oldest kept ones.
    * Writes `pause_reason` (`idle_timeout` when absent: input scheduled by workflow code from before the reason existed) and clears `session_ending_at` (the session end is over).
+   * `resumeQueued`: a Resume was accepted while the session was ending; when this park keeps nothing it appends a
+   * `resume_failed` lifecycle event (fixed text) so the run says why the resume did not run.
    */
-  parkRun(ctx: RunContext, input: { kind: ParkKind; at: string; reason?: PauseReason }): Promise<ParkResult>;
+  parkRun(
+    ctx: RunContext,
+    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean },
+  ): Promise<ParkResult>;
   /**
    * `expired`: paused → status expired; succeeded → clears session_expires_at and notifies. `dropped`: same for
    * succeeded; a paused run is never dropped.

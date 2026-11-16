@@ -410,6 +410,26 @@ describe('terminal relay', () => {
     expectNoExec();
   });
 
+  it('closes 4410 while the session is ending (sessionEndingAt set) and for a paused run, with no exec', async () => {
+    const ending = await makeRun('idle');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx.update(runs).set({ sessionEndingAt: new Date() }).where(eq(runs.id, ending)),
+    );
+    expect(await connect(ending, { cookie: alice }).closed).toBe(4410);
+    const paused = await makeRun('paused', false);
+    expect(await connect(paused, { cookie: alice }).closed).toBe(4410);
+    expectNoExec();
+  });
+
+  it('refuses a socket of someone else with 4403 before it says anything about the ending session', async () => {
+    const ending = await makeRun('idle');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx.update(runs).set({ sessionEndingAt: new Date() }).where(eq(runs.id, ending)),
+    );
+    expect(await connect(ending, { cookie: carol }).closed).toBe(4403);
+    expectNoExec();
+  });
+
   it('closes 4409 when the run is running but its pod is gone', async () => {
     const runId = await makeRun('running', false);
     expect(await connect(runId, { cookie: alice }).closed).toBe(4409);

@@ -342,7 +342,11 @@ export class RunsService {
     const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
     if (
       !canResume(
-        { status: RunStatus.parse(run.status), sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null },
+        {
+          status: RunStatus.parse(run.status),
+          sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null,
+          sessionEndingAt: run.sessionEndingAt?.toISOString() ?? null,
+        },
         new Date(),
       )
     )

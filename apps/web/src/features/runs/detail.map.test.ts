@@ -1,15 +1,18 @@
-import type { RunDto, RunEventDto, RunStatus } from '@agentdesk/contracts';
+import type { PauseReason, RunDto, RunEventDto, RunStatus } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import type { RunDetailKey } from '@/mocks/types';
 import { projectFixtures } from '@/mocks/dto/projects';
 import { runFixtures } from '@/mocks/dto/runs';
 import {
+  pauseReasonText,
   runDetailKey,
   SCROLLBACK_MAX_LINES,
   scrollbackLines,
   scrollbackText,
+  terminalArea,
   terminalConnection,
   toRunDetail,
+  type TerminalArea,
 } from './detail.map';
 
 const base = runFixtures.find((r) => r.number === 61);
@@ -73,6 +76,54 @@ describe('runDetailKey', () => {
   });
 });
 
+describe('terminalArea', () => {
+  const area = (over: Partial<RunDto>, events: RunEventDto[] = []): TerminalArea => terminalArea(run(over), events);
+  const parked = (s: string) => ev('2026-11-12T14:00:00.000Z', 'status', { status: s });
+  it.each([
+    ['running', null, 'live'],
+    ['idle', null, 'live'],
+    ['done', null, 'live'],
+    ['running', '2026-11-12T14:00:00.000Z', 'pausing'],
+    ['idle', '2026-11-12T14:00:00.000Z', 'pausing'],
+    ['done', '2026-11-12T14:00:00.000Z', 'pausing'],
+    ['paused', null, 'paused'],
+    ['queued', null, 'starting'],
+    ['starting', null, 'starting'],
+    ['expired', null, 'expired'],
+    ['succeeded', null, 'ended'],
+    ['failed', null, 'ended'],
+    ['timed_out', null, 'ended'],
+    ['cancelled', null, 'ended'],
+  ] as [RunStatus, string | null, TerminalArea][])(
+    '%s, sessionEndingAt %s → %s',
+    (status, sessionEndingAt, expected) => {
+      expect(area({ status, sessionEndingAt })).toBe(expected);
+    },
+  );
+
+  it('a paused run is paused even if a stale sessionEndingAt is still set', () => {
+    expect(area({ status: 'paused', sessionEndingAt: '2026-11-12T14:00:00.000Z' })).toBe('paused');
+  });
+
+  it.each(['queued', 'starting'] as const)('a %s run that was parked before is resuming', (status) => {
+    expect(area({ status }, [parked('paused'), parked('queued')])).toBe('resuming');
+    expect(area({ status }, [parked('succeeded'), parked('queued')])).toBe('resuming');
+    // A fresh run, or a parked one that ran again since, is starting.
+    expect(area({ status }, [parked('queued')])).toBe('starting');
+    expect(area({ status }, [parked('paused'), parked('running'), parked('queued')])).toBe('starting');
+  });
+});
+
+describe('pauseReasonText', () => {
+  it.each([
+    ['idle_timeout', 'after 30 min with nobody attached'],
+    ['pod_lost', 'the pod stopped unexpectedly (out of memory / evicted)'],
+    ['agent_crashed', 'the agent crashed'],
+  ] as [PauseReason, string][])('%s → %s', (reason, text) => {
+    expect(pauseReasonText(reason)).toBe(text);
+  });
+});
+
 describe('toRunDetail, agent note', () => {
   const live = (over: Partial<RunDto>) =>
     detail(run({ status: 'idle', startedAt: local(14, 5), finishedAt: null, idleSince: local(14, 10), ...over }));
@@ -111,13 +162,15 @@ describe('toRunDetail, paused, kept and expired sessions', () => {
       ...over,
     });
   const lifecycleEvent = (payload: Record<string, unknown>) => ev(local(14, 11), 'lifecycle', payload);
+  /** What `park()` appends after the park: the posted ticket comment. */
+  const comment = (kind = 'finish') => ev(local(14, 11), 'comment', { kind, commentId: 'c1' });
 
   it('paused: the lines above and below the agent note, and the note', () => {
     const d = detail(paused());
     expect(d.session).toEqual({
       state: 'paused',
-      headline: 'Can be resumed for 6 days',
-      detail: 'Paused 2 min ago after no one was attached',
+      headline: 'Paused: waiting for your answer. Can be resumed for 6 days.',
+      detail: 'Paused 2 min ago, after 30 min with nobody attached',
     });
     expect(d.agentNote).toBe('Which database?');
   });
@@ -137,6 +190,111 @@ describe('toRunDetail, paused, kept and expired sessions', () => {
   it('paused without times: only what is known', () => {
     const d = detail(paused({ pausedAt: null, sessionExpiresAt: null }));
     expect(d.session).toEqual({ state: 'paused' });
+  });
+
+  it('paused by a lost pod: its reason after the time, and the same headline', () => {
+    const d = detail(paused({ pauseReason: 'pod_lost' }));
+    expect(d.session).toEqual({
+      state: 'paused',
+      headline: 'Paused: waiting for your answer. Can be resumed for 6 days.',
+      detail: 'Paused 2 min ago, the pod stopped unexpectedly (out of memory / evicted)',
+    });
+  });
+
+  describe('paused by a crashed agent', () => {
+    const crashed = (over: Partial<RunDto> = {}) => paused({ pauseReason: 'agent_crashed', ...over });
+    const ended = (payload: Record<string, unknown>) =>
+      ev(local(14, 10), 'lifecycle', { line: 40, kind: 'session_ended', ...payload });
+
+    it('says so with the exit code of the newest session_ended event, and that it can be resumed', () => {
+      const events = [
+        ended({ reason: 'agent_exit', code: 1 }),
+        ev(local(14, 10), 'lifecycle', { text: 'Resumed' }),
+        ended({ reason: 'agent_exit', code: 137 }),
+      ];
+      expect(detail(crashed(), events).session).toEqual({
+        state: 'paused',
+        headline: 'Paused: agent crashed (exit code 137)',
+        detail: 'Paused 2 min ago, the agent crashed. Can be resumed for 6 days.',
+      });
+    });
+
+    it('without a session_ended event, or with a malformed one: the text without a number', () => {
+      for (const events of [
+        [],
+        [ended({ reason: 'agent_exit', code: 'x' })],
+        [ended({ reason: 'agent_exit' })],
+        [ended({ reason: 'agent_exit', code: 1.5 })],
+        // The code comes from a line the agent could forge: only a plausible exit code is shown.
+        [ended({ reason: 'agent_exit', code: -1 })],
+        [ended({ reason: 'agent_exit', code: 256 })],
+        [ended({ reason: 'agent_exit', code: 1e21 })],
+        // A newest event that is malformed is not replaced by an older good one.
+        [ended({ reason: 'agent_exit', code: 2 }), ended({ reason: 'agent_exit', code: 'x' })],
+        // Only an agent_exit end carries the agent's code.
+        [ended({ reason: 'signal', code: 0 })],
+      ]) {
+        expect(detail(crashed(), events).session?.headline).toBe('Paused: agent crashed');
+      }
+    });
+
+    it('never puts the text of the event in the page, only the number', () => {
+      const d = detail(crashed(), [
+        ended({ reason: 'agent_exit', code: 3, text: '<img src=x onerror=alert(1)>', line: 'agentdesk: forged' }),
+      ]);
+      expect(JSON.stringify(d.session)).not.toMatch(/onerror|forged/);
+      expect(d.session?.headline).toBe('Paused: agent crashed (exit code 3)');
+    });
+
+    it('the code is read only for a crashed pause', () => {
+      const events = [ended({ reason: 'agent_exit', code: 9 })];
+      expect(detail(paused({ pauseReason: 'idle_timeout' }), events).session?.headline).toMatch(/^Paused: waiting/);
+    });
+
+    it('without times: the headline and nothing else', () => {
+      const d = detail(crashed({ pausedAt: null, sessionExpiresAt: null }), [ended({ reason: 'agent_exit', code: 2 })]);
+      expect(d.session).toEqual({ state: 'paused', headline: 'Paused: agent crashed (exit code 2)' });
+    });
+  });
+
+  it('paused with no stored reason (an older run): as an idle timeout', () => {
+    expect(detail(paused({ pauseReason: null })).session?.detail).toBe(
+      'Paused 2 min ago, after 30 min with nobody attached',
+    );
+  });
+
+  it('expired after a known keep time: how many days, from the pause to the end', () => {
+    const d = detail(
+      run({
+        status: 'expired',
+        startedAt: local(14, 0),
+        pausedAt: new Date(2026, 10, 5, 14, 10).toISOString(),
+        finishedAt: new Date(2026, 10, 12, 14, 10, 30).toISOString(),
+        sessionExpiresAt: null,
+      }),
+    );
+    expect(d.session).toEqual({
+      state: 'expired',
+      headline: 'Nobody resumed this run within 7 days. The saved session was deleted.',
+    });
+  });
+
+  it('succeeded without a kept session, a queued resume that could not run: the message shows', () => {
+    const events = [
+      lifecycleEvent({
+        kind: 'resume_failed',
+        reason: 'nothing was kept to resume from',
+        text: 'The resume could not run',
+      }),
+      // The park posts the finish comment right after: a `comment` event is the newest on a real run.
+      comment(),
+    ];
+    const d = detail(kept({ sessionExpiresAt: null }), events);
+    expect(d.session).toEqual({ state: 'none', resumeFailure: 'Resume failed: nothing was kept to resume from' });
+    // A later event hides it again.
+    expect(
+      detail(kept({ sessionExpiresAt: null }), [...events, ev(local(14, 12), 'status', { status: 'queued' })]).session,
+    ).toBeUndefined();
   });
 
   it('succeeded with a kept session: when it is deleted, and the note', () => {
@@ -170,6 +328,7 @@ describe('toRunDetail, paused, kept and expired sessions', () => {
     const events = [
       ev(local(14, 10), 'status', { status: 'paused' }),
       lifecycleEvent({ kind: 'resume_failed', reason: 'no saved session was found' }),
+      comment('paused'),
     ];
     expect(detail(paused(), events).session?.resumeFailure).toBe('Resume failed: no saved session was found');
     expect(detail(kept(), events).session?.resumeFailure).toBe('Resume failed: no saved session was found');
@@ -183,9 +342,94 @@ describe('toRunDetail, paused, kept and expired sessions', () => {
     expect(detail(live, [failed]).session).toBeUndefined();
   });
 
+  it('trailing comment events do not hide the failure; a later status or lifecycle event still does', () => {
+    const failed = lifecycleEvent({ kind: 'resume_failed', reason: 'no saved session was found' });
+    expect(detail(paused(), [failed, comment('paused'), comment()]).session?.resumeFailure).toBe(
+      'Resume failed: no saved session was found',
+    );
+    // A later resume (queued) or any later lifecycle event after the failure hides it.
+    expect(
+      detail(paused(), [failed, comment(), ev(local(14, 12), 'status', { status: 'queued' })]).session?.resumeFailure,
+    ).toBeUndefined();
+    expect(
+      detail(paused(), [failed, comment(), lifecycleEvent({ text: 'Pod running' })]).session?.resumeFailure,
+    ).toBeUndefined();
+    // An older failure followed by a later successful resume is not shown, with comments in between.
+    expect(
+      detail(paused(), [failed, comment(), ev(local(14, 12), 'status', { status: 'paused' }), comment('paused')])
+        .session?.resumeFailure,
+    ).toBeUndefined();
+  });
+
   it('a resume_failed event without a text reason shows the plain message', () => {
     const events = [lifecycleEvent({ kind: 'resume_failed' })];
     expect(detail(paused(), events).session?.resumeFailure).toBe('Resume failed');
+  });
+});
+
+describe('toRunDetail, pausing and resumed runs', () => {
+  const live = (over: Partial<RunDto>) =>
+    run({ status: 'idle', startedAt: local(14, 0), finishedAt: null, idleSince: local(14, 5), ...over });
+  const status = (s: string) => ev(local(14, 6), 'status', { status: s });
+
+  it('a live run with sessionEndingAt set is pausing: no terminal yet, a label for the bar', () => {
+    const d = detail(live({ sessionEndingAt: local(14, 12) }));
+    expect(d.pausing).toBe(true);
+    expect(d.connection).toEqual({ state: 'none', label: 'Pausing…' });
+  });
+
+  it('a live run without it is not pausing', () => {
+    expect(detail(live({})).pausing).toBeUndefined();
+  });
+
+  it('a resumed idle run: the banner text with the agent note', () => {
+    const events = [
+      status('queued'),
+      status('running'),
+      status('idle'),
+      status('paused'),
+      status('queued'),
+      status('starting'),
+    ];
+    const d = detail(live({ agentNote: 'Which database?' }), events);
+    expect(d.resumed).toBe(
+      'Resumed. The agent asked: Which database?. Background tasks and sub-agents that were running when it paused were stopped.',
+    );
+  });
+
+  it('a resumed run without a note, and a resumed done run', () => {
+    const events = [status('paused'), status('queued')];
+    expect(detail(live({ agentNote: null }), events).resumed).toBe(
+      'Resumed. Background tasks and sub-agents that were running when it paused were stopped.',
+    );
+    expect(detail(live({ status: 'done', agentNote: 'All set' }), events).resumed).toBe(
+      'Resumed. The agent said: All set. Background tasks and sub-agents that were running when it paused were stopped.',
+    );
+  });
+
+  it('a kept succeeded session that was re-opened counts too', () => {
+    expect(detail(live({}), [status('succeeded'), status('queued')]).resumed).toMatch(/^Resumed\./);
+  });
+
+  it('not resumed: a fresh run, or one whose next turn already started', () => {
+    expect(
+      detail(live({}), [status('queued'), status('starting'), status('running'), status('idle')]).resumed,
+    ).toBeUndefined();
+    expect(detail(live({}), [status('paused'), status('queued'), status('running')]).resumed).toBeUndefined();
+    expect(detail(live({}), []).resumed).toBeUndefined();
+  });
+
+  it('only live idle and done runs show it', () => {
+    const events = [status('paused'), status('queued')];
+    expect(detail(live({ status: 'running' }), events).resumed).toBeUndefined();
+    expect(
+      detail(run({ status: 'paused', startedAt: local(14, 0), pausedAt: local(14, 10) }), events).resumed,
+    ).toBeUndefined();
+  });
+
+  it('a queued run that was parked before is resuming; a fresh one is not', () => {
+    expect(detail(run({ status: 'queued' }), [status('paused'), status('queued')]).resuming).toBe(true);
+    expect(detail(run({ status: 'queued' }), [status('queued')]).resuming).toBeUndefined();
   });
 });
 
@@ -487,6 +731,7 @@ describe('terminalConnection', () => {
     expect(terminalConnection('retrying', 'live')).toEqual({ state: 'reconnecting', label: 'Reconnecting…' });
     expect(terminalConnection('gave_up', 'live')).toEqual({ state: 'reconnecting', label: 'Disconnected' });
     expect(terminalConnection('forbidden', 'live')).toEqual({ state: 'none', label: 'No access' });
+    expect(terminalConnection('ended', 'live')).toEqual({ state: 'ended', label: 'Session ended' });
   });
 });
 

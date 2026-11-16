@@ -113,6 +113,7 @@ const toBuffer = (data: RawData): Buffer =>
  *    cross-site upgrade). A missing Origin is allowed: only non-browser clients omit it, and they still need a session.
  *  - session (better-auth cookie) -> 4401; active org membership, then (project creator or org owner) -> 4403;
  *  - a run that is missing or in another org is 4403 too (RLS hides it; 4404 would leak existence across orgs);
+ *  - run whose session is ending or that is paused -> 4410 (the browser shows "Pausing" or "Paused", no retry);
  *  - run not running/idle, or its pod not Running -> 4409.
  *
  * The socket is always upgraded first, because a browser cannot read an HTTP status off a failed upgrade; the close code
@@ -356,6 +357,8 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const run = await withOrg(this.db, orgId, (tx) => target.lookup(tx, runId));
     if (!run) return deny(CLOSE.forbidden, 'run-not-visible');
     if (role !== 'owner' && run.createdBy !== userId) return deny(CLOSE.forbidden, 'not-owner-or-creator');
+    // After authz, so the state of a run is never told to someone who may not see it.
+    if (run.sessionEnded) return deny(CLOSE.sessionEnded, 'session-ended');
     if (!run.active) return deny(CLOSE.notActive, 'run-not-active');
     return { ok: true, userId, orgId, jobName: run.jobName };
   }
