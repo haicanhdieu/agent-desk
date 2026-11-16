@@ -351,7 +351,7 @@ D1 is answered (keep the volume, offer Resume): Task 6c adds `agent_crashed`, Ta
 **Interfaces — Produces:**
 - `useTerminal`: `CLOSE_SESSION_ENDED = 4410`; `TerminalState` gains `'ended'`. 4410 and 4409 → `onSessionEnd`, no retry. 1000 → refetch; retry only if the run is live and `sessionEndingAt` is null. Back-off only for 1006, 1011, 1013.
 - `detail.map.ts`: `terminalArea(run: RunDto): 'live' | 'pausing' | 'paused' | 'resuming' | 'expired'` and `pauseReasonText(r: PauseReason): string` — "after 30 min with nobody attached" / "the pod stopped unexpectedly (out of memory / evicted)" / "the agent crashed".
-- Copy from spec §5, exactly: "Session ended. Pausing the run…"; "Paused: waiting for your answer. Can be resumed for <N> days." (N from `sessionExpiresAt`, not hard-coded); "Pauses after 30 min with nobody attached"; resumed banner "Resumed. The agent asked: <agentNote>. Background tasks and sub-agents that were running when it paused were stopped."; expired "Nobody resumed this run within <N> days. The saved session was deleted."
+- Copy from spec §5, exactly (ending notice changed in U12, see spec §5): "Session ending…"; "Paused: waiting for your answer. Can be resumed for <N> days." (N from `sessionExpiresAt`, not hard-coded); "Pauses after 30 min with nobody attached"; resumed banner "Resumed. The agent asked: <agentNote>. Background tasks and sub-agents that were running when it paused were stopped."; expired "Nobody resumed this run within <N> days. The saved session was deleted."
 - The paused page shows "Paused: agent crashed (exit code N)" with Resume when `pauseReason = 'agent_crashed'` (add it to `pauseReasonText`, a story and a test).
 - While `sessionEndingAt` is set the run query polls (existing SSE if it carries the field, else `refetchInterval: 2000`).
 
@@ -444,3 +444,16 @@ Spec §8 asks for it; the spec's rollout table has no row for it.
 - [x] **Step 1: Write the e2e test** (runs with `E2E_IDLE_END_SECONDS=5`, like the existing pause test): open the run page, close it without a clean close (leave a stale fake attach), wait for "Paused", check the reason line, press Resume, answer, see a new turn.
 - [ ] **Step 2: Run** against a stack started with `RUN_IDLE_END_SECONDS=5` (`docs/runbooks/tests-and-e2e.md`) — expect PASS (it should fail on a checkout before Phase 1).
 - [x] **Step 3: Commit** `test(web): e2e pause with a stale terminal and resume`.
+
+### Task 11: e2e coverage and final-review fixes
+
+**Files:**
+- Modify: `apps/web/src/screens/RunTerminalArea.tsx`, `apps/web/src/features/runs/detail.map.ts` (neutral "ending" wording), `apps/worker/src/workflows/run.workflow.ts` (old-path pod-lost wording)
+- Create: `apps/web/src/mocks/dto/lifecycleRuns.ts` (browser-mock runs 67 to 70)
+- Modify: `apps/web/e2e/mock/run.spec.ts`, `apps/web/e2e/local/run.spec.ts`
+
+- [x] **Step 1: A1.** The page cannot tell a Finish from the idle timer (no run field or event differs while the session is ending), so the ending notice is neutral: "Session ending…", "The session is being saved. This page updates by itself when the session has ended.", bar label "Ending…". Failing unit tests first (detail.map, route, screen), then the copy.
+- [x] **Step 2: A2.** A run that started before `pod-lost-parks` and whose pod vanished keeps the old failure ("the run pod disappeared before it reported an exit code", no stage, no exit code). Failing in-process workflow test first; the replay test and its capture tests (`run.workflow.test.ts`) pass in one process.
+- [x] **Step 3: Mock e2e** (`pnpm --filter @agentdesk/web exec playwright test e2e/mock/run.spec.ts` after `vite build --mode mock`): ending run (notice, greyed scrollback, no terminal, no socket, with a live idle run as the control that does open one), agent crash with exit code and Resume, resume that found nothing kept, resumed banner, "30 min with nobody attached" notes, expired run.
+- [ ] **Step 4: Local e2e** `a --fake-fail run pauses with "agent crashed (exit code 3)" and offers Resume` is written; NOT RUN (the machine's ports 5173, 7233 and 54329 belong to another stack). Also not run: the U11 spec `a run whose terminal tab was killed still pauses on idle, and resumes with an answer`.
+- [x] **Step 5: Not covered by e2e, and why.** Resume pressed while the session is ending has no button in the UI (the ending notice has no actions), and the ending window of the fake pod lasts about a second, so it is proven by the workflow in-process tests and the API test, and its outcome by the mock run 69. The 4 h inactivity close and the close codes (1000, 4409, 4410) are unit tests (`useTerminal`).

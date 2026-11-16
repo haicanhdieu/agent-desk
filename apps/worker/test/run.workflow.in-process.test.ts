@@ -819,6 +819,22 @@ describe('a pod that ends without being asked to', () => {
     await expect(h.done).resolves.toMatchObject({ status: 'failed', failureReason: 'agent exited with code 137' });
     expect(h.parks).toEqual([]);
   });
+
+  it('a run that started before pod-lost-parks existed keeps the old failure when its pod vanished', async () => {
+    runtime.unpatched.add('pod-lost-parks');
+    const h = start();
+    await toRunning(h);
+    h.pods[0]?.exit({ exitCode: -1, agentStarted: true, podLost: true });
+
+    const outcome = await h.done;
+    expect(outcome).toMatchObject({
+      status: 'failed',
+      failureReason: 'the run pod disappeared before it reported an exit code',
+    });
+    expect(outcome).not.toHaveProperty('failureStage');
+    expect(outcome).not.toHaveProperty('exitCode');
+    expect(h.parks).toEqual([]);
+  });
 });
 
 describe('the session ending', () => {

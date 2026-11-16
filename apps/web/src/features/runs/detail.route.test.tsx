@@ -444,8 +444,8 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
   it('a run whose session is ending says it is pausing: no terminal, no terminal socket', async () => {
     dbRun(IDLE).sessionEndingAt = iso(-5_000);
     await renderRoute(`${base}/runs/${IDLE}`);
-    expect(await screen.findByText('Session ended. Pausing the run…')).toBeInTheDocument();
-    expect(screen.getByText('Pausing…')).toBeInTheDocument();
+    expect(await screen.findByText('Session ending…')).toBeInTheDocument();
+    expect(screen.getByText('Ending…')).toBeInTheDocument();
     expect(screen.queryByText('The agent is waiting for your answer')).not.toBeInTheDocument();
     expect(screen.queryByRole('group', { name: 'Claude Code terminal' })).not.toBeInTheDocument();
     expect(FakeWebSocket.instances).toHaveLength(0);
@@ -455,7 +455,7 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
     dbRun(IDLE).sessionEndingAt = iso(-5_000);
     pushEvent(IDLE, 'scrollback', { text: 'line one\n<b>line two</b>' });
     await renderRoute(`${base}/runs/${IDLE}`);
-    await screen.findByText('Session ended. Pausing the run…');
+    await screen.findByText('Session ending…');
     const log = await screen.findByRole('log');
     expect(log).toHaveTextContent('line one');
     expect(log).toHaveTextContent('<b>line two</b>');
@@ -467,7 +467,7 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
   it('pausing turns into paused from the run stream, with the reason, and still no socket', async () => {
     dbRun(IDLE).sessionEndingAt = iso(-5_000);
     await renderRoute(`${base}/runs/${IDLE}`);
-    await screen.findByText('Session ended. Pausing the run…');
+    await screen.findByText('Session ending…');
     act(() =>
       runStream(IDLE).emit(
         'status',
@@ -490,7 +490,7 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
     );
     expect(await screen.findByText('Paused: waiting for your answer. Can be resumed for 6 days.')).toBeInTheDocument();
     expect(screen.getByText(/the pod stopped unexpectedly \(out of memory \/ evicted\)$/)).toBeInTheDocument();
-    expect(screen.queryByText('Session ended. Pausing the run…')).not.toBeInTheDocument();
+    expect(screen.queryByText('Session ending…')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
@@ -503,7 +503,7 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
     act(() => ws.open());
     dbRun(IDLE).sessionEndingAt = iso();
     act(() => ws.serverClose(4410));
-    expect(await screen.findByText('Session ended. Pausing the run…')).toBeInTheDocument();
+    expect(await screen.findByText('Session ending…')).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(60_000));
     expect(FakeWebSocket.instances).toHaveLength(1);
   });

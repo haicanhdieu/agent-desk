@@ -200,6 +200,28 @@ test('a --fake-done run shows Done and Finish closes it as succeeded', async ({ 
   await expect(header.getByText('Succeeded', { exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
+test('a --fake-fail run pauses with "agent crashed (exit code 3)" and offers Resume', async ({ page }) => {
+  const { handle, projectId } = await signInAndCreateProject(page);
+  const runId = await commentOnNewTicket(page, handle, projectId, '/code-review --fake-fail');
+  const number = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run')).number;
+
+  // The fake agent exits 3 after its first turn: the run parks as paused with the reason, not as failed.
+  await expect
+    .poll(async () => RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run')).status, {
+      timeout: 60_000,
+    })
+    .toBe('paused');
+  const run = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run'));
+  expect(run.pauseReason).toBe('agent_crashed');
+
+  await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
+  await expect(page.getByRole('banner').getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Paused: agent crashed (exit code 3)')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
+
+  await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel').catch(() => null);
+});
+
 /*
  * Pause and resume (ADR 0022). Needs a stack whose worker has a short idle time, which would break the tests above (a
  * pod would be stopped between idle and attach), so it only runs when asked:

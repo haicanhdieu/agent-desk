@@ -364,16 +364,20 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
   const idle = runDetails.RunIdle;
 
   it('pausing: says so, closes the terminal view, and the idle notice is gone', () => {
-    const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Pausing…' } } as const;
+    const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Ending…' } } as const;
     render(<RunDetail data={data} needsYou={1} />);
-    expect(screen.getByText('Session ended. Pausing the run…')).toBeInTheDocument();
-    expect(screen.getByText('Pausing…')).toBeInTheDocument();
+    expect(screen.getByText('Session ending…')).toBeInTheDocument();
+    expect(
+      screen.getByText('The session is being saved. This page updates by itself when the session has ended.'),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Pausing/)).not.toBeInTheDocument();
+    expect(screen.getByText('Ending…')).toBeInTheDocument();
     expect(screen.queryByText('The agent is waiting for your answer')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
   });
 
   it('pausing: the last scrollback shows greyed', () => {
-    const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Pausing…' } } as const;
+    const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Ending…' } } as const;
     render(<RunDetail data={data} lines={[[{ text: 'last words' }]]} needsYou={1} />);
     const log = screen.getByRole('log');
     expect(log).toHaveTextContent('last words');
