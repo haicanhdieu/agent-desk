@@ -10,7 +10,7 @@ How a GitHub issue moves through the [project board](https://github.com/users/ha
 flowchart LR
   Backlog -->|human triage| Ready
   Ready -->|dev-build starts| IP[In progress]
-  IP -->|requirement unclear| Blocked
+  IP -->|requirement unclear or needs a human decision| Blocked
   Blocked -->|human answers, moves back| Ready
   IP -->|PR opened| Review[In review]
   Review -->|dev-review: needs a human decision| Blocked
@@ -72,19 +72,19 @@ In Claude Code, from the repo root:
 A description is first filed as a new issue, so the board tracks it. The skill then:
 
 1. Reads the issue, comments and labels, and decides bug or feature.
-2. Stops with a comment (status **Blocked**) if the requirement is unclear.
-3. Creates `fix/<n>-<slug>` or `feat/<n>-<slug>` from the latest `origin/main` in its own worktree, and moves the card to **In progress**.
-4. Fixes (systematic debugging, then a failing test first) or implements the task list (test-driven).
-5. Verifies, pushes, opens a PR to `main`, labels it, and moves the card to **In review**.
+2. Stops with a comment (status **Blocked**) if the requirement is unclear. It asks one question at a time.
+3. Creates `fix/<n>-<slug>` or `feat/<n>-<slug>` from the latest `origin/main` in its own worktree, and moves the card to **In progress**. If it blocked earlier after building had started and you have answered, it reopens that pushed branch and continues instead.
+4. Fixes (systematic debugging, then a failing test first) or implements the task list (test-driven). When an agent stops on a question a human would answer, an Advisor agent rules on it first from the repo's rules, ADRs and the ticket, and posts the decision on the issue (it is also listed in the PR). A question those sources don't settle, or that would change the architecture, a requirement or a rule, stops at **Blocked** with a comment asking you to pick one of up to 3 solutions.
+5. Verifies (at most 3 rounds; still red after that, it stops at **Blocked** with the failing output), pushes, opens a PR to `main`, labels it, and moves the card to **In review**.
 
 If the card is already In progress, In review, QA or Done, `dev-build` stops and tells you; it never takes over someone else's branch.
 
 ## 5. Answer a Blocked ticket
 
-1. Read the agent's last comment on the issue. It lists what is missing.
+1. Read the agent's last comment on the issue. It asks **one** question: what is missing, or which of up to 3 solutions to pick. If more is missing, it asks the next question on the next run.
 2. Reply in a comment, or edit the issue body (add the task list or repro).
 3. Move it back and rerun the skill that blocked:
-   - blocked by `dev-build` (comment on the issue): `board.sh status <n> Ready`, then `/dev-build <n>`;
+   - blocked by `dev-build` (comment on the issue): `board.sh status <n> Ready`, then `/dev-build <n>`. If the comment says "Work so far is pushed on `<branch>`", the rerun continues from that branch at the step in its `Stopped at:` line; otherwise it starts fresh. Keep that branch and those two lines of the comment as they are;
    - blocked by `dev-review` (comment on the PR): `board.sh status <n> "In review"`, then `/dev-review <pr>`.
 
 ## 6. Review and merge: run `dev-review`
@@ -98,7 +98,7 @@ In Claude Code, from the repo root:
 
 The skill:
 
-1. Rebases the PR on the latest `main` in its own worktree and resolves conflicts (or blocks if the two sides need a product decision).
+1. Checks the PR can be taken: it stops (no comment) if the PR is closed, not against `main`, from a fork, or its issue is still **Blocked** on an unanswered question. Then it rebases the PR on the latest `main` in its own worktree (reusing `dev-build`'s or a blocked run's if it is clean) and resolves conflicts (or blocks if the two sides need a product decision).
 2. Reviews the diff with five agents in parallel: **requirements** (does the PR fully implement the issue and its spec or plan), **code quality** (against [docs/conventions/](../conventions/README.md)), **architecture**, **performance** and **security**. Each finding gets a severity:
 
    | Severity | Means                                                                                       | Before merge      |
@@ -108,14 +108,14 @@ The skill:
    | medium   | A SHOULD broken, missing edge case or UI state, maintenance cost                            | fixed             |
    | low      | Nice to have                                                                                | listed, not fixed |
 
-   Full rubric: [severity.md](../../.agent/skills/dev-review/severity.md). Findings are posted as one comment on the PR per round.
+   Full rubric: [severity.md](../../.agent/skills/dev-review/severity.md). A separate checker agent removes duplicates, checks each finding against the code and each suggested fix against how the repo's tools really work, and the orchestrator confirms every critical, high and medium itself. Findings are posted as one comment on the PR per round.
 
-3. Sends agents to fix every critical, high and medium finding, then re-reviews all five dimensions. At most 3 rounds.
+3. Sends agents to fix every critical, high and medium finding, then re-reviews all five dimensions. At most 3 rounds. A question a rule or ADR can settle (for example a conflict between two sides, or whether a finding holds) goes to an Advisor agent first; anything it can't settle stops at **Blocked**.
 4. Waits for CI and fixes failures this PR caused (at most 3 tries). A failure the PR didn't cause (it fails on `main` too, infra, a flaky test) blocks instead of being re-run.
 5. Squash-merges: with `--auto` if `main` has required status checks, otherwise after it has watched every check go green itself.
 6. Moves the issue to **QA** (reopening it if the merge closed it) and comments.
 
-It stops at **Blocked** when it needs a human: a conflict that needs a product decision, findings still open after round 3, or CI broken by something outside the PR. PRs that change agent rules or CI (`AGENTS.md`, `.claude/`, `.agent/skills/`, `.github/workflows/`) get reviewed and fixed, then wait at **In review** for a human to merge ([git-workflow.md §7](../conventions/git-workflow.md#7-rules-for-ai-agent-authored-changes) rule 7).
+It stops at **Blocked** when it needs a human: a conflict that needs a product decision, findings still open after round 3, or CI broken by something outside the PR. PRs that change agent rules or CI (`AGENTS.md`, `.claude/`, `.agent/`, `.github/workflows/`) get reviewed and fixed, then wait at **In review** for a human to merge ([git-workflow.md §7](../conventions/git-workflow.md#7-rules-for-ai-agent-authored-changes) rule 7).
 
 To review by hand instead, use [code-review-checklist.md](../conventions/code-review-checklist.md), merge per [git-workflow.md §5](../conventions/git-workflow.md#5-merge-policy), and run `board.sh status <n> QA`.
 
