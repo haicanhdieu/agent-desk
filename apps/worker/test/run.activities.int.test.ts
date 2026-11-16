@@ -1260,7 +1260,12 @@ describe('followPodLogs', () => {
         let t = Date.now();
         const clock: Clock = { now: () => new Date((t += 30_000)) };
         const r = await follow(ctx, deps({ kube: unknown, clock })).promise;
-        expect(r).toMatchObject({ exitCode: -1, podLost: true, agentStarted: true });
+        expect(r).toMatchObject({
+          exitCode: -1,
+          podLost: true,
+          agentStarted: true,
+          lostText: 'the run pod ended (Unknown) without an exit code: NodeLost',
+        });
       });
 
       it('a pod that ended with an exit code and no end line is not podLost', async () => {
@@ -1294,7 +1299,12 @@ describe('followPodLogs', () => {
         const runId = await seedRun('x');
         const ctx = await ctxFor(runId);
         const r = await follow(ctx, deps({ kube: vanished(['agentdesk: session started']) })).promise;
-        expect(r).toMatchObject({ exitCode: -1, podLost: true, agentStarted: true });
+        expect(r).toMatchObject({
+          exitCode: -1,
+          podLost: true,
+          agentStarted: true,
+          lostText: 'the run pod disappeared before it reported an exit code',
+        });
         expect(r.endReason).toBeUndefined();
       });
 

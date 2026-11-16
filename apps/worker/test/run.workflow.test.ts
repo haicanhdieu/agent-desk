@@ -1784,26 +1784,60 @@ describe('RunWorkflow', () => {
       await h.result();
     });
 
-    it('history cost: a lease signal adds at most 4 events and starts no timer', async () => {
+    it('history cost: a lease signal adds one signal event and at most one workflow task, and starts no timer', async () => {
       const s = newRun({ idleEndSeconds: 1000, leaseTtlSeconds: 600 });
       const h = await start(s);
       await s.logsStarted.promise;
       await h.signal(signals.agentState, 'needs_input');
       await waitPhase(h, 'idle');
       await h.signal(signals.terminalAttached, ID);
-      await sleepReal(300);
+      // proto EventType numbers: 5 WORKFLOW_TASK_SCHEDULED, 6 STARTED, 7 COMPLETED, 8 TIMED_OUT, 9 FAILED, 17 TIMER_STARTED,
+      // 18 TIMER_FIRED, 19 TIMER_CANCELED, 26 WORKFLOW_EXECUTION_SIGNALED.
       const events = async () => (await h.fetchHistory()).events ?? [];
+      // Settled: the newest workflow-task event is a completed one, so no task is in flight and the count is not mid-task
+      // (a task's own commands, such as a timer, are recorded after its completed event).
+      const settled = async () => {
+        const tasks = (await events()).map((e) => Number(e.eventType)).filter((t) => t >= 5 && t <= 9);
+        return tasks[tasks.length - 1] === 7;
+      };
+      await waitFor(settled, 'the attach workflow task to complete');
       const before = (await events()).length;
       const SIGNALS = 5;
       for (let i = 0; i < SIGNALS; i++) {
         await h.signal(signals.terminalLease, [ID]);
         await sleepReal(300);
       }
+      await waitFor(settled, 'the lease workflow tasks to complete');
       const added = (await events()).slice(before);
-      // Measured: the signal itself plus its workflow task (scheduled, started, completed) = 4 per lease signal.
-      expect(added.length).toBeLessThanOrEqual(SIGNALS * 4);
-      // proto EventType: 17 TIMER_STARTED, 18 TIMER_FIRED, 19 TIMER_CANCELED. A renewal must not restart the lease timer.
-      expect(added.filter((e) => e.eventType === 17 || e.eventType === 18 || e.eventType === 19)).toEqual([]);
+      const ofType = (...types: number[]) => added.filter((e) => types.includes(Number(e.eventType)));
+      // Each lease signal is exactly one signal event.
+      expect(ofType(26)).toHaveLength(SIGNALS);
+      // A renewal must not restart the lease timer.
+      expect(ofType(17, 18, 19)).toEqual([]);
+      // Nothing but signals and workflow-task events (no activity, timer, child or marker).
+      expect(ofType(5, 6, 7, 8, 9, 26)).toHaveLength(added.length);
+      // Workflow-task retries are server and worker noise on a loaded machine, not a cost of the signal. A retried task
+      // (`attempt` above 1, scheduled again after a failed or timed-out attempt) shows up as an extra scheduled, started,
+      // completed round with no signal before it, and the failed attempt itself may be missing from the history. Leave out
+      // those rounds and any timed-out/failed events, then bound what is left.
+      const retried = new Set(
+        added
+          .filter((e) => e.eventType === 5 && (e.workflowTaskScheduledEventAttributes?.attempt ?? 1) > 1)
+          .map((e) => String(e.eventId)),
+      );
+      const scheduledOf = (e: (typeof added)[number]) =>
+        String(
+          e.workflowTaskStartedEventAttributes?.scheduledEventId ??
+            e.workflowTaskCompletedEventAttributes?.scheduledEventId,
+        );
+      const isRetry = (e: (typeof added)[number]) =>
+        e.eventType === 8 ||
+        e.eventType === 9 ||
+        (e.eventType === 5 && retried.has(String(e.eventId))) ||
+        ((e.eventType === 6 || e.eventType === 7) && retried.has(scheduledOf(e)));
+      // Measured: the signal plus its workflow task (scheduled, started, completed) = 4 events per lease signal. A task can
+      // carry more than one signal, so this is an upper bound.
+      expect(added.filter((e) => !isRetry(e)).length).toBeLessThanOrEqual(SIGNALS * 4);
       await h.signal(signals.cancel);
       await h.result();
     });

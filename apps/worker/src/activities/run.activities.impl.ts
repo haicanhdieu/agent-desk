@@ -980,6 +980,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
                 ...(tail !== undefined ? { scrollbackTail: tail } : {}),
                 agentStarted: true,
                 podLost: true as const,
+                lostText: exitCode.gone,
                 ...(lost ? { endReason: lost } : {}),
               },
             };

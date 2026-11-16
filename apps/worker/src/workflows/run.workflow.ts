@@ -163,12 +163,17 @@ function queuedResumeRejection(
   return undefined;
 }
 
+/** The failure reason of a failed activity: its name, then its message, cut to `FAILURE_REASON_MAX`. */
+function activityFailureReason(activityType: string, message: string): string {
+  return `${activityType} failed: ${message}`.slice(0, FAILURE_REASON_MAX);
+}
+
 function failureReason(err: unknown): string {
   let reason: string;
   if (err instanceof ActivityFailure) {
     const cause = err.cause;
     if (cause instanceof ApplicationFailure && cause.type === POD_PENDING_TIMEOUT) reason = cause.message;
-    else reason = `${err.activityType ?? 'activity'} failed: ${cause?.message ?? err.message}`;
+    else return activityFailureReason(err.activityType ?? 'activity', cause?.message ?? err.message);
   } else if (err instanceof Error) {
     reason = err.message;
   } else {
@@ -485,7 +490,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         throw ApplicationFailure.nonRetryable('followPodLogs returned nothing');
       }
       // An abandoned pod has no result: it is treated as exited while `ending`, so it parks or succeeds below.
-      const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted, endReason, podLost } =
+      const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted, endReason, podLost, lostText } =
         current.result ?? {};
       // The runner stopped the run before the agent started: report the setup failure. The run's exit code is the setup
       // script's (the runner's own 78 only when setup timed out or the script's code is unknown).
@@ -538,14 +543,16 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         return { status: 'succeeded', ...(exitCode !== undefined ? { exitCode } : {}), podExited: true };
       }
       // A run that started before `pod-lost-parks`: `followPodLogs` used to throw when the pod vanished after the agent
-      // started, so it failed with this reason, no exit code and no stage. Keep that wording (the result now carries
-      // `podLost` instead of throwing, and `exitCode` is a placeholder -1).
+      // started, so the catch below wrote `followPodLogs failed: <text>` with no exit code, no stage and no scrollback.
+      // Keep exactly that (the result now carries `podLost` and the same text in `lostText`; `exitCode` is a placeholder -1).
       if (podLost === true && !podLostParks) {
         return {
           status: 'failed',
-          failureReason: 'the run pod disappeared before it reported an exit code',
+          failureReason: activityFailureReason(
+            'followPodLogs',
+            lostText ?? 'the run pod disappeared before it reported an exit code',
+          ),
           podExited: false,
-          ...(scrollbackTail !== undefined ? { scrollbackTail: scrollbackTail.slice(-SCROLLBACK_TAIL_MAX) } : {}),
         };
       }
       return {
