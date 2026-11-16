@@ -152,7 +152,7 @@ git worktree add -b "$branch" "$wt" origin/main
 
 mode=new
 if [ -n "$integration" ]; then
-  # Sub-PRs need a remote base, so the integration branch goes up before any unit starts.
+  # The integration branch goes up before any unit starts, so a resume can find it.
   git -C "$wt" push -u origin "$branch"
   mode=integration
 fi

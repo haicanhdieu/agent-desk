@@ -7,7 +7,7 @@ import { CONFIG, type Config } from './config/config.module';
 async function main(): Promise<void> {
   const app = await createApp();
   const config = app.get<Config>(CONFIG);
-  await app.listen(config.PORT, '0.0.0.0');
+  await app.listen(config.PORT, config.HOST);
 }
 
 main().catch((err: unknown) => {

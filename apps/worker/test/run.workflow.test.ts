@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { createTimeSkippingTestEnv } from './helpers/temporal-env';
 import { readFile, writeFile } from 'node:fs/promises';
 import { Worker } from '@temporalio/worker';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
@@ -365,7 +366,7 @@ function expectFinishOnce(s: Script): FinishDetails | undefined {
 }
 
 beforeAll(async () => {
-  env = await TestWorkflowEnvironment.createTimeSkipping();
+  env = await createTimeSkippingTestEnv();
   worker = await Worker.create({
     connection: env.nativeConnection,
     taskQueue: TASK_QUEUE,
