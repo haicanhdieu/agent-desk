@@ -1,3 +1,4 @@
+import { existsSync } from 'node:fs';
 import { chmod, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -112,6 +113,27 @@ describe('startLocalPg', () => {
     await expect(startLocalPg({ binDir, dataRoot, probe: async () => false, attempts: 2 })).rejects.toThrow(
       /could not bind/,
     );
+    expect(await readdir(dataRoot)).toHaveLength(0);
+  });
+
+  it('retries on a fresh port when the first server start fails, then returns the second server', async () => {
+    const { binDir, dataRoot } = await binDirWith(
+      'exit 0',
+      [
+        'd="$(dirname "$0")"',
+        'if [ ! -e "$d/first" ]; then touch "$d/first"; echo "FATAL: port taken" >&2; exit 1; fi',
+        'touch "$d/second"',
+        'exec sleep 30',
+      ].join('\n'),
+    );
+    const server = await startLocalPg({
+      binDir,
+      dataRoot,
+      attempts: 2,
+      probe: async () => existsSync(path.join(binDir, 'second')),
+    });
+    expect(new URL(server.adminUrl).hostname).toBe('127.0.0.1');
+    await server.stop();
     expect(await readdir(dataRoot)).toHaveLength(0);
   });
 
