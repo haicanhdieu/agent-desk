@@ -27,14 +27,15 @@ One form, one question ([AGENTS.md › Talking to humans](../../../AGENTS.md#tal
 
 <Only if a branch exists:>
 Work so far is pushed on `<branch>`.
-Stopped at: <build, task <k> of <total> | build (bug fix) | verify, round <r> | opening the PR>
+<Multi-unit only:> Units: <U<id> merged #<pr> | U<id> open #<pr> | U<id> started | U<id> not started, joined by "; ">
+Stopped at: <build, task <k> of <total> | build (bug fix) | verify, round <r> | opening the PR | multi-unit: a value from the table in multi-unit.md, Blocking and resume>
 
 Reply here with your pick, move the card back to **Ready**, and run `/dev-build <n>` again<If a branch exists: "; it continues from that branch">.
 ```
 
 For a feature with no task list, the question is always: "Can you add a task list (`- [ ]` steps with what changes and how we know it's done), or link a plan in `docs/superpowers/plans/`?" (Solutions: "I add the list here", "I link a plan", "Skip: close the ticket".)
 
-The two lines `Work so far is pushed on …` and `Stopped at: …` are how the next run knows it may resume (Triage reads them), so write them exactly. Leave both out when no branch exists.
+The two lines `Work so far is pushed on …` and `Stopped at: …` (plus `Units: …` in multi-unit mode, where the branch is the integration branch) are how the next run knows it may resume (Triage reads them), so write them exactly. Leave them out when no branch exists.
 
 ## Advisor decision
 
@@ -58,6 +59,34 @@ Post one per accepted Advisor decision, before you re-dispatch the asker. It let
 **dev-build:** working on this as a **<bug fix | feature>** on branch `<branch>` (from latest `main`).
 ```
 
+## Units plan
+
+Multi-unit mode only, instead of **Started**. Triage copies the table back on a resume, so keep its columns exactly.
+
+```markdown
+**dev-build:** working on this as a **feature** in <N> parts on branch `<integration>` (from latest `main`). Each part gets its own internal check before it joins that branch; you get one PR to `main` at the end.
+
+| Unit                | Tasks                          | After              |
+| ------------------- | ------------------------------ | ------------------ |
+| U<id> <short title> | <task titles, comma-separated> | <U ids, or "none"> |
+```
+
+## Unit merged
+
+Multi-unit mode only, after each sub-PR merges into the integration branch.
+
+```markdown
+**dev-build:** part U<id> (<k> of <N>) is done and checked: #<sub-PR>, merged into `<integration>`. <m> part(s) to go.
+```
+
+## Resumed (units)
+
+Multi-unit mode only, instead of **Resumed**.
+
+```markdown
+**dev-build:** resumed on branch `<integration>` after your answer. Parts done: <k> of <N>. Continuing from: <the "Stopped at" line>.
+```
+
 ## Resumed
 
 ```markdown
@@ -69,5 +98,6 @@ Post one per accepted Advisor decision, before you re-dispatch the asker. It let
 ```markdown
 **dev-build:** PR ready for review: #<pr>. <one-line summary of the change>.
 <For a bug: "Root cause: <one line>.">
+<Multi-unit only: "It brings together <N> parts that were each checked on their own: #<sub-PR>, #<sub-PR>, ….">
 This issue stays open until QA passes.
 ```
