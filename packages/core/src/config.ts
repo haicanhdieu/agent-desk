@@ -1,7 +1,12 @@
 import { existsSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
-import { ENDING_DEADLINE_SECONDS, IDLE_END_SECONDS } from './temporal-names';
+import {
+  ENDING_DEADLINE_SECONDS,
+  IDLE_END_SECONDS,
+  TERMINAL_LEASE_INTERVAL_SECONDS,
+  TERMINAL_LEASE_TTL_SECONDS,
+} from './temporal-names';
 
 /** Env values arrive as strings; blank means "unset" (`.env.example` lists optional keys with empty values). */
 const blankToUndefined = (v: unknown): unknown => (typeof v === 'string' && v.trim() === '' ? undefined : v);
@@ -90,6 +95,8 @@ export const ConfigSchema = z
     RUN_IDLE_END_SECONDS: blankDefault(z.coerce.number().int().min(1).default(IDLE_END_SECONDS)),
     /** How long an ending session may take before the Job is deleted. A test seam like RUN_IDLE_END_SECONDS. */
     RUN_ENDING_DEADLINE_SECONDS: blankDefault(z.coerce.number().int().min(1).default(ENDING_DEADLINE_SECONDS)),
+    /** How long a terminal's attach lease lives without a renewal. A test seam like RUN_IDLE_END_SECONDS. */
+    RUN_LEASE_TTL_SECONDS: blankDefault(z.coerce.number().int().min(1).default(TERMINAL_LEASE_TTL_SECONDS)),
     RUN_SETUP_TIMEOUT_SECONDS: blankDefault(z.coerce.number().int().min(1).max(3300).default(600)),
     SETUP_TEST_TTL_SECONDS: blankDefault(z.coerce.number().int().min(60).max(3600).default(900)),
     FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
@@ -100,6 +107,14 @@ export const ConfigSchema = z
     SSE_DRAIN_TIMEOUT_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     SSE_HEARTBEAT_MS: blankDefault(z.coerce.number().int().min(10).default(15000)),
     TERMINAL_REAUTH_MS: blankDefault(z.coerce.number().int().min(10).default(60000)),
+    /** How often the api sends a run's live terminal ids to its workflow. A test seam; keep it well under RUN_LEASE_TTL_SECONDS. */
+    TERMINAL_LEASE_INTERVAL_MS: blankDefault(
+      z.coerce
+        .number()
+        .int()
+        .min(10)
+        .default(TERMINAL_LEASE_INTERVAL_SECONDS * 1000),
+    ),
     TERMINAL_PING_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     POLL_MAX_BACKOFF_SECONDS: blankDefault(z.coerce.number().int().min(1).default(3600)),
     OTEL_EXPORTER_OTLP_ENDPOINT: optional(z.string()),

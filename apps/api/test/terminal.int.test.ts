@@ -232,6 +232,7 @@ describe('terminal relay', () => {
     fallbackGate = undefined;
     resizes.length = 0;
     t.temporal.reset();
+    t.app.get(TerminalGateway).leaseIntervalMs = 120_000;
   });
 
   it('closes 4401 without a session', async () => {
@@ -484,6 +485,83 @@ describe('terminal relay', () => {
     await sleep(150);
     expect(signalsFor(runId, SIGNAL.terminalDetached)).toHaveLength(1);
     expect(signalsFor(runId, SIGNAL.resumed)).toHaveLength(0);
+  });
+
+  it("attach and detach carry the socket's own connection id: the id of its attach client in the pod", async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => signalsFor(runId, SIGNAL.terminalAttached).length === 1);
+    const id = attachIds().at(-1);
+    expect(id).toMatch(UUID_RE);
+    expect(signalsFor(runId, SIGNAL.terminalAttached)[0]?.args).toEqual([SIGNAL.terminalAttached, id]);
+    c.ws.close();
+    await c.closed;
+    await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 1);
+    expect(signalsFor(runId, SIGNAL.terminalDetached)[0]?.args).toEqual([SIGNAL.terminalDetached, id]);
+  });
+
+  describe('attach leases', () => {
+    const leaseIds = (runId: string): string[][] =>
+      signalsFor(runId, SIGNAL.terminalLease).map((x) => (Array.isArray(x.args[1]) ? x.args[1].map(String) : []));
+
+    it('sends the live ids of a run every interval, drops a closed socket, and stops after the last close', async () => {
+      t.app.get(TerminalGateway).leaseIntervalMs = 100;
+      const runId = await makeRun('running');
+      const a = connect(runId, { cookie: alice });
+      const b = connect(runId, { cookie: alice });
+      await Promise.all([a.opened, b.opened]);
+      await until(() => signalsFor(runId, SIGNAL.terminalAttached).length === 2);
+      const ids = signalsFor(runId, SIGNAL.terminalAttached).map((x) => String(x.args[1]));
+      expect(new Set(ids).size).toBe(2);
+      // One signal per run per tick, holding both ids.
+      await until(() => leaseIds(runId).some((l) => l.length === 2));
+      expect(leaseIds(runId)[0]?.slice().sort()).toEqual(ids.slice().sort());
+
+      a.ws.close();
+      await a.closed;
+      await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 1);
+      const gone = String(signalsFor(runId, SIGNAL.terminalDetached)[0]?.args[1]);
+      const before = leaseIds(runId).length;
+      await until(() => leaseIds(runId).length >= before + 2);
+      expect(
+        leaseIds(runId)
+          .slice(before)
+          .every((l) => l.length === 1 && !l.includes(gone)),
+      ).toBe(true);
+
+      b.ws.close();
+      await b.closed;
+      await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 2);
+      await sleep(250);
+      const settled = leaseIds(runId).length;
+      await sleep(400);
+      expect(leaseIds(runId)).toHaveLength(settled);
+    });
+
+    it('sends nothing for a socket that was denied, and nothing for a socket whose attach signal failed', async () => {
+      t.app.get(TerminalGateway).leaseIntervalMs = 50;
+      const gateway = t.app.get(TerminalGateway);
+      gateway.signalRetryMs = 5;
+      try {
+        const runId = await makeRun('running');
+        expect(await connect(runId, { cookie: carol }).closed).toBe(4403);
+        expect(await connect(runId).closed).toBe(4401);
+        t.temporal.signalHook = async (name) => {
+          if (name === SIGNAL.terminalAttached) throw new Error('boom');
+        };
+        const c = connect(runId, { cookie: alice });
+        await c.opened;
+        await until(() => c.bytes().length > 0);
+        await sleep(300);
+        c.ws.close();
+        await c.closed;
+        await sleep(100);
+        expect(t.temporal.callsOfKind('signal').filter((x) => x.workflowId === runWorkflowId(runId))).toHaveLength(0);
+      } finally {
+        gateway.signalRetryMs = 100;
+      }
+    });
   });
 
   it('a signal failure does not break the relay', async () => {
@@ -808,9 +886,11 @@ describe('terminal relay: setup tests', () => {
     fallbackGate = undefined;
     resizes.length = 0;
     t.temporal.reset();
+    t.app.get(TerminalGateway).leaseIntervalMs = 120_000;
   });
 
-  it('attaches end to end: typed input comes back, and no workflow is signalled', async () => {
+  it('attaches end to end: typed input comes back, and no workflow is signalled (no lease either)', async () => {
+    t.app.get(TerminalGateway).leaseIntervalMs = 50;
     const id = await makeSetupTest('running');
     const c = connectSetup(id, { cookie: alice });
     await c.opened;

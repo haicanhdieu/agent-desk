@@ -29,9 +29,20 @@ import {
   sessionStarted,
   terminalAttached,
   terminalDetached,
+  terminalLease,
   turnFinished,
   type RunPhase,
 } from './signals';
+import {
+  LEASE_TTL_MS,
+  attach as attachLease,
+  count as leaseCount,
+  detach as detachLease,
+  expire as expireLeases,
+  nextExpiryMs,
+  renew as renewLeases,
+  type Leases,
+} from './attach-leases';
 import {
   cancelEffect,
   endOutcome,
@@ -80,6 +91,8 @@ const RUN_VOLUME_PATCH = 'run-volume';
 const ENDING_DEADLINE_PATCH = 'ending-deadline';
 /** Marks runs that park a pod that was lost or whose agent crashed, and queue a resume sent while `ending`; read once, right after `pauseResume`. */
 const POD_LOST_PATCH = 'pod-lost-parks';
+/** Marks runs whose terminal attach state is a set of expiring leases, not a counter; read once, right after `podLostParks`. */
+const ATTACH_LEASES_PATCH = 'attach-leases';
 /** Marks runs that park on idle instead of ending; evaluated once, right after `loadRun`. */
 const PAUSE_RESUME_PATCH = 'pause-resume';
 /** Plain-language reason shown on the run when its history grew too long. */
@@ -182,7 +195,17 @@ function failureReason(err: unknown): string {
 export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> {
   const { orgId, runId } = input;
   let phase: RunPhase = 'loading';
-  let attached = 0;
+  /** Attach signals without a connection id (API pods that predate leases): a plain counter. */
+  let legacyAttached = 0;
+  /** Terminal connections by id, each with the time its lease runs out; used only with `attachLeases`. */
+  let leases: Leases = new Map();
+  /** `patched('attach-leases')`, read once right after `podLostParks`; false keeps the counter for runs that started before. */
+  let attachLeases = false;
+  let leaseTtlMs = LEASE_TTL_MS;
+  /** Terminals the workflow counts as attached: the id-less counter plus the leases that have not run out. */
+  const attached = (): number => legacyAttached + leaseCount(leases);
+  /** A signal carries an id when the API is new enough to send one; null is how JSON spells "none". */
+  const hasId = (id: string | null | undefined): id is string => id !== undefined && id !== null;
   let isGranted = false;
   let finishRequested = false;
   let resumePending = false;
@@ -251,7 +274,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     body.cancel();
   };
 
-  setHandler(runState, () => ({ phase, terminalAttached: attached }));
+  setHandler(runState, () => ({ phase, terminalAttached: attached() }));
   // A `granted` that arrives after the run stopped waiting (cancelled, or already granted) changes nothing.
   setHandler(granted, () => {
     isGranted = true;
@@ -267,13 +290,21 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   // Legacy signals, kept for histories recorded before `agentState`.
   setHandler(turnFinished, () => onTurn('needs_input'));
   setHandler(resumed, () => onTurn('working'));
-  setHandler(terminalAttached, () => {
-    attached += 1;
+  // Pure decisions live in ./attach-leases. An id (malformed ones are ignored there) is a lease; no id is the old counter.
+  setHandler(terminalAttached, (connectionId?: string) => {
+    if (attachLeases && hasId(connectionId)) leases = attachLease(leases, connectionId, Date.now(), leaseTtlMs);
+    else legacyAttached += 1;
     epoch += 1;
   });
-  setHandler(terminalDetached, () => {
-    attached = Math.max(0, attached - 1);
+  setHandler(terminalDetached, (connectionId?: string) => {
+    if (attachLeases && hasId(connectionId)) leases = detachLease(leases, connectionId);
+    else legacyAttached = Math.max(0, legacyAttached - 1);
     epoch += 1;
+  });
+  // A renewal changes no count, so it does not restart the idle timer; the lease wait below re-reads the expiry.
+  setHandler(terminalLease, (connectionIds: string[]) => {
+    if (!attachLeases || !Array.isArray(connectionIds)) return;
+    leases = renewLeases(leases, connectionIds, Date.now(), leaseTtlMs);
   });
   // Legacy signal: honoured only while idle or done; a finish sent while running is dropped, not deferred.
   setHandler(finish, () => {
@@ -357,6 +388,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     pauseResume = patched(PAUSE_RESUME_PATCH);
     endingDeadline = patched(ENDING_DEADLINE_PATCH);
     podLostParks = patched(POD_LOST_PATCH);
+    attachLeases = patched(ATTACH_LEASES_PATCH);
+    if (c.leaseTtlSeconds !== undefined) leaseTtlMs = c.leaseTtlSeconds * 1000;
 
     // 1. Acquire a slot.
     phase = 'waiting_slot';
@@ -410,6 +443,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           await act.endSession(c);
           continue;
         }
+        // An id nobody renewed stops counting, even if no timer was running when it ran out (the run was busy).
+        if (attachLeases) leases = expireLeases(leases, Date.now());
         const seen = epoch;
         // Every term must turn false once handled, or condition() resolves at once and the loop spins.
         const wake = () =>
@@ -421,7 +456,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           idleFixPending;
         // phase is read through a call: signal handlers change it between awaits, which TS narrowing cannot see.
         const p = currentPhase();
-        if (idleTimerApplies(p, attached, ending)) {
+        if (idleTimerApplies(p, attached(), ending)) {
           if (!(await condition(wake, idleMs))) {
             // Recorded before `ending`: once the session end has begun nothing may bring the run back to `running`.
             if (pauseResume) parkKind = parkKindOf(currentPhase());
@@ -434,6 +469,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           const left =
             endingStartedMs + (c.endingDeadlineSeconds ?? ENDING_DEADLINE_SECONDS_DEFAULT) * 1000 - Date.now();
           if (left <= 0 || !(await condition(wake, left))) await abandonPod(c, current);
+        } else if (attachLeases && !ending && leases.size > 0) {
+          // Wake when the earliest lease runs out (its id may have been renewed meanwhile: the next pass re-reads it).
+          const left = (nextExpiryMs(leases) ?? 0) - Date.now();
+          await condition(wake, left);
         } else {
           await condition(wake);
         }
@@ -590,7 +629,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   async function park(c: RunContext, kind: ParkKind, reason: PauseReason): Promise<Outcome | { pod: Pod }> {
     hardTimer.cancel();
     usedSeconds += Math.max(0, Math.floor((Date.now() - podStartedMs) / 1000));
-    attached = 0;
+    legacyAttached = 0;
+    leases = new Map();
     sessionUp = false;
     log.info('run parked', { usedSeconds });
     await act.deleteJob(c);
@@ -691,7 +731,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       resumeScope = undefined;
       dropRequested = false;
       parkKind = undefined;
-      attached = 0;
+      legacyAttached = 0;
+      leases = new Map();
       wroteRunningSinceTurn = false;
       resumePending = false;
       idleFixPending = false;

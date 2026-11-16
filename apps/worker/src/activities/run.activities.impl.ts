@@ -120,6 +120,7 @@ export type RunActivityConfig = Pick<
   | 'RUN_KEPT_DONE_SESSIONS_PER_PROJECT'
   | 'RUN_IDLE_END_SECONDS'
   | 'RUN_ENDING_DEADLINE_SECONDS'
+  | 'RUN_LEASE_TTL_SECONDS'
 >;
 
 export interface RunActivityTiming {
@@ -404,6 +405,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       maxConcurrentRuns: row.maxConcurrentRuns,
       idleEndSeconds: deps.config.RUN_IDLE_END_SECONDS,
       endingDeadlineSeconds: deps.config.RUN_ENDING_DEADLINE_SECONDS,
+      leaseTtlSeconds: deps.config.RUN_LEASE_TTL_SECONDS,
     };
   }
 

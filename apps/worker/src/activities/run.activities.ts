@@ -30,6 +30,8 @@ export interface RunContext {
   idleEndSeconds?: number;
   /** Seconds an `ending` session may take before the Job is deleted (normally `ENDING_DEADLINE_SECONDS`, 90); a test seam. */
   endingDeadlineSeconds?: number;
+  /** Seconds an attach lease lives without a renewal (normally `TERMINAL_LEASE_TTL_SECONDS`, 300); a test seam like `idleEndSeconds`. */
+  leaseTtlSeconds?: number;
   /** Seconds between workspace-token refreshes. Normally 2700 (45 min of the token's hour); a field like `idleEndSeconds`. */
   tokenRefreshSeconds?: number;
   /** Floor of a resumed pod's allowance, seconds (default `RESUME_MIN_SECONDS`, 3600); a test seam like `idleEndSeconds`. */

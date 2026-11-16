@@ -34,6 +34,21 @@ describe('plugin and setup config', () => {
     expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '' }).RUN_ENDING_DEADLINE_SECONDS).toBe(90);
     expect(() => parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '0' })).toThrow('RUN_ENDING_DEADLINE_SECONDS');
   });
+  it('the terminal lease settings are test seams: blank is the default, below the minimum is refused', () => {
+    const c = parseConfig(base);
+    expect(c.RUN_LEASE_TTL_SECONDS).toBe(300);
+    expect(c.TERMINAL_LEASE_INTERVAL_MS).toBe(120_000);
+    expect(parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '5', TERMINAL_LEASE_INTERVAL_MS: '50' })).toMatchObject({
+      RUN_LEASE_TTL_SECONDS: 5,
+      TERMINAL_LEASE_INTERVAL_MS: 50,
+    });
+    expect(parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '', TERMINAL_LEASE_INTERVAL_MS: '' })).toMatchObject({
+      RUN_LEASE_TTL_SECONDS: 300,
+      TERMINAL_LEASE_INTERVAL_MS: 120_000,
+    });
+    expect(() => parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '0' })).toThrow('RUN_LEASE_TTL_SECONDS');
+    expect(() => parseConfig({ ...base, TERMINAL_LEASE_INTERVAL_MS: '1' })).toThrow('TERMINAL_LEASE_INTERVAL_MS');
+  });
   it('HOST defaults to all interfaces, can be narrowed, and blank falls back to the default', () => {
     expect(parseConfig(base).HOST).toBe('0.0.0.0');
     expect(parseConfig({ ...base, HOST: '127.0.0.1' }).HOST).toBe('127.0.0.1');

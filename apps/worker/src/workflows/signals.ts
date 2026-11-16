@@ -16,8 +16,14 @@ export const agentState = defineSignal<[AgentState]>('agentState');
 // Legacy: kept registered so histories recorded before `agentState` still replay.
 export const turnFinished = defineSignal<[]>('turnFinished');
 export const resumed = defineSignal<[]>('resumed');
-export const terminalAttached = defineSignal<[]>('terminalAttached');
-export const terminalDetached = defineSignal<[]>('terminalDetached');
+/**
+ * A terminal socket opened / closed. The API sends its own connection id (a UUID); no argument is the legacy counter
+ * path, still sent by API pods that predate attach leases.
+ */
+export const terminalAttached = defineSignal<[connectionId?: string]>('terminalAttached');
+export const terminalDetached = defineSignal<[connectionId?: string]>('terminalDetached');
+/** The connection ids of every terminal socket the API holds open for this run; sent every 2 minutes while any is open. */
+export const terminalLease = defineSignal<[connectionIds: string[]]>('terminalLease');
 export const finish = defineSignal<[]>('finish');
 export interface FinishRunResult {
   accepted: true;

@@ -232,7 +232,17 @@ describe('loadRun', () => {
       maxConcurrentRuns: 3,
       idleEndSeconds: 1800,
       endingDeadlineSeconds: 90,
+      leaseTtlSeconds: 300,
     });
+  });
+
+  it('takes the attach lease time from config (RUN_LEASE_TTL_SECONDS), so a test can expire leases quickly', async () => {
+    const runId = await seedRun('x', 'queued');
+    const quick = await createRunActivities(deps({ config: { ...config, RUN_LEASE_TTL_SECONDS: 4 } })).loadRun(
+      ORG,
+      runId,
+    );
+    expect(quick.leaseTtlSeconds).toBe(4);
   });
 
   it('takes the idle end from config (RUN_IDLE_END_SECONDS), so the local stack can pause quickly', async () => {

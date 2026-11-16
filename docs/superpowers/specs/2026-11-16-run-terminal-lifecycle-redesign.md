@@ -334,4 +334,6 @@ The entrypoint is the only owner of the pod's exit.
 2. Should a run whose agent crashed (`agent_exit`, non-zero) also keep its volume and offer Resume, or stay `failed` as
    today? Decided 2026-11-16: keep the volume and offer Resume (pause reason `agent_crashed`); exit code 0 still succeeds.
 3. A forgotten open browser tab counts as attached and keeps a run's pod for up to 7 days. Add an "attached but no
-   input for N hours" rule now, or later?
+   input for N hours" rule now, or later? Decided 2026-11-16 (D2): a browser-side rule only. The web terminal closes
+   itself after the page was unused (no keydown, pointerdown, wheel or touchstart) or hidden for 4 hours, so a forgotten
+   tab stops renewing its lease and the run can park. No keystroke detection on the server, no workflow change.

@@ -48,7 +48,7 @@
 Ask each one with the `AGENTS.md` "Talking to humans" template, one at a time, and wait.
 
 - **D1, spec open question 2: answered 2026-11-16, option 1.** A run whose agent crashed (`agent_exit`, non-zero code) keeps its volume and offers Resume (it parks like a lost pod, with the new pause reason `agent_crashed`); exit code 0 still means succeeded. Added as Task 6c (data) and in Tasks 6b and 7.
-- **D2, spec open question 3, before Phase 9:** add an "attached but no input for N hours" rule now (inside Phase 9's lease design) or later (separate spec)? Phase 9 as written does not include it.
+- **D2, spec open question 3: answered 2026-11-16, option 3.** A browser-side rule only (no keystroke detection on the server, no workflow change): the web terminal closes itself after the page was unused for a few hours, so a forgotten tab stops renewing its lease and the run can park. Added as Task 9b.
 
 ## File Map
 
@@ -390,7 +390,7 @@ The runner part must be live before the worker part is relied on. Keep one PR, b
 
 ## Phase 9: Attach leases (PR 9) — `review:sensitive` (terminal)
 
-**Stop first:** ask decision point D2. The plan below does not include an "attached but idle for N hours" rule.
+D2 is answered (Task 9b): the lease design itself has no "attached but idle for N hours" rule; the browser closes an unused tab.
 
 ### Task 9: Lease set in the workflow, lease signals from the API
 
@@ -406,11 +406,11 @@ The runner part must be live before the worker part is relied on. Keep one PR, b
 - Workflow under `patched('attach-leases')`: `attached` is `count(leases)`; the idle-timer wait also wakes at `nextExpiryMs` and drops expired ids.
 - API: for each run with open sockets, one `terminalLease` signal with that run's live ids every 2 minutes; stops when the last socket closes; only for sockets that passed authz.
 
-- [ ] **Step 1: Failing tests:** pure: detach before attach → count 0; double detach → count 0; renew of an unknown id → no change; an id unheard for 5 minutes expires, a renewed one does not. Workflow: attach with id, no lease for 5 min (short test values) → idle timer runs and the run parks; legacy no-id signals still count; old fixtures replay. API: lease sent every interval (fake timers) with the live ids; stopped after the last close; never sent for an unauthorized socket.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- attach-leases run.workflow && pnpm --filter @agentdesk/api test -- terminal` — expect FAIL.
-- [ ] **Step 3: Implement.** Lease timing values are test seams via `loadRun`, like `idleEndSeconds`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/api test` — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): attach leases that expire instead of an attach counter` (API part in the same PR; one concern: leases).
+- [x] **Step 1: Failing tests:** pure: detach before attach → count 0; double detach → count 0; renew of an unknown id → no change; an id unheard for 5 minutes expires, a renewed one does not. Workflow: attach with id, no lease for 5 min (short test values) → idle timer runs and the run parks; legacy no-id signals still count; old fixtures replay. API: lease sent every interval (fake timers) with the live ids; stopped after the last close; never sent for an unauthorized socket.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- attach-leases run.workflow && pnpm --filter @agentdesk/api test -- terminal` — expect FAIL.
+- [x] **Step 3: Implement.** Lease timing values are test seams via `loadRun`, like `idleEndSeconds`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/api test` — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): attach leases that expire instead of an attach counter` (API part in the same PR; one concern: leases).
 
 ---
 

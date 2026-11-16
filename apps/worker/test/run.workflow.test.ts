@@ -580,7 +580,7 @@ describe('RunWorkflow', () => {
   });
 
   it('a history near the limit ends the run as failed with a plain reason, and cleanup runs', async () => {
-    const s = newRun({ historyEventLimit: 45 });
+    const s = newRun({ historyEventLimit: 52 });
     const h = await start(s);
     await s.logsStarted.promise;
     await waitPhase(h, 'running');
@@ -1754,8 +1754,58 @@ describe('RunWorkflow', () => {
     });
   });
 
+  describe('attach leases (attach-leases)', () => {
+    const ID = '11111111-1111-4111-8111-111111111111';
+
+    it('an id that stops renewing stops holding the idle timer: renewed ids hold it, then the run parks', async () => {
+      const s = newRun({ idleEndSeconds: 1, leaseTtlSeconds: 4 });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.terminalAttached, ID);
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      expect((await state(h)).terminalAttached).toBe(1);
+      // The first lease would run out at 4 s; the renewal at ~2 s carries it to ~6 s.
+      await sleepReal(2000);
+      await h.signal(signals.terminalLease, [ID]);
+      await sleepReal(2500);
+      expect((await state(h)).terminalAttached).toBe(1);
+      expect(count(s, 'endSession')).toBe(0);
+      // No more renewals: the lease runs out, then the idle timer parks the run.
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['idle_timeout']);
+      expect((await state(h)).terminalAttached).toBe(0);
+      captured['run-attach-leases'] = h;
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a detach with the id releases the idle timer, and an id-less attach still counts as before', async () => {
+      const s = newRun({ idleEndSeconds: 1, leaseTtlSeconds: 60 });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.terminalAttached, ID);
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      expect((await state(h)).terminalAttached).toBe(2);
+      await h.signal(signals.terminalDetached, ID);
+      await h.signal(signals.terminalDetached, ID);
+      await sleepReal(1800);
+      expect((await state(h)).terminalAttached).toBe(1);
+      expect(count(s, 'endSession')).toBe(0);
+      await h.signal(signals.terminalDetached);
+      await waitPhase(h, 'parked');
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+  });
+
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
     expect(Object.keys(captured).sort()).toEqual([
+      'run-attach-leases',
       'run-cancel-loading',
       'run-cancel-starting',
       'run-ending-deadline',
