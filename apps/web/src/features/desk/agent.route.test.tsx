@@ -434,12 +434,16 @@ describe('desk agent route: Check now', () => {
 
   it('a double click sends one poll request, shows Checking while it runs, then shows the new Last checked time', async () => {
     pollingProject();
-    // A slow poll, so the in-flight state can be seen; it moves Last checked when it finishes.
+    // A held poll, so the in-flight state can be seen; the test releases it, and it then moves Last checked.
     let sent = 0;
+    let release: () => void = () => undefined;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
     server.use(
       http.post(pollPath, async () => {
         sent += 1;
-        await sleep(150);
+        await gate;
         const polling = mockDb.state.triggers[projectId]?.polling;
         if (polling) polling.lastCheckedAt = new Date().toISOString();
         return new HttpResponse(null, { status: 202 });
@@ -451,6 +455,7 @@ describe('desk agent route: Check now', () => {
     fireEvent.click(button);
     fireEvent.click(button);
     expect(screen.getByRole('button', { name: 'Checking…' })).toBeDisabled();
+    release();
     expect(await screen.findByText('just now (polling)')).toBeInTheDocument();
     await waitFor(() => expect(checkNow()).toBeEnabled());
     expect(checkNow()).toHaveTextContent('Check now');
