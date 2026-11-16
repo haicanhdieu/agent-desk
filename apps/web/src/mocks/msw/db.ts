@@ -179,6 +179,11 @@ export const mockDb = {
     counter = 0;
     for (const hook of resetHooks) hook();
   },
+  /** Adds runs (and their events) to the store, for the browser mock's extra fixtures. A reset drops them. */
+  addRuns(runs: RunDto[], events: Record<string, RunEventDto[]>): void {
+    state.runs.push(...structuredClone(runs));
+    Object.assign(state.runEvents, structuredClone(events));
+  },
   /** Runs `hook` on every reset (live.ts stops scripted runs and drops stream listeners). */
   onReset(hook: () => void): void {
     resetHooks.push(hook);
