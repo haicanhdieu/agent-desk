@@ -127,7 +127,7 @@ Continue only when every unit in `UNITS` (and every fix unit) is merged and `gh 
 
 ## M5. Final verify
 
-Spawn the **Verifier** on the integration worktree with `<base>` = `origin/main` and its step 5 (coverage per touched package; an e2e command only when the plan or [tests-and-e2e.md](../../../docs/runbooks/tests-and-e2e.md) requires one). Read it as SKILL.md step 4 says; rerun one command yourself. "Unavailable" is not passed: block.
+Spawn the **Verifier** on the integration worktree with `<base>` = `origin/main` and its step 3 (`verify.sh --coverage`: full unit coverage per touched package; an e2e command only when the plan or [tests-and-e2e.md](../../../docs/runbooks/tests-and-e2e.md) requires one). Read it as SKILL.md step 4 says; rerun one command yourself. "Unavailable" is not passed: block.
 
 Red: find the owning unit (whose task changed that file; `git -C <integration worktree> log --oneline origin/main..HEAD -- <file>` shows the sub-PR). Add fix unit `<owner id>r<k>` whose one task is the verbatim failing command and its last output lines; run it through M2 and M3, then M5 again. **Cap: 3 final rounds** (final verify plus final review). Never open the final PR over a red round.
 

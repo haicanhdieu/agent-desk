@@ -119,12 +119,13 @@ If either fails, re-dispatch once with "You did not follow <skill>. Load it now 
 
 After the last builder, spawn the **Verifier** and **Self-reviewer** in one message (parallel). They share the worktree: the Verifier runs commands and may briefly revert and restore the fix's source files (bugs only), so the Self-reviewer reads only from git, never from disk.
 
-- **Verifier:** `devbox run fix`, `typecheck` and `test` per touched package; for a bug, proves the regression test fails without the fix. Returns exit codes and verbatim output; fixes nothing.
+- **Verifier:** runs `scripts/verify.sh` once: `devbox run fix`, then lint and typecheck per touched package in parallel, then unit tests scoped to the change (`vitest --changed <base>`; a shared `packages/*` runs its full unit suite; integration tests only when the diff touches one or `packages/db`). The full suites and integration shards are CI's job. For a bug, it also proves the regression test fails without the fix. Returns exit codes and verbatim output; fixes nothing.
+- **No repeated checks.** Builders run only the tests they wrote (never the full suite, typecheck or lint). The Verifier's run is the one local gate; the PR agent reuses it (create-pr preflight) and reruns nothing on the same head.
 - **Self-reviewer:** reads the diff against [code-review-checklist.md](../../../docs/conventions/code-review-checklist.md), checks scope (only what the ticket asks, about 400 changed lines or fewer) and TDD evidence. Returns findings; changes nothing.
 
 Read both yourself (`superpowers:verification-before-completion`):
 
-1. Pass/fail from exit codes and output, not words: `fix` prints `fix: clean.`, every exit code is 0, a bug's `REGRESSION CHECK` says it failed without the fix, `TREE CLEAN AFTER` is `yes`, and `HEAD` matches `git -C <worktree> rev-parse HEAD`. The `low` Verifier can copy wrongly: rerun one command yourself (the package test of the main change) and confirm.
+1. Pass/fail from exit codes and output, not words: `fix` prints `fix: clean.`, every exit code is 0, a bug's `REGRESSION CHECK` says it failed without the fix, `TREE CLEAN AFTER` is `yes`, and `HEAD` matches `git -C <worktree> rev-parse HEAD`. The `low` Verifier can copy wrongly: rerun one command yourself (the scoped test command of the main change) and confirm.
 2. Self-reviewer `findings` are real until you read the code and rule otherwise. Out-of-scope changes go back to the builder to remove. If you still can't tell whether a finding is real, or its fix needs a choice no rule settles, ask the Advisor. A Verifier failure is never an Advisor question.
 
 Failures and findings go to the builder that owns the code (step 3 rules, a fresh builder prompt naming the failure); then step 4 reruns on the new head.
