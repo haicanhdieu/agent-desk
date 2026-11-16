@@ -60,6 +60,7 @@ import { historyTooLong, refreshWaitSeconds, type TokenRefreshPlan } from './tok
 export { TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT } from './token-refresh';
 import {
   acceptsLegacyFinish,
+  atTurnBoundary,
   finishRunRejection,
   finishRunSettled,
   idleFixStatus,
@@ -469,7 +470,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           const left =
             endingStartedMs + (c.endingDeadlineSeconds ?? ENDING_DEADLINE_SECONDS_DEFAULT) * 1000 - Date.now();
           if (left <= 0 || !(await condition(wake, left))) await abandonPod(c, current);
-        } else if (attachLeases && !ending && leases.size > 0) {
+        } else if (attachLeases && !ending && leases.size > 0 && atTurnBoundary(p)) {
+          // Only where the idle timer would otherwise run: while the agent works no timer is needed (each costs history
+          // events), and the `expireLeases` above drops ids that ran out the next time the loop runs.
           // Wake when the earliest lease runs out (its id may have been renewed meanwhile: the next pass re-reads it).
           const left = (nextExpiryMs(leases) ?? 0) - Date.now();
           await condition(wake, left);

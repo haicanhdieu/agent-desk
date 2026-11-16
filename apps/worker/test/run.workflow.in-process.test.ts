@@ -1046,6 +1046,23 @@ describe('attach leases (attach-leases)', () => {
     await waitFor('idle timer back', () => pendingTimers().includes(600_000));
   });
 
+  it('no lease timer is scheduled while the agent works: expired ids are dropped when the loop next runs', async () => {
+    const h = start();
+    await toRunning(h);
+    sendSignal(terminalAttached, ID_A);
+    await settle();
+    expect(phase()).toBe('running');
+    expect(attached()).toBe(1);
+    expect(pendingTimers()).not.toContain(TTL);
+    // A renewal while working also starts nothing.
+    sendSignal(terminalLease, [ID_A]);
+    await settle();
+    expect(pendingTimers()).not.toContain(TTL);
+    // At the turn boundary the lease timer starts, counting from the last renewal.
+    sendSignal(agentState, 'needs_input');
+    await waitFor('lease timer', () => pendingTimers().includes(TTL));
+  });
+
   it('a lease that expires while the agent works is gone by the time the turn ends', async () => {
     const h = start();
     await toRunning(h);

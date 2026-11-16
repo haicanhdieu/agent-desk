@@ -163,8 +163,8 @@ pod. The workflow's attach count only goes down when the API sends a detach sign
   Can be removed after 7 days (the longest run).
 - **Attach leases.** Attach and detach signals carry the connection id. While a socket is open the API sends a
   `terminalLease` signal with its live ids every 2 minutes. The workflow drops an id it has not heard about for 5
-  minutes. So an API crash can block the idle timer for 5 minutes at most, not forever. That is about 720 events per
-  attached day, well under the 45,000-event guard.
+  minutes. So an API crash can block the idle timer for 5 minutes at most, not forever. That costs history
+  events: see Consequences for the measured numbers (the first estimate here, 720 events a day, was wrong).
 - Reattach is safe: every socket gets its own client and id; tmux allows many clients; the per-run cap (4) stays.
 
 ## 5. What the person sees
@@ -320,7 +320,17 @@ The entrypoint is the only owner of the pod's exit.
 ### Negative
 
 - More runner scripts and an image rollout before API/worker changes; a fallback for older pods for 7 days.
-- Lease signals add a few hundred workflow events per attached day.
+- Lease signals cost workflow history, measured with the real Temporal test server (`run.workflow.test.ts`, "history
+  cost"): a lease signal adds **4 events** (the signal plus its workflow task: scheduled, started, completed), a lease
+  renewal starts no timer, and a lease-expiry timer cycle (fired, 3 task events, started) is **5 events**. One API pod
+  sends 720 signals per attached day per run = **about 2,900 events a day** while the agent works. The expiry timer only
+  runs while the run waits for a person (it is the idle timer's other half): with renewals every 120 s and a 300 s lease
+  it fires about every 240 s, so about **1,800 more a day** (about 4,700 a day in total) for a waiting run whose tab is in
+  use. A tab nobody touches is closed by the browser after 4 hours (D2), which stops the renewals. Sockets on two API
+  pods double the signal part. `RunWorkflow` has no `continueAsNew` and fails at the 45,000-event guard, so a 7-day run
+  with a busy attached tab on two pods could reach it around day 5 to 6. The lease interval and time are unchanged
+  (120 s, 300 s). Follow-up: `continueAsNew` for `RunWorkflow` (carrying the lease set), or a longer lease interval if
+  the numbers matter in practice.
 
 ## Links
 

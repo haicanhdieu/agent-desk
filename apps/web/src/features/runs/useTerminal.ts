@@ -110,6 +110,8 @@ export function useTerminalSocket(
     let stable: ReturnType<typeof setTimeout> | undefined;
     // Set once the page was unused: the socket's own close event must not start the session-end or retry paths.
     let closedUnused = false;
+    // Stopped by cleanup and by the closes that end the socket's story (4401, 4403, 4410): the real state must stay.
+    const watch: { stop?: () => void } = {};
     const set = (state: TerminalState) => {
       if (!disposed) setCurrent({ session, state });
     };
@@ -129,7 +131,8 @@ export function useTerminalSocket(
     const sessionEnded = (onStillActive: () => void) => {
       set('connecting');
       void Promise.resolve(onSessionEnd()).then((stillActive) => {
-        if (!disposed && stillActive === true) onStillActive();
+        // Not after the page went unused: that already closed the socket for good (only `reconnect()` opens one).
+        if (!disposed && !closedUnused && stillActive === true) onStillActive();
       });
     };
 
@@ -142,13 +145,16 @@ export function useTerminalSocket(
           sessionEnded(retryLater);
           return;
         case CLOSE_UNAUTHORIZED:
+          watch.stop?.();
           void signOutAndRedirect();
           return;
         case CLOSE_FORBIDDEN:
+          watch.stop?.();
           set('forbidden');
           return;
         case CLOSE_SESSION_ENDED:
           // Pausing or paused: the page shows that once the run is refetched. No retry whatever the refetch says.
+          watch.stop?.();
           set('ended');
           void Promise.resolve(onSessionEnd());
           return;
@@ -185,7 +191,7 @@ export function useTerminalSocket(
     };
 
     connect();
-    const stopWatching = closeWhenUnused
+    watch.stop = closeWhenUnused
       ? watchUnused(TERMINAL_UNUSED_CLOSE_MS, () => {
           closedUnused = true;
           clearTimeout(retry);
@@ -196,7 +202,7 @@ export function useTerminalSocket(
         })
       : undefined;
     return () => {
-      stopWatching?.();
+      watch.stop?.();
       disposed = true;
       clearTimeout(retry);
       clearTimeout(stable);

@@ -479,6 +479,53 @@ describe('closing an unused tab', () => {
     expect(latest().clientCloseCode).toBe(1000);
   });
 
+  it.each([
+    [4403, 'forbidden'],
+    [4410, 'ended'],
+  ] as const)('after a %i close the unused watch is off: %s stays after the unused time', async (code, expected) => {
+    vi.useFakeTimers();
+    const { state } = setup();
+    act(() => latest().open());
+    await act(async () => latest().serverClose(code));
+    expect(state()).toBe(expected);
+    await act(async () => void vi.advanceTimersByTime(MS * 2));
+    expect(state()).toBe(expected);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('after a 4401 close (sign-out) the unused watch is off', async () => {
+    vi.useFakeTimers();
+    const { state } = setup();
+    act(() => latest().open());
+    act(() => latest().serverClose(4401));
+    expect(signOut).toHaveBeenCalledTimes(1);
+    const before = state();
+    await act(async () => void vi.advanceTimersByTime(MS * 2));
+    expect(state()).toBe(before);
+    expect(state()).not.toBe('inactive');
+  });
+
+  it('a refetch still running when the unused time ends cannot reopen the socket afterwards', async () => {
+    vi.useFakeTimers();
+    let answer: (stillActive: boolean) => void = () => undefined;
+    const onSessionEnd = () => new Promise<boolean>((resolve) => (answer = resolve));
+    const term: RefObject<LiveTerminalHandle | null> = { current: { write: vi.fn() } };
+    const hook = renderHook(() => useTerminalSocket('/api/runs/x/terminal', true, term, onSessionEnd, true), {
+      wrapper: wrapperFor(new QueryClient()),
+    });
+    act(() => latest().open());
+    act(() => void vi.advanceTimersByTime(MS - 1_000));
+    // The session ended with 1000: the owner is being refetched.
+    act(() => latest().serverClose(1000));
+    expect(hook.result.current.state).toBe('connecting');
+    act(() => void vi.advanceTimersByTime(1_000));
+    expect(hook.result.current.state).toBe('inactive');
+    await act(async () => answer(true));
+    expect(hook.result.current.state).toBe('inactive');
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
   it('unmounting leaves no timer or listener behind', () => {
     vi.useFakeTimers();
     const { hook } = setup({ enabled: false });

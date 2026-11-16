@@ -113,6 +113,8 @@ export const ConfigSchema = z
         .number()
         .int()
         .min(10)
+        // setInterval treats a delay above 2^31-1 ms as 1 ms.
+        .max(2 ** 31 - 1)
         .default(TERMINAL_LEASE_INTERVAL_SECONDS * 1000),
     ),
     TERMINAL_PING_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
@@ -130,6 +132,15 @@ export const ConfigSchema = z
         code: 'custom',
         path: [missing[0] ?? 'GITHUB_APP_ID'],
         message: `GITHUB_* keys are all-or-none; missing ${missing.join(', ')}`,
+      });
+    }
+    // One missed tick must not drop an attached terminal's lease, so the interval is at most half the lease time.
+    if (cfg.TERMINAL_LEASE_INTERVAL_MS * 2 > cfg.RUN_LEASE_TTL_SECONDS * 1000) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['TERMINAL_LEASE_INTERVAL_MS'],
+        message:
+          'must be at most half of RUN_LEASE_TTL_SECONDS (in ms), so one missed lease signal does not drop a terminal',
       });
     }
     if (cfg.NODE_ENV === 'production') {
