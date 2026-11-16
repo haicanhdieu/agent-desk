@@ -212,6 +212,6 @@ while :; do
     case "$status" in
       '' | *[!0-9]*) status=1 ;;
     esac
-    end_session agent_exit "$((status % 256))"
+    end_session agent_exit "$((10#$status % 256))"
   fi
 done

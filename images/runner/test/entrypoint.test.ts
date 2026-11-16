@@ -430,6 +430,8 @@ describe('entrypoint session end', () => {
     ['-1', 1],
     ['256', 0],
     ['259', 3],
+    ['08', 8],
+    ['010', 10],
   ])('pane status %j ends with code %i', async (status, code) => {
     const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: status }, {});
     expect(r.stdout.at(-1)).toBe(`agentdesk: session ended reason=agent_exit code=${code}`);
