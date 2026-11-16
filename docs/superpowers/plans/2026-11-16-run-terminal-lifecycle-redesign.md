@@ -441,6 +441,6 @@ Spec §8 asks for it; the spec's rollout table has no row for it.
 **Files:**
 - Modify: `apps/web/e2e/local/run.spec.ts`, `packages/core/src/kube/fake-gateway.ts` only if a stale-client hook is needed (test seam)
 
-- [ ] **Step 1: Write the e2e test** (runs with `E2E_IDLE_END_SECONDS=5`, like the existing pause test): open the run page, close it without a clean close (leave a stale fake attach), wait for "Paused", check the reason line, press Resume, answer, see a new turn.
+- [x] **Step 1: Write the e2e test** (runs with `E2E_IDLE_END_SECONDS=5`, like the existing pause test): open the run page, close it without a clean close (leave a stale fake attach), wait for "Paused", check the reason line, press Resume, answer, see a new turn.
 - [ ] **Step 2: Run** against a stack started with `RUN_IDLE_END_SECONDS=5` (`docs/runbooks/tests-and-e2e.md`) — expect PASS (it should fail on a checkout before Phase 1).
-- [ ] **Step 3: Commit** `test(web): e2e pause with a stale terminal and resume`.
+- [x] **Step 3: Commit** `test(web): e2e pause with a stale terminal and resume`.
