@@ -632,6 +632,16 @@ describe('the run ends before or without parking', () => {
 
 describe('the ending deadline', () => {
   const DEADLINE_MS = 120 * 1000;
+  /** ABANDON_GRACE_MS in the workflow: how long a follower that never returns is waited for after the Job delete. */
+  const GRACE_MS = 5 * 1000;
+
+  /** The deadline passes; a follower that never returns is given up on once the grace after the delete runs out. */
+  async function passDeadlineAndGrace(): Promise<void> {
+    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
+    fireTimer(DEADLINE_MS);
+    await waitFor('grace timer', () => pendingTimers().includes(GRACE_MS));
+    fireTimer(GRACE_MS);
+  }
 
   /** A person Finish on a run that is waiting for them, with a pod that ignores the session end and keeps running. */
   async function finishWithStuckPod(h: Harness): Promise<void> {
@@ -654,12 +664,33 @@ describe('the ending deadline', () => {
       return Promise.resolve();
     };
     await finishWithStuckPod(h);
-    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
-    fireTimer(DEADLINE_MS);
+    await passDeadlineAndGrace();
 
     await expect(h.done).resolves.toEqual({ status: 'succeeded' });
     expect(afterCalls(h, 'endSession').slice(0, 2)).toEqual(['deleteJob', 'recordEndingDeadline']);
     expect(recorded).toEqual([{ scrollbackSaved: false, at: expect.any(String) }]);
+  });
+
+  it('scrollback the pod prints while the Job is being deleted is kept: the follower is not cancelled first', async () => {
+    const h = start({ endingDeadlineSeconds: 120 });
+    const recorded: { scrollbackSaved: boolean; at: string }[] = [];
+    runtime.activities.recordEndingDeadline = (_c: RunContext, input: { scrollbackSaved: boolean; at: string }) => {
+      h.calls.push('recordEndingDeadline');
+      recorded.push(input);
+      return Promise.resolve();
+    };
+    // As the pod does on SIGTERM: the trap prints the scrollback, the follower reads it and returns.
+    runtime.activities.deleteJob = () => {
+      h.calls.push('deleteJob');
+      h.pods[0]?.exit({ exitCode: 143, agentStarted: true, scrollbackTail: 'last lines' });
+      return Promise.resolve();
+    };
+    await finishWithStuckPod(h);
+    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
+    fireTimer(DEADLINE_MS);
+
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+    expect(recorded).toEqual([{ scrollbackSaved: true, at: expect.any(String) }]);
   });
 
   it('a deadline that has already passed abandons the pod without waiting for a timer', async () => {
@@ -683,8 +714,7 @@ describe('the ending deadline', () => {
       return Promise.reject(new Error('run not found'));
     };
     await finishWithStuckPod(h);
-    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
-    fireTimer(DEADLINE_MS);
+    await passDeadlineAndGrace();
 
     await expect(h.done).resolves.toEqual({ status: 'succeeded' });
     expect(h.calls).toContain('recordEndingDeadline');
@@ -697,8 +727,7 @@ describe('the ending deadline', () => {
       return new Promise<void>(() => undefined);
     };
     await finishWithStuckPod(h);
-    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
-    fireTimer(DEADLINE_MS);
+    await passDeadlineAndGrace();
     await waitFor('event write', () => h.calls.includes('recordEndingDeadline'));
     sendSignal(cancel);
 

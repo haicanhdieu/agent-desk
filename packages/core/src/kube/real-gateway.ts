@@ -339,7 +339,7 @@ export class RealKubeGateway implements KubeGateway {
   }
 }
 
-/** Exit code from the exec status channel (a v1 Status): Success → 0, `ExitCode` cause → its value, "executable file not found" → 127, else 1. */
+/** Exit code from the exec status channel (a v1 Status): Success → 0, `ExitCode` cause → its value, "executable file … not found" (runc and crun/CRI-O wording) → 127, else 1. */
 function parseExitCode(data: Buffer): number {
   let json: unknown;
   try {
@@ -354,7 +354,7 @@ function parseExitCode(data: Buffer): number {
   const n = Number.parseInt(cause?.message ?? '', 10);
   if (Number.isInteger(n)) return n;
   // The runtime refused to start the command (CRI/OCI text), so there is no ExitCode cause.
-  if (/executable file not found/i.test(parsed.data.message ?? '')) return EXEC_NOT_FOUND;
+  if (/executable file\b.*\bnot found/i.test(parsed.data.message ?? '')) return EXEC_NOT_FOUND;
   return 1;
 }
 

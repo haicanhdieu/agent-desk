@@ -352,7 +352,7 @@ describe('RealKubeGateway', () => {
   });
 
   it('exec status "executable file not found" → close code 127 (EXEC_NOT_FOUND)', async () => {
-    // Shape from the Kubernetes docs / CRI error text; re-record against a real cluster (see the ticket notes).
+    // Hand-written from the runc (containerd) error text; not recorded from a real cluster.
     const m = mocks();
     const s = await m.gw.exec('p', ['agentdesk-attach', '123e4567-e89b-42d3-a456-426614174000'], { tty: true });
     const codes: number[] = [];
@@ -363,6 +363,25 @@ describe('RealKubeGateway', () => {
         status: 'Failure',
         message:
           'Internal error occurred: error executing command in container: failed to exec in container: failed to start exec: OCI runtime exec failed: exec failed: unable to start container process: exec: "agentdesk-attach": executable file not found in $PATH: unknown',
+        reason: 'InternalError',
+        code: 500,
+      }),
+    );
+    m.closeSocket();
+    expect(codes).toEqual([127]);
+  });
+
+  it('exec status with the crun/CRI-O wording (the file name sits inside the phrase) → close code 127', async () => {
+    const m = mocks();
+    const s = await m.gw.exec('p', ['agentdesk-attach'], { tty: true });
+    const codes: number[] = [];
+    s.onClose((c) => codes.push(c));
+    m.emit(
+      3,
+      JSON.stringify({
+        status: 'Failure',
+        message:
+          'command terminated with non-zero exit code: error executing command in container: executable file `agentdesk-attach` not found in $PATH: No such file or directory: OCI runtime attempted to invoke a command that was not found',
         reason: 'InternalError',
         code: 500,
       }),

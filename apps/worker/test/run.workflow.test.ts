@@ -1652,18 +1652,19 @@ describe('RunWorkflow', () => {
       await h.signal(signals.agentState, 'needs_input');
       await s.endSessionCalled.promise;
       const t0 = Date.now();
-      // Two wakes, 1.2 s and 2.4 s in. Without a reset the park lands at about 6.16 s (6 s plus about 0.16 s of
-      // overhead measured here). A reset by the first wake alone would land at about 7.4 s, by the second alone at
-      // about 8.6 s. The 6.8 s ceiling therefore fails if either wake restarts the deadline, with 0.6 s of slack on
-      // each side; the 5.6 s floor catches an early park.
+      // Two wakes, 1.2 s and 2.4 s in. The stuck follower is given up on 5 s (ABANDON_GRACE_MS) after the delete, so
+      // the park lands that much after the deadline. Without a reset it lands at about 11.16 s (6 s + 5 s plus about
+      // 0.16 s of overhead measured here). A reset by the first wake alone would land at about 12.4 s, by the second
+      // alone at about 13.6 s. The 11.8 s ceiling therefore fails if either wake restarts the deadline, with 0.6 s of
+      // slack on each side; the 10.6 s floor catches an early park.
       await sleepReal(1200);
       await h.signal(signals.terminalAttached);
       await sleepReal(1200);
       await h.signal(signals.terminalDetached);
       await waitPhase(h, 'parked');
       const took = Date.now() - t0;
-      expect(took).toBeGreaterThanOrEqual(5600);
-      expect(took).toBeLessThan(6800);
+      expect(took).toBeGreaterThanOrEqual(10600);
+      expect(took).toBeLessThan(11800);
       expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
       await h.signal(signals.cancel);
       await h.result();

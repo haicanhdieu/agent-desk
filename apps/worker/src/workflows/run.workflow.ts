@@ -90,6 +90,8 @@ const TOKEN_REFRESH_PATCH = 'token-refresh';
 const RUN_VOLUME_PATCH = 'run-volume';
 /** Marks runs whose `ending` has a deadline (then the Job is deleted), so a run already `ending` at deploy time replays unchanged. */
 const ENDING_DEADLINE_PATCH = 'ending-deadline';
+/** How long an abandoned pod's log follower may keep reading after the Job delete, to catch the SIGTERM scrollback. */
+const ABANDON_GRACE_MS = 5_000;
 /** Marks runs that park a pod that was lost or whose agent crashed, and queue a resume sent while `ending`; read once, right after `pauseResume`. */
 const POD_LOST_PATCH = 'pod-lost-parks';
 /** Marks runs whose terminal attach state is a set of expiring leases, not a counter; read once, right after `podLostParks`. */
@@ -579,10 +581,14 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // Before the delete: while the Job is being killed the log follower may reject with "pod disappeared", and that
     // must not fail the run.
     pod.abandoned = true;
-    pod.scope.cancel();
     // If deleteJob itself fails the run fails: the Job may still exist, so nothing may report it parked or done.
     await act.deleteJob(c);
-    pod.done = true;
+    // The delete sends SIGTERM and the runner's trap prints the final scrollback: keep following for a short grace
+    // (shorter than Kubernetes' default 30 s) so it is read, then stop following whatever is left.
+    if (!(await condition(() => pod.done, ABANDON_GRACE_MS))) {
+      pod.scope.cancel();
+      pod.done = true;
+    }
     try {
       await act.recordEndingDeadline(c, {
         scrollbackSaved: pod.result?.scrollbackTail !== undefined,
