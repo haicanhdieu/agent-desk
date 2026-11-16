@@ -54,7 +54,7 @@ describe('mock fixtures', () => {
     expect(agentSettings.maxConcurrent).toBe(2);
     expect(agentSettings.maxRunsPerTicket).toBe(10);
     expect(agentSettings.timeoutMinutes).toBe(30);
-    expect(agentSettings.idleEndMinutes).toBe(10);
+    expect(agentSettings.idleEndMinutes).toBe(30);
   });
 
   it('points every enabled skill rule at an existing skill unless it carries a warning', () => {
@@ -145,7 +145,7 @@ describe('mock fixtures', () => {
     expect(runDetails.RunIdle.elapsed).toBe('4:51');
     expect(runDetails.RunReconnect.connection).toEqual({ state: 'reconnecting', label: 'Reconnecting, attempt 3' });
     expect(runDetails.RunReconnect.termSize).toBe('116×38');
-    expect(runs.find((r) => r.id === 62)?.statusNote).toBe('Waiting 3m. Auto-finish after 10m unattended');
+    expect(runs.find((r) => r.id === 62)?.statusNote).toBe('Waiting 3m. Auto-finish after 30m unattended');
     expect(runs.find((r) => r.id === 56)?.statusNote).toBe('API authentication failed (401)');
     expect(rules.find((r) => r.command === 'code-build')?.stats).toBe('14 runs this week, last 14:15');
     expect(rules.find((r) => r.command === 'qa-e2e')).toMatchObject({

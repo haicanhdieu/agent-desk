@@ -8,7 +8,7 @@
 
 ## Context
 
-A run that waits for a person (`idle`) or that the agent declared finished (`done`) is ended after 10 minutes with
+A run that waits for a person (`idle`) or that the agent declared finished (`done`) is ended after 10 minutes (now 30 min, 0023 rollout) with
 nobody attached. Freeing the slot is right, but both cases were written as `succeeded`, so a run with an unanswered
 question looked finished. The pod workspace was an `emptyDir` and the Job was deleted, so the conversation and every
 unpushed file were gone and the person could not come back to the session.

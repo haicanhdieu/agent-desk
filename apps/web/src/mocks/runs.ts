@@ -161,7 +161,7 @@ const run62: RunSummary = {
   ...base,
   id: 62,
   status: 'idle',
-  statusNote: 'Waiting 3m. Auto-finish after 10m unattended',
+  statusNote: 'Waiting 3m. Auto-finish after 30m unattended',
   command: '/code-review',
   skill: 'code-review',
   ticket: tickets.pr148,

@@ -57,7 +57,7 @@ import {
 } from './agent-phase';
 
 /** Mirrors IDLE_END_SECONDS in @agentdesk/core (workflow code cannot import core); used when loadRun gives none. */
-export const IDLE_END_SECONDS_DEFAULT = 600;
+export const IDLE_END_SECONDS_DEFAULT = 1800;
 /** Mirrors ENDING_DEADLINE_SECONDS in @agentdesk/core; used when loadRun gives none. */
 export const ENDING_DEADLINE_SECONDS_DEFAULT = 90;
 /** Mirrors POD_PENDING_TIMEOUT in ../activities/run.activities (a value import would pull activity code in). */

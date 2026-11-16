@@ -201,11 +201,11 @@ User decision (spec §5 option A, open question 1). Lands only after Phases 1, 2
 - Modify: `.env.example:65` (`# RUN_IDLE_END_SECONDS=1800`), `docs/runbooks/local-dev.md` ("the default is 1800"), `docs/conventions/testing.md:77` ("idle 30 min"), the "10 minutes" lines in ADR 0011/0020/0022 get a one-line "now 30 min (0023 rollout)" note, `apps/web/src/mocks/runDetail.tsx:393` copy
 - Test: `apps/worker/test/run.workflow.test.ts:359-360`, `packages/core/test/config.test.ts:29,33`
 
-- [ ] **Step 1: Change the tests first:** `expect(IDLE_END_SECONDS).toBe(1800)` (worker test line 360), `expect(c.RUN_IDLE_END_SECONDS).toBe(1800)` and the blank-default case (config test lines 29, 33).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow && pnpm --filter @agentdesk/core test -- config` — expect FAIL on those assertions.
-- [ ] **Step 3: Implement** the two constants and the doc/copy lines above. Replay note: `idleEndSeconds` comes from `loadRun` (recorded), and Temporal does not compare timer durations on replay, so no `patched()` is needed; the replay test proves it.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test` — expect PASS, replay included.
-- [ ] **Step 5: Commit** `feat(worker): pause runs after 30 minutes with nobody attached`.
+- [x] **Step 1: Change the tests first:** `expect(IDLE_END_SECONDS).toBe(1800)` (worker test line 360), `expect(c.RUN_IDLE_END_SECONDS).toBe(1800)` and the blank-default case (config test lines 29, 33).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow && pnpm --filter @agentdesk/core test -- config` — expect FAIL on those assertions.
+- [x] **Step 3: Implement** the two constants and the doc/copy lines above. Replay note: `idleEndSeconds` comes from `loadRun` (recorded), and Temporal does not compare timer durations on replay, so no `patched()` is needed; the replay test proves it.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test` — expect PASS, replay included.
+- [x] **Step 5: Commit** `feat(worker): pause runs after 30 minutes with nobody attached`.
 
 ---
 

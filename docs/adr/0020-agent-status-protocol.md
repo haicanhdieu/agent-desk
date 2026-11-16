@@ -28,7 +28,7 @@ needs_input <source> <note-b64> | done <source> <note-b64>` on the pod's stdout.
   turn end once, then falls back to `needs_input undeclared`. Claude Code's adapter reads `background_tasks` /
   `session_crons` from `Stop`, `AskUserQuestion` from `PreToolUse`/`PostToolUse`, and permission/elicitation
   notifications. Its hooks are installed as managed settings, so a repo's `.claude/settings.json` cannot disable them.
-- `done` and `idle` both end as `succeeded` after 10 minutes unattended; Finish is allowed in both and becomes a
+- `done` and `idle` both end as `succeeded` after 10 minutes unattended (now 30 min, 0023 rollout); Finish is allowed in both and becomes a
   workflow update so the API returns the workflow's real answer.
 
 This replaces the hook and status bullets of 0011; the rest of 0011 stands.

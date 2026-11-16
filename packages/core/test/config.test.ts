@@ -26,7 +26,7 @@ describe('plugin and setup config', () => {
     expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
     expect(c.RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
     expect(c.RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(10);
-    expect(c.RUN_IDLE_END_SECONDS).toBe(600);
+    expect(c.RUN_IDLE_END_SECONDS).toBe(1800);
     expect(c.RUN_ENDING_DEADLINE_SECONDS).toBe(90);
   });
   it('RUN_ENDING_DEADLINE_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
@@ -36,7 +36,7 @@ describe('plugin and setup config', () => {
   });
   it('RUN_IDLE_END_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
     expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '5' }).RUN_IDLE_END_SECONDS).toBe(5);
-    expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '' }).RUN_IDLE_END_SECONDS).toBe(600);
+    expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '' }).RUN_IDLE_END_SECONDS).toBe(1800);
     expect(() => parseConfig({ ...base, RUN_IDLE_END_SECONDS: '0' })).toThrow('RUN_IDLE_END_SECONDS');
   });
   it('parses volume settings; blank storage class is unset, zero kept sessions is allowed', () => {
