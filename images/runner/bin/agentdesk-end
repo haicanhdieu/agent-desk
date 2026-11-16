@@ -2,7 +2,7 @@
 # Ask the runner entrypoint to end the agent session: creates ${AGENTDESK_RUN_DIR:-/run/agentdesk}/stop, which the
 # entrypoint loop sees within about a second (reason stop_request). Takes NO arguments and reads no other input, so the
 # worker's exec is a fixed argv. The file is made under a temporary name and renamed over the path: atomic, safe to
-# repeat, and a link planted at `stop` is replaced, never followed. Exit codes: 2 any argument.
+# repeat, and a link planted at `stop` is replaced, never followed (a real directory there already counts as a stop request). Exit codes: 2 any argument.
 set -euo pipefail
 LC_ALL=C
 export LC_ALL
@@ -15,5 +15,12 @@ fi
 dir="${AGENTDESK_RUN_DIR:-/run/agentdesk}"
 mkdir -p -- "$dir"
 tmp="$(mktemp "$dir/.stop.XXXXXX")"
-mv -f -- "$tmp" "$dir/stop"
+dst="$dir/stop"
+# Move the temporary file onto the path without ever descending into a link or directory that is already there (a plain
+# `mv` puts the file INSIDE a link to a directory). GNU `mv -T` does that in one step; BSD/macOS mv has no -T, so the
+# fallback removes a link first and leaves a real directory alone.
+if ! mv -fT -- "$tmp" "$dst" 2>/dev/null; then
+  if [ -L "$dst" ]; then rm -f -- "$dst"; fi
+  if [ -d "$dst" ]; then rm -f -- "$tmp"; else mv -f -- "$tmp" "$dst"; fi
+fi
 exit 0

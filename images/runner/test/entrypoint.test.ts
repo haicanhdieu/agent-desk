@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runEntrypoint } from './harness.js';
 
@@ -556,6 +556,21 @@ describe('entrypoint stop request and agent exit file', () => {
       {},
     );
     expect(linkRes.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+  });
+
+  // A pipe renamed over a checked agent-exit would block the read for good (and PID 1 defers its TERM trap), so the
+  // read is bounded. A `head` that never returns stands in for that pipe; the `timeout` stub ends it after its limit.
+  it('does not hang when reading agent-exit blocks: the read is bounded, and the content counts as invalid', async () => {
+    const blocker = mkdtempSync(join(tmpdir(), 'blocking-head-'));
+    const head = join(blocker, 'head');
+    writeFileSync(head, `#!${process.execPath}\nsetTimeout(() => undefined, 120000);\n`, { mode: 0o755 });
+    const path = [blocker, join(import.meta.dirname, 'stubs'), dirname(process.execPath), '/usr/bin', '/bin'].join(':');
+    const r = await runEntrypoint(
+      { PATH: path, STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': '5\n' }) },
+      {},
+    );
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=1');
+    expect(r.exitCode).toBe(1);
   });
 
   it('runs the fixed session command through agentdesk-session and passes only that command', async () => {

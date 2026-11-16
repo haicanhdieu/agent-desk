@@ -1032,7 +1032,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         session.close();
         resolve(0);
       }, EXEC_CLOSE_WAIT_MS);
-      // Any other non-zero code (no such session) means it is already gone: fine either way.
+      // The code is returned as is. For `agentdesk-end`, any non-zero code other than 127 means the request may not have
+      // been made; this is not retried here, and the `ending` deadline (the Job is deleted) covers it.
       session.onClose((code) => {
         clearTimeout(t);
         resolve(code);

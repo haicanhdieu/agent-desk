@@ -211,12 +211,13 @@ end_session() {
 # period. Order (spec 3): stop file, agent-exit file, session gone, trap flag; then the pane-dead check stays as a
 # fallback for a wrapper that could not write its file.
 # The agent shares this container and can write under $RUN_DIR, so the agent-exit content is untrusted: only a regular
-# file (not a link, a pipe or a directory) is read, at most 16 bytes, and only 1 to 3 digits count (10# keeps a leading
+# file (not a link, a pipe or a directory) is read, at most 16 bytes, within 2 seconds (a pipe renamed over the file
+# after the check would block the open for good, and this is PID 1), and only 1 to 3 digits count (10# keeps a leading
 # zero decimal); anything else means code 1. Codes above 255 wrap like an exit status.
 agent_exit_code() {
   local f="$RUN_DIR/agent-exit" content
   if [ ! -f "$f" ] || [ -L "$f" ]; then return 1; fi
-  content="$(head -c 16 -- "$f" 2>/dev/null || true)"
+  content="$(timeout 2 head -c 16 -- "$f" 2>/dev/null || true)"
   if [[ "$content" =~ ^[0-9]{1,3}$ ]]; then
     printf '%s' "$((10#$content % 256))"
   else

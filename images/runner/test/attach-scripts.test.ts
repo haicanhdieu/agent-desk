@@ -254,6 +254,26 @@ describe('agentdesk-end', () => {
     expect(lstatSync(join(t.runDir, 'stop')).isFile()).toBe(true);
     expect(readFileSync(target, 'utf8')).toBe('keep');
   });
+
+  it('never descends into a link to a directory planted at the stop path (GNU mv would put the file inside it)', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'somedir');
+    mkdirSync(target);
+    symlinkSync(target, join(t.runDir, 'stop'));
+    expect(end(t.env).status).toBe(0);
+    expect(lstatSync(join(t.runDir, 'stop')).isFile()).toBe(true);
+    expect(readdirSync(target)).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
+
+  it('a real directory at the stop path is left alone and no temporary file is left inside or beside it', () => {
+    const t = setup();
+    mkdirSync(join(t.runDir, 'stop'), { recursive: true });
+    expect(end(t.env).status).toBe(0);
+    expect(readdirSync(join(t.runDir, 'stop'))).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
 });
 
 describe('agentdesk-session', () => {
@@ -299,6 +319,40 @@ describe('agentdesk-session', () => {
     expect(readFileSync(target, 'utf8')).toBe('keep');
   });
 
+  it('never descends into a link to a directory planted at the agent-exit path', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'somedir');
+    mkdirSync(target);
+    symlinkSync(target, exitFile(t));
+    expect(session(t.env, 'exit 3').status).toBe(3);
+    expect(lstatSync(exitFile(t)).isFile()).toBe(true);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('3');
+    expect(readdirSync(target)).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['agent-exit']);
+  });
+
+  it('a real directory at the agent-exit path is left alone, nothing is left inside it, and the exit code still passes on', () => {
+    const t = setup();
+    mkdirSync(exitFile(t), { recursive: true });
+    expect(session(t.env, 'exit 4').status).toBe(4);
+    expect(readdirSync(exitFile(t))).toEqual([]);
+    expect(readdirSync(t.runDir)).toEqual(['agent-exit']);
+  });
+
+  // The agent and the setup_test login shell must see the caller's locale, not one forced by this script.
+  it.each([['en_US.UTF-8'], ['C.UTF-8'], [undefined]])(
+    'the command sees LC_ALL=%s exactly as the caller had it',
+    (lc) => {
+      const t = setup();
+      const out = join(t.dir, 'lc.out');
+      const env: Record<string, string> = { ...t.env, OUT: out };
+      if (lc !== undefined) env.LC_ALL = lc;
+      expect(session(env, 'printf "%s" "${LC_ALL-UNSET}" > "$OUT"').status).toBe(0);
+      expect(readFileSync(out, 'utf8')).toBe(lc ?? 'UNSET');
+    },
+  );
+
   it.each([[[]], [['']], [['exit 0', 'extra']]])('needs exactly one command: %j exits 2 and writes nothing', (args) => {
     const t = setup();
     expect(session(t.env, ...args).status).toBe(2);
@@ -307,13 +361,16 @@ describe('agentdesk-session', () => {
 
   it('still writes the code when its whole process group gets SIGTERM (what tmux does to a pane)', async () => {
     const t = setup();
-    // A new process group, so signalling it never touches the test runner.
-    const child = spawn('bash', [join(bin, 'agentdesk-session'), 'echo ready; sleep 60'], {
+    // The agent is started in the background BEFORE `ready` is printed, so it is certainly a member of the group when
+    // the signal is sent (a command forked at the moment of a group kill can be missed and then outlives it, holding the
+    // output pipe open). A new process group, so signalling it never touches the test runner.
+    const child = spawn('bash', [join(bin, 'agentdesk-session'), 'sleep 60 & echo ready; wait'], {
       env: t.env,
       detached: true,
       stdio: ['ignore', 'pipe', 'ignore'],
     });
-    const closed = new Promise<number | null>((resolve) => child.on('close', (code) => resolve(code)));
+    // The process ends with its code; wait for that, not for the output pipe to close.
+    const ended = new Promise<number | null>((resolve) => child.on('exit', (code) => resolve(code)));
     let seen = '';
     await new Promise<void>((resolve) => {
       child.stdout?.on('data', (chunk: Buffer) => {
@@ -323,7 +380,7 @@ describe('agentdesk-session', () => {
     });
     try {
       process.kill(-(child.pid as number), 'SIGTERM');
-      expect(await closed).toBe(143);
+      expect(await ended).toBe(143);
       expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('143');
     } finally {
       try {
