@@ -91,6 +91,11 @@ export interface FollowPodLogsResult {
    * may still be present (an end line stored before the pod was lost).
    */
   podLost?: true;
+  /**
+   * With `podLost`: why the pod is gone, as a failure text ("the run pod disappeared before it reported an exit code" or
+   * "the run pod ended (<phase>) without an exit code: <reason>"). Runs that started before `pod-lost-parks` fail with it.
+   */
+  lostText?: string;
 }
 
 /** Non-retryable `ApplicationFailure` type thrown by `followPodLogs` when the pod stays Pending for over 2 min. */

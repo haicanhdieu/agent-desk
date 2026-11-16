@@ -220,7 +220,7 @@ then it stays as it is. B can come later as an agent setting if people complain.
 | Worker restarts during `ending` | Workflow replays; the deadline is a durable timer; `agentdesk-end` and Job delete are safe to repeat | workflow replay test |
 | Idle timer and Finish at the same moment | `ending` is set once; the second request waits for the same end | existing guard, test |
 | Two detaches for one attach / detach before attach | Lease set is keyed by id; unknown ids ignored; count never below 0 | §4, workflow test |
-| Attach while `ending` | API closes with 4410; web shows "Pausing…" | §4, api test |
+| Attach while `ending` | API closes with 4410; web shows "Session ending…" (bar "Ending…") | §4, api test |
 | Resume pressed while `ending` | Accepted and recorded; runs right after park (no "try again" error) | §2, workflow test |
 | Resume while a previous resume is starting | Rejected as today ("already being resumed") | existing |
 | Cancel while `ending` | Cancel wins: Job deleted, run `cancelled`, volume deleted | existing `cancelEffect`, test |

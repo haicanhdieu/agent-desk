@@ -820,19 +820,22 @@ describe('a pod that ends without being asked to', () => {
     expect(h.parks).toEqual([]);
   });
 
-  it('a run that started before pod-lost-parks existed keeps the old failure when its pod vanished', async () => {
+  // origin/main: `followPodLogs` threw these two texts, and the workflow wrote `failureReason(err)`, which prefixes the
+  // activity name. No stage, no exit code, no scrollback tail.
+  it.each([
+    ['the pod disappeared', 'the run pod disappeared before it reported an exit code'],
+    ['the pod ended without an exit code', 'the run pod ended (Unknown) without an exit code: NodeLost'],
+  ])('a run that started before pod-lost-parks existed keeps the old failure text when %s', async (_name, lostText) => {
     runtime.unpatched.add('pod-lost-parks');
     const h = start();
     await toRunning(h);
-    h.pods[0]?.exit({ exitCode: -1, agentStarted: true, podLost: true });
+    h.pods[0]?.exit({ exitCode: -1, agentStarted: true, podLost: true, lostText, scrollbackTail: 'last lines' });
 
     const outcome = await h.done;
-    expect(outcome).toMatchObject({
-      status: 'failed',
-      failureReason: 'the run pod disappeared before it reported an exit code',
-    });
+    expect(outcome).toMatchObject({ status: 'failed', failureReason: `followPodLogs failed: ${lostText}` });
     expect(outcome).not.toHaveProperty('failureStage');
     expect(outcome).not.toHaveProperty('exitCode');
+    expect(outcome).not.toHaveProperty('scrollbackTail');
     expect(h.parks).toEqual([]);
   });
 });
