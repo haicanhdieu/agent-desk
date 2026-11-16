@@ -2,11 +2,11 @@
 
 The PR body is owned by the `create-pr` skill, not this file.
 
-Post comments with `gh issue comment <n> --body-file <file>`. Write them in plain everyday language and keep them short ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty.
+Post with `gh issue comment <n> --body-file <file>`. Plain everyday language, short ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty.
 
 ## Needs clarification
 
-One form, one question ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans): one question per message, answerable in 30 seconds). If more gaps exist, the next run asks the next one. Use the first header when Triage blocks on a gap, or a Fixer can't reproduce the bug; use the second for everything else: the Advisor's `HUMAN QUESTION`, an Advisor verdict you rejected, the Advisor cap or a repeat, or a technical failure. Either way the run ends at **Blocked**.
+One form, one question ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans): one question per message, answerable in 30 seconds); the next run asks the next gap. First header: Triage blocks on a gap, or a Fixer can't reproduce the bug. Second header: everything else (the Advisor's `HUMAN QUESTION`, an Advisor verdict you rejected, the Advisor cap or a repeat, a technical failure). Either way the run ends at **Blocked**.
 
 ```markdown
 **dev-build: I can't start this yet. The requirement isn't clear enough to build without guessing.**
@@ -35,11 +35,11 @@ Reply here with your pick, move the card back to **Ready**, and run `/dev-build 
 
 For a feature with no task list, the question is always: "Can you add a task list (`- [ ]` steps with what changes and how we know it's done), or link a plan in `docs/superpowers/plans/`?" (Solutions: "I add the list here", "I link a plan", "Skip: close the ticket".)
 
-The two lines `Work so far is pushed on …` and `Stopped at: …` (plus `Units: …` in multi-unit mode, where the branch is the integration branch) are how the next run knows it may resume (Triage reads them), so write them exactly. Leave them out when no branch exists.
+Triage reads `Work so far is pushed on …` and `Stopped at: …` (plus `Units: …` in multi-unit mode, where the branch is the integration branch) to resume, so write them exactly. Omit them when no branch exists.
 
 ## Advisor decision
 
-Post one per accepted Advisor decision, before you re-dispatch the asker. It lets a human see and overrule the call before review.
+One per accepted Advisor decision, before re-dispatching the asker, so a human can see and overrule it before review.
 
 ```markdown
 **dev-build: decided without a human:** <the question, one line>
@@ -61,7 +61,7 @@ Post one per accepted Advisor decision, before you re-dispatch the asker. It let
 
 ## Units plan
 
-Multi-unit mode only, instead of **Started**. Triage copies the table back on a resume, so keep its columns exactly.
+Multi-unit only, instead of **Started**. Triage copies the table back on a resume: keep its columns exactly.
 
 ```markdown
 **dev-build:** working on this as a **feature** in <N> parts on branch `<integration>` (from latest `main`). Each part gets its own internal check before it joins that branch; you get one PR to `main` at the end.
@@ -73,7 +73,7 @@ Multi-unit mode only, instead of **Started**. Triage copies the table back on a 
 
 ## Unit merged
 
-Multi-unit mode only, after each sub-PR merges into the integration branch.
+Multi-unit only, after each sub-PR merges into the integration branch.
 
 ```markdown
 **dev-build:** part U<id> (<k> of <N>) is done and checked: #<sub-PR>, merged into `<integration>`. <m> part(s) to go.
@@ -81,7 +81,7 @@ Multi-unit mode only, after each sub-PR merges into the integration branch.
 
 ## Resumed (units)
 
-Multi-unit mode only, instead of **Resumed**.
+Multi-unit only, instead of **Resumed**.
 
 ```markdown
 **dev-build:** resumed on branch `<integration>` after your answer. Parts done: <k> of <N>. Continuing from: <the "Stopped at" line>.
