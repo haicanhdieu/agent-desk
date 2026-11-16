@@ -1160,6 +1160,14 @@ describe('followPodLogs', () => {
         });
       };
 
+      /** A stored end event holds the line number (added by the store), the kind, the reason and the code: no log text. */
+      const expectOnlyEndFields = (payloads: Record<string, unknown>[]): void => {
+        for (const p of payloads) {
+          expect(Object.keys(p).sort()).toEqual(['code', 'kind', 'line', 'reason']);
+          expect(Object.values(p).some((v) => typeof v === 'string' && v.includes('agentdesk:'))).toBe(false);
+        }
+      };
+
       it('returns the reason from the last end line and stores only the reason and the code', async () => {
         const runId = await seedRun('x');
         const ctx = await ctxFor(runId);
@@ -1172,7 +1180,8 @@ describe('followPodLogs', () => {
         expect(r).toMatchObject({ exitCode: 143, agentStarted: true, endReason: 'signal' });
         expect(r.podLost).toBeUndefined();
         const ended = (await lifecycleOf(runId)).filter((e) => e.payload.kind === 'session_ended');
-        expect(ended.map((e) => e.payload)).toEqual([
+        expectOnlyEndFields(ended.map((e) => e.payload));
+        expect(ended.map(({ payload: p }) => ({ kind: p.kind, reason: p.reason, code: p.code }))).toEqual([
           { kind: 'session_ended', reason: 'agent_exit', code: 1 },
           { kind: 'session_ended', reason: 'signal', code: 143 },
         ]);
@@ -1194,7 +1203,10 @@ describe('followPodLogs', () => {
         expect(r).toMatchObject({ exitCode: 0, endReason: 'agent_exit' });
         const { events } = await load(runId);
         const ended = events.filter((e) => e.type === 'lifecycle' && e.payload.kind === 'session_ended');
-        expect(ended.map((e) => e.payload)).toEqual([{ kind: 'session_ended', reason: 'agent_exit', code: 0 }]);
+        expectOnlyEndFields(ended.map((e) => e.payload));
+        expect(ended.map(({ payload: p }) => ({ kind: p.kind, reason: p.reason, code: p.code }))).toEqual([
+          { kind: 'session_ended', reason: 'agent_exit', code: 0 },
+        ]);
         const scrollback = events.filter((e) => e.type === 'scrollback');
         expect(scrollback).toHaveLength(1);
         expect(String(scrollback[0]?.payload.text)).toBe(`pane one\n${fake}`);
