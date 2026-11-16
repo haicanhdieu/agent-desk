@@ -19,6 +19,7 @@ import {
   useTerminalSocket,
   type TerminalState,
 } from './useTerminal';
+import { TERMINAL_UNUSED_CLOSE_MS } from './unusedWatch';
 
 const signOut = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 vi.mock('@/features/auth/signOut', async (importOriginal) => ({
@@ -385,6 +386,123 @@ describe('useTerminal', () => {
   });
 });
 
+describe('closing an unused tab', () => {
+  const MS = TERMINAL_UNUSED_CLOSE_MS;
+  const keydown = () => document.body.dispatchEvent(new Event('keydown', { bubbles: true }));
+
+  it('closes with a normal close after the unused time: state inactive, nothing refetched, no retry', async () => {
+    vi.useFakeTimers();
+    const { hook, qc, state } = setup();
+    const invalidate = vi.spyOn(qc, 'invalidateQueries');
+    const ws = latest();
+    act(() => ws.open());
+    act(() => void vi.advanceTimersByTime(MS - 1));
+    expect(state()).toBe('open');
+    expect(ws.readyState).toBe(FakeWebSocket.OPEN);
+    act(() => void vi.advanceTimersByTime(1));
+    expect(ws.clientCloseCode).toBe(1000);
+    expect(state()).toBe('inactive');
+    await act(async () => void vi.advanceTimersByTime(MS * 2));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(invalidate).not.toHaveBeenCalled();
+    expect(state()).toBe('inactive');
+    hook.unmount();
+  });
+
+  it('a use event postpones the close; xterm replies sent through onData do not count as use', () => {
+    vi.useFakeTimers();
+    const { state } = setup();
+    const ws = latest();
+    act(() => ws.open());
+    act(() => void vi.advanceTimersByTime(MS - 60_000));
+    act(() => keydown());
+    act(() => void vi.advanceTimersByTime(MS - 1));
+    expect(state()).toBe('open');
+    act(() => void vi.advanceTimersByTime(1));
+    expect(state()).toBe('inactive');
+  });
+
+  it('terminal replies from xterm (onData) do not keep the tab alive', () => {
+    vi.useFakeTimers();
+    const { hook, state } = setup();
+    act(() => latest().open());
+    for (let i = 0; i < 4; i++) {
+      act(() => void vi.advanceTimersByTime(MS / 4 - 1));
+      act(() => hook.result.current.onData('\u001b[>0;276;0c'));
+    }
+    act(() => void vi.advanceTimersByTime(4));
+    expect(state()).toBe('inactive');
+  });
+
+  it('a tab hidden for the whole time closes the socket too', () => {
+    vi.useFakeTimers();
+    let visibility: DocumentVisibilityState = 'visible';
+    vi.spyOn(document, 'visibilityState', 'get').mockImplementation(() => visibility);
+    const { state } = setup();
+    act(() => latest().open());
+    visibility = 'hidden';
+    act(() => void document.dispatchEvent(new Event('visibilitychange')));
+    act(() => void vi.advanceTimersByTime(MS));
+    expect(state()).toBe('inactive');
+  });
+
+  it('also stops a pending retry: a forgotten tab that lost its connection does not reconnect', () => {
+    vi.useFakeTimers();
+    const { state } = setup();
+    act(() => latest().open());
+    act(() => void vi.advanceTimersByTime(MS - 500));
+    act(() => latest().serverClose(1006));
+    expect(state()).toBe('retrying');
+    // The retry (after 1 s) is still pending when the unused time ends.
+    act(() => void vi.advanceTimersByTime(500));
+    expect(state()).toBe('inactive');
+    act(() => void vi.advanceTimersByTime(MS));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(state()).toBe('inactive');
+  });
+
+  it('reconnect() opens a fresh socket, shows connecting until it opens, and restarts the timer', () => {
+    vi.useFakeTimers();
+    const { hook, state } = setup();
+    act(() => latest().open());
+    act(() => void vi.advanceTimersByTime(MS));
+    expect(state()).toBe('inactive');
+    act(() => hook.result.current.reconnect());
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(state()).toBe('connecting');
+    act(() => latest().open());
+    expect(state()).toBe('open');
+    act(() => void vi.advanceTimersByTime(MS - 1));
+    expect(state()).toBe('open');
+    act(() => void vi.advanceTimersByTime(1));
+    expect(state()).toBe('inactive');
+    expect(latest().clientCloseCode).toBe(1000);
+  });
+
+  it('unmounting leaves no timer or listener behind', () => {
+    vi.useFakeTimers();
+    const { hook } = setup({ enabled: false });
+    const before = vi.getTimerCount();
+    hook.rerender({ enabled: true });
+    act(() => latest().open());
+    expect(vi.getTimerCount()).toBeGreaterThan(before);
+    hook.unmount();
+    expect(vi.getTimerCount()).toBe(before);
+  });
+
+  it('a terminal that did not opt in (the setup test) is never closed for inactivity', () => {
+    vi.useFakeTimers();
+    const term: RefObject<LiveTerminalHandle | null> = { current: { write: vi.fn() } };
+    const hook = renderHook(() => useTerminalSocket('/api/setup-tests/x/terminal', true, term, () => undefined), {
+      wrapper: wrapperFor(new QueryClient()),
+    });
+    act(() => latest().open());
+    act(() => void vi.advanceTimersByTime(MS * 2));
+    expect(hook.result.current.state).toBe('open');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+});
+
 describe('useTerminalSocket', () => {
   const path = '/api/setup-tests/3f2b9c1e-0000-4000-8000-000000000001/terminal';
   const socketSetup = (onSessionEnd: () => void | Promise<boolean>) => {
@@ -551,6 +669,24 @@ describe('run detail terminal', () => {
     expect(await screen.findByText("You can't open this terminal")).toBeInTheDocument();
     act(() => vi.advanceTimersByTime(60_000));
     expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('an unused page closes its terminal and says so; Reconnect attaches again with a fresh timer', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'], shouldAdvanceTime: true });
+    await renderRoute(`${base}/runs/62`);
+    const ws = await socket();
+    act(() => ws.open());
+    act(() => void vi.advanceTimersByTime(TERMINAL_UNUSED_CLOSE_MS));
+    expect(await screen.findByText('Terminal closed for inactivity')).toBeInTheDocument();
+    expect(screen.getByText(/Nobody used this page for 4 hours/)).toBeInTheDocument();
+    expect(screen.getByText('Closed for inactivity')).toBeInTheDocument();
+    expect(ws.clientCloseCode).toBe(1000);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    fireEvent.click(screen.getByRole('button', { name: 'Reconnect' }));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    act(() => latest().open());
+    await waitFor(() => expect(screen.queryByText('Terminal closed for inactivity')).not.toBeInTheDocument());
+    expect(latest().clientCloseCode).toBeUndefined();
   });
 
   it('after the back-off gives up, RunReconnect shows and Reconnect now attaches again', async () => {

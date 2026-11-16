@@ -45,6 +45,18 @@ export const Pausing: Story = {
   },
 };
 
+/** Nobody used the page for hours: the browser closed the terminal, so the run can pause. Reconnect attaches again. */
+export const InactiveClosed: Story = {
+  args: {
+    data: { ...RunIdle, connection: { state: 'none', label: 'Closed for inactivity' } },
+    lines: terminalByRun[62],
+    inactiveBody:
+      'Nobody used this page for 4 hours, so the terminal was closed and the run can pause when it is idle. The agent keeps working; tmux holds the session. Reconnect to attach to the terminal again.',
+    onReconnect: () => {},
+    onFinish: () => {},
+  },
+};
+
 /** Paused by the idle timer: the usual headline and reason. */
 export const PausedIdleTimeout: Story = {
   args: { data: RunPaused, lines: terminalByRun[62], onResume: () => {}, onFinish: () => {} },

@@ -412,6 +412,24 @@ D2 is answered (Task 9b): the lease design itself has no "attached but idle for 
 - [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/api test` — expect PASS.
 - [x] **Step 5: Commit** `feat(worker): attach leases that expire instead of an attach counter` (API part in the same PR; one concern: leases).
 
+### Task 9b: Close an unused terminal tab in the browser (decision D2, option 3)
+
+**Files:**
+- Create: `apps/web/src/features/runs/unusedWatch.ts` (pure timing helper, DOM events only), `apps/web/src/features/runs/unusedWatch.test.ts`
+- Modify: `apps/web/src/features/runs/useTerminal.ts` (+ `useTerminal.test.tsx`), `apps/web/src/features/runs/detail.map.ts` (+ test), `apps/web/src/screens/{RunTerminalArea,RunDetail}.tsx` (+ story, `storyIds.ts`, `runDetail.test.tsx`), `apps/web/src/app/routes/o.$org.p.$project.runs.$run.tsx`
+
+**Interfaces — Produces:**
+- `TERMINAL_UNUSED_CLOSE_MS = 4 * 60 * 60 * 1000`: one named constant (the human gave no N; 4 hours is a judgment call).
+- A page counts as unused after that long with no `keydown`, `pointerdown`, `wheel` or `touchstart` DOM event (xterm's automatic replies are not DOM events and do not count), or after the tab was continuously hidden (`document.visibilityState === 'hidden'`) that long.
+- When it fires, `useTerminalSocket` (opt-in: only the run terminal, not the setup test) closes the socket with a normal close (1000, so the API drops its lease), does not retry, and sets the new state `inactive`; `reconnect()` opens a fresh socket and restarts the timer.
+- `RunTerminalArea` (`inactiveBody`) shows "Terminal closed for inactivity" with a Reconnect button, as a text-only overlay with design tokens; loading, empty and error states are unchanged.
+
+- [x] **Step 1: Failing tests:** helper: fires after the idle time, an event in between postpones it, each of the four events counts and a `mousemove` or other event does not, hidden for the whole time fires while visible-then-hidden resets, dispose stops it. Hook: closes with 1000 and sets `inactive` without a retry, reconnect resets, `closeWhenUnused` off changes nothing, existing states unchanged. Map and screen: `inactive` label, the overlay text as plain text, a story (`InactiveClosed`) and the smoke test.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/runs src/screens` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** the same files and the stories smoke test — expect PASS.
+- [x] **Step 5: Commit** `feat(web): close an unused terminal tab after a few hours`.
+
 ---
 
 ## Phase 10: End-to-end check (PR 10) — not sensitive

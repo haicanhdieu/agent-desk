@@ -21,12 +21,16 @@ import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
 import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
 import { useTerminal } from '@/features/runs/useTerminal';
+import { TERMINAL_UNUSED_CLOSE_MS } from '@/features/runs/unusedWatch';
 import { RunDetail } from '@/screens';
 
 // xterm downloads only when a run detail shows a terminal (spec §5.3).
 const LiveTerminal = lazy(() => import('@/components/LiveTerminal'));
 
 const GAVE_UP_BODY = 'The agent keeps working; tmux holds the session. Reconnect to attach to the terminal again.';
+
+const UNUSED_HOURS = TERMINAL_UNUSED_CLOSE_MS / (60 * 60 * 1000);
+const INACTIVE_BODY = `Nobody used this page for ${UNUSED_HOURS} hours, so the terminal was closed and the run can pause when it is idle. The agent keeps working; tmux holds the session. Reconnect to attach to the terminal again.`;
 
 /** `$run` is the per-project run number. */
 const RunParam = z.string().regex(/^[1-9]\d{0,8}$/);
@@ -130,6 +134,7 @@ function RunDetailRoute() {
       onReconnect={live ? term.reconnect : undefined}
       reconnectOverlay={live && term.state === 'gave_up'}
       reconnectBody={live ? GAVE_UP_BODY : undefined}
+      inactiveBody={live && term.state === 'inactive' ? INACTIVE_BODY : undefined}
       needsYou={page.dto.counts.needsYou}
       projectName={page.dto.name}
       user={page.user}

@@ -366,6 +366,8 @@ export function terminalConnection(terminal: TerminalState, stream: ConnectionSt
       return { state: 'none', label: 'No access' };
     case 'ended':
       return { state: 'ended', label: 'Session ended' };
+    case 'inactive':
+      return { state: 'none', label: 'Closed for inactivity' };
   }
 }
 
