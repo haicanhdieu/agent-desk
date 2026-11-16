@@ -298,6 +298,8 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       if (conn.closed || conn.session !== session) return;
       if (code === EXEC_NOT_FOUND && !conn.fellBack && conn.podName) {
         conn.fellBack = true;
+        // Input typed until the fallback is bound is held in `pending` (onFrame buffers while there is no session).
+        conn.session = undefined;
         void this.fallbackAttach(conn, conn.podName);
         return;
       }
@@ -314,6 +316,9 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       }
       this.bind(conn, session);
       if (conn.lastResize) session.resize(conn.lastResize.cols, conn.lastResize.rows);
+      const pending = conn.pending.splice(0);
+      conn.pendingBytes = 0;
+      for (const b of pending) this.onInput(conn, b);
     } catch (err) {
       this.log.error(`terminal fallback attach failed ${conn.target.kind}=${conn.runId}: ${errorName(err)}`);
       this.shut(conn, CLOSE.internal);
@@ -439,7 +444,13 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const job = (async () => {
       try {
         const s = await this.kube.exec(podName, detachCommand(conn.connId), { tty: false });
-        s.onClose(() => s.close());
+        // Resolve when the detach command has exited (not just when its exec stream opened), so shutdown can wait.
+        await new Promise<void>((resolve) =>
+          s.onClose(() => {
+            s.close();
+            resolve();
+          }),
+        );
       } catch (err) {
         this.log.warn(`terminal detach exec failed ${conn.target.kind}=${conn.runId}: ${errorName(err)}`);
       }

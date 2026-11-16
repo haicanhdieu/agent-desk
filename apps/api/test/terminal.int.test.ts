@@ -31,6 +31,8 @@ const execLog: string[][] = [];
 let execOverride: ((cmd: string[]) => ExecSession | undefined) | undefined;
 /** Makes `getRunPod` report Running even after the fake pod exited (the attach-on-exited-pod race). */
 let stalePodRunning = false;
+/** When set, a plain `tmux` exec (the old-pod fallback) waits for it before it starts. */
+let fallbackGate: Promise<void> | undefined;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const closingSession = (code: number): ExecSession => ({
   write: () => undefined,
@@ -80,6 +82,7 @@ function spy(inner: KubeGateway): KubeGateway {
     exec: async (pod, cmd, opts): Promise<ExecSession> => {
       execCalls += 1;
       execLog.push([...cmd]);
+      if (cmd[0] === 'tmux') await fallbackGate;
       const overridden = execOverride?.(cmd);
       if (overridden) return overridden;
       const s = await inner.exec(pod, cmd, opts);
@@ -226,6 +229,7 @@ describe('terminal relay', () => {
     execLog.length = 0;
     execOverride = undefined;
     stalePodRunning = false;
+    fallbackGate = undefined;
     resizes.length = 0;
     t.temporal.reset();
   });
@@ -616,6 +620,68 @@ describe('terminal relay', () => {
     await c.closed;
   });
 
+  it('keeps input typed while the old-pod fallback attach starts and delivers it to the fallback session', async () => {
+    const runId = await makeRun('running');
+    let release!: () => void;
+    fallbackGate = new Promise<void>((r) => (release = r));
+    execOverride = (cmd) => (cmd[0] === 'agentdesk-attach' ? closingSession(127) : undefined);
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => execLog.some((x) => x[0] === 'tmux')); // the named attach exited 127, the fallback exec is pending
+    c.ws.send(Buffer.from('typed-early\r'), { binary: true });
+    await sleep(150);
+    release();
+    await until(() => c.bytes().includes('typed-early')); // the fake pane echoes what the fallback session received
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('runs agentdesk-detach once, with the attach id, after a server-side socket error (oversized frame)', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => attachIds().length === 1);
+    c.ws.send(Buffer.alloc(70 * 1024, 1), { binary: true }); // ws emits 'error' then 'close' on the server socket
+    expect(await c.closed).toBe(1009);
+    await until(() => detachIds().length > 0);
+    await sleep(150);
+    expect(detachIds()).toHaveLength(1);
+    expect(detachIds()).toEqual(attachIds());
+  });
+
+  it('module destroy waits for the detach exec to finish, not just to start', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => attachIds().length === 1);
+    let finish!: () => void;
+    let closeCb: ((code: number) => void) | undefined;
+    let closedCalls = 0;
+    execOverride = (cmd) =>
+      cmd[0] === 'agentdesk-detach'
+        ? {
+            ...closingSession(0),
+            onClose: (cb) => {
+              closeCb = cb;
+              finish = () => cb(0);
+            },
+            close: () => void (closedCalls += 1),
+          }
+        : undefined;
+    let destroyed = false;
+    const done = t.app
+      .get(TerminalGateway)
+      .onModuleDestroy()
+      .then(() => (destroyed = true));
+    await until(() => closeCb !== undefined);
+    await sleep(200);
+    expect(destroyed).toBe(false);
+    finish();
+    await done;
+    expect(closedCalls).toBe(1);
+    await c.closed;
+  });
+
   it('closes 1000 when the run ends (pod exit)', async () => {
     const runId = await makeRun('running');
     const c = connect(runId, { cookie: alice });
@@ -719,6 +785,7 @@ describe('terminal relay: setup tests', () => {
     execLog.length = 0;
     execOverride = undefined;
     stalePodRunning = false;
+    fallbackGate = undefined;
     resizes.length = 0;
     t.temporal.reset();
   });

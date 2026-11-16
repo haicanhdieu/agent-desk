@@ -371,7 +371,17 @@ describe('RealKubeGateway', () => {
     expect(codes).toEqual([127]);
   });
 
-  it('exec status with an ExitCode cause of 127 stays 127, and other failures stay 1', async () => {
+  it('exec status with an ExitCode cause of 127 → close code 127', async () => {
+    const m = mocks();
+    const s = await m.gw.exec('p', ['x'], { tty: false });
+    const codes: number[] = [];
+    s.onClose((c) => codes.push(c));
+    m.emit(3, JSON.stringify({ status: 'Failure', details: { causes: [{ reason: 'ExitCode', message: '127' }] } }));
+    m.closeSocket();
+    expect(codes).toEqual([127]);
+  });
+
+  it('exec status failure without an ExitCode cause or a not-found message → close code 1', async () => {
     const m = mocks();
     const s = await m.gw.exec('p', ['x'], { tty: false });
     const codes: number[] = [];
