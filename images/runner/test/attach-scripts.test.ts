@@ -1,5 +1,5 @@
-import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -75,14 +75,15 @@ describe('agentdesk-detach', () => {
     writeFileSync(join(t.procDir, String(pid), 'comm'), `${comm}\n`);
   };
   const sleeper = () => spawn('sleep', ['60'], { stdio: 'ignore' });
-  const alive = (pid: number) => {
-    try {
-      process.kill(pid, 0);
-      return true;
-    } catch {
-      return false;
-    }
+  // process.kill(pid, 0) also succeeds on a killed-but-unreaped zombie, so decide by how the child really ended:
+  // 'SIGTERM' means detach signalled it, 'SIGKILL' means only our own cleanup did.
+  const endSignal = async (child: ChildProcess, closed: Promise<void>) => {
+    child.kill('SIGKILL');
+    await closed;
+    return child.signalCode;
   };
+  const watch = (child: ChildProcess) => new Promise<void>((r) => child.on('close', () => r()));
+  const pidPath = (t: ReturnType<typeof setup>, id: string) => join(t.runDir, 'attach', `${id}.pid`);
 
   it('rejects a non-uuid with exit 2', () => {
     const t = setup();
@@ -99,54 +100,94 @@ describe('agentdesk-detach', () => {
     const t = setup();
     const a = sleeper();
     const b = sleeper();
+    const aClosed = watch(a);
+    const bClosed = watch(b);
     try {
-      const closed = new Promise<void>((r) => a.on('close', () => r()));
-      fakeProc(t, a.pid as number, 'tmux');
-      fakeProc(t, b.pid as number, 'tmux');
+      fakeProc(t, a.pid as number, 'tmux: client');
+      fakeProc(t, b.pid as number, 'tmux: client');
       pidFile(t, ID, `${a.pid}\n`);
       pidFile(t, OTHER, `${b.pid}\n`);
       expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
-      await closed;
-      expect(alive(b.pid as number)).toBe(true);
-      expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
-      expect(existsSync(join(t.runDir, 'attach', `${OTHER}.pid`))).toBe(true);
+      expect(await endSignal(a, aClosed)).toBe('SIGTERM');
+      expect(await endSignal(b, bClosed)).toBe('SIGKILL');
+      expect(existsSync(pidPath(t, ID))).toBe(false);
+      expect(existsSync(pidPath(t, OTHER))).toBe(true);
     } finally {
       a.kill('SIGKILL');
       b.kill('SIGKILL');
     }
   });
 
-  it.each(['tmux: client', 'tmux'])('kills a pid whose comm is %j (a real attach client)', async (comm) => {
+  it.each(['tmux: client', 'agentdesk-attac'])('kills a pid whose comm is %j', async (comm) => {
     const t = setup();
     const a = sleeper();
+    const closed = watch(a);
     try {
-      const closed = new Promise<void>((r) => a.on('close', () => r()));
       fakeProc(t, a.pid as number, comm);
       pidFile(t, ID, `${a.pid}\n`);
       expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
-      await closed;
-      expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
+      expect(await endSignal(a, closed)).toBe('SIGTERM');
+      expect(existsSync(pidPath(t, ID))).toBe(false);
     } finally {
       a.kill('SIGKILL');
     }
   });
 
-  it.each(['tmux: server', 'sleep', 'bash', 'node', 'tmux: clientx'])(
+  it.each(['tmux: server', 'tmux', 'sleep', 'bash', 'node', 'tmux: clientx'])(
     'does not kill a pid whose comm is %j',
-    (comm) => {
+    async (comm) => {
       const t = setup();
       const a = sleeper();
+      const closed = watch(a);
       try {
         fakeProc(t, a.pid as number, comm);
         pidFile(t, ID, `${a.pid}\n`);
         expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
-        expect(alive(a.pid as number)).toBe(true);
-        expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
+        expect(await endSignal(a, closed)).toBe('SIGKILL');
+        expect(existsSync(pidPath(t, ID))).toBe(false);
       } finally {
         a.kill('SIGKILL');
       }
     },
   );
+
+  describe('detach arriving before attach', () => {
+    it('leaves a tombstone, and the later attach exits 3 without attaching', () => {
+      const t = setup();
+      expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
+      expect(readFileSync(pidPath(t, ID), 'utf8')).toBe('-\n');
+      expect(run('agentdesk-attach', ID, t.env).status).toBe(3);
+      expect(t.calls().some((a) => a.includes('attach'))).toBe(false);
+      expect(existsSync(pidPath(t, ID))).toBe(false);
+    });
+
+    it('is idempotent: a second detach keeps the tombstone', () => {
+      const t = setup();
+      expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
+      expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
+      expect(readFileSync(pidPath(t, ID), 'utf8')).toBe('-\n');
+      expect(run('agentdesk-attach', ID, t.env).status).toBe(3);
+    });
+
+    it('does not block an attach with a different id', async () => {
+      const t = setup();
+      expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
+      const child = spawn('bash', [join(bin, 'agentdesk-attach'), OTHER], { env: t.env });
+      await watch(child);
+      expect(child.exitCode).toBe(0);
+      expect(t.calls()).toContainEqual(['attach', '-t', '=agent']);
+    });
+
+    it('never follows a symlink planted at the pid file path', () => {
+      const t = setup();
+      const victim = join(t.dir, 'victim');
+      writeFileSync(victim, 'keep');
+      mkdirSync(join(t.runDir, 'attach'), { recursive: true });
+      symlinkSync(victim, pidPath(t, ID));
+      expect(run('agentdesk-attach', ID, t.env).status).toBe(3);
+      expect(readFileSync(victim, 'utf8')).toBe('keep');
+    });
+  });
 
   it.each(['agentdesk-attach', 'agentdesk-detach'])(
     '%s pins its own C locale so the id ranges are not collation-based',

@@ -2,7 +2,8 @@
 # Attach to the agent's tmux session as one named client: `agentdesk-attach <uuid>`. The pid file
 # ${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/<uuid>.pid lets `agentdesk-detach <uuid>` end exactly this client, so a
 # dropped terminal cannot leave a client behind. The id is untrusted: it is used only after the strict uuid check.
-# Exit codes: 2 bad id, 3 no agent session.
+# A detach that ran first left a `-` tombstone in the pid file; then this exits 3 without attaching (no orphan client).
+# Exit codes: 2 bad id, 3 no agent session or already detached.
 set -euo pipefail
 LC_ALL=C
 export LC_ALL
@@ -20,6 +21,11 @@ fi
 
 dir="${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach"
 mkdir -p -- "$dir"
-printf '%s\n' "$$" > "$dir/$id.pid"
+# noclobber: never overwrite or follow anything already at the path (a detach tombstone means detach got here first).
+if ! (set -C; printf '%s\n' "$$" > "$dir/$id.pid") 2>/dev/null; then
+  rm -f -- "$dir/$id.pid"
+  echo "agentdesk-attach: already detached" >&2
+  exit 3
+fi
 # exec keeps this pid: the file names the tmux client process itself.
 exec tmux attach -t '=agent'
