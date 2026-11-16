@@ -2,10 +2,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ApplicationFailure } from '@temporalio/common';
 import { describe, expect, it } from 'vitest';
-import { FakeKubeGateway, MemorySecretStore, createAdapterRegistry, parseConfig } from '@agentdesk/core';
+import { END_REASONS, FakeKubeGateway, MemorySecretStore, createAdapterRegistry, parseConfig } from '@agentdesk/core';
 import { createDb, type Db } from '@agentdesk/db';
 import type { RunContext } from '../src/activities/run.activities';
 import { createRunActivities } from '../src/activities/run.activities.impl';
+import { END_REASONS as END_REASONS_WORKFLOW } from '../src/workflows/run.workflow';
 
 const ORG = '44444444-4444-4444-8444-444444444444';
 const CTX: RunContext = {
@@ -98,5 +99,11 @@ describe('recordEndingDeadline', () => {
     expect(err).toBeInstanceOf(ApplicationFailure);
     expect((err as ApplicationFailure).nonRetryable).toBe(true);
     expect(inserted).toEqual([]);
+  });
+});
+
+describe('END_REASONS', () => {
+  it('the workflow mirror equals core (workflow code cannot import core)', () => {
+    expect([...END_REASONS_WORKFLOW]).toEqual([...END_REASONS]);
   });
 });

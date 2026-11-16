@@ -1,7 +1,12 @@
 import { AgentState, AgentStateSource, toAgentNoteWire } from '@agentdesk/contracts';
 
+/** Why the runner's session ended (the runner prints it in its end line). Mirrored in worker workflow code. */
+export const END_REASONS = ['stop_request', 'agent_exit', 'session_gone', 'signal'] as const;
+export type EndReason = (typeof END_REASONS)[number];
+
 export type LogLineKind =
   | 'session_started'
+  | 'session_ended'
   | 'agent_state'
   | 'scrollback_begin'
   | 'scrollback_end'
@@ -26,6 +31,7 @@ export interface ParsedLogLine {
   pluginId?: string;
   exitCode?: number;
   sha?: string;
+  end?: { reason: EndReason; code: number };
   agent?: { state: AgentState; source?: AgentStateSource; waitingOn?: 'background'; note?: string };
 }
 
@@ -48,6 +54,9 @@ const CHECKOUT = /^agentdesk: checkout ([0-9a-f]{40})$/;
 const PLUGIN = new RegExp(`^agentdesk: plugin (installed|failed) (${ID})$`);
 const PLUGIN_SKIPPED = new RegExp(`^agentdesk: plugin skipped (${ID}) \\(store not approved\\)$`);
 const SETUP_FAILED = /^agentdesk: setup failed exit=(\d{1,3})$/;
+
+/** Anchored and exact: the log is sandbox output, so any other reason or extra text stays an ordinary line. */
+const SESSION_ENDED = new RegExp(`^agentdesk: session ended reason=(${END_REASONS.join('|')}) code=(\\d{1,3})$`);
 
 const STATE_WORKING = /^agentdesk: state working$/;
 const STATE_WAITING = /^agentdesk: state waiting background$/;
@@ -74,6 +83,11 @@ export function parseLogLine(line: string): ParsedLogLine {
   if (skipped) return { kind: 'plugin_skipped', text: trimmed, pluginId: skipped[1] };
   const failed = SETUP_FAILED.exec(trimmed);
   if (failed?.[1]) return { kind: 'setup_failed', text: trimmed, exitCode: Number.parseInt(failed[1], 10) };
+  const ended = SESSION_ENDED.exec(trimmed);
+  if (ended?.[1] && ended[2]) {
+    const reason = ended[1] as EndReason; // the regex admits only the four reasons
+    return { kind: 'session_ended', text: trimmed, end: { reason, code: Number.parseInt(ended[2], 10) } };
+  }
   return { kind: 'text', text: line };
 }
 

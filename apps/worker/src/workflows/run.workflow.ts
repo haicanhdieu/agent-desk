@@ -58,6 +58,10 @@ import {
 
 /** Mirrors IDLE_END_SECONDS in @agentdesk/core (workflow code cannot import core); used when loadRun gives none. */
 export const IDLE_END_SECONDS_DEFAULT = 1800;
+
+/** Mirrors END_REASONS / EndReason in @agentdesk/core (workflow code cannot import core); a test asserts equality. */
+export const END_REASONS = ['stop_request', 'agent_exit', 'session_gone', 'signal'] as const;
+export type EndReason = (typeof END_REASONS)[number];
 /** Mirrors ENDING_DEADLINE_SECONDS in @agentdesk/core; used when loadRun gives none. */
 export const ENDING_DEADLINE_SECONDS_DEFAULT = 90;
 /** Mirrors POD_PENDING_TIMEOUT in ../activities/run.activities (a value import would pull activity code in). */

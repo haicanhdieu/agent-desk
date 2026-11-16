@@ -275,11 +275,11 @@ Precondition: the Phase 3 runner image is live.
 - `FollowPodLogsResult` gains `endReason?: EndReason` (last `session_ended` line seen; stored as a run event so it survives retries) and `podLost?: true` (the pod vanished or ended with no end line after `session_started`).
 - `waitForExit` returns `'gone'` instead of throwing when the pod disappeared; `followPodLogs` maps `'gone'` after `session_started` to `{ podLost: true, exitCode: -1 }` and keeps today's non-retryable failure before it.
 
-- [ ] **Step 1: Failing tests:** parser accepts the four reasons and rejects `reason=evil`, extra text, and 4-digit codes; `followPodLogs` returns `endReason: 'signal'` for a log with the line; returns `podLost: true` when the fake pod is deleted after `session started` with no end line; still throws before `session started`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test -- log-parser && pnpm --filter @agentdesk/worker test -- run.activities` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): read how the session ended from the runner`.
+- [x] **Step 1: Failing tests:** parser accepts the four reasons and rejects `reason=evil`, extra text, and 4-digit codes; `followPodLogs` returns `endReason: 'signal'` for a log with the line; returns `podLost: true` when the fake pod is deleted after `session started` with no end line; still throws before `session started`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test -- log-parser && pnpm --filter @agentdesk/worker test -- run.activities` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): read how the session ended from the runner`.
 
 ### Task 6b: Outcome decisions, `sessionEndingAt`, pod lost parks, resume while ending
 

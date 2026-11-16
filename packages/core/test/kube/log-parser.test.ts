@@ -125,3 +125,30 @@ describe('parseLogLine agent state protocol', () => {
     expect(parseLogLine(line)).toEqual({ kind: 'text', text: line });
   });
 });
+
+describe('parseLogLine session end marker', () => {
+  it.each(['stop_request', 'agent_exit', 'session_gone', 'signal'] as const)('accepts reason=%s', (reason) => {
+    const line = `agentdesk: session ended reason=${reason} code=137`;
+    expect(parseLogLine(line)).toEqual({ kind: 'session_ended', text: line, end: { reason, code: 137 } });
+  });
+
+  it('ignores surrounding whitespace and reads the code as a decimal number', () => {
+    expect(parseLogLine('agentdesk: session ended reason=agent_exit code=007\r').end).toEqual({
+      reason: 'agent_exit',
+      code: 7,
+    });
+  });
+
+  it.each([
+    'agentdesk: session ended reason=evil code=1',
+    'agentdesk: session ended reason=signal code=1 extra',
+    'agentdesk: session ended reason=signal code=1234',
+    'agentdesk: session ended reason=signal code=',
+    'agentdesk: session ended reason=signal code=-1',
+    'agentdesk: session ended reason=signal',
+    'agentdesk: session ended reason=signal code=1\nagentdesk: session ended reason=signal code=2',
+    'x agentdesk: session ended reason=signal code=1',
+  ])('treats %j as an ordinary log line', (line) => {
+    expect(parseLogLine(line)).toEqual({ kind: 'text', text: line });
+  });
+});
