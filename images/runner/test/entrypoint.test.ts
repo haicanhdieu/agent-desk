@@ -415,6 +415,27 @@ describe('entrypoint session end', () => {
     expect(r.exitCode).toBe(3);
   });
 
+  it('pane commands target the exact session with a trailing colon', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3' }, {});
+    for (const sub of ['capture-pane', 'display-message']) {
+      const calls = tmuxCalls(r).filter((c) => c.argv.includes(sub));
+      expect(calls.length).toBeGreaterThan(0);
+      for (const c of calls) expect(c.argv[c.argv.indexOf('-t') + 1]).toBe('=agent:');
+    }
+  });
+
+  it.each([
+    ['', 1],
+    ['abc', 1],
+    ['-1', 1],
+    ['256', 0],
+    ['259', 3],
+  ])('pane status %j ends with code %i', async (status, code) => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: status }, {});
+    expect(r.stdout.at(-1)).toBe(`agentdesk: session ended reason=agent_exit code=${code}`);
+    expect(r.exitCode).toBe(code);
+  });
+
   it('SIGTERM prints the scrollback, then the end line, and exits 0', async () => {
     const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive' }, {}, { signalAfterMs: 1500 });
     const begin = r.stdout.indexOf('agentdesk: final scrollback begin');

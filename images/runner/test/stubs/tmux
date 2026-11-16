@@ -11,6 +11,17 @@ appendFileSync(
 );
 const mode = process.env.STUB_TMUX_MODE ?? 'dead';
 if (argv.includes('has-session')) process.exit(mode === 'incident' ? 1 : 0);
+// Real tmux: `-t =agent` (no colon) is not a valid PANE target. capture-pane fails, display-message prints an empty line.
+const target = argv[argv.indexOf('-t') + 1];
+const badPaneTarget = argv.includes('-t') && target === '=agent';
+if (argv.includes('capture-pane') && badPaneTarget) {
+  console.error("can't find pane: =agent");
+  process.exit(1);
+}
+if (argv.includes('display-message') && badPaneTarget) {
+  console.log('');
+  process.exit(0);
+}
 if (argv.includes('display-message') && mode !== 'incident') {
   const format = argv[argv.length - 1];
   if (format.includes('pane_dead_status')) console.log(process.env.STUB_PANE_STATUS ?? '0');

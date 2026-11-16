@@ -194,7 +194,7 @@ echo 'agentdesk: session started'
 # hold it up), prints one end line and exits. end_session REASON CODE
 end_session() {
   echo 'agentdesk: final scrollback begin'
-  timeout 5 tmux capture-pane -J -p -S - -t '=agent' 2>/dev/null || true
+  timeout 5 tmux capture-pane -J -p -S - -t '=agent:' 2>/dev/null || true
   echo 'agentdesk: final scrollback end'
   tmux kill-server 2>/dev/null || true
   echo "agentdesk: session ended reason=$1 code=$2"
@@ -207,8 +207,8 @@ while :; do
   wait $! || true
   if [ "$end_reason" = signal ]; then end_session signal 0; fi
   if ! tmux has-session -t '=agent' 2>/dev/null; then end_session session_gone 0; fi
-  if [ "$(tmux display-message -p -t '=agent' '#{pane_dead}' 2>/dev/null || true)" = 1 ]; then
-    status="$(tmux display-message -p -t '=agent' '#{pane_dead_status}' 2>/dev/null || true)"
+  if [ "$(tmux display-message -p -t '=agent:' '#{pane_dead}' 2>/dev/null || true)" = 1 ]; then
+    status="$(tmux display-message -p -t '=agent:' '#{pane_dead_status}' 2>/dev/null || true)"
     case "$status" in
       '' | *[!0-9]*) status=1 ;;
     esac
