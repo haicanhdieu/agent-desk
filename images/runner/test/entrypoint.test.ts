@@ -409,6 +409,12 @@ describe('entrypoint session end', () => {
     expect(tmuxCalls(r).some((c) => c.argv.join(' ') === 'has-session -t =agent')).toBe(true);
   });
 
+  it.each(['incident', 'dead'])('checks before its first sleep when the session is already over (%s)', async (mode) => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: mode }, {});
+    expect(r.stdout.at(-1)).toMatch(/^agentdesk: session ended /);
+    expect(r.calls.filter((c) => c.cmd === 'sleep')).toEqual([]);
+  });
+
   it('agent exit reports the pane status', async () => {
     const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3' }, {});
     expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');

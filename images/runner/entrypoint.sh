@@ -201,10 +201,9 @@ end_session() {
   exit "$2"
 }
 
-# `sleep & wait` lets the TERM trap fire at once. Order: trap flag, session gone, agent pane dead.
+# Check first, then sleep, so an already-finished session ends without a 1s delay. `sleep & wait` lets the TERM trap
+# wake the loop at once; the flag check runs right after. Order: trap flag, session gone, agent pane dead.
 while :; do
-  sleep 1 &
-  wait $! || true
   if [ "$end_reason" = signal ]; then end_session signal 0; fi
   if ! tmux has-session -t '=agent' 2>/dev/null; then end_session session_gone 0; fi
   if [ "$(tmux display-message -p -t '=agent:' '#{pane_dead}' 2>/dev/null || true)" = 1 ]; then
@@ -214,4 +213,6 @@ while :; do
     esac
     end_session agent_exit "$((10#$status % 256))"
   fi
+  sleep 1 &
+  wait $! || true
 done
