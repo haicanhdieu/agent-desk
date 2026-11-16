@@ -469,8 +469,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         scrollbackSaved: pod.result?.scrollbackTail !== undefined,
         at: new Date().toISOString(),
       });
-    } catch {
-      // Informational only; the Job is already gone, so the run must still park or succeed.
+    } catch (err) {
+      // A cancel that lands while the event is being written wins; any other failure is informational only (the Job
+      // is already gone, so the run must still park or succeed).
+      if (isCancellation(err)) throw err;
     }
   }
 

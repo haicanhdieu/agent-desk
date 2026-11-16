@@ -253,6 +253,44 @@ describe('loadRun', () => {
   });
 });
 
+describe('recordEndingDeadline', () => {
+  const NOT_SAVED = 'The session did not end in time; the pod was stopped. Final scrollback not saved.';
+  const SAVED = 'The session did not end in time; the pod was stopped.';
+  const AT = '2026-01-01T00:01:00.000Z';
+
+  it('appends one lifecycle event per call, mentioning scrollback only when it was not saved', async () => {
+    for (const [scrollbackSaved, text] of [
+      [false, NOT_SAVED],
+      [true, SAVED],
+    ] as const) {
+      const runId = await seedRun('x', 'running');
+      await createRunActivities(deps()).recordEndingDeadline(await ctxFor(runId), { scrollbackSaved, at: AT });
+      const events = (await load(runId)).events.filter((e) => e.type === 'lifecycle');
+      expect(events).toHaveLength(1);
+      expect(events[0]?.payload).toEqual({ kind: 'ending_deadline', text });
+      expect(events[0]?.ts.toISOString()).toBe(AT);
+    }
+  });
+
+  it('an invalid timestamp and an unknown run fail non-retryably', async () => {
+    const runId = await seedRun('x', 'running');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const bad = await acts.recordEndingDeadline(ctx, { scrollbackSaved: true, at: 'nope' }).catch((e: unknown) => e);
+    const gone = await acts
+      .recordEndingDeadline(
+        { ...ctx, runId: '99999999-9999-4999-8999-999999999999' },
+        { scrollbackSaved: true, at: AT },
+      )
+      .catch((e: unknown) => e);
+    for (const err of [bad, gone]) {
+      expect(err).toBeInstanceOf(ApplicationFailure);
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    }
+    expect((await load(runId)).events.filter((e) => e.type === 'lifecycle')).toHaveLength(0);
+  });
+});
+
 /** Adapters whose workspace token changes on every mint, to prove a refresh rotates it. */
 function rotatingAdapters(ttlMs = 0): { adapters: RunActivityDeps['adapters']; mints: () => number } {
   const base = createAdapterRegistry(config, { now: () => new Date() });

@@ -123,6 +123,8 @@ interface Script {
   onDeleteJob?: () => Promise<void>;
   /** When set, recordEndingDeadline throws a non-retryable failure. */
   recordEndingDeadlineFails?: boolean;
+  /** Runs inside recordEndingDeadline, before it returns (a slow event write). */
+  onRecordEndingDeadline?: () => Promise<void>;
 }
 
 const scripts = new Map<string, Script>();
@@ -251,6 +253,7 @@ function activities(): RunActivities {
     async recordEndingDeadline(ctx, input) {
       const s = script(ctx.runId);
       s.calls.push('recordEndingDeadline');
+      await s.onRecordEndingDeadline?.();
       if (s.recordEndingDeadlineFails) throw ApplicationFailure.nonRetryable('run not found');
       s.endingDeadlines.push({ scrollbackSaved: input.scrollbackSaved });
     },
@@ -1560,25 +1563,43 @@ describe('RunWorkflow', () => {
       await h.result();
     });
 
+    it('a cancel while the deadline event is being recorded still ends the run cancelled', async () => {
+      // Nothing kept: without the cancel the run would end succeeded.
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      const recording = deferred<void>();
+      s.onRecordEndingDeadline = async () => {
+        recording.resolve();
+        await sleepReal(3000);
+      };
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await recording.promise;
+      await h.cancel();
+      expect((await h.result()).status).toBe('cancelled');
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+    });
+
     it('other wakes during ending do not reset the deadline', async () => {
-      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 4 }, { endSessionExits: false });
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 6 }, { endSessionExits: false });
       s.parkKeepSeconds = 3600;
       const h = await start(s);
       await s.logsStarted.promise;
       await h.signal(signals.agentState, 'needs_input');
       await s.endSessionCalled.promise;
       const t0 = Date.now();
-      // Two wakes, 0.8 s and 1.6 s in. Without a reset the park lands at about 4.0 s. A reset by the first wake
-      // alone would land at about 4.8 s, by the second alone at about 5.6 s. The 4.4 s ceiling therefore fails if
-      // either wake restarts the deadline, with 0.4 s of slack on each side; the 3.7 s floor catches an early park.
-      await sleepReal(800);
+      // Two wakes, 1.2 s and 2.4 s in. Without a reset the park lands at about 6.16 s (6 s plus about 0.16 s of
+      // overhead measured here). A reset by the first wake alone would land at about 7.4 s, by the second alone at
+      // about 8.6 s. The 6.8 s ceiling therefore fails if either wake restarts the deadline, with 0.6 s of slack on
+      // each side; the 5.6 s floor catches an early park.
+      await sleepReal(1200);
       await h.signal(signals.terminalAttached);
-      await sleepReal(800);
+      await sleepReal(1200);
       await h.signal(signals.terminalDetached);
       await waitPhase(h, 'parked');
       const took = Date.now() - t0;
-      expect(took).toBeGreaterThanOrEqual(3700);
-      expect(took).toBeLessThan(4400);
+      expect(took).toBeGreaterThanOrEqual(5600);
+      expect(took).toBeLessThan(6800);
       expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
       await h.signal(signals.cancel);
       await h.result();
