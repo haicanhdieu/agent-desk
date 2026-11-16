@@ -181,18 +181,40 @@ fi
 # tmux invocation, after start-server) so a command that dies at once still leaves its pane and output behind.
 tmux start-server \; set-option -g remain-on-exit on \; \
   new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$session_cmd"
+# bash as PID 1 ignores SIGTERM without a trap; the flag is checked by the loop below.
+end_reason=''
+trap 'end_reason=signal' TERM
 if [ "${RUN_MODE:-}" != resume ] && [ "${RUN_MODE:-}" != setup_test ]; then
   mkdir -p "$HOME/.agentdesk"
   : > "$HOME/.agentdesk/session-started"
 fi
 echo 'agentdesk: session started'
 
-while [ "$(tmux display-message -p -t agent '#{pane_dead}' 2>/dev/null || echo 1)" != 1 ]; do
-  sleep 1
-done
-status="$(tmux display-message -p -t agent '#{pane_dead_status}' 2>/dev/null || echo 0)"
+# The entrypoint owns the end of the pod: it saves the scrollback, kills the tmux server (so stale attach clients cannot
+# hold it up), prints one end line and exits. end_session REASON CODE
+end_session() {
+  echo 'agentdesk: final scrollback begin'
+  timeout 5 tmux capture-pane -J -p -S - -t '=agent:' 2>/dev/null || true
+  echo 'agentdesk: final scrollback end'
+  tmux kill-server 2>/dev/null || true
+  echo "agentdesk: session ended reason=$1 code=$2"
+  exit "$2"
+}
 
-echo 'agentdesk: final scrollback begin'
-tmux capture-pane -J -p -S - -t agent 2>/dev/null || true
-echo 'agentdesk: final scrollback end'
-exit "${status:-0}"
+# Check first, then sleep, so an already-finished session ends without a 1s delay. `sleep & wait` lets the TERM trap
+# wake the loop, which then sees the flag, so SIGTERM ends the loop within about 1s: a signal that lands between the flag
+# check and `wait` is only seen after the 1s sleep ends, which fits well inside the pod grace
+# period. Order: trap flag, session gone, agent pane dead.
+while :; do
+  if [ "$end_reason" = signal ]; then end_session signal 0; fi
+  if ! tmux has-session -t '=agent' 2>/dev/null; then end_session session_gone 0; fi
+  if [ "$(tmux display-message -p -t '=agent:' '#{pane_dead}' 2>/dev/null || true)" = 1 ]; then
+    status="$(tmux display-message -p -t '=agent:' '#{pane_dead_status}' 2>/dev/null || true)"
+    case "$status" in
+      '' | *[!0-9]*) status=1 ;;
+    esac
+    end_session agent_exit "$((10#$status % 256))"
+  fi
+  sleep 1 &
+  wait $! || true
+done

@@ -1,6 +1,7 @@
 # 0014. Terminal: xterm.js over a WebSocket relayed to `pods/exec`
 
 - Status: Accepted
+- Amended by [0023](0023-runner-entrypoint-owns-the-end-of-a-run-pod.md) (the entrypoint owns the end of the pod)
 - Date: 2026-11-11
 - Source: Architecture (PoC) §6 (approach A, Transport, comparison table), §7 threat model, §9 (Streaming); control plane design §7.5; frontend design §2 (Terminal), §5.3; infra design §6.4, §9.3
 

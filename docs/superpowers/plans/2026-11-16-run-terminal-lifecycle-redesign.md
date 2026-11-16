@@ -80,7 +80,7 @@ Ask each one with the `AGENTS.md` "Talking to humans" template, one at a time, a
 - Harness: `runEntrypoint(env, repoFixture, opts?: { signalAfterMs?: number })` sends SIGTERM to the bash process after `opts.signalAfterMs`.
 - tmux stub modes via `STUB_TMUX_MODE`: `dead` (default, today's behaviour: pane dead, status `STUB_PANE_STATUS` or 0), `incident` (`has-session` exits 1, `display-message` prints nothing and exits 0), `alive` (session exists and pane never dies).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 it('incident: session gone but display-message prints nothing still exits', async () => {
@@ -111,11 +111,11 @@ it('kills the tmux server after the scrollback on every end path', async () => {
 });
 ```
 
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test -- entrypoint` — expect FAIL (the incident test times out at the harness's 30 s).
-- [ ] **Step 3: Implement** in `entrypoint.sh`: a `trap 'end_reason=signal' TERM` set right after `new-session`; a loop that sleeps with `sleep 1 & wait $!` (so the trap fires at once; bash as PID 1 ignores SIGTERM without a trap) and checks, in order, the trap flag, `tmux has-session -t '=agent'` exit code (`session_gone`), then pane dead (`display-message -p -t '=agent' '#{pane_dead}'` printing exactly `1` → `agent_exit`, code from `#{pane_dead_status}`, digits only else `1`). One `end_session` function: `timeout 5 tmux capture-pane …` between the existing markers, `tmux kill-server 2>/dev/null || true`, the end line, exit. Keep `remain-on-exit`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/runner test` — expect PASS (all old entrypoint tests too).
-- [ ] **Step 5: Write ADR 0023** and the three amendment notes.
-- [ ] **Step 6: Commit** `fix(runner): end the session on exit codes and kill the tmux server`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test -- entrypoint` — expect FAIL (the incident test times out at the harness's 30 s).
+- [x] **Step 3: Implement** in `entrypoint.sh`: a `trap 'end_reason=signal' TERM` set right after `new-session`; a loop that sleeps with `sleep 1 & wait $!` (so the trap fires at once; bash as PID 1 ignores SIGTERM without a trap) and checks, in order, the trap flag, `tmux has-session -t '=agent'` exit code (`session_gone`), then pane dead (`display-message -p -t '=agent:' '#{pane_dead}'` printing exactly `1` → `agent_exit`, code from `#{pane_dead_status}`, digits only else `1`). One `end_session` function: `timeout 5 tmux capture-pane -t '=agent:' …` between the existing markers, `tmux kill-server 2>/dev/null || true`, the end line, exit. Keep `remain-on-exit`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/runner test` — expect PASS (all old entrypoint tests too).
+- [x] **Step 5: Write ADR 0023** and the three amendment notes.
+- [x] **Step 6: Commit** `fix(runner): end the session on exit codes and kill the tmux server`.
 
 ---
 

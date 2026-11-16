@@ -18,6 +18,7 @@ export interface EntrypointResult {
 export async function runEntrypoint(
   env: Record<string, string>,
   repoFixture: Record<string, string>,
+  opts: { signalAfterMs?: number; signalAfterLine?: string } = {},
 ): Promise<EntrypointResult> {
   const dir = await mkdtemp(join(tmpdir(), 'entrypoint-'));
   const stubLog = join(dir, 'stub.log');
@@ -36,10 +37,32 @@ export async function runEntrypoint(
     ...env,
   };
   const { stdout, exitCode } = await new Promise<{ stdout: string; exitCode: number }>((resolve, reject) => {
-    execFile('bash', [join(runnerDir, 'entrypoint.sh')], { env: fullEnv, timeout: 30_000 }, (err, out) => {
-      if (err && typeof err.code !== 'number') reject(err);
-      else resolve({ stdout: out, exitCode: typeof err?.code === 'number' ? err.code : 0 });
-    });
+    const child = execFile(
+      'bash',
+      [join(runnerDir, 'entrypoint.sh')],
+      { env: fullEnv, timeout: 30_000 },
+      (err, out) => {
+        if (timer) clearTimeout(timer);
+        if (err && typeof err.code !== 'number') reject(err);
+        else resolve({ stdout: out, exitCode: typeof err?.code === 'number' ? err.code : 0 });
+      },
+    );
+    const timer =
+      opts.signalAfterMs === undefined ? undefined : setTimeout(() => child.kill('SIGTERM'), opts.signalAfterMs);
+    // Send SIGTERM once the child has printed this line, so slow setup phases cannot race the TERM trap.
+    if (opts.signalAfterLine !== undefined) {
+      const wanted = opts.signalAfterLine;
+      let seen = '';
+      let sent = false;
+      child.stdout?.on('data', (chunk: string | Buffer) => {
+        if (sent) return;
+        seen += chunk.toString();
+        if (seen.split('\n').includes(wanted)) {
+          sent = true;
+          child.kill('SIGTERM');
+        }
+      });
+    }
   });
   const calls = (await readFile(stubLog, 'utf8'))
     .split('\n')

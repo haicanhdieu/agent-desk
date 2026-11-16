@@ -1,0 +1,4 @@
+#!/bin/sh
+# Test stub: logs argv as one JSON line, then runs the real sleep. Lets tests see whether the entrypoint waited.
+printf '{"cmd":"sleep","argv":["%s"]}\n' "$*" >>"$STUB_LOG"
+exec /bin/sleep "$@"
