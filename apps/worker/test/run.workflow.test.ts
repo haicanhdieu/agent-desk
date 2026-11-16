@@ -338,6 +338,26 @@ const count = (s: Script, call: string): number => s.calls.filter((c) => c === c
 const state = (h: WorkflowHandle) => h.query<RunState>(QUERY.runState);
 const sleepReal = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Completed workflow tasks (proto EventType 7) whose scheduled event (5) is a first attempt; a missing attempt, or a
+// scheduled event outside the list, counts as the first so the count errs on the strict side. Retried rounds (attempt
+// above 1) are left out. Pure, so the history-cost test below can be checked on synthetic event lists.
+interface TaskEvent {
+  eventId?: { toString(): string } | number | null;
+  eventType?: number | null;
+  workflowTaskScheduledEventAttributes?: { attempt?: number | null } | null;
+  workflowTaskCompletedEventAttributes?: { scheduledEventId?: { toString(): string } | number | null } | null;
+}
+function firstAttemptCompletedTasks(events: readonly TaskEvent[]): number {
+  const retried = new Set(
+    events
+      .filter((e) => e.eventType === 5 && (e.workflowTaskScheduledEventAttributes?.attempt ?? 1) > 1)
+      .map((e) => String(e.eventId)),
+  );
+  return events.filter(
+    (e) => e.eventType === 7 && !retried.has(String(e.workflowTaskCompletedEventAttributes?.scheduledEventId)),
+  ).length;
+}
+
 async function waitFor(pred: () => boolean | Promise<boolean>, what: string, ms = 15_000): Promise<void> {
   const until = Date.now() + ms;
   while (Date.now() < until) {
@@ -383,6 +403,45 @@ afterAll(async () => {
   worker.shutdown();
   await running;
   await env.teardown();
+});
+
+describe('firstAttemptCompletedTasks (history-cost counter)', () => {
+  let id = 0;
+  type E = Parameters<typeof firstAttemptCompletedTasks>[0][number];
+  const signal = (): E => ({ eventId: ++id, eventType: 26 });
+  const scheduled = (attempt?: number): E => ({
+    eventId: ++id,
+    eventType: 5,
+    workflowTaskScheduledEventAttributes: attempt === undefined ? {} : { attempt },
+  });
+  const started = (): E => ({ eventId: ++id, eventType: 6 });
+  const completed = (of: E): E => ({
+    eventId: ++id,
+    eventType: 7,
+    workflowTaskCompletedEventAttributes: { scheduledEventId: of.eventId },
+  });
+  const round = (attempt?: number): E[] => {
+    const sch = scheduled(attempt);
+    return [sch, started(), completed(sch)];
+  };
+
+  it('counts one per signal round, and a missing attempt counts as the first', () => {
+    expect(firstAttemptCompletedTasks([signal(), ...round(1), signal(), ...round()])).toBe(2);
+  });
+
+  it('a sticky timeout (orphan scheduled, timed out, fresh attempt-1 task) still counts once', () => {
+    const orphan = scheduled(1);
+    const timedOut: E = { eventId: ++id, eventType: 8 };
+    expect(firstAttemptCompletedTasks([signal(), orphan, timedOut, ...round(1)])).toBe(1);
+  });
+
+  it('a retried round (attempt above 1, no trace of the failed attempt) is not counted', () => {
+    expect(firstAttemptCompletedTasks([signal(), ...round(1), ...round(2), ...round(3)])).toBe(1);
+  });
+
+  it('an extra first-attempt task for one signal is counted, so it can exceed the signal count', () => {
+    expect(firstAttemptCompletedTasks([signal(), ...round(1), ...round(1)])).toBe(2);
+  });
 });
 
 describe('RunWorkflow', () => {
@@ -1816,28 +1875,13 @@ describe('RunWorkflow', () => {
       expect(ofType(17, 18, 19)).toEqual([]);
       // Nothing but signals and workflow-task events (no activity, timer, child or marker).
       expect(ofType(5, 6, 7, 8, 9, 26)).toHaveLength(added.length);
-      // Workflow-task retries are server and worker noise on a loaded machine, not a cost of the signal. A retried task
-      // (`attempt` above 1, scheduled again after a failed or timed-out attempt) shows up as an extra scheduled, started,
-      // completed round with no signal before it, and the failed attempt itself may be missing from the history. Leave out
-      // those rounds and any timed-out/failed events, then bound what is left.
-      const retried = new Set(
-        added
-          .filter((e) => e.eventType === 5 && (e.workflowTaskScheduledEventAttributes?.attempt ?? 1) > 1)
-          .map((e) => String(e.eventId)),
-      );
-      const scheduledOf = (e: (typeof added)[number]) =>
-        String(
-          e.workflowTaskStartedEventAttributes?.scheduledEventId ??
-            e.workflowTaskCompletedEventAttributes?.scheduledEventId,
-        );
-      const isRetry = (e: (typeof added)[number]) =>
-        e.eventType === 8 ||
-        e.eventType === 9 ||
-        (e.eventType === 5 && retried.has(String(e.eventId))) ||
-        ((e.eventType === 6 || e.eventType === 7) && retried.has(scheduledOf(e)));
-      // Measured: the signal plus its workflow task (scheduled, started, completed) = 4 events per lease signal. A task can
-      // carry more than one signal, so this is an upper bound.
-      expect(added.filter((e) => !isRetry(e)).length).toBeLessThanOrEqual(SIGNALS * 4);
+      // One signal needs at most one first-attempt workflow task (a task can carry several signals). Retries are server and
+      // worker noise on a loaded machine, not a cost of the signal: a failed attempt leaves no trace in the history, so its
+      // retry shows up as its own scheduled, started, completed round with `attempt` above 1 and no signal before it. A
+      // sticky-queue timeout leaves an orphan scheduled event that is never started plus a fresh attempt-1 task, which still
+      // completes once. So first-attempt completions are at most one per signal; an extra task per signal, or any command,
+      // timer or activity that needs its own task, would push this over the bound and fail the test.
+      expect(firstAttemptCompletedTasks(added)).toBeLessThanOrEqual(SIGNALS);
       await h.signal(signals.cancel);
       await h.result();
     });
