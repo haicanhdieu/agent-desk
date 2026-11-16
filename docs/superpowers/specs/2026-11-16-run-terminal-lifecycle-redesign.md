@@ -173,7 +173,7 @@ pod. The workflow's attach count only goes down when the API sends a detach sign
 | --- | --- | --- |
 | `running` | Live terminal | Cancel |
 | `idle` (Needs you) | Live terminal + the agent's question; "Pauses after 30 min with nobody attached" | Finish |
-| `idle` with `sessionEndingAt` | "Session ended. Pausing the run…" with a spinner; last scrollback greyed. No socket. | none (Resume queued if pressed, §7) |
+| `idle` with `sessionEndingAt` | "Session ending…" with a spinner and "The session is being saved. This page updates by itself when the session has ended."; last scrollback greyed. No socket. (Neutral on purpose: a person's Finish and the idle timer both set `sessionEndingAt`, and nothing tells them apart while the session ends; the run then pauses or succeeds.) | none (Resume queued if pressed, §7) |
 | `paused` | Saved scrollback + "Paused: waiting for your answer. Can be resumed for 6 days." Reason line: "after 30 min with nobody attached" or "the pod stopped unexpectedly (out of memory / evicted)" | Resume, Finish |
 | `queued`/`starting` after Resume | "Resuming… waiting for a slot / starting the pod" | Cancel resume |
 | resumed `idle` | Live terminal + banner "Resumed. The agent asked: <agentNote>. Background tasks and sub-agents that were running when it paused were stopped." | Finish |
