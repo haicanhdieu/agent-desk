@@ -1,8 +1,12 @@
 #!/bin/bash
 # End the tmux client started by `agentdesk-attach <uuid>`. Reads only that id's pid file and signals the pid only when
-# it is a plain number above 1 and still a `tmux` process (a stale file must never hit a reused pid). Idempotent.
+# it is a plain number above 1 and still a tmux attach client (a stale file must never hit a reused pid). Real tmux 3.3a
+# sets a client's comm to `tmux: client` (plain `tmux` only for an instant after exec); the server is `tmux: server`
+# and is never signalled. Idempotent.
 # Exit codes: 2 bad id.
 set -euo pipefail
+LC_ALL=C
+export LC_ALL
 
 id="${1:-}"
 if [[ ! "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
@@ -21,7 +25,8 @@ rm -f -- "$file"
 if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && (( 10#$pid > 1 )); then
   comm=""
   IFS= read -r comm < "${AGENTDESK_PROC_DIR:-/proc}/$pid/comm" 2>/dev/null || true
-  if [[ "$comm" == "tmux" ]]; then
+  if [[ "$comm" == "tmux: client" || "$comm" == "tmux" ]]; then
+    # A pid reused as another tmux client in this window is accepted: the pid file is already gone and the pod is one trust domain.
     kill -TERM -- "$pid" 2>/dev/null || true
   fi
 fi

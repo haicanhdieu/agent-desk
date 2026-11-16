@@ -4,6 +4,8 @@
 # dropped terminal cannot leave a client behind. The id is untrusted: it is used only after the strict uuid check.
 # Exit codes: 2 bad id, 3 no agent session.
 set -euo pipefail
+LC_ALL=C
+export LC_ALL
 
 id="${1:-}"
 if [[ ! "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then

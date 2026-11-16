@@ -116,19 +116,47 @@ describe('agentdesk-detach', () => {
     }
   });
 
-  it('does not kill a pid whose comm is not tmux', () => {
+  it.each(['tmux: client', 'tmux'])('kills a pid whose comm is %j (a real attach client)', async (comm) => {
     const t = setup();
     const a = sleeper();
     try {
-      fakeProc(t, a.pid as number, 'node');
+      const closed = new Promise<void>((r) => a.on('close', () => r()));
+      fakeProc(t, a.pid as number, comm);
       pidFile(t, ID, `${a.pid}\n`);
       expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
-      expect(alive(a.pid as number)).toBe(true);
+      await closed;
       expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
     } finally {
       a.kill('SIGKILL');
     }
   });
+
+  it.each(['tmux: server', 'sleep', 'bash', 'node', 'tmux: clientx'])(
+    'does not kill a pid whose comm is %j',
+    (comm) => {
+      const t = setup();
+      const a = sleeper();
+      try {
+        fakeProc(t, a.pid as number, comm);
+        pidFile(t, ID, `${a.pid}\n`);
+        expect(run('agentdesk-detach', ID, t.env).status).toBe(0);
+        expect(alive(a.pid as number)).toBe(true);
+        expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
+      } finally {
+        a.kill('SIGKILL');
+      }
+    },
+  );
+
+  it.each(['agentdesk-attach', 'agentdesk-detach'])(
+    '%s pins its own C locale so the id ranges are not collation-based',
+    (script) => {
+      const t = setup();
+      const r = run(script, ID.toUpperCase(), { ...t.env, LC_ALL: 'en_US.UTF-8' });
+      expect(r.status).toBe(2);
+      expect(t.calls()).toEqual([]);
+    },
+  );
 
   it.each(['', 'abc', '-1', '0', '1', '12 34', '1; id', '007x'])('ignores the bad pid file content %j', (content) => {
     const t = setup();
