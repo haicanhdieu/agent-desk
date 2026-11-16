@@ -27,7 +27,7 @@ One form, one question ([AGENTS.md › Talking to humans](../../../AGENTS.md#tal
 
 <Only if a branch exists:>
 Work so far is pushed on `<branch>`.
-<Multi-unit only:> Units: <U<id> merged #<pr> | U<id> open #<pr> | U<id> started | U<id> not started, joined by "; ">
+<Multi-unit only:> Units: <U<id> merged <sha> | U<id> started | U<id> not started, joined by "; ">
 Stopped at: <build, task <k> of <total> | build (bug fix) | verify, round <r> | opening the PR | multi-unit: a value from the table in multi-unit.md, Blocking and resume>
 
 Reply here with your pick, move the card back to **Ready**, and run `/dev-build <n>` again<If a branch exists: "; it continues from that branch">.
@@ -64,7 +64,7 @@ One per accepted Advisor decision, before re-dispatching the asker, so a human c
 Multi-unit only, instead of **Started**. Triage copies the table back on a resume: keep its columns exactly.
 
 ```markdown
-**dev-build:** working on this as a **feature** in <N> parts on branch `<integration>` (from latest `main`). Each part gets its own internal check before it joins that branch; you get one PR to `main` at the end.
+**dev-build:** working on this as a **feature** in <N> parts on branch `<integration>` (from latest `main`). Each part is checked on its own before it joins that branch; you get one PR to `main` at the end.
 
 | Unit                | Tasks                          | After              |
 | ------------------- | ------------------------------ | ------------------ |
@@ -73,10 +73,10 @@ Multi-unit only, instead of **Started**. Triage copies the table back on a resum
 
 ## Unit merged
 
-Multi-unit only, after each sub-PR merges into the integration branch.
+Multi-unit only, after each unit merges into the integration branch.
 
 ```markdown
-**dev-build:** part U<id> (<k> of <N>) is done and checked: #<sub-PR>, merged into `<integration>`. <m> part(s) to go.
+**dev-build:** part U<id> (<k> of <N>) is done and checked: merged into `<integration>` as <sha>. <m> part(s) to go.
 ```
 
 ## Resumed (units)
@@ -98,6 +98,6 @@ Multi-unit only, instead of **Resumed**.
 ```markdown
 **dev-build:** PR ready for review: #<pr>. <one-line summary of the change>.
 <For a bug: "Root cause: <one line>.">
-<Multi-unit only: "It brings together <N> parts that were each checked on their own: #<sub-PR>, #<sub-PR>, ….">
+<Multi-unit only: "It brings together <N> parts that were each checked on their own: <sha>, <sha>, ….">
 This issue stays open until QA passes.
 ```

@@ -13,7 +13,7 @@ Post with `gh pr comment <pr> --body-file <file>` or `gh issue comment <n> --bod
 | --- | -------- | --------- | ----------------------------------------- | --------- | ----- |
 | 1   | critical | security  | `apps/api/src/runs/runs.controller.ts:42` | <problem> | <fix> |
 
-<Round 2+: "**Resolved since round <r-1>:** <#n fixed in abc1234>, … · **Declined:** <#n, evidence>">
+<Round 2+: "**Resolved since round <r-1>:** <#n fixed in abc1234>, … · **Declined by the fixer (checked):** <#n, reason, evidence>">
 <If you dropped or downgraded a reviewer finding: "**Dropped/changed on check:** <title: reason and evidence>">
 <If a fix failed its diff review: "**Not applied:** <#n → the problem the fix caused; known limitation noted in the PR body>">
 <If you reverted a fix: "**Reverted:** <#n fix abc1234 → the new problem it caused>">
