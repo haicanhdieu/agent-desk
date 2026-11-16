@@ -1,5 +1,7 @@
 #!/usr/bin/env node
-// Test stub: logs argv; the agent pane is reported dead at once with status 0.
+// Test stub: logs argv. STUB_TMUX_MODE: `dead` (default) the agent pane is dead at once with status STUB_PANE_STATUS or
+// 0; `incident` the session is gone (has-session exits 1) and display-message prints nothing; `alive` the session
+// exists and the pane never dies.
 import { appendFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
@@ -7,6 +9,10 @@ appendFileSync(
   process.env.STUB_LOG,
   `${JSON.stringify({ cmd: 'tmux', argv, setupScript: process.env.SETUP_SCRIPT ?? null })}\n`,
 );
-if (argv.includes('display-message')) {
-  console.log(argv[argv.length - 1].includes('pane_dead_status') ? '0' : '1');
+const mode = process.env.STUB_TMUX_MODE ?? 'dead';
+if (argv.includes('has-session')) process.exit(mode === 'incident' ? 1 : 0);
+if (argv.includes('display-message') && mode !== 'incident') {
+  const format = argv[argv.length - 1];
+  if (format.includes('pane_dead_status')) console.log(process.env.STUB_PANE_STATUS ?? '0');
+  else console.log(mode === 'alive' ? '0' : '1');
 }

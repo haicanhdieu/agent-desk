@@ -28,7 +28,11 @@ describe('entrypoint plugins phase', () => {
       ['plugin', 'install', 'superpowers@claude-plugins-official'],
       ['plugin', 'install', 'tdd@claude-plugins-official'],
     ]);
-    expect(r.calls.filter((c) => c.cmd === 'timeout').map((c) => c.argv[0])).toEqual(['120', '120', '120']);
+    expect(r.calls.filter((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux').map((c) => c.argv[0])).toEqual([
+      '120',
+      '120',
+      '120',
+    ]);
     expect(r.stdout).toContain('agentdesk: plugin installed superpowers@claude-plugins-official');
     expect(r.stdout.indexOf('agentdesk: plugins begin')).toBeGreaterThan(-1);
     expect(r.stdout.indexOf('agentdesk: plugins begin')).toBeLessThan(r.stdout.indexOf('agentdesk: plugins end'));
@@ -389,8 +393,42 @@ describe('entrypoint home on the volume and resume mode', () => {
         {},
       );
       expect(existsSync(probe)).toBe(false);
-      expect(r.calls.some((c) => c.cmd === 'timeout')).toBe(false);
+      expect(r.calls.some((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux')).toBe(false);
       expect(started(r)).toBe(true);
     });
+  });
+});
+
+describe('entrypoint session end', () => {
+  const tmuxCalls = (r: Result) => r.calls.filter((c) => c.cmd === 'tmux');
+
+  it('incident: session gone but display-message prints nothing still exits', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'incident' }, {});
+    expect(r.stdout).toContain('agentdesk: session ended reason=session_gone code=0');
+    expect(r.exitCode).toBe(0);
+    expect(tmuxCalls(r).some((c) => c.argv.join(' ') === 'has-session -t =agent')).toBe(true);
+  });
+
+  it('agent exit reports the pane status', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3' }, {});
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+    expect(r.exitCode).toBe(3);
+  });
+
+  it('SIGTERM prints the scrollback, then the end line, and exits 0', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive' }, {}, { signalAfterMs: 1500 });
+    const begin = r.stdout.indexOf('agentdesk: final scrollback begin');
+    expect(begin).toBeGreaterThan(-1);
+    expect(r.stdout.indexOf('agentdesk: final scrollback end')).toBeGreaterThan(begin);
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=signal code=0');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('kills the tmux server after the scrollback on every end path', async () => {
+    for (const mode of ['incident', 'dead']) {
+      const r = await runEntrypoint({ STUB_TMUX_MODE: mode }, {});
+      const argvs = tmuxCalls(r).map((c) => c.argv[0]);
+      expect(argvs.lastIndexOf('kill-server')).toBeGreaterThan(argvs.lastIndexOf('capture-pane'));
+    }
   });
 });

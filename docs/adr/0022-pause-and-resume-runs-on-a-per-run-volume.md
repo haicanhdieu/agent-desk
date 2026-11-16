@@ -1,6 +1,7 @@
 # 0022. Pause idle runs and resume them on a per-run volume
 
 - Status: Accepted
+- Amended by [0023](0023-runner-entrypoint-owns-the-end-of-a-run-pod.md) (the entrypoint owns the end of the pod)
 - Date: 2026-11-15
 - Source: [Pause and resume design](../superpowers/specs/2026-11-15-run-pause-resume-design.md); issue #50
 - Amends: [0010](0010-one-kubernetes-job-per-run.md) (one Job per run), [0020](0020-agent-status-protocol.md) (`done` and `idle` both end as `succeeded`)
