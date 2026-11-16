@@ -455,14 +455,23 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
    * following its logs, say so in the run's events, and let the loop carry on as if the pod had exited.
    */
   async function abandonPod(c: RunContext, pod: Pod): Promise<void> {
-    await act.deleteJob(c);
+    // A pod that exited on its own needs no abandon.
+    if (pod.done) return;
+    // Before the delete: while the Job is being killed the log follower may reject with "pod disappeared", and that
+    // must not fail the run.
     pod.abandoned = true;
     pod.scope.cancel();
+    // If deleteJob itself fails the run fails: the Job may still exist, so nothing may report it parked or done.
+    await act.deleteJob(c);
     pod.done = true;
-    await act.recordEndingDeadline(c, {
-      scrollbackSaved: pod.result?.scrollbackTail !== undefined,
-      at: new Date().toISOString(),
-    });
+    try {
+      await act.recordEndingDeadline(c, {
+        scrollbackSaved: pod.result?.scrollbackTail !== undefined,
+        at: new Date().toISOString(),
+      });
+    } catch {
+      // Informational only; the Job is already gone, so the run must still park or succeed.
+    }
   }
 
   /** The hard timer for one pod. The first pod uses the scope made up front, so a run that never parks replays unchanged. */

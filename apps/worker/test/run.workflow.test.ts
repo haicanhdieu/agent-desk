@@ -119,6 +119,10 @@ interface Script {
   lastExpiry?: string;
   /** The input of every recordEndingDeadline call (without the timestamp). */
   endingDeadlines: { scrollbackSaved: boolean }[];
+  /** Runs inside deleteJob, before it returns (stands in for the pod dying while the Job is being deleted). */
+  onDeleteJob?: () => Promise<void>;
+  /** When set, recordEndingDeadline throws a non-retryable failure. */
+  recordEndingDeadlineFails?: boolean;
 }
 
 const scripts = new Map<string, Script>();
@@ -240,11 +244,14 @@ function activities(): RunActivities {
       if (s.endSessionExits) (s.currentLogs ?? s.logs).resolve({ exitCode: 0 });
     },
     async deleteJob(ctx) {
-      script(ctx.runId).calls.push('deleteJob');
+      const s = script(ctx.runId);
+      s.calls.push('deleteJob');
+      await s.onDeleteJob?.();
     },
     async recordEndingDeadline(ctx, input) {
       const s = script(ctx.runId);
       s.calls.push('recordEndingDeadline');
+      if (s.recordEndingDeadlineFails) throw ApplicationFailure.nonRetryable('run not found');
       s.endingDeadlines.push({ scrollbackSaved: input.scrollbackSaved });
     },
     async ensureJobGone(ctx) {
@@ -1516,6 +1523,61 @@ describe('RunWorkflow', () => {
       expect(s.logsCancelled).toBe(false);
       // park() deletes the Job once; the deadline did not.
       expect(count(s, 'deleteJob')).toBe(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a pod that disappears while its Job is being deleted does not fail the run', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      s.onDeleteJob = async () => {
+        // followPodLogs rejects (non-retryable) while deleteJob is still running, then deleteJob takes a while longer.
+        if (count(s, 'deleteJob') === 1) {
+          s.logs.reject(ApplicationFailure.nonRetryable('run pod disappeared'));
+          await sleepReal(500);
+        }
+      };
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'parked');
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).not.toBe('failed');
+    });
+
+    it('a failing recordEndingDeadline does not fail the run', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      s.recordEndingDeadlineFails = true;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'parked');
+      expect(count(s, 'recordEndingDeadline')).toBe(1);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('other wakes during ending do not reset the deadline', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 3 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      const t0 = Date.now();
+      // Wake the loop twice, 1.2 s apart: a deadline restarted by either would land after t0 + 5.4 s.
+      await sleepReal(1200);
+      await h.signal(signals.terminalAttached);
+      await sleepReal(1200);
+      await h.signal(signals.terminalDetached);
+      await waitPhase(h, 'parked');
+      const took = Date.now() - t0;
+      expect(took).toBeGreaterThanOrEqual(2700);
+      expect(took).toBeLessThan(4800);
+      expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
       await h.signal(signals.cancel);
       await h.result();
     });
