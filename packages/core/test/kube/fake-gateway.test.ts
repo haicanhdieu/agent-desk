@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -597,7 +598,9 @@ describe('commandLine', () => {
     }
   });
 
-  it('falls back to ps where there is no proc dir (macOS)', async () => {
+  // Skipped where ps itself is missing (the runner image); macOS and CI have it.
+  const hasPs = spawnSync('ps', ['-p', String(process.pid)]).status === 0;
+  it.skipIf(!hasPs)('falls back to ps where there is no proc dir (macOS)', async () => {
     expect(await commandLine(process.pid, join(tmpdir(), 'no-such-proc-dir'))).toContain('node');
   });
 });
