@@ -15,16 +15,16 @@ No human in the loop. **You never halt on your own judgment.** A question that w
 
 You keep what is outward-facing or a gate: every PR and issue comment, board move and label, every push, the commit of every review fix, every stop, block or retry decision, and the merge with its gates. Subagents read, review, check, fix, run and watch, so long output and untrusted PR and issue text stay out of your context. A subagent's report is unchecked until you check it.
 
-| Step          | Done by                                                                        | Tier / effort                                                                                    |
-| ------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------ |
-| 1 Intake      | Triage agent                                                                   | `medium` / `medium`                                                                              |
-| 2 Set up      | `scripts/start.sh` (no model); Conflict resolver if the rebase conflicts       | `medium` / `medium` (resolver)                                                                   |
-| 3 Review      | Five reviewers in parallel, then the Findings checker                          | reviewers `medium` / `medium` (security `high` effort when sensitive); checker `medium` / `high` |
-| 4 Fix         | Fixers, one group at a time; five reviewers per staged diff; then the Verifier | behavior fixer `medium` / `medium`, mechanical `medium` / `low`; Verifier `low` / `low`          |
-| 5 CI          | CI watcher; CI fixer for a failure this PR caused                              | watcher `low` / `low`; CI fixer `medium` / `medium`                                              |
-| 6 Merge       | You                                                                            |                                                                                                  |
-| 7 QA hand-off | You                                                                            |                                                                                                  |
-| Any step      | Advisor, only for would-be-human questions (max 8 per run)                     | `high` / `high`                                                                                  |
+| Step          | Done by                                                                        | Tier / effort                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| 1 Intake      | Triage agent                                                                   | `medium` / `medium`                                                                                                   |
+| 2 Set up      | `scripts/start.sh` (no model); Conflict resolver if the rebase conflicts       | `medium` / `medium` (resolver)                                                                                        |
+| 3 Review      | Five reviewers in parallel, then the Findings checker                          | reviewers `medium` / `medium` (security `high` effort when sensitive, tier stays `medium`); checker `medium` / `high` |
+| 4 Fix         | Fixers, one group at a time; five reviewers per staged diff; then the Verifier | behavior fixer `medium` / `medium`, mechanical `medium` / `low`; Verifier `low` / `low`                               |
+| 5 CI          | CI watcher; CI fixer for a failure this PR caused                              | watcher `low` / `low`; CI fixer `medium` / `medium`                                                                   |
+| 6 Merge       | You                                                                            |                                                                                                                       |
+| 7 QA hand-off | You                                                                            |                                                                                                                       |
+| Any step      | Advisor, only for would-be-human questions (max 8 per run)                     | `high` / `high`                                                                                                       |
 
 A subagent knows only its prompt. Keep each prompt exactly as [agent-prompts.md](agent-prompts.md) gives it.
 
@@ -45,7 +45,7 @@ A PR number or URL, or an issue number (use its open PR). If none is given, ask 
 
 Run scripts from your main checkout: `bash <main checkout>/.agent/skills/dev-review/scripts/start.sh …` and `bash <main checkout>/.agent/skills/dev-build/scripts/board.sh status <n> "<Status>"`. Below, `start.sh`, `flags.sh` and `board.sh` mean that full command. Never set the board or a `status:*` label by hand.
 
-**Spawning.** Model from the tier in [`.agent/models.json`](../../models.json), effort from the table in `agent-prompts.md`. Never hardcode a model name.
+**Spawning.** Model from the tier in [`.agent/models.json`](../../models.json), effort from the table in `agent-prompts.md`. Never hardcode a model name. `model` comes only from the tier; a `high` **effort** (sensitive path, Findings checker, Triage) never changes the model: a `medium` tier role stays on `tiers.medium` (sonnet). Before each spawn, check the `model` you pass equals `tiers.<the role's tier>` in `models.json`; only the Advisor is `high` tier (opus).
 
 **GitHub access.** A `gh` or `git push` that fails with 403 or "not found": retry that one command with a token for an account that can write (`GH_TOKEN=$(gh auth token --user <login>) …`). Never run `gh auth switch` or `gh auth setup-git`; never print or store the token. A subagent that hits this reports it; you retry.
 

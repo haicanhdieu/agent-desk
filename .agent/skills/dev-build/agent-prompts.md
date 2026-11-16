@@ -357,7 +357,7 @@ Findings go back to the builder that owns the code (step 3 rules), then step 4 r
 
 ## Reviewer (multi-unit: internal review of a unit, and the final review)
 
-Tier `medium`, effort `medium`, or `high` when the diff touches a sensitive path. Read-only; multi-unit mode only ([multi-unit.md](multi-unit.md)). It uses `dev-review`'s dimensions and severity scale by reading that skill's files, not a copy. No superpowers skill, so no Skill line; check the strings in multi-unit.md before spawning.
+Tier `medium` always (model `sonnet`, never `opus`); effort `medium`, or `high` when the diff touches a sensitive path. Read-only; multi-unit mode only ([multi-unit.md](multi-unit.md)). It uses `dev-review`'s dimensions and severity scale by reading that skill's files, not a copy. No superpowers skill, so no Skill line; check the strings in multi-unit.md before spawning.
 
 ```text
 You are the internal reviewer for <"unit U<id> of <N>" | "the final review of the
