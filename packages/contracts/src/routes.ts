@@ -82,6 +82,16 @@ export const routes = {
       params: projectParams,
       response: ProjectConnectionDto,
     },
+    /**
+     * 202: asks for a poll now instead of waiting for the next scheduled one; the result shows up in `connection`.
+     * 409 (problem `detail` says why) when the project is not polling, polling is paused, or it is backing off.
+     */
+    pollNow: {
+      method: 'POST',
+      path: '/api/projects/:projectId/connection/poll',
+      params: projectParams,
+      response: empty,
+    },
     ignored: {
       method: 'GET',
       path: '/api/projects/:projectId/ignored',
