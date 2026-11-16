@@ -1,0 +1,19 @@
+#!/bin/bash
+# Ask the runner entrypoint to end the agent session: creates ${AGENTDESK_RUN_DIR:-/run/agentdesk}/stop, which the
+# entrypoint loop sees within about a second (reason stop_request). Takes NO arguments and reads no other input, so the
+# worker's exec is a fixed argv. The file is made under a temporary name and renamed over the path: atomic, safe to
+# repeat, and a link planted at `stop` is replaced, never followed. Exit codes: 2 any argument.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+if [ "$#" -ne 0 ]; then
+  echo "agentdesk-end: takes no arguments" >&2
+  exit 2
+fi
+
+dir="${AGENTDESK_RUN_DIR:-/run/agentdesk}"
+mkdir -p -- "$dir"
+tmp="$(mktemp "$dir/.stop.XXXXXX")"
+mv -f -- "$tmp" "$dir/stop"
+exit 0

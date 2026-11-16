@@ -32,6 +32,7 @@ export async function runEntrypoint(
     STUB_FIXTURE: fixture,
     AGENTDESK_REPO_DIR: join(dir, 'repo'),
     AGENTDESK_LIB_DIR: runnerDir,
+    AGENTDESK_RUN_DIR: join(dir, 'run'), // the stop and agent-exit files; a test passes its own to pre-create them
     REPO_CLONE_URL: 'https://example.invalid/o/r.git',
     PROMPT: 'do the thing',
     ...env,

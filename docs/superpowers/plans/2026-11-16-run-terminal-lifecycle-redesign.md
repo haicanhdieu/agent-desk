@@ -380,11 +380,11 @@ The runner part must be live before the worker part is relied on. Keep one PR, b
 - Entrypoint check order (spec §3): stop file → `stop_request`; `agent-exit` file → `agent_exit` with its code; `has-session` fails → `session_gone`; trap → `signal`. Pane-dead check from Phase 1 stays as a fallback.
 - `TMUX_KILL` kept only as the 127 fallback.
 
-- [ ] **Step 1: Failing tests:** stop file present → `reason=stop_request code=0`, exit 0; agent-exit file `5` → `reason=agent_exit code=5`, exit 5; stop wins over agent-exit when both exist; `agentdesk-end extra` → exit 2; worker `endSession` execs `['agentdesk-end']` and on 127 execs `TMUX_KILL`; fake gateway accepts `agentdesk-end` and the fake pod ends with `stop_request`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/worker test -- run.activities && pnpm --filter @agentdesk/core test` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(runner): ask the runner to end the session instead of killing tmux` (the worker change rides in the same PR; mention it in the body).
+- [x] **Step 1: Failing tests:** stop file present → `reason=stop_request code=0`, exit 0; agent-exit file `5` → `reason=agent_exit code=5`, exit 5; stop wins over agent-exit when both exist; `agentdesk-end extra` → exit 2; worker `endSession` execs `['agentdesk-end']` and on 127 execs `TMUX_KILL`; fake gateway accepts `agentdesk-end` and the fake pod ends with `stop_request`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/worker test -- run.activities && pnpm --filter @agentdesk/core test` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(runner): ask the runner to end the session instead of killing tmux` (the worker change rides in the same PR; mention it in the body).
 
 ---
 

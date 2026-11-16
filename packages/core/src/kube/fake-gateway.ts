@@ -10,6 +10,7 @@ import { assertSecretName } from '../secrets/secret-store';
 import {
   CONNECTION_ID_RE,
   TMUX_ATTACH,
+  END_COMMAND,
   TMUX_KILL,
   runRefFromLabels,
   sameCommand,
@@ -353,6 +354,10 @@ export class FakeKubeGateway implements KubeGateway {
   async exec(podName: string, command: string[], _opts: { tty: boolean }): Promise<ExecSession> {
     const dir = this.jobDir(podName);
     if (!existsSync(join(dir, 'job.json'))) throw new Error('fake kube: pod not found');
+    if (sameCommand(command, END_COMMAND)) {
+      await writeFile(join(dir, 'stop'), '');
+      return closedSession(0);
+    }
     if (sameCommand(command, TMUX_KILL)) {
       await writeFile(join(dir, 'kill'), '');
       return closedSession(0);

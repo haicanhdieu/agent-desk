@@ -1,0 +1,29 @@
+#!/bin/bash
+# The tmux pane command: `agentdesk-session <command>` runs the agent's fixed start or resume command (AGENT_START_CMD or
+# AGENT_RESUME_CMD from the image, chosen by the entrypoint; never ticket text) with `bash -c`, then writes its exit code
+# to ${AGENTDESK_RUN_DIR:-/run/agentdesk}/agent-exit (the in-memory volume, not the run volume) and exits with it. The
+# entrypoint reads that file. A code above 128 means the agent died of a signal (128 + n). The file is written under a
+# temporary name and renamed over the path, so the entrypoint never reads a half-written file, and a link planted at the
+# path is replaced, never followed. The command runs in the foreground, exactly as tmux would run it (same process group
+# and terminal, default signal handling); the trap only keeps this wrapper alive until the agent is gone, so a signal sent
+# to the whole pane (what tmux does when it kills the session) still ends with the code written.
+# Exit codes: 2 not exactly one non-empty command.
+set -uo pipefail
+LC_ALL=C
+export LC_ALL
+
+if [ "$#" -ne 1 ] || [ -z "$1" ]; then
+  echo "agentdesk-session: needs exactly one command" >&2
+  exit 2
+fi
+
+dir="${AGENTDESK_RUN_DIR:-/run/agentdesk}"
+trap ':' HUP INT TERM
+bash -c "$1"
+rc=$?
+if [ "$rc" -gt 255 ]; then rc=255; fi
+# A failure to record the code is not fatal: the entrypoint then falls back to the pane's own exit status.
+if mkdir -p -- "$dir" 2>/dev/null && tmp="$(mktemp "$dir/.agent-exit.XXXXXX" 2>/dev/null)"; then
+  if printf '%s\n' "$rc" > "$tmp" 2>/dev/null; then mv -f -- "$tmp" "$dir/agent-exit" 2>/dev/null || rm -f -- "$tmp"; else rm -f -- "$tmp"; fi
+fi
+exit "$rc"

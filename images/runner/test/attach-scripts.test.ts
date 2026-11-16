@@ -1,5 +1,14 @@
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -208,5 +217,120 @@ describe('agentdesk-detach', () => {
     expect(r.status).toBe(0);
     expect(r.stderr).not.toMatch(/No such process|Operation not permitted/);
     expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
+  });
+});
+
+describe('agentdesk-end', () => {
+  const end = (env: Record<string, string>, ...args: string[]) =>
+    spawnSync('bash', [join(bin, 'agentdesk-end'), ...args], { env, encoding: 'utf8' });
+
+  it('creates the stop file, creating the run dir when it does not exist yet, and exits 0', () => {
+    const t = setup();
+    expect(end(t.env).status).toBe(0);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
+
+  it('is idempotent', () => {
+    const t = setup();
+    expect(end(t.env).status).toBe(0);
+    expect(end(t.env).status).toBe(0);
+    expect(readdirSync(t.runDir)).toEqual(['stop']);
+  });
+
+  it.each([['extra'], [''], ['../../etc', 'x']])('accepts no arguments: %j exits 2 and writes nothing', (...args) => {
+    const t = setup();
+    const r = end(t.env, ...args);
+    expect(r.status).toBe(2);
+    expect(existsSync(t.runDir) ? readdirSync(t.runDir) : []).toEqual([]);
+  });
+
+  it('never follows a link planted at the stop path: the link is replaced, its target untouched', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'elsewhere');
+    writeFileSync(target, 'keep');
+    symlinkSync(target, join(t.runDir, 'stop'));
+    expect(end(t.env).status).toBe(0);
+    expect(lstatSync(join(t.runDir, 'stop')).isFile()).toBe(true);
+    expect(readFileSync(target, 'utf8')).toBe('keep');
+  });
+});
+
+describe('agentdesk-session', () => {
+  const session = (env: Record<string, string>, ...args: string[]) =>
+    spawnSync('bash', [join(bin, 'agentdesk-session'), ...args], { env, encoding: 'utf8' });
+  const exitFile = (t: ReturnType<typeof setup>) => join(t.runDir, 'agent-exit');
+
+  it.each([
+    ['exit 0', 0],
+    ['exit 5', 5],
+    ['exit 255', 255],
+  ])('runs the command %j and writes its exit code to agent-exit, exiting with it', (cmd, code) => {
+    const t = setup();
+    const r = session(t.env, cmd);
+    expect(r.status).toBe(code);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe(String(code));
+  });
+
+  it('writes 128+n when the agent is killed by a signal', () => {
+    const t = setup();
+    const r = session(t.env, 'kill -KILL $$');
+    expect(r.status).toBe(137);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('137');
+  });
+
+  it('runs the command with the environment it was given, and exec replaces the shell like tmux did', () => {
+    const t = setup();
+    const r = session({ ...t.env, PROMPT: 'p', CODE: '7' }, 'test "$PROMPT" = p && exec bash -c "exit \\$CODE"');
+    expect(r.status).toBe(7);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('7');
+  });
+
+  it('writes atomically: no temporary file is left, and an older file (or a link) is replaced, not followed', () => {
+    const t = setup();
+    mkdirSync(t.runDir, { recursive: true });
+    const target = join(t.dir, 'elsewhere');
+    writeFileSync(target, 'keep');
+    symlinkSync(target, exitFile(t));
+    expect(session(t.env, 'exit 2').status).toBe(2);
+    expect(readdirSync(t.runDir)).toEqual(['agent-exit']);
+    expect(lstatSync(exitFile(t)).isFile()).toBe(true);
+    expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('2');
+    expect(readFileSync(target, 'utf8')).toBe('keep');
+  });
+
+  it.each([[[]], [['']], [['exit 0', 'extra']]])('needs exactly one command: %j exits 2 and writes nothing', (args) => {
+    const t = setup();
+    expect(session(t.env, ...args).status).toBe(2);
+    expect(existsSync(t.runDir) ? readdirSync(t.runDir) : []).toEqual([]);
+  });
+
+  it('still writes the code when its whole process group gets SIGTERM (what tmux does to a pane)', async () => {
+    const t = setup();
+    // A new process group, so signalling it never touches the test runner.
+    const child = spawn('bash', [join(bin, 'agentdesk-session'), 'echo ready; sleep 60'], {
+      env: t.env,
+      detached: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    const closed = new Promise<number | null>((resolve) => child.on('close', (code) => resolve(code)));
+    let seen = '';
+    await new Promise<void>((resolve) => {
+      child.stdout?.on('data', (chunk: Buffer) => {
+        seen += chunk.toString();
+        if (seen.split('\n').includes('ready')) resolve();
+      });
+    });
+    try {
+      process.kill(-(child.pid as number), 'SIGTERM');
+      expect(await closed).toBe(143);
+      expect(readFileSync(exitFile(t), 'utf8').trim()).toBe('143');
+    } finally {
+      try {
+        process.kill(-(child.pid as number), 'SIGKILL');
+      } catch {
+        // already gone
+      }
+    }
   });
 });

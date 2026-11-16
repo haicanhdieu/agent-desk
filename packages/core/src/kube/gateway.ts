@@ -149,6 +149,9 @@ export function setupTestRefFromLabels(
 
 /** The exec commands the control plane uses (and the only ones the fake accepts). */
 export const TMUX_ATTACH = ['tmux', 'attach', '-t', 'agent'] as const;
+/** Asks the runner to end the session (creates its stop file); fixed argv, no arguments. */
+export const END_COMMAND = ['agentdesk-end'] as const;
+/** The old end request: only the fallback when `END_COMMAND` exits 127 (an old pod image). Remove 7 days after the new image is live. */
 export const TMUX_KILL = ['tmux', 'kill-session', '-t', 'agent'] as const;
 
 /** A terminal connection id: server-made UUID, the same strict regex the runner scripts check. */

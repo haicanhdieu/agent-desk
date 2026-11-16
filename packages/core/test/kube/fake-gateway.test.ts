@@ -211,6 +211,29 @@ describe('FakeKubeGateway', () => {
     await gw.deleteJob(name);
   });
 
+  it('agentdesk-end exits 0 and the pod ends with the scrollback and reason=stop_request', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'end me'));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    const c = collect(name);
+    const end = await gw.exec(name, ['agentdesk-end'], { tty: false });
+    expect(await new Promise<number>((r) => end.onClose(r))).toBe(0);
+    await c.done; // the stream ends when the pod exits
+    expect(c.lines.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    expect(c.lines.at(-2)).toBe('agentdesk: final scrollback end');
+    expect(await gw.getRunPod(name)).toMatchObject({ phase: 'Succeeded', exitCode: 0 });
+    await gw.deleteJob(name);
+  });
+
+  it('agentdesk-end takes no arguments', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'x'));
+    await expect(gw.exec(name, ['agentdesk-end', 'now'], { tty: false })).rejects.toThrow(/not supported/);
+    await gw.deleteJob(name);
+  });
+
   it('agentdesk-attach streams like tmux attach; agentdesk-detach records the id and exits 0', async () => {
     const id = runId();
     const name = `run-${id}`;
