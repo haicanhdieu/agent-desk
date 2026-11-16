@@ -429,7 +429,7 @@ describe('bootstrap and migrations', () => {
       ]);
       const rows = await query<{ session_ending_at: Date | null; pause_reason: string | null }>(
         env.ownerUrl.replace(/\/[^/]*$/, '/agentdesk'),
-        `select session_ending_at, pause_reason from runs order by number`,
+        `select session_ending_at, pause_reason from runs where trigger_comment_id in ('c-1', 'c-2') order by number`,
       );
       expect(rows).toEqual([
         { session_ending_at: null, pause_reason: null },

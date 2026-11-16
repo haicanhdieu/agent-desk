@@ -293,6 +293,7 @@ Precondition: the Phase 3 runner image is live.
 - `endSession` sets `session_ending_at = now()` before the exec (activity-side, so no new workflow command).
 - `resumeRejection(phase)` accepts `'ending'` (queued): the workflow sets `resumeAccepted` and the park loop runs it right after park.
 - All new workflow branches behind `patched('pod-lost-parks')`, read once after `pauseResume`.
+- `endReason` is a hint, never authority: the agent shares the container and can print a forged `session ended` line. Treat it as untrusted (for example ignore it when its code disagrees with the pod's real exit code).
 
 - [ ] **Step 1: Failing tests:** `endOutcome` table test, one row per rule above (include `running` + `podLost` → `needs_input`/`pod_lost`; `agent_done` + `podLost` → `done`); workflow: fake pod killed while idle → `paused` with `pauseReason='pod_lost'`, volume not deleted; idle timer → `sessionEndingAt` set during ending and null after park, `pauseReason='idle_timeout'`; resume sent while `ending` is accepted and a new pod starts after park; cancel while `ending` still wins (`cancelled`, volume deleted); old fixtures still replay.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- park run.workflow` — expect FAIL.

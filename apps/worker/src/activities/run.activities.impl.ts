@@ -30,6 +30,7 @@ import {
   type AdapterRegistry,
   type Clock,
   type EndReason,
+  type LogLineKind,
   type Config,
   type KubeGateway,
   type SecretStore,
@@ -180,6 +181,15 @@ const isFinal = (s: RunStatus): boolean =>
  * head and a running character count, so each line costs O(1) amortised). `markEnd` records the last end marker;
  * `text()` is everything before it (or everything, when the block never closed).
  */
+/**
+ * Whether the open scrollback block takes this line. Everything does, except a `session_ended` line after the block's
+ * end marker: the runner prints it right after the block, and it must reach the parser (a pane line that merely looks
+ * like it, before the end marker, stays scrollback).
+ */
+export function blockTakesLine(block: ScrollbackBlock, kind: LogLineKind): boolean {
+  return !(block.closed && kind === 'session_ended');
+}
+
 export class ScrollbackBlock {
   private lines: string[] = [];
   private head = 0;
@@ -756,6 +766,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     return { agentStarted: false, setup: null };
   }
 
+  // The agent shares the container and can print a forged end line: the result is a hint, never authority.
   /** The reason of the newest stored `session_ended` event after `floor`, if any. */
   async function findEndReason(ctx: RunContext, floor: number): Promise<EndReason | undefined> {
     const [row] = await withOrg(db, ctx.orgId, (tx) =>
@@ -841,7 +852,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           if (!block) return false;
           // Everything after the begin marker is scrollback; the last end marker closes it (a pane line that looks
           // like a marker cannot end it early or fake a lifecycle event).
-          if (parseLogLine(line).kind === 'scrollback_end') block.markEnd();
+          const kind = parseLogLine(line).kind;
+          if (kind === 'scrollback_end') block.markEnd();
+          else if (!blockTakesLine(block, kind)) return false;
           block.push(line);
           return true;
         },
@@ -873,6 +886,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
                 code: parsed.end?.code,
               }),
             );
+            // Inside an unfinished scrollback block the durable line must not move (flushBlock does it); the event is
+            // keyed by its line, so a replay dedupes.
+            if (block) return 'skipDurable';
           } else if (parsed.kind === 'agent_state' && parsed.agent) {
             const agent = parsed.agent;
             const mapped = mapAgentState(agent.state);
@@ -934,13 +950,17 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           await pass.flushPending();
           pass.markDurable(pass.index);
           pass.beat();
-          const pre = await findSetupState(ctx, exitCode === 'gone' ? -1 : exitCode, resume ? await floorOf() : 0);
+          const pre = await findSetupState(
+            ctx,
+            typeof exitCode === 'object' ? -1 : exitCode,
+            resume ? await floorOf() : 0,
+          );
           const tail =
             scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
-          if (exitCode === 'gone') {
+          if (typeof exitCode === 'object') {
             // A pod that vanished before the agent began is a real failure: keep it loud and not retryable.
             if (!pre.agentStarted) {
-              throw ApplicationFailure.nonRetryable('the run pod disappeared before it reported an exit code');
+              throw ApplicationFailure.nonRetryable(exitCode.gone);
             }
             const lost = await findEndReason(ctx, resume ? await floorOf() : 0);
             return {
@@ -973,19 +993,20 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   }
 
   /**
-   * The container's exit code once its log ended; 'running' when it still runs (the stream merely dropped); 'gone'
-   * when the pod no longer exists (the caller decides whether that is a failure or a lost pod).
+   * The container's exit code once its log ended; 'running' when it still runs (the stream merely dropped);
+   * `{ gone }` (the failure text) when the pod no longer exists or ended with no exit code. The caller decides whether
+   * that is a failure (before `session_started`) or a lost pod.
    */
-  async function waitForExit(ctx: RunContext, signal: AbortSignal): Promise<number | 'running' | 'gone'> {
+  async function waitForExit(ctx: RunContext, signal: AbortSignal): Promise<number | 'running' | { gone: string }> {
     const deadline = clock.now().getTime() + EXIT_WAIT_MS;
     for (;;) {
       const pod = await kube.getRunPod(runJobName(ctx.runId));
-      if (!pod) return 'gone';
+      if (!pod) return { gone: 'the run pod disappeared before it reported an exit code' };
       if (pod.exitCode !== null) return pod.exitCode;
       if (clock.now().getTime() > deadline) {
         if (pod.phase === 'Running') return 'running';
         const reason = pod.reason ? `: ${oneLine(pod.reason).slice(0, ERROR_MESSAGE_MAX)}` : '';
-        throw ApplicationFailure.nonRetryable(`the run pod ended (${pod.phase}) without an exit code${reason}`);
+        return { gone: `the run pod ended (${pod.phase}) without an exit code${reason}` };
       }
       if (signal.aborted) return 'running';
       await sleep(pollMs, signal);

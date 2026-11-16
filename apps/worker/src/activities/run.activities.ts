@@ -84,7 +84,10 @@ export interface FollowPodLogsResult {
   setupExitCode?: number;
   /** The reason of the last `session_ended` line the runner printed (read from the stored event, so it survives retries). */
   endReason?: EndReason;
-  /** The pod vanished (or ended) after `session_started` with no end line; `exitCode` is then -1. */
+  /**
+   * After `session_started` the pod no longer exists, or ended with no exit code; `exitCode` is then -1. `endReason`
+   * may still be present (an end line stored before the pod was lost).
+   */
   podLost?: true;
 }
 
