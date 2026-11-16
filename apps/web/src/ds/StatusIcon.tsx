@@ -28,7 +28,7 @@ const glyphs: Record<RunStatus, ReactNode> = {
   running: (
     <>
       <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.4" opacity=".45" />
-      <circle cx="8" cy="8" r="3.4" fill="currentColor" />
+      <circle className={styles.pulse} cx="8" cy="8" r="3.4" fill="currentColor" />
     </>
   ),
   idle: (

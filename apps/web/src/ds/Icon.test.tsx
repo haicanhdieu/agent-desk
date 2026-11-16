@@ -47,9 +47,26 @@ describe('StatusIcon', () => {
     expect(ring?.getAttribute('class') ?? '').toMatch(/spin/);
   });
 
-  it.each(RUN_STATUSES.filter((s) => s !== 'starting'))('does not animate the %s glyph', (status) => {
-    const { container } = render(<StatusIcon status={status} />);
+  it.each(RUN_STATUSES.filter((s) => s !== 'starting' && s !== 'running'))(
+    'does not animate the %s glyph',
+    (status) => {
+      const { container } = render(<StatusIcon status={status} />);
+      expect(container.querySelector('[class*="spin"]')).toBeNull();
+    },
+  );
+
+  it('pulses the running dot so an active run reads as in progress', () => {
+    const { container } = render(<StatusIcon status="running" />);
+    const dot = container.querySelector('circle[fill="currentColor"]');
+    expect(dot?.getAttribute('class') ?? '').toMatch(/pulse/);
     expect(container.querySelector('[class*="spin"]')).toBeNull();
+  });
+
+  it('defines the pulse as a looping keyframe that stops under prefers-reduced-motion', () => {
+    const css = readFileSync(resolve(__dirname, 'StatusIcon.module.css'), 'utf8');
+    expect(css).toMatch(/\.pulse\s*\{[^}]*animation:[^;}]*\bpulse\b[^;}]*\binfinite\b/);
+    expect(css).toMatch(/@keyframes\s+pulse\s*\{/);
+    expect(css).toMatch(/@media\s*\(prefers-reduced-motion:\s*reduce\)\s*\{[^]*\.pulse\s*\{[^}]*animation:\s*none/);
   });
 
   it('defines the spin as a rotation keyframe that stops under prefers-reduced-motion', () => {
