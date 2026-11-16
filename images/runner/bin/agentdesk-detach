@@ -1,0 +1,40 @@
+#!/bin/bash
+# End the tmux client started by `agentdesk-attach <uuid>`. Reads only that id's pid file and signals the pid only when
+# it is a plain number above 1 and still an attach client (a stale file must never hit a reused pid). Accepted comms,
+# exactly: `tmux: client` (real tmux 3.3a names its attach client so) and `agentdesk-attac` (the attach script before
+# its exec, 15-char truncation). Never `tmux: server`, and not plain `tmux` (that is also a short-lived tmux CLI call).
+# With no pid file yet (detach beat attach) it leaves a `-` tombstone so the late attach exits 3. Idempotent.
+# Exit codes: 2 bad id.
+set -euo pipefail
+LC_ALL=C
+export LC_ALL
+
+id="${1:-}"
+if [[ ! "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+  echo "agentdesk-detach: invalid terminal id" >&2
+  exit 2
+fi
+
+file="${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/$id.pid"
+mkdir -p -- "${file%/*}"
+# noclobber: atomically claim a missing file with the tombstone; never overwrite or follow anything.
+if (set -C; printf '%s\n' '-' > "$file") 2>/dev/null; then
+  exit 0
+fi
+
+pid=""
+IFS= read -r pid < "$file" || true
+# A tombstone from an earlier detach stays until the attach consumes it.
+[[ "$pid" == "-" ]] && exit 0
+rm -f -- "$file"
+
+# Digits only, no leading zero, and never pid 1 (so also never 0 or a negative number).
+if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && (( 10#$pid > 1 )); then
+  comm=""
+  IFS= read -r comm < "${AGENTDESK_PROC_DIR:-/proc}/$pid/comm" 2>/dev/null || true
+  if [[ "$comm" == "tmux: client" || "$comm" == "agentdesk-attac" ]]; then
+    # A pid reused as another attach client in this window is accepted: the pid file is already gone and the pod is one trust domain.
+    kill -TERM -- "$pid" 2>/dev/null || true
+  fi
+fi
+exit 0

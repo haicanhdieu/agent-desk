@@ -176,15 +176,15 @@ Plus in `config.test.ts`: `RUN_ENDING_DEADLINE_SECONDS` defaults to 90, blank is
 - Test: create `images/runner/test/attach-scripts.test.ts`; extend `images/runner/test/dockerfile.test.ts`; `packages/core` job-spec test
 
 **Interfaces — Produces:**
-- `agentdesk-attach <uuid>`: rejects an id not matching `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` with exit 2; exits 3 when `tmux has-session -t '=agent'` fails; otherwise writes `$$` to `${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/<uuid>.pid` and `exec tmux attach -t '=agent'`.
-- `agentdesk-detach <uuid>`: same regex (exit 2); reads only that pid file; kills that pid only if it still is a `tmux` process (check `/proc/<pid>/comm`, test seam `AGENTDESK_PROC_DIR`); removes the file; exit 0 when the file is missing (idempotent).
+- `agentdesk-attach <uuid>`: rejects an id not matching `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` with exit 2; exits 3 when `tmux has-session -t '=agent'` fails; otherwise writes `$$` to `${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/<uuid>.pid` with noclobber (an existing file, i.e. a detach tombstone, means exit 3 and remove it) and `exec tmux attach -t '=agent'`.
+- `agentdesk-detach <uuid>`: same regex (exit 2); reads only that pid file; kills that pid only if its `/proc/<pid>/comm` is exactly `tmux: client` (what real tmux 3.3a sets on an attach client, checked in the runner image) or `agentdesk-attac` (the attach script before its exec); never plain `tmux`, `tmux: server` or anything else (test seam `AGENTDESK_PROC_DIR`); removes the file; when the file is missing it leaves a `-` tombstone (noclobber) so a late `agentdesk-attach` exits 3 without attaching, and exits 0 (idempotent).
 - Core job-spec: `RUN_DIR = '/run/agentdesk'` exported constant.
 
-- [ ] **Step 1: Write the failing tests:** attach with no session → exit 3 and no tmux `attach` call; attach with a session → pid file holds the script's pid and tmux got `attach -t =agent`; attach `'../../etc'` and `'$(id)'` → exit 2, no file written; detach of a non-UUID → exit 2; detach kills only the pid in its own file (two pid files, one killed); detach of a missing id → exit 0; detach does not kill a pid whose `comm` is not `tmux`; Dockerfile copies both scripts executable; job-spec mounts a Memory `emptyDir` at `/run/agentdesk`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test -- job-spec` — expect FAIL.
-- [ ] **Step 3: Implement** the two scripts (bash, `set -euo pipefail`, id only ever used after the regex check, quoted) and the job-spec volume.
-- [ ] **Step 4: Run** the same commands — expect PASS.
-- [ ] **Step 5: Commit** `feat(runner): one named tmux attach client per terminal`.
+- [x] **Step 1: Write the failing tests:** attach with no session → exit 3 and no tmux `attach` call; attach with a session → pid file holds the script's pid and tmux got `attach -t =agent`; attach `'../../etc'` and `'$(id)'` → exit 2, no file written; detach of a non-UUID → exit 2; detach kills only the pid in its own file (two pid files, one killed); detach of a missing id → exit 0; detach does not kill a pid whose `comm` is not `tmux`; Dockerfile copies both scripts executable; job-spec mounts a Memory `emptyDir` at `/run/agentdesk`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test -- job-spec` — expect FAIL.
+- [x] **Step 3: Implement** the two scripts (bash, `set -euo pipefail`, id only ever used after the regex check, quoted) and the job-spec volume.
+- [x] **Step 4: Run** the same commands — expect PASS.
+- [x] **Step 5: Commit** `feat(runner): one named tmux attach client per terminal`.
 - [ ] **Step 6: After merge:** build and roll out the runner image (runbook). Phases 3a and 4 wait for this.
 
 ---

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRunJob,
   buildSetupTestJob,
+  RUN_DIR,
   runPodConfigFrom,
   type RunJobInput,
   type SetupTestJobInput,
@@ -98,10 +99,12 @@ describe('buildRunJob', () => {
         name: 'workspace-token',
         secret: { secretName: `run-${RUN}`, items: [{ key: 'workspace-token', path: 'token' }], defaultMode: 0o440 },
       },
+      { name: 'agentdesk-run', emptyDir: { medium: 'Memory', sizeLimit: '1Mi' } },
     ]);
     expect(c?.volumeMounts).toEqual([
       { name: 'workspace', mountPath: '/workspace' },
       { name: 'workspace-token', mountPath: '/var/run/agentdesk/workspace-token', readOnly: true },
+      { name: 'agentdesk-run', mountPath: '/run/agentdesk' },
     ]);
     expect(pod?.nodeSelector).toBeUndefined();
     expect(pod?.tolerations).toBeUndefined();
@@ -166,7 +169,7 @@ describe('buildRunJob', () => {
     const pod = buildRunJob(input()).spec?.template.spec;
     const workspace = pod?.volumes?.find((v) => v.name === 'workspace');
     expect(workspace).toEqual({ name: 'workspace', persistentVolumeClaim: { claimName: `run-${RUN}` } });
-    expect(JSON.stringify(pod?.volumes)).not.toContain('emptyDir');
+    expect(JSON.stringify(workspace)).not.toContain('emptyDir');
     expect(pod?.containers[0]?.volumeMounts?.some((m) => m.subPath !== undefined)).toBe(false);
     expect(pod?.containers[0]?.env).toContainEqual({ name: 'HOME', value: '/workspace/home' });
   });
@@ -278,6 +281,15 @@ describe('buildSetupTestJob', () => {
     expect(test?.containers[0]?.securityContext).toEqual(run?.containers[0]?.securityContext);
     expect(test?.containers[0]?.volumeMounts).toEqual(run?.containers[0]?.volumeMounts);
     expect(test?.volumes?.find((v) => v.name === 'workspace-token')?.secret?.secretName).toBe(`setup-test-${TEST_ID}`);
+  });
+
+  it('mounts the in-memory /run/agentdesk volume in run and setup-test pods', () => {
+    expect(RUN_DIR).toBe('/run/agentdesk');
+    for (const job of [buildRunJob(input()), buildSetupTestJob(setupInput())]) {
+      const pod = job.spec?.template.spec;
+      expect(pod?.volumes).toContainEqual({ name: 'agentdesk-run', emptyDir: { medium: 'Memory', sizeLimit: '1Mi' } });
+      expect(pod?.containers[0]?.volumeMounts).toContainEqual({ name: 'agentdesk-run', mountPath: RUN_DIR });
+    }
   });
 
   it('keeps the emptyDir with its size limit and no HOME override', () => {

@@ -10,7 +10,15 @@ appendFileSync(
   `${JSON.stringify({ cmd: 'tmux', argv, setupScript: process.env.SETUP_SCRIPT ?? null })}\n`,
 );
 const mode = process.env.STUB_TMUX_MODE ?? 'dead';
-if (argv.includes('has-session')) process.exit(mode === 'incident' ? 1 : 0);
+// Session-level commands take a SESSION target: `=agent` is valid, anything else is not.
+if (argv.includes('has-session') || argv.includes('attach')) {
+  if (argv[argv.indexOf('-t') + 1] !== '=agent') {
+    console.error(`can't find session: ${argv[argv.indexOf('-t') + 1]}`);
+    process.exit(1);
+  }
+  if (mode === 'incident') process.exit(1);
+  process.exit(0);
+}
 // Real tmux: `-t =agent` (no colon) is not a valid PANE target. capture-pane fails, display-message prints an empty line.
 const target = argv[argv.indexOf('-t') + 1];
 const badPaneTarget = argv.includes('-t') && target === '=agent';
