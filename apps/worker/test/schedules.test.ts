@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { createLocalTestEnv } from './helpers/temporal-env';
 import { Worker } from '@temporalio/worker';
 import { OUTBOX_SWEEP_SCHEDULE_ID, RECONCILE_SCHEDULE_ID, TASK_QUEUE, WORKFLOW } from '@agentdesk/core';
 import { ensureSchedules } from '../src/schedules';
@@ -8,7 +9,7 @@ import { ensureSchedules } from '../src/schedules';
 let env: TestWorkflowEnvironment;
 
 beforeAll(async () => {
-  env = await TestWorkflowEnvironment.createLocal();
+  env = await createLocalTestEnv();
 }, 240_000);
 afterAll(async () => {
   await env?.teardown();

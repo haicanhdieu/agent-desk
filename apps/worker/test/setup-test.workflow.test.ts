@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { createTimeSkippingTestEnv } from './helpers/temporal-env';
 import { Worker } from '@temporalio/worker';
 import { ApplicationFailure, CancelledFailure, Context } from '@temporalio/activity';
 import { WorkflowFailedError, type WorkflowHandle } from '@temporalio/client';
@@ -101,7 +102,7 @@ async function waitFor(pred: () => boolean, what: string, ms = 15_000): Promise<
 }
 
 beforeAll(async () => {
-  env = await TestWorkflowEnvironment.createTimeSkipping();
+  env = await createTimeSkippingTestEnv();
   worker = await Worker.create({
     connection: env.nativeConnection,
     taskQueue: TASK_QUEUE,
