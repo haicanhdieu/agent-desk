@@ -250,11 +250,11 @@ Precondition: the Phase 3 runner image is live.
 - `RunDto` and `RunStatusEvent` gain `sessionEndingAt: Timestamp.nullable()`, `pauseReason: PauseReason.nullable()`.
 - Columns `runs.session_ending_at` (timestamptz null), `runs.pause_reason` (text null, check `in ('idle_timeout','pod_lost')`).
 
-- [ ] **Step 1: Write the failing tests:** `RunDto` parses with both fields null and with `pauseReason: 'pod_lost'`; rejects `pauseReason: 'oom'`; migration applies on a db at `0012`; `pause_reason = 'x'` is rejected; the file has no `update`/`delete`/`insert` on `runs`; existing rows read back null.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/db test` — expect FAIL.
-- [ ] **Step 3: Implement**; API mappers read the real columns (null for old rows).
-- [ ] **Step 4: Run** those plus `pnpm typecheck` — expect PASS.
-- [ ] **Step 5: Commit** `feat(contracts): session ending time and pause reason on runs`.
+- [x] **Step 1: Write the failing tests:** `RunDto` parses with both fields null and with `pauseReason: 'pod_lost'`; rejects `pauseReason: 'oom'`; migration applies on a db at `0012`; `pause_reason = 'x'` is rejected; the file has no `update`/`delete`/`insert` on `runs`; existing rows read back null.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/db test` — expect FAIL.
+- [x] **Step 3: Implement**; API mappers read the real columns (null for old rows).
+- [x] **Step 4: Run** those plus `pnpm typecheck` — expect PASS.
+- [x] **Step 5: Commit** `feat(contracts): session ending time and pause reason on runs`.
 
 ---
 
