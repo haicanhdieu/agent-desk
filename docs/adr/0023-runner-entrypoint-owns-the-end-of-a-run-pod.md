@@ -47,7 +47,7 @@ The entrypoint is the only owner of the pod's exit.
 ### Negative
 
 - More runner scripts and an image rollout before API/worker changes; a fallback for older pods for 7 days.
-- Lease signals add a few hundred workflow events per attached day.
+- Lease signals add about 2,900 workflow events a day while the agent works, and about 4,700 a day for a waiting run with an open tab (doubled signal part on two API pods). `RunWorkflow` has no `continueAsNew` and fails at the 45,000-event guard. Follow-up: `continueAsNew` or a longer lease interval (see the spec's Consequences).
 
 ## Links
 
