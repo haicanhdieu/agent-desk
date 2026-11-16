@@ -299,6 +299,36 @@ export const DeskAgentPolling: Story = {
   ),
 };
 
+export const DeskAgentCheckingNow: Story = {
+  name: 'Agent & settings, checking now',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentScreen
+      frame={deskFrame}
+      settings={agentSettings}
+      connection={connections.pollingOk}
+      checkingNow
+      github={github({ term: connectionCopy.lastCheckedTerm, text: '20s ago, no new comments (polling)' })}
+    />
+  ),
+};
+
+export const DeskAgentCheckNowRefused: Story = {
+  name: 'Agent & settings, check now refused',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentScreen
+      frame={deskFrame}
+      settings={agentSettings}
+      connection={connections.pollingRevoked}
+      checkNowError="Polling is paused: the connection's token was revoked. Reconnect it, then check again."
+      github={github({ term: connectionCopy.lastCheckedTerm, text: '2 hours ago (polling)' })}
+    />
+  ),
+};
+
 const setupProps: DeskSetupProps = {
   frame: deskFrame,
   script: { version: 4, body: setupScript, savedBy: 'kim-hale', savedAgo: '2 days ago' },

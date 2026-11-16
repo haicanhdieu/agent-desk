@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
-import { mockDb } from '@/mocks/msw/db';
+import { defaultTriggerState, mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
@@ -415,5 +415,63 @@ describe('desk agent route', () => {
     expect(await screen.findByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
     expect(mockDb.state.projects.some((p) => p.id === projectId)).toBe(false);
     expect(screen.queryByRole('link', { name: 'invoicer-api' })).toBeNull();
+  });
+});
+
+describe('desk agent route: Check now', () => {
+  const pollPath = `${projectPath}/connection/poll`;
+  const checkNow = () => screen.getByRole('button', { name: /^Check(ing)?( now|…)?$/ });
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
+  /** The project polls every 5 min and was last checked 3 hours ago; `polling` overrides the cursor. */
+  function pollingProject(polling: Partial<ReturnType<typeof defaultTriggerState>['polling']> = {}) {
+    Object.assign(projectRow(), { triggerMode: 'polling', pollIntervalSeconds: 300 });
+    const state = defaultTriggerState();
+    mockDb.state.triggers[projectId] = {
+      ...state,
+      polling: { ...state.polling, lastCheckedAt: hoursAgo(3), ...polling },
+    };
+  }
+
+  it('a double click sends one poll request, shows Checking while it runs, then shows the new Last checked time', async () => {
+    pollingProject();
+    // A slow poll, so the in-flight state can be seen; it moves Last checked when it finishes.
+    let sent = 0;
+    server.use(
+      http.post(pollPath, async () => {
+        sent += 1;
+        await sleep(150);
+        const polling = mockDb.state.triggers[projectId]?.polling;
+        if (polling) polling.lastCheckedAt = new Date().toISOString();
+        return new HttpResponse(null, { status: 202 });
+      }),
+    );
+    await openPage();
+    expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
+    const button = checkNow();
+    fireEvent.click(button);
+    fireEvent.click(button);
+    expect(screen.getByRole('button', { name: 'Checking…' })).toBeDisabled();
+    expect(await screen.findByText('just now (polling)')).toBeInTheDocument();
+    await waitFor(() => expect(checkNow()).toBeEnabled());
+    expect(checkNow()).toHaveTextContent('Check now');
+    expect(sent).toBe(1);
+  });
+
+  it('while polling is paused it shows the reason, sends no successful poll and leaves Last checked alone', async () => {
+    pollingProject({ pausedReason: 'token_revoked', lastError: 'rejected' });
+    const { user } = await openPage();
+    await user.click(checkNow());
+    expect(await screen.findByRole('alert')).toHaveTextContent('Polling is paused: token_revoked');
+    expect(screen.getByText('3 hours ago (polling)')).toBeInTheDocument();
+    expect(checkNow()).toBeEnabled();
+  });
+
+  it('a server error shows a message and the button is usable again', async () => {
+    pollingProject();
+    const { user } = await openPage();
+    scenarios.serverError('projects.pollNow');
+    await user.click(checkNow());
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not start the check');
+    expect(checkNow()).toBeEnabled();
   });
 });

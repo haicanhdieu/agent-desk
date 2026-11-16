@@ -236,6 +236,25 @@ describe('DeskAgent', () => {
     expect(screen.getByRole('button', { name: 'Check now' })).toBeInTheDocument();
   });
 
+  it('Check now reports the click; while checking it is disabled and says so; a failure shows under it', async () => {
+    const onCheckNow = vi.fn();
+    const props = {
+      frame: deskFrame,
+      settings: agentSettings,
+      github,
+      connection: connections.pollingRevoked,
+      onCheckNow,
+    };
+    const { rerender } = render(<DeskAgent {...props} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Check now' }));
+    expect(onCheckNow).toHaveBeenCalledTimes(1);
+    rerender(<DeskAgent {...props} checkingNow />);
+    expect(screen.getByRole('button', { name: 'Checking…' })).toBeDisabled();
+    rerender(<DeskAgent {...props} checkNowError="Polling is paused: the token was revoked." />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Polling is paused: the token was revoked.');
+    expect(screen.getByRole('button', { name: 'Check now' })).toBeEnabled();
+  });
+
   it('a polling project starts in polling mode and shows its status in the side nav', () => {
     render(
       <DeskAgent frame={deskFrame} settings={agentSettings} github={github} connection={connections.pollingRevoked} />,

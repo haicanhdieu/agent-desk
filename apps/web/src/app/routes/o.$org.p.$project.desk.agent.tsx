@@ -6,8 +6,9 @@ import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import { limitsOf, toAgentSettings, useReplaceCredential, useSaveLimits } from '@/features/desk/agent.form';
+import { checkNowMessage, failedPollMessage } from '@/features/desk/checkNow';
 import { useDeskFrame } from '@/features/desk/frame';
-import { forgetProject, useDeleteProject, useSaveTrigger } from '@/features/desk/mutations';
+import { forgetProject, useCheckNow, useDeleteProject, useSaveTrigger } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
@@ -64,6 +65,23 @@ function DeskAgentPage() {
       .then(() => settle(), settle);
   };
 
+  // Check now: one check at a time (the ref covers a second click before the pending state renders).
+  const check = useCheckNow(org, projectId);
+  const checking = useRef(false);
+  const [checkNowError, setCheckNowError] = useState<string>();
+  const onCheckNow = () => {
+    if (checking.current) return;
+    checking.current = true;
+    setCheckNowError(undefined);
+    check.mutate(undefined, {
+      onSuccess: (after) => setCheckNowError(failedPollMessage(after)),
+      onError: (e) => setCheckNowError(checkNowMessage(e)),
+      onSettled: () => {
+        checking.current = false;
+      },
+    });
+  };
+
   const remove = useDeleteProject(org, projectId);
   const deleting = useRef(false);
   const onDeleteProject = () => {
@@ -100,6 +118,9 @@ function DeskAgentPage() {
       pollInterval={saved.interval}
       onTriggerChange={onTriggerChange}
       triggerError={triggerError}
+      onCheckNow={onCheckNow}
+      checkingNow={check.isPending}
+      checkNowError={checkNowError}
       onSaveLimits={(next) => void limits.save(next)}
       limitsErrors={limits.errors}
       limitsError={limits.formError}
