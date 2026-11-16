@@ -11,6 +11,7 @@ import {
   SETUP_TEST_KIND,
   SETUP_TEST_LABELS,
   kubeStatusOf,
+  EXEC_NOT_FOUND,
   runRefFromLabels,
   setupTestRefFromLabels,
   type ExecSession,
@@ -70,6 +71,7 @@ const JOB_NAME_LABEL = 'batch.kubernetes.io/job-name';
 
 const ExecStatus = z.object({
   status: z.string().optional(),
+  message: z.string().optional(),
   details: z
     .object({ causes: z.array(z.object({ reason: z.string().optional(), message: z.string().optional() })).optional() })
     .optional(),
@@ -337,7 +339,7 @@ export class RealKubeGateway implements KubeGateway {
   }
 }
 
-/** Exit code from the exec status channel (a v1 Status): Success → 0, `ExitCode` cause → its value, else 1. */
+/** Exit code from the exec status channel (a v1 Status): Success → 0, `ExitCode` cause → its value, "executable file not found" → 127, else 1. */
 function parseExitCode(data: Buffer): number {
   let json: unknown;
   try {
@@ -350,7 +352,10 @@ function parseExitCode(data: Buffer): number {
   if (parsed.data.status === 'Success') return 0;
   const cause = parsed.data.details?.causes?.find((c) => c.reason === 'ExitCode');
   const n = Number.parseInt(cause?.message ?? '', 10);
-  return Number.isInteger(n) ? n : 1;
+  if (Number.isInteger(n)) return n;
+  // The runtime refused to start the command (CRI/OCI text), so there is no ExitCode cause.
+  if (/executable file not found/i.test(parsed.data.message ?? '')) return EXEC_NOT_FOUND;
+  return 1;
 }
 
 /** Builds the real gateway from a kubeconfig file / the default chain (`kubeconfig`) or the pod's service account. */

@@ -8,6 +8,7 @@ import { promisify } from 'node:util';
 import { z } from 'zod';
 import { assertSecretName } from '../secrets/secret-store';
 import {
+  CONNECTION_ID_RE,
   TMUX_ATTACH,
   TMUX_KILL,
   runRefFromLabels,
@@ -142,6 +143,8 @@ function exitedPod(jobName: string, raw: string): RunPod {
  */
 export class FakeKubeGateway implements KubeGateway {
   private readonly children = new Map<string, ChildProcess>();
+  /** Connection ids `agentdesk-detach` ran for, in order (test observation). */
+  readonly detachedIds: string[] = [];
   private readonly envs = new Map<string, Record<string, string>>();
 
   constructor(
@@ -355,6 +358,16 @@ export class FakeKubeGateway implements KubeGateway {
       return closedSession(0);
     }
     if (sameCommand(command, TMUX_ATTACH)) return attachSession(dir);
+    const attachId = idArg(command, 'agentdesk-attach');
+    if (attachId !== null) {
+      // Like the runner script: no agent session left means exit 3, without attaching.
+      return existsSync(join(dir, 'exit')) ? closedSession(3) : attachSession(dir);
+    }
+    const detachId = idArg(command, 'agentdesk-detach');
+    if (detachId !== null) {
+      this.detachedIds.push(detachId);
+      return closedSession(0);
+    }
     throw new Error('fake kube: exec command not supported');
   }
 
@@ -490,6 +503,12 @@ export class FakeKubeGateway implements KubeGateway {
     for (const c of this.children.values()) if (c.pid !== undefined && c.exitCode === null) killGroup(c.pid);
     this.children.clear();
   }
+}
+
+/** The id of `<name> <uuid>` when the command is exactly that and the id is valid; else null. */
+function idArg(command: string[], name: string): string | null {
+  const [cmd, id, ...rest] = command;
+  return cmd === name && id !== undefined && rest.length === 0 && CONNECTION_ID_RE.test(id) ? id : null;
 }
 
 function closedSession(code: number): ExecSession {

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, Logger, type OnModuleDestroy, type OnApplicationBootstrap } from '@nestjs/common';
 import { HttpAdapterHost } from '@nestjs/core';
 import websocket from '@fastify/websocket';
@@ -8,7 +9,15 @@ import type { RawData, WebSocket } from 'ws';
 import { z } from 'zod';
 import { member, withOrg, type Db } from '@agentdesk/db';
 import { routes } from '@agentdesk/contracts';
-import { TMUX_ATTACH, runWorkflowId, type ExecSession, type KubeGateway } from '@agentdesk/core';
+import {
+  EXEC_NOT_FOUND,
+  TMUX_ATTACH,
+  attachCommand,
+  detachCommand,
+  runWorkflowId,
+  type ExecSession,
+  type KubeGateway,
+} from '@agentdesk/core';
 import { AUTH, type Auth } from '../auth/auth';
 import { toHeaders } from '../auth/session.guard';
 import { CONFIG, type Config } from '../config/config.module';
@@ -17,7 +26,7 @@ import { KUBE_GATEWAY } from '../kube/kube-gateway.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { runTarget, setupTestTarget, terminalKey, type TerminalTarget } from './terminal-targets';
 
-/** Close codes (spec 7.5); the browser treats 4403 and 4409 as terminal, 4401 as "sign in". */
+/** Close codes (spec 7.5); the browser treats 4403, 4409 and 4410 as terminal, 4401 as "sign in". */
 export const CLOSE = {
   normal: 1000,
   goingAway: 1001,
@@ -27,6 +36,8 @@ export const CLOSE = {
   unauthorized: 4401,
   forbidden: 4403,
   notActive: 4409,
+  /** The pod's tmux session is gone (attach exit 3): the run ended while the socket was opening or open. */
+  sessionEnded: 4410,
 } as const;
 
 /** Largest frame the browser may send (a keystroke burst or paste chunk); ws closes the socket with 1009 above it. */
@@ -41,6 +52,10 @@ const PENDING_INPUT_MAX_BYTES = 256 * 1024;
 const UNAUTHORIZED_INPUT_MAX_BYTES = 4 * 1024;
 /** Authorization (session + membership + run lookup) must finish within this, else 1013. */
 const AUTH_TIMEOUT_MS = 10_000;
+/** Shutdown waits at most this long for the detach execs, so a hung exec cannot stall the process. */
+const DETACH_WAIT_MS = 5_000;
+/** `agentdesk-attach` exit code: no agent session (or already detached). */
+const ATTACH_NO_SESSION = 3;
 /** Attach/detach signal attempts (first try plus retries with a short backoff). */
 const SIGNAL_ATTEMPTS = 3;
 
@@ -63,6 +78,14 @@ interface Conn {
   closed: boolean;
   attached: boolean;
   session?: ExecSession;
+  /** Server-made id of this socket's named tmux attach client; never taken from the browser. */
+  readonly connId: string;
+  /** Set just before the attach exec is issued: the pod a detach must be sent to. Unset means nothing was exec'd. */
+  podName?: string;
+  /** The old-pod fallback (plain `tmux attach`) was already tried once. */
+  fellBack: boolean;
+  /** Latest resize, replayed on a fallback session. */
+  lastResize?: { cols: number; rows: number };
   pending: Buffer[];
   pendingBytes: number;
   /** The latest resize that arrived before the exec session was up (browsers send one right after open). */
@@ -100,6 +123,8 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   private readonly log = new Logger(TerminalGateway.name);
   /** Keyed by `terminalKey(target, id)`. */
   private readonly byRun = new Map<string, Set<Conn>>();
+  /** Detach execs in flight, so shutdown can wait for them (bounded). */
+  private readonly detaching = new Set<Promise<void>>();
   /** Test seam: base delay between attach/detach signal retries. */
   signalRetryMs = 100;
 
@@ -135,13 +160,20 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
    * server shutdown (the websocket plugin terminates all clients) and their auth timer/ping timer die with their close
    * event; their `start` returns early because `conn.closed` is set by cleanup.
    */
-  onModuleDestroy(): void {
+  async onModuleDestroy(): Promise<void> {
     for (const set of this.byRun.values()) {
       for (const conn of [...set]) {
         this.cleanup(conn);
         conn.socket.close(CLOSE.goingAway);
       }
     }
+    if (this.detaching.size === 0) return;
+    let timer: NodeJS.Timeout | undefined;
+    const limit = new Promise<void>((resolve) => {
+      timer = setTimeout(resolve, DETACH_WAIT_MS);
+    });
+    await Promise.race([Promise.allSettled([...this.detaching]).then(() => undefined), limit]);
+    if (timer) clearTimeout(timer);
   }
 
   private accept(socket: WebSocket, req: FastifyRequest, target: TerminalTarget): void {
@@ -154,6 +186,8 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       userId: '',
       orgId: '',
       closed: false,
+      connId: randomUUID(),
+      fellBack: false,
       attached: false,
       pending: [],
       pendingBytes: 0,
@@ -228,26 +262,62 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       this.shut(conn, CLOSE.notActive);
       return;
     }
-    const session = await this.kube.exec(pod.name, [...TMUX_ATTACH], { tty: true });
+    // From here a detach is owed, even if the exec is still in flight when the socket closes (the runner leaves a
+    // tombstone, so a detach that beats its attach is safe).
+    conn.podName = pod.name;
+    const session = await this.kube.exec(pod.name, attachCommand(conn.connId), { tty: true });
     if (conn.closed) {
       session.close();
       return;
     }
-    conn.session = session;
-    session.onData((d) => this.onOutput(conn, d));
-    session.onClose(() => {
-      if (!conn.closed) this.shut(conn, CLOSE.normal);
-    });
+    this.bind(conn, session);
     conn.attached = true;
     this.log.log(`terminal attached ${conn.target.kind}=${conn.runId} user=${conn.userId}`);
     conn.attachSignal = conn.target.onAttach?.(conn.runId).then(
       () => true,
       () => false,
     );
-    if (conn.pendingResize) session.resize(conn.pendingResize.cols, conn.pendingResize.rows);
+    if (conn.pendingResize) {
+      conn.lastResize = conn.pendingResize;
+      session.resize(conn.pendingResize.cols, conn.pendingResize.rows);
+    }
     const pending = conn.pending.splice(0);
     conn.pendingBytes = 0;
     for (const b of pending) this.onInput(conn, b);
+  }
+
+  /**
+   * Wires an exec session to the socket. Exit 3 means the tmux session is gone (4410, the browser must not retry);
+   * exit 127 on the named attach means an old runner image without `agentdesk-attach`: retry once with plain
+   * `tmux attach` (remove this fallback 7 days after the new image is live).
+   */
+  private bind(conn: Conn, session: ExecSession): void {
+    conn.session = session;
+    session.onData((d) => this.onOutput(conn, d));
+    session.onClose((code) => {
+      if (conn.closed || conn.session !== session) return;
+      if (code === EXEC_NOT_FOUND && !conn.fellBack && conn.podName) {
+        conn.fellBack = true;
+        void this.fallbackAttach(conn, conn.podName);
+        return;
+      }
+      this.shut(conn, code === ATTACH_NO_SESSION ? CLOSE.sessionEnded : CLOSE.normal);
+    });
+  }
+
+  private async fallbackAttach(conn: Conn, podName: string): Promise<void> {
+    try {
+      const session = await this.kube.exec(podName, [...TMUX_ATTACH], { tty: true });
+      if (conn.closed) {
+        session.close();
+        return;
+      }
+      this.bind(conn, session);
+      if (conn.lastResize) session.resize(conn.lastResize.cols, conn.lastResize.rows);
+    } catch (err) {
+      this.log.error(`terminal fallback attach failed ${conn.target.kind}=${conn.runId}: ${errorName(err)}`);
+      this.shut(conn, CLOSE.internal);
+    }
   }
 
   private async authorize(req: FastifyRequest, target: TerminalTarget, runId: string): Promise<AuthzResult> {
@@ -310,6 +380,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     }
     const resize = ResizeFrame.safeParse(json);
     if (!resize.success) return;
+    conn.lastResize = resize.data;
     if (conn.session) conn.session.resize(resize.data.cols, resize.data.rows);
     else conn.pendingResize = resize.data;
   }
@@ -358,6 +429,25 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     await conn.target.onDetach?.(conn.runId).catch(() => undefined); // the run target's signaller already logged the give-up
   }
 
+  /**
+   * Ends this socket's attach client in the pod. Best effort and once per socket (cleanup is idempotent): a failure is
+   * logged by error name only and never fails the close. The id is regex-checked by `detachCommand`.
+   */
+  private sendDetach(conn: Conn): void {
+    const podName = conn.podName;
+    if (!podName) return;
+    const job = (async () => {
+      try {
+        const s = await this.kube.exec(podName, detachCommand(conn.connId), { tty: false });
+        s.onClose(() => s.close());
+      } catch (err) {
+        this.log.warn(`terminal detach exec failed ${conn.target.kind}=${conn.runId}: ${errorName(err)}`);
+      }
+    })();
+    this.detaching.add(job);
+    void job.finally(() => this.detaching.delete(job));
+  }
+
   /** Re-validates the session and authorization of a long-lived socket; an outage never closes it. */
   private async reauth(conn: Conn): Promise<void> {
     if (conn.closed || conn.reauthBusy) return;
@@ -390,6 +480,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     } catch {
       // the session may already be gone
     }
+    this.sendDetach(conn);
     if (conn.registered) {
       const key = terminalKey(conn.target, conn.runId);
       const set = this.byRun.get(key);
