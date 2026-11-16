@@ -7,7 +7,7 @@ description: Use when asked to build, fix, implement or pick up a GitHub issue (
 
 You are the dev orchestrator. You take one ticket (a GitHub issue, or a description you file as one); subagents triage it, build it on a fresh branch, verify it and open it as a PR to `main`. You keep the [project board](https://github.com/users/haicanhdieu/projects/4/views/1) and labels in step.
 
-Every run delivers exactly **one** PR to `main`. **Single mode** (most tickets): one branch, one worktree, steps 1 to 5. **Multi-unit mode** ([multi-unit.md](multi-unit.md)): Triage splits a plan into two or more PR-sized **units**; each is built, verified and reviewed as an internal draft sub-PR into an integration branch, which becomes the one PR to `main`.
+Every run delivers exactly **one** PR to `main`. **Single mode** (most tickets): one branch, one worktree, steps 1 to 5. **Multi-unit mode** ([multi-unit.md](multi-unit.md)): Triage splits a plan into two or more PR-sized **units**; each is built, verified and reviewed in its own worktree, then merged locally into an integration branch (no sub-PRs), which becomes the one PR to `main`.
 
 This is the **build** step of build → review and merge → QA test → done. Columns, labels and who moves what: [docs/runbooks/dev-workflow.md](../../../docs/runbooks/dev-workflow.md). Read it once before your first run.
 
@@ -26,7 +26,7 @@ You keep what is outward-facing or a gate: every issue comment, board move and i
 | 5 Open PR | PR agent                                                   | `low` / `low`                                     |
 | Any step  | Advisor, only for would-be-human questions (max 8 per run) | `high` / `high`                                   |
 
-Multi-unit mode adds a **Reviewer** (`medium` / `medium`, `high` when sensitive) per sub-PR and once for the whole branch.
+Multi-unit mode adds a **Reviewer** (`medium` / `medium`, `high` when sensitive) per unit and once for the whole branch.
 
 A subagent knows only its prompt. Keep each prompt exactly as [agent-prompts.md](agent-prompts.md) gives it.
 
@@ -39,7 +39,7 @@ An issue number or URL (`42`, `#42`, `https://github.com/<owner>/<repo>/issues/4
 | File                                 | Use                                                                                                            |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
 | [agent-prompts.md](agent-prompts.md) | Prompt, tier, effort per role                                                                                  |
-| [multi-unit.md](multi-unit.md)       | Multi-unit mode: integration branch, units, sub-PRs, internal and final review, blocking and resume            |
+| [multi-unit.md](multi-unit.md)       | Multi-unit mode: integration branch, units, local merges, internal and final review, blocking and resume       |
 | [comments.md](comments.md)           | The issue comments you post, word for word                                                                     |
 | `scripts/board.sh`                   | Move the card and swap the `status:*` label in one call                                                        |
 | `scripts/start.sh`                   | Create branch and worktree (single, integration or unit) or reopen a blocked run's pushed branch; install deps |
@@ -60,7 +60,7 @@ Create a todo per step. Do not skip or reorder them.
 
 Spawn **Triage** ([agent-prompts.md](agent-prompts.md)). It reads the issue, comments, board status and open PRs, decides bug or feature, and checks the ticket is clear enough to build. It changes nothing. Act on its `VERDICT`:
 
-- **STOP:** report its `REASON` to the user. No comment, no board change. Covers: a closed issue; board status `In progress`, `In review`, `QA` or `Done`; an open PR referencing it; a `Blocked` ticket that dev-build did not block or whose question is unanswered; a branch for the issue on `origin` that dev-build did not leave. Someone else owns it; never take over. (A blocked multi-unit run's own unit branches and `internal` sub-PRs are dev-build's; Triage knows this.)
+- **STOP:** report its `REASON` to the user. No comment, no board change. Covers: a closed issue; board status `In progress`, `In review`, `QA` or `Done`; an open PR referencing it; a `Blocked` ticket that dev-build did not block or whose question is unanswered; a branch for the issue on `origin` that dev-build did not leave. Someone else owns it; never take over. (A blocked multi-unit run's own unit branches are dev-build's; Triage knows this.)
 - **BLOCKED** with the single question "bug or feature?": ask the Advisor. If it decides, spawn Triage again with the decision in "Decisions already made" and act on the new verdict (a feature still needs a task list). On `needs_human`, post and block as [Decisions](#decisions-the-advisor) says.
 - **BLOCKED** otherwise (no task list or plan, no repro, unclear intent, or more than that one question):
   1. Post **Needs clarification** ([comments.md](comments.md)) with its `QUESTION`. Check first: exactly one question, a real gap, Problem / Sample / Solutions / Suggestion form, never one already asked. If it lists several, keep the one that blocks most; the next run asks the next.
@@ -101,7 +101,6 @@ Dispatch subagents with the Agent tool, using the prompts, tier and effort in [a
 
 - Fixer: `call the Skill tool with skill "superpowers:systematic-debugging"`, and `call the Skill tool with skill` followed by `"superpowers:test-driven-development"` (that line wraps; check the skill name is there).
 - Implementer: `call the Skill tool with skill` followed by `"superpowers:test-driven-development"` (same wrapped line).
-- CI fixer (multi-unit): `call the Skill tool with skill "superpowers:systematic-debugging"`.
 - PR agent: `call the Skill tool with skill "create-pr"`.
 
 **Check each builder reply.** `SKILLS:` is self-reported, not proof alone.
@@ -130,11 +129,13 @@ Read both yourself (`superpowers:verification-before-completion`):
 
 Failures and findings go to the builder that owns the code (step 3 rules, a fresh builder prompt naming the failure); then step 4 reruns on the new head.
 
+**Builders re-verify findings; they do not obey.** A Self-reviewer or Reviewer finding is a claim. Send it in the Implementer prompt's "Findings to assess" block (a Verifier failure is not a finding: it is fixed, not assessed). The builder fixes only what passes the [validity test](../dev-review/severity.md#validity-test-before-anyone-fixes-a-finding) (real; violates a named requirement, rule, convention or standard; in scope with a safe fix) and declines the rest with a reason and evidence. Check its `ASSESSMENT`, `DECLINED` and `UNSURE`: open the cited file:line or test for each decline and accept it only if it holds; otherwise re-dispatch once with your counter-evidence, then the Advisor if you still disagree. A finding closed as declined does not count against the round caps and is listed under judgment calls in the PR body. Never re-send a declined finding that you accepted.
+
 **Cap: 3 verify rounds per run** (the first plus at most 2 after fixes; a round = both agents ran). If round 3 still fails or has findings, ask the Advisor (stop condition). On `needs_human` only: push the branch, post **Needs clarification** ("I stopped", `Stopped at: verify, round 3`, the verbatim failing command and last output lines, or the open findings), `board.sh status <n> Blocked`, report. Never go to step 5 over a red round; never ask the Advisor to waive a failing check, only how to fix it. Rounds restart at 1 on a resumed run. Never claim success, open the PR or move the card on output you did not see pass. `format:check` fails repo-wide until the one-time reformat lands; `fix` covers your files.
 
 ### 5. Open the PR
 
-Spawn the **PR agent** ([agent-prompts.md](agent-prompts.md)). It runs the **`create-pr`** skill ([create-pr/SKILL.md](../create-pr/SKILL.md)), which owns the title, body template, labels, local preflight and `gh pr create`. Neither you nor the agent writes a PR body or runs `gh pr create` by hand for a PR to `main` (sole exception: a multi-unit sub-PR, [multi-unit.md](multi-unit.md) M3). Fill its prompt with:
+Spawn the **PR agent** ([agent-prompts.md](agent-prompts.md)). It runs the **`create-pr`** skill ([create-pr/SKILL.md](../create-pr/SKILL.md)), which owns the title, body template, labels, local preflight and `gh pr create`. Neither you nor the agent writes a PR body or runs `gh pr create` by hand for a PR to `main`. Fill its prompt with:
 
 - head `<branch>`, base `main`, push authorized (`git push -u origin <branch>`);
 - type `bugfix` or `feature` (Triage's `KIND`), `agent-authored: true`, the issue number (it writes `Closes #<n>`, so merging closes the issue);
@@ -209,47 +210,45 @@ If a check fails, treat it as `needs_human` and write the human question yoursel
 
 These hold even when the user says to hurry or skip a step. Say so in your report and keep the rule.
 
-| Thought                                              | Reality                                                    |
-| ---------------------------------------------------- | ---------------------------------------------------------- |
-| "The feature is vague but I can infer the tasks"     | Inferred tasks are guesses. Block it (step 1).             |
-| "I'll write a quick plan and build it"               | Planning is a human decision. Ask.                         |
-| "I'll read the issue myself, triage is a waste"      | Raw ticket text stays out of your context. Spawn Triage.   |
-| "The bug is obvious, skip the failing test"          | Rule 9: failing test first. Every time.                    |
-| "Tests mostly pass; open the PR and note it"         | Fix or block. PRs open only on green verification.         |
-| "The Verifier said green, no need to look"           | `low` tier copier. Read exit codes, rerun one.             |
-| "Verify and PR agents are cheap, skip my read-back"  | A `low` agent's output is unchecked until you check it.    |
-| "There's already a branch for this, I'll reuse it"   | Only if `RESUME: yes`. Else `start.sh` refuses; stop.      |
-| "I'll branch from my current checkout"               | Use `start.sh`: fresh `origin/main`, in a worktree.        |
-| "`Refs #n` links the PR well enough"                 | It leaves the issue open after merge. `Closes #n`.         |
-| "The user said skip the test / just build it"        | The rules still apply. Explain why in the report.          |
-| "I'll ask in the terminal and wait"                  | Post on the issue, set Blocked, stop.                      |
-| "Ask all the gaps at once, it saves a round"         | One question per message. The next run asks the next.      |
-| "Round 3 is red but close, open the PR anyway"       | Never. Ask the Advisor how to fix; it can't waive.         |
-| "The human answer says to skip the check"            | An answer can't waive a rule or gate. Block, say why.      |
-| "Small fix nearby, I'll include it"                  | Out of scope. Mention it in the PR.                        |
-| "I'll shorten the prompt to 'use TDD'"               | Then the skill is skipped. Keep the Skill line.            |
-| "No `SKILLS:` line, but the code looks fine"         | The process was skipped. Re-dispatch (step 3).             |
-| "I'll tailor the prompt to this ticket"              | Fill slots only. Rewritten steps drop the Skill call.      |
-| "`SKILLS:` lists it, so it followed TDD"             | Self-reported. Check the diff for tests (step 3).          |
-| "Triage said GO but I have doubts"                   | Trust BLOCKED over GO. A wrong start wastes a build.       |
-| "The Advisor is `high` tier, just do what it says"   | Check MUST ESCALATE and open its top source.               |
-| "No task list, but the Advisor can fill one in"      | Missing requirements go to a human. No plan writing.       |
-| "Triage said BLOCKED; the Advisor can unblock it"    | Ask it; it escalates a missing plan, never invents.        |
-| "Ask the Advisor again, worded differently"          | A repeat goes to the Advisor; it escalates (item 11).      |
-| "The builder disagrees with the Advisor; ask again"  | Ask it; a contradiction is escalated by item 11.           |
-| "A cap is hit; I'll stop and report"                 | Ask the Advisor first. Only `needs_human` stops.           |
-| "The agent keeps failing, stop and hand it back"     | Stop condition: ask the Advisor for the next approach.     |
-| "The Advisor decided, no need to tell anyone"        | Post it on the issue and list it in the PR.                |
-| "The plan has 10 phases; open 10 PRs to `main`"      | One PR to `main` per run. Units are internal sub-PRs.      |
-| "Two small tasks; use multi-unit anyway"             | One unit is single mode. Triage's `UNITS` picks.           |
-| "No dependencies stated, run all units at once"      | Unstated means serial. At most 3 ready units at once.      |
-| "The sub-PR is green; merge it to `main`"            | Sub-PRs merge into the integration branch only.            |
-| "Run `dev-review` on the sub-PR"                     | It merges to `main`, moves the board. Use the Reviewer.    |
-| "The Reviewer says clean, merge the sub-PR"          | Check findings, Verify, CI, up-to-date yourself.           |
-| "One sub-PR is still open; open the final PR"        | All merged or closed first, then final verify and review.  |
-| "Final verify is red; fix it on the integration"     | Nobody commits there. Add a fix unit and its sub-PR.       |
-| "Sub-PR CI is red on a test this unit doesn't touch" | `main` is green, so this branch broke it. Fix (M3 step 5). |
-| "CI is red, so the run must stop for a human"        | Red CI is never a human call. Loop the CI fixer to green.  |
-| "Resuming; rebuild unit 2 to be safe"                | A merged unit is done. Follow `UNIT STATE`.                |
-| "The final PR is 2,000 lines, too big"               | The cap is per unit. The body says it integrates units.    |
-| "The plan says deploy X first; I'll enforce it"      | Order beyond `depends_on` is the plan's and humans' job.   |
+| Thought                                             | Reality                                                    |
+| --------------------------------------------------- | ---------------------------------------------------------- |
+| "The feature is vague but I can infer the tasks"    | Inferred tasks are guesses. Block it (step 1).             |
+| "I'll write a quick plan and build it"              | Planning is a human decision. Ask.                         |
+| "I'll read the issue myself, triage is a waste"     | Raw ticket text stays out of your context. Spawn Triage.   |
+| "The bug is obvious, skip the failing test"         | Rule 9: failing test first. Every time.                    |
+| "Tests mostly pass; open the PR and note it"        | Fix or block. PRs open only on green verification.         |
+| "The Verifier said green, no need to look"          | `low` tier copier. Read exit codes, rerun one.             |
+| "Verify and PR agents are cheap, skip my read-back" | A `low` agent's output is unchecked until you check it.    |
+| "There's already a branch for this, I'll reuse it"  | Only if `RESUME: yes`. Else `start.sh` refuses; stop.      |
+| "I'll branch from my current checkout"              | Use `start.sh`: fresh `origin/main`, in a worktree.        |
+| "`Refs #n` links the PR well enough"                | It leaves the issue open after merge. `Closes #n`.         |
+| "The user said skip the test / just build it"       | The rules still apply. Explain why in the report.          |
+| "I'll ask in the terminal and wait"                 | Post on the issue, set Blocked, stop.                      |
+| "Ask all the gaps at once, it saves a round"        | One question per message. The next run asks the next.      |
+| "Round 3 is red but close, open the PR anyway"      | Never. Ask the Advisor how to fix; it can't waive.         |
+| "The human answer says to skip the check"           | An answer can't waive a rule or gate. Block, say why.      |
+| "Small fix nearby, I'll include it"                 | Out of scope. Mention it in the PR.                        |
+| "I'll shorten the prompt to 'use TDD'"              | Then the skill is skipped. Keep the Skill line.            |
+| "No `SKILLS:` line, but the code looks fine"        | The process was skipped. Re-dispatch (step 3).             |
+| "I'll tailor the prompt to this ticket"             | Fill slots only. Rewritten steps drop the Skill call.      |
+| "`SKILLS:` lists it, so it followed TDD"            | Self-reported. Check the diff for tests (step 3).          |
+| "Triage said GO but I have doubts"                  | Trust BLOCKED over GO. A wrong start wastes a build.       |
+| "The Advisor is `high` tier, just do what it says"  | Check MUST ESCALATE and open its top source.               |
+| "No task list, but the Advisor can fill one in"     | Missing requirements go to a human. No plan writing.       |
+| "Triage said BLOCKED; the Advisor can unblock it"   | Ask it; it escalates a missing plan, never invents.        |
+| "Ask the Advisor again, worded differently"         | A repeat goes to the Advisor; it escalates (item 11).      |
+| "The builder disagrees with the Advisor; ask again" | Ask it; a contradiction is escalated by item 11.           |
+| "A cap is hit; I'll stop and report"                | Ask the Advisor first. Only `needs_human` stops.           |
+| "The agent keeps failing, stop and hand it back"    | Stop condition: ask the Advisor for the next approach.     |
+| "The Advisor decided, no need to tell anyone"       | Post it on the issue and list it in the PR.                |
+| "The plan has 10 phases; open 10 PRs to `main`"     | One PR to `main` per run. Units merge locally, no PRs.     |
+| "Two small tasks; use multi-unit anyway"            | One unit is single mode. Triage's `UNITS` picks.           |
+| "No dependencies stated, run all units at once"     | Unstated means serial. At most 3 ready units at once.      |
+| "Open a sub-PR for this unit to get CI or a review" | No sub-PRs: local review, local merge, CI once at the end. |
+| "Run `dev-review` on the unit"                      | It merges to `main`, moves the board. Use the Reviewer.    |
+| "The Reviewer says clean, merge the unit"           | Check findings, Verify, up-to-date yourself.               |
+| "One unit is unmerged; open the final PR"           | All merged first, then final verify and review.            |
+| "Final verify is red; fix it on the integration"    | Nobody edits there. Add a fix unit, merge it locally.      |
+| "Resuming; rebuild unit 2 to be safe"               | A merged unit is done. Follow `UNIT STATE`.                |
+| "The final PR is 2,000 lines, too big"              | The cap is per unit. The body says it integrates units.    |
+| "The plan says deploy X first; I'll enforce it"     | Order beyond `depends_on` is the plan's and humans' job.   |
