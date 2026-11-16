@@ -1,33 +1,34 @@
 # Multi-unit mode
 
-Use this when Triage returns two or more `UNITS` (step 2 of [SKILL.md](SKILL.md)). The plan is too big for one PR-sized change, so you build it as **units**: each unit is built, verified, reviewed and merged on its own, as an internal draft **sub-PR** into an **integration branch**. When every unit is merged, you verify and review the whole branch and open **one** PR from it to `main`. Humans see one ready PR; the sub-PRs are only for your own review and for running independent units in parallel.
+Use when Triage returns two or more `UNITS` (step 2 of [SKILL.md](SKILL.md)). The plan is too big for one PR-sized change, so each **unit** is built, verified, reviewed and merged on its own as an internal draft **sub-PR** into an **integration branch**. When all are merged, you verify and review the whole branch and open **one** PR from it to `main`. Humans see one ready PR; sub-PRs exist only for your own review and to run independent units in parallel.
 
-Everything in SKILL.md still holds unless this file says otherwise: Triage, the Advisor and its cap, the "Copy the prompt, do not rewrite it" rule and its string checks, the builder checks after each reply, the Verify rules, GitHub access, and the red flags.
+All of SKILL.md holds unless this file says otherwise: Triage, the Advisor and its cap, "Copy the prompt, do not rewrite it" and its string checks, the builder checks, the Verify rules, GitHub access, the red flags.
 
-| Term               | Means                                                                                                                                                                                                 |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Integration branch | `<type>/<n>-<slug>`, cut from fresh `origin/main` and pushed. It changes only by squash-merging sub-PRs. Its worktree is `<root>-wt/<n>`; nobody commits in it                                        |
-| Unit               | One line of Triage's `UNITS`: `U<id>`, its tasks and its `depends_on`. About 400 changed lines or fewer                                                                                               |
-| Unit branch        | `<integration>--u<id>`, cut from the current `origin/<integration>`, worktree `<root>-wt/<n>-u<id>`. `--` keeps it apart from any slug word, and it does not nest under the integration branch's name |
-| Sub-PR             | A draft PR from a unit branch into the integration branch, label `internal`. Never into `main`                                                                                                        |
-| Fix unit           | A unit added after final verify or final review finds a problem: id `<owner id>r<k>` (for example `3r1`), one task naming the problem                                                                 |
+| Term               | Means                                                                                                                                                                                 |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Integration branch | `<type>/<n>-<slug>`, cut from fresh `origin/main` and pushed. Changes only by squash-merging sub-PRs. Worktree `<root>-wt/<n>`; nobody commits in it                                  |
+| Unit               | One line of Triage's `UNITS`: `U<id>`, its tasks and `depends_on`. About 400 changed lines or fewer                                                                                   |
+| Unit branch        | `<integration>--u<id>` (`--` keeps it apart from slug words and stops it nesting under the integration name), cut from current `origin/<integration>`, worktree `<root>-wt/<n>-u<id>` |
+| Sub-PR             | Draft PR from a unit branch into the integration branch, label `internal`. Never into `main`                                                                                          |
+| Fix unit           | Added after final verify or review finds a problem: id `<owner id>r<k>` (e.g. `3r1`), one task naming the problem                                                                     |
 
-**Size.** The ~400-line cap ([git-workflow.md §3](../../../docs/conventions/git-workflow.md#3-pull-requests)) applies to each unit. It does not apply to the final PR: that PR is an integration of reviewed units, and its body says so.
+**Size.** The ~400-line cap ([git-workflow.md §3](../../../docs/conventions/git-workflow.md#3-pull-requests)) applies per unit, not to the final PR, which integrates reviewed units and says so in its body.
 
-**Order.** A unit's `depends_on` comes from the plan only (Triage rule D). Cross-unit rules the plan states outside its dependencies, such as a deploy or rollout order, are the plan's and the humans'; do not invent or enforce them here.
+**Order.** `depends_on` comes from the plan only (Triage rule D). Other cross-unit rules the plan states (deploy or rollout order) are the plan's and humans'; never invent or enforce them.
 
 ## Caps
 
 | What                                 | Cap                                                                                                |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
 | Units running at once                | **3**                                                                                              |
-| Verify rounds per unit               | **3**, counting every Verifier run on that unit (after a build, a review fix, a CI fix or a merge) |
+| Verify rounds per unit               | **3**, counting every Verifier run after a build, review fix or merge. CI fixes have their own cap |
+| CI fix attempts per unit             | **6**, then one last `high` attempt (M3 step 5). Never a reason to stop earlier                    |
 | Internal review rounds per unit      | **2**                                                                                              |
 | Final rounds (final verify + review) | **3**                                                                                              |
-| Advisor calls                        | **3 per run**, shared by all units (SKILL.md, Decisions)                                           |
-| Technical failure of an agent        | re-dispatch **once** with the error; a second failure blocks                                       |
+| Advisor calls                        | **8 per run**, shared by all units (SKILL.md, Decisions)                                           |
+| Technical failure of an agent        | re-dispatch **once** with the error; a second failure goes to the Advisor                          |
 
-A cap that is hit blocks the run ([Blocking](#blocking-and-resume)). Rounds on a resumed run start again at 1.
+A hit cap is a stop condition: ask the Advisor (SKILL.md, Decisions); block ([Blocking](#blocking-and-resume)) only on its `needs_human`. A decided ruling grants one extra round of that kind. Rounds restart at 1 on a resumed run.
 
 ## M1. Start
 
@@ -36,36 +37,34 @@ start.sh <n> feat <slug> --integration     # new run: also pushes the integratio
 start.sh <n> --resume <integration>        # Triage said RESUME: yes and gave UNIT STATE
 ```
 
-Keep `BRANCH` as the integration branch and `WORKTREE` as its worktree. Then `board.sh status <n> "In progress"` and post the **Units plan** comment from [comments.md](comments.md) (it replaces **Started**; on a resume post **Resumed (units)** instead).
+Keep `BRANCH` (the integration branch) and `WORKTREE`. Then `board.sh status <n> "In progress"` and post **Units plan** ([comments.md](comments.md); replaces **Started**; on a resume post **Resumed (units)**).
 
-**Resume.** Act on each line of `UNIT STATE`:
+**Resume.** Per `UNIT STATE` line:
 
-- `merged #<pr>`: done. Never rebuild, reopen or re-review a merged unit.
-- `open #<pr>`: `start.sh <n> --resume <integration>--u<id>`, then go to M3 step 2 (Verify, round 1).
-- `started`: `start.sh <n> --resume <integration>--u<id>`, then M3 step 1 at the first task with no commit (`git -C <unit worktree> log --oneline origin/<integration>..HEAD` and the ticked plan boxes show which are done).
-- `not started`: schedule it as usual (M2).
+- `merged #<pr>`: done. Never rebuild, reopen or re-review it.
+- `open #<pr>`: `start.sh <n> --resume <integration>--u<id>`, then M3 step 2 (Verify, round 1).
+- `started`: same `start.sh`, then M3 step 1 at the first task with no commit (`git -C <unit worktree> log --oneline origin/<integration>..HEAD` and ticked plan boxes show which are done).
+- `not started`: schedule as usual (M2).
 
-The unit or final step named in `STOPPED AT` resumes where the table in [Blocking and resume](#blocking-and-resume) says, instead of the rule above.
+The unit or final step named in `STOPPED AT` resumes per the [Blocking and resume](#blocking-and-resume) table instead.
 
 ## M2. Schedule the units
 
-A unit is **ready** when every unit in its `depends_on` is merged. Start ready units in id order, at most 3 at once; when one merges, start the units it made ready. Units that become ready together form a wave and run in parallel.
-
-For each unit you start:
+A unit is **ready** when every unit in its `depends_on` is merged. Start ready units in id order, at most 3 at once; when one merges, start the units it made ready. Units ready together form a parallel wave. For each:
 
 ```sh
 start.sh <n> --unit <id> --base <integration>
 ```
 
-It cuts `<integration>--u<id>` from the current `origin/<integration>`, so the unit builds on everything merged so far. It refuses an existing branch or worktree, like a new run: stop and report.
+It cuts `<integration>--u<id>` from the current `origin/<integration>` (so it builds on everything merged so far). It refuses an existing branch or worktree, like a new run: stop and report.
 
-**One writer per worktree.** Each unit has its own worktree, so different units' agents run at the same time. Inside one unit the steps stay in order, and only the Verifier and Self-reviewer run together (SKILL.md step 4). An Advisor call reads the asking unit's worktree; pause that unit, not the others.
+**One writer per worktree.** Each unit has its own worktree, so different units' agents run concurrently. Within a unit, steps stay in order; only the Verifier and Self-reviewer run together (SKILL.md step 4). An Advisor call reads the asking unit's worktree: pause that unit only.
 
 ## M3. One unit
 
-1. **Build.** One Implementer per task in the unit, in order (SKILL.md step 3 rules). Fill `<base>` with `origin/<integration>` and add "of unit U<id>". The git evidence check uses `origin/<integration>` as the base of the first task.
-2. **Verify.** SKILL.md step 4 with `<base>` = `origin/<integration>`. The Self-reviewer gets only this unit's tasks; scope is those tasks and about 400 changed lines. Failures and findings go back to an Implementer of this unit. Never go on over a red round.
-3. **Open the sub-PR.** You do this yourself, not the PR agent and not `create-pr` (that skill is for PRs to `main`):
+1. **Build.** One Implementer per unit task, in order (SKILL.md step 3). `<base>` = `origin/<integration>`, add "of unit U<id>". The git evidence check's base for the first task is `origin/<integration>`.
+2. **Verify.** SKILL.md step 4 with `<base>` = `origin/<integration>`. The Self-reviewer gets only this unit's tasks; scope is those tasks and about 400 changed lines. Failures and findings go to an Implementer of this unit. Never go on over a red round.
+3. **Open the sub-PR** yourself (not the PR agent, not `create-pr`, which is for PRs to `main`):
 
    ```sh
    git -C <unit worktree> push -u origin <unit branch>
@@ -84,22 +83,29 @@ It cuts `<integration>--u<id>` from the current `origin/<integration>`, so the u
    **Judgment calls:** <this unit's, or "none">
    ```
 
-   No `Closes`, `Fixes` or `Resolves` line, no `agent-authored`, `bug`, `enhancement` or `review:sensitive` label, and no board move: those belong to the final PR. Read it back with `gh pr view <pr> --json state,isDraft,baseRefName,labels,body`: open, draft, base is the integration branch, label `internal`, no closing keyword. Fix with `gh pr edit` if not.
+   No `Closes`, `Fixes` or `Resolves` line; no `agent-authored`, `bug`, `enhancement` or `review:sensitive` label; no board move (all belong to the final PR). Read back `gh pr view <pr> --json state,isDraft,baseRefName,labels,body`: open, draft, base = integration branch, label `internal`, no closing keyword. Fix with `gh pr edit` if not.
 
-4. **Internal review.** Decide if the unit is sensitive: `git -C <unit worktree> diff --name-only origin/<integration>...HEAD` against [Sensitive paths](../../../docs/conventions/git-workflow.md#sensitive-paths) (the path list in [`dev-review/scripts/flags.sh`](../dev-review/scripts/flags.sh) `sensitive()` helps); when in doubt, yes. Spawn a fresh **Reviewer** ([agent-prompts.md](agent-prompts.md#reviewer-multi-unit-internal-review-of-a-sub-pr-and-the-final-review)), effort `high` if sensitive. Do not run `dev-review` on a sub-PR: it merges to `main` and moves the board.
+4. **Internal review.** Sensitive? `git -C <unit worktree> diff --name-only origin/<integration>...HEAD` against [Sensitive paths](../../../docs/conventions/git-workflow.md#sensitive-paths) (the list in [`dev-review/scripts/flags.sh`](../dev-review/scripts/flags.sh) `sensitive()` helps); when in doubt, yes. Spawn a fresh **Reviewer** ([agent-prompts.md](agent-prompts.md#reviewer-multi-unit-internal-review-of-a-sub-pr-and-the-final-review)), effort `high` if sensitive. Never run `dev-review` on a sub-PR: it merges to `main` and moves the board.
 
-   **Before you spawn it**, check the filled prompt contains `severity.md`, `## Reviewers`, `code-review-checklist.md` and `Every finding needs a concrete failure scenario`, and that its security line is the "yes" form when the unit is sensitive.
+   **Before spawning**, check the filled prompt contains `severity.md`, `## Reviewers`, `code-review-checklist.md` and `Every finding needs a concrete failure scenario`, and its security line is the "yes" form when sensitive.
 
-   **Read its reply yourself.** Save it to your scratchpad. Open the file:line of every critical, high and medium and confirm the scenario happens there ([dev-review severity.md](../dev-review/severity.md)); never merge, and never fix, on the Reviewer's word alone. Lows are not fixed; keep them for the final PR. A finding you cannot rule on after reading the code goes to the Advisor (the Self-reviewer row in SKILL.md, Decisions). Findings that hold go to a fresh Implementer of this unit, naming each finding; then step 2 (Verify) runs again, you push, and the Reviewer runs round 2 on the fixes. **Cap: 2 review rounds per unit.** A critical, high or medium still open after round 2 blocks.
+   **Read the reply yourself.** Save it to your scratchpad. Open the file:line of every critical, high and medium and confirm the scenario happens there ([dev-review severity.md](../dev-review/severity.md)); never merge or fix on the Reviewer's word alone. Lows are not fixed; keep them for the final PR. A finding you can't rule on after reading the code goes to the Advisor (Self-reviewer row, SKILL.md Decisions). Findings that hold go to a fresh Implementer of this unit, naming each; then Verify (step 2), push, and Reviewer round 2 on the fixes. **Cap: 2 review rounds per unit.** A critical, high or medium open after round 2 blocks.
 
-5. **CI.** Watch the sub-PR's checks yourself: `gh pr checks <pr> --watch`. A failure: read its log (`gh run view <run-id> --log-failed`, last lines). If the same job also fails on `main`, or it is an infra error or a flaky test, block with the evidence; never re-run until green. Otherwise send the log tail to a fresh Implementer of this unit, then Verify, push and one more review round on the fix (if no round is left, block).
+5. **CI.** Watch yourself: `gh pr checks <pr> --watch`. A red check is never a reason to stop and never "not this unit's problem": `main` is green and the integration branch took only green merges, so this branch broke it (its code, a stale base, or a shared fixture, snapshot, type or coverage floor it moved), even if the failing test is in a file the unit never touched. Never write "unrelated", "pre-existing" or "doesn't touch" in a report or comment unless proven as below. Loop until green:
 
-6. **Merge into the integration branch.** Check every gate yourself, on the current head, right before the merge:
+   1. Read the failure: `gh run view <run-id> --log-failed` (last lines); note each failing job's run id and verbatim log tail.
+   2. Check, don't assume. `main` green on that job? `gh run list --branch main --workflow <workflow> --limit 3 --json conclusion,headSha`. Unit behind? `git -C <unit worktree> fetch origin <integration> main`, then `git merge-base --is-ancestor origin/<integration> HEAD`. Behind → step 6's up-to-date rule first, then back here.
+   3. Spawn a **CI fixer** ([agent-prompts.md](agent-prompts.md#ci-fixer-a-failing-check-on-a-pr-or-sub-pr)) of this unit with the job name and log tail. It may change any repo file the failure needs to fix the cause, never weakening a check. Check its reply like an Implementer's (`SKILLS:` lists `superpowers:systematic-debugging`; `git -C <unit worktree> log --stat` shows its commit); read its diff for a skipped or deleted test, `@ts-ignore`, `any`, lint disable, or touched threshold, baseline or config; then Verify (step 2), push, watch again. A fix adding a file, test or config the failure doesn't need is out of scope: send it back.
+   4. **Only an infra error is not a code failure** (job never started, runner lost, a third-party registry or network call timed out, nothing about the code in the log): `gh run rerun <run-id> --failed` once and note it in the unit's judgment calls. A second infra failure of the same job goes to the Advisor with the run id (no code change can fix it). A test that failed once and passed on rerun is **not** infra but flaky: the CI fixer makes it deterministic.
+   5. **Cap: 6 CI fix attempts per unit**, separate from the Verify and review caps; they use no review rounds. After a fix, run a review round only if it touched production code outside what the unit already changed and a round is left.
+   6. Cap reached and still red: don't give up on your own judgment. Spawn one `high` CI fixer with every earlier attempt's log tail and diff summary ("these approaches did not work"), watch again. If still red, ask the Advisor (stop condition) with the job, last log tail and each attempt; block only on `needs_human`.
 
-   - `gh pr view <pr> --json baseRefName,headRefOid` shows the base is `<integration>` (never `main`) and the head equals `git -C <unit worktree> rev-parse HEAD`;
+6. **Merge into the integration branch.** Check every gate yourself on the current head, right before merging:
+
+   - `gh pr view <pr> --json baseRefName,headRefOid`: base is `<integration>` (never `main`), head equals `git -C <unit worktree> rev-parse HEAD`;
    - the last Verify round on that head was green and the last review round left no critical, high or medium;
-   - `gh pr checks <pr>` is all green on that head;
-   - the unit contains the current integration head: `git -C <unit worktree> fetch origin <integration>` then `git -C <unit worktree> merge-base --is-ancestor origin/<integration> HEAD`. If not (a parallel unit merged first): `git -C <unit worktree> merge --no-edit origin/<integration>`. A clean merge goes back to step 2 (Verify), push, then step 5. A conflict: `git -C <unit worktree> merge --abort`, then a fresh Implementer of this unit whose task is "Merge `origin/<integration>` into this branch and resolve the conflicts, keeping both sides' intent; if the two sides want different behavior, stop and say so", then steps 2, 4 (one review round on the merge) and 5.
+   - `gh pr checks <pr>` all green on that head;
+   - the unit contains the integration head: `git -C <unit worktree> fetch origin <integration>` then `git -C <unit worktree> merge-base --is-ancestor origin/<integration> HEAD`. If not (a parallel unit merged first): `git -C <unit worktree> merge --no-edit origin/<integration>`. Clean → step 2 (Verify), push, step 5. Conflict → `git -C <unit worktree> merge --abort`, then a fresh Implementer of this unit with the task "Merge `origin/<integration>` into this branch and resolve the conflicts, keeping both sides' intent; if the two sides want different behavior, stop and say so", then steps 2, 4 (one review round on the merge) and 5.
 
    Then merge and clean up:
 
@@ -113,38 +119,38 @@ It cuts `<integration>--u<id>` from the current `origin/<integration>`, so the u
    git -C <integration worktree> pull --ff-only
    ```
 
-   Post the **Unit merged** comment from [comments.md](comments.md). If the merge is refused, put the PR back to draft (`gh pr ready <pr> --undo`) and go back to the up-to-date check.
+   Post **Unit merged** ([comments.md](comments.md)). If the merge is refused, `gh pr ready <pr> --undo` and return to the up-to-date check.
 
 ## M4. All units merged
 
-Go on only when every unit in `UNITS` (and every fix unit) is merged and `gh pr list --base <integration> --state open` is empty. Close a leftover (for example one replaced by a fix unit) with `gh pr close <pr> --comment "Closed by dev-build: <reason>."`. Confirm `git -C <integration worktree> rev-parse HEAD` equals `git rev-parse origin/<integration>`.
+Continue only when every unit in `UNITS` (and every fix unit) is merged and `gh pr list --base <integration> --state open` is empty. Close a leftover (e.g. one replaced by a fix unit) with `gh pr close <pr> --comment "Closed by dev-build: <reason>."`. Confirm `git -C <integration worktree> rev-parse HEAD` equals `git rev-parse origin/<integration>`.
 
 ## M5. Final verify
 
-Spawn the **Verifier** on the integration worktree with `<base>` = `origin/main` and its step 5 (coverage per touched package; an e2e command only when the plan or [tests-and-e2e.md](../../../docs/runbooks/tests-and-e2e.md) requires one for this change). Read it as SKILL.md step 4 says, and rerun one command yourself. An "unavailable" check is not passed: block.
+Spawn the **Verifier** on the integration worktree with `<base>` = `origin/main` and its step 5 (coverage per touched package; an e2e command only when the plan or [tests-and-e2e.md](../../../docs/runbooks/tests-and-e2e.md) requires one). Read it as SKILL.md step 4 says; rerun one command yourself. "Unavailable" is not passed: block.
 
-Red: find the unit that owns the failing code (the unit whose task changed that file; `git -C <integration worktree> log --oneline origin/main..HEAD -- <file>` shows which sub-PR did). Add a fix unit `<owner id>r<k>` whose one task is the verbatim failing command and its last output lines, run it through M2 and M3, then M5 again. **Cap: 3 final rounds** (final verify plus final review). Never open the final PR over a red round.
+Red: find the owning unit (whose task changed that file; `git -C <integration worktree> log --oneline origin/main..HEAD -- <file>` shows the sub-PR). Add fix unit `<owner id>r<k>` whose one task is the verbatim failing command and its last output lines; run it through M2 and M3, then M5 again. **Cap: 3 final rounds** (final verify plus final review). Never open the final PR over a red round.
 
 ## M6. Final review
 
-Spawn the **Reviewer** on the integration worktree for the whole diff: `<base>` = `origin/main`, the requirements are every task of the plan and the issue. Run `flags.sh <integration worktree>` ([dev-review/scripts/flags.sh](../dev-review/scripts/flags.sh)); if it says `SENSITIVE=yes` or any unit was sensitive, use the security "yes" form and effort `high`. Make the same string checks and read the reply the same way as in M3 step 4. Findings that hold become fix units, as in M5, and the next final round starts at M5. Clean on the same head the final verify passed: go on.
+Spawn the **Reviewer** on the integration worktree for the whole diff: `<base>` = `origin/main`; requirements are every plan task and the issue. Run `flags.sh <integration worktree>` ([dev-review/scripts/flags.sh](../dev-review/scripts/flags.sh)); if `SENSITIVE=yes` or any unit was sensitive, use the security "yes" form and effort `high`. Same string checks and reply reading as M3 step 4. Findings that hold become fix units as in M5, and the next final round starts at M5. Clean on the head the final verify passed: continue.
 
 ## M7. Open the final PR
 
-Check again that `gh pr list --base <integration> --state open` is empty. Then SKILL.md step 5 with head = the integration branch, base `main`, and the PR agent's multi-unit lines filled: every unit with its sub-PR number, the reason for the size, `sensitive` (yes if any unit was), and the lows the internal reviews left. The judgment calls are every unit's builders', Self-reviewers', Reviewers' and Advisor's, plus yours.
+Recheck `gh pr list --base <integration> --state open` is empty. Then SKILL.md step 5 with head = integration branch, base `main`, and the PR agent's multi-unit lines: every unit with its sub-PR number, the size reason, `sensitive` (yes if any unit was), and the lows the internal reviews left. Judgment calls: every unit's builders', Self-reviewers', Reviewers' and Advisor's, plus yours.
 
-When you read the PR back, also check: the body lists every unit and says it is an integration of reviewed units, and `review:sensitive` is set if any unit was sensitive. Then `board.sh status <n> "In review"`, post the **PR opened** comment (units line filled), and report: issue, integration branch, units with sub-PR numbers, PR URL, final verification results (failures included), judgment calls and each Advisor decision.
+On read-back also check: the body lists every unit and says it integrates reviewed units, and `review:sensitive` is set if any unit was sensitive. Then `board.sh status <n> "In review"`, post **PR opened** (units line filled), and report: issue, integration branch, units with sub-PR numbers, PR URL, final verification results (failures included), judgment calls, each Advisor decision.
 
 ## Blocking and resume
 
-On any block (Advisor `needs_human`, a cap, a technical failure, a refusal):
+On a block (an Advisor `needs_human`; a cap, technical failure or refusal counts only after the Advisor was asked):
 
-1. Start no new agent. Wait for the ones running to return, so each worktree is clean or you know what is in it; name a dirty one in your report.
-2. Push every unit branch that has commits (`git -C <unit worktree> push -u origin <unit branch>`). Leave open sub-PRs as drafts (`gh pr ready <pr> --undo` if you had marked one ready). The integration branch is already pushed; never commit to it to save work.
-3. Post the **Needs clarification** comment from [comments.md](comments.md) ("I stopped" header) with the three resume lines filled: `Work so far is pushed on` the integration branch, `Units:` with every unit's state, and `Stopped at:` for the unit or final step that blocked.
-4. `board.sh status <n> Blocked`, report to the user, and stop.
+1. Start no new agent. Wait for running ones to return, so each worktree is clean or known; name a dirty one in your report.
+2. Push every unit branch with commits (`git -C <unit worktree> push -u origin <unit branch>`). Keep open sub-PRs draft (`gh pr ready <pr> --undo` if marked ready). The integration branch is already pushed; never commit to it to save work.
+3. Post **Needs clarification** ([comments.md](comments.md), "I stopped") with the three resume lines: `Work so far is pushed on` the integration branch, `Units:` with every unit's state, and `Stopped at:` the unit or final step that blocked.
+4. `board.sh status <n> Blocked`, report, stop.
 
-The `Units:` line names each unit as `U<id> merged #<pr>`, `U<id> open #<pr>`, `U<id> started` (branch pushed, no sub-PR) or `U<id> not started`, separated by `; `. The `Stopped at:` values in multi-unit mode are:
+`Units:` names each unit as `U<id> merged #<pr>`, `U<id> open #<pr>`, `U<id> started` (branch pushed, no sub-PR) or `U<id> not started`, separated by `; `. Multi-unit `Stopped at:` values:
 
 | Stopped at                          | Resumes at            |
 | ----------------------------------- | --------------------- |
@@ -157,4 +163,6 @@ The `Units:` line names each unit as `U<id> merged #<pr>`, `U<id> open #<pr>`, `
 | `final review, round <r>`           | M6                    |
 | `opening the PR`                    | M7                    |
 
-Triage reads these lines back on the next run (its rule A2) and does not count the run's own unit branches and `internal` sub-PRs as someone else's.
+`U<id>, sub-PR #<pr> CI` is written only for the infra-error block or after the last `high` CI fixer attempt; a plain red check never stops the run.
+
+Triage reads these lines back next run (rule A2) and does not count the run's own unit branches and `internal` sub-PRs as someone else's.

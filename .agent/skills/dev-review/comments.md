@@ -1,6 +1,6 @@
 # Comments
 
-Post with `gh pr comment <pr> --body-file <file>` or `gh issue comment <n> --body-file <file>`. Plain everyday language, short ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty. Every comment starts with `**dev-review` so a later run can find its own comments. Triage reads three headers to decide stop or resume: `**dev-review · round 1/3**`, `**dev-review: I stopped` and `**dev-review: decided without a human`. Write them exactly.
+Post with `gh pr comment <pr> --body-file <file>` or `gh issue comment <n> --body-file <file>`. Plain everyday language, short ([AGENTS.md › Talking to humans](../../../AGENTS.md#talking-to-humans)). Fill the `<…>` slots; drop a line whose slot is empty. Every comment starts with `**dev-review` so a later run finds its own. Triage reads three headers to decide stop or resume: `**dev-review · round 1/3**`, `**dev-review: I stopped` and `**dev-review: decided without a human`. Write them exactly.
 
 ## Review (on the PR, once per round)
 
@@ -45,7 +45,7 @@ Reply here, move the issue back to **In review**, and run `/dev-review <pr>` aga
 
 ## Advisor decision (on the PR)
 
-Post one per accepted Advisor decision, before you re-dispatch the agent that asked. It lets a human see and overrule the call before merge.
+One per accepted Advisor decision, before re-dispatching the agent that asked, so a human can see and overrule it before merge.
 
 ```markdown
 **dev-review: decided without a human:** <the question, one line>
