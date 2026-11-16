@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { createTimeSkippingTestEnv } from './helpers/temporal-env';
 import { Worker } from '@temporalio/worker';
 import type { WorkflowHandle } from '@temporalio/client';
 import { GATE_CONTINUE_AS_NEW_AFTER, SIGNAL, UPDATE, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
@@ -16,7 +17,7 @@ const TQ = 'gate-test';
 let n = 0;
 
 beforeAll(async () => {
-  env = await TestWorkflowEnvironment.createTimeSkipping();
+  env = await createTimeSkippingTestEnv();
   worker = await Worker.create({
     connection: env.nativeConnection,
     taskQueue: TQ,

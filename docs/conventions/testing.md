@@ -67,7 +67,9 @@ describe('toRunSummary', () => {
   - Temporal: `FakeTemporalClient` in API tests, time-skipping env in worker tests.
   - Secrets: `MemorySecretStore`.
   - Web: MSW with `onUnhandledRequest: 'error'` (planned with MSW); `FakeEventSource` and `FakeWebSocket` for realtime.
-- The only allowed external I/O is the local container engine for Testcontainers. Podman: `export DOCKER_HOST=unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')` and `TESTCONTAINERS_RYUK_DISABLED=true`.
+- The only allowed external I/O is local processes on loopback, of two kinds:
+  - the local container engine for Testcontainers (the default). Podman: `export DOCKER_HOST=unix://$(podman machine inspect --format '{{.ConnectionInfo.PodmanSocket.Path}}')` and `TESTCONTAINERS_RYUK_DISABLED=true`.
+  - local Postgres and Temporal binaries installed beforehand, where there is no container engine (the runner pod): `TEST_PG_MODE=local` makes `startPg()` run one throwaway server per call, and `TEMPORAL_CLI_PATH` / `TEMPORAL_TEST_SERVER_PATH` replace the SDK's runtime download. Installing them (`scripts/runner-setup.sh`) is a setup step; the tests themselves still never reach the internet. See [runner-pod.md](../runbooks/runner-pod.md).
 - Parity screenshots load Google Fonts; `pnpm parity` is a local review step, not part of `pnpm test`.
 
 ## 5. Deterministic time and ids
@@ -133,7 +135,7 @@ The coverage gate (§10) sets a numeric floor. It does not replace behaviour cov
 
 Commands for every level (unit, one file, watch, mocked e2e, full local e2e) are in the runbook [tests-and-e2e.md](../runbooks/tests-and-e2e.md). Shortcut: `devbox run check`.
 
-- Integration tests start their own Postgres through Testcontainers; the dev stack (`devbox run dev`, Postgres on 54329, Temporal on 7233) is for local development and e2e, not for `pnpm test`.
+- Integration tests start their own Postgres through Testcontainers (or local binaries with `TEST_PG_MODE=local`, §4); the dev stack (`devbox run dev`, Postgres on 54329, Temporal on 7233) is for local development and e2e, not for `pnpm test`.
 - `vitest.workspace.ts` at the root is not read by Vitest 5; run tests through `pnpm test` / `--filter`. Moving to a root `vitest.config.ts` with `test.projects` is (planned).
 - Scripts per package: `test:unit` (no Docker), `test:integration` (Docker; accepts `--shard=i/n`), and `test` (both). CI runs them as the jobs `test / unit` and `test / integration (<pkg> <i>/<n>)`.
 - **Sharding:** `.github/ci-shards.json` maps a package to its shard count (`{"db": 1, "api": 1, ...}`). Raise a number when that package's integration job passes ~8 minutes; the hard cap is 20 minutes per job.

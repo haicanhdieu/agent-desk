@@ -1,6 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TestWorkflowEnvironment } from '@temporalio/testing';
+import type { TestWorkflowEnvironment } from '@temporalio/testing';
+import { createTimeSkippingTestEnv } from './helpers/temporal-env';
 import { Worker } from '@temporalio/worker';
 import type { PollInput, PollOutcome } from '../src/activities/poll.activity';
 
@@ -11,7 +12,7 @@ const TQ = 'poll-retry-test';
 let attempts = 0;
 
 beforeAll(async () => {
-  env = await TestWorkflowEnvironment.createTimeSkipping();
+  env = await createTimeSkippingTestEnv();
   worker = await Worker.create({
     connection: env.nativeConnection,
     taskQueue: TQ,

@@ -297,6 +297,10 @@ Its base is <base> (`origin/main`, or `origin/<integration branch>` for a unit).
 Run the commands below there. Do not edit code, commit, push, or fix anything.
 If a command fails, keep going and run the rest.
 
+0. Run `pnpm env:detect`. If it prints `mode=runner-pod`, devbox and Docker are not there:
+   prefix every pnpm command below with `. scripts/runner-env.sh && `, and run
+   `node scripts/fix-changed.mjs` wherever this prompt says `devbox run fix`
+   (docs/runbooks/runner-pod.md).
 1. Find the touched packages:
    git diff --name-only <base>...HEAD
    apps/<x> and packages/<x> map to @agentdesk/<x>; other paths map to no package.
