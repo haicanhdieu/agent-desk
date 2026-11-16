@@ -26,7 +26,7 @@ and checked out at \`main\`. Work only in this repository.
 
 - Never push to \`main\`.
 - If the issue is ambiguous, ask in the terminal and wait for an answer.
-- Keep the PR under 400 changed lines; split the work if it grows.`;
+- Keep the PR under 800 changed lines; split the work if it grows.`;
 
 // Only code-build's source appears on the boards; the other bodies are minimal frontmatter plus the board description.
 const stub = (name: string, description: string) =>

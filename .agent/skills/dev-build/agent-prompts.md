@@ -115,9 +115,9 @@ D. UNITS (feature GO whose TASK SOURCE is a plan file, not a resume; everything 
       the unit just before it. Never infer independence the plan does not state.
    3. Estimate each task's changed lines from its steps and files (code plus tests, excluding
       lockfiles, migration snapshots and fixtures).
-   4. Group: merge a unit into the one before it while the total stays about 400 or fewer, and
+   4. Group: merge a unit into the one before it while the total stays about 800 or fewer, and
       only when that keeps the order: the later unit depends on nothing outside the group and no
-      other unit must land between them. Never split a task; a task estimated over 400 stays its
+      other unit must land between them. Never split a task; a task estimated over 800 stays its
       own unit and you say so in REASON.
    5. Number the units 1, 2, 3, ... in run order. If one unit is left, UNITS is "single".
    Add no ordering rule the plan does not state (deploy order and the like stay in the plan; the
@@ -338,7 +338,7 @@ Do this:
    area the diff touches (use `git show HEAD:<path>`).
 2. Go through `git diff <base>...HEAD` against the checklist and the rules in AGENTS.md.
 3. Scope: the diff does only what the ticket asks. Count changed lines excluding lockfiles and
-   migration snapshots; target about 400 or fewer. Flag anything out of scope.
+   migration snapshots; target about 800 or fewer. Flag anything out of scope.
 4. TDD evidence:
    - bug: a regression test in the diff asserts the reported behavior, not something nearby.
    - feature: every behavior in the tasks has a test in the diff. A task with source changes
@@ -442,7 +442,7 @@ Give it these inputs:
 <multi-unit only, else drop these lines:>
 - units: this PR integrates <N> units, each built, verified and reviewed in its own worktree
   and merged into <branch> before this PR: <one line per unit: U<id>, commit <sha>, title>. The
-  ~400-line cap applies per unit, not to this PR: give that as the reason for its size.
+  ~800-line cap applies per unit, not to this PR: give that as the reason for its size.
 - sensitive: <yes (unit(s) U<id>, ...) | no>. When yes, the PR gets `review:sensitive`.
 - known lows from the internal reviews, not fixed: <one per line, or "none">
 
@@ -560,7 +560,7 @@ MUST ESCALATE (needs_human). Any one item is enough:
     scope, or a looser RLS policy; missing authz on an endpoint or terminal attach; webhook
     signature checks; untrusted text in shell, k8s specs or SQL; editing an applied migration;
     provider names outside adapters; contracts first; layering; and scope (only what the ticket
-    asks, about 400 changed lines).
+    asks, about 800 changed lines).
  5. Security posture: it touches a sensitive path (git-workflow.md "Sensitive paths") in a way that
     changes who can do or see what, what a run pod can reach, how secrets or tokens flow, or how
     tenancy is enforced.

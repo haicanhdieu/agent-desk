@@ -26,7 +26,7 @@ branch. Work only in this repository.
 
 - Never push to the default branch.
 - If the issue is ambiguous, ask in the terminal and wait for an answer.
-- Keep the PR under 400 changed lines; split the work if it grows.
+- Keep the PR under 800 changed lines; split the work if it grows.
 `;
 
 const codeReview = `---

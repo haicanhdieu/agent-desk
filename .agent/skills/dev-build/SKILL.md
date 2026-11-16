@@ -120,7 +120,7 @@ After the last builder, spawn the **Verifier** and **Self-reviewer** in one mess
 
 - **Verifier:** runs `scripts/verify.sh` once: `devbox run fix`, then lint and typecheck per touched package in parallel, then unit tests scoped to the change (`vitest --changed <base>`; a shared `packages/*` runs its full unit suite; integration tests only when the diff touches one or `packages/db`). The full suites and integration shards are CI's job. For a bug, it also proves the regression test fails without the fix. Returns exit codes and verbatim output; fixes nothing.
 - **No repeated checks.** Builders run only the tests they wrote (never the full suite, typecheck or lint). The Verifier's run is the one local gate; the PR agent reuses it (create-pr preflight) and reruns nothing on the same head.
-- **Self-reviewer:** reads the diff against [code-review-checklist.md](../../../docs/conventions/code-review-checklist.md), checks scope (only what the ticket asks, about 400 changed lines or fewer) and TDD evidence. Returns findings; changes nothing.
+- **Self-reviewer:** reads the diff against [code-review-checklist.md](../../../docs/conventions/code-review-checklist.md), checks scope (only what the ticket asks, about 800 changed lines or fewer) and TDD evidence. Returns findings; changes nothing.
 
 Read both yourself (`superpowers:verification-before-completion`):
 
@@ -149,7 +149,7 @@ The PR agent is `low` tier; read the PR back before you trust it:
 gh pr view <pr> --json state,isDraft,baseRefName,title,body,labels,url
 ```
 
-It must be open, target `main`, have a Conventional Commits title with the package scope, a `Closes #<n>` line, no leftover `<…>` slot or HTML comment, and labels `bug` or `enhancement`, `agent-authored`, plus `review:sensitive` when the diff touches a sensitive path. If wrong, send the agent one correction; if still wrong, fix it with `gh pr edit` and say so in the report. A `stopped` on a failed precondition or preflight is treated like a step 4 failure. A judgment-call stop (e.g. a diff well over about 400 lines) may go to the Advisor; a failing check never does.
+It must be open, target `main`, have a Conventional Commits title with the package scope, a `Closes #<n>` line, no leftover `<…>` slot or HTML comment, and labels `bug` or `enhancement`, `agent-authored`, plus `review:sensitive` when the diff touches a sensitive path. If wrong, send the agent one correction; if still wrong, fix it with `gh pr edit` and say so in the report. A `stopped` on a failed precondition or preflight is treated like a step 4 failure. A judgment-call stop (e.g. a diff well over about 800 lines) may go to the Advisor; a failing check never does.
 
 Then:
 
@@ -170,7 +170,7 @@ The **Advisor** ([agent-prompts.md](agent-prompts.md)) rules on a question that 
 - **Step 3, Fixer can't reproduce:** what to try next (another repro route, logs, a different entry point), or whether the report is not a bug.
 - **Step 4, Self-reviewer:** a finding you can't rule real or not after reading the code, or whose fix needs a choice no rule settles.
 - **Multi-unit, Reviewer:** the same, for an internal or final review finding ([multi-unit.md](multi-unit.md) M3, M6).
-- **Step 5, PR agent stopped:** a judgment call (e.g. a diff well over about 400 lines) or a failed preflight (it says what to fix, never to skip).
+- **Step 5, PR agent stopped:** a judgment call (e.g. a diff well over about 800 lines) or a failed preflight (it says what to fix, never to skip).
 - **Stop condition:** any place this skill or multi-unit.md says stop or block (below).
 
 **Stop conditions.** Before posting "I stopped", ask the Advisor with the evidence: which condition, the verbatim last failing output, and every earlier attempt with its diff summary. The ruling must be a next action: a different approach, a split, a fresh agent told the earlier attempts "did not work", or one more attempt of the capped kind. A decided ruling on a cap grants **one** extra round or attempt of that kind; hitting the same cap again is a new Advisor question (counts against its limit). A red check, a hit cap, a failed or blocked agent, and "the cause is outside this change" are never escalate items by themselves (main is green, so this branch owns the failure). It says `needs_human` only when a MUST ESCALATE item applies or no untried approach exists, and then says what was tried.

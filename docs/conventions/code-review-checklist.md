@@ -6,7 +6,7 @@ What a reviewer checks on every PR, how to label review comments, and how author
 
 ## Before you start
 
-- [ ] **PR is reviewable:** one concern, about 400 lines or fewer, template filled in, CI green (including `pnpm format:check`).
+- [ ] **PR is reviewable:** one concern, about 800 lines or fewer, template filled in, CI green (including `pnpm format:check`).
 - [ ] **Context read:** the linked spec, plan, or ADR, so you review against intent, not only the code.
 - [ ] **Sensitive paths:** if the diff touches a path listed in [git-workflow.md](git-workflow.md) section 7, the PR has the `review:sensitive` label and gets a security review at high effort.
 
