@@ -143,7 +143,7 @@ export type RunDetailData = {
   };
   /**
    * The idle timer or Finish is ending the live session (`sessionEndingAt` set): the terminal is closed, the page says
-   * "Pausing the run…" until the run is parked. `session.state: 'none'` carries only a `resumeFailure` (a queued resume
+   * "Session ending…" until the run is parked or finished. `session.state: 'none'` carries only a `resumeFailure` (a queued resume
    * that had nothing kept to resume from).
    */
   pausing?: true;

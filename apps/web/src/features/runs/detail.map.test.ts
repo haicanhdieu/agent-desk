@@ -375,7 +375,7 @@ describe('toRunDetail, pausing and resumed runs', () => {
   it('a live run with sessionEndingAt set is pausing: no terminal yet, a label for the bar', () => {
     const d = detail(live({ sessionEndingAt: local(14, 12) }));
     expect(d.pausing).toBe(true);
-    expect(d.connection).toEqual({ state: 'none', label: 'Pausing…' });
+    expect(d.connection).toEqual({ state: 'none', label: 'Ending…' });
   });
 
   it('a live run without it is not pausing', () => {

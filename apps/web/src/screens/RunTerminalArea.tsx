@@ -69,7 +69,7 @@ function ResumeFailure({ data }: { data: RunDetailData }) {
   return <Banner tone="err" flush live="polite" icon={<StatusIcon status="failed" size={18} />} title={failure} />;
 }
 
-/** The live session is ending (the idle timer or Finish): the terminal is closed until the run is parked. */
+/** The live session is ending (the idle timer or Finish; the page cannot tell which, so the wording stays neutral): the terminal is closed until the run is parked or finished. */
 function PausingNotice() {
   return (
     <Banner
@@ -77,10 +77,10 @@ function PausingNotice() {
       flush
       centered
       live="polite"
-      icon={<StatusIcon status="starting" size={20} title="Pausing" />}
-      title="Session ended. Pausing the run…"
+      icon={<StatusIcon status="starting" size={20} title="Ending" />}
+      title="Session ending…"
     >
-      <div>The session is being saved. This page updates by itself when the run is paused.</div>
+      <div>The session is being saved. This page updates by itself when the session has ended.</div>
     </Banner>
   );
 }

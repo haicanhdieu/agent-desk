@@ -372,7 +372,7 @@ export function terminalConnection(terminal: TerminalState, stream: ConnectionSt
 }
 
 function connection(run: RunListItem, lines: TermLine[] | undefined): RunDetailData['connection'] {
-  if (terminalArea(run) === 'pausing') return { state: 'none', label: 'Pausing…' };
+  if (terminalArea(run) === 'pausing') return { state: 'none', label: 'Ending…' };
   if (run.status === 'paused') {
     return {
       state: 'ended',

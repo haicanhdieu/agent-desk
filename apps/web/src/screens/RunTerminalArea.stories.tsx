@@ -39,7 +39,7 @@ const pausedSession = (headline: string, detail: string) => ({ state: 'paused' a
 /** The idle timer (or Finish) is ending the session: the terminal is closed and its last scrollback greyed, no socket is open, the page updates by itself. */
 export const Pausing: Story = {
   args: {
-    data: { ...RunIdle, pausing: true, connection: { state: 'none', label: 'Pausing…' } },
+    data: { ...RunIdle, pausing: true, connection: { state: 'none', label: 'Ending…' } },
     // The last scrollback, greyed.
     lines: terminalByRun[62],
   },
