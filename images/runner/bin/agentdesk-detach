@@ -1,0 +1,28 @@
+#!/bin/bash
+# End the tmux client started by `agentdesk-attach <uuid>`. Reads only that id's pid file and signals the pid only when
+# it is a plain number above 1 and still a `tmux` process (a stale file must never hit a reused pid). Idempotent.
+# Exit codes: 2 bad id.
+set -euo pipefail
+
+id="${1:-}"
+if [[ ! "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+  echo "agentdesk-detach: invalid terminal id" >&2
+  exit 2
+fi
+
+file="${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/$id.pid"
+[[ -f "$file" ]] || exit 0
+
+pid=""
+IFS= read -r pid < "$file" || true
+rm -f -- "$file"
+
+# Digits only, no leading zero, and never pid 1 (so also never 0 or a negative number).
+if [[ "$pid" =~ ^[1-9][0-9]*$ ]] && (( 10#$pid > 1 )); then
+  comm=""
+  IFS= read -r comm < "${AGENTDESK_PROC_DIR:-/proc}/$pid/comm" 2>/dev/null || true
+  if [[ "$comm" == "tmux" ]]; then
+    kill -TERM -- "$pid" 2>/dev/null || true
+  fi
+fi
+exit 0

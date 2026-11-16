@@ -180,11 +180,11 @@ Plus in `config.test.ts`: `RUN_ENDING_DEADLINE_SECONDS` defaults to 90, blank is
 - `agentdesk-detach <uuid>`: same regex (exit 2); reads only that pid file; kills that pid only if it still is a `tmux` process (check `/proc/<pid>/comm`, test seam `AGENTDESK_PROC_DIR`); removes the file; exit 0 when the file is missing (idempotent).
 - Core job-spec: `RUN_DIR = '/run/agentdesk'` exported constant.
 
-- [ ] **Step 1: Write the failing tests:** attach with no session → exit 3 and no tmux `attach` call; attach with a session → pid file holds the script's pid and tmux got `attach -t =agent`; attach `'../../etc'` and `'$(id)'` → exit 2, no file written; detach of a non-UUID → exit 2; detach kills only the pid in its own file (two pid files, one killed); detach of a missing id → exit 0; detach does not kill a pid whose `comm` is not `tmux`; Dockerfile copies both scripts executable; job-spec mounts a Memory `emptyDir` at `/run/agentdesk`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test -- job-spec` — expect FAIL.
-- [ ] **Step 3: Implement** the two scripts (bash, `set -euo pipefail`, id only ever used after the regex check, quoted) and the job-spec volume.
-- [ ] **Step 4: Run** the same commands — expect PASS.
-- [ ] **Step 5: Commit** `feat(runner): one named tmux attach client per terminal`.
+- [x] **Step 1: Write the failing tests:** attach with no session → exit 3 and no tmux `attach` call; attach with a session → pid file holds the script's pid and tmux got `attach -t =agent`; attach `'../../etc'` and `'$(id)'` → exit 2, no file written; detach of a non-UUID → exit 2; detach kills only the pid in its own file (two pid files, one killed); detach of a missing id → exit 0; detach does not kill a pid whose `comm` is not `tmux`; Dockerfile copies both scripts executable; job-spec mounts a Memory `emptyDir` at `/run/agentdesk`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test -- job-spec` — expect FAIL.
+- [x] **Step 3: Implement** the two scripts (bash, `set -euo pipefail`, id only ever used after the regex check, quoted) and the job-spec volume.
+- [x] **Step 4: Run** the same commands — expect PASS.
+- [x] **Step 5: Commit** `feat(runner): one named tmux attach client per terminal`.
 - [ ] **Step 6: After merge:** build and roll out the runner image (runbook). Phases 3a and 4 wait for this.
 
 ---

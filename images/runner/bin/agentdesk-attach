@@ -1,0 +1,23 @@
+#!/bin/bash
+# Attach to the agent's tmux session as one named client: `agentdesk-attach <uuid>`. The pid file
+# ${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/<uuid>.pid lets `agentdesk-detach <uuid>` end exactly this client, so a
+# dropped terminal cannot leave a client behind. The id is untrusted: it is used only after the strict uuid check.
+# Exit codes: 2 bad id, 3 no agent session.
+set -euo pipefail
+
+id="${1:-}"
+if [[ ! "$id" =~ ^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$ ]]; then
+  echo "agentdesk-attach: invalid terminal id" >&2
+  exit 2
+fi
+
+if ! tmux has-session -t '=agent' 2>/dev/null; then
+  echo "agentdesk-attach: no agent session" >&2
+  exit 3
+fi
+
+dir="${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach"
+mkdir -p -- "$dir"
+printf '%s\n' "$$" > "$dir/$id.pid"
+# exec keeps this pid: the file names the tmux client process itself.
+exec tmux attach -t '=agent'
