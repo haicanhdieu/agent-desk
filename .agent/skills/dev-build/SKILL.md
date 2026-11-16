@@ -1,11 +1,13 @@
 ---
 name: dev-build
-description: Use when asked to build, fix, implement or pick up a GitHub issue or a short bug/feature description and deliver it as a PR to main, or when /dev-build is invoked with an issue number or text.
+description: Use when asked to build, fix, implement or pick up a GitHub issue (including one linking a multi-task plan) or a short bug/feature description and deliver it as a PR to main, or when /dev-build is invoked with an issue number or text.
 ---
 
 # Build a ticket into a PR
 
 You are the dev orchestrator. You take one ticket (a GitHub issue, or a description you file as one), get it triaged, built on a fresh branch, verified and opened as a PR to `main` by subagents, and keep the [project board](https://github.com/users/haicanhdieu/projects/4/views/1) and labels in step.
+
+Every run delivers exactly **one** PR to `main`. Most tickets are **single mode**: one branch, one worktree, steps 1 to 5 below. A plan that Triage splits into two or more PR-sized **units** runs in **multi-unit mode** ([multi-unit.md](multi-unit.md)): each unit is built, verified and reviewed as an internal draft sub-PR into an integration branch, and that branch becomes the one PR to `main`.
 
 This is the **build** step of build → review and merge → QA test → done. The columns, labels and who moves what are in [docs/runbooks/dev-workflow.md](../../../docs/runbooks/dev-workflow.md). Read it once before your first run.
 
@@ -24,6 +26,8 @@ You keep what is outward-facing or a gate: every issue comment, every board move
 | 5 Open PR | PR agent                                                             | `low` / `low`                                     |
 | Any step  | Advisor, only when a question would need a human (at most 3 per run) | `high` / `high`                                   |
 
+Multi-unit mode adds a **Reviewer** (`medium` / `medium`, `high` when sensitive) for each sub-PR and once for the whole branch ([multi-unit.md](multi-unit.md)).
+
 A subagent is a handoff: it knows only its prompt. Keep each prompt exactly as [agent-prompts.md](agent-prompts.md) gives it.
 
 ## Input
@@ -37,10 +41,11 @@ If neither is given, ask for one. Ask nothing else.
 
 | File                                 | Use                                                                                                                     |
 | ------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
-| [agent-prompts.md](agent-prompts.md) | Prompt, tier and effort for Triage, Fixer, Implementer, Verifier, Self-reviewer, PR agent, Advisor                      |
+| [agent-prompts.md](agent-prompts.md) | Prompt, tier and effort for Triage, Fixer, Implementer, Verifier, Self-reviewer, Reviewer, PR agent, Advisor            |
+| [multi-unit.md](multi-unit.md)       | Multi-unit mode: integration branch, units, sub-PRs, internal and final review, blocking and resume                     |
 | [comments.md](comments.md)           | The issue comments you post, word for word                                                                              |
 | `scripts/board.sh`                   | Move the card and swap the `status:*` label in one call                                                                 |
-| `scripts/start.sh`                   | Create the branch and worktree from fresh `origin/main` (or reopen the pushed branch of a blocked run) and install deps |
+| `scripts/start.sh`                   | Create the branch and worktree (single, integration or unit), or reopen a blocked run's pushed branch, and install deps |
 
 Run the scripts from your main checkout (the worktree is cut from `main` and may not have this skill yet): `bash <main checkout>/.agent/skills/dev-build/scripts/board.sh status <n> "<Status>"`. Below, `board.sh` and `start.sh` mean that full command. Statuses: `Ready`, `In progress`, `Blocked`, `In review`. Never set the board or a `status:*` label by hand.
 
@@ -58,7 +63,7 @@ Create a todo per step. Do not skip or reorder them.
 
 Spawn the **Triage** agent ([agent-prompts.md](agent-prompts.md)). It reads the issue, comments, board status and open PRs, decides bug or feature, and checks the ticket is clear enough to build. It changes nothing. Act on its `VERDICT`:
 
-- **STOP:** report its `REASON` to the user. No comment, no board change. This covers a closed issue, a board status of `In progress`, `In review`, `QA` or `Done`, an open PR that references it, a `Blocked` ticket that dev-build did not block or whose question has not been answered, and a branch for the issue on `origin` that dev-build did not leave behind. Someone else owns it; never take over.
+- **STOP:** report its `REASON` to the user. No comment, no board change. This covers a closed issue, a board status of `In progress`, `In review`, `QA` or `Done`, an open PR that references it, a `Blocked` ticket that dev-build did not block or whose question has not been answered, and a branch for the issue on `origin` that dev-build did not leave behind. Someone else owns it; never take over. (A blocked multi-unit run's own unit branches and `internal` sub-PRs are dev-build's, not someone else's; Triage knows this.)
 - **BLOCKED** with the single question "bug or feature?": ask the Advisor ([Decisions](#decisions-the-advisor)). If it decides the kind, spawn Triage again with that decision in its "Decisions already made" slot and act on the new verdict (a feature still needs a task list). If it says `needs_human`, post its question and block as that section says.
 - **BLOCKED** for any other reason (no task list or plan, no repro, unclear intent), or with more than that one question:
   1. Post the **Needs clarification** comment from [comments.md](comments.md) with the agent's `QUESTION`. Check it first: exactly one question, a real gap, in the Problem / Sample / Solutions / Suggestion form, never a question already asked. If it lists several, keep the one that blocks most; the next run asks the next.
@@ -70,6 +75,8 @@ Spawn the **Triage** agent ([agent-prompts.md](agent-prompts.md)). It reads the 
 Do not write the plan yourself, and never ask the Advisor to: planning needs human decisions, and this skill is for building. A title plus a paragraph of intent ("add retry", "make the dashboard better") is not clear, and Triage is told so. If its verdict looks wrong to you, trust a BLOCKED over a GO: a wrongly blocked ticket costs one reply, a wrongly started one costs a wasted build.
 
 ### 2. Start
+
+**Pick the mode from Triage's `UNITS`.** `single` (every bug, a feature with a task list in the issue, and a plan that groups down to one unit): go on below. Two or more units: **multi-unit mode**. Follow [multi-unit.md](multi-unit.md) from its M1 instead of the rest of this step and steps 3 to 5; it comes back to step 5 for the final PR. On a resume, Triage's `UNIT STATE` line marks a multi-unit run.
 
 ```sh
 start.sh <n> <fix|feat> <slug>        # new run
@@ -128,7 +135,7 @@ Failures and findings go back to the builder that owns the code (step 3 rules, a
 
 ### 5. Open the PR
 
-Spawn the **PR agent** ([agent-prompts.md](agent-prompts.md)). It runs the **`create-pr`** skill ([create-pr/SKILL.md](../create-pr/SKILL.md)), which owns the title, body template, labels, local preflight and the `gh pr create` call; neither you nor the agent writes a PR body or runs `gh pr create` by hand. Fill its prompt with:
+Spawn the **PR agent** ([agent-prompts.md](agent-prompts.md)). It runs the **`create-pr`** skill ([create-pr/SKILL.md](../create-pr/SKILL.md)), which owns the title, body template, labels, local preflight and the `gh pr create` call; neither you nor the agent writes a PR body or runs `gh pr create` by hand for a PR to `main`. (The only exception is a multi-unit sub-PR into the integration branch, [multi-unit.md](multi-unit.md) M3.) Fill its prompt with:
 
 - head branch `<branch>`, base `main`, and push authorization (`git push -u origin <branch>` is allowed);
 - type `bugfix` or `feature` (from Triage's `KIND`), `agent-authored: true`, and the issue number (it writes `Closes #<n>`, so merging closes the issue);
@@ -163,6 +170,7 @@ The **Advisor** ([agent-prompts.md](agent-prompts.md)) rules on a question that 
 | Step 1: Triage `BLOCKED`  | Only when its single question is "bug or feature?"                                                                                                                                |
 | Step 3: builder `blocked` | The task contradicts the code, a spec or another task; a choice of test or behavior; two ways that both meet the rules; a "product decision" a spec, ADR or convention may settle |
 | Step 4: Self-reviewer     | A finding you cannot rule real or not after reading the code, or whose fix needs a choice no rule settles                                                                         |
+| Multi-unit: Reviewer      | The same, for an internal review or final review finding ([multi-unit.md](multi-unit.md) M3, M6)                                                                                  |
 | Step 5: PR agent stopped  | A judgment call, such as a diff well over about 400 lines. Never a failing check                                                                                                  |
 
 **Never ask it.** These go straight to the human, or to the step's own rule:
@@ -171,6 +179,7 @@ The **Advisor** ([agent-prompts.md](agent-prompts.md)) rules on a question that 
 - `start.sh` refusing an existing branch or worktree.
 - A Fixer that cannot reproduce the bug.
 - Technical failures, Verifier failures, a failed PR preflight, a skipped skill: the step's retry rule applies.
+- Multi-unit: a cap ([multi-unit.md](multi-unit.md) Caps), a failing sub-PR CI check, or whether to merge a sub-PR with an open finding.
 - A secret in a commit, log or output: block and tell a human now.
 - A question that repeats or disputes an earlier Advisor decision, or comes after the cap.
 
@@ -233,3 +242,14 @@ These hold even when the user says to hurry or to skip a step. Say so in your re
 | "The builder disagrees with the Advisor; ask it again" | A contradicted decision goes to the human.                        |
 | "Three Advisor calls used, one more is fine"           | The cap is 3 per run. The fourth question goes to the human.      |
 | "The Advisor decided, no need to tell anyone"          | Post the decision on the issue and list it in the PR.             |
+| "The plan has 10 phases; open 10 PRs to `main`"        | One PR to `main` per run. Units are internal sub-PRs.             |
+| "Two small tasks; use multi-unit anyway"               | One unit is single mode. Triage's `UNITS` picks it.               |
+| "No dependencies stated, run all units at once"        | Unstated means serial. At most 3 ready units at once.             |
+| "The sub-PR is green; merge it to `main`"              | Sub-PRs merge into the integration branch only.                   |
+| "Run `dev-review` on the sub-PR"                       | It merges to `main` and moves the board. Use the Reviewer.        |
+| "The Reviewer says clean, merge the sub-PR"            | Check its findings, Verify, CI and up-to-date yourself.           |
+| "One sub-PR is still open; open the final PR"          | All merged or closed first, then final verify and review.         |
+| "Final verify is red; fix it on the integration"       | Nobody commits there. Add a fix unit and its sub-PR.              |
+| "Resuming; rebuild unit 2 to be safe"                  | A merged unit is done. Follow `UNIT STATE`.                       |
+| "The final PR is 2,000 lines, too big"                 | The cap is per unit. The body says it integrates units.           |
+| "The plan says deploy X first; I'll enforce it"        | Order beyond `depends_on` is the plan's and humans' job.          |
