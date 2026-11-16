@@ -74,6 +74,7 @@ What a reviewer checks on every PR, how to label review comments, and how author
 ## Tests
 
 - [ ] **Behavior covered:** new behavior and each fixed bug have a test that fails without the change.
+- [ ] **E2E written and run:** new or changed user-visible or cross-component behaviour has e2e specs, and the PR says which were run (targeted) and their result; specs not run are listed as not run, with the reason. See [tests-and-e2e.md](../runbooks/tests-and-e2e.md) §3a.
 - [ ] **Right level:** unit for logic, workflow tests for Temporal, Testcontainers for SQL and RLS, contract tests for API shapes, stories for UI. See [testing.md](testing.md).
 - [ ] **Uses the seams:** fakes for `KubeGateway`, adapters (`fake` provider), `Clock`, and `SecretStore`; no real network or cluster in unit tests.
 - [ ] **Deterministic:** no sleeps, real time, test ordering dependence, or shared state between tests.

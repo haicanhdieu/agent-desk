@@ -39,7 +39,7 @@ Run these inside `devbox shell`, or prefix them with `devbox run --`.
 
 ## 3. Mocked end-to-end (frontend only, no backend)
 
-These are Playwright tests against the SPA running on MSW. _(Available after frontend plan Task 15.)_
+These are Playwright tests against the SPA running on MSW.
 
 ```sh
 devbox run playwright-install   # once: downloads Chromium
@@ -47,6 +47,23 @@ devbox run e2e-mock             # vite build --mode mock + playwright test e2e/m
 ```
 
 To click through the mocked app by hand: `devbox run dev-mock`, then open http://localhost:5173.
+
+## 3a. Run only the e2e for your change
+
+While implementing, run just the specs you wrote or changed, never the full e2e. Write them first, and do not skip them. Titles below are the `test('...')` names in your spec.
+
+```sh
+# Mock e2e (UI changes, no Docker): build once, then run the one spec or title
+pnpm --filter @agentdesk/web exec vite build --mode mock
+pnpm --filter @agentdesk/web exec playwright test e2e/mock/run.spec.ts -g "<title>"
+
+# Local e2e (behaviour across API, worker, runner or the fake pod): stack up first (§4), then
+pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "<title>"
+```
+
+- `pnpm --filter @agentdesk/web test:e2e:mock` and `devbox run e2e-local` run every spec; use them only for a final check when asked. `scripts/e2e-local.ts` has no filter, so cover new cross-component behaviour with a Playwright local spec or a new scenario there.
+- A local spec that needs short idle times uses the env from §4.
+- If the stack cannot start (no Docker engine, runner pod), say so in the PR and list the specs written but not run; never tick them as passed.
 
 ## 4. Full local end-to-end
 
