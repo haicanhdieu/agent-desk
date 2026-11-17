@@ -30,7 +30,7 @@
 
 **Files:** `apps/web/e2e/mock/runs-board.spec.ts`, `apps/web/src/mocks/dto/runs.ts` (only if a long-command fixture is needed; the mock DTOs already include a custom-prompt run)
 
-- [ ] **Step 1:** Add a spec: the Run List has a `Routing rule` column and no `Skill` column; a skill run and a custom-prompt run both show a command; a long command does not widen the table and exposes the full value via its title.
+- [x] **Step 1:** Add a spec: the Run List has a `Routing rule` column and no `Skill` column; a skill run and a custom-prompt run both show a command; a long command does not widen the table and exposes the full value via its title.
 - [ ] **Step 2:** Run only that spec (`docs/runbooks/tests-and-e2e.md` §3a, mock Playwright). Expect PASS.
 - [ ] **Step 3: Commit** `test(web): e2e for the run list routing rule column`.
 
