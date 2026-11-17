@@ -54,6 +54,23 @@ describe('TicketRef', () => {
     render(<TicketRef kind="issue" number={139} />);
     expect(screen.getByText('Issue #139')).toBeInTheDocument();
   });
+  it('links to the ticket in a new window when given an href', () => {
+    render(<TicketRef kind="pr" number={148} href="https://github.com/x/y/pull/148" />);
+    const link = screen.getByRole('link', { name: 'PR #148' });
+    expect(link).toHaveAttribute('href', 'https://github.com/x/y/pull/148');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+  it('stays plain text when the href is empty or missing', () => {
+    render(
+      <>
+        <TicketRef kind="pr" number={148} href="" />
+        <TicketRef kind="issue" number={142} short />
+      </>,
+    );
+    expect(screen.queryByRole('link')).toBeNull();
+    expect(screen.getByText('PR #148')).toBeInTheDocument();
+  });
 });
 
 describe('LabelChip', () => {

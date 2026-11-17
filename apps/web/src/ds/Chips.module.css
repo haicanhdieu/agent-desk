@@ -123,6 +123,12 @@
   font-size: var(--fs-12_5);
   color: var(--text);
 }
+a.trefLink {
+  text-decoration: none;
+}
+a.trefLink:hover .tref {
+  text-decoration: underline;
+}
 
 /* Avatar */
 .avatar {

@@ -25,3 +25,11 @@ export const Default: Story = {
       'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
   },
 };
+
+/** No valid ticket URL: the ticket number is plain text, not a link. */
+export const NoTicketLink: Story = {
+  args: {
+    ...Default.args,
+    run: { ...runs.find((r) => r.id === 62)!, ticket: { ...runs.find((r) => r.id === 62)!.ticket, href: '' } },
+  },
+};

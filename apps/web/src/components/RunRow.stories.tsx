@@ -173,3 +173,17 @@ export const LongTitle: Story = {
     />
   ),
 };
+
+/** The ticket number links to GitHub in a new window; an empty href (untrusted URL dropped) is plain text. */
+export const TicketLinks: Story = {
+  args: { run: base, tree: 'mid', href: '#' },
+  render: () => (
+    <>
+      <TicketGroupRow group={group()} colSpan={8} />
+      <RunRow run={base} tree="mid" href="#" />
+      <RunRow run={{ ...base, id: 61, ticket: { ...ticket, kind: 'pr', number: 148 } }} tree="mid" href="#" />
+      <RunRow run={{ ...base, id: 62, ticket: { ...ticket, href: '' } }} tree="last" href="#" />
+      <TicketGroupRow group={group({ ...ticket, href: '' })} colSpan={8} />
+    </>
+  ),
+};

@@ -23,7 +23,8 @@ export function NeedsYouBanner({ run, askedAgo, slotNote, href, onFinish }: Need
       title={
         <span className={styles.nyLead}>
           <b>Run {run.id} needs you.</b> <span className="mono">{run.skill}</span> on{' '}
-          <TicketRef kind={run.ticket.kind} number={run.ticket.number} /> asked a question {askedAgo}.
+          <TicketRef kind={run.ticket.kind} number={run.ticket.number} href={run.ticket.href} /> asked a question{' '}
+          {askedAgo}.
         </span>
       }
       actions={

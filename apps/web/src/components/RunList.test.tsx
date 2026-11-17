@@ -5,6 +5,7 @@ import type { RunSummary, TicketGroup } from '@/mocks/types';
 import { DataTable } from './DataTable';
 import { EmptyState } from './EmptyState';
 import { FilterChip, FilterChips } from './FilterChip';
+import { NeedsYouBanner } from './NeedsYouBanner';
 import { RunRow, TicketGroupRow } from './RunRow';
 
 const ticket = {
@@ -86,6 +87,23 @@ describe('RunRow', () => {
   });
 });
 
+describe('RunRow ticket link', () => {
+  it('links the ticket number to GitHub in a new window', () => {
+    inTable(<RunRow run={run} tree="last" href="/runs/62" />);
+    const link = screen.getByRole('link', { name: '#142' });
+    expect(link).toHaveAttribute('href', ticket.href);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByRole('link', { name: 'Run 62' })).not.toHaveAttribute('target');
+  });
+
+  it('shows the ticket number as plain text when the href is empty', () => {
+    inTable(<RunRow run={{ ...run, ticket: { ...ticket, href: '' } }} tree="last" href="/runs/62" />);
+    expect(screen.queryByRole('link', { name: '#142' })).toBeNull();
+    expect(screen.getByText('#142')).toBeInTheDocument();
+  });
+});
+
 describe('TicketGroupRow', () => {
   const long = 'A'.repeat(200);
   const group: TicketGroup = {
@@ -105,6 +123,14 @@ describe('TicketGroupRow', () => {
     expect(screen.getByText('Issue #142 → PR #148')).toBeInTheDocument();
     expect(screen.getByText('user-story')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open #142 in GitHub' })).toHaveAttribute('href', ticket.href);
+  });
+
+  it('links the ticket number to GitHub in a new window', () => {
+    inTable(<TicketGroupRow group={group} colSpan={8} />);
+    const link = screen.getByRole('link', { name: 'Issue #142' });
+    expect(link).toHaveAttribute('href', ticket.href);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it('renders no external link when the ticket href is empty (untrusted URL dropped)', () => {
@@ -172,5 +198,23 @@ describe('EmptyState', () => {
     expect(screen.getByText('No runs yet')).toBeInTheDocument();
     expect(screen.getByText('Comment /build on an issue.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open GitHub' })).toBeInTheDocument();
+  });
+});
+
+describe('NeedsYouBanner', () => {
+  const props = { run, askedAgo: '3 minutes ago', slotNote: 'note', href: '/runs/62' };
+
+  it('links the ticket number to GitHub in a new window', () => {
+    render(<NeedsYouBanner {...props} />);
+    const link = screen.getByRole('link', { name: 'Issue #142' });
+    expect(link).toHaveAttribute('href', ticket.href);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
+
+  it('shows the ticket number as plain text when the href is empty', () => {
+    render(<NeedsYouBanner {...props} run={{ ...run, ticket: { ...ticket, href: '' } }} />);
+    expect(screen.queryByRole('link', { name: 'Issue #142' })).toBeNull();
+    expect(screen.getByText('Issue #142')).toBeInTheDocument();
   });
 });
