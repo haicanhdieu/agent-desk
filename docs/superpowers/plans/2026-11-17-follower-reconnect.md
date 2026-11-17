@@ -46,7 +46,7 @@
   - `export function classifyKubeError(err: unknown): KubeErrorClass`. `cause` is a short code: `err.cause.code` (e.g. `UND_ERR_CONNECT_TIMEOUT`, `ECONNRESET`), else `http_<status>`, else the error name (e.g. `BodyTimeoutError`), else `fetch_failed`.
   - `export const RECONNECT_WINDOW_SECONDS = 1800;` and config key `RUN_RECONNECT_WINDOW_SECONDS: number`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 describe('classifyKubeError', () => {
@@ -70,20 +70,20 @@ describe('classifyKubeError', () => {
 it('RUN_RECONNECT_WINDOW_SECONDS: default 1800, blank is the default, below 1 is refused', () => { /* same shape as the RUN_ENDING_DEADLINE_SECONDS test */ });
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core exec vitest run test/kube-transient.test.ts test/config.test.ts`
 Expected: FAIL (module not found / key undefined).
 
-- [ ] **Step 3: Implement `classifyKubeError`, the constants and the config key**
+- [x] **Step 3: Implement `classifyKubeError`, the constants and the config key**
 
 `AbortError` / `DOMException` with name `AbortError` counts as transient: the follower only reaches the classifier for aborts it did not cause, because it checks its own signal first.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same command. Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix` until `fix: clean.`, then `git commit -m "feat(core): classify transient cluster errors; add RUN_RECONNECT_WINDOW_SECONDS (#89)"`.
 
@@ -114,7 +114,7 @@ Same command. Expected: PASS.
   - `FollowHooks.onContactLost(): Promise<{ done: R }>` (required). Called when `ContactLostError` reaches `followPodLog`; it either returns a result or throws.
   - `waitForPod(env, jobName, signal, opts?: { cluster?: Reconnector; seenStarted?: boolean })`. With `seenStarted`, `Unknown` and `Pending` no longer count against the Pending limit: they go to `cluster.lost('pod_unknown')`.
 
-- [ ] **Step 1: Write the failing tests** (add a `describe('reconnect', ...)` using `MockActivityEnvironment` and `kubeWith`)
+- [x] **Step 1: Write the failing tests** (add a `describe('reconnect', ...)` using `MockActivityEnvironment` and `kubeWith`)
 
 ```ts
 it('stream open and getRunPod fail with fetch failed and 502 three times each, then recover → normal result, no duplicate lines, one lost and one restored event, heartbeats while waiting');
@@ -131,12 +131,12 @@ it('Running, then Unknown past the Pending limit → no POD_PENDING_TIMEOUT when
 
 Use a fake clock you advance from the injected `sleep`, or small window values (e.g. `reconnectWindowMs: 50`) with real time, matching the existing tests' style.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/follow-core.test.ts`
 Expected: the new tests fail.
 
-- [ ] **Step 3: Implement `createReconnector` and wire it into `followPodLog`**
+- [x] **Step 3: Implement `createReconnector` and wire it into `followPodLog`**
 
 - Create the reconnector after the heartbeat restore. Seed it with `resumed.data.lostSinceMs ?? null`, using `ac.signal` and `hooks.contact`.
 - Wrap the first `hooks.secrets()` read in `cluster.call`. The periodic re-reads keep swallowing errors as today.
@@ -145,11 +145,11 @@ Expected: the new tests fail.
 - Catch `ContactLostError` around the outer loop and return `(await hooks.onContactLost()).done`.
 - `ContactLostError` and `CLUSTER_PERMANENT_ERROR` failures must pass through `safeError` unchanged.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same command. Expected: PASS, along with the existing follow-core tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix`, then `git commit -m "feat(worker): reconnect loop in the pod log follower (#89)"`.
 
@@ -168,7 +168,7 @@ Same command. Expected: PASS, along with the existing follow-core tests.
 - Consumes: `FollowPass.cluster`, `FollowHooks.contact`, `FollowHooks.onContactLost`, `ContactEvents` (Task 2), `RUN_RECONNECT_WINDOW_SECONDS` (Task 1).
 - Produces: `FollowPodLogsResult.contactLost?: true`. After the window, with the agent started, the result is `{ exitCode: -1, agentStarted: true, podLost: true, contactLost: true, lostText: 'lost contact with the cluster for 30 min', scrollbackTail? }`. The minutes in the text come from the window.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 it('stream ends, then getRunPod fails transiently, then the stream reopens → the run result is the pod exit code; one contact_lost and one contact_restored lifecycle event');
@@ -178,23 +178,23 @@ it('contact event text: "Lost contact with the cluster (ECONNRESET). Retrying." 
 it('setup-test follower: window passes → non-retryable failure (nothing kept)');
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/follow-core.test.ts` (unit). The int test runs with the worker's integration config: `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts`.
 Expected: the new tests fail.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `waitForExit(ctx, signal, cluster: FollowPass['cluster'])` runs `getRunPod` through `cluster`, and `afterStream` passes `pass.cluster`.
 - `contact.lost` / `contact.restored` append a `lifecycle` event through `appendRunEvent` inside `withOrg`, with the same shape as `recordEndingDeadline` (no line key).
 - `onContactLost` runs `findSetupState(ctx, -1, resume ? await floorOf() : 0)`. If the agent started, it returns the result above with `scrollbackTail` from the text tail. If not, it throws the non-retryable failure.
 - `FollowEnv.reconnectWindowMs = config.RUN_RECONNECT_WINDOW_SECONDS * 1000`. Add an optional test override, `timing.reconnectWindowMs`, next to `pendingLimitMs`.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same commands. Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix`, then `git commit -m "feat(worker): run follower reconnects and reports contact loss (#89)"`.
 
@@ -214,7 +214,7 @@ Same commands. Expected: PASS.
   - `const FOLLOWER_RECONNECT_PATCH = 'follower-reconnect'`; `let followerReconnect = false`, set by `patched(...)` right after `attachLeases = patched(ATTACH_LEASES_PATCH)`.
   - `const clusterAct = proxyActivities<Pick<RunActivities, 'deleteJob' | 'endSession' | 'ensureJobGone'>>({ startToCloseTimeout: '2 minutes', retry: { ...CLUSTER_RETRY, nonRetryableErrorTypes: [CLUSTER_PERMANENT_ERROR] } })`, plus `const kubeAct = () => (followerReconnect ? clusterAct : act)`.
 
-- [ ] **Step 1: Write the failing tests** (new `describe('follower reconnect (follower-reconnect)')`, extending `Script` with `followFailFirst?: number`, `deleteJobFailFirst?: number`, `endSessionFailFirst?: number` and `resumeCreateFailsRetryable?: boolean`; failures are `new Error('fetch failed')`)
+- [x] **Step 1: Write the failing tests** (new `describe('follower reconnect (follower-reconnect)')`, extending `Script` with `followFailFirst?: number`, `deleteJobFailFirst?: number`, `endSessionFailFirst?: number` and `resumeCreateFailsRetryable?: boolean`; failures are `new Error('fetch failed')`)
 
 ```ts
 it('follower returns contactLost after session_started → parkRun reason pod_lost, deleteRunVolume not called, no failed status');
@@ -228,23 +228,23 @@ it('hard timer during an outage: finalize deleteJob fails 6 times, then succeeds
 
 Add the history of the first test to `captured['run-follower-reconnect']` and to the replay list (around line 1912).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.test.ts -t "follower reconnect"`
 Expected: FAIL (6 retryable failures exceed 5 attempts, so the run fails).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `followPod` retry: `followerReconnect ? { ...CLUSTER_RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT, CLUSTER_PERMANENT_ERROR] } : { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] }`.
 - Replace `act.deleteJob` with `kubeAct().deleteJob` in `park()` (~663), `abandonPod` (~585), the `resumeAttempt` rollback (~774) and `finalize` (~838). Replace `act.ensureJobGone` with `kubeAct().ensureJobGone` in `finalize`, and both `act.endSession` calls (~450, ~474) with `kubeAct().endSession`.
 - The `contactLost` result needs no new branch: `endOutcome` already parks on `podLost` with `agentStarted`. Check this with the first test.
 
-- [ ] **Step 4: Run them and see them pass, including replay**
+- [x] **Step 4: Run them and see them pass, including replay**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.test.ts`
 Expected: PASS, including `replay: histories from this run and the checked-in fixtures replay without nondeterminism`. Then run once with `UPDATE_REPLAY_FIXTURES=1` to write the new fixture, and check the fixture contains no token (the existing R19 test covers this).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix`, then `git commit -m "fix(worker): a lost cluster connection parks the run instead of failing it (#89)"`.
 
@@ -262,7 +262,7 @@ Expected: PASS, including `replay: histories from this run and the checked-in fi
 **Interfaces:**
 - Consumes: everything above. The stack runs with `RUN_RECONNECT_WINDOW_SECONDS=20` for the window test. The spec reads `E2E_RECONNECT_WINDOW_SECONDS` and skips when it is unset, like `E2E_IDLE_END_SECONDS`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // fake-gateway.test.ts
@@ -281,20 +281,20 @@ test('an outage longer than the window parks the run with its work kept and it c
 
 Always remove `.outage` in a `finally` so a failed test cannot leave the stack broken.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core exec vitest run test/fake-gateway.test.ts`. Then start the stack with `RUN_RECONNECT_WINDOW_SECONDS=20 devbox run dev-bg` and run `E2E_RECONNECT_WINDOW_SECONDS=20 pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "cluster outage"`.
 Expected: the unit test fails. The e2e fails if run against the stack before the fake outage switch exists.
 
-- [ ] **Step 3: Implement the fake outage switch, then write the ADR**
+- [x] **Step 3: Implement the fake outage switch, then write the ADR**
 
 ADR content (accepted): context (run #15); decision (follower and run-Job cluster calls retry without limit, with cluster 4xx non-retryable; a lost connection past 30 min parks; the list of definitive end signals from the spec Goals); consequences (a timed-out run holds its slot during an outage; the reconciler still sweeps leftovers).
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same commands. Expected: PASS. If the stack cannot start, say so in the PR and list both specs as written but not run.
 
-- [ ] **Step 5: Final checks and commit**
+- [x] **Step 5: Final checks and commit**
 
 Run `pnpm --filter @agentdesk/core typecheck test` and `pnpm --filter @agentdesk/worker typecheck test`, and report the real results. `devbox run fix`, then `git commit -m "test(worker): local e2e for cluster outages; ADR 0024 (#89)"`.
 

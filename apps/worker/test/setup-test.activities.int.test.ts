@@ -512,6 +512,28 @@ describe('followSetupTestLogs', () => {
     expect(calls.streams).toBe(0);
   });
 
+  it('window passes with the cluster unreachable: a non-retryable failure (nothing kept)', async () => {
+    const ref = await seedTest();
+    let t = Date.now();
+    const gw = wrapKube({
+      getRunPod: async () => {
+        throw new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+      },
+      readSecret: async () => null,
+    });
+    const err = await follow(
+      deps({
+        kube: gw,
+        clock: { now: () => new Date((t += 70_000)) },
+        timing: { pollMs: 10, heartbeatMs: 200, reconnectWindowMs: 60_000 },
+      }),
+      ref,
+    ).promise.catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).message).toContain('lost contact with the cluster');
+  });
+
   it('a pod that never starts fails non-retryably after the pending limit', async () => {
     const ref = await seedTest();
     const gw = wrapKube({

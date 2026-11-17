@@ -105,6 +105,7 @@ The choice and the concrete rules that follow from it.
 | [0021](0021-run-time-limit-7-days-with-token-refresh.md)    | Run time limit up to 7 days, with the workspace token refreshed in the pod  | Proposed | 2026-11-15 |
 | [0022](0022-pause-and-resume-runs-on-a-per-run-volume.md)   | Pause idle runs and resume them on a per-run volume                         | Accepted | 2026-11-15 |
 | [0023](0023-runner-entrypoint-owns-the-end-of-a-run-pod.md) | The runner entrypoint owns the end of a run pod                             | Accepted | 2026-11-16 |
+| [0024](0024-transient-cluster-errors-never-end-a-run.md)    | Transient cluster errors never end a run                                    | Accepted | 2026-11-17 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the

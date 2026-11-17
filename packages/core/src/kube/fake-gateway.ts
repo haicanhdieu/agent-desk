@@ -34,6 +34,7 @@ const SETUP_TEST_JOB_NAME = /^setup-test-[a-z0-9-]{1,60}$/;
 const TICK_MS = 50;
 const SECRETS_DIR = '.secrets';
 const VOLUMES_DIR = '.volumes';
+const OUTAGE_FILE = '.outage';
 /** What a pod saved on its volume (session marker, conversation), one directory per claim. */
 const VOLUME_DATA_DIR = '.volume-data';
 
@@ -161,6 +162,16 @@ export class FakeKubeGateway implements KubeGateway {
     private readonly opts: FakeKubeOptions = {},
   ) {}
 
+  /**
+   * Test switch for a lost cluster connection: while `<dir>/.outage` exists, cluster calls fail the way a refused
+   * connection does (the error the real client throws), so the worker's reconnect path can be exercised end to end.
+   */
+  private assertReachable(): void {
+    if (existsSync(join(this.dir, OUTAGE_FILE))) {
+      throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNREFUSED' } });
+    }
+  }
+
   private jobDir(name: string): string {
     assertJobName(name);
     return join(this.dir, name);
@@ -172,6 +183,7 @@ export class FakeKubeGateway implements KubeGateway {
   }
 
   async ensureSecret(name: string, data: Record<string, string>, labels: Record<string, string>): Promise<void> {
+    this.assertReachable();
     const file = this.secretFile(name);
     await mkdir(join(this.dir, SECRETS_DIR), { recursive: true, mode: 0o700 });
     try {
@@ -194,6 +206,7 @@ export class FakeKubeGateway implements KubeGateway {
   }
 
   async readSecret(name: string): Promise<Record<string, string> | null> {
+    this.assertReachable();
     const raw = await readOrNull(this.secretFile(name));
     if (raw === null) return null;
     const parsed = SecretFile.safeParse(JSON.parse(raw));
@@ -250,6 +263,7 @@ export class FakeKubeGateway implements KubeGateway {
   }
 
   async ensureJob(spec: V1Job): Promise<void> {
+    this.assertReachable();
     const name = spec.metadata?.name ?? '';
     const dir = this.jobDir(name);
     await mkdir(this.dir, { recursive: true });
@@ -308,6 +322,7 @@ export class FakeKubeGateway implements KubeGateway {
   }
 
   async getRunPod(jobName: string): Promise<RunPod | null> {
+    this.assertReachable();
     const dir = this.jobDir(jobName);
     const jobRaw = await readOrNull(join(dir, 'job.json'));
     if (jobRaw === null) return null;
@@ -339,6 +354,7 @@ export class FakeKubeGateway implements KubeGateway {
     let partial = '';
     const decoder = new StringDecoder('utf8'); // a multi-byte character may straddle two reads
     while (!signal.aborted) {
+      this.assertReachable();
       // Check for the exit marker before reading: everything logged before it is then read in this pass.
       const exited = existsSync(join(dir, 'exit')) || !existsSync(dir);
       const buf = await readFrom(join(dir, 'log'), offset);
@@ -360,6 +376,7 @@ export class FakeKubeGateway implements KubeGateway {
   }
 
   async exec(podName: string, command: string[], _opts: { tty: boolean }): Promise<ExecSession> {
+    this.assertReachable();
     const dir = this.jobDir(podName);
     if (!existsSync(join(dir, 'job.json'))) throw new Error('fake kube: pod not found');
     if (sameCommand(command, END_COMMAND)) {
@@ -385,6 +402,7 @@ export class FakeKubeGateway implements KubeGateway {
   }
 
   async deleteJob(jobName: string): Promise<void> {
+    this.assertReachable();
     const dir = this.jobDir(jobName);
     const pid = await this.ownedPid(jobName, dir);
     if (pid !== null) killGroup(pid);

@@ -16,6 +16,7 @@ import {
   type Clock,
   type Config,
   type KubeGateway,
+  type RunPod,
 } from '@agentdesk/core';
 import { createDb, runEvents, runs, setupScriptVersions, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
@@ -1525,6 +1526,96 @@ describe('followPodLogs', () => {
     expect(f.message).toContain('fake pod has not started');
     expect(calls).toBeGreaterThan(3);
     await acts.deleteJob(ctx);
+  });
+});
+
+describe('followPodLogs: cluster contact loss', () => {
+  const fetchFailed = (): TypeError => new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+  const running = (name: string): RunPod => ({
+    name,
+    phase: 'Running',
+    pendingSince: null,
+    reason: null,
+    exitCode: null,
+  });
+  const contactEvents = async (runId: string) =>
+    (await load(runId)).events.filter(
+      (e) => e.type === 'lifecycle' && (e.payload.kind === 'contact_lost' || e.payload.kind === 'contact_restored'),
+    );
+
+  it('stream ends, then getRunPod fails transiently, then the pod reports its exit code: one contact_lost and one contact_restored event, fixed text', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    let t = Date.now();
+    let calls = 0;
+    const gw = wrapKube({
+      readSecret: async () => null,
+      getRunPod: async (name) => {
+        calls += 1;
+        if (calls === 1) return running(name); // the pod wait
+        if (calls === 2) throw fetchFailed(); // waitForExit, right after the stream ended
+        t += 2 * 60_000; // the outage lasted two minutes
+        return { name, phase: 'Failed', pendingSince: null, reason: null, exitCode: 0 };
+      },
+      streamLogs: async function* () {
+        yield 'agentdesk: session started';
+      },
+    });
+    const r = await follow(ctx, deps({ kube: gw, clock: { now: () => new Date(t) } })).promise;
+    expect(r).toMatchObject({ exitCode: 0, agentStarted: true });
+    expect(r.contactLost).toBeUndefined();
+    const events = await contactEvents(runId);
+    expect(events.map((e) => e.payload)).toEqual([
+      { kind: 'contact_lost', text: 'Lost contact with the cluster (ECONNRESET). Retrying.' },
+      { kind: 'contact_restored', text: 'Contact with the cluster restored after 2 min.' },
+    ]);
+    expect(JSON.stringify(events)).not.toContain('fetch failed');
+  });
+
+  /** A pod that is there for the pod wait, then every cluster call fails; the clock jumps 70 s per reading. */
+  const outage = (lines: string[]) => {
+    let calls = 0;
+    let t = Date.now();
+    const gw = wrapKube({
+      readSecret: async () => null,
+      getRunPod: async (name) => {
+        if (++calls === 1) return running(name);
+        throw fetchFailed();
+      },
+      streamLogs: async function* () {
+        yield* lines;
+      },
+    });
+    const clock: Clock = { now: () => new Date((t += 70_000)) };
+    return { gw, clock, timing: { pollMs: 50, heartbeatMs: 200, reconnectWindowMs: 60_000 } };
+  };
+
+  it('window passes after the agent started: podLost and contactLost with the window in the text', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const o = outage(['agentdesk: session started', 'some output']);
+    const r = await follow(ctx, deps({ kube: o.gw, clock: o.clock, timing: o.timing })).promise;
+    expect(r).toMatchObject({
+      exitCode: -1,
+      agentStarted: true,
+      podLost: true,
+      contactLost: true,
+      lostText: 'lost contact with the cluster for 1 min',
+      scrollbackTail: 'some output',
+    });
+    expect((await contactEvents(runId)).map((e) => e.payload.kind)).toEqual(['contact_lost']);
+  });
+
+  it('window passes before the agent started: a non-retryable failure', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const o = outage([]);
+    const err = await follow(ctx, deps({ kube: o.gw, clock: o.clock, timing: o.timing })).promise.catch(
+      (e: unknown) => e,
+    );
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).message).toContain('lost contact with the cluster before the agent started');
   });
 });
 

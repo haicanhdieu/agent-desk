@@ -30,6 +30,7 @@ export type SetupTestActivityConfig = Pick<
   | 'RUN_PLUGIN_MARKETPLACES'
   | 'RUN_SETUP_TIMEOUT_SECONDS'
   | 'SETUP_TEST_TTL_SECONDS'
+  | 'RUN_RECONNECT_WINDOW_SECONDS'
   | 'RUN_POD_CPU_REQUEST'
   | 'RUN_POD_CPU_LIMIT'
   | 'RUN_POD_MEMORY_REQUEST'
@@ -47,6 +48,8 @@ export interface SetupTestActivityTiming {
   pollMs?: number;
   /** followSetupTestLogs heartbeat interval. */
   heartbeatMs?: number;
+  /** How long the cluster may stay unreachable before the follower gives up (default: `RUN_RECONNECT_WINDOW_SECONDS`). */
+  reconnectWindowMs?: number;
 }
 
 export interface SetupTestActivityDeps {
@@ -92,6 +95,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
   const pendingLimitMs = deps.timing?.pendingLimitMs ?? PENDING_LIMIT_MS;
   const pollMs = deps.timing?.pollMs ?? POLL_MS;
   const heartbeatMs = deps.timing?.heartbeatMs ?? HEARTBEAT_MS;
+  const reconnectWindowMs = deps.timing?.reconnectWindowMs ?? deps.config.RUN_RECONNECT_WINDOW_SECONDS * 1000;
   const ttlSeconds = deps.config.SETUP_TEST_TTL_SECONDS;
 
   // ---- createSetupTestJob
@@ -295,9 +299,20 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
     if (start.ended) return null;
 
     return followPodLog<SetupTestResult>(
-      { kube, clock, pendingLimitMs, pollMs, heartbeatMs },
+      {
+        kube,
+        clock,
+        pendingLimitMs,
+        pollMs,
+        heartbeatMs,
+        reconnectWindowMs,
+      },
       {
         what: 'follow setup test logs',
+        // A setup test keeps nothing to park: an unreachable cluster fails it for good (finalize cleans up).
+        onContactLost: async () => {
+          throw ApplicationFailure.nonRetryable('lost contact with the cluster');
+        },
         jobName: setupTestJobName(ref.setupTestId),
         secrets: () => redactionList(ref),
         storedBudget: () => storedOutputBudget(ref),
@@ -319,7 +334,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         },
         afterStream: async (pass) => {
           await pass.throwIfCancelled();
-          const pod = await kube.getRunPod(setupTestJobName(ref.setupTestId));
+          const pod = await pass.cluster(() => kube.getRunPod(setupTestJobName(ref.setupTestId)));
           // The log stream dropped while the container still runs: re-attach.
           if (pod && pod.exitCode === null && pod.phase === 'Running') {
             await sleep(pollMs, pass.signal);
