@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { InstallResponse, RunDto, RunLogResponse } from '@agentdesk/contracts';
@@ -353,6 +354,91 @@ test.describe('pause and resume', () => {
         { timeout: 30_000 },
       )
       .toBeGreaterThanOrEqual(2);
+
+    await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel').catch(() => null);
+  });
+});
+
+/*
+ * Cluster outage (ADR 0024). The fake cluster refuses every call while `<state dir>/kube/.outage` exists. Start the
+ * stack with a short reconnect window, then run with the same value:
+ *
+ *   RUN_RECONNECT_WINDOW_SECONDS=20 devbox run dev-bg   # then
+ *   E2E_RECONNECT_WINDOW_SECONDS=20 pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "cluster outage"
+ *
+ * Run only these (`-g`), on a stack of their own: the outage is global to the fake cluster, so any other run on that
+ * stack (other e2e tests run in parallel workers, or your own runs) loses contact too and parks once the short window
+ * ends. Never combine them with the full `e2e-local`.
+ */
+const RECONNECT_WINDOW_SECONDS = Number.parseInt(process.env['E2E_RECONNECT_WINDOW_SECONDS'] ?? '', 10);
+const OUTAGE_FILE = `${FAKE_STATE_DIR}/kube/.outage`;
+
+test.describe('cluster outage', () => {
+  // The outage switch is one file for the whole fake cluster: the two tests must not overlap each other.
+  test.describe.configure({ mode: 'serial' });
+  test.skip(
+    !Number.isFinite(RECONNECT_WINDOW_SECONDS),
+    'set E2E_RECONNECT_WINDOW_SECONDS to the stack worker RUN_RECONNECT_WINDOW_SECONDS (see the comment above)',
+  );
+
+  async function runOf(page: Page, runId: string): Promise<RunDto> {
+    return RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run'));
+  }
+
+  async function lifecycleKinds(page: Page, runId: string): Promise<string[]> {
+    const log = RunLogResponse.parse(await ok(await page.request.get(`/api/runs/${runId}/log`), 200, 'run log'));
+    return log.items.flatMap((e) => (e.type === 'lifecycle' ? [String(e.payload['kind'])] : []));
+  }
+
+  test('a short cluster outage mid-run does not fail the run: the timeline shows lost and restored contact', async ({
+    page,
+  }) => {
+    const { handle, projectId } = await signInAndCreateProject(page);
+    const runId = await commentOnNewTicket(page, handle, projectId, '/code-review');
+    await expect.poll(async () => (await runOf(page, runId)).status, { timeout: 60_000 }).toBe('idle');
+
+    try {
+      await mkdir(`${FAKE_STATE_DIR}/kube`, { recursive: true });
+      await writeFile(OUTAGE_FILE, '');
+      await expect.poll(() => lifecycleKinds(page, runId), { timeout: 60_000 }).toContain('contact_lost');
+    } finally {
+      await rm(OUTAGE_FILE, { force: true });
+    }
+    await expect.poll(() => lifecycleKinds(page, runId), { timeout: 60_000 }).toContain('contact_restored');
+
+    expect((await runOf(page, runId)).status).toBe('idle');
+    expect(existsSync(`${FAKE_STATE_DIR}/kube/run-${runId}`), 'the run still has its pod').toBe(true);
+
+    await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel').catch(() => null);
+  });
+
+  test('an outage longer than the window parks the run with its work kept and it can be resumed', async ({ page }) => {
+    const { handle, projectId } = await signInAndCreateProject(page);
+    const runId = await commentOnNewTicket(page, handle, projectId, '/code-review');
+    const number = (await runOf(page, runId)).number;
+    await expect.poll(async () => (await runOf(page, runId)).status, { timeout: 60_000 }).toBe('idle');
+
+    try {
+      await mkdir(`${FAKE_STATE_DIR}/kube`, { recursive: true });
+      await writeFile(OUTAGE_FILE, '');
+      await expect.poll(() => lifecycleKinds(page, runId), { timeout: 60_000 }).toContain('contact_lost');
+      await page.waitForTimeout((RECONNECT_WINDOW_SECONDS + 5) * 1000);
+    } finally {
+      await rm(OUTAGE_FILE, { force: true });
+    }
+
+    await expect.poll(async () => (await runOf(page, runId)).status, { timeout: 90_000 }).toBe('paused');
+    expect((await runOf(page, runId)).pauseReason).toBe('pod_lost');
+    await expect.poll(() => existsSync(`${FAKE_STATE_DIR}/kube/run-${runId}`), { timeout: 30_000 }).toBe(false);
+
+    await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
+    const header = page.getByRole('banner');
+    await expect(header.getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await page.getByRole('button', { name: 'Resume' }).click();
+    await expect(header.getByText('Needs you', { exact: true })).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole('group', { name: 'Claude Code terminal' })).toContainText('Fake Claude Code', {
+      timeout: 15_000,
+    });
 
     await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel').catch(() => null);
   });

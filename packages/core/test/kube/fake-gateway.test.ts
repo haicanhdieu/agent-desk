@@ -648,6 +648,52 @@ describe('FakeKubeGateway', () => {
   });
 });
 
+describe('FakeKubeGateway cluster outage switch', () => {
+  it('with .outage present getRunPod, readSecret, ensureSecret, ensureJob, exec, deleteJob and streamLogs throw fetch failed; removing it restores them', async () => {
+    const id = runId();
+    await gw.ensureJob(job(id, 'x'));
+    const name = `run-${id}`;
+    const outage = join(dir, '.outage');
+    const refused = { message: 'fetch failed', cause: { code: 'ECONNREFUSED' } };
+    await writeFile(outage, '');
+    try {
+      const calls: Array<() => Promise<unknown>> = [
+        () => gw.getRunPod(name),
+        () => gw.readSecret('anything'),
+        () => gw.deleteJob(name),
+        () => gw.exec(name, ['tmux', 'kill-session'], { tty: false }),
+        () => gw.ensureJob(job(runId(), 'y')),
+        () => gw.ensureSecret('some-secret', { A: 'b' }, {}),
+        async () => {
+          for await (const l of gw.streamLogs(name, new AbortController().signal)) void l;
+        },
+      ];
+      for (const call of calls) await expect(call()).rejects.toMatchObject(refused);
+    } finally {
+      await rm(outage, { force: true });
+    }
+    expect((await gw.getRunPod(name))?.name).toBe(name);
+    await gw.deleteJob(name);
+    expect(await gw.getRunPod(name)).toBeNull();
+  });
+
+  it('a log stream that is already running fails on its next tick when the outage starts', async () => {
+    const id = runId();
+    await gw.ensureJob(job(id, 'x'));
+    const name = `run-${id}`;
+    const outage = join(dir, '.outage');
+    const stream = gw.streamLogs(name, new AbortController().signal)[Symbol.asyncIterator]();
+    const first = stream.next();
+    await writeFile(outage, '');
+    try {
+      await expect(first).rejects.toMatchObject({ message: 'fetch failed' });
+    } finally {
+      await rm(outage, { force: true });
+      await gw.deleteJob(name);
+    }
+  });
+});
+
 describe('commandLine', () => {
   // The runner image has no procps (`ps`), so on Linux the fake pod's owner check reads /proc instead.
   it('reads the command line from /proc when the proc dir exists', async () => {

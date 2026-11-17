@@ -262,7 +262,7 @@ Expected: PASS, including `replay: histories from this run and the checked-in fi
 **Interfaces:**
 - Consumes: everything above. The stack runs with `RUN_RECONNECT_WINDOW_SECONDS=20` for the window test. The spec reads `E2E_RECONNECT_WINDOW_SECONDS` and skips when it is unset, like `E2E_IDLE_END_SECONDS`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // fake-gateway.test.ts
@@ -281,20 +281,20 @@ test('an outage longer than the window parks the run with its work kept and it c
 
 Always remove `.outage` in a `finally` so a failed test cannot leave the stack broken.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core exec vitest run test/fake-gateway.test.ts`. Then start the stack with `RUN_RECONNECT_WINDOW_SECONDS=20 devbox run dev-bg` and run `E2E_RECONNECT_WINDOW_SECONDS=20 pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "cluster outage"`.
 Expected: the unit test fails. The e2e fails if run against the stack before the fake outage switch exists.
 
-- [ ] **Step 3: Implement the fake outage switch, then write the ADR**
+- [x] **Step 3: Implement the fake outage switch, then write the ADR**
 
 ADR content (accepted): context (run #15); decision (follower and run-Job cluster calls retry without limit, with cluster 4xx non-retryable; a lost connection past 30 min parks; the list of definitive end signals from the spec Goals); consequences (a timed-out run holds its slot during an outage; the reconciler still sweeps leftovers).
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same commands. Expected: PASS. If the stack cannot start, say so in the PR and list both specs as written but not run.
 
-- [ ] **Step 5: Final checks and commit**
+- [x] **Step 5: Final checks and commit**
 
 Run `pnpm --filter @agentdesk/core typecheck test` and `pnpm --filter @agentdesk/worker typecheck test`, and report the real results. `devbox run fix`, then `git commit -m "test(worker): local e2e for cluster outages; ADR 0024 (#89)"`.
 
