@@ -1,7 +1,7 @@
 import type { IgnoredEventDto, RunDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { runFixtures } from '@/mocks/dto/runs';
-import { chipCounts, groupByTicket, runsPerTicket, safeHref, toIgnored, toRunSummary } from './map';
+import { chipCounts, formatDuration, groupByTicket, runsPerTicket, safeHref, toIgnored, toRunSummary } from './map';
 
 const base = runFixtures.find((r) => r.number === 60);
 if (!base) throw new Error('run 60 fixture missing');
@@ -45,7 +45,7 @@ describe('toRunSummary, paused and expired', () => {
       }),
       now,
     );
-    expect(s.duration).toBe('12m 04s');
+    expect(s.duration).toBe('12m 4s');
     expect(s.statusNote).toBe('Can be resumed for 3 days');
   });
 
@@ -55,7 +55,7 @@ describe('toRunSummary, paused and expired', () => {
       now,
     );
     expect(s.statusNote).toBe('The saved session was deleted');
-    expect(s.duration).toBe('12m 04s');
+    expect(s.duration).toBe('12m 4s');
   });
 });
 
@@ -67,7 +67,7 @@ describe('toRunSummary, prompt run', () => {
 });
 
 describe('toRunSummary', () => {
-  it('maps a final run: number, slash command, ticket, local start time, "12m 04s" duration', () => {
+  it('maps a final run: number, slash command, ticket, local start time, "12m 4s" duration', () => {
     const s = toRunSummary(
       run({
         number: 7,
@@ -82,7 +82,7 @@ describe('toRunSummary', () => {
     expect(s.command).toBe('/code-build');
     expect(s.skill).toBe('code-build');
     expect(s.startedAt).toBe('13:02');
-    expect(s.duration).toBe('12m 04s');
+    expect(s.duration).toBe('12m 4s');
     expect(s.ticket).toEqual({
       kind: 'issue',
       number: 142,
@@ -108,7 +108,7 @@ describe('toRunSummary', () => {
       run({ status: 'idle', startedAt: local(14, 9), finishedAt: null, idleSince: local(14, 17) }),
       now,
     );
-    expect(idle.duration).toBe('11m 00s');
+    expect(idle.duration).toBe('11m');
     expect(idle.statusNote).toBe('Waiting 3m. Auto-finish after 30m unattended');
     const failed = toRunSummary(run({ status: 'failed', failureReason: 'API authentication failed (401)' }), now);
     expect(failed.statusNote).toBe('API authentication failed (401)');
@@ -264,5 +264,48 @@ describe('toIgnored', () => {
       repo,
     );
     expect(row).toMatchObject({ reason: 'Ignored', command: '—', author: '—', detail: '', href: repo });
+  });
+});
+
+describe('formatDuration', () => {
+  const s = 1000;
+  const m = 60 * s;
+  const h = 60 * m;
+  const d = 24 * h;
+  it.each([
+    [0, '0s'],
+    [-5 * s, '0s'],
+    [48 * s, '48s'],
+    [59 * s, '59s'],
+    [60 * s, '1m'],
+    [30 * m, '30m'],
+    [10 * m + 1 * s, '10m 1s'],
+    [4 * m + 5 * s, '4m 5s'],
+    [37 * m + 48 * s, '37m 48s'],
+    [59 * m + 59 * s, '59m 59s'],
+    [60 * m, '1h'],
+    [60 * m + 59 * s, '1h'],
+    [237 * m + 48 * s, '3h 57m'],
+    [3 * h + 5 * s, '3h'],
+    [23 * h + 59 * m + 59 * s, '23h 59m'],
+    [24 * h, '1d'],
+    [1500 * m + 20 * s, '1d 1h'],
+    [2 * d + 3 * h + 5 * m, '2d 3h 5m'],
+    [2 * d + 5 * m, '2d 5m'],
+  ])('%i ms -> %s', (ms, text) => {
+    expect(formatDuration(ms)).toBe(text);
+  });
+});
+
+describe('toRunSummary durations', () => {
+  it('a final run of 3h 57m reads in hours and minutes', () => {
+    const s = toRunSummary(run({ status: 'succeeded', startedAt: local(9, 0, 0), finishedAt: local(12, 57, 48) }), now);
+    expect(s.duration).toBe('3h 57m');
+  });
+
+  it('a running run counts up to now in the same compact format', () => {
+    const started = run({ status: 'running', startedAt: local(10, 20, 0), finishedAt: null });
+    expect(toRunSummary(started, now).duration).toBe('4h');
+    expect(toRunSummary(started, new Date(now.getTime() + 61_000)).duration).toBe('4h 1m');
   });
 });

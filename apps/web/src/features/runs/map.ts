@@ -28,10 +28,26 @@ export const clockTime = (iso: string): string => {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-/** "12m 04s". */
+/**
+ * Compact largest units: "48s", "37m 48s", "30m", "3h 57m", "2d 3h 5m". Zero units are omitted, and seconds
+ * are dropped from one hour on.
+ */
 export const formatDuration = (ms: number): string => {
   const total = Math.max(0, Math.floor(ms / 1000));
-  return `${Math.floor(total / 60)}m ${pad(total % 60)}s`;
+  const days = Math.floor(total / 86400);
+  const hours = Math.floor((total % 86400) / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  if (total < 60) return `${seconds}s`;
+  if (total < 3600) return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
+  return [
+    [days, 'd'],
+    [hours, 'h'],
+    [minutes, 'm'],
+  ]
+    .filter(([n]) => n !== 0)
+    .map(([n, unit]) => `${n}${unit}`)
+    .join(' ');
 };
 
 /** Ticket, comment and repo text is untrusted: only http(s) URLs become links; anything else is no link (''). */

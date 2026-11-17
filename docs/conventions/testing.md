@@ -47,7 +47,7 @@ Related: [architecture.md](architecture.md), [backend.md](backend.md), [database
 it('works', ...); it('test 2', ...);
 // Good
 describe('toRunSummary', () => {
-  it('formats a 724 s final run as 12m 04s', ...);
+  it('formats a 724 s final run as 12m 4s', ...);
 });
 ```
 

@@ -551,7 +551,7 @@ describe('toRunDetail', () => {
         'pending',
         'pending',
       ]);
-      expect(detail(starting, events).startup?.[0]?.detail).toBe('Waited 0m 10s for a free slot');
+      expect(detail(starting, events).startup?.[0]?.detail).toBe('Waited 10s for a free slot');
       const podUp = [...events, ev(local(14, 12, 21), 'lifecycle', { text: 'Pod running' })];
       expect(detail(starting, podUp).startup?.map((s) => [s.state, s.at])).toEqual([
         ['done', '14:12:03'],
