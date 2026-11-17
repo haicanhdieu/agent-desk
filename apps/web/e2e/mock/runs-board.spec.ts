@@ -76,7 +76,8 @@ test('a long routing rule command is truncated in the Run List and its full valu
   await expect(cell).toBeVisible();
   await expect(cell).toHaveAttribute('title', longCommand);
 
-  const clipped = await cell.evaluate((el) => el.scrollWidth > el.clientWidth);
+  // The span is inline (scrollWidth 0); the clipping happens on its parent <td>.
+  const clipped = await cell.locator('xpath=..').evaluate((el) => el.scrollWidth > el.clientWidth);
   expect(clipped).toBe(true);
   const overflowsPage = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflowsPage).toBe(false);
