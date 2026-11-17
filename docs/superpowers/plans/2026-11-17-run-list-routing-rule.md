@@ -19,12 +19,12 @@
 
 **Files:** `apps/web/src/features/runs/map.ts`, `apps/web/src/features/runs/map.test.ts`, `apps/web/src/screens/Runs.tsx`, `apps/web/src/components/RunRow.tsx`, `apps/web/src/components/RunList.module.css`, `apps/web/src/components/RunRow.stories.tsx`, `apps/web/src/components/RunList.test.tsx`, `apps/web/src/mocks/runs.ts`, `design/parity-notes.md`
 
-- [ ] **Step 1: Tests first** in `map.test.ts` (an empty `dto.command` maps to `''`, a non-empty one to `/<command>`) and `RunList.test.tsx`: header `Routing rule` is present and `Skill` is not; a row shows its command; an empty command shows `—`; a long command has a `title` with the full value. Run them, expect FAIL.
-- [ ] **Step 2: Implement.** Fix the empty-command mapping in `map.ts`; rename the column (`key: 'rule'`, header `Routing rule`) in `Runs.tsx`; in `RunRow.tsx` render `run.command` (dash fallback, `title` attribute); rename the CSS class and add truncation (`max-width`, `overflow: hidden`, `text-overflow: ellipsis`, `white-space: nowrap`) using design tokens only. Sorting, filtering and responsive behavior untouched.
-- [ ] **Step 3: Story.** Update `RunRow.stories.tsx` column header; add a long-command and an empty-command story (loading, empty and error states of the list are unchanged).
-- [ ] **Step 4: Visual parity** (frontend.md §8): build Storybook, run the parity script for the Runs and RunsProblems boards, and record the intended drift ("Routing rule" column instead of the prototype's "Skill") in `design/parity-notes.md`.
+- [x] **Step 1: Tests first** in `map.test.ts` (an empty `dto.command` maps to `''`, a non-empty one to `/<command>`) and `RunList.test.tsx`: header `Routing rule` is present and `Skill` is not; a row shows its command; an empty command shows `—`; a long command has a `title` with the full value. Run them, expect FAIL.
+- [x] **Step 2: Implement.** Fix the empty-command mapping in `map.ts`; rename the column (`key: 'rule'`, header `Routing rule`) in `Runs.tsx`; in `RunRow.tsx` render `run.command` (dash fallback, `title` attribute); rename the CSS class and add truncation (`max-width`, `overflow: hidden`, `text-overflow: ellipsis`, `white-space: nowrap`) using design tokens only. Sorting, filtering and responsive behavior untouched.
+- [x] **Step 3: Story.** Update `RunRow.stories.tsx` column header; add a long-command and an empty-command story (loading, empty and error states of the list are unchanged).
+- [x] **Step 4: Visual parity** (frontend.md §8): build Storybook, run the parity script for the Runs and RunsProblems boards, and record the intended drift ("Routing rule" column instead of the prototype's "Skill") in `design/parity-notes.md`.
 - [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test` for the changed files and `pnpm --filter @agentdesk/web typecheck`.
-- [ ] **Step 6: Commit** `feat(web): show the routing rule command in the run list`.
+- [x] **Step 6: Commit** `feat(web): show the routing rule command in the run list`.
 
 ## Task 2: Mock e2e spec
 

@@ -113,7 +113,7 @@ export function toRunSummary(dto: CachedRun, now: Date): RunSummary {
     id: dto.number,
     status: dto.status,
     ...(note !== undefined && { statusNote: note }),
-    command: `/${dto.command}`,
+    command: dto.command === '' ? '' : `/${dto.command}`,
     skill: dto.skillName ?? 'Custom prompt',
     agent: dto.agent.name,
     model: dto.agent.model,

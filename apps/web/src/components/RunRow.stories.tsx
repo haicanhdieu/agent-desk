@@ -35,7 +35,7 @@ const columns = [
   { key: 'run', header: 'Run' },
   { key: 'status', header: 'Status' },
   { key: 'ticket', header: 'Ticket' },
-  { key: 'skill', header: 'Skill' },
+  { key: 'rule', header: 'Routing rule' },
   { key: 'by', header: 'Triggered by' },
   { key: 'started', header: 'Started' },
   { key: 'dur', header: 'Duration' },
@@ -71,6 +71,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Succeeded: Story = { args: { run: base, tree: 'last', href: '#' } };
+
+export const LongRoutingRule: Story = {
+  args: {
+    run: { ...base, command: '/code-build-and-review-with-a-very-long-routing-rule-command' },
+    tree: 'last',
+    href: '#',
+  },
+};
+
+export const NoRoutingRule: Story = { args: { run: { ...base, command: '' }, tree: 'last', href: '#' } };
 
 export const EveryStatus: Story = {
   args: { run: base, tree: 'last', href: '#' },

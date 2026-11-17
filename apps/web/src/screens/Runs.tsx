@@ -39,7 +39,7 @@ const columns = [
   { key: 'run', header: 'Run', width: 110 },
   { key: 'status', header: 'Status' },
   { key: 'ticket', header: 'Ticket' },
-  { key: 'skill', header: 'Skill' },
+  { key: 'rule', header: 'Routing rule' },
   { key: 'by', header: 'Triggered by' },
   { key: 'started', header: 'Started' },
   { key: 'duration', header: 'Duration' },

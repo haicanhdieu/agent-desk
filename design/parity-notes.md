@@ -137,3 +137,7 @@ Copy must match exactly.
   scan flags its `sk-`).
 - Pixel check: the new pane and side panel content match their boards; the remaining differences on these boards are
   the pre-existing Desk frame and list drift noted above.
+
+## Run list routing rule column (#87)
+
+- Runs, RunsProblems: the run table shows a "Routing rule" column (the run's command, for example `/code-build`; `—` when none was recorded; one line with an ellipsis and the full command in a tooltip) where the prototype has "Skill". Intended drift, not fixed. Storybook and the parity script were not run in the runner pod (no browser build), so the pixel check of these two boards is still to do.
