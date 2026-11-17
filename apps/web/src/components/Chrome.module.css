@@ -1,6 +1,7 @@
 .app {
   position: relative;
-  overflow: hidden;
+  /* clip, not hidden: hidden makes .app a scroll container, and the sticky .top would stick to it, not the viewport. */
+  overflow: clip;
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -27,6 +28,10 @@
   padding: 0 16px;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
+  /* The bar stays at the top of the viewport while the page scrolls under it. */
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 .brand {
   display: flex;

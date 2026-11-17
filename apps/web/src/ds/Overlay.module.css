@@ -109,6 +109,8 @@
 .overlay {
   position: absolute;
   inset: 0;
+  /* Above the sticky top bar (z-index 1), so a dialog dims it too. */
+  z-index: 2;
   background: var(--scrim);
   display: flex;
   align-items: center;
