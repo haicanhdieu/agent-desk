@@ -23,3 +23,10 @@ test('the Grouped by ticket button toggles ticket grouping on the Run Board', as
   await expect(groupRows).toHaveCount(grouped);
   await expect(runLinks).toHaveCount(runCount);
 });
+
+test('the Run List shows durations in compact units', async ({ page }) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+  await expect(page.getByRole('cell', { name: '7m 50s', exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: '30m', exact: true }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: /^\d+m 0s$|^0\d/ })).toHaveCount(0);
+});

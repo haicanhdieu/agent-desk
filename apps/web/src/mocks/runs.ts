@@ -98,7 +98,7 @@ const run54: RunSummary = {
   ticket: tickets.issue127,
   triggeredBy: user,
   startedAt: '10:02',
-  duration: '30m 0s',
+  duration: '30m',
 };
 const run55: RunSummary = {
   ...base,

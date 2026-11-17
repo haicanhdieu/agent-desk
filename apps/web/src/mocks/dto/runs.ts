@@ -10,8 +10,8 @@ const DAY = '2026-11-12';
 const at = (hhmm: string, plusSeconds = 0) =>
   new Date(Date.parse(`${DAY}T${hhmm}:00.000Z`) + plusSeconds * 1000).toISOString();
 const seconds = (duration: string | undefined) => {
-  const m = /^(\d+)m (\d+)s$/.exec(duration ?? '');
-  return m ? Number(m[1]) * 60 + Number(m[2]) : 0;
+  const m = /^(\d+)m(?: (\d+)s)?$/.exec(duration ?? '');
+  return m ? Number(m[1]) * 60 + Number(m[2] ?? 0) : 0;
 };
 
 const repoPath = 'harbor-labs/invoicer-api';

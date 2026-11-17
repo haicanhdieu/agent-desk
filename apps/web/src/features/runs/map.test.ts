@@ -108,7 +108,7 @@ describe('toRunSummary', () => {
       run({ status: 'idle', startedAt: local(14, 9), finishedAt: null, idleSince: local(14, 17) }),
       now,
     );
-    expect(idle.duration).toBe('11m 0s');
+    expect(idle.duration).toBe('11m');
     expect(idle.statusNote).toBe('Waiting 3m. Auto-finish after 30m unattended');
     const failed = toRunSummary(run({ status: 'failed', failureReason: 'API authentication failed (401)' }), now);
     expect(failed.statusNote).toBe('API authentication failed (401)');
@@ -277,7 +277,9 @@ describe('formatDuration', () => {
     [-5 * s, '0s'],
     [48 * s, '48s'],
     [59 * s, '59s'],
-    [60 * s, '1m 0s'],
+    [60 * s, '1m'],
+    [30 * m, '30m'],
+    [10 * m + 1 * s, '10m 1s'],
     [4 * m + 5 * s, '4m 5s'],
     [37 * m + 48 * s, '37m 48s'],
     [59 * m + 59 * s, '59m 59s'],
@@ -292,5 +294,18 @@ describe('formatDuration', () => {
     [2 * d + 5 * m, '2d 5m'],
   ])('%i ms -> %s', (ms, text) => {
     expect(formatDuration(ms)).toBe(text);
+  });
+});
+
+describe('toRunSummary durations', () => {
+  it('a final run of 3h 57m reads in hours and minutes', () => {
+    const s = toRunSummary(run({ status: 'succeeded', startedAt: local(9, 0, 0), finishedAt: local(12, 57, 48) }), now);
+    expect(s.duration).toBe('3h 57m');
+  });
+
+  it('a running run counts up to now in the same compact format', () => {
+    const started = run({ status: 'running', startedAt: local(10, 20, 0), finishedAt: null });
+    expect(toRunSummary(started, now).duration).toBe('4h');
+    expect(toRunSummary(started, new Date(now.getTime() + 61_000)).duration).toBe('4h 1m');
   });
 });

@@ -29,7 +29,7 @@ export const clockTime = (iso: string): string => {
 };
 
 /**
- * Compact largest units: "48s", "37m 48s", "3h 57m", "2d 3h 5m". Zero units are omitted, and seconds
+ * Compact largest units: "48s", "37m 48s", "30m", "3h 57m", "2d 3h 5m". Zero units are omitted, and seconds
  * are dropped from one hour on.
  */
 export const formatDuration = (ms: number): string => {
@@ -39,7 +39,7 @@ export const formatDuration = (ms: number): string => {
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
   if (total < 60) return `${seconds}s`;
-  if (total < 3600) return `${minutes}m ${seconds}s`;
+  if (total < 3600) return seconds === 0 ? `${minutes}m` : `${minutes}m ${seconds}s`;
   return [
     [days, 'd'],
     [hours, 'h'],

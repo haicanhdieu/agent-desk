@@ -188,7 +188,7 @@ describe('RunDetail top bar elapsed', () => {
     ['RunReconnect', '9:02'],
     ['RunSucceeded', '6m 12s'],
     ['RunFailed', '1m 10s'],
-    ['RunTimedOut', '30m 0s'],
+    ['RunTimedOut', '30m'],
     ['RunCancelled', '7m 50s'],
   ] as [RunDetailKey, string][])('%s shows %s', (k, text) => {
     show(k);
