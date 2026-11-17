@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
+import { PauseReason, RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
 
@@ -52,6 +52,10 @@ export const RunDto = z.object({
   pausedAt: Timestamp.nullable(),
   /** While a session is kept (paused or succeeded), when it is deleted; null otherwise. */
   sessionExpiresAt: Timestamp.nullable(),
+  /** When the live session is scheduled to end; null when none is. */
+  sessionEndingAt: Timestamp.nullable(),
+  /** Why the run is paused; null when it is not paused (or paused before this was recorded). */
+  pauseReason: PauseReason.nullable(),
 });
 export type RunDto = z.infer<typeof RunDto>;
 

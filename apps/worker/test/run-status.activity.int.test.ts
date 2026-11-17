@@ -454,4 +454,55 @@ describe('setRunStatus kept sessions', () => {
     await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: null, at: T2 });
     expect((await load(runId)).run?.sessionExpiresAt).toBeNull();
   });
+
+  describe('the session ending time and the pause reason', () => {
+    const mark = (runId: string) =>
+      withOrg(db, ORG, (tx) =>
+        tx
+          .update(runs)
+          .set({ sessionEndingAt: new Date(T0), pauseReason: 'pod_lost' })
+          .where(eq(runs.id, runId)),
+      );
+
+    it.each(['paused', 'succeeded', 'failed', 'cancelled'] as const)(
+      'moving to %s clears session_ending_at',
+      async (to) => {
+        const runId = await seedRun();
+        await setRunStatus(db, { orgId: ORG, runId, status: 'idle', at: T0 });
+        await mark(runId);
+        await setRunStatus(db, {
+          orgId: ORG,
+          runId,
+          status: to,
+          ...(to === 'paused' ? { session: { expiresAt: EXP } } : {}),
+          at: T1,
+        });
+        expect((await load(runId)).run?.sessionEndingAt).toBeNull();
+      },
+    );
+
+    it('a live status leaves session_ending_at alone', async () => {
+      const runId = await seedRun();
+      await setRunStatus(db, { orgId: ORG, runId, status: 'idle', at: T0 });
+      await mark(runId);
+      await setRunStatus(db, { orgId: ORG, runId, status: 'idle', keepAgentNote: true, at: T1 });
+      expect((await load(runId)).run?.sessionEndingAt?.toISOString()).toBe(T0);
+    });
+
+    it('session null on a live status clears the pause reason; a final status and a plain write keep it', async () => {
+      const runId = await seedRun();
+      await setRunStatus(db, { orgId: ORG, runId, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+      await mark(runId);
+      await setRunStatus(db, { orgId: ORG, runId, status: 'paused', at: T1 });
+      expect((await load(runId)).run?.pauseReason).toBe('pod_lost');
+      await setRunStatus(db, { orgId: ORG, runId, status: 'idle', keepAgentNote: true, session: null, at: T2 });
+      expect((await load(runId)).run?.pauseReason).toBeNull();
+
+      const other = await seedRun();
+      await setRunStatus(db, { orgId: ORG, runId: other, status: 'paused', session: { expiresAt: EXP }, at: T0 });
+      await mark(other);
+      await setRunStatus(db, { orgId: ORG, runId: other, status: 'expired', at: T1 });
+      expect((await load(other)).run?.pauseReason).toBe('pod_lost');
+    });
+  });
 });

@@ -3,14 +3,16 @@
 # provider adapter so `gh` works), CHECKOUT_REF, PROMPT, BOT_NAME, BOT_EMAIL, PLUGIN_MARKETPLACES (JSON
 # {store: source}, optional), SETUP_SCRIPT (optional), SETUP_TIMEOUT_SECONDS (digits, else 600), RUN_MODE (`setup_test`
 # opens an idle shell instead of the agent; `resume` continues a saved session on the run volume), AGENT (fixed list,
-# default claude), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR, AGENTDESK_LIB_DIR and
-# AGENTDESK_HOME_SKEL are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
+# default claude), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR, AGENTDESK_LIB_DIR,
+# AGENTDESK_HOME_SKEL and AGENTDESK_RUN_DIR (default /run/agentdesk, the in-memory volume that holds the `stop` and
+# `agent-exit` files) are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
 # No `set -x`: the clone URL is a secret.
 set -euo pipefail
 
 REPO_DIR="${AGENTDESK_REPO_DIR:-/workspace/repo}"
 LIB_DIR="${AGENTDESK_LIB_DIR:-/usr/local/lib/agentdesk}"
 HOME_SKEL="${AGENTDESK_HOME_SKEL:-/usr/local/share/agentdesk/home-skel}"
+RUN_DIR="${AGENTDESK_RUN_DIR:-/run/agentdesk}"
 
 # HOME may be on the per-run volume (empty on the first start): create it and fill in the baked files without
 # overwriting anything already there (a resumed run keeps its own settings and conversation).
@@ -179,20 +181,62 @@ fi
 
 # remain-on-exit keeps the dead pane so its exit status and scrollback can be read. It is set before new-session (same
 # tmux invocation, after start-server) so a command that dies at once still leaves its pane and output behind.
+# The pane runs the command through agentdesk-session, which records the agent's exit code in $RUN_DIR/agent-exit. tmux
+# gets the wrapper and the fixed command as two separate arguments (run directly, no extra shell).
 tmux start-server \; set-option -g remain-on-exit on \; \
-  new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$session_cmd"
+  new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$LIB_DIR/bin/agentdesk-session" "$session_cmd"
+# bash as PID 1 ignores SIGTERM without a trap; the flag is checked by the loop below.
+end_reason=''
+trap 'end_reason=signal' TERM
 if [ "${RUN_MODE:-}" != resume ] && [ "${RUN_MODE:-}" != setup_test ]; then
   mkdir -p "$HOME/.agentdesk"
   : > "$HOME/.agentdesk/session-started"
 fi
 echo 'agentdesk: session started'
 
-while [ "$(tmux display-message -p -t agent '#{pane_dead}' 2>/dev/null || echo 1)" != 1 ]; do
-  sleep 1
-done
-status="$(tmux display-message -p -t agent '#{pane_dead_status}' 2>/dev/null || echo 0)"
+# The entrypoint owns the end of the pod: it saves the scrollback, kills the tmux server (so stale attach clients cannot
+# hold it up), prints one end line and exits. end_session REASON CODE
+end_session() {
+  echo 'agentdesk: final scrollback begin'
+  timeout 5 tmux capture-pane -J -p -S - -t '=agent:' 2>/dev/null || true
+  echo 'agentdesk: final scrollback end'
+  tmux kill-server 2>/dev/null || true
+  echo "agentdesk: session ended reason=$1 code=$2"
+  exit "$2"
+}
 
-echo 'agentdesk: final scrollback begin'
-tmux capture-pane -J -p -S - -t agent 2>/dev/null || true
-echo 'agentdesk: final scrollback end'
-exit "${status:-0}"
+# Check first, then sleep, so an already-finished session ends without a 1s delay. `sleep & wait` lets the TERM trap
+# wake the loop, which then sees the flag, so SIGTERM ends the loop within about 1s: a signal that lands between the flag
+# check and `wait` is only seen after the 1s sleep ends, which fits well inside the pod grace
+# period. Order (spec 3): stop file, agent-exit file, session gone, trap flag; then the pane-dead check stays as a
+# fallback for a wrapper that could not write its file.
+# The agent shares this container and can write under $RUN_DIR, so the agent-exit content is untrusted: only a regular
+# file (not a link, a pipe or a directory) is read, at most 16 bytes, within 2 seconds (a pipe renamed over the file
+# after the check would block the open for good, and this is PID 1), and only 1 to 3 digits count (10# keeps a leading
+# zero decimal); anything else means code 1. Codes above 255 wrap like an exit status.
+agent_exit_code() {
+  local f="$RUN_DIR/agent-exit" content
+  if [ ! -f "$f" ] || [ -L "$f" ]; then return 1; fi
+  content="$(timeout 2 head -c 16 -- "$f" 2>/dev/null || true)"
+  if [[ "$content" =~ ^[0-9]{1,3}$ ]]; then
+    printf '%s' "$((10#$content % 256))"
+  else
+    printf '1'
+  fi
+}
+
+while :; do
+  if [ -e "$RUN_DIR/stop" ] || [ -L "$RUN_DIR/stop" ]; then end_session stop_request 0; fi
+  if code="$(agent_exit_code)"; then end_session agent_exit "$code"; fi
+  if ! tmux has-session -t '=agent' 2>/dev/null; then end_session session_gone 0; fi
+  if [ "$end_reason" = signal ]; then end_session signal 0; fi
+  if [ "$(tmux display-message -p -t '=agent:' '#{pane_dead}' 2>/dev/null || true)" = 1 ]; then
+    status="$(tmux display-message -p -t '=agent:' '#{pane_dead_status}' 2>/dev/null || true)"
+    case "$status" in
+      '' | *[!0-9]*) status=1 ;;
+    esac
+    end_session agent_exit "$((10#$status % 256))"
+  fi
+  sleep 1 &
+  wait $! || true
+done

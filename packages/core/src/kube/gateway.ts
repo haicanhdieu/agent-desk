@@ -46,7 +46,7 @@ export interface ExecSession {
   write(data: Uint8Array): void;
   resize(cols: number, rows: number): void;
   onData(cb: (d: Uint8Array) => void): void;
-  /** Called once with the command's exit code (0 on success, 1 when unknown). */
+  /** Called once with the command's exit code (0 on success, 127 when the executable was not found, 1 when unknown). */
   onClose(cb: (code: number) => void): void;
   close(): void;
 }
@@ -149,7 +149,26 @@ export function setupTestRefFromLabels(
 
 /** The exec commands the control plane uses (and the only ones the fake accepts). */
 export const TMUX_ATTACH = ['tmux', 'attach', '-t', 'agent'] as const;
+/** Asks the runner to end the session (creates its stop file); fixed argv, no arguments. */
+export const END_COMMAND = ['agentdesk-end'] as const;
+/** The old end request: only the fallback when `END_COMMAND` exits 127 (an old pod image). Remove 7 days after the new image is live. */
 export const TMUX_KILL = ['tmux', 'kill-session', '-t', 'agent'] as const;
+
+/** A terminal connection id: server-made UUID, the same strict regex the runner scripts check. */
+export const CONNECTION_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** Exit code an exec session reports when the runtime could not find the executable (old runner image). */
+export const EXEC_NOT_FOUND = 127;
+
+function checkedConnectionId(id: string): string {
+  if (!CONNECTION_ID_RE.test(id)) throw new Error('invalid connection id');
+  return id;
+}
+
+/** One named tmux attach client per terminal socket (argv, never a shell string). */
+export const attachCommand = (id: string): string[] => ['agentdesk-attach', checkedConnectionId(id)];
+/** Ends the client started by `attachCommand(id)`; idempotent in the runner. */
+export const detachCommand = (id: string): string[] => ['agentdesk-detach', checkedConnectionId(id)];
 
 export const sameCommand = (a: readonly string[], b: readonly string[]): boolean =>
   a.length === b.length && a.every((x, i) => x === b[i]);

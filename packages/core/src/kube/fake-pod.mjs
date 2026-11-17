@@ -1,6 +1,6 @@
 // Fake run pod for KUBE_MODE=fake (spawned detached by FakeKubeGateway.ensureJob with the Job's env).
 //
-// State dir (argv[2]): log (stdout lines), pane (the tmux screen), input (keystrokes), kill (marker), exit (exit code),
+// State dir (argv[2]): log (stdout lines), pane (the tmux screen), input (keystrokes), stop and kill (markers), exit (exit code),
 // started (marker: the container runs). Protocol, mirroring the real runner (spec §8):
 //   - log `agentdesk: checkout <sha>`, `plugins begin`, `plugins end`, the setup markers (`setup skipped (no script)`, or
 //     `setup begin` + `setup passed` | `setup failed exit=1` when SETUP_SCRIPT contains `--fake-setup-fail`; the script is
@@ -17,8 +17,12 @@
 //     `session-started` marker there and mirrors the pane to `pane`; RUN_MODE=resume with no marker logs
 //     `agentdesk: resume failed (no saved session)` and exits 79, otherwise logs `agentdesk: session resumed`, replays
 //     the saved pane and waits for input (no checkout, plugins, setup or first turn), like the real runner;
-//   - on `kill`: log the scrollback (begin marker, pane lines, end marker), write `exit` 0 and exit.
-//   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback);
+//   - on `stop` (the worker's `agentdesk-end`): log the scrollback, then the runner's end line
+//     `agentdesk: session ended reason=stop_request code=0`, write `exit` 0 and exit;
+//   - on `kill` (the old `tmux kill-session` fallback): log the scrollback (begin marker, pane lines, end marker), write
+//     `exit` 0 and exit, with no end line.
+//   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback, then the runner's end line
+//     `agentdesk: session ended reason=agent_exit code=3`, so the workflow sees a crashed agent, not a lost pod);
 //     `--fake-pending`: never start (the pod stays Pending) until killed.
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -45,13 +49,14 @@ const pane = (text) => {
 };
 
 let finished = false;
-function finish(code) {
+function finish(code, endReason) {
   if (finished) return;
   finished = true;
   log('agentdesk: final scrollback begin');
   const screen = existsSync(file('pane')) ? readFileSync(file('pane'), 'utf8') : '';
   for (const line of screen.split(/\r?\n/)) if (line.length > 0) log(line);
   log('agentdesk: final scrollback end');
+  if (endReason) log(`agentdesk: session ended reason=${endReason} code=${code}`);
   writeFileSync(file('exit'), String(code));
   process.exit(code);
 }
@@ -118,7 +123,7 @@ if (prompt.includes('--fake-pending')) {
   const endTurn = () => {
     turnTimer = null;
     log(endLine);
-    if (fail) return finish(3);
+    if (fail) return finish(3, 'agent_exit');
     if (queued > 0) {
       queued -= 1;
       scheduleTurn();
@@ -144,6 +149,7 @@ if (prompt.includes('--fake-pending')) {
   let pending = '';
   const decoder = new StringDecoder('utf8'); // a multi-byte character may straddle two reads
   setInterval(() => {
+    if (existsSync(file('stop'))) return finish(0, 'stop_request');
     if (existsSync(file('kill'))) return finish(0);
     if (expired()) return finish(0);
     if (!existsSync(file('input'))) return;

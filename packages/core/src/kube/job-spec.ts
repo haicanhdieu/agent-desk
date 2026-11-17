@@ -62,6 +62,9 @@ export const REPO_URL_KEY = 'REPO_CLONE_URL';
  * rotate it in the running pod (ADR 0021). The kubelet refreshes the mounted file; a container's env never changes.
  */
 export const WORKSPACE_TOKEN_KEY = 'workspace-token';
+/** In-memory dir for the runner's terminal pid files (`agentdesk-attach` / `agentdesk-detach`). */
+export const RUN_DIR = '/run/agentdesk';
+const RUN_VOLUME = 'agentdesk-run';
 const TOKEN_VOLUME = 'workspace-token';
 const TOKEN_DIR = '/var/run/agentdesk/workspace-token';
 const TOKEN_FILE = 'token';
@@ -195,6 +198,7 @@ function podJob(o: {
               volumeMounts: [
                 { name: 'workspace', mountPath: '/workspace' },
                 { name: TOKEN_VOLUME, mountPath: TOKEN_DIR, readOnly: true },
+                { name: RUN_VOLUME, mountPath: RUN_DIR },
               ],
             },
           ],
@@ -213,6 +217,7 @@ function podJob(o: {
                 defaultMode: TOKEN_FILE_MODE,
               },
             },
+            { name: RUN_VOLUME, emptyDir: { medium: 'Memory', sizeLimit: '1Mi' } },
           ],
         },
       },

@@ -223,6 +223,36 @@ describe('run events stream', () => {
     }
   });
 
+  it('sends a status frame when only sessionEndingAt or pauseReason changes, and not for an identical wake-up', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject, 'idle');
+    const s = await open(`/api/runs/${runId}/events`, alice);
+    const statuses = (): RunStatusEvent[] =>
+      ofType(s.messages, 'status').map((x) => RunStatusEvent.parse(JSON.parse(x.data)));
+    // Like the worker's endSession / parkRun: a column write plus a NOTIFY, no new run_event.
+    const write = (set: { sessionEndingAt?: Date | null; pauseReason?: string | null }): Promise<void> =>
+      withOrg(t.db, aliceOrg, async (tx) => {
+        await tx.update(runs).set(set).where(eq(runs.id, runId));
+        await notifyRunStatus(tx, { orgId: aliceOrg, runId, seq: 0 });
+      });
+    try {
+      await s.waitFor((m) => ofType(m, 'status').length >= 1);
+      const endingAt = new Date('2026-11-16T10:00:00.000Z');
+      await write({ sessionEndingAt: endingAt });
+      await s.waitFor((m) => ofType(m, 'status').length >= 2);
+      expect(statuses().at(-1)?.sessionEndingAt).toBe(endingAt.toISOString());
+      await write({ sessionEndingAt: endingAt }); // identical: deduped
+      await write({ pauseReason: 'idle_timeout' });
+      await s.waitFor((m) => ofType(m, 'status').length >= 3);
+      expect(statuses().map((x) => [x.sessionEndingAt, x.pauseReason])).toEqual([
+        [null, null],
+        [endingAt.toISOString(), null],
+        [endingAt.toISOString(), 'idle_timeout'],
+      ]);
+    } finally {
+      s.abort();
+    }
+  });
+
   it('closes the stream after a final status', async () => {
     const runId = await insertRun(aliceOrg, aliceProject);
     const s = await open(`/api/runs/${runId}/events`, alice);

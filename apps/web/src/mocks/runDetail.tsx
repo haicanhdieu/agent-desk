@@ -113,7 +113,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
         here: true,
       },
     ],
-    idle: { since: '14:13:58', endsAt: '14:26', slotNote: 'It holds 1 of 2 slots. Run 63 is queued behind it.' },
+    idle: { since: '14:13:58', endsAt: '14:44', slotNote: 'It holds 1 of 2 slots. Run 63 is queued behind it.' },
     connection: { state: 'live', label: 'Live, attached as kim-hale' },
     termSize: '132×44',
   },
@@ -122,7 +122,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     run: {
       ...runsById[62],
       status: 'done',
-      statusNote: 'Done 3m ago. Auto-finish after 10m unattended',
+      statusNote: 'Done 3m ago. Auto-finish after 30m unattended',
     },
     elapsed: '4:51',
     rule: RULE_REVIEW,
@@ -390,13 +390,13 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     lifecycle: [
       { at: '14:09:07', text: 'Comment received, rule matched' },
       { at: '14:13:58', text: 'Needs you' },
-      { at: '14:24:00', text: 'Stopped after 10 minutes with no one attached; session saved' },
+      { at: '14:43:58', text: 'Stopped after 30 minutes with no one attached; session saved' },
     ],
     agentNote: 'Should the export include voided invoices?',
     session: {
       state: 'paused',
-      headline: 'Can be resumed for 5 days',
-      detail: 'Paused 12 min ago after no one was attached',
+      headline: 'Paused: waiting for your answer. Can be resumed for 5 days.',
+      detail: 'Paused 12 min ago, after 30 min with nobody attached',
     },
     connection: { state: 'ended', label: 'Paused' },
   },
@@ -426,7 +426,7 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     ],
     session: {
       state: 'expired',
-      headline: 'Nobody resumed this run in time. The saved session was deleted.',
+      headline: 'Nobody resumed this run within 7 days. The saved session was deleted.',
     },
     connection: { state: 'ended', label: 'Ended' },
   },

@@ -92,6 +92,20 @@
       "when": 1794781000933,
       "tag": "0012_rule_custom_prompt",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794825621416,
+      "tag": "0013_run_session_ending",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794828201265,
+      "tag": "0014_run_pause_reason_agent_crashed",
+      "breakpoints": true
     }
   ]
 }

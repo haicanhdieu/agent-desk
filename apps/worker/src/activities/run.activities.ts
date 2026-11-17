@@ -1,4 +1,5 @@
-import type { RunStatus } from '@agentdesk/contracts';
+import type { PauseReason, RunStatus } from '@agentdesk/contracts';
+import type { EndReason } from '@agentdesk/core';
 import type { TokenRefreshPlan } from '../workflows/token-refresh';
 import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activity';
 
@@ -25,8 +26,12 @@ export interface RunContext {
   timeoutSeconds: number;
   /** The project's `max_concurrent_runs`; seeds the gate when this run starts it. */
   maxConcurrentRuns: number;
-  /** Idle end, seconds. Normally `IDLE_END_SECONDS` (600); a field so the policy is not baked into workflow code. */
+  /** Idle end, seconds. Normally `IDLE_END_SECONDS` (1800); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
+  /** Seconds an `ending` session may take before the Job is deleted (normally `ENDING_DEADLINE_SECONDS`, 90); a test seam. */
+  endingDeadlineSeconds?: number;
+  /** Seconds an attach lease lives without a renewal (normally `TERMINAL_LEASE_TTL_SECONDS`, 300); a test seam like `idleEndSeconds`. */
+  leaseTtlSeconds?: number;
   /** Seconds between workspace-token refreshes. Normally 2700 (45 min of the token's hour); a field like `idleEndSeconds`. */
   tokenRefreshSeconds?: number;
   /** Floor of a resumed pod's allowance, seconds (default `RESUME_MIN_SECONDS`, 3600); a test seam like `idleEndSeconds`. */
@@ -79,6 +84,18 @@ export interface FollowPodLogsResult {
   agentStarted?: boolean;
   /** The setup script's exit code from the stored `setup_failed` event, the runner's 78 when it exited so without a marker; absent when setup timed out. */
   setupExitCode?: number;
+  /** The reason of the last `session_ended` line the runner printed (read from the stored event, so it survives retries). */
+  endReason?: EndReason;
+  /**
+   * After `session_started` the pod no longer exists, or ended with no exit code; `exitCode` is then -1. `endReason`
+   * may still be present (an end line stored before the pod was lost).
+   */
+  podLost?: true;
+  /**
+   * With `podLost`: why the pod is gone, as a failure text ("the run pod disappeared before it reported an exit code" or
+   * "the run pod ended (<phase>) without an exit code: <reason>"). Runs that started before `pod-lost-parks` fail with it.
+   */
+  lostText?: string;
 }
 
 /** Non-retryable `ApplicationFailure` type thrown by `followPodLogs` when the pod stays Pending for over 2 min. */
@@ -113,8 +130,15 @@ export interface RunActivities {
    * Throws a non-retryable `PodPendingTimeout` failure (message: the pod event) after 2 min Pending.
    */
   followPodLogs(ctx: RunContext, opts?: { resume?: boolean }): Promise<FollowPodLogsResult>;
-  /** `tmux kill-session -t agent` in the pod; the entrypoint then prints the scrollback and exits. */
+  /**
+   * Records `session_ending_at` (kept if already set) and execs the fixed `agentdesk-end` in the pod, which asks the
+   * entrypoint to end the session (a stop request); the entrypoint then prints the scrollback and exits. Only when that
+   * exec exits 127 (an old pod image without the script) does it run `tmux kill-session -t agent` instead. The column is
+   * cleared when the run parks or ends.
+   */
   endSession(ctx: RunContext): Promise<void>;
+  /** The ending deadline passed and the Job was deleted: appends a lifecycle event (the text says if scrollback was lost). */
+  recordEndingDeadline(ctx: RunContext, input: { scrollbackSaved: boolean; at: string }): Promise<void>;
   /** Deletes Job and Secret `run-{runId}`; missing → success. */
   deleteJob(ctx: RunContext): Promise<void>;
   /** After the pod exited on its own: make sure the Job is completed or gone (and the Secret deleted). */
@@ -124,8 +148,14 @@ export interface RunActivities {
   /**
    * Reads the agent's keep setting (defaults when the agent row is gone), writes the parked status and session in one
    * transaction, and for kind `done` applies the per-project cap by signalling `dropSession` to the oldest kept ones.
+   * Writes `pause_reason` (`idle_timeout` when absent: input scheduled by workflow code from before the reason existed) and clears `session_ending_at` (the session end is over).
+   * `resumeQueued`: a Resume was accepted while the session was ending; when this park keeps nothing it appends a
+   * `resume_failed` lifecycle event (fixed text) so the run says why the resume did not run.
    */
-  parkRun(ctx: RunContext, input: { kind: ParkKind; at: string }): Promise<ParkResult>;
+  parkRun(
+    ctx: RunContext,
+    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean },
+  ): Promise<ParkResult>;
   /**
    * `expired`: paused → status expired; succeeded → clears session_expires_at and notifies. `dropped`: same for
    * succeeded; a paused run is never dropped.

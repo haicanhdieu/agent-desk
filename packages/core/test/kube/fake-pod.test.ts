@@ -222,7 +222,11 @@ describe('fake-pod.mjs', () => {
       const lines = logLines();
       expect(lines).toContain(NEEDS_INPUT);
       expect(lines.indexOf('agentdesk: final scrollback begin')).toBeGreaterThan(lines.indexOf(NEEDS_INPUT));
-      expect(lines.at(-1)).toBe('agentdesk: final scrollback end');
+      // The runner's end line follows the scrollback: a crashed agent, not a lost pod.
+      expect(lines.slice(-2)).toEqual([
+        'agentdesk: final scrollback end',
+        'agentdesk: session ended reason=agent_exit code=3',
+      ]);
     });
   });
 
@@ -314,6 +318,17 @@ describe('fake-pod.mjs', () => {
         ]),
       );
       expect(lines.at(-1)).toBe('agentdesk: final scrollback end');
+    });
+
+    it('a stop marker logs the scrollback, then the runner end line reason=stop_request code=0, and exits 0', async () => {
+      await boot({ PROMPT: 'hi' });
+      writeFileSync(join(dir, 'stop'), '');
+      expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
+      expect(read('exit')).toBe('0');
+      const lines = logLines();
+      expect(lines.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+      expect(lines.at(-2)).toBe('agentdesk: final scrollback end');
+      expect(lines).toContain('> hi');
     });
 
     it('exits 0 after the max lifetime', async () => {

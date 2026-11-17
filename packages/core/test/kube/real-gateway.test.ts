@@ -351,6 +351,65 @@ describe('RealKubeGateway', () => {
     expect(codes).toEqual([7]);
   });
 
+  it('exec status "executable file not found" → close code 127 (EXEC_NOT_FOUND)', async () => {
+    // Hand-written from the runc (containerd) error text; not recorded from a real cluster.
+    const m = mocks();
+    const s = await m.gw.exec('p', ['agentdesk-attach', '123e4567-e89b-42d3-a456-426614174000'], { tty: true });
+    const codes: number[] = [];
+    s.onClose((c) => codes.push(c));
+    m.emit(
+      3,
+      JSON.stringify({
+        status: 'Failure',
+        message:
+          'Internal error occurred: error executing command in container: failed to exec in container: failed to start exec: OCI runtime exec failed: exec failed: unable to start container process: exec: "agentdesk-attach": executable file not found in $PATH: unknown',
+        reason: 'InternalError',
+        code: 500,
+      }),
+    );
+    m.closeSocket();
+    expect(codes).toEqual([127]);
+  });
+
+  it('exec status with the crun/CRI-O wording (the file name sits inside the phrase) → close code 127', async () => {
+    const m = mocks();
+    const s = await m.gw.exec('p', ['agentdesk-attach'], { tty: true });
+    const codes: number[] = [];
+    s.onClose((c) => codes.push(c));
+    m.emit(
+      3,
+      JSON.stringify({
+        status: 'Failure',
+        message:
+          'command terminated with non-zero exit code: error executing command in container: executable file `agentdesk-attach` not found in $PATH: No such file or directory: OCI runtime attempted to invoke a command that was not found',
+        reason: 'InternalError',
+        code: 500,
+      }),
+    );
+    m.closeSocket();
+    expect(codes).toEqual([127]);
+  });
+
+  it('exec status with an ExitCode cause of 127 → close code 127', async () => {
+    const m = mocks();
+    const s = await m.gw.exec('p', ['x'], { tty: false });
+    const codes: number[] = [];
+    s.onClose((c) => codes.push(c));
+    m.emit(3, JSON.stringify({ status: 'Failure', details: { causes: [{ reason: 'ExitCode', message: '127' }] } }));
+    m.closeSocket();
+    expect(codes).toEqual([127]);
+  });
+
+  it('exec status failure without an ExitCode cause or a not-found message → close code 1', async () => {
+    const m = mocks();
+    const s = await m.gw.exec('p', ['x'], { tty: false });
+    const codes: number[] = [];
+    s.onClose((c) => codes.push(c));
+    m.emit(3, JSON.stringify({ status: 'Failure', message: 'boom', reason: 'InternalError' }));
+    m.closeSocket();
+    expect(codes).toEqual([1]);
+  });
+
   it('exec status Success → close code 0', async () => {
     const m = mocks();
     const s = await m.gw.exec('p', ['tmux', 'kill-session', '-t', 'agent'], { tty: false });

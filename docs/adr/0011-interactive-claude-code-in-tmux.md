@@ -1,6 +1,7 @@
 # 0011. Claude Code interactive in tmux with bypass permissions
 
 - Status: Accepted
+- Amended by [0023](0023-runner-entrypoint-owns-the-end-of-a-run-pod.md) (the entrypoint owns the end of the pod)
 - Partly superseded by [0020](0020-agent-status-protocol.md) (hooks and run status)
 - Date: 2026-11-11
 - Source: Architecture (PoC) §5 (Runner image, entrypoint), §6 (approach A, Run completion and idle), §7 threat model; control plane design §8
@@ -26,8 +27,8 @@ doc refines this to an interactive session.
   `agentdesk: turn finished`; the control plane moves the run to `idle`. A
   `UserPromptSubmit` hook prints `agentdesk: turn started`; that line, not
   terminal input, moves an idle run back to `running`.
-- The run ends on Finish, after 10 min idle with no terminal attached, on cancel
-  or on the hard timeout. Ending execs `tmux kill-session -t agent`; the
+- The run ends on Finish, after 10 min idle with no terminal attached (now 30 min, 0023 rollout), on cancel
+  or on the hard timeout. Ending execs the fixed `agentdesk-end` (0023; it was `tmux kill-session -t agent`); the
   entrypoint prints the final scrollback between marker lines and exits with the
   agent's status.
 - Skills are discovered natively from `.claude/skills/` in the cloned repo.

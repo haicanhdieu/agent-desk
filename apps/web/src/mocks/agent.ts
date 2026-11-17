@@ -13,7 +13,7 @@ export const agentSettings: AgentSettings = {
   timeoutMinutes: 30,
   pausedKeepMinutes: 10080,
   doneKeepMinutes: 1440,
-  idleEndMinutes: 10,
+  idleEndMinutes: 30,
   maxConcurrent: 2,
   maxRunsPerTicket: 10,
 };

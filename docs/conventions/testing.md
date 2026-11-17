@@ -6,7 +6,7 @@ Tests are the contract between the parallel backend and frontend streams and the
 **Applies to:** every package: `apps/api`, `apps/worker`, `apps/web`, `packages/contracts`, `packages/core`, `packages/db`. Source of truth: §9 of `docs/superpowers/specs/2026-11-12-control-plane-design.md`, §7 of `docs/superpowers/specs/2026-11-12-frontend-design.md`, and both localhost plans.
 Related: [architecture.md](architecture.md), [backend.md](backend.md), [database.md](database.md), [frontend.md](frontend.md), [security.md](security.md), [typescript.md](typescript.md), [git-workflow.md](git-workflow.md), [code-review-checklist.md](code-review-checklist.md).
 
-> Status: Vitest runs in every package; Testcontainers and `@temporalio/testing` are in use, while MSW and Playwright e2e are still arriving with the frontend plans. The `ci` workflow (`.github/workflows/ci.yml`) runs format, lint, typecheck, unit and sharded integration tests plus a coverage gate on every PR; see §9 and §10.
+> Status: Vitest runs in every package; Testcontainers and `@temporalio/testing` are in use, MSW and Playwright e2e (mock and local) run too; every implementation must add and run its own e2e (§1). The `ci` workflow (`.github/workflows/ci.yml`) runs format, lint, typecheck, unit and sharded integration tests plus a coverage gate on every PR; see §9 and §10.
 
 ## 1. Test pyramid per layer
 
@@ -22,9 +22,10 @@ Related: [architecture.md](architecture.md), [backend.md](backend.md), [database
 | Storybook                  | `stories.smoke.test.tsx` (render + axe), `coverage.test.ts`, `cssModules.test.ts`                                 | `apps/web/src/test/`                            | Every story renders with no axe violation; every prototype board has a story; every CSS module class exists                                                           |
 | Routes (web)               | Testing Library + MSW (node) + memory history via `renderRoute()`                                                 | `apps/web/src/features/<area>/*.route.test.tsx` | Route renders its screen, auth redirect, 404/403/5xx boundaries, form errors, optimistic rollback (planned with `app/`)                                               |
 | Visual parity              | `pnpm parity` (Playwright screenshots)                                                                            | `apps/web/scripts/parity.mjs`                   | Storybook vs prototype boards, reviewed by hand; see [frontend.md](frontend.md) §8                                                                                    |
-| E2E                        | Playwright (`test:e2e:mock`), `pnpm test:e2e:local`                                                               | `apps/web/e2e/**`, `scripts/e2e-local.ts`       | Comment → run → terminal → finish against MSW, then the real local stack (planned)                                                                                    |
+| E2E                        | Playwright (`test:e2e:mock`), `pnpm test:e2e:local`                                                               | `apps/web/e2e/**`, `scripts/e2e-local.ts`       | Comment → run → terminal → finish against MSW, then the real local stack, plus the specs each change adds                                                             |
 
-- **MUST** put each behaviour at the lowest layer that can prove it. Why: unit tests are fast and pinpoint failures; e2e is a smoke check, not a coverage tool.
+- **MUST** put each behaviour at the lowest layer that can prove it. Why: unit tests are fast and pinpoint failures; e2e does not replace them and is not a coverage tool.
+- **MUST** add e2e specs for each user-visible or cross-component requirement an implementation adds or changes, and run those specs (only them, not the full suite) before saying done. Why: lower layers prove the parts, only e2e proves they work together. Never skip, bypass or defer them to CI. If the stack cannot start, say so in the PR and list the specs written but not run. A behaviour e2e cannot prove (a multi-hour timer) needs a stated reason and the lowest layer that proves it. Commands: [tests-and-e2e.md](../runbooks/tests-and-e2e.md) §3a.
 - **MUST** add a database integration test for every new table with `org_id`, proving org A cannot read or write org B's rows. Why: RLS is our tenancy boundary (see [database.md](database.md), [security.md](security.md)).
 - **MUST** assert every API response with `expectContract`, and every MSW fixture with its contracts schema (`mocks/msw/contract.test.ts`). Why: both sides drift independently; contract tests catch it.
 - **MUST** test workflows in the time-skipping environment, never with real sleeps, and add a replay test when changing workflow code. Why: Temporal determinism bugs only show on replay.
@@ -76,7 +77,7 @@ describe('toRunSummary', () => {
 
 - **MUST** inject time: backend code takes `Clock` (`packages/core/src/clock.ts`), web mappers take `now: Date`. **MUST NOT** call `new Date()` / `Date.now()` in logic under test. Why: tests pin exact durations and relative labels.
 - **MUST** use `vi.useFakeTimers()` + `vi.setSystemTime()` for timers (toast auto-dismiss, back-off, 30 s `useNow` tick, 60 s hidden-tab close) and restore with `vi.useRealTimers()` in `afterEach`.
-- **MUST** use the Temporal time-skipping env for workflow timers (idle 10 min, timeouts, sweep).
+- **MUST** use the Temporal time-skipping env for workflow timers (idle 30 min, timeouts, sweep).
 - **MUST NOT** assert on generated UUIDs or `seq` values you did not choose. Seed ids in fixtures, or assert with `expect.any(String)` / relative order.
 - **MUST** pin the time zone for anything that formats local time (`startedAt` "HH:mm"): `TZ=UTC` in the test script (planned) or pass a formatter. Why: CI and laptops differ.
 - **MUST NOT** use `Math.random()` in assertions; e2e handles that need uniqueness (`e2e-<rand>`) are fine.
@@ -155,7 +156,7 @@ CI measures line and branch coverage (vitest v8) from unit and integration tests
 
 ## Checklist
 
-- [ ] Behaviour tested at the lowest layer that proves it; e2e only for the flow.
+- [ ] Behaviour tested at the lowest layer that proves it; e2e written and run for each user-visible or cross-component requirement.
 - [ ] Bug fix includes a test that failed before the fix.
 - [ ] New `org_id` table has an RLS leak test; integration tests run as `agentdesk_app` on real Postgres.
 - [ ] API responses go through `expectContract`; MSW fixtures parse with contracts schemas.

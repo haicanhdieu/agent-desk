@@ -26,7 +26,49 @@ describe('plugin and setup config', () => {
     expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
     expect(c.RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
     expect(c.RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(10);
-    expect(c.RUN_IDLE_END_SECONDS).toBe(600);
+    expect(c.RUN_IDLE_END_SECONDS).toBe(1800);
+    expect(c.RUN_ENDING_DEADLINE_SECONDS).toBe(90);
+  });
+  it('RUN_ENDING_DEADLINE_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
+    expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '5' }).RUN_ENDING_DEADLINE_SECONDS).toBe(5);
+    expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '' }).RUN_ENDING_DEADLINE_SECONDS).toBe(90);
+    expect(() => parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '0' })).toThrow('RUN_ENDING_DEADLINE_SECONDS');
+  });
+  it('the terminal lease settings are test seams: blank is the default, below the minimum is refused', () => {
+    const c = parseConfig(base);
+    expect(c.RUN_LEASE_TTL_SECONDS).toBe(300);
+    expect(c.TERMINAL_LEASE_INTERVAL_MS).toBe(120_000);
+    expect(parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '5', TERMINAL_LEASE_INTERVAL_MS: '50' })).toMatchObject({
+      RUN_LEASE_TTL_SECONDS: 5,
+      TERMINAL_LEASE_INTERVAL_MS: 50,
+    });
+    expect(parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '', TERMINAL_LEASE_INTERVAL_MS: '' })).toMatchObject({
+      RUN_LEASE_TTL_SECONDS: 300,
+      TERMINAL_LEASE_INTERVAL_MS: 120_000,
+    });
+    expect(() => parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '0' })).toThrow('RUN_LEASE_TTL_SECONDS');
+    expect(() => parseConfig({ ...base, TERMINAL_LEASE_INTERVAL_MS: '1' })).toThrow('TERMINAL_LEASE_INTERVAL_MS');
+  });
+  it('TERMINAL_LEASE_INTERVAL_MS is capped at what a timer can hold (2^31-1 ms)', () => {
+    expect(
+      parseConfig({ ...base, TERMINAL_LEASE_INTERVAL_MS: '2147483647', RUN_LEASE_TTL_SECONDS: '9999999' }),
+    ).toMatchObject({
+      TERMINAL_LEASE_INTERVAL_MS: 2147483647,
+    });
+    expect(() => parseConfig({ ...base, TERMINAL_LEASE_INTERVAL_MS: '2147483648' })).toThrow(
+      'TERMINAL_LEASE_INTERVAL_MS',
+    );
+  });
+  it('the lease interval must leave room for a missed tick: at most half of RUN_LEASE_TTL_SECONDS', () => {
+    expect(
+      parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '10', TERMINAL_LEASE_INTERVAL_MS: '5000' })
+        .TERMINAL_LEASE_INTERVAL_MS,
+    ).toBe(5000);
+    expect(() => parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '10', TERMINAL_LEASE_INTERVAL_MS: '5001' })).toThrow(
+      'TERMINAL_LEASE_INTERVAL_MS',
+    );
+    // The default interval (120 s) does not fit a short lease time set alone.
+    expect(() => parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '60' })).toThrow('TERMINAL_LEASE_INTERVAL_MS');
   });
   it('HOST defaults to all interfaces, can be narrowed, and blank falls back to the default', () => {
     expect(parseConfig(base).HOST).toBe('0.0.0.0');
@@ -35,7 +77,7 @@ describe('plugin and setup config', () => {
   });
   it('RUN_IDLE_END_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
     expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '5' }).RUN_IDLE_END_SECONDS).toBe(5);
-    expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '' }).RUN_IDLE_END_SECONDS).toBe(600);
+    expect(parseConfig({ ...base, RUN_IDLE_END_SECONDS: '' }).RUN_IDLE_END_SECONDS).toBe(1800);
     expect(() => parseConfig({ ...base, RUN_IDLE_END_SECONDS: '0' })).toThrow('RUN_IDLE_END_SECONDS');
   });
   it('parses volume settings; blank storage class is unset, zero kept sessions is allowed', () => {

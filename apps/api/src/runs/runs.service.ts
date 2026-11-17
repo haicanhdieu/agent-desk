@@ -12,6 +12,7 @@ import {
   RunStatus,
   TicketKind,
   TriggerSource,
+  PauseReason,
   WaitingOn,
   canResume,
   type IgnoredEventDto,
@@ -146,6 +147,8 @@ export class RunsService {
       agentNote: row.agentNote,
       pausedAt: row.pausedAt?.toISOString() ?? null,
       sessionExpiresAt: row.sessionExpiresAt?.toISOString() ?? null,
+      sessionEndingAt: row.sessionEndingAt?.toISOString() ?? null,
+      pauseReason: row.pauseReason === null ? null : PauseReason.parse(row.pauseReason),
     };
   }
 
@@ -339,7 +342,11 @@ export class RunsService {
     const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
     if (
       !canResume(
-        { status: RunStatus.parse(run.status), sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null },
+        {
+          status: RunStatus.parse(run.status),
+          sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null,
+          sessionEndingAt: run.sessionEndingAt?.toISOString() ?? null,
+        },
         new Date(),
       )
     )

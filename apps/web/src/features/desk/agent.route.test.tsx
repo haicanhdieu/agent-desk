@@ -231,9 +231,9 @@ describe('desk agent route', () => {
     const { user } = await openPage();
     const idle = field('End idle runs after');
     expect(idle).toHaveAttribute('readonly');
-    expect(idle).toHaveValue('10');
+    expect(idle).toHaveValue('30');
     await user.type(idle, '5');
-    expect(idle).toHaveValue('10');
+    expect(idle).toHaveValue('30');
     await user.click(screen.getByRole('button', { name: 'Save limits' }));
     await sleep(50);
     expect(sent).toHaveLength(0);

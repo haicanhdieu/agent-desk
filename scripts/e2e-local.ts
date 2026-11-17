@@ -3,7 +3,7 @@
  * AUTH_DEV_LOGIN=true). Three independent scenarios, each in a fresh org (new dev-login handle):
  *   1. webhook: comment delivered as a webhook -> run idle -> terminal echo -> finish -> succeeded + start/finish comments
  *   2. polling: comment picked up by the poll Schedule (triggered via the Temporal client) -> same assertions
- *   3. failure: comment with `--fake-fail` -> run failed + finish comment
+ *   3. crash: comment with `--fake-fail` -> agent exits 3 -> run paused (agent_crashed), volume kept, start + paused comments
  *   4. done: comment with `--fake-done` -> run done -> finish -> succeeded
  *
  * Env: E2E_BASE_URL (default http://localhost:3000); PUBLIC_ORIGIN, TEMPORAL_ADDRESS, TEMPORAL_NAMESPACE come from the
@@ -312,7 +312,7 @@ async function readRunStream(s: Setup, runId: string, ms: number): Promise<RunSt
 }
 
 /** Both outbox comments are recorded in the run log and present on the fake board for the ticket. */
-async function assertComments(s: Setup, runId: string): Promise<void> {
+async function assertComments(s: Setup, runId: string, lastKind: 'finish' | 'paused' = 'finish'): Promise<void> {
   const deadline = Date.now() + 10_000;
   for (;;) {
     const log = await s.session.json('GET', `/api/runs/${runId}/log`, RunLogResponse);
@@ -330,11 +330,11 @@ async function assertComments(s: Setup, runId: string): Promise<void> {
     );
     const onTicket = new Set(posted.filter((c) => c.ticketRef === String(s.ticketNumber)).map((c) => c.id));
     const start = ids.get('start');
-    const finish = ids.get('finish');
-    if (start && finish && onTicket.has(start) && onTicket.has(finish)) return;
+    const last = ids.get(lastKind);
+    if (start && last && onTicket.has(start) && onTicket.has(last)) return;
     assert(
       Date.now() < deadline,
-      `comments: expected start+finish on #${s.ticketNumber}, log has ${[...ids.keys()].join(',') || 'none'}, ` +
+      `comments: expected start+${lastKind} on #${s.ticketNumber}, log has ${[...ids.keys()].join(',') || 'none'}, ` +
         `board has ${onTicket.size}`,
     );
     await sleep(500);
@@ -436,11 +436,15 @@ async function failureScenario(name: string): Promise<void> {
     runId = result.runId;
     assert(runId, `webhook: no runId (outcome ${result.outcome})`);
     logStep(name, `webhook delivered, run ${runId}`);
-    const run = await waitForRun(s, runId, isFinal, IDLE_TIMEOUT_MS + FINAL_TIMEOUT_MS);
-    assert(run.status === 'failed', `run ${runId}: expected failed, got ${run.status}`);
-    logStep(name, `run #${run.number} failed (exit ${run.exitCode ?? 'null'}: ${run.failureReason ?? ''})`);
-    await assertComments(s, runId);
-    logStep(name, 'start and finish comments posted');
+    const run = await waitForRun(s, runId, (st) => st === 'paused' || isFinal(st), IDLE_TIMEOUT_MS + FINAL_TIMEOUT_MS);
+    assert(run.status === 'paused', `run ${runId}: expected paused, got ${run.status} (${run.failureReason ?? ''})`);
+    assert(
+      run.pauseReason === 'agent_crashed',
+      `run ${runId}: expected agent_crashed, got ${run.pauseReason ?? 'null'}`,
+    );
+    logStep(name, `run #${run.number} paused: the agent crashed, its work is kept`);
+    await assertComments(s, runId, 'paused');
+    logStep(name, 'start and paused comments posted');
   } finally {
     await cleanup(name, s, runId);
   }

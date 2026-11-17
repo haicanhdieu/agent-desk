@@ -29,17 +29,30 @@ import {
   sessionStarted,
   terminalAttached,
   terminalDetached,
+  terminalLease,
   turnFinished,
   type RunPhase,
 } from './signals';
 import {
+  LEASE_TTL_MS,
+  attach as attachLease,
+  count as leaseCount,
+  detach as detachLease,
+  expire as expireLeases,
+  nextExpiryMs,
+  renew as renewLeases,
+  type Leases,
+} from './attach-leases';
+import {
   cancelEffect,
+  endOutcome,
   parkKindOf,
   phaseOfParkKind,
   resumeRejection,
   sessionAllowanceSeconds,
   statusOfParkKind,
   type ParkKind,
+  type PauseReason,
 } from './park';
 import { ACTIVITY_RETRY as RETRY } from './retry';
 import { historyTooLong, refreshWaitSeconds, type TokenRefreshPlan } from './token-refresh';
@@ -47,6 +60,7 @@ import { historyTooLong, refreshWaitSeconds, type TokenRefreshPlan } from './tok
 export { TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT } from './token-refresh';
 import {
   acceptsLegacyFinish,
+  atTurnBoundary,
   finishRunRejection,
   finishRunSettled,
   idleFixStatus,
@@ -57,7 +71,13 @@ import {
 } from './agent-phase';
 
 /** Mirrors IDLE_END_SECONDS in @agentdesk/core (workflow code cannot import core); used when loadRun gives none. */
-export const IDLE_END_SECONDS_DEFAULT = 600;
+export const IDLE_END_SECONDS_DEFAULT = 1800;
+
+/** Mirrors END_REASONS / EndReason in @agentdesk/core (workflow code cannot import core); a test asserts equality. */
+export const END_REASONS = ['stop_request', 'agent_exit', 'session_gone', 'signal'] as const;
+export type EndReason = (typeof END_REASONS)[number];
+/** Mirrors ENDING_DEADLINE_SECONDS in @agentdesk/core; used when loadRun gives none. */
+export const ENDING_DEADLINE_SECONDS_DEFAULT = 90;
 /** Mirrors POD_PENDING_TIMEOUT in ../activities/run.activities (a value import would pull activity code in). */
 const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 /** Mirrors the type `createRunSecretAndJob` throws for a resume whose agent or credential is gone. */
@@ -68,6 +88,14 @@ const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
 const TOKEN_REFRESH_PATCH = 'token-refresh';
 /** Marks runs whose cleanup deletes the run volume, so a run already in `finalize` at deploy time replays unchanged. */
 const RUN_VOLUME_PATCH = 'run-volume';
+/** Marks runs whose `ending` has a deadline (then the Job is deleted), so a run already `ending` at deploy time replays unchanged. */
+const ENDING_DEADLINE_PATCH = 'ending-deadline';
+/** How long an abandoned pod's log follower may keep reading after the Job delete, to catch the SIGTERM scrollback. */
+const ABANDON_GRACE_MS = 5_000;
+/** Marks runs that park a pod that was lost or whose agent crashed, and queue a resume sent while `ending`; read once, right after `pauseResume`. */
+const POD_LOST_PATCH = 'pod-lost-parks';
+/** Marks runs whose terminal attach state is a set of expiring leases, not a counter; read once, right after `podLostParks`. */
+const ATTACH_LEASES_PATCH = 'attach-leases';
 /** Marks runs that park on idle instead of ending; evaluated once, right after `loadRun`. */
 const PAUSE_RESUME_PATCH = 'pause-resume';
 /** Plain-language reason shown on the run when its history grew too long. */
@@ -97,6 +125,10 @@ interface Pod {
   done: boolean;
   result?: FollowPodLogsResult;
   error?: unknown;
+  /** `followPodLogs` runs inside it; cancelling it stops following a pod that will not exit. */
+  scope: CancellationScope;
+  /** The ending deadline passed: the pod was deleted and `done` set without a result. */
+  abandoned: boolean;
 }
 
 interface Outcome extends RunOutcome {
@@ -121,12 +153,29 @@ const settled = proxyActivities<Pick<RunActivities, 'requestSlot' | 'createRunSe
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
 });
 
+/** Why a resume sent while the session is ending cannot be queued, or `undefined` when it can. */
+function queuedResumeRejection(
+  finishRequested: boolean,
+  alreadyQueued: boolean,
+  willPark: boolean,
+): string | undefined {
+  if (finishRequested) return 'This run is being finished';
+  if (alreadyQueued) return 'This run is already being resumed';
+  if (!willPark) return 'Only a paused run, or a finished run whose session is still kept, can be resumed';
+  return undefined;
+}
+
+/** The failure reason of a failed activity: its name, then its message, cut to `FAILURE_REASON_MAX`. */
+function activityFailureReason(activityType: string, message: string): string {
+  return `${activityType} failed: ${message}`.slice(0, FAILURE_REASON_MAX);
+}
+
 function failureReason(err: unknown): string {
   let reason: string;
   if (err instanceof ActivityFailure) {
     const cause = err.cause;
     if (cause instanceof ApplicationFailure && cause.type === POD_PENDING_TIMEOUT) reason = cause.message;
-    else reason = `${err.activityType ?? 'activity'} failed: ${cause?.message ?? err.message}`;
+    else return activityFailureReason(err.activityType ?? 'activity', cause?.message ?? err.message);
   } else if (err instanceof Error) {
     reason = err.message;
   } else {
@@ -154,7 +203,17 @@ function failureReason(err: unknown): string {
 export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> {
   const { orgId, runId } = input;
   let phase: RunPhase = 'loading';
-  let attached = 0;
+  /** Attach signals without a connection id (API pods that predate leases): a plain counter. */
+  let legacyAttached = 0;
+  /** Terminal connections by id, each with the time its lease runs out; used only with `attachLeases`. */
+  let leases: Leases = new Map();
+  /** `patched('attach-leases')`, read once right after `podLostParks`; false keeps the counter for runs that started before. */
+  let attachLeases = false;
+  let leaseTtlMs = LEASE_TTL_MS;
+  /** Terminals the workflow counts as attached: the id-less counter plus the leases that have not run out. */
+  const attached = (): number => legacyAttached + leaseCount(leases);
+  /** A signal carries an id when the API is new enough to send one; null is how JSON spells "none". */
+  const hasId = (id: string | null | undefined): id is string => id !== undefined && id !== null;
   let isGranted = false;
   let finishRequested = false;
   let resumePending = false;
@@ -171,6 +230,12 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let stopReason: 'cancelled' | 'timed_out' | undefined;
   /** `patched('pause-resume')`, read once after `loadRun`; false keeps today's behaviour for runs that started before. */
   let pauseResume = false;
+  /** `patched('ending-deadline')`, read once right after `pauseResume`. */
+  let endingDeadline = false;
+  /** `patched('pod-lost-parks')`, read once right after `endingDeadline`. */
+  let podLostParks = false;
+  /** When the session end began (workflow time); the deadline counts from it. */
+  let endingStartedMs = 0;
   /** What the run was doing when the idle timer fired; set only with `pauseResume`. */
   let parkKind: ParkKind | undefined;
   /** `dropSession` arrived for a run that is (or is about to be) parked as done. */
@@ -217,7 +282,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     body.cancel();
   };
 
-  setHandler(runState, () => ({ phase, terminalAttached: attached }));
+  setHandler(runState, () => ({ phase, terminalAttached: attached() }));
   // A `granted` that arrives after the run stopped waiting (cancelled, or already granted) changes nothing.
   setHandler(granted, () => {
     isGranted = true;
@@ -233,13 +298,21 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   // Legacy signals, kept for histories recorded before `agentState`.
   setHandler(turnFinished, () => onTurn('needs_input'));
   setHandler(resumed, () => onTurn('working'));
-  setHandler(terminalAttached, () => {
-    attached += 1;
+  // Pure decisions live in ./attach-leases. An id (malformed ones are ignored there) is a lease; no id is the old counter.
+  setHandler(terminalAttached, (connectionId?: string) => {
+    if (attachLeases && hasId(connectionId)) leases = attachLease(leases, connectionId, Date.now(), leaseTtlMs);
+    else legacyAttached += 1;
     epoch += 1;
   });
-  setHandler(terminalDetached, () => {
-    attached = Math.max(0, attached - 1);
+  setHandler(terminalDetached, (connectionId?: string) => {
+    if (attachLeases && hasId(connectionId)) leases = detachLease(leases, connectionId);
+    else legacyAttached = Math.max(0, legacyAttached - 1);
     epoch += 1;
+  });
+  // A renewal changes no count, so it does not restart the idle timer; the lease wait below re-reads the expiry.
+  setHandler(terminalLease, (connectionIds: string[]) => {
+    if (!attachLeases || !Array.isArray(connectionIds)) return;
+    leases = renewLeases(leases, connectionIds, Date.now(), leaseTtlMs);
   });
   // Legacy signal: honoured only while idle or done; a finish sent while running is dropped, not deferred.
   setHandler(finish, () => {
@@ -268,7 +341,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   setHandler(
     resumeRun,
     () => {
-      phase = 'resuming';
+      // A resume sent while the session is ending is queued: the phase stays `ending` until the pod's end is handled,
+      // and the park loop runs the resume right after the park.
+      if (phase !== 'ending') phase = 'resuming';
       resumeAccepted = true;
       resumeScope = new CancellationScope();
       resumeAbortReason = undefined;
@@ -278,6 +353,12 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       validator: () => {
         const rejection = resumeRejection(phase);
         if (rejection !== undefined) throw ApplicationFailure.nonRetryable(rejection, 'NotResumable');
+        if (phase === 'ending') {
+          // A queued resume only makes sense when the end will park the run: the idle timer began it (`parkKind` is set
+          // only then), not a person Finish.
+          const queuedRejection = queuedResumeRejection(finishRequested, resumeAccepted, parkKind !== undefined);
+          if (queuedRejection !== undefined) throw ApplicationFailure.nonRetryable(queuedRejection, 'NotResumable');
+        }
       },
     },
   );
@@ -313,6 +394,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // A run another execution already finished (a reset, or a start racing a finished run) is left alone.
     if (isFinal(c.status)) return ALREADY_FINAL;
     pauseResume = patched(PAUSE_RESUME_PATCH);
+    endingDeadline = patched(ENDING_DEADLINE_PATCH);
+    podLostParks = patched(POD_LOST_PATCH);
+    attachLeases = patched(ATTACH_LEASES_PATCH);
+    if (c.leaseTtlSeconds !== undefined) leaseTtlMs = c.leaseTtlSeconds * 1000;
 
     // 1. Acquire a slot.
     phase = 'waiting_slot';
@@ -361,10 +446,13 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         }
         if (!ending && finishRequested) {
           ending = true;
+          endingStartedMs = Date.now();
           phase = 'ending';
           await act.endSession(c);
           continue;
         }
+        // An id nobody renewed stops counting, even if no timer was running when it ran out (the run was busy).
+        if (attachLeases) leases = expireLeases(leases, Date.now());
         const seen = epoch;
         // Every term must turn false once handled, or condition() resolves at once and the loop spins.
         const wake = () =>
@@ -376,21 +464,36 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           idleFixPending;
         // phase is read through a call: signal handlers change it between awaits, which TS narrowing cannot see.
         const p = currentPhase();
-        if (idleTimerApplies(p, attached, ending)) {
+        if (idleTimerApplies(p, attached(), ending)) {
           if (!(await condition(wake, idleMs))) {
             // Recorded before `ending`: once the session end has begun nothing may bring the run back to `running`.
             if (pauseResume) parkKind = parkKindOf(currentPhase());
             ending = true;
+            endingStartedMs = Date.now();
             phase = 'ending';
             await act.endSession(c);
           }
+        } else if (ending && endingDeadline) {
+          const left =
+            endingStartedMs + (c.endingDeadlineSeconds ?? ENDING_DEADLINE_SECONDS_DEFAULT) * 1000 - Date.now();
+          if (left <= 0 || !(await condition(wake, left))) await abandonPod(c, current);
+        } else if (attachLeases && !ending && leases.size > 0 && atTurnBoundary(p)) {
+          // Only where the idle timer would otherwise run: while the agent works no timer is needed (each costs history
+          // events), and the `expireLeases` above drops ids that ran out the next time the loop runs.
+          // Wake when the earliest lease runs out (its id may have been renewed meanwhile: the next pass re-reads it).
+          const left = (nextExpiryMs(leases) ?? 0) - Date.now();
+          await condition(wake, left);
         } else {
           await condition(wake);
         }
       }
       if (current.error !== undefined) throw current.error;
-      if (current.result === undefined) throw ApplicationFailure.nonRetryable('followPodLogs returned nothing');
-      const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted } = current.result;
+      if (current.result === undefined && !current.abandoned) {
+        throw ApplicationFailure.nonRetryable('followPodLogs returned nothing');
+      }
+      // An abandoned pod has no result: it is treated as exited while `ending`, so it parks or succeeds below.
+      const { exitCode, scrollbackTail, failureStage, setupExitCode, agentStarted, endReason, podLost, lostText } =
+        current.result ?? {};
       // The runner stopped the run before the agent started: report the setup failure. The run's exit code is the setup
       // script's (the runner's own 78 only when setup timed out or the script's code is unknown).
       if (failureStage === 'setup') {
@@ -402,8 +505,35 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           podExited: true,
         };
       }
+      // Only a pod that reported its agent started is parked or judged by `endOutcome`; a pod that died earlier (or a
+      // result without the field) is a failure below.
+      if (podLostParks && agentStarted === true) {
+        const decision = endOutcome({
+          ending,
+          finishRequested,
+          phase: currentPhase(),
+          ...(parkKind !== undefined ? { parkKind } : {}),
+          ...(endReason !== undefined ? { endReason } : {}),
+          podLost: podLost === true,
+          exitCode: exitCode ?? -1,
+        });
+        if (decision.kind === 'park') {
+          // Recorded so a `dropSession` and the cancel rules treat the parked run like any other.
+          parkKind = decision.parkKind;
+          const parked = await park(c, decision.parkKind, decision.reason);
+          if ('pod' in parked) {
+            pod = parked.pod;
+            continue;
+          }
+          return parked;
+        }
+        if (decision.kind === 'succeeded') {
+          return { status: 'succeeded', ...(exitCode !== undefined ? { exitCode } : {}), podExited: true };
+        }
+        // `failed` falls through to the failure below.
+      }
       if (pauseResume && ending && parkKind !== undefined && !finishRequested) {
-        const parked = await park(c, parkKind);
+        const parked = await park(c, parkKind, 'idle_timeout');
         if ('pod' in parked) {
           pod = parked.pod;
           continue;
@@ -411,7 +541,22 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         return parked;
       }
       // Ended by us (finish or idle end): the session was idle, so the run succeeded whatever tmux's exit status was.
-      if (ending || exitCode === 0) return { status: 'succeeded', exitCode, podExited: true };
+      if (ending || exitCode === 0) {
+        return { status: 'succeeded', ...(exitCode !== undefined ? { exitCode } : {}), podExited: true };
+      }
+      // A run that started before `pod-lost-parks`: `followPodLogs` used to throw when the pod vanished after the agent
+      // started, so the catch below wrote `followPodLogs failed: <text>` with no exit code, no stage and no scrollback.
+      // Keep exactly that (the result now carries `podLost` and the same text in `lostText`; `exitCode` is a placeholder -1).
+      if (podLost === true && !podLostParks) {
+        return {
+          status: 'failed',
+          failureReason: activityFailureReason(
+            'followPodLogs',
+            lostText ?? 'the run pod disappeared before it reported an exit code',
+          ),
+          podExited: false,
+        };
+      }
       return {
         status: 'failed',
         exitCode,
@@ -423,6 +568,36 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         podExited: true,
         ...(scrollbackTail !== undefined ? { scrollbackTail: scrollbackTail.slice(-SCROLLBACK_TAIL_MAX) } : {}),
       };
+    }
+  }
+
+  /**
+   * The ending deadline passed with the pod still running: delete the Job (the fallback that always ends it), stop
+   * following its logs, say so in the run's events, and let the loop carry on as if the pod had exited.
+   */
+  async function abandonPod(c: RunContext, pod: Pod): Promise<void> {
+    // A pod that exited on its own needs no abandon.
+    if (pod.done) return;
+    // Before the delete: while the Job is being killed the log follower may reject with "pod disappeared", and that
+    // must not fail the run.
+    pod.abandoned = true;
+    // If deleteJob itself fails the run fails: the Job may still exist, so nothing may report it parked or done.
+    await act.deleteJob(c);
+    // The delete sends SIGTERM and the runner's trap prints the final scrollback: keep following for a short grace
+    // (shorter than Kubernetes' default 30 s) so it is read, then stop following whatever is left.
+    if (!(await condition(() => pod.done, ABANDON_GRACE_MS))) {
+      pod.scope.cancel();
+      pod.done = true;
+    }
+    try {
+      await act.recordEndingDeadline(c, {
+        scrollbackSaved: pod.result?.scrollbackTail !== undefined,
+        at: new Date().toISOString(),
+      });
+    } catch (err) {
+      // A cancel that lands while the event is being written wins; any other failure is informational only (the Job
+      // is already gone, so the run must still park or succeed).
+      if (isCancellation(err)) throw err;
     }
   }
 
@@ -449,17 +624,20 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       heartbeatTimeout: '60s',
       retry: { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] },
     });
-    const pod: Pod = { done: false };
-    (resume ? logsActs.followPodLogs(c, { resume: true }) : logsActs.followPodLogs(c)).then(
-      (r) => {
-        pod.result = r;
-        pod.done = true;
-      },
-      (err: unknown) => {
-        pod.error = err;
-        pod.done = true;
-      },
-    );
+    const pod: Pod = { done: false, scope: new CancellationScope(), abandoned: false };
+    pod.scope
+      .run(() => (resume ? logsActs.followPodLogs(c, { resume: true }) : logsActs.followPodLogs(c)))
+      .then(
+        (r) => {
+          pod.result = r;
+          pod.done = true;
+        },
+        (err: unknown) => {
+          // Cancelling the scope of an abandoned pod is not a failure of the run.
+          if (!pod.abandoned) pod.error = err;
+          pod.done = true;
+        },
+      );
 
     // 4b. Keep the workspace token fresh for as long as the pod runs (ADR 0021). A workflow that started before this
     // existed replays without it.
@@ -475,16 +653,23 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
    * `ensureJob`, so the resume would follow the old exited pod) and free the slot, keep the volume, then wait in `parked` for a finish, a cancel,
    * a drop or the expiry, or for a resume, which returns the resumed pod to the main loop.
    */
-  async function park(c: RunContext, kind: ParkKind): Promise<Outcome | { pod: Pod }> {
+  async function park(c: RunContext, kind: ParkKind, reason: PauseReason): Promise<Outcome | { pod: Pod }> {
     hardTimer.cancel();
     usedSeconds += Math.max(0, Math.floor((Date.now() - podStartedMs) / 1000));
-    attached = 0;
+    legacyAttached = 0;
+    leases = new Map();
     sessionUp = false;
     log.info('run parked', { usedSeconds });
     await act.deleteJob(c);
     slotRequested = false;
     await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
-    const parked = await act.parkRun(c, { kind, at: new Date().toISOString() });
+    // `resumeAccepted` here is a Resume queued behind the ending: the activity records it if nothing is kept to resume from.
+    const parked = await act.parkRun(c, {
+      kind,
+      at: new Date().toISOString(),
+      reason,
+      ...(resumeAccepted ? { resumeQueued: true } : {}),
+    });
     if (kind === 'needs_input') await act.postComment(c, 'paused');
     else await act.postComment(c, 'finish', { status: 'succeeded' });
     // `ending` described the pod's session end, which is over; a person Finish sets it again.
@@ -499,6 +684,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     for (;;) {
       if (resumeAccepted) {
         resumeAccepted = false;
+        // A resume queued behind the ending left the phase alone; from here it is under way.
+        phase = 'resuming';
         // The expiry timer is off while the resume runs; a failed attempt re-arms it with the same deadline.
         const resumedPod = await resumeAttempt(c, kind, expiresAt);
         if (resumedPod !== undefined) return { pod: resumedPod };
@@ -571,7 +758,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       resumeScope = undefined;
       dropRequested = false;
       parkKind = undefined;
-      attached = 0;
+      legacyAttached = 0;
+      leases = new Map();
       wroteRunningSinceTurn = false;
       resumePending = false;
       idleFixPending = false;

@@ -200,6 +200,28 @@ test('a --fake-done run shows Done and Finish closes it as succeeded', async ({ 
   await expect(header.getByText('Succeeded', { exact: true })).toBeVisible({ timeout: 30_000 });
 });
 
+test('a --fake-fail run pauses with "agent crashed (exit code 3)" and offers Resume', async ({ page }) => {
+  const { handle, projectId } = await signInAndCreateProject(page);
+  const runId = await commentOnNewTicket(page, handle, projectId, '/code-review --fake-fail');
+  const number = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run')).number;
+
+  // The fake agent exits 3 after its first turn: the run parks as paused with the reason, not as failed.
+  await expect
+    .poll(async () => RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run')).status, {
+      timeout: 60_000,
+    })
+    .toBe('paused');
+  const run = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run'));
+  expect(run.pauseReason).toBe('agent_crashed');
+
+  await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
+  await expect(page.getByRole('banner').getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText('Paused: agent crashed (exit code 3)')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Resume' })).toBeVisible();
+
+  await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel').catch(() => null);
+});
+
 /*
  * Pause and resume (ADR 0022). Needs a stack whose worker has a short idle time, which would break the tests above (a
  * pod would be stopped between idle and attach), so it only runs when asked:
@@ -207,7 +229,10 @@ test('a --fake-done run shows Done and Finish closes it as succeeded', async ({ 
  *   RUN_IDLE_END_SECONDS=5 devbox run dev-bg   # then
  *   E2E_IDLE_END_SECONDS=5 devbox run e2e-local
  *
- * The run page is not opened while waiting for the pause: attaching a terminal stops the idle timer.
+ * The run page is not opened while waiting for the pause: attaching a terminal stops the idle timer. The stale-terminal
+ * test below also wants short attach leases (a terminal that never closes cleanly is dropped after the lease time):
+ *
+ *   RUN_IDLE_END_SECONDS=5 RUN_LEASE_TTL_SECONDS=4 TERMINAL_LEASE_INTERVAL_MS=1000 devbox run dev-bg
  */
 const IDLE_END_SECONDS = Number.parseInt(process.env['E2E_IDLE_END_SECONDS'] ?? '', 10);
 const FAKE_STATE_DIR =
@@ -278,5 +303,57 @@ test.describe('pause and resume', () => {
     // Clean up so the pods do not outlive the test.
     await ok(await page.request.post(`/api/runs/${first}/cancel`), 202, 'cancel first').catch(() => null);
     await ok(await page.request.post(`/api/runs/${second}/cancel`), 202, 'cancel second').catch(() => null);
+  });
+
+  test('a run whose terminal tab was killed still pauses on idle, and resumes with an answer', async ({
+    page,
+    context,
+  }) => {
+    const { handle, projectId } = await signInAndCreateProject(page);
+    const runId = await commentOnNewTicket(page, handle, projectId, '/code-review');
+    const number = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run')).number;
+    await expect.poll(() => statusOf(page, runId), { timeout: 60_000 }).toBe('idle');
+
+    // Attach a terminal from a second tab, then kill the tab without leaving the page (no clean close of its socket).
+    const tab = await context.newPage();
+    await tab.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
+    await expect(tab.getByRole('group', { name: 'Claude Code terminal' })).toContainText('Fake Claude Code', {
+      timeout: 15_000,
+    });
+    await tab.close({ runBeforeUnload: false });
+
+    // The dead terminal must not hold the idle timer: the run pauses after the idle time (plus the lease time).
+    await expect.poll(() => statusOf(page, runId), { timeout: (IDLE_END_SECONDS + 60) * 1000 }).toBe('paused');
+    expect(existsSync(`${FAKE_STATE_DIR}/kube/run-${runId}`), 'the paused run still has a pod').toBe(false);
+
+    await page.goto(`/o/${handle}/p/${projectId}/runs/${number}`);
+    const header = page.getByRole('banner');
+    await expect(header.getByText('Paused', { exact: true })).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('Paused: waiting for your answer.')).toBeVisible();
+    await expect(page.getByText(/Paused .*, after .* with nobody attached/)).toBeVisible();
+
+    // Resume, answer, and the answer starts a new turn.
+    await page.getByRole('button', { name: 'Resume' }).click();
+    await expect(header.getByText('Needs you', { exact: true })).toBeVisible({ timeout: 60_000 });
+    const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+    await expect(terminal).toContainText('Fake Claude Code', { timeout: 15_000 });
+    await terminal.click();
+    await page.keyboard.type('answer');
+    await page.keyboard.press('Enter');
+    await expect(terminal).toContainText(/\banswer\b/);
+    await expect
+      .poll(
+        async () => {
+          const log = RunLogResponse.parse(await ok(await page.request.get(`/api/runs/${runId}/log`), 200, 'run log'));
+          return log.items.filter(
+            (e) =>
+              e.type === 'lifecycle' && e.payload['kind'] === 'agent_state' && e.payload['state'] === 'needs_input',
+          ).length;
+        },
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThanOrEqual(2);
+
+    await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel').catch(() => null);
   });
 });

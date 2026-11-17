@@ -75,6 +75,7 @@ describe('constants', () => {
     expect(signals.resumed.name).toBe(SIGNAL.resumed);
     expect(signals.terminalAttached.name).toBe(SIGNAL.terminalAttached);
     expect(signals.terminalDetached.name).toBe(SIGNAL.terminalDetached);
+    expect(signals.terminalLease.name).toBe(SIGNAL.terminalLease);
     expect(signals.sessionStarted.name).toBe(SIGNAL.sessionStarted);
     expect(signals.dropSession.name).toBe(SIGNAL.dropSession);
     expect(UPDATE.resumeRun).toBe(signals.resumeRun.name);

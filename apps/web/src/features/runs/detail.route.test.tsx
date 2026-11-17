@@ -7,6 +7,8 @@ import { mockDb } from '@/mocks/msw/db';
 import { jsonResponse, routeHandler } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { FakeEventSource } from '@/test/fakeEventSource';
+import { FakeWebSocket } from '@/test/fakeWebSocket';
 import { FakeXterm } from '@/test/fakeXterm';
 import { renderRoute } from '@/test/renderRoute';
 
@@ -287,9 +289,9 @@ describe('run detail route, paused runs and kept sessions', () => {
   it('a paused run shows the note, how long it can be resumed, when it paused, Resume and Finish', async () => {
     await renderRoute(`${base}/runs/${PAUSED}`);
     expect(await within(banner()).findByText('Paused')).toBeInTheDocument();
-    expect(screen.getByText(/^Can be resumed for \d+ days?$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Paused: waiting for your answer\. Can be resumed for \d+ days?\.$/)).toBeInTheDocument();
     expect(screen.getByText('Should the export include voided invoices?')).toBeInTheDocument();
-    expect(screen.getByText(/^Paused .* after no one was attached$/)).toBeInTheDocument();
+    expect(screen.getByText(/^Paused .*, after 30 min with nobody attached$/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
@@ -302,7 +304,7 @@ describe('run detail route, paused runs and kept sessions', () => {
     expect(await within(banner()).findByText('Queued')).toBeInTheDocument();
     expect(resumePosts(PAUSED)).toBe(1);
     expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
-    expect(screen.queryByText(/^Can be resumed for/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Can be resumed for/)).not.toBeInTheDocument();
   });
 
   it('while the resume request is in flight both buttons are disabled and nothing more is sent', async () => {
@@ -369,19 +371,28 @@ describe('run detail route, paused runs and kept sessions', () => {
   it('an expired run shows the expired line and no action buttons', async () => {
     await renderRoute(`${base}/runs/${EXPIRED}`);
     expect(await within(banner()).findByText('Expired')).toBeInTheDocument();
-    expect(screen.getByText('Nobody resumed this run in time. The saved session was deleted.')).toBeInTheDocument();
+    expect(
+      screen.getByText('Nobody resumed this run within 7 days. The saved session was deleted.'),
+    ).toBeInTheDocument();
     for (const name of ['Resume', 'Re-open session', 'Finish', 'Finish run', 'Cancel run']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });
 
-  it('a resume_failed event last shows the error banner above the buttons', async () => {
+  it('a resume_failed event (then the park comment) shows the error banner above the buttons', async () => {
     const events = mockDb.state.runEvents[runId(PAUSED)] ?? [];
     events.push({
       seq: (events.at(-1)?.seq ?? 0) + 1,
       ts: new Date().toISOString(),
       type: 'lifecycle',
       payload: { kind: 'resume_failed', reason: 'no saved session was found' },
+    });
+    // As on a real run, the park's ticket comment is the newest event.
+    events.push({
+      seq: (events.at(-1)?.seq ?? 0) + 1,
+      ts: new Date().toISOString(),
+      type: 'comment',
+      payload: { kind: 'paused', commentId: 'c1' },
     });
     mockDb.state.runEvents[runId(PAUSED)] = events;
     await renderRoute(`${base}/runs/${PAUSED}`);
@@ -405,5 +416,163 @@ describe('run detail route, paused runs and kept sessions', () => {
     const term = FakeXterm.latest();
     expect(term.options.disableStdin).toBe(true);
     expect(term.writes).toEqual(['paused scrollback']);
+  });
+});
+
+describe('run detail route, pausing, pause reasons and resumed runs', () => {
+  const IDLE = 62;
+  const PAUSED = 64;
+  const SUCCEEDED = 60;
+  const QUEUED = 63;
+  const iso = (offsetMs = 0) => new Date(Date.now() + offsetMs).toISOString();
+  const pushEvent = (
+    n: number,
+    type: 'status' | 'lifecycle' | 'comment' | 'scrollback',
+    payload: Record<string, unknown>,
+  ) => {
+    const r = dbRun(n);
+    const events = mockDb.state.runEvents[r.id] ?? [];
+    events.push({ seq: (events.at(-1)?.seq ?? 0) + 1, ts: iso(), type, payload });
+    mockDb.state.runEvents[r.id] = events;
+  };
+  const runStream = (n: number) => {
+    const source = FakeEventSource.matching(`/api/runs/${runId(n)}/events`).at(-1);
+    if (!source) throw new Error(`no stream for run ${n}`);
+    return source;
+  };
+
+  it('a run whose session is ending says it is pausing: no terminal, no terminal socket', async () => {
+    dbRun(IDLE).sessionEndingAt = iso(-5_000);
+    await renderRoute(`${base}/runs/${IDLE}`);
+    expect(await screen.findByText('Session ending…')).toBeInTheDocument();
+    expect(screen.getByText('Ending…')).toBeInTheDocument();
+    expect(screen.queryByText('The agent is waiting for your answer')).not.toBeInTheDocument();
+    expect(screen.queryByRole('group', { name: 'Claude Code terminal' })).not.toBeInTheDocument();
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it('a pausing run shows its last scrollback greyed, as text, and opens no socket', async () => {
+    dbRun(IDLE).sessionEndingAt = iso(-5_000);
+    pushEvent(IDLE, 'scrollback', { text: 'line one\n<b>line two</b>' });
+    await renderRoute(`${base}/runs/${IDLE}`);
+    await screen.findByText('Session ending…');
+    const log = await screen.findByRole('log');
+    expect(log).toHaveTextContent('line one');
+    expect(log).toHaveTextContent('<b>line two</b>');
+    expect(log.querySelector('b')).toBeNull();
+    expect(log.className).toMatch(/dimmed/);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it('pausing turns into paused from the run stream, with the reason, and still no socket', async () => {
+    dbRun(IDLE).sessionEndingAt = iso(-5_000);
+    await renderRoute(`${base}/runs/${IDLE}`);
+    await screen.findByText('Session ending…');
+    act(() =>
+      runStream(IDLE).emit(
+        'status',
+        {
+          runId: runId(IDLE),
+          number: IDLE,
+          status: 'paused',
+          seq: 900,
+          exitCode: null,
+          failureReason: null,
+          waitingOn: null,
+          agentNote: 'Which database?',
+          pausedAt: iso(),
+          sessionExpiresAt: iso(6 * 24 * 3_600_000 + 3_600_000),
+          sessionEndingAt: null,
+          pauseReason: 'pod_lost',
+        },
+        900,
+      ),
+    );
+    expect(await screen.findByText('Paused: waiting for your answer. Can be resumed for 6 days.')).toBeInTheDocument();
+    expect(screen.getByText(/the pod stopped unexpectedly \(out of memory \/ evicted\)$/)).toBeInTheDocument();
+    expect(screen.queryByText('Session ending…')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it('a 4410 on the open terminal shows pausing once the run is refetched, and the socket is not reopened', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'], shouldAdvanceTime: true });
+    await renderRoute(`${base}/runs/${IDLE}`);
+    await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
+    const ws = FakeWebSocket.latest();
+    act(() => ws.open());
+    dbRun(IDLE).sessionEndingAt = iso();
+    act(() => ws.serverClose(4410));
+    expect(await screen.findByText('Session ending…')).toBeInTheDocument();
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeWebSocket.instances).toHaveLength(1);
+  });
+
+  it('a paused run by a lost pod gives its reason and can be resumed', async () => {
+    dbRun(PAUSED).pauseReason = 'pod_lost';
+    await renderRoute(`${base}/runs/${PAUSED}`);
+    expect(
+      await screen.findByText(/^Paused .*, the pod stopped unexpectedly \(out of memory \/ evicted\)$/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+  });
+
+  it('a paused run whose agent crashed: the exit code from the stored end line, and Resume', async () => {
+    dbRun(PAUSED).pauseReason = 'agent_crashed';
+    pushEvent(PAUSED, 'lifecycle', { line: 31, kind: 'session_ended', reason: 'agent_exit', code: 2 });
+    await renderRoute(`${base}/runs/${PAUSED}`);
+    expect(await screen.findByText('Paused: agent crashed (exit code 2)')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
+  });
+
+  it('a crashed run with a malformed end event: the text without a number, no page error', async () => {
+    dbRun(PAUSED).pauseReason = 'agent_crashed';
+    pushEvent(PAUSED, 'lifecycle', { line: 31, kind: 'session_ended', reason: 'agent_exit', code: '<b>9</b>' });
+    await renderRoute(`${base}/runs/${PAUSED}`);
+    expect(await screen.findByText('Paused: agent crashed')).toBeInTheDocument();
+    expect(document.body.innerHTML).not.toContain('<b>9</b>');
+  });
+
+  it('a resumed idle run: the live terminal with the resumed banner and the agent note', async () => {
+    const r = dbRun(IDLE);
+    r.agentNote = 'Should the export include voided invoices?';
+    pushEvent(IDLE, 'status', { status: 'paused' });
+    pushEvent(IDLE, 'status', { status: 'queued' });
+    await renderRoute(`${base}/runs/${IDLE}`);
+    expect(
+      await screen.findByText(
+        'Resumed. The agent asked: Should the export include voided invoices?. Background tasks and sub-agents that were running when it paused were stopped.',
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(FakeWebSocket.instances.length).toBeGreaterThan(0));
+    expect(screen.getAllByRole('button', { name: 'Finish run' }).length).toBeGreaterThan(0);
+  });
+
+  it('a run that was never parked has no resumed banner', async () => {
+    await renderRoute(`${base}/runs/${IDLE}`);
+    await screen.findByText('The agent is waiting for your answer');
+    expect(screen.queryByText(/^Resumed\./)).not.toBeInTheDocument();
+  });
+
+  it('a queued run that was parked before says it is resuming', async () => {
+    pushEvent(QUEUED, 'status', { status: 'paused' });
+    pushEvent(QUEUED, 'status', { status: 'queued' });
+    await renderRoute(`${base}/runs/${QUEUED}`);
+    expect(await screen.findByText('Resuming the run')).toBeInTheDocument();
+    expect(screen.queryByText('Starting the agent')).not.toBeInTheDocument();
+  });
+
+  it('a queued Resume that had nothing kept to resume from: the person sees the message on the succeeded run', async () => {
+    pushEvent(SUCCEEDED, 'lifecycle', {
+      kind: 'resume_failed',
+      reason: 'nothing was kept to resume from',
+      text: 'The resume could not run: nothing was kept to resume from.',
+    });
+    // The park then posts the finish comment: it is the newest event on a real run.
+    pushEvent(SUCCEEDED, 'comment', { kind: 'finish', commentId: 'c1' });
+    await renderRoute(`${base}/runs/${SUCCEEDED}`);
+    expect(await screen.findByText('Resume failed: nothing was kept to resume from')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
   });
 });

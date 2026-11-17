@@ -1,0 +1,2 @@
+ALTER TABLE "runs" DROP CONSTRAINT "runs_pause_reason_check";--> statement-breakpoint
+ALTER TABLE "runs" ADD CONSTRAINT "runs_pause_reason_check" CHECK ("runs"."pause_reason" in ('idle_timeout','pod_lost','agent_crashed'));

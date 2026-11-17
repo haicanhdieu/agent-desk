@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ScrollbackBlock } from '../src/activities/run.activities.impl';
+import { ScrollbackBlock, blockTakesLine } from '../src/activities/run.activities.impl';
 
 describe('ScrollbackBlock', () => {
   it('keeps every line while under the limit, and is not truncated', () => {
@@ -53,5 +53,17 @@ describe('ScrollbackBlock', () => {
     for (let i = 0; i < 3000; i += 1) b.push(`l${String(i).padStart(4, '0')}`);
     expect(b.text()).toBe('l2998\nl2999');
     expect(b.truncated).toBe(true);
+  });
+});
+
+describe('blockTakesLine', () => {
+  it('lets only a session end line through, and only once the block was closed by an end marker', () => {
+    const b = new ScrollbackBlock(1, 100);
+    expect(blockTakesLine(b, 'session_ended')).toBe(true); // still open: a pane line that looks like one
+    b.push('pane');
+    b.markEnd();
+    expect(blockTakesLine(b, 'session_ended')).toBe(false);
+    expect(blockTakesLine(b, 'text')).toBe(true);
+    expect(blockTakesLine(b, 'session_started')).toBe(true);
   });
 });

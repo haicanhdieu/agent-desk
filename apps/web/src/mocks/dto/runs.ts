@@ -81,6 +81,8 @@ function fromSummary(r: RunSummary): RunDto {
     agentNote: null,
     pausedAt: null,
     sessionExpiresAt: null,
+    sessionEndingAt: null,
+    pauseReason: null,
   };
 }
 
@@ -121,6 +123,8 @@ const ended = (
   agentNote: null,
   pausedAt: null,
   sessionExpiresAt: null,
+  sessionEndingAt: null,
+  pauseReason: null,
 });
 
 /** Run 52 ran the custom prompt rule /triage: no skill, the prompt and the final prompt as recorded. */
@@ -156,6 +160,7 @@ export const runFixtures: RunDto[] = [
     exitCode: null,
     costUsd: null,
     pausedAt: '2026-11-12T13:40:00.000Z',
+    pauseReason: 'idle_timeout',
     sessionExpiresAt: inMs(5 * 24 * HOUR_MS + HOUR_MS),
     agentNote: 'Should the export include voided invoices?',
   }),

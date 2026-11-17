@@ -2,11 +2,15 @@ import { describe, expect, it } from 'vitest';
 import {
   RESUME_MIN_SECONDS,
   cancelEffect,
+  endOutcome,
   parkKindOf,
   phaseOfParkKind,
   resumeRejection,
   sessionAllowanceSeconds,
   statusOfParkKind,
+  type EndOutcome,
+  type ParkKind,
+  type PauseReason,
 } from '../src/workflows/park';
 import type { RunPhase } from '../src/workflows/signals';
 
@@ -68,7 +72,7 @@ describe('sessionAllowanceSeconds', () => {
 describe('resumeRejection', () => {
   it.each(PHASES)('phase %s', (phase) => {
     const reason = resumeRejection(phase);
-    if (phase === 'parked') expect(reason).toBeUndefined();
+    if (phase === 'parked' || phase === 'ending') expect(reason).toBeUndefined();
     else if (phase === 'resuming') expect(reason).toBe('This run is already being resumed');
     else expect(reason).toBe('Only a paused run, or a finished run whose session is still kept, can be resumed');
   });
@@ -90,5 +94,89 @@ describe('cancelEffect', () => {
   });
   it.each(PHASES.filter((p) => p !== 'parked' && p !== 'resuming'))('stops a run in phase %s', (phase) => {
     expect(cancelEffect(phase, undefined, false)).toBe('stop_run');
+  });
+});
+
+describe('endOutcome', () => {
+  type Input = Parameters<typeof endOutcome>[0];
+  const base: Input = { ending: false, finishRequested: false, phase: 'running', podLost: false, exitCode: 0 };
+  const park = (parkKind: ParkKind, reason: PauseReason): EndOutcome => ({ kind: 'park', parkKind, reason });
+
+  it.each<[string, Partial<Input>, EndOutcome]>([
+    [
+      'a person Finish while ending succeeds',
+      { ending: true, finishRequested: true, phase: 'ending' },
+      { kind: 'succeeded' },
+    ],
+    [
+      'the idle timer ending parks as idle_timeout, keeping the kind it recorded',
+      { ending: true, phase: 'ending', parkKind: 'needs_input', endReason: 'stop_request' },
+      park('needs_input', 'idle_timeout'),
+    ],
+    [
+      'the idle timer ending a done run parks it as done',
+      { ending: true, phase: 'ending', parkKind: 'done', endReason: 'signal' },
+      park('done', 'idle_timeout'),
+    ],
+    [
+      'the idle timer ending wins over a lost pod',
+      { ending: true, phase: 'ending', parkKind: 'needs_input', podLost: true },
+      park('needs_input', 'idle_timeout'),
+    ],
+    [
+      'a lost pod while running parks as needs_input',
+      { phase: 'running', podLost: true },
+      park('needs_input', 'pod_lost'),
+    ],
+    ['a lost pod while idle parks as needs_input', { phase: 'idle', podLost: true }, park('needs_input', 'pod_lost')],
+    ['a lost pod while done parks as done', { phase: 'agent_done', podLost: true }, park('done', 'pod_lost')],
+    [
+      'a pod that ended with an exit code but no end line was lost (OOMKilled)',
+      { phase: 'running', exitCode: 137 },
+      park('needs_input', 'pod_lost'),
+    ],
+    [
+      'a pod that ended with no end line while done was lost',
+      { phase: 'agent_done', exitCode: 137 },
+      park('done', 'pod_lost'),
+    ],
+    [
+      'an end the worker did not ask for (SIGTERM from outside) was a lost pod',
+      { phase: 'idle', endReason: 'signal', exitCode: 0 },
+      park('needs_input', 'pod_lost'),
+    ],
+    [
+      'a vanished tmux session the worker did not ask for was a lost pod',
+      { phase: 'running', endReason: 'session_gone', exitCode: 0 },
+      park('needs_input', 'pod_lost'),
+    ],
+    ['agent exit code 0 succeeds', { phase: 'running', endReason: 'agent_exit', exitCode: 0 }, { kind: 'succeeded' }],
+    [
+      'agent exit non-zero while running parks as agent_crashed (D1)',
+      { phase: 'running', endReason: 'agent_exit', exitCode: 1 },
+      park('needs_input', 'agent_crashed'),
+    ],
+    [
+      'agent exit non-zero while idle parks as agent_crashed',
+      { phase: 'idle', endReason: 'agent_exit', exitCode: 2 },
+      park('needs_input', 'agent_crashed'),
+    ],
+    [
+      'agent exit non-zero while done parks as done with agent_crashed',
+      { phase: 'agent_done', endReason: 'agent_exit', exitCode: 1 },
+      park('done', 'agent_crashed'),
+    ],
+    [
+      'the pod real exit code decides, never the end reason (a forged agent_exit with a non-zero real code)',
+      { phase: 'idle', endReason: 'agent_exit', exitCode: 137 },
+      park('needs_input', 'agent_crashed'),
+    ],
+    [
+      'a legacy pod with no end line that exited 0 succeeds as before',
+      { phase: 'running', exitCode: 0 },
+      { kind: 'succeeded' },
+    ],
+  ])('%s', (_name, input, expected) => {
+    expect(endOutcome({ ...base, ...input })).toEqual(expected);
   });
 });

@@ -212,6 +212,70 @@ describe('FakeKubeGateway', () => {
     await gw.deleteJob(name);
   });
 
+  it('agentdesk-end exits 0 and the pod ends with the scrollback and reason=stop_request', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'end me'));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    const c = collect(name);
+    const end = await gw.exec(name, ['agentdesk-end'], { tty: false });
+    expect(await new Promise<number>((r) => end.onClose(r))).toBe(0);
+    await c.done; // the stream ends when the pod exits
+    expect(c.lines.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    expect(c.lines.at(-2)).toBe('agentdesk: final scrollback end');
+    expect(await gw.getRunPod(name)).toMatchObject({ phase: 'Succeeded', exitCode: 0 });
+    await gw.deleteJob(name);
+  });
+
+  it('agentdesk-end takes no arguments', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'x'));
+    await expect(gw.exec(name, ['agentdesk-end', 'now'], { tty: false })).rejects.toThrow(/not supported/);
+    await gw.deleteJob(name);
+  });
+
+  it('agentdesk-attach streams like tmux attach; agentdesk-detach records the id and exits 0', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const conn = '123e4567-e89b-42d3-a456-426614174000';
+    await gw.ensureJob(job(id, 'hello prompt'));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    const s = await gw.exec(name, ['agentdesk-attach', conn], { tty: true });
+    sessions.push(s);
+    let screen = '';
+    s.onData((d) => {
+      screen += decoder.decode(d);
+    });
+    await until(async () => screen.includes('hello prompt'));
+    const detach = await gw.exec(name, ['agentdesk-detach', conn], { tty: false });
+    expect(await new Promise<number>((r) => detach.onClose(r))).toBe(0);
+    expect(gw.detachedIds).toEqual([conn]);
+    await gw.deleteJob(name);
+  });
+
+  it('agentdesk-attach on a pod that already exited closes with 3 (no session)', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'x'));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Running');
+    const kill = await gw.exec(name, ['tmux', 'kill-session', '-t', 'agent'], { tty: false });
+    await new Promise<number>((r) => kill.onClose(r));
+    await until(async () => (await gw.getRunPod(name))?.phase === 'Succeeded');
+    const s = await gw.exec(name, ['agentdesk-attach', '123e4567-e89b-42d3-a456-426614174000'], { tty: true });
+    expect(await new Promise<number>((r) => s.onClose(r))).toBe(3);
+    await gw.deleteJob(name);
+  });
+
+  it('rejects an agentdesk-attach or -detach with a bad id', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    await gw.ensureJob(job(id, 'x'));
+    await expect(gw.exec(name, ['agentdesk-attach', 'x; rm -rf /'], { tty: true })).rejects.toThrow(/not supported/);
+    await expect(gw.exec(name, ['agentdesk-detach', 'nope'], { tty: false })).rejects.toThrow(/not supported/);
+    await gw.deleteJob(name);
+  });
+
   it('rejects any other exec command', async () => {
     const id = runId();
     const name = `run-${id}`;

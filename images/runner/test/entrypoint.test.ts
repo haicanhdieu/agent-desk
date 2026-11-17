@@ -1,7 +1,7 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runEntrypoint } from './harness.js';
 
@@ -28,7 +28,11 @@ describe('entrypoint plugins phase', () => {
       ['plugin', 'install', 'superpowers@claude-plugins-official'],
       ['plugin', 'install', 'tdd@claude-plugins-official'],
     ]);
-    expect(r.calls.filter((c) => c.cmd === 'timeout').map((c) => c.argv[0])).toEqual(['120', '120', '120']);
+    expect(r.calls.filter((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux').map((c) => c.argv[0])).toEqual([
+      '120',
+      '120',
+      '120',
+    ]);
     expect(r.stdout).toContain('agentdesk: plugin installed superpowers@claude-plugins-official');
     expect(r.stdout.indexOf('agentdesk: plugins begin')).toBeGreaterThan(-1);
     expect(r.stdout.indexOf('agentdesk: plugins begin')).toBeLessThan(r.stdout.indexOf('agentdesk: plugins end'));
@@ -389,8 +393,192 @@ describe('entrypoint home on the volume and resume mode', () => {
         {},
       );
       expect(existsSync(probe)).toBe(false);
-      expect(r.calls.some((c) => c.cmd === 'timeout')).toBe(false);
+      expect(r.calls.some((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux')).toBe(false);
       expect(started(r)).toBe(true);
     });
+  });
+});
+
+describe('entrypoint session end', () => {
+  const tmuxCalls = (r: Result) => r.calls.filter((c) => c.cmd === 'tmux');
+
+  it('incident: session gone but display-message prints nothing still exits', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'incident' }, {});
+    expect(r.stdout).toContain('agentdesk: session ended reason=session_gone code=0');
+    expect(r.exitCode).toBe(0);
+    expect(tmuxCalls(r).some((c) => c.argv.join(' ') === 'has-session -t =agent')).toBe(true);
+  });
+
+  it.each(['incident', 'dead'])('checks before its first sleep when the session is already over (%s)', async (mode) => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: mode }, {});
+    expect(r.stdout.at(-1)).toMatch(/^agentdesk: session ended /);
+    expect(r.calls.filter((c) => c.cmd === 'sleep')).toEqual([]);
+  });
+
+  it('agent exit reports the pane status', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3' }, {});
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+    expect(r.exitCode).toBe(3);
+  });
+
+  it('pane commands target the exact session with a trailing colon', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3' }, {});
+    for (const sub of ['capture-pane', 'display-message']) {
+      const calls = tmuxCalls(r).filter((c) => c.argv.includes(sub));
+      expect(calls.length).toBeGreaterThan(0);
+      for (const c of calls) expect(c.argv[c.argv.indexOf('-t') + 1]).toBe('=agent:');
+    }
+  });
+
+  it.each([
+    ['', 1],
+    ['abc', 1],
+    ['-1', 1],
+    ['256', 0],
+    ['259', 3],
+    ['08', 8],
+    ['010', 10],
+  ])('pane status %j ends with code %i', async (status, code) => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: status }, {});
+    expect(r.stdout.at(-1)).toBe(`agentdesk: session ended reason=agent_exit code=${code}`);
+    expect(r.exitCode).toBe(code);
+  });
+
+  it('SIGTERM prints the scrollback, then the end line, and exits 0', async () => {
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', STUB_GIT_CLONE_DELAY_MS: '2000' },
+      {},
+      { signalAfterLine: 'agentdesk: session started' },
+    );
+    const begin = r.stdout.indexOf('agentdesk: final scrollback begin');
+    expect(begin).toBeGreaterThan(-1);
+    expect(r.stdout.indexOf('agentdesk: final scrollback end')).toBeGreaterThan(begin);
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=signal code=0');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('kills the tmux server after the scrollback on every end path', async () => {
+    for (const mode of ['incident', 'dead']) {
+      const r = await runEntrypoint({ STUB_TMUX_MODE: mode }, {});
+      const argvs = tmuxCalls(r).map((c) => c.argv[0]);
+      expect(argvs.lastIndexOf('kill-server')).toBeGreaterThan(argvs.lastIndexOf('capture-pane'));
+    }
+  });
+});
+
+describe('entrypoint stop request and agent exit file', () => {
+  /** A run dir the test fills before the entrypoint starts (the real one is the in-memory volume /run/agentdesk). */
+  const runDirWith = (files: Record<string, string>) => {
+    const runDir = mkdtempSync(join(tmpdir(), 'run-dir-'));
+    for (const [name, content] of Object.entries(files)) writeFileSync(join(runDir, name), content);
+    return runDir;
+  };
+  const tmuxCalls = (r: Result) => r.calls.filter((c) => c.cmd === 'tmux');
+
+  it('a stop file ends the session with reason stop_request and exit 0', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    expect(r.exitCode).toBe(0);
+    const argvs = tmuxCalls(r).map((c) => c.argv[0]);
+    expect(argvs.lastIndexOf('kill-server')).toBeGreaterThan(argvs.lastIndexOf('capture-pane'));
+  });
+
+  it('an agent-exit file ends the session with reason agent_exit and the file code', async () => {
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': '5\n' }) },
+      {},
+    );
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=5');
+    expect(r.exitCode).toBe(5);
+  });
+
+  it('the stop file wins over the agent-exit file', async () => {
+    const runDir = runDirWith({ stop: '', 'agent-exit': '5\n' });
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDir }, {});
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('both files are checked before the session existence check', async () => {
+    const stop = await runEntrypoint({ STUB_TMUX_MODE: 'incident', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    expect(stop.stdout.at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    const exited = await runEntrypoint(
+      { STUB_TMUX_MODE: 'incident', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': '4' }) },
+      {},
+    );
+    expect(exited.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=4');
+    expect(exited.exitCode).toBe(4);
+  });
+
+  it('checks before its first sleep when a file is already there', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    expect(r.calls.filter((c) => c.cmd === 'sleep')).toEqual([]);
+  });
+
+  // The agent shares the container and can write this file, so its content is untrusted.
+  it.each([
+    ['', 1],
+    ['abc\n', 1],
+    ['-1', 1],
+    ['5 ; id', 1],
+    ['1000', 1],
+    ['5\n6\n', 1],
+    ['0x10', 1],
+    ['256', 0],
+    ['259', 3],
+    ['08', 8],
+    ['010', 10],
+    ['255', 255],
+    ['0', 0],
+  ])('agent-exit content %j ends with code %i', async (content, code) => {
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': content }) },
+      {},
+    );
+    expect(r.stdout.at(-1)).toBe(`agentdesk: session ended reason=agent_exit code=${code}`);
+    expect(r.exitCode).toBe(code);
+  });
+
+  it('ignores an agent-exit that is not a regular file (a directory, a link) and falls back to the pane', async () => {
+    const runDir = mkdtempSync(join(tmpdir(), 'run-dir-'));
+    mkdirSync(join(runDir, 'agent-exit'));
+    const dirRes = await runEntrypoint(
+      { STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3', AGENTDESK_RUN_DIR: runDir },
+      {},
+    );
+    expect(dirRes.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+    const linkDir = mkdtempSync(join(tmpdir(), 'run-dir-'));
+    const target = join(linkDir, 'elsewhere');
+    writeFileSync(target, '9\n');
+    symlinkSync(target, join(linkDir, 'agent-exit'));
+    const linkRes = await runEntrypoint(
+      { STUB_TMUX_MODE: 'dead', STUB_PANE_STATUS: '3', AGENTDESK_RUN_DIR: linkDir },
+      {},
+    );
+    expect(linkRes.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+  });
+
+  // A pipe renamed over a checked agent-exit would block the read for good (and PID 1 defers its TERM trap), so the
+  // read is bounded. A `head` that never returns stands in for that pipe; the `timeout` stub ends it after its limit.
+  it('does not hang when reading agent-exit blocks: the read is bounded, and the content counts as invalid', async () => {
+    const blocker = mkdtempSync(join(tmpdir(), 'blocking-head-'));
+    const head = join(blocker, 'head');
+    writeFileSync(head, `#!${process.execPath}\nsetTimeout(() => undefined, 120000);\n`, { mode: 0o755 });
+    const path = [blocker, join(import.meta.dirname, 'stubs'), dirname(process.execPath), '/usr/bin', '/bin'].join(':');
+    const r = await runEntrypoint(
+      { PATH: path, STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ 'agent-exit': '5\n' }) },
+      {},
+    );
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=1');
+    expect(r.exitCode).toBe(1);
+  });
+
+  it('runs the fixed session command through agentdesk-session and passes only that command', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    const argv = tmuxCalls(r).find((c) => c.argv.includes('new-session'))?.argv ?? [];
+    expect(argv.slice(-2)).toEqual([
+      join(import.meta.dirname, '..', 'bin', 'agentdesk-session'),
+      'exec claude --permission-mode bypassPermissions "$PROMPT"',
+    ]);
   });
 });

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { RunStatus } from '../enums';
+import { PauseReason, RunStatus } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
 import { RunEventDto } from './runs';
@@ -16,6 +16,8 @@ export const RunStatusEvent = z.object({
   agentNote: AgentNote.nullable(),
   pausedAt: Timestamp.nullable(),
   sessionExpiresAt: Timestamp.nullable(),
+  sessionEndingAt: Timestamp.nullable(),
+  pauseReason: PauseReason.nullable(),
 });
 export type RunStatusEvent = z.infer<typeof RunStatusEvent>;
 

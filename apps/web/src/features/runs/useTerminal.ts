@@ -3,10 +3,15 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { LiveTerminalHandle, TerminalSize } from '@/components/LiveTerminal';
 import { signOutAndRedirect } from '../auth/signOut';
-import { isFinal } from './map';
+import { terminalArea } from './detail.map';
 import { runsQueries } from './queries';
+import { TERMINAL_UNUSED_CLOSE_MS, watchUnused } from './unusedWatch';
 
-export type TerminalState = 'connecting' | 'open' | 'retrying' | 'gave_up' | 'forbidden';
+/**
+ * `ended`: the server said the session is over (4410); the page shows the run's own state, nothing retries.
+ * `inactive`: the page went unused (TERMINAL_UNUSED_CLOSE_MS) and the browser closed the socket; only `reconnect()` opens one.
+ */
+export type TerminalState = 'connecting' | 'open' | 'retrying' | 'gave_up' | 'forbidden' | 'ended' | 'inactive';
 
 /** Waits before each retry after an abnormal close; after the last one the hook gives up (RunReconnect). */
 export const TERMINAL_BACKOFF_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 10_000];
@@ -18,11 +23,15 @@ export const STABLE_OPEN_MS = 5_000;
 /** Container resizes closer together than this send one resize frame. */
 export const RESIZE_DEBOUNCE_MS = 100;
 
-/** Close codes the server uses (spec §5.3). 1000: the exec session ended (the pod's tmux exited, e.g. the run finished). */
+/**
+ * Close codes the server uses (spec §5.3). 1000: the exec session ended (the pod's tmux exited, e.g. the run finished).
+ * 4410: the session is over or ending (the run is pausing or paused): never retried.
+ */
 const CLOSE_NORMAL = 1000;
 const CLOSE_UNAUTHORIZED = 4401;
 const CLOSE_FORBIDDEN = 4403;
 const CLOSE_RUN_GONE = 4409;
+export const CLOSE_SESSION_ENDED = 4410;
 
 export interface TerminalRun {
   org: string;
@@ -49,9 +58,10 @@ function terminalUrl(path: string): string {
 const resizeFrame = ({ cols, rows }: TerminalSize) => JSON.stringify({ type: 'resize', cols, rows });
 
 /**
- * What the owner of a terminal does when its session ended (close codes 1000 and 4409): refetch whatever shows the
- * owner's state. Resolving `true` means the owner is still active (the socket then retries, or gives up after a
- * 4409); anything else (no return value, `false`) means it ended, and the page shows its end state.
+ * What the owner of a terminal does when its session ended (close codes 1000, 4409 and 4410): refetch whatever shows
+ * the owner's state. Resolving `true` means the owner is still active (the socket then retries, or gives up after a
+ * 4409); anything else (no return value, `false`) means it ended, and the page shows its end state. After a 4410 the
+ * answer is not used: the server said the session is over.
  */
 export type OnSessionEnd = () => void | Promise<boolean>;
 
@@ -59,10 +69,14 @@ export type OnSessionEnd = () => void | Promise<boolean>;
  * A terminal socket at `path` (spec §5.3) while `enabled` (the owner is active and the terminal is mounted). Binary
  * frames both ways: output is written to `term`, keystrokes are sent as UTF-8. Text frames from the server are
  * ignored (never acted on). Close codes: 4401 → the sign-out path; 4403 → `forbidden`, no retry; 4409 → the owner is
- * no longer active: `connecting` while `onSessionEnd` runs (the page then shows the end state), no retry; 1000 (the
- * session ended) → `onSessionEnd` too, and only an owner still active then retries. Any other close retries after
- * TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open STABLE_OPEN_MS resets the back-off.
- * Unmounting, or `enabled` turning false, closes the socket and cancels a pending retry. Terminal data is never
+ * no longer active: `connecting` while `onSessionEnd` runs (the page then shows the end state), no retry; 4410 (the
+ * session is ending or over) → `ended`, `onSessionEnd` runs, never a retry; 1000 (the session ended) → `onSessionEnd`
+ * too, and only an owner still live then retries. Only the network-level closes (1006, 1011, 1013, anything else
+ * unlisted) retry after TERMINAL_BACKOFF_MS, then `gave_up`; only a connection that stayed open STABLE_OPEN_MS resets
+ * the back-off.
+ * With `closeWhenUnused`, a page unused for TERMINAL_UNUSED_CLOSE_MS (see `watchUnused`) closes the socket with a normal
+ * close (so the API drops its attach lease), cancels a pending retry and shows `inactive`; only `reconnect()` opens a new
+ * socket, with a fresh timer. Unmounting, or `enabled` turning false, closes the socket and cancels a pending retry. Terminal data is never
  * logged. `onSessionEnd` must be stable (memoised): a new function opens a new connection.
  */
 export function useTerminalSocket(
@@ -70,12 +84,20 @@ export function useTerminalSocket(
   enabled: boolean,
   term: RefObject<LiveTerminalHandle | null>,
   onSessionEnd: OnSessionEnd,
+  closeWhenUnused = false,
 ): UseTerminal {
   // Bumped by reconnect(): a new connection (the effect re-runs).
   const [attempt, setAttempt] = useState(0);
   const session = `${path}:${attempt}`;
   // Keyed by connection session so a stale state from the previous one never shows.
   const [current, setCurrent] = useState<{ session: string; state: TerminalState }>({ session, state: 'connecting' });
+  // Turning `enabled` on or off starts over: a state kept from the previous connection (`ended` after a 4410) must not
+  // show for the next one before its socket opens. Adjusted during render, as React's docs advise for derived resets.
+  const [wasEnabled, setWasEnabled] = useState(enabled);
+  if (wasEnabled !== enabled) {
+    setWasEnabled(enabled);
+    setCurrent({ session, state: 'connecting' });
+  }
   const socket = useRef<WebSocket | null>(null);
   const size = useRef<TerminalSize | null>(null);
   const resizeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -86,6 +108,10 @@ export function useTerminalSocket(
     let retries = 0;
     let retry: ReturnType<typeof setTimeout> | undefined;
     let stable: ReturnType<typeof setTimeout> | undefined;
+    // Set once the page was unused: the socket's own close event must not start the session-end or retry paths.
+    let closedUnused = false;
+    // Stopped by cleanup and by the closes that end the socket's story (4401, 4403, 4410): the real state must stay.
+    const watch: { stop?: () => void } = {};
     const set = (state: TerminalState) => {
       if (!disposed) setCurrent({ session, state });
     };
@@ -105,7 +131,8 @@ export function useTerminalSocket(
     const sessionEnded = (onStillActive: () => void) => {
       set('connecting');
       void Promise.resolve(onSessionEnd()).then((stillActive) => {
-        if (!disposed && stillActive === true) onStillActive();
+        // Not after the page went unused: that already closed the socket for good (only `reconnect()` opens one).
+        if (!disposed && !closedUnused && stillActive === true) onStillActive();
       });
     };
 
@@ -118,10 +145,18 @@ export function useTerminalSocket(
           sessionEnded(retryLater);
           return;
         case CLOSE_UNAUTHORIZED:
+          watch.stop?.();
           void signOutAndRedirect();
           return;
         case CLOSE_FORBIDDEN:
+          watch.stop?.();
           set('forbidden');
+          return;
+        case CLOSE_SESSION_ENDED:
+          // Pausing or paused: the page shows that once the run is refetched. No retry whatever the refetch says.
+          watch.stop?.();
+          set('ended');
+          void Promise.resolve(onSessionEnd());
           return;
         case CLOSE_RUN_GONE:
           // The owner ended: the page shows its end state once refetched. If it is still active after that, only a
@@ -150,13 +185,24 @@ export function useTerminalSocket(
         term.current?.write(new Uint8Array(e.data));
       });
       ws.addEventListener('close', (e: CloseEvent) => {
-        if (disposed) return;
+        if (disposed || closedUnused) return;
         onClose(e.code);
       });
     };
 
     connect();
+    watch.stop = closeWhenUnused
+      ? watchUnused(TERMINAL_UNUSED_CLOSE_MS, () => {
+          closedUnused = true;
+          clearTimeout(retry);
+          clearTimeout(stable);
+          socket.current?.close(CLOSE_NORMAL);
+          socket.current = null;
+          set('inactive');
+        })
+      : undefined;
     return () => {
+      watch.stop?.();
       disposed = true;
       clearTimeout(retry);
       clearTimeout(stable);
@@ -164,7 +210,7 @@ export function useTerminalSocket(
       socket.current?.close(1000);
       socket.current = null;
     };
-  }, [enabled, path, session, term, onSessionEnd]);
+  }, [enabled, path, session, term, onSessionEnd, closeWhenUnused]);
 
   const onData = useCallback((data: string) => {
     const ws = socket.current;
@@ -189,7 +235,8 @@ export function useTerminalSocket(
 /**
  * The run's terminal socket (spec §5.3) while `enabled` (the run is running or idle and the terminal is mounted).
  * See `useTerminalSocket` for the protocol. When the session ends the run's detail refetches (the route then shows
- * the final scrollback); a run still active after that retries (1000) or offers a manual reconnect (4409).
+ * the final scrollback, "Pausing" or "Paused"); a run still live after that retries (1000) or offers a manual
+ * reconnect (4409).
  */
 export function useTerminal(
   runId: string,
@@ -202,8 +249,9 @@ export function useTerminal(
   const onSessionEnd = useCallback(async () => {
     const detailKey = runsQueries.detail(org, projectId, number).queryKey;
     await qc.invalidateQueries({ queryKey: detailKey });
-    const status = qc.getQueryData(detailKey)?.status;
-    return status === undefined || !isFinal(status);
+    const run = qc.getQueryData(detailKey);
+    // Retry only a run that is live and not ending; a paused, ending or final run shows its own state instead.
+    return run === undefined || terminalArea(run) === 'live';
   }, [qc, org, projectId, number]);
-  return useTerminalSocket(terminalPath(runId), enabled, term, onSessionEnd);
+  return useTerminalSocket(terminalPath(runId), enabled, term, onSessionEnd, true);
 }

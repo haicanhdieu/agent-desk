@@ -272,9 +272,32 @@ describe('resume, paused and kept sessions', () => {
   });
 
   it.each([
+    ['an idle run whose session is ending', { status: 'idle' }],
+    ['a running run whose session is ending', { status: 'running' }],
+  ])('resume on %s is 204 and sends the resumeRun update (the workflow queues it)', async (_name, over) => {
+    const agentId = await agentWithCredential(true);
+    const run = await insertRun({ ...over, workflowId: 'run-x', agentId, sessionEndingAt: new Date() });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/resume`);
+    expect(res.statusCode).toBe(204);
+    expect(t.temporal.callsOfKind('update')).toMatchObject([{ workflowId: `run-${run.id}`, args: [UPDATE.resumeRun] }]);
+  });
+
+  it('resume on a run whose session is ending but has no agent credential is still a 409', async () => {
+    const agentId = await agentWithCredential(false);
+    const run = await insertRun({ status: 'idle', workflowId: 'run-x', agentId, sessionEndingAt: new Date() });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/resume`);
+    expect(res.statusCode).toBe(409);
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+
+  it.each([
     ['an expired session', { status: 'succeeded', sessionExpiresAt: earlier() }],
     ['no session', { status: 'succeeded', sessionExpiresAt: null }],
-    ['a running run', { status: 'running', sessionExpiresAt: null }],
+    ['a running run (session not ending)', { status: 'running', sessionExpiresAt: null }],
+    ['an idle run (session not ending)', { status: 'idle', sessionExpiresAt: null }],
+    ['a failed run whose sessionEndingAt is set', { status: 'failed', sessionEndingAt: new Date() }],
   ])('resume on %s is a 409 and sends nothing', async (_name, over) => {
     const agentId = await agentWithCredential(true);
     const run = await insertRun({ ...over, workflowId: 'run-x', agentId });

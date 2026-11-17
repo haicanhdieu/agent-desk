@@ -81,7 +81,8 @@ stateDiagram-v2
   resuming --> paused: resume failed (back as it was)
   paused --> expired: keep time over
   paused --> succeeded: Finish
-  running --> failed: agent exited non-zero by itself
+  running --> paused: agent exited non-zero by itself (agent_crashed, work kept)
+  agent_done --> succeeded_kept: agent exited non-zero by itself (agent_crashed)
   running --> succeeded: agent exited 0 by itself
 ```
 
@@ -125,7 +126,9 @@ fallback path, not the main one.
   agent's code.
 - **Worker reading the result.** `followPodLogs` returns the `reason`. The workflow decides:
   - `stop_request` / `signal` / `session_gone` while `ending` → park (as today).
-  - `agent_exit` → succeeded or failed by code (as today; the person or agent quit on purpose).
+  - `agent_exit` → succeeded when the pod's exit code is 0; any other code parks the run (`pauseReason = 'agent_crashed'`,
+    volume kept, Resume offered; decided 2026-11-16, open question 2). The pod's real exit code decides, never the end line
+    alone: the agent shares the container and can print a forged line.
   - No end marker (OOMKilled, evicted, node lost, Job deleted from outside) after the session started → park as
     `paused` with `pauseReason = 'pod_lost'` (a done run becomes `succeeded` with a kept session). Before the session
     started → failed, as today.
@@ -134,7 +137,7 @@ fallback path, not the main one.
   anyway, with "Final scrollback not saved" when none came. Nothing can keep a run in `ending` past
   deadline + grace (about 2 minutes).
 
-`pauseReason` (`idle_timeout` | `pod_lost`) is a new `RunDto` field so the page can say why the run paused.
+`pauseReason` (`idle_timeout` | `pod_lost` | `agent_crashed`) is a new `RunDto` field so the page can say why the run paused.
 
 ## 4. Attach client lifecycle
 
@@ -160,8 +163,8 @@ pod. The workflow's attach count only goes down when the API sends a detach sign
   Can be removed after 7 days (the longest run).
 - **Attach leases.** Attach and detach signals carry the connection id. While a socket is open the API sends a
   `terminalLease` signal with its live ids every 2 minutes. The workflow drops an id it has not heard about for 5
-  minutes. So an API crash can block the idle timer for 5 minutes at most, not forever. That is about 720 events per
-  attached day, well under the 45,000-event guard.
+  minutes. So an API crash can block the idle timer for 5 minutes at most, not forever. That costs history
+  events: see Consequences for the measured numbers (the first estimate here, 720 events a day, was wrong).
 - Reattach is safe: every socket gets its own client and id; tmux allows many clients; the per-run cap (4) stays.
 
 ## 5. What the person sees
@@ -170,7 +173,7 @@ pod. The workflow's attach count only goes down when the API sends a detach sign
 | --- | --- | --- |
 | `running` | Live terminal | Cancel |
 | `idle` (Needs you) | Live terminal + the agent's question; "Pauses after 30 min with nobody attached" | Finish |
-| `idle` with `sessionEndingAt` | "Session ended. Pausing the run…" with a spinner; last scrollback greyed. No socket. | none (Resume queued if pressed, §7) |
+| `idle` with `sessionEndingAt` | "Session ending…" with a spinner and "The session is being saved. This page updates by itself when the session has ended."; last scrollback greyed. No socket. (Neutral on purpose: a person's Finish and the idle timer both set `sessionEndingAt`, and nothing tells them apart while the session ends; the run then pauses or succeeds.) | none (Resume queued if pressed, §7) |
 | `paused` | Saved scrollback + "Paused: waiting for your answer. Can be resumed for 6 days." Reason line: "after 30 min with nobody attached" or "the pod stopped unexpectedly (out of memory / evicted)" | Resume, Finish |
 | `queued`/`starting` after Resume | "Resuming… waiting for a slot / starting the pod" | Cancel resume |
 | resumed `idle` | Live terminal + banner "Resumed. The agent asked: <agentNote>. Background tasks and sub-agents that were running when it paused were stopped." | Finish |
@@ -217,11 +220,11 @@ then it stays as it is. B can come later as an agent setting if people complain.
 | Worker restarts during `ending` | Workflow replays; the deadline is a durable timer; `agentdesk-end` and Job delete are safe to repeat | workflow replay test |
 | Idle timer and Finish at the same moment | `ending` is set once; the second request waits for the same end | existing guard, test |
 | Two detaches for one attach / detach before attach | Lease set is keyed by id; unknown ids ignored; count never below 0 | §4, workflow test |
-| Attach while `ending` | API closes with 4410; web shows "Pausing…" | §4, api test |
+| Attach while `ending` | API closes with 4410; web shows "Session ending…" (bar "Ending…") | §4, api test |
 | Resume pressed while `ending` | Accepted and recorded; runs right after park (no "try again" error) | §2, workflow test |
 | Resume while a previous resume is starting | Rejected as today ("already being resumed") | existing |
 | Cancel while `ending` | Cancel wins: Job deleted, run `cancelled`, volume deleted | existing `cancelEffect`, test |
-| Agent exits on its own (`/exit`) | `agent_exit` marker → succeeded/failed by code, as today | §3 |
+| Agent exits on its own (`/exit`) | `agent_exit` marker → succeeded on code 0; non-zero → `paused` with `agent_crashed`, volume kept | §3 |
 
 ## 8. Tests
 
@@ -293,6 +296,8 @@ The entrypoint is the only owner of the pod's exit.
 - The workflow's `ending` phase has a deadline; after it the Job is deleted and the run is parked anyway.
 - A pod that ends without that line after the session started is parked as `paused` (`pauseReason=pod_lost`), never
   failed with its volume deleted.
+- An agent that exits non-zero (`agent_exit`) is parked the same way with `pauseReason=agent_crashed`, volume kept;
+  exit code 0 still succeeds.
 - Each terminal socket gets its own attach client (`agentdesk-attach <uuid>`), killed on close (`agentdesk-detach`).
   Attach state in the workflow is a set of leases that expire, not a counter.
 
@@ -315,7 +320,17 @@ The entrypoint is the only owner of the pod's exit.
 ### Negative
 
 - More runner scripts and an image rollout before API/worker changes; a fallback for older pods for 7 days.
-- Lease signals add a few hundred workflow events per attached day.
+- Lease signals cost workflow history, measured with the real Temporal test server (`run.workflow.test.ts`, "history
+  cost"): a lease signal adds **4 events** (the signal plus its workflow task: scheduled, started, completed), a lease
+  renewal starts no timer, and a lease-expiry timer cycle (fired, 3 task events, started) is **5 events**. One API pod
+  sends 720 signals per attached day per run = **about 2,900 events a day** while the agent works. The expiry timer only
+  runs while the run waits for a person (it is the idle timer's other half): with renewals every 120 s and a 300 s lease
+  it fires about every 240 s, so about **1,800 more a day** (about 4,700 a day in total) for a waiting run whose tab is in
+  use. A tab nobody touches is closed by the browser after 4 hours (D2), which stops the renewals. Sockets on two API
+  pods double the signal part. `RunWorkflow` has no `continueAsNew` and fails at the 45,000-event guard, so a 7-day run
+  with a busy attached tab on two pods could reach it around day 5 to 6. The lease interval and time are unchanged
+  (120 s, 300 s). Follow-up: `continueAsNew` for `RunWorkflow` (carrying the lease set), or a longer lease interval if
+  the numbers matter in practice.
 
 ## Links
 
@@ -327,6 +342,8 @@ The entrypoint is the only owner of the pod's exit.
 
 1. Idle timer for `needs_input`: decided: keep it, raised from 10 to 30 minutes.
 2. Should a run whose agent crashed (`agent_exit`, non-zero) also keep its volume and offer Resume, or stay `failed` as
-   today?
+   today? Decided 2026-11-16: keep the volume and offer Resume (pause reason `agent_crashed`); exit code 0 still succeeds.
 3. A forgotten open browser tab counts as attached and keeps a run's pod for up to 7 days. Add an "attached but no
-   input for N hours" rule now, or later?
+   input for N hours" rule now, or later? Decided 2026-11-16 (D2): a browser-side rule only. The web terminal closes
+   itself after the page was unused (no keydown, pointerdown, wheel or touchstart) or hidden for 4 hours, so a forgotten
+   tab stops renewing its lease and the run can park. No keystroke detection on the server, no workflow change.

@@ -24,6 +24,15 @@ export const INVOICER_API = 'a0000000-0000-4000-8000-000000000001';
 export const SCRIPTED_RUN = 63;
 /** A paused run with a kept session (fixtures: dto/runs.ts). */
 export const PAUSED_RUN = 64;
+/** A run nobody resumed in time (fixtures: dto/runs.ts). */
+export const EXPIRED_RUN = 66;
+/** The runs in the terminal lifecycle states: ending, agent crashed, resume failed, resumed (src/mocks/dto/lifecycleRuns.ts, browser mock only). */
+export const ENDING_RUN = 67;
+export const CRASHED_RUN = 68;
+export const RESUME_FAILED_RUN = 69;
+export const RESUMED_RUN = 70;
+/** An idle run (Needs you) that has a live terminal. */
+export const IDLE_RUN = 62;
 
 /** The first page load of this test starts signed out (get-session null, API 401). */
 export async function startSignedOut(page: Page): Promise<void> {

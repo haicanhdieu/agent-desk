@@ -11,6 +11,7 @@ import {
   scrollbackLines,
   scrollbackText,
   streamConnection,
+  terminalArea,
   terminalConnection,
   toRunDetail,
 } from '@/features/runs/detail.map';
@@ -20,12 +21,16 @@ import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
 import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
 import { useTerminal } from '@/features/runs/useTerminal';
+import { TERMINAL_UNUSED_CLOSE_MS } from '@/features/runs/unusedWatch';
 import { RunDetail } from '@/screens';
 
 // xterm downloads only when a run detail shows a terminal (spec §5.3).
 const LiveTerminal = lazy(() => import('@/components/LiveTerminal'));
 
 const GAVE_UP_BODY = 'The agent keeps working; tmux holds the session. Reconnect to attach to the terminal again.';
+
+const UNUSED_HOURS = TERMINAL_UNUSED_CLOSE_MS / (60 * 60 * 1000);
+const INACTIVE_BODY = `Nobody used this page for ${UNUSED_HOURS} hours, so the terminal was closed and the run can pause when it is idle. The agent keeps working; tmux holds the session. Reconnect to attach to the terminal again.`;
 
 /** `$run` is the per-project run number. */
 const RunParam = z.string().regex(/^[1-9]\d{0,8}$/);
@@ -63,9 +68,12 @@ function RunDetailRoute() {
   const stream = useRunEvents(org, projectId, number, dto.id, !final);
   // Turned final while open: the run and its log (the final scrollback) reload.
   useFinalLogReload(org, projectId, number, final);
-  // The live terminal, while the run is running or idle. The socket opens once the (lazy) terminal has mounted, so
+  // The live terminal, while the run is running or idle and its session is not ending (then the page says "Pausing"
+  // and opens no socket; the run stream brings the park). The socket opens once the (lazy) terminal has mounted, so
   // no output arrives before there is a terminal to write it to.
-  const live = dto.status === 'running' || dto.status === 'idle' || dto.status === 'done';
+  const area = terminalArea(dto, events);
+  const live = area === 'live';
+  const pausing = area === 'pausing';
   const termRef = useRef<LiveTerminalHandle | null>(null);
   const [termReady, setTermReady] = useState(false);
   const attachTerm = useCallback((handle: LiveTerminalHandle | null) => {
@@ -90,9 +98,10 @@ function RunDetailRoute() {
   });
   // No pod (final, or paused): the terminal bar says so and the stored scrollback shows.
   const stored = final || dto.status === 'paused';
-  const data = stored
-    ? mapped
-    : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
+  const data =
+    stored || pausing
+      ? mapped
+      : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
   // A finished or paused run's stored scrollback in the same terminal, read-only, written once.
   const scrollback = stored ? scrollbackText(events) : undefined;
   // Keyed by the scrollback event too, so a later (re-stored) scrollback opens a new terminal with it.
@@ -118,12 +127,14 @@ function RunDetailRoute() {
   return (
     <RunDetail
       data={data}
-      lines={stored ? scrollbackLines(events) : undefined}
+      // A pausing run greys the last scrollback it has: the terminal is closed, so the stored one stands in.
+      lines={stored || pausing ? scrollbackLines(events) : undefined}
       terminal={terminal}
       // The "terminal lost" overlay belongs to a live terminal that gave up; never to queued, starting or final runs.
       onReconnect={live ? term.reconnect : undefined}
       reconnectOverlay={live && term.state === 'gave_up'}
       reconnectBody={live ? GAVE_UP_BODY : undefined}
+      inactiveBody={live && term.state === 'inactive' ? INACTIVE_BODY : undefined}
       needsYou={page.dto.counts.needsYou}
       projectName={page.dto.name}
       user={page.user}

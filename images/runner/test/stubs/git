@@ -7,6 +7,9 @@ appendFileSync(process.env.STUB_LOG, `${JSON.stringify({ cmd: 'git', argv: proce
 const [sub, ...rest] = process.argv.slice(2);
 if (sub === 'clone') {
   const dir = rest[rest.length - 1];
+  // STUB_GIT_CLONE_DELAY_MS simulates a slow clone on a loaded machine (before the entrypoint installs its TERM trap).
+  const delay = Number(process.env.STUB_GIT_CLONE_DELAY_MS ?? 0);
+  if (delay > 0) await new Promise((r) => setTimeout(r, delay));
   mkdirSync(dir, { recursive: true });
   const files = JSON.parse(readFileSync(process.env.STUB_FIXTURE, 'utf8'));
   for (const [path, content] of Object.entries(files)) {

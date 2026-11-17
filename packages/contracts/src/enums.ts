@@ -26,6 +26,10 @@ export const ACTIVE_RUN_STATUSES = ['starting', 'running', 'idle', 'done'] as co
 /** Statuses a person may Finish (needs you, the agent declared done, or paused). */
 export const FINISHABLE_RUN_STATUSES = ['idle', 'done', 'paused'] as const satisfies readonly RunStatus[];
 
+/** Why a run is paused: the idle timer stopped the pod, or the pod was lost. */
+export const PauseReason = z.enum(['idle_timeout', 'pod_lost', 'agent_crashed']);
+export type PauseReason = z.infer<typeof PauseReason>;
+
 export const TriggerMode = z.enum(['webhook', 'polling']);
 export type TriggerMode = z.infer<typeof TriggerMode>;
 

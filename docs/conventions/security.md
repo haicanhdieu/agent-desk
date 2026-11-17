@@ -96,7 +96,7 @@ Untrusted: ticket titles and bodies, comments and their args, labels, author nam
 // Bad: args from a comment reach a shell
 await gateway.exec(pod, ['sh', '-c', `echo ${args} > /tmp/a`]);
 // Good: constant argv; user text only travels inside PROMPT
-await gateway.exec(pod, ['tmux', 'kill-session', '-t', 'agent']);
+await gateway.exec(pod, ['agentdesk-end']);
 ```
 
 ## 6. Authorization on every endpoint

@@ -28,7 +28,7 @@
   - Connection id: server-made UUID, checked by regex in the API and in the script.
   - Lease signal every 2 minutes; the workflow drops an id unheard for 5 minutes.
   - Per-run terminal cap stays `MAX_TERMINALS_PER_RUN = 4`.
-  - `pauseReason`: `idle_timeout` | `pod_lost`. `sessionEndingAt`: timestamp or null.
+  - `pauseReason`: `idle_timeout` | `pod_lost` | `agent_crashed`. `sessionEndingAt`: timestamp or null.
   - `patched()` ids: `ending-deadline`, `pod-lost-parks`, `attach-leases`.
   - Idle timer (user decision): `IDLE_END_SECONDS_DEFAULT` 600 → 1800, only in Phase 3a.
 - The status stays `idle`/`done` during `ending`; filters and status tokens do not change.
@@ -47,8 +47,8 @@
 
 Ask each one with the `AGENTS.md` "Talking to humans" template, one at a time, and wait.
 
-- **D1, spec open question 2, before Phase 6:** a run whose agent crashed (`agent_exit`, non-zero code) keeps `failed` and deletes its volume as today, or keeps its volume and offers Resume? Phase 6 as written keeps today's behaviour; if the answer is "keep the volume", add a task to Phase 6 (park with a new `pauseReason` value, which also changes Phase 5's enum) before starting it.
-- **D2, spec open question 3, before Phase 9:** add an "attached but no input for N hours" rule now (inside Phase 9's lease design) or later (separate spec)? Phase 9 as written does not include it.
+- **D1, spec open question 2: answered 2026-11-16, option 1.** A run whose agent crashed (`agent_exit`, non-zero code) keeps its volume and offers Resume (it parks like a lost pod, with the new pause reason `agent_crashed`); exit code 0 still means succeeded. Added as Task 6c (data) and in Tasks 6b and 7.
+- **D2, spec open question 3: answered 2026-11-16, option 3.** A browser-side rule only (no keystroke detection on the server, no workflow change): the web terminal closes itself after the page was unused for a few hours, so a forgotten tab stops renewing its lease and the run can park. Added as Task 9b.
 
 ## File Map
 
@@ -80,7 +80,7 @@ Ask each one with the `AGENTS.md` "Talking to humans" template, one at a time, a
 - Harness: `runEntrypoint(env, repoFixture, opts?: { signalAfterMs?: number })` sends SIGTERM to the bash process after `opts.signalAfterMs`.
 - tmux stub modes via `STUB_TMUX_MODE`: `dead` (default, today's behaviour: pane dead, status `STUB_PANE_STATUS` or 0), `incident` (`has-session` exits 1, `display-message` prints nothing and exits 0), `alive` (session exists and pane never dies).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 it('incident: session gone but display-message prints nothing still exits', async () => {
@@ -111,11 +111,11 @@ it('kills the tmux server after the scrollback on every end path', async () => {
 });
 ```
 
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test -- entrypoint` — expect FAIL (the incident test times out at the harness's 30 s).
-- [ ] **Step 3: Implement** in `entrypoint.sh`: a `trap 'end_reason=signal' TERM` set right after `new-session`; a loop that sleeps with `sleep 1 & wait $!` (so the trap fires at once; bash as PID 1 ignores SIGTERM without a trap) and checks, in order, the trap flag, `tmux has-session -t '=agent'` exit code (`session_gone`), then pane dead (`display-message -p -t '=agent' '#{pane_dead}'` printing exactly `1` → `agent_exit`, code from `#{pane_dead_status}`, digits only else `1`). One `end_session` function: `timeout 5 tmux capture-pane …` between the existing markers, `tmux kill-server 2>/dev/null || true`, the end line, exit. Keep `remain-on-exit`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/runner test` — expect PASS (all old entrypoint tests too).
-- [ ] **Step 5: Write ADR 0023** and the three amendment notes.
-- [ ] **Step 6: Commit** `fix(runner): end the session on exit codes and kill the tmux server`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test -- entrypoint` — expect FAIL (the incident test times out at the harness's 30 s).
+- [x] **Step 3: Implement** in `entrypoint.sh`: a `trap 'end_reason=signal' TERM` set right after `new-session`; a loop that sleeps with `sleep 1 & wait $!` (so the trap fires at once; bash as PID 1 ignores SIGTERM without a trap) and checks, in order, the trap flag, `tmux has-session -t '=agent'` exit code (`session_gone`), then pane dead (`display-message -p -t '=agent:' '#{pane_dead}'` printing exactly `1` → `agent_exit`, code from `#{pane_dead_status}`, digits only else `1`). One `end_session` function: `timeout 5 tmux capture-pane -t '=agent:' …` between the existing markers, `tmux kill-server 2>/dev/null || true`, the end line, exit. Keep `remain-on-exit`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/runner test` — expect PASS (all old entrypoint tests too).
+- [x] **Step 5: Write ADR 0023** and the three amendment notes.
+- [x] **Step 6: Commit** `fix(runner): end the session on exit codes and kill the tmux server`.
 
 ---
 
@@ -136,7 +136,7 @@ it('kills the tmux server after the scrollback on every end path', async () => {
 - Activity `recordEndingDeadline(ctx: RunContext, input: { scrollbackSaved: boolean; at: string }): Promise<void>` — appends a run event; text when not saved: "The session did not end in time; the pod was stopped. Final scrollback not saved."
 - Workflow behaviour under `patched('ending-deadline')` (read once, right after `pauseResume`): while `ending`, the loop waits `condition(wake, deadlineMs)`; on timeout it calls `act.deleteJob(c)`, cancels `pod.scope`, sets `pod.abandoned = true`, records the event, then continues as if the pod exited: park when `pauseResume && parkKind !== undefined && !finishRequested`, else `succeeded`.
 
-- [ ] **Step 1: Write the failing tests** (real time, short values from `loadRun`, as the existing idle tests do):
+- [x] **Step 1: Write the failing tests** (real time, short values from `loadRun`, as the existing idle tests do):
 
 ```ts
 it('ending deadline: a pod that never exits is deleted and the run parks', async () => {
@@ -157,11 +157,11 @@ it('ENDING_DEADLINE_SECONDS_DEFAULT mirrors core', () => {
 
 Plus in `config.test.ts`: `RUN_ENDING_DEADLINE_SECONDS` defaults to 90, blank is the default, `0` is refused.
 
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow` and `pnpm --filter @agentdesk/core test -- config` — expect FAIL.
-- [ ] **Step 3: Implement** the items under Produces. Cancelling `pod.scope` must not surface as `current.error` (treat a cancellation of an abandoned pod as "exited, no result"; use `scrollbackSaved = pod.result?.scrollbackTail !== undefined`). `park()` already calls `deleteJob`; a second delete is a no-op.
-- [ ] **Step 4: Replay.** Capture `run-ending-deadline-history.json` with `UPDATE_REPLAY_FIXTURES=1`; the existing replay test must pass for all old fixtures (`run-idle-timer`, `run-idle-finish`, `run-park-*`).
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test && pnpm typecheck` — expect PASS.
-- [ ] **Step 6: Commit** `fix(worker): delete the Job and park when a session does not end in time`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow` and `pnpm --filter @agentdesk/core test -- config` — expect FAIL.
+- [x] **Step 3: Implement** the items under Produces. Cancelling `pod.scope` must not surface as `current.error` (treat a cancellation of an abandoned pod as "exited, no result"; use `scrollbackSaved = pod.result?.scrollbackTail !== undefined`). `park()` already calls `deleteJob`; a second delete is a no-op.
+- [x] **Step 4: Replay.** Capture `run-ending-deadline-history.json` with `UPDATE_REPLAY_FIXTURES=1`; the existing replay test must pass for all old fixtures (`run-idle-timer`, `run-idle-finish`, `run-park-*`).
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test && pnpm typecheck` — expect PASS.
+- [x] **Step 6: Commit** `fix(worker): delete the Job and park when a session does not end in time`.
 
 ---
 
@@ -176,15 +176,15 @@ Plus in `config.test.ts`: `RUN_ENDING_DEADLINE_SECONDS` defaults to 90, blank is
 - Test: create `images/runner/test/attach-scripts.test.ts`; extend `images/runner/test/dockerfile.test.ts`; `packages/core` job-spec test
 
 **Interfaces — Produces:**
-- `agentdesk-attach <uuid>`: rejects an id not matching `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` with exit 2; exits 3 when `tmux has-session -t '=agent'` fails; otherwise writes `$$` to `${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/<uuid>.pid` and `exec tmux attach -t '=agent'`.
-- `agentdesk-detach <uuid>`: same regex (exit 2); reads only that pid file; kills that pid only if it still is a `tmux` process (check `/proc/<pid>/comm`, test seam `AGENTDESK_PROC_DIR`); removes the file; exit 0 when the file is missing (idempotent).
+- `agentdesk-attach <uuid>`: rejects an id not matching `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` with exit 2; exits 3 when `tmux has-session -t '=agent'` fails; otherwise writes `$$` to `${AGENTDESK_RUN_DIR:-/run/agentdesk}/attach/<uuid>.pid` with noclobber (an existing file, i.e. a detach tombstone, means exit 3 and remove it) and `exec tmux attach -t '=agent'`.
+- `agentdesk-detach <uuid>`: same regex (exit 2); reads only that pid file; kills that pid only if its `/proc/<pid>/comm` is exactly `tmux: client` (what real tmux 3.3a sets on an attach client, checked in the runner image) or `agentdesk-attac` (the attach script before its exec); never plain `tmux`, `tmux: server` or anything else (test seam `AGENTDESK_PROC_DIR`); removes the file; when the file is missing it leaves a `-` tombstone (noclobber) so a late `agentdesk-attach` exits 3 without attaching, and exits 0 (idempotent).
 - Core job-spec: `RUN_DIR = '/run/agentdesk'` exported constant.
 
-- [ ] **Step 1: Write the failing tests:** attach with no session → exit 3 and no tmux `attach` call; attach with a session → pid file holds the script's pid and tmux got `attach -t =agent`; attach `'../../etc'` and `'$(id)'` → exit 2, no file written; detach of a non-UUID → exit 2; detach kills only the pid in its own file (two pid files, one killed); detach of a missing id → exit 0; detach does not kill a pid whose `comm` is not `tmux`; Dockerfile copies both scripts executable; job-spec mounts a Memory `emptyDir` at `/run/agentdesk`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test -- job-spec` — expect FAIL.
-- [ ] **Step 3: Implement** the two scripts (bash, `set -euo pipefail`, id only ever used after the regex check, quoted) and the job-spec volume.
-- [ ] **Step 4: Run** the same commands — expect PASS.
-- [ ] **Step 5: Commit** `feat(runner): one named tmux attach client per terminal`.
+- [x] **Step 1: Write the failing tests:** attach with no session → exit 3 and no tmux `attach` call; attach with a session → pid file holds the script's pid and tmux got `attach -t =agent`; attach `'../../etc'` and `'$(id)'` → exit 2, no file written; detach of a non-UUID → exit 2; detach kills only the pid in its own file (two pid files, one killed); detach of a missing id → exit 0; detach does not kill a pid whose `comm` is not `tmux`; Dockerfile copies both scripts executable; job-spec mounts a Memory `emptyDir` at `/run/agentdesk`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test -- job-spec` — expect FAIL.
+- [x] **Step 3: Implement** the two scripts (bash, `set -euo pipefail`, id only ever used after the regex check, quoted) and the job-spec volume.
+- [x] **Step 4: Run** the same commands — expect PASS.
+- [x] **Step 5: Commit** `feat(runner): one named tmux attach client per terminal`.
 - [ ] **Step 6: After merge:** build and roll out the runner image (runbook). Phases 3a and 4 wait for this.
 
 ---
@@ -201,11 +201,11 @@ User decision (spec §5 option A, open question 1). Lands only after Phases 1, 2
 - Modify: `.env.example:65` (`# RUN_IDLE_END_SECONDS=1800`), `docs/runbooks/local-dev.md` ("the default is 1800"), `docs/conventions/testing.md:77` ("idle 30 min"), the "10 minutes" lines in ADR 0011/0020/0022 get a one-line "now 30 min (0023 rollout)" note, `apps/web/src/mocks/runDetail.tsx:393` copy
 - Test: `apps/worker/test/run.workflow.test.ts:359-360`, `packages/core/test/config.test.ts:29,33`
 
-- [ ] **Step 1: Change the tests first:** `expect(IDLE_END_SECONDS).toBe(1800)` (worker test line 360), `expect(c.RUN_IDLE_END_SECONDS).toBe(1800)` and the blank-default case (config test lines 29, 33).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow && pnpm --filter @agentdesk/core test -- config` — expect FAIL on those assertions.
-- [ ] **Step 3: Implement** the two constants and the doc/copy lines above. Replay note: `idleEndSeconds` comes from `loadRun` (recorded), and Temporal does not compare timer durations on replay, so no `patched()` is needed; the replay test proves it.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test` — expect PASS, replay included.
-- [ ] **Step 5: Commit** `feat(worker): pause runs after 30 minutes with nobody attached`.
+- [x] **Step 1: Change the tests first:** `expect(IDLE_END_SECONDS).toBe(1800)` (worker test line 360), `expect(c.RUN_IDLE_END_SECONDS).toBe(1800)` and the blank-default case (config test lines 29, 33).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- run.workflow && pnpm --filter @agentdesk/core test -- config` — expect FAIL on those assertions.
+- [x] **Step 3: Implement** the two constants and the doc/copy lines above. Replay note: `idleEndSeconds` comes from `loadRun` (recorded), and Temporal does not compare timer durations on replay, so no `patched()` is needed; the replay test proves it.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/core test` — expect PASS, replay included.
+- [x] **Step 5: Commit** `feat(worker): pause runs after 30 minutes with nobody attached`.
 
 ---
 
@@ -227,11 +227,11 @@ Precondition: the Phase 3 runner image is live.
 - `CLOSE.sessionEnded = 4410`.
 - Fake gateway: `agentdesk-attach <uuid>` behaves like `TMUX_ATTACH` (exit 3 when the fake pod has exited); `agentdesk-detach <uuid>` records the id and returns `closedSession(0)`.
 
-- [ ] **Step 1: Write the failing tests:** each socket execs `agentdesk-attach <its own uuid>` (two sockets → two different ids, both valid UUIDs, not from the client); attach exec closing with exit 3 → socket closed 4410; attach on a run whose pod already exited → 4410; socket close, socket error and API shutdown each run `agentdesk-detach <same id>` once; exec exit 127 on attach → retried once with `TMUX_ATTACH`; `attachCommand('x; rm -rf /')` throws; unauthorized sockets never exec anything.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test -- terminal && pnpm --filter @agentdesk/core test` — expect FAIL.
-- [ ] **Step 3: Implement.** `randomUUID()` per connection on the server; detach is best effort (log error name only, never fail the close). Keep the 4-per-run cap and existing authz order unchanged.
-- [ ] **Step 4: Run** the same commands — expect PASS.
-- [ ] **Step 5: Commit** `feat(api): one attach client per terminal socket, closed with it`.
+- [x] **Step 1: Write the failing tests:** each socket execs `agentdesk-attach <its own uuid>` (two sockets → two different ids, both valid UUIDs, not from the client); attach exec closing with exit 3 → socket closed 4410; attach on a run whose pod already exited → 4410; socket close, socket error and API shutdown each run `agentdesk-detach <same id>` once; exec exit 127 on attach → retried once with `TMUX_ATTACH`; `attachCommand('x; rm -rf /')` throws; unauthorized sockets never exec anything.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test -- terminal && pnpm --filter @agentdesk/core test` — expect FAIL.
+- [x] **Step 3: Implement.** `randomUUID()` per connection on the server; detach is best effort (log error name only, never fail the close). Keep the 4-per-run cap and existing authz order unchanged.
+- [x] **Step 4: Run** the same commands — expect PASS.
+- [x] **Step 5: Commit** `feat(api): one attach client per terminal socket, closed with it`.
 
 ---
 
@@ -246,21 +246,21 @@ Precondition: the Phase 3 runner image is live.
 - Test: `packages/contracts` runs schema test, `packages/db` migration test (follow the `0011`/`0012` guard tests)
 
 **Interfaces — Produces:**
-- `PauseReason = z.enum(['idle_timeout', 'pod_lost'])`.
+- `PauseReason = z.enum(['idle_timeout', 'pod_lost'])` (Task 6c adds `'agent_crashed'`).
 - `RunDto` and `RunStatusEvent` gain `sessionEndingAt: Timestamp.nullable()`, `pauseReason: PauseReason.nullable()`.
-- Columns `runs.session_ending_at` (timestamptz null), `runs.pause_reason` (text null, check `in ('idle_timeout','pod_lost')`).
+- Columns `runs.session_ending_at` (timestamptz null), `runs.pause_reason` (text null, check `in ('idle_timeout','pod_lost')`, Task 6c adds `'agent_crashed'`).
 
-- [ ] **Step 1: Write the failing tests:** `RunDto` parses with both fields null and with `pauseReason: 'pod_lost'`; rejects `pauseReason: 'oom'`; migration applies on a db at `0012`; `pause_reason = 'x'` is rejected; the file has no `update`/`delete`/`insert` on `runs`; existing rows read back null.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/db test` — expect FAIL.
-- [ ] **Step 3: Implement**; API mappers read the real columns (null for old rows).
-- [ ] **Step 4: Run** those plus `pnpm typecheck` — expect PASS.
-- [ ] **Step 5: Commit** `feat(contracts): session ending time and pause reason on runs`.
+- [x] **Step 1: Write the failing tests:** `RunDto` parses with both fields null and with `pauseReason: 'pod_lost'`; rejects `pauseReason: 'oom'`; migration applies on a db at `0012`; `pause_reason = 'x'` is rejected; the file has no `update`/`delete`/`insert` on `runs`; existing rows read back null.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/db test` — expect FAIL.
+- [x] **Step 3: Implement**; API mappers read the real columns (null for old rows).
+- [x] **Step 4: Run** those plus `pnpm typecheck` — expect PASS.
+- [x] **Step 5: Commit** `feat(contracts): session ending time and pause reason on runs`.
 
 ---
 
 ## Phase 6: Worker reads the end, pod lost parks (PR 6) — `review:sensitive` (run Job)
 
-**Stop first:** ask decision point D1. Continue with the plan below only if the answer is "stay `failed`"; otherwise add the extra task first.
+D1 is answered (keep the volume, offer Resume): Task 6c adds `agent_crashed`, Task 6b uses it.
 
 ### Task 6a: Parse the end marker and survive a vanished pod
 
@@ -273,13 +273,30 @@ Precondition: the Phase 3 runner image is live.
 - `export type EndReason = 'stop_request' | 'agent_exit' | 'session_gone' | 'signal'` in core (mirrored in workflow code, which cannot import core; a test asserts equality).
 - `LogLineKind` gains `'session_ended'`; `ParsedLogLine.end?: { reason: EndReason; code: number }`; regex `^agentdesk: session ended reason=(stop_request|agent_exit|session_gone|signal) code=(\d{1,3})$`.
 - `FollowPodLogsResult` gains `endReason?: EndReason` (last `session_ended` line seen; stored as a run event so it survives retries) and `podLost?: true` (the pod vanished or ended with no end line after `session_started`).
-- `waitForExit` returns `'gone'` instead of throwing when the pod disappeared; `followPodLogs` maps `'gone'` after `session_started` to `{ podLost: true, exitCode: -1 }` and keeps today's non-retryable failure before it.
+- `waitForExit` returns `'gone'` instead of throwing when the pod disappeared; `followPodLogs` maps `'gone'` after `session_started` to `{ podLost: true, exitCode: -1, lostText }` (the failure text it used to throw) and keeps today's non-retryable failure before it.
 
-- [ ] **Step 1: Failing tests:** parser accepts the four reasons and rejects `reason=evil`, extra text, and 4-digit codes; `followPodLogs` returns `endReason: 'signal'` for a log with the line; returns `podLost: true` when the fake pod is deleted after `session started` with no end line; still throws before `session started`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test -- log-parser && pnpm --filter @agentdesk/worker test -- run.activities` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): read how the session ended from the runner`.
+- [x] **Step 1: Failing tests:** parser accepts the four reasons and rejects `reason=evil`, extra text, and 4-digit codes; `followPodLogs` returns `endReason: 'signal'` for a log with the line; returns `podLost: true` when the fake pod is deleted after `session started` with no end line; still throws before `session started`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test -- log-parser && pnpm --filter @agentdesk/worker test -- run.activities` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): read how the session ended from the runner`.
+
+### Task 6c: Add the `agent_crashed` pause reason (data plumbing only)
+
+**Files:**
+- Modify: `packages/contracts/src/enums.ts`, `packages/db/src/schema/app.ts`
+- Create: `packages/db/migrations/0014_run_pause_reason_agent_crashed.sql` (+ drizzle meta), generated with `pnpm db:generate`
+- Test: `packages/contracts/src/schemas/runs.test.ts`, `packages/db/test/migrate.int.test.ts`
+
+**Interfaces — Produces:**
+- `PauseReason = z.enum(['idle_timeout', 'pod_lost', 'agent_crashed'])`.
+- Migration 0014 drops and re-adds `runs_pause_reason_check` allowing the three values. Add-only: no row writes, no RLS or grant change, 0013 untouched.
+
+- [x] **Step 1: Failing tests:** `RunDto` and `RunStatusEvent` parse `agent_crashed` and still reject `oom`; the new check accepts the three values and rejects `'x'` with 23514; the 0014 file has no `update`/`delete`/`insert` and no `create policy`/`alter policy`/`grant`.
+- [x] **Step 2: Run** the contracts test, expect FAIL (the db test needs Docker and runs in CI).
+- [x] **Step 3: Implement** enum, schema, generated migration; a second `db:generate` reports no changes.
+- [x] **Step 4: Run** contracts test and all typechecks, expect PASS.
+- [x] **Step 5: Commit** `feat(contracts): add the agent_crashed pause reason`.
 
 ### Task 6b: Outcome decisions, `sessionEndingAt`, pod lost parks, resume while ending
 
@@ -288,21 +305,42 @@ Precondition: the Phase 3 runner image is live.
 - Test: `apps/worker/test/park.test.ts`, `apps/worker/test/run.workflow.test.ts`, new fixture `run-pod-lost-history.json`
 
 **Interfaces — Produces:**
-- `endOutcome(input: { ending: boolean; finishRequested: boolean; phase: RunPhase; parkKind?: ParkKind; endReason?: EndReason; podLost: boolean; exitCode: number }): { kind: 'park'; parkKind: ParkKind; reason: PauseReason } | { kind: 'succeeded' } | { kind: 'failed' }` in `park.ts`. Rules: `ending` + Finish → succeeded; `ending` (idle timer) → park with `idle_timeout`; `podLost` (or no end line) after start → park, `pod_lost`, kind from phase (`running`/`idle` → `needs_input`, `agent_done` → `done`); `agent_exit` → succeeded on 0, failed otherwise (D1).
+- `endOutcome(input: { ending: boolean; finishRequested: boolean; phase: RunPhase; parkKind?: ParkKind; endReason?: EndReason; podLost: boolean; exitCode: number }): { kind: 'park'; parkKind: ParkKind; reason: PauseReason } | { kind: 'succeeded' } | { kind: 'failed' }` in `park.ts`. Rules: `ending` + Finish → succeeded; `ending` (idle timer) → park with `idle_timeout`; `podLost` (or no end line) after start → park, `pod_lost`, kind from phase (`running`/`idle` → `needs_input`, `agent_done` → `done`); `agent_exit` code 0 → succeeded; non-zero → `{ kind: 'park', parkKind: <from phase as for pod_lost>, reason: 'agent_crashed' }` (D1: answered 2026-11-16, keep the work and offer Resume).
 - `parkRun(ctx, { kind, at, reason: PauseReason })` (reason added; clears `session_ending_at`).
 - `endSession` sets `session_ending_at = now()` before the exec (activity-side, so no new workflow command).
 - `resumeRejection(phase)` accepts `'ending'` (queued): the workflow sets `resumeAccepted` and the park loop runs it right after park.
 - All new workflow branches behind `patched('pod-lost-parks')`, read once after `pauseResume`.
+- `endReason` is a hint, never authority: the agent shares the container and can print a forged `session ended` line. Treat it as untrusted (for example ignore it when its code disagrees with the pod's real exit code).
 
-- [ ] **Step 1: Failing tests:** `endOutcome` table test, one row per rule above (include `running` + `podLost` → `needs_input`/`pod_lost`; `agent_done` + `podLost` → `done`); workflow: fake pod killed while idle → `paused` with `pauseReason='pod_lost'`, volume not deleted; idle timer → `sessionEndingAt` set during ending and null after park, `pauseReason='idle_timeout'`; resume sent while `ending` is accepted and a new pod starts after park; cancel while `ending` still wins (`cancelled`, volume deleted); old fixtures still replay.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- park run.workflow` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm typecheck` — expect PASS; capture the new fixture.
-- [ ] **Step 5: Commit** `feat(worker): park a run whose pod was lost; show the session ending`.
+- [x] **Step 1: Failing tests:** `endOutcome` table test, one row per rule above (include `running` + `podLost` → `needs_input`/`pod_lost`; `agent_done` + `podLost` → `done`); workflow: fake pod killed while idle → `paused` with `pauseReason='pod_lost'`, volume not deleted; idle timer → `sessionEndingAt` set during ending and null after park, `pauseReason='idle_timeout'`; resume sent while `ending` is accepted and a new pod starts after park; cancel while `ending` still wins (`cancelled`, volume deleted); old fixtures still replay.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- park run.workflow` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm typecheck` — expect PASS; capture the new fixture.
+- [x] **Step 5: Commit** `feat(worker): park a run whose pod was lost; show the session ending`.
 
 ---
 
 ## Phase 7: Web states (PR 7) — not sensitive
+
+### Task 7a: API, SSE and worker pieces Task 7 depends on
+
+**Files:**
+- Modify: `packages/contracts/src/schemas/session.ts`, `apps/api/src/runs/runs.service.ts`, `apps/api/src/sse/sse.service.ts` (+ new `status-key.ts`), `apps/worker/src/activities/{run.activities.impl,session.activity,run.activities}.ts`, `apps/worker/src/workflows/run.workflow.ts`
+- Test: `packages/contracts/src/schemas/session.test.ts`, `apps/api/src/sse/status-key.test.ts`, `apps/api/test/{runs,sse}.int.test.ts`, `apps/worker/test/{run.activities.end-session,session.activity,run.workflow.in-process}.test.ts`, `apps/worker/test/session.activity.int.test.ts`
+
+**Interfaces — Produces:**
+- `canResume(run: { status; sessionExpiresAt; sessionEndingAt }, now)`: also true for `idle`/`running`/`done` while `sessionEndingAt` is set; `RunsService.resume` uses it (same authorization as Finish; the workflow update still accepts or refuses).
+- `statusFrameKey(frame)` (SSE dedupe key) includes `sessionEndingAt` and `pauseReason`; `endSession` queues `notifyRunStatus` in the same transaction when it set the column.
+- `parkRun` input gains `resumeQueued?: boolean`; with nothing kept it appends a `resume_failed` lifecycle event (fixed text, with `text` for the timeline).
+- The crash exit code needs no API change: the web already loads the run log (`runs.log`), whose `session_ended` events carry `{ line, kind, reason, code }`.
+
+- [x] **Step 1: Resume while ending (API).** Failing `canResume` table test and API cases; extend `canResume`, use it in `RunsService.resume`.
+- [x] **Step 2: SSE shows pausing.** Failing key test and `endSession` notify test; add the NOTIFY and the two key fields.
+- [x] **Step 3: A queued Resume that cannot run.** Failing in-process workflow test and `parkRun` test; pass `resumeQueued`, record the event.
+- [x] **Step 4: Crash exit code.** Checked: readable from the `session_ended` event in the run log; nothing added.
+- [x] **Step 5: Commit** `feat(api): resume while ending; show pausing over SSE; record a resume that cannot run`.
+
+---
 
 ### Task 7: Close codes and pausing/paused/resumed states
 
@@ -312,15 +350,16 @@ Precondition: the Phase 3 runner image is live.
 
 **Interfaces — Produces:**
 - `useTerminal`: `CLOSE_SESSION_ENDED = 4410`; `TerminalState` gains `'ended'`. 4410 and 4409 → `onSessionEnd`, no retry. 1000 → refetch; retry only if the run is live and `sessionEndingAt` is null. Back-off only for 1006, 1011, 1013.
-- `detail.map.ts`: `terminalArea(run: RunDto): 'live' | 'pausing' | 'paused' | 'resuming' | 'expired'` and `pauseReasonText(r: PauseReason): string` — "after 30 min with nobody attached" / "the pod stopped unexpectedly (out of memory / evicted)".
-- Copy from spec §5, exactly: "Session ended. Pausing the run…"; "Paused: waiting for your answer. Can be resumed for <N> days." (N from `sessionExpiresAt`, not hard-coded); "Pauses after 30 min with nobody attached"; resumed banner "Resumed. The agent asked: <agentNote>. Background tasks and sub-agents that were running when it paused were stopped."; expired "Nobody resumed this run within <N> days. The saved session was deleted."
+- `detail.map.ts`: `terminalArea(run: RunDto): 'live' | 'pausing' | 'paused' | 'resuming' | 'expired'` and `pauseReasonText(r: PauseReason): string` — "after 30 min with nobody attached" / "the pod stopped unexpectedly (out of memory / evicted)" / "the agent crashed".
+- Copy from spec §5, exactly (ending notice changed in U12, see spec §5): "Session ending…"; "Paused: waiting for your answer. Can be resumed for <N> days." (N from `sessionExpiresAt`, not hard-coded); "Pauses after 30 min with nobody attached"; resumed banner "Resumed. The agent asked: <agentNote>. Background tasks and sub-agents that were running when it paused were stopped."; expired "Nobody resumed this run within <N> days. The saved session was deleted."
+- The paused page shows "Paused: agent crashed (exit code N)" with Resume when `pauseReason = 'agent_crashed'` (add it to `pauseReasonText`, a story and a test).
 - While `sessionEndingAt` is set the run query polls (existing SSE if it carries the field, else `refetchInterval: 2000`).
 
-- [ ] **Step 1: Failing tests:** 4410 → state `ended`, no second socket after the back-off window (fake timers); 1000 with `sessionEndingAt` set → no retry; 1006 → retries; `terminalArea` table test; `pauseReasonText` both values; route test shows the pausing text and no socket while `sessionEndingAt` is set.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test -- useTerminal detail` — expect FAIL.
-- [ ] **Step 3: Implement**, design tokens only. Stories: pausing, paused (idle_timeout), paused (pod_lost), resumed banner, expired, plus loading and error states.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck` and build Storybook once — expect PASS.
-- [ ] **Step 5: Commit** `feat(web): show pausing, paused and resumed run states`.
+- [x] **Step 1: Failing tests:** 4410 → state `ended`, no second socket after the back-off window (fake timers); 1000 with `sessionEndingAt` set → no retry; 1006 → retries; `terminalArea` table test; `pauseReasonText` all three values; route test shows the pausing text and no socket while `sessionEndingAt` is set.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test -- useTerminal detail` — expect FAIL.
+- [x] **Step 3: Implement**, design tokens only. Stories: pausing, paused (idle_timeout), paused (pod_lost), paused (agent_crashed), resumed banner, expired, plus loading and error states.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck` (CI does not build Storybook: `src/test/stories.smoke.test.tsx` renders and axe-checks every story as part of the web tests) — expect PASS.
+- [x] **Step 5: Commit** `feat(web): show pausing, paused and resumed run states`.
 
 ---
 
@@ -341,17 +380,17 @@ The runner part must be live before the worker part is relied on. Keep one PR, b
 - Entrypoint check order (spec §3): stop file → `stop_request`; `agent-exit` file → `agent_exit` with its code; `has-session` fails → `session_gone`; trap → `signal`. Pane-dead check from Phase 1 stays as a fallback.
 - `TMUX_KILL` kept only as the 127 fallback.
 
-- [ ] **Step 1: Failing tests:** stop file present → `reason=stop_request code=0`, exit 0; agent-exit file `5` → `reason=agent_exit code=5`, exit 5; stop wins over agent-exit when both exist; `agentdesk-end extra` → exit 2; worker `endSession` execs `['agentdesk-end']` and on 127 execs `TMUX_KILL`; fake gateway accepts `agentdesk-end` and the fake pod ends with `stop_request`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/worker test -- run.activities && pnpm --filter @agentdesk/core test` — expect FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** — expect PASS.
-- [ ] **Step 5: Commit** `feat(runner): ask the runner to end the session instead of killing tmux` (the worker change rides in the same PR; mention it in the body).
+- [x] **Step 1: Failing tests:** stop file present → `reason=stop_request code=0`, exit 0; agent-exit file `5` → `reason=agent_exit code=5`, exit 5; stop wins over agent-exit when both exist; `agentdesk-end extra` → exit 2; worker `endSession` execs `['agentdesk-end']` and on 127 execs `TMUX_KILL`; fake gateway accepts `agentdesk-end` and the fake pod ends with `stop_request`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/worker test -- run.activities && pnpm --filter @agentdesk/core test` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** — expect PASS.
+- [x] **Step 5: Commit** `feat(runner): ask the runner to end the session instead of killing tmux` (the worker change rides in the same PR; mention it in the body).
 
 ---
 
 ## Phase 9: Attach leases (PR 9) — `review:sensitive` (terminal)
 
-**Stop first:** ask decision point D2. The plan below does not include an "attached but idle for N hours" rule.
+D2 is answered (Task 9b): the lease design itself has no "attached but idle for N hours" rule; the browser closes an unused tab.
 
 ### Task 9: Lease set in the workflow, lease signals from the API
 
@@ -367,11 +406,29 @@ The runner part must be live before the worker part is relied on. Keep one PR, b
 - Workflow under `patched('attach-leases')`: `attached` is `count(leases)`; the idle-timer wait also wakes at `nextExpiryMs` and drops expired ids.
 - API: for each run with open sockets, one `terminalLease` signal with that run's live ids every 2 minutes; stops when the last socket closes; only for sockets that passed authz.
 
-- [ ] **Step 1: Failing tests:** pure: detach before attach → count 0; double detach → count 0; renew of an unknown id → no change; an id unheard for 5 minutes expires, a renewed one does not. Workflow: attach with id, no lease for 5 min (short test values) → idle timer runs and the run parks; legacy no-id signals still count; old fixtures replay. API: lease sent every interval (fake timers) with the live ids; stopped after the last close; never sent for an unauthorized socket.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- attach-leases run.workflow && pnpm --filter @agentdesk/api test -- terminal` — expect FAIL.
-- [ ] **Step 3: Implement.** Lease timing values are test seams via `loadRun`, like `idleEndSeconds`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/api test` — expect PASS.
-- [ ] **Step 5: Commit** `feat(worker): attach leases that expire instead of an attach counter` (API part in the same PR; one concern: leases).
+- [x] **Step 1: Failing tests:** pure: detach before attach → count 0; double detach → count 0; renew of an unknown id → no change; an id unheard for 5 minutes expires, a renewed one does not. Workflow: attach with id, no lease for 5 min (short test values) → idle timer runs and the run parks; legacy no-id signals still count; old fixtures replay. API: lease sent every interval (fake timers) with the live ids; stopped after the last close; never sent for an unauthorized socket.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test -- attach-leases run.workflow && pnpm --filter @agentdesk/api test -- terminal` — expect FAIL.
+- [x] **Step 3: Implement.** Lease timing values are test seams via `loadRun`, like `idleEndSeconds`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test && pnpm --filter @agentdesk/api test` — expect PASS.
+- [x] **Step 5: Commit** `feat(worker): attach leases that expire instead of an attach counter` (API part in the same PR; one concern: leases).
+
+### Task 9b: Close an unused terminal tab in the browser (decision D2, option 3)
+
+**Files:**
+- Create: `apps/web/src/features/runs/unusedWatch.ts` (pure timing helper, DOM events only), `apps/web/src/features/runs/unusedWatch.test.ts`
+- Modify: `apps/web/src/features/runs/useTerminal.ts` (+ `useTerminal.test.tsx`), `apps/web/src/features/runs/detail.map.ts` (+ test), `apps/web/src/screens/{RunTerminalArea,RunDetail}.tsx` (+ story, `storyIds.ts`, `runDetail.test.tsx`), `apps/web/src/app/routes/o.$org.p.$project.runs.$run.tsx`
+
+**Interfaces — Produces:**
+- `TERMINAL_UNUSED_CLOSE_MS = 4 * 60 * 60 * 1000`: one named constant (the human gave no N; 4 hours is a judgment call).
+- A page counts as unused after that long with no `keydown`, `pointerdown`, `wheel` or `touchstart` DOM event (xterm's automatic replies are not DOM events and do not count), or after the tab was continuously hidden (`document.visibilityState === 'hidden'`) that long.
+- When it fires, `useTerminalSocket` (opt-in: only the run terminal, not the setup test) closes the socket with a normal close (1000, so the API drops its lease), does not retry, and sets the new state `inactive`; `reconnect()` opens a fresh socket and restarts the timer.
+- `RunTerminalArea` (`inactiveBody`) shows "Terminal closed for inactivity" with a Reconnect button, as a text-only overlay with design tokens; loading, empty and error states are unchanged.
+
+- [x] **Step 1: Failing tests:** helper: fires after the idle time, an event in between postpones it, each of the four events counts and a `mousemove` or other event does not, hidden for the whole time fires while visible-then-hidden resets, dispose stops it. Hook: closes with 1000 and sets `inactive` without a retry, reconnect resets, `closeWhenUnused` off changes nothing, existing states unchanged. Map and screen: `inactive` label, the overlay text as plain text, a story (`InactiveClosed`) and the smoke test.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/runs src/screens` — expect FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** the same files and the stories smoke test — expect PASS.
+- [x] **Step 5: Commit** `feat(web): close an unused terminal tab after a few hours`.
 
 ---
 
@@ -384,6 +441,19 @@ Spec §8 asks for it; the spec's rollout table has no row for it.
 **Files:**
 - Modify: `apps/web/e2e/local/run.spec.ts`, `packages/core/src/kube/fake-gateway.ts` only if a stale-client hook is needed (test seam)
 
-- [ ] **Step 1: Write the e2e test** (runs with `E2E_IDLE_END_SECONDS=5`, like the existing pause test): open the run page, close it without a clean close (leave a stale fake attach), wait for "Paused", check the reason line, press Resume, answer, see a new turn.
+- [x] **Step 1: Write the e2e test** (runs with `E2E_IDLE_END_SECONDS=5`, like the existing pause test): open the run page, close it without a clean close (leave a stale fake attach), wait for "Paused", check the reason line, press Resume, answer, see a new turn.
 - [ ] **Step 2: Run** against a stack started with `RUN_IDLE_END_SECONDS=5` (`docs/runbooks/tests-and-e2e.md`) — expect PASS (it should fail on a checkout before Phase 1).
-- [ ] **Step 3: Commit** `test(web): e2e pause with a stale terminal and resume`.
+- [x] **Step 3: Commit** `test(web): e2e pause with a stale terminal and resume`.
+
+### Task 11: e2e coverage and final-review fixes
+
+**Files:**
+- Modify: `apps/web/src/screens/RunTerminalArea.tsx`, `apps/web/src/features/runs/detail.map.ts` (neutral "ending" wording), `apps/worker/src/workflows/run.workflow.ts` (old-path pod-lost wording)
+- Create: `apps/web/src/mocks/dto/lifecycleRuns.ts` (browser-mock runs 67 to 70)
+- Modify: `apps/web/e2e/mock/run.spec.ts`, `apps/web/e2e/local/run.spec.ts`
+
+- [x] **Step 1: A1.** The page cannot tell a Finish from the idle timer (no run field or event differs while the session is ending), so the ending notice is neutral: "Session ending…", "The session is being saved. This page updates by itself when the session has ended.", bar label "Ending…". Failing unit tests first (detail.map, route, screen), then the copy.
+- [x] **Step 2: A2.** A run that started before `pod-lost-parks` and whose pod vanished keeps the old failure exactly: `followPodLogs failed: <text>` (the activity name prefix, as the catch wrote it when the activity threw), where `<text>` is "the run pod disappeared before it reported an exit code" or "the run pod ended (<phase>) without an exit code: <reason>"; no stage, no exit code. The activity result carries that text as `lostText` (plain data, no new patch). Failing in-process workflow test first; the replay test and its capture tests (`run.workflow.test.ts`) pass in one process.
+- [x] **Step 3: Mock e2e** (`pnpm --filter @agentdesk/web exec playwright test e2e/mock/run.spec.ts` after `vite build --mode mock`): ending run (notice, greyed scrollback, no terminal, no socket, with a live idle run as the control that does open one), agent crash with exit code and Resume, resume that found nothing kept, resumed banner, "30 min with nobody attached" notes, expired run.
+- [ ] **Step 4: Local e2e** `a --fake-fail run pauses with "agent crashed (exit code 3)" and offers Resume` is written; NOT RUN (the machine's ports 5173, 7233 and 54329 belong to another stack). Also not run: the U11 spec `a run whose terminal tab was killed still pauses on idle, and resumes with an answer`.
+- [x] **Step 5: Not covered by e2e, and why.** Resume pressed while the session is ending has no button in the UI (the ending notice has no actions), and the ending window of the fake pod lasts about a second, so it is proven by the workflow in-process tests and the API test, and its outcome by the mock run 69. The 4 h inactivity close and the close codes (1000, 4409, 4410) are unit tests (`useTerminal`).

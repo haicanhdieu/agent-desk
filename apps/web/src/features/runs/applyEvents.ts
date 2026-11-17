@@ -53,6 +53,8 @@ function patched<T extends CachedRun>(run: T, e: StatusChange): T {
     ...('waitingOn' in e && { waitingOn: e.waitingOn, agentNote: e.agentNote }),
     // Likewise the kept session (ADR 0022): set when the run parks, cleared when it resumes.
     ...('pausedAt' in e && { pausedAt: e.pausedAt, sessionExpiresAt: e.sessionExpiresAt }),
+    // While the idle timer ends the live session, and why a run parked; the project stream does not carry them.
+    ...('sessionEndingAt' in e && { sessionEndingAt: e.sessionEndingAt, pauseReason: e.pauseReason }),
     idleSince: status === 'idle' || status === 'done' ? (run.idleSince ?? at) : null,
     finishedAt: isFinal(status) ? (run.finishedAt ?? at) : null,
   };

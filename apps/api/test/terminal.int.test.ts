@@ -25,6 +25,24 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
 const ORIGIN = 'http://localhost:5173';
 const resizes: Array<[number, number]> = [];
 let execCalls = 0;
+/** Every command the relay exec'd, in order. */
+const execLog: string[][] = [];
+/** Replaces the exec result for matching commands (e.g. a session that closes with a given exit code). */
+let execOverride: ((cmd: string[]) => ExecSession | undefined) | undefined;
+/** Makes `getRunPod` report Running even after the fake pod exited (the attach-on-exited-pod race). */
+let stalePodRunning = false;
+/** When set, a plain `tmux` exec (the old-pod fallback) waits for it before it starts. */
+let fallbackGate: Promise<void> | undefined;
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const closingSession = (code: number): ExecSession => ({
+  write: () => undefined,
+  resize: () => undefined,
+  onData: () => undefined,
+  onClose: (cb) => queueMicrotask(() => cb(code)),
+  close: () => undefined,
+});
+const attachIds = (): string[] => execLog.filter((c) => c[0] === 'agentdesk-attach').map((c) => c[1] ?? '');
+const detachIds = (): string[] => execLog.filter((c) => c[0] === 'agentdesk-detach').map((c) => c[1] ?? '');
 const expectNoExec = (): void => expect(execCalls, 'exec must never be reached on a denial').toBe(0);
 
 let t: TestApp;
@@ -56,9 +74,17 @@ const orgIdOf = async (slug: string): Promise<string> =>
 
 /** A gateway that records every resize the relay makes, otherwise the real file-backed fake. */
 function spy(inner: KubeGateway): KubeGateway {
-  return Object.assign<KubeGateway, Pick<KubeGateway, 'exec'>>(Object.create(inner), {
+  return Object.assign<KubeGateway, Pick<KubeGateway, 'exec' | 'getRunPod'>>(Object.create(inner), {
+    getRunPod: async (name) => {
+      const pod = await inner.getRunPod(name);
+      return pod && stalePodRunning ? { ...pod, phase: 'Running' } : pod;
+    },
     exec: async (pod, cmd, opts): Promise<ExecSession> => {
       execCalls += 1;
+      execLog.push([...cmd]);
+      if (cmd[0] === 'tmux') await fallbackGate;
+      const overridden = execOverride?.(cmd);
+      if (overridden) return overridden;
       const s = await inner.exec(pod, cmd, opts);
       return {
         write: (d) => s.write(d),
@@ -200,8 +226,13 @@ const signalsFor = (runId: string, name: string) =>
 describe('terminal relay', () => {
   beforeEach(() => {
     execCalls = 0;
+    execLog.length = 0;
+    execOverride = undefined;
+    stalePodRunning = false;
+    fallbackGate = undefined;
     resizes.length = 0;
     t.temporal.reset();
+    t.app.get(TerminalGateway).leaseIntervalMs = 120_000;
   });
 
   it('closes 4401 without a session', async () => {
@@ -380,6 +411,26 @@ describe('terminal relay', () => {
     expectNoExec();
   });
 
+  it('closes 4410 while the session is ending (sessionEndingAt set) and for a paused run, with no exec', async () => {
+    const ending = await makeRun('idle');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx.update(runs).set({ sessionEndingAt: new Date() }).where(eq(runs.id, ending)),
+    );
+    expect(await connect(ending, { cookie: alice }).closed).toBe(4410);
+    const paused = await makeRun('paused', false);
+    expect(await connect(paused, { cookie: alice }).closed).toBe(4410);
+    expectNoExec();
+  });
+
+  it('refuses a socket of someone else with 4403 before it says anything about the ending session', async () => {
+    const ending = await makeRun('idle');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx.update(runs).set({ sessionEndingAt: new Date() }).where(eq(runs.id, ending)),
+    );
+    expect(await connect(ending, { cookie: carol }).closed).toBe(4403);
+    expectNoExec();
+  });
+
   it('closes 4409 when the run is running but its pod is gone', async () => {
     const runId = await makeRun('running', false);
     expect(await connect(runId, { cookie: alice }).closed).toBe(4409);
@@ -434,6 +485,83 @@ describe('terminal relay', () => {
     await sleep(150);
     expect(signalsFor(runId, SIGNAL.terminalDetached)).toHaveLength(1);
     expect(signalsFor(runId, SIGNAL.resumed)).toHaveLength(0);
+  });
+
+  it("attach and detach carry the socket's own connection id: the id of its attach client in the pod", async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => signalsFor(runId, SIGNAL.terminalAttached).length === 1);
+    const id = attachIds().at(-1);
+    expect(id).toMatch(UUID_RE);
+    expect(signalsFor(runId, SIGNAL.terminalAttached)[0]?.args).toEqual([SIGNAL.terminalAttached, id]);
+    c.ws.close();
+    await c.closed;
+    await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 1);
+    expect(signalsFor(runId, SIGNAL.terminalDetached)[0]?.args).toEqual([SIGNAL.terminalDetached, id]);
+  });
+
+  describe('attach leases', () => {
+    const leaseIds = (runId: string): string[][] =>
+      signalsFor(runId, SIGNAL.terminalLease).map((x) => (Array.isArray(x.args[1]) ? x.args[1].map(String) : []));
+
+    it('sends the live ids of a run every interval, drops a closed socket, and stops after the last close', async () => {
+      t.app.get(TerminalGateway).leaseIntervalMs = 100;
+      const runId = await makeRun('running');
+      const a = connect(runId, { cookie: alice });
+      const b = connect(runId, { cookie: alice });
+      await Promise.all([a.opened, b.opened]);
+      await until(() => signalsFor(runId, SIGNAL.terminalAttached).length === 2);
+      const ids = signalsFor(runId, SIGNAL.terminalAttached).map((x) => String(x.args[1]));
+      expect(new Set(ids).size).toBe(2);
+      // One signal per run per tick, holding both ids.
+      await until(() => leaseIds(runId).some((l) => l.length === 2));
+      expect(leaseIds(runId)[0]?.slice().sort()).toEqual(ids.slice().sort());
+
+      a.ws.close();
+      await a.closed;
+      await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 1);
+      const gone = String(signalsFor(runId, SIGNAL.terminalDetached)[0]?.args[1]);
+      const before = leaseIds(runId).length;
+      await until(() => leaseIds(runId).length >= before + 2);
+      expect(
+        leaseIds(runId)
+          .slice(before)
+          .every((l) => l.length === 1 && !l.includes(gone)),
+      ).toBe(true);
+
+      b.ws.close();
+      await b.closed;
+      await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 2);
+      await sleep(250);
+      const settled = leaseIds(runId).length;
+      await sleep(400);
+      expect(leaseIds(runId)).toHaveLength(settled);
+    });
+
+    it('sends nothing for a socket that was denied, and nothing for a socket whose attach signal failed', async () => {
+      t.app.get(TerminalGateway).leaseIntervalMs = 50;
+      const gateway = t.app.get(TerminalGateway);
+      gateway.signalRetryMs = 5;
+      try {
+        const runId = await makeRun('running');
+        expect(await connect(runId, { cookie: carol }).closed).toBe(4403);
+        expect(await connect(runId).closed).toBe(4401);
+        t.temporal.signalHook = async (name) => {
+          if (name === SIGNAL.terminalAttached) throw new Error('boom');
+        };
+        const c = connect(runId, { cookie: alice });
+        await c.opened;
+        await until(() => c.bytes().length > 0);
+        await sleep(300);
+        c.ws.close();
+        await c.closed;
+        await sleep(100);
+        expect(t.temporal.callsOfKind('signal').filter((x) => x.workflowId === runWorkflowId(runId))).toHaveLength(0);
+      } finally {
+        gateway.signalRetryMs = 100;
+      }
+    });
   });
 
   it('a signal failure does not break the relay', async () => {
@@ -491,6 +619,165 @@ describe('terminal relay', () => {
     await c.opened;
     await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 1, 4000);
     expect(await c.closed).toBe(1006);
+  });
+
+  it('each socket execs agentdesk-attach with its own server-made uuid', async () => {
+    const runId = await makeRun('running');
+    const a = connect(runId, { cookie: alice });
+    const b = connect(runId, { cookie: alice });
+    await Promise.all([a.opened, b.opened]);
+    await until(() => attachIds().length === 2);
+    const ids = attachIds();
+    expect(ids[0]).not.toBe(ids[1]);
+    for (const id of ids) expect(id).toMatch(UUID_RE);
+    // Nothing in the URL or frames picks the id: it is not the run id either.
+    expect(ids).not.toContain(runId);
+    a.ws.close();
+    b.ws.close();
+    await Promise.all([a.closed, b.closed]);
+    await until(() => detachIds().length === 2);
+    expect([...detachIds()].sort()).toEqual([...ids].sort());
+  });
+
+  it('closes 4410 when the attach exec ends with exit 3 (no session)', async () => {
+    const runId = await makeRun('running');
+    execOverride = (cmd) => (cmd[0] === 'agentdesk-attach' ? closingSession(3) : undefined);
+    expect(await connect(runId, { cookie: alice }).closed).toBe(4410);
+    await until(() => detachIds().length === 1);
+  });
+
+  it('closes 4410 when the pod already exited but the pod lookup still says Running', async () => {
+    const runId = await makeRun('running');
+    stalePodRunning = true;
+    const kill = await real.exec(`run-${runId}`, ['tmux', 'kill-session', '-t', 'agent'], { tty: false });
+    await new Promise<number>((r) => kill.onClose(r));
+    await until(async () => (await real.getRunPod(`run-${runId}`))?.phase !== 'Running');
+    expect(await connect(runId, { cookie: alice }).closed).toBe(4410);
+  });
+
+  it('runs agentdesk-detach once with the same id on socket close', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => attachIds().length === 1);
+    c.ws.close();
+    await c.closed;
+    await until(() => detachIds().length > 0);
+    await sleep(150);
+    expect(detachIds()).toEqual(attachIds());
+  });
+
+  it('runs agentdesk-detach once when the client vanishes without a close frame', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => attachIds().length === 1);
+    c.ws.terminate();
+    await c.closed;
+    await until(() => detachIds().length > 0);
+    await sleep(150);
+    expect(detachIds()).toEqual(attachIds());
+  });
+
+  it('runs agentdesk-detach for every open socket on module destroy, once each', async () => {
+    const runId = await makeRun('running');
+    const a = connect(runId, { cookie: alice });
+    const b = connect(runId, { cookie: alice });
+    await Promise.all([a.opened, b.opened]);
+    await until(() => attachIds().length === 2);
+    await t.app.get(TerminalGateway).onModuleDestroy();
+    await Promise.all([a.closed, b.closed]);
+    await sleep(150);
+    expect([...detachIds()].sort()).toEqual([...attachIds()].sort());
+    expect(detachIds()).toHaveLength(2);
+  });
+
+  it('a failing detach exec never breaks the close', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => attachIds().length === 1);
+    execOverride = (cmd) => {
+      if (cmd[0] === 'agentdesk-detach') throw new Error('exec down');
+      return undefined;
+    };
+    c.ws.close();
+    await c.closed;
+    await until(() => detachIds().length === 1);
+  });
+
+  it('retries once with plain tmux attach when agentdesk-attach is not found (old pod)', async () => {
+    const runId = await makeRun('running');
+    execOverride = (cmd) => (cmd[0] === 'agentdesk-attach' ? closingSession(127) : undefined);
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => c.bytes().length > 0); // the pane banner came through the fallback session
+    expect(execLog.filter((x) => x[0] === 'tmux')).toEqual([['tmux', 'attach', '-t', 'agent']]);
+    expect(attachIds()).toHaveLength(1);
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('keeps input typed while the old-pod fallback attach starts and delivers it to the fallback session', async () => {
+    const runId = await makeRun('running');
+    let release!: () => void;
+    fallbackGate = new Promise<void>((r) => (release = r));
+    execOverride = (cmd) => (cmd[0] === 'agentdesk-attach' ? closingSession(127) : undefined);
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => execLog.some((x) => x[0] === 'tmux')); // the named attach exited 127, the fallback exec is pending
+    c.ws.send(Buffer.from('typed-early\r'), { binary: true });
+    await sleep(150);
+    release();
+    await until(() => c.bytes().includes('typed-early')); // the fake pane echoes what the fallback session received
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('runs agentdesk-detach once, with the attach id, after a server-side socket error (oversized frame)', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => attachIds().length === 1);
+    c.ws.send(Buffer.alloc(70 * 1024, 1), { binary: true }); // ws emits 'error' then 'close' on the server socket
+    expect(await c.closed).toBe(1009);
+    await until(() => detachIds().length > 0);
+    await sleep(150);
+    expect(detachIds()).toHaveLength(1);
+    expect(detachIds()).toEqual(attachIds());
+  });
+
+  it('module destroy waits for the detach exec to finish, not just to start', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: alice });
+    await c.opened;
+    await until(() => attachIds().length === 1);
+    let finish!: () => void;
+    let closeCb: ((code: number) => void) | undefined;
+    let closedCalls = 0;
+    execOverride = (cmd) =>
+      cmd[0] === 'agentdesk-detach'
+        ? {
+            ...closingSession(0),
+            onClose: (cb) => {
+              closeCb = cb;
+              finish = () => cb(0);
+            },
+            close: () => void (closedCalls += 1),
+          }
+        : undefined;
+    let destroyed = false;
+    const done = t.app
+      .get(TerminalGateway)
+      .onModuleDestroy()
+      .then(() => (destroyed = true));
+    await until(() => closeCb !== undefined);
+    await sleep(200);
+    expect(destroyed).toBe(false);
+    finish();
+    await done;
+    expect(closedCalls).toBe(1);
+    await c.closed;
   });
 
   it('closes 1000 when the run ends (pod exit)', async () => {
@@ -593,11 +880,17 @@ const connectSetup = (id: string, opts: { cookie?: string; origin?: string | nul
 describe('terminal relay: setup tests', () => {
   beforeEach(() => {
     execCalls = 0;
+    execLog.length = 0;
+    execOverride = undefined;
+    stalePodRunning = false;
+    fallbackGate = undefined;
     resizes.length = 0;
     t.temporal.reset();
+    t.app.get(TerminalGateway).leaseIntervalMs = 120_000;
   });
 
-  it('attaches end to end: typed input comes back, and no workflow is signalled', async () => {
+  it('attaches end to end: typed input comes back, and no workflow is signalled (no lease either)', async () => {
+    t.app.get(TerminalGateway).leaseIntervalMs = 50;
     const id = await makeSetupTest('running');
     const c = connectSetup(id, { cookie: alice });
     await c.opened;

@@ -37,29 +37,58 @@ describe('worker wiring', () => {
   });
 
   it('the production workflow bundle runs the sweep and reconcile workflows against the activities', async () => {
-    const calls: string[] = [];
-    const worker = await Worker.create({
-      connection: env.nativeConnection,
-      taskQueue: TASK_QUEUE,
-      workflowsPath: fileURLToPath(new URL('../src/workflows/index.ts', import.meta.url)),
-      activities: {
-        sweepOutbox: async () => {
-          calls.push('sweep');
-          return 3;
-        },
-        reconcile: async () => {
-          calls.push('reconcile');
-        },
-      },
-    });
-    await worker.runUntil(async () => {
-      const swept = await env.client.workflow.execute(WORKFLOW.outboxSweep, {
-        taskQueue: TASK_QUEUE,
-        workflowId: 'sweep-test',
-      });
-      await env.client.workflow.execute(WORKFLOW.reconcile, { taskQueue: TASK_QUEUE, workflowId: 'rec-test' });
-      expect(swept).toBe(3);
-    });
-    expect(calls).toEqual(['sweep', 'reconcile']);
+    const run = await runBundle(`${TASK_QUEUE}-bundle`);
+    expect(run.result).toBe(3);
+    expect(run.calls).toEqual(['sweep', 'reconcile']);
+  });
+
+  it('the production workflow bundle ignores a sweep the schedule already started on the production queue', async () => {
+    // A slow run can straddle a 30 s schedule tick: the schedule starts a sweep on TASK_QUEUE, then the earlier test
+    // deletes the schedule, but the started workflow stays queued. Force that here, deterministically.
+    await ensureSchedules(env.client);
+    const sweep = env.client.schedule.getHandle(OUTBOX_SWEEP_SCHEDULE_ID);
+    await sweep.trigger();
+    await waitUntil(async () => (await sweep.describe()).info.recentActions.length > 0);
+    await sweep.delete();
+    await env.client.schedule.getHandle(RECONCILE_SCHEDULE_ID).delete();
+
+    const run = await runBundle(`${TASK_QUEUE}-bundle-after-schedule`);
+    expect(run.calls).toEqual(['sweep', 'reconcile']);
   });
 });
+
+async function waitUntil(condition: () => Promise<boolean>): Promise<void> {
+  for (let i = 0; i < 100; i++) {
+    if (await condition()) return;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  throw new Error('condition not met within 10 s');
+}
+
+/** Runs the production workflow bundle on its own `taskQueue` (never the production one, which the schedules feed) against recording activities and starts both workflows there. */
+async function runBundle(taskQueue: string): Promise<{ calls: string[]; result: number }> {
+  const calls: string[] = [];
+  const worker = await Worker.create({
+    connection: env.nativeConnection,
+    taskQueue,
+    workflowsPath: fileURLToPath(new URL('../src/workflows/index.ts', import.meta.url)),
+    activities: {
+      sweepOutbox: async () => {
+        calls.push('sweep');
+        return 3;
+      },
+      reconcile: async () => {
+        calls.push('reconcile');
+      },
+    },
+  });
+  const result = await worker.runUntil(async () => {
+    const swept = await env.client.workflow.execute(WORKFLOW.outboxSweep, {
+      taskQueue,
+      workflowId: `sweep-${taskQueue}`,
+    });
+    await env.client.workflow.execute(WORKFLOW.reconcile, { taskQueue, workflowId: `rec-${taskQueue}` });
+    return swept;
+  });
+  return { calls, result };
+}

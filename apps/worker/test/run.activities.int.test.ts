@@ -230,8 +230,19 @@ describe('loadRun', () => {
       status: 'queued',
       timeoutSeconds: 900,
       maxConcurrentRuns: 3,
-      idleEndSeconds: 600,
+      idleEndSeconds: 1800,
+      endingDeadlineSeconds: 90,
+      leaseTtlSeconds: 300,
     });
+  });
+
+  it('takes the attach lease time from config (RUN_LEASE_TTL_SECONDS), so a test can expire leases quickly', async () => {
+    const runId = await seedRun('x', 'queued');
+    const quick = await createRunActivities(deps({ config: { ...config, RUN_LEASE_TTL_SECONDS: 4 } })).loadRun(
+      ORG,
+      runId,
+    );
+    expect(quick.leaseTtlSeconds).toBe(4);
   });
 
   it('takes the idle end from config (RUN_IDLE_END_SECONDS), so the local stack can pause quickly', async () => {
@@ -249,6 +260,44 @@ describe('loadRun', () => {
       .catch((e: unknown) => e);
     expect(err).toBeInstanceOf(ApplicationFailure);
     expect((err as ApplicationFailure).nonRetryable).toBe(true);
+  });
+});
+
+describe('recordEndingDeadline', () => {
+  const NOT_SAVED = 'The session did not end in time; the pod was stopped. Final scrollback not saved.';
+  const SAVED = 'The session did not end in time; the pod was stopped.';
+  const AT = '2026-01-01T00:01:00.000Z';
+
+  it('appends one lifecycle event per call, mentioning scrollback only when it was not saved', async () => {
+    for (const [scrollbackSaved, text] of [
+      [false, NOT_SAVED],
+      [true, SAVED],
+    ] as const) {
+      const runId = await seedRun('x', 'running');
+      await createRunActivities(deps()).recordEndingDeadline(await ctxFor(runId), { scrollbackSaved, at: AT });
+      const events = (await load(runId)).events.filter((e) => e.type === 'lifecycle');
+      expect(events).toHaveLength(1);
+      expect(events[0]?.payload).toEqual({ kind: 'ending_deadline', text });
+      expect(events[0]?.ts.toISOString()).toBe(AT);
+    }
+  });
+
+  it('an invalid timestamp and an unknown run fail non-retryably', async () => {
+    const runId = await seedRun('x', 'running');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const bad = await acts.recordEndingDeadline(ctx, { scrollbackSaved: true, at: 'nope' }).catch((e: unknown) => e);
+    const gone = await acts
+      .recordEndingDeadline(
+        { ...ctx, runId: '99999999-9999-4999-8999-999999999999' },
+        { scrollbackSaved: true, at: AT },
+      )
+      .catch((e: unknown) => e);
+    for (const err of [bad, gone]) {
+      expect(err).toBeInstanceOf(ApplicationFailure);
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    }
+    expect((await load(runId)).events.filter((e) => e.type === 'lifecycle')).toHaveLength(0);
   });
 });
 
@@ -707,7 +756,8 @@ describe('followPodLogs', () => {
     const { events } = await load(runId);
     expect(await statuses(runId)).toEqual(['running', 'idle']);
     const lifecycle = events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind);
-    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'agent_state', 'agent_state']);
+    // The runner's end line (the fake pod logs it after `agentdesk-end`) is the last lifecycle event.
+    expect(lifecycle).toEqual([...PRELUDE_KINDS, 'agent_state', 'agent_state', 'session_ended']);
     const scrollback = events.filter((e) => e.type === 'scrollback');
     expect(scrollback).toHaveLength(1);
     const text = String(scrollback[0]?.payload.text);
@@ -718,6 +768,23 @@ describe('followPodLogs', () => {
     await acts.ensureJobGone(ctx);
     expect(await kube.readSecret(`run-${runId}`)).toBeNull();
     expect((await kube.getRunPod(`run-${runId}`))?.phase).toBe('Succeeded'); // a finished Job is kept (TTL)
+    await acts.deleteJob(ctx);
+  });
+
+  it('endSession records session_ending_at before ending the session and keeps the first moment on a repeat', async () => {
+    const runId = await seedRun('end me');
+    const ctx = await ctxFor(runId);
+    const first = new Date('2026-04-01T10:00:00.000Z');
+    const acts = createRunActivities(deps({ clock: { now: () => first } }));
+    await acts.createRunSecretAndJob(ctx);
+    const f = follow(ctx, deps());
+    await until(async () => (await load(runId)).run?.status === 'idle');
+    expect((await load(runId)).run?.sessionEndingAt).toBeNull();
+    await acts.endSession(ctx);
+    expect((await load(runId)).run?.sessionEndingAt?.toISOString()).toBe(first.toISOString());
+    await createRunActivities(deps({ clock: { now: () => new Date('2026-04-01T10:05:00.000Z') } })).endSession(ctx);
+    expect((await load(runId)).run?.sessionEndingAt?.toISOString()).toBe(first.toISOString());
+    await f.promise;
     await acts.deleteJob(ctx);
   });
 
@@ -762,6 +829,7 @@ describe('followPodLogs', () => {
       'agent_state',
       'agent_state',
       'agent_state',
+      'session_ended',
     ]);
     // The agent's own `working` lines (not terminal input) signal agentState working once each (first turn, then the
     // typed one), even across the replaying retry.
@@ -973,6 +1041,7 @@ describe('followPodLogs', () => {
       'session_started',
       'agent_state',
       'agent_state',
+      'session_ended',
     ]);
     expect(lifecycle[0]?.payload.sha).toMatch(/^[0-9a-f]{40}$/);
     expect(lifecycle[2]?.payload).toMatchObject({ kind: 'plugin_output', text: 'noisy output', truncated: false });
@@ -1105,6 +1174,149 @@ describe('followPodLogs', () => {
       const r = await follow(ctx, deps({ kube: exited(['agentdesk: session started'], 137) })).promise;
       expect(r).toMatchObject({ exitCode: 137, agentStarted: true });
       expect(r.failureStage).toBeUndefined();
+    });
+
+    describe('session end marker and a vanished pod', () => {
+      /** A pod that is there for the pod wait, then gone once the lines were printed (the gateway no longer finds it). */
+      const vanished = (lines: string[]): KubeGateway => {
+        let calls = 0;
+        return wrapKube({
+          readSecret: async () => null,
+          getRunPod: async (name) =>
+            ++calls === 1 ? { name, phase: 'Running', pendingSince: null, reason: null, exitCode: null } : null,
+          streamLogs: async function* () {
+            yield* lines;
+          },
+        });
+      };
+
+      /** A stored end event holds the line number (added by the store), the kind, the reason and the code: no log text. */
+      const expectOnlyEndFields = (payloads: Record<string, unknown>[]): void => {
+        for (const p of payloads) {
+          expect(Object.keys(p).sort()).toEqual(['code', 'kind', 'line', 'reason']);
+          expect(Object.values(p).some((v) => typeof v === 'string' && v.includes('agentdesk:'))).toBe(false);
+        }
+      };
+
+      it('returns the reason from the last end line and stores only the reason and the code', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const lines = [
+          'agentdesk: session started',
+          'agentdesk: session ended reason=agent_exit code=1',
+          'agentdesk: session ended reason=signal code=143',
+        ];
+        const r = await follow(ctx, deps({ kube: exited(lines, 143) })).promise;
+        expect(r).toMatchObject({ exitCode: 143, agentStarted: true, endReason: 'signal' });
+        expect(r.podLost).toBeUndefined();
+        const ended = (await lifecycleOf(runId)).filter((e) => e.payload.kind === 'session_ended');
+        expectOnlyEndFields(ended.map((e) => e.payload));
+        expect(ended.map(({ payload: p }) => ({ kind: p.kind, reason: p.reason, code: p.code }))).toEqual([
+          { kind: 'session_ended', reason: 'agent_exit', code: 1 },
+          { kind: 'session_ended', reason: 'signal', code: 143 },
+        ]);
+      });
+
+      it('reads the end line printed right after the final scrollback block (the runner order)', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const fake = 'agentdesk: session ended reason=signal code=9';
+        const lines = [
+          'agentdesk: session started',
+          'agentdesk: final scrollback begin',
+          'pane one',
+          fake, // a pane line that looks like the end line, before the end marker
+          'agentdesk: final scrollback end',
+          'agentdesk: session ended reason=agent_exit code=0',
+        ];
+        const r = await follow(ctx, deps({ kube: exited(lines, 0) })).promise;
+        expect(r).toMatchObject({ exitCode: 0, endReason: 'agent_exit' });
+        const { events } = await load(runId);
+        const ended = events.filter((e) => e.type === 'lifecycle' && e.payload.kind === 'session_ended');
+        expectOnlyEndFields(ended.map((e) => e.payload));
+        expect(ended.map(({ payload: p }) => ({ kind: p.kind, reason: p.reason, code: p.code }))).toEqual([
+          { kind: 'session_ended', reason: 'agent_exit', code: 0 },
+        ]);
+        const scrollback = events.filter((e) => e.type === 'scrollback');
+        expect(scrollback).toHaveLength(1);
+        expect(String(scrollback[0]?.payload.text)).toBe(`pane one\n${fake}`);
+      });
+
+      it('podLost: the pod ended with no exit code (phase Unknown) after session started', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        let calls = 0;
+        const unknown = wrapKube({
+          readSecret: async () => null,
+          getRunPod: async (name) =>
+            ++calls === 1
+              ? { name, phase: 'Running', pendingSince: null, reason: null, exitCode: null }
+              : { name, phase: 'Unknown', pendingSince: null, reason: 'NodeLost', exitCode: null },
+          streamLogs: async function* () {
+            yield 'agentdesk: session started';
+          },
+        });
+        // A clock that jumps past the exit wait, so the pod that never reports an exit code is judged at once.
+        let t = Date.now();
+        const clock: Clock = { now: () => new Date((t += 30_000)) };
+        const r = await follow(ctx, deps({ kube: unknown, clock })).promise;
+        expect(r).toMatchObject({
+          exitCode: -1,
+          podLost: true,
+          agentStarted: true,
+          lostText: 'the run pod ended (Unknown) without an exit code: NodeLost',
+        });
+      });
+
+      it('a pod that ended with an exit code and no end line is not podLost', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const r = await follow(ctx, deps({ kube: exited(['agentdesk: session started'], 1) })).promise;
+        expect(r).toMatchObject({ exitCode: 1, agentStarted: true });
+        expect(r.podLost).toBeUndefined();
+        expect(r.endReason).toBeUndefined();
+      });
+
+      it('ignores an end line whose code differs from the pod real exit code (a forged line)', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const lines = ['agentdesk: session started', 'agentdesk: session ended reason=agent_exit code=0'];
+        const r = await follow(ctx, deps({ kube: exited(lines, 137) })).promise;
+        expect(r).toMatchObject({ exitCode: 137, agentStarted: true });
+        expect(r.endReason).toBeUndefined();
+      });
+
+      it('treats an end line with an unknown reason as plain output: no endReason, no event', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const lines = ['agentdesk: session started', 'agentdesk: session ended reason=evil code=0'];
+        const r = await follow(ctx, deps({ kube: exited(lines, 0) })).promise;
+        expect(r.endReason).toBeUndefined();
+        expect((await lifecycleOf(runId)).filter((e) => e.payload.kind === 'session_ended')).toEqual([]);
+      });
+
+      it('podLost: the pod vanished after session started with no end line', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const r = await follow(ctx, deps({ kube: vanished(['agentdesk: session started']) })).promise;
+        expect(r).toMatchObject({
+          exitCode: -1,
+          podLost: true,
+          agentStarted: true,
+          lostText: 'the run pod disappeared before it reported an exit code',
+        });
+        expect(r.endReason).toBeUndefined();
+      });
+
+      it('still fails without retry when the pod vanished before session started', async () => {
+        const runId = await seedRun('x');
+        const ctx = await ctxFor(runId);
+        const err = await follow(ctx, deps({ kube: vanished(['agentdesk: plugins begin']) })).promise.catch(
+          (e: unknown) => e,
+        );
+        expect(err).toBeInstanceOf(ApplicationFailure);
+        expect((err as ApplicationFailure).nonRetryable).toBe(true);
+      });
     });
 
     it('a later pass after truncation stores no further output chunks and no second truncated chunk', async () => {

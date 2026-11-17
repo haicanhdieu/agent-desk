@@ -53,6 +53,8 @@ export function statusMessage(run: RunDto, seq: number): RunStatusEvent {
     agentNote: run.agentNote,
     pausedAt: run.pausedAt,
     sessionExpiresAt: run.sessionExpiresAt,
+    sessionEndingAt: run.sessionEndingAt,
+    pauseReason: run.pauseReason,
   };
 }
 

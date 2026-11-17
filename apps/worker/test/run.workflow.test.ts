@@ -8,11 +8,19 @@ import { Worker } from '@temporalio/worker';
 import { historyToJSON } from '@temporalio/common/lib/proto-utils';
 import { ApplicationFailure, CancelledFailure, Context } from '@temporalio/activity';
 import { WorkflowNotFoundError, type WorkflowHandle } from '@temporalio/client';
-import { IDLE_END_SECONDS, QUERY, TASK_QUEUE, WORKFLOW, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
+import {
+  ENDING_DEADLINE_SECONDS,
+  IDLE_END_SECONDS,
+  QUERY,
+  TASK_QUEUE,
+  WORKFLOW,
+  gateWorkflowId,
+  runWorkflowId,
+} from '@agentdesk/core';
 import type { RunStatus } from '@agentdesk/contracts';
 import * as signals from '../src/workflows/signals';
 import type { GateState, RunState } from '../src/workflows/signals';
-import { IDLE_END_SECONDS_DEFAULT } from '../src/workflows/run.workflow';
+import { ENDING_DEADLINE_SECONDS_DEFAULT, IDLE_END_SECONDS_DEFAULT } from '../src/workflows/run.workflow';
 import {
   POD_PENDING_TIMEOUT,
   type CommentKind,
@@ -110,6 +118,16 @@ interface Script {
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   /** The expiry the latest parkRun reported. */
   lastExpiry?: string;
+  /** The pause reason of every parkRun call, in order. */
+  parkReasons: string[];
+  /** The input of every recordEndingDeadline call (without the timestamp). */
+  endingDeadlines: { scrollbackSaved: boolean }[];
+  /** Runs inside deleteJob, before it returns (stands in for the pod dying while the Job is being deleted). */
+  onDeleteJob?: () => Promise<void>;
+  /** When set, recordEndingDeadline throws a non-retryable failure. */
+  recordEndingDeadlineFails?: boolean;
+  /** Runs inside recordEndingDeadline, before it returns (a slow event write). */
+  onRecordEndingDeadline?: () => Promise<void>;
 }
 
 const scripts = new Map<string, Script>();
@@ -231,7 +249,16 @@ function activities(): RunActivities {
       if (s.endSessionExits) (s.currentLogs ?? s.logs).resolve({ exitCode: 0 });
     },
     async deleteJob(ctx) {
-      script(ctx.runId).calls.push('deleteJob');
+      const s = script(ctx.runId);
+      s.calls.push('deleteJob');
+      await s.onDeleteJob?.();
+    },
+    async recordEndingDeadline(ctx, input) {
+      const s = script(ctx.runId);
+      s.calls.push('recordEndingDeadline');
+      await s.onRecordEndingDeadline?.();
+      if (s.recordEndingDeadlineFails) throw ApplicationFailure.nonRetryable('run not found');
+      s.endingDeadlines.push({ scrollbackSaved: input.scrollbackSaved });
     },
     async ensureJobGone(ctx) {
       script(ctx.runId).calls.push('ensureJobGone');
@@ -242,6 +269,7 @@ function activities(): RunActivities {
     async parkRun(ctx, input) {
       const s = script(ctx.runId);
       s.calls.push(`parkRun:${input.kind}`);
+      s.parkReasons.push(input.reason ?? 'idle_timeout');
       // Like the real activity, the expiry counts from the workflow's own `at`, so time skipping cannot make it stale.
       const sessionExpiresAt =
         s.parkKeepSeconds === undefined
@@ -290,6 +318,8 @@ function newRun(over: Partial<RunContext> = {}, opts: Partial<Pick<Script, 'firs
     resumeLogs: deferred(),
     resumeFollowStarted: deferred(),
     restores: [],
+    endingDeadlines: [],
+    parkReasons: [],
   };
   scripts.set(runId, s);
   return s;
@@ -307,6 +337,26 @@ const statuses = (s: Script): RunStatus[] => s.statuses.map((x) => x.status);
 const count = (s: Script, call: string): number => s.calls.filter((c) => c === call).length;
 const state = (h: WorkflowHandle) => h.query<RunState>(QUERY.runState);
 const sleepReal = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Completed workflow tasks (proto EventType 7) whose scheduled event (5) is a first attempt; a missing attempt, or a
+// scheduled event outside the list, counts as the first so the count errs on the strict side. Retried rounds (attempt
+// above 1) are left out. Pure, so the history-cost test below can be checked on synthetic event lists.
+interface TaskEvent {
+  eventId?: { toString(): string } | number | null;
+  eventType?: number | null;
+  workflowTaskScheduledEventAttributes?: { attempt?: number | null } | null;
+  workflowTaskCompletedEventAttributes?: { scheduledEventId?: { toString(): string } | number | null } | null;
+}
+function firstAttemptCompletedTasks(events: readonly TaskEvent[]): number {
+  const retried = new Set(
+    events
+      .filter((e) => e.eventType === 5 && (e.workflowTaskScheduledEventAttributes?.attempt ?? 1) > 1)
+      .map((e) => String(e.eventId)),
+  );
+  return events.filter(
+    (e) => e.eventType === 7 && !retried.has(String(e.workflowTaskCompletedEventAttributes?.scheduledEventId)),
+  ).length;
+}
 
 async function waitFor(pred: () => boolean | Promise<boolean>, what: string, ms = 15_000): Promise<void> {
   const until = Date.now() + ms;
@@ -355,10 +405,54 @@ afterAll(async () => {
   await env.teardown();
 });
 
+describe('firstAttemptCompletedTasks (history-cost counter)', () => {
+  let id = 0;
+  type E = Parameters<typeof firstAttemptCompletedTasks>[0][number];
+  const signal = (): E => ({ eventId: ++id, eventType: 26 });
+  const scheduled = (attempt?: number): E => ({
+    eventId: ++id,
+    eventType: 5,
+    workflowTaskScheduledEventAttributes: attempt === undefined ? {} : { attempt },
+  });
+  const started = (): E => ({ eventId: ++id, eventType: 6 });
+  const completed = (of: E): E => ({
+    eventId: ++id,
+    eventType: 7,
+    workflowTaskCompletedEventAttributes: { scheduledEventId: of.eventId },
+  });
+  const round = (attempt?: number): E[] => {
+    const sch = scheduled(attempt);
+    return [sch, started(), completed(sch)];
+  };
+
+  it('counts one per signal round, and a missing attempt counts as the first', () => {
+    expect(firstAttemptCompletedTasks([signal(), ...round(1), signal(), ...round()])).toBe(2);
+  });
+
+  it('a sticky timeout (orphan scheduled, timed out, fresh attempt-1 task) still counts once', () => {
+    const orphan = scheduled(1);
+    const timedOut: E = { eventId: ++id, eventType: 8 };
+    expect(firstAttemptCompletedTasks([signal(), orphan, timedOut, ...round(1)])).toBe(1);
+  });
+
+  it('a retried round (attempt above 1, no trace of the failed attempt) is not counted', () => {
+    expect(firstAttemptCompletedTasks([signal(), ...round(1), ...round(2), ...round(3)])).toBe(1);
+  });
+
+  it('an extra first-attempt task for one signal is counted, so it can exceed the signal count', () => {
+    expect(firstAttemptCompletedTasks([signal(), ...round(1), ...round(1)])).toBe(2);
+  });
+});
+
 describe('RunWorkflow', () => {
-  it('constants: idle end defaults to 10 minutes; the state query name is shared', () => {
+  it('ENDING_DEADLINE_SECONDS_DEFAULT mirrors core', () => {
+    expect(ENDING_DEADLINE_SECONDS_DEFAULT).toBe(ENDING_DEADLINE_SECONDS);
+    expect(ENDING_DEADLINE_SECONDS).toBe(90);
+  });
+
+  it('constants: idle end defaults to 30 minutes; the state query name is shared', () => {
     expect(IDLE_END_SECONDS_DEFAULT).toBe(IDLE_END_SECONDS);
-    expect(IDLE_END_SECONDS).toBe(600);
+    expect(IDLE_END_SECONDS).toBe(1800);
     expect(signals.runState.name).toBe(QUERY.runState);
     expect(signals.gateState.name).toBe(QUERY.gateState);
   });
@@ -545,7 +639,7 @@ describe('RunWorkflow', () => {
   });
 
   it('a history near the limit ends the run as failed with a plain reason, and cleanup runs', async () => {
-    const s = newRun({ historyEventLimit: 45 });
+    const s = newRun({ historyEventLimit: 52 });
     const h = await start(s);
     await s.logsStarted.promise;
     await waitPhase(h, 'running');
@@ -641,7 +735,7 @@ describe('RunWorkflow', () => {
     await gateForgot(s);
   });
 
-  it('exit code 2 → failed with exitCode 2; finish comment carries the scrollback tail', async () => {
+  it('a result without agentStarted (the old shape) and exit code 2 → failed with exitCode 2; finish comment carries the scrollback tail', async () => {
     const s = newRun();
     const h = await start(s);
     await s.logsStarted.promise;
@@ -709,7 +803,7 @@ describe('RunWorkflow', () => {
     expect(old.statuses.at(-1)).toMatchObject({ failureStage: 'agent' });
   });
 
-  it('infra failure carries no failure stage; an agent non-zero exit carries agent', async () => {
+  it('infra failure carries no failure stage; a non-zero exit in a result without agentStarted carries agent', async () => {
     const infra = newRun({}, { firstLine: false });
     const h1 = await start(infra);
     await infra.logsStarted.promise;
@@ -1445,13 +1539,386 @@ describe('RunWorkflow', () => {
     });
   });
 
+  describe('ending deadline', () => {
+    it('a pod that never exits is deleted and the run parks', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 2 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      const t0 = Date.now();
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      await waitPhase(h, 'parked');
+      expect(Date.now() - t0).toBeGreaterThanOrEqual(2900);
+      expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
+      // The activity hears about the cancel on its next heartbeat.
+      await waitFor(() => s.logsCancelled, 'followPodLogs cancelled');
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      expect(s.endingDeadlines).toEqual([{ scrollbackSaved: false }]);
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      captured['run-ending-deadline'] = h;
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('after Finish the deadline ends the run succeeded, not parked', async () => {
+      const s = newRun({ endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      await h.executeUpdate(signals.finishRun);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+      expect(s.endingDeadlines).toEqual([{ scrollbackSaved: false }]);
+    });
+
+    it('a pod that exits before the deadline does not delete the Job early or record the event', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 5 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      await sleepReal(300);
+      expect(count(s, 'deleteJob')).toBe(0);
+      s.logs.resolve({ exitCode: 0 });
+      await waitPhase(h, 'parked');
+      expect(s.endingDeadlines).toEqual([]);
+      expect(s.logsCancelled).toBe(false);
+      // park() deletes the Job once; the deadline did not.
+      expect(count(s, 'deleteJob')).toBe(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a pod that disappears while its Job is being deleted does not fail the run', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      s.onDeleteJob = async () => {
+        // followPodLogs rejects (non-retryable) while deleteJob is still running, then deleteJob takes a while longer.
+        if (count(s, 'deleteJob') === 1) {
+          s.logs.reject(ApplicationFailure.nonRetryable('run pod disappeared'));
+          await sleepReal(500);
+        }
+      };
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'parked');
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).not.toBe('failed');
+    });
+
+    it('a failing recordEndingDeadline does not fail the run', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      s.recordEndingDeadlineFails = true;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'parked');
+      expect(count(s, 'recordEndingDeadline')).toBe(1);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a cancel while the deadline event is being recorded still ends the run cancelled', async () => {
+      // Nothing kept: without the cancel the run would end succeeded.
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 1 }, { endSessionExits: false });
+      const recording = deferred<void>();
+      s.onRecordEndingDeadline = async () => {
+        recording.resolve();
+        await sleepReal(3000);
+      };
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await recording.promise;
+      await h.cancel();
+      expect((await h.result()).status).toBe('cancelled');
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+    });
+
+    it('other wakes during ending do not reset the deadline', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 6 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      const t0 = Date.now();
+      // Two wakes, 1.2 s and 2.4 s in. The stuck follower is given up on 5 s (ABANDON_GRACE_MS) after the delete, so
+      // the park lands that much after the deadline. Without a reset it lands at about 11.16 s (6 s + 5 s plus about
+      // 0.16 s of overhead measured here). A reset by the first wake alone would land at about 12.4 s, by the second
+      // alone at about 13.6 s. The 11.8 s ceiling therefore fails if either wake restarts the deadline, with 0.6 s of
+      // slack on each side; the 10.6 s floor catches an early park.
+      await sleepReal(1200);
+      await h.signal(signals.terminalAttached);
+      await sleepReal(1200);
+      await h.signal(signals.terminalDetached);
+      await waitPhase(h, 'parked');
+      const took = Date.now() - t0;
+      expect(took).toBeGreaterThanOrEqual(10600);
+      expect(took).toBeLessThan(11800);
+      expect(count(s, 'deleteJob')).toBeGreaterThanOrEqual(1);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+  });
+
+  describe('pod lost and agent crash (pod-lost-parks)', () => {
+    it('a pod killed while idle parks as pod_lost: paused, the volume kept', async () => {
+      const s = newRun({}, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      // The pod is killed (OOM, eviction): no end line, an exit code.
+      s.logs.resolve({ exitCode: 137, agentStarted: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['pod_lost']);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(count(s, 'endSession')).toBe(0);
+      expect(statuses(s)).toEqual(['starting', 'running']);
+      captured['run-pod-lost'] = h;
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+    });
+
+    it('a pod that vanished while the agent worked parks as pod_lost', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      s.logs.resolve({ exitCode: -1, agentStarted: true, podLost: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['pod_lost']);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('an agent that exits non-zero parks as agent_crashed (D1): paused, the volume kept, not failed', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      s.logs.resolve({ exitCode: 1, endReason: 'agent_exit', agentStarted: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['agent_crashed']);
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(statuses(s)).not.toContain('failed');
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('an agent that exits non-zero after declaring done parks as a kept done run with agent_crashed', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'done');
+      await waitPhase(h, 'agent_done');
+      s.logs.resolve({ exitCode: 2, endReason: 'agent_exit', agentStarted: true });
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['agent_crashed']);
+      expect(count(s, 'parkRun:done')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      await h.signal(signals.dropSession);
+      expect((await h.result()).status).toBe('succeeded');
+    });
+
+    it('an agent that exits 0 still succeeds', async () => {
+      const s = newRun();
+      const h = await start(s);
+      await s.logsStarted.promise;
+      s.logs.resolve({ exitCode: 0, endReason: 'agent_exit', agentStarted: true });
+      expect(await h.result()).toMatchObject({ status: 'succeeded', exitCode: 0 });
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+    });
+
+    it('the idle timer parks with the idle_timeout reason', async () => {
+      const s = newRun({ idleEndSeconds: 1 });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['idle_timeout']);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a resume sent while the session is ending is accepted and a new pod starts after the park', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 30 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      expect((await state(h)).phase).toBe('ending');
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      // Still ending: the queued resume starts nothing before the park.
+      expect((await state(h)).phase).toBe('ending');
+      expect(count(s, 'createRunSecretAndJob')).toBe(1);
+      await expect(h.executeUpdate(signals.resumeRun)).rejects.toMatchObject({
+        cause: { type: 'NotResumable', message: 'This run is already being resumed' },
+      });
+      s.logs.resolve({ exitCode: 0, agentStarted: true });
+      await waitFor(() => count(s, 'createRunSecretAndJob') >= 2, 'resume Job');
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(s).at(-1) === 'idle', 'idle after resume');
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('a resume is refused while a person Finish is ending the session', async () => {
+      const s = newRun({ endingDeadlineSeconds: 30 }, { endSessionExits: false });
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      await h.executeUpdate(signals.finishRun);
+      await expect(h.executeUpdate(signals.resumeRun)).rejects.toMatchObject({
+        cause: { type: 'NotResumable', message: 'This run is being finished' },
+      });
+      s.logs.resolve({ exitCode: 0, agentStarted: true });
+      expect((await h.result()).status).toBe('succeeded');
+    });
+
+    it('a cancel while the session is ending still wins: cancelled, the volume deleted, no new pod', async () => {
+      const s = newRun({ idleEndSeconds: 1, endingDeadlineSeconds: 30 }, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await s.endSessionCalled.promise;
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      expect(count(s, 'createRunSecretAndJob')).toBe(1);
+      expect(count(s, 'parkRun:needs_input')).toBe(0);
+    });
+  });
+
+  describe('attach leases (attach-leases)', () => {
+    const ID = '11111111-1111-4111-8111-111111111111';
+
+    it('an id that stops renewing stops holding the idle timer: renewed ids hold it, then the run parks', async () => {
+      // Wide margins (real time, loaded machine): the first lease would run out at 8 s; renewals at ~3, 6 and 9 s keep it
+      // to ~17 s, and the state is read at ~11 s (3 s after the first expiry, 6 s before the renewed one).
+      const s = newRun({ idleEndSeconds: 1, leaseTtlSeconds: 8 });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.terminalAttached, ID);
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      expect((await state(h)).terminalAttached).toBe(1);
+      for (let i = 0; i < 3; i++) {
+        await sleepReal(3000);
+        await h.signal(signals.terminalLease, [ID]);
+      }
+      await sleepReal(2000);
+      expect((await state(h)).terminalAttached).toBe(1);
+      expect(count(s, 'endSession')).toBe(0);
+      // No more renewals: the lease runs out, then the idle timer parks the run.
+      await waitPhase(h, 'parked');
+      expect(s.parkReasons).toEqual(['idle_timeout']);
+      expect((await state(h)).terminalAttached).toBe(0);
+      captured['run-attach-leases'] = h;
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('history cost: a lease signal adds one signal event and at most one workflow task, and starts no timer', async () => {
+      const s = newRun({ idleEndSeconds: 1000, leaseTtlSeconds: 600 });
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      await h.signal(signals.terminalAttached, ID);
+      // proto EventType numbers: 5 WORKFLOW_TASK_SCHEDULED, 6 STARTED, 7 COMPLETED, 8 TIMED_OUT, 9 FAILED, 17 TIMER_STARTED,
+      // 18 TIMER_FIRED, 19 TIMER_CANCELED, 26 WORKFLOW_EXECUTION_SIGNALED.
+      const events = async () => (await h.fetchHistory()).events ?? [];
+      // Settled: the newest workflow-task event is a completed one, so no task is in flight and the count is not mid-task
+      // (a task's own commands, such as a timer, are recorded after its completed event).
+      const settled = async () => {
+        const tasks = (await events()).map((e) => Number(e.eventType)).filter((t) => t >= 5 && t <= 9);
+        return tasks[tasks.length - 1] === 7;
+      };
+      await waitFor(settled, 'the attach workflow task to complete');
+      const before = (await events()).length;
+      const SIGNALS = 5;
+      for (let i = 0; i < SIGNALS; i++) {
+        await h.signal(signals.terminalLease, [ID]);
+        await sleepReal(300);
+      }
+      await waitFor(settled, 'the lease workflow tasks to complete');
+      const added = (await events()).slice(before);
+      const ofType = (...types: number[]) => added.filter((e) => types.includes(Number(e.eventType)));
+      // Each lease signal is exactly one signal event.
+      expect(ofType(26)).toHaveLength(SIGNALS);
+      // A renewal must not restart the lease timer.
+      expect(ofType(17, 18, 19)).toEqual([]);
+      // Nothing but signals and workflow-task events (no activity, timer, child or marker).
+      expect(ofType(5, 6, 7, 8, 9, 26)).toHaveLength(added.length);
+      // One signal needs at most one first-attempt workflow task (a task can carry several signals). Retries are server and
+      // worker noise on a loaded machine, not a cost of the signal: a failed attempt leaves no trace in the history, so its
+      // retry shows up as its own scheduled, started, completed round with `attempt` above 1 and no signal before it. A
+      // sticky-queue timeout leaves an orphan scheduled event that is never started plus a fresh attempt-1 task, which still
+      // completes once. So first-attempt completions are at most one per signal; an extra task per signal, or any command,
+      // timer or activity that needs its own task, would push this over the bound and fail the test.
+      expect(firstAttemptCompletedTasks(added)).toBeLessThanOrEqual(SIGNALS);
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+
+    it('a detach with the id releases the idle timer, and an id-less attach still counts as before', async () => {
+      const s = newRun({ idleEndSeconds: 1, leaseTtlSeconds: 60 });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.terminalAttached);
+      await h.signal(signals.terminalAttached, ID);
+      await h.signal(signals.agentState, 'needs_input');
+      await waitPhase(h, 'idle');
+      expect((await state(h)).terminalAttached).toBe(2);
+      await h.signal(signals.terminalDetached, ID);
+      await h.signal(signals.terminalDetached, ID);
+      await sleepReal(1800);
+      expect((await state(h)).terminalAttached).toBe(1);
+      expect(count(s, 'endSession')).toBe(0);
+      await h.signal(signals.terminalDetached);
+      await waitPhase(h, 'parked');
+      await h.signal(signals.cancel);
+      await h.result();
+    });
+  });
+
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
     expect(Object.keys(captured).sort()).toEqual([
+      'run-attach-leases',
       'run-cancel-loading',
       'run-cancel-starting',
+      'run-ending-deadline',
       'run-idle-finish',
       'run-park-expire',
       'run-park-resume',
+      'run-pod-lost',
       'run-success',
       'run-token-refresh',
     ]);

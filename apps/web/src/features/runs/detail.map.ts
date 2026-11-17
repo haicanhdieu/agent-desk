@@ -1,6 +1,8 @@
 import {
   hasKeptSession,
+  type PauseReason,
   type ProjectDto,
+  type RunDto,
   type RunListItem,
   type RunEventDto,
   type RunStatus,
@@ -54,9 +56,62 @@ export function runDetailKey(status: RunStatus, terminalState?: 'reconnect'): Ru
   }
 }
 
+/**
+ * What the terminal area of a run shows: the live terminal; "Pausing" while the session is ending (no socket);
+ * the saved scrollback of a paused run; a Resume in progress (a queued or starting run that ran before);
+ * a new run starting; a final run's scrollback; or the expired note.
+ */
+export type TerminalArea = 'live' | 'pausing' | 'paused' | 'resuming' | 'starting' | 'ended' | 'expired';
+
+export function terminalArea(
+  run: Pick<RunDto, 'status' | 'sessionEndingAt'>,
+  events: RunEventDto[] = [],
+): TerminalArea {
+  switch (run.status) {
+    case 'running':
+    case 'idle':
+    case 'done':
+      return run.sessionEndingAt === null ? 'live' : 'pausing';
+    case 'paused':
+      return 'paused';
+    case 'queued':
+    case 'starting':
+      return parkedBefore(events) ? 'resuming' : 'starting';
+    case 'expired':
+      return 'expired';
+    case 'succeeded':
+    case 'failed':
+    case 'timed_out':
+    case 'cancelled':
+      return 'ended';
+  }
+}
+
+/** Why a run is paused, as the end of a sentence about when it paused ("Paused 2 min ago, <this>"). */
+export function pauseReasonText(reason: PauseReason): string {
+  switch (reason) {
+    case 'idle_timeout':
+      return 'after 30 min with nobody attached';
+    case 'pod_lost':
+      return 'the pod stopped unexpectedly (out of memory / evicted)';
+    case 'agent_crashed':
+      return 'the agent crashed';
+  }
+}
+
 // Event payloads are untrusted: only these shapes are read, anything else is skipped.
 const TextPayload = z.object({ text: z.string() });
 const StatusPayload = z.object({ status: z.string() });
+const SessionEndedKind = z.object({ kind: z.literal('session_ended') });
+/**
+ * The agent's exit code from the runner's end line. The agent shares the container and could print a forged end line,
+ * so only an `agent_exit` end with a plausible exit code (0 to 255) is read, and the number is shown as information.
+ */
+const AgentExitPayload = z.object({
+  kind: z.literal('session_ended'),
+  reason: z.literal('agent_exit'),
+  code: z.number().int().min(0).max(255),
+});
 const ResumeFailedPayload = z.object({ kind: z.literal('resume_failed'), reason: z.string().optional() });
 
 const textOf = (e: RunEventDto): string | undefined => TextPayload.safeParse(e.payload).data?.text;
@@ -309,10 +364,15 @@ export function terminalConnection(terminal: TerminalState, stream: ConnectionSt
       return { state: 'reconnecting', label: 'Disconnected' };
     case 'forbidden':
       return { state: 'none', label: 'No access' };
+    case 'ended':
+      return { state: 'ended', label: 'Session ended' };
+    case 'inactive':
+      return { state: 'none', label: 'Closed for inactivity' };
   }
 }
 
 function connection(run: RunListItem, lines: TermLine[] | undefined): RunDetailData['connection'] {
+  if (terminalArea(run) === 'pausing') return { state: 'none', label: 'Ending…' };
   if (run.status === 'paused') {
     return {
       state: 'ended',
@@ -332,9 +392,44 @@ const dateTime = (iso: string): string => {
   return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-/** The reason of a resume that fell back, when it is the latest event of the run (the run is parked again). */
+/** The exit code in the newest `session_ended` event of the log; undefined if there is none or it is malformed. */
+function agentExitCode(events: RunEventDto[]): number | undefined {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const e = events[i];
+    if (e?.type !== 'lifecycle' || !SessionEndedKind.safeParse(e.payload).success) continue;
+    return AgentExitPayload.safeParse(e.payload).data?.code;
+  }
+  return undefined;
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * Whether the run was parked (`paused`, or a kept `succeeded`) and has not started a turn since: scanning the status
+ * events back from the newest, a parked status comes before any `running`.
+ */
+function parkedBefore(events: RunEventDto[]): boolean {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const e = events[i];
+    const status = e?.type === 'status' ? StatusPayload.safeParse(e.payload).data?.status : undefined;
+    if (status === 'running') return false;
+    if (status === 'paused' || status === 'succeeded') return true;
+  }
+  return false;
+}
+
+/** The banner of a run that was resumed and has not started a new turn (the agent's note is untrusted text). */
+function resumedNote(run: RunListItem, events: RunEventDto[]): string | undefined {
+  if ((run.status !== 'idle' && run.status !== 'done') || !parkedBefore(events)) return undefined;
+  const said = run.agentNote ? `The agent ${run.status === 'done' ? 'said' : 'asked'}: ${run.agentNote}. ` : '';
+  return `Resumed. ${said}Background tasks and sub-agents that were running when it paused were stopped.`;
+}
+
+/** The reason of a resume that fell back, when it is the latest event of the run apart from comments (the run is parked again). */
 function resumeFailure(events: RunEventDto[]): string | undefined {
-  const last = events.at(-1);
+  // The park appends the failure and then posts the ticket comment (a `comment` event), so the newest event that is
+  // not a comment decides; a later status or lifecycle event means the run moved on.
+  const last = events.filter((e) => e.type !== 'comment').at(-1);
   const failed = last?.type === 'lifecycle' ? ResumeFailedPayload.safeParse(last.payload) : undefined;
   if (!failed?.success) return undefined;
   return failed.data.reason ? `Resume failed: ${failed.data.reason}` : 'Resume failed';
@@ -343,21 +438,48 @@ function resumeFailure(events: RunEventDto[]): string | undefined {
 /** The kept (paused, or succeeded with a session that is still kept) or expired session of a run (ADR 0022). */
 function sessionOf(run: RunListItem, events: RunEventDto[], now: Date): RunDetailData['session'] {
   if (run.status === 'expired') {
-    return { state: 'expired', headline: 'Nobody resumed this run in time. The saved session was deleted.' };
+    const days =
+      run.pausedAt !== null && run.finishedAt !== null
+        ? Math.round((Date.parse(run.finishedAt) - Date.parse(run.pausedAt)) / DAY_MS)
+        : 0;
+    return {
+      state: 'expired',
+      headline:
+        days >= 1
+          ? `Nobody resumed this run within ${days} ${days === 1 ? 'day' : 'days'}. The saved session was deleted.`
+          : 'Nobody resumed this run in time. The saved session was deleted.',
+    };
   }
   const failure = resumeFailure(events);
   const failed = failure === undefined ? {} : { resumeFailure: failure };
   if (run.status === 'paused') {
+    // A run paused before the reason was recorded was paused by the idle timer.
+    const reason = run.pauseReason ?? 'idle_timeout';
+    const crashed = reason === 'agent_crashed';
+    const left = run.sessionExpiresAt === null ? undefined : timeLeft(run.sessionExpiresAt, now);
+    const code = crashed ? agentExitCode(events) : undefined;
+    // A crashed run's headline says what happened; the keep time moves to the line below it.
+    const resumable = crashed && left !== undefined ? `Can be resumed for ${left}.` : undefined;
+    const when =
+      run.pausedAt === null ? undefined : `Paused ${relativeTime(run.pausedAt, now)}, ${pauseReasonText(reason)}`;
+    const detail = when === undefined ? resumable : resumable === undefined ? when : `${when}. ${resumable}`;
+    const headline = crashed
+      ? `Paused: agent crashed${code === undefined ? '' : ` (exit code ${code})`}`
+      : left === undefined
+        ? undefined
+        : `Paused: waiting for your answer. Can be resumed for ${left}.`;
     return {
       state: 'paused',
-      ...(run.sessionExpiresAt !== null && { headline: `Can be resumed for ${timeLeft(run.sessionExpiresAt, now)}` }),
-      ...(run.pausedAt !== null && { detail: `Paused ${relativeTime(run.pausedAt, now)} after no one was attached` }),
+      ...(headline !== undefined && { headline }),
+      ...(detail !== undefined && { detail }),
       ...failed,
     };
   }
   if (run.status === 'succeeded' && run.sessionExpiresAt !== null && hasKeptSession(run, now)) {
     return { state: 'kept', detail: `Session kept until ${dateTime(run.sessionExpiresAt)}`, ...failed };
   }
+  // A Resume queued behind the ending found nothing kept: the run is succeeded, and the person sees why.
+  if (run.status === 'succeeded' && failure !== undefined) return { state: 'none', ...failed };
   return undefined;
 }
 
@@ -388,6 +510,7 @@ export function toRunDetail(
   const end = final && run.finishedAt ? clockSeconds(run.finishedAt) : undefined;
   const note = endNote(run, ticketRuns, links, now, events);
   const session = sessionOf(run, events, now);
+  const resumed = resumedNote(run, events);
   return {
     run: toRunSummary(run, now),
     elapsed: clock(elapsedMs),
@@ -430,6 +553,9 @@ export function toRunDetail(
     ...((run.status === 'idle' || run.status === 'done' || run.status === 'paused' || session?.state === 'kept') &&
       run.agentNote !== null && { agentNote: run.agentNote }),
     ...(session && { session }),
+    ...(terminalArea(run) === 'pausing' && { pausing: true as const }),
+    ...(terminalArea(run, events) === 'resuming' && { resuming: true as const }),
+    ...(resumed !== undefined && { resumed }),
     connection: connection(run, lines),
     ...(note && { endNote: note }),
   };
