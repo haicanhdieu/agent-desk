@@ -163,6 +163,7 @@ async function makeRun(status: string, pod = true, projectId = aliceProject): Pr
         projectId,
         image: 'fake',
         prompt: 'do it',
+        model: 'claude-opus-4-1',
         checkoutRef: 'main',
         credentialEnvKeys: [],
         gitUsername: 'x-access-token',
