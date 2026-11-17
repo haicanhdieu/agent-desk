@@ -495,36 +495,40 @@ describe('entrypoint startup check', () => {
   const alive = { STUB_TMUX_MODE: 'alive', AGENTDESK_STARTUP_WAIT_SECONDS: '1' };
 
   it('reports needs_input once when no hook has fired within the wait', async () => {
-    const r = await runEntrypoint({ ...alive, AGENTDESK_RUN_DIR: runDir() }, {}, { signalAfterMs: 4500 });
+    const r = await runEntrypoint(
+      { ...alive, AGENTDESK_RUN_DIR: runDir() },
+      {},
+      { signalAfterLine: STARTUP_LINE, signalDelayAfterLineMs: 2500 },
+    );
     expect(r.stdout.filter((l) => l === STARTUP_LINE)).toHaveLength(1);
-  });
+  }, 30_000);
 
   it('says nothing when a hook has already fired', async () => {
     const r = await runEntrypoint(
       { ...alive, AGENTDESK_RUN_DIR: runDir({ 'hook-seen': '' }) },
       {},
-      { signalAfterMs: 4500 },
+      { signalAfterLine: 'agentdesk: session started', signalDelayAfterLineMs: 3000 },
     );
     expect(r.stdout).not.toContain(STARTUP_LINE);
-  });
+  }, 30_000);
 
   it('says nothing before the wait is over (default 5 minutes)', async () => {
     const r = await runEntrypoint(
       { STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDir() },
       {},
-      { signalAfterMs: 3500 },
+      { signalAfterLine: 'agentdesk: session started', signalDelayAfterLineMs: 2500 },
     );
     expect(r.stdout).not.toContain(STARTUP_LINE);
-  });
+  }, 30_000);
 
   it('ignores a wait that is not plain digits and uses the default', async () => {
     const r = await runEntrypoint(
       { STUB_TMUX_MODE: 'alive', AGENTDESK_STARTUP_WAIT_SECONDS: '1; id', AGENTDESK_RUN_DIR: runDir() },
       {},
-      { signalAfterMs: 3500 },
+      { signalAfterLine: 'agentdesk: session started', signalDelayAfterLineMs: 2500 },
     );
     expect(r.stdout).not.toContain(STARTUP_LINE);
-  });
+  }, 30_000);
 });
 
 describe('entrypoint stop request and agent exit file', () => {
