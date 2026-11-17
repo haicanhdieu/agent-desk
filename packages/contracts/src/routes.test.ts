@@ -39,7 +39,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(43);
+    expect(Object.keys(flat)).toHaveLength(44);
   });
   it('rejects timeoutSeconds above 7 days', () => {
     expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 604801 }).success).toBe(false);

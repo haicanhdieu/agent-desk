@@ -89,6 +89,8 @@ export interface BoardAdapter {
 export interface CodeHostAdapter {
   installUrl(orgId: string, state: string): string;
   completeInstall(params: Record<string, string>, user: InstallUser): Promise<NewConnection>;
+  /** Installations the user's own linked account can already see (installed earlier, so no install callback). */
+  listInstallations(user: InstallUser): Promise<NewConnection[]>;
   listRepos(connection: AdapterConnection): Promise<RepoDto[]>;
   mintWorkspaceToken(project: AdapterProject): Promise<{ token: string; expiresAt: Date }>;
   /** The repo's clone URL. Carries no credential: the run pod reads the workspace token from a mounted file (ADR 0021). */

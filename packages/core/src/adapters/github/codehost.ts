@@ -38,7 +38,9 @@ const CommitList = z.array(
   }),
 );
 const WriteResponse = z.object({ commit: z.object({ sha: z.string() }) });
-const UserInstallations = z.object({ installations: z.array(z.object({ id: z.number() })) });
+const UserInstallations = z.object({
+  installations: z.array(z.object({ id: z.number(), account: z.object({ login: z.string() }).nullish() })),
+});
 const InstallationInfo = z.object({
   id: z.number(),
   account: z.object({ login: z.string() }).nullable(),
@@ -86,6 +88,18 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
       accountName: info.account?.login ?? String(info.id),
       capabilities: { code: true, board: true },
     };
+  }
+
+  /** Only what the user's own token can see, so one user cannot claim another's install. The token is never stored. */
+  async listInstallations(user: InstallUser): Promise<NewConnection[]> {
+    if (!user.linkedAccountToken) return [];
+    const res = await this.clients.user(user.linkedAccountToken).request('GET /user/installations', { per_page: 100 });
+    return UserInstallations.parse(res.data).installations.map((i) => ({
+      provider: 'github',
+      externalId: String(i.id),
+      accountName: i.account?.login ?? String(i.id),
+      capabilities: { code: true, board: true },
+    }));
   }
 
   async listRepos(connection: AdapterConnection): Promise<RepoDto[]> {

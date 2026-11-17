@@ -57,6 +57,16 @@ export const routes = {
       params: z.object({ provider: Provider }),
       response: InstallResponse,
     },
+    /**
+     * 201: links the installations the caller's own provider account can already see (the app was installed before
+     * this org had a connection, so the provider never redirects back). Returns the org's connections; idempotent.
+     */
+    sync: {
+      method: 'POST',
+      path: '/api/connections/:provider/sync',
+      params: z.object({ provider: Provider }),
+      response: z.array(ConnectionDto),
+    },
     repos: {
       method: 'GET',
       path: '/api/connections/:connectionId/repos',

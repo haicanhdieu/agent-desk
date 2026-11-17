@@ -39,6 +39,11 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     };
   }
 
+  /** The fake provider always redirects back, so there is never an earlier install to find. */
+  async listInstallations(_user: InstallUser): Promise<NewConnection[]> {
+    return [];
+  }
+
   async listRepos(_connection: AdapterConnection): Promise<RepoDto[]> {
     return this.repos.map((repoPath) => ({ repoPath, private: false, defaultBranch: 'main' }));
   }

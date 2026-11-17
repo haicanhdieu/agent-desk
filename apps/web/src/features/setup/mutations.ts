@@ -1,5 +1,6 @@
 import type {
   AgentDto,
+  ConnectionDto,
   CreateProjectRequest,
   CreateRuleRequest,
   CredentialType,
@@ -207,9 +208,25 @@ export function useSaveRulesStep(org: string) {
   });
 }
 
-/** Opens the provider's install page (a full-page navigation away from the app). */
-export function useInstallConnection() {
+export type ConnectOutcome = { kind: 'linked'; connection: ConnectionDto } | { kind: 'install'; url: string };
+
+/**
+ * Connects a provider. An app already installed there never redirects back, so first link what the user's own
+ * account can see; only when that finds nothing, ask for the install page (a full-page navigation away).
+ */
+export function useInstallConnection(org: string) {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (provider: 'github' | 'fake') => api.connections.install({ params: { provider } }),
+    mutationFn: async (provider: 'github' | 'fake'): Promise<ConnectOutcome> => {
+      const linked = (await api.connections.sync({ params: { provider } })).find(
+        (c) => c.provider === provider && c.status === 'active' && c.capabilities.code,
+      );
+      if (linked) {
+        await qc.invalidateQueries({ queryKey: setupQueries.connections(org).queryKey });
+        return { kind: 'linked', connection: linked };
+      }
+      const { url } = await api.connections.install({ params: { provider } });
+      return { kind: 'install', url };
+    },
   });
 }

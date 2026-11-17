@@ -328,6 +328,23 @@ describe('setup flow fixes', () => {
     expect(screen.queryByText(/already/)).toBeNull();
   });
 
+  it('Connect links an installation the provider already has, lists its repos and never opens the install page', async () => {
+    const alreadyInstalled = mockDb.state.connections.filter((c) => c.orgId === ids.org.alice);
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+    server.use(
+      routeHandler('connections.sync', async () => {
+        mockDb.state.connections.push(...alreadyInstalled);
+        return jsonResponse(alreadyInstalled, 201);
+      }),
+    );
+    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const { user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
+    expect(await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+    expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(0);
+  });
+
   it('an install URL that is not https is not followed and an error shows', async () => {
     mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     server.use(routeHandler('connections.install', async () => jsonResponse({ url: 'javascript:alert(1)' })));

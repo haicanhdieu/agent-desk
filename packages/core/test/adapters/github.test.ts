@@ -468,6 +468,25 @@ describe('github code host', () => {
     ).rejects.toThrow(/linked account/);
   });
 
+  it('listInstallations returns every installation the user linked account can see', async () => {
+    gh()
+      .intercept({
+        path: (p) => p.startsWith('/user/installations'),
+        method: 'GET',
+        headers: { authorization: 'token utok' },
+      })
+      .reply(
+        200,
+        '{"total_count":2,"installations":[{"id":4242,"account":{"login":"acme"}},{"id":7,"account":null}]}',
+        { headers: JSON_HEADERS },
+      );
+    expect(await host().listInstallations({ userId: 'u', linkedAccountToken: 'utok' })).toEqual([
+      { provider: 'github', externalId: '4242', accountName: 'acme', capabilities: { code: true, board: true } },
+      { provider: 'github', externalId: '7', accountName: '7', capabilities: { code: true, board: true } },
+    ]);
+    expect(await host().listInstallations({ userId: 'u', linkedAccountToken: null })).toEqual([]);
+  });
+
   describe('readRepoFile', () => {
     const settingsPath = '/repos/acme/widgets/contents/.claude/settings.json';
     const onRef = (ref: string) => (p: string) => {
