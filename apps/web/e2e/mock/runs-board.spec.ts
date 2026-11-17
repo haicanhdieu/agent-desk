@@ -9,8 +9,12 @@ test('the Grouped by ticket button toggles ticket grouping on the Run Board', as
   const toggle = page.getByRole('button', { name: 'Grouped by ticket' });
   const runLinks = page.getByRole('link', { name: /^Run \d+$/ });
   const groupRows = page.locator('tr', { has: page.getByText(/ of \d+ runs$/) });
+  // The toggle's fill, read from the browser so no colour value is hardcoded. Hover only changes the
+  // border, so the fill tells pressed from unpressed.
+  const fill = () => toggle.evaluate((el) => getComputedStyle(el).backgroundColor);
 
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  const pressedFill = await fill();
   await expect(runLinks.first()).toBeVisible();
   const runCount = await runLinks.count();
   const grouped = await groupRows.count();
@@ -18,11 +22,14 @@ test('the Grouped by ticket button toggles ticket grouping on the Run Board', as
 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  const unpressedFill = await fill();
+  expect(unpressedFill).not.toBe(pressedFill);
   await expect(groupRows).toHaveCount(0);
   await expect(runLinks).toHaveCount(runCount);
 
   await toggle.click();
   await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await expect(toggle).toHaveCSS('background-color', pressedFill);
   await expect(groupRows).toHaveCount(grouped);
   await expect(runLinks).toHaveCount(runCount);
 });
