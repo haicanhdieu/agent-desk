@@ -61,7 +61,7 @@ const SESSION_ENDED = new RegExp(`^agentdesk: session ended reason=(${END_REASON
 const STATE_WORKING = /^agentdesk: state working$/;
 const STATE_WAITING = /^agentdesk: state waiting background$/;
 const STATE_DECIDED =
-  /^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error) ([A-Za-z0-9+/]{1,5400}={0,2}|-)$/;
+  /^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error|startup) ([A-Za-z0-9+/]{1,5400}={0,2}|-)$/;
 
 const PLUGIN_KINDS = { installed: 'plugin_installed', failed: 'plugin_failed' } as const;
 

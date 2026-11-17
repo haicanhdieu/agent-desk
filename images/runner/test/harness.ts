@@ -18,7 +18,7 @@ export interface EntrypointResult {
 export async function runEntrypoint(
   env: Record<string, string>,
   repoFixture: Record<string, string>,
-  opts: { signalAfterMs?: number; signalAfterLine?: string } = {},
+  opts: { signalAfterMs?: number; signalAfterLine?: string; signalDelayAfterLineMs?: number } = {},
 ): Promise<EntrypointResult> {
   const dir = await mkdtemp(join(tmpdir(), 'entrypoint-'));
   const stubLog = join(dir, 'stub.log');
@@ -60,7 +60,8 @@ export async function runEntrypoint(
         seen += chunk.toString();
         if (seen.split('\n').includes(wanted)) {
           sent = true;
-          child.kill('SIGTERM');
+          if (opts.signalDelayAfterLineMs === undefined) child.kill('SIGTERM');
+          else setTimeout(() => child.kill('SIGTERM'), opts.signalDelayAfterLineMs);
         }
       });
     }

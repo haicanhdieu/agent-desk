@@ -27,7 +27,12 @@ const feed = (input: string) =>
   spawnSync(process.execPath, [hook], {
     input,
     encoding: 'utf8',
-    env: { PATH: process.env.PATH, AGENTDESK_STATE_DIR: stateDir, AGENTDESK_STATUS_OUT: out },
+    env: {
+      PATH: process.env.PATH,
+      AGENTDESK_STATE_DIR: stateDir,
+      AGENTDESK_STATUS_OUT: out,
+      AGENTDESK_RUN_DIR: join(root, 'run'),
+    },
   });
 
 const send = async (name: string, patch: Record<string, unknown> = {}) =>
@@ -178,6 +183,28 @@ describe('claude hook rules', () => {
     const after = await stat(file);
     expect(after.ino).toBe(before.ino);
     expect(after.mtimeMs).toBe(before.mtimeMs);
+    expect(await lines()).toEqual(['agentdesk: state working']);
+  });
+
+  it('marks the pod as having heard from a hook, which switches the entrypoint startup check off', async () => {
+    const seen = join(root, 'run', 'hook-seen');
+    expect(existsSync(seen)).toBe(false);
+    await send('pre-tool-bash');
+    expect(existsSync(seen)).toBe(true);
+  });
+
+  it('the first hook in a pod re-emits working even when a saved state from an earlier pod says working', async () => {
+    await mkdir(stateDir, { recursive: true });
+    await writeFile(join(stateDir, 'state.json'), JSON.stringify({ last: 'working' }));
+    await send('pre-tool-bash');
+    await send('pre-tool-bash');
+    expect(await lines()).toEqual(['agentdesk: state working']);
+  });
+
+  it('still works when the run dir cannot be written', async () => {
+    await writeFile(join(root, 'run'), 'not a directory');
+    const r = await send('pre-tool-bash');
+    expect(r.status).toBe(0);
     expect(await lines()).toEqual(['agentdesk: state working']);
   });
 
