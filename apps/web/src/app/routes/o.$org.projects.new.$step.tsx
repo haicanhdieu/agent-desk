@@ -161,7 +161,7 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   const usable = usableConnections(connections, connectionId);
   const repoLists = useSuspenseQueries({ queries: usable.map((c) => setupQueries.repos(org, c.id)) });
   const save = useSaveRepoStep(org);
-  const install = useInstallConnection();
+  const install = useInstallConnection(org);
   const [errors, setErrors] = useState<StepErrors<'name' | 'repo' | 'mode'>>(noErrors);
 
   // The first connection that lists a repo owns it.
@@ -218,8 +218,17 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
 
   const onConnect = async () => {
     try {
-      const { url } = await install.mutateAsync('github');
-      const target = safeInstallUrl(url);
+      const outcome = await install.mutateAsync('github');
+      if (outcome.kind === 'linked') {
+        await navigate({
+          to: '/o/$org/projects/new/$step',
+          params: { org, step: 'repo' },
+          search: { connection: outcome.connection.id },
+          replace: true,
+        });
+        return;
+      }
+      const target = safeInstallUrl(outcome.url);
       if (!target) {
         setErrors({
           fields: {},

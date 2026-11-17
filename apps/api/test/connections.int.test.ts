@@ -73,6 +73,66 @@ describe('connections', () => {
     expect(list2.json()).toHaveLength(1);
   });
 
+  describe('sync (the app is already installed at the provider, so no callback ever arrives)', () => {
+    async function syncAs(cookie: string, installs: { externalId: string; accountName: string }[]) {
+      const synced = await createTestApp({
+        wrapAdapters: (real) => ({
+          ...real,
+          codeHost: (provider) =>
+            Object.assign(Object.create(real.codeHost(provider)), {
+              listInstallations: async () =>
+                installs.map((i) => ({ provider, ...i, capabilities: { code: true, board: true } })),
+            }),
+        }),
+      });
+      try {
+        const cookieFor = await loginAs(synced, cookie);
+        const call = () =>
+          synced.app.inject({ method: 'POST', url: '/api/connections/fake/sync', headers: { cookie: cookieFor } });
+        const first = await call();
+        const second = await call();
+        const list = await synced.app.inject({
+          method: 'GET',
+          url: '/api/connections',
+          headers: { cookie: cookieFor },
+        });
+        return { first, second, list };
+      } finally {
+        await synced.close();
+      }
+    }
+
+    it('creates a connection for each installation the user can see, and is idempotent', async () => {
+      const { first, second, list } = await syncAs('sync-one', [{ externalId: 'ext-1', accountName: 'acme' }]);
+      expect(first.statusCode).toBe(201);
+      const created = expectContract('connections.sync', first) as { accountName: string; status: string }[];
+      expect(created.map((c) => [c.accountName, c.status])).toEqual([['acme', 'active']]);
+      expect(expectContract('connections.sync', second)).toHaveLength(1);
+      expect(expectContract('connections.list', list)).toHaveLength(1);
+    });
+
+    it('skips an installation another org already owns instead of failing, and links the rest', async () => {
+      const owner = await syncAs('sync-owner', [{ externalId: 'taken-ext', accountName: 'owner-co' }]);
+      expect(owner.first.statusCode).toBe(201);
+
+      const other = await syncAs('sync-other', [
+        { externalId: 'taken-ext', accountName: 'owner-co' },
+        { externalId: 'free-ext', accountName: 'other-co' },
+      ]);
+      expect(other.first.statusCode).toBe(201);
+      const names = (expectContract('connections.list', other.list) as { accountName: string }[]).map(
+        (c) => c.accountName,
+      );
+      expect(names).toEqual(['other-co']);
+    });
+
+    it('returns an empty list when the user can see no installation', async () => {
+      const { first, list } = await syncAs('sync-none', []);
+      expect(expectContract('connections.sync', first)).toEqual([]);
+      expect(expectContract('connections.list', list)).toEqual([]);
+    });
+  });
+
   it('other orgs cannot see or use the connection (404, empty list)', async () => {
     const list = await t.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie: bob } });
     expect(expectContract('connections.list', list)).toEqual([]);

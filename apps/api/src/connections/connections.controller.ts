@@ -28,6 +28,11 @@ export class ConnectionsController {
     return this.service.install(org.orgId, org.userId, provider);
   }
 
+  @Post(routePath(routes.connections.sync))
+  sync(@CurrentOrg() org: OrgContext, @Param('provider', ProviderParam) provider: Provider): Promise<ConnectionDto[]> {
+    return this.service.sync(org.orgId, org.userId, provider);
+  }
+
   @Get(CALLBACK_PATH)
   async callback(
     @Param('provider', ProviderParam) provider: Provider,

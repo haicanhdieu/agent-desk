@@ -1,5 +1,6 @@
 import type {
   AgentDto,
+  ConnectionDto,
   CreateProjectRequest,
   CreateRuleRequest,
   CredentialType,
@@ -207,9 +208,32 @@ export function useSaveRulesStep(org: string) {
   });
 }
 
-/** Opens the provider's install page (a full-page navigation away from the app). */
-export function useInstallConnection() {
+export type ConnectOutcome = { kind: 'linked'; connection: ConnectionDto } | { kind: 'install'; url: string };
+
+/**
+ * Connects a provider. An app already installed there never redirects back, so first link what the user's own
+ * account can see; only when that adds no new connection (or the lookup fails), ask for the install page (a
+ * full-page navigation away). A connection the org could already use does not count: the user may be asking to
+ * change which repositories the app can access.
+ */
+export function useInstallConnection(org: string) {
+  const qc = useQueryClient();
   return useMutation({
-    mutationFn: (provider: 'github' | 'fake') => api.connections.install({ params: { provider } }),
+    mutationFn: async (provider: 'github' | 'fake'): Promise<ConnectOutcome> => {
+      const usable = (c: ConnectionDto) => c.provider === provider && c.status === 'active' && c.capabilities.code;
+      let linked: ConnectionDto | undefined;
+      try {
+        const known = new Set((await api.connections.list()).filter(usable).map((c) => c.id));
+        linked = (await api.connections.sync({ params: { provider } })).find((c) => usable(c) && !known.has(c.id));
+      } catch {
+        // The lookup is a shortcut; when it fails the install page is still the way to connect.
+      }
+      if (linked) {
+        await qc.invalidateQueries({ queryKey: setupQueries.connections(org).queryKey });
+        return { kind: 'linked', connection: linked };
+      }
+      const { url } = await api.connections.install({ params: { provider } });
+      return { kind: 'install', url };
+    },
   });
 }

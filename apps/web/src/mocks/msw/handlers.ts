@@ -194,6 +194,11 @@ const impl: Impl = {
     const { orgId } = session();
     return db().connections.filter((c) => c.orgId === orgId);
   },
+  // The mock provider has nothing installed beyond what the org already has linked.
+  'connections.sync': () => {
+    const { orgId } = session();
+    return db().connections.filter((c) => c.orgId === orgId);
+  },
   'connections.install': ({ params }) => {
     session();
     // The real API returns the provider's install page; the fake provider has none, so it gets a placeholder https URL
@@ -549,6 +554,7 @@ const impl: Impl = {
 // As the API answers (Nest: 201 for a POST without @HttpCode).
 const STATUS: Partial<Record<RouteKey, number>> = {
   'connections.install': 201,
+  'connections.sync': 201,
   'projects.create': 201,
   'rules.create': 201,
   'projects.pollNow': 202,

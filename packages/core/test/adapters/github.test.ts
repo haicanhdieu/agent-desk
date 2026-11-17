@@ -468,6 +468,64 @@ describe('github code host', () => {
     ).rejects.toThrow(/linked account/);
   });
 
+  describe('listInstallations', () => {
+    const user = { userId: 'u', linkedAccountToken: 'utok' };
+    const AUTH = { authorization: 'token utok' };
+    const reply = (path: (p: string) => boolean, status: number, body: string) =>
+      gh().intercept({ path, method: 'GET', headers: AUTH }).reply(status, body, { headers: JSON_HEADERS });
+    const conn = (id: string, name: string) => ({
+      provider: 'github',
+      externalId: id,
+      accountName: name,
+      capabilities: { code: true, board: true },
+    });
+    const inst = (id: number, login: string, type: string, accountId: number) =>
+      `{"id":${id},"account":{"login":"${login}","type":"${type}","id":${accountId}}}`;
+
+    it('returns the own-account install and org installs the user administers, skipping the rest', async () => {
+      reply((p) => p === '/user', 200, '{"id":100,"login":"me"}');
+      reply(
+        (p) => p.startsWith('/user/installations'),
+        200,
+        `{"total_count":5,"installations":[${inst(1, 'me', 'User', 100)},${inst(2, 'other', 'User', 200)},${inst(3, 'acme', 'Organization', 300)},${inst(4, 'victim', 'Organization', 400)},${inst(5, 'pending', 'Organization', 500)}]}`,
+      );
+      // One memberships call (a single interceptor) serves all org installs.
+      reply(
+        (p) => p.startsWith('/user/memberships/orgs'),
+        200,
+        '[{"role":"admin","organization":{"login":"acme"}},{"role":"member","organization":{"login":"victim"}}]',
+      );
+      expect(await host().listInstallations(user)).toEqual([conn('1', 'me'), conn('3', 'acme')]);
+    });
+
+    it('skips org installs when the membership list is forbidden', async () => {
+      reply((p) => p === '/user', 200, '{"id":100,"login":"me"}');
+      reply(
+        (p) => p.startsWith('/user/installations'),
+        200,
+        `{"total_count":2,"installations":[${inst(3, 'acme', 'Organization', 300)},${inst(4, 'victim', 'Organization', 400)}]}`,
+      );
+      reply((p) => p.startsWith('/user/memberships/orgs'), 403, '{"message":"Forbidden"}');
+      expect(await host().listInstallations(user)).toEqual([]);
+    });
+
+    it('reads a second page of installations', async () => {
+      reply((p) => p === '/user', 200, '{"id":100,"login":"me"}');
+      const full = Array.from({ length: 100 }, (_, i) => inst(1000 + i, `x${i}`, 'User', 9000 + i)).join(',');
+      reply((p) => p.startsWith('/user/installations') && p.includes('page=1'), 200, `{"installations":[${full}]}`);
+      reply(
+        (p) => p.startsWith('/user/installations') && p.includes('page=2'),
+        200,
+        `{"installations":[${inst(1, 'me', 'User', 100)}]}`,
+      );
+      expect(await host().listInstallations(user)).toEqual([conn('1', 'me')]);
+    });
+
+    it('returns nothing without a linked account', async () => {
+      expect(await host().listInstallations({ userId: 'u', linkedAccountToken: null })).toEqual([]);
+    });
+  });
+
   describe('readRepoFile', () => {
     const settingsPath = '/repos/acme/widgets/contents/.claude/settings.json';
     const onRef = (ref: string) => (p: string) => {

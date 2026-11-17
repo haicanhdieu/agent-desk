@@ -261,5 +261,6 @@ describe('fake install external id', () => {
     const b = await host.completeInstall({}, { userId: 'u', orgId: 'org-b', linkedAccountToken: null });
     expect(a.externalId).toBe('fake-org-a');
     expect(b.externalId).toBe('fake-org-b');
+    expect(await host.listInstallations({ userId: 'u', orgId: 'org-a', linkedAccountToken: null })).toEqual([]);
   });
 });

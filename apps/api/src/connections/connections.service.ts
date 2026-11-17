@@ -10,7 +10,7 @@ import {
 import { and, eq, inArray } from 'drizzle-orm';
 import { account, connections, member, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
 import { Provider, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
-import type { AdapterRegistry } from '@agentdesk/core';
+import type { AdapterRegistry, NewConnection } from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import { isUniqueViolation } from '../common/pg-errors';
 import { CONFIG, type Config } from '../config/config.module';
@@ -88,39 +88,7 @@ export class ConnectionsService {
 
     let row: ConnectionRow;
     try {
-      row = await withOrg(this.db, orgId, async (tx) => {
-        const existing = await tx
-          .select()
-          .from(connections)
-          .where(and(eq(connections.provider, fresh.provider), eq(connections.externalId, fresh.externalId)))
-          .limit(1);
-        if (existing[0]) {
-          const [updated] = await tx
-            .update(connections)
-            .set({
-              accountName: fresh.accountName,
-              capabilities: fresh.capabilities,
-              status: 'active',
-              linkedByUserId: userId,
-            })
-            .where(eq(connections.id, existing[0].id))
-            .returning();
-          return updated ?? existing[0];
-        }
-        const [inserted] = await tx
-          .insert(connections)
-          .values({
-            orgId,
-            provider: fresh.provider,
-            externalId: fresh.externalId,
-            accountName: fresh.accountName,
-            capabilities: fresh.capabilities,
-            linkedByUserId: userId,
-          })
-          .returning();
-        if (!inserted) throw new Error('connection insert returned no row');
-        return inserted;
-      });
+      row = await this.upsert(orgId, userId, fresh);
     } catch (err) {
       // (provider, external_id) is unique across orgs; a row owned by another org is invisible under RLS.
       if (isUniqueViolation(err)) throw new ConflictException('Connection already exists');
@@ -137,6 +105,69 @@ export class ConnectionsService {
     const slug = org[0]?.slug;
     if (!slug) throw new BadRequestException('Invalid or expired install state');
     return `${this.config.PUBLIC_ORIGIN}/o/${encodeURIComponent(slug)}/projects/new/repo?connection=${row.id}`;
+  }
+
+  /** Inserts the connection, or refreshes and re-activates it when this org already has it (idempotent). */
+  private upsert(orgId: string, userId: string, fresh: NewConnection): Promise<ConnectionRow> {
+    return withOrg(this.db, orgId, async (tx) => {
+      const existing = await tx
+        .select()
+        .from(connections)
+        .where(and(eq(connections.provider, fresh.provider), eq(connections.externalId, fresh.externalId)))
+        .limit(1);
+      if (existing[0]) {
+        const [updated] = await tx
+          .update(connections)
+          .set({
+            accountName: fresh.accountName,
+            capabilities: fresh.capabilities,
+            status: 'active',
+            linkedByUserId: userId,
+          })
+          .where(eq(connections.id, existing[0].id))
+          .returning();
+        return updated ?? existing[0];
+      }
+      const [inserted] = await tx
+        .insert(connections)
+        .values({
+          orgId,
+          provider: fresh.provider,
+          externalId: fresh.externalId,
+          accountName: fresh.accountName,
+          capabilities: fresh.capabilities,
+          linkedByUserId: userId,
+        })
+        .returning();
+      if (!inserted) throw new Error('connection insert returned no row');
+      return inserted;
+    });
+  }
+
+  /**
+   * Links installations the user's own provider account can already see. The provider only redirects back to
+   * `complete` on a fresh install, so an app installed earlier (e.g. before this org was set up) never gets a
+   * connection that way. An installation already owned by another org is skipped, not an error.
+   */
+  async sync(orgId: string, userId: string, provider: Provider): Promise<ConnectionDto[]> {
+    this.requireProvider(provider);
+    const linked = await this.db.orm
+      .select({ token: account.accessToken })
+      .from(account)
+      .where(and(eq(account.userId, userId), eq(account.providerId, provider)))
+      .limit(1);
+    const found = await this.registry
+      .codeHost(provider)
+      .listInstallations({ userId, orgId, linkedAccountToken: linked[0]?.token ?? null });
+    for (const fresh of found) {
+      try {
+        const row = await this.upsert(orgId, userId, fresh);
+        await this.resumeRevokedPolling(orgId, row.id);
+      } catch (err) {
+        if (!isUniqueViolation(err)) throw err;
+      }
+    }
+    return this.list(orgId);
   }
 
   /**
