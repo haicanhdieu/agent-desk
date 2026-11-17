@@ -49,6 +49,10 @@
   color: var(--text);
   border-color: var(--line2);
 }
+.btn.pressed {
+  background: var(--select-bg);
+  border-color: var(--select-line);
+}
 .btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;

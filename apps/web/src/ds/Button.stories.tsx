@@ -30,6 +30,9 @@ function Gallery() {
         <Button aria-pressed={true} icon="runs">
           Grouped by ticket
         </Button>
+        <Button aria-pressed={false} icon="runs">
+          Grouped by ticket
+        </Button>
         <Button disabled>Disabled</Button>
         <Button href="#link" iconRight="external">
           Link
