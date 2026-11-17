@@ -111,6 +111,21 @@ describe('connections', () => {
       expect(expectContract('connections.list', list)).toHaveLength(1);
     });
 
+    it('skips an installation another org already owns instead of failing, and links the rest', async () => {
+      const owner = await syncAs('sync-owner', [{ externalId: 'taken-ext', accountName: 'owner-co' }]);
+      expect(owner.first.statusCode).toBe(201);
+
+      const other = await syncAs('sync-other', [
+        { externalId: 'taken-ext', accountName: 'owner-co' },
+        { externalId: 'free-ext', accountName: 'other-co' },
+      ]);
+      expect(other.first.statusCode).toBe(201);
+      const names = (expectContract('connections.list', other.list) as { accountName: string }[]).map(
+        (c) => c.accountName,
+      );
+      expect(names).toEqual(['other-co']);
+    });
+
     it('returns an empty list when the user can see no installation', async () => {
       const { first, list } = await syncAs('sync-none', []);
       expect(expectContract('connections.sync', first)).toEqual([]);
