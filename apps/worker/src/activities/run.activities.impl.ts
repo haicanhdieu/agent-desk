@@ -18,6 +18,7 @@ import {
   WORKSPACE_TOKEN_KEY,
   TMUX_KILL,
   buildPrompt,
+  classifyKubeError,
   promptSourceOf,
   buildRunJob,
   credentialSecretName,
@@ -61,6 +62,7 @@ import {
   sleep,
 } from './activity-utils';
 import {
+  clusterRefused,
   followPodLog,
   createSecretAccumulator,
   outputBudget,
@@ -131,6 +133,8 @@ export interface RunActivityTiming {
   pollMs?: number;
   /** followPodLogs heartbeat interval (spec: 10 s). */
   heartbeatMs?: number;
+  /** How long the cluster may stay unreachable before the follower gives up (default: `RUN_RECONNECT_WINDOW_SECONDS`). */
+  reconnectWindowMs?: number;
 }
 
 export interface RunActivityDeps {
@@ -272,6 +276,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   const pendingLimitMs = deps.timing?.pendingLimitMs ?? PENDING_LIMIT_MS;
   const pollMs = deps.timing?.pollMs ?? POLL_MS;
   const heartbeatMs = deps.timing?.heartbeatMs ?? HEARTBEAT_MS;
+  const reconnectWindowMs = deps.timing?.reconnectWindowMs ?? deps.config.RUN_RECONNECT_WINDOW_SECONDS * 1000;
   const now = (): string => clock.now().toISOString();
 
   async function details(tx: Tx, orgId: string, runId: string): Promise<RunDetails | null> {
@@ -842,6 +847,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       pass.beat();
     };
 
+    const tailText = (): string | undefined =>
+      scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
+
     return followPodLog<FollowPodLogsResult>(
       {
         kube,
@@ -849,13 +857,39 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         pendingLimitMs,
         pollMs,
         heartbeatMs,
-        reconnectWindowMs: deps.config.RUN_RECONNECT_WINDOW_SECONDS * 1000,
+        reconnectWindowMs,
       },
       {
         what: 'follow pod logs',
-        // Compile-only stub; Task 3 replaces it with the real parking behaviour.
+        // Fixed wording plus the classified cause code: never a raw error message.
+        contact: {
+          lost: (cause, at) =>
+            appendContactEvent(ctx, at, `Lost contact with the cluster (${cause}). Retrying.`, 'contact_lost'),
+          restored: (downMs, at) =>
+            appendContactEvent(
+              ctx,
+              at,
+              `Contact with the cluster restored after ${windowMinutes(downMs)} min.`,
+              'contact_restored',
+            ),
+        },
         onContactLost: async () => {
-          throw new Error('onContactLost is not wired yet (Task 3)');
+          const pre = await findSetupState(ctx, -1, resume ? await floorOf() : 0);
+          // Without a started agent there is no session to keep: a real failure, not retried.
+          if (!pre.agentStarted) {
+            throw ApplicationFailure.nonRetryable('lost contact with the cluster before the agent started');
+          }
+          const tail = tailText();
+          return {
+            done: {
+              exitCode: -1,
+              ...(tail !== undefined ? { scrollbackTail: tail } : {}),
+              agentStarted: true,
+              podLost: true as const,
+              contactLost: true as const,
+              lostText: `lost contact with the cluster for ${windowMinutes(reconnectWindowMs)} min`,
+            },
+          };
         },
         jobName: runJobName(ctx.runId),
         secrets: async () => {
@@ -964,7 +998,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         },
         afterStream: async (pass) => {
           await pass.throwIfCancelled();
-          const exitCode = await waitForExit(ctx, pass.signal);
+          const exitCode = await waitForExit(ctx, pass.signal, pass.cluster);
           await pass.throwIfCancelled();
           // The log stream dropped while the container still runs: re-attach. An unfinished block is not stored; the
           // next pass re-reads it from its begin line (`durable` never passed it).
@@ -978,8 +1012,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             typeof exitCode === 'object' ? -1 : exitCode,
             resume ? await floorOf() : 0,
           );
-          const tail =
-            scrollbackTail ?? (textTail.length > 0 ? textTail.join('\n').slice(-SCROLLBACK_TAIL_CHARS) : undefined);
+          const tail = tailText();
           if (typeof exitCode === 'object') {
             // A pod that vanished before the agent began is a real failure: keep it loud and not retryable.
             if (!pre.agentStarted) {
@@ -1021,10 +1054,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
    * `{ gone }` (the failure text) when the pod no longer exists or ended with no exit code. The caller decides whether
    * that is a failure (before `session_started`) or a lost pod.
    */
-  async function waitForExit(ctx: RunContext, signal: AbortSignal): Promise<number | 'running' | { gone: string }> {
+  async function waitForExit(
+    ctx: RunContext,
+    signal: AbortSignal,
+    cluster: FollowPass['cluster'],
+  ): Promise<number | 'running' | { gone: string }> {
     const deadline = clock.now().getTime() + EXIT_WAIT_MS;
     for (;;) {
-      const pod = await kube.getRunPod(runJobName(ctx.runId));
+      const pod = await cluster(() => kube.getRunPod(runJobName(ctx.runId)));
       if (!pod) return { gone: 'the run pod disappeared before it reported an exit code' };
       if (pod.exitCode !== null) return pod.exitCode;
       if (clock.now().getTime() > deadline) {
@@ -1078,8 +1115,17 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       const code = await execAndWait(pod.name, [...END_COMMAND]);
       if (code === EXEC_NOT_FOUND) await execAndWait(pod.name, [...TMUX_KILL]);
     } catch (err) {
-      throw safeError(err, [], 'end session');
+      throw clusterError(err, 'end session');
     }
+  }
+
+  /**
+   * The failure for a cluster call (the Job delete, session end and cleanup run under an unlimited retry policy): an
+   * HTTP 4xx other than 429 is permanent, so it must not be retried for ever; anything else is today's retryable error.
+   */
+  function clusterError(err: unknown, what: string): Error {
+    const kind = classifyKubeError(err);
+    return kind.kind === 'permanent' ? clusterRefused(what, kind.status) : safeError(err, [], what);
   }
 
   async function deleteJob(ctx: RunContext): Promise<void> {
@@ -1088,8 +1134,31 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       await kube.deleteJob(name);
       await kube.deleteSecret(name);
     } catch (err) {
-      throw safeError(err, [], 'delete run Job');
+      throw clusterError(err, 'delete run Job');
     }
+  }
+
+  /** Whole minutes of a duration, at least 1 (the contact event texts and the parked-run text). */
+  function windowMinutes(ms: number): number {
+    return Math.max(1, Math.round(ms / 60_000));
+  }
+
+  /** A `lifecycle` event about the cluster connection: fixed text, no line key (not tied to a log line). */
+  async function appendContactEvent(
+    ctx: RunContext,
+    at: Date,
+    text: string,
+    kind: 'contact_lost' | 'contact_restored',
+  ): Promise<void> {
+    await withOrg(db, ctx.orgId, async (tx) => {
+      const ev = await appendRunEvent(tx, ctx.orgId, {
+        runId: ctx.runId,
+        type: 'lifecycle',
+        payload: { kind, text },
+        ts: at,
+      });
+      if (!ev) throw ApplicationFailure.nonRetryable('run not found');
+    });
   }
 
   async function recordEndingDeadline(ctx: RunContext, input: { scrollbackSaved: boolean; at: string }): Promise<void> {
@@ -1116,7 +1185,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         await kube.deleteJob(name);
       await kube.deleteSecret(name);
     } catch (err) {
-      throw safeError(err, [], 'clean up run Job');
+      throw clusterError(err, 'clean up run Job');
     }
   }
 

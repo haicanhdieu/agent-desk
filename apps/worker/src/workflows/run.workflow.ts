@@ -54,7 +54,7 @@ import {
   type ParkKind,
   type PauseReason,
 } from './park';
-import { ACTIVITY_RETRY as RETRY } from './retry';
+import { ACTIVITY_RETRY as RETRY, CLUSTER_RETRY } from './retry';
 import { historyTooLong, refreshWaitSeconds, type TokenRefreshPlan } from './token-refresh';
 
 export { TOKEN_REFRESH_INTERVAL_SECONDS_DEFAULT } from './token-refresh';
@@ -80,6 +80,8 @@ export type EndReason = (typeof END_REASONS)[number];
 export const ENDING_DEADLINE_SECONDS_DEFAULT = 90;
 /** Mirrors POD_PENDING_TIMEOUT in ../activities/run.activities (a value import would pull activity code in). */
 const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
+/** Mirrors CLUSTER_PERMANENT_ERROR in @agentdesk/core (workflow code cannot import core): a 4xx the cluster will not change its mind about. */
+const CLUSTER_PERMANENT_ERROR = 'ClusterPermanentError';
 /** Mirrors the type `createRunSecretAndJob` throws for a resume whose agent or credential is gone. */
 const NO_AGENT_CREDENTIAL = 'NoAgentCredential';
 /** followPodLogs may run for the whole run; it gets this much beyond the hard timer before Temporal gives up. */
@@ -96,6 +98,8 @@ const ABANDON_GRACE_MS = 5_000;
 const POD_LOST_PATCH = 'pod-lost-parks';
 /** Marks runs whose terminal attach state is a set of expiring leases, not a counter; read once, right after `podLostParks`. */
 const ATTACH_LEASES_PATCH = 'attach-leases';
+/** Marks runs whose follower and cluster cleanup calls retry without a cap (a brief API outage parks the run); read once, right after `attachLeases`. */
+const FOLLOWER_RECONNECT_PATCH = 'follower-reconnect';
 /** Marks runs that park on idle instead of ending; evaluated once, right after `loadRun`. */
 const PAUSE_RESUME_PATCH = 'pause-resume';
 /** Plain-language reason shown on the run when its history grew too long. */
@@ -141,6 +145,11 @@ interface Outcome extends RunOutcome {
 }
 
 const act = proxyActivities<RunActivities>({ startToCloseTimeout: '2 minutes', retry: RETRY });
+/** The cluster calls that must outlast an API outage: retried without a cap, except for a permanent cluster error. */
+const clusterAct = proxyActivities<Pick<RunActivities, 'deleteJob' | 'endSession' | 'ensureJobGone'>>({
+  startToCloseTimeout: '2 minutes',
+  retry: { ...CLUSTER_RETRY, nonRetryableErrorTypes: [CLUSTER_PERMANENT_ERROR] },
+});
 /**
  * Activities whose side effect must be settled before `finalize` runs: on cancel or hard timeout the workflow waits for
  * the in-flight attempt to finish (or acknowledge the cancel) instead of abandoning it. Otherwise a Job created after
@@ -209,6 +218,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let leases: Leases = new Map();
   /** `patched('attach-leases')`, read once right after `podLostParks`; false keeps the counter for runs that started before. */
   let attachLeases = false;
+  /** `patched('follower-reconnect')`, read once right after `attachLeases`; false keeps the capped retries for runs that started before. */
+  let followerReconnect = false;
+  const kubeAct = () => (followerReconnect ? clusterAct : act);
   let leaseTtlMs = LEASE_TTL_MS;
   /** Terminals the workflow counts as attached: the id-less counter plus the leases that have not run out. */
   const attached = (): number => legacyAttached + leaseCount(leases);
@@ -397,6 +409,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     endingDeadline = patched(ENDING_DEADLINE_PATCH);
     podLostParks = patched(POD_LOST_PATCH);
     attachLeases = patched(ATTACH_LEASES_PATCH);
+    followerReconnect = patched(FOLLOWER_RECONNECT_PATCH);
     if (c.leaseTtlSeconds !== undefined) leaseTtlMs = c.leaseTtlSeconds * 1000;
 
     // 1. Acquire a slot.
@@ -448,7 +461,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           ending = true;
           endingStartedMs = Date.now();
           phase = 'ending';
-          await act.endSession(c);
+          await kubeAct().endSession(c);
           continue;
         }
         // An id nobody renewed stops counting, even if no timer was running when it ran out (the run was busy).
@@ -471,7 +484,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
             ending = true;
             endingStartedMs = Date.now();
             phase = 'ending';
-            await act.endSession(c);
+            await kubeAct().endSession(c);
           }
         } else if (ending && endingDeadline) {
           const left =
@@ -582,7 +595,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // must not fail the run.
     pod.abandoned = true;
     // If deleteJob itself fails the run fails: the Job may still exist, so nothing may report it parked or done.
-    await act.deleteJob(c);
+    await kubeAct().deleteJob(c);
     // The delete sends SIGTERM and the runner's trap prints the final scrollback: keep following for a short grace
     // (shorter than Kubernetes' default 30 s) so it is read, then stop following whatever is left.
     if (!(await condition(() => pod.done, ABANDON_GRACE_MS))) {
@@ -622,7 +635,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     const logsActs = proxyActivities<Pick<RunActivities, 'followPodLogs'>>({
       startToCloseTimeout: (allowanceSeconds + LOGS_TIMEOUT_MARGIN_SECONDS) * 1000,
       heartbeatTimeout: '60s',
-      retry: { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] },
+      retry: followerReconnect
+        ? { ...CLUSTER_RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT, CLUSTER_PERMANENT_ERROR] }
+        : { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] },
     });
     const pod: Pod = { done: false, scope: new CancellationScope(), abandoned: false };
     pod.scope
@@ -660,7 +675,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     leases = new Map();
     sessionUp = false;
     log.info('run parked', { usedSeconds });
-    await act.deleteJob(c);
+    await kubeAct().deleteJob(c);
     slotRequested = false;
     await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
     // `resumeAccepted` here is a Resume queued behind the ending: the activity records it if nothing is kept to resume from.
@@ -771,7 +786,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // Back to the kept state: no Job, no slot, no time counted for the failed pod.
     hardTimer.cancel();
     await CancellationScope.nonCancellable(async () => {
-      await act.deleteJob(c);
+      await kubeAct().deleteJob(c);
       if (slotRequested) {
         slotRequested = false;
         await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
@@ -836,7 +851,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       const c = ctx;
       if (c && jobMayExist) {
         await attempt(o.podExited ? 'ensureJobGone' : 'deleteJob', () =>
-          o.podExited ? act.ensureJobGone(c) : act.deleteJob(c),
+          o.podExited ? kubeAct().ensureJobGone(c) : kubeAct().deleteJob(c),
         );
         // The claim is only deleted after the Job is gone, so no pod still has it mounted.
         if (patched(RUN_VOLUME_PATCH)) await attempt('deleteRunVolume', () => act.deleteRunVolume(c));

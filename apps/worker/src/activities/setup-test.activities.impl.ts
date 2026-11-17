@@ -48,6 +48,8 @@ export interface SetupTestActivityTiming {
   pollMs?: number;
   /** followSetupTestLogs heartbeat interval. */
   heartbeatMs?: number;
+  /** How long the cluster may stay unreachable before the follower gives up (default: `RUN_RECONNECT_WINDOW_SECONDS`). */
+  reconnectWindowMs?: number;
 }
 
 export interface SetupTestActivityDeps {
@@ -93,6 +95,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
   const pendingLimitMs = deps.timing?.pendingLimitMs ?? PENDING_LIMIT_MS;
   const pollMs = deps.timing?.pollMs ?? POLL_MS;
   const heartbeatMs = deps.timing?.heartbeatMs ?? HEARTBEAT_MS;
+  const reconnectWindowMs = deps.timing?.reconnectWindowMs ?? deps.config.RUN_RECONNECT_WINDOW_SECONDS * 1000;
   const ttlSeconds = deps.config.SETUP_TEST_TTL_SECONDS;
 
   // ---- createSetupTestJob
@@ -302,13 +305,13 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         pendingLimitMs,
         pollMs,
         heartbeatMs,
-        reconnectWindowMs: deps.config.RUN_RECONNECT_WINDOW_SECONDS * 1000,
+        reconnectWindowMs,
       },
       {
         what: 'follow setup test logs',
-        // Compile-only stub; Task 3 replaces it with the real parking behaviour.
+        // A setup test keeps nothing to park: an unreachable cluster fails it for good (finalize cleans up).
         onContactLost: async () => {
-          throw new Error('onContactLost is not wired yet (Task 3)');
+          throw ApplicationFailure.nonRetryable('lost contact with the cluster');
         },
         jobName: setupTestJobName(ref.setupTestId),
         secrets: () => redactionList(ref),
@@ -331,7 +334,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         },
         afterStream: async (pass) => {
           await pass.throwIfCancelled();
-          const pod = await kube.getRunPod(setupTestJobName(ref.setupTestId));
+          const pod = await pass.cluster(() => kube.getRunPod(setupTestJobName(ref.setupTestId)));
           // The log stream dropped while the container still runs: re-attach.
           if (pod && pod.exitCode === null && pod.phase === 'Running') {
             await sleep(pollMs, pass.signal);

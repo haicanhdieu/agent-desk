@@ -168,7 +168,7 @@ Same command. Expected: PASS, along with the existing follow-core tests.
 - Consumes: `FollowPass.cluster`, `FollowHooks.contact`, `FollowHooks.onContactLost`, `ContactEvents` (Task 2), `RUN_RECONNECT_WINDOW_SECONDS` (Task 1).
 - Produces: `FollowPodLogsResult.contactLost?: true`. After the window, with the agent started, the result is `{ exitCode: -1, agentStarted: true, podLost: true, contactLost: true, lostText: 'lost contact with the cluster for 30 min', scrollbackTail? }`. The minutes in the text come from the window.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 it('stream ends, then getRunPod fails transiently, then the stream reopens → the run result is the pod exit code; one contact_lost and one contact_restored lifecycle event');
@@ -178,23 +178,23 @@ it('contact event text: "Lost contact with the cluster (ECONNRESET). Retrying." 
 it('setup-test follower: window passes → non-retryable failure (nothing kept)');
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/follow-core.test.ts` (unit). The int test runs with the worker's integration config: `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts`.
 Expected: the new tests fail.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `waitForExit(ctx, signal, cluster: FollowPass['cluster'])` runs `getRunPod` through `cluster`, and `afterStream` passes `pass.cluster`.
 - `contact.lost` / `contact.restored` append a `lifecycle` event through `appendRunEvent` inside `withOrg`, with the same shape as `recordEndingDeadline` (no line key).
 - `onContactLost` runs `findSetupState(ctx, -1, resume ? await floorOf() : 0)`. If the agent started, it returns the result above with `scrollbackTail` from the text tail. If not, it throws the non-retryable failure.
 - `FollowEnv.reconnectWindowMs = config.RUN_RECONNECT_WINDOW_SECONDS * 1000`. Add an optional test override, `timing.reconnectWindowMs`, next to `pendingLimitMs`.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same commands. Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix`, then `git commit -m "feat(worker): run follower reconnects and reports contact loss (#89)"`.
 
@@ -214,7 +214,7 @@ Same commands. Expected: PASS.
   - `const FOLLOWER_RECONNECT_PATCH = 'follower-reconnect'`; `let followerReconnect = false`, set by `patched(...)` right after `attachLeases = patched(ATTACH_LEASES_PATCH)`.
   - `const clusterAct = proxyActivities<Pick<RunActivities, 'deleteJob' | 'endSession' | 'ensureJobGone'>>({ startToCloseTimeout: '2 minutes', retry: { ...CLUSTER_RETRY, nonRetryableErrorTypes: [CLUSTER_PERMANENT_ERROR] } })`, plus `const kubeAct = () => (followerReconnect ? clusterAct : act)`.
 
-- [ ] **Step 1: Write the failing tests** (new `describe('follower reconnect (follower-reconnect)')`, extending `Script` with `followFailFirst?: number`, `deleteJobFailFirst?: number`, `endSessionFailFirst?: number` and `resumeCreateFailsRetryable?: boolean`; failures are `new Error('fetch failed')`)
+- [x] **Step 1: Write the failing tests** (new `describe('follower reconnect (follower-reconnect)')`, extending `Script` with `followFailFirst?: number`, `deleteJobFailFirst?: number`, `endSessionFailFirst?: number` and `resumeCreateFailsRetryable?: boolean`; failures are `new Error('fetch failed')`)
 
 ```ts
 it('follower returns contactLost after session_started → parkRun reason pod_lost, deleteRunVolume not called, no failed status');
@@ -228,23 +228,23 @@ it('hard timer during an outage: finalize deleteJob fails 6 times, then succeeds
 
 Add the history of the first test to `captured['run-follower-reconnect']` and to the replay list (around line 1912).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.test.ts -t "follower reconnect"`
 Expected: FAIL (6 retryable failures exceed 5 attempts, so the run fails).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `followPod` retry: `followerReconnect ? { ...CLUSTER_RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT, CLUSTER_PERMANENT_ERROR] } : { ...RETRY, nonRetryableErrorTypes: [POD_PENDING_TIMEOUT] }`.
 - Replace `act.deleteJob` with `kubeAct().deleteJob` in `park()` (~663), `abandonPod` (~585), the `resumeAttempt` rollback (~774) and `finalize` (~838). Replace `act.ensureJobGone` with `kubeAct().ensureJobGone` in `finalize`, and both `act.endSession` calls (~450, ~474) with `kubeAct().endSession`.
 - The `contactLost` result needs no new branch: `endOutcome` already parks on `podLost` with `agentStarted`. Check this with the first test.
 
-- [ ] **Step 4: Run them and see them pass, including replay**
+- [x] **Step 4: Run them and see them pass, including replay**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.test.ts`
 Expected: PASS, including `replay: histories from this run and the checked-in fixtures replay without nondeterminism`. Then run once with `UPDATE_REPLAY_FIXTURES=1` to write the new fixture, and check the fixture contains no token (the existing R19 test covers this).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix`, then `git commit -m "fix(worker): a lost cluster connection parks the run instead of failing it (#89)"`.
 

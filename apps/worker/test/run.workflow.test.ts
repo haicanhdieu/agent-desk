@@ -112,6 +112,18 @@ interface Script {
   resumeResult?: FollowPodLogsResult;
   /** When set, a resumed pod's createRunSecretAndJob throws a non-retryable failure of this type. */
   resumeCreateFailure?: string;
+  /** The first N followPodLogs attempts throw a retryable cluster error (`fetch failed`). */
+  followFailFirst?: number;
+  /** Every followPodLogs attempt throws a non-retryable ClusterPermanentError. */
+  followPermanent?: boolean;
+  /** The next N deleteJob attempts throw a retryable cluster error. */
+  deleteJobFailFirst?: number;
+  /** Every deleteJob attempt throws a non-retryable ClusterPermanentError (a 403 from the cluster). */
+  deleteJobPermanent?: boolean;
+  /** The next N endSession attempts throw a retryable cluster error. */
+  endSessionFailFirst?: number;
+  /** Every resumed createRunSecretAndJob attempt throws a retryable cluster error. */
+  resumeCreateFailsRetryable?: boolean;
   /** What endSession resolves: the current pod's logs. */
   currentLogs?: Deferred<FollowPodLogsResult>;
   /** The inputs of every restoreParked call. */
@@ -198,6 +210,7 @@ function activities(): RunActivities {
       const s = script(ctx.runId);
       s.calls.push('createRunSecretAndJob');
       s.createOpts.push(opts);
+      if (opts?.resume && s.resumeCreateFailsRetryable) throw new Error('fetch failed');
       if (opts?.resume && s.resumeCreateFailure !== undefined) {
         throw ApplicationFailure.nonRetryable('the agent or its credential is missing', s.resumeCreateFailure);
       }
@@ -225,6 +238,10 @@ function activities(): RunActivities {
       const s = script(ctx.runId);
       s.calls.push('followPodLogs');
       s.followOpts.push(opts);
+      if (s.followPermanent) throw ApplicationFailure.nonRetryable('the cluster refused us', 'ClusterPermanentError');
+      if (s.followFailFirst !== undefined && count(s, 'followPodLogs') <= s.followFailFirst) {
+        throw new Error('fetch failed');
+      }
       if (opts?.resume) {
         s.resumeFollowStarted.resolve();
         if (s.resumeResult) return s.resumeResult;
@@ -244,6 +261,10 @@ function activities(): RunActivities {
     async endSession(ctx) {
       const s = script(ctx.runId);
       s.calls.push('endSession');
+      if (s.endSessionFailFirst) {
+        s.endSessionFailFirst -= 1;
+        throw new Error('fetch failed');
+      }
       s.endSessionAt = Date.now();
       s.endSessionCalled.resolve();
       if (s.endSessionExits) (s.currentLogs ?? s.logs).resolve({ exitCode: 0 });
@@ -251,6 +272,11 @@ function activities(): RunActivities {
     async deleteJob(ctx) {
       const s = script(ctx.runId);
       s.calls.push('deleteJob');
+      if (s.deleteJobPermanent) throw ApplicationFailure.nonRetryable('cluster refused', 'ClusterPermanentError');
+      if (s.deleteJobFailFirst) {
+        s.deleteJobFailFirst -= 1;
+        throw new Error('fetch failed');
+      }
       await s.onDeleteJob?.();
     },
     async recordEndingDeadline(ctx, input) {
@@ -1909,12 +1935,136 @@ describe('RunWorkflow', () => {
     });
   });
 
+  describe('follower reconnect (follower-reconnect)', () => {
+    /**
+     * Polls while letting the test server skip time: the retry backoff (1, 2, 4, 8, 16 s) is a server timer, and
+     * real waiting would pass the 60 s test timeout. While the log follower is still in flight the server cannot skip,
+     * so a test that needs the whole 31 s of backoff in real time sets its own, longer timeout.
+     */
+    async function skipUntil(pred: () => boolean | Promise<boolean>, what: string): Promise<void> {
+      for (let i = 0; i < 50; i++) {
+        if (await pred()) return;
+        await env.sleep(2_000);
+        await sleepReal(25);
+      }
+      throw new Error(`timed out waiting for ${what}`);
+    }
+    const waitParked = (h: WorkflowHandle) =>
+      skipUntil(async () => (await state(h)).phase === 'parked', 'phase parked');
+
+    it('follower returns contactLost after session_started: parks as pod_lost, volume kept, no failed status', async () => {
+      const s = newRun({}, { endSessionExits: false });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      s.logs.resolve({ exitCode: -1, agentStarted: true, podLost: true, contactLost: true });
+      await waitParked(h);
+      expect(s.parkReasons).toEqual(['pod_lost']);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(statuses(s)).not.toContain('failed');
+      captured['run-follower-reconnect'] = h;
+      await h.signal(signals.cancel);
+      expect((await h.result()).status).toBe('cancelled');
+    });
+
+    it('followPodLogs throws a retryable error 5 times, then returns exit 0: succeeded (no 5-attempt cap)', async () => {
+      const s = newRun();
+      s.followFailFirst = 5;
+      s.logs.resolve({ exitCode: 0 });
+      const h = await start(s);
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'followPodLogs')).toBe(6);
+      expect(statuses(s)).not.toContain('failed');
+    }, 90_000);
+
+    it('followPodLogs throws ClusterPermanentError: failed at once, Job and volume cleaned up', async () => {
+      const s = newRun();
+      s.followPermanent = true;
+      const h = await start(s);
+      expect((await h.result()).status).toBe('failed');
+      expect(count(s, 'followPodLogs')).toBe(1);
+      expect(count(s, 'deleteJob')).toBe(1);
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+    });
+
+    it('deleteJob inside park fails 5 times, then succeeds: parked, volume kept', async () => {
+      const s = newRun({ idleEndSeconds: 1 });
+      s.parkKeepSeconds = 3600;
+      s.deleteJobFailFirst = 5;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitParked(h);
+      expect(count(s, 'deleteJob')).toBe(6);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(statuses(s)).not.toContain('failed');
+      await h.signal(signals.cancel);
+      await h.result();
+    }, 90_000);
+
+    it('idle timer fires and endSession fails 5 times, then succeeds: parks, not failed', async () => {
+      const s = newRun({ idleEndSeconds: 1 });
+      s.parkKeepSeconds = 3600;
+      s.endSessionFailFirst = 5;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitParked(h);
+      expect(count(s, 'endSession')).toBe(6);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(statuses(s)).not.toContain('failed');
+      await h.signal(signals.cancel);
+      await h.result();
+    }, 90_000);
+
+    it('resume: createRunSecretAndJob and the rollback deleteJob fail retryably: back to parked with the same expiry, volume kept', async () => {
+      const s = newRun({ idleEndSeconds: 1 });
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.agentState, 'needs_input');
+      await waitParked(h);
+      const expiry = s.lastExpiry;
+      s.resumeCreateFailsRetryable = true;
+      s.deleteJobFailFirst = 5;
+      expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
+      await skipUntil(() => count(s, 'restoreParked') === 1, 'restoreParked');
+      expect(s.restores[0]?.sessionExpiresAt).toBe(expiry);
+      await waitParked(h);
+      expect(count(s, 'deleteRunVolume')).toBe(0);
+      expect(statuses(s)).not.toContain('failed');
+      await gateForgot(s);
+      await h.signal(signals.cancel);
+      await h.result();
+    }, 90_000);
+
+    it('hard timer during an outage: finalize deleteJob fails 5 times, then succeeds: timed_out, then deleteRunVolume', async () => {
+      const s = newRun({ timeoutSeconds: 1 });
+      s.deleteJobFailFirst = 5;
+      const h = await start(s);
+      expect((await h.result()).status).toBe('timed_out');
+      expect(count(s, 'deleteJob')).toBe(6);
+      expect(statuses(s).at(-1)).toBe('timed_out');
+      expect(s.calls.indexOf('deleteRunVolume')).toBeGreaterThan(s.calls.lastIndexOf('deleteJob'));
+    }, 90_000);
+
+    it('finalize deleteJob refused with ClusterPermanentError: tried once, the run still ends timed_out', async () => {
+      const s = newRun({ timeoutSeconds: 1 });
+      s.deleteJobPermanent = true;
+      const h = await start(s);
+      expect((await h.result()).status).toBe('timed_out');
+      expect(count(s, 'deleteJob')).toBe(1);
+      expect(statuses(s).at(-1)).toBe('timed_out');
+    });
+  });
+
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
     expect(Object.keys(captured).sort()).toEqual([
       'run-attach-leases',
       'run-cancel-loading',
       'run-cancel-starting',
       'run-ending-deadline',
+      'run-follower-reconnect',
       'run-idle-finish',
       'run-park-expire',
       'run-park-resume',

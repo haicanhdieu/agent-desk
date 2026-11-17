@@ -96,6 +96,11 @@ export interface FollowPodLogsResult {
    * "the run pod ended (<phase>) without an exit code: <reason>"). Runs that started before `pod-lost-parks` fail with it.
    */
   lostText?: string;
+  /**
+   * With `podLost`: the cluster stayed unreachable for the whole reconnect window, so nothing is known about the pod.
+   * The run parks with its volume kept instead of failing.
+   */
+  contactLost?: true;
 }
 
 /** Non-retryable `ApplicationFailure` type thrown by `followPodLogs` when the pod stays Pending for over 2 min. */
