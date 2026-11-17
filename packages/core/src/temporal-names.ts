@@ -65,6 +65,9 @@ export const TERMINAL_LEASE_TTL_SECONDS = 300;
 /** After the session end begins (`ending`), RunWorkflow waits this long for the pod to exit, then deletes the Job. */
 export const ENDING_DEADLINE_SECONDS = 90;
 
+/** How long the log follower keeps reconnecting after losing the cluster before it parks the run (seconds). */
+export const RECONNECT_WINDOW_SECONDS = 1800;
+
 /** Gate state is carried through continueAsNew after this many handled signals. */
 export const GATE_CONTINUE_AS_NEW_AFTER = 1000;
 

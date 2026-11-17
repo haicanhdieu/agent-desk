@@ -1,16 +1,26 @@
 import { ApplicationFailure, CancelledFailure } from '@temporalio/common';
 import { MockActivityEnvironment } from '@temporalio/testing';
-import { describe, expect, it } from 'vitest';
-import { createAdapterRegistry, parseConfig, type KubeGateway, type RunPod } from '@agentdesk/core';
+import { ApiException } from '@kubernetes/client-node';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  CLUSTER_PERMANENT_ERROR,
+  createAdapterRegistry,
+  parseConfig,
+  type KubeGateway,
+  type RunPod,
+} from '@agentdesk/core';
 import { createDb, type Tx } from '@agentdesk/db';
 import {
   REDACTION_EXTRA_KEEP,
   REDACTION_REFRESH_MS,
+  ContactLostError,
   appendSeqEvent,
+  createReconnector,
   createSecretAccumulator,
   followPodLog,
   outputBudget,
   waitForPod,
+  type ContactEvents,
   type FollowHooks,
 } from '../src/activities/follow-core';
 import { POD_PENDING_TIMEOUT } from '../src/activities/run.activities';
@@ -51,7 +61,7 @@ function kubeWith(over: Partial<KubeGateway>): KubeGateway {
 
 describe('waitForPod (shared by runs and setup tests)', () => {
   const clock = { now: () => new Date() };
-  const timing = { pendingLimitMs: 40, pollMs: 5, heartbeatMs: 1000 };
+  const timing = { pendingLimitMs: 40, pollMs: 5, heartbeatMs: 1000, reconnectWindowMs: 1000 };
 
   it('returns a started pod', async () => {
     const kube = kubeWith({ getRunPod: async () => pod('Running') });
@@ -147,6 +157,7 @@ describe('followPodLog bookkeeping (chunk keys and durable line)', () => {
       secrets: async () => [],
       storedBudget: async () => ({ chars: 0, truncated: false }),
       storeLifecycle: async (line, payload) => void stored.push({ line, kind: payload.kind, text: payload.text }),
+      onContactLost: async () => ({ done: 'parked' }),
       afterStream: async (pass) => {
         await pass.flushPending();
         pass.markDurable(pass.index);
@@ -160,7 +171,14 @@ describe('followPodLog bookkeeping (chunk keys and durable line)', () => {
         beats.push(b.lastLine);
       }
     });
-    const timing = { kube, clock: { now: () => new Date() }, pollMs: 5, heartbeatMs: 1000, pendingLimitMs: 1000 };
+    const timing = {
+      kube,
+      clock: { now: () => new Date() },
+      pollMs: 5,
+      heartbeatMs: 1000,
+      pendingLimitMs: 1000,
+      reconnectWindowMs: 1000,
+    };
     const out = await env.run(() => followPodLog(timing, hooks));
     expect(out).toBe('finished');
     expect(stored).toEqual([
@@ -202,6 +220,7 @@ describe('followPodLog redaction refresh (rotated workspace token)', () => {
       secrets: () => opts.secrets(nowMs),
       storedBudget: async () => ({ chars: 0, truncated: false }),
       storeLifecycle: async (_line, payload) => void stored.push(String(payload.text)),
+      onContactLost: async () => ({ done: 'parked' }),
       afterStream: async (pass) => {
         await pass.flushPending();
         return { done: 'finished' };
@@ -213,6 +232,7 @@ describe('followPodLog redaction refresh (rotated workspace token)', () => {
       pollMs: 5,
       heartbeatMs: 1000,
       pendingLimitMs: 1000,
+      reconnectWindowMs: 1000,
       redactionRefreshMs: opts.refreshMs ?? 500,
     };
     await new MockActivityEnvironment().run(() => followPodLog(env, hooks));
@@ -349,5 +369,348 @@ describe('outputBudget', () => {
       truncated: false,
     });
     expect(outputBudget([{ text: 'abc', truncated: true }, { text: '' }])).toEqual({ chars: 4 + 1, truncated: true });
+  });
+});
+
+describe('reconnect', () => {
+  afterEach(() => vi.useRealTimers());
+
+  const fetchFailed = (): TypeError => new TypeError('fetch failed', { cause: { code: 'ECONNRESET' } });
+  const bad = (status: number): ApiException<undefined> => new ApiException(status, 'x', undefined, {});
+  const clock = { now: () => new Date() };
+
+  function contactLog(failEvents = 0): { events: string[]; contact: ContactEvents; failures: { left: number } } {
+    const events: string[] = [];
+    const failures = { left: failEvents };
+    const send = async (e: string): Promise<void> => {
+      if (failures.left > 0) {
+        failures.left -= 1;
+        throw new Error('db down');
+      }
+      events.push(e);
+    };
+    return {
+      events,
+      failures,
+      contact: { lost: (cause) => send(`lost:${cause}`), restored: () => send('restored') },
+    };
+  }
+
+  function hooksFor(over: Partial<FollowHooks<string>> = {}, stored: number[] = []): FollowHooks<string> {
+    return {
+      what: 'test follow',
+      jobName: 'job',
+      secrets: async () => [],
+      storedBudget: async () => ({ chars: 0, truncated: false }),
+      storeLifecycle: async (line) => void stored.push(line),
+      afterStream: async (pass) => {
+        pass.markDurable(pass.index);
+        return { done: 'finished' };
+      },
+      onContactLost: async () => ({ done: 'parked' }),
+      ...over,
+    };
+  }
+
+  const envFor = (kube: KubeGateway, over: Record<string, unknown> = {}) => ({
+    kube,
+    clock,
+    pollMs: 5,
+    heartbeatMs: 100_000,
+    pendingLimitMs: 1000,
+    reconnectWindowMs: 30 * 60_000,
+    ...over,
+  });
+
+  it('recovers from failing stream opens and getRunPod calls without duplicate lines, one event pair per outage', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    let runPodCalls = 0;
+    let opens = 0;
+    const kube = kubeWith({
+      getRunPod: async () => {
+        runPodCalls += 1;
+        if (runPodCalls <= 3) throw bad(502);
+        return pod('Running');
+      },
+      async *streamLogs() {
+        opens += 1;
+        if (opens <= 3) throw fetchFailed();
+        yield 'agentdesk: plugins begin';
+        if (opens === 4) throw fetchFailed();
+        yield 'agentdesk: setup begin';
+      },
+    });
+    const log = contactLog();
+    const stored: number[] = [];
+    const beats: unknown[] = [];
+    const env = new MockActivityEnvironment();
+    env.on('heartbeat', (b: unknown) => void beats.push(b));
+    const run = env.run(() => followPodLog(envFor(kube), hooksFor({ contact: log.contact }, stored)));
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(await run).toBe('finished');
+    expect(stored).toEqual([1, 2]);
+    // gRP outage (3 fails), stream-open outage (3 fails), then a mid-stream break: each outage is one pair.
+    expect(log.events.filter((e) => e.startsWith('lost:')).length).toBe(
+      log.events.filter((e) => e === 'restored').length,
+    );
+    expect(log.events[0]).toBe('lost:http_502');
+    expect(log.events.filter((e) => e === 'lost:http_502')).toHaveLength(1);
+    expect(beats.some((b) => typeof b === 'object' && b !== null && 'lostSinceMs' in b)).toBe(true);
+  });
+
+  it('past reconnectWindowMs, hooks.onContactLost is called and its result returned', async () => {
+    const kube = kubeWith({
+      getRunPod: async () => {
+        throw bad(503);
+      },
+    });
+    const out = await new MockActivityEnvironment().run(() =>
+      followPodLog(envFor(kube, { reconnectWindowMs: 30 }), hooksFor()),
+    );
+    expect(out).toBe('parked');
+  });
+
+  it('a 403 from getRunPod is a non-retryable ClusterPermanentError with no backoff', async () => {
+    let calls = 0;
+    const kube = kubeWith({
+      getRunPod: async () => {
+        calls += 1;
+        throw bad(403);
+      },
+    });
+    const err = await new MockActivityEnvironment()
+      .run(() => followPodLog(envFor(kube), hooksFor()))
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).type).toBe(CLUSTER_PERMANENT_ERROR);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect(calls).toBe(1);
+  });
+
+  it('heartbeat restore: no second lost event, and the window counts from the first loss', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const lostSinceMs = Date.now() - 10 * 60_000;
+    const kube = kubeWith({
+      getRunPod: async () => {
+        throw bad(503);
+      },
+    });
+    const log = contactLog();
+    const env = new MockActivityEnvironment({ heartbeatDetails: { lastLine: 5, lostSinceMs } });
+    const startedAt = Date.now();
+    let endedAt = 0;
+    // The cluster is still down after the restart, so the first secrets() read fails too.
+    const secrets = async (): Promise<string[]> => {
+      throw bad(503);
+    };
+    const run = env
+      .run(() => followPodLog(envFor(kube), hooksFor({ contact: log.contact, secrets })))
+      .finally(() => void (endedAt = Date.now()));
+    await vi.advanceTimersByTimeAsync(25 * 60_000);
+    expect(await run).toBe('parked');
+    expect(log.events).toEqual([]);
+    const elapsed = endedAt - startedAt;
+    expect(elapsed).toBeGreaterThanOrEqual(20 * 60_000 - 1000);
+    expect(elapsed).toBeLessThan(21 * 60_000);
+  });
+
+  it('heartbeat restore with a still-failing stream: getRunPod answering does not close the outage', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
+    const lostSinceMs = Date.now() - 10 * 60_000;
+    const kube = kubeWith({
+      getRunPod: async () => pod('Running'),
+      // eslint-disable-next-line require-yield
+      async *streamLogs() {
+        throw fetchFailed();
+      },
+    });
+    const log = contactLog();
+    const startedAt = Date.now();
+    let endedAt = 0;
+    const run = new MockActivityEnvironment({ heartbeatDetails: { lastLine: 0, lostSinceMs } })
+      .run(() => followPodLog(envFor(kube), hooksFor({ contact: log.contact })))
+      .finally(() => void (endedAt = Date.now()));
+    await vi.advanceTimersByTimeAsync(25 * 60_000);
+    expect(await run).toBe('parked');
+    expect(log.events).toEqual([]);
+    expect(endedAt - startedAt).toBeGreaterThanOrEqual(20 * 60_000 - 1000);
+    expect(endedAt - startedAt).toBeLessThan(21 * 60_000);
+  });
+
+  it('a failing event write does not end the follower; it is retried and sent once', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    let calls = 0;
+    const kube = kubeWith({
+      getRunPod: async () => {
+        calls += 1;
+        if (calls <= 3) throw bad(503);
+        return pod('Running');
+      },
+      async *streamLogs() {
+        yield 'agentdesk: plugins begin';
+      },
+    });
+    const log = contactLog(2); // the first two event writes fail
+    const run = new MockActivityEnvironment().run(() => followPodLog(envFor(kube), hooksFor({ contact: log.contact })));
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(await run).toBe('finished');
+    expect(log.events).toEqual(['lost:http_503', 'restored']);
+  });
+
+  it('a stream that keeps failing while getRunPod answers Running parks after the window with one lost event', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    let opens = 0;
+    const kube = kubeWith({
+      getRunPod: async () => pod('Running'),
+      // eslint-disable-next-line require-yield
+      async *streamLogs() {
+        opens += 1;
+        throw fetchFailed();
+      },
+    });
+    const log = contactLog();
+    const run = new MockActivityEnvironment().run(() => followPodLog(envFor(kube), hooksFor({ contact: log.contact })));
+    await vi.advanceTimersByTimeAsync(40 * 60_000);
+    expect(await run).toBe('parked');
+    expect(log.events).toEqual(['lost:ECONNRESET']);
+    expect(opens).toBeGreaterThan(10);
+  });
+
+  it('an error thrown by onContactLost is redacted like any follower error', async () => {
+    const kube = kubeWith({
+      getRunPod: async () => {
+        throw bad(503);
+      },
+    });
+    const err = await new MockActivityEnvironment()
+      .run(() =>
+        followPodLog(
+          envFor(kube, { reconnectWindowMs: 30 }),
+          hooksFor({
+            secrets: async () => ['hunter2-token'],
+            onContactLost: async () => {
+              throw new Error('park failed for hunter2-token');
+            },
+          }),
+        ),
+      )
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).message).not.toContain('hunter2-token');
+  });
+
+  it('a cancel during backoff ends with CancelledFailure within a poll, not after the cap', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const kube = kubeWith({
+      getRunPod: async () => {
+        throw bad(503);
+      },
+    });
+    const env = new MockActivityEnvironment();
+    const run = env.run(() => followPodLog(envFor(kube), hooksFor())).catch((e: unknown) => e);
+    await vi.advanceTimersByTimeAsync(40_000); // deep into a backoff wait
+    env.cancel();
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(await run).toBeInstanceOf(CancelledFailure);
+  });
+
+  it('the first secrets() read failing transiently waits and retries; it never follows without the list', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    let reads = 0;
+    let opens = 0;
+    const kube = kubeWith({
+      getRunPod: async () => pod('Running'),
+      async *streamLogs() {
+        opens += 1;
+        yield 'agentdesk: plugins begin';
+      },
+    });
+    const run = new MockActivityEnvironment().run(() =>
+      followPodLog(
+        envFor(kube),
+        hooksFor({
+          secrets: async () => {
+            reads += 1;
+            if (reads <= 2) throw fetchFailed();
+            return ['s'];
+          },
+        }),
+      ),
+    );
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await run).toBe('finished');
+    expect(reads).toBeGreaterThanOrEqual(3);
+    expect(opens).toBe(1);
+  });
+
+  it('Running, then Unknown past the Pending limit gives no POD_PENDING_TIMEOUT when seenStarted', async () => {
+    let calls = 0;
+    const kube = kubeWith({
+      getRunPod: async () => {
+        calls += 1;
+        return calls <= 8 ? pod('Unknown', new Date(Date.now() - 10_000)) : pod('Running');
+      },
+    });
+    const cluster = createReconnector({
+      clock,
+      windowMs: 60_000,
+      signal: new AbortController().signal,
+      beat: () => undefined,
+      lostSinceMs: null,
+      random: () => 0,
+    });
+    const env = { kube, clock, pollMs: 5, heartbeatMs: 1000, pendingLimitMs: 40, reconnectWindowMs: 60_000 };
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    const got = waitForPod(env, 'job', new AbortController().signal, { cluster, seenStarted: true });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect((await got).phase).toBe('Running');
+  });
+});
+
+describe('createReconnector backoff', () => {
+  afterEach(() => vi.useRealTimers());
+
+  it('doubles from 1 s to a 30 s cap with random = 1, and halves the floor with random = 0', async () => {
+    for (const [random, expected] of [
+      [() => 1, [1, 2, 4, 8, 16, 30, 30]],
+      [() => 0, [0.5, 1, 2, 4, 8, 15, 15]],
+    ] as const) {
+      vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+      const r = createReconnector({
+        clock: { now: () => new Date() },
+        windowMs: 60 * 60_000,
+        signal: new AbortController().signal,
+        beat: () => undefined,
+        lostSinceMs: null,
+        random,
+      });
+      const got: number[] = [];
+      for (let i = 0; i < expected.length; i++) {
+        let settled = false;
+        const p = r.lost('x').then(() => void (settled = true));
+        let ms = 0;
+        while (!settled && ms < 40_000) {
+          await vi.advanceTimersByTimeAsync(100);
+          ms += 100;
+        }
+        await p;
+        got.push(ms / 1000);
+      }
+      expect(got).toEqual(expected.map((s) => Math.ceil(s * 10) / 10));
+      vi.useRealTimers();
+    }
+  });
+
+  it('throws ContactLostError once the window has run out', async () => {
+    const r = createReconnector({
+      clock: { now: () => new Date() },
+      windowMs: 20,
+      signal: new AbortController().signal,
+      beat: () => undefined,
+      lostSinceMs: Date.now() - 100,
+    });
+    await expect(r.lost('x')).rejects.toBeInstanceOf(ContactLostError);
   });
 });

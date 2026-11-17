@@ -3,6 +3,7 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { z } from 'zod';
 import {
   ENDING_DEADLINE_SECONDS,
+  RECONNECT_WINDOW_SECONDS,
   IDLE_END_SECONDS,
   TERMINAL_LEASE_INTERVAL_SECONDS,
   TERMINAL_LEASE_TTL_SECONDS,
@@ -95,6 +96,8 @@ export const ConfigSchema = z
     RUN_IDLE_END_SECONDS: blankDefault(z.coerce.number().int().min(1).default(IDLE_END_SECONDS)),
     /** How long an ending session may take before the Job is deleted. A test seam like RUN_IDLE_END_SECONDS. */
     RUN_ENDING_DEADLINE_SECONDS: blankDefault(z.coerce.number().int().min(1).default(ENDING_DEADLINE_SECONDS)),
+    /** How long the log follower keeps reconnecting to a lost cluster before it parks the run. */
+    RUN_RECONNECT_WINDOW_SECONDS: blankDefault(z.coerce.number().int().min(1).default(RECONNECT_WINDOW_SECONDS)),
     /** How long a terminal's attach lease lives without a renewal. A test seam like RUN_IDLE_END_SECONDS. */
     RUN_LEASE_TTL_SECONDS: blankDefault(z.coerce.number().int().min(1).default(TERMINAL_LEASE_TTL_SECONDS)),
     RUN_SETUP_TIMEOUT_SECONDS: blankDefault(z.coerce.number().int().min(1).max(3300).default(600)),

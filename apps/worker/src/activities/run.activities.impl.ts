@@ -107,6 +107,7 @@ export type RunActivityConfig = Pick<
   | 'RUN_PLUGIN_MARKETPLACES'
   | 'RUN_SETUP_TIMEOUT_SECONDS'
   | 'PUBLIC_ORIGIN'
+  | 'RUN_RECONNECT_WINDOW_SECONDS'
   | 'RUN_POD_CPU_REQUEST'
   | 'RUN_POD_CPU_LIMIT'
   | 'RUN_POD_MEMORY_REQUEST'
@@ -842,9 +843,20 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     };
 
     return followPodLog<FollowPodLogsResult>(
-      { kube, clock, pendingLimitMs, pollMs, heartbeatMs },
+      {
+        kube,
+        clock,
+        pendingLimitMs,
+        pollMs,
+        heartbeatMs,
+        reconnectWindowMs: deps.config.RUN_RECONNECT_WINDOW_SECONDS * 1000,
+      },
       {
         what: 'follow pod logs',
+        // Compile-only stub; Task 3 replaces it with the real parking behaviour.
+        onContactLost: async () => {
+          throw new Error('onContactLost is not wired yet (Task 3)');
+        },
         jobName: runJobName(ctx.runId),
         secrets: async () => {
           // Accumulates (bounded): a rotated token is added, recent earlier ones stay redacted.

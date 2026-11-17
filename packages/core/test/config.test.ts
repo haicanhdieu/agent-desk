@@ -34,6 +34,12 @@ describe('plugin and setup config', () => {
     expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '' }).RUN_ENDING_DEADLINE_SECONDS).toBe(90);
     expect(() => parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '0' })).toThrow('RUN_ENDING_DEADLINE_SECONDS');
   });
+  it('RUN_RECONNECT_WINDOW_SECONDS: default 1800, blank is the default, below 1 is refused', () => {
+    expect(parseConfig(base).RUN_RECONNECT_WINDOW_SECONDS).toBe(1800);
+    expect(parseConfig({ ...base, RUN_RECONNECT_WINDOW_SECONDS: '5' }).RUN_RECONNECT_WINDOW_SECONDS).toBe(5);
+    expect(parseConfig({ ...base, RUN_RECONNECT_WINDOW_SECONDS: '' }).RUN_RECONNECT_WINDOW_SECONDS).toBe(1800);
+    expect(() => parseConfig({ ...base, RUN_RECONNECT_WINDOW_SECONDS: '0' })).toThrow('RUN_RECONNECT_WINDOW_SECONDS');
+  });
   it('the terminal lease settings are test seams: blank is the default, below the minimum is refused', () => {
     const c = parseConfig(base);
     expect(c.RUN_LEASE_TTL_SECONDS).toBe(300);

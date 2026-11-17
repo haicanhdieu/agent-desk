@@ -46,7 +46,7 @@
   - `export function classifyKubeError(err: unknown): KubeErrorClass`. `cause` is a short code: `err.cause.code` (e.g. `UND_ERR_CONNECT_TIMEOUT`, `ECONNRESET`), else `http_<status>`, else the error name (e.g. `BodyTimeoutError`), else `fetch_failed`.
   - `export const RECONNECT_WINDOW_SECONDS = 1800;` and config key `RUN_RECONNECT_WINDOW_SECONDS: number`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 describe('classifyKubeError', () => {
@@ -70,20 +70,20 @@ describe('classifyKubeError', () => {
 it('RUN_RECONNECT_WINDOW_SECONDS: default 1800, blank is the default, below 1 is refused', () => { /* same shape as the RUN_ENDING_DEADLINE_SECONDS test */ });
 ```
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core exec vitest run test/kube-transient.test.ts test/config.test.ts`
 Expected: FAIL (module not found / key undefined).
 
-- [ ] **Step 3: Implement `classifyKubeError`, the constants and the config key**
+- [x] **Step 3: Implement `classifyKubeError`, the constants and the config key**
 
 `AbortError` / `DOMException` with name `AbortError` counts as transient: the follower only reaches the classifier for aborts it did not cause, because it checks its own signal first.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same command. Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix` until `fix: clean.`, then `git commit -m "feat(core): classify transient cluster errors; add RUN_RECONNECT_WINDOW_SECONDS (#89)"`.
 
@@ -114,7 +114,7 @@ Same command. Expected: PASS.
   - `FollowHooks.onContactLost(): Promise<{ done: R }>` (required). Called when `ContactLostError` reaches `followPodLog`; it either returns a result or throws.
   - `waitForPod(env, jobName, signal, opts?: { cluster?: Reconnector; seenStarted?: boolean })`. With `seenStarted`, `Unknown` and `Pending` no longer count against the Pending limit: they go to `cluster.lost('pod_unknown')`.
 
-- [ ] **Step 1: Write the failing tests** (add a `describe('reconnect', ...)` using `MockActivityEnvironment` and `kubeWith`)
+- [x] **Step 1: Write the failing tests** (add a `describe('reconnect', ...)` using `MockActivityEnvironment` and `kubeWith`)
 
 ```ts
 it('stream open and getRunPod fail with fetch failed and 502 three times each, then recover → normal result, no duplicate lines, one lost and one restored event, heartbeats while waiting');
@@ -131,12 +131,12 @@ it('Running, then Unknown past the Pending limit → no POD_PENDING_TIMEOUT when
 
 Use a fake clock you advance from the injected `sleep`, or small window values (e.g. `reconnectWindowMs: 50`) with real time, matching the existing tests' style.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/follow-core.test.ts`
 Expected: the new tests fail.
 
-- [ ] **Step 3: Implement `createReconnector` and wire it into `followPodLog`**
+- [x] **Step 3: Implement `createReconnector` and wire it into `followPodLog`**
 
 - Create the reconnector after the heartbeat restore. Seed it with `resumed.data.lostSinceMs ?? null`, using `ac.signal` and `hooks.contact`.
 - Wrap the first `hooks.secrets()` read in `cluster.call`. The periodic re-reads keep swallowing errors as today.
@@ -145,11 +145,11 @@ Expected: the new tests fail.
 - Catch `ContactLostError` around the outer loop and return `(await hooks.onContactLost()).done`.
 - `ContactLostError` and `CLUSTER_PERMANENT_ERROR` failures must pass through `safeError` unchanged.
 
-- [ ] **Step 4: Run them and see them pass**
+- [x] **Step 4: Run them and see them pass**
 
 Same command. Expected: PASS, along with the existing follow-core tests.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 `devbox run fix`, then `git commit -m "feat(worker): reconnect loop in the pod log follower (#89)"`.
 
