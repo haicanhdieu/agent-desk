@@ -16,6 +16,7 @@ GitHub → Settings → Developer settings → GitHub Apps → **New GitHub App*
 | Webhook                   | **Off**. GitHub can't reach localhost, so use **Polling** mode.                           |
 | Repository permissions    | Contents: read & write; Issues: read & write; Pull requests: read & write; Metadata: read |
 | Account permissions       | **Email addresses: read-only** (sign-in fails with `email_not_found` without it)          |
+| Organization permissions  | **Members: read-only** (without it, org installs are not auto-linked)                     |
 | Where can it be installed | Only on this account                                                                      |
 
 Then generate a **private key** (`.pem`) and a **client secret**.

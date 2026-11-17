@@ -39,8 +39,17 @@ const CommitList = z.array(
 );
 const WriteResponse = z.object({ commit: z.object({ sha: z.string() }) });
 const UserInstallations = z.object({
-  installations: z.array(z.object({ id: z.number(), account: z.object({ login: z.string() }).nullish() })),
+  installations: z.array(
+    z.object({
+      id: z.number(),
+      account: z.object({ login: z.string(), type: z.string(), id: z.number() }).nullish(),
+    }),
+  ),
 });
+const GithubUser = z.object({ id: z.number() });
+const OrgMemberships = z.array(z.object({ role: z.string(), organization: z.object({ login: z.string() }) }));
+const PER_PAGE = 100;
+const MAX_PAGES = 5;
 const InstallationInfo = z.object({
   id: z.number(),
   account: z.object({ login: z.string() }).nullable(),
@@ -90,16 +99,56 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     };
   }
 
-  /** Only what the user's own token can see, so one user cannot claim another's install. The token is never stored. */
+  /**
+   * Installs the user may link: their own account's, and those of organizations they administer. A bare
+   * `/user/installations` entry (e.g. reachable through one shared repo) is not enough to claim an install. The token is
+   * never stored.
+   */
   async listInstallations(user: InstallUser): Promise<NewConnection[]> {
     if (!user.linkedAccountToken) return [];
-    const res = await this.clients.user(user.linkedAccountToken).request('GET /user/installations', { per_page: 100 });
-    return UserInstallations.parse(res.data).installations.map((i) => ({
-      provider: 'github',
-      externalId: String(i.id),
-      accountName: i.account?.login ?? String(i.id),
-      capabilities: { code: true, board: true },
-    }));
+    const client = this.clients.user(user.linkedAccountToken);
+    const me = GithubUser.parse((await client.request('GET /user')).data);
+    let adminOrgs: Set<string> | undefined; // fetched once, and only if an org install shows up
+    const out: NewConnection[] = [];
+    for (let page = 1; page <= MAX_PAGES; page++) {
+      const res = await client.request('GET /user/installations', { per_page: PER_PAGE, page });
+      const { installations } = UserInstallations.parse(res.data);
+      for (const i of installations) {
+        let owned = false;
+        if (i.account?.type === 'User') owned = i.account.id === me.id;
+        else if (i.account?.type === 'Organization') {
+          adminOrgs ??= await this.adminOrgLogins(client);
+          owned = adminOrgs.has(i.account.login);
+        }
+        if (!owned) continue;
+        out.push({
+          provider: 'github',
+          externalId: String(i.id),
+          accountName: i.account?.login ?? String(i.id),
+          capabilities: { code: true, board: true },
+        });
+      }
+      if (installations.length < PER_PAGE) break;
+    }
+    return out;
+  }
+
+  /** Logins of the orgs where the user is an active admin. A 403/404 (e.g. no Members permission) yields none. */
+  private async adminOrgLogins(client: ReturnType<GithubClients['user']>): Promise<Set<string>> {
+    const admins = new Set<string>();
+    try {
+      for (let page = 1; page <= MAX_PAGES; page++) {
+        const res = await client.request('GET /user/memberships/orgs', { state: 'active', per_page: PER_PAGE, page });
+        const memberships = OrgMemberships.parse(res.data);
+        for (const m of memberships) if (m.role === 'admin') admins.add(m.organization.login);
+        if (memberships.length < PER_PAGE) break;
+      }
+    } catch (e) {
+      const status = errorStatus(e);
+      if (status === 403 || status === 404) return new Set();
+      throw e;
+    }
+    return admins;
   }
 
   async listRepos(connection: AdapterConnection): Promise<RepoDto[]> {
