@@ -38,6 +38,6 @@
 
 **Files:** `docs/superpowers/plans/2026-11-15-rule-custom-prompt.md`
 
-- [ ] **Step 1:** Next to its judgment call "Custom prompt in the run list skill column", add one line: superseded by `2026-11-17-run-list-routing-rule.md` (the Run List now shows the routing rule command). Commit `docs(web): note the run list routing rule plan supersedes the custom prompt label`.
+- [x] **Step 1:** Next to its judgment call "Custom prompt in the run list skill column", add one line: superseded by `2026-11-17-run-list-routing-rule.md` (the Run List now shows the routing rule command). Commit `docs(web): note the run list routing rule plan supersedes the custom prompt label`.
 
 **Done when:** all acceptance criteria of #87 hold: no `Skill` column, the command shows per run, missing values show a dash, long commands truncate with the full value reachable, existing sorting/filtering/responsive behavior intact (existing Run List tests still pass).
