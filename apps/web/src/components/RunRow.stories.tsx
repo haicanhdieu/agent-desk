@@ -142,6 +142,17 @@ export const Connectors: Story = {
   ),
 };
 
+/** Ungrouped list: no ticket header, so no tree connector. */
+export const Ungrouped: Story = {
+  args: { run: base, tree: 'none', href: '#' },
+  render: () => (
+    <>
+      <RunRow run={base} tree="none" href="#" />
+      <RunRow run={{ ...base, id: 61, status: 'failed', statusNote: notes.failed }} tree="none" href="#" />
+    </>
+  ),
+};
+
 export const GroupHeader: Story = {
   args: { run: base, tree: 'last', href: '#' },
   render: () => <TicketGroupRow group={group()} colSpan={8} />,

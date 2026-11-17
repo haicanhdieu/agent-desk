@@ -42,7 +42,8 @@ export function TicketGroupRow({ group, colSpan }: { group: TicketGroup; colSpan
 
 export interface RunRowProps {
   run: RunSummary;
-  tree: 'mid' | 'last';
+  /** Connector to the ticket group row above; `none` when the list is not grouped. */
+  tree: 'mid' | 'last' | 'none';
   href: string;
   actions?: ReactNode;
 }
@@ -53,7 +54,9 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
   return (
     <tr className={[styles.child, idle && styles.needs].filter(Boolean).join(' ')}>
       <td className={styles.runCell}>
-        <span className={[styles.tree, tree === 'mid' && styles.mid].filter(Boolean).join(' ')} aria-hidden="true" />
+        {tree !== 'none' && (
+          <span className={[styles.tree, tree === 'mid' && styles.mid].filter(Boolean).join(' ')} aria-hidden="true" />
+        )}
         <AppLink href={href} className={`${styles.num} ${styles.runLink}`}>
           Run {run.id}
         </AppLink>
