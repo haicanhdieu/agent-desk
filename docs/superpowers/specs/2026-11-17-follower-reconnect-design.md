@@ -167,8 +167,8 @@ Read once with the other patch flags (after `attachLeases`), so in-flight workfl
 
 ### 6. Config
 
-`AGENTDESK_FOLLOW_RECONNECT_WINDOW_SECONDS` (default 1800) on the worker, parsed with Zod at startup like the other
-worker settings, injected into `FollowEnv` as `reconnectWindowMs`. Backoff numbers (1 s start, 30 s cap) are constants.
+`RUN_RECONNECT_WINDOW_SECONDS` (default 1800, min 1) in `packages/core/src/config.ts`, next to the other `RUN_*`
+settings, injected into `FollowEnv` as `reconnectWindowMs`. Backoff numbers (1 s start, 30 s cap) are constants.
 
 ### 7. Contracts / UI
 
