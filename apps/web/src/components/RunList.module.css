@@ -82,9 +82,13 @@
   color: var(--faint);
   margin-top: 2px;
 }
-.skill {
+.rule {
   font-family: var(--mono);
   font-size: var(--fs-12_5);
+  max-width: 24ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .actor {
   font-size: var(--fs-13);

@@ -87,6 +87,25 @@ describe('RunRow', () => {
   });
 });
 
+describe('RunRow routing rule', () => {
+  it('shows the run command in the rule cell', () => {
+    inTable(<RunRow run={run} tree="last" href="/r" />);
+    expect(screen.getByText('/review')).toBeInTheDocument();
+    expect(screen.queryByText('code-review')).not.toBeInTheDocument();
+  });
+
+  it('shows a dash when no command was recorded', () => {
+    inTable(<RunRow run={{ ...run, command: '', duration: '1m' }} tree="last" href="/r" />);
+    expect(screen.getByText('—')).toBeInTheDocument();
+  });
+
+  it('keeps the full command in the title attribute', () => {
+    const long = '/' + 'very-long-routing-rule-command-'.repeat(6);
+    inTable(<RunRow run={{ ...run, command: long }} tree="last" href="/r" />);
+    expect(screen.getByText(long)).toHaveAttribute('title', long);
+  });
+});
+
 describe('RunRow ticket link', () => {
   it('links the ticket number to GitHub in a new window', () => {
     inTable(<RunRow run={run} tree="last" href="/runs/62" />);

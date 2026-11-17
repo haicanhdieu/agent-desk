@@ -45,6 +45,12 @@ describe('Runs', () => {
     expect(screen.queryByText('Rate-limit the public webhook endpoint')).not.toBeInTheDocument();
   });
 
+  it('has a Routing rule column header and no Skill column', () => {
+    render(<Runs {...base} filter="all" />);
+    expect(screen.getByRole('columnheader', { name: 'Routing rule' })).toBeInTheDocument();
+    expect(screen.queryByRole('columnheader', { name: 'Skill' })).not.toBeInTheDocument();
+  });
+
   it('shows ended runs 60, 55, 56, 57, 54, 52', () => {
     render(<Runs {...base} filter="ended" />);
     expect(runIds()).toEqual([60, 55, 56, 57, 54, 52]);

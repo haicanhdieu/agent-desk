@@ -68,7 +68,9 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
       <td>
         <TicketRef kind={ticket.kind} number={ticket.number} short={ticket.kind === 'issue'} href={ticket.href} />
       </td>
-      <td className={styles.skill}>{run.skill}</td>
+      <td className={styles.rule}>
+        {run.command ? <span title={run.command}>{run.command}</span> : <span className={styles.faint}>—</span>}
+      </td>
       <td className={styles.actor}>
         <span className={styles.actorRow}>
           <Avatar

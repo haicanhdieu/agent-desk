@@ -66,6 +66,16 @@ describe('toRunSummary, prompt run', () => {
   });
 });
 
+describe('toRunSummary, routing rule command', () => {
+  it('maps an empty command to an empty string, not a bare slash', () => {
+    expect(toRunSummary(run({ command: '' }), now).command).toBe('');
+  });
+
+  it('maps a non-empty command to /<command>', () => {
+    expect(toRunSummary(run({ command: 'code-build' }), now).command).toBe('/code-build');
+  });
+});
+
 describe('toRunSummary', () => {
   it('maps a final run: number, slash command, ticket, local start time, "12m 4s" duration', () => {
     const s = toRunSummary(

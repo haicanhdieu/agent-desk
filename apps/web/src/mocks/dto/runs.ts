@@ -165,6 +165,8 @@ export const runFixtures: RunDto[] = [
     agentNote: 'Should the export include voided invoices?',
   }),
   parked(65, issue(153, 'Rename the export columns'), {
+    // A long routing rule command, to show truncation in the Run List (e2e/mock/runs-board.spec.ts).
+    command: 'code-build-with-a-very-long-routing-rule-command-name-that-overflows-the-cell',
     status: 'succeeded',
     sessionExpiresAt: inMs(20 * HOUR_MS),
     agentNote: 'Opened PR #148 with the CSV export and tests.',
