@@ -345,6 +345,41 @@ describe('setup flow fixes', () => {
     expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(0);
   });
 
+  it('Connect links an installation the provider re-activates even though the org already had it as revoked', async () => {
+    for (const c of mockDb.state.connections) if (c.orgId === ids.org.alice) c.status = 'revoked';
+    server.use(
+      routeHandler('connections.sync', async () => {
+        const mine = mockDb.state.connections.filter((c) => c.orgId === ids.org.alice);
+        for (const c of mine) c.status = 'active';
+        return jsonResponse(mine, 201);
+      }),
+    );
+    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const { user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
+    expect(await screen.findByRole('radio', { name: 'harbor-labs/invoicer-api' })).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+    expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(0);
+  });
+
+  it('Change which repositories the app can access still opens the install page when the org is already connected', async () => {
+    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const { user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('link', { name: 'Change which repositories the app can access' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
+    expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(1);
+  });
+
+  it('Connect still opens the install page when linking what the account can see fails', async () => {
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
+    server.use(routeHandler('connections.sync', async () => jsonResponse({ title: 'boom' }, 500)));
+    const assign = vi.spyOn(browserLocation, 'assign').mockImplementation(() => undefined);
+    const { user } = await renderRoute(`${base}/repo`);
+    await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
+    await waitFor(() => expect(assign).toHaveBeenCalledWith('https://github.com/apps/agent-desk/installations/new'));
+    expect(mockDb.requests('POST', '/api/connections/github/install')).toBe(1);
+  });
+
   it('an install URL that is not https is not followed and an error shows', async () => {
     mockDb.state.connections = mockDb.state.connections.filter((c) => c.orgId !== ids.org.alice);
     server.use(routeHandler('connections.install', async () => jsonResponse({ url: 'javascript:alert(1)' })));
