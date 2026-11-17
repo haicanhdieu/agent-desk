@@ -48,5 +48,7 @@ test('ticket and PR numbers on the Run Board open GitHub in a new window', async
     .filter({ hasText: / of \d+ runs$/ })
     .getByRole('link', { name: /^(Issue|PR) #\d+$/ })
     .first();
+  await expect(groupTicket).toHaveAttribute('href', /^https:\/\/github\.com\/.+\/(issues|pull)\/\d+$/);
   await expect(groupTicket).toHaveAttribute('target', '_blank');
+  await expect(groupTicket).toHaveAttribute('rel', 'noopener noreferrer');
 });

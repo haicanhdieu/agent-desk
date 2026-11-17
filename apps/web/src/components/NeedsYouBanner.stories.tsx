@@ -2,6 +2,9 @@ import type { Meta, StoryObj } from '@storybook/react-vite';
 import { runs } from '@/mocks';
 import { NeedsYouBanner } from './NeedsYouBanner';
 
+const run62 = runs.find((r) => r.id === 62);
+if (!run62) throw new Error('mock run 62 is missing');
+
 const meta = {
   title: 'Components/NeedsYouBanner',
   component: NeedsYouBanner,
@@ -18,7 +21,7 @@ type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {
   args: {
-    run: runs.find((r) => r.id === 62)!,
+    run: run62,
     askedAgo: '3 minutes ago',
     href: '#',
     slotNote:
@@ -30,6 +33,6 @@ export const Default: Story = {
 export const NoTicketLink: Story = {
   args: {
     ...Default.args,
-    run: { ...runs.find((r) => r.id === 62)!, ticket: { ...runs.find((r) => r.id === 62)!.ticket, href: '' } },
+    run: { ...run62, ticket: { ...run62.ticket, href: '' } },
   },
 };
