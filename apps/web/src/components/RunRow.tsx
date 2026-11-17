@@ -17,7 +17,7 @@ export function TicketGroupRow({ group, colSpan }: { group: TicketGroup; colSpan
     <tr className={styles.grp}>
       <td colSpan={colSpan}>
         <div className={styles.grpRow}>
-          <TicketRef kind={ticket.kind} number={ticket.number} />
+          <TicketRef kind={ticket.kind} number={ticket.number} href={ticket.href} />
           <b className={styles.grpTitle} title={ticket.title}>
             {ticket.title}
           </b>
@@ -66,7 +66,7 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
         {run.statusNote && <div className={styles.note}>{run.statusNote}</div>}
       </td>
       <td>
-        <TicketRef kind={ticket.kind} number={ticket.number} short={ticket.kind === 'issue'} />
+        <TicketRef kind={ticket.kind} number={ticket.number} short={ticket.kind === 'issue'} href={ticket.href} />
       </td>
       <td className={styles.skill}>{run.skill}</td>
       <td className={styles.actor}>

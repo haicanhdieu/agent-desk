@@ -25,6 +25,11 @@ function Gallery() {
         <TicketRef kind="pr" number={148} />
         <TicketRef kind="issue" number={142} short />
       </section>
+      <section className="row" style={{ gap: 16 }}>
+        <TicketRef kind="issue" number={139} href="https://github.com/acme/invoicer-api/issues/139" />
+        <TicketRef kind="pr" number={148} href="https://github.com/acme/invoicer-api/pull/148" />
+        <TicketRef kind="issue" number={142} short href="" />
+      </section>
     </div>
   );
 }

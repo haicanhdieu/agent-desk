@@ -30,3 +30,25 @@ test('the Run List shows durations in compact units', async ({ page }) => {
   await expect(page.getByRole('cell', { name: '30m', exact: true }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: /^\d+m 0s$|^0\d/ })).toHaveCount(0);
 });
+
+test('ticket and PR numbers on the Run Board open GitHub in a new window', async ({ page }) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+  const rowTicket = page
+    .getByRole('row')
+    .filter({ has: page.getByRole('link', { name: /^Run \d+$/ }) })
+    .getByRole('link', { name: /^#\d+$|^PR #\d+$/ })
+    .first();
+  await expect(rowTicket).toBeVisible();
+  await expect(rowTicket).toHaveAttribute('href', /^https:\/\/github\.com\/.+\/(issues|pull)\/\d+$/);
+  await expect(rowTicket).toHaveAttribute('target', '_blank');
+  await expect(rowTicket).toHaveAttribute('rel', 'noopener noreferrer');
+
+  const groupTicket = page
+    .getByRole('row')
+    .filter({ hasText: / of \d+ runs$/ })
+    .getByRole('link', { name: /^(Issue|PR) #\d+$/ })
+    .first();
+  await expect(groupTicket).toHaveAttribute('href', /^https:\/\/github\.com\/.+\/(issues|pull)\/\d+$/);
+  await expect(groupTicket).toHaveAttribute('target', '_blank');
+  await expect(groupTicket).toHaveAttribute('rel', 'noopener noreferrer');
+});
