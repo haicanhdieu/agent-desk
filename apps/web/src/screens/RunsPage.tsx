@@ -15,6 +15,9 @@ export interface RunsPageProps {
   filter: RunsFilter;
   counts: Record<RunsFilter, number>;
   onFilter?(f: RunsFilter): void;
+  /** Whether the list is grouped by ticket; drives the toggle's pressed state. */
+  grouped?: boolean;
+  onGroupedChange?(grouped: boolean): void;
   /** When set, the chips are links to this href (e.g. `?filter=queued`) instead of buttons. */
   filterHref?(f: RunsFilter): string;
   /** In-app hrefs for the top bar. */
@@ -44,6 +47,8 @@ export function RunsPage({
   filter,
   counts,
   onFilter,
+  grouped = true,
+  onGroupedChange,
   filterHref,
   links,
   projectMenu,
@@ -82,7 +87,7 @@ export function RunsPage({
           </div>
           <div className={styles.runsTools}>
             <SearchInput placeholder="Ticket number or title" aria-label="Search runs" />
-            <Button icon="rule" aria-pressed="true">
+            <Button icon="rule" aria-pressed={grouped} onClick={() => onGroupedChange?.(!grouped)}>
               Grouped by ticket
             </Button>
           </div>

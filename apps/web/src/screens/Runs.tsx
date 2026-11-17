@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Button } from '@/ds';
 import { DataTable, EmptyState, NeedsYouBanner, RunRow, TicketGroupRow } from '@/components';
 import type { RunStatus } from '@/ds/tokens';
@@ -68,9 +69,12 @@ function rowActions(run: RunSummary, runHref: (r: RunSummary) => string) {
 }
 
 export function Runs({ groups, needsYouRun, filter, runHref = defaultRunHref, showAllHref, ...page }: RunsProps) {
+  const [grouped, setGrouped] = useState(true);
   const shown = filterGroups(groups, filter);
+  // Ungrouped: the same runs as one flat list, newest first. Only the layout changes, never the run data.
+  const flat = shown.flatMap((g) => g.runs).sort((a, b) => b.id - a.id);
   return (
-    <RunsPage {...page} filter={filter}>
+    <RunsPage {...page} filter={filter} grouped={grouped} onGroupedChange={setGrouped}>
       {needsYouRun && (
         <NeedsYouBanner
           run={needsYouRun.run}
@@ -97,18 +101,22 @@ export function Runs({ groups, needsYouRun, filter, runHref = defaultRunHref, sh
         />
       ) : (
         <DataTable columns={columns}>
-          {shown.flatMap((g) => [
-            <TicketGroupRow key={`g${g.ticket.number}`} group={g} colSpan={columns.length} />,
-            ...g.runs.map((r, i) => (
-              <RunRow
-                key={r.id}
-                run={r}
-                tree={i === g.runs.length - 1 ? 'last' : 'mid'}
-                href={runHref(r)}
-                actions={rowActions(r, runHref)}
-              />
-            )),
-          ])}
+          {grouped
+            ? shown.flatMap((g) => [
+                <TicketGroupRow key={`g${g.ticket.number}`} group={g} colSpan={columns.length} />,
+                ...g.runs.map((r, i) => (
+                  <RunRow
+                    key={r.id}
+                    run={r}
+                    tree={i === g.runs.length - 1 ? 'last' : 'mid'}
+                    href={runHref(r)}
+                    actions={rowActions(r, runHref)}
+                  />
+                )),
+              ])
+            : flat.map((r) => (
+                <RunRow key={r.id} run={r} tree="none" href={runHref(r)} actions={rowActions(r, runHref)} />
+              ))}
         </DataTable>
       )}
     </RunsPage>

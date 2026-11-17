@@ -88,6 +88,29 @@ describe('Runs', () => {
     expect(onFilter).toHaveBeenCalledWith('queued');
   });
 
+  it('toggles ticket grouping with the Grouped by ticket button without changing the runs', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const { container } = render(<Runs {...base} filter="all" />);
+    const toggle = () => screen.getByRole('button', { name: 'Grouped by ticket' });
+    const groupTitle = 'Rate-limit the public webhook endpoint';
+    const idsBefore = runIds().sort((a, b) => a - b);
+    expect(toggle()).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(groupTitle)).toBeInTheDocument();
+    expect(container.querySelectorAll('tr')).toHaveLength(1 + 6 + 9);
+
+    await userEvent.click(toggle());
+    expect(toggle()).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByText(groupTitle)).not.toBeInTheDocument();
+    expect(container.querySelectorAll('tr')).toHaveLength(1 + 9);
+    expect(runIds().sort((a, b) => a - b)).toEqual(idsBefore);
+    expect(runIds()).toEqual([...runIds()].sort((a, b) => b - a));
+
+    await userEvent.click(toggle());
+    expect(toggle()).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByText(groupTitle)).toBeInTheDocument();
+    expect(container.querySelectorAll('tr')).toHaveLength(1 + 6 + 9);
+  });
+
   it('renders the needs-you banner, header, row actions and one main', () => {
     render(<Runs {...base} filter="all" needsYouRun={needsYouRun} />);
     expect(screen.getAllByRole('main')).toHaveLength(1);
