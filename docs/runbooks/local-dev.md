@@ -47,6 +47,8 @@ App config comes from `.env`. If you change a port there, also change it in `pro
 | Temporal UI | http://localhost:8233 (namespace `agentdesk`)                                                      |
 | Storybook   | http://localhost:6006, started separately (see [storybook-and-parity.md](storybook-and-parity.md)) |
 
+To open the web app through another hostname (for example behind a reverse proxy that forwards to `localhost:5173`), set `WEB_ALLOWED_HOSTS` in `.env` to a comma-separated list of hostnames and restart the `web` process. Vite otherwise answers other hosts with "Blocked request". Left empty, only localhost is accepted.
+
 ## 4. Sign in and trigger a run
 
 With `AUTH_DEV_LOGIN=true` (the default in `.env.example`):
