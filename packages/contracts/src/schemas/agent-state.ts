@@ -4,8 +4,8 @@ import { z } from 'zod';
 export const AgentState = z.enum(['working', 'waiting', 'needs_input', 'done']);
 export type AgentState = z.infer<typeof AgentState>;
 
-/** Why the state was reported. */
-export const AgentStateSource = z.enum(['declared', 'question', 'approval', 'undeclared', 'error']);
+/** Why the state was reported. `startup`: the runner heard nothing from the agent after starting it (e.g. a startup dialog is waiting). */
+export const AgentStateSource = z.enum(['declared', 'question', 'approval', 'undeclared', 'error', 'startup']);
 export type AgentStateSource = z.infer<typeof AgentStateSource>;
 
 export const WaitingOn = z.enum(['background']);

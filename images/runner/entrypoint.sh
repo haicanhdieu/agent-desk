@@ -60,8 +60,17 @@ echo "agentdesk: checkout $(git rev-parse HEAD)"
 
 # Skip Claude Code's first-run onboarding and folder-trust prompts. (`claude plugin ...` with stdin closed needs no
 # further pre-accept keys on the pinned version; see ADR 0019.)
+# A custom ANTHROPIC_API_KEY makes the TUI ask "use this API key?" on every new pod (it blocks the run, and no hook
+# fires for it). Claude remembers its answer as the key's last 20 characters in customApiKeyResponses.approved, so that
+# suffix is pre-approved here. Only a key made of the characters real keys use is accepted, so nothing odd reaches the JSON.
+api_key_approved=''
+api_key="${ANTHROPIC_API_KEY:-}"
+if [ -n "$api_key" ] && [[ "$api_key" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  api_key_approved=", \"customApiKeyResponses\": {\"approved\": [\"${api_key: -20}\"], \"rejected\": []}"
+fi
+unset api_key
 cat > "$HOME/.claude.json" <<JSON
-{"hasCompletedOnboarding": true, "projects": {"$REPO_DIR": {"hasTrustDialogAccepted": true}}}
+{"hasCompletedOnboarding": true, "projects": {"$REPO_DIR": {"hasTrustDialogAccepted": true}}$api_key_approved}
 JSON
 
 # Plugins phase (workspace-setup spec 5.1). The repo's enabledPlugins is untrusted: select-plugins.mjs validates it
@@ -194,6 +203,18 @@ if [ "${RUN_MODE:-}" != resume ] && [ "${RUN_MODE:-}" != setup_test ]; then
 fi
 echo 'agentdesk: session started'
 
+# Startup check: Claude can wait on a screen no hook reports (an API-key or login prompt, a trust dialog). If no hook has
+# fired within the wait, tell the control plane a person is needed. It only covers startup: the first hook of any kind
+# (hook.mjs creates $RUN_DIR/hook-seen) switches it off for the pod, so a long tool call or a long think later in the
+# session never triggers it. AGENTDESK_STARTUP_WAIT_SECONDS is a test seam; anything but plain digits means 300 s.
+case "${AGENTDESK_STARTUP_WAIT_SECONDS:-}" in
+  '' | *[!0-9]* | 0*) startup_wait=300 ;;
+  *) startup_wait="$AGENTDESK_STARTUP_WAIT_SECONDS" ;;
+esac
+startup_checked=0
+if [ "${RUN_MODE:-}" = setup_test ]; then startup_checked=1; fi
+startup_began=$SECONDS
+
 # The entrypoint owns the end of the pod: it saves the scrollback, kills the tmux server (so stale attach clients cannot
 # hold it up), prints one end line and exits. end_session REASON CODE
 end_session() {
@@ -226,6 +247,14 @@ agent_exit_code() {
 }
 
 while :; do
+  if [ "$startup_checked" = 0 ]; then
+    if [ -e "$RUN_DIR/hook-seen" ]; then
+      startup_checked=1
+    elif [ $((SECONDS - startup_began)) -ge "$startup_wait" ]; then
+      startup_checked=1
+      echo 'agentdesk: state needs_input startup -'
+    fi
+  fi
   if [ -e "$RUN_DIR/stop" ] || [ -L "$RUN_DIR/stop" ]; then end_session stop_request 0; fi
   if code="$(agent_exit_code)"; then end_session agent_exit "$code"; fi
   if ! tmux has-session -t '=agent' 2>/dev/null; then end_session session_gone 0; fi

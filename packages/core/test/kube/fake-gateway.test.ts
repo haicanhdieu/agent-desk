@@ -34,6 +34,7 @@ const jobFor = (id: string, prompt: string, resume = false) =>
     gitHost: 'fake.invalid',
     cliTokenEnvName: 'GH_TOKEN',
     maxTurns: null,
+    model: 'claude-opus-4-1',
     deadlineSeconds: 60,
     resume,
     botName: 'bot',

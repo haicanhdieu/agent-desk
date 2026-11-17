@@ -24,6 +24,7 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   gitHost: 'fake.invalid',
   cliTokenEnvName: 'GH_TOKEN',
   maxTurns: 30,
+  model: 'claude-opus-4-1',
   deadlineSeconds: 1800,
   resume: false,
   botName: 'agentdesk[bot]',
@@ -152,6 +153,7 @@ describe('buildRunJob', () => {
       BOT_NAME: 'agentdesk[bot]',
       BOT_EMAIL: 'bot@example.invalid',
       MAX_TURNS: '30',
+      ANTHROPIC_MODEL: 'claude-opus-4-1',
       PLUGIN_MARKETPLACES: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
       SETUP_TIMEOUT_SECONDS: '600',
       AGENTDESK_TOKEN_FILE: '/var/run/agentdesk/workspace-token/token',
@@ -187,6 +189,14 @@ describe('buildRunJob', () => {
   it('a normal run has no RUN_MODE', () => {
     const env = buildRunJob(input()).spec?.template.spec?.containers[0]?.env ?? [];
     expect(env.some((e) => e.name === 'RUN_MODE')).toBe(false);
+  });
+
+  it('passes the agent model as ANTHROPIC_MODEL on a fresh run and on a resume, and omits it when empty', () => {
+    const envOf = (over: Partial<RunJobInput>) =>
+      buildRunJob(input(over)).spec?.template.spec?.containers[0]?.env ?? [];
+    expect(envOf({})).toContainEqual({ name: 'ANTHROPIC_MODEL', value: 'claude-opus-4-1' });
+    expect(envOf({ resume: true })).toContainEqual({ name: 'ANTHROPIC_MODEL', value: 'claude-opus-4-1' });
+    expect(envOf({ model: '' }).map((e) => e.name)).not.toContain('ANTHROPIC_MODEL');
   });
 
   it('omits MAX_TURNS when unset', () => {

@@ -238,6 +238,7 @@ describe('reconcile: setup tests', () => {
         gitHost: 'fake.invalid',
         cliTokenEnvName: 'GH_TOKEN',
         maxTurns: null,
+        model: 'claude-opus-4-1',
         deadlineSeconds: 600,
         resume: false,
         botName: 'bot',

@@ -1,6 +1,7 @@
 # 0020. Agent-neutral status protocol with per-agent adapters and declared outcomes
 
 - Status: Accepted. Amended by [0022](0022-pause-and-resume-runs-on-a-per-run-volume.md): the idle timer now pauses a waiting run instead of ending it as `succeeded`.
+- Amended 2026-11-17: the runner entrypoint prints `needs_input startup` when no hook has fired 5 minutes after the agent starts (a startup screen no hook reports, such as an API-key prompt). The first hook of any kind switches the check off for that pod, so it never fires during a long session. It reads no terminal text, so the "screen scraping" rejection below still stands.
 - Date: 2026-11-14
 - Source: [Agent run status design](../superpowers/specs/2026-11-14-agent-run-status-design.md) §4, §5, §6
 

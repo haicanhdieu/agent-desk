@@ -267,6 +267,8 @@ interface RunDetails {
   code: { provider: string; externalId: string };
   board: { provider: string; externalId: string };
   maxTurns: number | null;
+  /** The agent's configured model; empty when the agent was deleted after queueing. */
+  model: string;
   /** `runs.agent_id` now (null when the agent was deleted); resume reads it fresh instead of trusting a RunContext. */
   agentId: string | null;
 }
@@ -304,6 +306,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         boardProvider: board.provider,
         boardExternalId: board.externalId,
         maxTurns: agents.maxTurns,
+        model: agents.model,
         agentId: runs.agentId,
       })
       .from(runs)
@@ -335,6 +338,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       code: { provider: r.codeProvider, externalId: r.codeExternalId },
       board: { provider: r.boardProvider, externalId: r.boardExternalId },
       maxTurns: r.maxTurns,
+      model: r.model ?? '',
       agentId: r.agentId,
     };
   }
@@ -555,6 +559,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         gitHost: new URL(codeHost.repoUrl(project)).host,
         cliTokenEnvName: codeHost.cliTokenEnvName(),
         maxTurns: d.maxTurns,
+        model: d.model,
         deadlineSeconds: opts.deadlineSeconds ?? ctx.timeoutSeconds,
         resume,
         botName: deps.config.BOT_NAME,

@@ -2,7 +2,16 @@
 // Claude Code adapter: maps hook events to `agentdesk: state ...` protocol lines
 // (docs/superpowers/specs/2026-11-14-agent-run-status-design.md section 6.2).
 // Hook input is untrusted text and is only ever used as data (never a shell).
-import { appendFileSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  appendFileSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 
 // Twice the stored cap (AGENT_NOTE_MAX in contracts): the worker redacts the full text, then cuts to 500.
@@ -14,6 +23,19 @@ const BLOCK_REASON =
 const stateDir = process.env.AGENTDESK_STATE_DIR || '/home/runner/.agentdesk';
 const out = process.env.AGENTDESK_STATUS_OUT || '/proc/1/fd/1';
 const stateFile = join(stateDir, 'state.json');
+// Per pod (the in-memory run dir is empty in each new pod): the first hook of any kind creates this file, which tells the
+// entrypoint's startup check that the agent got past its startup screens. A write failure is not an error here.
+const hookSeen = join(process.env.AGENTDESK_RUN_DIR || '/run/agentdesk', 'hook-seen');
+let firstInPod = false;
+try {
+  firstInPod = !existsSync(hookSeen);
+  if (firstInPod) {
+    mkdirSync(join(hookSeen, '..'), { recursive: true });
+    closeSync(openSync(hookSeen, 'a'));
+  }
+} catch {
+  // The run dir is not writable: the startup check may then fire late, which is harmless.
+}
 
 // Same rules as toAgentNote in packages/contracts: one line, control chars to space, trimmed, capped (see NOTE_MAX).
 const toNote = (raw) =>
@@ -73,7 +95,8 @@ switch (input.hook_event_name) {
     if (isAsk) {
       const q = Array.isArray(input.tool_input?.questions) ? input.tool_input.questions[0]?.question : undefined;
       emit('needs_input', `question ${noteArg(q)}`);
-    } else if (last !== 'working') {
+    } else if (last !== 'working' || firstInPod) {
+      // `firstInPod`: a saved `working` from an earlier pod (resume) must not hide a startup needs_input line.
       emit('working');
     }
     break;

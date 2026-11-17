@@ -332,6 +332,25 @@ describe('entrypoint home on the volume and resume mode', () => {
     expect(newSession(r)?.argv.at(-1)).toBe('exec claude --permission-mode bypassPermissions "$PROMPT"');
   });
 
+  it('pre-approves the API key (last 20 chars) so Claude does not ask "use this API key?" on every new pod', async () => {
+    const home = mkHome({});
+    const key = 'sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPOTa3I6nIDLQ0lxUYQAA';
+    const r = await runEntrypoint({ HOME: home, ANTHROPIC_API_KEY: key }, {});
+    const cfg = JSON.parse(readFileSync(join(home, '.claude.json'), 'utf8')) as {
+      customApiKeyResponses?: { approved: string[]; rejected: string[] };
+    };
+    expect(cfg.customApiKeyResponses).toEqual({ approved: [key.slice(-20)], rejected: [] });
+    // Only the suffix Claude itself stores is written; the key never appears in the output.
+    expect(readFileSync(join(home, '.claude.json'), 'utf8')).not.toContain(key);
+    expect(r.stdout.join('\n')).not.toContain(key);
+  });
+
+  it('writes no API key approval when the agent uses an OAuth token', async () => {
+    const home = mkHome({});
+    await runEntrypoint({ HOME: home, CLAUDE_CODE_OAUTH_TOKEN: 'oauth-token-value-0123456789' }, {});
+    expect(readFileSync(join(home, '.claude.json'), 'utf8')).not.toContain('customApiKeyResponses');
+  });
+
   it('an unknown AGENT is rejected and never used as a path', async () => {
     const r = await runEntrypoint({ AGENT: '../../etc' }, {});
     expect(r.exitCode).not.toBe(0);
@@ -463,6 +482,48 @@ describe('entrypoint session end', () => {
       const argvs = tmuxCalls(r).map((c) => c.argv[0]);
       expect(argvs.lastIndexOf('kill-server')).toBeGreaterThan(argvs.lastIndexOf('capture-pane'));
     }
+  });
+});
+
+describe('entrypoint startup check', () => {
+  const STARTUP_LINE = 'agentdesk: state needs_input startup -';
+  const runDir = (files: Record<string, string> = {}) => {
+    const dir = mkdtempSync(join(tmpdir(), 'run-'));
+    for (const [n, c] of Object.entries(files)) writeFileSync(join(dir, n), c);
+    return dir;
+  };
+  const alive = { STUB_TMUX_MODE: 'alive', AGENTDESK_STARTUP_WAIT_SECONDS: '1' };
+
+  it('reports needs_input once when no hook has fired within the wait', async () => {
+    const r = await runEntrypoint({ ...alive, AGENTDESK_RUN_DIR: runDir() }, {}, { signalAfterMs: 4500 });
+    expect(r.stdout.filter((l) => l === STARTUP_LINE)).toHaveLength(1);
+  });
+
+  it('says nothing when a hook has already fired', async () => {
+    const r = await runEntrypoint(
+      { ...alive, AGENTDESK_RUN_DIR: runDir({ 'hook-seen': '' }) },
+      {},
+      { signalAfterMs: 4500 },
+    );
+    expect(r.stdout).not.toContain(STARTUP_LINE);
+  });
+
+  it('says nothing before the wait is over (default 5 minutes)', async () => {
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDir() },
+      {},
+      { signalAfterMs: 3500 },
+    );
+    expect(r.stdout).not.toContain(STARTUP_LINE);
+  });
+
+  it('ignores a wait that is not plain digits and uses the default', async () => {
+    const r = await runEntrypoint(
+      { STUB_TMUX_MODE: 'alive', AGENTDESK_STARTUP_WAIT_SECONDS: '1; id', AGENTDESK_RUN_DIR: runDir() },
+      {},
+      { signalAfterMs: 3500 },
+    );
+    expect(r.stdout).not.toContain(STARTUP_LINE);
   });
 });
 

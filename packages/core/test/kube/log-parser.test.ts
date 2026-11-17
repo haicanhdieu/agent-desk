@@ -89,6 +89,7 @@ describe('parseLogLine agent state protocol', () => {
       { state: 'needs_input', source: 'approval', note: 'Ship it? yes' },
     ],
     [`agentdesk: state done declared ${b64('All done')}`, { state: 'done', source: 'declared', note: 'All done' }],
+    ['agentdesk: state needs_input startup -', { state: 'needs_input', source: 'startup' }],
     ['agentdesk: turn started', { state: 'working' }],
     ['agentdesk: turn finished', { state: 'needs_input', source: 'undeclared' }],
   ] as const)('%j maps to %j (with and without CR)', (line, agent) => {
