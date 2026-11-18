@@ -29,6 +29,7 @@ import {
   runJobName,
   runLabels,
   runPodConfigFrom,
+  resolveRunAuthor,
   runVolumeName,
   toAdapterProject,
   type AdapterProject,
@@ -273,6 +274,9 @@ interface RunDetails {
   model: string;
   /** `runs.agent_id` now (null when the agent was deleted); resume reads it fresh instead of trusting a RunContext. */
   agentId: string | null;
+  /** Login and provider user id of the person who triggered the run; null on runs created before they were recorded. */
+  triggeredBy: string | null;
+  triggeredByExternalId: string | null;
 }
 
 export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
@@ -310,6 +314,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         maxTurns: agents.maxTurns,
         model: agents.model,
         agentId: runs.agentId,
+        triggeredBy: runs.triggeredBy,
+        triggeredByExternalId: runs.triggeredByExternalId,
       })
       .from(runs)
       .innerJoin(projects, eq(projects.id, runs.projectId))
@@ -342,6 +348,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       maxTurns: r.maxTurns,
       model: r.model ?? '',
       agentId: r.agentId,
+      triggeredBy: r.triggeredBy,
+      triggeredByExternalId: r.triggeredByExternalId,
     };
   }
 
@@ -571,6 +579,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         resume,
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
+        author: resolveRunAuthor(d, { name: deps.config.BOT_NAME, email: deps.config.BOT_EMAIL }, codeHost),
         pluginMarketplaces: deps.config.RUN_PLUGIN_MARKETPLACES,
         setupTimeoutSeconds: deps.config.RUN_SETUP_TIMEOUT_SECONDS,
         setupScript,

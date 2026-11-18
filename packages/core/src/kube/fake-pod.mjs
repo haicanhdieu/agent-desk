@@ -2,7 +2,9 @@
 //
 // State dir (argv[2]): log (stdout lines), pane (the tmux screen), input (keystrokes), stop and kill (markers), exit (exit code),
 // started (marker: the container runs). Protocol, mirroring the real runner (spec §8):
-//   - log `agentdesk: checkout <sha>`, `plugins begin`, `plugins end`, the setup markers (`setup skipped (no script)`, or
+//   - log `agentdesk: git identity <RUN_AUTHOR_NAME> <RUN_AUTHOR_EMAIL>` when the Job carries both (the real entrypoint
+//     logs the identity it gives git, on a resume too; the fake pod runs no git, so this line is how a test sees the
+//     trigger person reach the pod), then `agentdesk: checkout <sha>`, `plugins begin`, `plugins end`, the setup markers (`setup skipped (no script)`, or
 //     `setup begin` + `setup passed` | `setup failed exit=1` when SETUP_SCRIPT contains `--fake-setup-fail`; the script is
 //     never executed), then `agentdesk: session started`, write a banner and PROMPT to `pane`;
 //   - a failed setup in a real run exits 78 before `session started`, like the runner;
@@ -36,6 +38,8 @@ const prompt = process.env.PROMPT ?? '';
 const setupScript = process.env.SETUP_SCRIPT ?? '';
 const setupTest = process.env.RUN_MODE === 'setup_test';
 const resume = process.env.RUN_MODE === 'resume';
+const authorName = process.env.RUN_AUTHOR_NAME ?? '';
+const authorEmail = process.env.RUN_AUTHOR_EMAIL ?? '';
 const volumeDir = process.env.FAKE_VOLUME_DIR ?? '';
 const volumeFile = (n) => join(volumeDir, n);
 const turnMs = Number.parseInt(process.env.FAKE_TURN_MS ?? '', 10) || 2000;
@@ -43,6 +47,9 @@ const maxLifeMs = Number.parseInt(process.env.FAKE_MAX_LIFE_MS ?? '', 10) || 60 
 const TICK_MS = 50;
 
 const log = (line) => appendFileSync(file('log'), `${line}\n`);
+const logIdentity = () => {
+  if (authorName !== '' && authorEmail !== '') log(`agentdesk: git identity ${authorName} ${authorEmail}`);
+};
 const pane = (text) => {
   appendFileSync(file('pane'), text);
   if (volumeDir !== '' && !setupTest) appendFileSync(volumeFile('pane'), text);
@@ -77,11 +84,13 @@ if (prompt.includes('--fake-pending')) {
       writeFileSync(file('exit'), '79');
       process.exit(79);
     }
+    logIdentity();
     log('agentdesk: session resumed');
     log('agentdesk: session started');
     // Replay the saved conversation into this pod's pane (not mirrored again: the volume already holds it).
     if (existsSync(volumeFile('pane'))) writeFileSync(file('pane'), readFileSync(volumeFile('pane')));
   } else {
+    logIdentity();
     log(`agentdesk: checkout ${'0'.repeat(40)}`);
     log('agentdesk: plugins begin');
     log('agentdesk: plugins end');

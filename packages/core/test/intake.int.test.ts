@@ -158,11 +158,19 @@ describe('processTicketEvent', () => {
       checkoutRef: 'main',
       triggerSource: 'webhook',
       triggeredBy: 'alice',
+      triggeredByExternalId: null,
       workflowId: null,
     });
     expect(h.getTicket).toHaveBeenCalledTimes(1); // router had no need for it, the snapshot did
     expect(h.startRun).toHaveBeenCalledExactlyOnceWith(s.orgId, r.runId);
     expect((await inboundOf(s))[0]).toMatchObject({ outcome: 'run_created', orgId: s.orgId, projectId: s.projectId });
+  });
+
+  it('stores the provider user id of the person who triggered the run', async () => {
+    const s = await seed();
+    const h = harness();
+    await processTicketEvent(h.deps, eventFor(s, { authorId: '42' }), 'webhook');
+    expect((await runsOf(s))[0]).toMatchObject({ triggeredBy: 'alice', triggeredByExternalId: '42' });
   });
 
   it('the same delivery twice is a duplicate with one run', async () => {

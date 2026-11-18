@@ -3,6 +3,12 @@
 # variable named by $AGENTDESK_CLI_TOKEN_ENV (the code host adapter picks the name) from the file on every call, so a
 # rotated token is used at once, then runs the real `gh` found on PATH after this directory. Without them it changes
 # nothing. An invalid variable name fails the call. No `set -x`: the token is a secret.
+#
+# After a successful `gh pr create` or `gh pr edit` it also puts one `Authorized by \`<login>\`` line (from
+# $RUN_AUTHORIZED_BY, the run's recorded trigger person) at the end of the PR body, replacing any such line already
+# there, so the line does not depend on text the agent wrote. The login is checked first and only ever written to a
+# file. A failure of this follow-up warns on stderr and never changes the agent's own result. This is a guardrail for
+# the normal `gh pr create/edit` path: `gh api` can still edit a PR body directly.
 set -eu
 
 self_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -43,5 +49,116 @@ if [ -n "${AGENTDESK_TOKEN_FILE:-}" ] && [ -n "${AGENTDESK_CLI_TOKEN_ENV:-}" ]; 
   fi
   token="$(tr -d '\r\n' < "$AGENTDESK_TOKEN_FILE")"
   export "$AGENTDESK_CLI_TOKEN_ENV=$token"
+fi
+
+# True when $RUN_AUTHORIZED_BY looks like a provider login (letters, digits, dashes, optional [bot] suffix).
+authorized_by_valid() {
+  v="${RUN_AUTHORIZED_BY:-}"
+  core="${v%\[bot\]}"
+  case "$core" in
+    '' | -* | *[!A-Za-z0-9-]*) return 1 ;;
+  esac
+  return 0
+}
+
+# add_authorized_by WORKDIR SUB ARGS...: rewrites the body of the PR that `gh pr SUB ARGS...` just created or edited.
+add_authorized_by() {
+  work="$1"
+  sub="$2"
+  shift 2
+  target=""
+  repo=""
+  if [ "$sub" = create ]; then
+    # The url is the last stdout line when the output was captured (no terminal); otherwise the PR of the current branch.
+    if [ -f "$work/out" ]; then
+      target="$(tail -n 1 "$work/out")"
+      case "$target" in
+        https://*) ;;
+        *) return 1 ;;
+      esac
+    fi
+  else
+    # Find the one positional (the PR number, branch or url) among the flags. A flag that takes a value consumes the next
+    # argument. A flag this wrapper does not know, a second positional, or `--` makes the target unclear, and then no
+    # follow-up runs: the wrong PR must never get the line (no positional at all means the current branch's PR).
+    count=0
+    skip=0
+    for a in "$@"; do
+      if [ "$skip" = repo ]; then
+        repo="$a"
+        skip=0
+        continue
+      fi
+      if [ "$skip" = 1 ]; then
+        skip=0
+        continue
+      fi
+      case "$a" in
+        -R | --repo) skip=repo ;;
+        --repo=*) repo="${a#--repo=}" ;;
+        -R?*) repo="${a#-R}" ;;
+        -t | -b | -F | -B | -a | -m | --title | --body | --body-file | --base | --add-assignee | --add-label | --add-project | --add-reviewer | --milestone | --remove-assignee | --remove-label | --remove-project | --remove-reviewer) skip=1 ;;
+        --title=* | --body=* | --body-file=* | --base=* | --add-assignee=* | --add-label=* | --add-project=* | --add-reviewer=* | --milestone=* | --remove-assignee=* | --remove-label=* | --remove-project=* | --remove-reviewer=*) ;;
+        -t?* | -b?* | -F?* | -B?* | -a?* | -m?*) ;;
+        --remove-milestone | -h | --help) ;;
+        -*) return 1 ;;
+        *)
+          count=$((count + 1))
+          target="$a"
+          ;;
+      esac
+    done
+    if [ "$count" -gt 1 ] || [ "$skip" != 0 ]; then return 1; fi
+    case "$target" in https://*) repo="" ;; esac
+  fi
+  set -- pr view
+  if [ -n "$target" ]; then set -- "$@" "$target"; fi
+  if [ -n "$repo" ]; then set -- "$@" --repo "$repo"; fi
+  "$real" "$@" --json body -q .body > "$work/body" 2> "$work/err" || return 1
+  # Drop any Authorized by line and trailing blank lines, then add ours. The login comes in through the environment.
+  awk '
+    /^Authorized by / { next }
+    { l[++n] = $0 }
+    END {
+      while (n > 0 && l[n] ~ /^[ \t\r]*$/) n--
+      for (i = 1; i <= n; i++) print l[i]
+      if (n > 0) print ""
+      print "Authorized by `" ENVIRON["RUN_AUTHORIZED_BY"] "`"
+    }
+  ' "$work/body" > "$work/new" || return 1
+  set -- pr edit
+  if [ -n "$target" ]; then set -- "$@" "$target"; fi
+  if [ -n "$repo" ]; then set -- "$@" --repo "$repo"; fi
+  "$real" "$@" --body-file "$work/new" > /dev/null 2> "$work/err" || return 1
+}
+
+# Only `pr create` needs its output (the PR url); everything else, and a terminal, keeps gh's own stdout. `--web` creates
+# nothing to edit yet.
+wants_follow_up() {
+  [ "${1:-}" = pr ] && { [ "${2:-}" = create ] || [ "${2:-}" = edit ]; } || return 1
+  authorized_by_valid || return 1
+  for a in "$@"; do
+    case "$a" in --web | -w) return 1 ;; esac
+  done
+  return 0
+}
+
+if wants_follow_up "$@"; then
+  work="$(mktemp -d 2> /dev/null)" || exec "$real" "$@"
+  trap 'rm -rf "$work"' EXIT
+  rc=0
+  if [ "$2" = create ] && [ ! -t 1 ]; then
+    # Stream the output live and keep a copy; the exit code of gh travels through a file (a pipe reports tee's).
+    { rc=0; "$real" "$@" || rc=$?; echo "$rc" > "$work/rc"; } | tee "$work/out"
+    rc="$(cat "$work/rc" 2> /dev/null || echo 1)"
+  else
+    "$real" "$@" || rc=$?
+  fi
+  sub="$2"
+  shift 2
+  if [ "$rc" -eq 0 ] && ! add_authorized_by "$work" "$sub" "$@"; then
+    echo "agentdesk: could not add the 'Authorized by' line to the pull request" >&2
+  fi
+  exit "$rc"
 fi
 exec "$real" "$@"

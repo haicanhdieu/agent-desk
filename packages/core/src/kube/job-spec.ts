@@ -48,6 +48,11 @@ export interface RunJobInput {
   resume: boolean;
   botName: string;
   botEmail: string;
+  /**
+   * Who the run's commits are credited to and who authorized the run. Always set: the bot's own identity when no
+   * person can be credited. Plain env values only (the login is untrusted text).
+   */
+  author: { name: string; email: string; authorizedBy: string };
   /** Approved plugin stores (store -> source) from platform config; reaches the pod as one JSON env value. */
   pluginMarketplaces: Record<string, string>;
   /** Cap on the repo setup script, from platform config. */
@@ -241,6 +246,9 @@ export function buildRunJob(input: RunJobInput): V1Job {
     home,
     { name: 'BOT_NAME', value: input.botName },
     { name: 'BOT_EMAIL', value: input.botEmail },
+    { name: 'RUN_AUTHOR_NAME', value: input.author.name },
+    { name: 'RUN_AUTHOR_EMAIL', value: input.author.email },
+    { name: 'RUN_AUTHORIZED_BY', value: input.author.authorizedBy },
     { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
     ...(input.maxTurns !== null ? [{ name: 'MAX_TURNS', value: String(input.maxTurns) }] : []),
     // Claude Code reads its model from here (below --model, above its settings), on a resume too.

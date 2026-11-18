@@ -31,6 +31,8 @@ COPY select-plugins.mjs /usr/local/lib/agentdesk/select-plugins.mjs
 # Rotating workspace token: git credential helper + `gh` wrapper (first on PATH) read $AGENTDESK_TOKEN_FILE per call.
 COPY git-credential-agentdesk /usr/local/lib/agentdesk/git-credential-agentdesk
 COPY bin/gh /usr/local/lib/agentdesk/bin/gh
+# git hook: adds the bot as a Co-Authored-By trailer (the run's commits are authored by the person who triggered it).
+COPY hooks/prepare-commit-msg /usr/local/lib/agentdesk/hooks/prepare-commit-msg
 # One named tmux attach client per terminal (pid file under /run/agentdesk, an in-memory volume in the pod).
 COPY bin/agentdesk-attach /usr/local/lib/agentdesk/bin/agentdesk-attach
 COPY bin/agentdesk-detach /usr/local/lib/agentdesk/bin/agentdesk-detach
@@ -44,7 +46,8 @@ COPY agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/hook.mjs
 COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
 COPY agents/claude/commands.sh /usr/local/lib/agentdesk/agents/claude/commands.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credential-agentdesk \
-    /usr/local/lib/agentdesk/bin/gh /usr/local/lib/agentdesk/bin/agentdesk-attach \
+    /usr/local/lib/agentdesk/bin/gh /usr/local/lib/agentdesk/hooks/prepare-commit-msg \
+    /usr/local/lib/agentdesk/bin/agentdesk-attach \
     /usr/local/lib/agentdesk/bin/agentdesk-detach /usr/local/lib/agentdesk/bin/agentdesk-session \
     /usr/local/lib/agentdesk/bin/agentdesk-end \
  && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \

@@ -16,6 +16,7 @@ import { FAKE_EXTERNAL_ID } from './board';
 import { FAKE_REPOS, sha1, type FakeStore } from './store';
 
 const TOKEN_TTL_MS = 60 * 60 * 1000;
+const FAKE_LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]*$/;
 
 export class FakeCodeHostAdapter implements CodeHostAdapter {
   constructor(
@@ -62,6 +63,11 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
 
   cliTokenEnvName(): string {
     return 'GH_TOKEN';
+  }
+
+  commitIdentity(user: { login: string; externalId: string }): { name: string; email: string } | null {
+    if (!FAKE_LOGIN.test(user.login)) return null;
+    return { name: user.login, email: `${user.login}@users.noreply.fake.invalid` };
   }
 
   checkoutRef(ticket: CheckoutTicket): string {

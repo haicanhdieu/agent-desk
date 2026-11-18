@@ -24,7 +24,7 @@ const IssueCommentPayload = z.object({
   comment: z.object({
     id: z.number(),
     body: z.string().nullable(),
-    user: z.object({ login: z.string() }).nullable(),
+    user: z.object({ login: z.string(), id: z.number() }).nullable(),
     created_at: z.string(),
     author_association: z.string(),
   }),
@@ -56,6 +56,7 @@ export function parseIssueComment(headers: WebhookHeaders, rawBody: Buffer | str
     ticketKind: p.issue.pull_request !== undefined ? 'pr' : 'issue',
     body: p.comment.body ?? '',
     author: p.comment.user?.login ?? 'ghost',
+    ...(p.comment.user ? { authorId: String(p.comment.user.id) } : {}),
     authorAssociation: p.comment.author_association,
     createdAt: p.comment.created_at,
   };

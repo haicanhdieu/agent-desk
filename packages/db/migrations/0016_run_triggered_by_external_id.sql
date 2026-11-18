@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "triggered_by_external_id" text;

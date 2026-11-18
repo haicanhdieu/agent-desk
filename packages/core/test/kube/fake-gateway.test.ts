@@ -21,7 +21,12 @@ const job = (id: string, prompt: string, extraEnv: Record<string, string> = {}) 
   for (const [name, value] of Object.entries(extraEnv)) container?.env?.push({ name, value });
   return j;
 };
-const jobFor = (id: string, prompt: string, resume = false) =>
+const jobFor = (
+  id: string,
+  prompt: string,
+  resume = false,
+  author = { name: 'bot', email: 'bot@x.invalid', authorizedBy: 'bot' },
+) =>
   buildRunJob({
     runId: id,
     orgId: ORG,
@@ -39,6 +44,7 @@ const jobFor = (id: string, prompt: string, resume = false) =>
     resume,
     botName: 'bot',
     botEmail: 'bot@x.invalid',
+    author,
     pluginMarketplaces: {},
     setupTimeoutSeconds: 600,
     setupScript: null,
@@ -125,8 +131,9 @@ describe('FakeKubeGateway', () => {
     });
     expect(pod.name).toBe(name);
     const c = collect(pod.name);
-    await until(async () => c.lines.length >= 7);
-    expect(c.lines.slice(0, 7)).toEqual([
+    await until(async () => c.lines.length >= 8);
+    expect(c.lines.slice(0, 8)).toEqual([
+      'agentdesk: git identity bot bot@x.invalid',
       `agentdesk: checkout ${'0'.repeat(40)}`,
       'agentdesk: plugins begin',
       'agentdesk: plugins end',
@@ -139,6 +146,20 @@ describe('FakeKubeGateway', () => {
     await c.done;
     await gw.deleteJob(name);
     expect(await gw.getRunPod(name)).toBeNull();
+  });
+
+  it('logs the git identity the Job gives the run, so the trigger person can be seen reaching the pod', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const author = { name: 'alice', email: 'alice@users.noreply.fake.invalid', authorizedBy: 'alice' };
+    await gw.ensureJob(jobFor(id, 'do it', false, author));
+    const c = collect(name);
+    await until(async () => c.lines.includes('agentdesk: session started'));
+    expect(c.lines).toContain('agentdesk: git identity alice alice@users.noreply.fake.invalid');
+    expect(c.lines.join('\n')).not.toContain('bot@x.invalid');
+    c.ac.abort();
+    await c.done;
+    await gw.deleteJob(name);
   });
 
   it('a resumed Job on the same volume continues the conversation; with the volume deleted it exits 79', async () => {
@@ -154,7 +175,11 @@ describe('FakeKubeGateway', () => {
     await gw.ensureJob(jobFor(id, '', true));
     const c = collect(name);
     await until(async () => c.lines.includes('agentdesk: session started'));
-    expect(c.lines.slice(0, 2)).toEqual(['agentdesk: session resumed', 'agentdesk: session started']);
+    expect(c.lines.slice(0, 3)).toEqual([
+      'agentdesk: git identity bot bot@x.invalid',
+      'agentdesk: session resumed',
+      'agentdesk: session started',
+    ]);
     expect(await gwPane(name)).toContain('remember this');
     c.ac.abort();
     await c.done;

@@ -24,6 +24,9 @@ export interface GithubCodeHostOptions {
 
 const SKILL_NAME = /^[a-z0-9-]+$/;
 const REPO_FILE_SEGMENT = /^[A-Za-z0-9._-]+$/;
+// A login and user id become env values in the run pod, so only what GitHub itself issues may get through.
+const GITHUB_LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$/;
+const GITHUB_USER_ID = /^[0-9]+$/;
 
 const TokenResponse = z.object({ token: z.string(), expires_at: z.string() });
 const ReposResponse = z.object({
@@ -184,6 +187,11 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
 
   cliTokenEnvName(): string {
     return 'GH_TOKEN';
+  }
+
+  commitIdentity(user: { login: string; externalId: string }): { name: string; email: string } | null {
+    if (!GITHUB_LOGIN.test(user.login) || !GITHUB_USER_ID.test(user.externalId)) return null;
+    return { name: user.login, email: `${user.externalId}+${user.login}@users.noreply.github.com` };
   }
 
   checkoutRef(ticket: CheckoutTicket): string {

@@ -38,6 +38,38 @@ if [ -n "${AGENTDESK_TOKEN_FILE:-}" ]; then
   git config --global credential.helper "$LIB_DIR/git-credential-agentdesk"
 fi
 
+# Git identity of the repo (run in the repo dir; fresh and resumed pods both call it, so a volume first started under an
+# older config is corrected on resume). The run's commits are authored and committed by the person who triggered the run
+# (RUN_AUTHOR_NAME / RUN_AUTHOR_EMAIL, plain values chosen by the worker); without both, the bot as before. The bot
+# reaches the commits as a Co-Authored-By trailer through a prepare-commit-msg hook copied into the repo's own hooks
+# dir (core.hooksPath is not touched, so the repo's other hooks keep running; a repo that sets its own core.hooksPath,
+# for example husky, runs its hooks and skips the trailer, while author and committer stay right). A prepare-commit-msg
+# the repo shipped is kept as prepare-commit-msg.repo and run by ours. Values are only ever passed as quoted argv elements.
+install_commit_hook() {
+  local src="$LIB_DIR/hooks/prepare-commit-msg" dest=.git/hooks/prepare-commit-msg
+  mkdir -p .git/hooks
+  # Our own copy (an older one on a surviving volume) is replaced; any other file is the repo's and is kept.
+  if [ -e "$dest" ] && ! grep -q '^# agentdesk-commit-trailer-hook' "$dest" && [ ! -e "$dest.repo" ]; then
+    mv "$dest" "$dest.repo"
+  fi
+  cp "$src" "$dest"
+  chmod 0755 "$dest"
+}
+
+apply_git_identity() {
+  local name email
+  name="${RUN_AUTHOR_NAME:-}"
+  email="${RUN_AUTHOR_EMAIL:-}"
+  if [ -z "$name" ] || [ -z "$email" ]; then
+    name="${BOT_NAME:-agentdesk}"
+    email="${BOT_EMAIL:-agentdesk@users.noreply.github.com}"
+  fi
+  git config user.name "$name"
+  git config user.email "$email"
+  install_commit_hook
+  echo "agentdesk: git identity $name $email"
+}
+
 if [ "${RUN_MODE:-}" = resume ]; then
   # Resume: the volume holds the repo, home and conversation. No clone, checkout, plugins or setup.
   if [ ! -f "$HOME/.agentdesk/session-started" ] || [ ! -d "$REPO_DIR/.git" ]; then
@@ -45,13 +77,13 @@ if [ "${RUN_MODE:-}" = resume ]; then
     exit 79
   fi
   cd "$REPO_DIR"
+  apply_git_identity
   echo 'agentdesk: session resumed'
 else
 # Fresh start (not reindented to keep the diff small): clone, checkout, plugins, setup.
 git clone --quiet -- "$REPO_CLONE_URL" "$REPO_DIR" 2>&1 | sed 's#://[^@/]*@#://***@#g' >&2
 cd "$REPO_DIR"
-git config user.name "${BOT_NAME:-agentdesk}"
-git config user.email "${BOT_EMAIL:-agentdesk@users.noreply.github.com}"
+apply_git_identity
 if [ -n "${CHECKOUT_REF:-}" ]; then
   git fetch --quiet origin -- "$CHECKOUT_REF"
   git checkout --quiet --detach FETCH_HEAD

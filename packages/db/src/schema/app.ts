@@ -222,6 +222,8 @@ export const runs = pgTable(
     triggerCommentId: text('trigger_comment_id'),
     inboundEventId: uuid('inbound_event_id').references(() => inboundEvents.id, { onDelete: 'set null' }),
     triggeredBy: text('triggered_by'),
+    /** The trigger person's user id at the provider (with `triggeredBy`, their login); null on older runs. */
+    triggeredByExternalId: text('triggered_by_external_id'),
     queuedAt: ts('queued_at').notNull().defaultNow(),
     startedAt: ts('started_at'),
     finishedAt: ts('finished_at'),

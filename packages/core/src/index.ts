@@ -1,6 +1,7 @@
 export * from './config';
 export * from './clock';
 export * from './redact';
+export * from './run-author';
 export * from './adapters/types';
 export * from './adapters/registry';
 export * from './adapters/project';

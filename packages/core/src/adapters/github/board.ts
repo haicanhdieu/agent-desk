@@ -19,7 +19,7 @@ const CommentList = z.array(
   z.object({
     id: z.number(),
     issue_url: z.string(),
-    user: z.object({ login: z.string() }).nullable(),
+    user: z.object({ login: z.string(), id: z.number() }).nullable(),
     created_at: z.string(),
     updated_at: z.string(),
     author_association: z.string(),
@@ -101,6 +101,7 @@ export class GithubBoardAdapter implements BoardAdapter {
             ticketRef: c.issue_url.slice(c.issue_url.lastIndexOf('/') + 1),
             body: c.body ?? '',
             author: c.user?.login ?? 'ghost',
+            ...(c.user ? { authorId: String(c.user.id) } : {}),
             authorAssociation: c.author_association,
             createdAt: c.created_at,
           });
