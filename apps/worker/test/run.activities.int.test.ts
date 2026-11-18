@@ -777,8 +777,10 @@ describe('activity errors are redacted', () => {
 
 // The fake pod's log up to the agent starting, as lifecycle kinds (one log line each); the first turn finishes next.
 const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
+// The pod also logs `git identity <name> <email>`: a plain text line, so it counts as a log line but stores no event.
+const PRELUDE_TEXT_LINES = 1;
 // The fake pod's first turn logs `state working` then `state needs_input`; the first turn's end is the first replayable boundary.
-const FIRST_TURN_LINE = PRELUDE_KINDS.length + 2;
+const FIRST_TURN_LINE = PRELUDE_KINDS.length + PRELUDE_TEXT_LINES + 2;
 
 describe('followPodLogs', () => {
   it('redacts the current and an earlier workspace token after a refresh (pattern covers the old one)', async () => {
@@ -873,8 +875,8 @@ describe('followPodLogs', () => {
     attach.write(new TextEncoder().encode('again\r'));
     await until(
       async () =>
-        (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= FIRST_TURN_LINE + 2 &&
-        second.beats.length,
+        (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >=
+          FIRST_TURN_LINE - PRELUDE_TEXT_LINES + 2 && second.beats.length,
     );
     attach.close();
     await acts.endSession(ctx);

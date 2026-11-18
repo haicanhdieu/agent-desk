@@ -174,6 +174,7 @@ async function makeRun(status: string, pod = true, projectId = aliceProject): Pr
         resume: false,
         botName: 'bot',
         botEmail: 'bot@x.invalid',
+        author: { name: 'bot', email: 'bot@x.invalid', authorizedBy: 'bot' },
         pluginMarketplaces: {},
         setupTimeoutSeconds: 600,
         setupScript: null,
