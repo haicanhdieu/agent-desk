@@ -12,6 +12,7 @@ const agent = (id: string, projectId: string): AgentDto => ({
   timeoutSeconds: 1800,
   pausedKeepSeconds: 604800,
   doneKeepSeconds: 86400,
+  idleEndSeconds: 1800,
   credential: { set: true, type: 'oauth_token', updatedAt: '2026-10-12T09:30:00.000Z', setBy: 'kim-hale' },
 });
 

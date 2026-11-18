@@ -268,6 +268,7 @@ const impl: Impl = {
       timeoutSeconds: 1800,
       pausedKeepSeconds: 604800,
       doneKeepSeconds: 86400,
+      idleEndSeconds: 1800,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
     return toProjectDto(row);
@@ -326,6 +327,7 @@ const impl: Impl = {
     agent.timeoutSeconds = body.timeoutSeconds;
     agent.pausedKeepSeconds = body.pausedKeepSeconds ?? agent.pausedKeepSeconds;
     agent.doneKeepSeconds = body.doneKeepSeconds ?? agent.doneKeepSeconds;
+    agent.idleEndSeconds = body.idleEndSeconds ?? agent.idleEndSeconds;
     return agent;
   },
   'agents.putCredential': ({ params, body }) => {

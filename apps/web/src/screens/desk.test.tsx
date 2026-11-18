@@ -309,12 +309,15 @@ describe('DeskAgent', () => {
     expect(screen.getByRole('button', { name: 'Save limits' })).toBeDisabled();
   });
 
-  it('idleReadOnly makes End idle runs after read-only; by default it is editable', () => {
-    const { unmount } = render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} idleReadOnly />);
-    expect(screen.getByLabelText('End idle runs after')).toHaveAttribute('readonly');
-    unmount();
-    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} />);
-    expect(screen.getByLabelText('End idle runs after')).not.toHaveAttribute('readonly');
+  it('End idle runs after is an editable number field and its value goes to onSaveLimits', async () => {
+    const onSaveLimits = vi.fn();
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} onSaveLimits={onSaveLimits} />);
+    const idle = screen.getByLabelText('End idle runs after');
+    expect(idle).not.toHaveAttribute('readonly');
+    await userEvent.clear(idle);
+    await userEvent.type(idle, '45');
+    await userEvent.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(onSaveLimits).toHaveBeenCalledWith(expect.objectContaining({ idleEndMinutes: 45 }));
   });
 
   it('a controlled trigger shows the given mode with its error', () => {

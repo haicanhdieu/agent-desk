@@ -166,6 +166,42 @@ describe('desk agent route', () => {
     expect(agentRow().pausedKeepSeconds).toBe(259200);
   });
 
+  it('shows the idle end from the agent as an editable field', async () => {
+    await openPage();
+    const idle = field('End idle runs after');
+    expect(idle).toHaveValue('30');
+    expect(idle).not.toHaveAttribute('readonly');
+  });
+
+  it('saving 90 minutes for idle runs sends idleEndSeconds 5400 and shows it after a reload', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    const idle = field('End idle runs after');
+    await user.clear(idle);
+    await user.type(idle, '90');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
+    expect(sent).toEqual([
+      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, idleEndSeconds: 5400 } },
+    ]);
+    expect(agentRow().idleEndSeconds).toBe(5400);
+    expect(field('End idle runs after')).toHaveValue('90');
+  });
+
+  it('2 minutes for idle runs shows the contract message and saves nothing', async () => {
+    const { user } = await openPage();
+    const idle = field('End idle runs after');
+    await user.clear(idle);
+    await user.type(idle, '2');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Idle runs must end after between 5 minutes and 7 days')).toBeInTheDocument();
+    expect(idle).toHaveAttribute('aria-invalid', 'true');
+    expect(idle).toHaveValue('2');
+    expect(screen.queryByText('Limits saved')).toBeNull();
+    expect(agentRow().idleEndSeconds).toBe(1800);
+  });
+
   it('0 for a finished run sends doneKeepSeconds 0', async () => {
     const sent = captureWrites();
     const { user } = await openPage();
@@ -224,20 +260,6 @@ describe('desk agent route', () => {
     await waitFor(() => expect(agentRow().timeoutSeconds).toBe(2700));
     expect(projectRow()).toMatchObject({ maxConcurrentRuns: 3, maxRunsPerTicket: 20 });
     expect(await screen.findByText('Limits saved')).toBeInTheDocument();
-  });
-
-  it('the idle limit is read-only and never sent', async () => {
-    const sent = captureWrites();
-    const { user } = await openPage();
-    const idle = field('End idle runs after');
-    expect(idle).toHaveAttribute('readonly');
-    expect(idle).toHaveValue('30');
-    await user.type(idle, '5');
-    expect(idle).toHaveValue('30');
-    await user.click(screen.getByRole('button', { name: 'Save limits' }));
-    await sleep(50);
-    expect(sent).toHaveLength(0);
-    expect(screen.queryByText('Limits saved')).toBeNull();
   });
 
   it('nothing changed: Save limits sends nothing and shows no toast', async () => {
