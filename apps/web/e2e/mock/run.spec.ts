@@ -97,6 +97,28 @@ test('a live idle run opens a terminal socket (control for the pausing run)', as
   await expect.poll(sockets).toBeGreaterThan(0);
 });
 
+test('the run terminal prints Claude Code glyphs and uses a font stack that covers them, apart from the UI font', async ({
+  page,
+}) => {
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+
+  const glyphs = '● ⎿ ▐▛███▜▌ ╭─╮';
+  await terminal.click();
+  await page.keyboard.insertText(glyphs);
+  await expect(terminal).toContainText(glyphs);
+
+  // The terminal gets its own stack (--term-mono, with glyph-covering fallbacks); the UI's --mono is unchanged.
+  const stacks = await terminal.evaluate((el) => {
+    const styles = getComputedStyle(el);
+    return { term: styles.getPropertyValue('--term-mono'), ui: styles.getPropertyValue('--mono') };
+  });
+  expect(stacks.term).toContain('DejaVu Sans Mono');
+  expect(stacks.term).toContain('Apple Symbols');
+  expect(stacks.ui).not.toContain('DejaVu Sans Mono');
+});
+
 test('a run whose session is ending says so, greys its last scrollback and opens no socket', async ({ page }) => {
   const sockets = await countWebSockets(page);
   await page.goto(runUrl(ENDING_RUN));

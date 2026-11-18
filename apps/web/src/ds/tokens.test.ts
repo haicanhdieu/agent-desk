@@ -36,6 +36,17 @@ describe('tokens.css', () => {
     expect(css).toContain("--sans:'ibmplexsans'");
     expect(css).toContain("--mono:'ibmplexmono'");
   });
+  // Claude Code draws block, box and geometric glyphs (the logo, the bullets); xterm's DOM renderer draws them with
+  // the font, so the terminal stack keeps the UI font first and adds faces that cover those ranges. The UI --mono
+  // token stays as it is.
+  it('defines a terminal font stack that keeps IBM Plex Mono first and adds glyph-covering fallbacks', () => {
+    const stack = /--term-mono:([^;]*);/.exec(css)?.[1] ?? '';
+    expect(stack.startsWith("'ibmplexmono',")).toBe(true);
+    for (const face of ["'dejavusansmono'", "'applesymbols'", "'segoeuisymbol'", "'notosanssymbols2'"]) {
+      expect(stack).toContain(face);
+    }
+    expect(stack.endsWith(',monospace')).toBe(true);
+  });
 });
 
 describe('statusTokens', () => {

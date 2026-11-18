@@ -18,6 +18,10 @@
   --off: #9aa2af;
   --sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  /* The live terminal's stack: --mono first, then faces that cover the block, box and geometric glyphs Claude Code prints. */
+  --term-mono:
+    'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, 'DejaVu Sans Mono', 'Apple Symbols',
+    'Segoe UI Symbol', 'Noto Sans Symbols 2', monospace;
 
   /* surfaces */
   --input-bg: #12151a;

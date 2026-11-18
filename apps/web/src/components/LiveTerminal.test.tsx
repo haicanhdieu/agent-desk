@@ -1,7 +1,7 @@
 import { act, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { FakeFitAddon, FakeXterm } from '@/test/fakeXterm';
+import { FakeFitAddon, FakeWebglAddon, FakeXterm } from '@/test/fakeXterm';
 import LiveTerminal, { type LiveTerminalHandle } from './LiveTerminal';
 
 const encode = (s: string) => new TextEncoder().encode(s);
@@ -17,6 +17,27 @@ describe('LiveTerminal', () => {
     expect(term.options.theme).toEqual(expect.any(Object));
     expect(screen.getByRole('group', { name: 'Claude Code terminal' })).toContainElement(term.element ?? null);
     expect(onResize).toHaveBeenLastCalledWith({ cols: 120, rows: 40 });
+  });
+
+  it('renders with WebGL, which draws the box and block glyphs Claude Code prints itself', () => {
+    render(<LiveTerminal />);
+    expect(FakeXterm.latest().addons.some((a) => a instanceof FakeWebglAddon)).toBe(true);
+  });
+
+  it('falls back to the DOM renderer when the WebGL context is lost', () => {
+    render(<LiveTerminal />);
+    const webgl = FakeXterm.latest().addons.find((a) => a instanceof FakeWebglAddon);
+    expect(webgl).toBeInstanceOf(FakeWebglAddon);
+    act(() => (webgl as FakeWebglAddon).loseContext());
+    expect((webgl as FakeWebglAddon).disposed).toBe(true);
+  });
+
+  it('keeps working on the DOM renderer when WebGL cannot start', () => {
+    FakeWebglAddon.failOnActivate = true;
+    const ref = createRef<LiveTerminalHandle>();
+    render(<LiveTerminal ref={ref} />);
+    act(() => ref.current?.write('still here'));
+    expect(FakeXterm.latest().written()).toBe('still here');
   });
 
   it('write() puts bytes and text into the terminal', () => {

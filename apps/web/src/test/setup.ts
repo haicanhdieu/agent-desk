@@ -5,12 +5,13 @@ import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { FakeEventSource } from './fakeEventSource';
 import { FakeWebSocket } from './fakeWebSocket';
-import { FakeFitAddon, FakeXterm } from './fakeXterm';
+import { FakeFitAddon, FakeWebglAddon, FakeXterm } from './fakeXterm';
 
 // jsdom cannot open xterm (no canvas, matchMedia or layout): every test, the stories smoke test included, gets the
 // fakes in fakeXterm.ts, which record what is written and let tests type.
 vi.mock('@xterm/xterm', () => import('./fakeXterm'));
 vi.mock('@xterm/addon-fit', () => import('./fakeXterm'));
+vi.mock('@xterm/addon-webgl', () => import('./fakeXterm'));
 
 // jsdom has no scrolling; the router's scroll handling calls it on every navigation.
 window.scrollTo = () => undefined;
@@ -34,5 +35,6 @@ afterEach(() => {
   FakeWebSocket.reset();
   FakeXterm.reset();
   FakeFitAddon.nextSize = { cols: 80, rows: 24 };
+  FakeWebglAddon.failOnActivate = false;
 });
 afterAll(() => server.close());

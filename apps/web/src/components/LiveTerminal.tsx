@@ -1,5 +1,6 @@
 import '@xterm/xterm/css/xterm.css';
 import { FitAddon } from '@xterm/addon-fit';
+import { WebglAddon } from '@xterm/addon-webgl';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { useEffect, useImperativeHandle, useRef, type Ref } from 'react';
 import styles from './LiveTerminal.module.css';
@@ -70,6 +71,16 @@ export default function LiveTerminal({
     term.loadAddon(fit);
     term.open(host);
     termRef.current = term;
+    // The DOM renderer draws every glyph with the font, so the block and box characters Claude Code prints (its logo,
+    // frames and bullets) come out as font fallbacks. WebGL draws them itself; where it cannot start, or loses its
+    // context, the DOM renderer stays.
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch {
+      // No WebGL here: keep the DOM renderer.
+    }
 
     const report = () => callbacks.current.onResize?.({ cols: term.cols, rows: term.rows });
     const subscriptions = [
