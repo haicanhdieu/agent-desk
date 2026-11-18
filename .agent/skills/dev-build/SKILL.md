@@ -134,7 +134,7 @@ Read both yourself (`superpowers:verification-before-completion`):
 
    A failing e2e spec means the product is wrong until the builder shows, by quoting the case, that the spec departs from it. Never accept "the test was wrong" on the builder's word: open the case and the assertion.
 
-3. Self-reviewer `findings` are real until you read the code and rule otherwise. Out-of-scope changes go back to the builder to remove. If you still can't tell whether a finding is real, or its fix needs a choice no rule settles, ask the Advisor. A Verifier failure is never an Advisor question.
+3. Self-reviewer `findings` are real until you read the code and rule otherwise. Every finding that holds is fixed, minor ones and nits included; none is left for the PR. Out-of-scope changes go back to the builder to remove. If you still can't tell whether a finding is real, or its fix needs a choice no rule settles, ask the Advisor. A Verifier failure is never an Advisor question.
 
 Failures and findings go to the builder that owns the code (step 3 rules, a fresh builder prompt naming the failure); then step 4 reruns on the new head.
 
