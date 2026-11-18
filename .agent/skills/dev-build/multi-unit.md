@@ -66,13 +66,13 @@ It cuts `<integration>--u<id>` from the current `origin/<integration>` (so it bu
 
    **Before spawning**, check `model` is `tiers.medium` from `.agent/models.json` (sonnet; not opus even when sensitive), and the filled prompt contains `severity.md`, `## Reviewers`, `code-review-checklist.md` and `Every finding needs a concrete failure scenario`, and its security line is the "yes" form when sensitive.
 
-   **Read the reply yourself.** Save it to your scratchpad. Open the file:line of every critical, high and medium and confirm the scenario happens there ([dev-review severity.md](../dev-review/severity.md)); never merge or fix on the Reviewer's word alone. Lows are not fixed; keep them for the final PR. A finding you can't rule on after reading the code goes to the Advisor (Self-reviewer row, SKILL.md Decisions). Findings that hold go to a fresh Implementer of this unit in its "Findings to assess" block (it re-verifies each and fixes only the valid ones; check its `DECLINED` and `UNSURE` as SKILL.md step 4 says); then Verify (step 2) and Reviewer round 2 on the fixes. **Cap: 2 review rounds per unit.** A critical, high or medium open after round 2 blocks.
+   **Read the reply yourself.** Save it to your scratchpad. Open the file:line of every finding, low included, and confirm the scenario happens there ([dev-review severity.md](../dev-review/severity.md)); never merge or fix on the Reviewer's word alone. Fix every finding that holds, low included; none is kept for the PR. A finding you can't rule on after reading the code goes to the Advisor (Self-reviewer row, SKILL.md Decisions). Findings that hold go to a fresh Implementer of this unit in its "Findings to assess" block (it re-verifies each and fixes only the valid ones; check its `DECLINED` and `UNSURE` as SKILL.md step 4 says); then Verify (step 2) and Reviewer round 2 on the fixes. **Cap: 2 review rounds per unit.** A finding that holds, of any severity, still open after round 2 blocks.
 
 4. **Integration-test check.** The Docker-only integration tests and the patch-coverage gate can't run locally. Grep `*.int.test.ts` (and snapshots) for assertions that encode behavior this unit changed; fix those through an Implementer of this unit before merging.
 
 5. **Merge into the integration branch, locally.** Check every gate yourself on the current head, right before merging:
 
-   - the last Verify round on the unit head was green and the last review round left no critical, high or medium; the unit worktree is clean;
+   - the last Verify round on the unit head was green and the last review round left no open finding that holds, of any severity; the unit worktree is clean;
    - the unit contains the integration head: `git -C <unit worktree> fetch origin <integration>` then `git -C <unit worktree> merge-base --is-ancestor origin/<integration> HEAD`. If not (a parallel unit merged first): `git -C <unit worktree> merge --no-edit origin/<integration>`. Clean → step 2 (Verify), then back here. Conflict → `git -C <unit worktree> merge --abort`, then a fresh Implementer of this unit with the task "Merge `origin/<integration>` into this branch and resolve the conflicts, keeping both sides' intent; if the two sides want different behavior, stop and say so", then steps 2 and 3 (one review round on the merge).
 
    **One merge at a time** (the integration worktree is shared): if another unit is merging, wait for it. Then:
@@ -105,7 +105,7 @@ Spawn the **Reviewer** on the integration worktree for the whole diff: `<base>` 
 
 ## M7. Open the final PR
 
-Recheck the integration branch is pushed and clean (M4). Then SKILL.md step 5 with head = integration branch, base `main`, and the PR agent's multi-unit lines: every unit with its unit commit sha and title, the size reason, `sensitive` (yes if any unit was), and the lows the internal reviews left. Judgment calls: every unit's builders', Self-reviewers', Reviewers' and Advisor's, plus yours.
+Recheck the integration branch is pushed and clean (M4). Then SKILL.md step 5 with head = integration branch, base `main`, and the PR agent's multi-unit lines: every unit with its unit commit sha and title, the size reason, `sensitive` (yes if any unit was), and any finding an internal review declined (with its reason). Judgment calls: every unit's builders', Self-reviewers', Reviewers' and Advisor's, plus yours.
 
 On read-back also check: the body lists every unit and says it integrates internally reviewed units, and `review:sensitive` is set if any unit was sensitive. Then `board.sh status <n> "In review"`, post **PR opened** (units line filled), and report: issue, integration branch, units with their commit shas, PR URL, final verification results (failures included), judgment calls, each Advisor decision.
 
