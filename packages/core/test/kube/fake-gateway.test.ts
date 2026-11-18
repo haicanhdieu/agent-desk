@@ -39,6 +39,7 @@ const jobFor = (id: string, prompt: string, resume = false) =>
     resume,
     botName: 'bot',
     botEmail: 'bot@x.invalid',
+    author: { name: 'bot', email: 'bot@x.invalid', authorizedBy: 'bot' },
     pluginMarketplaces: {},
     setupTimeoutSeconds: 600,
     setupScript: null,

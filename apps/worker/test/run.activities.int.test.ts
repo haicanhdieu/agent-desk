@@ -433,6 +433,42 @@ describe('refreshWorkspaceToken', () => {
 });
 
 describe('createRunSecretAndJob', () => {
+  const authorEnvOf = async (triggeredBy: string | null, externalId: string | null) => {
+    const runId = await seedRun('x');
+    await asOwner((c) =>
+      c.query('update runs set triggered_by = $1, triggered_by_external_id = $2 where id = $3', [
+        triggeredBy,
+        externalId,
+        runId,
+      ]),
+    );
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(await ctxFor(runId));
+    const env = await kube.podEnv(`run-${runId}`);
+    await acts.deleteJob(await ctxFor(runId));
+    return env;
+  };
+
+  it('credits the trigger person as author and authorizer in the Job env, and keeps the bot for the trailer', async () => {
+    const env = await authorEnvOf('alice', '42');
+    expect(env).toMatchObject({
+      RUN_AUTHOR_NAME: 'alice',
+      RUN_AUTHOR_EMAIL: 'alice@users.noreply.fake.invalid',
+      RUN_AUTHORIZED_BY: 'alice',
+      BOT_NAME: config.BOT_NAME,
+      BOT_EMAIL: config.BOT_EMAIL,
+    });
+  });
+
+  it('keeps the bot as author and authorizer for an older run with no trigger person', async () => {
+    const env = await authorEnvOf(null, null);
+    expect(env).toMatchObject({
+      RUN_AUTHOR_NAME: config.BOT_NAME,
+      RUN_AUTHOR_EMAIL: config.BOT_EMAIL,
+      RUN_AUTHORIZED_BY: config.BOT_NAME,
+    });
+  });
+
   it('creates Secret and Job run-{id} once, with the clone URL and the agent credential in the Secret', async () => {
     const runId = await seedRun('please fix');
     const ctx = await ctxFor(runId);

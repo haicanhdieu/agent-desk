@@ -29,6 +29,7 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   resume: false,
   botName: 'agentdesk[bot]',
   botEmail: 'bot@example.invalid',
+  author: { name: 'alice', email: '42+alice@users.noreply.github.com', authorizedBy: 'alice' },
   pluginMarketplaces: { 'claude-plugins-official': 'anthropics/claude-plugins-official' },
   setupTimeoutSeconds: 600,
   setupScript: null,
@@ -153,6 +154,9 @@ describe('buildRunJob', () => {
       BOT_NAME: 'agentdesk[bot]',
       BOT_EMAIL: 'bot@example.invalid',
       MAX_TURNS: '30',
+      RUN_AUTHOR_NAME: 'alice',
+      RUN_AUTHOR_EMAIL: '42+alice@users.noreply.github.com',
+      RUN_AUTHORIZED_BY: 'alice',
       ANTHROPIC_MODEL: 'claude-opus-4-1',
       PLUGIN_MARKETPLACES: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
       SETUP_TIMEOUT_SECONDS: '600',
@@ -184,6 +188,25 @@ describe('buildRunJob', () => {
     for (const gone of ['PROMPT', 'CHECKOUT_REF', 'SETUP_SCRIPT', 'PLUGIN_MARKETPLACES'])
       expect(names).not.toContain(gone);
     expect(env).toContainEqual({ name: 'HOME', value: '/workspace/home' });
+  });
+
+  it('passes the run author and authorizer as env values on a fresh run and on a resume', () => {
+    for (const resume of [false, true]) {
+      const env = buildRunJob(input({ resume })).spec?.template.spec?.containers[0]?.env ?? [];
+      expect(env).toContainEqual({ name: 'RUN_AUTHOR_NAME', value: 'alice' });
+      expect(env).toContainEqual({ name: 'RUN_AUTHOR_EMAIL', value: '42+alice@users.noreply.github.com' });
+      expect(env).toContainEqual({ name: 'RUN_AUTHORIZED_BY', value: 'alice' });
+      // The bot stays for the Co-Authored-By trailer.
+      expect(env).toContainEqual({ name: 'BOT_NAME', value: 'agentdesk[bot]' });
+    }
+  });
+
+  it('keeps an odd author name a literal env value, never part of a command', () => {
+    const name = 'a$(touch x)';
+    const job = buildRunJob(input({ author: { name, email: 'e@x.invalid', authorizedBy: name } }));
+    const c = job.spec?.template.spec?.containers[0];
+    expect(c?.env).toContainEqual({ name: 'RUN_AUTHOR_NAME', value: name });
+    expect(JSON.stringify({ command: c?.command, args: c?.args })).not.toContain('touch');
   });
 
   it('a normal run has no RUN_MODE', () => {

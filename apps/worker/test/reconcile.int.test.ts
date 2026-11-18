@@ -242,6 +242,7 @@ describe('reconcile: setup tests', () => {
         resume: false,
         botName: 'bot',
         botEmail: 'bot@example.test',
+        author: { name: 'bot', email: 'bot@example.test', authorizedBy: 'bot' },
         pluginMarketplaces: {},
         setupTimeoutSeconds: 600,
         setupScript: null,
