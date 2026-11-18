@@ -474,6 +474,41 @@ describe('bootstrap and migrations', () => {
       expect(sqlText).not.toMatch(/\b(create\s+policy|alter\s+policy|grant)\b/i);
     });
 
+    it('agents.idle_end_seconds defaults to 30 minutes for new and existing agents and is limited to 5 minutes to 7 days', async () => {
+      const ins = (extra: string) =>
+        inOrg((c) =>
+          c
+            .query(
+              `insert into agents (org_id, project_id, name, model${extra ? ', ' + extra.split('=')[0] : ''})
+               values ($1, $2, 'a-${randomUUID()}', 'm'${extra ? ', ' + extra.split('=')[1] : ''})`,
+              [orgId, projectId],
+            )
+            .then(() => undefined),
+        );
+      await expect(ins('idle_end_seconds=299')).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'agents_idle_end_check',
+      });
+      await expect(ins('idle_end_seconds=604801')).rejects.toMatchObject({ code: '23514' });
+      await ins('idle_end_seconds=300');
+      await ins('idle_end_seconds=604800');
+      await ins('');
+      const rows = await query<{ idle_end_seconds: number; name: string }>(
+        env.adminUrl.replace(/\/[^/]*$/, '/agentdesk'),
+        'select idle_end_seconds, name from agents',
+      );
+      expect(rows.length).toBeGreaterThan(0);
+      // Rows inserted without the column (and every agent that existed before it) get 30 minutes.
+      expect(rows.some((r) => r.idle_end_seconds === 1800)).toBe(true);
+      for (const r of rows) expect([300, 604800, 1800]).toContain(r.idle_end_seconds);
+    });
+
+    it('the idle end migration only adds a column and a check: no row writes, no policy or grant changes', async () => {
+      const sqlText = await readFile(new URL('../migrations/0015_agent_idle_end.sql', import.meta.url), 'utf8');
+      expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
+      expect(sqlText).not.toMatch(/\b(create\s+policy|alter\s+policy|grant)\b/i);
+    });
+
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,
