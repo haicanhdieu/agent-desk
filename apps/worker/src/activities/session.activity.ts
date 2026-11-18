@@ -70,12 +70,15 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
           .set({ pauseReason: input.reason ?? 'idle_timeout' })
           .where(eq(runs.id, ctx.runId));
         // The pod's own exit code, as the cluster reported it (not the agent's end line, which the agent could forge).
-        const code = input.podExitCode;
-        if (input.reason === 'pod_lost' && code !== undefined && Number.isInteger(code) && code >= 0 && code <= 255) {
+        // Every pod_lost park writes one, with code null when there is no usable code (a vanished pod), so the page
+        // never reads the code of an earlier pause's pod_exit for this one.
+        if (input.reason === 'pod_lost') {
+          const code = input.podExitCode;
+          const valid = code !== undefined && Number.isInteger(code) && code >= 0 && code <= 255;
           await appendRunEvent(tx, ctx.orgId, {
             runId: ctx.runId,
             type: 'lifecycle',
-            payload: { kind: 'pod_exit', code },
+            payload: { kind: 'pod_exit', code: valid ? code : null },
             ts: at,
           });
         }

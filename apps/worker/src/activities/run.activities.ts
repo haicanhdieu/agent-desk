@@ -157,8 +157,8 @@ export interface RunActivities {
    * `resumeQueued`: a Resume was accepted while the session was ending; when this park keeps nothing it appends a
    * `resume_failed` lifecycle event (fixed text) so the run says why the resume did not run.
    * `podExitCode`: with reason `pod_lost`, the exit code the cluster reported for the pod (137 is a SIGKILL, what the
-   * kernel's out-of-memory kill leaves); stored as a `pod_exit` lifecycle event so the page can say why. Ignored unless it
-   * is a whole number from 0 to 255.
+   * kernel's out-of-memory kill leaves); stored as a `pod_exit` lifecycle event so the page can say why. Every `pod_lost` park
+   * writes one; its code is null unless this is a whole number from 0 to 255.
    */
   parkRun(
     ctx: RunContext,

@@ -216,6 +216,12 @@ describe('toRunDetail, paused, kept and expired sessions', () => {
       }
     });
 
+    it('a newer pod_exit without a code (pod vanished) wins over an older one: no stale exit code', () => {
+      expect(detail(lost(), [exited(137), exited(null)]).session?.headline).toBe(
+        'Paused: the pod stopped unexpectedly',
+      );
+    });
+
     it('reads the newest pod_exit event', () => {
       expect(detail(lost(), [exited(137), exited(143)]).session?.headline).toMatch(/exit code 143\)$/);
     });

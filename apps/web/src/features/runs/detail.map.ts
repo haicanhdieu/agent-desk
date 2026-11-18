@@ -113,8 +113,11 @@ const AgentExitPayload = z.object({
   code: z.number().int().min(0).max(255),
 });
 const PodExitKind = z.object({ kind: z.literal('pod_exit') });
-/** The exit code the cluster reported for a pod that was lost (written by the worker, not by anything in the pod). */
-const PodExitPayload = z.object({ kind: z.literal('pod_exit'), code: z.number().int().min(0).max(255) });
+/**
+ * The exit code the cluster reported for a pod that was lost (written by the worker, not by anything in the pod);
+ * null when the pod vanished and there was no code.
+ */
+const PodExitPayload = z.object({ kind: z.literal('pod_exit'), code: z.number().int().min(0).max(255).nullable() });
 const ResumeFailedPayload = z.object({ kind: z.literal('resume_failed'), reason: z.string().optional() });
 
 const textOf = (e: RunEventDto): string | undefined => TextPayload.safeParse(e.payload).data?.text;
@@ -410,7 +413,7 @@ function podExitCode(events: RunEventDto[]): number | undefined {
   for (let i = events.length - 1; i >= 0; i -= 1) {
     const e = events[i];
     if (e?.type !== 'lifecycle' || !PodExitKind.safeParse(e.payload).success) continue;
-    return PodExitPayload.safeParse(e.payload).data?.code;
+    return PodExitPayload.safeParse(e.payload).data?.code ?? undefined;
   }
   return undefined;
 }
