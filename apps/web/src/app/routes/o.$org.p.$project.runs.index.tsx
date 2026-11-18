@@ -103,7 +103,7 @@ function RunsRoute() {
   const needsYouRun = idle && {
     run: toRunSummary(idle, now),
     askedAgo: relativeTime(idle.idleSince ?? idle.startedAt ?? idle.queuedAt, now),
-    slotNote: idleSlotNote(dto.maxConcurrentRuns, waiting?.number),
+    slotNote: idleSlotNote(dto.maxConcurrentRuns, waiting?.number, idle.idleEndSeconds),
     href: runHref(paths, idle.number),
   };
 

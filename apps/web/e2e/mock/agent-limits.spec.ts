@@ -26,3 +26,17 @@ test('End idle runs after under 5 minutes is refused with a message and nothing 
   await expect(idleField(page)).toHaveAttribute('aria-invalid', 'true');
   await expect(page.getByText('Limits saved')).toHaveCount(0);
 });
+
+test('an idle run screen shows the End idle runs after the agent was saved with, not a fixed 30 minutes', async ({
+  page,
+}) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
+  await idleField(page).fill('10');
+  await page.getByRole('button', { name: 'Save limits' }).click();
+  await expect(page.getByText('Limits saved')).toBeVisible();
+
+  // Client-side navigation keeps the mock store (a reload would reseed it).
+  await page.getByRole('navigation', { name: 'Project' }).getByRole('link', { name: /^Runs/ }).click();
+  await expect(page.getByText(/ends on its own after 10 minutes with nobody attached/)).toBeVisible();
+  await expect(page.getByText(/Auto-finish after 10m unattended/)).toBeVisible();
+});

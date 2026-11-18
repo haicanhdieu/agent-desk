@@ -14,7 +14,6 @@ import type {
   RunSummary,
   TicketGroup,
 } from '@/mocks/types';
-import { IDLE_END_MINUTES } from '../desk/agent.form';
 import { relativeTime, timeLeft } from '../relativeTime';
 import type { CachedRun } from './queries';
 
@@ -66,6 +65,9 @@ const labelColor = (color: string) => (/^[0-9a-f]{6}$/i.test(color) ? `#${color.
 
 export const isFinal = (status: RunListItem['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
 
+/** An agent's idle end in whole minutes (the form edits it in minutes). */
+const idleEndMinutes = (idleEndSeconds: number): number => Math.round(idleEndSeconds / 60);
+
 function statusNote(dto: RunListItem, now: Date): string | undefined {
   switch (dto.status) {
     case 'queued':
@@ -73,14 +75,14 @@ function statusNote(dto: RunListItem, now: Date): string | undefined {
     case 'idle': {
       if (!dto.idleSince) return undefined;
       const waited = Math.max(0, Math.floor((now.getTime() - Date.parse(dto.idleSince)) / MIN));
-      return `Waiting ${waited}m. Auto-finish after ${IDLE_END_MINUTES}m unattended`;
+      return `Waiting ${waited}m. Auto-finish after ${idleEndMinutes(dto.idleEndSeconds)}m unattended`;
     }
     case 'running':
       return dto.waitingOn === 'background' ? 'Waiting on background work' : undefined;
     case 'done': {
       if (!dto.idleSince) return undefined;
       const ago = Math.max(0, Math.floor((now.getTime() - Date.parse(dto.idleSince)) / MIN));
-      return `Done ${ago}m ago. Auto-finish after ${IDLE_END_MINUTES}m unattended`;
+      return `Done ${ago}m ago. Auto-finish after ${idleEndMinutes(dto.idleEndSeconds)}m unattended`;
     }
     case 'failed':
     case 'timed_out':
@@ -196,15 +198,15 @@ export function todaySummary(runs: RunListItem[], now: Date): string {
 }
 
 /** The pinned banner's slot sentence for an idle run. */
-export function idleSlotNote(maxConcurrentRuns: number, waiting: number | undefined): string {
+export function idleSlotNote(maxConcurrentRuns: number, waiting: number | undefined, idleEndSeconds: number): string {
   const holds = maxConcurrentRuns === 1 ? 'It holds your only slot' : `It holds one of your ${maxConcurrentRuns} slots`;
   const queue = waiting === undefined ? '' : `, so Run ${waiting} is waiting`;
-  return `${holds}${queue}. It ends on its own after ${IDLE_END_MINUTES} minutes with nobody attached.`;
+  return `${holds}${queue}. It ends on its own after ${idleEndMinutes(idleEndSeconds)} minutes with nobody attached.`;
 }
 
 /** Local "HH:mm" when the idle run ends on its own. */
-export const idleEndsAt = (idleSince: string): string =>
-  clockTime(new Date(Date.parse(idleSince) + IDLE_END_MINUTES * MIN).toISOString());
+export const idleEndsAt = (idleSince: string, idleEndSeconds: number): string =>
+  clockTime(new Date(Date.parse(idleSince) + idleEndSeconds * 1000).toISOString());
 
 const REASONS: Record<string, string> = {
   ignored_unauthorized: 'Not a collaborator',

@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { agents, inboundEvents, projects, runEvents, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
   ACTIVE_RUN_STATUSES,
+  AGENT_IDLE_END_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   FINAL_RUN_STATUSES,
   FINISHABLE_RUN_STATUSES,
@@ -96,6 +97,7 @@ interface AgentInfo {
   name: string;
   model: string;
   timeoutSeconds: number;
+  idleEndSeconds: number;
 }
 
 @Injectable()
@@ -142,6 +144,7 @@ export class RunsService {
       setupScriptVersion: row.setupScriptVersion,
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
       timeoutSeconds: agent?.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
+      idleEndSeconds: agent?.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT,
       idleSince: row.idleSince?.toISOString() ?? null,
       waitingOn: row.waitingOn === null ? null : WaitingOn.parse(row.waitingOn),
       agentNote: row.agentNote,
@@ -157,7 +160,13 @@ export class RunsService {
     const ids = [...new Set(rows.flatMap((r) => (r.agentId === null ? [] : [r.agentId])))];
     if (ids.length === 0) return out;
     const found = await tx
-      .select({ id: agents.id, name: agents.name, model: agents.model, timeoutSeconds: agents.timeoutSeconds })
+      .select({
+        id: agents.id,
+        name: agents.name,
+        model: agents.model,
+        timeoutSeconds: agents.timeoutSeconds,
+        idleEndSeconds: agents.idleEndSeconds,
+      })
       .from(agents)
       .where(inArray(agents.id, ids));
     for (const a of found) out.set(a.id, a);

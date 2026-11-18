@@ -568,8 +568,8 @@ export function toRunDetail(
       run.idleSince && {
         idle: {
           since: clockSeconds(run.idleSince),
-          endsAt: idleEndsAt(run.idleSince),
-          slotNote: idleSlotNote(project.maxConcurrentRuns, undefined),
+          endsAt: idleEndsAt(run.idleSince, run.idleEndSeconds),
+          slotNote: idleSlotNote(project.maxConcurrentRuns, undefined, run.idleEndSeconds),
         },
       }),
     ...(timed && {

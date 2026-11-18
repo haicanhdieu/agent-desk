@@ -30,6 +30,7 @@ const run = {
   setupScriptVersion: null,
   costUsd: null,
   timeoutSeconds: 3600,
+  idleEndSeconds: 1800,
   idleSince: null,
   waitingOn: null,
   agentNote: null,
@@ -53,6 +54,18 @@ const event = {
   sessionEndingAt: null,
   pauseReason: null,
 };
+
+describe('RunDto idle end', () => {
+  it('carries the agent idle end in seconds', () => {
+    const r = RunDto.safeParse({ ...run, idleEndSeconds: 600 });
+    expect(r.success && r.data.idleEndSeconds).toBe(600);
+  });
+
+  it('requires it', () => {
+    const { idleEndSeconds: _omit, ...rest } = run;
+    expect(RunDto.safeParse(rest).success).toBe(false);
+  });
+});
 
 describe('RunDto session ending and pause reason', () => {
   it('parses with both fields null', () => {

@@ -120,6 +120,11 @@ describe('toRunSummary', () => {
     );
     expect(idle.duration).toBe('11m');
     expect(idle.statusNote).toBe('Waiting 3m. Auto-finish after 30m unattended');
+    const tenMinutes = toRunSummary(
+      run({ status: 'idle', startedAt: local(14, 9), finishedAt: null, idleSince: local(14, 17), idleEndSeconds: 600 }),
+      now,
+    );
+    expect(tenMinutes.statusNote).toBe('Waiting 3m. Auto-finish after 10m unattended');
     const failed = toRunSummary(run({ status: 'failed', failureReason: 'API authentication failed (401)' }), now);
     expect(failed.statusNote).toBe('API authentication failed (401)');
   });
@@ -162,6 +167,11 @@ describe('toRunSummary, agent state notes', () => {
       now,
     );
     expect(s.statusNote).toBe('Done 3m ago. Auto-finish after 30m unattended');
+    const short = toRunSummary(
+      run({ status: 'done', startedAt: local(14, 9), finishedAt: null, idleSince: local(14, 17), idleEndSeconds: 900 }),
+      now,
+    );
+    expect(short.statusNote).toBe('Done 3m ago. Auto-finish after 15m unattended');
   });
 });
 

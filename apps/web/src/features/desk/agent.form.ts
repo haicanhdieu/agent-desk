@@ -11,12 +11,6 @@ import { deskQueries } from './queries';
 
 // Desk, Agent & settings (spec §4.3): limits and the credential. Trigger mode and delete are in mutations.ts.
 
-/**
- * The default idle end, minutes (an agent's `idleEndSeconds` starts at 30 min). The run screens' "ends after" copy
- * still uses this: a run does not carry its agent's value yet.
- */
-export const IDLE_END_MINUTES = 30;
-
 /** The Agent & settings screen's view of the agent and project. Pass `useNow()`. */
 export function toAgentSettings(agent: AgentDto, project: ProjectDto, now: Date): AgentSettings {
   const { credential } = agent;
