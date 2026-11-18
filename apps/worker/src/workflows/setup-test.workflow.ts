@@ -1,7 +1,9 @@
 import {
   ActivityCancellationType,
   CancellationScope,
+  condition,
   isCancellation,
+  patched,
   proxyActivities,
   setHandler,
 } from '@temporalio/workflow';
@@ -21,10 +23,19 @@ const FOLLOW_TIMEOUT = '1 hour';
 const FOLLOW_HEARTBEAT_TIMEOUT = '1 minute';
 
 /**
+ * Executions started before the result stopped being kept for a TTL recorded a timer after the follow step. They
+ * replay on that path (create's `{ ttlSeconds }` result, then the wait); new ones finalize at once.
+ */
+const NO_TTL_PATCH = 'setup-test-no-ttl';
+
+/**
  * Create must settle before `finalize` runs: a Job created after finalize's deletes would be orphaned with a live
  * token. On cancel the workflow waits for the in-flight attempt (cancelling still stops retries).
  */
-const settled = proxyActivities<Pick<SetupTestActivities, 'createSetupTestJob'>>({
+const settled = proxyActivities<{
+  /** The activity now returns nothing; an execution started before `NO_TTL_PATCH` recorded `{ ttlSeconds }`. */
+  createSetupTestJob(ref: SetupTestRef): Promise<{ ttlSeconds?: number } | undefined>;
+}>({
   startToCloseTimeout: '2 minutes',
   retry: RETRY,
   cancellationType: ActivityCancellationType.WAIT_CANCELLATION_COMPLETED,
@@ -52,6 +63,8 @@ const fin = proxyActivities<Pick<SetupTestActivities, 'finalizeSetupTest'>>({
 export async function SetupTestWorkflow(input: SetupTestWorkflowInput): Promise<SetupTestOutcome> {
   const ref: SetupTestRef = { orgId: input.orgId, setupTestId: input.setupTestId };
   let ended = false;
+  const noTtl = patched(NO_TTL_PATCH);
+  let legacyTtlSeconds = 0;
   const state: { result: SetupTestResult } = { result: null };
   const body = new CancellationScope();
   setHandler(endSetupTest, () => {
@@ -62,7 +75,7 @@ export async function SetupTestWorkflow(input: SetupTestWorkflowInput): Promise<
   try {
     try {
       await body.run(async () => {
-        await settled.createSetupTestJob(ref);
+        legacyTtlSeconds = (await settled.createSetupTestJob(ref))?.ttlSeconds ?? 0;
         state.result = await follow.followSetupTestLogs(ref);
       });
     } catch (err) {
@@ -70,6 +83,8 @@ export async function SetupTestWorkflow(input: SetupTestWorkflowInput): Promise<
       // workflow) is rethrown after finalize.
       if (!(ended && isCancellation(err))) throw err;
     }
+    // Pre-patch executions keep the workspace for the TTL once there is a result, or until the end signal.
+    if (!noTtl && state.result !== null) await condition(() => ended, legacyTtlSeconds * 1000);
   } finally {
     await CancellationScope.nonCancellable(() => fin.finalizeSetupTest(ref));
   }

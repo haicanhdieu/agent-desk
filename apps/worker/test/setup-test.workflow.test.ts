@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -13,6 +14,7 @@ import type { SetupTestActivities, SetupTestRef, SetupTestResult } from '../src/
 let env: TestWorkflowEnvironment;
 let worker: Worker;
 let running: Promise<void>;
+const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}-history.json`, import.meta.url));
 const workflowsPath = fileURLToPath(new URL('../src/workflows/index.ts', import.meta.url));
 
 interface Script {
@@ -200,5 +202,17 @@ describe('SetupTestWorkflow', () => {
     await h.cancel();
     await expect(h.result()).rejects.toBeInstanceOf(WorkflowFailedError);
     expect(s.calls.filter((c) => c === 'finalize')).toHaveLength(1);
+  });
+
+  it('replay: a history from this workflow, and one recorded before the TTL wait was removed, replay without nondeterminism', async () => {
+    const { ref } = newTest();
+    const h = await start(ref);
+    await h.result();
+    await Worker.runReplayHistory({ workflowsPath }, await h.fetchHistory(), h.workflowId);
+    // `setup-test-ttl-timer` was recorded from the workflow that waited out the TTL after the result (create returned
+    // `{ ttlSeconds }`, then a timer). An open test like it must replay on the old path: finalizing at once is a
+    // non-determinism error.
+    const json: unknown = JSON.parse(await readFile(fixture('setup-test-ttl-timer'), 'utf8'));
+    await Worker.runReplayHistory({ workflowsPath }, json, 'fixture-setup-test-ttl-timer');
   });
 });
