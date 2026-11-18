@@ -32,7 +32,13 @@ export function Button({
   children,
   ...rest
 }: ButtonProps) {
-  const cls = classes(variant, size, undefined, className);
+  // A pressed toggle (aria-pressed) gets the selected look; an unpressed one stays neutral.
+  const cls = classes(
+    variant,
+    size,
+    rest['aria-pressed'] === true || rest['aria-pressed'] === 'true' ? styles.pressed : undefined,
+    className,
+  );
   const content = (
     <>
       {icon && <Icon name={icon} />}

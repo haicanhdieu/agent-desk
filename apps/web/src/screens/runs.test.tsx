@@ -101,11 +101,13 @@ describe('Runs', () => {
     const groupTitle = 'Rate-limit the public webhook endpoint';
     const idsBefore = runIds().sort((a, b) => a - b);
     expect(toggle()).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle()).toHaveClass('pressed');
     expect(screen.getByText(groupTitle)).toBeInTheDocument();
     expect(container.querySelectorAll('tr')).toHaveLength(1 + 6 + 9);
 
     await userEvent.click(toggle());
     expect(toggle()).toHaveAttribute('aria-pressed', 'false');
+    expect(toggle()).not.toHaveClass('pressed');
     expect(screen.queryByText(groupTitle)).not.toBeInTheDocument();
     expect(container.querySelectorAll('tr')).toHaveLength(1 + 9);
     expect(runIds().sort((a, b) => a - b)).toEqual(idsBefore);
@@ -113,6 +115,7 @@ describe('Runs', () => {
 
     await userEvent.click(toggle());
     expect(toggle()).toHaveAttribute('aria-pressed', 'true');
+    expect(toggle()).toHaveClass('pressed');
     expect(screen.getByText(groupTitle)).toBeInTheDocument();
     expect(container.querySelectorAll('tr')).toHaveLength(1 + 6 + 9);
   });

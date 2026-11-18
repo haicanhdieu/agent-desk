@@ -51,6 +51,17 @@ describe('Button', () => {
     render(<Button aria-pressed={true}>Grouped by ticket</Button>);
     expect(screen.getByRole('button', { name: 'Grouped by ticket' })).toHaveAttribute('aria-pressed', 'true');
   });
+
+  it('styles a pressed toggle as selected and an unpressed or plain button as neutral', () => {
+    const { rerender } = render(<Button aria-pressed={true}>Grouped by ticket</Button>);
+    const toggle = () => screen.getByRole('button', { name: 'Grouped by ticket' });
+    expect(toggle()).toHaveClass('btn', 'pressed');
+    rerender(<Button aria-pressed={false}>Grouped by ticket</Button>);
+    expect(toggle()).toHaveClass('btn');
+    expect(toggle()).not.toHaveClass('pressed');
+    rerender(<Button>Grouped by ticket</Button>);
+    expect(toggle()).not.toHaveClass('pressed');
+  });
 });
 
 describe('IconButton', () => {
