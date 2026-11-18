@@ -29,11 +29,11 @@ import {
   runJobName,
   runLabels,
   runPodConfigFrom,
+  resolveRunAuthor,
   runVolumeName,
   toAdapterProject,
   type AdapterProject,
   type AdapterRegistry,
-  type CodeHostAdapter,
   type Clock,
   type EndReason,
   type LogLineKind,
@@ -277,34 +277,6 @@ interface RunDetails {
   /** Login and provider user id of the person who triggered the run; null on runs created before they were recorded. */
   triggeredBy: string | null;
   triggeredByExternalId: string | null;
-}
-
-// A login becomes an env value in the run pod, so only the characters a provider login uses may get through.
-const SAFE_LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]*(\[bot\])?$/;
-const SAFE_EXTERNAL_ID = /^[A-Za-z0-9_-]+$/;
-
-/**
- * The identity a run's commits carry and the name its PR says authorized it. The trigger person when there is one
- * (a recorded login that is not the bot, with a provider user id); otherwise the bot, so nobody is credited who did
- * not authorize the run. The login is untrusted text, so an odd value falls back to the bot too.
- */
-export function resolveRunAuthor(
-  run: Pick<RunDetails, 'triggeredBy' | 'triggeredByExternalId'>,
-  bot: { name: string; email: string },
-  codeHost: Pick<CodeHostAdapter, 'commitIdentity'>,
-): { name: string; email: string; authorizedBy: string } {
-  const { triggeredBy, triggeredByExternalId } = run;
-  if (
-    triggeredBy === null ||
-    triggeredBy === bot.name ||
-    triggeredByExternalId === null ||
-    !SAFE_LOGIN.test(triggeredBy) ||
-    !SAFE_EXTERNAL_ID.test(triggeredByExternalId)
-  ) {
-    return { ...bot, authorizedBy: bot.name };
-  }
-  const identity = codeHost.commitIdentity({ login: triggeredBy, externalId: triggeredByExternalId });
-  return { ...identity, authorizedBy: triggeredBy };
 }
 
 export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {

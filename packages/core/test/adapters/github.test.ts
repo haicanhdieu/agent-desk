@@ -386,6 +386,24 @@ describe('github code host', () => {
     });
   });
 
+  it.each([
+    ['a shell separator', 'a;b', '42'],
+    ['a flag-like login', '--x y', '42'],
+    ['command substitution', '$(touch x)', '42'],
+    ['a newline', 'alice\nmallory', '42'],
+    ['a leading dash', '-alice', '42'],
+    ['a non-numeric id', 'alice', '4 2;x'],
+  ])('refuses a commit identity for %s', (_label, login, externalId) => {
+    expect(host().commitIdentity({ login, externalId })).toBeNull();
+  });
+
+  it('accepts a bot login with the [bot] suffix', () => {
+    expect(host().commitIdentity({ login: 'dependabot[bot]', externalId: '7' })).toEqual({
+      name: 'dependabot[bot]',
+      email: '7+dependabot[bot]@users.noreply.github.com',
+    });
+  });
+
   it('refuses to interpolate unsafe repo paths or branch names', () => {
     expect(() => host().repoUrl({ ...project, repoPath: 'acme/widgets@evil.com/x' })).toThrow();
     expect(() => host().repoUrl({ ...project, repoPath: 'acme/../x' })).toThrow();

@@ -101,8 +101,8 @@ export interface CodeHostAdapter {
   gitCredentialUsername(): string;
   /** Name of the env var the code host's CLI reads its token from (for GitHub, `GH_TOKEN`); the runner's CLI wrapper exports it from the token file. */
   cliTokenEnvName(): string;
-  /** The git author/committer identity that credits a person (the provider's own noreply form, so commits attribute to them). */
-  commitIdentity(user: { login: string; externalId: string }): { name: string; email: string };
+  /** The git author/committer identity that credits a person (the provider's own noreply form, so commits attribute to them). Null when the login or id is not valid for the provider. */
+  commitIdentity(user: { login: string; externalId: string }): { name: string; email: string } | null;
   checkoutRef(ticket: CheckoutTicket): string;
   listSkills(project: AdapterProject): Promise<SkillSummaryDto[]>;
   readSkill(project: AdapterProject, name: string): Promise<SkillDto>;

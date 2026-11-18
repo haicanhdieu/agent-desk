@@ -109,6 +109,11 @@ describe('fake code host', () => {
     });
   });
 
+  it('refuses a commit identity for an unsafe login', () => {
+    const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
+    expect(host.commitIdentity({ login: 'a;b', externalId: '1' })).toBeNull();
+  });
+
   it('writeSkill then readSkill round-trips with a new sha; conflicts are detected', async () => {
     const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
     const w1 = await host.writeSkill(project, 'fix', '---\ndescription: Fixes\n---\nv1', 'add');
