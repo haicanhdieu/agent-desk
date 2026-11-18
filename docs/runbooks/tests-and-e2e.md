@@ -63,6 +63,7 @@ pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "<tit
 
 - `pnpm --filter @agentdesk/web test:e2e:mock` and `devbox run e2e-local` run every spec; use them only for a final check when asked. `scripts/e2e-local.ts` has no filter, so cover new cross-component behaviour with a Playwright local spec or a new scenario there.
 - A local spec that needs short idle times uses the env from §4.
+- Run identity: the worker gives each run pod `RUN_AUTHOR_NAME`, `RUN_AUTHOR_EMAIL` (the trigger person's commit identity, or the bot's) and `RUN_AUTHORIZED_BY` (the login the `gh` wrapper writes as `Authorized by` into the PR body). The fake pod runs no git or `gh`, so the local spec only sees the `agentdesk: git identity` line in the pod log; commit author, trailer and PR line are tested with real git and a stub `gh` in `images/runner/test`. `git commit --no-verify` skips the trailer hook (author and committer stay right).
 - If the stack cannot start (no Docker engine, runner pod), say so in the PR and list the specs written but not run; never tick them as passed.
 
 ## 4. Full local end-to-end

@@ -1,5 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { mkdir, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
@@ -82,7 +83,13 @@ async function signInAndCreateProject(page: Page): Promise<{ handle: string; pro
 }
 
 /** A pull request on the fake board with a webhook comment; returns the run it created. */
-async function commentOnNewTicket(page: Page, handle: string, projectId: string, body: string): Promise<string> {
+async function commentOnNewTicket(
+  page: Page,
+  handle: string,
+  projectId: string,
+  body: string,
+  author?: string,
+): Promise<string> {
   const ticketNumber = randomInt(100_000, 1_000_000_000);
   await ok(
     await page.request.post('/dev/fake/tickets', {
@@ -94,7 +101,7 @@ async function commentOnNewTicket(page: Page, handle: string, projectId: string,
   const comment = CommentResult.parse(
     await ok(
       await page.request.post('/dev/fake/comments', {
-        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId },
+        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId, ...(author ? { author } : {}) },
       }),
       201,
       'fake comment',
@@ -356,6 +363,43 @@ test.describe('pause and resume', () => {
       .toBeGreaterThanOrEqual(2);
 
     await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel').catch(() => null);
+  });
+});
+
+/*
+ * Run identity. The fake pod runs no git and no `gh`, so there is no fake repo to read a commit author or a PR body
+ * from. What this proves is that the person who triggered the run reaches the pod as its git identity (the pod's log line
+ * `agentdesk: git identity <name> <email>`, read from the fake cluster's state dir); the real entrypoint, commit hook and
+ * `gh` wrapper are proven with real git and a stub `gh` in images/runner/test (entrypoint, commit-trailer and
+ * gh-authorized-by tests). Needs the stack's state dir: E2E_FAKE_STATE_DIR when it is not the default.
+ */
+test.describe('run identity', () => {
+  /** The pod's stdout so far (the fake cluster keeps it in the run's pod dir while the pod exists). */
+  async function podLog(runId: string): Promise<string> {
+    return readFile(`${FAKE_STATE_DIR}/kube/run-${runId}/log`, 'utf8').catch(() => '');
+  }
+  const identityLine = (log: string) => log.split('\n').find((l) => l.startsWith('agentdesk: git identity '));
+
+  test('a run is committed as the person whose comment started it, and as the bot when the bot started it', async ({
+    page,
+  }) => {
+    const { handle, projectId } = await signInAndCreateProject(page);
+
+    // A person's comment: their login and noreply address are the git identity, never the bot.
+    const personRun = await commentOnNewTicket(page, handle, projectId, '/code-review', handle);
+    await expect
+      .poll(async () => identityLine(await podLog(personRun)), { timeout: 60_000 })
+      .toBe(`agentdesk: git identity ${handle} ${handle}@users.noreply.fake.invalid`);
+    expect(await podLog(personRun)).not.toContain('agentdesk[bot]');
+    await ok(await page.request.post(`/api/runs/${personRun}/cancel`), 202, 'cancel').catch(() => null);
+
+    // The bot's own comment: nobody is credited who did not authorize the run, so the identity stays the bot.
+    const botRun = await commentOnNewTicket(page, handle, projectId, '/code-review', 'agentdesk[bot]');
+    await expect
+      .poll(async () => identityLine(await podLog(botRun)), { timeout: 60_000 })
+      .toMatch(/^agentdesk: git identity agentdesk\[bot\] \S+$/);
+    expect(await podLog(botRun)).not.toContain(handle);
+    await ok(await page.request.post(`/api/runs/${botRun}/cancel`), 202, 'cancel').catch(() => null);
   });
 });
 
