@@ -255,6 +255,34 @@ describe('loadRun', () => {
     expect(quick.idleEndSeconds).toBe(7);
   });
 
+  describe('idle end per agent', () => {
+    const setIdle = (seconds: number) =>
+      asOwner((c) => c.query(`update agents set idle_end_seconds = $1 where id = $2`, [seconds, AGENT]));
+    afterEach(() => setIdle(1800));
+
+    it('takes the idle end from the run agent (agents.idle_end_seconds), not a fixed value', async () => {
+      await setIdle(900);
+      const runId = await seedRun('x', 'queued');
+      expect((await ctxFor(runId)).idleEndSeconds).toBe(900);
+    });
+
+    it('RUN_IDLE_END_SECONDS, when set away from its default, still wins so the local stack can pause quickly', async () => {
+      await setIdle(900);
+      const runId = await seedRun('x', 'queued');
+      const quick = await createRunActivities(deps({ config: { ...config, RUN_IDLE_END_SECONDS: 7 } })).loadRun(
+        ORG,
+        runId,
+      );
+      expect(quick.idleEndSeconds).toBe(7);
+    });
+
+    it('an agent deleted after queueing falls back to the 30 minute default', async () => {
+      const runId = await seedRun('x', 'queued');
+      await asOwner((c) => c.query(`update runs set agent_id = null where id = $1`, [runId]));
+      expect((await ctxFor(runId)).idleEndSeconds).toBe(1800);
+    });
+  });
+
   it('missing run → non-retryable', async () => {
     const err = await createRunActivities(deps())
       .loadRun(ORG, '99999999-9999-4999-8999-999999999999')

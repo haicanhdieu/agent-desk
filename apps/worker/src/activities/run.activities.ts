@@ -26,7 +26,7 @@ export interface RunContext {
   timeoutSeconds: number;
   /** The project's `max_concurrent_runs`; seeds the gate when this run starts it. */
   maxConcurrentRuns: number;
-  /** Idle end, seconds. Normally `IDLE_END_SECONDS` (1800); a field so the policy is not baked into workflow code. */
+  /** Idle end, seconds. The agent's `idleEndSeconds` (default `IDLE_END_SECONDS`, 1800); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
   /** Seconds an `ending` session may take before the Job is deleted (normally `ENDING_DEADLINE_SECONDS`, 90); a test seam. */
   endingDeadlineSeconds?: number;
