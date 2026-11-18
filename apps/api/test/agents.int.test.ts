@@ -58,6 +58,7 @@ describe('agents', () => {
       model: 'sonnet',
       maxTurns: 50,
       timeoutSeconds: 86400,
+      idleEndSeconds: 1800,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
   });
@@ -82,6 +83,27 @@ describe('agents', () => {
       pausedKeepSeconds: 86400,
       doneKeepSeconds: 0,
     });
+  });
+
+  it('PUT saves the idle end, omitting it keeps the stored value, and GET returns it', async () => {
+    const saved = expectContract(
+      'agents.put',
+      await putAgent({ model: 'sonnet', timeoutSeconds: 86400, idleEndSeconds: 900 }),
+    );
+    expect(saved).toMatchObject({ idleEndSeconds: 900 });
+    const kept = expectContract('agents.put', await putAgent({ model: 'opus', timeoutSeconds: 86400 }));
+    expect(kept).toMatchObject({ idleEndSeconds: 900 });
+    expect(expectContract('agents.get', await getAgent())).toMatchObject({ idleEndSeconds: 900 });
+  });
+
+  it('PUT with an idle end under 5 minutes or over 7 days is a 400 with pointer /idleEndSeconds', async () => {
+    for (const idleEndSeconds of [299, 604801]) {
+      const res = await putAgent({ model: 'sonnet', timeoutSeconds: 86400, idleEndSeconds });
+      expect(res.statusCode).toBe(400);
+      const errors = (res.json() as { errors: { pointer: string; detail: string }[] }).errors;
+      expect(errors.map((e) => e.pointer)).toContain('/idleEndSeconds');
+      expect(errors.map((e) => e.detail).join(' ')).toMatch(/5 minutes and 7 days/);
+    }
   });
 
   it('PUT accepts a limit over the old 3300 s cap, up to 7 days', async () => {

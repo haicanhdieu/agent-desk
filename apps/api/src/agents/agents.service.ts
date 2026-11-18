@@ -27,6 +27,7 @@ function toDto(row: AgentRow): AgentDto {
     timeoutSeconds: row.timeoutSeconds,
     pausedKeepSeconds: row.pausedKeepSeconds,
     doneKeepSeconds: row.doneKeepSeconds,
+    idleEndSeconds: row.idleEndSeconds,
     credential: {
       set: type !== null && row.credentialUpdatedAt !== null,
       type,
@@ -64,6 +65,7 @@ export class AgentsService {
           // Absent keeps the stored value (undefined is skipped by drizzle).
           pausedKeepSeconds: body.pausedKeepSeconds,
           doneKeepSeconds: body.doneKeepSeconds,
+          idleEndSeconds: body.idleEndSeconds,
         })
         .where(eq(agents.projectId, projectId))
         .returning();
