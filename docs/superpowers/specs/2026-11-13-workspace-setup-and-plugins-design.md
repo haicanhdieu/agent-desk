@@ -16,7 +16,7 @@ Success: a project whose repo enables plugins from the approved store and has a 
 Goals
 - Every run (and every setup test) installs approved plugins the repo enables, then runs the repo's setup script, then starts the agent.
 - Users edit the setup script in the web app during onboarding **and** later from project settings (Desk), with the same editor and Test button.
-- Test = a throwaway workspace running the exact same steps as a real run, with live log and an attachable terminal.
+- Test = a throwaway workspace running the exact same steps as a real run, with a live log. The pod is deleted as soon as the result is recorded ([ADR 0025](../../adr/0025-setup-test-pod-deleted-when-the-result-is-recorded.md)).
 - A failing setup in a real run stops before the agent starts, labelled distinctly from agent failures.
 
 Non-goals (v1)
@@ -39,17 +39,17 @@ Anti-goals (would be failures even if it "works")
 |---|---|---|
 | 1 | What kind of setup | **Setup script only** (commands a non-root user can run). Design so a menu of base images can be added later. |
 | 2 | Plugins | **Auto-install what the repo enables, only from approved stores.** v1: approved = Anthropic's official store, platform-configured. The UI shows which plugins load and which were blocked. |
-| 3 | Testing | **Throwaway test workspace with live log + terminal.** Available in onboarding **and** in project settings later. A failing last test **warns, does not block** going live. |
+| 3 | Testing | **Throwaway test workspace with live log.** (A terminal into the test pod was dropped, ADR 0025.) Available in onboarding **and** in project settings later. A failing last test **warns, does not block** going live. |
 | 4 | Where the script lives | **Stored by Agent Desk** (Postgres, per project, versioned), **not in the repo**. Saving is instant; every save is a new version with author and time; any version can be restored. Every run records the version it used. (The user first chose "in the repo", then changed to this.) |
 | 5 | How Save reaches the repo | **Moot** (the script is not in the repo). The PR-flow follow-up the user asked for stays, for Skills (F1). |
 | 6 | Secrets | **None in v1.** |
 | 7 | Setup fails in a real run | **Stop the run as "Setup failed"**, agent never starts, ticket comment links the log. Plugin install failure: continue with a warning. |
-| 8 | Credentials visible to setup | **Accepted, recorded in the ADR.** Setup runs with the pod's existing env (workspace token file, agent credential). Only Agent Desk users allowed to edit the project's setup can change the script, and they can already attach to run terminals where the same credentials are visible, so setup adds no new exposure. Hiding credentials from setup and the agent is follow-up F6. Test pods get no agent credential, but carry the write-scoped workspace token (a mounted file, ADR 0021), and the editor gets a shell with them for the test's TTL. |
+| 8 | Credentials visible to setup | **Accepted, recorded in the ADR.** Setup runs with the pod's existing env (workspace token file, agent credential). Only Agent Desk users allowed to edit the project's setup can change the script, and they can already attach to run terminals where the same credentials are visible, so setup adds no new exposure. Hiding credentials from setup and the agent is follow-up F6. Test pods get no agent credential, but carry the write-scoped workspace token (a mounted file, ADR 0021), and, until ADR 0025, the editor got a shell with them for the test's TTL; the pod is now deleted as soon as the result is recorded. |
 | — | Build approach | **Approach 1** (phases in the existing entrypoint; test = same Job in test mode). |
 
 ## 4. Approaches considered
 
-1. **Phases in the existing entrypoint (chosen).** `entrypoint.sh` becomes clone → plugins → setup → agent. A test is the same Job with `RUN_MODE=setup_test`: same phases, then an idle shell in tmux instead of Claude. Test and real runs share one code path, so a pass means something, and log streaming, terminal relay and Job lifecycle are reused. Cost: the entrypoint grows and needs careful tests.
+1. **Phases in the existing entrypoint (chosen).** `entrypoint.sh` becomes clone → plugins → setup → agent. A test is the same Job with `RUN_MODE=setup_test`: same phases, then (as originally designed, see ADR 0025) an idle shell in tmux instead of Claude. Test and real runs share one code path, so a pass means something, and log streaming, terminal relay and Job lifecycle are reused. Cost: the entrypoint grows and needs careful tests.
 2. **Init container for preparation.** Cleaner separation on paper, but a failed init container leaves nothing to attach a terminal to (breaks decision 3), and HOME/plugins must be shared across containers on a volume. Rejected.
 3. **Pre-built per-project image.** Fastest runs, but it is the custom-image path ruled out by decision 1 (image builds, storage, rebuild triggers). Possible later optimisation.
 
@@ -73,7 +73,7 @@ Order, same in both modes:
    - Output goes to stdout (so it lands in pod logs → `run_events`). Credentials are already redacted from stored output by the existing redaction.
    - Non-zero exit or timeout: real-run mode prints the failure marker and exits with the dedicated setup-failure exit code without starting Claude.
 4. **Agent** (real run, unchanged): tmux session `agent` running Claude.
-   **Idle shell** (test mode): tmux session `agent` running `bash -l` in `$REPO_DIR`, so the existing terminal relay (`tmux attach -t agent`) works unchanged. Started whether setup passed or failed, so the user can debug. The pod lives until the test's lifetime ends (§5.3) or the user ends it.
+   **Idle shell** (test mode): tmux session `agent` running `bash -l` in `$REPO_DIR`, so the existing terminal relay (`tmux attach -t agent`) works unchanged. Started whether setup passed or failed, so the user can debug. The worker deletes the pod as soon as the result is recorded (§5.3, ADR 0025), so nobody attaches to this shell.
 
 New stdout markers (exact strings fixed by the builder, added to the runner contract):
 `agentdesk: plugins begin`, `agentdesk: plugin installed <id>`, `agentdesk: plugin skipped <id> (store not approved)`, `agentdesk: plugin failed <id>`, `agentdesk: plugins end`, `agentdesk: setup begin`, `agentdesk: setup skipped (no script)`, `agentdesk: setup passed`, `agentdesk: setup failed exit=<n>` / `agentdesk: setup timed out`. The existing `agentdesk: session started` still marks the agent (or idle shell) start.
@@ -88,14 +88,14 @@ New stdout markers (exact strings fixed by the builder, added to the runner cont
 ### 5.3 Setup tests
 
 - **Model.** A separate entity, not a row in `runs` (runs carry ticket fields, numbering, slots, rules and counts that do not apply). Suggested: table `setup_tests` (org-scoped, RLS via `orgPolicy`, `withOrg`): `id, org_id, project_id, status (queued|running|passed|failed|ended), script_sha256, checkout_sha, plugins jsonb (installed/skipped/failed ids), exit_code, started_by, created_at, finished_at`. A test runs the editor draft, which may be unsaved; the draft reaches the pod as an env value and only its hash is kept on the test, so the UI can say whether the last test matches the current saved version.
-- **Lifecycle.** A small Temporal workflow (`SetupTestWorkflow`) creates the Job (via `KubeGateway`, labelled distinctly, e.g. `agentdesk/kind=setup-test`), follows logs, records the result at `agentdesk: session started` (or when the log ends) from the last `setup passed/failed/timed out/skipped` marker seen, then keeps the pod alive for **15 minutes** (or until "End test"), then deletes it. A test that reaches no result (the pod died first) is ended at once, with no TTL wait. Test pods share the run namespace's `ResourceQuota` (ADR 0019, negative consequences). One active test per project: starting a new test ends the previous one. Tests do not consume the project's run slots.
+- **Lifecycle.** A small Temporal workflow (`SetupTestWorkflow`) creates the Job (via `KubeGateway`, labelled distinctly, e.g. `agentdesk/kind=setup-test`), follows logs, records the result at `agentdesk: session started` (or when the log ends) from the last `setup passed/failed/timed out/skipped` marker seen, then **deletes the pod at once** (ADR 0025): pass, fail, no result (the pod died first) and an ended test are all finalized the same way, and the stored result and log stay. "End test" (the `endSetupTest` signal) only stops a test still in flight. Test pods share the run namespace's `ResourceQuota` (ADR 0019, negative consequences). One active test per project: starting a new test ends the previous one. Tests do not consume the project's run slots.
 - **Credentials in the test pod:** the workspace token file (same as runs, not refreshed), **no agent credential** (Claude is not started).
 - **API** (contracts first, `packages/contracts`):
   - `POST /api/projects/:projectId/setup-tests` body `{ script: string }` (max 64 KiB) → `SetupTestDto`
   - `GET /api/projects/:projectId/setup-tests/latest` → `SetupTestDto | null`
   - `GET /api/setup-tests/:id/events` (SSE, same shape as run events)
   - `POST /api/setup-tests/:id/end`
-  - `GET /api/setup-tests/:id/terminal` (WebSocket, same relay and close codes as runs)
+  - `GET /api/setup-tests/:id/terminal` (WebSocket, same relay and close codes as runs). No longer used by the web app (ADR 0025); a follow-up removes it.
 - **Authz** on all of them, including terminal: same rule as run terminal attach (org member and project creator or org owner).
 
 ### 5.4 Saving the script
@@ -110,7 +110,7 @@ New stdout markers (exact strings fixed by the builder, added to the runner cont
 
 ### 5.5 Web app
 
-- **Desk tab "Setup"** (`/o/$org/p/$project/desk/setup`), next to Agent / Skills / Rules: script editor, optional change note, Save, version history (who, when, note; view; restore), the run page shows "setup version N", **Test** (runs the editor draft), test panel (live log, phase checklist: clone ✓, plugins (installed/skipped/failed list), setup ✓/✗), **Open terminal** (existing terminal component), **End test**, and "Last test: passed/failed · matches current script / script changed since".
+- **Desk tab "Setup"** (`/o/$org/p/$project/desk/setup`), next to Agent / Skills / Rules: script editor, optional change note, Save, version history (who, when, note; view; restore), the run page shows "setup version N", **Test** (runs the editor draft), test panel while the test runs (live log, phase checklist: clone ✓, plugins (installed/skipped/failed list), setup ✓/✗) and **End test** (stops a test still in flight); once the result is recorded the pod is gone and the page shows the result as "Last test: passed/failed · matches current script / script changed since".
 - **Plugins panel** on the same tab: plugins the repo enables, each marked "will install" or "blocked: store not approved". Derived from the repo's `.claude/settings.json` (read via adapter) and the platform allowlist (exposed by the API).
 - **Onboarding:** new skippable step `setup` with the same component. Builder call on placement; proposed order `repo → agent → setup → skills → rules → ready`. Requires `SetupStep` enum, the `projects_setup_step_check` constraint (new migration), and `SETUP_STEPS` in the web app.
 - **Warn, don't block:** the Ready step and the Desk header show a warning if the latest test failed or the script changed since the last passing test.
@@ -118,7 +118,7 @@ New stdout markers (exact strings fixed by the builder, added to the runner cont
 
 ### 5.6 Config
 
-Platform config (infra chart supplies): `RUN_PLUGIN_MARKETPLACES` (JSON name→source, default official store), `RUN_SETUP_TIMEOUT_SECONDS` (default 600), `SETUP_TEST_TTL_SECONDS` (default 900). Pod egress must reach the plugin marketplace sources and package registries; the infra NetworkPolicy must allow it (flag to infra spec).
+Platform config (infra chart supplies): `RUN_PLUGIN_MARKETPLACES` (JSON name→source, default official store), `RUN_SETUP_TIMEOUT_SECONDS` (default 600). Pod egress must reach the plugin marketplace sources and package registries; the infra NetworkPolicy must allow it (flag to infra spec).
 
 ## 6. Constraints
 
