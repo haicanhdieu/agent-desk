@@ -647,3 +647,62 @@ describe('entrypoint stop request and agent exit file', () => {
     ]);
   });
 });
+
+describe('entrypoint git identity', () => {
+  const gitConfigs = (r: Result) =>
+    r.calls
+      .filter((c) => c.cmd === 'git' && c.argv.some((a, i) => a === 'config' && i < 3))
+      .map((c) => c.argv.slice(c.argv.indexOf('config') + 1));
+  const lastValue = (r: Result, key: string) => gitConfigs(r).findLast((c) => c[0] === key)?.[1];
+  const author = { RUN_AUTHOR_NAME: 'alice', RUN_AUTHOR_EMAIL: '42+alice@users.noreply.github.com' };
+  const bot = { BOT_NAME: 'agentdesk[bot]', BOT_EMAIL: 'bot@users.noreply.github.com' };
+  const resumable = () => {
+    const home = mkdtempSync(join(tmpdir(), 'home-'));
+    mkdirSync(join(home, '.agentdesk'));
+    writeFileSync(join(home, '.agentdesk/session-started'), '');
+    const repo = mkdtempSync(join(tmpdir(), 'repo-'));
+    mkdirSync(join(repo, '.git'));
+    return { home, repo };
+  };
+
+  it('authors commits as the run author, not the bot, on a fresh start', async () => {
+    const r = await runEntrypoint({ ...bot, ...author }, {});
+    expect(lastValue(r, 'user.name')).toBe('alice');
+    expect(lastValue(r, 'user.email')).toBe('42+alice@users.noreply.github.com');
+    expect(gitConfigs(r).flat()).not.toContain('agentdesk[bot]');
+    expect(r.stdout).toContain('agentdesk: git identity alice 42+alice@users.noreply.github.com');
+  });
+
+  it('keeps the bot identity when the Job carries no run author (older Job specs)', async () => {
+    const r = await runEntrypoint({ ...bot }, {});
+    expect(lastValue(r, 'user.name')).toBe('agentdesk[bot]');
+    expect(lastValue(r, 'user.email')).toBe('bot@users.noreply.github.com');
+  });
+
+  it('keeps the bot identity when only half of the author is given', async () => {
+    const r = await runEntrypoint({ ...bot, RUN_AUTHOR_NAME: 'alice' }, {});
+    expect(lastValue(r, 'user.name')).toBe('agentdesk[bot]');
+    expect(lastValue(r, 'user.email')).toBe('bot@users.noreply.github.com');
+  });
+
+  it('points git at the trailer hook directory', async () => {
+    const r = await runEntrypoint({ ...bot, ...author }, {});
+    expect(lastValue(r, 'core.hooksPath')).toMatch(/\/hooks$/);
+  });
+
+  it('re-applies the author on a resumed run, whatever the volume held before', async () => {
+    const { home, repo } = resumable();
+    const r = await runEntrypoint({ RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, ...bot, ...author }, {});
+    expect(lastValue(r, 'user.name')).toBe('alice');
+    expect(lastValue(r, 'user.email')).toBe('42+alice@users.noreply.github.com');
+    expect(lastValue(r, 'core.hooksPath')).toMatch(/\/hooks$/);
+    expect(r.calls.some((c) => c.cmd === 'git' && c.argv[0] === 'clone')).toBe(false);
+    expect(r.stdout).toContain('agentdesk: git identity alice 42+alice@users.noreply.github.com');
+  });
+
+  it('a resumed run with no author in the Job keeps the bot identity', async () => {
+    const { home, repo } = resumable();
+    const r = await runEntrypoint({ RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, ...bot }, {});
+    expect(lastValue(r, 'user.name')).toBe('agentdesk[bot]');
+  });
+});

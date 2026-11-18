@@ -1,0 +1,12 @@
+#!/bin/sh
+# git prepare-commit-msg hook for run pods (core.hooksPath is set by the entrypoint). It adds the bot as a
+# `Co-Authored-By:` trailer, so the person who triggered the run stays the commit's author and committer. A trailer
+# that is already there is not added again (an amend keeps one). $BOT_NAME and $BOT_EMAIL reach git as one quoted
+# argument and are never evaluated. Without them nothing is added.
+set -eu
+
+msg_file="${1:?commit message file}"
+[ -n "${BOT_NAME:-}" ] && [ -n "${BOT_EMAIL:-}" ] || exit 0
+
+git interpret-trailers --in-place --no-divider --if-exists addIfDifferent \
+  --trailer "Co-Authored-By: $BOT_NAME <$BOT_EMAIL>" "$msg_file"
