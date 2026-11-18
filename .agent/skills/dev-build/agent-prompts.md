@@ -123,6 +123,12 @@ D. UNITS (feature GO whose TASK SOURCE is a plan file, not a resume; everything 
    Add no ordering rule the plan does not state (deploy order and the like stay in the plan; the
    units only follow its dependencies).
 
+E. E2E REQUIREMENTS (feature GO). Look for a heading "## E2E requirements" in the plan file and
+   in the spec its "**Spec:**" line names (and any spec the issue links):
+   `git grep -n "^## E2E requirements" origin/main -- <those paths>`. Give every file that has
+   one. They list business rules (BR-<n>) and test cases (TC-<n.m>) the build must prove; do not
+   judge, shorten or copy them. No such heading anywhere: "none". When unsure, name the file.
+
 Reply with exactly these sections:
 VERDICT: STOP | BLOCKED | GO
 REASON: <one plain sentence>
@@ -137,6 +143,7 @@ HUMAN ANSWER: <RESUME yes only: verbatim>
 PRIOR DECISIONS: <RESUME yes only: verbatim, or "none">
 TASK SOURCE: <feature GO only: "issue body" or the plan path, and the heading or line range of the tasks>
 TASKS: <feature GO only: the ordered task titles, one per line, no more than the source lists>
+E2E REQUIREMENTS: <feature GO only: each file path with a "## E2E requirements" section, or "none">
 UNITS: <"single", or one line per unit in run order (on a multi-unit resume, copied from the units plan):
   U<id> | title: <short title> | tasks: <task titles from TASKS, comma-separated> | depends_on: <U ids, or "none"> | est_lines: <number, or "n/a" when copied on a resume>>
 UNIT STATE: <multi-unit resume only: one line per unit: U<id>: merged <sha> | started | not started>
@@ -226,6 +233,16 @@ Do this, in order:
    "superpowers:test-driven-development" and follow it for every behavior. Do not work
    from memory of it. No network in tests.
 3. If this task is in a plan file, tick its checkbox(es) in the same commit.
+   <only when E2E requirements are present, else drop this paragraph:>
+   E2E requirements: the "## E2E requirements" section of <e2e requirements file(s)> lists the
+   business rules (BR-<n>) and test cases (TC-<n.m>) a user must be able to see. When this task
+   writes or changes an e2e spec, write it from those cases: the case's Given is the setup, its
+   Steps are what the test does at the surface (the UI or the API route), and its Expected is
+   what the test asserts, in the rule's words. Name the case id in the test title
+   (`test('TC-1.2: …')`). The cases are the truth; the code is not. Never take an expected result
+   from what the code does, never shape a test or a mock so that it passes against wrong
+   behaviour, never mark one skip, fixme or only, and never edit that section. If the code cannot
+   meet a rule, or a rule looks wrong, stop and say so (blocked).
 4. Run `devbox run fix` until it prints "fix: clean.", then run only the tests you added or
    changed: `pnpm --filter @agentdesk/<pkg> exec vitest run <test files>`. Do not run the package's
    full suite, typecheck or lint: the Verifier runs them once, after the last task.
@@ -245,6 +262,12 @@ the suggested fix is safe. Fix only the valid ones. Decline the rest, each with 
 (NOT_REAL, NO_RULE_VIOLATED, OUT_OF_SCOPE, FIX_UNSAFE, ALREADY_FIXED) and evidence (file:line you
 read, test output, rule text). If you cannot tell, change nothing and list it under UNSURE. A
 failing check from the Verifier is not a finding: fix it.
+A finding that starts with "E2E" cites a business rule or test case of the E2E requirements. The
+rule is the requirement it violates: "the code does otherwise" and "the test passes" are not
+evidence against it. Fix it in the product code, or in the e2e spec where the spec departs from
+the case. Decline it only by quoting the rule or case text that shows the finding misreads it.
+The same holds for a failing e2e spec: fix the code, never the assertion, unless the assertion
+departs from the case. If you believe the rule itself is wrong, stop and say so (blocked).
 
 Do only this task; do not start the next. Never weaken a test, lint rule, type or RLS policy to pass.
 If the task contradicts the code, another task or a spec, or needs a decision it doesn't make,
@@ -298,6 +321,25 @@ If a command fails, keep going and run the rest.
    docs/runbooks/tests-and-e2e.md requires for this change>
    If a command needs something not running (Docker, the local stack), report it as
    "unavailable", not as passed.
+4. <only when the orchestrator says E2E requirements are present (single mode: every round;
+   multi-unit: the final verify), else drop this step> Run the e2e specs of this branch. This step
+   is never skipped, shortened or replaced by the unit tests, even if steps 1 to 3 failed.
+   a. List them: `git diff --name-only <base>...HEAD -- apps/web/e2e`. Copy the list.
+   b. Skipped tests: `grep -nE "\.(skip|fixme|only)\(|test\.describe\.configure" <each listed spec file>`.
+      Copy the output (empty is fine). Do not judge it.
+   c. Mock specs (under apps/web/e2e/mock/), if any are listed:
+      pnpm --filter @agentdesk/web exec vite build --mode mock
+      pnpm --filter @agentdesk/web exec playwright test <the listed mock spec files, relative to apps/web>
+   d. Local specs (under apps/web/e2e/local/), if any are listed: they need the local stack,
+      started from THIS worktree (docs/runbooks/tests-and-e2e.md §4; in a runner pod §4a,
+      `scripts/runner-stack.sh up`). Check `devbox services ls`; if api and web are not Ready,
+      run `devbox run dev-bg` here and wait until they are. Then:
+      pnpm --filter @agentdesk/web exec playwright test <the listed local spec files, relative to apps/web>
+      If you started the stack, stop it afterwards (`devbox run stop`). If the stack cannot
+      start, or you cannot tell that the running one was started from this worktree, report the
+      local specs as "unavailable" with the exact command and its last output lines. Unavailable
+      is never passed, and never a reason to leave out step c.
+   e. If the list in (a) is empty, report exactly: "no e2e spec added or changed on this branch".
 
 Reply with exactly these sections. Copy output verbatim; never summarize or reword it:
 HEAD: <git rev-parse HEAD>
@@ -307,6 +349,9 @@ RESULTS: one block per command:
   EXIT: <exit code>
   OUTPUT (last 20 lines): <verbatim>
 REGRESSION CHECK: <bug only: "failed without the fix as expected" | "PASSED without the fix" | "not run: <why>", with the verbatim last 10 lines of step 2b>
+E2E: <step 4 only: the spec list from (a); the grep output from (b); then one RESULTS block per
+  playwright command, with the full list of test titles and their pass/fail lines instead of the
+  last 20 lines; "unavailable: <command and output>" for what could not run; or the sentence from (e)>
 TREE CLEAN AFTER: yes | no (<git status --porcelain output>)
 ```
 
@@ -345,12 +390,45 @@ Do this:
    - feature: every behavior in the tasks has a test in the diff. A task with source changes
      and no tests is a failure.
 5. Do not repeat what lint, typecheck and the tests already check.
+6. <only when E2E requirements are present, else drop this step> E2E requirements. Do this step
+   in full every round, whatever the rest of the diff looks like; it is never skipped.
+   The section "## E2E requirements" of <e2e requirements file(s)> (read it with
+   `git show HEAD:<path>`) lists business rules (BR-<n>) and test cases (TC-<n.m>).
+   <single mode or final: "Check every rule and every case." | unit: "Check the rules and cases
+   this unit's tasks name: <ids>.">
+   Those rules and cases are the only truth about what a user must see. Everything in the diff is
+   under suspicion: the product code, the mocks and fixtures, and the e2e specs themselves were
+   written by an agent and may be wrong, and a passing test proves nothing if the test is wrong.
+   Never learn an expected result from the code or from a test, and never decide a rule is
+   outdated, too strict or "really means" something else because the code does otherwise.
+   For each case:
+   a. Find its e2e test at HEAD (`git grep -n "<TC id>" HEAD -- apps/web/e2e`, then by behaviour
+      if the id is not in a title). It must be under apps/web/e2e/mock or apps/web/e2e/local as
+      the case's Env says. No test: a finding.
+   b. Read the test next to the case. Its setup must give the case's Given. Its actions must be
+      the case's Steps, done at the surface the case names (through the UI or the API route, not
+      by calling internals or seeding the end result). Its assertions must check all of the
+      case's Expected, as the rule states it. A missing, weaker (the element exists, but not its
+      text, value or state), different or conditional assertion is a finding.
+   c. A test that cannot fail is a finding: skip, fixme, only, an early return, a swallowed error,
+      a soft or commented-out assertion, or a mock handler or fixture that hands back the expected
+      answer for behaviour the case says to prove on the local stack.
+   d. Then read the product code this diff adds or changes for that rule and follow it from the
+      user's action to what they see. If a user would not see the rule's Expected (a wrong
+      condition, a missing state, another message, a role that should be refused and is not),
+      that is a finding even when its test passes.
+   The diff must not edit the "## E2E requirements" section: a change to it is a finding.
+   Start each of these findings with "E2E <BR id>/<TC id>:" and quote the Expected text it
+   breaks. A rule that contradicts another rule, or cannot be checked as written, is a finding
+   that starts with "E2E RULE:"; do not resolve it yourself.
 
 Reply with exactly these sections:
 VERDICT: clean | findings
 FINDINGS: <one per line: file:line, what is wrong, why it matters; or "none">
 SCOPE: <changed lines, out-of-scope changes or "none">
 TDD EVIDENCE: <what you checked and what you found>
+E2E COVERAGE: <step 6 only: one line per case you were told to check, none left out:
+  <TC id> → <test file:line, or "no test"> → matches | finding; otherwise "no E2E requirements">
 JUDGMENT CALLS: <choices visible in the diff that a reviewer should know, or "none">
 ```
 
@@ -393,6 +471,19 @@ Read first:
 Review these dimensions:
 - requirements: map every behavior in "What this diff must do" to code and a test (file:line).
   A behavior with no code or no test is a finding. Do not ask for work outside it.
+  <only when E2E requirements are present, else drop:> E2E requirements: the section
+  "## E2E requirements" of <e2e requirements file(s)> (`git -C <worktree> show HEAD:<path>`)
+  lists business rules (BR-<n>) and test cases (TC-<n.m>). <final review: "Check every one." |
+  unit: "Check those this unit's tasks name: <ids>."> Never skip this. The rules and cases are
+  the only truth about what a user must see; the product code, mocks, fixtures and e2e specs in
+  the diff are all under suspicion, and a passing test proves nothing if the test is wrong.
+  Never learn an expected result from the code or a test. For each case: (a) it has an e2e test
+  under apps/web/e2e/<mock|local as its Env says>; (b) the test's setup, actions at the surface
+  and assertions are the case's Given, Steps and whole Expected; (c) the test can fail: no skip,
+  fixme, only, swallowed error, soft assertion, or mock that hands back the expected answer;
+  (d) following the product code from the user's action, a user really sees the Expected. Each
+  miss is a finding of at least medium severity whose title starts with "E2E <BR id>/<TC id>:"
+  and whose scenario quotes the Expected it breaks. A diff that edits that section is a finding.
 - quality, architecture, performance.
 - security: <"yes: the diff touches a sensitive path (<files>); review it in depth against
   security.md and the matching Sensitive paths row of git-workflow.md" | "no sensitive path in
