@@ -101,6 +101,14 @@ describe('fake board', () => {
 });
 
 describe('fake code host', () => {
+  it('names the commit identity of a person with a fake noreply address', () => {
+    const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
+    expect(host.commitIdentity({ login: 'alice', externalId: '1' })).toEqual({
+      name: 'alice',
+      email: 'alice@users.noreply.fake.invalid',
+    });
+  });
+
   it('writeSkill then readSkill round-trips with a new sha; conflicts are detected', async () => {
     const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
     const w1 = await host.writeSkill(project, 'fix', '---\ndescription: Fixes\n---\nv1', 'add');

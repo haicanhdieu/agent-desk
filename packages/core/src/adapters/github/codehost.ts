@@ -186,6 +186,10 @@ export class GithubCodeHostAdapter implements CodeHostAdapter {
     return 'GH_TOKEN';
   }
 
+  commitIdentity(user: { login: string; externalId: string }): { name: string; email: string } {
+    return { name: user.login, email: `${user.externalId}+${user.login}@users.noreply.github.com` };
+  }
+
   checkoutRef(ticket: CheckoutTicket): string {
     return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : assertSafeRef(ticket.defaultBranch ?? 'main');
   }

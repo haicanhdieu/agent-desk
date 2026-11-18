@@ -379,6 +379,13 @@ describe('github code host', () => {
     expect(host().cliTokenEnvName()).toBe('GH_TOKEN');
   });
 
+  it('names the commit identity of a person with the GitHub noreply address', () => {
+    expect(host().commitIdentity({ login: 'alice', externalId: '42' })).toEqual({
+      name: 'alice',
+      email: '42+alice@users.noreply.github.com',
+    });
+  });
+
   it('refuses to interpolate unsafe repo paths or branch names', () => {
     expect(() => host().repoUrl({ ...project, repoPath: 'acme/widgets@evil.com/x' })).toThrow();
     expect(() => host().repoUrl({ ...project, repoPath: 'acme/../x' })).toThrow();

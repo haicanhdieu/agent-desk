@@ -64,6 +64,10 @@ export class FakeCodeHostAdapter implements CodeHostAdapter {
     return 'GH_TOKEN';
   }
 
+  commitIdentity(user: { login: string; externalId: string }): { name: string; email: string } {
+    return { name: user.login, email: `${user.login}@users.noreply.fake.invalid` };
+  }
+
   checkoutRef(ticket: CheckoutTicket): string {
     return ticket.kind === 'pr' ? `refs/pull/${ticket.number}/head` : (ticket.defaultBranch ?? 'main');
   }
