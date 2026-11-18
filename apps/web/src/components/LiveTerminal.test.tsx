@@ -34,10 +34,14 @@ describe('LiveTerminal', () => {
 
   it('keeps working on the DOM renderer when WebGL cannot start', () => {
     FakeWebglAddon.failOnActivate = true;
+    const debug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
     const ref = createRef<LiveTerminalHandle>();
     render(<LiveTerminal ref={ref} />);
     act(() => ref.current?.write('still here'));
     expect(FakeXterm.latest().written()).toBe('still here');
+    // The fallback is logged, not silent.
+    expect(debug).toHaveBeenCalledWith('WebGL renderer unavailable, using the DOM renderer', expect.any(Error));
+    debug.mockRestore();
   });
 
   it('write() puts bytes and text into the terminal', () => {

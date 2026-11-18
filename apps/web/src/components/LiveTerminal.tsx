@@ -78,8 +78,9 @@ export default function LiveTerminal({
       const webgl = new WebglAddon();
       webgl.onContextLoss(() => webgl.dispose());
       term.loadAddon(webgl);
-    } catch {
-      // No WebGL here: keep the DOM renderer.
+    } catch (err) {
+      // No WebGL here (an expected case: old GPUs, blocked contexts): keep the DOM renderer.
+      console.debug('WebGL renderer unavailable, using the DOM renderer', err);
     }
 
     const report = () => callbacks.current.onResize?.({ cols: term.cols, rows: term.rows });

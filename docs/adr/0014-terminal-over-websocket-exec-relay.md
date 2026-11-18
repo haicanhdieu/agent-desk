@@ -15,7 +15,8 @@ crosses Cloudflare, whose idle timeout is about 100 s.
 
 ## Decision
 
-- Browser: `@xterm/xterm` with `@xterm/addon-fit`, lazy-loaded on run detail,
+- Browser: `@xterm/xterm` with `@xterm/addon-fit` and `@xterm/addon-webgl` (it draws the block and box
+  glyphs Claude Code prints; the DOM renderer stays as the fallback), lazy-loaded on run detail,
   opening `WebSocket /api/runs/{id}/terminal` on the same origin.
 - Control plane: `@kubernetes/client-node` `Exec` of `tmux attach -t agent`
   with `tty` and `stdin` (subprotocol `v5.channel.k8s.io`), relaying bytes

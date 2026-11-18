@@ -104,6 +104,8 @@ test('the run terminal prints Claude Code glyphs and uses a font stack that cove
   const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
   await expect(terminal).toContainText('agent-desk fake terminal');
 
+  // Smoke check only: screen reader mode puts the text in the page whatever the renderer draws, so this does not
+  // prove the pixels. The stack check below is what fails without the fix.
   const glyphs = '● ⎿ ▐▛███▜▌ ╭─╮';
   await terminal.click();
   await page.keyboard.insertText(glyphs);

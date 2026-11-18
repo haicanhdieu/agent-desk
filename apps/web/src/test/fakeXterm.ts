@@ -174,3 +174,4 @@ export class WebglAddon {
 export const FakeXterm = Terminal;
 export const FakeFitAddon = FitAddon;
 export const FakeWebglAddon = WebglAddon;
+export type FakeWebglAddon = WebglAddon;
