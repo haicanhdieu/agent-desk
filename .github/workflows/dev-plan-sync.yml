@@ -1,0 +1,36 @@
+name: dev-plan-sync
+
+# After a spec or plan PR written by the dev-plan skill merges, create or update the GitHub issue that
+# links the spec and plan. The script acts only when the merged PR carries the `dev-plan` label, so any
+# other PR that touches docs/superpowers/ is skipped. See .agent/skills/dev-plan/SKILL.md.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/superpowers/specs/**'
+      - 'docs/superpowers/plans/**'
+
+# No concurrency group on purpose: GitHub keeps only one waiting run per group, so a third merge in
+# a row would drop the second one's sync. Two runs never write the same issue block, because two
+# PRs that change the same spec or plan cannot merge at the same moment.
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: sync issue
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      # The merged commit on main only: this never runs code from a pull request branch.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Create or update the linked issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGED_SHA: ${{ github.sha }}
+        run: node .agent/skills/dev-plan/scripts/dev-plan.mjs sync --commit "$MERGED_SHA"
