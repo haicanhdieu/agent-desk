@@ -160,10 +160,7 @@ function phasesOf(test: SetupTestDto, parsed: Parsed[], plugins: { state: string
         : { label: 'Setup', state: pluginsDone ? 'active' : 'pending' };
   }
 
-  const shell: SetupPhase = settled(test)
-    ? { label: 'Shell', state: 'done', detail: 'ready for you' }
-    : { label: 'Shell', state: 'pending' };
-  return [clone, pluginsPhase, setup, shell];
+  return [clone, pluginsPhase, setup];
 }
 
 /** bash names the script by its temp path ("/tmp/tmp.Ab1: line 11: ..."); the person knows it as the setup script. */
@@ -248,12 +245,6 @@ function logLines(parsed: Parsed[]): TermLine[] {
   return lines.slice(-SCROLLBACK_MAX_LINES);
 }
 
-function endsIn(test: SetupTestDto, now: Date): string {
-  if (isEnded(test)) return 'ended';
-  if (test.endsAt === null) return 'setup finishes';
-  return `${Math.max(0, Math.ceil((Date.parse(test.endsAt) - now.getTime()) / 60_000))} min`;
-}
-
 const sameDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
@@ -314,7 +305,7 @@ function lastTestOf(test: SetupTestDto, parsed: Parsed[], now: Date): LastSetupT
   };
 }
 
-function testView(test: SetupTestDto, parsed: Parsed[], script: SetupScriptDto | null, now: Date, ended: boolean) {
+function testView(test: SetupTestDto, parsed: Parsed[], script: SetupScriptDto | null, now: Date) {
   const states = pluginStates(test, parsed);
   // A test that ended without a result shows as failed in its log.
   const status: SetupTestView['status'] = resultOf(test, parsed) ?? (isEnded(test) ? 'failed' : 'running');
@@ -326,12 +317,9 @@ function testView(test: SetupTestDto, parsed: Parsed[], script: SetupScriptDto |
     plugins: states,
     lines: logLines(parsed),
     ...(failure && { failure }),
-    ...(ended && { view: 'log' as const }),
     scriptLabel: test.matchesCurrentScript && script !== null ? `Version ${script.version}` : 'Draft, not saved',
     checkout: sha === undefined ? 'Cloning…' : sha.slice(0, SHA7),
     started: clockTime(test.createdAt),
-    endsIn: endsIn(test, now),
-    ...(settled(test) && !ended && { attachedAs: test.startedBy }),
   };
   return view;
 }
@@ -367,17 +355,25 @@ export function toDeskSetupProps(data: SetupData, now: Date, opts: { showEnded?:
       ...(v.note !== null && { note: v.note }),
     })),
     ...(lastTest && { lastTest }),
-    ...(latest !== null && open && { test: testView(latest, parsed, script, now, !isOpen(latest)) }),
+    ...(latest !== null && open && { test: testView(latest, parsed, script, now) }),
   };
 }
 
 /**
- * The onboarding step's test panel from the Desk Setup view: idle without an open test, running with the phase it is
- * in, passed or failed with the same summary line as the Desk's last-test banner.
+ * The onboarding step's test panel from the Desk Setup view: running with the phase it is in; passed or failed with
+ * the same summary line as the Desk's last-test banner, whether or not the test workspace is still there (it is
+ * deleted as soon as the result is recorded); idle with no test, or one that ended without a result.
  */
 export function toSetupStepTest(view: Pick<SetupViewProps, 'test' | 'lastTest'>): SetupStepTest {
   const { test, lastTest } = view;
-  if (test === undefined) return { state: 'idle' };
+  if (test === undefined) {
+    if (lastTest === undefined || lastTest.result === 'ended') return { state: 'idle' };
+    return {
+      state: lastTest.result,
+      title: lastTest.result === 'passed' ? 'Setup passed' : 'Setup failed',
+      detail: lastTest.summary,
+    };
+  }
   if (test.status === 'running') {
     const phase = test.phases.find((p) => p.state === 'active');
     const detail = phase ? `${phase.label}${phase.detail ? `: ${phase.detail}` : ''}` : 'Starting the workspace';

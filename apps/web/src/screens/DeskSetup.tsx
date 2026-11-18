@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { Banner, Button, Field, Icon, LabelChip, Skeleton, StatusBadge, StatusIcon, TextInput } from '@/ds';
 import {
   CodeEditor,
@@ -45,24 +45,18 @@ export interface LastSetupTest {
   summary: string;
 }
 
-/** An open test workspace: the same phases as a run, then an idle shell. */
+/** A test in flight: the same phases as a run. Its workspace is deleted as soon as the result is recorded. */
 export interface SetupTestView {
   status: 'running' | 'passed' | 'failed';
   phases: SetupPhase[];
   plugins: PluginListProps['plugins'];
   lines: TermLine[];
-  view?: 'log' | 'terminal';
   /** Why setup failed, in words (exit code meaning, failing script line, its output). Only for a failed setup. */
   failure?: { title: string; detail: string };
   /** "Draft, 1 line changed from v4" or "Version 4". */
   scriptLabel: string;
   checkout: string;
   started: string;
-  /** "13 min" until the workspace is deleted. */
-  endsIn: string;
-  attachedAs?: string;
-  /** Replaces the static terminal (the live terminal relay). */
-  terminal?: ReactNode;
 }
 
 export interface DeskSetupProps {
@@ -169,14 +163,6 @@ export function DeskSetup({
   const saved = script?.body ?? '';
   const [value, setValue] = useState(draft ?? (script ? script.body : SETUP_SCRIPT_STARTER));
   const [note, setNote] = useState('');
-  // A failed setup opens on the log: its output is the reason, and the shell has nothing to show for it.
-  const failed = test?.status === 'failed';
-  const [view, setView] = useState(test?.view ?? (failed ? 'log' : 'terminal'));
-  const [sawFailed, setSawFailed] = useState(failed);
-  if (failed !== sawFailed) {
-    setSawFailed(failed);
-    if (failed) setView('log');
-  }
   const dirty = value !== saved;
   const nextVersion = (script?.version ?? 0) + 1;
 
@@ -279,16 +265,10 @@ export function DeskSetup({
               <TerminalPane
                 bar={
                   <TerminalBar
-                    views={[
-                      { id: 'log', label: 'Log', icon: 'transcript' },
-                      { id: 'terminal', label: 'Terminal', icon: 'terminal' },
-                    ]}
-                    activeView={view}
-                    onViewChange={(id) => setView(id === 'log' ? 'log' : 'terminal')}
+                    views={[{ id: 'log', label: 'Log', icon: 'transcript' }]}
+                    activeView="log"
                     connection={
                       <span className={styles.setupTestMeta}>
-                        {test.attachedAs && <span className="muted">Attached as {test.attachedAs}</span>}
-                        <span className="faint">Ends in {test.endsIn}</span>
                         <Button variant="danger" size="sm" onClick={onEndTest}>
                           End test
                         </Button>
@@ -297,17 +277,7 @@ export function DeskSetup({
                   />
                 }
               >
-                {/* The Log tab is always the stored log; the live shell only replaces it on the Terminal tab. */}
-                {test.terminal && view === 'terminal' ? (
-                  test.terminal
-                ) : (
-                  <Terminal
-                    lines={test.lines}
-                    cursor={view === 'terminal'}
-                    scrollable
-                    aria-label="Test workspace terminal"
-                  />
-                )}
+                <Terminal lines={test.lines} scrollable aria-label="Test workspace terminal" />
               </TerminalPane>
             </>
           ) : (

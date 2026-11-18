@@ -42,19 +42,16 @@ export const setupPhases: Record<'passed' | 'failed' | 'running', SetupPhase[]> 
     { label: 'Clone', state: 'done', detail: 'main a91c3e2' },
     { label: 'Plugins', state: 'done', detail: '2 installed, 1 blocked' },
     { label: 'Setup', state: 'done', detail: 'exit 0 after 2m 31s' },
-    { label: 'Shell', state: 'done', detail: 'ready for you' },
   ],
   failed: [
     { label: 'Clone', state: 'done', detail: 'main a91c3e2' },
     { label: 'Plugins', state: 'done', detail: '2 installed, 1 blocked' },
     { label: 'Setup', state: 'failed', detail: 'exit 1 after 48s' },
-    { label: 'Shell', state: 'done', detail: 'ready for you' },
   ],
   running: [
     { label: 'Clone', state: 'done', detail: 'main a91c3e2' },
     { label: 'Plugins', state: 'done', detail: '2 installed, 1 blocked' },
     { label: 'Setup', state: 'active', detail: 'running for 21s' },
-    { label: 'Shell', state: 'pending' },
   ],
 };
 
@@ -76,14 +73,7 @@ const restoreFails: TermLine[] = [
   [t('agentdesk: setup failed exit=1', 'red')],
 ];
 
-const prompt = (cmd = ''): TermLine => [
-  t('runner@setup-test-7f3k', 'green'),
-  t(':'),
-  t('~/invoicer-api', 'accent'),
-  t(`$ ${cmd}`),
-];
-
-/** Test workspace terminal after a failed setup: the log, then the idle shell the user debugs in. */
+/** A failed setup test's log, as the runner printed it. */
 export const setupTestTerminal: TermLine[] = [
   [t('agent-desk runner 0.5.0', 'accent'), t('  setup test  ·  harbor-labs/invoicer-api  ·  draft (not saved)', 'dim')],
   [t('clone ', 'dim'), t('main @ a91c3e2'), t(' … done in 5.2s', 'dim')],
@@ -91,9 +81,6 @@ export const setupTestTerminal: TermLine[] = [
   [t('agentdesk: setup begin', 'accent')],
   ...restoreFails,
   [t('agentdesk: session started', 'accent')],
-  prompt('curl -sI https://nuget.harbor.internal/v3/index.json'),
-  [t('curl: (6) Could not resolve host: nuget.harbor.internal')],
-  prompt(),
 ];
 
 /** Run 58: setup version 5 failed, Claude never started. */

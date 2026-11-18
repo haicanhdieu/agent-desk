@@ -4,7 +4,7 @@ import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-quer
 import { useEffect, useState } from 'react';
 import { useNow } from '@/app/useNow';
 import { projectPaths } from '../desk/frame';
-import { isStaleSetupScript, STALE_SETUP_SCRIPT, useCreateSetupTest, useEndSetupTest } from '../setup-script/mutations';
+import { isStaleSetupScript, STALE_SETUP_SCRIPT, useCreateSetupTest } from '../setup-script/mutations';
 import { setupScriptSaveProblem, toDeskSetupProps, toSetupStepTest } from '../setup-script/map';
 import { setupQueries as scriptQueries } from '../setup-script/queries';
 import { useSetupTest } from '../setup-script/useSetupTest';
@@ -28,7 +28,7 @@ interface Props {
 
 /**
  * Onboarding step "Prepare workspace": the Desk Setup tab's script, plugins and test, in the step's layout. Save and
- * continue stores the script; Skip does not. The test panel's log and terminal live on the Desk Setup tab, opened in a
+ * continue stores the script; Skip does not. The test's log lives on the Desk Setup tab, opened in a
  * new tab so this step stays where it is.
  */
 export function WorkspaceStep({ org, project, user, credentialDetail, backHref, onDone }: Props) {
@@ -41,7 +41,6 @@ export function WorkspaceStep({ org, project, user, credentialDetail, backHref, 
   const current = latest.data ?? null;
   const stream = useSetupTest(current?.id);
   const create = useCreateSetupTest(org, projectId);
-  const end = useEndSetupTest(org, projectId);
   const save = useSaveWorkspaceStep(org);
   const [error, setError] = useState<string>();
 
@@ -108,11 +107,7 @@ export function WorkspaceStep({ org, project, user, credentialDetail, backHref, 
       saveError={error}
       backHref={backHref}
       onTest={onTest}
-      onOpenTerminal={() => browserLocation.openInNewTab(deskSetup)}
       onViewLog={() => browserLocation.openInNewTab(deskSetup)}
-      onEndTest={() => {
-        if (current !== null) end.mutate(current.id, { onError: fail });
-      }}
       onContinue={finish}
       onSkip={() => finish(null)}
     />

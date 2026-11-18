@@ -420,7 +420,6 @@ const impl: Impl = {
       createdAt: now(),
       finishedAt: null,
       endedAt: null,
-      endsAt: null,
     };
     db().setupTests.push(test);
     rememberSetupTestScript(test.id, body.script);

@@ -23,25 +23,13 @@ export interface SetupWorkspaceProps extends SetupNav {
   saving?: boolean;
   saveError?: string;
   onTest?(body: string): void;
-  onOpenTerminal?(): void;
   onViewLog?(): void;
-  onEndTest?(): void;
   /** Saves the script as version 1 and moves on. With it, the primary button is a button instead of the `nextHref` link. */
   onContinue?(body: string): void;
   onSkip?(): void;
 }
 
-function TestResult({
-  test,
-  onOpenTerminal,
-  onViewLog,
-  onEndTest,
-}: {
-  test: SetupStepTest;
-  onOpenTerminal?(): void;
-  onViewLog?(): void;
-  onEndTest?(): void;
-}) {
+function TestResult({ test, onViewLog }: { test: SetupStepTest; onViewLog?(): void }) {
   if (test.state === 'idle') return null;
   if (test.state === 'running') {
     return (
@@ -63,17 +51,9 @@ function TestResult({
       title={test.title}
       actionsPlacement="below"
       actions={
-        <>
-          <Button size="sm" onClick={onViewLog}>
-            View log
-          </Button>
-          <Button size="sm" icon="terminal" onClick={onOpenTerminal}>
-            Open terminal
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onEndTest}>
-            End test
-          </Button>
-        </>
+        <Button size="sm" onClick={onViewLog}>
+          View log
+        </Button>
       }
     >
       {test.detail}
@@ -96,9 +76,7 @@ export function SetupWorkspace({
   skipHref = '#',
   nextHref = '#',
   onTest,
-  onOpenTerminal,
   onViewLog,
-  onEndTest,
   onContinue,
   onSkip,
 }: SetupWorkspaceProps) {
@@ -153,7 +131,7 @@ export function SetupWorkspace({
         </div>
         <span className={`muted ${styles.helpLine}`}>Don&apos;t put passwords or tokens here.</span>
       </div>
-      <TestResult test={test} onOpenTerminal={onOpenTerminal} onViewLog={onViewLog} onEndTest={onEndTest} />
+      <TestResult test={test} onViewLog={onViewLog} />
       <div className={styles.actions}>
         <Button icon="play" onClick={() => onTest?.(value)} disabled={test.state === 'running'}>
           {test.state === 'idle' ? 'Test setup' : 'Test again'}

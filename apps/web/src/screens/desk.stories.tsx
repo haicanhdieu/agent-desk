@@ -365,8 +365,6 @@ export const DeskSetupTest: Story = {
         scriptLabel: 'Draft, 1 line changed from v4',
         checkout: 'main a91c3e2',
         started: '14:31:05 by kim-hale',
-        endsIn: '13 min',
-        attachedAs: 'kim-hale',
       }}
     />
   ),

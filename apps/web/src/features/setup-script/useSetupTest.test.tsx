@@ -18,7 +18,6 @@ const ended: SetupTestDto = {
   createdAt: new Date().toISOString(),
   finishedAt: new Date().toISOString(),
   endedAt: new Date().toISOString(),
-  endsAt: null,
 };
 
 describe('useSetupTest', () => {

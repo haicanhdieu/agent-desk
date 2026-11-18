@@ -82,7 +82,7 @@ describe('scripted setup tests', () => {
     return t;
   };
 
-  it('plays checkout, plugins, output and a pass, with the workspace open for 15 minutes', async () => {
+  it('plays checkout, plugins, output and a pass, then ends the test', async () => {
     const test = await create('npm ci');
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const messages: SetupTestStreamMessage[] = [];
@@ -114,8 +114,8 @@ describe('scripted setup tests', () => {
       'setup_output',
       'setup_passed',
     ]);
-    const final = row(test.id);
-    expect(Date.parse(final.endsAt ?? '') - Date.parse(final.finishedAt ?? '')).toBe(15 * 60_000);
+    // The workspace is deleted as soon as the result is recorded: the test is ended and the result stays.
+    expect(row(test.id).endedAt).not.toBeNull();
     expect(messages.filter((m) => m.event === 'event')).toHaveLength(kinds.length);
     expect(messages.at(-1)).toMatchObject({ event: 'status', data: { status: 'passed' } });
   });

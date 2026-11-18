@@ -51,7 +51,6 @@ describe('desk setup warning', () => {
       createdAt: '2026-11-12T09:00:00.000Z',
       finishedAt: '2026-11-12T09:01:00.000Z',
       endedAt: '2026-11-12T09:20:00.000Z',
-      endsAt: null,
     });
     await renderRoute(`${base}/skills`);
     expect(await screen.findByText('The last workspace setup test failed')).toBeInTheDocument();
