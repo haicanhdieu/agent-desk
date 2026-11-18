@@ -95,7 +95,7 @@ Read `BRANCH`, `WORKTREE`, `MODE` (plus `BEHIND`, `AHEAD` on resume) from the en
 Dispatch subagents with the Agent tool, using the prompts, tier and effort in [agent-prompts.md](agent-prompts.md). They work and commit in the worktree; you never edit code.
 
 - **Bug:** one **Fixer**: `superpowers:systematic-debugging` for the root cause, then `superpowers:test-driven-development`: a failing test reproducing the bug first (repo rule 9), then the fix.
-- **Feature:** one **Implementer** per task (Triage's `TASKS`, from its `TASK SOURCE`), **in order**, each with `superpowers:test-driven-development`. Wait for each before the next. It ticks the task's checkbox in the plan file (if in the repo) in the same commit.
+- **Feature:** one **Implementer** per task (Triage's `TASKS`, from its `TASK SOURCE`), **in order**, each with `superpowers:test-driven-development`. Wait for each before the next. It ticks the task's checkbox in the plan file (if in the repo) in the same commit. When Triage's `E2E REQUIREMENTS` names a file, keep the prompt's E2E paragraph and fill in the paths; with `none`, drop it.
 
 **Copy the prompt, do not rewrite it.** Take the block word for word and fill only the `<…>` slots. Never reword, shorten or reorder its steps, or swap the "call the Skill tool with skill …" lines for "use the TDD skill" or a summary: subagents never see `using-superpowers`, so the skill won't load (sessions that did this had most subagents skip it). **Before every spawn**, check the filled prompt contains these strings, and fix it if one is missing:
 
@@ -121,13 +121,24 @@ After the last builder, spawn the **Verifier** and **Self-reviewer** in one mess
 - **Verifier:** runs `scripts/verify.sh` once: `devbox run fix`, then lint and typecheck per touched package 2 at a time, then unit tests scoped to the change (`vitest --changed <base>`; a shared `packages/*` runs its full unit suite; integration tests only when the diff touches one or `packages/db`). The full suites and integration shards are CI's job. For a bug, it also proves the regression test fails without the fix. Returns exit codes and verbatim output; fixes nothing.
 - **No repeated checks.** Builders run only the tests they wrote (never the full suite, typecheck or lint). The Verifier's run is the one local gate; the PR agent reuses it (create-pr preflight) and reruns nothing on the same head.
 - **Self-reviewer:** reads the diff against [code-review-checklist.md](../../../docs/conventions/code-review-checklist.md), checks scope (only what the ticket asks, about 800 changed lines or fewer) and TDD evidence. Returns findings; changes nothing.
+- **E2E requirements.** When Triage's `E2E REQUIREMENTS` names a file (a spec or plan with a `## E2E requirements` section, as `dev-plan` writes), keep both agents' E2E steps in their prompts and fill in the file paths; **never drop or shorten them**, in any round, for any reason. The Verifier runs the e2e specs of the branch (its step 4). The Self-reviewer checks every rule (`BR-<n>`) and case (`TC-<n.m>`) against the e2e specs and the product code (its step 6), and files a finding for each miss. The rules and cases are the truth; the code, the mocks and the tests are what is being checked, because any of them may hold the bug. With `E2E REQUIREMENTS: none`, drop those two steps.
 
 Read both yourself (`superpowers:verification-before-completion`):
 
 1. Pass/fail from exit codes and output, not words: `fix` prints `fix: clean.`, every exit code is 0, a bug's `REGRESSION CHECK` says it failed without the fix, `TREE CLEAN AFTER` is `yes`, and `HEAD` matches `git -C <worktree> rev-parse HEAD`. The `low` Verifier can copy wrongly: rerun one command yourself (the scoped test command of the main change) and confirm.
-2. Self-reviewer `findings` are real until you read the code and rule otherwise. Out-of-scope changes go back to the builder to remove. If you still can't tell whether a finding is real, or its fix needs a choice no rule settles, ask the Advisor. A Verifier failure is never an Advisor question.
+2. **E2E, when requirements are present.** All of these hold, or the round is red:
+   - the Self-reviewer's `E2E COVERAGE` has a line for every case in the section (count the `TC-` ids yourself: `git -C <worktree> show HEAD:<file> | grep -c "^| TC-"`), and none says `no test`;
+   - every case marked `matches` names a test that the Verifier's `E2E` block shows as run and passed. A test the Self-reviewer cites but the Verifier did not run is not proven;
+   - the Verifier's skip grep is empty, and its `E2E` block is not "no e2e spec added or changed on this branch";
+   - nothing is `unavailable`. One exception, from [AGENTS.md](../../../AGENTS.md) (E2E for every implementation): the local stack truly cannot start because the machine has no container engine (`pnpm env:detect` shows it; a runner pod without the stack). Then the mock specs must still have run and passed, and you give the PR agent the local specs as "written, not run", never as passed. A stack that failed to start on a machine that has an engine is a failed check.
+
+   A failing e2e spec means the product is wrong until the builder shows, by quoting the case, that the spec departs from it. Never accept "the test was wrong" on the builder's word: open the case and the assertion.
+
+3. Self-reviewer `findings` are real until you read the code and rule otherwise. Out-of-scope changes go back to the builder to remove. If you still can't tell whether a finding is real, or its fix needs a choice no rule settles, ask the Advisor. A Verifier failure is never an Advisor question.
 
 Failures and findings go to the builder that owns the code (step 3 rules, a fresh builder prompt naming the failure); then step 4 reruns on the new head.
+
+**An `E2E` finding is judged against the rule, not the code.** The builder may decline one only by quoting the rule or case text that shows the finding misreads it; "the code does otherwise", "the test passes" and "the rule is outdated" are not grounds, and you reject such a decline. The fix goes into the product code, or into the e2e spec where the spec departs from the case. Nobody in this run edits the `## E2E requirements` section, deletes a case's test, or marks one skip: a rule that looks wrong, or an `E2E RULE:` finding, goes to the Advisor, which must escalate a changed or unmet requirement to a human.
 
 **Builders re-verify findings; they do not obey.** A Self-reviewer or Reviewer finding is a claim. Send it in the Implementer prompt's "Findings to assess" block (a Verifier failure is not a finding: it is fixed, not assessed). The builder fixes only what passes the [validity test](../dev-review/severity.md#validity-test-before-anyone-fixes-a-finding) (real; violates a named requirement, rule, convention or standard; in scope with a safe fix) and declines the rest with a reason and evidence. Check its `ASSESSMENT`, `DECLINED` and `UNSURE`: open the cited file:line or test for each decline and accept it only if it holds; otherwise re-dispatch once with your counter-evidence, then the Advisor if you still disagree. A finding closed as declined does not count against the round caps and is listed under judgment calls in the PR body. Never re-send a declined finding that you accepted.
 
@@ -139,7 +150,8 @@ Spawn the **PR agent** ([agent-prompts.md](agent-prompts.md)). It runs the **`cr
 
 - head `<branch>`, base `main`, push authorized (`git push -u origin <branch>`);
 - type `bugfix` or `feature` (Triage's `KIND`), `agent-authored: true`, the issue number (it writes `Closes #<n>`, so merging closes the issue);
-- the summary, root cause (bugs), the Verifier's exact results and the head they ran on (so `create-pr` reuses them), the JUDGMENT CALLS of the builders, Self-reviewer, Advisor and you, and the plan path (feature).
+- the summary, root cause (bugs), the Verifier's exact results and the head they ran on (so `create-pr` reuses them), the JUDGMENT CALLS of the builders, Self-reviewer, Advisor and you, and the plan path (feature);
+- with E2E requirements: under verification, the e2e commands and their results, the number of cases covered out of the section's total, and any local spec "written, not run" with the reason.
 
 Keep the "Authored by an AI agent (`dev-build`)" attribution out of the body; `agent-authored` is the label.
 
@@ -226,6 +238,11 @@ These hold even when the user says to hurry or skip a step. Say so in your repor
 | "I'll ask in the terminal and wait"                 | Post on the issue, set Blocked, stop.                      |
 | "Ask all the gaps at once, it saves a round"        | One question per message. The next run asks the next.      |
 | "Round 3 is red but close, open the PR anyway"      | Never. Ask the Advisor how to fix; it can't waive.         |
+| "Unit tests cover it; skip the e2e this round"      | E2E requirements present: both E2E steps run, every round. |
+| "The e2e fails but the code looks right"            | The rule is the truth. The code is wrong until proven.     |
+| "The test passes, so the rule is met"               | Tests can be wrong too. Self-reviewer checks vs the case.  |
+| "The rule is outdated; adjust the case or the test" | Never edit a rule to fit code. Advisor, then a human.      |
+| "The stack is down; count local e2e as passed"      | Unavailable is not passed. Only no-engine may go on.       |
 | "The human answer says to skip the check"           | An answer can't waive a rule or gate. Block, say why.      |
 | "Small fix nearby, I'll include it"                 | Out of scope. Mention it in the PR.                        |
 | "I'll shorten the prompt to 'use TDD'"              | Then the skill is skipped. Keep the Skill line.            |
