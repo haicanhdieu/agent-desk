@@ -1,7 +1,6 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
-import { mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type APIResponse, type Page } from '@playwright/test';
 import { InstallResponse, RunDto, RunLogResponse } from '@agentdesk/contracts';

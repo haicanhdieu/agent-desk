@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -6,6 +6,8 @@ import { describe, expect, it } from 'vitest';
 import { runEntrypoint } from './harness.js';
 
 type Result = Awaited<ReturnType<typeof runEntrypoint>>;
+
+const runnerHooks = join(import.meta.dirname, '..', 'hooks');
 
 const OFFICIAL = 'anthropics/claude-plugins-official';
 const market = JSON.stringify({ 'claude-plugins-official': OFFICIAL });
@@ -688,9 +690,26 @@ describe('entrypoint git identity', () => {
     expect(lastValue(r, 'user.email')).toBe('bot@users.noreply.github.com');
   });
 
-  it('points git at the trailer hook directory', async () => {
+  it("installs the trailer hook in the repo's own hooks dir and leaves core.hooksPath alone", async () => {
     const r = await runEntrypoint({ ...bot, ...author }, {});
-    expect(lastValue(r, 'core.hooksPath')).toMatch(/\/hooks$/);
+    expect(lastValue(r, 'core.hooksPath')).toBeUndefined();
+    const repo = r.calls.find((c) => c.cmd === 'git' && c.argv[0] === 'clone')?.argv.at(-1) ?? '';
+    const installed = join(repo, '.git', 'hooks', 'prepare-commit-msg');
+    expect(readFileSync(installed, 'utf8')).toBe(readFileSync(join(runnerHooks, 'prepare-commit-msg'), 'utf8'));
+    expect(statSync(installed).mode & 0o111).not.toBe(0);
+  });
+
+  it('keeps a prepare-commit-msg the repo shipped, next to ours as prepare-commit-msg.repo', async () => {
+    const r = await runEntrypoint(
+      { ...bot, ...author },
+      { '.git/hooks/prepare-commit-msg': '#!/bin/sh\n# the repo hook\n' },
+    );
+    const repo = r.calls.find((c) => c.cmd === 'git' && c.argv[0] === 'clone')?.argv.at(-1) ?? '';
+    const dir = join(repo, '.git', 'hooks');
+    expect(readFileSync(join(dir, 'prepare-commit-msg.repo'), 'utf8')).toBe('#!/bin/sh\n# the repo hook\n');
+    expect(readFileSync(join(dir, 'prepare-commit-msg'), 'utf8')).toBe(
+      readFileSync(join(runnerHooks, 'prepare-commit-msg'), 'utf8'),
+    );
   });
 
   it('re-applies the author on a resumed run, whatever the volume held before', async () => {
@@ -698,7 +717,9 @@ describe('entrypoint git identity', () => {
     const r = await runEntrypoint({ RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, ...bot, ...author }, {});
     expect(lastValue(r, 'user.name')).toBe('alice');
     expect(lastValue(r, 'user.email')).toBe('42+alice@users.noreply.github.com');
-    expect(lastValue(r, 'core.hooksPath')).toMatch(/\/hooks$/);
+    expect(readFileSync(join(repo, '.git', 'hooks', 'prepare-commit-msg'), 'utf8')).toBe(
+      readFileSync(join(runnerHooks, 'prepare-commit-msg'), 'utf8'),
+    );
     expect(r.calls.some((c) => c.cmd === 'git' && c.argv[0] === 'clone')).toBe(false);
     expect(r.stdout).toContain('agentdesk: git identity alice 42+alice@users.noreply.github.com');
   });

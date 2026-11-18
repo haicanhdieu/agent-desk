@@ -69,11 +69,14 @@ add_authorized_by() {
   target=""
   repo=""
   if [ "$sub" = create ]; then
-    target="$(tail -n 1 "$work/out")"
-    case "$target" in
-      https://*) ;;
-      *) return 1 ;;
-    esac
+    # The url is the last stdout line when the output was captured (no terminal); otherwise the PR of the current branch.
+    if [ -f "$work/out" ]; then
+      target="$(tail -n 1 "$work/out")"
+      case "$target" in
+        https://*) ;;
+        *) return 1 ;;
+      esac
+    fi
   else
     case "${1:-}" in
       '' | -*) ;;
@@ -108,12 +111,28 @@ add_authorized_by() {
   "$real" "$@" --body-file "$work/new" > /dev/null 2> "$work/err" || return 1
 }
 
-if [ "${1:-}" = pr ] && { [ "${2:-}" = create ] || [ "${2:-}" = edit ]; } && authorized_by_valid; then
+# Only `pr create` needs its output (the PR url); everything else, and a terminal, keeps gh's own stdout. `--web` creates
+# nothing to edit yet.
+wants_follow_up() {
+  [ "${1:-}" = pr ] && { [ "${2:-}" = create ] || [ "${2:-}" = edit ]; } || return 1
+  authorized_by_valid || return 1
+  for a in "$@"; do
+    case "$a" in --web | -w) return 1 ;; esac
+  done
+  return 0
+}
+
+if wants_follow_up "$@"; then
   work="$(mktemp -d 2> /dev/null)" || exec "$real" "$@"
   trap 'rm -rf "$work"' EXIT
   rc=0
-  "$real" "$@" > "$work/out" || rc=$?
-  cat "$work/out"
+  if [ "$2" = create ] && [ ! -t 1 ]; then
+    # Stream the output live and keep a copy; the exit code of gh travels through a file (a pipe reports tee's).
+    { rc=0; "$real" "$@" || rc=$?; echo "$rc" > "$work/rc"; } | tee "$work/out"
+    rc="$(cat "$work/rc" 2> /dev/null || echo 1)"
+  else
+    "$real" "$@" || rc=$?
+  fi
   sub="$2"
   shift 2
   if [ "$rc" -eq 0 ] && ! add_authorized_by "$work" "$sub" "$@"; then

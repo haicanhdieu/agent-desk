@@ -41,8 +41,20 @@ fi
 # Git identity of the repo (run in the repo dir; fresh and resumed pods both call it, so a volume first started under an
 # older config is corrected on resume). The run's commits are authored and committed by the person who triggered the run
 # (RUN_AUTHOR_NAME / RUN_AUTHOR_EMAIL, plain values chosen by the worker); without both, the bot as before. The bot
-# reaches the commits as a Co-Authored-By trailer through the prepare-commit-msg hook in $LIB_DIR/hooks. Values are
-# only ever passed as quoted argv elements.
+# reaches the commits as a Co-Authored-By trailer through a prepare-commit-msg hook copied into the repo's own hooks
+# dir (core.hooksPath is not touched, so the repo's other hooks keep running; a repo that sets its own core.hooksPath,
+# for example husky, runs its hooks and skips the trailer, while author and committer stay right). A prepare-commit-msg
+# the repo shipped is kept as prepare-commit-msg.repo and run by ours. Values are only ever passed as quoted argv elements.
+install_commit_hook() {
+  local src="$LIB_DIR/hooks/prepare-commit-msg" dest=.git/hooks/prepare-commit-msg
+  mkdir -p .git/hooks
+  if [ -e "$dest" ] && ! cmp -s "$src" "$dest" && [ ! -e "$dest.repo" ]; then
+    mv "$dest" "$dest.repo"
+  fi
+  cp "$src" "$dest"
+  chmod 0755 "$dest"
+}
+
 apply_git_identity() {
   local name email
   name="${RUN_AUTHOR_NAME:-}"
@@ -53,7 +65,7 @@ apply_git_identity() {
   fi
   git config user.name "$name"
   git config user.email "$email"
-  git config core.hooksPath "$LIB_DIR/hooks"
+  install_commit_hook
   echo "agentdesk: git identity $name $email"
 }
 

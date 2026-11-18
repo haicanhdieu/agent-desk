@@ -1,11 +1,20 @@
 #!/bin/sh
-# git prepare-commit-msg hook for run pods (core.hooksPath is set by the entrypoint). It adds the bot as a
+# git prepare-commit-msg hook for run pods. The entrypoint copies it to .git/hooks/prepare-commit-msg of the run's
+# repo (it does not set core.hooksPath, so the repo's other hooks keep running). It adds the bot as a
 # `Co-Authored-By:` trailer, so the person who triggered the run stays the commit's author and committer. A trailer
 # that is already there is not added again (an amend keeps one). $BOT_NAME and $BOT_EMAIL reach git as one quoted
 # argument and are never evaluated. Without them nothing is added.
+# A prepare-commit-msg the repo shipped is kept next to this one as prepare-commit-msg.repo and runs first (its failure
+# stops the commit, as it would without us), so the trailer stays the last line of the message.
 set -eu
 
 msg_file="${1:?commit message file}"
+
+repo_hook="$(dirname "$0")/prepare-commit-msg.repo"
+if [ -x "$repo_hook" ]; then
+  "$repo_hook" "$@"
+fi
+
 [ -n "${BOT_NAME:-}" ] && [ -n "${BOT_EMAIL:-}" ] || exit 0
 
 git interpret-trailers --in-place --no-divider --if-exists addIfDifferent \

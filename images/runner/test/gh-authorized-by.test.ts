@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { chmod, mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -19,6 +19,7 @@ appendFileSync(process.env.STUB_LOG, JSON.stringify(argv) + '\\n');
 const flag = (n) => { const i = argv.indexOf(n); return i < 0 ? undefined : argv[i + 1]; };
 if (argv[0] === 'pr' && argv[1] === 'create') {
   console.log('Creating pull request for b into main in o/r');
+  await new Promise((r) => setTimeout(r, Number(process.env.STUB_CREATE_DELAY_MS ?? 0)));
   console.log(process.env.STUB_PR_URL);
   process.exit(Number(process.env.STUB_CREATE_EXIT ?? 0));
 } else if (argv[0] === 'pr' && argv[1] === 'view') {
@@ -77,6 +78,35 @@ describe('gh wrapper Authorized by line', () => {
     const edit = (await t.calls()).find((a) => a[0] === 'pr' && a[1] === 'edit');
     expect(edit?.slice(0, 3)).toEqual(['pr', 'edit', PR_URL]);
     expect(edit).toContain('--body-file');
+  });
+
+  it('streams the output of pr create while it runs instead of printing it all after it exits', async () => {
+    const t = await setup();
+    const child = spawn('gh', ['pr', 'create'], {
+      env: {
+        PATH: `${wrapperDir}:${t.dir}:${dirname(process.execPath)}:/usr/bin:/bin`,
+        STUB_LOG: join(t.dir, 'log'),
+        STUB_BODY_FILE: join(t.dir, 'body'),
+        STUB_PR_URL: PR_URL,
+        STUB_CREATE_DELAY_MS: '1500',
+        ...AUTH('alice'),
+      },
+    });
+    const start = Date.now();
+    const firstChunkAt = await new Promise<number>((resolve) =>
+      child.stdout.once('data', () => resolve(Date.now() - start)),
+    );
+    await new Promise((resolve) => child.on('close', resolve));
+    expect(firstChunkAt).toBeLessThan(1000);
+    expect(await t.body()).toBe('Fixes the thing.\n\nAuthorized by `alice`\n');
+  });
+
+  it('does nothing extra for pr create --web (no PR exists yet)', async () => {
+    const t = await setup();
+    const web = await t.run(['pr', 'create', '--web'], AUTH('alice'));
+    expect(web.stdout).toContain(PR_URL);
+    expect((await t.calls()).map((a) => a[1])).toEqual(['create']);
+    expect(await t.body()).toBe('Fixes the thing.\n');
   });
 
   it('replaces an Authorized by line the agent wrote instead of adding a second one', async () => {
