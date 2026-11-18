@@ -533,7 +533,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         if (decision.kind === 'park') {
           // Recorded so a `dropSession` and the cancel rules treat the parked run like any other.
           parkKind = decision.parkKind;
-          const parked = await park(c, decision.parkKind, decision.reason);
+          const parked = await park(c, decision.parkKind, decision.reason, exitCode);
           if ('pod' in parked) {
             pod = parked.pod;
             continue;
@@ -668,7 +668,12 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
    * `ensureJob`, so the resume would follow the old exited pod) and free the slot, keep the volume, then wait in `parked` for a finish, a cancel,
    * a drop or the expiry, or for a resume, which returns the resumed pod to the main loop.
    */
-  async function park(c: RunContext, kind: ParkKind, reason: PauseReason): Promise<Outcome | { pod: Pod }> {
+  async function park(
+    c: RunContext,
+    kind: ParkKind,
+    reason: PauseReason,
+    podExitCode?: number,
+  ): Promise<Outcome | { pod: Pod }> {
     hardTimer.cancel();
     usedSeconds += Math.max(0, Math.floor((Date.now() - podStartedMs) / 1000));
     legacyAttached = 0;
@@ -683,6 +688,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       kind,
       at: new Date().toISOString(),
       reason,
+      // -1 is the placeholder for a pod that vanished: there is no exit code to report.
+      ...(reason === 'pod_lost' && podExitCode !== undefined && podExitCode >= 0 ? { podExitCode } : {}),
       ...(resumeAccepted ? { resumeQueued: true } : {}),
     });
     if (kind === 'needs_input') await act.postComment(c, 'paused');

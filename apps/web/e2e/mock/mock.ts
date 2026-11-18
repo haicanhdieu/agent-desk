@@ -26,11 +26,12 @@ export const SCRIPTED_RUN = 63;
 export const PAUSED_RUN = 64;
 /** A run nobody resumed in time (fixtures: dto/runs.ts). */
 export const EXPIRED_RUN = 66;
-/** The runs in the terminal lifecycle states: ending, agent crashed, resume failed, resumed (src/mocks/dto/lifecycleRuns.ts, browser mock only). */
+/** The runs in the terminal lifecycle states: ending, agent crashed, resume failed, resumed, pod killed (src/mocks/dto/lifecycleRuns.ts, browser mock only). */
 export const ENDING_RUN = 67;
 export const CRASHED_RUN = 68;
 export const RESUME_FAILED_RUN = 69;
 export const RESUMED_RUN = 70;
+export const KILLED_RUN = 71;
 /** An idle run (Needs you) that has a live terminal. */
 export const IDLE_RUN = 62;
 

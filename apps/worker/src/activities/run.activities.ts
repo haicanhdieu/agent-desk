@@ -156,10 +156,13 @@ export interface RunActivities {
    * Writes `pause_reason` (`idle_timeout` when absent: input scheduled by workflow code from before the reason existed) and clears `session_ending_at` (the session end is over).
    * `resumeQueued`: a Resume was accepted while the session was ending; when this park keeps nothing it appends a
    * `resume_failed` lifecycle event (fixed text) so the run says why the resume did not run.
+   * `podExitCode`: with reason `pod_lost`, the exit code the cluster reported for the pod (137 is a SIGKILL, what the
+   * kernel's out-of-memory kill leaves); stored as a `pod_exit` lifecycle event so the page can say why. Ignored unless it
+   * is a whole number from 0 to 255.
    */
   parkRun(
     ctx: RunContext,
-    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean },
+    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean; podExitCode?: number },
   ): Promise<ParkResult>;
   /**
    * `expired`: paused → status expired; succeeded → clears session_expires_at and notifies. `dropped`: same for

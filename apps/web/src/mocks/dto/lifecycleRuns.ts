@@ -14,6 +14,8 @@ export const CRASHED_RUN = 68;
 export const RESUME_FAILED_RUN = 69;
 /** Paused, resumed, and the new session is up with no new turn yet: the "Resumed. The agent asked: ..." banner. */
 export const RESUMED_RUN = 70;
+/** The pod was killed (exit code 137, the memory limit) in the middle of a turn: paused with the reason pod_lost. */
+export const KILLED_RUN = 71;
 
 const LAST_WORDS = ['$ claude', 'Exporting invoices to CSV...', 'Wrote 142 rows to export.csv'].join('\n');
 
@@ -64,6 +66,13 @@ export const lifecycleRunFixtures: RunDto[] = [
     idleSince: plus(3021),
     agentNote: 'Should quotes inside a field be doubled?',
   }),
+  live(KILLED_RUN, 'Reconcile payments with the ledger', {
+    status: 'paused',
+    pausedAt: plus(2503),
+    pauseReason: 'pod_lost',
+    sessionExpiresAt: new Date(Date.now() + 6 * 24 * HOUR_MS).toISOString(),
+    agentNote: null,
+  }),
 ];
 
 /** Events as the worker writes them for each case; a run's seq starts at 1. */
@@ -95,6 +104,12 @@ function eventsOf(run: RunDto): RunEventDto[] {
         reason: 'nothing was kept to resume from',
         text: 'The resume could not run: nothing was kept to resume from.',
       });
+      break;
+    case KILLED_RUN:
+      push(2500, 'status', { status: 'running' });
+      push(2501, 'scrollback', { text: LAST_WORDS });
+      push(2502, 'lifecycle', { kind: 'pod_exit', code: 137 });
+      push(2503, 'status', { status: 'paused' });
       break;
     case RESUMED_RUN:
       push(1000, 'status', { status: 'idle' });

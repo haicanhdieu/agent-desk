@@ -5,6 +5,7 @@ import { projectFixtures } from './projects';
 import {
   CRASHED_RUN,
   ENDING_RUN,
+  KILLED_RUN,
   RESUMED_RUN,
   RESUME_FAILED_RUN,
   lifecycleEventFixtures,
@@ -43,6 +44,11 @@ describe('lifecycle fixture runs (browser mock)', () => {
   it('the crashed run is paused with the reason and the exit code', () => {
     const { detail } = open(CRASHED_RUN);
     expect(detail.session?.headline).toMatch(/^Paused: agent crashed \(exit code 3\)$/);
+  });
+
+  it('the killed run is paused and says its pod was most likely out of memory', () => {
+    const { detail } = open(KILLED_RUN);
+    expect(detail.session?.headline).toBe('Paused: the pod was killed, most likely out of memory (exit code 137)');
   });
 
   it('the resume-failed run is succeeded and says nothing was kept', () => {

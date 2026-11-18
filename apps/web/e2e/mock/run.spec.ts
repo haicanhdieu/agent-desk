@@ -5,6 +5,7 @@ import {
   EXPIRED_RUN,
   IDLE_RUN,
   INVOICER_API,
+  KILLED_RUN,
   ORG,
   PAUSED_RUN,
   RESUME_FAILED_RUN,
@@ -128,6 +129,22 @@ test('a run whose agent crashed is paused with the reason and its exit code, and
   // The saved scrollback of the crashed session is shown read-only.
   await expect(page.getByRole('group', { name: 'Claude Code terminal' })).toContainText('Wrote 142 rows to export.csv');
   await expect(page.getByRole('button', { name: 'Finish', exact: true })).toBeVisible();
+
+  await page.getByRole('button', { name: 'Resume' }).click();
+  await expect(header.getByText('Queued', { exact: true })).toBeVisible();
+  await expect(header.getByText('Running', { exact: true })).toBeVisible({ timeout: 15_000 });
+});
+
+test('a run whose pod was killed for memory is paused with that reason, not "waiting for your answer", and can be resumed', async ({
+  page,
+}) => {
+  await page.goto(runUrl(KILLED_RUN));
+  const header = page.getByRole('banner');
+  await expect(header.getByText('Paused', { exact: true })).toBeVisible();
+  await expect(page.getByText('Paused: the pod was killed, most likely out of memory (exit code 137)')).toBeVisible();
+  await expect(page.getByText(/^Paused .*, the pod stopped unexpectedly .*\. Can be resumed for /)).toBeVisible();
+  await expect(page.getByText(/waiting for your answer/)).toHaveCount(0);
+  await expect(page.getByRole('group', { name: 'Claude Code terminal' })).toContainText('Wrote 142 rows to export.csv');
 
   await page.getByRole('button', { name: 'Resume' }).click();
   await expect(header.getByText('Queued', { exact: true })).toBeVisible();
