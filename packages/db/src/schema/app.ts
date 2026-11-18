@@ -105,6 +105,8 @@ export const agents = pgTable(
     // @agentdesk/contracts (db cannot import contracts): paused 1 h to 30 days, default 7 days; done 0 to 7 days, default 24 h.
     pausedKeepSeconds: integer('paused_keep_seconds').notNull().default(604800),
     doneKeepSeconds: integer('done_keep_seconds').notNull().default(86400),
+    // Idle end: 5 minutes to 7 days, default 30 minutes. Mirrors AGENT_IDLE_END_SECONDS_* in @agentdesk/contracts.
+    idleEndSeconds: integer('idle_end_seconds').notNull().default(1800),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [
@@ -113,6 +115,7 @@ export const agents = pgTable(
     check('agents_timeout_check', sql`${t.timeoutSeconds} between 60 and 604800`),
     check('agents_paused_keep_check', sql`${t.pausedKeepSeconds} between 3600 and 2592000`),
     check('agents_done_keep_check', sql`${t.doneKeepSeconds} between 0 and 604800`),
+    check('agents_idle_end_check', sql`${t.idleEndSeconds} between 300 and 604800`),
     check('agents_credential_type_check', sql`${t.credentialType} in ('oauth_token','api_key')`),
     orgPolicy(),
   ],

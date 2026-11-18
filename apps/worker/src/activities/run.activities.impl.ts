@@ -2,6 +2,7 @@ import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  AGENT_IDLE_END_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   Provider,
   RunStatus,
@@ -13,6 +14,7 @@ import {
   END_COMMAND,
   END_REASONS,
   EXEC_NOT_FOUND,
+  IDLE_END_SECONDS,
   REPO_URL_KEY,
   SIGNAL,
   WORKSPACE_TOKEN_KEY,
@@ -396,6 +398,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           status: runs.status,
           maxConcurrentRuns: projects.maxConcurrentRuns,
           timeoutSeconds: agents.timeoutSeconds,
+          idleEndSeconds: agents.idleEndSeconds,
         })
         .from(runs)
         .innerJoin(projects, eq(projects.id, runs.projectId))
@@ -413,7 +416,11 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       // An agent deleted after queueing: fall back to the agents.timeout_seconds default.
       timeoutSeconds: row.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       maxConcurrentRuns: row.maxConcurrentRuns,
-      idleEndSeconds: deps.config.RUN_IDLE_END_SECONDS,
+      // The agent's setting. RUN_IDLE_END_SECONDS is a test seam: only a value away from its default overrides it.
+      idleEndSeconds:
+        deps.config.RUN_IDLE_END_SECONDS !== IDLE_END_SECONDS
+          ? deps.config.RUN_IDLE_END_SECONDS
+          : (row.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT),
       endingDeadlineSeconds: deps.config.RUN_ENDING_DEADLINE_SECONDS,
       leaseTtlSeconds: deps.config.RUN_LEASE_TTL_SECONDS,
     };

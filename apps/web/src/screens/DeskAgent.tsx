@@ -58,8 +58,6 @@ export interface DeskAgentProps {
   limitsError?: string;
   /** A limits save is in flight: Save limits stays disabled. */
   savingLimits?: boolean;
-  /** The idle limit is shown but cannot be changed here (no API field for it yet). */
-  idleReadOnly?: boolean;
   /** Called after the delete is confirmed in a dialog. */
   onDeleteProject?(): void;
   /**
@@ -91,7 +89,6 @@ export function DeskAgent({
   limitsErrors = {},
   limitsError,
   savingLimits = false,
-  idleReadOnly = false,
   onDeleteProject,
   onReplaceCredential,
   credentialError,
@@ -256,7 +253,6 @@ export function DeskAgent({
                   aria-invalid={invalid}
                   unit="minutes unattended"
                   value={limits.idle}
-                  readOnly={idleReadOnly}
                   onChange={set('idle')}
                 />
               )}

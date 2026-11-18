@@ -128,7 +128,7 @@ text: single line, capped at 500 characters, passed through run-output redaction
 | `idle`    | end session → `succeeded` (unchanged from today)  | allowed  |
 | `done`    | end session → `succeeded`                         | allowed  |
 
-The idle-end duration stays `IDLE_END_SECONDS` (10 min) for both `idle` and `done`.
+The idle-end duration defaults to 30 min (`IDLE_END_SECONDS`; per agent as `idleEndSeconds`, see the ADR 0022 amendment) and applies to both `idle` and `done`.
 
 ### 5.5 Finish must reliably close the run
 

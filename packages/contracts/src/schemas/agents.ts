@@ -12,6 +12,7 @@ export const AgentDto = z.object({
   timeoutSeconds: z.number().int(),
   pausedKeepSeconds: z.number().int(),
   doneKeepSeconds: z.number().int(),
+  idleEndSeconds: z.number().int(),
   credential: z.object({
     set: z.boolean(),
     type: CredentialType.nullable(),
@@ -36,6 +37,11 @@ export const AGENT_DONE_KEEP_SECONDS_MIN = 0;
 export const AGENT_DONE_KEEP_SECONDS_MAX = 604800;
 export const AGENT_DONE_KEEP_SECONDS_DEFAULT = 86400;
 
+/** How long a run may sit idle with no terminal attached before it pauses, seconds: 5 minutes to 7 days, default 30 minutes. */
+export const AGENT_IDLE_END_SECONDS_MIN = 300;
+export const AGENT_IDLE_END_SECONDS_MAX = 604800;
+export const AGENT_IDLE_END_SECONDS_DEFAULT = 1800;
+
 export const PutAgentRequest = z.object({
   model: z.string().min(1),
   maxTurns: z.number().int().min(1).optional(),
@@ -57,6 +63,13 @@ export const PutAgentRequest = z.object({
     .int()
     .min(AGENT_DONE_KEEP_SECONDS_MIN, { message: "A finished run's session can be kept for at most 7 days" })
     .max(AGENT_DONE_KEEP_SECONDS_MAX, { message: "A finished run's session can be kept for at most 7 days" })
+    .optional(),
+  /** Absent keeps the stored value. */
+  idleEndSeconds: z
+    .number()
+    .int()
+    .min(AGENT_IDLE_END_SECONDS_MIN, { message: 'Idle runs must end after between 5 minutes and 7 days' })
+    .max(AGENT_IDLE_END_SECONDS_MAX, { message: 'Idle runs must end after between 5 minutes and 7 days' })
     .optional(),
 });
 export type PutAgentRequest = z.infer<typeof PutAgentRequest>;

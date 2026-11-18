@@ -81,6 +81,7 @@ const agent: AgentDto = {
   timeoutSeconds: 1800,
   pausedKeepSeconds: 604800,
   doneKeepSeconds: 86400,
+  idleEndSeconds: 1800,
   credential: { set: true, type: 'oauth_token', updatedAt: null, setBy: null },
 };
 

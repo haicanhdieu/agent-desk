@@ -2,7 +2,7 @@ import type { AgentDto, ProjectDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { agentFixtures } from '@/mocks/dto/agents';
 import { projectFixtures } from '@/mocks/dto/projects';
-import { hasLimitChanges, IDLE_END_MINUTES, limitsOf, limitsRequests, toAgentSettings } from './agent.form';
+import { hasLimitChanges, limitsOf, limitsRequests, toAgentSettings } from './agent.form';
 
 const now = new Date('2026-11-12T14:14:00.000Z');
 
@@ -24,7 +24,7 @@ describe('toAgentSettings', () => {
       timeoutMinutes: 30,
       pausedKeepMinutes: 10080,
       doneKeepMinutes: 1440,
-      idleEndMinutes: IDLE_END_MINUTES,
+      idleEndMinutes: 30,
       maxConcurrent: 2,
       maxRunsPerTicket: 10,
     });
@@ -42,16 +42,18 @@ describe('limitsRequests', () => {
     expect(hasLimitChanges(limitsRequests(base, { ...base }))).toBe(false);
   });
 
-  it('only the idle limit changed → nothing to send', () => {
-    const req = limitsRequests(base, { ...base, idleEndMinutes: 30 });
-    expect(req).toEqual({});
-    expect(hasLimitChanges(req)).toBe(false);
+  it('the idle end comes from the agent, in minutes', () => {
+    expect(limitsOf({ ...agent, idleEndSeconds: 5400 }, project).idleEndMinutes).toBe(90);
   });
 
-  it('only changed project limits go to the project; the idle field is never sent', () => {
-    expect(limitsRequests(base, { ...base, maxRunsPerTicket: 20, idleEndMinutes: 15 })).toEqual({
-      project: { maxRunsPerTicket: 20 },
-    });
+  it('a changed idle end is sent in seconds, with the other changed limits', () => {
+    const req = limitsRequests(base, { ...base, maxRunsPerTicket: 20, idleEndMinutes: 15 });
+    expect(req).toEqual({ project: { maxRunsPerTicket: 20 }, idleEndSeconds: 900 });
+    expect(hasLimitChanges(limitsRequests(base, { ...base, idleEndMinutes: 15 }))).toBe(true);
+  });
+
+  it('an unchanged idle end is not sent', () => {
+    expect(limitsRequests(base, { ...base, idleEndMinutes: base.idleEndMinutes })).toEqual({});
   });
 
   it('a changed timeout is sent in seconds', () => {

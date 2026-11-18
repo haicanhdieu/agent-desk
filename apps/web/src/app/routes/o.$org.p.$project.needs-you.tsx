@@ -45,7 +45,7 @@ function NeedsYouRoute() {
       run: toRunSummary(r, now),
       href: runHref(page.paths, r.number),
       idleAt: clockTime(since),
-      endsAt: idleEndsAt(since),
+      endsAt: idleEndsAt(since, r.idleEndSeconds),
     };
   });
 

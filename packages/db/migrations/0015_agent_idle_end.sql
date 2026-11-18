@@ -1,0 +1,2 @@
+ALTER TABLE "agents" ADD COLUMN "idle_end_seconds" integer DEFAULT 1800 NOT NULL;--> statement-breakpoint
+ALTER TABLE "agents" ADD CONSTRAINT "agents_idle_end_check" CHECK ("agents"."idle_end_seconds" between 300 and 604800);

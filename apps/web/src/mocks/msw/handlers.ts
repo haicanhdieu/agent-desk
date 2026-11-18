@@ -127,6 +127,12 @@ function runOf(runId: string): RunDto {
   return run;
 }
 
+/** As the API: a run carries its agent's idle end, so an edit on Agent & settings shows on the run screens. */
+const withAgentIdleEnd = (run: RunDto): RunDto => {
+  const agent = db().agents.find((a) => a.projectId === run.projectId);
+  return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds } : run;
+};
+
 /** Ends the run now; open event streams see the note and the status (live.ts). */
 function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
   run.finishedAt = now();
@@ -268,6 +274,7 @@ const impl: Impl = {
       timeoutSeconds: 1800,
       pausedKeepSeconds: 604800,
       doneKeepSeconds: 86400,
+      idleEndSeconds: 1800,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
     return toProjectDto(row);
@@ -326,6 +333,7 @@ const impl: Impl = {
     agent.timeoutSeconds = body.timeoutSeconds;
     agent.pausedKeepSeconds = body.pausedKeepSeconds ?? agent.pausedKeepSeconds;
     agent.doneKeepSeconds = body.doneKeepSeconds ?? agent.doneKeepSeconds;
+    agent.idleEndSeconds = body.idleEndSeconds ?? agent.idleEndSeconds;
     return agent;
   },
   'agents.putCredential': ({ params, body }) => {
@@ -492,7 +500,7 @@ const impl: Impl = {
       .filter((r) => query.ticket === undefined || r.ticket.ref === query.ticket)
       .filter((r) => r.number < cursor)
       .sort((a, b) => b.number - a.number);
-    const items = matching.slice(0, query.limit);
+    const items = matching.slice(0, query.limit).map(withAgentIdleEnd);
     const last = items.at(-1);
     return { items, nextCursor: matching.length > items.length && last ? String(last.number) : null };
   },
@@ -500,9 +508,9 @@ const impl: Impl = {
     const projectId = projectRow(params.projectId).id;
     const run = db().runs.find((r) => r.projectId === projectId && r.number === params.number);
     if (!run) throw notFound('Run');
-    return run;
+    return withAgentIdleEnd(run);
   },
-  'runs.get': ({ params }) => runOf(params.runId),
+  'runs.get': ({ params }) => withAgentIdleEnd(runOf(params.runId)),
   'runs.log': ({ params }) => ({ items: db().runEvents[runOf(params.runId).id] ?? [] }),
   'runs.cancel': ({ params }) => {
     const { user } = session();

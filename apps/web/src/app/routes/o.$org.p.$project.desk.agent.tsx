@@ -125,7 +125,6 @@ function DeskAgentPage() {
       limitsErrors={limits.errors}
       limitsError={limits.formError}
       savingLimits={limits.saving}
-      idleReadOnly
       onReplaceCredential={credential.replace}
       credentialError={credential.error}
       onDeleteProject={onDeleteProject}

@@ -43,6 +43,8 @@ export const RunDto = z.object({
   setupScriptVersion: z.number().int().nullable(),
   costUsd: z.number().nullable(),
   timeoutSeconds: z.number().int(),
+  /** The agent's idle end: how long an idle run waits unattended before it pauses. */
+  idleEndSeconds: z.number().int(),
   idleSince: Timestamp.nullable(),
   /** Set while the run is Running only because background work is pending. */
   waitingOn: WaitingOn.nullable(),

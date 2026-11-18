@@ -620,6 +620,15 @@ describe('toRunDetail', () => {
     expect(d.time).toBeUndefined();
   });
 
+  it('idle: ends after the run agent idle end, not a fixed 30 minutes', () => {
+    const d = detail(run({ status: 'idle', idleSince: local(14, 3, 58), idleEndSeconds: 600 }));
+    expect(d.idle).toEqual({
+      since: '14:03:58',
+      endsAt: '14:13',
+      slotNote: `It holds one of your ${project.maxConcurrentRuns} slots. It ends on its own after 10 minutes with nobody attached.`,
+    });
+  });
+
   describe('end note', () => {
     const ended = (over: Partial<RunDto>) =>
       run({ startedAt: local(11, 29, 7), finishedAt: local(11, 30, 17), ...over });
