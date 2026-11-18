@@ -10,7 +10,7 @@ import { requestSlot, type GateSignaller } from './slot.activity';
 import type { Activities } from './types';
 
 export interface ActivityDeps extends Omit<RunActivityDeps, 'db' | 'config'> {
-  config: RunActivityDeps['config'] & Pick<Config, 'POLL_MAX_BACKOFF_SECONDS' | 'SETUP_TEST_TTL_SECONDS'>;
+  config: RunActivityDeps['config'] & Pick<Config, 'POLL_MAX_BACKOFF_SECONDS'>;
   db: Db;
   starter: WorkflowStarter;
   gate: GateSignaller;
@@ -52,7 +52,6 @@ export function createActivities(deps: ActivityDeps): Activities {
         kube: deps.kube,
         temporal: deps.temporal,
         setupTest: {
-          ttlSeconds: deps.config.SETUP_TEST_TTL_SECONDS,
           setupTimeoutSeconds: deps.config.RUN_SETUP_TIMEOUT_SECONDS,
         },
         clock: deps.clock,

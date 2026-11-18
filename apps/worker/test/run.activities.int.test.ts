@@ -27,7 +27,7 @@ import { setRunStatus } from '../src/activities/run-status.activity';
 import { reconcile, type ReconcileTemporal } from '../src/activities/reconcile.activity';
 
 const ORG = '44444444-4444-4444-8444-444444444444';
-const SETUP_LIMITS = { ttlSeconds: 900, setupTimeoutSeconds: 600 };
+const SETUP_LIMITS = { setupTimeoutSeconds: 600 };
 // Volumes of earlier tests' runs may still be in the shared fake cluster, so their count is not pinned here
 // (reconcile.int.test.ts pins volume behaviour).
 const NO_SETUP_TEST_DELETES = {

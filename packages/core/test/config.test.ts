@@ -23,7 +23,6 @@ describe('plugin and setup config', () => {
       'anthropic-plugin-directory': 'builtin',
     });
     expect(c.RUN_SETUP_TIMEOUT_SECONDS).toBe(600);
-    expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
     expect(c.RUN_VOLUME_STORAGE_CLASS).toBeUndefined();
     expect(c.RUN_KEPT_DONE_SESSIONS_PER_PROJECT).toBe(10);
     expect(c.RUN_IDLE_END_SECONDS).toBe(1800);
@@ -103,11 +102,9 @@ describe('plugin and setup config', () => {
       ...base,
       RUN_PLUGIN_MARKETPLACES: '{"a":"o/r"}',
       RUN_SETUP_TIMEOUT_SECONDS: '30',
-      SETUP_TEST_TTL_SECONDS: '',
     });
     expect(c.RUN_PLUGIN_MARKETPLACES).toEqual({ a: 'o/r' });
     expect(c.RUN_SETUP_TIMEOUT_SECONDS).toBe(30);
-    expect(c.SETUP_TEST_TTL_SECONDS).toBe(900);
   });
   it.each(['[]', '"x"', '{"a":1}', 'nope'])('rejects RUN_PLUGIN_MARKETPLACES=%s', (v) => {
     expect(() => parseConfig({ ...base, RUN_PLUGIN_MARKETPLACES: v })).toThrow(/RUN_PLUGIN_MARKETPLACES/);
@@ -115,8 +112,6 @@ describe('plugin and setup config', () => {
   it.each([
     ['RUN_SETUP_TIMEOUT_SECONDS', '0'],
     ['RUN_SETUP_TIMEOUT_SECONDS', '3301'],
-    ['SETUP_TEST_TTL_SECONDS', '59'],
-    ['SETUP_TEST_TTL_SECONDS', '3601'],
   ])('rejects %s=%s', (k, v) => {
     expect(() => parseConfig({ ...base, [k]: v })).toThrow(k);
   });

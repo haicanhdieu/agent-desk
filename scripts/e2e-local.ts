@@ -485,7 +485,10 @@ async function putScript(s: Setup, body: string, baseVersion: number | null): Pr
   );
 }
 
-/** A saved script is tested in a throwaway workspace (passes with the fake pod), then a real run records its version. */
+/**
+ * A saved script is tested in a throwaway workspace (passes with the fake pod; the pod is deleted once the result is
+ * recorded), then a real run records its version.
+ */
 async function setupScenario(name: string): Promise<void> {
   let s: Setup | undefined;
   let runId: string | undefined;
@@ -517,7 +520,20 @@ async function setupScenario(name: string): Promise<void> {
     assert(test.status === 'passed', `setup test: expected passed, got ${test.status}`);
     assert(test.matchesCurrentScript, 'setup test: does not match the saved script');
     logStep(name, 'setup test passed on the saved script');
-    await s.session.call('POST', `/api/setup-tests/${created.id}/end`, { expect: [200, 202, 204] });
+    // The worker deletes the test pod as soon as the result is recorded: the test ends by itself (no End test call)
+    // and keeps its result.
+    while (test.endedAt === null) {
+      assert(Date.now() < deadline, `setup test ${created.id}: not ended after ${IDLE_TIMEOUT_MS} ms`);
+      await sleep(500);
+      const latest = await s.session.json(
+        'GET',
+        `/api/projects/${s.project.id}/setup-tests/latest`,
+        SetupTestDto.nullable(),
+      );
+      if (latest) test = latest;
+    }
+    assert(test.status === 'passed', `setup test: expected the result to stay passed once ended, got ${test.status}`);
+    logStep(name, 'setup test ended on its own after the result, result kept');
 
     const result = await comment(s, '/code-review please', 'webhook');
     runId = result.runId;

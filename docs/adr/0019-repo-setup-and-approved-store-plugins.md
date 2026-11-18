@@ -1,6 +1,6 @@
 # 0019. Repo setup script and plugins from approved stores only
 
-- Status: Accepted. Where it names the clone URL token and `runEnv` in test pods, [0021](0021-run-time-limit-7-days-with-token-refresh.md) applies: the repo URL carries no token and the workspace token is a mounted file (not refreshed in setup tests).
+- Status: Accepted. Where it names the clone URL token and `runEnv` in test pods, [0021](0021-run-time-limit-7-days-with-token-refresh.md) applies: the repo URL carries no token and the workspace token is a mounted file (not refreshed in setup tests). [0025](0025-setup-test-pod-deleted-when-the-result-is-recorded.md) supersedes the part of decision 8 below that gives the editor an interactive shell in the test pod for `SETUP_TEST_TTL_SECONDS`: the test pod is deleted as soon as the result is recorded.
 - Date: 2026-11-13
 - Source: [workspace setup and plugins design](../superpowers/specs/2026-11-13-workspace-setup-and-plugins-design.md) §3 (decisions 1, 2, 7, 8), §5.1
 

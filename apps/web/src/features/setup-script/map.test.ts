@@ -37,7 +37,6 @@ const test = (over: Partial<SetupTestDto> = {}): SetupTestDto => ({
   createdAt: local(14, 22),
   finishedAt: null,
   endedAt: null,
-  endsAt: null,
   ...over,
 });
 let seq = 0;
@@ -196,7 +195,7 @@ describe('toDeskSetupProps', () => {
           expect(p.lastTest?.result).toBe(shape.result);
           expect(p.lastTest?.summary.endsWith(shape.tail)).toBe(true);
           expect(p.lastTest?.summary).not.toContain('exited 0');
-          expect(p.test).toMatchObject({ status: shape.view, view: 'log', endsIn: 'ended' });
+          expect(p.test).toMatchObject({ status: shape.view });
         });
 
         it(`${shape.name}: with the test's own events missing, the status decides`, () => {
@@ -210,7 +209,7 @@ describe('toDeskSetupProps', () => {
         const p = toDeskSetupProps(data({ latest }), now, { showEnded: true });
         expect(p.lastTest).toMatchObject({ result: 'ended', matchesSaved: false });
         expect(p.lastTest?.summary).toContain('ended before setup finished');
-        expect(p.test).toMatchObject({ status: 'failed', view: 'log' });
+        expect(p.test).toMatchObject({ status: 'failed' });
         expect(props({ latest }).test).toBeUndefined();
       });
 
@@ -262,16 +261,6 @@ describe('toDeskSetupProps', () => {
       );
     });
 
-    it('ends in: minutes until endsAt (at least 0), after setup before it is known', () => {
-      expect(
-        props({ latest: test({ status: 'passed', exitCode: null, endsAt: local(14, 43, 10) }) }).test?.endsIn,
-      ).toBe('14 min');
-      expect(props({ latest: test({ status: 'passed', exitCode: null, endsAt: local(14, 20) }) }).test?.endsIn).toBe(
-        '0 min',
-      );
-      expect(props({ latest: running }).test?.endsIn).toBe('setup finishes');
-    });
-
     describe('phases from the events', () => {
       const begin = [
         ev(local(14, 29, 1), { kind: 'checkout', text: `agentdesk: checkout ${SHA}`, sha: SHA }),
@@ -289,7 +278,6 @@ describe('toDeskSetupProps', () => {
           { label: 'Clone', state: 'active' },
           { label: 'Plugins', state: 'pending' },
           { label: 'Setup', state: 'pending' },
-          { label: 'Shell', state: 'pending' },
         ]);
       });
 
@@ -303,15 +291,13 @@ describe('toDeskSetupProps', () => {
           { label: 'Clone', state: 'done', detail: 'a91c3e2' },
           { label: 'Plugins', state: 'done', detail: '1 installed, 1 blocked' },
           { label: 'Setup', state: 'active', detail: 'running for 54s' },
-          { label: 'Shell', state: 'pending' },
         ]);
       });
 
-      it('setup passed → ✓ with exit 0 and how long it took; the shell is ready', () => {
+      it('setup passed → ✓ with exit 0 and how long it took', () => {
         const events = [...begin, ev(local(14, 31, 37), { kind: 'setup_passed', text: 'agentdesk: setup passed' })];
         const p = phases('passed', events, 0);
         expect(p?.[2]).toEqual({ label: 'Setup', state: 'done', detail: 'exit 0 after 2m 31s' });
-        expect(p?.[3]).toEqual({ label: 'Shell', state: 'done', detail: 'ready for you' });
       });
 
       it('setup failed → ✗ with the exit code and time under a minute', () => {
@@ -321,7 +307,6 @@ describe('toDeskSetupProps', () => {
         ];
         const p = phases('failed', events, 1);
         expect(p?.[2]).toEqual({ label: 'Setup', state: 'failed', detail: 'exit 1 after 48s' });
-        expect(p?.[3]).toEqual({ label: 'Shell', state: 'done', detail: 'ready for you' });
       });
 
       it('setup timed out → ✗', () => {
@@ -409,7 +394,7 @@ describe('toDeskSetupProps', () => {
     });
   });
 
-  it('an ended test shown as a log: view "log", ended', () => {
+  it('an ended test shown as a log keeps its result', () => {
     const p = toDeskSetupProps(
       data({ latest: test({ status: 'passed', exitCode: null, endedAt: local(14, 25) }) }),
       now,
@@ -417,7 +402,7 @@ describe('toDeskSetupProps', () => {
         showEnded: true,
       },
     );
-    expect(p.test).toMatchObject({ status: 'passed', view: 'log', endsIn: 'ended' });
+    expect(p.test).toMatchObject({ status: 'passed' });
   });
 });
 
@@ -488,8 +473,42 @@ describe('setupWarningOf', () => {
 });
 
 describe('toSetupStepTest', () => {
-  it('is idle without an open test', () => {
+  it('is idle without a test', () => {
     expect(toSetupStepTest({})).toEqual({ state: 'idle' });
+  });
+
+  // The workspace is deleted as soon as the result is recorded, so a finished test is always an ended one.
+  it('still reports the result of a test whose workspace is already deleted', () => {
+    const base = { script: script(), versions: [], plugins: noPlugins, events: [] };
+    const passed = test({
+      status: 'passed',
+      exitCode: null,
+      finishedAt: local(14, 23),
+      endedAt: local(14, 23),
+      checkoutSha: SHA,
+    });
+    const failed = test({
+      status: 'failed',
+      exitCode: 1,
+      finishedAt: local(14, 23),
+      endedAt: local(14, 23),
+      checkoutSha: SHA,
+    });
+    expect(toSetupStepTest(toDeskSetupProps({ ...base, latest: passed }, now))).toMatchObject({
+      state: 'passed',
+      title: 'Setup passed',
+      detail: expect.stringContaining('setup passed'),
+    });
+    expect(toSetupStepTest(toDeskSetupProps({ ...base, latest: failed }, now))).toMatchObject({
+      state: 'failed',
+      title: 'Setup failed',
+    });
+  });
+
+  it('is idle for a test that ended without a result', () => {
+    const latest = test({ status: 'ended', exitCode: null, finishedAt: null, endedAt: local(14, 25) });
+    const view = toDeskSetupProps({ script: script(), versions: [], plugins: noPlugins, latest, events: [] }, now);
+    expect(toSetupStepTest(view)).toEqual({ state: 'idle' });
   });
 
   it('shows a running test with the phase it is in', () => {

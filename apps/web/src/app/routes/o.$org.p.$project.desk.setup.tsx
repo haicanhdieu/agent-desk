@@ -1,13 +1,10 @@
 import type { SetupScriptDto } from '@agentdesk/contracts';
-import { apiPath, ApiError } from '@agentdesk/contracts/client';
+import { ApiError } from '@agentdesk/contracts/client';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState } from 'react';
 import { useNow } from '@/app/useNow';
-import type { LiveTerminalHandle } from '@/components/LiveTerminal';
-import { Banner, Skeleton } from '@/ds';
 import { useDeskFrame } from '@/features/desk/frame';
-import { useTerminalSocket } from '@/features/runs/useTerminal';
 import {
   isStaleSetupScript,
   STALE_SETUP_SCRIPT,
@@ -19,9 +16,6 @@ import { setupScriptSaveProblem, toDeskSetupProps } from '@/features/setup-scrip
 import { setupQueries } from '@/features/setup-script/queries';
 import { useSetupTest } from '@/features/setup-script/useSetupTest';
 import { DeskSetup, type DeskFrameData } from '@/screens';
-
-// xterm downloads only when a test workspace shows its terminal (spec §5.3).
-const LiveTerminal = lazy(() => import('@/components/LiveTerminal'));
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/setup')({
   component: DeskSetupPage,
@@ -88,33 +82,6 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
   }, [qc, org, projectId, streamed]);
 
   const ended = current !== null && (current.endedAt !== null || current.status === 'ended');
-  const settled = current !== null && !ended && (current.status === 'passed' || current.status === 'failed');
-  const termRef = useRef<LiveTerminalHandle | null>(null);
-  const [termReady, setTermReady] = useState(false);
-  const attachTerm = useCallback((handle: LiveTerminalHandle | null) => {
-    termRef.current = handle;
-    if (handle) setTermReady(true);
-  }, []);
-  // The session ended (the test ended or its workspace is gone): the latest test refetches and shows its end state.
-  const onSessionEnd = useCallback(async () => {
-    const key = setupQueries.latest(org, projectId).queryKey;
-    await qc.invalidateQueries({ queryKey: key });
-    const t = qc.getQueryData(key);
-    return t != null && t.endedAt === null && t.status !== 'ended';
-  }, [qc, org, projectId]);
-  const terminalPath = apiPath('setupTests.terminal', { setupTestId: current?.id ?? '-' });
-  const term = useTerminalSocket(terminalPath, settled && termReady, termRef, onSessionEnd);
-
-  let terminal: ReactNode;
-  if (settled && term.state === 'forbidden') {
-    terminal = <Banner tone="err" flush live="polite" title="You can't open this terminal" />;
-  } else if (settled && current) {
-    terminal = (
-      <Suspense fallback={<TerminalLoading />}>
-        <LiveTerminal key={`live:${current.id}`} ref={attachTerm} onData={term.onData} onResize={term.onResize} />
-      </Suspense>
-    );
-  }
 
   const view = toDeskSetupProps(
     {
@@ -213,7 +180,6 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
       }
       versionsLoading={versions.isPending}
       versionsError={versions.isError ? 'Could not load the version history. Reload to try again.' : undefined}
-      test={view.test && terminal ? { ...view.test, terminal } : view.test}
       saving={save.isPending}
       saveError={actionError}
       onSave={onSave}
@@ -223,13 +189,5 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
       onViewVersion={onViewVersion}
       onRestore={onRestore}
     />
-  );
-}
-
-function TerminalLoading() {
-  return (
-    <div aria-busy="true" aria-label="Loading the terminal" role="status">
-      <Skeleton variant="text" lines={6} width="100%" />
-    </div>
   );
 }

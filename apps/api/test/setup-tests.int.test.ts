@@ -109,7 +109,6 @@ describe('setup test create', () => {
       startedBy: 'alice',
       finishedAt: null,
       endedAt: null,
-      endsAt: null,
       plugins: { installed: [], skipped: [], failed: [] },
     });
     expect(res.body).not.toContain('SECRET_MARKER_123');
@@ -337,18 +336,18 @@ describe('setup test latest', () => {
     expect(after.body).not.toContain('echo new');
   });
 
-  it('computes endsAt from finishedAt + SETUP_TEST_TTL_SECONDS only while not ended', async () => {
+  it('keeps the recorded result once the test is finalized (the workspace is gone, the result stays)', async () => {
     const dto = await created();
     const finishedAt = new Date('2026-01-01T00:00:00.000Z');
     await withOrg(t.db, aliceOrg, (tx) =>
-      tx.update(setupTests).set({ status: 'passed', finishedAt }).where(eq(setupTests.id, dto.id)),
+      tx
+        .update(setupTests)
+        .set({ status: 'passed', finishedAt, endedAt: new Date(), scriptBody: null })
+        .where(eq(setupTests.id, dto.id)),
     );
-    const live = SetupTestDto.parse(expectContract('setupTests.latest', await latest()));
-    expect(live.status).toBe('passed');
-    expect(live.endsAt).toBe(new Date(finishedAt.getTime() + t.config.SETUP_TEST_TTL_SECONDS * 1000).toISOString());
-    await finalize(dto.id);
     const done = SetupTestDto.parse(expectContract('setupTests.latest', await latest()));
-    expect(done.endsAt).toBeNull();
+    expect(done.status).toBe('passed');
+    expect(done.finishedAt).toBe(finishedAt.toISOString());
     expect(done.endedAt).not.toBeNull();
   });
 

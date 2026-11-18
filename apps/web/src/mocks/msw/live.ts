@@ -197,7 +197,6 @@ export function appendSetupTestEvent(testId: string, payload: Record<string, unk
 export function endSetupTest(test: SetupTestDto): void {
   if (test.endedAt !== null) return;
   test.endedAt = now();
-  test.endsAt = null;
   if (test.status === 'queued' || test.status === 'running') test.status = 'ended';
   notifySetupTest(test);
 }
@@ -207,14 +206,12 @@ export function notifySetupTest(test: SetupTestDto): void {
   notify(setupTestListeners, test.id, { event: 'status', data: structuredClone(test) });
 }
 
-const SETUP_TEST_TTL_MS = 15 * 60_000;
-
 /** A setup script with a line `exit <non-zero>` fails in the mock; every other script passes. */
 const failsInMock = (script: string) => /^\s*exit\s+[1-9]/m.test(script);
 
 /**
  * Plays a short setup on the queued test: checkout, the plugins the project's repo enables, a few lines of script
- * output, then passed or failed with the workspace open for 15 minutes. Once per test; a store reset drops it.
+ * output, then passed or failed, after which the workspace is deleted (the test ends, its result stays). Once per test; a store reset drops it.
  */
 export function playSetupTest(testId: string): void {
   if (playedSetupTests.has(testId)) return;
@@ -275,8 +272,8 @@ export function playSetupTest(testId: string): void {
     // As the backend stores it: only a failed script has an exit code; a pass has none.
     t.exitCode = fails ? exitCode : null;
     t.finishedAt = finished;
-    t.endsAt = new Date(Date.parse(finished) + SETUP_TEST_TTL_MS).toISOString();
-    notifySetupTest(t);
+    // The backend deletes the workspace as soon as the result is recorded: the test ends and the result stays.
+    endSetupTest(t);
   });
 }
 

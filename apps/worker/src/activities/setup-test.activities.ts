@@ -13,7 +13,7 @@ export type SetupTestResult = { status: 'passed' | 'failed' } | null;
 
 export interface SetupTestActivities {
   /** Mints the token, creates the Secret (clone URL + runEnv, no agent credential) and the Job, sets `running`. */
-  createSetupTestJob(ref: SetupTestRef): Promise<{ ttlSeconds: number }>;
+  createSetupTestJob(ref: SetupTestRef): Promise<void>;
   /** Stores setup events and the result; returns at the setup result marker or when the pod has exited. */
   followSetupTestLogs(ref: SetupTestRef): Promise<SetupTestResult>;
   /** Deletes the Job and Secret, sets `ended_at`, clears `script_body`; status `ended` if there was no result. Idempotent. */

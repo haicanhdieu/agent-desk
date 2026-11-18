@@ -103,14 +103,13 @@ describe('schedule workflows', () => {
 describe('SetupTestWorkflow', () => {
   const ref = { orgId: 'o1', setupTestId: 's1' };
   const stub = (opts: {
-    ttlSeconds?: number;
     follow: () => Promise<{ status: 'passed' | 'failed' } | null>;
-    create?: () => Promise<{ ttlSeconds: number }>;
+    create?: () => Promise<void>;
   }) => {
     const calls: string[] = [];
     runtime.activities.createSetupTestJob = async () => {
       calls.push('create');
-      return opts.create ? opts.create() : { ttlSeconds: opts.ttlSeconds ?? 0 };
+      await opts.create?.();
     };
     runtime.activities.followSetupTestLogs = async () => {
       calls.push('follow');
@@ -123,27 +122,20 @@ describe('SetupTestWorkflow', () => {
     return calls;
   };
 
-  it('reports the result once the kept workspace TTL runs out, then finalizes', async () => {
-    const calls = stub({ ttlSeconds: 0, follow: () => Promise.resolve({ status: 'passed' }) });
+  it('finalizes (deletes the pod) as soon as a passed result is recorded', async () => {
+    const calls = stub({ follow: () => Promise.resolve({ status: 'passed' }) });
     await expect(SetupTestWorkflow(ref)).resolves.toEqual({ status: 'passed' });
     expect(calls).toEqual(['create', 'follow', 'finalize']);
   });
 
-  it('keeps the workspace until endSetupTest releases the wait', async () => {
-    const calls = stub({ ttlSeconds: 3600, follow: () => Promise.resolve({ status: 'failed' }) });
-    let outcome: unknown;
-    const done = SetupTestWorkflow(ref).then((o) => (outcome = o));
-    await settle();
-    expect(calls).toEqual(['create', 'follow']);
-    expect(outcome).toBeUndefined();
-    sendSignal(endSetupTest);
-    await done;
-    expect(outcome).toEqual({ status: 'failed' });
+  it('finalizes at once on a failed result too, and keeps reporting it', async () => {
+    const calls = stub({ follow: () => Promise.resolve({ status: 'failed' }) });
+    await expect(SetupTestWorkflow(ref)).resolves.toEqual({ status: 'failed' });
     expect(calls).toEqual(['create', 'follow', 'finalize']);
   });
 
-  it('does not wait out a TTL when there is no result, and finalizes at once', async () => {
-    const calls = stub({ ttlSeconds: 3600, follow: () => Promise.resolve(null) });
+  it('finalizes at once when there is no result', async () => {
+    const calls = stub({ follow: () => Promise.resolve(null) });
     await expect(SetupTestWorkflow(ref)).resolves.toEqual({ status: 'ended' });
     expect(calls).toEqual(['create', 'follow', 'finalize']);
   });

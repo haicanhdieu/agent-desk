@@ -59,8 +59,6 @@ export const SetupTestDto = z.object({
   createdAt: Timestamp,
   finishedAt: Timestamp.nullable(),
   endedAt: Timestamp.nullable(),
-  /** When the workspace is deleted on its own; null once ended or before the setup result is known. */
-  endsAt: Timestamp.nullable(),
 });
 export type SetupTestDto = z.infer<typeof SetupTestDto>;
 

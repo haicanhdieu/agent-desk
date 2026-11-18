@@ -101,7 +101,6 @@ export const ConfigSchema = z
     /** How long a terminal's attach lease lives without a renewal. A test seam like RUN_IDLE_END_SECONDS. */
     RUN_LEASE_TTL_SECONDS: blankDefault(z.coerce.number().int().min(1).default(TERMINAL_LEASE_TTL_SECONDS)),
     RUN_SETUP_TIMEOUT_SECONDS: blankDefault(z.coerce.number().int().min(1).max(3300).default(600)),
-    SETUP_TEST_TTL_SECONDS: blankDefault(z.coerce.number().int().min(60).max(3600).default(900)),
     FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
     FAKE_WEBHOOK_SECRET: blankDefault(z.string().default('dev')),
     ENABLE_FAKE_PROVIDER: blankDefault(bool.default(false)),

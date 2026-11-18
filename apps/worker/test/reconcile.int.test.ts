@@ -23,7 +23,7 @@ import { reconcile, type ReconcileTemporal } from '../src/activities/reconcile.a
 
 const ORG = '44444444-4444-4444-8444-444444444444';
 const OTHER_ORG = '77777777-7777-4777-8777-777777777777';
-const LIMITS = { ttlSeconds: 900, setupTimeoutSeconds: 600 }; // + 600 s grace = 2100 s
+const LIMITS = { setupTimeoutSeconds: 600 }; // + 600 s grace = 1200 s
 let pgx: TestPg;
 let db: Db;
 let dir: string;
@@ -92,7 +92,6 @@ async function createSetupTestObjects(id: string, o: { org?: string; withJob?: b
         script: '',
         pluginMarketplaces: {},
         setupTimeoutSeconds: 600,
-        ttlSeconds: 900,
         botName: 'bot',
         botEmail: 'bot@example.test',
         gitUsername: 'x-access-token',
@@ -184,17 +183,17 @@ describe('reconcile: setup tests', () => {
     await kube.deleteSecret(live);
   });
 
-  it('deletes a Job and Secret older than created_at + ttl + setup timeout + 600 s', async () => {
+  it('deletes a Job and Secret older than created_at + setup timeout + 600 s', async () => {
     const id = await seedTest();
     const name = await createSetupTestObjects(id);
     const created = await asOwner((c) =>
       c.query<{ t: Date }>(`select created_at as t from setup_tests where id = $1`, [id]),
     );
     const createdAt = created.rows[0]?.t.getTime() ?? 0;
-    // Just inside the limit (2100 s): kept. Just beyond: deleted.
-    await run({ now: () => new Date(createdAt + 2099 * 1000) });
+    // Just inside the limit (1200 s): kept. Just beyond: deleted.
+    await run({ now: () => new Date(createdAt + 1199 * 1000) });
     expect(await exists(name)).toEqual({ job: true, secret: true });
-    await run({ now: () => new Date(createdAt + 2101 * 1000) });
+    await run({ now: () => new Date(createdAt + 1201 * 1000) });
     expect(await exists(name)).toEqual({ job: false, secret: false });
   });
 

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -13,12 +14,12 @@ import type { SetupTestActivities, SetupTestRef, SetupTestResult } from '../src/
 let env: TestWorkflowEnvironment;
 let worker: Worker;
 let running: Promise<void>;
+const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}-history.json`, import.meta.url));
 const workflowsPath = fileURLToPath(new URL('../src/workflows/index.ts', import.meta.url));
 
 interface Script {
   calls: string[];
   args: unknown[][];
-  ttlSeconds: number;
   /** `block`: `followSetupTestLogs` waits until cancelled (no result yet). */
   follow: 'result' | 'block' | 'throw';
   result: SetupTestResult;
@@ -43,7 +44,6 @@ function activities(): SetupTestActivities {
     async createSetupTestJob(...args) {
       const s = note(args[0], 'create', args);
       if (s.createThrows) throw ApplicationFailure.nonRetryable('boom');
-      return { ttlSeconds: s.ttlSeconds };
     },
     async followSetupTestLogs(...args) {
       const s = note(args[0], 'follow', args);
@@ -73,7 +73,6 @@ function newTest(over: Partial<Script> = {}) {
   const s: Script = {
     calls: [],
     args: [],
-    ttlSeconds: 900,
     follow: 'result',
     result: { status: 'passed' },
     createThrows: false,
@@ -127,38 +126,31 @@ describe('SetupTestWorkflow', () => {
     expect(setupTestWorkflowId('abc')).toBe('setup-test-abc');
   });
 
-  it('passes then ends after TTL', async () => {
-    const { ref, s } = newTest({ ttlSeconds: 900 });
+  it('a passed test is finalized (pod deleted) as soon as the result is recorded, with no wait', async () => {
+    const { ref, s } = newTest();
     const h = await start(ref);
-    const before = Date.now();
     expect(await h.result()).toEqual({ status: 'passed' });
-    expect(s.calls).toEqual(['create', 'follow', 'finalize']);
-    // 15 minutes of workflow time passed in (much) less real time: the TTL timer ran, then finalize.
-    expect(Date.now() - before).toBeLessThan(60_000);
-  });
-
-  it('a failed setup is reported as failed and still waits out the TTL', async () => {
-    const { ref, s } = newTest({ result: { status: 'failed' } });
-    const h = await start(ref);
-    expect(await h.result()).toEqual({ status: 'failed' });
-    expect(s.calls).toEqual(['create', 'follow', 'finalize']);
-  });
-
-  it('a test that ends with no result (pod died before a result marker) finalizes at once, with no TTL wait', async () => {
-    const { ref, s } = newTest({ ttlSeconds: 900, result: null });
-    const h = await start(ref);
-    expect(await h.result()).toEqual({ status: 'ended' });
     expect(s.calls).toEqual(['create', 'follow', 'finalize']);
     const timers = ((await h.fetchHistory()).events ?? []).filter((e) => e.timerStartedEventAttributes);
     expect(timers).toHaveLength(0);
   });
 
-  it('a test with a result starts the TTL timer', async () => {
-    const { ref } = newTest({ ttlSeconds: 900 });
+  it('a failed test is finalized (pod deleted) as soon as the result is recorded, with no wait', async () => {
+    const { ref, s } = newTest({ result: { status: 'failed' } });
     const h = await start(ref);
-    await h.result();
+    expect(await h.result()).toEqual({ status: 'failed' });
+    expect(s.calls).toEqual(['create', 'follow', 'finalize']);
     const timers = ((await h.fetchHistory()).events ?? []).filter((e) => e.timerStartedEventAttributes);
-    expect(timers).toHaveLength(1);
+    expect(timers).toHaveLength(0);
+  });
+
+  it('a test that ends with no result (pod died before a result marker) finalizes at once', async () => {
+    const { ref, s } = newTest({ result: null });
+    const h = await start(ref);
+    expect(await h.result()).toEqual({ status: 'ended' });
+    expect(s.calls).toEqual(['create', 'follow', 'finalize']);
+    const timers = ((await h.fetchHistory()).events ?? []).filter((e) => e.timerStartedEventAttributes);
+    expect(timers).toHaveLength(0);
   });
 
   it('only the ids reach the activities: no script, no token in any argument', async () => {
@@ -189,15 +181,6 @@ describe('SetupTestWorkflow', () => {
     await waitFor(() => s.followCancelled, 'follow cancellation');
   });
 
-  it('end signal during the TTL wait finalizes at once and keeps the recorded result', async () => {
-    const { ref, s } = newTest({ ttlSeconds: 3600 });
-    const h = await start(ref);
-    await waitFor(() => s.calls.includes('follow'), 'follow');
-    await h.signal(signals.endSetupTest);
-    expect(await h.result()).toEqual({ status: 'passed' });
-    expect(s.calls.filter((c) => c === 'finalize')).toHaveLength(1);
-  });
-
   it('finalize runs even when create throws', async () => {
     const { ref, s } = newTest({ createThrows: true });
     const h = await start(ref);
@@ -219,5 +202,17 @@ describe('SetupTestWorkflow', () => {
     await h.cancel();
     await expect(h.result()).rejects.toBeInstanceOf(WorkflowFailedError);
     expect(s.calls.filter((c) => c === 'finalize')).toHaveLength(1);
+  });
+
+  it('replay: a history from this workflow, and one recorded before the TTL wait was removed, replay without nondeterminism', async () => {
+    const { ref } = newTest();
+    const h = await start(ref);
+    await h.result();
+    await Worker.runReplayHistory({ workflowsPath }, await h.fetchHistory(), h.workflowId);
+    // `setup-test-ttl-timer` was recorded from the workflow that waited out the TTL after the result (create returned
+    // `{ ttlSeconds }`, then a timer). An open test like it must replay on the old path: finalizing at once is a
+    // non-determinism error.
+    const json: unknown = JSON.parse(await readFile(fixture('setup-test-ttl-timer'), 'utf8'));
+    await Worker.runReplayHistory({ workflowsPath }, json, 'fixture-setup-test-ttl-timer');
   });
 });

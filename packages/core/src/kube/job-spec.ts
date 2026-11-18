@@ -76,7 +76,7 @@ const TOKEN_FILE_MODE = 0o440;
 /** `activeDeadlineSeconds` = deadline + this, a backstop to the workflow's hard timer. */
 const DEADLINE_MARGIN_SECONDS = 120;
 /**
- * Setup-test `activeDeadlineSeconds` = setup timeout + TTL + this: Pending and the clone (420 s), ten plugin commands at
+ * Setup-test `activeDeadlineSeconds` = setup timeout + this: Pending and the clone (420 s), ten plugin commands at
  * the runner's 120 s limit each (1200 s), and the setup kill grace (10 s). A backstop only: the workflow deletes the Job.
  */
 const SETUP_TEST_DEADLINE_MARGIN_SECONDS = 420 + 10 * 120 + 10;
@@ -280,8 +280,6 @@ export interface SetupTestJobInput {
   script: string;
   pluginMarketplaces: Record<string, string>;
   setupTimeoutSeconds: number;
-  /** How long the workspace stays up after setup, from platform config (`SETUP_TEST_TTL_SECONDS`). */
-  ttlSeconds: number;
   botName: string;
   botEmail: string;
   /** Username git sends with the workspace token (from the code host adapter). */
@@ -330,7 +328,7 @@ export function buildSetupTestJob(input: SetupTestJobInput): V1Job {
     gitUsername: input.gitUsername,
     gitHost: input.gitHost,
     cliTokenEnvName: input.cliTokenEnvName,
-    activeDeadlineSeconds: input.setupTimeoutSeconds + input.ttlSeconds + SETUP_TEST_DEADLINE_MARGIN_SECONDS,
+    activeDeadlineSeconds: input.setupTimeoutSeconds + SETUP_TEST_DEADLINE_MARGIN_SECONDS,
     pod: input.pod,
   });
 }

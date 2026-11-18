@@ -43,7 +43,7 @@ const temporal = (over: Partial<ReconcileTemporal> = {}): ReconcileTemporal => (
   ...over,
 });
 
-const setupTest = { ttlSeconds: 60, setupTimeoutSeconds: 60 };
+const setupTest = { setupTimeoutSeconds: 60 };
 
 describe('reconcile with malformed labels', () => {
   it('deletes objects whose labels are not ids, without a database read', async () => {
