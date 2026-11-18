@@ -488,8 +488,10 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
         900,
       ),
     );
-    expect(await screen.findByText('Paused: waiting for your answer. Can be resumed for 6 days.')).toBeInTheDocument();
-    expect(screen.getByText(/the pod stopped unexpectedly \(out of memory \/ evicted\)$/)).toBeInTheDocument();
+    expect(await screen.findByText('Paused: the pod stopped unexpectedly')).toBeInTheDocument();
+    expect(
+      screen.getByText(/the pod stopped unexpectedly \(out of memory \/ evicted\)\. Can be resumed for 6 days\.$/),
+    ).toBeInTheDocument();
     expect(screen.queryByText('Session ending…')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
     expect(FakeWebSocket.instances).toHaveLength(0);
@@ -511,8 +513,19 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
   it('a paused run by a lost pod gives its reason and can be resumed', async () => {
     dbRun(PAUSED).pauseReason = 'pod_lost';
     await renderRoute(`${base}/runs/${PAUSED}`);
+    expect(await screen.findByText('Paused: the pod stopped unexpectedly')).toBeInTheDocument();
     expect(
-      await screen.findByText(/^Paused .*, the pod stopped unexpectedly \(out of memory \/ evicted\)$/),
+      screen.getByText(/^Paused .*, the pod stopped unexpectedly \(out of memory \/ evicted\)\. Can be resumed for /),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+  });
+
+  it('a paused run whose pod was killed (exit code 137) says it most likely ran out of memory', async () => {
+    dbRun(PAUSED).pauseReason = 'pod_lost';
+    pushEvent(PAUSED, 'lifecycle', { line: 31, kind: 'pod_exit', code: 137 });
+    await renderRoute(`${base}/runs/${PAUSED}`);
+    expect(
+      await screen.findByText('Paused: the pod was killed, most likely out of memory (exit code 137)'),
     ).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
   });

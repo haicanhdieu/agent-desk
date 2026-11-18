@@ -112,6 +112,12 @@ const AgentExitPayload = z.object({
   reason: z.literal('agent_exit'),
   code: z.number().int().min(0).max(255),
 });
+const PodExitKind = z.object({ kind: z.literal('pod_exit') });
+/**
+ * The exit code the cluster reported for a pod that was lost (written by the worker, not by anything in the pod);
+ * null when the pod vanished and there was no code.
+ */
+const PodExitPayload = z.object({ kind: z.literal('pod_exit'), code: z.number().int().min(0).max(255).nullable() });
 const ResumeFailedPayload = z.object({ kind: z.literal('resume_failed'), reason: z.string().optional() });
 
 const textOf = (e: RunEventDto): string | undefined => TextPayload.safeParse(e.payload).data?.text;
@@ -402,6 +408,26 @@ function agentExitCode(events: RunEventDto[]): number | undefined {
   return undefined;
 }
 
+/** The exit code in the newest `pod_exit` event of the log; undefined if there is none or it is malformed. */
+function podExitCode(events: RunEventDto[]): number | undefined {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const e = events[i];
+    if (e?.type !== 'lifecycle' || !PodExitKind.safeParse(e.payload).success) continue;
+    return PodExitPayload.safeParse(e.payload).data?.code ?? undefined;
+  }
+  return undefined;
+}
+
+/** SIGKILL: what the kernel's out-of-memory kill leaves as a container's exit code. */
+const SIGKILL_EXIT_CODE = 137;
+
+/** The paused headline of a pod that was lost: what happened, and only claims a cause the exit code supports. */
+function lostPodHeadline(code: number | undefined): string {
+  if (code === undefined) return 'Paused: the pod stopped unexpectedly';
+  if (code === SIGKILL_EXIT_CODE) return `Paused: the pod was killed, most likely out of memory (exit code ${code})`;
+  return `Paused: the pod stopped unexpectedly (exit code ${code})`;
+}
+
 const DAY_MS = 86_400_000;
 
 /**
@@ -456,18 +482,21 @@ function sessionOf(run: RunListItem, events: RunEventDto[], now: Date): RunDetai
     // A run paused before the reason was recorded was paused by the idle timer.
     const reason = run.pauseReason ?? 'idle_timeout';
     const crashed = reason === 'agent_crashed';
+    const lost = reason === 'pod_lost';
     const left = run.sessionExpiresAt === null ? undefined : timeLeft(run.sessionExpiresAt, now);
     const code = crashed ? agentExitCode(events) : undefined;
-    // A crashed run's headline says what happened; the keep time moves to the line below it.
-    const resumable = crashed && left !== undefined ? `Can be resumed for ${left}.` : undefined;
+    // A crashed or lost run's headline says what happened; the keep time moves to the line below it.
+    const resumable = (crashed || lost) && left !== undefined ? `Can be resumed for ${left}.` : undefined;
     const when =
       run.pausedAt === null ? undefined : `Paused ${relativeTime(run.pausedAt, now)}, ${pauseReasonText(reason)}`;
     const detail = when === undefined ? resumable : resumable === undefined ? when : `${when}. ${resumable}`;
     const headline = crashed
       ? `Paused: agent crashed${code === undefined ? '' : ` (exit code ${code})`}`
-      : left === undefined
-        ? undefined
-        : `Paused: waiting for your answer. Can be resumed for ${left}.`;
+      : lost
+        ? lostPodHeadline(podExitCode(events))
+        : left === undefined
+          ? undefined
+          : `Paused: waiting for your answer. Can be resumed for ${left}.`;
     return {
       state: 'paused',
       ...(headline !== undefined && { headline }),

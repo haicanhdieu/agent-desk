@@ -192,12 +192,51 @@ describe('toRunDetail, paused, kept and expired sessions', () => {
     expect(d.session).toEqual({ state: 'paused' });
   });
 
-  it('paused by a lost pod: its reason after the time, and the same headline', () => {
-    const d = detail(paused({ pauseReason: 'pod_lost' }));
-    expect(d.session).toEqual({
-      state: 'paused',
-      headline: 'Paused: waiting for your answer. Can be resumed for 6 days.',
-      detail: 'Paused 2 min ago, the pod stopped unexpectedly (out of memory / evicted)',
+  describe('paused by a lost pod', () => {
+    const lost = (over: Partial<RunDto> = {}) => paused({ pauseReason: 'pod_lost', ...over });
+    const exited = (code: unknown) => ev(local(14, 10), 'lifecycle', { line: 41, kind: 'pod_exit', code });
+
+    it('exit code 137 (what the kernel leaves when it kills for memory): says it ran out of memory', () => {
+      expect(detail(lost(), [exited(137)]).session).toEqual({
+        state: 'paused',
+        headline: 'Paused: the pod was killed, most likely out of memory (exit code 137)',
+        detail: 'Paused 2 min ago, the pod stopped unexpectedly (out of memory / evicted). Can be resumed for 6 days.',
+      });
+    });
+
+    it('another exit code: names the code but does not claim a cause', () => {
+      expect(detail(lost(), [exited(143)]).session?.headline).toBe(
+        'Paused: the pod stopped unexpectedly (exit code 143)',
+      );
+    });
+
+    it('without an exit code, or with a malformed one: the plain headline, never "waiting for your answer"', () => {
+      for (const events of [[], [exited('x')], [exited(-1)], [exited(256)], [exited(1.5)], [exited(1e21)]]) {
+        expect(detail(lost(), events).session?.headline).toBe('Paused: the pod stopped unexpectedly');
+      }
+    });
+
+    it('a newer pod_exit without a code (pod vanished) wins over an older one: no stale exit code', () => {
+      expect(detail(lost(), [exited(137), exited(null)]).session?.headline).toBe(
+        'Paused: the pod stopped unexpectedly',
+      );
+    });
+
+    it('reads the newest pod_exit event', () => {
+      expect(detail(lost(), [exited(137), exited(143)]).session?.headline).toMatch(/exit code 143\)$/);
+    });
+
+    it('is not read for another pause reason', () => {
+      expect(detail(paused({ pauseReason: 'idle_timeout' }), [exited(137)]).session?.headline).toMatch(
+        /^Paused: waiting/,
+      );
+    });
+
+    it('without times: the headline and nothing else', () => {
+      expect(detail(lost({ pausedAt: null, sessionExpiresAt: null }), [exited(137)]).session).toEqual({
+        state: 'paused',
+        headline: 'Paused: the pod was killed, most likely out of memory (exit code 137)',
+      });
     });
   });
 

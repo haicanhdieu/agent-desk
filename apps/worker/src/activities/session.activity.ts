@@ -36,7 +36,7 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
   async function parkRun(
     ctx: RunContext,
     // `reason` is optional: a parkRun scheduled by workflow code from before it existed has none, and idle_timeout was the only reason then.
-    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean },
+    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean; podExitCode?: number },
   ): Promise<ParkResult> {
     const at = parseAt(input.at);
     const { result, drop } = await withOrg(db, ctx.orgId, async (tx) => {
@@ -69,6 +69,19 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
           .update(runs)
           .set({ pauseReason: input.reason ?? 'idle_timeout' })
           .where(eq(runs.id, ctx.runId));
+        // The pod's own exit code, as the cluster reported it (not the agent's end line, which the agent could forge).
+        // Every pod_lost park writes one, with code null when there is no usable code (a vanished pod), so the page
+        // never reads the code of an earlier pause's pod_exit for this one.
+        if (input.reason === 'pod_lost') {
+          const code = input.podExitCode;
+          const valid = code !== undefined && Number.isInteger(code) && code >= 0 && code <= 255;
+          await appendRunEvent(tx, ctx.orgId, {
+            runId: ctx.runId,
+            type: 'lifecycle',
+            payload: { kind: 'pod_exit', code: valid ? code : null },
+            ts: at,
+          });
+        }
         // A Resume was accepted while the session was ending, and this park keeps nothing to resume from: say so, so
         // the person who was told "accepted" can see why no pod started. Fixed text only (no run or user text).
         if (input.resumeQueued === true && !keep) {

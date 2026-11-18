@@ -16,6 +16,10 @@ const local =
 // Test workers load this config again without the CLI arguments; the environment they inherit keeps the choice.
 process.env['E2E_TARGET'] = local ? 'local' : 'mock';
 
+// Each worker is its own Chromium. A run pod sets E2E_WORKERS=1 (scripts/runner-env.sh); unset keeps Playwright's default.
+const requestedWorkers = Number(process.env['E2E_WORKERS']);
+const workers = Number.isInteger(requestedWorkers) && requestedWorkers > 0 ? requestedWorkers : undefined;
+
 const MOCK_PORT = 4173;
 const LOCAL_PORT = 5173;
 const BASE_URL = `http://localhost:${local ? LOCAL_PORT : MOCK_PORT}`;
@@ -23,6 +27,7 @@ const BASE_URL = `http://localhost:${local ? LOCAL_PORT : MOCK_PORT}`;
 export default defineConfig({
   testDir: 'e2e',
   fullyParallel: true,
+  workers,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? 'github' : 'list',

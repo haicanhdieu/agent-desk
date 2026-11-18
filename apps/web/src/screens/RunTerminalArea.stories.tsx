@@ -62,14 +62,30 @@ export const PausedIdleTimeout: Story = {
   args: { data: RunPaused, lines: terminalByRun[62], onResume: () => {}, onFinish: () => {} },
 };
 
-/** Paused because its pod stopped (out of memory, evicted, node lost). */
+/** Paused because its pod stopped and the cluster gave no exit code (evicted, node lost, cluster unreachable). */
 export const PausedPodLost: Story = {
   args: {
     data: {
       ...RunPaused,
       session: pausedSession(
-        'Paused: waiting for your answer. Can be resumed for 5 days.',
-        'Paused 12 min ago, the pod stopped unexpectedly (out of memory / evicted)',
+        'Paused: the pod stopped unexpectedly',
+        'Paused 12 min ago, the pod stopped unexpectedly (out of memory / evicted). Can be resumed for 5 days.',
+      ),
+    },
+    lines: terminalByRun[62],
+    onResume: () => {},
+    onFinish: () => {},
+  },
+};
+
+/** Paused because its pod was killed with exit code 137: the memory limit was hit. */
+export const PausedPodOutOfMemory: Story = {
+  args: {
+    data: {
+      ...RunPaused,
+      session: pausedSession(
+        'Paused: the pod was killed, most likely out of memory (exit code 137)',
+        'Paused 12 min ago, the pod stopped unexpectedly (out of memory / evicted). Can be resumed for 5 days.',
       ),
     },
     lines: terminalByRun[62],

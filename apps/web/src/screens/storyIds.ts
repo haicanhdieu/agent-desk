@@ -85,6 +85,7 @@ export const stateStories = {
   RunTerminalAreaInactiveClosed: { title: terminalArea, exportName: 'InactiveClosed', board: 'RunIdle' },
   RunTerminalAreaPausedIdleTimeout: { title: terminalArea, exportName: 'PausedIdleTimeout', board: 'RunIdle' },
   RunTerminalAreaPausedPodLost: { title: terminalArea, exportName: 'PausedPodLost', board: 'RunIdle' },
+  RunTerminalAreaPausedPodOutOfMemory: { title: terminalArea, exportName: 'PausedPodOutOfMemory', board: 'RunIdle' },
   RunTerminalAreaPausedAgentCrashed: { title: terminalArea, exportName: 'PausedAgentCrashed', board: 'RunIdle' },
   RunTerminalAreaResumed: { title: terminalArea, exportName: 'Resumed', board: 'RunIdle' },
   RunTerminalAreaExpired: { title: terminalArea, exportName: 'Expired', board: 'RunCancelled' },

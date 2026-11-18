@@ -156,7 +156,7 @@ function start(
   }
   a.parkRun = (
     _c: RunContext,
-    input: { kind: string; reason?: string; resumeQueued?: boolean },
+    input: { kind: string; reason?: string; resumeQueued?: boolean; podExitCode?: number },
   ): Promise<ParkResult> => {
     h.parks.push(input);
     h.calls.push(`parkRun:${input.kind}`);
@@ -772,6 +772,9 @@ describe('a pod that ends without being asked to', () => {
     await podEnds(h, result, boundary);
 
     expect(h.parks).toEqual([expect.objectContaining({ kind, reason: 'pod_lost' })]);
+    // The pod's real exit code goes with the park (137 is what an OOM kill leaves); the -1 placeholder of a vanished pod does not.
+    if (result.exitCode >= 0) expect(h.parks[0]).toMatchObject({ podExitCode: result.exitCode });
+    else expect(h.parks[0]).not.toHaveProperty('podExitCode');
     expect(afterCalls(h, 'followPodLogs')).toEqual([
       'deleteJob',
       `parkRun:${kind}`,

@@ -73,6 +73,45 @@ describe('parkRun pause reason', () => {
   });
 });
 
+describe('parkRun with the exit code of a pod that was lost', () => {
+  const at = '2026-01-01T00:00:00.000Z';
+  const reset = (): void => {
+    written.length = 0;
+    events.length = 0;
+    agentRows = [];
+  };
+
+  it('records it as a pod_exit event, so the page can tell a kill (137) from a lost pod', async () => {
+    reset();
+    await acts.parkRun(ctx, { kind: 'needs_input', at, reason: 'pod_lost', podExitCode: 137 });
+    expect(events).toEqual([
+      { runId: 'run1', type: 'lifecycle', payload: { kind: 'pod_exit', code: 137 }, ts: new Date(at) },
+    ]);
+  });
+
+  it('records nothing for another reason', async () => {
+    reset();
+    await acts.parkRun(ctx, { kind: 'needs_input', at, reason: 'idle_timeout', podExitCode: 137 });
+    expect(events).toEqual([]);
+  });
+
+  it.each([
+    ['no exit code', {}],
+    ['the placeholder -1', { podExitCode: -1 }],
+    ['a code no process exits with', { podExitCode: 256 }],
+    ['a code that is not a whole number', { podExitCode: 1.5 }],
+  ] as const)(
+    'records a pod_exit with code null for %s, so an older pod_exit is not read for this pause',
+    async (_name, extra) => {
+      reset();
+      await acts.parkRun(ctx, { kind: 'needs_input', at, reason: 'pod_lost', ...extra });
+      expect(events).toEqual([
+        { runId: 'run1', type: 'lifecycle', payload: { kind: 'pod_exit', code: null }, ts: new Date(at) },
+      ]);
+    },
+  );
+});
+
 describe('parkRun with a resume queued behind the ending', () => {
   const at = '2026-01-01T00:00:00.000Z';
   const reset = (): void => {
