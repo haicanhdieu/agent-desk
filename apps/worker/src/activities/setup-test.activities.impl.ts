@@ -29,7 +29,6 @@ export type SetupTestActivityConfig = Pick<
   | 'BOT_EMAIL'
   | 'RUN_PLUGIN_MARKETPLACES'
   | 'RUN_SETUP_TIMEOUT_SECONDS'
-  | 'SETUP_TEST_TTL_SECONDS'
   | 'RUN_RECONNECT_WINDOW_SECONDS'
   | 'RUN_POD_CPU_REQUEST'
   | 'RUN_POD_CPU_LIMIT'
@@ -96,11 +95,10 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
   const pollMs = deps.timing?.pollMs ?? POLL_MS;
   const heartbeatMs = deps.timing?.heartbeatMs ?? HEARTBEAT_MS;
   const reconnectWindowMs = deps.timing?.reconnectWindowMs ?? deps.config.RUN_RECONNECT_WINDOW_SECONDS * 1000;
-  const ttlSeconds = deps.config.SETUP_TEST_TTL_SECONDS;
 
   // ---- createSetupTestJob
 
-  async function createSetupTestJob(ref: SetupTestRef): Promise<{ ttlSeconds: number }> {
+  async function createSetupTestJob(ref: SetupTestRef): Promise<void> {
     const row = await withOrg(db, ref.orgId, async (tx) => {
       const [r] = await tx
         .select({
@@ -121,7 +119,7 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
     });
     if (!row) throw ApplicationFailure.nonRetryable('setup test not found');
     // Ended (or already finished) while the workflow was starting: nothing to create, and no token to mint.
-    if (row.endedAt !== null || !isLive(row.status)) return { ttlSeconds };
+    if (row.endedAt !== null || !isLive(row.status)) return;
     if (!row.defaultBranch) throw ApplicationFailure.nonRetryable('the project has no default branch to check out');
     const parsedProvider = Provider.safeParse(row.codeProvider);
     if (!parsedProvider.success) {
@@ -158,7 +156,6 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         script,
         pluginMarketplaces: deps.config.RUN_PLUGIN_MARKETPLACES,
         setupTimeoutSeconds: deps.config.RUN_SETUP_TIMEOUT_SECONDS,
-        ttlSeconds,
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
         gitUsername: codeHost.gitCredentialUsername(),
@@ -190,7 +187,6 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
         });
       }
     });
-    return { ttlSeconds };
   }
 
   // ---- followSetupTestLogs

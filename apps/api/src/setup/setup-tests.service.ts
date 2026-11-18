@@ -6,7 +6,6 @@ import { projects, setupTests, user, withOrg, type Db, type Tx } from '@agentdes
 import { SIGNAL, TASK_QUEUE, WORKFLOW, setupTestWorkflowId } from '@agentdesk/core';
 import { SetupTestDto, type CreateSetupTestRequest } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
-import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { assertCanEditProject, assertProjectVisible } from '../projects/project-access';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
@@ -56,11 +55,7 @@ function pluginNames(list: unknown[]): string[] {
 }
 
 /** `currentScript` is the project's newest saved script body (null when none was saved, which counts as empty). */
-export function toSetupTestDto(row: SetupTestRow, currentScript: string | null, ttlSeconds: number): SetupTestDto {
-  const endsAt =
-    row.endedAt === null && row.finishedAt !== null
-      ? new Date(row.finishedAt.getTime() + ttlSeconds * 1000).toISOString()
-      : null;
+export function toSetupTestDto(row: SetupTestRow, currentScript: string | null): SetupTestDto {
   return SetupTestDto.parse({
     id: row.id,
     projectId: row.projectId,
@@ -78,7 +73,6 @@ export function toSetupTestDto(row: SetupTestRow, currentScript: string | null, 
     createdAt: row.createdAt.toISOString(),
     finishedAt: row.finishedAt?.toISOString() ?? null,
     endedAt: row.endedAt?.toISOString() ?? null,
-    endsAt,
   });
 }
 
@@ -90,7 +84,6 @@ export class SetupTestsService {
 
   constructor(
     @Inject(DB) private readonly db: Db,
-    @Inject(CONFIG) private readonly config: Config,
     @Inject(TEMPORAL_CLIENT) private readonly temporal: Client,
     @Inject(SetupScriptService) private readonly scripts: SetupScriptService,
   ) {}
@@ -134,7 +127,7 @@ export class SetupTestsService {
       if (!row) throw new Error('setup test vanished after insert');
       const current = (await this.scripts.current(tx, projectId))?.body ?? null;
       return {
-        dto: toSetupTestDto(row, current, this.config.SETUP_TEST_TTL_SECONDS),
+        dto: toSetupTestDto(row, current),
         previous: prev.map((p) => p.id),
       };
     });
@@ -202,7 +195,7 @@ export class SetupTestsService {
       const row = rows[0];
       if (!row) return null;
       const current = (await this.scripts.current(tx, projectId))?.body ?? null;
-      return toSetupTestDto(row, current, this.config.SETUP_TEST_TTL_SECONDS);
+      return toSetupTestDto(row, current);
     });
   }
 

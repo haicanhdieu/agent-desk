@@ -77,7 +77,7 @@ export class SetupTestStream implements OnModuleDestroy {
         .orderBy(asc(setupTestEvents.seq))
         .limit(BACKLOG_PAGE);
       return {
-        test: toSetupTestDto(row, current, this.config.SETUP_TEST_TTL_SECONDS),
+        test: toSetupTestDto(row, current),
         events: events.map((e) => RunEventDto.parse({ ...e, ts: e.ts.toISOString() })),
       };
     });

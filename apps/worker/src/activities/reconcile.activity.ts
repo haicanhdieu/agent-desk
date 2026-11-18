@@ -25,13 +25,13 @@ export interface ReconcileDeps {
   kube: KubeGateway;
   temporal: ReconcileTemporal;
   log?: ReconcileLogger;
-  /** Platform limits that bound a setup test's lifetime (config `SETUP_TEST_TTL_SECONDS`, `RUN_SETUP_TIMEOUT_SECONDS`). */
-  setupTest: { ttlSeconds: number; setupTimeoutSeconds: number };
+  /** Platform limits that bound a setup test's lifetime (config `RUN_SETUP_TIMEOUT_SECONDS`). */
+  setupTest: { setupTimeoutSeconds: number };
   /** Defaults to the system clock. */
   clock?: Clock;
 }
 
-/** Slack on top of ttl + setup timeout before a setup test's Job or Secret counts as leaked. */
+/** Slack on top of the setup timeout before a setup test's Job or Secret counts as leaked. */
 const SETUP_TEST_GRACE_SECONDS = 600;
 
 /** A kept session's volume is deleted this long after `sessionExpiresAt` if its workflow has not already done so. */
@@ -65,7 +65,7 @@ const CREATING = new Set(['queued', 'starting']);
  * (3) Releases gate slots held by runs whose workflow is closed (a terminated RunWorkflow never reached its
  *     `releaseSlot`).
  * (4) Deletes setup-test Jobs and Secrets whose test row is missing, has `ended_at`, or is older than
- *     `created_at + ttl + setup timeout + 600 s` (a Secret is also deleted when its Job never existed).
+ *     `created_at + setup timeout + 600 s` (a Secret is also deleted when its Job never existed).
  * (5) Deletes run volume claims whose run is missing or settled, whose kept session expired over
  *     SESSION_EXPIRY_GRACE_SECONDS ago, or whose workflow is closed. A `paused` run with a closed workflow is first
  *     written as `expired`; a `succeeded` run with a kept session and a closed workflow loses its session expiry.
@@ -270,7 +270,7 @@ async function reconcileSetupTests(
     );
     for (const r of found) rows.set(`${r.orgId}/${r.id}`, r);
   }
-  const maxAgeMs = (deps.setupTest.ttlSeconds + deps.setupTest.setupTimeoutSeconds + SETUP_TEST_GRACE_SECONDS) * 1000;
+  const maxAgeMs = (deps.setupTest.setupTimeoutSeconds + SETUP_TEST_GRACE_SECONDS) * 1000;
   const nowMs = (deps.clock ?? { now: () => new Date() }).now().getTime();
   const stale = (ref: { orgId: string; setupTestId: string }): boolean => {
     const row = rows.get(`${ref.orgId}/${ref.setupTestId}`);

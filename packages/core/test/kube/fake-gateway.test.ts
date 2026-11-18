@@ -574,7 +574,6 @@ describe('FakeKubeGateway', () => {
       script: 'echo hi',
       pluginMarketplaces: {},
       setupTimeoutSeconds: 600,
-      ttlSeconds: 60,
       botName: 'bot',
       botEmail: 'bot@x.invalid',
       gitUsername: 'x-access-token',

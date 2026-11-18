@@ -168,7 +168,6 @@ beforeAll(async () => {
     RUNNER_IMAGE: 'agentdesk/runner-claude:test',
     ENABLE_FAKE_PROVIDER: 'true',
     FAKE_STATE_DIR: join(dir, 'fake'),
-    SETUP_TEST_TTL_SECONDS: '120',
   });
   const c = new pg.Client({ connectionString: pgx.ownerUrl });
   await c.connect();
@@ -201,11 +200,10 @@ describe('createSetupTestJob', () => {
   it('test pod env has no agent credential; the Secret holds the repo URL and the workspace token only', async () => {
     const ref = await seedTest();
     const acts = createSetupTestActivities(deps());
-    const out = await acts.createSetupTestJob(ref);
+    await acts.createSetupTestJob(ref);
     // Idempotent: a retry does not start a second pod.
     await Promise.all([acts.createSetupTestJob(ref), acts.createSetupTestJob(ref)]);
     const name = setupTestJobName(ref.setupTestId);
-    expect(out).toEqual({ ttlSeconds: 120 });
     expect(await kube.readSecret(name)).toEqual({
       REPO_CLONE_URL: 'https://fake.invalid/dev/demo.git',
       'workspace-token': CLONE_TOKEN,
@@ -234,7 +232,7 @@ describe('createSetupTestJob', () => {
   it('does nothing for a test that already ended', async () => {
     const ref = await seedTest(SCRIPT, 'ended');
     const acts = createSetupTestActivities(deps());
-    expect(await acts.createSetupTestJob(ref)).toEqual({ ttlSeconds: 120 });
+    expect(await acts.createSetupTestJob(ref)).toBeUndefined();
     expect(await kube.getRunPod(setupTestJobName(ref.setupTestId))).toBeNull();
     expect(await kube.readSecret(setupTestJobName(ref.setupTestId))).toBeNull();
   });
