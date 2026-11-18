@@ -144,6 +144,38 @@ describe('gh wrapper Authorized by line', () => {
     expect(await t.body()).toBe('Fixes the thing.\n\nAuthorized by `alice`\n');
   });
 
+  it('finds the PR number when flags come first, and never falls back to the current branch for it', async () => {
+    for (const args of [
+      ['pr', 'edit', '--title', 'y', '5'],
+      ['pr', 'edit', '-t', 'y', '--add-label', 'bug', '5'],
+      ['pr', 'edit', '--title=y', '5', '--body', 'z'],
+    ]) {
+      const t = await setup();
+      await t.run(args, AUTH('alice'));
+      const calls = await t.calls();
+      expect(calls.find((a) => a[1] === 'view')?.[2], args.join(' ')).toBe('5');
+      expect(calls.at(-1)?.slice(0, 3)).toEqual(['pr', 'edit', '5']);
+      expect(await t.body()).toContain('Authorized by `alice`');
+    }
+  });
+
+  it('makes no follow-up call, and warns, when the target PR cannot be told for sure', async () => {
+    for (const args of [
+      ['pr', 'edit', '--unknown-flag', '5'], // would the 5 be the flag's value or the PR?
+      ['pr', 'edit', '5', '6'],
+      ['pr', 'edit', '--', '5'],
+    ]) {
+      const t = await setup();
+      const r = await t.run(args, AUTH('alice'));
+      expect(r.code).toBe(0);
+      expect(r.stderr, args.join(' ')).toContain('Authorized by');
+      expect(
+        (await t.calls()).map((a) => a[1]),
+        args.join(' '),
+      ).toEqual(['edit']);
+    }
+  });
+
   it('passes --repo on to the follow-up calls', async () => {
     const t = await setup();
     await t.run(['pr', 'edit', '5', '--repo', 'o/r', '--title', 'y'], AUTH('alice'));

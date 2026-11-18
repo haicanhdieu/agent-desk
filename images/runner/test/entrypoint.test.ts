@@ -724,6 +724,21 @@ describe('entrypoint git identity', () => {
     expect(r.stdout).toContain('agentdesk: git identity alice 42+alice@users.noreply.github.com');
   });
 
+  it('replaces a stale copy of our own hook on a resume instead of chaining to it as the repo hook', async () => {
+    const { home, repo } = resumable();
+    const hooks = join(repo, '.git', 'hooks');
+    mkdirSync(hooks, { recursive: true });
+    writeFileSync(
+      join(hooks, 'prepare-commit-msg'),
+      '#!/bin/sh\n# agentdesk-commit-trailer-hook\n# an older version\n',
+    );
+    await runEntrypoint({ RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, ...bot, ...author }, {});
+    expect(readFileSync(join(hooks, 'prepare-commit-msg'), 'utf8')).toBe(
+      readFileSync(join(runnerHooks, 'prepare-commit-msg'), 'utf8'),
+    );
+    expect(existsSync(join(hooks, 'prepare-commit-msg.repo'))).toBe(false);
+  });
+
   it('a resumed run with no author in the Job keeps the bot identity', async () => {
     const { home, repo } = resumable();
     const r = await runEntrypoint({ RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, ...bot }, {});

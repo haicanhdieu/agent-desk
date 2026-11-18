@@ -48,7 +48,8 @@ fi
 install_commit_hook() {
   local src="$LIB_DIR/hooks/prepare-commit-msg" dest=.git/hooks/prepare-commit-msg
   mkdir -p .git/hooks
-  if [ -e "$dest" ] && ! cmp -s "$src" "$dest" && [ ! -e "$dest.repo" ]; then
+  # Our own copy (an older one on a surviving volume) is replaced; any other file is the repo's and is kept.
+  if [ -e "$dest" ] && ! grep -q '^# agentdesk-commit-trailer-hook' "$dest" && [ ! -e "$dest.repo" ]; then
     mv "$dest" "$dest.repo"
   fi
   cp "$src" "$dest"

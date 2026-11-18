@@ -1,4 +1,5 @@
 #!/bin/sh
+# agentdesk-commit-trailer-hook (marker: the entrypoint recognises its own copy by this line and replaces it)
 # git prepare-commit-msg hook for run pods. The entrypoint copies it to .git/hooks/prepare-commit-msg of the run's
 # repo (it does not set core.hooksPath, so the repo's other hooks keep running). It adds the bot as a
 # `Co-Authored-By:` trailer, so the person who triggered the run stays the commit's author and committer. A trailer

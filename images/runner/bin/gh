@@ -78,16 +78,37 @@ add_authorized_by() {
       esac
     fi
   else
-    case "${1:-}" in
-      '' | -*) ;;
-      *) target="$1" ;;
-    esac
-    prev=""
+    # Find the one positional (the PR number, branch or url) among the flags. A flag that takes a value consumes the next
+    # argument. A flag this wrapper does not know, a second positional, or `--` makes the target unclear, and then no
+    # follow-up runs: the wrong PR must never get the line (no positional at all means the current branch's PR).
+    count=0
+    skip=0
     for a in "$@"; do
-      if [ "$prev" = -R ] || [ "$prev" = --repo ]; then repo="$a"; fi
-      case "$a" in --repo=*) repo="${a#--repo=}" ;; esac
-      prev="$a"
+      if [ "$skip" = repo ]; then
+        repo="$a"
+        skip=0
+        continue
+      fi
+      if [ "$skip" = 1 ]; then
+        skip=0
+        continue
+      fi
+      case "$a" in
+        -R | --repo) skip=repo ;;
+        --repo=*) repo="${a#--repo=}" ;;
+        -R?*) repo="${a#-R}" ;;
+        -t | -b | -F | -B | -a | -m | --title | --body | --body-file | --base | --add-assignee | --add-label | --add-project | --add-reviewer | --milestone | --remove-assignee | --remove-label | --remove-project | --remove-reviewer) skip=1 ;;
+        --title=* | --body=* | --body-file=* | --base=* | --add-assignee=* | --add-label=* | --add-project=* | --add-reviewer=* | --milestone=* | --remove-assignee=* | --remove-label=* | --remove-project=* | --remove-reviewer=*) ;;
+        -t?* | -b?* | -F?* | -B?* | -a?* | -m?*) ;;
+        --remove-milestone | -h | --help) ;;
+        -*) return 1 ;;
+        *)
+          count=$((count + 1))
+          target="$a"
+          ;;
+      esac
     done
+    if [ "$count" -gt 1 ] || [ "$skip" != 0 ]; then return 1; fi
     case "$target" in https://*) repo="" ;; esac
   fi
   set -- pr view
