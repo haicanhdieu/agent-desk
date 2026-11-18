@@ -77,7 +77,7 @@ devbox run e2e-local             # scripts/e2e-local.ts, then web Playwright e2e
 
 `scripts/e2e-local.ts` runs three scenarios: a webhook-mode run, a polling-mode run (it triggers the poll schedule through Temporal), and a run with `--fake-fail` whose agent crashes: it must end `paused` with the pause reason `agent_crashed`, its work kept. The Playwright suite does the same comment → idle → terminal → finish flow through the UI.
 
-The pause tests in `apps/web/e2e/local/run.spec.ts` only run with a short idle time: start the stack with `RUN_IDLE_END_SECONDS=5 RUN_LEASE_TTL_SECONDS=4 TERMINAL_LEASE_INTERVAL_MS=1000 devbox run dev-bg`, then run `E2E_IDLE_END_SECONDS=5 devbox run e2e-local`. The interval must be at most half the lease TTL.
+The pause tests in `apps/web/e2e/local/run.spec.ts` only run with a short idle time: start the stack with `RUN_IDLE_END_SECONDS=5 RUN_LEASE_TTL_SECONDS=4 TERMINAL_LEASE_INTERVAL_MS=1000 devbox run dev-bg`, then run `E2E_IDLE_END_SECONDS=5 devbox run e2e-local`. The interval must be at most half the lease TTL. `RUN_IDLE_END_SECONDS` overrides every agent's saved idle end while it is set to anything but 1800.
 
 The cluster-outage tests (`-g "cluster outage"`) need the stack started with `RUN_RECONNECT_WINDOW_SECONDS=20 devbox run dev-bg`, then `E2E_RECONNECT_WINDOW_SECONDS=20 pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "cluster outage"`; they simulate the outage by creating `<fake state dir>/kube/.outage`, which hits every run on that stack. Run only them (`-g`), never with the full `e2e-local`, and not on a stack you or other tests are using: use a separate stack.
 

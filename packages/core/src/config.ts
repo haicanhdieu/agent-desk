@@ -92,7 +92,10 @@ export const ConfigSchema = z
     RUN_VOLUME_STORAGE_CLASS: optional(z.string()),
     /** Finished runs per project whose kept session (volume) survives; older ones are cleaned up. */
     RUN_KEPT_DONE_SESSIONS_PER_PROJECT: blankDefault(z.coerce.number().int().min(0).default(10)),
-    /** Idle time before a run's pod is stopped (the run pauses). A test seam: lower it to see a pause quickly. */
+    /**
+     * Idle time before a run's pod is stopped (the run pauses). A test seam: lower it to see a pause quickly. Any value
+     * but the default overrides every agent's `idleEndSeconds`; the default leaves each agent's setting in force.
+     */
     RUN_IDLE_END_SECONDS: blankDefault(z.coerce.number().int().min(1).default(IDLE_END_SECONDS)),
     /** How long an ending session may take before the Job is deleted. A test seam like RUN_IDLE_END_SECONDS. */
     RUN_ENDING_DEADLINE_SECONDS: blankDefault(z.coerce.number().int().min(1).default(ENDING_DEADLINE_SECONDS)),
