@@ -5,7 +5,7 @@ description: Use when asked to open, create or update a pull request, or when an
 
 # Create or update a PR
 
-Owns PR creation and PR conventions for this repo. All inputs come from the caller or the conversation. The body template is [pr-template.md](pr-template.md) in this directory; it fills the repo's [`.github/pull_request_template.md`](../../../.github/pull_request_template.md) and adds plain-language Behavior change and Root cause sections. Rules come from [git-workflow.md](../../../docs/conventions/git-workflow.md); when this skill and that doc disagree, the doc wins.
+Owns PR creation and PR conventions for this repo. All inputs come from the caller or the conversation. The body template is [pr-template.md](pr-template.md) in this directory; it has plain-language Summary, Root cause and Behavior change sections plus optional Architecture, DB schema and API/contract diagram sections. Rules come from [git-workflow.md](../../../docs/conventions/git-workflow.md); when this skill and that doc disagree, the doc wins.
 
 ## Inputs
 
@@ -30,18 +30,17 @@ Create a todo per step.
    - Run `bash <main checkout>/.agent/skills/dev-build/scripts/verify.sh <worktree> origin/main`: `fix`, then for each touched package lint and typecheck 2 at a time, then unit tests scoped to the change (`vitest --changed`; a shared `packages/*` runs its full unit suite). Touched `scripts/` are covered too. Integration tests (`*.int.test.ts`) run only when the diff touches one or `packages/db`, and need a Docker engine; if none is running, that check is unavailable, not passed. Full suites and integration shards run in remote CI, which this step never replaces. (A caller that already ran the script on this head passes its output instead: reuse it.)
    - Reuse the caller's results only when they cover the same head and the same checks (the script's output does); rerun only what changed since.
    - Every applicable check must pass. A failing, cancelled or unavailable check blocks the PR: report it and stop, unless the user explicitly bypasses preflight. Never weaken a check to make it pass, and never count remote CI as local evidence.
-   - With `local_ci_preflight: false` from the user, skip this step and list the bypass and the checks not run in the body's Test evidence and in your report. It never bypasses remote CI or branch protection.
+   - With `local_ci_preflight: false` from the user, skip this step and list the bypass and the checks not run in your report. It never bypasses remote CI or branch protection.
 
 3. **Detect type.** Bug fix if the caller says `bugfix`, or the source issue is a defect (`bug` or `qa:failed` label, issue type `Bug`, repro steps, error text). Otherwise feature. An explicit caller type wins; unclear means feature.
 
 4. **Fill the template.** Copy [pr-template.md](pr-template.md) and replace every `<…>` slot; remove sample rows; scale detail to the change.
-   - **Plain language** in Summary, Root cause and Behavior change: write for an owner or PM. Short sentences, everyday words, no meaning lost. Keep file, function, flag and error-text names out (only the "How it is supported" column may name the main module). When a technical term is unavoidable, explain it in a few words. Put proof (logs, exact errors, commands) in Test evidence, not in these sections.
+   - **Plain language** in Summary, Root cause and Behavior change: write for an owner or PM. Short sentences, everyday words, no meaning lost. Keep file, function, flag and error-text names out (only the "How it is supported" column may name the main module). When a technical term is unavoidable, explain it in a few words. Keep proof (logs, exact errors, commands) out of these sections; report it to the caller.
      - Too technical: "`withOrg` wasn't wrapping `listRuns`, so RLS saw no `app.org_id` and returned rows from every tenant."
      - Plain: "The runs list skipped the step that tells the database which organization is asking, so a user could see other organizations' runs."
    - **Root cause:** bug fixes only; delete the section for features. State the underlying cause, not the symptom. If it can't be established, say what is unknown.
    - **Behavior change:** one row per business, logic or app behavior that changes: Current (today; for a bug, the faulty behavior), Expected (after merge), and How it is supported (one or two sentences on the mechanism, derived from the diff and tests, not just commit messages). If nothing observable changes (refactor, docs, CI), replace the table with one line saying so.
-   - **Type of change** and **Checklist:** tick only boxes that are true; leave the rest unticked rather than deleting them.
-   - **Judgment calls:** each ruling and its cost if wrong ([git-workflow.md §7 rule 8](../../../docs/conventions/git-workflow.md#7-rules-for-ai-agent-authored-changes)), or "None".
+   - **Architecture changes, DB schema changes, API endpoints / contract changes:** include a section only when the diff changes that area; delete it otherwise. Each shows old, new and what changed, as Mermaid (architecture: flowchart with before/after subgraphs; DB: `erDiagram`; API: diagram or before/after route and shape table). Mark added, removed and changed items distinctly (e.g. `classDef` colors). Derive them from the diff (`packages/db` schema and migrations, `packages/contracts` route table), not from commit messages.
    - Delete Screenshots if there's no UI change. Remove every HTML comment from the final body.
 
 5. **Issue links.** Use `Closes #<n>` for every issue the PR delivers, one per line, deduplicated (`Closes owner/repo#<n>` across repos), so merging closes it. Never a bare `Refs`/`#<n>` for an issue the PR completes ([dev-workflow.md](../../../docs/runbooks/dev-workflow.md)). Use `Refs #<n>` only for an issue that is related but not finished by this PR.
@@ -70,4 +69,4 @@ Do not approve or merge: only `dev-review` merges, after a clean review and gree
 | "Docker isn't up, integration tests count as passed" | Unavailable is not passed. Report it and stop.                  |
 | "`format:check` fails, so run `pnpm format`"         | Never repo-wide in a feature PR. `devbox run fix` covers yours. |
 | "There's an open PR, but a fresh one is cleaner"     | Update the existing PR; never open a second.                    |
-| "The Summary needs the function name to be precise"  | Names go in "How it is supported" or Test evidence.             |
+| "The Summary needs the function name to be precise"  | Names go in "How it is supported" or the report.                |

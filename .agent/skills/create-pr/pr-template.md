@@ -25,53 +25,33 @@
 Closes #<n>
 Spec / plan / ADR: <docs/superpowers/... or None>
 
-## Type of change
+## Architecture changes
 
-- [ ] feat
-- [ ] fix
-- [ ] refactor / perf
-- [ ] test
-- [ ] docs / spec / ADR
-- [ ] chore / ci / build / deps
-- [ ] Breaking change (`!` in title, callers updated)
+<!-- Only if the PR changes architecture; otherwise delete this section. Brief high-level change as ONE Mermaid diagram showing old, new and what changed (e.g. flowchart with before/after subgraphs; mark added nodes/edges green, removed red, changed amber via classDef). -->
 
-## Checklist
-
-Full detail: [docs/conventions/code-review-checklist.md](../docs/conventions/code-review-checklist.md)
-
-- [ ] One concern, about 800 changed lines or fewer (or explained below)
-- [ ] `devbox run fix` clean; `lint`, `typecheck`, `test` pass locally for touched packages
-- [ ] Tests added or updated for new behavior and fixed bugs
-- [ ] Shapes from `packages/contracts`; inputs validated with Zod
-- [ ] Tenancy: new tables have `org_id` + RLS; DB access only via `withOrg`
-- [ ] Migrations: new migration only; no applied migration edited
-- [ ] No secrets, `.env`, tokens, or credentials committed or logged
-- [ ] Provider-agnostic names (no `github_*`); provider specifics in adapters
-- [ ] Sensitive paths touched (run Job, webhooks, secrets, auth, terminal, RLS, CI)? `review:sensitive` label added
-- [ ] Spec, plan, ADR, or runbook updated if behavior or decisions changed
-- [ ] Authored by an AI agent? Verification output below; judgment calls listed
-
-## Test evidence
-
-<!-- For a bug: the test that failed before and passes now. Then the preflight commands and their real results, including checks skipped or unavailable. -->
-
-```text
-<commands run and result summary>
+```mermaid
+<old / new / changed diagram>
 ```
 
-## Judgment calls
+## DB schema changes
 
-<!-- Each ruling and its cost if wrong, or "None". -->
+<!-- Only if the PR changes the database schema; otherwise delete this section. Mermaid erDiagram(s) showing old, new and what changed (added/removed/changed tables, columns, constraints, RLS). -->
 
-<judgment calls>
+```mermaid
+<old / new / changed diagram>
+```
+
+## API endpoints / contract changes
+
+<!-- Only if the PR changes API routes or `packages/contracts` schemas; otherwise delete this section. Show old, new and what changed (Mermaid diagram or a before/after table of routes and request/response shapes). -->
+
+```mermaid
+<old / new / changed diagram>
+```
 
 ## Screenshots (UI changes)
 
 <!-- Before / after, or Storybook story names. Delete if no UI change. -->
-
-## Risk and rollback
-
-<what could break, who is affected; rollback: revert this PR (or forward-fix migration / flag)>
 
 ---
 
