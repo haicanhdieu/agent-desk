@@ -248,10 +248,35 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  images:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    name: images / build
+    # Native arm64 runner: the images are linux/arm64 only, so no emulation. Docker and buildx are preinstalled.
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build api, worker and web from the repo root
+        run: |
+          for app in api worker web; do
+            docker buildx build --platform linux/arm64 --load -f "apps/$app/Dockerfile" -t "agentdesk-$app:ci" .
+          done
+      - name: Build runner (its own folder is the context)
+        run: docker buildx build --platform linux/arm64 --load -f images/runner/Dockerfile -t agentdesk-runner:ci images/runner
+      - name: Smoke api (/healthz without a database, migrate entry)
+        run: bash scripts/smoke-app-images.sh api
+      - name: Smoke worker
+        run: bash scripts/smoke-app-images.sh worker
+      - name: Smoke web
+        run: bash scripts/smoke-app-images.sh web
+      - name: Smoke runner
+        run: bash scripts/smoke-app-images.sh runner
+
   gate:
     name: gate / ci-passed
     if: always()
-    needs: [changes, format, lint, typecheck, unit, plan, integration, coverage]
+    needs: [changes, format, lint, typecheck, unit, plan, integration, coverage, images]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -259,7 +284,7 @@ jobs:
         env:
           CODE: ${{ needs.changes.outputs.code }}
           ALWAYS: ${{ needs.changes.result }} ${{ needs.format.result }}
-          CODE_GATES: ${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.unit.result }} ${{ needs.plan.result }} ${{ needs.integration.result }} ${{ needs.coverage.result }}
+          CODE_GATES: ${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.unit.result }} ${{ needs.plan.result }} ${{ needs.integration.result }} ${{ needs.coverage.result }} ${{ needs.images.result }}
         run: |
           echo "code=$CODE always: $ALWAYS code gates: $CODE_GATES"
           for r in $ALWAYS; do

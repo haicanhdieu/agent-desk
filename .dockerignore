@@ -1,0 +1,24 @@
+# Context for the images built from the repository root (docker build -f apps/<name>/Dockerfile .).
+# Keep it small and keep secrets out of every layer.
+.git
+.github
+.claude
+.agent
+.devbox
+.turbo
+.agentdesk
+.env
+.env.*
+*.pem
+**/node_modules
+**/dist
+**/coverage
+**/*.tsbuildinfo
+apps/web/storybook-static
+apps/web/parity-out
+apps/web/e2e
+**/*.test.ts
+**/*.test.tsx
+docs
+design
+scripts

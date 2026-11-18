@@ -4,7 +4,7 @@ FROM node:22-slim
 
 ARG CLAUDE_CODE_VERSION=2.1.323
 # Pinned like Claude Code (security.md). The keyring checksum guards the apt repo's signing key.
-ARG GH_VERSION=2.104.0
+ARG GH_VERSION=2.105.0
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git tmux ca-certificates curl openssh-client \

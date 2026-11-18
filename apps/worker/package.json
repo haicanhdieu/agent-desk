@@ -32,6 +32,7 @@
     "@opentelemetry/sdk-trace-node": "^2.12.0",
     "@temporalio/activity": "1.25.0",
     "@temporalio/client": "1.25.0",
+    "@temporalio/common": "1.25.0",
     "@temporalio/interceptors-opentelemetry-v2": "1.25.0",
     "@temporalio/worker": "1.25.0",
     "@temporalio/workflow": "1.25.0",
@@ -39,18 +40,17 @@
     "pg": "^8.23.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.2",
+    "tsx": "^4.23.15",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@kubernetes/client-node": "^2.0.2",
-    "@temporalio/common": "1.25.0",
     "@temporalio/testing": "1.25.0",
     "@testcontainers/postgresql": "^12.2.1",
     "@types/node": "^26.6.6",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^5.1.0",
     "testcontainers": "^12.2.1",
-    "tsx": "^4.23.15",
     "vitest": "^5.1.0"
   }
 }
