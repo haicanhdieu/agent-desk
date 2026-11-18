@@ -279,7 +279,8 @@ If a command fails, keep going and run the rest.
    script below handles that itself (it sources `scripts/runner-env.sh` and runs
    `node scripts/fix-changed.mjs` instead of `devbox run fix`; docs/runbooks/runner-pod.md).
 1. Run the verification script once. It runs `devbox run fix`, then lint and typecheck for each
-   touched package in parallel, then the tests scoped to this change, and prints a block per command:
+   touched package 2 at a time, then the tests scoped to this change, and prints a block per command
+   (it waits its turn if another verify is running on this machine):
    bash <main checkout abs path>/.agent/skills/dev-build/scripts/verify.sh <worktree abs path> <base>
    It can take several minutes: wait for it. Do not run the commands it runs again yourself, and do
    not substitute the full `pnpm test`. It exits non-zero if anything failed; keep going either way.

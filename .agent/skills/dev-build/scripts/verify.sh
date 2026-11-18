@@ -11,8 +11,22 @@
 set -u
 wt=${1:?worktree}; base=${2:?base}; coverage=${3:-}
 cd "$wt" || exit 2
+
+# One verify at a time per machine. A run pod has 4 GiB and each lint, typecheck or test command is a node process of
+# 0.5-1 GiB, so the verifies of several units (multi-unit.md runs up to 3 at once) must take turns. A mkdir lock works
+# in bash 3 on macOS and in the pod; a holder that is gone (killed, crashed) or never wrote its pid is taken over.
+lock=${VERIFY_LOCK_DIR:-${TMPDIR:-/tmp}/agentdesk-verify.lock}
+until mkdir "$lock" 2>/dev/null; do
+  holder=$(cat "$lock/pid" 2>/dev/null || true)
+  if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then rm -rf "$lock"; continue; fi
+  if [ -z "$holder" ] && [ -n "$(find "$lock" -maxdepth 0 -mmin +1 2>/dev/null)" ]; then rm -rf "$lock"; continue; fi
+  sleep 2
+done
+echo $$ >"$lock/pid"
 out=$(mktemp -d)
-trap 'rm -rf "$out"' EXIT
+trap 'rm -rf "$out" "$lock"' EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
 fail=0
 
 echo "HEAD: $(git rev-parse HEAD)"
@@ -47,8 +61,9 @@ if [ "$want_int" = yes ] && [ "$runner_pod" = no ] && ! docker ps >/dev/null 2>&
   fail=1; want_int=no
 fi
 
-# 3. Build the job lists. Light jobs (lint, typecheck) run in parallel; test jobs then run one at
-#    a time: several jsdom/vitest suites at once starve each other of CPU and time out.
+# 3. Build the job lists. Light jobs (lint, typecheck) run 2 at a time (VERIFY_MAX_PARALLEL), not all at once: each is a
+#    node process of 0.5-1 GiB and a run pod has 4 GiB. Test jobs then run one at a time: several jsdom/vitest suites
+#    at once starve each other of CPU and time out.
 light=(); tests=()
 for dir in $pkgs; do
   name=@agentdesk/${dir#*/}; id=${dir//\//_}
@@ -70,7 +85,12 @@ exec_job() { # exec_job "<id>|<command>"  (command is split on spaces; no quotin
   local id=${1%%|*} cmd=${1#*|}
   set -f; $cmd >"$out/$id.log" 2>&1; echo $? >"$out/$id.rc"; set +f
 }
-for j in "${light[@]}"; do exec_job "$j" & done
+max_parallel=${VERIFY_MAX_PARALLEL:-2}; started=0
+for j in "${light[@]}"; do
+  exec_job "$j" &
+  started=$((started + 1))
+  if [ $((started % max_parallel)) -eq 0 ]; then wait; fi
+done
 wait
 for j in "${tests[@]}"; do exec_job "$j"; done
 
