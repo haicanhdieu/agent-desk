@@ -653,7 +653,10 @@ describe('entrypoint git identity', () => {
     r.calls
       .filter((c) => c.cmd === 'git' && c.argv.some((a, i) => a === 'config' && i < 3))
       .map((c) => c.argv.slice(c.argv.indexOf('config') + 1));
-  const lastValue = (r: Result, key: string) => gitConfigs(r).findLast((c) => c[0] === key)?.[1];
+  const lastValue = (r: Result, key: string) =>
+    gitConfigs(r)
+      .filter((c) => c[0] === key)
+      .at(-1)?.[1];
   const author = { RUN_AUTHOR_NAME: 'alice', RUN_AUTHOR_EMAIL: '42+alice@users.noreply.github.com' };
   const bot = { BOT_NAME: 'agentdesk[bot]', BOT_EMAIL: 'bot@users.noreply.github.com' };
   const resumable = () => {
