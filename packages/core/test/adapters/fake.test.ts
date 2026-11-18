@@ -35,7 +35,13 @@ describe('fake board', () => {
     expect(res.kind).toBe('events');
     if (res.kind !== 'events') return;
     expect(res.events).toHaveLength(1);
-    expect(res.events[0]).toMatchObject({ provider: 'fake', body: '/fix', ticketRef: '1', repoPath: 'dev/demo' });
+    expect(res.events[0]).toMatchObject({
+      provider: 'fake',
+      body: '/fix',
+      ticketRef: '1',
+      repoPath: 'dev/demo',
+      authorId: '1',
+    });
     const again = await b.pollEvents(project, res.cursor);
     expect(again.kind).toBe('events');
     if (again.kind === 'events') expect(again.events).toHaveLength(0);
@@ -76,7 +82,7 @@ describe('fake board', () => {
     });
     const sig = createHmac('sha256', 'dev').update(body).digest('hex');
     const ok = await board.verifyAndParseWebhook({ 'x-fake-signature': sig }, body, async () => undefined);
-    expect(ok).toMatchObject({ provider: 'fake', deliveryId: 'd1', commentId: 'c1' });
+    expect(ok).toMatchObject({ provider: 'fake', deliveryId: 'd1', commentId: 'c1', authorId: '1' });
     expect(await board.verifyAndParseWebhook({ 'x-fake-signature': 'zz' }, body, async () => undefined)).toBe(
       'bad_signature',
     );

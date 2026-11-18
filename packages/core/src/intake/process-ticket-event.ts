@@ -360,6 +360,7 @@ async function decideInTx(
           triggerCommentId: event.commentId,
           inboundEventId: inboundId,
           triggeredBy: event.author,
+          triggeredByExternalId: event.authorId ?? null,
         })
         .returning({ id: runs.id });
       return row;

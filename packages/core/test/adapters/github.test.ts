@@ -70,9 +70,23 @@ describe('github webhook', () => {
       ticketKind: 'pr',
       body: '/fix please look at the retry logic',
       author: 'octocat',
+      authorId: '583231',
       authorAssociation: 'MEMBER',
       createdAt: '2026-11-12T10:15:00Z',
     });
+  });
+
+  it('a deleted comment author becomes ghost with no author id', async () => {
+    const payload = JSON.parse(raw) as { comment: Record<string, unknown> };
+    payload.comment.user = null;
+    const body = JSON.stringify(payload);
+    const ev = await board.verifyAndParseWebhook(
+      { 'x-hub-signature-256': sign(body), 'x-github-delivery': 'd', 'x-github-event': 'issue_comment' },
+      body,
+      lookup,
+    );
+    expect(ev).toMatchObject({ author: 'ghost' });
+    expect(ev).not.toHaveProperty('authorId');
   });
 
   it('marks plain issues as kind issue', async () => {
@@ -172,10 +186,24 @@ describe('github pollEvents', () => {
       ticketRef: '5',
       repoPath: 'acme/widgets',
       author: 'bob',
+      authorId: '12',
       authorAssociation: 'COLLABORATOR',
       createdAt: '2026-11-12T10:05:00Z',
     });
     expect(res.cursor).toEqual({ since: '2026-11-12T10:20:00Z', etag: null });
+  });
+
+  it('a polled comment from a deleted user is ghost with no author id', async () => {
+    mockInstallationToken();
+    const list = JSON.parse(fixture('comments.list.json')) as { user: unknown }[];
+    for (const c of list) c.user = null;
+    gh()
+      .intercept({ path: path(SINCE), method: 'GET' })
+      .reply(200, JSON.stringify(list), { headers: JSON_HEADERS });
+    const res = await board().pollEvents(project, { since: SINCE, etag: null });
+    if (res.kind !== 'events') throw new Error('expected events');
+    expect(res.events[0]).toMatchObject({ author: 'ghost' });
+    expect(res.events[0]).not.toHaveProperty('authorId');
   });
 
   it('does not follow pagination links to other hosts', async () => {

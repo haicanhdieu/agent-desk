@@ -13,6 +13,8 @@ export interface TicketEvent {
   ticketKind?: TicketKind;
   body: string;
   author: string;
+  /** The author's user id at the provider, as a string; absent when unknown (e.g. a deleted account). */
+  authorId?: string;
   authorAssociation: string;
   createdAt: string;
 }
