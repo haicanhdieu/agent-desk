@@ -61,15 +61,29 @@ No devbox or Docker (a runner pod)? Run `pnpm env:detect` first and follow its `
 - **Never commit** `.env`, credentials, or generated output (`storybook-static/`, `parity-out/`, `.devbox/`).
 - **When docs conflict,** the newer accepted doc wins. Fix the stale one in the same PR, or flag it.
 
+## Agent work rules (spec, plan, implement, modify)
+
+These rules are mandatory for every spec, plan, implementation and code change.
+
+- **MUST NOT add any new dependency without human approval.** A dependency is any new package, third-party library, service, container image, CI action, CLI binary, or new workspace package/app. This covers manifests (`package.json`), lockfiles, `devbox.json`, Dockerfiles, Helm/k8s manifests and runner images.
+- **MUST ask first, one dependency per message,** using the **Talking to humans** template. Do not add it "to test" and ask later.
+- **MUST list proposed dependencies in specs and plans** under `## Needs approval`. Treat each as undecided until the human says yes in writing.
+- **MUST use an existing dependency** when one can do the job, and say so.
+- **MUST NOT silently decide.** Mark every decision made for the human as `Agent call:` with a one-line reason.
+- **MUST stay in scope.** Do not add requirements, scope or non-goals the human did not state. Stop and ask if the plan is wrong.
+- **MUST keep changes minimal.** Do not rewrite unrelated code, rename public names, or change behaviour outside the task. Follow the area's convention doc.
+- **MUST NOT edit agent config** (`AGENTS.md`, `.agent/`, agent rules) as a side effect. Changes there need human review.
+
 ## Talking to humans
 
-Applies to **every** message that raises a concern, asks a question or needs a human decision, in any place (chat, PR or issue comment, `needs_input` message). Plain everyday words; no jargon dumps, no long file lists.
+These rules are mandatory for every message that raises a concern, asks a question or needs a human decision, in any place (chat, PR or issue comment, `needs_input` message).
 
-- **Start with the template.** The ask begins with `Problem:`. No preamble or background before it.
-  1. **Problem:** max 2 sentences.
-  2. **Sample:** optional, max 5 lines.
-  3. **Solutions:** max 3 options, one line each.
-  4. **Suggestion:** one line: the option you pick and why. Not "want me to do it?".
-- **Report and ask separately.** Results first, in a few short lines if needed. Then the template. Never interleave them.
-- **One question per message.** Then stop and wait. Do not queue the next one.
-- **Self-check before sending:** could a human read it and answer in under 30 seconds? If not, cut it.
+- **MUST use this template for every ask,** with these headings in this order:
+  1. `Problem:` max 2 sentences. The message MUST start with this line, with no preamble.
+  2. `Sample:` optional, max 5 lines.
+  3. `Solutions:` max 3 options, one line each.
+  4. `Suggestion:` one line: the option you pick and why. MUST NOT be "want me to do it?".
+- **MUST report results before the ask,** in a few short lines. MUST NOT mix results into the ask.
+- **MUST ask one question per message,** then stop and wait. MUST NOT queue the next question.
+- **MUST use plain words.** No jargon, no long file lists.
+- **MUST self-check before sending:** a human must be able to answer in under 30 seconds. If not, cut it.
