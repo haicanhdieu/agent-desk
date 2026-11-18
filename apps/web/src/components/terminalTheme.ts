@@ -53,11 +53,14 @@ export function terminalTheme(el: Element): ITheme {
   return theme;
 }
 
-/** The monospace font stack and the terminal's font size (px) from the tokens. */
+/**
+ * The terminal's font stack (--term-mono, not the UI's --mono) and font size (px) from the tokens. xterm's DOM renderer
+ * draws every glyph with the font, so the stack must cover what Claude Code prints (blocks, boxes, bullets).
+ */
 export function terminalFont(el: Element): { fontFamily?: string; fontSize?: number } {
   const styles = getComputedStyle(el);
   const size = Number.parseFloat(token(styles, '--fs-13') ?? '');
-  const fontFamily = token(styles, '--mono');
+  const fontFamily = token(styles, '--term-mono');
   return {
     ...(fontFamily !== undefined && { fontFamily }),
     ...(Number.isFinite(size) && { fontSize: size }),

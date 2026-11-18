@@ -62,7 +62,11 @@ export class Terminal {
     Terminal.instances.push(this);
   }
 
+  /** Every addon loaded, in order. */
+  readonly addons: Array<{ activate(term: Terminal): void }> = [];
+
   loadAddon(addon: { activate(term: Terminal): void }): void {
+    this.addons.push(addon);
     addon.activate(this);
   }
 
@@ -144,5 +148,30 @@ export class FitAddon {
   dispose(): void {}
 }
 
+/** Stands in for `@xterm/addon-webgl`: records disposal, loses its context on demand, can fail to start. */
+export class WebglAddon {
+  /** Make `activate` throw, as it does where WebGL is unavailable. Reset after every test. */
+  static failOnActivate = false;
+  disposed = false;
+  private readonly lost = emitter<void>();
+
+  activate(): void {
+    if (WebglAddon.failOnActivate) throw new Error('WebGL2 not supported');
+  }
+
+  readonly onContextLoss = (fn: Listener<void>): Disposable => this.lost.on(fn);
+
+  dispose(): void {
+    this.disposed = true;
+  }
+
+  // Test helper.
+  loseContext(): void {
+    this.lost.fire();
+  }
+}
+
 export const FakeXterm = Terminal;
 export const FakeFitAddon = FitAddon;
+export const FakeWebglAddon = WebglAddon;
+export type FakeWebglAddon = WebglAddon;
