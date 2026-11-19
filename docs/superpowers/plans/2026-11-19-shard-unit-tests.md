@@ -37,29 +37,29 @@
 - Consumes: root and package scripts that already exist: `pnpm --filter @agentdesk/<pkg> test:unit:coverage` (api, worker, core, db) and `pnpm --filter @agentdesk/<pkg> test:coverage` (web, contracts, which write to `coverage/unit`); `pnpm test:scripts`.
 - Produces: jobs `test / unit (<pkg>)` x6 under the key `unit`, job `test / scripts` under the key `scripts`; artifacts `coverage-<pkg>-unit`.
 
-- [ ] **Step 1: Read each package's coverage script and confirm the folder it writes**
+- [x] **Step 1: Read each package's coverage script and confirm the folder it writes**
 
 Run: `grep -n '"test:unit:coverage"\|"test:coverage"' apps/*/package.json packages/*/package.json`
 Expected: api, worker, core, db have `test:unit:coverage` writing `./coverage/unit`; web and contracts have `test:coverage` writing `./coverage/unit`. If a package differs, use its script in the matrix entry below.
 
-- [ ] **Step 2: Replace the `unit` job with a matrix job**
+- [x] **Step 2: Replace the `unit` job with a matrix job**
 
 Keep `needs: changes`, the `if`, `runs-on`, `timeout-minutes: 20`. Set `name: test / unit (${{ matrix.pkg }})`, `strategy.fail-fast: false`, and `strategy.matrix.include` with one entry per package carrying `pkg`, `dir` (`apps` or `packages`) and `script` (`test:unit:coverage` or `test:coverage`). Steps: checkout, `./.github/actions/setup`, `run: pnpm --filter "@agentdesk/${{ matrix.pkg }}" ${{ matrix.script }}`, then one `actions/upload-artifact@v4` with `name: coverage-${{ matrix.pkg }}-unit`, `path: ${{ matrix.dir }}/${{ matrix.pkg }}/coverage/unit/coverage-final.json`, `if-no-files-found: error`, `retention-days: 7`. Delete the six per-package upload steps.
 
-- [ ] **Step 3: Add the `scripts` job**
+- [x] **Step 3: Add the `scripts` job**
 
 New job key `scripts`, `needs: changes`, same `if`, `name: test / scripts`, `runs-on: ubuntu-24.04`, `timeout-minutes: 20`, steps: checkout, setup, `run: pnpm test:scripts`.
 
-- [ ] **Step 4: Add `scripts` to the `gate` job**
+- [x] **Step 4: Add `scripts` to the `gate` job**
 
 Add `scripts` to `gate.needs` and `${{ needs.scripts.result }}` to `CODE_GATES`.
 
-- [ ] **Step 5: Validate the workflow file**
+- [x] **Step 5: Validate the workflow file**
 
 Run: `pnpm exec prettier --check .github/workflows/ci.yml` (via `devbox run fix` before committing) and `grep -c "coverage-.*-unit" .github/workflows/ci.yml`
 Expected: prettier clean; the artifact name appears once (templated), not six times. No `actionlint` is installed: do not add it.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add .github/workflows/ci.yml

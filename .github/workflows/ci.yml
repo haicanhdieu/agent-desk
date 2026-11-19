@@ -76,50 +76,40 @@ jobs:
   unit:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    name: test / unit
+    name: test / unit (${{ matrix.pkg }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pkg: api, dir: apps, script: 'test:unit:coverage' }
+          - { pkg: worker, dir: apps, script: 'test:unit:coverage' }
+          - { pkg: web, dir: apps, script: 'test:coverage' }
+          - { pkg: core, dir: packages, script: 'test:unit:coverage' }
+          - { pkg: db, dir: packages, script: 'test:unit:coverage' }
+          - { pkg: contracts, dir: packages, script: 'test:coverage' }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/setup
+      - run: pnpm --filter "@agentdesk/${{ matrix.pkg }}" ${{ matrix.script }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.pkg }}-unit
+          path: ${{ matrix.dir }}/${{ matrix.pkg }}/coverage/unit/coverage-final.json
+          if-no-files-found: error
+          retention-days: 7
+
+  scripts:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    name: test / scripts
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm test:unit:coverage
       - run: pnpm test:scripts
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-api-unit
-          path: apps/api/coverage/unit/coverage-final.json
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-worker-unit
-          path: apps/worker/coverage/unit/coverage-final.json
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-web-unit
-          path: apps/web/coverage/unit/coverage-final.json
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-core-unit
-          path: packages/core/coverage/unit/coverage-final.json
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-db-unit
-          path: packages/db/coverage/unit/coverage-final.json
-          if-no-files-found: error
-          retention-days: 7
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage-contracts-unit
-          path: packages/contracts/coverage/unit/coverage-final.json
-          if-no-files-found: error
-          retention-days: 7
 
   plan:
     needs: changes
@@ -276,7 +266,7 @@ jobs:
   gate:
     name: gate / ci-passed
     if: always()
-    needs: [changes, format, lint, typecheck, unit, plan, integration, coverage, images]
+    needs: [changes, format, lint, typecheck, unit, scripts, plan, integration, coverage, images]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -284,7 +274,7 @@ jobs:
         env:
           CODE: ${{ needs.changes.outputs.code }}
           ALWAYS: ${{ needs.changes.result }} ${{ needs.format.result }}
-          CODE_GATES: ${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.unit.result }} ${{ needs.plan.result }} ${{ needs.integration.result }} ${{ needs.coverage.result }} ${{ needs.images.result }}
+          CODE_GATES: ${{ needs.lint.result }} ${{ needs.typecheck.result }} ${{ needs.unit.result }} ${{ needs.scripts.result }} ${{ needs.plan.result }} ${{ needs.integration.result }} ${{ needs.coverage.result }} ${{ needs.images.result }}
         run: |
           echo "code=$CODE always: $ALWAYS code gates: $CODE_GATES"
           for r in $ALWAYS; do
