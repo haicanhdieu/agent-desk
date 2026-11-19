@@ -97,6 +97,59 @@ test('a live idle run opens a terminal socket (control for the pausing run)', as
   await expect.poll(sockets).toBeGreaterThan(0);
 });
 
+/** Records the binary frames the page sends on its terminal socket, as strings, whatever replaces the constructor later. */
+async function recordTerminalFrames(page: Page): Promise<() => Promise<string[]>> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __frames: string[] };
+    w.__frames = [];
+    let impl: typeof WebSocket = window.WebSocket;
+    const wrap = (ctor: typeof WebSocket): typeof WebSocket =>
+      new Proxy(ctor, {
+        construct(target, args, newTarget) {
+          const socket: WebSocket = Reflect.construct(target, args, newTarget);
+          const send = socket.send.bind(socket);
+          socket.send = (data) => {
+            if (typeof data !== 'string' && !(data instanceof Blob)) {
+              const bytes = ArrayBuffer.isView(data)
+                ? new Uint8Array(data.buffer, data.byteOffset, data.byteLength)
+                : new Uint8Array(data);
+              w.__frames.push(new TextDecoder().decode(bytes));
+            }
+            send(data);
+          };
+          return socket;
+        },
+      });
+    Object.defineProperty(window, 'WebSocket', {
+      configurable: true,
+      get: () => impl,
+      set: (v: typeof WebSocket) => {
+        impl = wrap(v);
+      },
+    });
+  });
+  return () => page.evaluate(() => (window as unknown as { __frames: string[] }).__frames);
+}
+
+test('in a live run terminal Enter sends a CR and Shift+Enter sends ESC CR (a newline), not a CR', async ({ page }) => {
+  const frames = await recordTerminalFrames(page);
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await terminal.click();
+
+  await page.keyboard.press('Enter');
+  await expect.poll(frames).toEqual(['\r']);
+
+  await page.keyboard.press('Shift+Enter');
+  // Exactly one more frame, and it is ESC CR: xterm's own CR for the same key is swallowed.
+  await expect.poll(frames).toEqual(['\r', '\x1b\r']);
+
+  // The frame stream stays in step with typing afterwards.
+  await page.keyboard.type('a');
+  await expect.poll(frames).toEqual(['\r', '\x1b\r', 'a']);
+});
+
 test('the run terminal prints Claude Code glyphs and uses a font stack that covers them, apart from the UI font', async ({
   page,
 }) => {
