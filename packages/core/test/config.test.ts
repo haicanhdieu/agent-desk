@@ -28,6 +28,12 @@ describe('plugin and setup config', () => {
     expect(c.RUN_IDLE_END_SECONDS).toBe(1800);
     expect(c.RUN_ENDING_DEADLINE_SECONDS).toBe(90);
   });
+
+  it('the run pod defaults to 2 GiB (QA runs 2 GiB pods; the runner caps in scripts/runner-env.sh are sized for it)', () => {
+    const c = parseConfig(base);
+    expect(c.RUN_POD_MEMORY_REQUEST).toBe('1Gi');
+    expect(c.RUN_POD_MEMORY_LIMIT).toBe('2Gi');
+  });
   it('RUN_ENDING_DEADLINE_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
     expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '5' }).RUN_ENDING_DEADLINE_SECONDS).toBe(5);
     expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '' }).RUN_ENDING_DEADLINE_SECONDS).toBe(90);

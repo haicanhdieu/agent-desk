@@ -190,7 +190,7 @@ spec:
             - { name: MAX_TURNS, value: "{{maxTurns}}" }
           resources:
             requests: { cpu: 500m, memory: 1Gi }
-            limits:   { cpu: "2",  memory: 4Gi }
+            limits:   { cpu: "2",  memory: 2Gi }
 ```
 
 **Failure handling**
