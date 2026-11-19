@@ -7,7 +7,7 @@ test('create a rule, then edit it', async ({ page }) => {
 
   await page.getByRole('button', { name: 'New rule' }).click();
   await page.getByRole('textbox', { name: 'Command' }).fill('code-docs');
-  await page.getByRole('combobox', { name: 'Run skill' }).selectOption('code-build');
+  await page.getByRole('combobox', { name: 'Skill', exact: true }).selectOption('code-build');
   await page.getByRole('button', { name: 'Save rule' }).click();
 
   const created = page.getByRole('button', { name: 'Edit rule /code-docs' });

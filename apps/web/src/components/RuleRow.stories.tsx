@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import { RuleRow } from './RuleRow';
 import { TRIAGE_PROMPT } from '@/mocks';
 
@@ -55,3 +56,18 @@ export const CustomPrompt: Story = {
     stats: '5 runs this week, last 13:40',
   },
 };
+/** The More button's menu, open: Edit opens the rule, Delete removes it. Escape or a press outside closes it. */
+export const ActionsMenuOpen: Story = {
+  decorators: [
+    (S) => (
+      <div style={{ minHeight: 140 }}>
+        <S />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /^More actions for \// }));
+  },
+};
+/** No Edit or Delete to offer: the More button is disabled. */
+export const NoActions: Story = { args: { onSelect: undefined, onDelete: undefined } };

@@ -547,8 +547,8 @@
   align-items: center;
   justify-content: space-between;
 }
-/* The one scroll area of the pane: the header and the footer stay put. The side margin and padding keep the focus rings
-   of the fields from being cut by the scroll box. */
+/* The one scroll area of the pane: the header and the footer stay put. The side margin and padding (the `.pane` padding,
+   which has no spacing token) keep the focus rings of the fields from being cut by the scroll box. */
 .paneBody {
   flex: 1 1 auto;
   min-height: 0;
