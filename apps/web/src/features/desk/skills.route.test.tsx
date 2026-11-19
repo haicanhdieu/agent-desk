@@ -91,8 +91,17 @@ describe('desk skills route', () => {
     expect(within(desk).getByRole('link', { name: /Agent & settings/ })).toHaveAttribute('href', `${base}/agent`);
     const tabs = screen.getByRole('navigation', { name: 'Project' });
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toHaveAttribute('href', `/o/alice/p/${projectId}/runs`);
-    expect(within(tabs).getByRole('link', { name: /Desk/ })).toHaveAttribute('href', `${base}/skills`);
+    expect(within(tabs).getByRole('link', { name: /Desk/ })).toHaveAttribute('href', `${base}/rules`);
     expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/o/alice/projects');
+  });
+
+  it('lists Routing rules first in the Desk menu', async () => {
+    await renderRoute(`${base}/skills`);
+    const desk = await screen.findByRole('navigation', { name: 'Desk' });
+    const labels = within(desk)
+      .getAllByRole('link')
+      .map((a) => a.textContent?.trim());
+    expect(labels.slice(0, 2)).toEqual(['Routing rules', 'Skills']);
   });
 
   it('?skill=code-review opens that skill', async () => {

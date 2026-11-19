@@ -33,8 +33,8 @@ export function DeskLayout({ active, repo, links = relativeLinks, children }: De
           {
             heading: 'Desk',
             items: [
-              { label: 'Skills', href: links.skills, icon: 'skill-file', active: active === 'skills' },
               { label: 'Routing rules', href: links.rules, icon: 'rule', active: active === 'rules' },
+              { label: 'Skills', href: links.skills, icon: 'skill-file', active: active === 'skills' },
               ...(links.setup
                 ? [
                     {

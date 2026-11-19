@@ -124,6 +124,13 @@ describe('runs route', () => {
     );
   });
 
+  it('the Desk tab opens Routing rules, not Skills', async () => {
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    const tabs = screen.getByRole('navigation', { name: 'Project' });
+    expect(within(tabs).getByRole('link', { name: /Desk/ })).toHaveAttribute('href', `${base}/desk/rules`);
+  });
+
   it('clicking a filter chip gives a clean URL that the route reads back', async () => {
     const { router, user } = await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
