@@ -23,6 +23,29 @@ SPEC: <path under docs/superpowers/specs/>
 AGENT CALLS: <one line per decision made for the human, as written in the spec; or "none">
 NEEDS APPROVAL: <one line per proposed dependency; or "none">
 SENSITIVE: <yes (which sensitive path) | no>
+UI: <yes (each screen, component or state a person sees that changes) | no>
+```
+
+## UI and Storybook section
+
+The Brainstormer writes this section into every spec whose `UI:` is `yes`, whether or not a prototype was drawn.
+
+```markdown
+## UI and Storybook
+
+Screens and components this changes: <each one, with the states it gains or changes>
+
+Prototype: <each approved board, as `design/prototype/project/<Board>.dc.html` | "skipped by the human at planning time">
+
+**Blocker: Storybook first.** Before any task that implements this UI in `apps/web/src/{app,features}` or wires it to data starts, the related Storybook stories are added or updated and reviewed: every changed or new `ds/`, `components/` and `screens/` piece has a story for each state above (default, loading, empty, error, and the others the spec names), fed from `@/mocks` fixtures<, matching the approved prototype boards, with each new board registered in `canvas.json`, `screens/storyIds.ts` and `scripts/parity.mjs` together | >. No UI implementation work begins until that is done.
+```
+
+## Prototyper reply
+
+```text
+BOARDS: <one line per board: design/prototype/project/<Board>.dc.html (new | changed): the screen and state it shows>
+STATES: <loading, empty, error and other states drawn, and the board for each>
+SPEC GAPS: <one line per thing the spec did not say that you had to choose to draw (a label, a layout, an empty state), and what you drew; or "none">
 ```
 
 Order questions by how much the answer changes what gets built, most first. Ask only what the requirement, the repo and the earlier answers do not settle.
@@ -46,6 +69,38 @@ For `OPTIONS: open`, `Solutions:` has the single line `1. Answer in your own wor
 ## Gate asks
 
 Send the results first (paths, `rev`, `hash`, agent calls), then the ask, then stop. Keep the wording; fill the slots.
+
+**P1, review a UI prototype?** (only when the Brainstormer's `UI:` is `yes`)
+
+```text
+Problem: The spec for <topic> changes what people see (<screens, short>). I can have a prototype drawn for you to review and approve before the spec is final.
+Solutions:
+1. Yes, draw a prototype first.
+2. No, finish the spec without one.
+Suggestion: <1 when a new screen or a layout change is involved; 2 when it is a small text or state change, with the reason>
+```
+
+**P2, the prototype**
+
+<a id="prototype-results"></a>Results, sent before the ask, one line per new or changed board:
+
+```text
+Prototype boards to review (open each link in a browser):
+- <new | changed> <Board>: file://<absolute path of the board file in the worktree>
+  Shows: <the screen and states>
+Spec gaps the prototype had to fill: <SPEC GAPS lines, or "none">
+```
+
+```text
+Problem: The prototype for <topic> is drawn: <b> boards, linked above. It needs your approval before the spec is finished from it.
+Solutions:
+1. Approve it as drawn.
+2. Change it: tell me which board and what.
+3. Drop the prototype and finish the spec without it.
+Suggestion: <1, or 2 with the one thing you would change and why>
+```
+
+"Drop the prototype": delete the boards from the worktree, record `Prototype: no` in `answers.md`, and continue as for a no at P1.
 
 **A, the spec**
 

@@ -5,7 +5,7 @@ description: Use when asked to turn a requirement (a GitHub issue URL or number,
 
 # Plan a requirement: spec, e2e requirements, plan, PR
 
-You are the planning orchestrator. You take one requirement to an approved spec, optionally add its e2e requirements, then an approved implementation plan with a task graph, and open one docs PR holding both files. Subagents think and write; you relay their questions to the human, run the scripts, hold the four approval gates, and commit.
+You are the planning orchestrator. You take one requirement to an approved spec (with an approved UI prototype when the change has UI and the human wants one), optionally add its e2e requirements, then an approved implementation plan with a task graph, and open one docs PR holding them. Subagents think and write; you relay their questions to the human, run the scripts, hold the approval gates, and commit.
 
 This is the step before `dev-build`: when the PR merges, CI links the spec and plan on a GitHub issue, and `/dev-build <n>` builds from it.
 
@@ -19,16 +19,17 @@ A tier is `high`, `medium` or `low`; anything else is a usage error. Models come
 
 ## Who does what
 
-| Step             | Done by                                    | Tier / effort              |
-| ---------------- | ------------------------------------------ | -------------------------- |
-| 0 Intake         | You                                        |                            |
-| 1 Brainstorm     | **Brainstormer** (one, resumed per batch)  | `--brainstorm-tier` / high |
-| 2 E2E (optional) | **Rule extractor**, then **Test planner**  | `medium` / high, medium    |
-| 3 Plan           | **Planner** (one, resumed on graph errors) | `--plan-tier` / high       |
-| 4 PR             | You commit; **PR agent** runs `create-pr`  | `low` / low                |
-| Gates A to D     | You, with the human                        |                            |
+| Step                        | Done by                                        | Tier / effort              |
+| --------------------------- | ---------------------------------------------- | -------------------------- |
+| 0 Intake                    | You                                            |                            |
+| 1 Brainstorm                | **Brainstormer** (one, resumed per batch)      | `--brainstorm-tier` / high |
+| 1b Prototype (UI, optional) | **Prototyper** (one, resumed per change round) | `high` / high              |
+| 2 E2E (optional)            | **Rule extractor**, then **Test planner**      | `medium` / high, medium    |
+| 3 Plan                      | **Planner** (one, resumed on graph errors)     | `--plan-tier` / high       |
+| 4 PR                        | You commit; **PR agent** runs `create-pr`      | `low` / low                |
+| Gates P1, P2, A to D        | You, with the human                            |                            |
 
-You never write the spec, the rules, the cases or the plan yourself, and you never answer a subagent's question for the human.
+You never write the spec, the prototype, the rules, the cases or the plan yourself, and you never answer a subagent's question for the human.
 
 ## Files
 
@@ -99,13 +100,13 @@ Create a todo per step. Do not skip or reorder them.
 4. `dev-plan.mjs start <slug>`. Keep `BRANCH`, `WORKTREE`, `MODE` and `OPEN_PR`; every agent works in that worktree and nothing is written to the main checkout. A branch whose PR already merged is started again from `origin/main` (`MODE=new`); exit 2 names what blocks that.
 5. Where to enter:
 
-   | Situation                                              | Enter at                                                                            |
-   | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-   | No spec for this slug                                  | Step 1                                                                              |
-   | Update mode: the spec is on `main`                     | Step 1, the Brainstormer revising that spec against `requirement.md`                |
-   | `MODE=resume`: an unmerged spec on the branch, no plan | Gate A (ask again), after `stamp` if `check` says `edited` or `unstamped`           |
-   | `MODE=resume`: spec and plan on the branch             | Gate A, then step 3 if the plan is `stale`, else gate D                             |
-   | `OPEN_PR` is a number                                  | Same as the two rows above; step 4 then updates that PR instead of opening a second |
+   | Situation                                              | Enter at                                                                                                                      |
+   | ------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+   | No spec for this slug                                  | Step 1                                                                                                                        |
+   | Update mode: the spec is on `main`                     | Step 1, the Brainstormer revising that spec against `requirement.md`                                                          |
+   | `MODE=resume`: an unmerged spec on the branch, no plan | Gate A (ask again), after `stamp` if `check` says `edited` or `unstamped`; gate P2 first when the spec lists prototype boards |
+   | `MODE=resume`: spec and plan on the branch             | Gate A (gate P2 first, as above), then step 3 if the plan is `stale`, else gate D                                             |
+   | `OPEN_PR` is a number                                  | Same as the two rows above; step 4 then updates that PR instead of opening a second                                           |
 
    In update mode the Brainstormer may reply `STATUS: spec-written` with no change to the file. Then `stamp` prints `CHANGED=no`: tell the human the spec already covers the requirement, and stop unless they want the plan redone.
 
@@ -121,11 +122,32 @@ On `STATUS: questions`:
 
 **Cap: 3 batches of questions.** When you return the answers to the third, say that no more questions are possible; what is still open it decides and writes into the spec as `Agent call:` lines.
 
-On `STATUS: spec-written`: confirm the file exists under `docs/superpowers/specs/` in the worktree, has a `## Needs approval` section when it proposes any dependency, and was not committed. Then `dev-plan.mjs stamp <spec> --kind spec --id <slug> --source <issue#n | file | text>`.
+On `STATUS: spec-written`: confirm the file exists under `docs/superpowers/specs/` in the worktree, has a `## Needs approval` section when it proposes any dependency, and was not committed. When its `UI:` line is `yes`, also confirm the spec has a `## UI and Storybook` section that holds the Storybook-first blocker; missing: resume the Brainstormer once to add it. Then:
+
+- `UI: no`: `dev-plan.mjs stamp <spec> --kind spec --id <slug> --source <issue#n | file | text>`, then gate A.
+- `UI: yes`: gate P1. Do not stamp yet: the spec is not final until the prototype question is settled.
+
+### Gate P1: review a UI prototype? (only when `UI: yes`)
+
+Report the screens and components from the `UI:` line, then ask ([templates.md](templates.md#gate-asks)). Record the answer in `<workdir>/answers.md` as `Prototype: yes | no`.
+
+- No: `stamp` the spec, then gate A. The spec keeps its Storybook-first blocker; its prototype line says the prototype was skipped.
+- Yes: step 1b.
+
+### 1b. Prototype
+
+1. Spawn the **Prototyper** (`high`) with the spec path. It draws the screens and states the spec changes as prototype boards in `design/prototype/project/` in the worktree, in the same format as the boards there, and replies in the shape of [templates.md](templates.md#prototyper-reply).
+2. Confirm every listed board file exists in the worktree, opens on its own (it is a plain HTML file), and that nothing outside `design/prototype/project/*.dc.html` changed. `canvas.json` stays as it is (registering a board there is the developer's Storybook task, together with `storyIds.ts` and `parity.mjs`).
+
+### Gate P2: the prototype
+
+Report every new or changed board as its full browser URL, `file://` plus the absolute path of the file in the worktree (for example `file:///Users/me/agent-desk/.worktrees/spec-x/design/prototype/project/RunReconnect.dc.html`), one per line in the shape of [templates.md](templates.md#prototype-results), so the human can paste it into a browser. Never a relative path, a bare file name, or a path that starts at the worktree. Add the states each board shows and the Prototyper's `SPEC GAPS`, then ask. Changes: resume the Prototyper with the human's words, word for word, then report the URLs of the boards it changed again and ask again. No written yes, no gate A.
+
+On a yes, resume the Brainstormer with the approved board list and every change the human asked for during gate P2, word for word, so the spec matches the prototype and its `## UI and Storybook` section names the boards. Then `stamp` the spec and go to gate A.
 
 ### Gate A: the spec
 
-Report the spec path, `rev`, `hash` and every `Agent call:` line, then ask ([templates.md](templates.md#gate-asks)). Changes: resume the Brainstormer with them, `stamp` again, ask again. Each item under `## Needs approval` is its own ask, one per message, before the approval ask ([AGENTS.md › Agent work rules](../../../AGENTS.md#agent-work-rules-spec-plan-implement-modify)). Append each answer to `<workdir>/answers.md` as `Dependency <name>: approved | refused`; a refused one goes back to the Brainstormer as a change. No written yes, no step 2.
+Report the spec path, `rev`, `hash`, the approved prototype boards (if any) and every `Agent call:` line, then ask ([templates.md](templates.md#gate-asks)). Changes: resume the Brainstormer with them, `stamp` again, ask again. A change to what a screen shows goes to the Prototyper first and back through gate P2. Each item under `## Needs approval` is its own ask, one per message, before the approval ask ([AGENTS.md › Agent work rules](../../../AGENTS.md#agent-work-rules-spec-plan-implement-modify)). Append each answer to `<workdir>/answers.md` as `Dependency <name>: approved | refused`; a refused one goes back to the Brainstormer as a change. No written yes, no step 2.
 
 ### Gate B: e2e test plan?
 
@@ -145,7 +167,7 @@ Report the number of rules and cases, the open questions, and the new `rev` and 
 
 ### 3. Plan
 
-1. Spawn the **Planner** with the spec path and the dependencies `answers.md` records as approved. It follows `superpowers:writing-plans` plus the task rules in its prompt: each task has a `**Depends on:**` line and exact `**Files:**`, shared pieces come first so the rest fans out, tasks are neither tiny nor PR-sized-plus, and every e2e rule has a task.
+1. Spawn the **Planner** with the spec path and the dependencies `answers.md` records as approved. It follows `superpowers:writing-plans` plus the task rules in its prompt: each task has a `**Depends on:**` line and exact `**Files:**`, shared pieces come first so the rest fans out, tasks are neither tiny nor PR-sized-plus, every e2e rule has a task, and when the spec has a `## UI and Storybook` section, the Storybook task comes first and every task that implements that UI depends on it.
 2. `dev-plan.mjs graph <plan> --write`. It checks the dependencies and writes the `## Task graph` section (table and Mermaid) from them. Errors: resume the Planner with the script's output, verbatim. **Cap: 2 rounds.** Still errors: the plan cannot be approved or go into a PR. Report the errors and ask the human what to change (their answer goes to the Planner as a change, and the count starts again). Judge each warning; "nothing can be built in parallel" goes back to the Planner once.
 3. `dev-plan.mjs stamp <plan> --kind plan --id <slug> --spec <spec>`, then `dev-plan.mjs check <spec> <plan>` must print `check: clean.`
 
@@ -155,18 +177,18 @@ Report the plan path, `rev`, `hash`, the `WAVE` lines, the `Agent call:` lines a
 
 ### 4. PR, only after a written yes at gate D
 
-1. `dev-plan.mjs check <spec> <plan>` prints `check: clean.`, `dev-plan.mjs graph <plan>` prints `graph: clean.`, and `git -C <worktree> status --short` lists only those two files. Anything else: stop and report.
+1. `dev-plan.mjs check <spec> <plan>` prints `check: clean.`, `dev-plan.mjs graph <plan>` prints `graph: clean.`, and `git -C <worktree> status --short` lists only those two files plus the board files approved at gate P2. Anything else: stop and report.
 2. Commit them, and only them: `docs(superpowers): add <slug> spec and plan` (`update` on a re-run), ending with the session's attribution lines.
 3. `(cd <worktree> && devbox run -- pnpm install)`, so `create-pr`'s preflight can run there.
 4. `gh label create dev-plan --color 1d76db --description "Spec and plan written by the dev-plan skill (PR), or tracked by it (issue)" --force`.
 5. Spawn the **PR agent** (`<repo>` is `gh repo view --json nameWithOwner --jq .nameWithOwner`). With `OPEN_PR` set it updates that PR. It runs `create-pr` with `Refs #<n>` (never `Closes`: the issue is done when `dev-build` ships it) and adds the `dev-plan` label.
-6. Read the PR back yourself: `gh pr view <pr> --json state,baseRefName,title,body,labels,files,url`. It is open against `main`; **its labels include `dev-plan`** (without it the merge syncs nothing: add it with `gh pr edit <pr> --add-label dev-plan`); the body has no `Closes #`; its files are the spec and the plan only.
+6. Read the PR back yourself: `gh pr view <pr> --json state,baseRefName,title,body,labels,files,url`. It is open against `main`; **its labels include `dev-plan`** (without it the merge syncs nothing: add it with `gh pr edit <pr> --add-label dev-plan`); the body has no `Closes #`; its files are the spec, the plan and the approved boards only.
 
 Do not merge. `dev-review` or a human does.
 
 ### 5. Report
 
-PR URL; spec and plan paths with `rev` and `hash`; rules and cases (or "no e2e section"); the waves; every `Agent call:`; open questions; and what happens next (below).
+PR URL; spec and plan paths with `rev` and `hash`; the prototype boards (or "no UI", or "prototype skipped"); rules and cases (or "no e2e section"); the waves; every `Agent call:`; open questions; and what happens next (below).
 
 ## After the merge
 
@@ -178,20 +200,24 @@ By hand, for a sync CI missed: on an up-to-date `main`, `dev-plan.mjs sync --fil
 
 ## Common mistakes
 
-| Mistake                                                         | Instead                                                                   |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| Answering a Brainstormer question yourself to save a round trip | Every question goes to the human; record the answer in `answers.md`       |
-| Asking the human the whole batch in one message                 | One question per message, in the template                                 |
-| Spawning a new Brainstormer for each batch                      | Resume the same one; a fresh one re-reads the codebase                    |
-| Spawning on the session model, or passing a model name          | `tiers.<tier>` from `models.json`, with the tier the user gave            |
-| Letting the Brainstormer go on to `writing-plans`               | It stops at `STATUS: spec-written`; the plan is step 3                    |
-| Extracting rules from the code, or from the plan                | Spec and sibling requirement sources only                                 |
-| A rule about a table, a queue or a workflow step                | State what the user does and sees; the rest goes under `Not observable`   |
-| Writing or fixing the `## Task graph` section by hand           | Fix the tasks' `**Depends on:**` lines and run `graph --write`            |
-| "Task 3 comes after Task 2" as a dependency                     | A dependency is a consumed interface or a shared file, nothing else       |
-| Stamping after the approval "to tidy up"                        | An approved `rev` and `hash` stay as approved; any edit re-opens the gate |
-| Skipping a gate on a resumed run because `check` says `clean`   | `clean` means stamped, not approved; ask the gate again                   |
-| Opening the PR on "looks fine" or silence                       | Gate D needs a written yes                                                |
-| `Closes #<n>` in the PR body                                    | `Refs #<n>`; merging a plan must not close the ticket                     |
-| Forgetting the `dev-plan` label, or adding it to another PR     | Step 4.6 checks it; it belongs only on PRs this skill opens               |
-| Creating or editing the linked issue yourself after the merge   | The sync does it, once, idempotently                                      |
+| Mistake                                                            | Instead                                                                   |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| Answering a Brainstormer question yourself to save a round trip    | Every question goes to the human; record the answer in `answers.md`       |
+| Asking the human the whole batch in one message                    | One question per message, in the template                                 |
+| Spawning a new Brainstormer for each batch                         | Resume the same one; a fresh one re-reads the codebase                    |
+| Spawning on the session model, or passing a model name             | `tiers.<tier>` from `models.json`, with the tier the user gave            |
+| Letting the Brainstormer go on to `writing-plans`                  | It stops at `STATUS: spec-written`; the plan is step 3                    |
+| Going to gate A on `UI: yes` without asking gate P1                | Ask P1 first; stamp only after it (and P2, on a yes) is settled           |
+| Drawing the prototype yourself, or registering it in `canvas.json` | The Prototyper draws it; the Storybook task registers the boards          |
+| A UI spec with no Storybook-first blocker, prototype or not        | `## UI and Storybook` always holds it when `UI: yes`                      |
+| A UI task in the plan that does not depend on the Storybook task   | Every UI implementation task lists it under `**Depends on:**`             |
+| Extracting rules from the code, or from the plan                   | Spec and sibling requirement sources only                                 |
+| A rule about a table, a queue or a workflow step                   | State what the user does and sees; the rest goes under `Not observable`   |
+| Writing or fixing the `## Task graph` section by hand              | Fix the tasks' `**Depends on:**` lines and run `graph --write`            |
+| "Task 3 comes after Task 2" as a dependency                        | A dependency is a consumed interface or a shared file, nothing else       |
+| Stamping after the approval "to tidy up"                           | An approved `rev` and `hash` stay as approved; any edit re-opens the gate |
+| Skipping a gate on a resumed run because `check` says `clean`      | `clean` means stamped, not approved; ask the gate again                   |
+| Opening the PR on "looks fine" or silence                          | Gate D needs a written yes                                                |
+| `Closes #<n>` in the PR body                                       | `Refs #<n>`; merging a plan must not close the ticket                     |
+| Forgetting the `dev-plan` label, or adding it to another PR        | Step 4.6 checks it; it belongs only on PRs this skill opens               |
+| Creating or editing the linked issue yourself after the merge      | The sync does it, once, idempotently                                      |
