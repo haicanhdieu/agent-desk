@@ -83,6 +83,18 @@ export default function LiveTerminal({
       console.debug('WebGL renderer unavailable, using the DOM renderer', err);
     }
 
+    // xterm sends the same CR for Enter and Shift+Enter, so a multi-line prompt could never be typed. Send ESC CR (what
+    // Alt+Enter sends) for Shift+Enter instead: Claude Code reads it as "insert a newline" rather than "submit". Every
+    // phase of the key (keydown, keypress, keyup) is swallowed so xterm does not also send a CR.
+    term.attachCustomKeyEventHandler((event) => {
+      if (event.key !== 'Enter' || !event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return true;
+      if (event.type === 'keydown') {
+        event.preventDefault();
+        if (!noInput) callbacks.current.onData?.('\x1b\r');
+      }
+      return false;
+    });
+
     const report = () => callbacks.current.onResize?.({ cols: term.cols, rows: term.rows });
     const subscriptions = [
       term.onResize(report),

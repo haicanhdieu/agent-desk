@@ -63,6 +63,33 @@ describe('LiveTerminal', () => {
     expect(onData).toHaveBeenCalledWith('ls\r');
   });
 
+  it('Enter submits with a carriage return', () => {
+    const onData = vi.fn();
+    render(<LiveTerminal onData={onData} />);
+    act(() => FakeXterm.latest().pressEnter());
+    expect(onData).toHaveBeenCalledOnce();
+    expect(onData).toHaveBeenCalledWith('\r');
+  });
+
+  it('Shift+Enter sends ESC CR (a newline for Claude Code, not a submit) exactly once', () => {
+    const onData = vi.fn();
+    render(<LiveTerminal onData={onData} />);
+    let event: KeyboardEvent | undefined;
+    act(() => {
+      event = FakeXterm.latest().pressEnter({ shiftKey: true });
+    });
+    expect(onData).toHaveBeenCalledOnce();
+    expect(onData).toHaveBeenCalledWith('\x1b\r');
+    expect(event?.defaultPrevented).toBe(true);
+  });
+
+  it('read-only: Shift+Enter sends nothing', () => {
+    const onData = vi.fn();
+    render(<LiveTerminal readOnly onData={onData} />);
+    act(() => FakeXterm.latest().pressEnter({ shiftKey: true }));
+    expect(onData).not.toHaveBeenCalled();
+  });
+
   it('read-only: stdin disabled, input never reaches onData, `initial` written once', () => {
     const onData = vi.fn();
     const { rerender } = render(<LiveTerminal readOnly initial={'one\r\ntwo'} onData={onData} />);
