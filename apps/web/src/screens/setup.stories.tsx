@@ -15,6 +15,8 @@ import {
 import { Setup1 as Setup1Screen } from './Setup1';
 import { Setup2 as Setup2Screen } from './Setup2';
 import { Setup3 as Setup3Screen } from './Setup3';
+import { toModelList } from '@/components';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { Setup4 as Setup4Screen } from './Setup4';
 import { SetupReady as SetupReadyScreen } from './SetupReady';
 import { SetupWorkspace as SetupWorkspaceScreen } from './SetupWorkspace';
@@ -100,9 +102,25 @@ export const Setup2: Story = {
       repo={repo}
       credentialType={agentSettings.credential.type}
       secretState="entering"
-      models={['opus (latest Opus)', 'sonnet (latest Sonnet)', 'Custom model id']}
+      modelList={toModelList({ status: 'success', data: agentModelsFixtures.live }, null)}
       maxConcurrent={agentSettings.maxConcurrent}
       accepted={{ at: '14:03:02', secretName: 'agentdesk/proj-invoicer-api-claude' }}
+    />
+  ),
+};
+
+/** No credential yet: the standard names with the reason note. */
+export const Setup2Fallback: Story = {
+  name: 'Setup 2, Claude credential, no credential yet',
+  render: () => (
+    <Setup2Screen
+      user={user}
+      projectName={projectName}
+      repo={repo}
+      credentialType={agentSettings.credential.type}
+      secretState="entering"
+      modelList={toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null)}
+      maxConcurrent={agentSettings.maxConcurrent}
     />
   ),
 };
@@ -176,6 +194,8 @@ export const Setup3: Story = {
   ),
 };
 
+const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+
 export const Setup4: Story = {
   name: 'Setup 4, first rule',
   render: () => (
@@ -188,6 +208,7 @@ export const Setup4: Story = {
       followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+      modelList={liveModels}
     />
   ),
 };
@@ -207,6 +228,7 @@ export const Setup4Prompt: Story = {
       followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+      modelList={liveModels}
     />
   ),
 };

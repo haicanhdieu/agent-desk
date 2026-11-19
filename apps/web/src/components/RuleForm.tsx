@@ -1,5 +1,7 @@
+import type { ReactNode } from 'react';
 import { RULE_PROMPT_MAX } from '@agentdesk/contracts';
 import { Field, LabelInput, PrefixInput, Select, SegmentedControl, TextArea, Toggle } from '@/ds';
+import { ModelPicker, type ModelList } from './ModelPicker';
 import { PromptSystemPart, type PromptPreview } from './PromptSystemPart';
 import { RuleSentence, type RuleDraft, type RuleKind, type RuleTarget } from './RuleSentence';
 import styles from './Composites.module.css';
@@ -10,12 +12,12 @@ export interface RuleFormProps {
   agents: string[];
   onChange(v: RuleDraft): void;
   agentLocked?: boolean;
-  /** Shown after the agent name in the agent option, e.g. "Claude (opus)". */
-  agentModel?: string;
+  /** With it, the form shows a "Model" field (Default model first) after "With agent". */
+  modelField?: { list: ModelList; help: ReactNode };
   /** Setup page spacing: 24px between the sentence card and the fields (the desk pane keeps 16px). */
   spacious?: boolean;
   /** Field-level messages (e.g. from a problem+json response); the field is marked invalid and described by it. */
-  errors?: Partial<Record<'command' | 'labels' | 'target' | 'skill' | 'prompt', string>>;
+  errors?: Partial<Record<'command' | 'labels' | 'target' | 'skill' | 'prompt' | 'model', string>>;
   /** The system lines Agent Desk adds to a custom prompt. With it, the form offers Skill / Custom prompt; without it, skill only. */
   promptPreview?: PromptPreview;
 }
@@ -43,7 +45,7 @@ export function RuleForm({
   agents,
   onChange,
   agentLocked,
-  agentModel,
+  modelField,
   spacious,
   errors,
   promptPreview,
@@ -185,12 +187,24 @@ export function RuleForm({
             >
               {withCurrent(agents, value.agent).map((a) => (
                 <option key={a} value={a}>
-                  {agentModel ? `${a} (${agentModel})` : a}
+                  {a}
                 </option>
               ))}
             </Select>
           )}
         </Field>
+        {modelField && (
+          <ModelPicker
+            label="Model"
+            withDefault
+            list={modelField.list}
+            // null follows the default model; '' is Other model… with nothing typed yet and is not saveable.
+            value={value.model ?? null}
+            onChange={(model) => set({ model })}
+            help={modelField.help}
+            error={errors?.model}
+          />
+        )}
         <Field label="Enabled" labelAs="span">
           {({ labelId }) => (
             <span className={styles.enabledRow}>

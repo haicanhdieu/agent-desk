@@ -26,6 +26,10 @@
 //   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback, then the runner's end line
 //     `agentdesk: session ended reason=agent_exit code=3`, so the workflow sees a crashed agent, not a lost pod);
 //     `--fake-pending`: never start (the pod stays Pending) until killed.
+// The launch line is `agentdesk: agent claude model <AGENT_MODEL or default> endpoint <scheme://host[:port] of
+// ANTHROPIC_BASE_URL or default>`, built by the same rules as the runner's. The fake pod prints it first (before the
+// resume-failed exit 79 and the setup-failed exit 78, where the real runner prints none) so the e2e can read the first
+// log line; the real runner prints it just before the tmux session starts. setup_test prints none, like the runner.
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -47,6 +51,27 @@ const maxLifeMs = Number.parseInt(process.env.FAKE_MAX_LIFE_MS ?? '', 10) || 60 
 const TICK_MS = 50;
 
 const log = (line) => appendFileSync(file('log'), `${line}\n`);
+// Same rules as the launch line in images/runner/entrypoint.sh, so a line that passes here is one the runner prints:
+// the model and the address keep only the characters of a model id / address (letters, digits and . _ : / @ [ ] + -),
+// anything else becomes ?. The address is cut from the typed text (no URL parsing, so host case and a default port stay)
+// to scheme://host[:port]; userinfo, an odd scheme or host, or no `://` print as default.
+const LAUNCH_SAFE = /[^A-Za-z0-9._:/@+[\]-]/gu;
+const launchEndpoint = (address) => {
+  const sep = address.indexOf('://');
+  if (sep < 0) return 'default';
+  const scheme = address.slice(0, sep);
+  const rest = address.slice(sep + 3).split(/[/?#]/u)[0];
+  if (!/^[A-Za-z][A-Za-z0-9+.-]*$/u.test(scheme)) return 'default';
+  if (!/^([A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$/u.test(rest)) return 'default';
+  return `${scheme}://${rest}`;
+};
+const launchLine = () => {
+  const model = process.env.AGENT_MODEL || 'default';
+  const endpoint = launchEndpoint(process.env.ANTHROPIC_BASE_URL ?? '');
+  log(
+    `agentdesk: agent claude model ${model.replace(LAUNCH_SAFE, '?')} endpoint ${endpoint.replace(LAUNCH_SAFE, '?')}`,
+  );
+};
 const logIdentity = () => {
   if (authorName !== '' && authorEmail !== '') log(`agentdesk: git identity ${authorName} ${authorEmail}`);
 };
@@ -78,6 +103,7 @@ if (prompt.includes('--fake-pending')) {
   }, TICK_MS);
 } else {
   writeFileSync(file('started'), new Date().toISOString());
+  if (!setupTest) launchLine();
   if (resume) {
     if (volumeDir === '' || !existsSync(volumeFile('session-started'))) {
       log('agentdesk: resume failed (no saved session)');

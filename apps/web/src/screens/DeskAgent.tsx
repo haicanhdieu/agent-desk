@@ -6,7 +6,6 @@ import {
   DurationInput,
   Field,
   Icon,
-  Select,
   TextInput,
   UnitInput,
   minutesIn,
@@ -15,12 +14,13 @@ import {
 import {
   DangerZone,
   KeyValue,
+  ModelPicker,
   SecretField,
   SettingsSection,
   TriggerModeSetting,
   type SecretFieldState,
 } from '@/components';
-import type { CredentialType } from '@/components';
+import type { CredentialType, ModelList } from '@/components';
 import { connectionCopy as c, DEFAULT_POLL_INTERVAL } from '@/mocks/connection';
 import type { AgentSettings, ConnectionStatus, PollInterval, TriggerMode } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -64,9 +64,30 @@ export interface DeskAgentProps {
    * Receives the typed replacement token. It is never rendered after submit. Resolving `true` closes the replace
    * panel (saved); otherwise it stays open with `credentialError`.
    */
-  onReplaceCredential?(type: CredentialType, value: string): void | Promise<boolean>;
+  onReplaceCredential?(type: CredentialType, value: string, baseUrl?: string | null): void | Promise<boolean>;
   credentialError?: string;
+  /** The agent's models for the Default model picker. Absent while loading. */
+  modelList?: ModelList;
+  /** "Save agent": the picked or typed default model (never empty). Resolving `false` keeps the form as typed. */
+  onSaveAgent?(model: string): void | Promise<boolean>;
+  /** A save of the agent is in flight: Save agent stays disabled. */
+  savingAgent?: boolean;
+  /** Why the last agent save refused the model. */
+  modelError?: string;
+  /** Why the last credential save refused the API address. */
+  addressError?: string;
+  /** Stories: the address typed at mount (defaults to the saved one). */
+  initialAddress?: string;
 }
+
+const LOADING_LIST: ModelList = { models: [], state: { kind: 'loading' } };
+const MODEL_REQUIRED = 'Enter a model name.';
+const addressHelp = (
+  <>
+    Optional. Leave empty for Anthropic's default. Runs get it as <span className="mono">ANTHROPIC_BASE_URL</span>.
+    Public https addresses only. Changing it needs the credential again.
+  </>
+);
 
 const narrow = { width: 90 };
 const deleteBody =
@@ -92,6 +113,12 @@ export function DeskAgent({
   onDeleteProject,
   onReplaceCredential,
   credentialError,
+  modelList = LOADING_LIST,
+  onSaveAgent,
+  savingAgent = false,
+  modelError,
+  addressError,
+  initialAddress,
 }: DeskAgentProps) {
   const [ownMode, setMode] = useState<TriggerMode>(connection?.mode ?? 'webhook');
   const [ownInterval, setPollEvery] = useState(pollInterval);
@@ -125,9 +152,39 @@ export function DeskAgent({
   });
   const set = (k: keyof typeof limits) => (e: { target: { value: string } }) =>
     setLimits({ ...limits, [k]: e.target.value });
-  const state: SecretFieldState = replacing ? 'replacing' : 'saved';
+  // What the person is editing; a new saved value (after a save or refetch) replaces an unsaved edit of the old one.
+  const [model, setModel] = useState<string | null>(settings.model);
+  const [seenModel, setSeenModel] = useState(settings.model);
+  const [emptyModel, setEmptyModel] = useState(false);
+  if (seenModel !== settings.model) {
+    setSeenModel(settings.model);
+    setModel(settings.model);
+    setEmptyModel(false);
+  }
+  const [address, setAddress] = useState(initialAddress ?? settings.baseUrl);
+  const [seenAddress, setSeenAddress] = useState(settings.baseUrl);
+  if (seenAddress !== settings.baseUrl) {
+    setSeenAddress(settings.baseUrl);
+    setAddress(settings.baseUrl);
+  }
+  const typedAddress = address.trim();
+  const addressChanged = typedAddress !== settings.baseUrl;
+  const state: SecretFieldState = replacing || addressChanged ? 'replacing' : 'saved';
+  const changedFrom = settings.baseUrl ? settings.baseUrl : "Anthropic's default";
   const replaceCredential = async (value: string) => {
-    if (await onReplaceCredential?.(credType, value)) setReplacing(false);
+    // Absent = the address is unchanged; '' typed = clear it (null); otherwise the typed address.
+    const saved = addressChanged
+      ? await onReplaceCredential?.(credType, value, typedAddress === '' ? null : typedAddress)
+      : await onReplaceCredential?.(credType, value);
+    if (saved) setReplacing(false);
+  };
+  const saveAgent = () => {
+    const name = (model ?? '').trim();
+    if (name === '') {
+      setEmptyModel(true);
+      return;
+    }
+    void onSaveAgent?.(name);
   };
   return (
     <DeskFrame active="agent" {...frame} connection={connection ?? frame.connection}>
@@ -160,14 +217,47 @@ export function DeskAgent({
                 <TextInput id={id} aria-describedby={describedBy} value={settings.agent} disabled readOnly />
               )}
             </Field>
-            <Field label="Model">
-              {({ id }) => (
-                <Select id={id} defaultValue={settings.model}>
-                  <option>{settings.model}</option>
-                </Select>
-              )}
-            </Field>
+            <ModelPicker
+              label="Default model"
+              list={modelList}
+              value={model}
+              onChange={(next) => {
+                setModel(next);
+                setEmptyModel(false);
+              }}
+              help="Loaded from the provider. Rules that don't name a model use this one."
+              typedHelp="Sent to Claude Code exactly as typed. Rules that don't name a model use this one."
+              error={modelError ?? (emptyModel ? MODEL_REQUIRED : undefined)}
+            />
           </div>
+          <div className={styles.actionsEnd}>
+            <Button variant="primary" disabled={savingAgent} aria-busy={savingAgent || undefined} onClick={saveAgent}>
+              Save agent
+            </Button>
+          </div>
+          <Field
+            label="API address"
+            help={
+              addressChanged
+                ? `Changed from ${changedFrom}. It is saved together with the new credential below.`
+                : addressHelp
+            }
+            error={addressError}
+          >
+            {({ id, describedBy, invalid }) => (
+              <TextInput
+                mono
+                id={id}
+                aria-describedby={describedBy}
+                aria-invalid={invalid}
+                placeholder="https://api.anthropic.com"
+                value={address}
+                onChange={(e) => setAddress(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+            )}
+          </Field>
           <Field label="Credential" labelAs="span">
             {({ labelId }) => (
               <div role="group" aria-labelledby={labelId}>
@@ -177,7 +267,20 @@ export function DeskAgent({
                   onCredentialTypeChange={setCredType}
                   savedInfo={settings.credential.setAt ? settings.credential : undefined}
                   onReplace={() => setReplacing(true)}
-                  onCancel={() => setReplacing(false)}
+                  onCancel={() => {
+                    setReplacing(false);
+                    setAddress(settings.baseUrl);
+                  }}
+                  replacing={
+                    addressChanged
+                      ? {
+                          title: 'Credential needed again',
+                          status: 'Replaced when you save',
+                          note: 'The API address changed. A saved credential is only sent to the address it was saved with, so paste it again for the new one.',
+                          help: 'We test the new token with one small call before saving. The address and the token are saved together; runs already in progress keep the ones they started with.',
+                        }
+                      : undefined
+                  }
                   onSubmit={(value) => void replaceCredential(value)}
                   error={credentialError}
                 />

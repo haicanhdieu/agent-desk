@@ -5,6 +5,8 @@ import { DeskSkills } from './DeskSkills';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
 import { vi } from 'vitest';
+import { toModelList } from '@/components';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 
 const skillNames = skills.map((s) => s.name);
 const github = [{ term: 'Repository', value: 'harbor-labs/invoicer-api' }];
@@ -174,6 +176,28 @@ describe('DeskRules', () => {
     expect(
       within(selected[0] as HTMLElement).getByRole('button', { name: 'Edit rule /code-review' }),
     ).toBeInTheDocument();
+  });
+
+  it('the pane shows the default model help with a link to Agent & settings', () => {
+    const list = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+    render(
+      <DeskRules
+        frame={deskFrame}
+        rules={rules}
+        {...base}
+        editingId="r2"
+        modelField={{ list, defaultModel: 'opus', settingsHref: '/o/acme/p/p1/desk/agent' }}
+      />,
+    );
+    const pane = screen.getByRole('complementary', { name: 'Edit rule' });
+    expect(within(pane).getByRole('combobox', { name: 'Model' })).toBeInTheDocument();
+    expect(within(pane).getByText(/Default model is/)).toHaveTextContent(
+      'Default model is opus, set on Agent & settings.',
+    );
+    expect(within(pane).getByRole('link', { name: 'Agent & settings' })).toHaveAttribute(
+      'href',
+      '/o/acme/p/p1/desk/agent',
+    );
   });
 
   it('the pane edits a draft locally and the sentence follows', async () => {
@@ -371,5 +395,203 @@ describe('DeskAgent', () => {
     expect(screen.getByLabelText('New token')).toHaveValue('x');
     await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
     await waitFor(() => expect(screen.queryByLabelText('New token')).toBeNull());
+  });
+
+  describe('model and API address', () => {
+    const live = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+    const settings = { ...agentSettings, model: 'claude-opus-4-5-20251101', baseUrl: '' };
+    const open = (extra: Partial<React.ComponentProps<typeof DeskAgent>> = {}) =>
+      render(<DeskAgent frame={deskFrame} settings={settings} github={github} modelList={live} {...extra} />);
+
+    it('Default model lists the live models with the provider note', () => {
+      open();
+      const select = screen.getByRole('combobox', { name: 'Default model' });
+      expect(select).toHaveValue('claude-opus-4-5-20251101');
+      expect(
+        within(select)
+          .getAllByRole('option')
+          .map((o) => o.textContent),
+      ).toEqual([
+        'claude-opus-4-5-20251101',
+        'claude-sonnet-4-5-20250929',
+        'claude-haiku-4-5-20251001',
+        'claude-opus-4-1-20250805',
+        'Other model…',
+      ]);
+      expect(select).toHaveAccessibleDescription(
+        "Loaded from the provider. Rules that don't name a model use this one.",
+      );
+    });
+
+    it('shows the loading note while the list is absent', () => {
+      open({ modelList: undefined });
+      expect(screen.getByText('Loading models…')).toBeInTheDocument();
+    });
+
+    it('Save agent sends the picked or typed model', async () => {
+      const onSaveAgent = vi.fn();
+      open({ onSaveAgent });
+      await userEvent.selectOptions(
+        screen.getByRole('combobox', { name: 'Default model' }),
+        'claude-sonnet-4-5-20250929',
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+      expect(onSaveAgent).toHaveBeenLastCalledWith('claude-sonnet-4-5-20250929');
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Default model' }), 'Other model…');
+      await userEvent.type(screen.getByRole('textbox', { name: 'Model name' }), 'anthropic/claude-sonnet-4-5');
+      expect(screen.getByRole('combobox', { name: 'Default model' })).toHaveAccessibleDescription(
+        "Sent to Claude Code exactly as typed. Rules that don't name a model use this one.",
+      );
+      await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+      expect(onSaveAgent).toHaveBeenLastCalledWith('anthropic/claude-sonnet-4-5');
+    });
+
+    it('Save agent without touching a saved model that is not listed keeps it', async () => {
+      const onSaveAgent = vi.fn();
+      open({ settings: { ...settings, model: 'sonnet' }, onSaveAgent });
+      expect(screen.getByRole('textbox', { name: 'Model name' })).toHaveValue('sonnet');
+      await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+      expect(onSaveAgent).toHaveBeenCalledWith('sonnet');
+    });
+
+    it('Save agent with Other model… left empty does not save and shows a field error', async () => {
+      const onSaveAgent = vi.fn();
+      open({ onSaveAgent });
+      await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Default model' }), 'Other model…');
+      await userEvent.click(screen.getByRole('button', { name: 'Save agent' }));
+      expect(onSaveAgent).not.toHaveBeenCalled();
+      expect(screen.getByRole('textbox', { name: 'Model name' })).toHaveAttribute('aria-invalid', 'true');
+      expect(screen.getByRole('textbox', { name: 'Model name' })).toHaveAccessibleDescription(
+        expect.stringContaining('Enter a model name.'),
+      );
+    });
+
+    it('Save agent is disabled while saving', () => {
+      open({ savingAgent: true });
+      expect(screen.getByRole('button', { name: 'Save agent' })).toBeDisabled();
+    });
+
+    it('shows the API address with the board help and no credential panel while unchanged', () => {
+      open();
+      const address = screen.getByRole('textbox', { name: 'API address' });
+      expect(address).toHaveValue('');
+      expect(address).toHaveAttribute('placeholder', 'https://api.anthropic.com');
+      expect(address).toHaveAccessibleDescription(
+        "Optional. Leave empty for Anthropic's default. Runs get it as ANTHROPIC_BASE_URL. Public https addresses only. Changing it needs the credential again.",
+      );
+      expect(screen.queryByLabelText('New token')).toBeNull();
+    });
+
+    it('editing the API address switches the credential to its replacing state with the board texts', async () => {
+      const onReplaceCredential = vi.fn();
+      open({ onReplaceCredential });
+      const address = screen.getByRole('textbox', { name: 'API address' });
+      await userEvent.type(address, ' https://gateway.harbor-labs.com/anthropic ');
+      expect(address).toHaveAccessibleDescription(
+        "Changed from Anthropic's default. It is saved together with the new credential below.",
+      );
+      expect(screen.getByText('Credential needed again')).toBeInTheDocument();
+      expect(screen.getByText('Replaced when you save')).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'The API address changed. A saved credential is only sent to the address it was saved with, so paste it again for the new one.',
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          'We test the new token with one small call before saving. The address and the token are saved together; runs already in progress keep the ones they started with.',
+        ),
+      ).toBeInTheDocument();
+      await userEvent.type(screen.getByLabelText('New token'), 'sk-new');
+      await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
+      expect(onReplaceCredential).toHaveBeenCalledWith(
+        agentSettings.credential.type,
+        'sk-new',
+        'https://gateway.harbor-labs.com/anthropic',
+      );
+    });
+
+    it('changing from a custom address words the note with the saved address', async () => {
+      open({ settings: { ...settings, baseUrl: 'https://gw.example.com/a' } });
+      await userEvent.type(screen.getByRole('textbox', { name: 'API address' }), 'x');
+      expect(screen.getByRole('textbox', { name: 'API address' })).toHaveAccessibleDescription(
+        'Changed from https://gw.example.com/a. It is saved together with the new credential below.',
+      );
+    });
+
+    it('typing the saved address back leaves the replacing state and sends no baseUrl', async () => {
+      const onReplaceCredential = vi.fn();
+      open({
+        settings: { ...settings, baseUrl: 'https://gw.example.com/a' },
+        onReplaceCredential,
+        replacingCredential: true,
+      });
+      const address = screen.getByRole('textbox', { name: 'API address' });
+      await userEvent.type(address, 'b');
+      expect(screen.getByText('Credential needed again')).toBeInTheDocument();
+      await userEvent.type(address, '{Backspace}');
+      expect(screen.queryByText('Credential needed again')).toBeNull();
+      // Opened by hand earlier: still the plain replace panel, and it sends the credential alone.
+      await userEvent.type(screen.getByLabelText('New token'), 'sk-new');
+      await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
+      expect(onReplaceCredential).toHaveBeenCalledWith(agentSettings.credential.type, 'sk-new');
+    });
+
+    it('typing the saved address back closes a panel the address change opened', async () => {
+      open();
+      const address = screen.getByRole('textbox', { name: 'API address' });
+      await userEvent.type(address, 'h');
+      expect(screen.getByLabelText('New token')).toBeInTheDocument();
+      await userEvent.clear(address);
+      expect(screen.queryByLabelText('New token')).toBeNull();
+    });
+
+    it('clearing a saved address sends baseUrl null', async () => {
+      const onReplaceCredential = vi.fn();
+      open({ settings: { ...settings, baseUrl: 'https://gw.example.com/a' }, onReplaceCredential });
+      await userEvent.clear(screen.getByRole('textbox', { name: 'API address' }));
+      await userEvent.type(screen.getByLabelText('New token'), 'sk-new');
+      await userEvent.click(screen.getByRole('button', { name: 'Test and replace' }));
+      expect(onReplaceCredential).toHaveBeenCalledWith(agentSettings.credential.type, 'sk-new', null);
+    });
+
+    it('Cancel on the address-forced panel puts the saved address back', async () => {
+      open();
+      await userEvent.type(screen.getByRole('textbox', { name: 'API address' }), 'h');
+      await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+      expect(screen.getByRole('textbox', { name: 'API address' })).toHaveValue('');
+      expect(screen.queryByLabelText('New token')).toBeNull();
+    });
+
+    it('Test and replace is disabled until a token is typed', async () => {
+      open();
+      await userEvent.type(screen.getByRole('textbox', { name: 'API address' }), 'h');
+      expect(screen.getByRole('button', { name: 'Test and replace' })).toBeDisabled();
+      await userEvent.type(screen.getByLabelText('New token'), 't');
+      expect(screen.getByRole('button', { name: 'Test and replace' })).toBeEnabled();
+    });
+
+    it('starts with the address typed in initialAddress', () => {
+      open({ initialAddress: 'https://gateway.harbor-labs.com/anthropic' });
+      expect(screen.getByRole('textbox', { name: 'API address' })).toHaveValue(
+        'https://gateway.harbor-labs.com/anthropic',
+      );
+      expect(screen.getByText('Credential needed again')).toBeInTheDocument();
+    });
+
+    it('shows addressError and modelError on their fields', () => {
+      open({ addressError: 'Use a public https address.', modelError: 'Model name not accepted.' });
+      const address = screen.getByRole('textbox', { name: 'API address' });
+      expect(address).toHaveAttribute('aria-invalid', 'true');
+      expect(address).toHaveAccessibleDescription(expect.stringContaining('Use a public https address.'));
+      const select = screen.getByRole('combobox', { name: 'Default model' });
+      expect(select).toHaveAttribute('aria-invalid', 'true');
+      expect(select).toHaveAccessibleDescription(expect.stringContaining('Model name not accepted.'));
+    });
+
+    it('no credential shows no "Set … by …" line', () => {
+      open({ settings: { ...settings, credential: { type: 'oauth_token', setAt: '', setBy: '' } } });
+      expect(screen.queryByText(/Set .* by /)).toBeNull();
+    });
   });
 });

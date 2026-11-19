@@ -1,5 +1,6 @@
 import {
   AgentDto,
+  AgentModelsDto,
   ConnectionDto,
   IgnoredEventDto,
   PluginsDto,
@@ -21,6 +22,7 @@ import { ApiError, api as defaultApi, createApi } from '@agentdesk/contracts/cli
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { agentFixtures } from '../dto/agents';
+import { agentModelsFixtures } from '../dto/agentModels';
 import { connectionFixtures, repoFixtures } from '../dto/connections';
 import { runEventFixtures } from '../dto/events';
 import { ids } from '../dto/ids';
@@ -59,6 +61,7 @@ describe('MSW handlers cover the contract', () => {
       [ConnectionDto, connectionFixtures],
       [RepoDto, Object.values(repoFixtures).flat()],
       [AgentDto, agentFixtures],
+      [AgentModelsDto, Object.values(agentModelsFixtures)],
       [SkillDto, Object.values(skillFixtures).flat()],
       [RuleDto, ruleFixtures],
       [RunDto, runFixtures],
@@ -145,6 +148,53 @@ describe('MSW handler semantics', () => {
     expect(e.requestId).toMatch(/^req-mock-/);
   });
 
+  it('putCredential sets, keeps and clears the address; models of another org agent is 404', async () => {
+    const agentId = ids.agent.invoicerApi;
+    const address = (): Promise<string | null> => api.agents.get({ params: { projectId: P } }).then((a) => a.baseUrl);
+    await expect(address()).resolves.toBeNull();
+    await api.agents.putCredential({
+      params: { agentId },
+      body: { type: 'api_key', value: 'sk-test', baseUrl: 'https://gw.example.com/anthropic' },
+    });
+    await expect(address()).resolves.toBe('https://gw.example.com/anthropic');
+    await api.agents.putCredential({ params: { agentId }, body: { type: 'api_key', value: 'sk-test-2' } });
+    await expect(address()).resolves.toBe('https://gw.example.com/anthropic');
+    await api.agents.putCredential({
+      params: { agentId },
+      body: { type: 'api_key', value: 'sk-test-3', baseUrl: null },
+    });
+    await expect(address()).resolves.toBeNull();
+    expect(JSON.stringify(mockDb.snapshot())).not.toContain('sk-test');
+    const other = await rejection(api.agents.models({ params: { agentId: ids.agent.storefront } }));
+    expect(other.status).toBe(404);
+  });
+
+  it('agents.models answers the scenario set for the agent and drops beforeCredentialSave after a save', async () => {
+    const agentId = ids.agent.invoicerApi;
+    scenarios.agentModels(agentId, {
+      kind: 'live',
+      ids: ['m-1'],
+      beforeCredentialSave: { kind: 'fallback', reason: 'rejected' },
+    });
+    await expect(api.agents.models({ params: { agentId } })).resolves.toMatchObject({ reason: 'rejected' });
+    await api.agents.putCredential({ params: { agentId }, body: { type: 'api_key', value: 'x' } });
+    await expect(api.agents.models({ params: { agentId } })).resolves.toEqual({
+      source: 'live',
+      reason: null,
+      models: [{ id: 'm-1', label: 'm-1' }],
+    });
+    scenarios.agentModels(agentId, { kind: 'error' });
+    expect((await rejection(api.agents.models({ params: { agentId } }))).status).toBe(500);
+  });
+
+  it('agents.models drops the provider text of a fallback scenario: it is not part of the contract', async () => {
+    const agentId = ids.agent.invoicerApi;
+    scenarios.agentModels(agentId, { kind: 'fallback', reason: 'rejected', providerText: 'invalid x-api-key sk-test' });
+    const answer = await api.agents.models({ params: { agentId } });
+    expect(answer).toEqual({ source: 'builtin', reason: 'rejected', models: expect.any(Array) });
+    expect(JSON.stringify(answer)).not.toContain('invalid x-api-key');
+  });
+
   it('hides projects of other orgs (RLS) and switches with the active org', async () => {
     const e = await rejection(api.projects.get({ params: { projectId: ids.project.storefront } }));
     expect(e.status).toBe(404);
@@ -227,6 +277,15 @@ describe('MSW handler semantics', () => {
     expect(res.status).toBe(400);
     const body: unknown = await res.json();
     expect(body).toMatchObject({ errors: [expect.objectContaining({ pointer: '/command' })] });
+  });
+
+  it('mints the first created project id, then its agent id (e2e/mock/mock.ts FIRST_CREATED_AGENT relies on it)', async () => {
+    const p = await api.projects.create({
+      body: { connectionId: ids.connection.dev, repoPath: 'dev/demo', triggerMode: 'polling' },
+    });
+    expect(p.id).toBe(ids.created(1));
+    const agent = await api.agents.get({ params: { projectId: p.id } });
+    expect(agent.id).toBe(ids.created(2));
   });
 
   it('creates a project at setup step agent with an agent and a connection', async () => {

@@ -50,7 +50,7 @@ None.
 - Agent call: the `models` route uses `assertProjectVisible` (org membership), because it is a read and the credential never leaves the server.
 - Agent call: with `AGENT_MODELS_SOURCE=builtin` the reason is `disabled` even when no credential is saved, because TC-19.5 expects the "turned off" note on a new project.
 - Agent call: a secret-store read failure in the `models` route is a generic 500 ("credential store unavailable"), because it is an internal failure, not an upstream one.
-- Agent call: fallback notes for reasons the boards do not word (spec Q1): `no_credential` "Showing the standard names. Save a credential to load the provider's list."; `unreachable` without an address "Showing the standard names. The model list could not be loaded."; `rejected` "Showing the standard names. The provider did not accept the saved credential."; `empty` "Showing the standard names. The provider returned no models."; `disabled` "Showing the standard names. Live model lists are turned off on this server.". The board wording is kept for `unreachable` with an address.
+- Agent call: fallback notes for reasons the boards do not word (spec Q1): `no_credential` "Showing the standard names. Save a credential to load the provider's list."; `unreachable` without an address "Showing the standard names. The model list could not be loaded."; `rejected` "Showing the standard names. The provider did not accept the saved credential.", and with an address set "Showing the standard names. The provider at <host> did not accept the saved credential." (the human's decision in the #122 run); `empty` "Showing the standard names. The provider returned no models."; `disabled` "Showing the standard names. Live model lists are turned off on this server.". The board wording is kept for `unreachable` with an address.
 - Agent call: picker options show the model id (with the provider's label as a tooltip), because the approved boards show ids and the stored value is always the id (spec "Left to the builder").
 - Agent call: picker loading and error copy (spec Q2): "Loading models…" and "The model list could not be loaded. You can still type a model name.", both with "Other model…" usable, because BR-9 needs typing to stay possible.
 - Agent call: address note after a change from a custom address or a clear (spec Q6): "Changed from <saved address>. It is saved together with the new credential below.", following the board's sentence.
@@ -246,7 +246,7 @@ routes.agents.models = { method: 'GET', path: '/api/agents/:agentId/models', par
 - Produces (db, `packages/db/src/schema/app.ts`): `agents.baseUrl` (`base_url text null`, check `agents_base_url_check`: `base_url is null or (base_url like 'https://%' and char_length(base_url) <= 2048)`); `rules.model` (`model text null`, check `rules_model_check`: `model is null or char_length(model) between 1 and 200`); `runs.model` (`model text null`, no check).
 - Produces (web): `agentModelsFixtures: Record<'live' | 'noCredential' | 'unreachable' | 'rejected' | 'empty' | 'disabled', AgentModelsDto>` in `apps/web/src/mocks/dto/agentModels.ts`; `live` holds the board's ids `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`, `claude-opus-4-1-20250805`; every fallback holds `opus`, `sonnet`, `haiku`.
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 In `net.test.ts`: `isBlockedIp` is true for `10.0.0.1`, `172.16.0.1`, `172.31.255.255`, `192.168.1.1`, `127.0.0.1`, `169.254.169.254`, `100.64.0.1`, `0.0.0.0`, `::1`, `::`, `fc00::1`, `fd12::1`, `fe80::1`, `::ffff:127.0.0.1`, `::ffff:7f00:1`; false for `8.8.8.8`, `172.32.0.1`, `100.128.0.1`, `2606:4700::1111`, `gateway.harbor-labs.com`.
 
@@ -258,34 +258,34 @@ In `rules.test.ts`: `CreateRuleRequest` accepts `model: null`, `model: 'haiku'` 
 
 In `routes.test.ts`: change the route count to `45` and assert `flat['agents.models']` matches `{ method: 'GET', path: '/api/agents/:agentId/models' }`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: FAIL (`isBlockedIp`, `AgentModelId`, `AgentBaseUrl`, `AgentModelsDto` not exported; route count 44).
 
-- [ ] **Step 3: Implement the contracts**
+- [x] **Step 3: Implement the contracts**
 
 `isBlockedIp`: parse IPv4 to a 32-bit number and IPv6 (with `::` compression and an embedded dotted tail) to 8 hextets, then compare against the CIDR lists. `isAllowedAgentBaseUrl`: `new URL(raw)` in a try; require `protocol === 'https:'`, empty `username` and `password`, and no `?` or `#` anywhere in `raw`; reject `hostname === 'localhost'` or ending in `.localhost`; strip `[`/`]` from `hostname` and reject when `isBlockedIp` is true (the WHATWG parser already normalizes `2130706433` and `0x7f.0.0.1` to `127.0.0.1`). Export `net.ts` from `index.ts`.
 
-- [ ] **Step 4: Run the contract tests**
+- [x] **Step 4: Run the contract tests**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: PASS.
 
-- [ ] **Step 5: Write the failing migration test**
+- [x] **Step 5: Write the failing migration test**
 
 In `migrate.int.test.ts`, `it('the agent model routing migration only adds columns and checks: no row writes, no policy or grant changes')`, in the style of the 0015 test: the SQL text has no `UPDATE`, `INSERT`, `DELETE`, `POLICY` or `GRANT`; after migrating, inserting an agent with `base_url = 'http://x'` and one with `char_length(base_url) = 2049` violates `agents_base_url_check`; a rule with `model = repeat('a', 201)` or `''` violates `rules_model_check`; a run row accepts `model = null`.
 
-- [ ] **Step 6: Edit the schema and generate the migration**
+- [x] **Step 6: Edit the schema and generate the migration**
 
 Add the three columns and two checks to `packages/db/src/schema/app.ts`. Run `pnpm --filter @agentdesk/db db:generate --name agent_model_routing`. Read the SQL and rewrite each `ADD CONSTRAINT` as `... NOT VALID;` followed by `VALIDATE CONSTRAINT`, as `0012_rule_custom_prompt.sql` does.
 
-- [ ] **Step 7: Run the db tests**
+- [x] **Step 7: Run the db tests**
 
 Run: `pnpm --filter @agentdesk/db test`
 Expected: PASS.
 
-- [ ] **Step 8: Keep every consumer compiling**
+- [x] **Step 8: Keep every consumer compiling**
 
 - `agents.service.ts` `toDto`: `provider: AgentKind.parse(row.provider)`, `baseUrl: row.baseUrl`.
 - `rules.service.ts` `toDto`: `model: row.model`.
@@ -293,12 +293,12 @@ Expected: PASS.
 - Web: `baseUrl: null` in `mocks/dto/agents.ts` and in the agent the `projects.create` handler builds; `model: null` in `mocks/dto/rules.ts`; the `rules.create` handler stores `agentId: body.agentId ?? <project agent id>` and `model: body.model ?? null`, `rules.update` applies `body.model` and `body.agentId` when present; a stub `'agents.models'` handler that 404s an unknown agent, checks the project is visible like `agents.putCredential`, and returns `agentModelsFixtures.live`; add `[AgentModelsDto, Object.values(agentModelsFixtures)]` to the fixture-parse test; add `baseUrl`/`model` to the literals in `features/desk/map.test.ts`.
 - `rules.form.ts`: `RuleValues` omits `agentId` and `model` from the contract type (Task 14 adds them to the form).
 
-- [ ] **Step 9: Typecheck and test the touched packages**
+- [x] **Step 9: Typecheck and test the touched packages**
 
 Run: `pnpm typecheck && pnpm --filter @agentdesk/api test -- agents rules && pnpm --filter @agentdesk/web test -- contract map`
 Expected: typecheck clean everywhere; tests PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 devbox run fix
@@ -345,7 +345,7 @@ export interface GuardedGetOptions {
 export function guardedGetJson(url: URL, opts: GuardedGetOptions): Promise<{ status: number; json: unknown }>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 With undici `MockAgent` (`disableNetConnect()`) passed as `dispatcher`:
 - `it('returns the status and JSON of a 200')`.
@@ -356,27 +356,27 @@ With undici `MockAgent` (`disableNetConnect()`) passed as `dispatcher`:
 - `it('refuses http, localhost and blocked IP literals without connecting')`: `http://gw.example.com`, `https://localhost`, `https://127.0.0.1`, `https://[::1]`, `https://[::ffff:10.0.0.1]` → `kind === 'blocked_address'`, no mock call.
 - With `createGuardedAgent({ lookup })` where the fake lookup answers `10.0.0.1` (and in a second case `fe80::1`): `it('a name that resolves to a private address is refused at connect time')` → `kind === 'blocked_address'`. The fake lookup means no DNS or socket is used.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- guarded-http`
 Expected: FAIL (module not found).
 
-- [ ] **Step 3: Implement `guarded-http.ts`**
+- [x] **Step 3: Implement `guarded-http.ts`**
 
 undici `request` with `signal: AbortSignal.timeout(timeoutMs)` and no redirect interceptor; read the body stream, aborting past `maxBytes`; map undici/abort errors to `GuardedHttpError` kinds by class, never by message text. Export from `src/index.ts`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- guarded-http`
 Expected: PASS.
 
-- [ ] **Step 5: Write the docs**
+- [x] **Step 5: Write the docs**
 
 - ADR 0026 (Accepted, 2026-11-19): context (fixed model, no gateway support); decision (agent adapter per kind in `packages/core/src/adapters/agents/`, looked up by `agentAdapterFor(kind)`; the API reads the agent credential only to list models and sends it only to the agent's address through `guardedGetJson`; an address change replaces the credential; the model is frozen on the run at intake; `--model` on the CLI); consequences (adding an agent = adapter + runner command file + CLI in the image; outbound call needs the SSRF guard; `AGENT_MODELS_SOURCE=builtin` for local and e2e). Add the row to `docs/adr/README.md`.
 - `security.md` §1: the API reads the agent credential only to list models and sends it only to the agent's own address, through the guarded transport; changing the address drops the saved credential and the same save carries a new one. §8: add "an agent adapter (`packages/core/src/adapters/agents/`) or the guarded transport" to the changes that require security review.
 - Architecture doc, "Agent abstraction" row: point to the agent adapter (`agentAdapterFor`) and ADR 0026.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -423,7 +423,7 @@ export function agentAdapterFor(kind: AgentKind, opts?: { http?: AgentHttpGet })
 Claude `launchEnv`: `AGENT=claude`; when `model !== ''`, `AGENT_MODEL=<model>` and `ANTHROPIC_MODEL=<model>`; when `baseUrl` is set, `ANTHROPIC_BASE_URL=<baseUrl>`; in that order.
 Claude `listModels`: URL = base (`baseUrl ?? CLAUDE_DEFAULT_BASE_URL`) with trailing slashes stripped from its path, plus `/v1/models`, query `limit=1000` (and `after_id=<last_id>` on later pages). Body schema: `{ data: { id: string; display_name?: string }[]; has_more?: boolean; last_id?: string | null }`. Label = `display_name ?? id`. Errors: `GuardedHttpError` → `unreachable`; 401/403 → `rejected`; any other non-2xx or a schema failure → `invalid`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 All HTTP through `agentAdapterFor('claude', { http: (u, h) => guardedGetJson(u, { headers: h, dispatcher: mockAgent }) })` with `MockAgent.disableNetConnect()`:
 - `it('sends x-api-key and anthropic-version for an API key')`; `it('sends a Bearer token and the oauth beta header for an OAuth token, and no x-api-key')`.
@@ -437,21 +437,21 @@ All HTTP through `agentAdapterFor('claude', { http: (u, h) => guardedGetJson(u, 
 - `launchEnv`: with `{ model: 'sonnet[1m]', baseUrl: 'https://gw.example.com/a' }` → exactly `AGENT=claude`, `AGENT_MODEL=sonnet[1m]`, `ANTHROPIC_MODEL=sonnet[1m]`, `ANTHROPIC_BASE_URL=https://gw.example.com/a`; with `baseUrl: null` no `ANTHROPIC_BASE_URL`; with `model: ''` no model entries.
 - `it('builtinModels are opus, sonnet and haiku')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- agents`
 Expected: FAIL (module not found).
 
-- [ ] **Step 3: Implement `types.ts`, `claude.ts`, `registry.ts`**
+- [x] **Step 3: Implement `types.ts`, `claude.ts`, `registry.ts`**
 
 `registry.ts` follows `adapters/registry.ts`: a `switch` on `kind` returning `createClaudeAdapter(http)`. Export the public names from `src/index.ts`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- agents && pnpm --filter @agentdesk/core typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -480,7 +480,7 @@ git commit -m "feat(core): Claude agent adapter for model lists, credential env 
 - Consumes: `RuleDto.model`, `CreateRuleRequest`/`UpdateRuleRequest` `agentId` and `model`, columns `rules.model`, `runs.model` (Task 1).
 - Produces: `RuleRow` = `Pick<RuleDto, … | 'model'>`; every new run row has `runs.model = rule.model ?? <agents.model of rule.agentId>`, read in the routing transaction; `RunDto.agent.model = run.model ?? agent.model ?? 'unknown'`; `POST /api/projects/:projectId/rules` and `PATCH /api/rules/:ruleId` accept `agentId` (must be an agent of the rule's project, else 422 with pointer `/agentId`, detail "Agent not found in this project") and `model` (`null` resets to the default model).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `intake.int.test.ts` (extend `seed` with an optional rule `model`):
 - `it('a rule that names a model freezes it on the run')`: rule `model: 'haiku'`, agent `model: 'sonnet'` → run `model === 'haiku'`.
@@ -497,24 +497,24 @@ git commit -m "feat(core): Claude agent adapter for model lists, credential env 
 - `it('agent.model is the run model when recorded')` (run `haiku`, agent `sonnet`).
 - `it('a run without a model shows the agent current default, and "unknown" when the agent is gone')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- intake && pnpm --filter @agentdesk/api test -- rules runs`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `route-event.ts`: add `'model'` to `RuleRow`.
 - `process-ticket-event.ts`: map `model: r.model` into `ruleList`; before the insert, when `decision.rule.model === null`, select `agents.model` for `decision.rule.agentId` on `tx`; insert `model`.
 - `rules.service.ts` `create`: resolve the agent by `body.agentId` within `projectId` (or the project's agent when absent); 422 via `UnprocessableProblemException([{ pointer: '/agentId', detail: 'Agent not found in this project' }])`; insert `model: body.model ?? null`. `update`: same agent check against the rule's project when `agentId` is present; set `model` when `body.model !== undefined`.
 - `runs.service.ts` `toListItem`: `model: row.model ?? agent?.model ?? 'unknown'`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- intake router && pnpm --filter @agentdesk/api test -- rules runs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -540,7 +540,7 @@ git commit -m "feat(api): per-rule model and agent, frozen on the run at intake"
 - Consumes: env `AGENT`, `AGENT_MODEL`, `ANTHROPIC_BASE_URL` as Task 3's `launchEnv` sets them (names fixed by the spec).
 - Produces: `AGENT_START_CMD='exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} "$PROMPT"'`, `AGENT_RESUME_CMD='exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} --continue'`, `AGENT_ENDPOINT_URL="${ANTHROPIC_BASE_URL:-}"` in `commands.sh`; `entrypoint.sh` prints `agentdesk: agent <AGENT_DIR> model <AGENT_MODEL or default> endpoint <origin of AGENT_ENDPOINT_URL or default>` once, right before it starts the agent's tmux session, in fresh and resume modes, with `printf '%s'`-style quoting.
 
-- [ ] **Step 1: Write the failing runner tests**
+- [x] **Step 1: Write the failing runner tests**
 
 In `entrypoint.test.ts`:
 - Update `normal mode starts the agent with the prompt command` and the resume test to the new command strings.
@@ -552,25 +552,25 @@ In `entrypoint.test.ts`:
 - `it('a model value is printed, never evaluated')`: `AGENT_MODEL='$(touch pwned)'` → no `pwned` file and the line shows the literal text.
 - Make sure the tmux shell sees `AGENT_MODEL` the way it sees `PROMPT` (assert with the existing env-capture helper).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/runner test -- entrypoint`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `commands.sh` as above. In `entrypoint.sh`, compute the origin with parameter expansion only (`scheme="${url%%://*}"`, `rest="${url#*://}"`, `origin="$scheme://${rest%%/*}"`), and print with `printf 'agentdesk: agent %s model %s endpoint %s\n' …`. Pass `AGENT_MODEL` into the tmux session env alongside `PROMPT`. Update the header comment's env list.
 
-- [ ] **Step 4: Run the runner tests**
+- [x] **Step 4: Run the runner tests**
 
 Run: `pnpm --filter @agentdesk/runner test`
 Expected: PASS.
 
-- [ ] **Step 5: Check the settings override (spec Agent call)**
+- [x] **Step 5: Check the settings override (spec Agent call)**
 
 With the Claude Code version pinned in `images/runner/Dockerfile`, check (its docs or a manual run of that version) whether a repo's `.claude/settings.json` `env` block can override `ANTHROPIC_BASE_URL`. If it can, add one line to `security.md` §4 or §5 naming it a known risk that needs the planned egress proxy, and say so in the PR. If it cannot, say that in the PR. Do not fix it here.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -600,30 +600,30 @@ git commit -m "feat(runner): pass the run model with --model and print the launc
 - Consumes: `runs.model`, `agents.baseUrl`, `AgentKind` (Task 1); `agentAdapterFor`, `AgentAdapter.credentialEnv`, `AgentAdapter.launchEnv` (Task 3).
 - Produces: `RunJobInput.agentEnv: { name: string; value: string }[]` replaces `RunJobInput.model` (literal env values, appended to the common env in both fresh and resume Jobs; the `ANTHROPIC_MODEL` line in `buildRunJob` goes). `RunDetails` gains `agentKind: AgentKind | null` and `baseUrl: string | null`; `RunDetails.model = runs.model ?? agents.model ?? ''`. `CREDENTIAL_ENV` is removed from the worker. The fake pod's first log line, fresh and resumed, is `agentdesk: agent claude model <AGENT_MODEL or default> endpoint <new URL(ANTHROPIC_BASE_URL).origin or default>`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `job-spec.test.ts`: `it('adds agentEnv entries verbatim, in order, to fresh and resume Jobs')`; `it('has no ANTHROPIC_BASE_URL unless agentEnv carries it')`; `it('a model from agentEnv is always set on the container')` (spec Testing: "a model is always set").
 - `fake-pod.test.ts`: `it('logs the launch line first, with the address origin')` (`AGENT_MODEL=haiku`, `ANTHROPIC_BASE_URL=https://gateway.harbor-labs.com/v1/anthropic` → first line `agentdesk: agent claude model haiku endpoint https://gateway.harbor-labs.com`); `it('logs endpoint default without an address')`; `it('a resumed pod logs the launch line first too')`.
 - `run.activities.int.test.ts`: `it('the Job env carries the run model, not the agent default')` (run `haiku`, agent `opus` → `AGENT_MODEL=haiku`); `it('a resume after the default model changed keeps the run model')`; `it('a resume reads the agent address fresh')` (set `agents.base_url` before resume → resumed Job env has the new `ANTHROPIC_BASE_URL`; clear it → none); `it('a run without a recorded model uses the agent default')`; `it('the run Secret key comes from the adapter')` (`api_key` → `ANTHROPIC_API_KEY`).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- job-spec fake-pod && pnpm --filter @agentdesk/worker test -- run.activities.int`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `details()`: select `runModel: runs.model`, `agentModel: agents.model`, `agentKind: agents.provider`, `baseUrl: agents.baseUrl`; parse the kind with `AgentKind.safeParse` (unknown → `ApplicationFailure.nonRetryable('unknown agent kind')`, null stays null).
 - Replace `credentialEnv(ctx)` with a stored-credential read (`{ type, value } | null`) used by `redactionList` (values only) and by `createRunSecretAndJob`, which maps it through `agentAdapterFor(kind).credentialEnv(type)`. A null kind with a credential cannot occur (no agent means no credential); keep the existing "no credential" failures.
 - `createRunSecretAndJob`: `agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl })`.
 - `fake-pod.mjs`: log the launch line before anything else in both branches; update its header comment.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- kube && pnpm --filter @agentdesk/worker test && pnpm typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -662,7 +662,7 @@ git commit -m "feat(worker): launch runs with the agent adapter env and the run 
 
 `models` order: 404 unless the agent exists in the org (`withOrg`), then `assertProjectVisible(tx, agent.projectId)`; `AGENT_MODELS_SOURCE === 'builtin'` → `{ source: 'builtin', reason: 'disabled', models: builtin }`; credential metadata unset or `secrets.get` null/unparsable → `no_credential`; `listModels` → `[]` gives `empty`, otherwise `{ source: 'live', reason: null, models }`; `AgentModelsError` `rejected` → `rejected`, `unreachable` and `invalid` → `unreachable`, logged with the error class and the address's host only; a `secrets.get` throw → generic 500.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `config.test.ts`: `AGENT_MODELS_SOURCE` defaults to `live`, accepts `builtin`, rejects `other`.
 - `agents.int.test.ts` (live source via `env: { AGENT_MODELS_SOURCE: 'live' }`, `agentHttp` a stub or a `MockAgent`-backed `guardedGetJson`):
@@ -680,21 +680,21 @@ git commit -m "feat(worker): launch runs with the agent adapter env and the run 
   - `it('PUT agent with an invalid model is 400 on /model')`; `it('PUT agent has no way to change the address')` (a `baseUrl` in the body is ignored and the address is unchanged).
 - `redact-body.test.ts`: `it('a credential body with an address keeps baseUrl and drops value')` (spec: the address is not secret and stays in the audit row).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- config && pnpm --filter @agentdesk/api test -- agents`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Config key; `.env.example` gets `AGENT_MODELS_SOURCE=builtin` with a comment that the local stack and e2e never call the provider; add `AGENT_MODELS_SOURCE` to every `passThroughEnv` list in `turbo.json` that has `ENABLE_FAKE_PROVIDER`. Provider, service and controller as above; register the provider in `app.module.ts`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- config && pnpm --filter @agentdesk/api test && pnpm typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -762,26 +762,26 @@ export async function podLogLines(runId: string): Promise<string[]>;
 
 MSW handlers: `agents.models` answers through `agentModelsAnswer` with the scenario stored in the mock db (cleared by `mockDb.reset()`); `agents.putCredential` applies `baseUrl` (absent keeps, string sets, `null` clears) and marks the credential saved for `beforeCredentialSave`. Invalid `model`/`baseUrl` bodies already get a 400 with the field pointer from the MSW contract layer (`parsePart`), like the API.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agentModels.test.ts`: default answers (no credential → `no_credential` with opus/sonnet/haiku; credential → live fixture); a `live` scenario with `idsByBaseUrl` answers per address; `beforeCredentialSave` applies until a save; `fallback`, `error`, `pending` map as typed.
 `contract.test.ts`: `putCredential` with `baseUrl` then `agents.get` shows it; with `null` clears it; `agents.models` for another org's agent is 404.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- agentModels contract`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 As above. `browser.ts` reads `sessionStorage[AGENT_MODELS_SCENARIO_KEY]` once at start (try/catch, parse as JSON) and calls `scenarios.agentModels` for each entry. Move the helpers out of `run.spec.ts` and import them there; add `podLogLines`.
 
-- [ ] **Step 4: Run the tests and the moved local spec's typecheck**
+- [x] **Step 4: Run the tests and the moved local spec's typecheck**
 
 Run: `pnpm --filter @agentdesk/web test -- agentModels contract && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -835,7 +835,7 @@ export function ModelPicker(props: ModelPickerProps): JSX.Element;
 
 Behaviour: options are `Default model` (with `withDefault`), then `list.models` in order (the id shown in mono as on the boards, the label as the option's `title`, the id stored), then `Other model…` last. "Other model…" is selected when `value` is a string not in `list.models`, or after the user picks it; picking it calls `onChange('')` and shows a `TextInput` with accessible name "Model name" holding `value`. Picking a listed model hides the input. Loading and error states still offer `Default model` and `Other model…`, with the Agent-call copy. The fallback note uses the `info` icon as on `DeskAgentCustomModel`. The select and input use the `mono` class, as on the boards.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `ModelPicker.test.tsx`:
 - `it('lists models in order with Other model… last')`; `it('withDefault puts Default model first and maps it to null')`.
@@ -846,21 +846,21 @@ Behaviour: options are `Default model` (with `withDefault`), then `list.models` 
 - `it('error marks the input invalid when Other model… is active, else the select')`.
 - `toModelList`: pending → loading; error → error; `{ source: 'live' }` → ready; `{ source: 'builtin', reason: 'unreachable' }` with `https://gateway.harbor-labs.com/v1/anthropic` → host `gateway.harbor-labs.com`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- ModelPicker`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the component and stories**
+- [x] **Step 3: Implement the component and stories**
 
 Stories (fed from `agentModelsFixtures`): Live list, Loading, Error, Fallback for each reason (no credential, unreachable with host, unreachable without host, rejected, empty, disabled), Typed model, Long id (200 chars), With default option.
 
-- [ ] **Step 4: Run the tests and build Storybook**
+- [x] **Step 4: Run the tests and build Storybook**
 
 Run: `pnpm --filter @agentdesk/web test -- ModelPicker && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS; Storybook builds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -909,7 +909,7 @@ RulePaneProps.modelField?: { list: ModelList; defaultModel: string; settingsHref
 //   help = "Default model is the one picked in step 2."
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `SetupParts.test.tsx`: replace `RuleForm agentModel` with `it('"With agent" shows the agent name only')` → display value `Claude`.
 - `Composites.test.tsx`: agents `['Claude']`; `it('the Model field lists Default model, the models, then Other model…')`; `it('a rule model outside the list shows under Other model…')`; `it('a /model error marks the Model field')`.
@@ -917,21 +917,21 @@ RulePaneProps.modelField?: { list: ModelList; defaultModel: string; settingsHref
 - `setup.test.tsx`: Setup4 shows "Default model is the one picked in step 2.".
 - A RuleSentence check: a draft with `model: 'haiku'` renders no `haiku` (BR-30).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SetupParts Composites desk.test setup.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Remove the `agentModel` prop chain (RuleForm, RulePane, DeskRules, Setup4, and the two routes, which stop passing it). Add `modelField` / `modelList` as above; the routes pass none yet (Tasks 14 and 15 wire them). Update stories to the boards: `DeskRules`, `DeskRulesPrompt`, `DeskRulesPromptNew`, `DeskRulesPromptError` and `Setup4` show "With agent" = `Claude` and the Model field with the board's live list (`DeskRulesPrompt` with `claude-haiku-4-5-20251001` selected, the others `Default model`); RuleForm and SidePane stories use `Claude`.
 
-- [ ] **Step 4: Run tests, Storybook and parity for the changed boards**
+- [x] **Step 4: Run tests, Storybook and parity for the changed boards**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`
 Expected: PASS; parity shows no new drift on `DeskRules*` and `Setup4` (fix drift in code; only Task 11 edits `design/parity-notes.md`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -987,27 +987,27 @@ SecretFieldProps.replacing?: { title: string; note?: string; status?: string; he
 
 Screen behaviour (boards `DeskAgent`, `DeskAgentCustomModel`, `DeskAgentAddressChanged`): "Default model" `ModelPicker` with help "Loaded from the provider. Rules that don't name a model use this one." and typed help "Sent to Claude Code exactly as typed. Rules that don't name a model use this one."; a **Save agent** button calls `onSaveAgent(value)`; an "API address" input (placeholder `https://api.anthropic.com`, mono) with help "Optional. Leave empty for Anthropic's default. Runs get it as ANTHROPIC_BASE_URL. Public https addresses only. Changing it needs the credential again." When the typed address (trimmed) differs from `settings.baseUrl`: the address help becomes "Changed from Anthropic's default. It is saved together with the new credential below." (or the Agent-call line for a custom saved address); the credential is forced into replacing with title "Credential needed again", status "Replaced when you save", note "The API address changed. A saved credential is only sent to the address it was saved with, so paste it again for the new one.", help "We test the new token with one small call before saving. The address and the token are saved together; runs already in progress keep the ones they started with."; Test and replace stays disabled while the token is empty; submit calls `onReplaceCredential(type, value, baseUrl)`. Typing the saved value back leaves the replacing state (Review Focus 5).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `desk.test.tsx` (screen): `it('Default model lists the live models with the provider note')`; `it('Save agent sends the picked or typed model')`; `it('editing the API address switches the credential to its replacing state with the board texts')`; `it('typing the saved address back leaves the replacing state and sends no baseUrl')`; `it('clearing a saved address sends baseUrl null')`; `it('Test and replace is disabled until a token is typed')`; `it('shows addressError and modelError on their fields')`; `it('no credential shows no "Set … by …" line')`.
 `SecretField.test.tsx`: `it('replacing overrides title, status, note and help')`.
 `coverage.test.ts`: 36 boards.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- desk.test SecretField coverage`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement screen, stories and board registration**
+- [x] **Step 3: Implement screen, stories and board registration**
 
 Stories: update `DeskAgent` to the board (live list, empty address); add `DeskAgentCustomModel` (fallback `unreachable`, host `gateway.harbor-labs.com`, saved address `https://gateway.harbor-labs.com/anthropic`, typed model `anthropic/claude-sonnet-4-5`) and `DeskAgentAddressChanged` (`initialAddress` `https://gateway.harbor-labs.com/anthropic`, saved address empty); add state stories Loading model list and Model list failed. Register both new boards in `storyIds.ts` (`boardStories`, canvas order), `parity.mjs` and `canvas.json` together, and update the board count in comments and `coverage.test.ts`.
 
-- [ ] **Step 4: Run tests, Storybook and parity**
+- [x] **Step 4: Run tests, Storybook and parity**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`
 Expected: PASS; drift on the three Desk Agent boards fixed, or recorded in `design/parity-notes.md`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1043,25 +1043,25 @@ Setup2Props.errors?: { credential?: string; model?: string; maxConcurrent?: stri
 
 Screen (board `Setup2`): "API address" input with help "Optional. Leave empty for Anthropic's default. Runs get it as ANTHROPIC_BASE_URL. Public https addresses only."; "Default model" `ModelPicker` with help "Loaded from the provider. Rules that don't name a model use this one." and the typed help as on Desk → Agent; `baseUrl` error shown on the address field.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `setup.test.tsx`: `it('Setup2 shows API address and a Default model picker with Other model… last, not the fixed opus/sonnet list')`; `it('Continue passes the typed address and the picked or typed model')`; `it('a baseUrl error shows on the API address field')`; `it('fallback shows opus, sonnet, haiku with the reason note')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- setup.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement screen and stories**
+- [x] **Step 3: Implement screen and stories**
 
 Update the `Setup2` story to the board (live list); add `Setup2Fallback` (no credential) as a state story. Until Task 15 wires the query, the setup route's `AgentStep` passes `modelList={{ models: [{ id: agent.model, label: agent.model }], state: { kind: 'ready' } }}` and `baseUrl={agent.baseUrl ?? ''}` in place of `models`, so the route and its test stay green.
 
-- [ ] **Step 4: Run tests, Storybook and parity**
+- [x] **Step 4: Run tests, Storybook and parity**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`
 Expected: PASS; no new drift on `Setup2` (fix it in code).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1101,26 +1101,26 @@ export function useReplaceCredential(org: string, projectId: string, agentId: st
 // on success invalidates deskQueries.agent and deskQueries.agentModels(org, agentId)
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agent.form.test.ts`: `useSaveAgent` sends `{ model, timeoutSeconds, maxTurns? }` from the fresh agent and no keep times (BR-8); `useReplaceCredential` sends `baseUrl` only when given.
 `agent.route.test.tsx` (MSW node): `it('the Default model picker shows the live list')`; `it('Save agent saves the typed model exactly and shows it after returning')`; `it('a saved model not in the live list shows under Other model… and Save agent keeps it')` (Review Focus 2); `it('an address change plus token saves both and the model list reloads without a page reload')` (scenario `idsByBaseUrl`); `it('a /baseUrl problem shows on the API address field')`; `it('a /model problem shows on the Default model field')`; `it('the models request failing shows the error state and Other model… still works')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- agent.form agent.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the hooks and the route**
+- [x] **Step 3: Implement the hooks and the route**
 
 The route reads `useQuery(deskQueries.agentModels(org, agent.id))` (not suspense, so the screen shows loading), passes `modelList`, `onSaveAgent`, `savingAgent`, `modelError`, `onReplaceCredential`, `addressError`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/web test -- agent && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1146,26 +1146,26 @@ git commit -m "feat(web): wire the Desk Agent model list, Save agent and address
 - Consumes: `deskQueries.agentModels` (Task 8); `toModelList` (Task 9); `RuleDraft.model`, `RulePaneProps.modelField`, `RuleFormProps.errors.model` (Task 10); contract `agentId`/`model` (Task 1).
 - Produces: `RuleValues` gains `agentId: string` and `model: string | null`; `toCreateRequest` sends both; `changedFields` sends `agentId` and `model` only when changed (`null` when reset to the default); `SCREEN_FIELD.model = 'model'`, `RULE_POINTERS['/model'] = 'model'`, `RULE_POINTERS['/agentId'] = 'agentId'` (shown in the form banner, no screen field); `SCHEMA_MESSAGE.model` = the contract's model message. `useRuleForm(org, projectId, { initial, defaultSkill, defaultAgentId, onSaved })` — `defaultAgentId: string` is the project agent's id for a new rule.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `rules.form.test.ts`: `it('changedFields sends only model when only the model changed')` and `it('Default model sends model null')` (Review Focus 4); `it('changing agentId keeps the model')` (BR-28, lowest layer: see Agent calls); `it('an invalid typed model is a model field error before any request')`.
 `rules.route.test.tsx`: `it('the Model field lists Default model, the agent models, Other model…, with the default model help')`; `it('saving a typed model stores it trimmed and reopening shows it under Other model…')`; `it('a /model problem lands on the Model field')`; `it('the rules list row and the sentence show no model')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- rules.form rules.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 The route builds `modelField: { list: toModelList(useQuery(deskQueries.agentModels(org, values.agentId)), agent.baseUrl), defaultModel: agent.model, settingsHref: <desk agent path> }` and maps `d.model` through `form.change`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/web test -- rules && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1190,25 +1190,25 @@ git commit -m "feat(web): rule form saves its own model or follows the default"
 - Consumes: `deskQueries.agentModels` (Task 8); `toModelList` (Task 9); `Setup4Props.modelList`, `RuleDraft.model` (Task 10); `Setup2Draft.baseUrl`, `Setup2Props.modelList`, `Setup2Props.baseUrl` (Task 12).
 - Produces: `AgentStepInput.baseUrl?: string | null` (sent with the credential only when the address changed: `''` → `null`); AgentStep validation: when `agent.credential.set`, the address changed and the token is empty → `fields.baseUrl = 'Paste the token again to change the API address.'` and no request; `AGENT_POINTERS['/baseUrl'] = 'baseUrl'`; step 4 `toRequest` sends `model` for the first rule (`null` for Default model) and `model: null` for the follow-up; step-4 `RULE_POINTERS['/model'] = 'model'`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `setup.route.test.tsx`: `it('Agent step lists the agent models with Other model… last')`; `it('changing the address with a saved credential and no token shows "Paste the token again to change the API address." and stays')`; `it('address plus token saves both; unchanged address and no token continues without a credential call')`; `it('a typed default model is saved exactly')`; `it('step 4 shows the Model field with "Default model is the one picked in step 2." and saves the picked model')`; `it('the follow-up rule follows the default model')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- setup.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace the hardcoded `MODELS` with `toModelList(useQuery(deskQueries.agentModels(org, agent.id)), agent.baseUrl)`; after a credential save, invalidate `deskQueries.agentModels`. Keep the existing local e2e flow working (Token textbox and Continue unchanged).
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/web test -- setup && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1232,16 +1232,16 @@ git commit -m "feat(web): wire the setup model list, API address and step 4 rule
 
 Covers: BR-1 (TC-1.1, TC-1.2), BR-2 (TC-2.1–TC-2.4), BR-3 (TC-3.1–TC-3.3), BR-4 (TC-4.1–TC-4.3), BR-5 (TC-5.1–TC-5.3), BR-9 (TC-9.1, TC-9.2), BR-10 (TC-10.1, TC-10.2), BR-13 (TC-13.1–TC-13.3), BR-17 (TC-17.1, TC-17.2). BR-10's duplicates and five-page cap are proven in Task 3 (spec: no screen can feed provider pages).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC, titled `TC-<n.m> <what is seen>`. Set the scenario with `setAgentModels` before the first `page.goto`; reach saved states (address, typed model, credential) through the UI and client-side navigation, never a second `goto` (it reseeds). TC-2.1 and TC-17.1 use `{ kind: 'live', ids, beforeCredentialSave: { kind: 'fallback', reason: 'no_credential' } }` or a fallback scenario; TC-9.1 `pending`; TC-9.2 `error`; TC-17.2 `idsByBaseUrl`. Assert exact text only where the spec gives it (TC-1.1 note, TC-3.1, TC-4.1, TC-13.1); elsewhere assert the options and that a note is present with no error state (spec Q1, Q2).
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/agent-model.spec.ts`
 Expected: all PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1266,16 +1266,16 @@ git commit -m "test(web): mock e2e for the Desk Agent model picker and address c
 
 Covers: BR-18 (TC-18.1, TC-18.2), BR-19 (TC-19.1–TC-19.4), BR-20 (TC-20.1–TC-20.3), BR-22 (TC-22.1–TC-22.3), BR-23 (TC-23.1, TC-23.2), BR-24 (TC-24.1–TC-24.4), BR-29 (TC-29.3–TC-29.5), BR-30 (TC-30.1–TC-30.3). BR-28 (TC-28.1–TC-28.3) is not run here: the app offers one agent per project and no route lists agents, so a second agent cannot be picked; it is proven in Task 14 (`changing agentId keeps the model`) and keyed by agent id in the query (see Agent calls and OPEN).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 `setup-agent.spec.ts`: BR-18, BR-19, BR-20 (wizard reached by clicks from the seed; TC-20 resumes a seeded setup project with a credential, or saves one in the Agent step first). `rule-model.spec.ts`: BR-22, BR-23 (desk and step 4), BR-24, BR-29 mock cases, BR-30. One `test` per TC, titled `TC-<n.m> …`.
 
-- [ ] **Step 2: Run the new specs**
+- [x] **Step 2: Run the new specs**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/rule-model.spec.ts e2e/mock/setup-agent.spec.ts`
 Expected: all PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1299,7 +1299,7 @@ git commit -m "test(web): mock e2e for the rule Model field and the setup Agent 
 
 Covers: BR-2 (TC-2.5), BR-6 (TC-6.1–TC-6.4), BR-7 (TC-7.1–TC-7.9), BR-8 (TC-8.1), BR-11 (TC-11.1), BR-12 (TC-12.1–TC-12.9), BR-14 (TC-14.1–TC-14.3), BR-15 (TC-15.1, TC-15.2), BR-16 (TC-16.1–TC-16.3).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC (TC-7.x and TC-12.x may loop over values inside one test each), titled `TC-<n.m> …`. The stack runs with `AGENT_MODELS_SOURCE=builtin` from `.env`, so lists are opus/sonnet/haiku with reason disabled. BR-8 opens two pages in one context. BR-16: with an address and credential saved, find `<FAKE_STATE_DIR>/secrets/*-agent-<agentId>.json`, replace it with a directory of that name holding one file, then change the address, paste a token and Test and replace; after reload expect the new address and no "Set … by …" line; TC-16.2 triggers the rule with `commentOnNewTicket` and asserts the run never reaches `running`/`idle` and ends `failed`; TC-16.3 removes the directory, saves a token and asserts the run starts. TC-15.2 asserts Test and replace is disabled with an empty token (board `DeskAgentAddressChanged`).
 
@@ -1332,7 +1332,7 @@ git commit -m "test(web): local e2e for default model, API address and credentia
 
 Covers: BR-19 (TC-19.5), BR-21 (TC-21.1, TC-21.2), BR-24 (TC-24.5), BR-25 (TC-25.1, TC-25.2), BR-26 (TC-26.1), BR-27 (TC-27.1), BR-29 (TC-29.1, TC-29.2, TC-29.6).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC, titled `TC-<n.m> …`. BR-21 drives the wizard itself (not `signInAndCreateProject`) up to the Agent step, then leaves to the project list and resumes. Rules are opened from Desk → Routing rules; reload checks reopen the rule.
 
@@ -1365,7 +1365,7 @@ git commit -m "test(web): local e2e for rule models and the setup Agent step"
 
 Covers: BR-31 (TC-31.1, TC-31.2), BR-32 (TC-32.1, TC-32.2), BR-33 (TC-33.1, TC-33.2; the still-queued run is proven in Task 4), BR-34 (TC-34.1), BR-35 (TC-35.1–TC-35.3), BR-36 (TC-36.1, TC-36.2), BR-37 (TC-37.1–TC-37.3).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC, titled `TC-<n.m> …`. Set a rule's model with `PATCH /api/rules/:ruleId` (`RuleDto` parse) and the default model and address through Desk → Agent. Read the model from Run detail and `GET /api/runs/:runId` (`RunDto.agent.model`); read the launch line as `(await podLogLines(runId))[0]`. BR-34/BR-36: pause with a `--fake-fail` comment, wait for `paused`, change the default model or the address, click Resume, wait for the new pod, and read its first log line. BR-37: create a run, then clear `runs.model` (TC-37.3 also `runs.agent_id`) with `execFile('docker-compose', ['-f', composeFile, 'exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'agentdesk', '-v', 'ON_ERROR_STOP=1'])`, the SQL with a `:'id'` variable on stdin and the id checked with `z.uuid()` first; `composeFile` = `process.env.AGENTDESK_COMPOSE_FILE` or the repo's `docker-compose.yml`.
 

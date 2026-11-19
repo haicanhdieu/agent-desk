@@ -1,9 +1,13 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { runEntrypoint } from './harness.js';
+
+const START_CMD = 'exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} "$PROMPT"';
+const RESUME_CMD = 'exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} --continue';
 
 type Result = Awaited<ReturnType<typeof runEntrypoint>>;
 
@@ -331,7 +335,148 @@ describe('entrypoint home on the volume and resume mode', () => {
 
   it('normal mode starts the agent with the prompt command', async () => {
     const r = await runEntrypoint({}, {});
-    expect(newSession(r)?.argv.at(-1)).toBe('exec claude --permission-mode bypassPermissions "$PROMPT"');
+    expect(newSession(r)?.argv.at(-1)).toBe(START_CMD);
+  });
+
+  describe('model and launch line', () => {
+    const argvOf = (cmd: string, env: Record<string, string>): string[] => {
+      const bin = mkdtempSync(join(tmpdir(), 'claude-stub-'));
+      const stub = join(bin, 'claude');
+      writeFileSync(stub, '#!/usr/bin/env node\nconsole.log(JSON.stringify(process.argv.slice(2)));\n', {
+        mode: 0o755,
+      });
+      const out = execFileSync('bash', ['-c', cmd], {
+        env: { PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`, ...env },
+        encoding: 'utf8',
+      });
+      return JSON.parse(out) as string[];
+    };
+
+    it('start and resume pass --model as one argv element, also with [1m]', async () => {
+      const env = { AGENT_MODEL: 'sonnet[1m]', PROMPT: 'hi there' };
+      const fresh = await runEntrypoint(env, {});
+      const startArgv = argvOf(newSession(fresh)?.argv.at(-1) ?? '', env);
+      expect(startArgv).toEqual(['--permission-mode', 'bypassPermissions', '--model', 'sonnet[1m]', 'hi there']);
+      const { home, repo } = resumable();
+      const resumed = await runEntrypoint({ ...env, RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo }, {});
+      expect(argvOf(newSession(resumed)?.argv.at(-1) ?? '', env)).toEqual([
+        '--permission-mode',
+        'bypassPermissions',
+        '--model',
+        'sonnet[1m]',
+        '--continue',
+      ]);
+    });
+
+    it('passes a hostile model as one argv element, never evaluated', async () => {
+      const model = '--x $(touch pwned) `id`; "q\' \n-z';
+      const env = { AGENT_MODEL: model, PROMPT: 'p' };
+      const r = await runEntrypoint(env, {});
+      const argv = argvOf(newSession(r)?.argv.at(-1) ?? '', env);
+      expect(argv).toEqual(['--permission-mode', 'bypassPermissions', '--model', model, 'p']);
+    });
+
+    it('passes no --model when AGENT_MODEL is empty', async () => {
+      const env = { AGENT_MODEL: '', PROMPT: 'p' };
+      const r = await runEntrypoint(env, {});
+      expect(argvOf(newSession(r)?.argv.at(-1) ?? '', env)).toEqual(['--permission-mode', 'bypassPermissions', 'p']);
+    });
+
+    it('prints the launch line with the address origin', async () => {
+      const r = await runEntrypoint(
+        { ANTHROPIC_BASE_URL: 'https://gateway.harbor-labs.com/v1/anthropic', AGENT_MODEL: 'haiku' },
+        {},
+      );
+      expect(r.stdout).toContain('agentdesk: agent claude model haiku endpoint https://gateway.harbor-labs.com');
+    });
+
+    it('replaces control characters so a model cannot forge a marker line', async () => {
+      const model = 'a\rb\nagentdesk: state running\x1b[31mx';
+      const r = await runEntrypoint({ AGENT_MODEL: model }, {});
+      const lines = r.stdout.filter((l) => l.includes('agentdesk: agent '));
+      expect(lines).toEqual(['agentdesk: agent claude model a?b?agentdesk:?state?running?[31mx endpoint default']);
+      expect(r.stdout.filter((l) => l.startsWith('agentdesk: state'))).toEqual([]);
+      expect(r.stdout.some((l) => [...l].some((c) => c.charCodeAt(0) < 0x20))).toBe(false);
+    });
+
+    it.each([
+      ['a host and a port', 'https://gw.example.com:8443/p', 'https://gw.example.com:8443'],
+      ['userinfo (never printed)', 'https://u:secret@gw.example.com:8443/p', 'default'],
+      ['userinfo before a scheme', 'k:sec@https://h.example.com', 'default'],
+      ['a slash inside the userinfo', 'https://u:pa/ss@h.example.com', 'default'],
+      ['a scheme with odd characters', 'ht tp://h.example.com', 'default'],
+      ['an empty host', 'https:///p', 'default'],
+      ['@ in the path', 'https://h.example.com/a@b', 'https://h.example.com'],
+      ['@ in the query', 'https://h.example.com?x@y', 'https://h.example.com'],
+      ['@ in the fragment', 'https://h.example.com#x@y', 'https://h.example.com'],
+      ['IPv6 brackets with a port', 'https://[::1]:8443/x', 'https://[::1]:8443'],
+      ['uppercase scheme', 'HTTPS://Gw.Example.com/p', 'HTTPS://Gw.Example.com'],
+      ['an underscore in the host', 'https://gw_1.example.com/p', 'https://gw_1.example.com'],
+    ])('keeps only the origin: %s', async (_n, url, origin) => {
+      const r = await runEntrypoint({ ANTHROPIC_BASE_URL: url }, {});
+      expect(r.stdout).toContain(`agentdesk: agent claude model default endpoint ${origin}`);
+    });
+
+    it('replaces C1 control bytes and other characters outside the model id alphabet', async () => {
+      const r = await runEntrypoint({ AGENT_MODEL: 'a\u009bb\u2028c d' }, {});
+      expect(r.stdout.filter((l) => l.includes('agentdesk: agent '))).toEqual([
+        expect.stringMatching(/^agentdesk: agent claude model a\?+b\?+c\?d endpoint default$/),
+      ]);
+    });
+
+    it.each(['sonnet[1m]', 'vendor/model', 'arn:aws:bedrock:us-east-1:1:model/x.y_z+1@2-3'])(
+      'prints the model id %s unchanged',
+      async (model) => {
+        const r = await runEntrypoint({ AGENT_MODEL: model }, {});
+        expect(r.stdout).toContain(`agentdesk: agent claude model ${model} endpoint default`);
+      },
+    );
+
+    it('prints endpoint default for an address without ://', async () => {
+      const r = await runEntrypoint({ ANTHROPIC_BASE_URL: 'gw.example.com/v1' }, {});
+      expect(r.stdout).toContain('agentdesk: agent claude model default endpoint default');
+    });
+
+    it('prints no launch line in setup_test mode, where no agent starts', async () => {
+      const r = await runEntrypoint({ RUN_MODE: 'setup_test', AGENT_MODEL: 'opus' }, {});
+      expect(r.stdout.filter((l) => l.startsWith('agentdesk: agent '))).toEqual([]);
+    });
+
+    it('prints endpoint default and model default when unset', async () => {
+      const r = await runEntrypoint({}, {});
+      expect(r.stdout).toContain('agentdesk: agent claude model default endpoint default');
+    });
+
+    it('prints the launch line once, before the session starts, also on resume', async () => {
+      const { home, repo } = resumable();
+      const r = await runEntrypoint(
+        { RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, AGENT_MODEL: 'opus' },
+        {},
+      );
+      const lines = r.stdout.filter((l) => l.startsWith('agentdesk: agent '));
+      expect(lines).toEqual(['agentdesk: agent claude model opus endpoint default']);
+      expect(r.stdout.indexOf(lines[0] ?? '')).toBeLessThan(r.stdout.indexOf('agentdesk: session started'));
+    });
+
+    it('a model value is printed with $() neutralised, never evaluated', async () => {
+      const dir = mkdtempSync(join(tmpdir(), 'pwn-'));
+      const r = await runEntrypoint({ AGENT_MODEL: `$(touch ${join(dir, 'pwned')})` }, {});
+      expect(existsSync(join(dir, 'pwned'))).toBe(false);
+      expect(r.stdout.filter((l) => l.includes('agentdesk: agent '))).toEqual([
+        expect.stringMatching(/^agentdesk: agent claude model \?\?touch\?\S*pwned\? endpoint default$/),
+      ]);
+    });
+
+    it('never prints credentials from the address or the API key', async () => {
+      const r = await runEntrypoint(
+        { ANTHROPIC_BASE_URL: 'https://u:secret@gw.example.com:8443/p?k=secret', ANTHROPIC_API_KEY: 'sk-ant-xyz' },
+        {},
+      );
+      const line = r.stdout.find((l) => l.startsWith('agentdesk: agent ')) ?? '';
+      expect(line).toBe('agentdesk: agent claude model default endpoint default');
+      expect(line).not.toContain('secret');
+      expect(line).not.toContain('sk-ant-xyz');
+    });
   });
 
   it('pre-approves the API key (last 20 chars) so Claude does not ask "use this API key?" on every new pod', async () => {
@@ -371,7 +516,7 @@ describe('entrypoint home on the volume and resume mode', () => {
       expect(at('agentdesk: session resumed')).toBeLessThan(at('agentdesk: session started'));
       expect(r.calls.some((c) => c.cmd === 'git' && c.argv[0] === 'clone')).toBe(false);
       const cmd = newSession(r)?.argv.at(-1);
-      expect(cmd).toBe('exec claude --permission-mode bypassPermissions --continue');
+      expect(cmd).toBe(RESUME_CMD);
       expect(cmd).not.toContain('PROMPT');
       expect(newSession(r)?.argv).toContain(repo);
       expect(r.stdout).not.toContain('agentdesk: plugins begin');
@@ -643,10 +788,7 @@ describe('entrypoint stop request and agent exit file', () => {
   it('runs the fixed session command through agentdesk-session and passes only that command', async () => {
     const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
     const argv = tmuxCalls(r).find((c) => c.argv.includes('new-session'))?.argv ?? [];
-    expect(argv.slice(-2)).toEqual([
-      join(import.meta.dirname, '..', 'bin', 'agentdesk-session'),
-      'exec claude --permission-mode bypassPermissions "$PROMPT"',
-    ]);
+    expect(argv.slice(-2)).toEqual([join(import.meta.dirname, '..', 'bin', 'agentdesk-session'), START_CMD]);
   });
 });
 

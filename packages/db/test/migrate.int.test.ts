@@ -509,6 +509,61 @@ describe('bootstrap and migrations', () => {
       expect(sqlText).not.toMatch(/\b(create\s+policy|alter\s+policy|grant)\b/i);
     });
 
+    it('the agent model routing migration only adds columns and checks: no row writes, no policy or grant changes', async () => {
+      const sqlText = await readFile(new URL('../migrations/0017_agent_model_routing.sql', import.meta.url), 'utf8');
+      expect(sqlText).not.toMatch(/\b(update|insert|delete)\b/i);
+      expect(sqlText).not.toMatch(/\b(policy|grant)\b/i);
+
+      const insAgent = (baseUrl: string) =>
+        inOrg((c) =>
+          c
+            .query(
+              `insert into agents (org_id, project_id, name, model, base_url)
+               values ($1, $2, 'a-${randomUUID()}', 'm', ${baseUrl})`,
+              [orgId, projectId],
+            )
+            .then(() => undefined),
+        );
+      await expect(insAgent("'http://x'")).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'agents_base_url_check',
+      });
+      await expect(insAgent("'https://' || repeat('a', 2041)")).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'agents_base_url_check',
+      });
+      await insAgent("'https://' || repeat('a', 2040)");
+      await insAgent("'https://gw.example.com'");
+      await insAgent('null');
+
+      const agent = await query<{ id: string }>(
+        env.adminUrl.replace(/\/[^/]*$/, '/agentdesk'),
+        'select id from agents limit 1',
+      );
+      const agentId = agent[0]?.id ?? '';
+      const insRule = (model: string) =>
+        inOrg((c) =>
+          c
+            .query(
+              `insert into rules (org_id, project_id, command, agent_id, skill_name, model)
+               values ($1, $2, '/m-${randomUUID()}', $3, 'fix', ${model})`,
+              [orgId, projectId, agentId],
+            )
+            .then(() => undefined),
+        );
+      await expect(insRule("repeat('a', 201)")).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'rules_model_check',
+      });
+      await expect(insRule("''")).rejects.toMatchObject({ code: '23514', constraint: 'rules_model_check' });
+      await insRule("repeat('a', 200)");
+      await insRule('null');
+
+      await inOrg((c) =>
+        c.query(`update runs set model = null where trigger_comment_id = 'c-2'`).then(() => undefined),
+      );
+    });
+
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {
       const rows = await query<{ org_id: string; project_id: string }>(
         env.appUrl,

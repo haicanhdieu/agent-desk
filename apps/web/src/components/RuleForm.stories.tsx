@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
+import { toModelList } from './ModelPicker';
 import { RuleForm, type RuleFormProps } from './RuleForm';
 import type { RuleDraft } from './RuleSentence';
 import { promptSystemLines, TRIAGE_PROMPT } from '@/mocks';
@@ -10,7 +12,9 @@ function Stateful(props: Omit<RuleFormProps, 'onChange'>) {
 }
 
 const skills = ['code-build', 'code-review', 'code-e2e'];
-const agents = ['Claude (opus)'];
+const agents = ['Claude'];
+const liveList = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+const modelField = { list: liveList, help: 'Default model is the one picked in step 2.' };
 const meta = {
   title: 'Components/RuleForm',
   component: RuleForm,
@@ -37,7 +41,7 @@ export const CodeBuild: Story = {
       target: 'issue',
       labels: ['user-story'],
       skill: 'code-build',
-      agent: 'Claude (opus)',
+      agent: 'Claude',
       enabled: true,
     },
   },
@@ -53,7 +57,7 @@ export const CodeReview: Story = {
       target: 'pr',
       labels: [],
       skill: 'code-review',
-      agent: 'Claude (opus)',
+      agent: 'Claude',
       enabled: true,
     },
   },
@@ -68,7 +72,7 @@ export const MissingSkill: Story = {
       target: 'any',
       labels: [],
       skill: 'docs-update',
-      agent: 'Claude (opus)',
+      agent: 'Claude',
       enabled: false,
     },
   },
@@ -84,7 +88,7 @@ export const WithErrors: Story = {
       target: 'issue',
       labels: [],
       skill: 'code-build',
-      agent: 'Claude (opus)',
+      agent: 'Claude',
       enabled: true,
     },
     errors: { command: 'Command already used', skill: 'This skill no longer exists' },
@@ -99,7 +103,7 @@ const triage: RuleDraft = {
   skill: '',
   kind: 'prompt',
   prompt: TRIAGE_PROMPT,
-  agent: 'Claude (opus)',
+  agent: 'Claude',
   enabled: true,
 };
 
@@ -149,5 +153,54 @@ export const PromptPreviewError: Story = {
     onChange: () => {},
     promptPreview: { state: 'error', onRetry: () => {} },
     value: triage,
+  },
+};
+
+/** The Model field: Default model first, then the provider's list, then Other model…. */
+export const WithModelField: Story = {
+  args: { skills, agents, agentLocked: true, onChange: () => {}, modelField, value: { ...triage, model: null } },
+};
+export const ModelPicked: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    modelField,
+    value: { ...triage, model: 'claude-haiku-4-5-20251001' },
+  },
+};
+export const ModelTyped: Story = {
+  args: { skills, agents, agentLocked: true, onChange: () => {}, modelField, value: { ...triage, model: 'sonnet' } },
+};
+export const ModelLoading: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    modelField: { ...modelField, list: toModelList({ status: 'pending' }, null) },
+    value: { ...triage, model: null },
+  },
+};
+export const ModelListError: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    modelField: { ...modelField, list: toModelList({ status: 'error' }, null) },
+    value: { ...triage, model: null },
+  },
+};
+export const ModelFieldError: Story = {
+  args: {
+    skills,
+    agents,
+    agentLocked: true,
+    onChange: () => {},
+    modelField,
+    value: { ...triage, model: 'bad name' },
+    errors: { model: 'Use 1 to 200 letters, digits or . _ : / @ [ ] + -, starting with a letter or digit.' },
   },
 };

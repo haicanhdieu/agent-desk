@@ -8,10 +8,12 @@ import {
   createAdapterRegistry,
   systemClock,
   type AdapterRegistry,
+  type AgentHttpGet,
   type KubeGateway,
 } from '@agentdesk/core';
 import { createDb, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
+import { AGENT_HTTP } from '../../src/agents/agent-http.provider';
 import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
 import { AppModule } from '../../src/app.module';
 import { configureApp, createAdapter } from '../../src/bootstrap';
@@ -54,6 +56,8 @@ export interface TestAppOptions {
   wrapAdapters?: (real: AdapterRegistry) => AdapterRegistry;
   /** Replaces the Kubernetes gateway (default: built from config, i.e. the file-backed fake). */
   kube?: KubeGateway;
+  /** Replaces the HTTP GET the agent model list uses (default: the guarded transport). */
+  agentHttp?: AgentHttpGet;
   /** Logger for request/problem logging (default: silent); tests capture output through it. */
   logger?: Logger;
 }
@@ -103,6 +107,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     const secrets = new MemorySecretStore();
     const builder = Test.createTestingModule({ imports: [AppModule], controllers: options.controllers ?? [] });
     if (options.kube) builder.overrideProvider(KUBE_GATEWAY).useValue(options.kube);
+    if (options.agentHttp) builder.overrideProvider(AGENT_HTTP).useValue(options.agentHttp);
     const moduleRef = await builder
       .overrideProvider(CONFIG)
       .useValue(config)

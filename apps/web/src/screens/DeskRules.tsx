@@ -3,6 +3,7 @@ import { Banner, Button, Icon } from '@/ds';
 import {
   AppShell,
   EmptyState,
+  type ModelList,
   GuardsCard,
   RuleForm,
   RuleRow,
@@ -32,6 +33,8 @@ export interface DeskRulesProps {
   form?: ReactNode;
   /** System lines for custom prompt rules; with it the local edit pane offers Skill / Custom prompt. */
   promptPreview?: PromptPreview;
+  /** The Model field of the local edit pane (see `RulePaneProps.modelField`). */
+  modelField?: RulePaneProps['modelField'];
   onToggle?(id: string, enabled: boolean): void;
   onCreate?(): void;
   onEdit?(id: string): void;
@@ -44,7 +47,8 @@ export interface RulePaneProps {
   title: 'Edit rule' | 'New rule';
   value: RuleDraft;
   skills: string[];
-  agentModel?: string;
+  /** With it, the form shows the Model field and its help line names the default model. */
+  modelField?: { list: ModelList; defaultModel: string; settingsHref: string };
   onChange(draft: RuleDraft): void;
   onClose(): void;
   onSave(): void;
@@ -63,7 +67,7 @@ export function RulePane({
   title,
   value,
   skills,
-  agentModel = 'opus',
+  modelField,
   onChange,
   onClose,
   onSave,
@@ -105,7 +109,17 @@ export function RulePane({
         skills={skills}
         agents={[value.agent]}
         agentLocked
-        agentModel={agentModel}
+        modelField={
+          modelField && {
+            list: modelField.list,
+            help: (
+              <>
+                Default model is <span className={`mono ${styles.modelId}`}>{modelField.defaultModel}</span>, set on{' '}
+                <a href={modelField.settingsHref}>Agent &amp; settings</a>.
+              </>
+            ),
+          }
+        }
         onChange={onChange}
         errors={errors}
         promptPreview={promptPreview}
@@ -119,6 +133,7 @@ function LocalRulePane({
   rule,
   skills,
   promptPreview,
+  modelField,
   onClose,
   onSave,
   onDelete,
@@ -126,6 +141,7 @@ function LocalRulePane({
   rule: Rule;
   skills: string[];
   promptPreview?: PromptPreview;
+  modelField?: RulePaneProps['modelField'];
   onClose(): void;
   onSave?(draft: RuleDraft): void;
   onDelete?(): void;
@@ -139,6 +155,7 @@ function LocalRulePane({
     enabled: rule.enabled,
     kind: rule.kind,
     prompt: rule.prompt,
+    model: rule.model,
   });
   return (
     <RulePane
@@ -146,6 +163,7 @@ function LocalRulePane({
       value={draft}
       skills={skills}
       promptPreview={promptPreview}
+      modelField={modelField}
       onChange={setDraft}
       onClose={onClose}
       onSave={() => onSave?.(draft)}
@@ -164,6 +182,7 @@ export function DeskRules({
   guardLinks,
   form,
   promptPreview,
+  modelField,
   onToggle,
   onCreate,
   onEdit,
@@ -226,6 +245,7 @@ export function DeskRules({
               rule={editing}
               skills={skills}
               promptPreview={promptPreview}
+              modelField={modelField}
               onClose={() => onClose?.()}
               onSave={(d) => onSave?.(editing.id, d)}
               onDelete={() => onDelete?.(editing.id)}

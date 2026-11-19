@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { projects, runs, withOrg } from '@agentdesk/db';
+import { agents, projects, runs, withOrg } from '@agentdesk/db';
 import { createHash } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines } from '@agentdesk/core';
@@ -48,7 +48,7 @@ describe('rules', () => {
     const res = await create(valid);
     expect(res.statusCode).toBe(201);
     rule = expectContract('rules.create', res) as RuleDto;
-    expect(rule).toMatchObject({ ...valid, projectId, stats: { runs30d: 0, lastRunAt: null } });
+    expect(rule).toMatchObject({ ...valid, projectId, model: null, stats: { runs30d: 0, lastRunAt: null } });
     const agent = (
       await t.app.inject({ method: 'GET', url: `/api/projects/${projectId}/agent`, headers: { cookie: alice } })
     ).json() as { id: string };
@@ -132,6 +132,125 @@ describe('rules', () => {
     expect(((await list().then((r) => r.json())) as RuleDto[]).map((r) => r.command)).toEqual(['second']);
     const kept = await withOrg(t.db, orgId, (tx) => tx.select().from(runs));
     expect(kept).toHaveLength(2);
+  });
+});
+
+describe('rule agent and model', () => {
+  const agentOf = async (id: string): Promise<string> =>
+    (
+      (await t.app.inject({ method: 'GET', url: `/api/projects/${id}/agent`, headers: { cookie: alice } })).json() as {
+        id: string;
+      }
+    ).id;
+  const ruleCount = async (id: string): Promise<number> => ((await list(id).then((r) => r.json())) as unknown[]).length;
+
+  it('create stores model and returns it; absent model is null', async () => {
+    const withModel = expectContract('rules.create', await create({ ...valid, command: 'm-set', model: 'haiku' }));
+    expect(withModel).toMatchObject({ model: 'haiku' });
+    const without = expectContract('rules.create', await create({ ...valid, command: 'm-none' }));
+    expect(without).toMatchObject({ model: null });
+  });
+
+  it('create with agentId of another project is 422 on /agentId and creates nothing', async () => {
+    const other = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const foreign = await agentOf(other);
+    const before = await ruleCount(projectId);
+    const res = await create({ ...valid, command: 'foreign', agentId: foreign });
+    expect(res.statusCode).toBe(422);
+    expect(errorsOf(res)).toEqual([{ pointer: '/agentId', detail: 'Agent not found in this project' }]);
+    expect(await ruleCount(projectId)).toBe(before);
+  });
+
+  it('create with the project own agentId succeeds', async () => {
+    const own = await agentOf(projectId);
+    const res = await create({ ...valid, command: 'own-agent', agentId: own });
+    expect(expectContract('rules.create', res)).toMatchObject({ agentId: own });
+  });
+
+  it('update sets model, null resets it, and agentId of another project is 422 on /agentId', async () => {
+    const made = expectContract('rules.create', await create({ ...valid, command: 'm-upd' })) as RuleDto;
+    expect(expectContract('rules.update', await patch(made.id, { model: 'opus' }))).toMatchObject({ model: 'opus' });
+    expect(expectContract('rules.update', await patch(made.id, { enabled: false }))).toMatchObject({ model: 'opus' });
+    expect(expectContract('rules.update', await patch(made.id, { model: null }))).toMatchObject({ model: null });
+    const other = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const own = await agentOf(projectId);
+    const res = await patch(made.id, { agentId: await agentOf(other), model: 'haiku' });
+    expect(res.statusCode).toBe(422);
+    expect(errorsOf(res)).toEqual([{ pointer: '/agentId', detail: 'Agent not found in this project' }]);
+    const after = ((await list().then((r) => r.json())) as RuleDto[]).find((r) => r.id === made.id);
+    expect(after).toMatchObject({ agentId: own, model: null });
+  });
+
+  it('update moves a rule to another agent of the same project, together with its model', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const first = await agentOf(pid);
+    const [second] = await withOrg(t.db, orgId, (tx) =>
+      tx.insert(agents).values({ orgId, projectId: pid, name: 'second', model: 'sonnet' }).returning({ id: agents.id }),
+    );
+    if (!second) throw new Error('no agent');
+    const made = expectContract(
+      'rules.create',
+      await create(
+        { kind: 'prompt', command: 'mover', labelFilter: [], target: 'issue', enabled: true, prompt: 'p' },
+        pid,
+      ),
+    ) as RuleDto;
+    expect(made.agentId).toBe(first);
+    const res = await patch(made.id, { agentId: second.id, model: 'haiku' });
+    expect(expectContract('rules.update', res)).toMatchObject({ agentId: second.id, model: 'haiku' });
+  });
+
+  it('a project that is not visible is 404 on create even when agentId is sent', async () => {
+    const res = await create({ ...valid, command: 'hidden', agentId: await agentOf(projectId) }, projectId, bob);
+    expect(res.statusCode).toBe(404);
+  });
+
+  it('a prompt rule posted to a project the org cannot see is 404 with an agentId, and nothing is written', async () => {
+    const before = await ruleCount(projectId);
+    const res = await create(
+      {
+        kind: 'prompt',
+        command: 'hidden-prompt',
+        labelFilter: [],
+        target: 'issue',
+        enabled: true,
+        prompt: 'p',
+        agentId: await agentOf(projectId),
+      },
+      projectId,
+      bob,
+    );
+    expect(res.statusCode).toBe(404);
+    expect(await ruleCount(projectId)).toBe(before);
+  });
+
+  it('an agentId from another org is 422 on /agentId for create and update, and nothing is written', async () => {
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    const foreign = (
+      (
+        await t.app.inject({ method: 'GET', url: `/api/projects/${bobProject}/agent`, headers: { cookie: bob } })
+      ).json() as {
+        id: string;
+      }
+    ).id;
+    const before = await ruleCount(projectId);
+    const res = await create({ ...valid, command: 'x-org', agentId: foreign, model: 'haiku' });
+    expect(res.statusCode).toBe(422);
+    expect(errorsOf(res)).toEqual([{ pointer: '/agentId', detail: 'Agent not found in this project' }]);
+    expect(await ruleCount(projectId)).toBe(before);
+    const made = expectContract('rules.create', await create({ ...valid, command: 'x-org-upd' })) as RuleDto;
+    const own = await agentOf(projectId);
+    const upd = await patch(made.id, { agentId: foreign, model: 'haiku' });
+    expect(upd.statusCode).toBe(422);
+    expect(errorsOf(upd)).toEqual([{ pointer: '/agentId', detail: 'Agent not found in this project' }]);
+    const after = ((await list().then((r) => r.json())) as RuleDto[]).find((r) => r.id === made.id);
+    expect(after).toMatchObject({ agentId: own, model: null });
+  });
+
+  it('create with an invalid model is 400 on /model', async () => {
+    const res = await create({ ...valid, command: 'm-bad', model: 'my model' });
+    expect(res.statusCode).toBe(400);
+    expect(errorsOf(res).map((e) => e.pointer)).toContain('/model');
   });
 });
 

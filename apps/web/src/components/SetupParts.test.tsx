@@ -82,18 +82,17 @@ describe('SecretField entry options', () => {
   });
 });
 
-describe('RuleForm agentModel', () => {
-  it('labels the agent option with the model', () => {
+describe('RuleForm agent', () => {
+  it('"With agent" shows the agent name only', () => {
     render(
       <RuleForm
         value={{ command: 'a', target: 'issue', labels: [], skill: 's', agent: 'Claude', enabled: true }}
         skills={['s']}
         agents={['Claude']}
-        agentModel="opus"
         agentLocked
         onChange={() => {}}
       />,
     );
-    expect(screen.getByLabelText('With agent')).toHaveDisplayValue('Claude (opus)');
+    expect(screen.getByLabelText('With agent')).toHaveDisplayValue('Claude');
   });
 });

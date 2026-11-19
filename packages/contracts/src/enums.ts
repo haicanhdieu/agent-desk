@@ -58,5 +58,8 @@ export type SetupStep = z.infer<typeof SetupStep>;
 export const RunListFilter = z.enum(['needs_you', 'active', 'queued', 'ended', 'all']);
 export type RunListFilter = z.infer<typeof RunListFilter>;
 
+export const AgentKind = z.enum(['claude']);
+export type AgentKind = z.infer<typeof AgentKind>;
+
 export const CredentialType = z.enum(['oauth_token', 'api_key']);
 export type CredentialType = z.infer<typeof CredentialType>;

@@ -49,3 +49,27 @@ describe('UpdateRuleRequest', () => {
     }
   });
 });
+
+describe('rule model and agent', () => {
+  const agentId = '0190a7c2-0000-7000-8000-000000000001';
+  it('CreateRuleRequest accepts model null, a model and an agentId on both kinds', () => {
+    for (const k of [
+      { kind: 'skill', skillName: 'fix' },
+      { kind: 'prompt', prompt: 'Triage it.' },
+    ]) {
+      expect(CreateRuleRequest.safeParse({ ...base, ...k, model: null }).success).toBe(true);
+      expect(CreateRuleRequest.safeParse({ ...base, ...k, model: 'haiku', agentId }).success).toBe(true);
+    }
+  });
+
+  it('CreateRuleRequest rejects a bad model', () => {
+    expect(CreateRuleRequest.safeParse({ ...base, kind: 'skill', skillName: 'fix', model: '-opus' }).success).toBe(
+      false,
+    );
+  });
+
+  it('UpdateRuleRequest accepts model null and an agentId alone', () => {
+    expect(UpdateRuleRequest.safeParse({ model: null }).success).toBe(true);
+    expect(UpdateRuleRequest.safeParse({ agentId }).success).toBe(true);
+  });
+});

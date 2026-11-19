@@ -29,11 +29,11 @@ export const EditRule: Story = {
           target: 'pr',
           labels: [],
           skill: 'code-review',
-          agent: 'Claude (opus)',
+          agent: 'Claude',
           enabled: true,
         }}
         skills={['code-build', 'code-review']}
-        agents={['Claude (opus)']}
+        agents={['Claude']}
         agentLocked
         onChange={() => {}}
       />

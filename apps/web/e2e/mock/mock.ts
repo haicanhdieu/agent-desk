@@ -1,4 +1,6 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
+import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/mocks/msw/agentModels';
+import { ids } from '../../src/mocks/dto/ids';
 
 /*
  * Mock-mode controls for the e2e specs. There is no test hook in the app: these use what `vite --mode mock` already
@@ -21,6 +23,8 @@ const SEEDED_KEY = 'agentdesk.e2e.seeded';
 /** The seeded org slug and the project that holds the scripted run. */
 export const ORG = 'alice';
 export const INVOICER_API = 'a0000000-0000-4000-8000-000000000001';
+/** The agent of INVOICER_API (the Desk → Agent screen's agent). */
+export const INVOICER_API_AGENT: string = ids.agent.invoicerApi;
 export const SCRIPTED_RUN = 63;
 /** A paused run with a kept session (fixtures: dto/runs.ts). */
 export const PAUSED_RUN = 64;
@@ -46,3 +50,29 @@ export async function startSignedOut(page: Page): Promise<void> {
     [AUTH_KEY, SEEDED_KEY] as const,
   );
 }
+
+/**
+ * Picks the model-list answer per agent id for this test (src/mocks/msw/agentModels.ts). Call before the first
+ * `page.goto`: browser.ts reads the key once when the mock worker starts.
+ */
+export async function setAgentModels(page: Page, byAgent: Record<string, AgentModelsScenario>): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [AGENT_MODELS_SCENARIO_KEY, JSON.stringify(byAgent)] as const,
+  );
+}
+
+/**
+ * The agent of the first project created in a test (the setup wizard's step 1). The mock store hands out ids from a
+ * counter that restarts on every seed: the project gets the first and its agent, which has no credential, the second
+ * (handlers.ts `projects.create`). Use it as the key for `setAgentModels` before the first `page.goto`.
+ */
+export const FIRST_CREATED_AGENT: string = ids.created(2);
+
+/** The "Other model…" option of a model dropdown, and the built-in names the fallback list shows, in order. */
+export const OTHER = 'Other model…';
+export const BUILTIN = ['opus', 'sonnet', 'haiku'];
+/** The `<option>` elements of a select; `toHaveText([...])` on it checks the options in order. */
+export const options = (select: Locator): Locator => select.locator('option');

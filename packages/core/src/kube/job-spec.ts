@@ -40,8 +40,11 @@ export interface RunJobInput {
   /** Env var name the code host's CLI reads its token from (from the adapter). */
   cliTokenEnvName: string;
   maxTurns: number | null;
-  /** The agent's configured model (an env value only); empty means the CLI's own default. */
-  model: string;
+  /**
+   * Agent launch env from the agent adapter (kind, model, address), added to the pod env verbatim and in order.
+   * Values are untrusted text: env values only, never part of a command.
+   */
+  agentEnv: { name: string; value: string }[];
   /** The pod's time allowance in seconds; `activeDeadlineSeconds` is this + 120 (a backstop to the workflow's timer). */
   deadlineSeconds: number;
   /** True for a resumed pod: the runner continues the saved session from the volume (no prompt, checkout or setup). */
@@ -251,8 +254,7 @@ export function buildRunJob(input: RunJobInput): V1Job {
     { name: 'RUN_AUTHORIZED_BY', value: input.author.authorizedBy },
     { name: 'SETUP_TIMEOUT_SECONDS', value: String(input.setupTimeoutSeconds) },
     ...(input.maxTurns !== null ? [{ name: 'MAX_TURNS', value: String(input.maxTurns) }] : []),
-    // Claude Code reads its model from here (below --model, above its settings), on a resume too.
-    ...(input.model !== '' ? [{ name: 'ANTHROPIC_MODEL', value: input.model }] : []),
+    ...input.agentEnv.map((e) => ({ name: e.name, value: e.value })),
   ];
   const env: V1EnvVar[] = input.resume
     ? [{ name: 'RUN_MODE', value: 'resume' }, ...common]
