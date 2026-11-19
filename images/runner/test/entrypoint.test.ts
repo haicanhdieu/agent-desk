@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -30,11 +30,11 @@ describe('entrypoint plugins phase', () => {
       ['plugin', 'install', 'superpowers@claude-plugins-official'],
       ['plugin', 'install', 'tdd@claude-plugins-official'],
     ]);
-    expect(r.calls.filter((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux').map((c) => c.argv[0])).toEqual([
-      '120',
-      '120',
-      '120',
-    ]);
+    expect(
+      r.calls
+        .filter((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux' && !c.argv[2]?.endsWith('transcript.mjs'))
+        .map((c) => c.argv[0]),
+    ).toEqual(['120', '120', '120']);
     expect(r.stdout).toContain('agentdesk: plugin installed superpowers@claude-plugins-official');
     expect(r.stdout.indexOf('agentdesk: plugins begin')).toBeGreaterThan(-1);
     expect(r.stdout.indexOf('agentdesk: plugins begin')).toBeLessThan(r.stdout.indexOf('agentdesk: plugins end'));
@@ -414,7 +414,9 @@ describe('entrypoint home on the volume and resume mode', () => {
         {},
       );
       expect(existsSync(probe)).toBe(false);
-      expect(r.calls.some((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux')).toBe(false);
+      expect(
+        r.calls.some((c) => c.cmd === 'timeout' && c.argv[1] !== 'tmux' && !c.argv[2]?.endsWith('transcript.mjs')),
+      ).toBe(false);
       expect(started(r)).toBe(true);
     });
   });
@@ -744,4 +746,59 @@ describe('entrypoint git identity', () => {
     const r = await runEntrypoint({ RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo, ...bot }, {});
     expect(lastValue(r, 'user.name')).toBe('agentdesk[bot]');
   });
+});
+
+describe('entrypoint transcript flush', () => {
+  const callNames = (r: Result) =>
+    r.calls.map((c) => {
+      if (c.cmd === 'tmux') return `tmux ${c.argv[0]}`;
+      if (c.cmd === 'timeout' && c.argv[2]?.endsWith('transcript.mjs')) return `flush ${c.argv[0]} ${c.argv[3]}`;
+      if (c.cmd === 'timeout') return `timeout ${c.argv[1]}`;
+      return c.cmd;
+    });
+
+  // A lib dir that links everything in the runner dir, with agents/claude/transcript.mjs replaced (or left out).
+  const libWith = (transcript: string | null) => {
+    const root = join(import.meta.dirname, '..');
+    const lib = mkdtempSync(join(tmpdir(), 'lib-'));
+    for (const name of readdirSync(root)) {
+      if (name !== 'agents' && name !== 'node_modules' && name !== 'test')
+        symlinkSync(join(root, name), join(lib, name));
+    }
+    mkdirSync(join(lib, 'agents', 'claude'), { recursive: true });
+    for (const name of readdirSync(join(root, 'agents', 'claude'))) {
+      if (name !== 'transcript.mjs')
+        symlinkSync(join(root, 'agents', 'claude', name), join(lib, 'agents', 'claude', name));
+    }
+    if (transcript !== null) writeFileSync(join(lib, 'agents', 'claude', 'transcript.mjs'), transcript);
+    return lib;
+  };
+
+  it('flush runs right after session started and at the start of end_session, before the scrollback', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead' }, {});
+    const names = callNames(r);
+    const flushes = names.flatMap((n, i) => (n.startsWith('flush') ? [i] : []));
+    expect(names.filter((n) => n.startsWith('flush'))).toEqual(['flush 5 flush', 'flush 5 flush']);
+    const [first = -1, second = -1] = flushes;
+    expect(first).toBeGreaterThan(names.indexOf('tmux new-session'));
+    expect(second).toBeGreaterThan(first);
+    expect(second).toBeLessThan(names.indexOf('timeout tmux'));
+    expect(r.stdout.indexOf('agentdesk: session started')).toBeLessThan(
+      r.stdout.indexOf('agentdesk: final scrollback begin'),
+    );
+  });
+
+  it('flush is skipped when the agent dir has no transcript.mjs', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', AGENTDESK_LIB_DIR: libWith(null) }, {});
+    expect(callNames(r).filter((n) => n.startsWith('flush'))).toEqual([]);
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=0');
+  });
+
+  it('a flush that hangs is cut off by timeout 5 and the session still ends', async () => {
+    const lib = libWith('setInterval(() => {}, 1000);\n');
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'dead', AGENTDESK_LIB_DIR: lib }, {});
+    expect(r.stdout).toContain('agentdesk: final scrollback end');
+    expect(r.stdout.at(-1)).toBe('agentdesk: session ended reason=agent_exit code=0');
+    expect(r.exitCode).toBe(0);
+  }, 30_000);
 });

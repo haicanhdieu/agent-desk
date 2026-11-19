@@ -1,3 +1,4 @@
+import { log } from '@temporalio/activity';
 import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
@@ -77,6 +78,7 @@ import { nextRefreshDelaySeconds, type TokenRefreshPlan } from '../workflows/tok
 import { appendRunEvent, currentSeq } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
 import { createSessionActivities } from './session.activity';
+import { createTranscriptSink } from './transcript-store';
 import {
   type CommentKind,
   type FinishDetails,
@@ -855,6 +857,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     const textTail: string[] = [];
     let secrets: string[] = [];
     const secretList = createSecretAccumulator();
+    // Transcript entries go to their own table, not run_events, so a replayed line is deduped by source id there.
+    const transcriptSink = createTranscriptSink({
+      db,
+      orgId: ctx.orgId,
+      runId: ctx.runId,
+      now: () => clock.now(),
+      warn: (msg, fields) => log.warn(msg, fields),
+    });
     // A scrollback block is only durable once stored as one row, so `durable` never moves past an unfinished block and
     // a new pass re-reads it from its begin line. The block is per pass.
     let block: ScrollbackBlock | null = null;
@@ -1014,6 +1024,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           } else if (parsed.kind === 'scrollback_begin') {
             block = new ScrollbackBlock(index, SCROLLBACK_MAX_CHARS);
             return 'skipDurable';
+          } else if (parsed.kind === 'transcript' && parsed.transcript) {
+            // Redacted and stored by the sink (never written to run_events, logs or workflow history).
+            await transcriptSink.store(parsed.transcript, secrets);
           } else if (parsed.kind === 'text') {
             textTail.push(redact(line, secrets));
             if (textTail.length > TEXT_TAIL_LINES) textTail.shift();

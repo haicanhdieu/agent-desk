@@ -29,6 +29,7 @@ const feed = (input: string) =>
     encoding: 'utf8',
     env: {
       PATH: process.env.PATH,
+      HOME: root,
       AGENTDESK_STATE_DIR: stateDir,
       AGENTDESK_STATUS_OUT: out,
       AGENTDESK_RUN_DIR: join(root, 'run'),
@@ -213,5 +214,34 @@ describe('claude hook rules', () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toBe('');
     expect(await lines()).toEqual([]);
+  });
+});
+
+describe('claude hook transcript step', () => {
+  it('every handled event also sends new transcript entries', async () => {
+    const transcript = join(root, 't.jsonl');
+    await writeFile(
+      transcript,
+      `${JSON.stringify({ type: 'user', uuid: 'u1', message: { content: 'fix the bug' } })}\n`,
+    );
+    const r = await send('user-prompt-submit', { transcript_path: transcript });
+    expect(r.status).toBe(0);
+    const all = await lines();
+    expect(all[0]).toBe('agentdesk: state working');
+    expect(all).toHaveLength(2);
+    expect(all[1]?.startsWith('agentdesk: transcript ')).toBe(true);
+    const entry = JSON.parse(
+      Buffer.from((all[1] ?? '').replace('agentdesk: transcript ', ''), 'base64').toString('utf8'),
+    );
+    expect(entry).toMatchObject({ id: 'u1:0', kind: 'user', text: 'fix the bug' });
+  });
+
+  it('a throwing transcript step leaves the status line and exit code unchanged', async () => {
+    const dir = join(root, 'a-directory');
+    await mkdir(dir);
+    const r = await send('user-prompt-submit', { transcript_path: dir });
+    expect(r.status).toBe(0);
+    expect(r.stdout).toBe('');
+    expect(await lines()).toEqual(['agentdesk: state working']);
   });
 });

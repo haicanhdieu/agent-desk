@@ -581,7 +581,7 @@ export function transcriptStep(input, env = process.env) // → void
   - `thinking`, `system`, `summary`, meta and unknown shapes → skipped.
   - Ids are the entry's `uuid`, plus `:n` for the n-th block.
 
-- [ ] **Step 1: Write the failing adapter tests**
+- [x] **Step 1: Write the failing adapter tests**
 
 In `claude-transcript.test.ts`, run in-process against the fixtures with a temp `HOME`, state dir and out file:
 - `maps the fixture session to the expected wire entries`: a literal array of expected `{ id, kind, text, tool? }`, including `tool: 'Bash', text: 'dotnet test'` and the API error notice "API Error: 401 invalid credential".
@@ -595,21 +595,21 @@ In `claude-transcript.test.ts`, run in-process against the fixtures with a temp 
 - `flush sends recorded paths plus the newest session file and exits 0 within 5 s`: spawn `node transcript.mjs flush` with `cwd` = a temp repo dir and assert the elapsed time is < 5,000 ms.
 - `transcriptStep ignores a transcript_path outside HOME and never throws on bad input`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/runner test -- claude-transcript`
 Expected: FAIL. The module does not exist.
 
-- [ ] **Step 3: Implement `transcript.mjs`**
+- [x] **Step 3: Implement `transcript.mjs`**
 
 Read each file from its saved offset up to the last complete line, `JSON.parse` each line in a try, `mapEntry`, and append `wireLine` output to `out`. Then save the new offset (write a temp file and rename, like `hook.mjs`). No shell, no network. Writes go only under `AGENTDESK_STATE_DIR`.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/runner typecheck && pnpm --filter @agentdesk/runner test -- claude-transcript`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -624,7 +624,7 @@ git commit -m "feat(runner): Claude transcript adapter maps the session log to t
 - Consumes: `transcriptStep(input)` and the `flush` CLI (Task 3 Part A).
 - Produces: the image ships `/usr/local/lib/agentdesk/agents/claude/transcript.mjs`. The entrypoint has a `transcript_flush` function that runs `timeout 5 node "$LIB_DIR/agents/$AGENT_DIR/transcript.mjs" flush </dev/null >/dev/null 2>&1 || true` from the repo dir, and only when that file exists.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `claude-hook.test.ts`:
   - `every handled event also sends new transcript entries`: feed `user-prompt-submit.json` with a `transcript_path` to a fixture JSONL under the temp HOME, and the out file holds the status line and then `agentdesk: transcript …` lines.
@@ -635,27 +635,27 @@ git commit -m "feat(runner): Claude transcript adapter maps the session log to t
   - `a flush that hangs is cut off by timeout 5 and the session still ends`.
 - `dockerfile.test.ts`: the Dockerfile has `COPY agents/claude/transcript.mjs /usr/local/lib/agentdesk/agents/claude/transcript.mjs`, and the existing chmod/chown line lists it.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/runner test -- claude-hook entrypoint dockerfile`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `hook.mjs`: `import { transcriptStep } from './transcript.mjs'`. After the state write at the end, call `try { transcriptStep(input) } catch {}`.
 - `entrypoint.sh`: add `transcript_flush`. Call it right after `echo 'agentdesk: session started'` and as the first line of `end_session`.
 - `Dockerfile`: add the COPY and the file to the existing chmod/chown list.
 
-- [ ] **Step 4: Write the ADR**
+- [x] **Step 4: Write the ADR**
 
 `0026-agent-neutral-transcript-protocol.md` follows `0000-template.md`. Its content is spec §2 (wire line, `TranscriptWireEntry`), §2.2 (adapter contract, flush), the choice of hooks plus flush over a tail process, Postgres storage with redaction and the 20,000 cap, the read-only view, and alternatives B and C. It amends ADR 0011 ("history is final scrollback only") and extends ADR 0020's adapter model. Add the README row and the amendment line in 0011.
 
-- [ ] **Step 5: Run the runner tests**
+- [x] **Step 5: Run the runner tests**
 
 Run: `pnpm --filter @agentdesk/runner typecheck && pnpm --filter @agentdesk/runner test`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -689,24 +689,24 @@ export function createTranscriptSink(deps: { db: Db; orgId: string; runId: strin
   { store(entry: TranscriptWireEntry, secrets: string[]): Promise<void> };
 ```
 
-- [ ] **Step 1: Write the failing parser tests**
+- [x] **Step 1: Write the failing parser tests**
 
 In `log-parser.test.ts`, `describe('transcript lines')`:
 - a valid line built from `Buffer.from(JSON.stringify({ id: 'u1:0', kind: 'agent', text: 'hi' })).toString('base64')` parses to `{ kind: 'transcript', transcript: { id: 'u1:0', kind: 'agent', text: 'hi' } }`;
 - a body of 12,001 chars, `!!!`, a body whose length is not a multiple of 4, base64 of `not json`, and base64 of `{ "id": "a b", "kind": "agent", "text": "x" }` each give `{ kind: 'text' }` with the original line;
 - leading and trailing spaces are accepted, like the other markers.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- log-parser`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the parser branch, then run**
+- [x] **Step 3: Implement the parser branch, then run**
 
 Run: `pnpm --filter @agentdesk/core test -- log-parser`
 Expected: PASS.
 
-- [ ] **Step 4: Write the failing store and follower tests**
+- [x] **Step 4: Write the failing store and follower tests**
 
 `transcript-store.int.test.ts` (real Postgres, as the other `.int` tests):
 - `toTranscriptRow redacts secrets in text, including inside a tool step summary`: a `tool` entry with `text: 'curl -H "Bearer s3cr3t"'` and secrets `['s3cr3t']` gives text `'curl -H "Bearer ***"'`.
@@ -722,21 +722,21 @@ Expected: PASS.
 - `a second pod re-sending the same ids stores nothing new` (Review Focus 4);
 - `a malformed transcript line is an ordinary text line`.
 
-- [ ] **Step 5: Run them and see them fail**
+- [x] **Step 5: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker test -- transcript-store run.activities.int`
 Expected: FAIL.
 
-- [ ] **Step 6: Implement**
+- [x] **Step 6: Implement**
 
 Write `transcript-store.ts`. In `followPodLogs`, create one sink per attempt. In `onParsed`, `parsed.kind === 'transcript' && parsed.transcript` calls `await sink.store(parsed.transcript, secrets)`, then returns `undefined`, so the durable line advances as usual. Transcript text never goes into logs, errors, `run_events` or workflow history.
 
-- [ ] **Step 7: Run all touched tests**
+- [x] **Step 7: Run all touched tests**
 
 Run: `pnpm --filter @agentdesk/core test && pnpm --filter @agentdesk/worker typecheck && pnpm --filter @agentdesk/worker test`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 devbox run fix
