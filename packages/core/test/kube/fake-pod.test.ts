@@ -102,6 +102,68 @@ describe('fake-pod.mjs', () => {
       expect(logLines()[0]).toBe('agentdesk: agent claude model default endpoint default');
     });
 
+    it.each([
+      ['a host and a port', 'https://gw.example.com:8443/p', 'https://gw.example.com:8443'],
+      ['a default port, kept as typed', 'https://GW.example.com:443/x', 'https://GW.example.com:443'],
+      ['userinfo with a port (never printed)', 'https://u:secret@gw.example.com:8443/p', 'default'],
+      ['userinfo before a scheme', 'k:sec@https://h.example.com', 'default'],
+      ['an odd scheme', '1ttp://h.example.com', 'default'],
+      ['a scheme with odd characters', 'ht tp://h.example.com', 'default'],
+      ['a slash inside the userinfo', 'https://u:pa/ss@h.example.com', 'default'],
+      ['an empty host', 'https:///p', 'default'],
+      ['@ in the path', 'https://h.example.com/a@b', 'https://h.example.com'],
+      ['@ in the query', 'https://h.example.com?x@y', 'https://h.example.com'],
+      ['@ in the fragment', 'https://h.example.com#x@y', 'https://h.example.com'],
+      ['IPv6 brackets with a port', 'https://[::1]:8443/x', 'https://[::1]:8443'],
+      ['uppercase scheme and host', 'HTTPS://Gw.Example.com/p', 'HTTPS://Gw.Example.com'],
+      ['no ://', 'gw.example.com/v1', 'default'],
+    ])('prints the address like the runner does: %s', async (_n, url, endpoint) => {
+      await boot({ ANTHROPIC_BASE_URL: url });
+      expect(logLines()[0]).toBe(`agentdesk: agent claude model default endpoint ${endpoint}`);
+    });
+
+    it('replaces control characters in the model with ?, so it cannot forge a marker line', async () => {
+      await boot({ AGENT_MODEL: 'a\rb\nagentdesk: state running\x1b[31mx' });
+      expect(logLines().filter((l) => l.includes('agentdesk: agent '))).toEqual([
+        'agentdesk: agent claude model a?b?agentdesk:?state?running?[31mx endpoint default',
+      ]);
+      expect(stateLines()).not.toContain('agentdesk: state running');
+    });
+
+    it('replaces C1 control characters and other characters outside the model id alphabet', async () => {
+      await boot({ AGENT_MODEL: 'a\u009bb c d' });
+      expect(logLines()[0]).toMatch(/^agentdesk: agent claude model a\?+b\?+c\?d endpoint default$/);
+    });
+
+    it('never prints credentials from the address or the API key', async () => {
+      await boot({
+        ANTHROPIC_BASE_URL: 'https://u:secret@gw.example.com:8443/p?k=secret',
+        ANTHROPIC_API_KEY: 'sk-ant-xyz',
+      });
+      const line = logLines()[0];
+      expect(line).toBe('agentdesk: agent claude model default endpoint default');
+      expect(read('log')).not.toContain('secret');
+      expect(read('log')).not.toContain('sk-ant-xyz');
+    });
+
+    it('prints a model with $() neutralised, never evaluated', async () => {
+      await boot({ AGENT_MODEL: '$(touch pwned) y' });
+      expect(logLines()[0]).toBe('agentdesk: agent claude model ??touch?pwned??y endpoint default');
+    });
+
+    it.each(['sonnet[1m]', 'vendor/model', 'arn:aws:bedrock:us-east-1:1:model/x.y_z+1@2-3'])(
+      'prints the model id %s unchanged',
+      async (model) => {
+        await boot({ AGENT_MODEL: model });
+        expect(logLines()[0]).toBe(`agentdesk: agent claude model ${model} endpoint default`);
+      },
+    );
+
+    it('prints no launch line in setup_test mode, where no agent starts', async () => {
+      await boot({ RUN_MODE: 'setup_test', AGENT_MODEL: 'opus' });
+      expect(logLines().filter((l) => l.startsWith('agentdesk: agent '))).toEqual([]);
+    });
+
     it('a resumed pod logs the launch line first too', async () => {
       const vol = join(dir, 'vol');
       mkdirSync(vol);
