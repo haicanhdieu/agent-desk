@@ -86,15 +86,15 @@ exec_job() { # exec_job "<id>|<command>"  (command is split on spaces; no quotin
   set -f; $cmd >"$out/$id.log" 2>&1; echo $? >"$out/$id.rc"; set +f
 }
 max_parallel=${VERIFY_MAX_PARALLEL:-2}; started=0
-for j in "${light[@]}"; do
+for j in ${light[@]+"${light[@]}"}; do
   exec_job "$j" &
   started=$((started + 1))
   if [ $((started % max_parallel)) -eq 0 ]; then wait; fi
 done
 wait
-for j in "${tests[@]}"; do exec_job "$j"; done
+for j in ${tests[@]+"${tests[@]}"}; do exec_job "$j"; done
 
-for j in "${light[@]}" "${tests[@]}"; do
+for j in ${light[@]+"${light[@]}"} ${tests[@]+"${tests[@]}"}; do
   id=${j%%|*}; cmd=${j#*|}; rc=$(cat "$out/$id.rc" 2>/dev/null || echo 1)
   echo "COMMAND: $cmd"; echo "EXIT: $rc"; echo "OUTPUT (last 20 lines):"; tail -20 "$out/$id.log"
   [ "$rc" -eq 0 ] || fail=1
