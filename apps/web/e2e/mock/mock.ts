@@ -1,4 +1,4 @@
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/mocks/msw/agentModels';
 import { ids } from '../../src/mocks/dto/ids';
 
@@ -70,3 +70,9 @@ export async function setAgentModels(page: Page, byAgent: Record<string, AgentMo
  * (handlers.ts `projects.create`). Use it as the key for `setAgentModels` before the first `page.goto`.
  */
 export const FIRST_CREATED_AGENT: string = ids.created(2);
+
+/** The "Other model…" option of a model dropdown, and the built-in names the fallback list shows, in order. */
+export const OTHER = 'Other model…';
+export const BUILTIN = ['opus', 'sonnet', 'haiku'];
+/** The `<option>` elements of a select; `toHaveText([...])` on it checks the options in order. */
+export const options = (select: Locator): Locator => select.locator('option');

@@ -1266,16 +1266,16 @@ git commit -m "test(web): mock e2e for the Desk Agent model picker and address c
 
 Covers: BR-18 (TC-18.1, TC-18.2), BR-19 (TC-19.1–TC-19.4), BR-20 (TC-20.1–TC-20.3), BR-22 (TC-22.1–TC-22.3), BR-23 (TC-23.1, TC-23.2), BR-24 (TC-24.1–TC-24.4), BR-29 (TC-29.3–TC-29.5), BR-30 (TC-30.1–TC-30.3). BR-28 (TC-28.1–TC-28.3) is not run here: the app offers one agent per project and no route lists agents, so a second agent cannot be picked; it is proven in Task 14 (`changing agentId keeps the model`) and keyed by agent id in the query (see Agent calls and OPEN).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 `setup-agent.spec.ts`: BR-18, BR-19, BR-20 (wizard reached by clicks from the seed; TC-20 resumes a seeded setup project with a credential, or saves one in the Agent step first). `rule-model.spec.ts`: BR-22, BR-23 (desk and step 4), BR-24, BR-29 mock cases, BR-30. One `test` per TC, titled `TC-<n.m> …`.
 
-- [ ] **Step 2: Run the new specs**
+- [x] **Step 2: Run the new specs**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/rule-model.spec.ts e2e/mock/setup-agent.spec.ts`
 Expected: all PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix

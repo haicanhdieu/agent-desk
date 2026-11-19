@@ -1,9 +1,16 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import { FIRST_CREATED_AGENT, INVOICER_API, INVOICER_API_AGENT, ORG, setAgentModels } from './mock';
+import { expect, test, type Page } from '@playwright/test';
+import {
+  BUILTIN,
+  FIRST_CREATED_AGENT,
+  INVOICER_API,
+  INVOICER_API_AGENT,
+  ORG,
+  OTHER,
+  options,
+  setAgentModels,
+} from './mock';
 
 const GATEWAY = 'https://gateway.harbor-labs.com';
-const OTHER = 'Other model…';
-const BUILTIN = ['opus', 'sonnet', 'haiku'];
 const LOADED_NOTE = "Loaded from the provider. Rules that don't name a model use this one.";
 const TYPED_NOTE = "Sent to Claude Code exactly as typed. Rules that don't name a model use this one.";
 const REPLACING_TEXTS = [
@@ -15,7 +22,6 @@ const REPLACING_TEXTS = [
 const open = async (page: Page) => page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/agent`);
 const modelSelect = (page: Page) => page.getByLabel('Default model');
 const modelNameInput = (page: Page) => page.getByLabel('Model name');
-const optionTexts = (select: Locator) => select.locator('option');
 const addressInput = (page: Page) => page.getByLabel('API address');
 
 /**
@@ -91,14 +97,14 @@ test.describe('BR-1 Default model dropdown lists the provider models', () => {
     // The seeded default model (opus) is not in this list, so the screen would show Other model… and its typed note
     // (BR-5). Save a listed model first, as a member whose default is one of the provider's models.
     await saveDefaultModel(page, (p) => modelSelect(p).selectOption('model-b'), expectSelected('model-b'));
-    await expect(optionTexts(modelSelect(page))).toHaveText(['model-b', 'model-a', 'model-c', OTHER]);
+    await expect(options(modelSelect(page))).toHaveText(['model-b', 'model-a', 'model-c', OTHER]);
     await expect(page.getByText(LOADED_NOTE)).toBeVisible();
   });
 
   test('TC-1.2 opus, sonnet and haiku are not offered and no fallback note is shown', async ({ page }) => {
     await setAgentModels(page, live(['model-b', 'model-a', 'model-c']));
     await open(page);
-    await expect(optionTexts(modelSelect(page))).toHaveText(['model-b', 'model-a', 'model-c', OTHER]);
+    await expect(options(modelSelect(page))).toHaveText(['model-b', 'model-a', 'model-c', OTHER]);
     for (const name of BUILTIN) await expect(modelSelect(page).locator(`option[value="${name}"]`)).toHaveCount(0);
     await expect(page.getByText('Showing the standard names.')).toHaveCount(0);
   });
@@ -106,7 +112,7 @@ test.describe('BR-1 Default model dropdown lists the provider models', () => {
 
 test.describe('BR-2 the list falls back to the standard names with a reason', () => {
   const expectFallbackWithoutError = async (page: Page, note: string | RegExp) => {
-    await expect(optionTexts(modelSelect(page))).toHaveText([...BUILTIN, OTHER]);
+    await expect(options(modelSelect(page))).toHaveText([...BUILTIN, OTHER]);
     await expect(page.getByText(note)).toBeVisible();
     await expect(page.getByText('The model list could not be loaded. You can still type a model name.')).toHaveCount(0);
     await expect(page.getByRole('alert')).toHaveCount(0);
@@ -306,14 +312,14 @@ test.describe('BR-10 the dropdown shows each model once, in the provider order',
   test('TC-10.1 the options follow the provider order, each once, then Other model…', async ({ page }) => {
     await setAgentModels(page, live(['m-5', 'm-1', 'm-4', 'm-2', 'm-3']));
     await open(page);
-    await expect(optionTexts(modelSelect(page))).toHaveText(['m-5', 'm-1', 'm-4', 'm-2', 'm-3', OTHER]);
+    await expect(options(modelSelect(page))).toHaveText(['m-5', 'm-1', 'm-4', 'm-2', 'm-3', OTHER]);
   });
 
   test('TC-10.2 all 500 ids are options once each in order, then Other model…', async ({ page }) => {
     const all = Array.from({ length: 500 }, (_, i) => `m-${i + 1}`);
     await setAgentModels(page, live(all));
     await open(page);
-    await expect(optionTexts(modelSelect(page))).toHaveText([...all, OTHER]);
+    await expect(options(modelSelect(page))).toHaveText([...all, OTHER]);
   });
 });
 
@@ -361,9 +367,9 @@ test.describe('BR-17 saving a credential or address reloads the model list', () 
     });
     await openAgentWithoutCredential(page);
     await expect(page.getByText(/^Set .* by /)).toHaveCount(0);
-    await expect(optionTexts(modelSelect(page))).toHaveText([...BUILTIN, OTHER]);
+    await expect(options(modelSelect(page))).toHaveText([...BUILTIN, OTHER]);
     await replaceCredential(page, 'sk-new-token');
-    await expect(optionTexts(modelSelect(page))).toHaveText(['model-x', 'model-y', OTHER]);
+    await expect(options(modelSelect(page))).toHaveText(['model-x', 'model-y', OTHER]);
     await expect(page.getByText('Showing the standard names.')).toHaveCount(0);
   });
 
@@ -372,10 +378,10 @@ test.describe('BR-17 saving a credential or address reloads the model list', () 
       [INVOICER_API_AGENT]: { kind: 'live', ids: ['model-a'], idsByBaseUrl: { [GATEWAY]: ['model-g1', 'model-g2'] } },
     });
     await open(page);
-    await expect(optionTexts(modelSelect(page))).toHaveText(['model-a', OTHER]);
+    await expect(options(modelSelect(page))).toHaveText(['model-a', OTHER]);
     await addressInput(page).fill(GATEWAY);
     await replaceCredential(page, 'sk-new-token');
-    await expect(optionTexts(modelSelect(page))).toHaveText(['model-g1', 'model-g2', OTHER]);
+    await expect(options(modelSelect(page))).toHaveText(['model-g1', 'model-g2', OTHER]);
     await expect(modelSelect(page).locator('option[value="model-a"]')).toHaveCount(0);
   });
 });
