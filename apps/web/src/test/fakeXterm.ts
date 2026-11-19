@@ -56,6 +56,7 @@ export class Terminal {
   private readonly data = emitter<string>();
   private readonly resized = emitter<{ cols: number; rows: number }>();
   private screen: HTMLElement | undefined;
+  private keyHandler: ((event: KeyboardEvent) => boolean) | undefined;
 
   constructor(options: FakeXtermOptions = {}) {
     this.options = { ...options };
@@ -92,6 +93,10 @@ export class Terminal {
     callback?.();
   }
 
+  attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void {
+    this.keyHandler = handler;
+  }
+
   onData(fn: Listener<string>): Disposable {
     return this.data.on(fn);
   }
@@ -120,6 +125,18 @@ export class Terminal {
   type(text: string): void {
     if (this.options.disableStdin || this.disposed) return;
     this.data.fire(text);
+  }
+
+  /**
+   * The user presses Enter (with `init` modifiers). Like xterm, the custom key handler runs first (returning false
+   * skips xterm's own handling), then Enter is sent as CR, or ESC CR with Alt, whatever Shift says. Returns the event.
+   */
+  pressEnter(init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key: 'Enter', cancelable: true, ...init });
+    if (this.options.disableStdin || this.disposed) return event;
+    if (this.keyHandler && !this.keyHandler(event)) return event;
+    this.data.fire(event.altKey ? '\x1b\r' : '\r');
+    return event;
   }
 
   /** Everything written, decoded as text. */
