@@ -345,7 +345,7 @@ export interface GuardedGetOptions {
 export function guardedGetJson(url: URL, opts: GuardedGetOptions): Promise<{ status: number; json: unknown }>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 With undici `MockAgent` (`disableNetConnect()`) passed as `dispatcher`:
 - `it('returns the status and JSON of a 200')`.
@@ -356,27 +356,27 @@ With undici `MockAgent` (`disableNetConnect()`) passed as `dispatcher`:
 - `it('refuses http, localhost and blocked IP literals without connecting')`: `http://gw.example.com`, `https://localhost`, `https://127.0.0.1`, `https://[::1]`, `https://[::ffff:10.0.0.1]` → `kind === 'blocked_address'`, no mock call.
 - With `createGuardedAgent({ lookup })` where the fake lookup answers `10.0.0.1` (and in a second case `fe80::1`): `it('a name that resolves to a private address is refused at connect time')` → `kind === 'blocked_address'`. The fake lookup means no DNS or socket is used.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- guarded-http`
 Expected: FAIL (module not found).
 
-- [ ] **Step 3: Implement `guarded-http.ts`**
+- [x] **Step 3: Implement `guarded-http.ts`**
 
 undici `request` with `signal: AbortSignal.timeout(timeoutMs)` and no redirect interceptor; read the body stream, aborting past `maxBytes`; map undici/abort errors to `GuardedHttpError` kinds by class, never by message text. Export from `src/index.ts`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- guarded-http`
 Expected: PASS.
 
-- [ ] **Step 5: Write the docs**
+- [x] **Step 5: Write the docs**
 
 - ADR 0026 (Accepted, 2026-11-19): context (fixed model, no gateway support); decision (agent adapter per kind in `packages/core/src/adapters/agents/`, looked up by `agentAdapterFor(kind)`; the API reads the agent credential only to list models and sends it only to the agent's address through `guardedGetJson`; an address change replaces the credential; the model is frozen on the run at intake; `--model` on the CLI); consequences (adding an agent = adapter + runner command file + CLI in the image; outbound call needs the SSRF guard; `AGENT_MODELS_SOURCE=builtin` for local and e2e). Add the row to `docs/adr/README.md`.
 - `security.md` §1: the API reads the agent credential only to list models and sends it only to the agent's own address, through the guarded transport; changing the address drops the saved credential and the same save carries a new one. §8: add "an agent adapter (`packages/core/src/adapters/agents/`) or the guarded transport" to the changes that require security review.
 - Architecture doc, "Agent abstraction" row: point to the agent adapter (`agentAdapterFor`) and ADR 0026.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix

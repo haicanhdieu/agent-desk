@@ -15,6 +15,7 @@ Secrets in scope: agent credentials (Claude API key or OAuth token), workspace t
 - **MUST NOT** put a secret value in: Postgres (any table, including `audit_log` and `run_events`), logs, Temporal workflow/activity inputs or results, SSE events, API responses, error messages or `problem+json` `detail`, ticket comments, Kubernetes labels/annotations, or a Job's literal `env`. _Why:_ each of those is readable by more people, or retained longer, than the secret should be.
 - **MUST** deliver run secrets to the pod only through the per-run Secret `run-{runId}`: the repo URL (`REPO_CLONE_URL`, no credential in it) and the agent credential as explicit `secretKeyRef` env vars, and the workspace token as a mounted file (key `workspace-token`), never as an env var. The runner's git credential helper answers only for https and the project's own code host (`AGENTDESK_GIT_HOST`). **MUST NOT** use `envFrom` for it. _Why:_ anyone with `get jobs` can read a Job's literal env, and a container's env cannot be rotated while the token must be ([ADR 0021](../adr/0021-run-time-limit-7-days-with-token-refresh.md)).
 - **MUST** treat a credential write as write-only: `PUT /api/agents/:id/credential` returns `{ updatedAt }` only, and no endpoint ever returns the value. The UI shows "set / not set" (FR-3).
+- **MUST** read an agent credential in the API only to list the agent's models, and send it only to that agent's own address (its custom `https` address, or the provider default) through the guarded transport (`guardedGetJson`: https only, no localhost or blocked IP ranges, connect-time address check, no redirects, 5 s and 1 MB limits). Changing the address drops the saved credential, and the same save carries a new one. _Why:_ a stored address plus a stored credential is an SSRF and credential-forwarding path otherwise ([ADR 0026](../adr/0026-agent-adapters-for-models-and-endpoint.md)).
 - **MUST** strip secret-bearing keys from audited bodies (`redactBody` drops `value`, `token`, `secret`, `password`) and add any new secret field name to that list.
 - **MUST** fetch secrets inside activities, not pass them through workflow history. _Why:_ Temporal persists inputs and results in its database and shows them in the UI.
 - **MUST NOT** commit real secrets. `.env` is gitignored; `.env.example` holds dev placeholders only; target secrets live in `deploy/targets/<t>/secrets.sops.yaml` encrypted per value.
@@ -137,6 +138,7 @@ Request a security-focused reviewer (and run `/security-review`) when a change t
 - The terminal relay, SSE endpoints, or any new WebSocket.
 - RBAC, NetworkPolicy, Pod Security, ResourceQuota, or the conftest policies.
 - Code-host App permissions, token scope or lifetime.
+- An agent adapter (`packages/core/src/adapters/agents/`) or the guarded transport (`packages/core/src/net/guarded-http.ts`).
 - A new provider adapter, or a new public (unauthenticated) route.
 
 ## 9. Incidents

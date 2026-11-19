@@ -21,3 +21,4 @@ export * from './intake/start-run';
 export * from './intake/sweep';
 export { isUniqueViolation } from './intake/pg-errors';
 export * from './kube';
+export * from './net/guarded-http';
