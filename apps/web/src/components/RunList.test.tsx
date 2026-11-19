@@ -123,6 +123,31 @@ describe('RunRow ticket link', () => {
   });
 });
 
+describe('RunRow ticket title', () => {
+  it('shows the ticket or PR title under the ticket number when the list is not grouped', () => {
+    inTable(<RunRow run={run} tree="none" href="/runs/62" />);
+    const title = screen.getByText(ticket.title);
+    expect(title).toHaveAttribute('title', ticket.title);
+    expect(title.closest('td')).toContainElement(screen.getByRole('link', { name: '#142' }));
+  });
+
+  it('shows the title of a PR run too', () => {
+    inTable(
+      <RunRow
+        run={{ ...run, ticket: { ...ticket, kind: 'pr', number: 148, title: 'Add CSV export' } }}
+        tree="none"
+        href="/runs/62"
+      />,
+    );
+    expect(screen.getByText('Add CSV export')).toBeInTheDocument();
+  });
+
+  it('leaves the title to the group row when the run sits under a ticket group', () => {
+    inTable(<RunRow run={run} tree="last" href="/runs/62" />);
+    expect(screen.queryByText(ticket.title)).toBeNull();
+  });
+});
+
 describe('TicketGroupRow', () => {
   const long = 'A'.repeat(200);
   const group: TicketGroup = {

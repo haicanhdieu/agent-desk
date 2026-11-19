@@ -104,3 +104,30 @@ test('a long routing rule command is truncated in the Run List and its full valu
   const overflowsPage = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
   expect(overflowsPage).toBe(false);
 });
+
+test('the Ticket column shows the ticket or PR title under the number when grouping is off', async ({ page }) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+  const toggle = page.getByRole('button', { name: 'Grouped by ticket' });
+  const runRows = page.getByRole('row').filter({ has: page.getByRole('link', { name: /^Run \d+$/ }) });
+  const rowTitle = (row: ReturnType<typeof runRows.first>) => row.getByRole('cell').nth(2).locator('div[title]');
+  await expect(runRows.first()).toBeVisible();
+  // Grouped: the group header carries the title, so run rows do not repeat it.
+  await expect(rowTitle(runRows.first())).toHaveCount(0);
+
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  const count = await runRows.count();
+  expect(count).toBeGreaterThan(0);
+  for (let i = 0; i < count; i++) {
+    const row = runRows.nth(i);
+    const ticketCell = row.getByRole('cell').nth(2);
+    const title = rowTitle(row);
+    await expect(title).toHaveCount(1);
+    await expect(title).not.toBeEmpty();
+    // The title is the second line, below the ticket number.
+    const numberBox = await ticketCell.getByRole('link', { name: /^#\d+$|^PR #\d+$/ }).boundingBox();
+    const titleBox = await title.boundingBox();
+    if (!numberBox || !titleBox) throw new Error('ticket number or title is not rendered');
+    expect(titleBox.y).toBeGreaterThanOrEqual(numberBox.y + numberBox.height - 1);
+  }
+});

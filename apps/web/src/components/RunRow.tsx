@@ -67,6 +67,12 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
       </td>
       <td>
         <TicketRef kind={ticket.kind} number={ticket.number} short={ticket.kind === 'issue'} href={ticket.href} />
+        {/* Grouped runs already sit under a header that shows the title. */}
+        {tree === 'none' && (
+          <div className={styles.ticketTitle} title={ticket.title}>
+            {ticket.title}
+          </div>
+        )}
       </td>
       <td className={styles.rule}>
         {run.command ? <span title={run.command}>{run.command}</span> : <span className={styles.faint}>—</span>}

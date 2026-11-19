@@ -82,6 +82,15 @@
   color: var(--faint);
   margin-top: 2px;
 }
+.ticketTitle {
+  font-size: var(--fs-12);
+  color: var(--faint);
+  margin-top: 2px;
+  max-width: 32ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .rule {
   font-family: var(--mono);
   font-size: var(--fs-12_5);

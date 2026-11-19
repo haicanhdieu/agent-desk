@@ -65,7 +65,8 @@ describe('runs route', () => {
     cleanup();
     await renderRoute(`${base}/runs`);
     expect(await toggle()).toHaveAttribute('aria-pressed', 'false');
-    expect(screen.queryByText('Rate-limit the public webhook endpoint')).not.toBeInTheDocument();
+    await screen.findAllByRole('link', { name: /^Run \d+$/ });
+    expect(screen.queryByText(/ of \d+ runs$/)).not.toBeInTheDocument();
   });
 
   it('shows the list grouped when the stored Grouped by ticket value is unreadable', async () => {
