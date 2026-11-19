@@ -86,6 +86,19 @@ describe('discoverArtifacts', () => {
     ]);
   });
 
+  it('parses the shard suffix of unit artifacts and merges the shards into one package', () => {
+    const root = tmp();
+    const out = path.join(tmp(), 'out');
+    writeArtifact(root, 'coverage-worker-unit-1', fileCov(`${RUNNER}/apps/worker/src/a.ts`, 4, [0]));
+    writeArtifact(root, 'coverage-worker-unit-2', fileCov(`${RUNNER}/apps/worker/src/a.ts`, 4, [1, 2]));
+    const found = discoverArtifacts(root).map(({ pkg, kind, shard }) => ({ pkg, kind, shard }));
+    expect(found).toEqual([
+      { pkg: 'worker', kind: 'unit', shard: '1' },
+      { pkg: 'worker', kind: 'unit', shard: '2' },
+    ]);
+    expect(mergeArtifacts(root, out)['worker']?.statements).toBe(75);
+  });
+
   it('fails clearly when the directory has no artifacts', () => {
     expect(() => discoverArtifacts(tmp())).toThrow(/no coverage artifacts/i);
   });
