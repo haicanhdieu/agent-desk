@@ -91,6 +91,9 @@ describe('AgentBaseUrl', () => {
     'https://gateway.harbor-labs.com',
     'https://gateway.harbor-labs.com/v1/anthropic',
     'https://gateway.harbor-labs.com/' + 'a'.repeat(2016),
+    'https://gw_1.example.com',
+    'https://gateway.example.com:8443/v1',
+    'https://[2606:4700::1111]:8443/v1',
   ])('accepts %s', (v) => {
     expect(AgentBaseUrl.safeParse(v).success).toBe(true);
   });
@@ -127,6 +130,14 @@ describe('AgentBaseUrl', () => {
     'https://gateway.harbor-labs.com\u0000',
     'https://gateway.harbor-labs.com/a\u0001b',
     'https://gateway.harbor-labs.com/a\u007fb',
+    'https://bücher.example',
+    'https://gw~1.example.com',
+    'https://a+b.example',
+    'https://gw%41.example.com',
+    'https://a!b.example',
+    'https://gw.example.com:',
+    'https://gw.example.com:/v1',
+    'https://gateway.harbor-labs.com/café',
   ])('rejects %s with the one address message', (v) => {
     const r = AgentBaseUrl.safeParse(v);
     expect(r.success).toBe(false);

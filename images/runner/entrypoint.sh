@@ -234,7 +234,7 @@ if [ "${RUN_MODE:-}" != setup_test ]; then
     endpoint_rest="${AGENT_ENDPOINT_URL#*://}"
     endpoint_rest="${endpoint_rest%%[/?#]*}"
     if [[ "$endpoint_scheme" =~ ^[A-Za-z][A-Za-z0-9+.-]*$ ]] &&
-      [[ "$endpoint_rest" =~ ^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$ ]]; then
+      [[ "$endpoint_rest" =~ ^([A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$ ]]; then
       launch_endpoint="$endpoint_scheme://$endpoint_rest"
     fi
   fi

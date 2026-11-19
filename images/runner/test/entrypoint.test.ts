@@ -411,6 +411,7 @@ describe('entrypoint home on the volume and resume mode', () => {
       ['@ in the fragment', 'https://h.example.com#x@y', 'https://h.example.com'],
       ['IPv6 brackets with a port', 'https://[::1]:8443/x', 'https://[::1]:8443'],
       ['uppercase scheme', 'HTTPS://Gw.Example.com/p', 'HTTPS://Gw.Example.com'],
+      ['an underscore in the host', 'https://gw_1.example.com/p', 'https://gw_1.example.com'],
     ])('keeps only the origin: %s', async (_n, url, origin) => {
       const r = await runEntrypoint({ ANTHROPIC_BASE_URL: url }, {});
       expect(r.stdout).toContain(`agentdesk: agent claude model default endpoint ${origin}`);

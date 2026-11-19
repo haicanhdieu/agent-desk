@@ -69,9 +69,14 @@ function hasControlChar(s: string): boolean {
 
 /** A public https address: no credentials, query or fragment, no localhost, no private or loopback IP literal. */
 export function isAllowedAgentBaseUrl(raw: string): boolean {
-  // Lowercase scheme; no whitespace, backslash or control character (C0, DEL) anywhere: the WHATWG parser would
+  // Lowercase scheme; printable ASCII only (no whitespace, backslash, control or non-ASCII character) anywhere: the WHATWG parser would
   // normalise or strip those, but the raw string is what is stored and printed.
-  if (hasControlChar(raw) || !/^https:\/\/[^\s\\]*$/.test(raw) || raw.includes('?') || raw.includes('#')) return false;
+  if (hasControlChar(raw) || !/^https:\/\/[\x21-\x5b\x5d-\x7e]*$/.test(raw) || raw.includes('?') || raw.includes('#'))
+    return false;
+  // The host as typed (not url.hostname, which decodes %41 and keeps a+b): only the characters the runner's launch line
+  // prints (letters, digits . _ - or a bracketed IPv6 literal), so the contract and the launch line agree on a host.
+  const rawHost = raw.slice('https://'.length).split('/')[0].replace(/:\d+$/, '');
+  if (!/^([A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])$/.test(rawHost)) return false;
   let url: URL;
   try {
     url = new URL(raw);

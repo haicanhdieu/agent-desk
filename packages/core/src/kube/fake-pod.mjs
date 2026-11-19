@@ -62,7 +62,7 @@ const launchEndpoint = (address) => {
   const scheme = address.slice(0, sep);
   const rest = address.slice(sep + 3).split(/[/?#]/u)[0];
   if (!/^[A-Za-z][A-Za-z0-9+.-]*$/u.test(scheme)) return 'default';
-  if (!/^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$/u.test(rest)) return 'default';
+  if (!/^([A-Za-z0-9._-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$/u.test(rest)) return 'default';
   return `${scheme}://${rest}`;
 };
 const launchLine = () => {

@@ -117,6 +117,7 @@ describe('fake-pod.mjs', () => {
       ['IPv6 brackets with a port', 'https://[::1]:8443/x', 'https://[::1]:8443'],
       ['uppercase scheme and host', 'HTTPS://Gw.Example.com/p', 'HTTPS://Gw.Example.com'],
       ['no ://', 'gw.example.com/v1', 'default'],
+      ['an underscore in the host', 'https://gw_1.example.com/p', 'https://gw_1.example.com'],
     ])('prints the address like the runner does: %s', async (_n, url, endpoint) => {
       await boot({ ANTHROPIC_BASE_URL: url });
       expect(logLines()[0]).toBe(`agentdesk: agent claude model default endpoint ${endpoint}`);
