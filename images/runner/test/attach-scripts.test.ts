@@ -51,7 +51,7 @@ describe('agentdesk-attach', () => {
     expect(existsSync(join(t.runDir, 'attach', `${ID}.pid`))).toBe(false);
   });
 
-  it('writes its own pid to the pid file and execs tmux attach -t =agent', async () => {
+  it('writes its own pid to the pid file and execs tmux -u attach -t =agent', async () => {
     const t = setup();
     const child = spawn('bash', [join(bin, 'agentdesk-attach'), ID], { env: t.env });
     await new Promise<void>((resolve, reject) => {
@@ -60,7 +60,16 @@ describe('agentdesk-attach', () => {
     });
     const pid = readFileSync(join(t.runDir, 'attach', `${ID}.pid`), 'utf8').trim();
     expect(pid).toBe(String(child.pid));
-    expect(t.calls()).toContainEqual(['attach', '-t', '=agent']);
+    expect(t.calls()).toContainEqual(['-u', 'attach', '-t', '=agent']);
+  });
+
+  // The script pins LC_ALL=C, and tmux decides from LC_ALL/LC_CTYPE/LANG whether its client is a UTF-8 terminal: a
+  // client that is not draws every non-ASCII glyph Claude Code prints (✻ ⏺ ⎿ ❯ and more) as underscores.
+  it('attaches as a UTF-8 client (tmux -u) although it pins the C locale, so glyphs are not drawn as underscores', () => {
+    const t = setup();
+    expect(run('agentdesk-attach', ID, t.env).status).toBe(0);
+    const attach = t.calls().find((argv) => argv.includes('attach'));
+    expect(attach).toEqual(['-u', 'attach', '-t', '=agent']);
   });
 
   it.each(['../../etc', '$(id)', 'x', `${ID}/../x`, `${ID}\n`, ID.toUpperCase()])(
@@ -184,7 +193,7 @@ describe('agentdesk-detach', () => {
       const child = spawn('bash', [join(bin, 'agentdesk-attach'), OTHER], { env: t.env });
       await watch(child);
       expect(child.exitCode).toBe(0);
-      expect(t.calls()).toContainEqual(['attach', '-t', '=agent']);
+      expect(t.calls()).toContainEqual(['-u', 'attach', '-t', '=agent']);
     });
 
     it('never follows a symlink planted at the pid file path', () => {
