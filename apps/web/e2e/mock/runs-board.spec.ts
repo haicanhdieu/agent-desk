@@ -34,6 +34,21 @@ test('the Grouped by ticket button toggles ticket grouping on the Run Board', as
   await expect(runLinks).toHaveCount(runCount);
 });
 
+test('the Grouped by ticket choice survives a reload of the Run List', async ({ page }) => {
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
+  const toggle = page.getByRole('button', { name: 'Grouped by ticket' });
+  const groupRows = page.locator('tr', { has: page.getByText(/ of \d+ runs$/) });
+
+  await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+
+  await page.reload();
+  await expect(toggle).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.getByRole('link', { name: /^Run \d+$/ }).first()).toBeVisible();
+  await expect(groupRows).toHaveCount(0);
+});
+
 test('the Run List shows durations in compact units', async ({ page }) => {
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs`);
   await expect(page.getByRole('cell', { name: '7m 50s', exact: true }).first()).toBeVisible();

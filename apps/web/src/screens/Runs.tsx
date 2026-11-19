@@ -68,8 +68,23 @@ function rowActions(run: RunSummary, runHref: (r: RunSummary) => string) {
   return null;
 }
 
-export function Runs({ groups, needsYouRun, filter, runHref = defaultRunHref, showAllHref, ...page }: RunsProps) {
-  const [grouped, setGrouped] = useState(true);
+export function Runs({
+  groups,
+  needsYouRun,
+  filter,
+  runHref = defaultRunHref,
+  showAllHref,
+  grouped: groupedProp,
+  onGroupedChange,
+  ...page
+}: RunsProps) {
+  // Controlled when the container passes `grouped` (it persists the choice); otherwise the screen keeps it itself.
+  const [groupedState, setGroupedState] = useState(true);
+  const grouped = groupedProp ?? groupedState;
+  const setGrouped = (next: boolean) => {
+    setGroupedState(next);
+    onGroupedChange?.(next);
+  };
   const shown = filterGroups(groups, filter);
   // Ungrouped: the same runs as one flat list, newest first. Only the layout changes, never the run data.
   const flat = shown.flatMap((g) => g.runs).sort((a, b) => b.id - a.id);

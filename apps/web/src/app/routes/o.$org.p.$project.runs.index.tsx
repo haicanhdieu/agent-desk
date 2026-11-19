@@ -17,6 +17,7 @@ import {
 } from '@/features/runs/map';
 import { runHref, useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
+import { useGroupedPref } from '@/features/runs/useGroupedPref';
 import { relativeTime } from '@/features/relativeTime';
 import { Runs, RunsProblems, type RunsFilter, type RunsProblemsWarning } from '@/screens';
 
@@ -52,6 +53,7 @@ function RunsRoute() {
   const search = Route.useSearch();
   const filter: RunsFilter = search.filter ?? 'all';
   const now = useNow();
+  const [grouped, setGrouped] = useGroupedPref();
   const queryClient = useQueryClient();
   const page = useProjectPage(org, projectId, now);
   const { paths, dto } = page;
@@ -111,6 +113,8 @@ function RunsRoute() {
     <Runs
       {...common}
       filter={filter}
+      grouped={grouped}
+      onGroupedChange={setGrouped}
       groups={groupByTicket(summaries, dto.maxRunsPerTicket, runsPerTicket(all.items))}
       needsYouRun={needsYouRun}
       runHref={(r) => runHref(paths, r.id)}
