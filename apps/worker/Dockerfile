@@ -22,6 +22,12 @@ COPY packages/core/package.json packages/core/
 COPY packages/db/package.json packages/db/
 RUN pnpm install --frozen-lockfile --prod --filter @agentdesk/worker...
 
+# @swc/core 1.16 copies a package-provided native addon into a cache directory before loading it, and refuses
+# the world-writable /tmp that a Kubernetes emptyDir gives (no sticky bit). The loader first tries a file next to
+# binding.js, so place the arm64 addon there and no cache is needed.
+RUN cp /app/node_modules/.pnpm/@swc+core-linux-arm64-gnu@*/node_modules/@swc/core-linux-arm64-gnu/swc.linux-arm64-gnu.node \
+       /app/node_modules/.pnpm/@swc+core@*/node_modules/@swc/core/
+
 COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps/worker apps/worker
