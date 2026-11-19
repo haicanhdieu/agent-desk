@@ -100,9 +100,13 @@ export default function LiveTerminal({
       if (event.type === 'keydown' && isCopyKey(event) && term.hasSelection()) {
         if (navigator.clipboard) {
           event.preventDefault();
-          navigator.clipboard.writeText(term.getSelection()).catch((err: unknown) => {
-            console.debug('Could not copy the terminal selection', err);
-          });
+          navigator.clipboard
+            .writeText(term.getSelection())
+            // Clear it once copied, so the next Ctrl+C is the interrupt again (Windows Terminal does the same).
+            .then(() => term.clearSelection())
+            .catch((err: unknown) => {
+              console.debug('Could not copy the terminal selection', err);
+            });
         }
         return false;
       }

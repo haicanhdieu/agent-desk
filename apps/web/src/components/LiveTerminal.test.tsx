@@ -107,6 +107,18 @@ describe('LiveTerminal', () => {
       expect(event?.defaultPrevented).toBe(true);
     });
 
+    it('a second Ctrl+C after a copy is the interrupt again: the copy clears the selection', async () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      const term = FakeXterm.latest();
+      term.select('copy me');
+      act(() => term.pressKey('c', { ctrlKey: true }));
+      await vi.waitFor(() => expect(term.hasSelection()).toBe(false));
+      act(() => term.pressKey('c', { ctrlKey: true }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(onData).toHaveBeenCalledExactlyOnceWith('\x03');
+    });
+
     it('Cmd+C with a selection copies it to the clipboard', () => {
       const onData = vi.fn();
       render(<LiveTerminal onData={onData} />);

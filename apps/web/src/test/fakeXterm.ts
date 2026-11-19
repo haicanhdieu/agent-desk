@@ -102,6 +102,10 @@ export class Terminal {
     return this.selected !== '';
   }
 
+  clearSelection(): void {
+    this.selected = '';
+  }
+
   getSelection(): string {
     return this.selected;
   }
