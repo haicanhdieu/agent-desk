@@ -36,7 +36,7 @@ export function TerminalFindBar({
       role="search"
       onKeyDown={(e) => {
         if (e.key === 'Escape') onClose();
-        else if (e.key === 'Enter') {
+        else if (e.key === 'Enter' && e.target instanceof HTMLInputElement) {
           e.preventDefault();
           if (e.shiftKey) onPrev();
           else onNext();

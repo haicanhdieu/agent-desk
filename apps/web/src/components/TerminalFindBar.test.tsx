@@ -20,6 +20,19 @@ describe('TerminalFindBar', () => {
     expect(h.onClose).toHaveBeenCalledOnce();
   });
 
+  it('lets Enter on a focused button act on that button, not step to the next match', async () => {
+    const h = handlers();
+    render(<TerminalFindBar query="a" total={3} current={0} {...h} />);
+    screen.getByRole('button', { name: 'Close find' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(h.onClose).toHaveBeenCalledOnce();
+    expect(h.onNext).not.toHaveBeenCalled();
+    screen.getByRole('button', { name: 'Previous match' }).focus();
+    await userEvent.keyboard('{Enter}');
+    expect(h.onPrev).toHaveBeenCalledOnce();
+    expect(h.onNext).not.toHaveBeenCalled();
+  });
+
   it('shows nothing for an empty query and disables stepping when there is no match', () => {
     const h = handlers();
     const { rerender } = render(<TerminalFindBar query="" total={0} current={0} {...h} />);
