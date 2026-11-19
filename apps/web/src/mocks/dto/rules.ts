@@ -18,6 +18,7 @@ const rule = (
   labelFilter,
   target,
   agentId: ids.agent.invoicerApi,
+  model: null,
   kind: 'skill',
   skillName: command,
   prompt: null,

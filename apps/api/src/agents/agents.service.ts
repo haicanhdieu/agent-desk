@@ -2,6 +2,7 @@ import { Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { eq } from 'drizzle-orm';
 import { agents, withOrg, type Db } from '@agentdesk/db';
 import {
+  AgentKind,
   CredentialType,
   type AgentDto,
   type PutAgentRequest,
@@ -21,8 +22,9 @@ function toDto(row: AgentRow): AgentDto {
     id: row.id,
     projectId: row.projectId,
     name: row.name,
-    provider: 'claude',
+    provider: AgentKind.parse(row.provider),
     model: row.model,
+    baseUrl: row.baseUrl,
     maxTurns: row.maxTurns,
     timeoutSeconds: row.timeoutSeconds,
     pausedKeepSeconds: row.pausedKeepSeconds,

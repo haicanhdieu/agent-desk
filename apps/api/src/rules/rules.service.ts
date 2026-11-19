@@ -60,6 +60,7 @@ export class RulesService {
       labelFilter: row.labelFilter,
       target: RuleTarget.parse(row.target),
       agentId: row.agentId,
+      model: row.model,
       kind: row.prompt !== null ? 'prompt' : 'skill',
       skillName: row.skillName,
       prompt: row.prompt,

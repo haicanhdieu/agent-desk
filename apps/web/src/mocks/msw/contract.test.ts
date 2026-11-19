@@ -1,5 +1,6 @@
 import {
   AgentDto,
+  AgentModelsDto,
   ConnectionDto,
   IgnoredEventDto,
   PluginsDto,
@@ -21,6 +22,7 @@ import { ApiError, api as defaultApi, createApi } from '@agentdesk/contracts/cli
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { agentFixtures } from '../dto/agents';
+import { agentModelsFixtures } from '../dto/agentModels';
 import { connectionFixtures, repoFixtures } from '../dto/connections';
 import { runEventFixtures } from '../dto/events';
 import { ids } from '../dto/ids';
@@ -59,6 +61,7 @@ describe('MSW handlers cover the contract', () => {
       [ConnectionDto, connectionFixtures],
       [RepoDto, Object.values(repoFixtures).flat()],
       [AgentDto, agentFixtures],
+      [AgentModelsDto, Object.values(agentModelsFixtures)],
       [SkillDto, Object.values(skillFixtures).flat()],
       [RuleDto, ruleFixtures],
       [RunDto, runFixtures],

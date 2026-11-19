@@ -94,6 +94,8 @@ export const agents = pgTable(
     name: text('name').notNull(),
     provider: text('provider').notNull().default('claude'),
     model: text('model').notNull(),
+    /** Custom API address (https, up to 2048 characters); null means the provider's own. */
+    baseUrl: text('base_url'),
     credentialSecretName: text('credential_secret_name'),
     credentialType: text('credential_type'),
     credentialUpdatedAt: ts('credential_updated_at'),
@@ -116,6 +118,10 @@ export const agents = pgTable(
     check('agents_paused_keep_check', sql`${t.pausedKeepSeconds} between 3600 and 2592000`),
     check('agents_done_keep_check', sql`${t.doneKeepSeconds} between 0 and 604800`),
     check('agents_idle_end_check', sql`${t.idleEndSeconds} between 300 and 604800`),
+    check(
+      'agents_base_url_check',
+      sql`${t.baseUrl} is null or (${t.baseUrl} like 'https://%' and char_length(${t.baseUrl}) <= 2048)`,
+    ),
     check('agents_credential_type_check', sql`${t.credentialType} in ('oauth_token','api_key')`),
     orgPolicy(),
   ],
@@ -142,6 +148,8 @@ export const rules = pgTable(
     skillName: text('skill_name'),
     /** Custom prompt, up to 4000 characters; stored as written. */
     prompt: text('prompt'),
+    /** Model this rule runs with; null follows the agent's default model. */
+    model: text('model'),
     enabled: boolean('enabled').notNull().default(true),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
@@ -152,6 +160,7 @@ export const rules = pgTable(
     check('rules_target_check', sql`${t.target} in ('issue','pr','any')`),
     check('rules_skill_or_prompt_check', sql`(${t.skillName} is null) <> (${t.prompt} is null)`),
     check('rules_prompt_length_check', sql`char_length(${t.prompt}) <= 4000`),
+    check('rules_model_check', sql`${t.model} is null or char_length(${t.model}) between 1 and 200`),
     orgPolicy(),
   ],
 );
@@ -202,6 +211,8 @@ export const runs = pgTable(
     skillName: text('skill_name'),
     /** Custom prompt copied from the rule at intake; null for a skill run. */
     prompt: text('prompt'),
+    /** Model the run was queued with (frozen at intake); null for runs queued before models existed. */
+    model: text('model'),
     /** Final prompt sent to the agent, redacted; written once, null until the Job is created. */
     finalPrompt: text('final_prompt'),
     ticketRef: text('ticket_ref').notNull(),

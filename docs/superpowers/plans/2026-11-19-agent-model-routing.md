@@ -246,7 +246,7 @@ routes.agents.models = { method: 'GET', path: '/api/agents/:agentId/models', par
 - Produces (db, `packages/db/src/schema/app.ts`): `agents.baseUrl` (`base_url text null`, check `agents_base_url_check`: `base_url is null or (base_url like 'https://%' and char_length(base_url) <= 2048)`); `rules.model` (`model text null`, check `rules_model_check`: `model is null or char_length(model) between 1 and 200`); `runs.model` (`model text null`, no check).
 - Produces (web): `agentModelsFixtures: Record<'live' | 'noCredential' | 'unreachable' | 'rejected' | 'empty' | 'disabled', AgentModelsDto>` in `apps/web/src/mocks/dto/agentModels.ts`; `live` holds the board's ids `claude-opus-4-5-20251101`, `claude-sonnet-4-5-20250929`, `claude-haiku-4-5-20251001`, `claude-opus-4-1-20250805`; every fallback holds `opus`, `sonnet`, `haiku`.
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 In `net.test.ts`: `isBlockedIp` is true for `10.0.0.1`, `172.16.0.1`, `172.31.255.255`, `192.168.1.1`, `127.0.0.1`, `169.254.169.254`, `100.64.0.1`, `0.0.0.0`, `::1`, `::`, `fc00::1`, `fd12::1`, `fe80::1`, `::ffff:127.0.0.1`, `::ffff:7f00:1`; false for `8.8.8.8`, `172.32.0.1`, `100.128.0.1`, `2606:4700::1111`, `gateway.harbor-labs.com`.
 
@@ -258,34 +258,34 @@ In `rules.test.ts`: `CreateRuleRequest` accepts `model: null`, `model: 'haiku'` 
 
 In `routes.test.ts`: change the route count to `45` and assert `flat['agents.models']` matches `{ method: 'GET', path: '/api/agents/:agentId/models' }`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: FAIL (`isBlockedIp`, `AgentModelId`, `AgentBaseUrl`, `AgentModelsDto` not exported; route count 44).
 
-- [ ] **Step 3: Implement the contracts**
+- [x] **Step 3: Implement the contracts**
 
 `isBlockedIp`: parse IPv4 to a 32-bit number and IPv6 (with `::` compression and an embedded dotted tail) to 8 hextets, then compare against the CIDR lists. `isAllowedAgentBaseUrl`: `new URL(raw)` in a try; require `protocol === 'https:'`, empty `username` and `password`, and no `?` or `#` anywhere in `raw`; reject `hostname === 'localhost'` or ending in `.localhost`; strip `[`/`]` from `hostname` and reject when `isBlockedIp` is true (the WHATWG parser already normalizes `2130706433` and `0x7f.0.0.1` to `127.0.0.1`). Export `net.ts` from `index.ts`.
 
-- [ ] **Step 4: Run the contract tests**
+- [x] **Step 4: Run the contract tests**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: PASS.
 
-- [ ] **Step 5: Write the failing migration test**
+- [x] **Step 5: Write the failing migration test**
 
 In `migrate.int.test.ts`, `it('the agent model routing migration only adds columns and checks: no row writes, no policy or grant changes')`, in the style of the 0015 test: the SQL text has no `UPDATE`, `INSERT`, `DELETE`, `POLICY` or `GRANT`; after migrating, inserting an agent with `base_url = 'http://x'` and one with `char_length(base_url) = 2049` violates `agents_base_url_check`; a rule with `model = repeat('a', 201)` or `''` violates `rules_model_check`; a run row accepts `model = null`.
 
-- [ ] **Step 6: Edit the schema and generate the migration**
+- [x] **Step 6: Edit the schema and generate the migration**
 
 Add the three columns and two checks to `packages/db/src/schema/app.ts`. Run `pnpm --filter @agentdesk/db db:generate --name agent_model_routing`. Read the SQL and rewrite each `ADD CONSTRAINT` as `... NOT VALID;` followed by `VALIDATE CONSTRAINT`, as `0012_rule_custom_prompt.sql` does.
 
-- [ ] **Step 7: Run the db tests**
+- [x] **Step 7: Run the db tests**
 
 Run: `pnpm --filter @agentdesk/db test`
 Expected: PASS.
 
-- [ ] **Step 8: Keep every consumer compiling**
+- [x] **Step 8: Keep every consumer compiling**
 
 - `agents.service.ts` `toDto`: `provider: AgentKind.parse(row.provider)`, `baseUrl: row.baseUrl`.
 - `rules.service.ts` `toDto`: `model: row.model`.
@@ -293,12 +293,12 @@ Expected: PASS.
 - Web: `baseUrl: null` in `mocks/dto/agents.ts` and in the agent the `projects.create` handler builds; `model: null` in `mocks/dto/rules.ts`; the `rules.create` handler stores `agentId: body.agentId ?? <project agent id>` and `model: body.model ?? null`, `rules.update` applies `body.model` and `body.agentId` when present; a stub `'agents.models'` handler that 404s an unknown agent, checks the project is visible like `agents.putCredential`, and returns `agentModelsFixtures.live`; add `[AgentModelsDto, Object.values(agentModelsFixtures)]` to the fixture-parse test; add `baseUrl`/`model` to the literals in `features/desk/map.test.ts`.
 - `rules.form.ts`: `RuleValues` omits `agentId` and `model` from the contract type (Task 14 adds them to the form).
 
-- [ ] **Step 9: Typecheck and test the touched packages**
+- [x] **Step 9: Typecheck and test the touched packages**
 
 Run: `pnpm typecheck && pnpm --filter @agentdesk/api test -- agents rules && pnpm --filter @agentdesk/web test -- contract map`
 Expected: typecheck clean everywhere; tests PASS.
 
-- [ ] **Step 10: Commit**
+- [x] **Step 10: Commit**
 
 ```bash
 devbox run fix

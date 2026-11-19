@@ -16,6 +16,7 @@ import {
 } from '@agentdesk/contracts';
 import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
+import { agentModelsFixtures } from '../dto/agentModels';
 import { promptPreviewFixture } from '../dto/rules';
 import { noPlugins } from '../dto/setup';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
@@ -270,6 +271,7 @@ const impl: Impl = {
       name: 'Claude',
       provider: 'claude',
       model: 'opus',
+      baseUrl: null,
       maxTurns: null,
       timeoutSeconds: 1800,
       pausedKeepSeconds: 604800,
@@ -345,6 +347,12 @@ const impl: Impl = {
     const updatedAt = now();
     agent.credential = { set: true, type: body.type, updatedAt, setBy: user.handle };
     return { updatedAt };
+  },
+  'agents.models': ({ params }) => {
+    const agent = db().agents.find((a) => a.id === params.agentId);
+    if (!agent) throw notFound('Agent');
+    projectRow(agent.projectId);
+    return agentModelsFixtures.live;
   },
 
   // Full skills; the SkillSummaryDto response schema strips `body` and `sha`.
@@ -449,13 +457,15 @@ const impl: Impl = {
     const projectId = projectRow(params.projectId).id;
     assertUniqueCommand(projectId, body.command);
     const { kind, command, labelFilter, target, enabled } = body;
+    const agentId = body.agentId ?? agentOf(projectId).id;
     const rule: RuleDto = {
       id: mockDb.nextId(),
       projectId,
       command,
       labelFilter,
       target,
-      agentId: agentOf(projectId).id,
+      agentId,
+      model: body.model ?? null,
       kind,
       skillName: body.kind === 'skill' ? body.skillName : null,
       prompt: body.kind === 'prompt' ? body.prompt : null,
@@ -473,6 +483,8 @@ const impl: Impl = {
     if (labelFilter !== undefined) rule.labelFilter = labelFilter;
     if (target !== undefined) rule.target = target;
     if (enabled !== undefined) rule.enabled = enabled;
+    if (body.agentId !== undefined) rule.agentId = body.agentId;
+    if (body.model !== undefined) rule.model = body.model;
     // A kind switch sends kind plus the new field and clears the old one.
     if (kind !== undefined) rule.kind = kind;
     if (rule.kind === 'skill') {

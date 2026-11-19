@@ -48,7 +48,7 @@ describe('rules', () => {
     const res = await create(valid);
     expect(res.statusCode).toBe(201);
     rule = expectContract('rules.create', res) as RuleDto;
-    expect(rule).toMatchObject({ ...valid, projectId, stats: { runs30d: 0, lastRunAt: null } });
+    expect(rule).toMatchObject({ ...valid, projectId, model: null, stats: { runs30d: 0, lastRunAt: null } });
     const agent = (
       await t.app.inject({ method: 'GET', url: `/api/projects/${projectId}/agent`, headers: { cookie: alice } })
     ).json() as { id: string };

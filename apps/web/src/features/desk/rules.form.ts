@@ -18,7 +18,7 @@ import { useSaveRule } from './mutations';
  * The form's own view of the two contract branches: both kinds' fields live side by side, so switching kind keeps what
  * was typed. `toCreateRequest` narrows it to one branch.
  */
-export type RuleValues = Omit<CreateSkillRuleRequest, 'kind' | 'skillName'> &
+export type RuleValues = Omit<CreateSkillRuleRequest, 'kind' | 'skillName' | 'agentId' | 'model'> &
   Pick<CreateSkillRuleRequest, 'skillName'> &
   Pick<CreatePromptRuleRequest, 'prompt'> & { kind: RuleKind };
 type ValueField = Exclude<keyof RuleValues, 'enabled' | 'kind'>;

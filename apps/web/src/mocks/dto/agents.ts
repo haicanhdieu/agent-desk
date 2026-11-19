@@ -8,6 +8,7 @@ const agent = (id: string, projectId: string): AgentDto => ({
   name: 'Claude',
   provider: 'claude',
   model: 'opus',
+  baseUrl: null,
   maxTurns: null,
   timeoutSeconds: 1800,
   pausedKeepSeconds: 604800,

@@ -56,6 +56,7 @@ describe('agents', () => {
       name: 'Claude',
       provider: 'claude',
       model: 'sonnet',
+      baseUrl: null,
       maxTurns: 50,
       timeoutSeconds: 86400,
       idleEndSeconds: 1800,
