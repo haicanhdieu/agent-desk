@@ -69,6 +69,24 @@ export async function signInAndCreateProject(page: Page): Promise<{ handle: stri
   return { handle, projectId: projectId ?? '' };
 }
 
+/** The wizard's first step only: a project whose agent has no credential and no address. */
+export async function signInAndStartProject(page: Page): Promise<{ handle: string; projectId: string }> {
+  const handle = `e2e-${randomBytes(4).toString('hex')}`;
+  await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
+  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
+  const install = InstallResponse.parse(
+    await ok(await page.request.post('/api/connections/fake/install'), 201, 'install'),
+  );
+  await page.goto(install.url);
+  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects/new/repo\\?connection=`));
+  await page.getByRole('radio', { name: REPO }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
+  const projectId = /[?&]project=([0-9a-f-]+)/.exec(page.url())?.[1];
+  expect(projectId, page.url()).toBeTruthy();
+  return { handle, projectId: projectId ?? '' };
+}
+
 /** A pull request on the fake board with a webhook comment; returns the run it created. */
 export async function commentOnNewTicket(
   page: Page,

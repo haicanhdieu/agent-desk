@@ -1,8 +1,16 @@
 import { randomBytes } from 'node:crypto';
 import { mkdir, readdir, rm, writeFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { AgentDto, InstallResponse, RunDto } from '@agentdesk/contracts';
-import { API, FAKE_STATE_DIR, REPO, commentOnNewTicket, ok, podLogLines, signInAndCreateProject } from './helpers';
+import { AgentDto, RunDto } from '@agentdesk/contracts';
+import {
+  API,
+  FAKE_STATE_DIR,
+  commentOnNewTicket,
+  ok,
+  podLogLines,
+  signInAndCreateProject,
+  signInAndStartProject,
+} from './helpers';
 
 /*
  * Local end-to-end for Desk → Agent & settings: default model, API address and credential replacement (spec BR-2, 6, 7,
@@ -90,24 +98,6 @@ async function testAndReplace(page: Page): Promise<number> {
 async function changeAddress(page: Page, address: string): Promise<number> {
   await addressInput(page).fill(address);
   return testAndReplace(page);
-}
-
-/** The wizard's first step only: a project whose agent has no credential and no address. */
-async function signInAndStartProject(page: Page): Promise<{ handle: string; projectId: string }> {
-  const handle = `e2e-${randomBytes(4).toString('hex')}`;
-  await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
-  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
-  const install = InstallResponse.parse(
-    await ok(await page.request.post('/api/connections/fake/install'), 201, 'install'),
-  );
-  await page.goto(install.url);
-  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects/new/repo\\?connection=`));
-  await page.getByRole('radio', { name: REPO }).check();
-  await page.getByRole('button', { name: 'Continue' }).click();
-  await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
-  const projectId = /[?&]project=([0-9a-f-]+)/.exec(page.url())?.[1];
-  expect(projectId, page.url()).toBeTruthy();
-  return { handle, projectId: projectId ?? '' };
 }
 
 /** The agent's credential file in the fake secret store (`<org>-agent-<agentId>.json`). */

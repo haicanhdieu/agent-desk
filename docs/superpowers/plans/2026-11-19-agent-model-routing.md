@@ -1332,7 +1332,7 @@ git commit -m "test(web): local e2e for default model, API address and credentia
 
 Covers: BR-19 (TC-19.5), BR-21 (TC-21.1, TC-21.2), BR-24 (TC-24.5), BR-25 (TC-25.1, TC-25.2), BR-26 (TC-26.1), BR-27 (TC-27.1), BR-29 (TC-29.1, TC-29.2, TC-29.6).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC, titled `TC-<n.m> …`. BR-21 drives the wizard itself (not `signInAndCreateProject`) up to the Agent step, then leaves to the project list and resumes. Rules are opened from Desk → Routing rules; reload checks reopen the rule.
 
