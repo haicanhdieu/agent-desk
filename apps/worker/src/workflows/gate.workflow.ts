@@ -23,6 +23,8 @@ export async function ProjectGateWorkflow(input: GateInput): Promise<void> {
   // runIds that need a (re)sent `granted`: newly granted, or an active run that asked again.
   const toGrant: string[] = [];
   let handled = 0;
+  // Grants whose `granted` signal is issued but not yet delivered; `settled` must not report true before they land.
+  let granting = 0;
   let dirty = queue.length > 0;
 
   // Read-only snapshot; `settled` is true when every queued change has been processed and every grant was sent.
@@ -30,7 +32,7 @@ export async function ProjectGateWorkflow(input: GateInput): Promise<void> {
     limit,
     queue: [...queue],
     active: [...active],
-    settled: !dirty && toGrant.length === 0 && handled < CONTINUE_AS_NEW_AFTER,
+    settled: !dirty && toGrant.length === 0 && granting === 0 && handled < CONTINUE_AS_NEW_AFTER,
   }));
   setHandler(requestSlot, (runId) => {
     handled += 1;
@@ -69,6 +71,7 @@ export async function ProjectGateWorkflow(input: GateInput): Promise<void> {
     while (toGrant.length > 0) {
       const runId = toGrant.shift();
       if (runId === undefined) break;
+      granting += 1;
       try {
         await getExternalWorkflowHandle(`run-${runId}`).signal(granted);
       } catch {
@@ -78,6 +81,8 @@ export async function ProjectGateWorkflow(input: GateInput): Promise<void> {
           active.splice(a, 1);
           dirty = true;
         }
+      } finally {
+        granting -= 1;
       }
     }
     if (handled >= CONTINUE_AS_NEW_AFTER && !dirty) {
