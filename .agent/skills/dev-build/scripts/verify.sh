@@ -34,7 +34,7 @@ files=$(git diff --name-only "$base"...HEAD)
 pkgs=$(printf '%s\n' "$files" | sed -nE 's#^(apps|packages)/([^/]+)/.*#\1/\2#p' | sort -u)
 echo "PACKAGES: $(printf '%s\n' "$pkgs" | sed 's#.*/#@agentdesk/#' | tr '\n' ' ')"
 
-# 1. fix: serial, because it may rewrite files. Must print "fix: clean." and leave the tree clean.
+# 1. fix: serial, because it may rewrite files. Must print "fix: clean." (or "fix: no changed files.") and leave the tree clean.
 # Runner pod (no devbox, no Docker; docs/runbooks/runner-pod.md): use the rootless tools instead.
 runner_pod=no
 [ -f scripts/detect-env.sh ] && bash scripts/detect-env.sh 2>/dev/null | grep -qx 'mode=runner-pod' && runner_pod=yes
@@ -44,7 +44,7 @@ else
   fixcmd="devbox run fix"
 fi
 $fixcmd >"$out/fix.log" 2>&1; fixrc=$?
-grep -q '^fix: clean\.' "$out/fix.log" || fixrc=1
+grep -Eq '^fix: (clean|no changed files)\.' "$out/fix.log" || fixrc=1
 echo "COMMAND: $fixcmd"; echo "EXIT: $fixrc"; echo "OUTPUT (last 20 lines):"; tail -20 "$out/fix.log"
 [ "$fixrc" -eq 0 ] || fail=1
 dirty=$(git status --porcelain)
