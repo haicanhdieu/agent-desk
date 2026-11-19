@@ -12,6 +12,7 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { api } from '../api';
+import { refreshAfterCredential } from '../desk/agent.form';
 import { projectsQueries } from '../projects/queries';
 import { setupQueries as scriptQueries } from '../setup-script/queries';
 import { setupQueries } from './queries';
@@ -91,6 +92,21 @@ export interface AgentStepInput {
   credentialType: CredentialType;
   /** The typed secret; empty keeps the credential already set. */
   credential: string;
+  /** Sent with the credential only: absent keeps the address, a string sets it, null clears it. */
+  baseUrl?: string | null;
+}
+
+/**
+ * The credential write failed or the agent could not be refetched after it. `writeError` is the refused write (if
+ * any), so its field errors still show; the route adds that the agent could not be refreshed.
+ */
+export class CredentialRefreshError extends Error {
+  readonly writeError: unknown;
+  constructor(writeError: unknown) {
+    super('The agent could not be refreshed after the credential save');
+    this.name = 'CredentialRefreshError';
+    this.writeError = writeError;
+  }
 }
 
 /**
@@ -111,19 +127,46 @@ export function useSaveAgentStep(org: string) {
           ...(agent.maxTurns !== null && { maxTurns: agent.maxTurns }),
         },
       });
-      if (input.credential !== '') {
-        await api.agents.putCredential({
-          params: { agentId: agent.id },
-          body: { type: input.credentialType, value: input.credential },
-        });
-      }
-      await qc.invalidateQueries({ queryKey: setupQueries.agent(org, project.id).queryKey });
+      if (input.credential !== '') await replaceCredential(qc, org, project.id, agent.id, input);
+      else await qc.invalidateQueries({ queryKey: setupQueries.agent(org, project.id).queryKey });
       return await finishStep(qc, org, project, 'setup', { maxConcurrentRuns: input.maxConcurrentRuns });
     } finally {
       setPending(false);
     }
   };
   return { save, pending };
+}
+
+/**
+ * Writes the credential (with the address when it changed). After any attempt the agent and its model list are
+ * refetched: a failed write after an address change leaves the new address with no credential (BR-16), and the
+ * step must show that. The model list key is not under the project prefix, so it is invalidated explicitly.
+ */
+async function replaceCredential(
+  qc: QueryClient,
+  org: string,
+  projectId: string,
+  agentId: string,
+  input: AgentStepInput,
+): Promise<void> {
+  let writeError: unknown;
+  let failed = false;
+  try {
+    await api.agents.putCredential({
+      params: { agentId },
+      body: {
+        type: input.credentialType,
+        value: input.credential,
+        ...(input.baseUrl !== undefined && { baseUrl: input.baseUrl }),
+      },
+    });
+  } catch (e) {
+    failed = true;
+    writeError = e;
+  }
+  if (!(await refreshAfterCredential(qc, org, projectId, agentId)))
+    throw new CredentialRefreshError(failed ? writeError : undefined);
+  if (failed) throw writeError;
 }
 
 export interface WorkspaceStepInput {

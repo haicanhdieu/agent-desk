@@ -1,5 +1,5 @@
 import type { AgentDto, CredentialType, ProjectDto, UpdateProjectRequest } from '@agentdesk/contracts';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRef, useState } from 'react';
 import type { AgentSettings } from '@/mocks/types';
 import type { AgentLimits, LimitField } from '@/screens';
@@ -218,6 +218,24 @@ export function useSaveAgent(org: string, projectId: string) {
 /** Shown when the agent could not be refetched after a credential attempt. */
 export const REFRESH_ERROR = 'Could not refresh the agent. Reload the page to see its current state.';
 
+/**
+ * Refetches the agent and its model list after a credential attempt (shared with the setup wizard). The model list
+ * shows its own error state when its refetch fails, so only the agent refetch decides the result: `true` when the
+ * agent was refreshed.
+ */
+export async function refreshAfterCredential(
+  qc: QueryClient,
+  org: string,
+  projectId: string,
+  agentId: string,
+): Promise<boolean> {
+  const [agentRefresh] = await Promise.allSettled([
+    qc.invalidateQueries({ queryKey: deskQueries.agent(org, projectId).queryKey }, { throwOnError: true }),
+    qc.invalidateQueries({ queryKey: deskQueries.agentModels(org, agentId).queryKey }),
+  ]);
+  return agentRefresh.status === 'fulfilled';
+}
+
 /** Pointers of a refused credential → the token input, or the API address. */
 const CREDENTIAL_POINTERS: Record<string, string> = {
   '/value': 'credential',
@@ -258,13 +276,8 @@ export function useReplaceCredential(org: string, projectId: string, agentId: st
       writeError = problem.fields.credential ?? problem.form;
       setAddressError(problem.fields.address);
     }
-    // The model list shows its own error state when its refetch fails; the agent must be seen to refresh, or the
-    // screen would keep the old address and "credential set" after a failed write (BR-16).
-    const [agentRefresh] = await Promise.allSettled([
-      qc.invalidateQueries({ queryKey: deskQueries.agent(org, projectId).queryKey }, { throwOnError: true }),
-      qc.invalidateQueries({ queryKey: deskQueries.agentModels(org, agentId).queryKey }),
-    ]);
-    const refreshed = agentRefresh.status === 'fulfilled';
+    // The screen must see the agent refresh, or it would keep the old address and "credential set" (BR-16).
+    const refreshed = await refreshAfterCredential(qc, org, projectId, agentId);
     setError([writeError, refreshed ? undefined : REFRESH_ERROR].filter(Boolean).join(' ') || undefined);
     inFlight.current = false;
     setPending(false);

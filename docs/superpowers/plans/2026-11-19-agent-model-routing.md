@@ -1190,25 +1190,25 @@ git commit -m "feat(web): rule form saves its own model or follows the default"
 - Consumes: `deskQueries.agentModels` (Task 8); `toModelList` (Task 9); `Setup4Props.modelList`, `RuleDraft.model` (Task 10); `Setup2Draft.baseUrl`, `Setup2Props.modelList`, `Setup2Props.baseUrl` (Task 12).
 - Produces: `AgentStepInput.baseUrl?: string | null` (sent with the credential only when the address changed: `''` → `null`); AgentStep validation: when `agent.credential.set`, the address changed and the token is empty → `fields.baseUrl = 'Paste the token again to change the API address.'` and no request; `AGENT_POINTERS['/baseUrl'] = 'baseUrl'`; step 4 `toRequest` sends `model` for the first rule (`null` for Default model) and `model: null` for the follow-up; step-4 `RULE_POINTERS['/model'] = 'model'`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `setup.route.test.tsx`: `it('Agent step lists the agent models with Other model… last')`; `it('changing the address with a saved credential and no token shows "Paste the token again to change the API address." and stays')`; `it('address plus token saves both; unchanged address and no token continues without a credential call')`; `it('a typed default model is saved exactly')`; `it('step 4 shows the Model field with "Default model is the one picked in step 2." and saves the picked model')`; `it('the follow-up rule follows the default model')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- setup.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Replace the hardcoded `MODELS` with `toModelList(useQuery(deskQueries.agentModels(org, agent.id)), agent.baseUrl)`; after a credential save, invalidate `deskQueries.agentModels`. Keep the existing local e2e flow working (Token textbox and Continue unchanged).
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/web test -- setup && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
