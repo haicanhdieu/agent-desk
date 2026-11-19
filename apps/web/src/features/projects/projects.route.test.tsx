@@ -1,4 +1,5 @@
 import { act, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -24,6 +25,25 @@ describe('projects route', () => {
     await renderRoute('/o/alice/projects');
     const link = await screen.findByRole('link', { name: 'Switch to polling for docs-site' });
     expect(link).toHaveAttribute('href', `/o/alice/p/${ids.project.docsSite}/desk/agent`);
+  });
+
+  it('the More menu of a project offers Runs and Settings links and a disabled Delete', async () => {
+    await renderRoute('/o/alice/projects');
+    const more = await screen.findByRole('button', { name: 'More for invoicer-api' });
+    await userEvent.click(more);
+    const menu = screen.getByRole('dialog', { name: 'Actions for invoicer-api' });
+    expect(within(menu).getByRole('link', { name: 'Runs' })).toHaveAttribute(
+      'href',
+      `/o/alice/p/${ids.project.invoicerApi}/runs`,
+    );
+    expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute(
+      'href',
+      `/o/alice/p/${ids.project.invoicerApi}/desk/agent`,
+    );
+    const del = within(menu).getByRole('button', { name: 'Delete' });
+    expect(del).toBeDisabled();
+    await userEvent.click(del);
+    expect(screen.getByRole('dialog', { name: 'Actions for invoicer-api' })).toBeInTheDocument();
   });
 
   it('shows the empty state with a create link when the org has no projects', async () => {

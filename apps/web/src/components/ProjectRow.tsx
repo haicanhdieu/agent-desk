@@ -1,18 +1,24 @@
-import { AppLink, Button, IconButton, Icon, InlineStatus, StatusBadge, StatusIcon } from '@/ds';
+import { AppLink, Button, IconButton, Icon, InlineStatus, Popover, StatusBadge, StatusIcon } from '@/ds';
 import { connectionCopy } from '@/mocks/connection';
 import type { Project } from '@/mocks/types';
+import composites from './Composites.module.css';
 import styles from './Entry.module.css';
+import { useRowMenu } from './useRowMenu';
 
 export interface ProjectRowProps {
   project: Project;
+  /** The project's runs; also the More menu's Runs. */
   href: string;
-  onMore?: () => void;
+  /** The More menu's Settings link (project settings). */
+  settingsHref?: string;
   /** Where "Switch to polling" goes on a silent-webhook warning (project settings). */
   switchToPollingHref?: string;
 }
 
-export function ProjectRow({ project: p, href, onMore, switchToPollingHref = '#' }: ProjectRowProps) {
+export function ProjectRow({ project: p, href, settingsHref = '#', switchToPollingHref = '#' }: ProjectRowProps) {
   const { tone, mode, text } = p.connection;
+  const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu();
+
   return (
     <tr>
       <td className={styles.projectCell}>
@@ -76,7 +82,32 @@ export function ProjectRow({ project: p, href, onMore, switchToPollingHref = '#'
       <td className="num">{p.queued}</td>
       <td className={styles.lastRun}>{p.lastRun}</td>
       <td className={styles.end}>
-        <IconButton icon="more" aria-label={`More for ${p.name}`} onClick={onMore} />
+        <span ref={moreRef}>
+          <IconButton
+            icon="more"
+            aria-label={`More for ${p.name}`}
+            aria-haspopup="dialog"
+            aria-expanded={open}
+            onClick={toggleMenu}
+          />
+          <Popover
+            open={open}
+            label={`Actions for ${p.name}`}
+            onClose={closeMenu}
+            style={{ position: 'fixed', top: menuAt?.top, right: menuAt?.right, padding: 6, gap: 2 }}
+          >
+            <Button variant="ghost" size="sm" className={composites.menuAction} href={href} onClick={closeMenu}>
+              Runs
+            </Button>
+            <Button variant="ghost" size="sm" className={composites.menuAction} href={settingsHref} onClick={closeMenu}>
+              Settings
+            </Button>
+            {/* Delete waits for a product decision on what it does (issue 152): shown, but it cannot be chosen. */}
+            <Button variant="ghost" size="sm" icon="trash" className={composites.menuAction} disabled>
+              Delete
+            </Button>
+          </Popover>
+        </span>
       </td>
     </tr>
   );
