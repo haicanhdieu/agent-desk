@@ -60,9 +60,11 @@ function build(warnings?: string[], rec: Recorded = { gate: [], schedules: [] })
     gate: {
       signalWithStart: async (...args: unknown[]) => {
         rec.gate.push(args);
-        // requestSlot ignores the returned handle; there is no real one to build here.
+        // requestSlot ignores the returned handle (it queries `getHandle`); there is no real one to build here.
         return undefined as never;
       },
+      // requestSlot reads the gate's state after signalling; an empty settled gate says the run is not queued.
+      getHandle: () => ({ query: async () => ({ limit: 1, queue: [], active: [], settled: true }) }) as never,
     },
     temporal: {
       isWorkflowOpen: async () => false,

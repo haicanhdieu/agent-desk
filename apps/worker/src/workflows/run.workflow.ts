@@ -102,6 +102,8 @@ const ATTACH_LEASES_PATCH = 'attach-leases';
 const FOLLOWER_RECONNECT_PATCH = 'follower-reconnect';
 /** Marks runs that park on idle instead of ending; evaluated once, right after `loadRun`. */
 const PAUSE_RESUME_PATCH = 'pause-resume';
+/** Marks runs that tell the ticket when they wait for a slot, so a run already waiting at deploy time replays unchanged. */
+const QUEUED_COMMENT_PATCH = 'queued-comment';
 /** Plain-language reason shown on the run when its history grew too long. */
 export const HISTORY_TOO_LONG_REASON =
   'The run was stopped because its activity log grew too long for the scheduler to keep tracking. Start a new run to continue.';
@@ -418,7 +420,11 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     // Race note: a cancel here waits for the request to land (WAIT_CANCELLATION_COMPLETED), so finalize's releaseSlot
     // is always signalled after requestSlot and the gate drops the run. A `granted` the gate sent before it saw the
     // release only flips `isGranted`, which nobody reads any more.
-    await settled.requestSlot({ projectId: c.projectId, runId, limit: c.maxConcurrentRuns });
+    const slot = await settled.requestSlot({ projectId: c.projectId, runId, limit: c.maxConcurrentRuns });
+    // Best effort: a ticket comment that cannot be posted must not hold up or fail the run.
+    if (patched(QUEUED_COMMENT_PATCH) && slot?.queued === true) {
+      await attempt('postComment(queued)', () => settled.postComment(c, 'queued'));
+    }
     await condition(() => isGranted);
 
     // 2-3. Start. The hard timer covers everything from here on (up to 7 days; the token is refreshed meanwhile).

@@ -633,6 +633,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     secrets: string[],
   ) {
     const link = runLink(ctx, d);
+    if (kind === 'queued') {
+      return `Agent Desk queued run #${d.number} (\`/${oneLine(d.command)}\`): every execution slot for this project is in use. It will start as soon as one is free.\n\nFollow it here: ${link}`;
+    }
     if (kind === 'start') {
       const via = d.prompt !== null ? 'custom prompt' : `skill \`${oneLine(d.skillName ?? '')}\``;
       return `Agent Desk started run #${d.number} (\`/${oneLine(d.command)}\`, ${via}).\n\nFollow it here: ${link}`;

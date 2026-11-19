@@ -17,6 +17,7 @@ import {
 
 vi.mock('@temporalio/workflow', () => import('./helpers/fake-workflow-runtime'));
 
+import { ApplicationFailure } from '@temporalio/workflow';
 import { HISTORY_TOO_LONG_REASON, RunWorkflow, type RunOutcome } from '../src/workflows/run.workflow';
 import {
   agentState,
@@ -66,6 +67,10 @@ interface Harness {
   resumeCreateError: Error | undefined;
   /** A resume's requestSlot is not granted until `grant` is called. */
   holdResumeSlot: boolean;
+  /** The first requestSlot reports the run as queued behind a full gate, and is not granted until `grant` is called. */
+  firstSlotQueued: boolean;
+  /** postComment('queued') throws a non-retryable failure. */
+  queuedCommentFails: boolean;
   slotRequests: number;
   grant: () => void;
   outcome: RunOutcome | undefined;
@@ -103,6 +108,8 @@ function start(
     keepSeconds: config.keepSeconds === null ? undefined : (config.keepSeconds ?? KEEP),
     resumeCreateError: undefined,
     holdResumeSlot: false,
+    firstSlotQueued: false,
+    queuedCommentFails: false,
     slotRequests: 0,
     grant: () => sendSignal(granted),
     outcome: undefined,
@@ -118,8 +125,9 @@ function start(
   a.requestSlot = () => {
     h.slotRequests += 1;
     h.calls.push('requestSlot');
-    if (!(h.holdResumeSlot && h.slotRequests > 1)) queueMicrotask(h.grant);
-    return Promise.resolve();
+    const queued = h.firstSlotQueued && h.slotRequests === 1;
+    if (!queued && !(h.holdResumeSlot && h.slotRequests > 1)) queueMicrotask(h.grant);
+    return Promise.resolve(queued ? { queued: true } : undefined);
   };
   a.setRunStatus = (input: SetRunStatusInput) => {
     h.statuses.push(input);
@@ -133,6 +141,10 @@ function start(
     return Promise.resolve(undefined);
   };
   a.postComment = (_c: RunContext, kind: CommentKind, details?: FinishDetails) => {
+    if (kind === 'queued' && h.queuedCommentFails) {
+      h.calls.push('postComment:queued:failed');
+      return Promise.reject(ApplicationFailure.nonRetryable('provider is down', 'ProviderError'));
+    }
     h.comments.push({ kind, ...(details ? { details } : {}) });
     h.calls.push(`postComment:${kind}${details ? `:${details.status}` : ''}`);
     return Promise.resolve();
@@ -215,6 +227,60 @@ beforeEach(() => {
 });
 afterEach(() => {
   vi.useRealTimers();
+});
+
+describe('a run queued behind a full project gate', () => {
+  it('posts the queued comment while it waits for a slot, then starts and posts the start comment', async () => {
+    const h = start();
+    h.firstSlotQueued = true;
+    await waitFor('queued comment', () => h.comments.some((c) => c.kind === 'queued'));
+    expect(phase()).toBe('waiting_slot');
+    expect(h.calls).toEqual(['loadRun', 'requestSlot', 'postComment:queued']);
+
+    h.grant();
+    await toRunning(h);
+    expect(h.calls).toEqual([
+      'loadRun',
+      'requestSlot',
+      'postComment:queued',
+      'setRunStatus:starting',
+      'createRunSecretAndJob',
+      'postComment:start',
+      'followPodLogs',
+    ]);
+  });
+
+  it('posts no queued comment when the slot is granted at once', async () => {
+    const h = start();
+    await toRunning(h);
+    expect(h.comments.map((c) => c.kind)).toEqual(['start']);
+  });
+
+  it('keeps waiting and starts when the queued comment cannot be posted', async () => {
+    const h = start();
+    h.firstSlotQueued = true;
+    h.queuedCommentFails = true;
+    await waitFor('queued comment attempt', () => h.calls.includes('postComment:queued:failed'));
+    expect(phase()).toBe('waiting_slot');
+
+    h.grant();
+    await toRunning(h);
+    expect(h.failure).toBeUndefined();
+    expect(h.comments.map((c) => c.kind)).toEqual(['start']);
+  });
+
+  it('posts no queued comment for a run that started before the queued comment existed', async () => {
+    runtime.unpatched.add('queued-comment');
+    const h = start();
+    h.firstSlotQueued = true;
+    await waitFor('slot request', () => h.slotRequests === 1);
+    await settle();
+    expect(h.comments).toEqual([]);
+
+    h.grant();
+    await toRunning(h);
+    expect(h.comments.map((c) => c.kind)).toEqual(['start']);
+  });
 });
 
 describe('parking on idle', () => {

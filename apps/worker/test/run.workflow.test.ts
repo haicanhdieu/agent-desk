@@ -185,7 +185,7 @@ function activities(): RunActivities {
     },
     async requestSlot(input) {
       script(input.runId).calls.push('requestSlot');
-      await requestSlot(env.client.workflow, input);
+      return requestSlot(env.client.workflow, input);
     },
     async setRunStatus(input) {
       const s = script(input.runId);
@@ -724,6 +724,33 @@ describe('RunWorkflow', () => {
     await env.client.workflow.getHandle(gateWorkflowId(s.ctx.projectId)).signal(signals.setLimit, 1);
     await gateForgot(s);
     expect(count(s, 'createRunSecretAndJob')).toBe(0);
+  });
+
+  it('a run that finds the project gate full posts the queued comment while it waits, then starts when a slot frees', async () => {
+    const projectId = randomUUID();
+    const first = newRun({ projectId, maxConcurrentRuns: 1 });
+    const h1 = await start(first);
+    await first.logsStarted.promise;
+
+    const second = newRun({ projectId, maxConcurrentRuns: 1 });
+    const h2 = await start(second);
+    await waitFor(() => count(second, 'postComment:queued') === 1, 'queued comment');
+    expect((await state(h2)).phase).toBe('waiting_slot');
+    expect(count(second, 'createRunSecretAndJob')).toBe(0);
+    expect(count(first, 'postComment:queued')).toBe(0);
+
+    first.logs.resolve({ exitCode: 0 });
+    await h1.result();
+    await second.logsStarted.promise;
+    expect(second.calls.slice(0, 5)).toEqual([
+      'loadRun',
+      'requestSlot',
+      'postComment:queued',
+      'createRunSecretAndJob',
+      'postComment:start',
+    ]);
+    second.logs.resolve({ exitCode: 0 });
+    await h2.result();
   });
 
   it('Review Focus 2: cancel after the Job is created, before the first log line → deleteJob, cancelled, one finish comment', async () => {

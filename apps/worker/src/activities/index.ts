@@ -41,7 +41,7 @@ export function createActivities(deps: ActivityDeps): Activities {
       ...(deps.timing ? { timing: deps.timing } : {}),
     }),
     setRunStatus: (input: SetRunStatusInput) => setRunStatus(deps.db, input),
-    requestSlot: (input: RequestSlotInput) => requestSlot(deps.gate, input),
+    requestSlot: (input: RequestSlotInput) => requestSlot(deps.gate, input, deps.log),
     pollOnce: (input) => pollOnce(pollDeps, input),
     pausePollSchedule: (input) => pausePollSchedule(pollDeps, input),
     resumePollSchedule: (input) => resumePollSchedule(pollDeps, input),
