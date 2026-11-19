@@ -78,10 +78,49 @@ describe('fake-pod.mjs', () => {
     await expect(boot({}, null)).rejects.toMatchObject({ code: 64 });
   });
 
+  describe('launch line', () => {
+    it('logs the launch line first, with the address origin', async () => {
+      await boot({
+        AGENT_MODEL: 'haiku',
+        ANTHROPIC_BASE_URL: 'https://gateway.harbor-labs.com/v1/anthropic',
+      });
+      expect(logLines()[0]).toBe('agentdesk: agent claude model haiku endpoint https://gateway.harbor-labs.com');
+    });
+
+    it('logs endpoint default without an address', async () => {
+      await boot({ AGENT_MODEL: 'haiku' });
+      expect(logLines()[0]).toBe('agentdesk: agent claude model haiku endpoint default');
+    });
+
+    it('logs endpoint default for an address that does not parse', async () => {
+      await boot({ AGENT_MODEL: 'haiku', ANTHROPIC_BASE_URL: 'not a url' });
+      expect(logLines()[0]).toBe('agentdesk: agent claude model haiku endpoint default');
+    });
+
+    it('logs model default without a model', async () => {
+      await boot({});
+      expect(logLines()[0]).toBe('agentdesk: agent claude model default endpoint default');
+    });
+
+    it('a resumed pod logs the launch line first too', async () => {
+      const vol = join(dir, 'vol');
+      mkdirSync(vol);
+      writeFileSync(join(vol, 'session-started'), 'x');
+      await boot({
+        RUN_MODE: 'resume',
+        FAKE_VOLUME_DIR: vol,
+        AGENT_MODEL: 'opus',
+        ANTHROPIC_BASE_URL: 'https://gateway.harbor-labs.com/v1/anthropic',
+      });
+      expect(logLines()[0]).toBe('agentdesk: agent claude model opus endpoint https://gateway.harbor-labs.com');
+    });
+  });
+
   describe('start-up', () => {
     it('logs checkout, plugins, a skipped setup and the session start, then the first turn working', async () => {
       await boot({ PROMPT: 'do the thing' });
       expect(logLines()).toEqual([
+        'agentdesk: agent claude model default endpoint default',
         `agentdesk: checkout ${'0'.repeat(40)}`,
         'agentdesk: plugins begin',
         'agentdesk: plugins end',
@@ -155,7 +194,10 @@ describe('fake-pod.mjs', () => {
     it('exits 79 with no saved session', async () => {
       await expect(boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume })).rejects.toMatchObject({ code: 79 });
       expect(read('exit')).toBe('79');
-      expect(logLines()).toEqual(['agentdesk: resume failed (no saved session)']);
+      expect(logLines()).toEqual([
+        'agentdesk: agent claude model default endpoint default',
+        'agentdesk: resume failed (no saved session)',
+      ]);
     });
 
     it('exits 79 when the pod has no volume at all', async () => {
@@ -173,7 +215,11 @@ describe('fake-pod.mjs', () => {
       // The first pod is gone: its input timer must not stand in for the resumed pod's (it watches the same path here).
       vi.clearAllTimers();
       await boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume });
-      expect(logLines()).toEqual(['agentdesk: session resumed', 'agentdesk: session started']);
+      expect(logLines()).toEqual([
+        'agentdesk: agent claude model default endpoint default',
+        'agentdesk: session resumed',
+        'agentdesk: session started',
+      ]);
       expect(read('pane')).toContain('first question');
       advance(TURN_MS * 3);
       expect(stateLines()).toEqual([]);

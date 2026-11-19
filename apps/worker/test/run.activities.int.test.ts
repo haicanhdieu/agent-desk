@@ -537,6 +537,112 @@ describe('createRunSecretAndJob', () => {
   });
 });
 
+describe('createRunSecretAndJob agent env', () => {
+  const setRunModel = (runId: string, model: string | null) =>
+    asOwner((c) => c.query('update runs set model = $1 where id = $2', [model, runId]));
+  const setAgent = (sql: string, args: unknown[]) =>
+    asOwner((c) => c.query(`update agents set ${sql} where id = $1`, [AGENT, ...args]));
+
+  afterEach(async () => {
+    await setAgent('model = $2, base_url = null, provider = $3', ['sonnet', 'claude']);
+  });
+
+  const envAfter = async (runId: string, opts?: { resume?: boolean }) => {
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx, opts);
+    const env = await kube.podEnv(`run-${runId}`);
+    await acts.deleteJob(ctx);
+    await acts.deleteRunVolume(ctx);
+    return env;
+  };
+
+  it('the Job env carries the run model, not the agent default', async () => {
+    await setAgent('model = $2', ['opus']);
+    const runId = await seedRun('x');
+    await setRunModel(runId, 'haiku');
+    expect(await envAfter(runId)).toMatchObject({ AGENT: 'claude', AGENT_MODEL: 'haiku', ANTHROPIC_MODEL: 'haiku' });
+  });
+
+  it('a resume after the default model changed keeps the run model', async () => {
+    const runId = await seedRun('x', 'queued');
+    await setRunModel(runId, 'haiku');
+    await setAgent('model = $2', ['opus']);
+    expect((await envAfter(runId, { resume: true }))?.AGENT_MODEL).toBe('haiku');
+  });
+
+  it('a resume reads the agent address fresh', async () => {
+    const runId = await seedRun('x', 'queued');
+    await setAgent('base_url = $2', ['https://gw.example.com/anthropic']);
+    expect((await envAfter(runId, { resume: true }))?.ANTHROPIC_BASE_URL).toBe('https://gw.example.com/anthropic');
+    await setAgent('base_url = null', []);
+    expect((await envAfter(runId, { resume: true }))?.ANTHROPIC_BASE_URL).toBeUndefined();
+  });
+
+  it('a run without a recorded model uses the agent default', async () => {
+    const runId = await seedRun('x');
+    await setRunModel(runId, null);
+    expect(await envAfter(runId)).toMatchObject({ AGENT_MODEL: 'sonnet', ANTHROPIC_MODEL: 'sonnet' });
+  });
+
+  it('an unknown agent kind fails non-retryably before anything is created, and in postComment too', async () => {
+    await setAgent('provider = $2', ['mystery']);
+    const runId = await seedRun('x', 'queued');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    for (const call of [() => acts.createRunSecretAndJob(ctx), () => acts.postComment(ctx, 'queued')]) {
+      const err = await call().catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApplicationFailure);
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+      expect((err as ApplicationFailure).message).toContain('unknown agent kind');
+    }
+    expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('a run whose agent is gone still loads (null kind): postComment works, the launch says no credential', async () => {
+    const runId = await seedRun('x', 'queued');
+    await asOwner((c) => c.query('update runs set agent_id = null where id = $1', [runId]));
+    const ctx = { ...(await ctxFor(runId)), agentId: null };
+    const acts = createRunActivities(deps());
+    await acts.postComment(ctx, 'queued');
+    expect(Object.keys((await load(runId)).run?.outbox ?? {})).toEqual(['queued']);
+    const err = await acts.createRunSecretAndJob(ctx).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect((err as ApplicationFailure).message).toContain('no credential');
+  });
+
+  it('an agent deleted after loadRun fails the launch non-retryably, though the context still names a credential', async () => {
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    await asOwner((c) => c.query('update runs set agent_id = null where id = $1', [runId]));
+    const err = await createRunActivities(deps())
+      .createRunSecretAndJob(ctx)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ApplicationFailure);
+    expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+
+  it('the run Secret key comes from the adapter', async () => {
+    await secrets.put(`org-${ORG}-agent-${AGENT}`, { type: 'api_key', value: CRED });
+    try {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx);
+      expect(await kube.readSecret(`run-${runId}`)).toMatchObject({ ANTHROPIC_API_KEY: CRED });
+      expect(await kube.readSecret(`run-${runId}`)).not.toHaveProperty('CLAUDE_CODE_OAUTH_TOKEN');
+      await acts.deleteJob(ctx);
+      await acts.deleteRunVolume(ctx);
+    } finally {
+      await secrets.put(`org-${ORG}-agent-${AGENT}`, { type: 'oauth_token', value: CRED });
+    }
+  });
+});
+
 describe('createRunSecretAndJob prompt', () => {
   it('a prompt run gets the custom prompt then the system lines in PROMPT', async () => {
     const runId = await seedPromptRun('Triage this.\nAdd labels.', 'now');
@@ -777,8 +883,8 @@ describe('activity errors are redacted', () => {
 
 // The fake pod's log up to the agent starting, as lifecycle kinds (one log line each); the first turn finishes next.
 const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
-// The pod also logs `git identity <name> <email>`: a plain text line, so it counts as a log line but stores no event.
-const PRELUDE_TEXT_LINES = 1;
+// The pod also logs the launch line and `git identity <name> <email>`: plain text lines, so they count as log lines but store no event.
+const PRELUDE_TEXT_LINES = 2;
 // The fake pod's first turn logs `state working` then `state needs_input`; the first turn's end is the first replayable boundary.
 const FIRST_TURN_LINE = PRELUDE_KINDS.length + PRELUDE_TEXT_LINES + 2;
 

@@ -4,6 +4,8 @@ import { z } from 'zod';
 import {
   AGENT_IDLE_END_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
+  AgentKind,
+  CredentialType,
   Provider,
   RunStatus,
   TicketKind,
@@ -11,6 +13,7 @@ import {
   type AgentState,
 } from '@agentdesk/contracts';
 import {
+  agentAdapterFor,
   END_COMMAND,
   END_REASONS,
   EXEC_NOT_FOUND,
@@ -169,12 +172,6 @@ const RESUME_FAILED_EXIT_CODE = 79;
 const COMMENT_TAIL_CHARS = 2000;
 const COMMENT_REASON_CHARS = 500;
 
-/** Where the runner image expects the agent credential (runner contract; the credential store keeps `{type, value}`). */
-const CREDENTIAL_ENV: Record<string, string> = {
-  oauth_token: 'CLAUDE_CODE_OAUTH_TOKEN',
-  api_key: 'ANTHROPIC_API_KEY',
-};
-
 const SetupMarkerPayload = z.object({
   kind: z.string(),
   exitCode: z.number().int().optional(),
@@ -183,7 +180,7 @@ const SetupMarkerPayload = z.object({
 const EndMarkerPayload = z.object({ reason: z.enum(END_REASONS), code: z.number().int() });
 /** The `finish` outbox marker; `status` is absent on markers written before it was recorded. */
 const FinishMarker = z.object({ status: z.string().optional() });
-const StoredCredential = z.object({ type: z.string(), value: z.string().min(1) });
+const StoredCredential = z.object({ type: CredentialType, value: z.string().min(1) });
 
 const isFinal = (s: RunStatus): boolean =>
   s === 'succeeded' || s === 'failed' || s === 'cancelled' || s === 'timed_out';
@@ -270,8 +267,12 @@ interface RunDetails {
   code: { provider: string; externalId: string };
   board: { provider: string; externalId: string };
   maxTurns: number | null;
-  /** The agent's configured model; empty when the agent was deleted after queueing. */
+  /** The model the run was queued with, else the agent's default; empty when neither exists (agent gone, old run). */
   model: string;
+  /** The agent's kind; null when the agent was deleted after queueing. */
+  agentKind: AgentKind | null;
+  /** The agent's custom API address now (read fresh on a resume); null means the provider's own. */
+  baseUrl: string | null;
   /** `runs.agent_id` now (null when the agent was deleted); resume reads it fresh instead of trusting a RunContext. */
   agentId: string | null;
   /** Login and provider user id of the person who triggered the run; null on runs created before they were recorded. */
@@ -312,7 +313,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         boardProvider: board.provider,
         boardExternalId: board.externalId,
         maxTurns: agents.maxTurns,
-        model: agents.model,
+        runModel: runs.model,
+        agentModel: agents.model,
+        agentKind: agents.provider,
+        baseUrl: agents.baseUrl,
         agentId: runs.agentId,
         triggeredBy: runs.triggeredBy,
         triggeredByExternalId: runs.triggeredByExternalId,
@@ -324,6 +328,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       .leftJoin(agents, eq(agents.id, runs.agentId))
       .where(eq(runs.id, runId));
     if (!r) return null;
+    let agentKind: AgentKind | null = null;
+    if (r.agentKind !== null) {
+      const kind = AgentKind.safeParse(r.agentKind);
+      if (!kind.success) throw ApplicationFailure.nonRetryable('unknown agent kind');
+      agentKind = kind.data;
+    }
     const [o] = await tx.select({ slug: organization.slug }).from(organization).where(eq(organization.id, orgId));
     const ticketNumber = r.ticketNumber ?? Number.parseInt(r.ticketRef.replace(/^#/, ''), 10);
     return {
@@ -346,7 +356,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       code: { provider: r.codeProvider, externalId: r.codeExternalId },
       board: { provider: r.boardProvider, externalId: r.boardExternalId },
       maxTurns: r.maxTurns,
-      model: r.model ?? '',
+      model: r.runModel ?? r.agentModel ?? '',
+      agentKind,
+      baseUrl: r.baseUrl,
       agentId: r.agentId,
       triggeredBy: r.triggeredBy,
       triggeredByExternalId: r.triggeredByExternalId,
@@ -366,10 +378,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
   };
 
   /**
-   * The agent credential as runner env, or null when none is set. The Secret name is derived from (org, agent), never
+   * The stored agent credential, or null when none is set. The Secret name is derived from (org, agent), never
    * read from the database. A store error propagates (it must not look like "no credential").
    */
-  async function credentialEnv(ctx: RunContext): Promise<Record<string, string> | null> {
+  async function storedCredential(ctx: RunContext): Promise<{ type: CredentialType; value: string } | null> {
     if (!ctx.agentId) return null;
     const name = credentialSecretName(ctx.orgId, ctx.agentId);
     let stored: Record<string, string> | null;
@@ -380,9 +392,13 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       throw ApplicationFailure.retryable('credential store read failed', err instanceof Error ? err.name : 'Error');
     }
     const parsed = StoredCredential.safeParse(stored);
-    if (!parsed.success) return null;
-    const key = CREDENTIAL_ENV[parsed.data.type];
-    return key ? { [key]: parsed.data.value } : null;
+    return parsed.success ? parsed.data : null;
+  }
+
+  /** The credential values to redact (values only; the runner env names are not needed). */
+  async function credentialValues(ctx: RunContext): Promise<string[]> {
+    const cred = await storedCredential(ctx);
+    return cred ? [cred.value] : [];
   }
 
   /**
@@ -391,8 +407,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
    */
   async function redactionList(ctx: RunContext): Promise<string[]> {
     const runSecret = await kube.readSecret(runJobName(ctx.runId));
-    const cred = await credentialEnv(ctx);
-    return [...new Set([...secretValues(runSecret), ...secretValues(cred)])];
+    return [...new Set([...secretValues(runSecret), ...(await credentialValues(ctx))])];
   }
 
   // ---- loadRun
@@ -498,8 +513,9 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return undefined;
     // A resume happens long after `ctx` was loaded: the agent and its credential are read fresh (the agent may be gone).
-    const cred = await credentialEnv(resume ? { ...ctx, agentId: d.agentId } : ctx);
-    if (!cred) {
+    const stored = await storedCredential(resume ? { ...ctx, agentId: d.agentId } : ctx);
+    // An agent with a credential always has a kind; a run without an agent has no credential.
+    if (!stored || d.agentKind === null) {
       throw resume
         ? ApplicationFailure.create({
             type: 'NoAgentCredential',
@@ -528,6 +544,8 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       }
     }
     const project: AdapterProject = toAdapterProject(d, d.code.externalId);
+    const adapter = agentAdapterFor(d.agentKind);
+    const cred = { [adapter.credentialEnv(stored.type)]: stored.value };
     let known = secretValues(cred);
     let plan: TokenRefreshPlan | undefined;
     try {
@@ -574,7 +592,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         gitHost: new URL(codeHost.repoUrl(project)).host,
         cliTokenEnvName: codeHost.cliTokenEnvName(),
         maxTurns: d.maxTurns,
-        model: d.model,
+        agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl }),
         deadlineSeconds: opts.deadlineSeconds ?? ctx.timeoutSeconds,
         resume,
         botName: deps.config.BOT_NAME,
@@ -673,7 +691,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       const storedStatus = FinishMarker.safeParse(stored).data?.status;
       if (status === undefined || storedStatus === undefined || storedStatus === status) return; // already posted
     }
-    const secrets = secretValues(await credentialEnv(ctx));
+    const secrets = await credentialValues(ctx);
     const text = commentText(ctx, d, kind, fd, secrets);
     let commentId: string;
     try {
@@ -1226,7 +1244,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     db,
     config: deps.config,
     signaller: deps.signaller,
-    redactionValues: async (ctx) => secretValues(await credentialEnv(ctx)),
+    redactionValues: credentialValues,
   });
 
   return {

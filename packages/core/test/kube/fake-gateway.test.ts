@@ -39,7 +39,7 @@ const jobFor = (
     gitHost: 'fake.invalid',
     cliTokenEnvName: 'GH_TOKEN',
     maxTurns: null,
-    model: 'claude-opus-4-1',
+    agentEnv: [{ name: 'AGENT_MODEL', value: 'claude-opus-4-1' }],
     deadlineSeconds: 60,
     resume,
     botName: 'bot',
@@ -131,8 +131,9 @@ describe('FakeKubeGateway', () => {
     });
     expect(pod.name).toBe(name);
     const c = collect(pod.name);
-    await until(async () => c.lines.length >= 8);
-    expect(c.lines.slice(0, 8)).toEqual([
+    await until(async () => c.lines.length >= 9);
+    expect(c.lines.slice(0, 9)).toEqual([
+      'agentdesk: agent claude model claude-opus-4-1 endpoint default',
       'agentdesk: git identity bot bot@x.invalid',
       `agentdesk: checkout ${'0'.repeat(40)}`,
       'agentdesk: plugins begin',
@@ -175,7 +176,8 @@ describe('FakeKubeGateway', () => {
     await gw.ensureJob(jobFor(id, '', true));
     const c = collect(name);
     await until(async () => c.lines.includes('agentdesk: session started'));
-    expect(c.lines.slice(0, 3)).toEqual([
+    expect(c.lines.slice(0, 4)).toEqual([
+      'agentdesk: agent claude model claude-opus-4-1 endpoint default',
       'agentdesk: git identity bot bot@x.invalid',
       'agentdesk: session resumed',
       'agentdesk: session started',

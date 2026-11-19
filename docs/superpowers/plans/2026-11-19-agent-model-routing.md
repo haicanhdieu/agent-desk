@@ -600,30 +600,30 @@ git commit -m "feat(runner): pass the run model with --model and print the launc
 - Consumes: `runs.model`, `agents.baseUrl`, `AgentKind` (Task 1); `agentAdapterFor`, `AgentAdapter.credentialEnv`, `AgentAdapter.launchEnv` (Task 3).
 - Produces: `RunJobInput.agentEnv: { name: string; value: string }[]` replaces `RunJobInput.model` (literal env values, appended to the common env in both fresh and resume Jobs; the `ANTHROPIC_MODEL` line in `buildRunJob` goes). `RunDetails` gains `agentKind: AgentKind | null` and `baseUrl: string | null`; `RunDetails.model = runs.model ?? agents.model ?? ''`. `CREDENTIAL_ENV` is removed from the worker. The fake pod's first log line, fresh and resumed, is `agentdesk: agent claude model <AGENT_MODEL or default> endpoint <new URL(ANTHROPIC_BASE_URL).origin or default>`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `job-spec.test.ts`: `it('adds agentEnv entries verbatim, in order, to fresh and resume Jobs')`; `it('has no ANTHROPIC_BASE_URL unless agentEnv carries it')`; `it('a model from agentEnv is always set on the container')` (spec Testing: "a model is always set").
 - `fake-pod.test.ts`: `it('logs the launch line first, with the address origin')` (`AGENT_MODEL=haiku`, `ANTHROPIC_BASE_URL=https://gateway.harbor-labs.com/v1/anthropic` → first line `agentdesk: agent claude model haiku endpoint https://gateway.harbor-labs.com`); `it('logs endpoint default without an address')`; `it('a resumed pod logs the launch line first too')`.
 - `run.activities.int.test.ts`: `it('the Job env carries the run model, not the agent default')` (run `haiku`, agent `opus` → `AGENT_MODEL=haiku`); `it('a resume after the default model changed keeps the run model')`; `it('a resume reads the agent address fresh')` (set `agents.base_url` before resume → resumed Job env has the new `ANTHROPIC_BASE_URL`; clear it → none); `it('a run without a recorded model uses the agent default')`; `it('the run Secret key comes from the adapter')` (`api_key` → `ANTHROPIC_API_KEY`).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- job-spec fake-pod && pnpm --filter @agentdesk/worker test -- run.activities.int`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `details()`: select `runModel: runs.model`, `agentModel: agents.model`, `agentKind: agents.provider`, `baseUrl: agents.baseUrl`; parse the kind with `AgentKind.safeParse` (unknown → `ApplicationFailure.nonRetryable('unknown agent kind')`, null stays null).
 - Replace `credentialEnv(ctx)` with a stored-credential read (`{ type, value } | null`) used by `redactionList` (values only) and by `createRunSecretAndJob`, which maps it through `agentAdapterFor(kind).credentialEnv(type)`. A null kind with a credential cannot occur (no agent means no credential); keep the existing "no credential" failures.
 - `createRunSecretAndJob`: `agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl })`.
 - `fake-pod.mjs`: log the launch line before anything else in both branches; update its header comment.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- kube && pnpm --filter @agentdesk/worker test && pnpm typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

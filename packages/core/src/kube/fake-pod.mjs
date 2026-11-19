@@ -26,6 +26,8 @@
 //   - PROMPT containing `--fake-fail`: exit 3 after the first turn (with the scrollback, then the runner's end line
 //     `agentdesk: session ended reason=agent_exit code=3`, so the workflow sees a crashed agent, not a lost pod);
 //     `--fake-pending`: never start (the pod stays Pending) until killed.
+// Both branches log the launch line first: `agentdesk: agent claude model <AGENT_MODEL or default> endpoint <origin of
+// ANTHROPIC_BASE_URL or default>` (the real runner prints the same shape).
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
 import { appendFileSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -47,6 +49,16 @@ const maxLifeMs = Number.parseInt(process.env.FAKE_MAX_LIFE_MS ?? '', 10) || 60 
 const TICK_MS = 50;
 
 const log = (line) => appendFileSync(file('log'), `${line}\n`);
+const launchLine = () => {
+  const model = process.env.AGENT_MODEL || 'default';
+  let endpoint = 'default';
+  try {
+    if (process.env.ANTHROPIC_BASE_URL) endpoint = new URL(process.env.ANTHROPIC_BASE_URL).origin;
+  } catch {
+    // An unparsable address reads as the default; the real pod rejects it earlier.
+  }
+  log(`agentdesk: agent claude model ${model} endpoint ${endpoint}`);
+};
 const logIdentity = () => {
   if (authorName !== '' && authorEmail !== '') log(`agentdesk: git identity ${authorName} ${authorEmail}`);
 };
@@ -78,6 +90,7 @@ if (prompt.includes('--fake-pending')) {
   }, TICK_MS);
 } else {
   writeFileSync(file('started'), new Date().toISOString());
+  launchLine();
   if (resume) {
     if (volumeDir === '' || !existsSync(volumeFile('session-started'))) {
       log('agentdesk: resume failed (no saved session)');
