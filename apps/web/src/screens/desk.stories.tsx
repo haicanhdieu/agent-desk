@@ -269,6 +269,13 @@ const github = (last: { term: string; text: string }) => [
   },
 ];
 
+const agentGithub = github({
+  term: connectionCopy.lastEventTerm,
+  text: 'issue_comment, 2 min ago, accepted (webhook)',
+});
+const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+const savedCredential = { type: 'oauth_token' as const, setAt: '12 Oct 2026', setBy: 'kim-hale' };
+
 export const DeskAgent: Story = {
   name: 'Agent & settings, replacing credential',
   decorators: artboard(1320),
@@ -277,8 +284,67 @@ export const DeskAgent: Story = {
     <DeskAgentScreen
       frame={deskFrame}
       settings={agentSettings}
+      modelList={liveModels}
       replacingCredential
-      github={github({ term: connectionCopy.lastEventTerm, text: 'issue_comment, 2 min ago, accepted (webhook)' })}
+      github={agentGithub}
+    />
+  ),
+};
+
+export const DeskAgentCustomModel: Story = {
+  name: 'Agent & settings, custom model and address',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentScreen
+      frame={deskFrame}
+      settings={{
+        ...agentSettings,
+        model: 'anthropic/claude-sonnet-4-5',
+        baseUrl: 'https://gateway.harbor-labs.com/anthropic',
+        credential: savedCredential,
+      }}
+      modelList={toModelList(
+        { status: 'success', data: agentModelsFixtures.unreachable },
+        'https://gateway.harbor-labs.com/anthropic',
+      )}
+      github={agentGithub}
+    />
+  ),
+};
+
+export const DeskAgentAddressChanged: Story = {
+  name: 'Agent & settings, API address changed',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentScreen
+      frame={deskFrame}
+      settings={{ ...agentSettings, credential: savedCredential }}
+      modelList={liveModels}
+      initialAddress="https://gateway.harbor-labs.com/anthropic"
+      github={agentGithub}
+    />
+  ),
+};
+
+export const DeskAgentLoadingModels: Story = {
+  name: 'Agent & settings, loading model list',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => <DeskAgentScreen frame={deskFrame} settings={agentSettings} github={agentGithub} />,
+};
+
+export const DeskAgentModelsFailed: Story = {
+  name: 'Agent & settings, model list failed',
+  decorators: artboard(1320),
+  globals: viewport(1440, 1320),
+  render: () => (
+    <DeskAgentScreen
+      frame={deskFrame}
+      settings={agentSettings}
+      modelList={toModelList({ status: 'error' }, null)}
+      github={agentGithub}
     />
   ),
 };

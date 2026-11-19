@@ -987,27 +987,27 @@ SecretFieldProps.replacing?: { title: string; note?: string; status?: string; he
 
 Screen behaviour (boards `DeskAgent`, `DeskAgentCustomModel`, `DeskAgentAddressChanged`): "Default model" `ModelPicker` with help "Loaded from the provider. Rules that don't name a model use this one." and typed help "Sent to Claude Code exactly as typed. Rules that don't name a model use this one."; a **Save agent** button calls `onSaveAgent(value)`; an "API address" input (placeholder `https://api.anthropic.com`, mono) with help "Optional. Leave empty for Anthropic's default. Runs get it as ANTHROPIC_BASE_URL. Public https addresses only. Changing it needs the credential again." When the typed address (trimmed) differs from `settings.baseUrl`: the address help becomes "Changed from Anthropic's default. It is saved together with the new credential below." (or the Agent-call line for a custom saved address); the credential is forced into replacing with title "Credential needed again", status "Replaced when you save", note "The API address changed. A saved credential is only sent to the address it was saved with, so paste it again for the new one.", help "We test the new token with one small call before saving. The address and the token are saved together; runs already in progress keep the ones they started with."; Test and replace stays disabled while the token is empty; submit calls `onReplaceCredential(type, value, baseUrl)`. Typing the saved value back leaves the replacing state (Review Focus 5).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `desk.test.tsx` (screen): `it('Default model lists the live models with the provider note')`; `it('Save agent sends the picked or typed model')`; `it('editing the API address switches the credential to its replacing state with the board texts')`; `it('typing the saved address back leaves the replacing state and sends no baseUrl')`; `it('clearing a saved address sends baseUrl null')`; `it('Test and replace is disabled until a token is typed')`; `it('shows addressError and modelError on their fields')`; `it('no credential shows no "Set … by …" line')`.
 `SecretField.test.tsx`: `it('replacing overrides title, status, note and help')`.
 `coverage.test.ts`: 36 boards.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- desk.test SecretField coverage`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement screen, stories and board registration**
+- [x] **Step 3: Implement screen, stories and board registration**
 
 Stories: update `DeskAgent` to the board (live list, empty address); add `DeskAgentCustomModel` (fallback `unreachable`, host `gateway.harbor-labs.com`, saved address `https://gateway.harbor-labs.com/anthropic`, typed model `anthropic/claude-sonnet-4-5`) and `DeskAgentAddressChanged` (`initialAddress` `https://gateway.harbor-labs.com/anthropic`, saved address empty); add state stories Loading model list and Model list failed. Register both new boards in `storyIds.ts` (`boardStories`, canvas order), `parity.mjs` and `canvas.json` together, and update the board count in comments and `coverage.test.ts`.
 
-- [ ] **Step 4: Run tests, Storybook and parity**
+- [x] **Step 4: Run tests, Storybook and parity**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`
 Expected: PASS; drift on the three Desk Agent boards fixed, or recorded in `design/parity-notes.md`.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

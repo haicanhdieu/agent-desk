@@ -20,6 +20,7 @@ describe('toAgentSettings', () => {
     expect(toAgentSettings(agent, project, now)).toEqual({
       agent: 'Claude',
       model: 'opus',
+      baseUrl: '',
       credential: { type: 'oauth_token', setAt: '12 Oct', setBy: 'kim-hale' },
       timeoutMinutes: 30,
       pausedKeepMinutes: 10080,
@@ -28,6 +29,12 @@ describe('toAgentSettings', () => {
       maxConcurrent: 2,
       maxRunsPerTicket: 10,
     });
+  });
+
+  it('a custom address maps through; none maps to the empty string', () => {
+    expect(toAgentSettings({ ...agent, baseUrl: 'https://gw.example.com/a' }, project, now).baseUrl).toBe(
+      'https://gw.example.com/a',
+    );
   });
 
   it('no credential yet: empty set-at and set-by', () => {

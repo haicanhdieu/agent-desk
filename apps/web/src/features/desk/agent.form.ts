@@ -17,6 +17,7 @@ export function toAgentSettings(agent: AgentDto, project: ProjectDto, now: Date)
   return {
     agent: 'Claude',
     model: agent.model,
+    baseUrl: agent.baseUrl ?? '',
     credential: {
       type: credential.type ?? 'oauth_token',
       // Empty when no credential is set: the screen then shows no "Set … by …" line.

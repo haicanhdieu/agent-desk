@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 34 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 36 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -46,6 +46,8 @@ export const boardStories = {
   DeskRulesPromptNew: { title: desk, exportName: 'DeskRulesPromptNew' },
   DeskRulesPromptError: { title: desk, exportName: 'DeskRulesPromptError' },
   DeskAgent: { title: desk, exportName: 'DeskAgent' },
+  DeskAgentCustomModel: { title: desk, exportName: 'DeskAgentCustomModel' },
+  DeskAgentAddressChanged: { title: desk, exportName: 'DeskAgentAddressChanged' },
   DeskSetup: { title: desk, exportName: 'DeskSetup' },
   DeskSetupTest: { title: desk, exportName: 'DeskSetupTest' },
 } as const satisfies Record<string, BoardStory>;
@@ -71,6 +73,8 @@ export const stateStories = {
   DeskAgentCheckNowRefused: { title: desk, exportName: 'DeskAgentCheckNowRefused', board: 'DeskAgent' },
   DeskRulesNewRuleError: { title: desk, exportName: 'DeskRulesNewRuleError', board: 'DeskRules' },
   Setup4Prompt: { title: setup, exportName: 'Setup4Prompt', board: 'Setup4' },
+  DeskAgentLoadingModels: { title: desk, exportName: 'DeskAgentLoadingModels', board: 'DeskAgent' },
+  DeskAgentModelsFailed: { title: desk, exportName: 'DeskAgentModelsFailed', board: 'DeskAgent' },
   DeskAgentSaveErrors: { title: desk, exportName: 'DeskAgentSaveErrors', board: 'DeskAgent' },
   DeskSkillsSetupWarning: { title: desk, exportName: 'DeskSkillsSetupWarning', board: 'DeskSkills' },
   DeskSetupStale: { title: desk, exportName: 'DeskSetupStale', board: 'DeskSetup' },
