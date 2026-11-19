@@ -190,7 +190,7 @@ transcript: { method: 'GET', path: '/api/runs/:runId/transcript', params: runPar
 - Produces (core): `UPDATE.stopSession = 'stopSession'`, with doc comment "RunWorkflow: stop a live session (park as paused/stopped); resolves `{ accepted: true }` or fails `NotStoppable`."
 - Produces (web mocks): `MockDb` gains `runTranscripts: Record<string, RunTranscriptEntryDto[]>` (by run id, oldest first, empty in the seed). The `'runs.transcript'` handler pages it exactly as the route does. The `'runs.stop'` handler answers 202 for a run in `STOPPABLE_RUN_STATUSES` with `sessionEndingAt === null`, and otherwise the 409 problem with the pre-check wording (Agent call above).
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 In `transcript.test.ts`:
 - `TranscriptWireEntry` accepts `{ id: 'a1b2:0', kind: 'agent', text: 'hi' }`, and `{ id: 'x', kind: 'tool', tool: 'Bash', text: 'dotnet test', at: '2026-11-19T14:13:00.000Z', truncated: true }`.
@@ -203,21 +203,21 @@ In `runs.test.ts`: the run literal gets `pausedKeepSeconds: 604800`. Add `PauseR
 
 In `routes.test.ts`: the route count goes to `46`. Add `flat['runs.stop']` toMatchObject `{ method: 'POST', path: '/api/runs/:runId/stop' }` and `flat['runs.transcript']` toMatchObject `{ method: 'GET', path: '/api/runs/:runId/transcript' }`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: FAIL. `TranscriptWireEntry` and `STOPPABLE_RUN_STATUSES` are not exported, and the route count is 44.
 
-- [ ] **Step 3: Implement the contracts and the update name**
+- [x] **Step 3: Implement the contracts and the update name**
 
 Add the enums, the new schema file (exported from `index.ts`), `pausedKeepSeconds`, the two routes and `UPDATE.stopSession`. Count text bytes with `new TextEncoder().encode(s).length` in a `refine`. Use one `superRefine` for "tool only with kind tool".
 
-- [ ] **Step 4: Run the contract tests**
+- [x] **Step 4: Run the contract tests**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: PASS.
 
-- [ ] **Step 5: Write the failing consumer tests**
+- [x] **Step 5: Write the failing consumer tests**
 
 - `apps/api/test/runs.int.test.ts`: next to the `idleEndSeconds` test, add `it('a run carries its agent paused keep time, or the default for a deleted agent')`. Set `agents.pausedKeepSeconds = 7200`, then `runs.get` matches `{ pausedKeepSeconds: 7200 }`, and the orphan run matches `{ pausedKeepSeconds: 604800 }`.
 - `apps/web/src/mocks/msw/contract.test.ts`, `it('runs.transcript pages newest-first windows oldest first and runs.stop answers 202 on a live run')`:
@@ -228,23 +228,23 @@ Expected: PASS.
   - `runs.stop` on the idle run resolves, and on a paused run it rejects with status 409.
 - `apps/web/src/features/runs/detail.map.test.ts`: `pauseReasonText('stopped')` is `'stopped by you'`.
 
-- [ ] **Step 6: Run them and see them fail**
+- [x] **Step 6: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- contract detail.map`
 Expected: FAIL. `pausedKeepSeconds` is missing, there is no handler for the new routes, and `pauseReasonText` has no `'stopped'` case. Typecheck also fails on that switch.
 
-- [ ] **Step 7: Keep every consumer compiling**
+- [x] **Step 7: Keep every consumer compiling**
 
 - `runs.service.ts`: `AgentInfo` and `agentsFor` gain `pausedKeepSeconds`. `toListItem` sets `pausedKeepSeconds: agent?.pausedKeepSeconds ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT`.
 - Web: `pausedKeepSeconds: 604800` in both literals of `mocks/dto/runs.ts` and in the run the handlers build (`handlers.ts` near line 277). The `{ ...run, idleEndSeconds }` merge (near line 133) also copies the agent's `pausedKeepSeconds`. Add `runTranscripts` to `db.ts` (seed `{}`, reset with the store), the two handlers in `routeHandlers`, and `'runs.stop': 202` in the status map.
 - `detail.map.ts`: add `case 'stopped': return 'stopped by you';` to `pauseReasonText`.
 
-- [ ] **Step 8: Typecheck and test the touched packages**
+- [x] **Step 8: Typecheck and test the touched packages**
 
 Run: `pnpm typecheck && pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- contract detail.map map`
 Expected: typecheck clean everywhere, tests PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 devbox run fix
@@ -275,7 +275,7 @@ export const runTranscriptEntries = pgTable('run_transcript_entries', {
       index run_transcript_entries_org_idx (org_id); orgPolicy() */);
 ```
 
-- [ ] **Step 1: Write the failing db tests**
+- [x] **Step 1: Write the failing db tests**
 
 In `migrate.int.test.ts`, add `it('0017 adds stopped to the pause reason check and writes no rows')`:
 - the SQL has no `UPDATE`/`INSERT`/`DELETE`;
@@ -290,12 +290,12 @@ Add `it('0018 creates run_transcript_entries with forced RLS and the run_events 
 
 In `rls.int.test.ts`, add `it('run_transcript_entries rows of another org are invisible and cannot be inserted')`, in the style of the `run_events` case.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/db test`
 Expected: FAIL. The table and the `stopped` value do not exist.
 
-- [ ] **Step 3: Edit the schema and generate both migrations**
+- [x] **Step 3: Edit the schema and generate both migrations**
 
 Change the check literal in `runs` (and its comment). Run `pnpm --filter @agentdesk/db db:generate --name run_pause_reason_stopped`. Add the table, then run `pnpm --filter @agentdesk/db db:generate --name run_transcript_entries`. Append the hand-written block to `0018`, in the style of `0007_setup_tests.sql`:
 
@@ -307,12 +307,12 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON "run_transcript_entries" TO agentdesk_ap
 
 Check that `0017` only drops and re-adds `runs_pause_reason_check`, like `0014`.
 
-- [ ] **Step 4: Run the db tests**
+- [x] **Step 4: Run the db tests**
 
 Run: `pnpm --filter @agentdesk/db test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

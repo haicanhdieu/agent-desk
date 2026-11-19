@@ -12,6 +12,7 @@ import {
 import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
+import { RunTranscriptQuery, RunTranscriptResponse } from './schemas/transcript';
 import {
   CreateSetupTestRequest,
   PluginsDto,
@@ -266,6 +267,14 @@ export const routes = {
     cancel: { method: 'POST', path: '/api/runs/:runId/cancel', params: runParams, response: empty },
     finish: { method: 'POST', path: '/api/runs/:runId/finish', params: runParams, response: empty },
     resume: { method: 'POST', path: '/api/runs/:runId/resume', params: runParams, response: empty },
+    stop: { method: 'POST', path: '/api/runs/:runId/stop', params: runParams, response: empty },
+    transcript: {
+      method: 'GET',
+      path: '/api/runs/:runId/transcript',
+      params: runParams,
+      query: RunTranscriptQuery,
+      response: RunTranscriptResponse,
+    },
     /** SSE (text/event-stream): `event: status` (RunStatusEvent) then `event: event` (RunEventMessage) frames. */
     events: {
       method: 'GET',

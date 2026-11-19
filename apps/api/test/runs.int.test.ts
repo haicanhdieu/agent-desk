@@ -189,6 +189,24 @@ describe('run reads', () => {
     expect(expectContract('runs.get', await get(`/api/runs/${orphan.id}`))).toMatchObject({ idleEndSeconds: 1800 });
   });
 
+  it('a run carries its agent paused keep time, or the default for a deleted agent', async () => {
+    const agentId = (
+      await withOrg(t.db, orgId, (tx) =>
+        tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId)).limit(1),
+      )
+    )[0]?.id;
+    if (!agentId) throw new Error('no agent');
+    await withOrg(t.db, orgId, (tx) =>
+      tx.update(agents).set({ pausedKeepSeconds: 7200 }).where(eq(agents.id, agentId)),
+    );
+    const r = await insertRun({ agentId });
+    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ pausedKeepSeconds: 7200 });
+    const orphan = await insertRun({ agentId: null });
+    expect(expectContract('runs.get', await get(`/api/runs/${orphan.id}`))).toMatchObject({
+      pausedKeepSeconds: 604800,
+    });
+  });
+
   it('list items omit the prompt texts that run detail carries', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     const p = await insertRun({ skillName: null, prompt: 'p', finalPrompt: 'p\nTicket: x' }, pid);

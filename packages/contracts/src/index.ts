@@ -12,3 +12,4 @@ export * from './schemas/runs';
 export * from './schemas/events';
 export * from './schemas/session';
 export * from './schemas/setup';
+export * from './schemas/transcript';

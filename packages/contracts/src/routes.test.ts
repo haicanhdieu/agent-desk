@@ -35,11 +35,13 @@ describe('contracts', () => {
     expect(Object.keys(flat)).toContain('runs.list');
     expect(Object.keys(flat)).toContain('agents.putCredential');
     expect(flat['runs.resume']).toMatchObject({ method: 'POST', path: '/api/runs/:runId/resume' });
+    expect(flat['runs.stop']).toMatchObject({ method: 'POST', path: '/api/runs/:runId/stop' });
+    expect(flat['runs.transcript']).toMatchObject({ method: 'GET', path: '/api/runs/:runId/transcript' });
     expect(flat['projects.pollNow']).toMatchObject({
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(44);
+    expect(Object.keys(flat)).toHaveLength(46);
   });
   it('rejects timeoutSeconds above 7 days', () => {
     expect(PutAgentRequest.safeParse({ model: 'sonnet', timeoutSeconds: 604801 }).success).toBe(false);

@@ -282,6 +282,33 @@ describe('MSW handler semantics', () => {
     await expect(api.skills.list({ params: { projectId: P } })).resolves.toHaveLength(3);
   });
 
+  it('runs.transcript pages newest-first windows oldest first and runs.stop answers 202 on a live run', async () => {
+    const live = await api.runs.byNumber({ params: { projectId: P, number: 61 } });
+    const paused = await api.runs.byNumber({ params: { projectId: P, number: 64 } });
+    const stored = mockDb.state.runs.find((r) => r.id === live.id);
+    if (!stored) throw new Error('run 61 missing');
+    stored.status = 'idle';
+    stored.sessionEndingAt = null;
+    mockDb.state.runTranscripts[live.id] = [1, 2, 3, 4, 5].map((seq) => ({
+      seq,
+      at: '2026-11-19T14:00:00.000Z',
+      kind: 'agent',
+      tool: null,
+      text: `message ${seq}`,
+      truncated: false,
+    }));
+    const page = async (query: { before?: number; limit?: number }) => {
+      const r = await api.runs.transcript({ params: { runId: live.id }, query: { limit: 200, ...query } });
+      return { seqs: r.items.map((i) => i.seq), nextBefore: r.nextBefore };
+    };
+    await expect(page({ limit: 2 })).resolves.toEqual({ seqs: [4, 5], nextBefore: 4 });
+    await expect(page({ before: 4, limit: 2 })).resolves.toEqual({ seqs: [2, 3], nextBefore: 2 });
+    await expect(page({ before: 2 })).resolves.toEqual({ seqs: [1], nextBefore: null });
+    await expect(api.runs.stop({ params: { runId: live.id } })).resolves.toBeNull();
+    const refused = await rejection(api.runs.stop({ params: { runId: paused.id } }));
+    expect(refused).toMatchObject({ status: 409, title: 'Only a live session can be stopped' });
+  });
+
   it('cancels and finishes runs with 202 and 409 when already ended', async () => {
     const run61 = await api.runs.byNumber({ params: { projectId: P, number: 61 } });
     const run62 = await api.runs.byNumber({ params: { projectId: P, number: 62 } });

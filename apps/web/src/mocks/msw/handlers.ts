@@ -2,6 +2,7 @@ import {
   ACTIVE_RUN_STATUSES,
   canResume,
   FINISHABLE_RUN_STATUSES,
+  STOPPABLE_RUN_STATUSES,
   type RouteDef,
   type RuleDto,
   FINAL_RUN_STATUSES,
@@ -130,7 +131,7 @@ function runOf(runId: string): RunDto {
 /** As the API: a run carries its agent's idle end, so an edit on Agent & settings shows on the run screens. */
 const withAgentIdleEnd = (run: RunDto): RunDto => {
   const agent = db().agents.find((a) => a.projectId === run.projectId);
-  return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds } : run;
+  return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds, pausedKeepSeconds: agent.pausedKeepSeconds } : run;
 };
 
 /** Ends the run now; open event streams see the note and the status (live.ts). */
@@ -527,6 +528,21 @@ const impl: Impl = {
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
     return null;
   },
+  'runs.transcript': ({ params, query }) => {
+    // As the API: the newest window below `before`, oldest first; nextBefore is the window's first seq when older ones remain.
+    const all = db().runTranscripts[runOf(params.runId).id] ?? [];
+    const { before } = query;
+    const below = before === undefined ? all : all.filter((e) => e.seq < before);
+    const items = below.slice(Math.max(0, below.length - query.limit));
+    const first = items[0];
+    return { items, nextBefore: items.length < below.length && first ? first.seq : null };
+  },
+  'runs.stop': ({ params }) => {
+    const run = runOf(params.runId);
+    if (run.sessionEndingAt !== null) throw conflict('The session is already ending');
+    if (!STOPPABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Only a live session can be stopped');
+    return null;
+  },
   'runs.resume': ({ params }) => {
     const { user } = session();
     const run = runOf(params.runId);
@@ -566,6 +582,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'rules.create': 201,
   'projects.pollNow': 202,
   'runs.cancel': 202,
+  'runs.stop': 202,
   'runs.finish': 202,
   'setupTests.end': 202,
 };

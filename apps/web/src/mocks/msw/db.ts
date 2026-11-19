@@ -9,6 +9,7 @@ import type {
   RuleDto,
   RunDto,
   RunEventDto,
+  RunTranscriptEntryDto,
   SetupScriptDto,
   SetupTestDto,
   SkillDto,
@@ -76,6 +77,8 @@ export interface MockState {
   rules: RuleDto[];
   runs: RunDto[];
   runEvents: Record<string, RunEventDto[]>;
+  /** Saved transcript entries per run id, oldest first. */
+  runTranscripts: Record<string, RunTranscriptEntryDto[]>;
   /** Saved setup script versions per project, oldest first. */
   setupScripts: Record<string, SetupScriptDto[]>;
   /** Setup tests (oldest first); like the DTO they never carry the script text. */
@@ -148,6 +151,7 @@ export function seedState(): MockState {
     rules: ruleFixtures,
     runs: runFixtures,
     runEvents: runEventFixtures,
+    runTranscripts: {},
     setupScripts: setupScriptFixtures,
     setupTests: [],
     setupTestEvents: {},

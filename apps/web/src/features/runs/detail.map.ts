@@ -96,6 +96,8 @@ export function pauseReasonText(reason: PauseReason): string {
       return 'the pod stopped unexpectedly (out of memory / evicted)';
     case 'agent_crashed':
       return 'the agent crashed';
+    case 'stopped':
+      return 'stopped by you';
   }
 }
 

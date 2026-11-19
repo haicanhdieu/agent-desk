@@ -46,6 +46,9 @@ const inserts: Record<string, (tx: Tx, orgId: string) => Promise<unknown>> = {
       values (${o}, ${a.projectId}, '/fix', 'fix', '#9', 'issue', 'main', 'manual')`),
   run_events: (tx, o) =>
     tx.execute(sql`insert into run_events (org_id, run_id, seq, type) values (${o}, ${a.runId}, 99, 'status')`),
+  run_transcript_entries: (tx, o) =>
+    tx.execute(sql`insert into run_transcript_entries (org_id, run_id, seq, source_id, at, kind, text)
+      values (${o}, ${a.runId}, 99, ${`s-${Math.random()}`}, now(), 'agent', 'x')`),
   inbound_events: (tx, o) =>
     tx.execute(sql`insert into inbound_events (org_id, provider, channel, delivery_id, outcome)
       values (${o}, 'fake', 'webhook', ${`d-${Math.random()}`}, 'accepted')`),

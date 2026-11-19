@@ -119,6 +119,7 @@ describe('pauseReasonText', () => {
     ['idle_timeout', 'after 30 min with nobody attached'],
     ['pod_lost', 'the pod stopped unexpectedly (out of memory / evicted)'],
     ['agent_crashed', 'the agent crashed'],
+    ['stopped', 'stopped by you'],
   ] as [PauseReason, string][])('%s → %s', (reason, text) => {
     expect(pauseReasonText(reason)).toBe(text);
   });

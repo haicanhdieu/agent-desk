@@ -6,6 +6,7 @@ import { agents, inboundEvents, projects, runEvents, runs, withOrg, type Db, typ
 import {
   ACTIVE_RUN_STATUSES,
   AGENT_IDLE_END_SECONDS_DEFAULT,
+  AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   FINAL_RUN_STATUSES,
   FINISHABLE_RUN_STATUSES,
@@ -98,6 +99,7 @@ interface AgentInfo {
   model: string;
   timeoutSeconds: number;
   idleEndSeconds: number;
+  pausedKeepSeconds: number;
 }
 
 @Injectable()
@@ -145,6 +147,7 @@ export class RunsService {
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
       timeoutSeconds: agent?.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       idleEndSeconds: agent?.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT,
+      pausedKeepSeconds: agent?.pausedKeepSeconds ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
       idleSince: row.idleSince?.toISOString() ?? null,
       waitingOn: row.waitingOn === null ? null : WaitingOn.parse(row.waitingOn),
       agentNote: row.agentNote,
@@ -166,6 +169,7 @@ export class RunsService {
         model: agents.model,
         timeoutSeconds: agents.timeoutSeconds,
         idleEndSeconds: agents.idleEndSeconds,
+        pausedKeepSeconds: agents.pausedKeepSeconds,
       })
       .from(agents)
       .where(inArray(agents.id, ids));
