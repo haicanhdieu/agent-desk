@@ -76,7 +76,14 @@ export function TopBar({
       <ProjectNav active={active} needsYou={needsYou} runsHref={links?.runs} deskHref={links?.desk} />
       <span className={styles.grow} />
       {project && (
-        <Button variant="ghost" size="sm" href={project.repoUrl} icon="external">
+        <Button
+          variant="ghost"
+          size="sm"
+          href={project.repoUrl}
+          icon="external"
+          target="_blank"
+          rel="noopener noreferrer"
+        >
           Repo on GitHub
         </Button>
       )}

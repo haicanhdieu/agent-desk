@@ -97,8 +97,8 @@ export function RunDetail({
   const actions = (
     <>
       {ended || parked ? (
-        <Button icon="external" href={t.href}>
-          View ticket
+        <Button icon="external" href={t.href} target="_blank" rel="noopener noreferrer">
+          {t.kind === 'pr' ? 'View PR' : 'View issue'}
         </Button>
       ) : (
         <>

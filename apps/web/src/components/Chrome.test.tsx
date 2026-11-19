@@ -48,6 +48,12 @@ describe('TopBar project', () => {
     expect(el.className).toMatch(/name/);
     expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
   });
+  it('opens the repo link in a new tab without giving the page access to the opener', () => {
+    render(<TopBar variant="project" user={user} project={project} active="runs" />);
+    const link = screen.getByRole('link', { name: /Repo on GitHub/ });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  });
   it('has repo link, bell and avatar', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" />);
     expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
