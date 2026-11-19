@@ -1,6 +1,6 @@
 {
-  "id": "b19d1581-ce40-411a-9d93-abb6686b6c35",
-  "prevId": "4653d72f-6b7c-4d72-9430-a71f1ec8f86f",
+  "id": "d3d2367d-9282-4ae5-aabf-5b078ff4fcc6",
+  "prevId": "a14dd0f6-d0e0-495a-ab71-1f1a23f0e697",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -709,6 +709,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "base_url": {
+          "name": "base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "credential_secret_name": {
           "name": "credential_secret_name",
           "type": "text",
@@ -846,6 +852,10 @@
         "agents_idle_end_check": {
           "name": "agents_idle_end_check",
           "value": "\"agents\".\"idle_end_seconds\" between 300 and 604800"
+        },
+        "agents_base_url_check": {
+          "name": "agents_base_url_check",
+          "value": "\"agents\".\"base_url\" is null or (\"agents\".\"base_url\" like 'https://%' and char_length(\"agents\".\"base_url\") <= 2048)"
         },
         "agents_credential_type_check": {
           "name": "agents_credential_type_check",
@@ -1595,6 +1605,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "enabled": {
           "name": "enabled",
           "type": "boolean",
@@ -1705,6 +1721,10 @@
         "rules_prompt_length_check": {
           "name": "rules_prompt_length_check",
           "value": "char_length(\"rules\".\"prompt\") <= 4000"
+        },
+        "rules_model_check": {
+          "name": "rules_model_check",
+          "value": "\"rules\".\"model\" is null or char_length(\"rules\".\"model\") between 1 and 200"
         }
       },
       "isRLSEnabled": false
@@ -1814,137 +1834,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.run_transcript_entries": {
-      "name": "run_transcript_entries",
-      "schema": "",
-      "columns": {
-        "org_id": {
-          "name": "org_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "run_id": {
-          "name": "run_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "seq": {
-          "name": "seq",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "source_id": {
-          "name": "source_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "at": {
-          "name": "at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tool": {
-          "name": "tool",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "text": {
-          "name": "text",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "truncated": {
-          "name": "truncated",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        }
-      },
-      "indexes": {
-        "run_transcript_entries_org_idx": {
-          "name": "run_transcript_entries_org_idx",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "run_transcript_entries_run_id_runs_id_fk": {
-          "name": "run_transcript_entries_run_id_runs_id_fk",
-          "tableFrom": "run_transcript_entries",
-          "tableTo": "runs",
-          "columnsFrom": [
-            "run_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "run_transcript_entries_pkey": {
-          "name": "run_transcript_entries_pkey",
-          "columns": [
-            "run_id",
-            "seq"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "run_transcript_entries_source_key": {
-          "name": "run_transcript_entries_source_key",
-          "nullsNotDistinct": false,
-          "columns": [
-            "run_id",
-            "source_id"
-          ]
-        }
-      },
-      "policies": {
-        "org_isolation": {
-          "name": "org_isolation",
-          "as": "PERMISSIVE",
-          "for": "ALL",
-          "to": [
-            "public"
-          ],
-          "using": "org_id = nullif(current_setting('app.org_id', true), '')::uuid",
-          "withCheck": "org_id = nullif(current_setting('app.org_id', true), '')::uuid"
-        }
-      },
-      "checkConstraints": {
-        "run_transcript_entries_kind_check": {
-          "name": "run_transcript_entries_kind_check",
-          "value": "\"run_transcript_entries\".\"kind\" in ('user','agent','tool','notice')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.runs": {
       "name": "runs",
       "schema": "",
@@ -2001,6 +1890,12 @@
         },
         "prompt": {
           "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model": {
+          "name": "model",
           "type": "text",
           "primaryKey": false,
           "notNull": false

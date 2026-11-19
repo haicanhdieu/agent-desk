@@ -31,13 +31,16 @@ if [ -d "$_rt_tools/syslibs" ]; then
 fi
 unset _rt_tools
 
-# Memory caps. A run pod has 4 GiB (RUN_POD_MEMORY_LIMIT) and the tools below size their pools from the host's CPU count,
+# Memory caps. A run pod has 2 GiB (RUN_POD_MEMORY_LIMIT) and the tools below size their pools from the host's CPU count,
 # not the pod's limit, so an uncapped `pnpm test` or `pnpm typecheck` can get the pod OOM-killed (exit 137, the run then
 # shows as paused). A value the caller already set wins.
 # - Vitest: forked workers (jsdom suites are 300-600 MB each). Read natively by vitest.
 export VITEST_MAX_WORKERS="${VITEST_MAX_WORKERS:-2}"
 # - Playwright: one Chromium per worker (apps/web/playwright.config.ts reads this).
 export E2E_WORKERS="${E2E_WORKERS:-1}"
+# - Turbo: tasks at once for the root `pnpm typecheck`, `test`, `lint` and `test:unit` (package.json reads this, default 2).
+#   Each typecheck task is a ~700 MB tsc process, so two at once plus the agent (~0.7 GB) fill a 2 GiB pod.
+export CHECK_CONCURRENCY="${CHECK_CONCURRENCY:-1}"
 # - Node heap: its default follows the machine's memory, so a process grows lazily toward gigabytes before it collects.
 case "${NODE_OPTIONS:-}" in
   *--max-old-space-size=*) ;;

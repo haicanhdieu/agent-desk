@@ -32,4 +32,12 @@ export const deskQueries = {
       queryKey: [...deskKey(org, projectId), 'agent'] as const,
       queryFn: () => api.agents.get({ params: { projectId } }),
     }),
+  // Keyed by agent id only (never by credential or address), so one agent's list is never shown for another. The
+  // list changes only with the agent's credential or address, which invalidate it; five minutes spares the provider.
+  agentModels: (org: string, agentId: string) =>
+    queryOptions({
+      queryKey: ['org', org, 'agents', agentId, 'models'] as const,
+      queryFn: () => api.agents.models({ params: { agentId } }),
+      staleTime: 5 * 60_000,
+    }),
 };

@@ -22,7 +22,7 @@
 - The stopped run is `status = paused`, `pauseReason = stopped`, park kind `needs_input`, with no ticket comment. `pauseReasonText('stopped')` returns "stopped by you".
 - Adapter flush: the entrypoint runs `timeout 5 node …/transcript.mjs flush`, ignoring errors, right after `agentdesk: session started` and at the start of `end_session` before the scrollback. Both calls are skipped when the agent dir has no `transcript.mjs`.
 - Copy, verbatim: "Stop session"; "Stop the session?"; "The agent is in the middle of a step. Stopping now cuts that step short. Everything up to now is kept, and you can resume for {paused keep time}."; "Keep running"; "The session is already ending" (disabled tooltip); "Stopped" (icon title); "Stopped: can be resumed for {time left}."; "Stopped by you {relative time}."; "Finished. The session was deleted and cannot be resumed."; "Transcript"; "Ending…"; "Paused, read-only"; "Ended, read-only"; "Paused" / "Ended" when nothing is saved; "Transcript of the agent conversation" (`role="log"` label); "You"; "Prompt"; "… (cut)"; "Show earlier messages"; "Loading the transcript"; "Couldn't load the transcript"; "Request ID {id}"; "Retry"; "No conversation was saved for this run."; "Conversation compacted".
-- Migrations: `0017_run_pause_reason_stopped.sql` and `0018_run_transcript_entries.sql`. Never edit 0013, 0014 or any applied migration.
+- Migrations: `0018_run_pause_reason_stopped.sql` and `0019_run_transcript_entries.sql`. Never edit 0013, 0014 or any applied migration.
 - Workflow changes sit behind `patched('stop-session')`. Every existing replay fixture must still replay.
 - **Storybook first (blocker from the spec's "UI and Storybook" section, not an ordering preference):** no task that implements or wires this UI in `apps/web/src/{app,features}` starts before the Storybook task (Task 5) is merged and reviewed. Task 6, the only task that wires this UI, lists Task 5 under **Depends on**.
 - **Build order:** one task at a time, in number order (Task 1 to Task 8). Each task is one branch and one PR, with one commit per part, and starts after the previous task is merged. **Depends on:** lines list only the tasks whose interfaces or files a task really uses, so a few tasks (3, 5) depend on less than the task before them; the build still follows the number order.
@@ -54,7 +54,7 @@ None. No new package, library, service, image, CI action, binary or workspace pa
 - Agent call: the fake pod writes Claude-shaped JSONL on its fake volume and runs the real `images/runner/agents/claude/transcript.mjs` at the hook and flush points. Reason: the local cases about thinking, tool output, the 200-char summary, the 8,000-byte cut and the hard kill test the adapter's mapping, which only the real adapter can show.
 - Agent call: fake-pod controls are `--fake-*` prompt flags plus control files in the pod's state dir, like the existing `stop`/`kill` files (Task 4). Reason: the e2e cases need them and the fake pod already works this way.
 - Agent call: the local e2e helpers move out of `apps/web/e2e/local/run.spec.ts` into `apps/web/e2e/local/helpers.ts` in Task 4 Part B. If that file already exists on main (the agent-model-routing plan makes the same move), Task 4 Part B reuses it and only adds its new helpers. Reason: both local e2e specs (Task 8) need the same helpers, and a spec file should hold only its own tests.
-- Agent call: if `0017`/`0018` are taken on main when Task 1 Part B is built (the agent-model-routing plan also adds a `0017`), use the next free numbers and keep the names. Reason: migration numbers must be unique and applied ones never change.
+- Agent call: the numbers are `0018`/`0019` because main took `0017` for agent model routing (#160) before this feature merged. Reason: migration numbers must be unique and applied ones never change.
 - Agent call: Stop session has no "Stopping…" top-bar note. Its buttons wait on the mutation's pending state, and the page then shows "Session ending…". Reason: a pending note lasts until the run is final, and a stopped run never is.
 - Agent call: the Transcript page size is 200, the route's default (spec "Left to the builder").
 - Agent call: while the session is ending, the area always shows the Transcript, including its empty state. The saved-terminal-text fallback applies only once the run is paused or ended. Reason: the end flush lands with the park, and the page refetches then.
@@ -134,10 +134,10 @@ graph LR
 - Modify: `apps/web/src/features/runs/detail.map.ts`
 - Modify: `apps/web/src/features/runs/detail.map.test.ts`
 - Modify: `packages/db/src/schema/app.ts`
-- Create: `packages/db/migrations/0017_run_pause_reason_stopped.sql` (generated, then checked)
-- Create: `packages/db/migrations/0018_run_transcript_entries.sql` (generated, plus a hand-written block)
-- Create: `packages/db/migrations/meta/0017_snapshot.json` (generated)
+- Create: `packages/db/migrations/0018_run_pause_reason_stopped.sql` (generated, then checked)
+- Create: `packages/db/migrations/0019_run_transcript_entries.sql` (generated, plus a hand-written block)
 - Create: `packages/db/migrations/meta/0018_snapshot.json` (generated)
+- Create: `packages/db/migrations/meta/0019_snapshot.json` (generated)
 - Modify: `packages/db/migrations/meta/_journal.json` (generated)
 - Modify: `packages/db/test/migrate.int.test.ts`
 - Modify: `packages/db/test/rls.int.test.ts`
@@ -277,11 +277,11 @@ export const runTranscriptEntries = pgTable('run_transcript_entries', {
 
 - [x] **Step 1: Write the failing db tests**
 
-In `migrate.int.test.ts`, add `it('0017 adds stopped to the pause reason check and writes no rows')`:
+In `migrate.int.test.ts`, add `it('0018 adds stopped to the pause reason check and writes no rows')`:
 - the SQL has no `UPDATE`/`INSERT`/`DELETE`;
 - after migrating, a run accepts `pause_reason = 'stopped'` and still rejects `'nope'`.
 
-Add `it('0018 creates run_transcript_entries with forced RLS and the run_events grants')`:
+Add `it('0019 creates run_transcript_entries with forced RLS and the run_events grants')`:
 - `relforcerowsecurity` is true;
 - `agentdesk_app` has SELECT, INSERT, UPDATE, DELETE;
 - a second row with the same `(run_id, source_id)` violates `run_transcript_entries_source_key`;
@@ -297,7 +297,7 @@ Expected: FAIL. The table and the `stopped` value do not exist.
 
 - [x] **Step 3: Edit the schema and generate both migrations**
 
-Change the check literal in `runs` (and its comment). Run `pnpm --filter @agentdesk/db db:generate --name run_pause_reason_stopped`. Add the table, then run `pnpm --filter @agentdesk/db db:generate --name run_transcript_entries`. Append the hand-written block to `0018`, in the style of `0007_setup_tests.sql`:
+Change the check literal in `runs` (and its comment). Run `pnpm --filter @agentdesk/db db:generate --name run_pause_reason_stopped`. Add the table, then run `pnpm --filter @agentdesk/db db:generate --name run_transcript_entries`. Append the hand-written block to `0019`, in the style of `0007_setup_tests.sql`:
 
 ```sql
 -- Hand-written: FORCE RLS binds the owner too; the app role gets the same grants as run_events.
@@ -305,7 +305,7 @@ ALTER TABLE "run_transcript_entries" FORCE ROW LEVEL SECURITY;--> statement-brea
 GRANT SELECT, INSERT, UPDATE, DELETE ON "run_transcript_entries" TO agentdesk_app;
 ```
 
-Check that `0017` only drops and re-adds `runs_pause_reason_check`, like `0014`.
+Check that `0018` only drops and re-adds `runs_pause_reason_check`, like `0014`.
 
 - [x] **Step 4: Run the db tests**
 

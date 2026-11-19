@@ -1,6 +1,7 @@
 import { setupWorker } from 'msw/browser';
 import { z } from 'zod';
 import { lifecycleEventFixtures, lifecycleRunFixtures } from '../dto/lifecycleRuns';
+import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from './agentModels';
 import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } from '../dto/sessionRuns';
 import { mockDb } from './db';
 import { handlers } from './handlers';
@@ -28,6 +29,35 @@ function loadAuth(): void {
   }
 }
 
+// The mocked e2e specs seed per-agent model-list scenarios here before the first load (e2e/mock/mock.ts). The shape is
+// the typed AgentModelsScenario; the keys are agent ids. Anything unparsable is ignored.
+const ModelsReason = z.enum(['no_credential', 'unreachable', 'rejected', 'empty', 'disabled']);
+const before = { beforeCredentialSave: z.lazy(() => StoredModelsScenario).optional() };
+const StoredModelsScenario: z.ZodType<AgentModelsScenario> = z.union([
+  z.object({
+    kind: z.literal('live'),
+    ids: z.array(z.string()),
+    idsByBaseUrl: z.record(z.string(), z.array(z.string())).optional(),
+    ...before,
+  }),
+  z.object({ kind: z.literal('fallback'), reason: ModelsReason, providerText: z.string().optional(), ...before }),
+  z.object({ kind: z.literal('error'), ...before }),
+  z.object({ kind: z.literal('pending'), ...before }),
+]);
+const StoredModelsScenarios = z.record(z.string(), StoredModelsScenario);
+
+function loadAgentModels(): void {
+  try {
+    const raw = sessionStorage.getItem(AGENT_MODELS_SCENARIO_KEY);
+    if (raw === null) return;
+    const parsed = StoredModelsScenarios.safeParse(JSON.parse(raw));
+    if (!parsed.success) return;
+    for (const [agentId, scenario] of Object.entries(parsed.data)) scenarios.agentModels(agentId, scenario);
+  } catch {
+    // Storage blocked or corrupt: the default answers apply.
+  }
+}
+
 function saveAuth(): void {
   try {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify(mockDb.auth));
@@ -42,6 +72,7 @@ let started: Promise<unknown> | undefined;
 export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown> {
   started ??= (async () => {
     loadAuth();
+    loadAgentModels();
     // Runs in the terminal lifecycle states (pausing, crashed, resume failed, resumed), for the mocked e2e specs.
     mockDb.addRuns(lifecycleRunFixtures, lifecycleEventFixtures);
     // Stopped runs and runs with a saved transcript, for the mocked e2e specs (dto/sessionRuns.ts).

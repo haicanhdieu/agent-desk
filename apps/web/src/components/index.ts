@@ -46,6 +46,16 @@ export { Stepper, type StepperProps } from './Stepper';
 export { SetupLayout, type SetupLayoutProps } from './SetupLayout';
 export { RuleSentence, promptFirstLine, type RuleDraft, type RuleKind, type RuleTarget } from './RuleSentence';
 export { RuleForm, PROMPT_MAX, type RuleFormProps } from './RuleForm';
+export {
+  ModelPicker,
+  toModelList,
+  fallbackNote,
+  OTHER_MODEL_LABEL,
+  DEFAULT_MODEL_LABEL,
+  type ModelPickerProps,
+  type ModelPickerState,
+  type ModelList,
+} from './ModelPicker';
 export { PromptSystemPart, type PromptPreview, type PromptSystemPartProps } from './PromptSystemPart';
 export { RunPromptSection, type RunPromptSectionProps } from './RunPromptSection';
 export { RuleRow, type RuleRowProps } from './RuleRow';

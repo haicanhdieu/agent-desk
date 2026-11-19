@@ -3,7 +3,8 @@ import type { AgentSettings } from './types';
 // Prototype board: DeskAgent (Agent, Credential, Limits).
 export const agentSettings: AgentSettings = {
   agent: 'Claude',
-  model: 'opus (latest Opus)',
+  model: 'claude-opus-4-5-20251101',
+  baseUrl: '',
   credential: {
     type: 'oauth_token',
     setAt: '12 Oct 2026',

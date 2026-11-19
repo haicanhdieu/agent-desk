@@ -16,6 +16,7 @@ const rule = (over: Partial<RuleRow> = {}): RuleRow => ({
   labelFilter: [],
   target: 'any',
   agentId: 'a1',
+  model: null,
   skillName: 'code-review',
   prompt: null,
   enabled: true,

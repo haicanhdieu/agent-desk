@@ -15,6 +15,7 @@ import type {
   SkillDto,
 } from '@agentdesk/contracts';
 import { agentFixtures } from '../dto/agents';
+import type { AgentModelsScenario } from './agentModels';
 import { connectionFixtures, connectionOrg, repoFixtures } from '../dto/connections';
 import { runEventFixtures } from '../dto/events';
 import { ids } from '../dto/ids';
@@ -73,6 +74,9 @@ export interface MockState {
   triggers: Record<string, TriggerState>;
   ignored: Record<string, IgnoredEventDto[]>;
   agents: AgentDto[];
+  /** Model-list scenario per agent id (scenarios.agentModels), and the agents that had a credential saved since. */
+  agentModelScenarios: Record<string, AgentModelsScenario>;
+  agentCredentialSaved: string[];
   skills: Record<string, SkillDto[]>;
   rules: RuleDto[];
   runs: RunDto[];
@@ -147,6 +151,8 @@ export function seedState(): MockState {
     ),
     ignored: ignoredFixtures,
     agents: agentFixtures,
+    agentModelScenarios: {},
+    agentCredentialSaved: [],
     skills: skillFixtures,
     rules: ruleFixtures,
     runs: runFixtures,

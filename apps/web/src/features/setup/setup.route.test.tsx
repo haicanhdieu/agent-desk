@@ -3,7 +3,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
-import { jsonResponse, routeHandler } from '@/mocks/msw/http';
+import { jsonResponse, problemResponse, routeHandler } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
@@ -387,5 +387,264 @@ describe('setup flow fixes', () => {
     await user.click(await screen.findByRole('button', { name: 'Connect GitHub' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('not a valid https address');
     expect(assign).not.toHaveBeenCalled();
+  });
+});
+
+describe('setup agent step and step 4 model wiring', () => {
+  const agentId = ids.agent.invoicerApi;
+  const credentialPath = `/api/agents/${agentId}/credential`;
+  const agentRow = () => {
+    const row = mockDb.state.agents.find((a) => a.id === agentId);
+    if (!row) throw new Error('agent not in the mock store');
+    return row;
+  };
+  const modelSelect = (name: string) => screen.getByRole('combobox', { name });
+  const optionsOf = (name: string) =>
+    Array.from(modelSelect(name).querySelectorAll('option')).map((o) => o.textContent);
+
+  /** Records the writes (pathname, JSON body) the app sends, in order. */
+  function captureWrites() {
+    const sent: { path: string; body: unknown }[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      if (request.method === 'GET') return;
+      const entry = { path: new URL(request.url).pathname, body: undefined as unknown };
+      sent.push(entry);
+      void request
+        .clone()
+        .text()
+        .then((t) => {
+          entry.body = t === '' ? undefined : (JSON.parse(t) as unknown);
+        });
+    };
+    server.events.on('request:start', listener);
+    return { sent, stop: () => server.events.removeListener('request:start', listener) };
+  }
+
+  it('Agent step lists the agent models with Other model… last', async () => {
+    const id = seedAt('agent');
+    await renderRoute(`${base}/agent?project=${id}`);
+    await waitFor(() => expect(optionsOf('Default model')).toContain('claude-sonnet-4-5-20250929'));
+    expect(optionsOf('Default model').at(-1)).toBe('Other model…');
+  });
+
+  it('changing the address with a saved credential and no token shows "Paste the token again to change the API address." and stays', async () => {
+    const id = seedAt('agent');
+    const { sent, stop } = captureWrites();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    const address = await screen.findByLabelText('API address');
+    await user.type(address, 'https://gw.example.com/anthropic');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('Paste the token again to change the API address.')).toBeInTheDocument();
+    expect(address).toHaveAttribute('aria-invalid', 'true');
+    stop();
+    expect(sent).toEqual([]);
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+  });
+
+  it('address plus token saves both', async () => {
+    const id = seedAt('agent');
+    const { sent, stop } = captureWrites();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.type(await screen.findByLabelText('API address'), ' https://gw.example.com/anthropic ');
+    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+    stop();
+    expect(sent.find((s) => s.path === credentialPath)?.body).toEqual({
+      type: 'oauth_token',
+      value: TOKEN,
+      baseUrl: 'https://gw.example.com/anthropic',
+    });
+    expect(agentRow().baseUrl).toBe('https://gw.example.com/anthropic');
+  });
+
+  it('unchanged address and no token continues without a credential call', async () => {
+    const id = seedAt('agent');
+    const { sent, stop } = captureWrites();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await screen.findByLabelText('API address');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+    stop();
+    expect(sent.some((s) => s.path === credentialPath)).toBe(false);
+  });
+
+  it('a token without an address change sends no baseUrl', async () => {
+    const id = seedAt('agent');
+    const { sent, stop } = captureWrites();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.type(await screen.findByLabelText('Token'), TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+    stop();
+    expect(sent.find((s) => s.path === credentialPath)?.body).toEqual({ type: 'oauth_token', value: TOKEN });
+  });
+
+  it('clearing a saved address with a token sends baseUrl null', async () => {
+    const id = seedAt('agent');
+    agentRow().baseUrl = 'https://gw.example.com';
+    const { sent, stop } = captureWrites();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.clear(await screen.findByLabelText('API address'));
+    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+    stop();
+    expect(sent.find((s) => s.path === credentialPath)?.body).toEqual({
+      type: 'oauth_token',
+      value: TOKEN,
+      baseUrl: null,
+    });
+    expect(agentRow().baseUrl).toBeNull();
+  });
+
+  it('a refused address shows on the address field, the agent and model list are refetched', async () => {
+    const id = seedAt('agent');
+    scenarios.problem('agents.putCredential', {
+      status: 400,
+      title: 'Validation failed',
+      type: 'validation',
+      errors: [{ pointer: '/baseUrl', detail: 'Use a public https address.' }],
+    });
+    const modelsPath = `/api/agents/${agentId}/models`;
+    const agentGetPath = `/api/projects/${id}/agent`;
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.type(await screen.findByLabelText('API address'), 'https://10.0.0.1');
+    await user.type(screen.getByLabelText('Token'), TOKEN);
+    const before = mockDb.requests('GET', modelsPath);
+    const agentBefore = mockDb.requests('GET', agentGetPath);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('Use a public https address.')).toBeInTheDocument();
+    await waitFor(() => expect(mockDb.requests('GET', modelsPath)).toBeGreaterThan(before));
+    await waitFor(() => expect(mockDb.requests('GET', agentGetPath)).toBeGreaterThan(agentBefore));
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+  });
+
+  it('a failed refetch after the credential save says so and the step stays', async () => {
+    const id = seedAt('agent');
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.type(await screen.findByLabelText('Token'), TOKEN);
+    scenarios.serverError('agents.get');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(
+      await screen.findByText('Could not refresh the agent. Reload the page to see its current state.'),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+  });
+
+  it('a refused credential write plus a failed refetch shows the field error and the refresh error', async () => {
+    const id = seedAt('agent');
+    scenarios.problem('agents.putCredential', {
+      status: 400,
+      title: 'Validation failed',
+      type: 'validation',
+      errors: [{ pointer: '/value', detail: 'The token was rejected by Claude.' }],
+    });
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    const token = await screen.findByLabelText('Token');
+    await user.type(token, TOKEN);
+    scenarios.serverError('agents.get');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(token).toHaveAccessibleDescription(/The token was rejected by Claude\./));
+    expect(
+      await screen.findByText('Could not refresh the agent. Reload the page to see its current state.'),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+  });
+
+  it('BR-16: an address saved while the credential write was refused leaves the credential not set; a retry with no token stays', async () => {
+    const id = seedAt('agent');
+    const address = 'https://gw.example.com/anthropic';
+    // The server saved the new address, then the credential write failed and left no credential (BR-16).
+    server.use(
+      routeHandler('agents.putCredential', async () => {
+        const row = agentRow();
+        row.baseUrl = address;
+        row.credential = { set: false, type: null, updatedAt: null, setBy: null };
+        return problemResponse({ status: 500, title: 'Internal server error', type: 'internal' });
+      }),
+    );
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await user.type(await screen.findByLabelText('API address'), address);
+    await user.type(screen.getByLabelText('Token'), TOKEN);
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    // The step refetched the agent: it shows the new address and asks for the token again.
+    await waitFor(() => expect(screen.queryByText(/Set .* by /)).not.toBeInTheDocument());
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+    expect(projectRow(id).setupStep).toBe('agent');
+
+    await user.clear(screen.getByLabelText('Token'));
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(await screen.findByText('Paste the token to continue.')).toBeInTheDocument();
+    expect(screen.getByLabelText('API address')).toHaveValue(address);
+    expect(router.state.location.pathname).toBe(`${base}/agent`);
+    expect(projectRow(id).setupStep).toBe('agent');
+  });
+
+  it('a typed default model is saved exactly', async () => {
+    const id = seedAt('agent');
+    const { sent, stop } = captureWrites();
+    const { router, user } = await renderRoute(`${base}/agent?project=${id}`);
+    await waitFor(() => expect(optionsOf('Default model')).toContain('Other model…'));
+    await user.selectOptions(modelSelect('Default model'), 'Other model…');
+    const input = screen.getByRole('textbox', { name: 'Model name' });
+    await user.clear(input);
+    await user.type(input, 'my-gw/model-x:1');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/setup`));
+    stop();
+    expect(sent.find((s) => s.path === `/api/projects/${id}/agent`)?.body).toMatchObject({ model: 'my-gw/model-x:1' });
+    expect(agentRow().model).toBe('my-gw/model-x:1');
+  });
+
+  it('step 4 shows the Model field with "Default model is the one picked in step 2." and saves the picked model', async () => {
+    const id = seedAt('rules');
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    expect(await screen.findByText('Default model is the one picked in step 2.')).toBeInTheDocument();
+    await waitFor(() => expect(optionsOf('Model')).toContain('claude-sonnet-4-5-20250929'));
+    await user.clear(screen.getByLabelText('Command'));
+    await user.type(screen.getByLabelText('Command'), 'pick-model');
+    await user.selectOptions(modelSelect('Model'), 'claude-sonnet-4-5-20250929');
+    await user.click(screen.getByRole('button', { name: 'Save rules and finish' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    const rule = mockDb.state.rules.find((r) => r.projectId === id && r.command === 'pick-model');
+    expect(rule?.model).toBe('claude-sonnet-4-5-20250929');
+  });
+
+  it('step 4 with Default model saves model null', async () => {
+    const id = seedAt('rules');
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    await screen.findByText('Default model is the one picked in step 2.');
+    await user.clear(screen.getByLabelText('Command'));
+    await user.type(screen.getByLabelText('Command'), 'no-model');
+    await user.click(screen.getByRole('button', { name: 'Save rules and finish' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    expect(mockDb.state.rules.find((r) => r.projectId === id && r.command === 'no-model')?.model).toBeNull();
+  });
+
+  it('step 4 with an empty Other model… shows "Enter a model name." and saves nothing', async () => {
+    const id = seedAt('rules');
+    const { sent, stop } = captureWrites();
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    await waitFor(() => expect(optionsOf('Model')).toContain('Other model…'));
+    await user.selectOptions(modelSelect('Model'), 'Other model…');
+    await user.click(screen.getByRole('button', { name: 'Save rules and finish' }));
+    expect(await screen.findByText('Enter a model name.')).toBeInTheDocument();
+    stop();
+    expect(sent).toEqual([]);
+    expect(router.state.location.pathname).toBe(`${base}/rules`);
+  });
+
+  it('the follow-up rule follows the default model', async () => {
+    const id = seedAt('rules');
+    const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+    await screen.findByText('Default model is the one picked in step 2.');
+    await user.clear(screen.getByLabelText('Command'));
+    await user.type(screen.getByLabelText('Command'), 'first-rule');
+    await user.click(screen.getByRole('button', { name: 'Save rules and finish' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    const follow = mockDb.state.rules.find((r) => r.projectId === id && r.command === 'code-review');
+    expect(follow).toBeDefined();
+    expect(follow?.model).toBeNull();
   });
 });

@@ -550,3 +550,8 @@
   font-size: var(--fs-12_5);
   color: var(--muted);
 }
+
+/* The default model id in the rule form help keeps to one line, as on the DeskRules boards. */
+.modelId {
+  white-space: nowrap;
+}

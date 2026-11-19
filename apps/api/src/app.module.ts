@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdapterRegistryModule } from './adapters/adapter-registry.module';
 import { AgentsController } from './agents/agents.controller';
+import { agentHttpProvider } from './agents/agent-http.provider';
 import { AgentsService } from './agents/agents.service';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from './config/config.module';
@@ -54,6 +55,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     ConnectionsService,
     ProjectSchedules,
     ProjectsService,
+    agentHttpProvider,
     AgentsService,
     RulesService,
     SkillsService,

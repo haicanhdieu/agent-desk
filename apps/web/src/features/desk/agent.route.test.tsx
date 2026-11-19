@@ -547,3 +547,127 @@ describe('desk agent route: Check now', () => {
     expect(checkNow()).toBeEnabled();
   });
 });
+
+describe('desk agent route: default model and API address', () => {
+  const agentId = ids.agent.invoicerApi;
+  const modelSelect = () => screen.getByRole('combobox', { name: 'Default model' });
+  const modelOptions = () => Array.from(modelSelect().querySelectorAll('option')).map((o) => o.textContent);
+
+  it('the Default model picker shows the live list', async () => {
+    await openPage();
+    await waitFor(() => expect(modelOptions()).toContain('claude-sonnet-4-5-20250929'));
+    expect(modelOptions().at(-1)).toBe('Other model…');
+  });
+
+  it('Save agent saves the typed model exactly and shows it after returning', async () => {
+    const sent = captureWrites();
+    const { user, router } = await openPage();
+    await waitFor(() => expect(modelOptions()).toContain('claude-sonnet-4-5-20250929'));
+    await user.selectOptions(modelSelect(), 'Other model…');
+    await user.clear(screen.getByRole('textbox', { name: 'Model name' }));
+    await user.type(screen.getByRole('textbox', { name: 'Model name' }), 'my-gw/model-x:1');
+    await user.click(screen.getByRole('button', { name: 'Save agent' }));
+    await waitFor(() => expect(agentRow().model).toBe('my-gw/model-x:1'));
+    expect(sent.find((s) => s.path === agentPath)?.body).toMatchObject({ model: 'my-gw/model-x:1' });
+
+    await act(async () => {
+      await router.navigate({ to: `/o/alice/p/${projectId}/desk/rules` });
+    });
+    await act(async () => {
+      await router.navigate({ to: agentPage });
+    });
+    expect(await screen.findByRole('textbox', { name: 'Model name' })).toHaveValue('my-gw/model-x:1');
+  });
+
+  it('a saved model not in the live list shows under Other model… and Save agent keeps it', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    await waitFor(() => expect(modelOptions()).toContain('claude-sonnet-4-5-20250929'));
+    expect(modelSelect()).toHaveDisplayValue('Other model…');
+    expect(screen.getByRole('textbox', { name: 'Model name' })).toHaveValue('opus');
+    await user.click(screen.getByRole('button', { name: 'Save agent' }));
+    await waitFor(() => expect(sent.find((s) => s.path === agentPath)?.body).toMatchObject({ model: 'opus' }));
+    expect(agentRow().model).toBe('opus');
+  });
+
+  it('an address change plus token saves both and the model list reloads without a page reload', async () => {
+    const address = 'https://gw.example.com/anthropic';
+    scenarios.agentModels(agentId, {
+      kind: 'live',
+      ids: ['claude-default-1'],
+      idsByBaseUrl: { [address]: ['gw-model-1', 'gw-model-2'] },
+    });
+    const sent = captureWrites();
+    const { user } = await openPage();
+    await waitFor(() => expect(modelOptions()).toContain('claude-default-1'));
+    await user.type(field('API address'), address);
+    await user.type(screen.getByLabelText('New token'), 'gw-token-0123456789');
+    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
+    await waitFor(() => expect(modelOptions()).toContain('gw-model-2'));
+    expect(modelOptions()).not.toContain('claude-default-1');
+    expect(sent.find((s) => s.path === credentialPath)?.body).toEqual({
+      type: 'oauth_token',
+      value: 'gw-token-0123456789',
+      baseUrl: address,
+    });
+    expect(agentRow().baseUrl).toBe(address);
+  });
+
+  it('a /baseUrl problem shows on the API address field and the agent is refetched', async () => {
+    const { user } = await openPage();
+    scenarios.problem('agents.putCredential', {
+      status: 400,
+      title: 'Validation failed',
+      type: 'validation',
+      errors: [{ pointer: '/baseUrl', detail: 'Use a public https address.' }],
+    });
+    const agentBefore = mockDb.requests('GET', agentPath);
+    await user.type(field('API address'), 'https://10.0.0.1');
+    await user.type(screen.getByLabelText('New token'), 'gw-token-0123456789');
+    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
+    expect(await screen.findByText('Use a public https address.')).toBeInTheDocument();
+    expect(field('API address')).toHaveAttribute('aria-invalid', 'true');
+    await waitFor(() => expect(mockDb.requests('GET', agentPath)).toBeGreaterThan(agentBefore));
+  });
+
+  it('a /model problem shows on the Default model field', async () => {
+    const { user } = await openPage();
+    scenarios.problem('agents.put', {
+      status: 400,
+      title: 'Validation failed',
+      type: 'validation',
+      errors: [{ pointer: '/model', detail: 'Use 1 to 200 letters, digits or . _ : / @ [ ] + -.' }],
+    });
+    await user.click(screen.getByRole('button', { name: 'Save agent' }));
+    expect(await screen.findByText(/^Use 1 to 200 letters, digits/)).toBeInTheDocument();
+  });
+
+  it('the models request failing shows the error state and Other model… still works', async () => {
+    scenarios.agentModels(agentId, { kind: 'error' });
+    const sent = captureWrites();
+    const { user } = await openPage();
+    expect(
+      await screen.findByText('The model list could not be loaded. You can still type a model name.'),
+    ).toBeInTheDocument();
+    const input = screen.getByRole('textbox', { name: 'Model name' });
+    await user.clear(input);
+    await user.type(input, 'typed-model');
+    await user.click(screen.getByRole('button', { name: 'Save agent' }));
+    await waitFor(() => expect(sent.find((s) => s.path === agentPath)?.body).toMatchObject({ model: 'typed-model' }));
+  });
+
+  it('Save agent is disabled while a credential replace is pending', async () => {
+    const { user } = await openPage();
+    server.use(
+      http.put('*/api/agents/:agentId/credential', async () => {
+        await sleep(300);
+        return HttpResponse.json({ updatedAt: new Date().toISOString() });
+      }),
+    );
+    await user.click(screen.getByRole('button', { name: 'Replace' }));
+    await user.type(screen.getByLabelText('New token'), 'gw-token-0123456789');
+    await user.click(screen.getByRole('button', { name: 'Test and replace' }));
+    expect(screen.getByRole('button', { name: 'Save agent' })).toBeDisabled();
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save agent' })).toBeEnabled());
+  });
+});

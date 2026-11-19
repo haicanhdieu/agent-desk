@@ -86,6 +86,8 @@ export type Rule = RuleDraft & { id: string; stats: string; warning?: string };
 export type AgentSettings = {
   agent: 'Claude';
   model: string;
+  /** The agent's API address; '' = the provider default. */
+  baseUrl: string;
   credential: {
     type: CredentialType;
     setAt: string;

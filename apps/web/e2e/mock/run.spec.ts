@@ -262,3 +262,29 @@ test('a run nobody resumed in time shows that its saved session was deleted, wit
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
 });
+
+test('in a live run terminal Ctrl+C copies the selected text and sends nothing; with no selection it sends ETX', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const frames = await recordTerminalFrames(page);
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await terminal.click();
+
+  // No selection: Ctrl+C is the interrupt, as before.
+  await page.keyboard.press('Control+C');
+  await expect.poll(frames).toEqual(['\x03']);
+
+  // With a selection it copies and does not interrupt.
+  await page.evaluate(() => navigator.clipboard.writeText('stale'));
+  await terminal.locator('.xterm-screen').dblclick({ position: { x: 20, y: 8 } });
+  await page.keyboard.press('Control+C');
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).not.toBe('stale');
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied.trim()).not.toBe('');
+  await expect(terminal).toContainText(copied.trim());
+  expect(await frames()).toEqual(['\x03']);
+});

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import { connections, projects } from '@/mocks';
 import { DataTable } from './DataTable';
 import { ProjectRow } from './ProjectRow';
@@ -34,4 +35,19 @@ export const PollingRateLimited: Story = {
 };
 export const LongRepo: Story = {
   args: { project: { ...projects[1], repo: `harbor-labs/${'very-long-'.repeat(8)}` }, href: '#' },
+};
+
+/** The More menu: Runs and Settings link out; Delete is shown disabled until its behaviour is decided. */
+export const MenuOpen: Story = {
+  args: { project: projects[0], href: '#runs', settingsHref: '#settings' },
+  decorators: [
+    (S) => (
+      <div style={{ minHeight: 180 }}>
+        <S />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /^More for/ }));
+  },
 };

@@ -24,6 +24,8 @@ export interface SecretFieldProps {
   error?: string;
   /** Each keystroke, for flows whose own button submits (setup step 2). Never store or log the value. */
   onValueChange?(value: string): void;
+  /** Texts for a replace panel opened by the surrounding flow (e.g. the API address changed). */
+  replacing?: { title: string; note?: string; status?: string; help?: string };
 }
 
 const typeName: Record<CredentialType, string> = {
@@ -112,6 +114,7 @@ export function SecretField({
   hideSubmit,
   error,
   onValueChange,
+  replacing: replacingTexts,
 }: SecretFieldProps) {
   if (state === 'empty' || state === 'entering') {
     return (
@@ -129,7 +132,7 @@ export function SecretField({
   }
 
   const replacing = state === 'replacing';
-  const status = savedInfo?.status;
+  const status = replacingTexts?.status ? undefined : savedInfo?.status;
   return (
     <div className={styles.wrap}>
       <div className={styles.saved}>
@@ -138,6 +141,7 @@ export function SecretField({
           <b>{typeName[credentialType]}</b>
           <span>{savedInfo ? `Set ${savedInfo.setAt} by ${savedInfo.setBy}. ` : ''}Hidden for good after saving.</span>
         </div>
+        {replacing && replacingTexts?.status && <span className={styles.replacedNote}>{replacingTexts.status}</span>}
         {status && (
           <InlineStatus
             tone={status.tone}
@@ -152,7 +156,15 @@ export function SecretField({
       </div>
       {replacing && (
         <div className={styles.panel}>
-          <b>Replace credential</b>
+          <b>{replacingTexts?.title ?? 'Replace credential'}</b>
+          {replacingTexts?.note && (
+            <p className={styles.note}>
+              <span className={styles.noteIcon}>
+                <Icon name="info" size={13} />
+              </span>
+              <span>{replacingTexts.note}</span>
+            </p>
+          )}
           <SegmentedControl
             aria-label="Credential type"
             value={credentialType}
@@ -162,7 +174,10 @@ export function SecretField({
           <SecretEntry
             label="New token"
             error={error}
-            help="We test the new token with one small call before saving. The old token is overwritten; runs already in progress keep the one they started with."
+            help={
+              replacingTexts?.help ??
+              'We test the new token with one small call before saving. The old token is overwritten; runs already in progress keep the one they started with.'
+            }
             submitLabel={submitLabel ?? 'Test and replace'}
             onSubmit={onSubmit}
             onCancel={onCancel}

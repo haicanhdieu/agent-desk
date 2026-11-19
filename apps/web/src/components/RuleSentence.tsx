@@ -16,6 +16,8 @@ export type RuleDraft = {
   kind?: RuleKind;
   /** The custom prompt of a `prompt` rule, as written (multi-line). */
   prompt?: string;
+  /** The model this rule asks for. Absent or null follows the agent's default model; '' is an unfinished Other model… and is not saveable. RuleSentence never shows it. */
+  model?: string | null;
 };
 
 /** The first non-empty line of a custom prompt, shown where a skill rule shows its skill name. */

@@ -46,6 +46,20 @@ export const Replacing: Story = {
     savedInfo: { ...info, status: { tone: 'err', text: 'Rejected at 11:29' } },
   },
 };
+/** A replace panel opened by the surrounding flow, e.g. the API address changed (board DeskAgentAddressChanged). */
+export const ReplacingOverride: Story = {
+  args: {
+    state: 'replacing',
+    credentialType: 'oauth_token',
+    savedInfo: info,
+    replacing: {
+      title: 'Credential needed again',
+      status: 'Replaced when you save',
+      note: 'The API address changed. A saved credential is only sent to the address it was saved with, so paste it again for the new one.',
+      help: 'We test the new token with one small call before saving. The address and the token are saved together; runs already in progress keep the ones they started with.',
+    },
+  },
+};
 
 function InteractiveDemo() {
   const [state, setState] = useState<'saved' | 'replacing'>('saved');

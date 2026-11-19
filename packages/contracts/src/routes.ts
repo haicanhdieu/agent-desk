@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { Provider } from './enums';
-import { AgentDto, PutAgentRequest, PutCredentialRequest, PutCredentialResponse } from './schemas/agents';
+import {
+  AgentDto,
+  AgentModelsDto,
+  PutAgentRequest,
+  PutCredentialRequest,
+  PutCredentialResponse,
+} from './schemas/agents';
 import { ConnectionDto, InstallResponse, RepoDto } from './schemas/connections';
 import {
   CreateProjectRequest,
@@ -132,6 +138,12 @@ export const routes = {
       params: z.object({ agentId: z.uuid() }),
       body: PutCredentialRequest,
       response: PutCredentialResponse,
+    },
+    models: {
+      method: 'GET',
+      path: '/api/agents/:agentId/models',
+      params: z.object({ agentId: z.uuid() }),
+      response: AgentModelsDto,
     },
   },
   skills: {

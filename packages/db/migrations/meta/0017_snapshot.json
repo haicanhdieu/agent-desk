@@ -1,5 +1,5 @@
 {
-  "id": "4653d72f-6b7c-4d72-9430-a71f1ec8f86f",
+  "id": "a14dd0f6-d0e0-495a-ab71-1f1a23f0e697",
   "prevId": "f1c47e66-3069-4b7b-b87f-dad5f5840c91",
   "version": "7",
   "dialect": "postgresql",
@@ -709,6 +709,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "base_url": {
+          "name": "base_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "credential_secret_name": {
           "name": "credential_secret_name",
           "type": "text",
@@ -846,6 +852,10 @@
         "agents_idle_end_check": {
           "name": "agents_idle_end_check",
           "value": "\"agents\".\"idle_end_seconds\" between 300 and 604800"
+        },
+        "agents_base_url_check": {
+          "name": "agents_base_url_check",
+          "value": "\"agents\".\"base_url\" is null or (\"agents\".\"base_url\" like 'https://%' and char_length(\"agents\".\"base_url\") <= 2048)"
         },
         "agents_credential_type_check": {
           "name": "agents_credential_type_check",
@@ -1595,6 +1605,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "enabled": {
           "name": "enabled",
           "type": "boolean",
@@ -1705,6 +1721,10 @@
         "rules_prompt_length_check": {
           "name": "rules_prompt_length_check",
           "value": "char_length(\"rules\".\"prompt\") <= 4000"
+        },
+        "rules_model_check": {
+          "name": "rules_model_check",
+          "value": "\"rules\".\"model\" is null or char_length(\"rules\".\"model\") between 1 and 200"
         }
       },
       "isRLSEnabled": false
@@ -1870,6 +1890,12 @@
         },
         "prompt": {
           "name": "prompt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model": {
+          "name": "model",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2327,7 +2353,7 @@
         },
         "runs_pause_reason_check": {
           "name": "runs_pause_reason_check",
-          "value": "\"runs\".\"pause_reason\" in ('idle_timeout','pod_lost','agent_crashed','stopped')"
+          "value": "\"runs\".\"pause_reason\" in ('idle_timeout','pod_lost','agent_crashed')"
         },
         "runs_waiting_on_check": {
           "name": "runs_waiting_on_check",

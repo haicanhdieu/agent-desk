@@ -76,4 +76,27 @@ describe('SecretField', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save token' }));
     expect(onSubmit).toHaveBeenCalledWith('abc');
   });
+
+  it('replacing overrides title, status, note and help', () => {
+    render(
+      <SecretField
+        state="replacing"
+        credentialType="oauth_token"
+        savedInfo={info}
+        replacing={{
+          title: 'Credential needed again',
+          status: 'Replaced when you save',
+          note: 'A note.',
+          help: 'A help.',
+        }}
+      />,
+    );
+    expect(screen.getByText('Credential needed again')).toBeInTheDocument();
+    expect(screen.queryByText('Replace credential')).toBeNull();
+    expect(screen.getByText('Replaced when you save')).toBeInTheDocument();
+    expect(screen.queryByText('Rejected at 11:29')).toBeNull();
+    expect(screen.getByText('A note.')).toBeInTheDocument();
+    expect(screen.getByText('A help.')).toBeInTheDocument();
+    expect(screen.getByLabelText('New token')).toHaveAccessibleDescription('A help.');
+  });
 });

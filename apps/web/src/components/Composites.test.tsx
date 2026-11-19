@@ -5,6 +5,8 @@ import { Stepper } from './Stepper';
 import { SetupLayout } from './SetupLayout';
 import { RuleSentence, type RuleDraft } from './RuleSentence';
 import { RuleForm } from './RuleForm';
+import { toModelList } from './ModelPicker';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { RuleRow } from './RuleRow';
 import { GuardsCard } from './GuardsCard';
 import { SkillList } from './SkillList';
@@ -58,6 +60,10 @@ describe('RuleSentence', () => {
       'When a comment starting with /code-build is posted on an issue labelled user-story, run skill code-build with agent Claude.',
     );
   });
+  it('never shows the rule model (BR-30)', () => {
+    const { container } = render(<RuleSentence rule={{ ...rule, model: 'haiku' }} variant="slots" />);
+    expect(container.textContent).not.toContain('haiku');
+  });
   it('pr with no labels omits the label clause', () => {
     const { container } = render(<RuleSentence rule={{ ...rule, target: 'pr', labels: [] }} variant="slots" />);
     expect(container.textContent).toContain('on a pull request, run skill');
@@ -82,7 +88,7 @@ describe('RuleSentence', () => {
 });
 
 describe('RuleForm', () => {
-  const props = { value: rule, skills: ['code-build', 'code-review'], agents: ['Claude (opus)'] };
+  const props = { value: rule, skills: ['code-build', 'code-review'], agents: ['Claude'] };
   it('changing posted-on calls onChange with target pr', async () => {
     const onChange = vi.fn();
     render(<RuleForm {...props} onChange={onChange} />);
@@ -117,6 +123,53 @@ describe('RuleForm', () => {
   it('agentLocked disables the agent select', () => {
     render(<RuleForm {...props} agentLocked onChange={() => {}} />);
     expect(screen.getByLabelText('With agent')).toBeDisabled();
+  });
+});
+
+describe('RuleForm Model field', () => {
+  const list = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+  const props = {
+    value: rule,
+    skills: ['code-build'],
+    agents: ['Claude'],
+    modelField: { list, help: 'Default model help' },
+    onChange: () => {},
+  };
+  it('the Model field lists Default model, the models, then Other model…', () => {
+    render(<RuleForm {...props} />);
+    const select = screen.getByRole('combobox', { name: 'Model' });
+    expect(Array.from(select.querySelectorAll('option')).map((o) => o.textContent)).toEqual([
+      'Default model',
+      'claude-opus-4-5-20251101',
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-1-20250805',
+      'Other model…',
+    ]);
+    expect(select).toHaveDisplayValue('Default model');
+    expect(screen.getByText('Default model help')).toBeInTheDocument();
+  });
+  it('picking a model sets rule.model and Default model sets null', async () => {
+    const onChange = vi.fn();
+    render(<RuleForm {...props} value={{ ...rule, model: 'claude-haiku-4-5-20251001' }} onChange={onChange} />);
+    const select = screen.getByRole('combobox', { name: 'Model' });
+    expect(select).toHaveDisplayValue('claude-haiku-4-5-20251001');
+    await userEvent.selectOptions(select, 'Default model');
+    expect(onChange).toHaveBeenLastCalledWith({ ...rule, model: null });
+  });
+  it('a rule model outside the list shows under Other model…', () => {
+    render(<RuleForm {...props} value={{ ...rule, model: 'sonnet' }} />);
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveDisplayValue('Other model…');
+    expect(screen.getByRole('textbox', { name: 'Model name' })).toHaveValue('sonnet');
+  });
+  it('a /model error marks the Model field', () => {
+    render(<RuleForm {...props} errors={{ model: 'Bad model' }} />);
+    expect(screen.getByRole('combobox', { name: 'Model' })).toBeInvalid();
+    expect(screen.getByText('Bad model')).toBeInTheDocument();
+  });
+  it('without modelField there is no Model field', () => {
+    render(<RuleForm {...props} modelField={undefined} />);
+    expect(screen.queryByRole('combobox', { name: 'Model' })).toBeNull();
   });
 });
 

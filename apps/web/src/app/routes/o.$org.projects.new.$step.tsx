@@ -5,11 +5,14 @@ import { useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
 import type { RuleDraft } from '@/components';
+import { toModelList } from '@/components/ModelPicker';
 import { CommandChip, useToast } from '@/ds';
 import { sessionQuery } from '@/features/auth/session';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
+import { REFRESH_ERROR } from '@/features/desk/agent.form';
 import { projectPaths } from '@/features/desk/frame';
+import { deskQueries } from '@/features/desk/queries';
 import { usePromptPreview } from '@/features/desk/promptPreview';
 import { setupQueries as scriptQueries } from '@/features/setup-script/queries';
 import { useSetupWarning } from '@/features/setup-script/useSetupWarning';
@@ -26,6 +29,7 @@ import {
   triggerProgress,
 } from '@/features/setup/map';
 import {
+  CredentialRefreshError,
   RuleSaveError,
   stepErrors,
   useInstallConnection,
@@ -268,10 +272,9 @@ const AGENT_POINTERS = {
   '/value': 'credential',
   '/type': 'credential',
   '/model': 'model',
+  '/baseUrl': 'baseUrl',
   '/maxConcurrentRuns': 'maxConcurrent',
 } as const;
-
-const MODELS = ['opus', 'sonnet'];
 
 function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   const user = useActor();
@@ -279,13 +282,16 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { save, pending } = useSaveAgentStep(org);
-  const [errors, setErrors] = useState<StepErrors<'credential' | 'model' | 'maxConcurrent'>>(noErrors);
-  const models = MODELS.includes(agent.model) ? MODELS : [agent.model, ...MODELS];
+  const [errors, setErrors] = useState<StepErrors<'credential' | 'model' | 'maxConcurrent' | 'baseUrl'>>(noErrors);
+  const models = useQuery(deskQueries.agentModels(org, agent.id));
 
   const onContinue = async (d: Setup2Draft) => {
     const max = /^\d+$/.test(d.maxConcurrent.trim()) ? Number(d.maxConcurrent.trim()) : NaN;
-    const fields: StepErrors<'credential' | 'maxConcurrent'>['fields'] = {};
+    const fields: StepErrors<'credential' | 'maxConcurrent' | 'baseUrl'>['fields'] = {};
+    // The address is sent only when it changed, and only together with a token ('' clears it: provider default).
+    const addressChanged = d.baseUrl !== (agent.baseUrl ?? '');
     if (d.credential === '' && !agent.credential.set) fields.credential = 'Paste the token to continue.';
+    else if (d.credential === '' && addressChanged) fields.baseUrl = 'Paste the token again to change the API address.';
     if (!(max >= 1 && max <= 10)) fields.maxConcurrent = 'Enter a whole number from 1 to 10.';
     setErrors({ fields });
     if (Object.keys(fields).length > 0) return;
@@ -295,10 +301,14 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
         maxConcurrentRuns: max,
         credentialType: d.credentialType,
         credential: d.credential,
+        ...(d.credential !== '' && addressChanged && { baseUrl: d.baseUrl === '' ? null : d.baseUrl }),
       });
       await goTo('setup', saved);
     } catch (e) {
-      setErrors(stepErrors(e, AGENT_POINTERS));
+      if (e instanceof CredentialRefreshError) {
+        const written = e.writeError === undefined ? { fields: {} } : stepErrors(e.writeError, AGENT_POINTERS);
+        setErrors({ fields: written.fields, form: [written.form, REFRESH_ERROR].filter(Boolean).join(' ') });
+      } else setErrors(stepErrors(e, AGENT_POINTERS));
     }
   };
 
@@ -309,7 +319,8 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
       repo={project.repoPath}
       credentialType={agent.credential.type ?? 'oauth_token'}
       secretState="entering"
-      models={models}
+      modelList={toModelList(models, agent.baseUrl)}
+      baseUrl={agent.baseUrl ?? ''}
       model={agent.model}
       maxConcurrent={project.maxConcurrentRuns}
       backHref={stepHref(org, 'repo', projectId)}
@@ -385,9 +396,11 @@ const RULE_POINTERS = {
   '/target': 'target',
   '/skillName': 'skill',
   '/prompt': 'prompt',
+  '/model': 'model',
 } as const;
 
 const FOLLOW_UP = { command: 'code-review', target: 'pr', skill: 'code-review', enabled: true } as const;
+const MODEL_REQUIRED = 'Enter a model name.';
 
 function RulesStep({ org, projectId }: { org: string; projectId: string }) {
   const user = useActor();
@@ -396,7 +409,9 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { data: skills } = useSuspenseQuery(setupQueries.skills(org, projectId));
   const save = useSaveRulesStep(org);
-  const [errors, setErrors] = useState<StepErrors<'command' | 'labels' | 'target' | 'skill' | 'prompt'>>(noErrors);
+  const [errors, setErrors] =
+    useState<StepErrors<'command' | 'labels' | 'target' | 'skill' | 'prompt' | 'model'>>(noErrors);
+  const models = useQuery(deskQueries.agentModels(org, agent.id));
   const promptPreview = usePromptPreview(org, projectId, true);
   const skillNames = skills.map((s) => s.name);
   const rule: RuleDraft = {
@@ -405,17 +420,24 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     labels: ['user-story'],
     skill: skillNames.includes('code-build') ? 'code-build' : (skillNames[0] ?? 'code-build'),
     agent: agent.name,
+    model: null,
     enabled: true,
   };
 
   const onContinue = async ({ rule: r, followUp }: { rule: RuleDraft; followUp: boolean }) => {
     setErrors(noErrors);
+    // An Other model… with nothing typed is not saveable.
+    if (r.model?.trim() === '') {
+      setErrors({ fields: { model: MODEL_REQUIRED } });
+      return;
+    }
     const toRequest = (d: {
       command: string;
       target: RuleDraft['target'];
       labels: string[];
       skill: string;
       enabled: boolean;
+      model?: string | null;
       kind?: RuleDraft['kind'];
       prompt?: string;
     }): CreateRuleRequest => {
@@ -424,12 +446,13 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
         labelFilter: d.labels,
         target: d.target,
         enabled: d.enabled,
+        model: d.model == null ? null : d.model.trim(),
       };
       return d.kind === 'prompt'
         ? { ...common, kind: 'prompt', prompt: d.prompt ?? '' }
         : { ...common, kind: 'skill', skillName: d.skill };
     };
-    const rules = [toRequest(r), ...(followUp ? [toRequest({ ...FOLLOW_UP, labels: [] })] : [])];
+    const rules = [toRequest(r), ...(followUp ? [toRequest({ ...FOLLOW_UP, labels: [], model: null })] : [])];
     try {
       await goTo('ready', await save.mutateAsync({ project, rules }));
     } catch (e) {
@@ -451,10 +474,10 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       repo={project.repoPath}
       rule={rule}
       skills={skillNames}
+      modelList={toModelList(models, agent.baseUrl)}
       promptPreview={promptPreview}
       followUp={FOLLOW_UP}
       maxRunsPerTicket={project.maxRunsPerTicket}
-      agentModel={agent.model}
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'skills', projectId)}
       onContinue={(d) => void onContinue(d)}

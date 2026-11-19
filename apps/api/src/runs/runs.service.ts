@@ -138,7 +138,7 @@ export class RunsService {
       ruleKind: row.prompt !== null ? 'prompt' : 'skill',
       skillName: row.skillName,
       // The agent row can be gone (agent_id is ON DELETE SET NULL); the DTO still needs a shape.
-      agent: { name: agent?.name ?? '(deleted agent)', model: agent?.model ?? 'unknown' },
+      agent: { name: agent?.name ?? '(deleted agent)', model: row.model ?? agent?.model ?? 'unknown' },
       ticket: {
         ref: row.ticketRef,
         kind: TicketKind.parse(row.ticketKind),

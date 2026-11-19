@@ -38,6 +38,7 @@ function ProjectsPage() {
       projects={projects}
       newHref={`${orgPath}/projects/new/repo`}
       projectHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/runs`}
+      settingsHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/desk/agent`}
       switchToPollingHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/desk/agent`}
     />
   );

@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 // .agent/skills/dev-build/scripts/verify.sh runs lint, typecheck and tests for every touched package. A run pod has
-// 4 GiB, and each of those commands is a node process of 0.5-1 GiB, so how many run at once is what keeps the pod alive.
+// 2 GiB, and each of those commands is a node process of 0.5-1 GiB, so how many run at once is what keeps the pod alive.
 // The tests drive the real script in a throwaway git repo with a stub `pnpm` that records how many run at the same time.
 const verify = resolve(__dirname, '..', '.agent', 'skills', 'dev-build', 'scripts', 'verify.sh');
 const PACKAGES = ['a', 'b', 'c', 'd'];
@@ -54,21 +54,28 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-const env = (): NodeJS.ProcessEnv => ({
-  ...process.env,
-  PATH: `${bin}:${process.env['PATH'] ?? ''}`,
-  STUB_STATE: state,
-  VERIFY_LOCK_DIR: join(dir, 'lock'),
-  GIT_CONFIG_GLOBAL: '/dev/null',
-});
+// A run pod exports CHECK_CONCURRENCY (scripts/runner-env.sh); drop it so the tests do not depend on the caller's env.
+const env = (extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv => {
+  const inherited = { ...process.env };
+  delete inherited['CHECK_CONCURRENCY'];
+  delete inherited['VERIFY_MAX_PARALLEL'];
+  return {
+    ...inherited,
+    PATH: `${bin}:${process.env['PATH'] ?? ''}`,
+    STUB_STATE: state,
+    VERIFY_LOCK_DIR: join(dir, 'lock'),
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    ...extra,
+  };
+};
 
 const peak = (): number =>
   Math.max(0, ...readFileSync(join(state, 'peaks'), 'utf8').split('\n').filter(Boolean).map(Number));
 
 /** Starts verify.sh and resolves with its exit code once it ends. */
-const runVerify = (): Promise<number | null> =>
+const runVerify = (extra: NodeJS.ProcessEnv = {}): Promise<number | null> =>
   new Promise((done) => {
-    const child = spawn('bash', [verify, repo, base], { env: env(), stdio: 'ignore' });
+    const child = spawn('bash', [verify, repo, base], { env: env(extra), stdio: 'ignore' });
     child.on('close', done);
   });
 
@@ -82,6 +89,16 @@ describe('verify.sh', () => {
     // 4 packages x (lint + typecheck) = 8 light commands; run all at once they peak at 8.
     expect(peak()).toBeLessThanOrEqual(2);
     expect(peak()).toBe(2);
+  });
+
+  it('follows CHECK_CONCURRENCY: 1 runs the lint/typecheck commands one at a time', async () => {
+    expect(await runVerify({ CHECK_CONCURRENCY: '1' })).toBe(0);
+    expect(peak()).toBe(1);
+  });
+
+  it('VERIFY_MAX_PARALLEL wins over CHECK_CONCURRENCY', async () => {
+    expect(await runVerify({ CHECK_CONCURRENCY: '1', VERIFY_MAX_PARALLEL: '3' })).toBe(0);
+    expect(peak()).toBe(3);
   });
 
   it('two verify runs at once (units of a multi-unit run) take turns instead of piling up', async () => {

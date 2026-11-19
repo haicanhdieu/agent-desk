@@ -2,6 +2,8 @@ import { render, screen, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { agentSettings, rules, skillTemplates, user } from '@/mocks';
+import { toModelList } from '@/components';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { Setup1 } from './Setup1';
 import { Setup2 } from './Setup2';
 import { Setup3 } from './Setup3';
@@ -24,7 +26,7 @@ const s2 = (extra = {}) => (
     repo={repo}
     credentialType="oauth_token"
     secretState="entering"
-    models={['opus (latest Opus)', 'sonnet (latest Sonnet)', 'Custom model id']}
+    modelList={toModelList({ status: 'success', data: agentModelsFixtures.live }, null)}
     maxConcurrent={2}
     accepted={{ at: '14:03:02', secretName: 'agentdesk/proj-invoicer-api-claude' }}
     {...extra}
@@ -197,13 +199,99 @@ describe('Setup2 (FR-3)', () => {
     render(s2());
     expect(screen.getByRole('radio', { name: /Claude Code OAuth token/ })).toBeChecked();
     expect(screen.getByRole('radio', { name: /API key/ })).not.toBeChecked();
-    expect(screen.getByLabelText('Model')).toHaveDisplayValue('opus (latest Opus)');
+    expect(screen.getByLabelText('Default model')).toHaveDisplayValue('claude-opus-4-5-20251101');
     expect(screen.getByLabelText('Concurrent runs')).toHaveValue('2');
     expect(screen.getByText('Token accepted.')).toBeInTheDocument();
   });
   it('omits the acceptance banner when not accepted', () => {
     render(s2({ accepted: undefined }));
     expect(screen.queryByText('Token accepted.')).toBeNull();
+  });
+  it('Setup2 shows API address and a Default model picker with Other model… last, not the fixed opus/sonnet list', () => {
+    render(s2());
+    expect(screen.getByLabelText('API address')).toHaveValue('');
+    expect(screen.getByText(/Public https addresses only\./)).toBeInTheDocument();
+    const options = within(screen.getByLabelText('Default model')).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual([
+      'claude-opus-4-5-20251101',
+      'claude-sonnet-4-5-20250929',
+      'claude-haiku-4-5-20251001',
+      'claude-opus-4-1-20250805',
+      'Other model…',
+    ]);
+    expect(
+      screen.getByText(/Loaded from the provider\. Rules that don't name a model use this one\./),
+    ).toBeInTheDocument();
+  });
+  it('Continue passes the typed address and the picked or typed model', async () => {
+    const onContinue = vi.fn();
+    render(s2({ onContinue, baseUrl: '' }));
+    await userEvent.type(screen.getByLabelText('API address'), '  https://gw.example.com/anthropic ');
+    await userEvent.selectOptions(screen.getByLabelText('Default model'), 'claude-haiku-4-5-20251001');
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenLastCalledWith(
+      expect.objectContaining({ baseUrl: 'https://gw.example.com/anthropic', model: 'claude-haiku-4-5-20251001' }),
+    );
+    await userEvent.selectOptions(screen.getByLabelText('Default model'), 'Other model…');
+    await userEvent.type(screen.getByLabelText('Model name'), 'my-model');
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenLastCalledWith(expect.objectContaining({ model: 'my-model' }));
+  });
+  it('Continue with an empty Other model… shows a field error and saves nothing', async () => {
+    const onContinue = vi.fn();
+    render(s2({ onContinue }));
+    await userEvent.selectOptions(screen.getByLabelText('Default model'), 'Other model…');
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).not.toHaveBeenCalled();
+    expect(screen.getByText('Enter a model name.')).toBeInTheDocument();
+  });
+  it('a saved model missing from the list stays as typed text', () => {
+    render(s2({ model: 'sonnet' }));
+    expect(screen.getByLabelText('Default model')).toHaveDisplayValue('Other model…');
+    expect(screen.getByLabelText('Model name')).toHaveValue('sonnet');
+  });
+  it('the shown model follows a list that arrives after mount until a model is picked', () => {
+    const loading = toModelList({ status: 'pending' }, null);
+    const { rerender } = render(s2({ modelList: loading }));
+    expect(screen.getByLabelText('Default model')).toHaveDisplayValue('Other model…');
+    rerender(s2());
+    expect(screen.getByLabelText('Default model')).toHaveDisplayValue('claude-opus-4-5-20251101');
+  });
+  it('a pick is kept when the list changes under it', async () => {
+    const { rerender } = render(s2());
+    await userEvent.selectOptions(screen.getByLabelText('Default model'), 'claude-haiku-4-5-20251001');
+    rerender(s2({ modelList: toModelList({ status: 'success', data: agentModelsFixtures.live }, null) }));
+    expect(screen.getByLabelText('Default model')).toHaveDisplayValue('claude-haiku-4-5-20251001');
+  });
+  it('Continue hands back the saved address when nothing was typed, and an empty one once cleared', async () => {
+    const onContinue = vi.fn();
+    render(s2({ onContinue, baseUrl: 'https://gw.example.com/x' }));
+    expect(screen.getByLabelText('API address')).toHaveValue('https://gw.example.com/x');
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenLastCalledWith(expect.objectContaining({ baseUrl: 'https://gw.example.com/x' }));
+    await userEvent.clear(screen.getByLabelText('API address'));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenLastCalledWith(expect.objectContaining({ baseUrl: '' }));
+  });
+  it('the model field error clears on the next pick', async () => {
+    render(s2({ onContinue: vi.fn() }));
+    await userEvent.selectOptions(screen.getByLabelText('Default model'), 'Other model…');
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Enter a model name.')).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Model name'), 'm');
+    expect(screen.queryByText('Enter a model name.')).toBeNull();
+  });
+  it('a baseUrl error shows on the API address field', () => {
+    render(s2({ errors: { baseUrl: 'Use a public https address.' } }));
+    const input = screen.getByLabelText('API address');
+    expect(input).toBeInvalid();
+    expect(input).toHaveAccessibleDescription(/Use a public https address\./);
+  });
+  it('fallback shows opus, sonnet, haiku with the reason note', () => {
+    render(s2({ modelList: toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null) }));
+    const options = within(screen.getByLabelText('Default model')).getAllByRole('option');
+    expect(options.map((o) => o.textContent)).toEqual(['opus', 'sonnet', 'haiku', 'Other model…']);
+    expect(screen.getByText(/Save a credential to load the provider's list\./)).toBeInTheDocument();
   });
 });
 
@@ -230,6 +318,24 @@ describe('Setup3', () => {
 });
 
 describe('Setup4', () => {
+  it('shows the Model field with the step 2 default help', () => {
+    const modelList = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+    render(
+      <Setup4
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        rule={rules[0]}
+        skills={['code-build', 'code-review']}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        modelList={modelList}
+      />,
+    );
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveDisplayValue('Default model');
+    expect(screen.getByText('Default model is the one picked in step 2.')).toBeInTheDocument();
+    expect(screen.getByLabelText('With agent')).toHaveDisplayValue('Claude');
+  });
   it('reads the PRD sentence', () => {
     const { container } = render(s4);
     const p = container.querySelector('p[class*="sentence"]');

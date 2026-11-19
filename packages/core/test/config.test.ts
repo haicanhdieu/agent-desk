@@ -28,6 +28,12 @@ describe('plugin and setup config', () => {
     expect(c.RUN_IDLE_END_SECONDS).toBe(1800);
     expect(c.RUN_ENDING_DEADLINE_SECONDS).toBe(90);
   });
+
+  it('the run pod defaults to 2 GiB (QA runs 2 GiB pods; the runner caps in scripts/runner-env.sh are sized for it)', () => {
+    const c = parseConfig(base);
+    expect(c.RUN_POD_MEMORY_REQUEST).toBe('1Gi');
+    expect(c.RUN_POD_MEMORY_LIMIT).toBe('2Gi');
+  });
   it('RUN_ENDING_DEADLINE_SECONDS is a test seam: blank is the default, below 1 is refused', () => {
     expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '5' }).RUN_ENDING_DEADLINE_SECONDS).toBe(5);
     expect(parseConfig({ ...base, RUN_ENDING_DEADLINE_SECONDS: '' }).RUN_ENDING_DEADLINE_SECONDS).toBe(90);
@@ -199,5 +205,17 @@ describe('BOT_NAME', () => {
 
   it('keeps the generic default when no GitHub app is configured', () => {
     expect(parseConfig(base).BOT_NAME).toBe('agentdesk[bot]');
+  });
+});
+
+describe('AGENT_MODELS_SOURCE', () => {
+  it('defaults to live, treats blank as the default and accepts builtin', () => {
+    expect(parseConfig(base).AGENT_MODELS_SOURCE).toBe('live');
+    expect(parseConfig({ ...base, AGENT_MODELS_SOURCE: '' }).AGENT_MODELS_SOURCE).toBe('live');
+    expect(parseConfig({ ...base, AGENT_MODELS_SOURCE: 'builtin' }).AGENT_MODELS_SOURCE).toBe('builtin');
+  });
+
+  it('rejects any other value', () => {
+    expect(() => parseConfig({ ...base, AGENT_MODELS_SOURCE: 'other' })).toThrow();
   });
 });

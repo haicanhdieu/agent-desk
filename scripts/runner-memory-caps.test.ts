@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-// A run pod has a 4 GiB memory limit and the repo's own tools size their pools from the host CPU count, so an
+// A run pod has a 2 GiB memory limit and the repo's own tools size their pools from the host CPU count, so an
 // uncapped `pnpm test` or `pnpm typecheck` can OOM the pod (the kernel kills it with exit 137 and the run shows as
 // paused). runner-env.sh caps what one pod runs at once; these tests pin that.
 const root = resolve(__dirname, '..');
@@ -25,7 +25,7 @@ function sourced(env: Record<string, string> = {}): Record<string, string> {
     'bash',
     [
       '-c',
-      `. "${envScript}"; printf '%s\\n' "VITEST_MAX_WORKERS=\${VITEST_MAX_WORKERS-}" "E2E_WORKERS=\${E2E_WORKERS-}" "NODE_OPTIONS=\${NODE_OPTIONS-}"`,
+      `. "${envScript}"; printf '%s\\n' "VITEST_MAX_WORKERS=\${VITEST_MAX_WORKERS-}" "E2E_WORKERS=\${E2E_WORKERS-}" "NODE_OPTIONS=\${NODE_OPTIONS-}" "CHECK_CONCURRENCY=\${CHECK_CONCURRENCY-}"`,
     ],
     { encoding: 'utf8', env: { PATH: process.env['PATH'] ?? '', HOME: home, ...env } },
   );
@@ -45,6 +45,10 @@ describe('runner-env.sh memory caps', () => {
     expect(v['E2E_WORKERS']).toBe('1');
   });
 
+  it('runs one turbo task at a time, because a whole-repo typecheck starts two ~700 MB tsc processes at once', () => {
+    expect(sourced()['CHECK_CONCURRENCY']).toBe('1');
+  });
+
   it('caps the Node heap so garbage collection runs well before the pod limit', () => {
     expect(sourced()['NODE_OPTIONS']).toBe('--max-old-space-size=1024');
   });
@@ -55,9 +59,10 @@ describe('runner-env.sh memory caps', () => {
   });
 
   it('keeps a worker count the caller already set', () => {
-    expect(sourced({ VITEST_MAX_WORKERS: '4', E2E_WORKERS: '3' })).toMatchObject({
+    expect(sourced({ VITEST_MAX_WORKERS: '4', E2E_WORKERS: '3', CHECK_CONCURRENCY: '2' })).toMatchObject({
       VITEST_MAX_WORKERS: '4',
       E2E_WORKERS: '3',
+      CHECK_CONCURRENCY: '2',
     });
   });
 
@@ -83,10 +88,21 @@ describe('root scripts and turbo', () => {
         cmd
           .split('&&')
           .map((part) => part.trim())
-          .filter((part) => part.startsWith('turbo run') && !/--concurrency=\d+/.test(part))
+          .filter(
+            (part) => part.startsWith('turbo run') && !/--concurrency=(\d+|\$\{CHECK_CONCURRENCY:-\d+\})/.test(part),
+          )
           .map((part) => `${name}: ${part}`),
       );
     expect(unbounded).toEqual([]);
+  });
+
+  it('lets a run pod lower the turbo concurrency of every check script, defaulting to 2 elsewhere', () => {
+    const { scripts } = PackageJson.parse(readJson('package.json'));
+    for (const name of ['typecheck', 'test', 'lint', 'test:unit', 'test:unit:coverage']) {
+      const parts = (scripts[name] ?? '').split('&&').filter((part) => part.trim().startsWith('turbo run'));
+      expect(parts.length, name).toBeGreaterThan(0);
+      for (const part of parts) expect(part, name).toContain('--concurrency=${CHECK_CONCURRENCY:-2}');
+    }
   });
 
   it('lets the caps through turbo to every task (strict env mode drops anything not listed)', () => {

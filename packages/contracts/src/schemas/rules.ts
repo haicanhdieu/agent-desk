@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { RuleKind, RuleTarget } from '../enums';
+import { AgentModelId } from './agents';
 import { Id, SlugName, Timestamp } from './common';
 
 export const RULE_PROMPT_MAX = 4000;
@@ -12,6 +13,7 @@ export const RuleDto = z.object({
   labelFilter: z.array(z.string()),
   target: RuleTarget,
   agentId: Id,
+  model: z.string().nullable(),
   kind: RuleKind,
   skillName: z.string().nullable(),
   prompt: z.string().nullable(),
@@ -25,6 +27,8 @@ const ruleCommon = {
   labelFilter: z.array(z.string()),
   target: RuleTarget,
   enabled: z.boolean(),
+  agentId: Id.optional(),
+  model: AgentModelId.nullable().optional(),
 };
 
 export const CreateSkillRuleRequest = z.object({
@@ -50,6 +54,8 @@ export const UpdateRuleRequest = z
     labelFilter: ruleCommon.labelFilter.optional(),
     target: ruleCommon.target.optional(),
     enabled: ruleCommon.enabled.optional(),
+    agentId: ruleCommon.agentId,
+    model: ruleCommon.model,
     kind: RuleKind.optional(),
     skillName: SlugName.optional(),
     prompt: RulePrompt.optional(),

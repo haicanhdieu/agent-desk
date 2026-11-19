@@ -59,6 +59,7 @@ export const rules: Rule[] = [
     kind: 'prompt',
     prompt: TRIAGE_PROMPT,
     agent: 'Claude',
+    model: 'claude-haiku-4-5-20251001',
     enabled: true,
     stats: '5 runs this week, last 13:40',
   },

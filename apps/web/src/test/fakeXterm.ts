@@ -57,6 +57,7 @@ export class Terminal {
   private readonly resized = emitter<{ cols: number; rows: number }>();
   private screen: HTMLElement | undefined;
   private keyHandler: ((event: KeyboardEvent) => boolean) | undefined;
+  private selected = '';
 
   constructor(options: FakeXtermOptions = {}) {
     this.options = { ...options };
@@ -95,6 +96,18 @@ export class Terminal {
 
   attachCustomKeyEventHandler(handler: (event: KeyboardEvent) => boolean): void {
     this.keyHandler = handler;
+  }
+
+  hasSelection(): boolean {
+    return this.selected !== '';
+  }
+
+  clearSelection(): void {
+    this.selected = '';
+  }
+
+  getSelection(): string {
+    return this.selected;
   }
 
   onData(fn: Listener<string>): Disposable {
@@ -136,6 +149,24 @@ export class Terminal {
     if (this.options.disableStdin || this.disposed) return event;
     if (this.keyHandler && !this.keyHandler(event)) return event;
     this.data.fire(event.altKey ? '\x1b\r' : '\r');
+    return event;
+  }
+
+  /** The user selects `text` on the screen (an empty string clears it). */
+  select(text: string): void {
+    this.selected = text;
+  }
+
+  /**
+   * The user presses `key` (with `init` modifiers). Like xterm, the custom key handler runs first (it runs even with
+   * stdin disabled; returning false skips xterm's own handling), then Ctrl+C is sent as ETX, which xterm does whatever
+   * the selection is. Other keys are not modelled. Returns the event.
+   */
+  pressKey(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key, cancelable: true, ...init });
+    if (this.disposed) return event;
+    if (this.keyHandler && !this.keyHandler(event)) return event;
+    if (!this.options.disableStdin && event.ctrlKey && key.toLowerCase() === 'c') this.data.fire('\x03');
     return event;
   }
 

@@ -213,6 +213,34 @@ describe('run reads', () => {
     });
   });
 
+  it('agent.model is the run model when recorded', async () => {
+    const agentId = (
+      await withOrg(t.db, orgId, (tx) =>
+        tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId)).limit(1),
+      )
+    )[0]?.id;
+    if (!agentId) throw new Error('no agent');
+    await withOrg(t.db, orgId, (tx) => tx.update(agents).set({ model: 'sonnet' }).where(eq(agents.id, agentId)));
+    const r = await insertRun({ agentId, model: 'haiku' });
+    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ agent: { model: 'haiku' } });
+  });
+
+  it('a run without a model shows the agent current default, and "unknown" when the agent is gone', async () => {
+    const agentId = (
+      await withOrg(t.db, orgId, (tx) =>
+        tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, projectId)).limit(1),
+      )
+    )[0]?.id;
+    if (!agentId) throw new Error('no agent');
+    await withOrg(t.db, orgId, (tx) => tx.update(agents).set({ model: 'opus' }).where(eq(agents.id, agentId)));
+    const r = await insertRun({ agentId, model: null });
+    expect(expectContract('runs.get', await get(`/api/runs/${r.id}`))).toMatchObject({ agent: { model: 'opus' } });
+    const orphan = await insertRun({ agentId: null, model: null });
+    expect(expectContract('runs.get', await get(`/api/runs/${orphan.id}`))).toMatchObject({
+      agent: { model: 'unknown' },
+    });
+  });
+
   it('list items omit the prompt texts that run detail carries', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     const p = await insertRun({ skillName: null, prompt: 'p', finalPrompt: 'p\nTicket: x' }, pid);

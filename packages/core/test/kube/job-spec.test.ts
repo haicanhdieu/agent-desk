@@ -24,7 +24,11 @@ const input = (over: Partial<RunJobInput> = {}): RunJobInput => ({
   gitHost: 'fake.invalid',
   cliTokenEnvName: 'GH_TOKEN',
   maxTurns: 30,
-  model: 'claude-opus-4-1',
+  agentEnv: [
+    { name: 'AGENT', value: 'claude' },
+    { name: 'AGENT_MODEL', value: 'claude-opus-4-1' },
+    { name: 'ANTHROPIC_MODEL', value: 'claude-opus-4-1' },
+  ],
   deadlineSeconds: 1800,
   resume: false,
   botName: 'agentdesk[bot]',
@@ -157,6 +161,8 @@ describe('buildRunJob', () => {
       RUN_AUTHOR_NAME: 'alice',
       RUN_AUTHOR_EMAIL: '42+alice@users.noreply.github.com',
       RUN_AUTHORIZED_BY: 'alice',
+      AGENT: 'claude',
+      AGENT_MODEL: 'claude-opus-4-1',
       ANTHROPIC_MODEL: 'claude-opus-4-1',
       PLUGIN_MARKETPLACES: '{"claude-plugins-official":"anthropics/claude-plugins-official"}',
       SETUP_TIMEOUT_SECONDS: '600',
@@ -214,12 +220,36 @@ describe('buildRunJob', () => {
     expect(env.some((e) => e.name === 'RUN_MODE')).toBe(false);
   });
 
-  it('passes the agent model as ANTHROPIC_MODEL on a fresh run and on a resume, and omits it when empty', () => {
-    const envOf = (over: Partial<RunJobInput>) =>
-      buildRunJob(input(over)).spec?.template.spec?.containers[0]?.env ?? [];
-    expect(envOf({})).toContainEqual({ name: 'ANTHROPIC_MODEL', value: 'claude-opus-4-1' });
-    expect(envOf({ resume: true })).toContainEqual({ name: 'ANTHROPIC_MODEL', value: 'claude-opus-4-1' });
-    expect(envOf({ model: '' }).map((e) => e.name)).not.toContain('ANTHROPIC_MODEL');
+  it('adds agentEnv entries verbatim, in order, to fresh and resume Jobs', () => {
+    const agentEnv = [
+      { name: 'AGENT', value: 'claude' },
+      { name: 'AGENT_MODEL', value: 'haiku' },
+      { name: 'ANTHROPIC_BASE_URL', value: 'https://gw.example.com/a b$(x)' },
+    ];
+    for (const resume of [false, true]) {
+      const env = buildRunJob(input({ resume, agentEnv })).spec?.template.spec?.containers[0]?.env ?? [];
+      const at = env.findIndex((e) => e.name === 'AGENT');
+      expect(env.slice(at, at + 3)).toEqual(agentEnv);
+    }
+  });
+
+  it('has no ANTHROPIC_BASE_URL unless agentEnv carries it', () => {
+    for (const resume of [false, true]) {
+      const env = buildRunJob(input({ resume })).spec?.template.spec?.containers[0]?.env ?? [];
+      expect(env.map((e) => e.name)).not.toContain('ANTHROPIC_BASE_URL');
+    }
+  });
+
+  it('a model from agentEnv is always set on the container', () => {
+    for (const resume of [false, true]) {
+      const env = buildRunJob(input({ resume })).spec?.template.spec?.containers[0]?.env ?? [];
+      expect(env).toContainEqual({ name: 'AGENT_MODEL', value: 'claude-opus-4-1' });
+    }
+  });
+
+  it('adds no model env of its own when agentEnv is empty', () => {
+    const env = buildRunJob(input({ agentEnv: [] })).spec?.template.spec?.containers[0]?.env ?? [];
+    expect(env.map((e) => e.name)).not.toContain('ANTHROPIC_MODEL');
   });
 
   it('omits MAX_TURNS when unset', () => {

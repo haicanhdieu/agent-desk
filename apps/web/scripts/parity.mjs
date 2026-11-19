@@ -65,6 +65,8 @@ const stories = {
       'RulesPromptNew',
       'RulesPromptError',
       'Agent',
+      'AgentCustomModel',
+      'AgentAddressChanged',
       'Setup',
       'SetupTest',
     ].map((s) => [`Desk${s}`, ['Screens/Desk', `Desk${s}`]]),

@@ -1,6 +1,6 @@
 import { act, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeFitAddon, FakeWebglAddon, FakeXterm } from '@/test/fakeXterm';
 import LiveTerminal, { type LiveTerminalHandle } from './LiveTerminal';
 
@@ -81,6 +81,105 @@ describe('LiveTerminal', () => {
     expect(onData).toHaveBeenCalledOnce();
     expect(onData).toHaveBeenCalledWith('\x1b\r');
     expect(event?.defaultPrevented).toBe(true);
+  });
+
+  describe('copying the selection', () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>();
+    beforeEach(() => {
+      writeText.mockReset().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    });
+
+    it('Ctrl+C with a selection copies it to the clipboard and does not send ETX', () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      const term = FakeXterm.latest();
+      term.select('copy me');
+      let event: KeyboardEvent | undefined;
+      act(() => {
+        event = term.pressKey('c', { ctrlKey: true });
+      });
+      expect(writeText).toHaveBeenCalledExactlyOnceWith('copy me');
+      expect(onData).not.toHaveBeenCalled();
+      expect(event?.defaultPrevented).toBe(true);
+    });
+
+    it('a second Ctrl+C after a copy is the interrupt again: the copy clears the selection', async () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      const term = FakeXterm.latest();
+      term.select('copy me');
+      act(() => term.pressKey('c', { ctrlKey: true }));
+      await vi.waitFor(() => expect(term.hasSelection()).toBe(false));
+      act(() => term.pressKey('c', { ctrlKey: true }));
+      expect(writeText).toHaveBeenCalledTimes(1);
+      expect(onData).toHaveBeenCalledExactlyOnceWith('\x03');
+    });
+
+    it('Cmd+C with a selection copies it to the clipboard', () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      const term = FakeXterm.latest();
+      term.select('copy me');
+      act(() => term.pressKey('c', { metaKey: true }));
+      expect(writeText).toHaveBeenCalledExactlyOnceWith('copy me');
+      expect(onData).not.toHaveBeenCalled();
+    });
+
+    it('Ctrl+C with no selection still sends ETX (the interrupt) and copies nothing', () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      act(() => FakeXterm.latest().pressKey('c', { ctrlKey: true }));
+      expect(onData).toHaveBeenCalledExactlyOnceWith('\x03');
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('read-only: Ctrl+C with a selection copies it', () => {
+      render(<LiveTerminal readOnly initial="done" />);
+      const term = FakeXterm.latest();
+      term.select('done');
+      act(() => term.pressKey('c', { ctrlKey: true }));
+      expect(writeText).toHaveBeenCalledExactlyOnceWith('done');
+    });
+
+    it('a refused clipboard write is logged, not thrown', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const refused = new Error('denied');
+      writeText.mockRejectedValue(refused);
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      term.select('copy me');
+      act(() => term.pressKey('c', { ctrlKey: true }));
+      await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Could not copy the terminal selection', refused));
+      warn.mockRestore();
+    });
+
+    it('Shift+Ctrl+C is not a copy key: it reaches xterm as before', () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      const term = FakeXterm.latest();
+      term.select('copy me');
+      act(() => term.pressKey('c', { ctrlKey: true, shiftKey: true }));
+      expect(writeText).not.toHaveBeenCalled();
+      expect(onData).toHaveBeenCalledExactlyOnceWith('\x03');
+    });
+
+    it('without the clipboard API the key is left to the browser copy event', () => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      const term = FakeXterm.latest();
+      term.select('copy me');
+      let event: KeyboardEvent | undefined;
+      act(() => {
+        event = term.pressKey('c', { ctrlKey: true });
+      });
+      expect(onData).not.toHaveBeenCalled();
+      expect(event?.defaultPrevented).toBe(false);
+    });
   });
 
   it('read-only: Shift+Enter sends nothing', () => {

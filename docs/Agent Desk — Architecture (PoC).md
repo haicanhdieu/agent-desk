@@ -190,7 +190,7 @@ spec:
             - { name: MAX_TURNS, value: "{{maxTurns}}" }
           resources:
             requests: { cpu: 500m, memory: 1Gi }
-            limits:   { cpu: "2",  memory: 4Gi }
+            limits:   { cpu: "2",  memory: 2Gi }
 ```
 
 **Failure handling**
@@ -356,16 +356,16 @@ The control plane is a single deployable (a modular monolith) that serves the we
 
 ## 9. Key decisions and evolution
 
-| Decision          | PoC choice                                                                                               | Alternative set aside                                        | Revisit when                                                                                                  |
-| ----------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
-| Trigger mechanism | Per project: GitHub App webhooks (default) or polling with conditional requests, both feeding one router | GitHub Actions as the runner; polling as a dev-only fallback | Users need lower latency without a public URL, or GitHub adds a pull-based events feed                        |
-| Handoff           | Slash-command comment written by the skill                                                               | `onSuccess` action declared on the rule                      | Chains stall because the model forgets the comment                                                            |
-| Rule storage      | Postgres                                                                                                 | YAML in the repo                                             | Users want rules reviewed and versioned with skills                                                           |
-| Queue             | Postgres table with `SKIP LOCKED`                                                                        | NATS, Temporal                                               | Multiple control-plane replicas or long multi-step workflows                                                  |
-| Run isolation     | One Job per run, fresh clone                                                                             | Long-lived agent pods, persistent volumes                    | Clone and dependency install dominate run time                                                                |
-| Streaming         | Terminal via tmux, pods/exec, and xterm.js                                                               | Structured stream only                                       | The MVP adds the structured stream (approach B) as the default view                                           |
-| Agent abstraction | `AgentRunner` interface, Claude only                                                                     | Generic CLI plugin system                                    | Adding Codex: new image, new log parser, same Job flow                                                        |
-| Board abstraction | `BoardAdapter` interface, GitHub only                                                                    | Unified ticket model up front                                | Adding Jira: tickets and code live in different systems, so workspace and board must be configured separately |
+| Decision          | PoC choice                                                                                                                                          | Alternative set aside                                        | Revisit when                                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- |
+| Trigger mechanism | Per project: GitHub App webhooks (default) or polling with conditional requests, both feeding one router                                            | GitHub Actions as the runner; polling as a dev-only fallback | Users need lower latency without a public URL, or GitHub adds a pull-based events feed                        |
+| Handoff           | Slash-command comment written by the skill                                                                                                          | `onSuccess` action declared on the rule                      | Chains stall because the model forgets the comment                                                            |
+| Rule storage      | Postgres                                                                                                                                            | YAML in the repo                                             | Users want rules reviewed and versioned with skills                                                           |
+| Queue             | Postgres table with `SKIP LOCKED`                                                                                                                   | NATS, Temporal                                               | Multiple control-plane replicas or long multi-step workflows                                                  |
+| Run isolation     | One Job per run, fresh clone                                                                                                                        | Long-lived agent pods, persistent volumes                    | Clone and dependency install dominate run time                                                                |
+| Streaming         | Terminal via tmux, pods/exec, and xterm.js                                                                                                          | Structured stream only                                       | The MVP adds the structured stream (approach B) as the default view                                           |
+| Agent abstraction | Agent adapter per kind (`agentAdapterFor`, [ADR 0026](adr/0026-agent-adapters-for-models-and-endpoint.md)) and `AgentRunner` interface, Claude only | Generic CLI plugin system                                    | Adding Codex: new image, new log parser, same Job flow                                                        |
+| Board abstraction | `BoardAdapter` interface, GitHub only                                                                                                               | Unified ticket model up front                                | Adding Jira: tickets and code live in different systems, so workspace and board must be configured separately |
 
 **After the PoC, in likely order**
 

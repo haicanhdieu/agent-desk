@@ -1,15 +1,22 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, type APIResponse, type Page } from '@playwright/test';
-import { InstallResponse, RunDto, RunTranscriptResponse, type RunTranscriptEntryDto } from '@agentdesk/contracts';
+import {
+  AgentDto,
+  InstallResponse,
+  RunDto,
+  RunTranscriptResponse,
+  type RunTranscriptEntryDto,
+} from '@agentdesk/contracts';
 import { z } from 'zod';
 
-/* Helpers shared by the real localhost end-to-end specs (the stack from `pnpm dev` with KUBE_MODE=fake). */
+// Shared by the local e2e specs: the stack's addresses, the dev-login project setup, the fake board and fake pod
+// helpers (the stack from `pnpm dev` with KUBE_MODE=fake).
 
 export const API = 'http://localhost:3000';
 export const REPO = 'dev/demo';
-/** The fake pod state dir of the running stack (a run's pod dir is `<dir>/kube/run-<runId>`). */
+/** Where the stack keeps the fake cluster's state (E2E_FAKE_STATE_DIR when it is not the default); a run's pod dir is `<dir>/kube/run-<runId>`. */
 export const FAKE_STATE_DIR =
   process.env['E2E_FAKE_STATE_DIR'] ?? fileURLToPath(new URL('../../../../.agentdesk/fake', import.meta.url));
 
@@ -65,6 +72,24 @@ export async function signInAndCreateProject(page: Page): Promise<{ handle: stri
   await page.getByRole('link', { name: 'Go to runs' }).click();
   await expect(page.getByRole('heading', { name: 'Runs', level: 1 })).toBeVisible();
   const projectId = /\/p\/([0-9a-f-]+)\/runs$/.exec(page.url())?.[1];
+  expect(projectId, page.url()).toBeTruthy();
+  return { handle, projectId: projectId ?? '' };
+}
+
+/** The wizard's first step only: a project whose agent has no credential and no address. */
+export async function signInAndStartProject(page: Page): Promise<{ handle: string; projectId: string }> {
+  const handle = `e2e-${randomBytes(4).toString('hex')}`;
+  await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
+  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
+  const install = InstallResponse.parse(
+    await ok(await page.request.post('/api/connections/fake/install'), 201, 'install'),
+  );
+  await page.goto(install.url);
+  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects/new/repo\\?connection=`));
+  await page.getByRole('radio', { name: REPO }).check();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
+  const projectId = /[?&]project=([0-9a-f-]+)/.exec(page.url())?.[1];
   expect(projectId, page.url()).toBeTruthy();
   return { handle, projectId: projectId ?? '' };
 }
@@ -158,3 +183,56 @@ export async function waitForStatus(
     .poll(async () => (await runOf(page, runId)).status, { timeout, intervals: [200, 500, 1000] })
     .toBe(status);
 }
+
+/** Lines of the fake pod's log for a run ([] when none yet). */
+export async function podLogLines(runId: string): Promise<string[]> {
+  const log = await readFile(`${FAKE_STATE_DIR}/kube/run-${runId}/log`, 'utf8').catch(() => '');
+  return log === '' ? [] : log.split('\n');
+}
+
+// ---- Desk → Agent & settings: shared by the specs that drive the agent screen and its API ----
+
+export const deskAgentUrl = (handle: string, projectId: string) => `/o/${handle}/p/${projectId}/desk/agent`;
+export const modelSelect = (page: Page) => page.getByRole('combobox', { name: 'Default model' });
+export const addressInput = (page: Page) => page.getByRole('textbox', { name: 'API address' });
+export const newToken = (page: Page) => page.getByLabel('New token', { exact: true });
+export const newTokenValue = () => `sk-ant-e2e-${randomBytes(8).toString('hex')}`;
+
+export async function openAgent(page: Page, handle: string, projectId: string) {
+  await page.goto(deskAgentUrl(handle, projectId));
+  await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+  // The picker leaves its loading state once the list is there.
+  await expect(modelSelect(page).locator('option')).toHaveText(['opus', 'sonnet', 'haiku', 'Other model…']);
+}
+
+export async function readAgent(page: Page, projectId: string): Promise<AgentDto> {
+  return AgentDto.parse(await ok(await page.request.get(`/api/projects/${projectId}/agent`), 200, 'agent'));
+}
+
+/** Given: the agent's saved default model (the run limits stay as they are). */
+export async function setDefaultModel(page: Page, projectId: string, model: string) {
+  const agent = await readAgent(page, projectId);
+  await ok(
+    await page.request.put(`/api/projects/${projectId}/agent`, {
+      data: { model, timeoutSeconds: agent.timeoutSeconds },
+    }),
+    200,
+    'set default model',
+  );
+}
+
+/** Given: a saved API address and a credential for it, through the agent API (the same route the screen uses). */
+export async function setAddressAndCredential(page: Page, agentId: string, baseUrl: string) {
+  await ok(
+    await page.request.put(`/api/agents/${agentId}/credential`, {
+      data: { type: 'api_key', value: newTokenValue(), baseUrl },
+    }),
+    200,
+    'set address and credential',
+  );
+}
+
+export const isAgentPut = (r: { url(): string; request(): { method(): string } }) =>
+  new URL(r.url()).pathname.endsWith('/agent') && r.request().method() === 'PUT';
+export const isCredentialPut = (r: { url(): string; request(): { method(): string } }) =>
+  /\/api\/agents\/[^/]+\/credential$/.test(new URL(r.url()).pathname) && r.request().method() === 'PUT';
