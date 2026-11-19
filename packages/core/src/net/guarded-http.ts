@@ -134,6 +134,8 @@ export async function guardedGetJson(url: URL, opts: GuardedGetOptions): Promise
   try {
     return { status, json: JSON.parse(text) as unknown };
   } catch {
+    // A non-2xx status with an unparsable body (an auth proxy's HTML or empty reply) still reports its status; only a 2xx must parse.
+    if (status < 200 || status >= 300) return { status, json: undefined };
     throw new GuardedHttpError('bad_json');
   }
 }

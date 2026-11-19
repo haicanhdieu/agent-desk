@@ -191,6 +191,21 @@ describe('claude agent adapter', () => {
         reply: (m) => m.get(GW).intercept({ path: /.*/, method: 'GET' }).reply(403, { error: BODY }, json),
       },
       {
+        name: '401 with a non-JSON body',
+        kind: 'rejected',
+        reply: (m) => m.get(GW).intercept({ path: /.*/, method: 'GET' }).reply(401, `<html>${BODY}</html>`),
+      },
+      {
+        name: '403 with an empty body',
+        kind: 'rejected',
+        reply: (m) => m.get(GW).intercept({ path: /.*/, method: 'GET' }).reply(403, ''),
+      },
+      {
+        name: '502 with a non-JSON body',
+        kind: 'invalid',
+        reply: (m) => m.get(GW).intercept({ path: /.*/, method: 'GET' }).reply(502, `<html>${BODY}</html>`),
+      },
+      {
         name: '404',
         kind: 'invalid',
         reply: (m) => m.get(GW).intercept({ path: /.*/, method: 'GET' }).reply(404, { error: BODY }, json),

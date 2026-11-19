@@ -129,6 +129,13 @@ describe('guardedGetJson', () => {
     expect((err as GuardedHttpError).message).not.toContain('SECRET');
   });
 
+  it('a non-JSON body on a non-2xx status returns the status with no json', async () => {
+    const agent = make();
+    agent.get(ORIGIN).intercept({ path: '/v1/models', method: 'GET' }).reply(401, 'SECRET-BODY <html>');
+    const out = await guardedGetJson(new URL(`${ORIGIN}/v1/models`), { headers: {}, dispatcher: agent });
+    expect(out).toEqual({ status: 401, json: undefined });
+  });
+
   it('a connection failure is a network error with no cause text in the message', async () => {
     const agent = make();
     agent
