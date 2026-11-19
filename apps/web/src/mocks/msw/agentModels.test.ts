@@ -56,6 +56,24 @@ describe('agentModelsAnswer', () => {
     expect(agentModelsAnswer(withoutCredential, scenario, false)).toEqual(agentModelsFixtures.unreachable);
   });
 
+  it('a fallback scenario with providerText adds it as an extra error field, apart from the contract fields', () => {
+    const answer = agentModelsAnswer(
+      withCredential,
+      { kind: 'fallback', reason: 'rejected', providerText: 'invalid x-api-key sk-test-secret-123' },
+      true,
+    );
+    expect(answer).toEqual({
+      ...agentModelsFixtures.rejected,
+      error: { type: 'authentication_error', message: 'invalid x-api-key sk-test-secret-123' },
+    });
+  });
+
+  it('a fallback scenario without providerText is the plain fixture', () => {
+    expect(agentModelsAnswer(withCredential, { kind: 'fallback', reason: 'rejected' }, true)).toEqual(
+      agentModelsFixtures.rejected,
+    );
+  });
+
   it('picks the list by the agent address, with the empty key for no address', () => {
     const scenario: AgentModelsScenario = {
       kind: 'live',

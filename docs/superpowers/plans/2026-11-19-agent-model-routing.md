@@ -50,7 +50,7 @@ None.
 - Agent call: the `models` route uses `assertProjectVisible` (org membership), because it is a read and the credential never leaves the server.
 - Agent call: with `AGENT_MODELS_SOURCE=builtin` the reason is `disabled` even when no credential is saved, because TC-19.5 expects the "turned off" note on a new project.
 - Agent call: a secret-store read failure in the `models` route is a generic 500 ("credential store unavailable"), because it is an internal failure, not an upstream one.
-- Agent call: fallback notes for reasons the boards do not word (spec Q1): `no_credential` "Showing the standard names. Save a credential to load the provider's list."; `unreachable` without an address "Showing the standard names. The model list could not be loaded."; `rejected` "Showing the standard names. The provider did not accept the saved credential."; `empty` "Showing the standard names. The provider returned no models."; `disabled` "Showing the standard names. Live model lists are turned off on this server.". The board wording is kept for `unreachable` with an address.
+- Agent call: fallback notes for reasons the boards do not word (spec Q1): `no_credential` "Showing the standard names. Save a credential to load the provider's list."; `unreachable` without an address "Showing the standard names. The model list could not be loaded."; `rejected` "Showing the standard names. The provider did not accept the saved credential.", and with an address set "Showing the standard names. The provider at <host> did not accept the saved credential." (the human's decision in the #122 run); `empty` "Showing the standard names. The provider returned no models."; `disabled` "Showing the standard names. Live model lists are turned off on this server.". The board wording is kept for `unreachable` with an address.
 - Agent call: picker options show the model id (with the provider's label as a tooltip), because the approved boards show ids and the stored value is always the id (spec "Left to the builder").
 - Agent call: picker loading and error copy (spec Q2): "Loading models…" and "The model list could not be loaded. You can still type a model name.", both with "Other model…" usable, because BR-9 needs typing to stay possible.
 - Agent call: address note after a change from a custom address or a clear (spec Q6): "Changed from <saved address>. It is saved together with the new credential below.", following the board's sentence.
@@ -1232,16 +1232,16 @@ git commit -m "feat(web): wire the setup model list, API address and step 4 rule
 
 Covers: BR-1 (TC-1.1, TC-1.2), BR-2 (TC-2.1–TC-2.4), BR-3 (TC-3.1–TC-3.3), BR-4 (TC-4.1–TC-4.3), BR-5 (TC-5.1–TC-5.3), BR-9 (TC-9.1, TC-9.2), BR-10 (TC-10.1, TC-10.2), BR-13 (TC-13.1–TC-13.3), BR-17 (TC-17.1, TC-17.2). BR-10's duplicates and five-page cap are proven in Task 3 (spec: no screen can feed provider pages).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC, titled `TC-<n.m> <what is seen>`. Set the scenario with `setAgentModels` before the first `page.goto`; reach saved states (address, typed model, credential) through the UI and client-side navigation, never a second `goto` (it reseeds). TC-2.1 and TC-17.1 use `{ kind: 'live', ids, beforeCredentialSave: { kind: 'fallback', reason: 'no_credential' } }` or a fallback scenario; TC-9.1 `pending`; TC-9.2 `error`; TC-17.2 `idsByBaseUrl`. Assert exact text only where the spec gives it (TC-1.1 note, TC-3.1, TC-4.1, TC-13.1); elsewhere assert the options and that a note is present with no error state (spec Q1, Q2).
 
-- [ ] **Step 2: Run the new spec**
+- [x] **Step 2: Run the new spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/agent-model.spec.ts`
 Expected: all PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix

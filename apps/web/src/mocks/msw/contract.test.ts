@@ -187,6 +187,14 @@ describe('MSW handler semantics', () => {
     expect((await rejection(api.agents.models({ params: { agentId } }))).status).toBe(500);
   });
 
+  it('agents.models drops the provider text of a fallback scenario: it is not part of the contract', async () => {
+    const agentId = ids.agent.invoicerApi;
+    scenarios.agentModels(agentId, { kind: 'fallback', reason: 'rejected', providerText: 'invalid x-api-key sk-test' });
+    const answer = await api.agents.models({ params: { agentId } });
+    expect(answer).toEqual({ source: 'builtin', reason: 'rejected', models: expect.any(Array) });
+    expect(JSON.stringify(answer)).not.toContain('invalid x-api-key');
+  });
+
   it('hides projects of other orgs (RLS) and switches with the active org', async () => {
     const e = await rejection(api.projects.get({ params: { projectId: ids.project.storefront } }));
     expect(e.status).toBe(404);
@@ -269,6 +277,15 @@ describe('MSW handler semantics', () => {
     expect(res.status).toBe(400);
     const body: unknown = await res.json();
     expect(body).toMatchObject({ errors: [expect.objectContaining({ pointer: '/command' })] });
+  });
+
+  it('mints the first created project id, then its agent id (e2e/mock/mock.ts FIRST_CREATED_AGENT relies on it)', async () => {
+    const p = await api.projects.create({
+      body: { connectionId: ids.connection.dev, repoPath: 'dev/demo', triggerMode: 'polling' },
+    });
+    expect(p.id).toBe(ids.created(1));
+    const agent = await api.agents.get({ params: { projectId: p.id } });
+    expect(agent.id).toBe(ids.created(2));
   });
 
   it('creates a project at setup step agent with an agent and a connection', async () => {

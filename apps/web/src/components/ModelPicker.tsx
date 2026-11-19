@@ -48,7 +48,7 @@ export function toModelList(
 
 const STANDARD = 'Showing the standard names.';
 
-/** Exact fallback copy per reason; `unreachable` with a host is the board line. */
+/** Exact fallback copy per reason; `unreachable` and `rejected` name the host when an address is set. */
 export function fallbackNote(reason: AgentModelsReason, host: string | null): string {
   switch (reason) {
     case 'no_credential':
@@ -58,7 +58,9 @@ export function fallbackNote(reason: AgentModelsReason, host: string | null): st
         ? `${STANDARD} The model list at ${host} could not be loaded.`
         : `${STANDARD} The model list could not be loaded.`;
     case 'rejected':
-      return `${STANDARD} The provider did not accept the saved credential.`;
+      return host
+        ? `${STANDARD} The provider at ${host} did not accept the saved credential.`
+        : `${STANDARD} The provider did not accept the saved credential.`;
     case 'empty':
       return `${STANDARD} The provider returned no models.`;
     case 'disabled':

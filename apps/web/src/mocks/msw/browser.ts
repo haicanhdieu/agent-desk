@@ -39,7 +39,7 @@ const StoredModelsScenario: z.ZodType<AgentModelsScenario> = z.union([
     idsByBaseUrl: z.record(z.string(), z.array(z.string())).optional(),
     ...before,
   }),
-  z.object({ kind: z.literal('fallback'), reason: ModelsReason, ...before }),
+  z.object({ kind: z.literal('fallback'), reason: ModelsReason, providerText: z.string().optional(), ...before }),
   z.object({ kind: z.literal('error'), ...before }),
   z.object({ kind: z.literal('pending'), ...before }),
 ]);

@@ -63,3 +63,10 @@ export async function setAgentModels(page: Page, byAgent: Record<string, AgentMo
     [AGENT_MODELS_SCENARIO_KEY, JSON.stringify(byAgent)] as const,
   );
 }
+
+/**
+ * The agent of the first project created in a test (the setup wizard's step 1). The mock store hands out ids from a
+ * counter that restarts on every seed: the project gets the first and its agent, which has no credential, the second
+ * (handlers.ts `projects.create`). Use it as the key for `setAgentModels` before the first `page.goto`.
+ */
+export const FIRST_CREATED_AGENT: string = ids.created(2);

@@ -190,6 +190,23 @@ describe('ModelPicker', () => {
     );
   });
 
+  it('a rejected fallback with a host names the host in mono and never a path or scheme', () => {
+    const models = agentModelsFixtures.rejected.models;
+    render(
+      <ModelPicker
+        label="Default model"
+        list={{ models, state: { kind: 'fallback', reason: 'rejected', host: 'gateway.harbor-labs.com' } }}
+        value="opus"
+        onChange={vi.fn()}
+      />,
+    );
+    const host = screen.getByText('gateway.harbor-labs.com');
+    expect(host).toHaveClass('mono');
+    expect(host.parentElement).toHaveTextContent(
+      'Showing the standard names. The provider at gateway.harbor-labs.com did not accept the saved credential.',
+    );
+  });
+
   it('fallbackNote words every reason', () => {
     expect(fallbackNote('no_credential', null)).toBe(
       "Showing the standard names. Save a credential to load the provider's list.",
@@ -202,7 +219,15 @@ describe('ModelPicker', () => {
     expect(fallbackNote('disabled', null)).toBe(
       'Showing the standard names. Live model lists are turned off on this server.',
     );
-    expect(fallbackNote('rejected', 'h.example.com')).toBe(fallbackNote('rejected', null));
+    expect(fallbackNote('no_credential', 'h.example.com')).toBe(fallbackNote('no_credential', null));
+    expect(fallbackNote('empty', 'h.example.com')).toBe(fallbackNote('empty', null));
+    expect(fallbackNote('disabled', 'h.example.com')).toBe(fallbackNote('disabled', null));
+    expect(fallbackNote('unreachable', 'h.example.com')).toBe(
+      'Showing the standard names. The model list at h.example.com could not be loaded.',
+    );
+    expect(fallbackNote('rejected', 'h.example.com')).toBe(
+      'Showing the standard names. The provider at h.example.com did not accept the saved credential.',
+    );
   });
 
   it.each([

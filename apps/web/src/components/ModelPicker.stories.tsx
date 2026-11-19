@@ -50,6 +50,9 @@ export const FallbackUnreachableWithHost: Story = {
 };
 export const FallbackUnreachableNoHost: Story = { args: { list: builtin('unreachable'), value: 'opus' } };
 export const FallbackRejected: Story = { args: { list: builtin('rejected'), value: 'opus' } };
+export const FallbackRejectedWithHost: Story = {
+  args: { list: builtin('rejected', 'https://gateway.harbor-labs.com/v1/anthropic'), value: 'opus' },
+};
 export const FallbackEmpty: Story = { args: { list: builtin('empty'), value: 'opus' } };
 export const FallbackDisabled: Story = { args: { list: builtin('disabled'), value: 'opus' } };
 export const TypedModel: Story = { args: { value: 'anthropic/claude-sonnet-4-5' } };
