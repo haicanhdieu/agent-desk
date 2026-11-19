@@ -1299,7 +1299,7 @@ git commit -m "test(web): mock e2e for the rule Model field and the setup Agent 
 
 Covers: BR-2 (TC-2.5), BR-6 (TC-6.1–TC-6.4), BR-7 (TC-7.1–TC-7.9), BR-8 (TC-8.1), BR-11 (TC-11.1), BR-12 (TC-12.1–TC-12.9), BR-14 (TC-14.1–TC-14.3), BR-15 (TC-15.1, TC-15.2), BR-16 (TC-16.1–TC-16.3).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC (TC-7.x and TC-12.x may loop over values inside one test each), titled `TC-<n.m> …`. The stack runs with `AGENT_MODELS_SOURCE=builtin` from `.env`, so lists are opus/sonnet/haiku with reason disabled. BR-8 opens two pages in one context. BR-16: with an address and credential saved, find `<FAKE_STATE_DIR>/secrets/*-agent-<agentId>.json`, replace it with a directory of that name holding one file, then change the address, paste a token and Test and replace; after reload expect the new address and no "Set … by …" line; TC-16.2 triggers the rule with `commentOnNewTicket` and asserts the run never reaches `running`/`idle` and ends `failed`; TC-16.3 removes the directory, saves a token and asserts the run starts. TC-15.2 asserts Test and replace is disabled with an empty token (board `DeskAgentAddressChanged`).
 
