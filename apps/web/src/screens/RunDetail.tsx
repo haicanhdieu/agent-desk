@@ -14,7 +14,8 @@ export interface RunDetailProps {
   needsYou: number;
   panelCollapsed?: boolean;
   cancelConfirmOpen?: boolean;
-  height?: number;
+  /** Board height in pixels; `'viewport'` fills the window (the app route). */
+  height?: number | 'viewport';
   projectName?: string;
   onCancel?(): void;
   onCancelClose?(): void;
