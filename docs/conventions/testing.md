@@ -138,7 +138,7 @@ Commands for every level (unit, one file, watch, mocked e2e, full local e2e) are
 
 - Integration tests start their own Postgres through Testcontainers (or local binaries with `TEST_PG_MODE=local`, §4); the dev stack (`devbox run dev`, Postgres on 54329, Temporal on 7233) is for local development and e2e, not for `pnpm test`.
 - `vitest.workspace.ts` at the root is not read by Vitest 5; run tests through `pnpm test` / `--filter`. Moving to a root `vitest.config.ts` with `test.projects` is (planned).
-- Scripts per package: `test:unit` (no Docker), `test:integration` (Docker; accepts `--shard=i/n`), and `test` (both). CI runs them as the jobs `test / unit (<pkg>)` (one per package), `test / scripts` (`pnpm test:scripts`) and `test / integration (<pkg> <i>/<n>)`.
+- Scripts per package: `test:unit` (no Docker), `test:integration` (Docker; accepts `--shard=i/n`), and `test` (both). CI runs the coverage variants of them (`test:unit:coverage`, or `test:coverage` for web and contracts) as the jobs `test / unit (<pkg>)` (one per package), `test / scripts` (`pnpm test:scripts`) and `test / integration (<pkg> <i>/<n>)`.
 - **MUST** add a matrix entry to the `unit` job in `.github/workflows/ci.yml` when you add a package with unit tests. Why: otherwise its tests never run in CI.
 - **Sharding:** `.github/ci-shards.json` maps a package to its shard count (`{"db": 1, "api": 1, ...}`). Raise a number when that package's integration job passes ~8 minutes; the hard cap is 20 minutes per job.
 - **MUST** have `pnpm test`, `pnpm typecheck` and `pnpm lint` green before asking for review. CI re-runs them; the only required status check is `gate / ci-passed`.
