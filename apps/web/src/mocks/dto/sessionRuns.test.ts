@@ -3,7 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { lifecycleRunFixtures } from './lifecycleRuns';
 import { runFixtures } from './runs';
 import {
+  PAUSED_TRANSCRIPT_RUN,
   TRANSCRIPT_LONG_RUN,
+  TRANSCRIPT_RICH_RUN,
   sessionEventFixtures,
   sessionRunFixtures,
   sessionTranscriptFixtures,
@@ -62,6 +64,21 @@ describe('session fixture runs (browser mock)', () => {
     for (const r of stopped) {
       expect(Date.parse(r.sessionExpiresAt ?? '') - Date.parse(r.pausedAt ?? '')).toBe(7 * 86_400_000);
     }
+  });
+
+  it('shared fixture run 64 keeps no saved transcript; the paused run with a transcript is its own run', () => {
+    expect(Object.keys(sessionTranscriptFixtures)).not.toContain(runFixtures.find((r) => r.number === 64)?.id);
+    const run = byNumber(PAUSED_TRANSCRIPT_RUN);
+    expect(run.status).toBe('paused');
+    expect(run.pauseReason).toBe('idle_timeout');
+    expect(sessionTranscriptFixtures[run.id]?.length).toBeGreaterThan(0);
+  });
+
+  it('the rich run carries the notices, markup and markdown of TC-41.1, TC-43.1 and TC-43.2', () => {
+    const texts = (sessionTranscriptFixtures[byNumber(TRANSCRIPT_RICH_RUN).id] ?? []).map((e) => e.text);
+    expect(texts).toContain('API Error: 401 invalid credential');
+    expect(texts).toContain('<b>bold</b> <script>alert(1)</script>');
+    expect(texts.some((t) => t.includes('# Heading') && t.includes('**strong**'))).toBe(true);
   });
 
   it('behaviours and slow actions point at runs that exist', () => {

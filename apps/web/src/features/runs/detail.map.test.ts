@@ -848,12 +848,12 @@ describe('toRunDetail, stopped and finished sessions', () => {
     });
   const status = (at: string, s: string) => ev(at, 'status', { status: s });
 
-  it("a stopped run's session is Stopped: can be resumed for 6 days. and Stopped by you 2 min ago.", () => {
+  it("a stopped run's session is Stopped: can be resumed for 7 days. and Stopped by you 2 min ago.", () => {
     const d = detail(stopped());
     expect(d.session).toEqual({
       state: 'paused',
       stopped: true,
-      headline: 'Stopped: can be resumed for 6 days.',
+      headline: 'Stopped: can be resumed for 7 days.',
       detail: 'Stopped by you 2 min ago.',
     });
   });
@@ -861,7 +861,7 @@ describe('toRunDetail, stopped and finished sessions', () => {
   it("a run paused by the idle timer keeps today's headline", () => {
     const d = detail(stopped({ pauseReason: 'idle_timeout', agentNote: null }));
     expect(d.session?.stopped).toBeUndefined();
-    expect(d.session?.headline).toBe('Paused: waiting for your answer. Can be resumed for 6 days.');
+    expect(d.session?.headline).toBe('Paused: waiting for your answer. Can be resumed for 7 days.');
   });
 
   it('pausedKeep is 7 days for 604800 seconds', () => {

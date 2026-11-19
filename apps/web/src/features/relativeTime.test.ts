@@ -32,11 +32,18 @@ describe('timeLeft', () => {
   it.each([
     ['under a minute', 20_000, 'less than a minute'],
     ['1 minute', MIN, '1 min'],
-    ['several minutes', 45 * MIN + 30_000, '45 min'],
+    ['several minutes', 45 * MIN + 20_000, '45 min'],
+    ['rounds to the nearest minute', 45 * MIN + 40_000, '46 min'],
+    ['just under an hour reads as 1 hour', 59 * MIN + 40_000, '1 hour'],
     ['1 hour', HOUR, '1 hour'],
-    ['several hours', 5 * HOUR + 59 * MIN, '5 hours'],
+    ['several hours', 5 * HOUR + 10 * MIN, '5 hours'],
+    ['rounds to the nearest hour', 5 * HOUR + 40 * MIN, '6 hours'],
+    ['just under a day reads as 1 day', 23 * HOUR + 50 * MIN, '1 day'],
     ['1 day', DAY, '1 day'],
-    ['several days', 6 * DAY + 23 * HOUR, '6 days'],
+    ['several days', 6 * DAY + 2 * HOUR, '6 days'],
+    ['6 days less a few seconds (a day after a 7 day keep)', 6 * DAY - 5_000, '6 days'],
+    ['7 days less a few seconds (just stopped, 7 day keep)', 7 * DAY - 5_000, '7 days'],
+    ['6 days 23 hours rounds to 7 days', 6 * DAY + 23 * HOUR, '7 days'],
   ])('%s', (_name, ms, text) => {
     expect(timeLeft(ahead(ms), now)).toBe(text);
   });

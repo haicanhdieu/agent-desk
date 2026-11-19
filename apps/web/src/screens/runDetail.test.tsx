@@ -308,6 +308,7 @@ describe('RunDetail per state', () => {
     expect(screen.getByText('Succeeded in 6m 12s.').closest('[class*="banner"]')).toHaveClass('ok', 'flush');
     expect(screen.getByRole('link', { name: 'Go to run 62' })).toHaveAttribute('href', '/runs/62');
     expect(screen.getByRole('tab', { name: /Final scrollback/ })).toBeInTheDocument();
+    expect(screen.queryByText('coming in MVP')).not.toBeInTheDocument();
     expect(screen.getByText('+214 −12')).toBeInTheDocument();
     expect(container.querySelector('[class*="cursor"]')).toBeNull();
   });
@@ -545,6 +546,8 @@ describe('RunDetail transcript and stopped', () => {
   it("without a transcript prop a paused run keeps today's Saved scrollback tab", () => {
     show('RunPaused');
     expect(screen.getByRole('tab', { name: 'Saved scrollback' })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    expect(screen.queryByText('coming in MVP')).not.toBeInTheDocument();
     expect(screen.queryByRole('log', { name: 'Transcript of the agent conversation' })).not.toBeInTheDocument();
   });
 

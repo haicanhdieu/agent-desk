@@ -45,11 +45,8 @@ export interface RunTerminalAreaProps {
   label?: string;
 }
 
-/** A live run has only the Terminal tab: the "Transcript, coming in MVP" view is removed. */
-const views = (label: string, live: boolean) => [
-  { id: 'term', label, icon: 'terminal' as IconName },
-  ...(live ? [] : [{ id: 'transcript', label: 'Transcript', icon: 'transcript' as IconName, soon: 'coming in MVP' }]),
-];
+/** One view tab: the "Transcript, coming in MVP" tab is removed. */
+const views = (label: string) => [{ id: 'term', label, icon: 'terminal' as IconName }];
 
 const transcriptViews = [{ id: 'transcript', label: 'Transcript', icon: 'transcript' as IconName }];
 
@@ -252,10 +249,9 @@ export function RunTerminalArea({
     status === 'expired';
   const reconnecting = connection.state === 'reconnecting';
 
-  const live = (status === 'running' || status === 'idle' || status === 'done') && !data.pausing;
   const bar = (
     <TerminalBar
-      views={views(isEnded ? 'Final scrollback' : status === 'paused' ? 'Saved scrollback' : 'Terminal', live)}
+      views={views(isEnded ? 'Final scrollback' : status === 'paused' ? 'Saved scrollback' : 'Terminal')}
       activeView="term"
       size={data.termSize}
       connection={<ConnectionIndicator state={connection.state} label={connection.label} />}

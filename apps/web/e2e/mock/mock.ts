@@ -65,6 +65,7 @@ export const SCROLLBACK_PAUSED_RUN = 94;
 export const SCROLLBACK_ENDED_RUN = 95;
 export const NOTHING_ENDED_RUN = 96;
 export const NOTHING_PAUSED_RUN = 97;
+export const PAUSED_TRANSCRIPT_RUN = 98;
 /** An idle run (Needs you) that has a live terminal. */
 export const IDLE_RUN = 62;
 

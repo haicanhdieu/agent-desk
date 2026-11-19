@@ -40,6 +40,7 @@ export const SCROLLBACK_PAUSED_RUN = 94;
 export const SCROLLBACK_ENDED_RUN = 95;
 export const NOTHING_ENDED_RUN = 96;
 export const NOTHING_PAUSED_RUN = 97;
+export const PAUSED_TRANSCRIPT_RUN = 98;
 
 /** Transcript behaviours by run number. */
 export const transcriptBehaviours: Record<number, TranscriptBehaviour> = {
@@ -203,6 +204,13 @@ export const sessionRunFixtures: RunDto[] = [
     sessionExpiresAt: ago(-6 * DAY_MS),
     agentNote: 'Which database?',
   }),
+  session(PAUSED_TRANSCRIPT_RUN, issue('Paused by the idle timeout, with a transcript'), {
+    status: 'paused',
+    pausedAt: ago(30 * MIN_MS),
+    pauseReason: 'idle_timeout',
+    sessionExpiresAt: ago(-6 * DAY_MS),
+    agentNote: 'Which database?',
+  }),
 ];
 
 const SCROLLBACK_LINES = 412;
@@ -300,10 +308,10 @@ const richSpecs = (start: string): Spec[] => {
     { kind: 'tool', tool: 'Write', text: 'tests/Reports/RefundsColumnTests.cs' },
     { kind: 'tool', tool: 'Read', text: 'src/Reports/ReportRow.cs' },
     { kind: 'notice', text: 'Conversation compacted' },
-    { kind: 'notice', text: 'Request interrupted by user' },
+    { kind: 'notice', text: 'API Error: 401 invalid credential' },
     { kind: 'notice', text: TRANSCRIPT_LIMIT_NOTICE },
-    { kind: 'agent', text: '<h1>Report</h1><script>alert("x")</script><img src=x onerror=alert(1)>' },
-    { kind: 'agent', text: '# Heading\n\n**bold** and `code`\n\n- one\n- two\n\n[a link](https://example.com)' },
+    { kind: 'agent', text: '<b>bold</b> <script>alert(1)</script>' },
+    { kind: 'agent', text: '# Heading\n\n**strong**\n\n- one\n- two\n\n[a link](https://example.com)' },
     { kind: 'agent', text: 'a     b\n     c\n     d' },
     { kind: 'agent', text: 'before ‮visible\u0007 after' },
     {

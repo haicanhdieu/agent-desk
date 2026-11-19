@@ -1404,16 +1404,16 @@ Covers these rules and cases (spec "E2E requirements"):
 
 Every test calls `page.clock.install({ time: new Date(SESSION_MOCK_NOW) })` before its first `goto`.
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`, using the existing `runUrl` pattern from `e2e/mock/run.spec.ts`.
 
-- [ ] **Step 2: Build and run only this spec**
+- [x] **Step 2: Build and run only this spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/stop-session.spec.ts`
 Expected: PASS for every case.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1450,16 +1450,16 @@ Covers:
 
 Times like "14:13" are asserted with the spec's fixed browser timezone (`test.use({ timezoneId: 'UTC' })`), with the fixtures written to match.
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`.
 
-- [ ] **Step 2: Build and run only this spec**
+- [x] **Step 2: Build and run only this spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/transcript.spec.ts`
 Expected: PASS for every case.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
