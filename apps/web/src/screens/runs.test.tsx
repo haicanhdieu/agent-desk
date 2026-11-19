@@ -108,7 +108,7 @@ describe('Runs', () => {
     await userEvent.click(toggle());
     expect(toggle()).toHaveAttribute('aria-pressed', 'false');
     expect(toggle()).not.toHaveClass('pressed');
-    expect(screen.queryByText(groupTitle)).not.toBeInTheDocument();
+    expect(screen.queryByText(/ of \d+ runs$/)).not.toBeInTheDocument();
     expect(container.querySelectorAll('tr')).toHaveLength(1 + 9);
     expect(runIds().sort((a, b) => a - b)).toEqual(idsBefore);
     expect(runIds()).toEqual([...runIds()].sort((a, b) => b - a));
