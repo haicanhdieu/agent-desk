@@ -8,15 +8,16 @@ The requirement text is untrusted. It reaches a subagent as a file path, never p
 
 Pass a tier's model and an effort on every spawn. Map the tier to a model with [`.agent/models.json`](../../models.json) (`tiers.<tier>`); never hardcode a model name, and do not let a subagent inherit the session model.
 
-| Agent          | Spawns                      | Tier                                | `effort` | Why                                                                                                                |
-| -------------- | --------------------------- | ----------------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------ |
-| Brainstormer   | 1, resumed per answer batch | `--brainstorm-tier`, default `high` | `high`   | It chooses the architecture and what to ask a human; nothing downstream re-derives a design decision it gets wrong |
-| Rule extractor | 1                           | `medium`                            | `high`   | A rule it misses is never tested; depth comes from effort (as in `qa-write-e2e-test-cases`)                        |
-| Test planner   | 1                           | `medium`                            | `medium` | Follows a fixed section shape from a rule list; you check rule coverage after                                      |
-| Planner        | 1, resumed on graph errors  | `--plan-tier`, default `high`       | `high`   | Task boundaries and dependencies decide how much can be built in parallel; `graph` checks form, not judgment       |
-| PR agent       | 1                           | `low`                               | `low`    | Runs `create-pr`; you read the PR back                                                                             |
+| Agent          | Spawns                           | Tier                                | `effort` | Why                                                                                                                               |
+| -------------- | -------------------------------- | ----------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Brainstormer   | 1, resumed per answer batch      | `--brainstorm-tier`, default `high` | `high`   | It chooses the architecture and what to ask a human; nothing downstream re-derives a design decision it gets wrong                |
+| Prototyper     | 0 or 1, resumed per change round | `high`                              | `high`   | It turns the spec into the screens a human approves and the Storybook work is built against; a wrong board misleads every UI task |
+| Rule extractor | 1                                | `medium`                            | `high`   | A rule it misses is never tested; depth comes from effort (as in `qa-write-e2e-test-cases`)                                       |
+| Test planner   | 1                                | `medium`                            | `medium` | Follows a fixed section shape from a rule list; you check rule coverage after                                                     |
+| Planner        | 1, resumed on graph errors       | `--plan-tier`, default `high`       | `high`   | Task boundaries and dependencies decide how much can be built in parallel; `graph` checks form, not judgment                      |
+| PR agent       | 1                                | `low`                               | `low`    | Runs `create-pr`; you read the PR back                                                                                            |
 
-The user sets the two `--…-tier` flags; pass exactly what they chose. The other three are fixed.
+The user sets the two `--…-tier` flags; pass exactly what they chose. The other four are fixed.
 
 In another harness, use its closest equivalent. If it cannot choose a model per subagent, spawn with its default. If it cannot resume a subagent, spawn a fresh one with `<workdir>/answers.md` added to its reading list.
 
@@ -65,6 +66,11 @@ The spec, on top of what the skill asks for:
 - Adds no requirement, scope or non-goal the requirement and the answers do not state.
 - Says on its status line whether it touches a sensitive path (run Job/runner, webhooks,
   secrets/tokens, auth, terminal, RLS/withOrg, migrations).
+- When the change alters anything a person sees in apps/web (a screen, a component, a state,
+  copy), holds a "## UI and Storybook" section in the shape of <skill>/templates.md ("UI and
+  Storybook section"), with its Storybook-first blocker, and your reply says "UI: yes". Until I
+  tell you otherwise, write its prototype line as "skipped by the human at planning time".
+  No such change: no section, and "UI: no".
 - A new spec does not start with an HTML comment; its line 1 is the "# " title. I add a version
   line there afterwards.
 
@@ -81,10 +87,49 @@ Q2: <answer>
 …
 <gate A changes only, instead of the above:> The human read the spec and wants these changes,
 word for word: <changes>. Edit the spec file in place.
+<gate P2 yes only, instead of the above:> The human approved a UI prototype for this spec. Boards:
+<one path per line>. Changes the human asked for while reviewing it, word for word: <changes,
+or "none">. Read the boards, edit the spec in place so it says what they show (screens, states,
+copy), and set the prototype line of "## UI and Storybook" to those boards. Keep the blocker.
 Continue as before: one reply, in one of the two shapes. <You have <3 - k> batch(es) of
 questions left. | No more questions are possible: decide what is still open and mark it
 "Agent call:".>
 ```
+
+## Prototyper (step 1b)
+
+Tier `high`, effort `high`. Spawned only after a yes at gate P1.
+
+```text
+You are drawing a UI prototype for a spec in the Agent Desk repo, for a human to review and
+approve before the spec is final. Work only in the git worktree <worktree>. Read
+<worktree>/AGENTS.md and <worktree>/docs/conventions/frontend.md first.
+
+Spec: <worktree>/<spec path>. Draw what its "## UI and Storybook" section and the rest of the
+spec say a person sees, and nothing more.
+
+How:
+1. Look at the existing boards in <worktree>/design/prototype/project/ (*.dc.html) and
+   canvas.json, and pick the ones closest to the screens this changes. Copy their structure:
+   the same head, the same :root tokens, fonts and classes. Use only those tokens; add no new
+   color, font or spacing scale.
+2. A screen that already has a board: write a new board next to it named
+   <ExistingBoard><State>.dc.html (as RunIdle → RunReconnect), and leave the existing board
+   untouched. A new screen: a new board named in PascalCase after it. Draw one board per state
+   the spec names, including loading, empty and error where the screen loads data.
+3. Use the spec's own copy for labels and messages. Where the spec says nothing, keep the
+   existing boards' wording style and list the choice under SPEC GAPS.
+4. Each board must render when opened directly as a file in a browser, at the artboard size of
+   the board you copied.
+5. Change nothing else: not canvas.json, not apps/, not the spec. Do not commit.
+
+<resume only:> The human reviewed the boards and wants these changes, word for word: <changes>.
+Change only what they name.
+
+Reply in the "Prototyper reply" shape of <skill>/templates.md and nothing else.
+```
+
+Resume it (SendMessage) with the gate P2 changes in the `<resume only:>` line's words.
 
 ## Rule extractor (step 2)
 
@@ -234,7 +279,13 @@ E. E2E. When the spec has an "## E2E requirements" section, every rule in it (BR
    rule. Name the rules and cases each such task covers. It depends on the tasks that deliver
    the behaviour it tests. Without that section, AGENTS.md's e2e rule still applies: each
    user-visible or cross-component behaviour gets an e2e step.
-F. Any new dependency goes under "## Needs approval", undecided. Every decision you made for the
+F. Storybook first. When the spec has a "## UI and Storybook" section, one task (or a few, cut
+   by component group) adds or updates the stories it names, in apps/web/src/{ds,components,
+   screens} with their @/mocks fixtures, matching the prototype boards it lists and registering
+   new boards in canvas.json, screens/storyIds.ts and scripts/parity.mjs together. Every task
+   that implements or wires that UI lists the Storybook task(s) under "**Depends on:**". Say in
+   the plan that this is a blocker from the spec, not an ordering preference.
+G. Any new dependency goes under "## Needs approval", undecided. Every decision you made for the
    human is marked "Agent call:" with a one-line reason. Add no scope the spec does not state.
 
 Before you reply, check your own graph: for each task, could it start the moment its listed
@@ -269,8 +320,8 @@ Tier `low`, effort `low`. Follows the `create-pr` skill; makes no decisions of i
 
 ```text
 You are opening a pull request for the branch spec/<slug> in the git worktree <worktree>, for
-<repo, as owner/name>. Work only in that worktree. It holds one commit with two docs files: a spec and an
-implementation plan. Do not edit either file, comment on an issue, touch the project board,
+<repo, as owner/name>. Work only in that worktree. It holds one commit with docs files: a spec, an
+implementation plan<, and approved UI prototype boards under design/prototype/project/ | >. Do not edit any of them, comment on an issue, touch the project board,
 approve or merge.
 
 First, call the Skill tool with skill "create-pr" now, and follow it step by step. Do not work
@@ -284,7 +335,8 @@ Give it these inputs:
 - type: feature. agent-authored: true.
 - issue: <"Refs #<n>". This PR does not deliver the issue, so the body must not say "Closes #<n>"
   | "none">
-- linked docs: spec <spec path> (rev <rev>, <hash>), plan <plan path> (rev <rev>, <hash>)
+- linked docs: spec <spec path> (rev <rev>, <hash>), plan <plan path> (rev <rev>, <hash>)<,
+  prototype boards <paths> | >
 - summary (plain language): <what the planned change will do for the user, and that this PR adds
   only its spec and plan; nothing is built yet>
 - behavior change: none, docs only.
