@@ -35,6 +35,11 @@ export interface LiveTerminalProps {
 /** Lines kept above the screen (the stored scrollback is capped to the same count). */
 const SCROLLBACK_LINES = 5000;
 
+/** Ctrl+C or Cmd+C, with no other modifier. */
+function isCopyKey(event: KeyboardEvent): boolean {
+  return event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+}
+
 export default function LiveTerminal({
   onData,
   onResize,
@@ -86,7 +91,25 @@ export default function LiveTerminal({
     // xterm sends the same CR for Enter and Shift+Enter, so a multi-line prompt could never be typed. Send ESC CR (what
     // Alt+Enter sends) for Shift+Enter instead: Claude Code reads it as "insert a newline" rather than "submit". Every
     // phase of the key (keydown, keypress, keyup) is swallowed so xterm does not also send a CR.
+    //
+    // Ctrl+C is also the interrupt: xterm turns it into ETX and cancels the key, so the browser never gets to copy. With
+    // a selection, Ctrl+C or Cmd+C copies it instead (what a terminal emulator does) and nothing is sent; with none,
+    // Ctrl+C stays the interrupt. A page without the clipboard API leaves the key to the browser copy event, which
+    // xterm answers with the selection.
     term.attachCustomKeyEventHandler((event) => {
+      if (event.type === 'keydown' && isCopyKey(event) && term.hasSelection()) {
+        if (navigator.clipboard) {
+          event.preventDefault();
+          navigator.clipboard
+            .writeText(term.getSelection())
+            // Clear it once copied, so the next Ctrl+C is the interrupt again (Windows Terminal does the same).
+            .then(() => term.clearSelection())
+            .catch((err: unknown) => {
+              console.warn('Could not copy the terminal selection', err);
+            });
+        }
+        return false;
+      }
       if (event.key !== 'Enter' || !event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return true;
       if (event.type === 'keydown') {
         event.preventDefault();
