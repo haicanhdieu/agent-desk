@@ -1043,25 +1043,25 @@ Setup2Props.errors?: { credential?: string; model?: string; maxConcurrent?: stri
 
 Screen (board `Setup2`): "API address" input with help "Optional. Leave empty for Anthropic's default. Runs get it as ANTHROPIC_BASE_URL. Public https addresses only."; "Default model" `ModelPicker` with help "Loaded from the provider. Rules that don't name a model use this one." and the typed help as on Desk → Agent; `baseUrl` error shown on the address field.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `setup.test.tsx`: `it('Setup2 shows API address and a Default model picker with Other model… last, not the fixed opus/sonnet list')`; `it('Continue passes the typed address and the picked or typed model')`; `it('a baseUrl error shows on the API address field')`; `it('fallback shows opus, sonnet, haiku with the reason note')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- setup.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement screen and stories**
+- [x] **Step 3: Implement screen and stories**
 
 Update the `Setup2` story to the board (live list); add `Setup2Fallback` (no credential) as a state story. Until Task 15 wires the query, the setup route's `AgentStep` passes `modelList={{ models: [{ id: agent.model, label: agent.model }], state: { kind: 'ready' } }}` and `baseUrl={agent.baseUrl ?? ''}` in place of `models`, so the route and its test stay green.
 
-- [ ] **Step 4: Run tests, Storybook and parity**
+- [x] **Step 4: Run tests, Storybook and parity**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`
 Expected: PASS; no new drift on `Setup2` (fix it in code).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

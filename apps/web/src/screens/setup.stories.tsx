@@ -102,9 +102,25 @@ export const Setup2: Story = {
       repo={repo}
       credentialType={agentSettings.credential.type}
       secretState="entering"
-      models={['opus (latest Opus)', 'sonnet (latest Sonnet)', 'Custom model id']}
+      modelList={toModelList({ status: 'success', data: agentModelsFixtures.live }, null)}
       maxConcurrent={agentSettings.maxConcurrent}
       accepted={{ at: '14:03:02', secretName: 'agentdesk/proj-invoicer-api-claude' }}
+    />
+  ),
+};
+
+/** No credential yet: the standard names with the reason note. */
+export const Setup2Fallback: Story = {
+  name: 'Setup 2, Claude credential, no credential yet',
+  render: () => (
+    <Setup2Screen
+      user={user}
+      projectName={projectName}
+      repo={repo}
+      credentialType={agentSettings.credential.type}
+      secretState="entering"
+      modelList={toModelList({ status: 'success', data: agentModelsFixtures.noCredential }, null)}
+      maxConcurrent={agentSettings.maxConcurrent}
     />
   ),
 };

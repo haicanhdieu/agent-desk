@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
-import { Banner, Field, Icon, RadioCard, Select, StatusIcon, TextInput, CommandChip } from '@/ds';
-import { SecretField, SetupLayout, type CredentialType } from '@/components';
+import { Banner, Field, Icon, RadioCard, StatusIcon, TextInput, CommandChip } from '@/ds';
+import { ModelPicker, SecretField, SetupLayout, type CredentialType, type ModelList } from '@/components';
 import type { Actor } from '@/mocks/types';
 import { setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
@@ -9,9 +9,20 @@ import styles from './Screens.module.css';
 export interface Setup2Draft {
   credentialType: CredentialType;
   credential: string;
+  /** The picked or typed default model; never empty. */
   model: string;
+  /** The typed API address, trimmed; '' = the provider's default. */
+  baseUrl: string;
   maxConcurrent: string;
 }
+
+const MODEL_REQUIRED = 'Enter a model name.';
+const addressHelp = (
+  <>
+    Optional. Leave empty for Anthropic's default. Runs get it as <span className="mono">ANTHROPIC_BASE_URL</span>.
+    Public https addresses only.
+  </>
+);
 
 export interface Setup2Props extends SetupNav {
   user: Actor;
@@ -19,17 +30,20 @@ export interface Setup2Props extends SetupNav {
   repo: string;
   credentialType: CredentialType;
   secretState: 'entering' | 'empty';
-  models: string[];
+  /** The agent's models for the Default model picker. */
+  modelList: ModelList;
+  /** The saved API address ('' = default); the address field starts with it. */
+  baseUrl?: string;
   maxConcurrent: number;
   accepted?: { at: string; secretName: string };
   /** Receives the typed token. It is never rendered after submit. */
   onSubmitCredential?(type: CredentialType, value: string): void;
-  /** Initially selected model. Defaults to the first. */
+  /** The saved default model. Defaults to the first listed model. */
   model?: string;
   /** Saves the step (Continue, or Enter in the token field). With it, Continue is a button. */
   onContinue?(draft: Setup2Draft): void;
   saving?: boolean;
-  errors?: { credential?: string; model?: string; maxConcurrent?: string };
+  errors?: { credential?: string; model?: string; maxConcurrent?: string; baseUrl?: string };
   /** A failed save that names no field. */
   formError?: string;
 }
@@ -40,7 +54,8 @@ export function Setup2({
   repo,
   credentialType,
   secretState,
-  models,
+  modelList,
+  baseUrl = '',
   maxConcurrent,
   accepted,
   onSubmitCredential,
@@ -53,12 +68,29 @@ export function Setup2({
   formError,
 }: Setup2Props) {
   const [type, setType] = useState<CredentialType>(credentialType);
-  const [model, setModel] = useState(initialModel ?? models[0] ?? '');
+  // The person's pick; until they pick, the saved model (or the first listed one) shows, so a list that arrives
+  // after mount is followed instead of a stale copy.
+  const [picked, setPicked] = useState<string | null>(null);
+  const model = picked ?? initialModel ?? modelList.models[0]?.id ?? '';
+  const [emptyModel, setEmptyModel] = useState(false);
+  const [address, setAddress] = useState(baseUrl);
   const [concurrent, setConcurrent] = useState(String(maxConcurrent));
   // The secret stays in a ref (never rendered) and goes out only with Continue.
   const secret = useRef('');
-  const submit = () =>
-    onContinue?.({ credentialType: type, credential: secret.current, model, maxConcurrent: concurrent });
+  const submit = () => {
+    const name = model.trim();
+    if (name === '') {
+      setEmptyModel(true);
+      return;
+    }
+    onContinue?.({
+      credentialType: type,
+      credential: secret.current,
+      model: name,
+      baseUrl: address.trim(),
+      maxConcurrent: concurrent,
+    });
+  };
   return (
     <SetupLayout
       user={user}
@@ -119,22 +151,34 @@ export function Setup2({
         revealLabel="Show token while typing"
         entryHelp="Use a dedicated token with a low limit. The agent process can read it inside the run container."
       />
+      <Field label="API address" help={addressHelp} error={errors?.baseUrl}>
+        {({ id, describedBy, invalid }) => (
+          <TextInput
+            mono
+            id={id}
+            aria-describedby={describedBy}
+            aria-invalid={invalid}
+            placeholder="https://api.anthropic.com"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+        )}
+      </Field>
       <div className={styles.grid2Gap16}>
-        <Field label="Model" error={errors?.model}>
-          {({ id, describedBy, invalid }) => (
-            <Select
-              id={id}
-              aria-describedby={describedBy}
-              aria-invalid={invalid}
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-            >
-              {models.map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </Select>
-          )}
-        </Field>
+        <ModelPicker
+          label="Default model"
+          list={modelList}
+          value={model}
+          onChange={(next) => {
+            setPicked(next ?? '');
+            setEmptyModel(false);
+          }}
+          help="Loaded from the provider. Rules that don't name a model use this one."
+          typedHelp="Sent to Claude Code exactly as typed. Rules that don't name a model use this one."
+          error={errors?.model ?? (emptyModel ? MODEL_REQUIRED : undefined)}
+        />
         <Field
           label="Concurrent runs"
           help="Idle runs hold a slot until you finish them."

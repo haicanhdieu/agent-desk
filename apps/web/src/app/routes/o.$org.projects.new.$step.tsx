@@ -271,8 +271,6 @@ const AGENT_POINTERS = {
   '/maxConcurrentRuns': 'maxConcurrent',
 } as const;
 
-const MODELS = ['opus', 'sonnet'];
-
 function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   const user = useActor();
   const goTo = useGoToStep(org);
@@ -280,7 +278,6 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { save, pending } = useSaveAgentStep(org);
   const [errors, setErrors] = useState<StepErrors<'credential' | 'model' | 'maxConcurrent'>>(noErrors);
-  const models = MODELS.includes(agent.model) ? MODELS : [agent.model, ...MODELS];
 
   const onContinue = async (d: Setup2Draft) => {
     const max = /^\d+$/.test(d.maxConcurrent.trim()) ? Number(d.maxConcurrent.trim()) : NaN;
@@ -309,7 +306,9 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
       repo={project.repoPath}
       credentialType={agent.credential.type ?? 'oauth_token'}
       secretState="entering"
-      models={models}
+      // Stop-gap until the models query is wired: the saved model only.
+      modelList={{ models: [{ id: agent.model, label: agent.model }], state: { kind: 'ready' } }}
+      baseUrl={agent.baseUrl ?? ''}
       model={agent.model}
       maxConcurrent={project.maxConcurrentRuns}
       backHref={stepHref(org, 'repo', projectId)}
