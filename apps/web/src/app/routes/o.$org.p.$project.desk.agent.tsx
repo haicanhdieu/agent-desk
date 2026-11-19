@@ -1,11 +1,18 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { useRef, useState } from 'react';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
+import { toModelList } from '@/components/ModelPicker';
 import { useToast } from '@/ds';
-import { limitsOf, toAgentSettings, useReplaceCredential, useSaveLimits } from '@/features/desk/agent.form';
+import {
+  limitsOf,
+  toAgentSettings,
+  useReplaceCredential,
+  useSaveAgent,
+  useSaveLimits,
+} from '@/features/desk/agent.form';
 import { checkNowMessage, failedPollMessage } from '@/features/desk/checkNow';
 import { useDeskFrame } from '@/features/desk/frame';
 import { forgetProject, useCheckNow, useDeleteProject, useSaveTrigger } from '@/features/desk/mutations';
@@ -40,6 +47,9 @@ function DeskAgentPage() {
     onSaved: () => toast.show({ tone: 'ok', title: 'Limits saved' }),
   });
   const credential = useReplaceCredential(org, projectId, agent.id);
+  const saveAgent = useSaveAgent(org, projectId);
+  // Not suspense: the picker shows its own loading and error states, and Other model… works meanwhile.
+  const models = useQuery(deskQueries.agentModels(org, agent.id));
 
   // Trigger mode: the pick shows at once and is saved; while saves are in flight the latest pick shows, after a
   // failure the saved mode shows again with the problem title (spec §6). Every save settles through its own promise;
@@ -125,8 +135,14 @@ function DeskAgentPage() {
       limitsErrors={limits.errors}
       limitsError={limits.formError}
       savingLimits={limits.saving}
+      modelList={toModelList(models, agent.baseUrl)}
+      onSaveAgent={saveAgent.save}
+      // Save agent waits for a credential replace: its agent snapshot could otherwise overwrite the refetched one.
+      savingAgent={saveAgent.saving || credential.pending}
+      modelError={saveAgent.error}
       onReplaceCredential={credential.replace}
       credentialError={credential.error}
+      addressError={credential.addressError}
       onDeleteProject={onDeleteProject}
     />
   );

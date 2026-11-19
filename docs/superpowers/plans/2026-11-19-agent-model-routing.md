@@ -1101,26 +1101,26 @@ export function useReplaceCredential(org: string, projectId: string, agentId: st
 // on success invalidates deskQueries.agent and deskQueries.agentModels(org, agentId)
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agent.form.test.ts`: `useSaveAgent` sends `{ model, timeoutSeconds, maxTurns? }` from the fresh agent and no keep times (BR-8); `useReplaceCredential` sends `baseUrl` only when given.
 `agent.route.test.tsx` (MSW node): `it('the Default model picker shows the live list')`; `it('Save agent saves the typed model exactly and shows it after returning')`; `it('a saved model not in the live list shows under Other model… and Save agent keeps it')` (Review Focus 2); `it('an address change plus token saves both and the model list reloads without a page reload')` (scenario `idsByBaseUrl`); `it('a /baseUrl problem shows on the API address field')`; `it('a /model problem shows on the Default model field')`; `it('the models request failing shows the error state and Other model… still works')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- agent.form agent.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the hooks and the route**
+- [x] **Step 3: Implement the hooks and the route**
 
 The route reads `useQuery(deskQueries.agentModels(org, agent.id))` (not suspense, so the screen shows loading), passes `modelList`, `onSaveAgent`, `savingAgent`, `modelError`, `onReplaceCredential`, `addressError`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/web test -- agent && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
