@@ -36,3 +36,11 @@ const liveArgs = {
 };
 export const Copied: Story = { args: { ...liveArgs, copyStatus: 'copied' } };
 export const CopyFailed: Story = { args: { ...liveArgs, copyStatus: 'failed' } };
+export const TranscriptBar: Story = {
+  args: {
+    views: [{ id: 'transcript', label: 'Transcript', icon: 'transcript' as const }],
+    activeView: 'transcript',
+    tools: false,
+    connection: <ConnectionIndicator state="ended" label="Paused, read-only" />,
+  },
+};

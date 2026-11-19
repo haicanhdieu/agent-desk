@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Button, CommandChip, CountBadge, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
-import { AppShell, PopoverCard, TopBar, TopBarSeparator, type TermLine } from '@/components';
+import { AppShell, PopoverCard, TopBar, TopBarSeparator, type TermLine, type TranscriptProps } from '@/components';
 import type { RunDetailData } from '@/mocks';
 import { user as boardUser } from '@/mocks';
 import type { Actor } from '@/mocks/types';
@@ -45,6 +45,16 @@ export interface RunDetailProps {
   user?: Actor;
   /** The project's run limit per ticket (the chain's "max N runs"); defaults to the board's 10. */
   maxRunsPerTicket?: number;
+  /** No live pod: show this Transcript in the terminal area (see RunTerminalArea). */
+  transcript?: TranscriptProps;
+  /** Opens the "Stop the session?" confirm (Stop session pressed while the agent works). */
+  onStopOpen?(): void;
+  stopConfirmOpen?: boolean;
+  onStopClose?(): void;
+  /** Stops the session: Stop session pressed on an idle or done run, or confirmed. */
+  onStop?(): void;
+  /** A stop request is in flight: the action buttons wait. */
+  stopping?: boolean;
 }
 
 export interface RunDetailLinks {
@@ -59,6 +69,9 @@ export interface RunDetailLinks {
 const ENDED = ['succeeded', 'failed', 'timed_out', 'cancelled', 'expired'];
 /** Mirrors the contracts' FINISHABLE_RUN_STATUSES (screens do not import contracts); a paused run has its own Finish. */
 const FINISHABLE = ['idle', 'done'];
+/** Mirrors the contracts' STOPPABLE_RUN_STATUSES (screens do not import contracts). */
+const STOPPABLE = ['running', 'idle', 'done'];
+const STOP_ENDING_HINT = 'The session is already ending';
 const FINISH_HINT = 'Finish is available when the agent is waiting for you';
 
 export function RunDetail({
@@ -86,6 +99,12 @@ export function RunDetail({
   inactiveBody,
   user = boardUser,
   maxRunsPerTicket,
+  transcript,
+  onStopOpen,
+  stopConfirmOpen,
+  onStopClose,
+  onStop,
+  stopping,
 }: RunDetailProps) {
   const { run } = data;
   const t = run.ticket;
@@ -93,7 +112,8 @@ export function RunDetail({
   const finishable = FINISHABLE.includes(run.status);
   // A paused run's buttons (Resume, Finish) are in the notice above the terminal, so the top bar only links out.
   const parked = run.status === 'paused';
-  const busy = pendingNote !== undefined || resuming === true;
+  const stoppable = STOPPABLE.includes(run.status);
+  const busy = pendingNote !== undefined || resuming === true || stopping === true;
 
   const actions = (
     <>
@@ -112,6 +132,16 @@ export function RunDetail({
           >
             {finishable ? 'Finish run' : 'Finish'}
           </Button>
+          {stoppable && (
+            <Button
+              icon="pause"
+              disabled={data.pausing === true || busy}
+              title={data.pausing ? STOP_ENDING_HINT : undefined}
+              onClick={run.status === 'running' ? onStopOpen : onStop}
+            >
+              Stop session
+            </Button>
+          )}
           <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
             Cancel run
           </Button>
@@ -177,6 +207,7 @@ export function RunDetail({
           reconnectOverlay={reconnectOverlay}
           reconnectBody={reconnectBody}
           inactiveBody={inactiveBody}
+          transcript={transcript}
         />
         <RunSidePanel
           data={data}
@@ -212,6 +243,34 @@ export function RunDetail({
               </Button>
               <Button variant="solid-danger" size="sm" onClick={onCancelConfirm}>
                 Cancel run
+              </Button>
+            </>
+          }
+        />
+      </Popover>
+      <Popover
+        open={!!stopConfirmOpen}
+        role="dialog"
+        label="Stop the session?"
+        onClose={onStopClose}
+        width={340}
+        style={{ right: 290, top: 56 }}
+      >
+        <PopoverCard
+          title="Stop the session?"
+          body={
+            <>
+              The agent is in the middle of a step. Stopping now cuts that step short. Everything up to now is kept, and
+              you can resume for {data.pausedKeep}.
+            </>
+          }
+          actions={
+            <>
+              <Button variant="ghost" size="sm" onClick={onStopClose}>
+                Keep running
+              </Button>
+              <Button variant="primary" size="sm" icon="pause" onClick={onStop}>
+                Stop session
               </Button>
             </>
           }

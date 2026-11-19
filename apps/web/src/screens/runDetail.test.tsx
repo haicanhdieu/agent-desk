@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { runDetails, terminalByRun } from '@/mocks';
+import { runDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
 import { RunDetail } from './RunDetail';
 
@@ -474,5 +474,179 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
     expect(screen.getByText('Paused: agent crashed (exit code 2)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
+  });
+});
+
+describe('RunDetail transcript and stopped', () => {
+  const ready = { state: 'ready', items: transcriptFixtures.default, hasEarlier: true } as const;
+
+  it('a live run shows only the Terminal tab and no Transcript tab', () => {
+    show('RunRunning');
+    expect(screen.getByRole('tab', { name: 'Terminal' })).toBeInTheDocument();
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    expect(screen.queryByText('coming in MVP')).not.toBeInTheDocument();
+  });
+
+  it('a stopped run shows the Stopped notice headline and detail, Resume and Finish, and the Transcript under a bar without Find or Copy all', () => {
+    render(<RunDetail data={runDetails.RunStopped} transcript={ready} needsYou={1} onResume={() => {}} />);
+    expect(screen.getByText('Stopped: can be resumed for 7 days.')).toBeInTheDocument();
+    expect(screen.getByText('Stopped by you 2 min ago.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
+    expect(screen.getAllByRole('tab')).toHaveLength(1);
+    expect(screen.getByRole('tab', { name: 'Transcript' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByText('Paused, read-only')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Find/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy all' })).not.toBeInTheDocument();
+    expect(screen.getByRole('log', { name: 'Transcript of the agent conversation' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Show earlier messages' })).toBeInTheDocument();
+  });
+
+  it("the paused notice's icon reads Stopped only for a stopped run", () => {
+    const { unmount } = render(<RunDetail data={runDetails.RunStopped} transcript={ready} needsYou={1} />);
+    expect(screen.getByRole('img', { name: 'Stopped' })).toBeInTheDocument();
+    unmount();
+    render(<RunDetail data={runDetails.RunPaused} transcript={ready} needsYou={1} />);
+    expect(screen.getAllByRole('img', { name: 'Paused' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('img', { name: 'Stopped' })).not.toBeInTheDocument();
+  });
+
+  it('a session ending shows Session ending… above a loading Transcript', () => {
+    const data = { ...runDetails.RunIdle, pausing: true, connection: { state: 'none', label: 'Ending…' } } as const;
+    render(<RunDetail data={data} transcript={{ state: 'loading', items: [] }} needsYou={1} />);
+    const notice = screen.getByText('Session ending…');
+    const loading = screen.getByRole('status', { name: 'Loading the transcript' });
+    expect(notice.compareDocumentPosition(loading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(screen.getByRole('tab', { name: 'Transcript' })).toBeInTheDocument();
+    expect(screen.getByText('Ending…')).toBeInTheDocument();
+  });
+
+  it('a cancelled run with a transcript shows the Transcript, not No scrollback was saved', () => {
+    render(<RunDetail data={runDetails.RunCancelled} transcript={ready} needsYou={1} />);
+    expect(screen.getByRole('log', { name: 'Transcript of the agent conversation' })).toBeInTheDocument();
+    expect(screen.getByText(/Cancelled by kim-hale/)).toBeInTheDocument();
+    expect(screen.queryByText('No scrollback was saved')).not.toBeInTheDocument();
+  });
+
+  it('an expired run with a transcript keeps the Transcript under the Expired notice', () => {
+    render(<RunDetail data={runDetails.RunExpired} transcript={ready} needsYou={1} />);
+    expect(screen.getByText(/Nobody resumed this run within 7 days/)).toBeInTheDocument();
+    expect(screen.getByRole('log')).toBeInTheDocument();
+  });
+
+  it('a succeeded run after Finish shows Finished. The session was deleted and cannot be resumed. and no Re-open session', () => {
+    render(<RunDetail data={runDetails.RunSucceededFinished} transcript={ready} needsYou={1} />);
+    expect(screen.getByText('Succeeded in 9m 03s.')).toBeInTheDocument();
+    expect(screen.getByText('Finished. The session was deleted and cannot be resumed.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.getByText('Ended, read-only')).toBeInTheDocument();
+  });
+
+  it("without a transcript prop a paused run keeps today's Saved scrollback tab", () => {
+    show('RunPaused');
+    expect(screen.getByRole('tab', { name: 'Saved scrollback' })).toBeInTheDocument();
+    expect(screen.queryByRole('log', { name: 'Transcript of the agent conversation' })).not.toBeInTheDocument();
+  });
+
+  it('starting and resuming keep their placeholder even with a transcript prop', () => {
+    const { unmount } = render(<RunDetail data={runDetails.RunStarting} transcript={ready} needsYou={1} />);
+    expect(screen.getByText('Starting the agent')).toBeInTheDocument();
+    expect(screen.queryByRole('log', { name: 'Transcript of the agent conversation' })).not.toBeInTheDocument();
+    unmount();
+    render(<RunDetail data={{ ...runDetails.RunStarting, resuming: true }} transcript={ready} needsYou={1} />);
+    expect(screen.getByText('Resuming the run')).toBeInTheDocument();
+    expect(screen.queryByRole('log', { name: 'Transcript of the agent conversation' })).not.toBeInTheDocument();
+  });
+});
+
+describe('RunDetail Stop session', () => {
+  const STOP_TITLE = 'The session is already ending';
+  const topBarNames = () =>
+    within(screen.getByRole('banner'))
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+
+  it.each([
+    ['RunRunning', 'Finish'],
+    ['RunIdle', 'Finish run'],
+    ['RunDone', 'Finish run'],
+  ] as [RunDetailKey, string][])('Stop session sits between Finish run and Cancel run on %s', (k, finish) => {
+    show(k);
+    const names = topBarNames();
+    const i = names.indexOf(finish);
+    expect(i).toBeGreaterThanOrEqual(0);
+    expect(names.slice(i, i + 3)).toEqual([finish, 'Stop session', 'Cancel run']);
+  });
+
+  it.each(['RunPaused', 'RunSucceeded', 'RunFailed', 'RunStopped'] as RunDetailKey[])('is absent on %s', (k) => {
+    show(k);
+    expect(screen.queryByRole('button', { name: 'Stop session' })).not.toBeInTheDocument();
+  });
+
+  it('is disabled with the title The session is already ending while the session ends', () => {
+    render(<RunDetail data={runDetails.RunIdleEnding} needsYou={1} />);
+    const stop = screen.getByRole('button', { name: 'Stop session' });
+    expect(stop).toBeDisabled();
+    expect(stop).toHaveAttribute('title', STOP_TITLE);
+  });
+
+  it('is enabled on a running run and has no title', () => {
+    show('RunRunning');
+    const stop = screen.getByRole('button', { name: 'Stop session' });
+    expect(stop).toBeEnabled();
+    expect(stop).not.toHaveAttribute('title');
+  });
+
+  it.each([
+    ['a cancel or finish', { pendingNote: 'Finishing…' }],
+    ['a resume', { resuming: true }],
+    ['a stop', { stopping: true }],
+  ] as [string, Partial<React.ComponentProps<typeof RunDetail>>][])(
+    'is disabled while %s is in flight',
+    (_n, extra) => {
+      show('RunIdle', extra);
+      expect(screen.getByRole('button', { name: 'Stop session' })).toBeDisabled();
+    },
+  );
+
+  it('on a running run it calls onStopOpen; on idle and done it calls onStop', async () => {
+    const onStopOpen = vi.fn();
+    const onStop = vi.fn();
+    const { unmount } = show('RunRunning', { onStopOpen, onStop });
+    await userEvent.click(screen.getByRole('button', { name: 'Stop session' }));
+    expect(onStopOpen).toHaveBeenCalledTimes(1);
+    expect(onStop).not.toHaveBeenCalled();
+    unmount();
+    for (const k of ['RunIdle', 'RunDone'] as RunDetailKey[]) {
+      const r = show(k, { onStopOpen, onStop });
+      await userEvent.click(screen.getByRole('button', { name: 'Stop session' }));
+      r.unmount();
+    }
+    expect(onStop).toHaveBeenCalledTimes(2);
+    expect(onStopOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('the confirm is absent by default', () => {
+    show('RunRunning');
+    expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
+  });
+
+  it('the confirm has the title, the body with the keep time, Keep running and Stop session; Escape and Keep running call onStopClose; Stop session calls onStop', async () => {
+    const onStopClose = vi.fn();
+    const onStop = vi.fn();
+    show('RunRunningStop', { stopConfirmOpen: true, onStopClose, onStop });
+    const dialog = screen.getByRole('dialog', { name: 'Stop the session?' });
+    expect(within(dialog).getByText('Stop the session?')).toBeInTheDocument();
+    expect(
+      within(dialog).getByText(
+        'The agent is in the middle of a step. Stopping now cuts that step short. Everything up to now is kept, and you can resume for 7 days.',
+      ),
+    ).toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep running' }));
+    expect(onStopClose).toHaveBeenCalledTimes(1);
+    await userEvent.keyboard('{Escape}');
+    expect(onStopClose).toHaveBeenCalledTimes(2);
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Stop session' }));
+    expect(onStop).toHaveBeenCalledTimes(1);
   });
 });

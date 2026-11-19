@@ -129,6 +129,8 @@ export type RunDetailData = {
   endNote?: { title: string; body: ReactNode; actions: { label: string; href?: string; icon?: IconName }[] };
   /** A failed run that stopped in setup, before the agent started. */
   failureStage?: 'setup' | 'agent';
+  /** The agent's paused keep time as words ("7 days"): the Stop session confirm and the Stopped headline use it. */
+  pausedKeep?: string;
   /** The setup script version the run used, and how it ended. */
   setup?: { version: number; note?: string };
   /**
@@ -140,6 +142,8 @@ export type RunDetailData = {
     headline?: string;
     detail?: string;
     resumeFailure?: string;
+    /** A person's Stop parked the run (pauseReason 'stopped'): the paused notice's icon reads "Stopped". */
+    stopped?: true;
   };
   /**
    * The idle timer or Finish is ending the live session (`sessionEndingAt` set): the terminal is closed, the page says
@@ -165,4 +169,8 @@ export type RunDetailKey =
   | 'RunTimedOut'
   | 'RunCancelled'
   | 'RunPaused'
-  | 'RunExpired';
+  | 'RunExpired'
+  | 'RunStopped'
+  | 'RunSucceededFinished'
+  | 'RunRunningStop'
+  | 'RunIdleEnding';

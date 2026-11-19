@@ -138,12 +138,14 @@ export interface TerminalPaneProps {
   notice?: ReactNode;
   bar: ReactNode;
   overlay?: ReactNode;
+  /** The pane's accessible name; defaults to "Terminal". */
+  label?: string;
   children?: ReactNode;
 }
 
-export function TerminalPane({ notice, bar, overlay, children }: TerminalPaneProps) {
+export function TerminalPane({ notice, bar, overlay, label = 'Terminal', children }: TerminalPaneProps) {
   return (
-    <section className={styles.termwrap} aria-label="Terminal">
+    <section className={styles.termwrap} aria-label={label}>
       {notice}
       {bar}
       <div className={styles.body}>

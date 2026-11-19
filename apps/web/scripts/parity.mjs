@@ -49,6 +49,11 @@ const stories = {
       'SetupFailed',
       'TimedOut',
       'Cancelled',
+      'Stopped',
+      'SucceededFinished',
+      'TranscriptStates',
+      'RunningStop',
+      'IdleEnding',
     ].map((s) => [`Run${s}`, ['Screens/Run detail', `Run${s}`]]),
   ),
   ...Object.fromEntries(

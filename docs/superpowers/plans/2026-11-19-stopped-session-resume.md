@@ -950,7 +950,7 @@ export function Transcript(props: TranscriptProps): JSX.Element;
   - Empty (`ready` with no items): a centred icon and the heading "No conversation was saved for this run." with no body.
   - Design tokens only.
 
-- [ ] **Step 1: Write the failing component tests**
+- [x] **Step 1: Write the failing component tests**
 
 In `Transcript.test.tsx`:
 - `labels person messages You or Prompt and agent replies with the agent name and time`;
@@ -965,12 +965,12 @@ In `Transcript.test.tsx`:
 
 In `Terminal.test.tsx`, `describe('TerminalBar')`: `it('tools={false} hides Find and Copy all')`. In `Icon.test.tsx`: the icon count becomes `38`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- Transcript Terminal Icon`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the component, the `tools` prop, the icon and the fixtures**
+- [x] **Step 3: Implement the component, the `tools` prop, the icon and the fixtures**
 
 Write the stories, fed from `@/mocks` `transcriptFixtures`: `Default`, `Long` (with "Show earlier messages"), `Truncated`, `ToolSteps`, `Notices`, `Loading`, `Error` (Request ID `01JDK8Q3V2`, as on the board), `ErrorNoRequestId`, and `Empty`. Add a `TerminalBar` story `TranscriptBar` with `tools={false}`.
 
@@ -979,7 +979,7 @@ Write the stories, fed from `@/mocks` `transcriptFixtures`: `Default`, `Long` (w
 Run: `pnpm --filter @agentdesk/web test -- Transcript Terminal Icon && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS. Open the stories in `pnpm --filter @agentdesk/web storybook` and compare them with the boards.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1014,7 +1014,7 @@ transcript?: TranscriptProps;
   - Without `transcript`: exactly today's rendering.
   - Starting and resuming are unchanged.
 
-- [ ] **Step 1: Write the failing screen tests**
+- [x] **Step 1: Write the failing screen tests**
 
 In `runDetail.test.tsx`, `describe('RunDetail transcript and stopped')`:
 - `a live run shows only the Terminal tab and no Transcript tab`;
@@ -1028,16 +1028,16 @@ In `runDetail.test.tsx`, `describe('RunDetail transcript and stopped')`:
 
 Update `coverage.test.ts`: the board count becomes 37.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the screen changes and the fixtures**
+- [x] **Step 3: Implement the screen changes and the fixtures**
 
 `mocks/runDetail.tsx` adds `RunStopped` (run 62 stopped 2 min ago, PR ticket, `transcriptFixtures.default` with a cut entry and "Show earlier messages", "Paused, read-only") and `RunSucceededFinished` (the "Succeeded in 9m 03s." title, the Finished body, "Ended, read-only"). Both are drawn from their boards.
 
-- [ ] **Step 4: Register the boards and write the stories**
+- [x] **Step 4: Register the boards and write the stories**
 
 - Add `RunStopped`, `RunSucceededFinished` and `RunTranscriptStates` to `canvas.json` (`boards` with x, y, w, h, title from each board's `<title>`, and `order` after `RunCancelled`), to `boardStories` in `storyIds.ts` (title `Screens/Run detail`), and to `stories` in `parity.mjs`, all together.
 - `runDetail.stories.tsx` gets `RunStopped`, `RunSucceededFinished` and `RunTranscriptStates`. The last renders the board's states side by side: paused by the idle timer, failed, timed out, cancelled, expired, the saved-scrollback fallback ("Saved scrollback", "Paused, read-only, 412 lines"), the empty state, and the error state.
@@ -1049,7 +1049,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage RunTerminalArea && pnpm --filter @agentdesk/web typecheck`, then `pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: PASS. Compare `apps/web/parity-out/{RunStopped,RunSucceededFinished,RunTranscriptStates}.{story,proto}.png` by eye. `parity-out/` and `storybook-static/` are not committed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -1082,7 +1082,7 @@ stopping?: boolean;
   - The confirm is a `Popover` under the button: `role="dialog"`, label "Stop the session?", a `PopoverCard` with title "Stop the session?" and the body sentence with `data.pausedKeep`, then "Keep running" (ghost, calls `onStopClose`) and "Stop session" (primary, `pause` icon, calls `onStop`). Escape calls `onStopClose`.
   - The constant `STOPPABLE = ['running', 'idle', 'done']` mirrors the contracts' `STOPPABLE_RUN_STATUSES`, because screens do not import contracts.
 
-- [ ] **Step 1: Write the failing screen tests**
+- [x] **Step 1: Write the failing screen tests**
 
 In `runDetail.test.tsx`, `describe('RunDetail Stop session')`:
 - `Stop session sits between Finish run and Cancel run on running, idle and done`;
@@ -1094,16 +1094,16 @@ In `runDetail.test.tsx`, `describe('RunDetail Stop session')`:
 
 `coverage.test.ts`: the board count becomes 39.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add the button, the confirm and the props.
 
-- [ ] **Step 4: Register the boards and write the stories**
+- [x] **Step 4: Register the boards and write the stories**
 
 - Add `RunRunningStop` and `RunIdleEnding` to `canvas.json`, `boardStories` and `parity.mjs` together.
 - `runDetail.stories.tsx` gets `RunRunningStop` (run 61 running, confirm open, `pausedKeep: '7 days'`) and `RunIdleEnding` (run 62 idle with the session ending, Stop session disabled, Transcript loading). Fixtures go in `mocks/runDetail.tsx`.
@@ -1115,7 +1115,7 @@ Add the button, the confirm and the props.
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage && pnpm --filter @agentdesk/web typecheck`, then `pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: PASS. `RunRunningStop` and `RunIdleEnding` match their boards by eye.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix

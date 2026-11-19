@@ -10,7 +10,9 @@ import {
   TerminalBar,
   TerminalPane,
   TerminalPlaceholder,
+  Transcript,
   type TermLine,
+  type TranscriptProps,
 } from '@/components';
 import type { RunDetailData } from '@/mocks';
 
@@ -34,12 +36,22 @@ export interface RunTerminalAreaProps {
    * closed the socket because the page was unused, so the run can pause when it is idle. Replaces the reconnect overlay.
    */
   inactiveBody?: ReactNode;
+  /**
+   * No live pod: show this Transcript in the terminal area (bar: one "Transcript" tab, no Find/Copy all).
+   * Absent: today's stored scrollback or placeholder.
+   */
+  transcript?: TranscriptProps;
+  /** The pane's accessible name; defaults to "Terminal", or "Transcript" when a Transcript is shown. */
+  label?: string;
 }
 
-const views = (label: string) => [
+/** A live run has only the Terminal tab: the "Transcript, coming in MVP" view is removed. */
+const views = (label: string, live: boolean) => [
   { id: 'term', label, icon: 'terminal' as IconName },
-  { id: 'transcript', label: 'Transcript', icon: 'transcript' as IconName, soon: 'coming in MVP' },
+  ...(live ? [] : [{ id: 'transcript', label: 'Transcript', icon: 'transcript' as IconName, soon: 'coming in MVP' }]),
 ];
+
+const transcriptViews = [{ id: 'transcript', label: 'Transcript', icon: 'transcript' as IconName }];
 
 /** "Copy /cmd" renders the command in mono, like the boards. */
 function ActionLabel({ label }: { label: string }) {
@@ -108,7 +120,7 @@ function PausedNotice({
         tone="idle"
         flush
         centered
-        icon={<StatusIcon status="paused" size={20} title="Paused" />}
+        icon={<StatusIcon status="paused" size={20} title={data.session?.stopped ? 'Stopped' : 'Paused'} />}
         title={data.session?.headline ?? 'Paused: can be resumed'}
         actions={
           <>
@@ -227,6 +239,8 @@ export function RunTerminalArea({
   reconnectOverlay,
   reconnectBody,
   inactiveBody,
+  transcript,
+  label,
 }: RunTerminalAreaProps) {
   const { run, connection } = data;
   const status = run.status;
@@ -238,9 +252,10 @@ export function RunTerminalArea({
     status === 'expired';
   const reconnecting = connection.state === 'reconnecting';
 
+  const live = (status === 'running' || status === 'idle' || status === 'done') && !data.pausing;
   const bar = (
     <TerminalBar
-      views={views(isEnded ? 'Final scrollback' : status === 'paused' ? 'Saved scrollback' : 'Terminal')}
+      views={views(isEnded ? 'Final scrollback' : status === 'paused' ? 'Saved scrollback' : 'Terminal', live)}
       activeView="term"
       size={data.termSize}
       connection={<ConnectionIndicator state={connection.state} label={connection.label} />}
@@ -263,6 +278,35 @@ export function RunTerminalArea({
             If the pod is still pending after 2 minutes the run fails with the scheduler&apos;s message.
           </Note>
         </TerminalPlaceholder>
+      </TerminalPane>
+    );
+  }
+
+  // No live pod and a Transcript to show: it replaces the terminal, the cancelled placeholder and the saved scrollback.
+  if (transcript && (data.pausing || status === 'paused' || isEnded)) {
+    const transcriptNotice = data.pausing ? (
+      <PausingNotice />
+    ) : status === 'paused' ? (
+      <PausedNotice data={data} busy={busy} onResume={onResume} onFinish={onFinish} />
+    ) : status === 'expired' ? (
+      <ExpiredNotice data={data} />
+    ) : (
+      <EndNotice data={data} busy={busy} onResume={onResume} />
+    );
+    return (
+      <TerminalPane
+        label={label ?? 'Transcript'}
+        notice={transcriptNotice}
+        bar={
+          <TerminalBar
+            views={transcriptViews}
+            activeView="transcript"
+            tools={false}
+            connection={<ConnectionIndicator state={connection.state} label={connection.label} />}
+          />
+        }
+      >
+        <Transcript {...transcript} />
       </TerminalPane>
     );
   }

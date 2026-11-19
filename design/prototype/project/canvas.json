@@ -186,6 +186,46 @@
    "title": "Run 52 \u2014 cancelled",
    "expand": "fill"
   },
+  "RunStopped.dc.html": {
+   "x": 9120,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 stopped by you, transcript",
+   "expand": "fill"
+  },
+  "RunSucceededFinished.dc.html": {
+   "x": 10640,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 succeeded after Finish of a stopped run, transcript",
+   "expand": "fill"
+  },
+  "RunTranscriptStates.dc.html": {
+   "x": 12160,
+   "y": 6500,
+   "w": 1440,
+   "h": 740,
+   "title": "Run page \u2014 transcript in the other stopped and ended states",
+   "expand": "fill"
+  },
+  "RunRunningStop.dc.html": {
+   "x": 6080,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 61 \u2014 running, stop session confirmation open",
+   "expand": "fill"
+  },
+  "RunIdleEnding.dc.html": {
+   "x": 7600,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 session ending after Stop session, transcript loading",
+   "expand": "fill"
+  },
   "DeskSkills.dc.html": {
    "x": 0,
    "y": 7780,
@@ -309,6 +349,11 @@
   "RunSetupFailed.dc.html",
   "RunTimedOut.dc.html",
   "RunCancelled.dc.html",
+  "RunStopped.dc.html",
+  "RunSucceededFinished.dc.html",
+  "RunTranscriptStates.dc.html",
+  "RunRunningStop.dc.html",
+  "RunIdleEnding.dc.html",
   "DeskSkills.dc.html",
   "DeskSkillDelete.dc.html",
   "DeskRules.dc.html",
