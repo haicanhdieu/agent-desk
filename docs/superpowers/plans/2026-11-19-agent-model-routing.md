@@ -1146,26 +1146,26 @@ git commit -m "feat(web): wire the Desk Agent model list, Save agent and address
 - Consumes: `deskQueries.agentModels` (Task 8); `toModelList` (Task 9); `RuleDraft.model`, `RulePaneProps.modelField`, `RuleFormProps.errors.model` (Task 10); contract `agentId`/`model` (Task 1).
 - Produces: `RuleValues` gains `agentId: string` and `model: string | null`; `toCreateRequest` sends both; `changedFields` sends `agentId` and `model` only when changed (`null` when reset to the default); `SCREEN_FIELD.model = 'model'`, `RULE_POINTERS['/model'] = 'model'`, `RULE_POINTERS['/agentId'] = 'agentId'` (shown in the form banner, no screen field); `SCHEMA_MESSAGE.model` = the contract's model message. `useRuleForm(org, projectId, { initial, defaultSkill, defaultAgentId, onSaved })` — `defaultAgentId: string` is the project agent's id for a new rule.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `rules.form.test.ts`: `it('changedFields sends only model when only the model changed')` and `it('Default model sends model null')` (Review Focus 4); `it('changing agentId keeps the model')` (BR-28, lowest layer: see Agent calls); `it('an invalid typed model is a model field error before any request')`.
 `rules.route.test.tsx`: `it('the Model field lists Default model, the agent models, Other model…, with the default model help')`; `it('saving a typed model stores it trimmed and reopening shows it under Other model…')`; `it('a /model problem lands on the Model field')`; `it('the rules list row and the sentence show no model')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- rules.form rules.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 The route builds `modelField: { list: toModelList(useQuery(deskQueries.agentModels(org, values.agentId)), agent.baseUrl), defaultModel: agent.model, settingsHref: <desk agent path> }` and maps `d.model` through `form.change`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/web test -- rules && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

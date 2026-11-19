@@ -451,4 +451,195 @@ describe('desk rules route', () => {
       expect(router.state.location.search).toEqual({});
     });
   });
+
+  describe('model', () => {
+    const modelSelect = (root: HTMLElement) => within(root).getByRole('combobox', { name: 'Model' });
+    const optionNames = (select: HTMLElement) =>
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent);
+    const builtin = () => scenarios.agentModels(ids.agent.invoicerApi, { kind: 'fallback', reason: 'empty' });
+    const patchBodies = () => {
+      const bodies: unknown[] = [];
+      server.use(
+        http.patch('*/api/rules/:ruleId', async ({ request }) => {
+          bodies.push(await request.clone().json());
+          return undefined;
+        }),
+      );
+      return bodies;
+    };
+
+    it('the Model field lists Default model, the agent models, Other model…, with the default model help', async () => {
+      const agent = mockDb.state.agents.find((a) => a.id === ids.agent.invoicerApi);
+      if (!agent) throw new Error('agent not in the mock store');
+      await renderRoute(`${rulesPage}?rule=new`, { scenario: builtin });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      const select = modelSelect(form);
+      await waitFor(() =>
+        expect(optionNames(select)).toEqual(['Default model', 'opus', 'sonnet', 'haiku', 'Other model…']),
+      );
+      expect(select).toHaveValue('_default');
+      expect(select).toHaveAccessibleDescription(
+        new RegExp(`Default model is ${agent.model}, set on Agent & settings`),
+      );
+      expect(within(form).getByRole('link', { name: 'Agent & settings' })).toHaveAttribute(
+        'href',
+        `${base}/desk/agent`,
+      );
+    });
+
+    it('saving a typed model stores it trimmed and reopening shows it under Other model…', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, { scenario: builtin });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      await user.type(within(form).getByLabelText('Command'), 'typed-model');
+      await user.selectOptions(modelSelect(form), 'Other model…');
+      await user.type(within(form).getByRole('textbox', { name: 'Model name' }), '  my-gateway-model ');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      const saved = projectRules().find((r) => r.command === 'typed-model');
+      expect(saved?.model).toBe('my-gateway-model');
+
+      await user.click(screen.getByRole('button', { name: 'Edit rule /typed-model' }));
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      await waitFor(() => expect(modelSelect(edit)).toHaveDisplayValue('Other model…'));
+      expect(within(edit).getByRole('textbox', { name: 'Model name' })).toHaveValue('my-gateway-model');
+    });
+
+    it('a new rule that keeps Default model is created with model null', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, { scenario: builtin });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      await user.type(within(form).getByLabelText('Command'), 'follows-default');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(projectRules().find((r) => r.command === 'follows-default')).toMatchObject({
+        model: null,
+        agentId: ids.agent.invoicerApi,
+      });
+    });
+
+    it('editing only the model sends only the model, and Default model sends null', async () => {
+      ruleRow(ids.rule.r2).model = 'sonnet';
+      const bodies = patchBodies();
+      const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, { scenario: builtin });
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      await waitFor(() => expect(modelSelect(edit)).toHaveDisplayValue('sonnet'));
+      await user.selectOptions(modelSelect(edit), 'haiku');
+      await user.click(within(edit).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(bodies).toEqual([{ model: 'haiku' }]);
+
+      await user.click(screen.getByRole('button', { name: 'Edit rule /code-review' }));
+      const again = await screen.findByRole('complementary', { name: 'Edit rule' });
+      await user.selectOptions(modelSelect(again), 'Default model');
+      await user.click(within(again).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(bodies.at(-1)).toEqual({ model: null });
+      expect(ruleRow(ids.rule.r2).model).toBeNull();
+    });
+
+    it('an unchanged edit does not alter the model, even one missing from the list', async () => {
+      ruleRow(ids.rule.r2).model = 'claude-dated-9999';
+      const bodies = patchBodies();
+      const { user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`, { scenario: builtin });
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      await waitFor(() => expect(modelSelect(edit)).toHaveDisplayValue('Other model…'));
+      expect(within(edit).getByRole('textbox', { name: 'Model name' })).toHaveValue('claude-dated-9999');
+      await user.type(within(edit).getByLabelText('Command'), '-x');
+      await user.click(within(edit).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(bodies).toEqual([{ command: 'code-review-x' }]);
+      expect(ruleRow(ids.rule.r2).model).toBe('claude-dated-9999');
+    });
+
+    it('Other model… left empty shows Enter a model name. and sends nothing', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, { scenario: builtin });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      const posts = mockDb.requests('POST', `/api/projects/${projectId}/rules`);
+      await user.type(within(form).getByLabelText('Command'), 'blank-model');
+      await user.selectOptions(modelSelect(form), 'Other model…');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      const input = within(form).getByRole('textbox', { name: 'Model name' });
+      await waitFor(() => expect(input).toHaveAccessibleDescription(/Enter a model name\./));
+      expect(input).toHaveAttribute('aria-invalid', 'true');
+      expect(mockDb.requests('POST', `/api/projects/${projectId}/rules`)).toBe(posts);
+    });
+
+    it('a /model problem lands on the Model field', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, {
+        scenario: () => {
+          builtin();
+          scenarios.problem('rules.create', {
+            status: 422,
+            title: 'Unprocessable',
+            errors: [{ pointer: '/model', detail: 'The provider does not know this model.' }],
+          });
+        },
+      });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      await user.type(within(form).getByLabelText('Command'), 'bad-model');
+      await user.selectOptions(modelSelect(form), 'Other model…');
+      await user.type(within(form).getByRole('textbox', { name: 'Model name' }), 'nope-1');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      await waitFor(() =>
+        expect(within(form).getByRole('textbox', { name: 'Model name' })).toHaveAccessibleDescription(
+          /The provider does not know this model\./,
+        ),
+      );
+      expect(within(form).queryByRole('alert')).toBeNull();
+    });
+
+    it.each([
+      [
+        'with the agent message and the generic one',
+        [
+          { pointer: '/agentId', detail: 'That agent is gone.' },
+          { pointer: '/x', detail: 'Other.' },
+        ],
+      ],
+      ['with only /agentId', [{ pointer: '/agentId', detail: 'That agent is gone.' }]],
+    ])('an /agentId problem %s shows in the form banner, not on a field', async (_name, errors) => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, {
+        scenario: () => {
+          builtin();
+          scenarios.problem('rules.create', { status: 422, title: 'Unprocessable', errors });
+        },
+      });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      await user.type(within(form).getByLabelText('Command'), 'gone-agent');
+      await user.click(within(form).getByRole('button', { name: 'Save rule' }));
+      expect(await within(form).findByRole('alert')).toHaveTextContent('That agent is gone.');
+      expect(within(form).getByLabelText('Command')).not.toHaveAttribute('aria-invalid', 'true');
+      expect(modelSelect(form)).not.toHaveAttribute('aria-invalid', 'true');
+    });
+
+    it('a failing model list shows the error note and Other model… still works', async () => {
+      const { user } = await renderRoute(`${rulesPage}?rule=new`, {
+        scenario: () => scenarios.agentModels(ids.agent.invoicerApi, { kind: 'error' }),
+      });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      expect(await within(form).findByText(/The model list could not be loaded\./)).toBeInTheDocument();
+      await user.selectOptions(modelSelect(form), 'Other model…');
+      await user.type(within(form).getByRole('textbox', { name: 'Model name' }), 'typed-anyway');
+      expect(within(form).getByRole('textbox', { name: 'Model name' })).toHaveValue('typed-anyway');
+    });
+
+    it('a loading model list shows the loading note', async () => {
+      await renderRoute(`${rulesPage}?rule=new`, {
+        scenario: () => scenarios.agentModels(ids.agent.invoicerApi, { kind: 'pending' }),
+      });
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      expect(await within(form).findByText('Loading models…')).toBeInTheDocument();
+    });
+
+    it('the rules list row and the sentence show no model', async () => {
+      ruleRow(ids.rule.r1).model = 'claude-secret-model-1';
+      const { user } = await renderRoute(rulesPage, { scenario: builtin });
+      const row = await screen.findByRole('button', { name: 'Edit rule /code-build' });
+      expect(row).not.toHaveTextContent('claude-secret-model-1');
+      await user.click(row);
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      expect(within(edit).getAllByText(/When/)[0]).not.toHaveTextContent('claude-secret-model-1');
+    });
+  });
 });

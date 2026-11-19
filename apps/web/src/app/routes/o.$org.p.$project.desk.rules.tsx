@@ -1,5 +1,5 @@
 import type { AgentDto, RuleDto } from '@agentdesk/contracts';
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
@@ -12,6 +12,7 @@ import { deskQueries } from '@/features/desk/queries';
 import { usePromptPreview } from '@/features/desk/promptPreview';
 import { useRuleForm } from '@/features/desk/rules.form';
 import { projectsQueries } from '@/features/projects/queries';
+import { toModelList } from '@/components';
 import { DeskRules, RulePane } from '@/screens';
 
 /** `rule`: `new` opens the create form, a rule id opens that rule; anything else opens nothing. */
@@ -114,10 +115,12 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
   const form = useRuleForm(org, projectId, {
     initial: rule,
     defaultSkill: skills[0],
+    defaultAgentId: agent.id,
     onSaved: onClose,
   });
   const { values } = form;
   const promptPreview = usePromptPreview(org, projectId, true);
+  const models = useQuery(deskQueries.agentModels(org, values.agentId));
   return (
     <RulePane
       title={rule ? 'Edit rule' : 'New rule'}
@@ -130,6 +133,12 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
         enabled: values.enabled,
         kind: values.kind,
         prompt: values.prompt,
+        model: values.model,
+      }}
+      modelField={{
+        list: toModelList(models, agent.baseUrl),
+        defaultModel: agent.model,
+        settingsHref: projectPaths(org, projectId).agent,
       }}
       skills={skills}
       promptPreview={promptPreview}
@@ -142,6 +151,8 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
           target: d.target,
           skillName: d.skill,
           enabled: d.enabled,
+          agentId: values.agentId,
+          model: d.model ?? null,
         })
       }
       onClose={onClose}
