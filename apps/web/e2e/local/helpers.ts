@@ -2,7 +2,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, type APIResponse, type Page } from '@playwright/test';
-import { InstallResponse, RunTranscriptResponse, type RunTranscriptEntryDto } from '@agentdesk/contracts';
+import { InstallResponse, RunDto, RunTranscriptResponse, type RunTranscriptEntryDto } from '@agentdesk/contracts';
 import { z } from 'zod';
 
 /* Helpers shared by the real localhost end-to-end specs (the stack from `pnpm dev` with KUBE_MODE=fake). */
@@ -129,4 +129,32 @@ export async function transcriptOf(page: Page, runId: string): Promise<RunTransc
     before = res.nextBefore;
   } while (before !== null);
   return pages.flat();
+}
+
+let shared: { handle: string; projectId: string } | undefined;
+
+/** One dev-login user and project per worker: made on first use, signed in again on the next. */
+export async function projectFor(page: Page): Promise<{ handle: string; projectId: string }> {
+  if (shared === undefined) {
+    shared = await signInAndCreateProject(page);
+  } else {
+    await page.goto(`/auth/dev-login?handle=${shared.handle}&redirect=/`);
+    await expect(page).toHaveURL(new RegExp(`/o/${shared.handle}/projects$`));
+  }
+  return shared;
+}
+
+export async function runOf(page: Page, runId: string): Promise<RunDto> {
+  return RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run'));
+}
+
+export async function waitForStatus(
+  page: Page,
+  runId: string,
+  status: RunDto['status'],
+  timeout = 60_000,
+): Promise<void> {
+  await expect
+    .poll(async () => (await runOf(page, runId)).status, { timeout, intervals: [200, 500, 1000] })
+    .toBe(status);
 }

@@ -1492,7 +1492,7 @@ Covers:
 - BR-7: TC-7.1.
 - BR-8: TC-8.1 (`--fake-tools`, stop during the next turn).
 - BR-9: TC-9.1 and TC-9.2.
-- BR-10: TC-10.1 and TC-10.2 (`--fake-hold-start`, then `touchPodFile(runId, 'release-start')`).
+- BR-10: TC-10.1 and TC-10.2 (`--fake-hold-start`, then `touchPodFile(runId, 'release-start')`). TC-10.1 is handled at the lower layers, not as a local e2e, per the human decision on issue #126 (option 1): Stop is not offered before `running`, so the page cannot reach the Given. Proven in `agent-phase.test.ts`, `run.workflow.in-process.test.ts`, `runs.int.test.ts` and `detail.route.test.tsx`.
 - BR-11: TC-11.1 to TC-11.3 (`--fake-slow-end`, two pages from one context).
 - BR-12: TC-12.1, only with `E2E_IDLE_END_SECONDS`.
 - BR-13: TC-13.1.
@@ -1506,7 +1506,7 @@ Covers:
 
 BR-14 (TC-14.1 to TC-14.3) is not written. The local stack cannot start a run on the workflow code from before `stop-session`. The lowest layer that proves it is Task 2 Part A's `runtime.unpatched.add('stop-session')` test. Say so in the PR.
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`. The idle and deadline cases sit in `test.describe` blocks that `test.skip` with a reason unless `E2E_IDLE_END_SECONDS` / `E2E_ENDING_DEADLINE_SECONDS` is set, as the existing pause tests do. Add the env line to `tests-and-e2e.md` §4: `RUN_ENDING_DEADLINE_SECONDS=10` with `E2E_ENDING_DEADLINE_SECONDS=10`.
 
@@ -1515,7 +1515,7 @@ One `test()` per TC, titled `TC-<n.m> <short name>`. The idle and deadline cases
 Run: `devbox run dev-bg`, then `pnpm --filter @agentdesk/web exec playwright test e2e/local/stop-session.spec.ts`. Then, on a separate stack started with `RUN_IDLE_END_SECONDS=5 RUN_LEASE_TTL_SECONDS=4 TERMINAL_LEASE_INTERVAL_MS=1000 RUN_ENDING_DEADLINE_SECONDS=10 devbox run dev-bg`, run `E2E_IDLE_END_SECONDS=5 E2E_ENDING_DEADLINE_SECONDS=10 pnpm --filter @agentdesk/web exec playwright test e2e/local/stop-session.spec.ts -g "TC-12|TC-15.2|TC-16.1"`.
 Expected: PASS. If the stack cannot start (no Docker engine, runner pod), say so in the PR and list these specs as written but not run.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1543,7 +1543,7 @@ Covers:
 - BR-55: TC-55.1 to TC-55.3 (`--fake-bad-transcript-lines`).
 - BR-56: TC-56.2 (`--fake-api-error`).
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`. Use only helpers from `helpers.ts`. Helpers needed by this spec alone stay inside it.
 
@@ -1552,7 +1552,7 @@ One `test()` per TC, titled `TC-<n.m> <short name>`. Use only helpers from `help
 Run: `devbox run dev-bg`, then `pnpm --filter @agentdesk/web exec playwright test e2e/local/transcript.spec.ts`
 Expected: PASS. If the stack cannot start, say so in the PR and list these specs as written but not run.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix

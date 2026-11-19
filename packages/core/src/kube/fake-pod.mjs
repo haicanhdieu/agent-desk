@@ -43,7 +43,8 @@
 //     input JSON, and a tool_result "OUTPUT-MARKER"), --fake-long-replies (first turn adds 8,000 and 8,001 byte
 //     replies), --fake-api-error (first turn writes "API Error: 401 invalid credential" and ends like --fake-fail),
 //     --fake-transcript-bulk=<n> (the first session file holds exactly n entries, sent by one flush at the first turn
-//     end), --fake-unflushed (one more reply "UNFLUSHED-MARKER" is appended after the first turn's flush, unflushed),
+//     end), --fake-unflushed (the first typed line is sent, then one more reply "UNFLUSHED-MARKER" is appended unflushed; the next
+//     flush, a turn end or the end flush, sends it; that turn stays open until a `release-turn` file exists),
 //     --fake-bad-transcript-lines (after `session started`, three malformed transcript lines go to log and pane).
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
 import { spawnSync } from 'node:child_process';
@@ -267,12 +268,17 @@ if (prompt.includes('--fake-pending')) {
         record(replyEntry('b'.repeat(8001)));
       }
       flushTranscript();
-      if (first && prompt.includes('--fake-unflushed')) record(replyEntry('UNFLUSHED-MARKER'));
     };
     let turnTimer = null;
+    let unflushedDone = false;
     let queued = 0;
     const endTurn = () => {
       turnTimer = null;
+      // --fake-unflushed: the turn of the typed line stays open until `release-turn`, so no turn-end flush can send the marker.
+      if (unflushedDone && !existsSync(file('release-turn'))) {
+        turnTimer = setTimeout(endTurn, TICK_MS);
+        return;
+      }
       recordTurnEnd(nextTurnNo());
       log(endLine);
       if (fail) return finish(3, 'agent_exit');
@@ -323,6 +329,11 @@ if (prompt.includes('--fake-pending')) {
         if (!setupTest) {
           record(userEntry(line));
           flushTranscript();
+          // After the line's flush, so nothing sends the marker before a hard kill (BR-52).
+          if (!resume && !unflushedDone && prompt.includes('--fake-unflushed')) {
+            unflushedDone = true;
+            record(replyEntry('UNFLUSHED-MARKER'));
+          }
           scheduleTurn();
         }
       }

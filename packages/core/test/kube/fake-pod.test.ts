@@ -409,6 +409,8 @@ describe('fake-pod.mjs', () => {
     it('stop runs the end flush before the scrollback', async () => {
       await boot(tEnv({ PROMPT: `${PROMPT} --fake-unflushed` }));
       advance(TURN_MS);
+      appendFileSync(join(dir, 'input'), 'again\r');
+      advance(TICK_MS);
       expect(wires().map((w) => w.text)).not.toContain('UNFLUSHED-MARKER');
       writeFileSync(join(dir, 'stop'), '');
       expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
@@ -482,11 +484,27 @@ describe('fake-pod.mjs', () => {
       expect(all[24]?.text).toBe('bulk reply 24');
     });
 
-    it('--fake-unflushed leaves one reply in the session file but not in the log', async () => {
+    it('--fake-unflushed appends its reply after the typed line is sent, unflushed', async () => {
       await boot(tEnv({ PROMPT: `${PROMPT} --fake-unflushed` }));
       advance(TURN_MS);
+      expect(readFileSync(sessionFile(), 'utf8')).not.toContain('UNFLUSHED-MARKER');
+      appendFileSync(join(dir, 'input'), 'MID-TURN\r');
+      advance(TICK_MS);
       expect(readFileSync(sessionFile(), 'utf8')).toContain('UNFLUSHED-MARKER');
+      expect(wires().map((w) => w.text)).toContain('MID-TURN');
       expect(wires().map((w) => w.text)).not.toContain('UNFLUSHED-MARKER');
+    });
+
+    it('--fake-unflushed holds the turn of the typed line open until release-turn, so no flush sends the marker', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-unflushed` }));
+      advance(TURN_MS);
+      appendFileSync(join(dir, 'input'), 'MID-TURN\r');
+      advance(TICK_MS);
+      advance(TURN_MS * 3);
+      expect(wires().map((w) => w.text)).not.toContain('UNFLUSHED-MARKER');
+      writeFileSync(join(dir, 'release-turn'), '');
+      advance(TURN_MS);
+      expect(wires().map((w) => w.text)).toContain('UNFLUSHED-MARKER');
     });
 
     it('--fake-bad-transcript-lines logs three malformed lines to the log and the pane', async () => {

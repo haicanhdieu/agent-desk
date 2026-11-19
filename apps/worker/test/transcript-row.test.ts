@@ -41,11 +41,44 @@ describe('toTranscriptRow secret and NUL safety', () => {
     expect(row.truncated).toBe(false);
   });
 
-  it('marks a row truncated when dropping the cut token leaves nothing', () => {
-    const one = `ghs_${'A'.repeat(300)}`;
-    const row = toTranscriptRow({ id: 't:0', kind: 'tool', tool: 'Other', text: one }, [], NOW);
+  it('marks a row truncated and empty when the whole text is a cut secret prefix', () => {
+    const one = 'ghs_AAAAAAAAAA';
+    const row = toTranscriptRow(wire(one, { truncated: true }), [], NOW);
     expect(row.text).toBe('');
     expect(row.truncated).toBe(true);
+  });
+
+  it('keeps a 200-char whitespace-free summary of a non-Bash tool whole (BR-40)', () => {
+    const text = JSON.stringify({ pattern: 'x'.repeat(200) }).slice(0, 200);
+    expect(text.length).toBe(200);
+    const row = toTranscriptRow({ id: 't:0', kind: 'tool', tool: 'Grep', text }, [], NOW);
+    expect(row.text).toBe(text);
+  });
+
+  it('keeps an 8000-char whitespace-free truncated text whole (BR-44)', () => {
+    const text = 'b'.repeat(8000);
+    const row = toTranscriptRow(wire(text, { truncated: true }), [], NOW);
+    expect(row.text).toBe(text);
+    expect(row.truncated).toBe(true);
+  });
+
+  it('drops a cut tail that is the start of a known secret, keeping the text before it', () => {
+    const secret = 'topsecretvalue-1234567890';
+    const row = toTranscriptRow(wire(`before ${secret.slice(0, 15)}`, { truncated: true }), [secret], NOW);
+    expect(row.text).toBe('before');
+  });
+
+  it('drops a cut secret prefix glued to other text, but not on an untruncated entry', () => {
+    const secret = 'topsecretvalue-1234567890';
+    const glued = `prefix:${secret.slice(0, 12)}`;
+    expect(toTranscriptRow(wire(glued, { truncated: true }), [secret], NOW).text).toBe('prefix:');
+    expect(toTranscriptRow(wire(glued), [secret], NOW).text).toBe(glued);
+  });
+
+  it('still redacts a whole known secret inside a cut text', () => {
+    const secret = 'topsecretvalue-1234567890';
+    const row = toTranscriptRow(wire(`a ${secret} b`, { truncated: true }), [secret], NOW);
+    expect(row.text).toBe('a *** b');
   });
 
   it('marks a cut tool summary truncated', () => {
@@ -56,5 +89,34 @@ describe('toTranscriptRow secret and NUL safety', () => {
 
   it('replaces a NUL character, which Postgres text rejects', () => {
     expect(toTranscriptRow(wire('a\u0000b'), [], NOW).text).toBe('a�b');
+  });
+});
+
+describe('toTranscriptRow cut starts of secrets and token patterns', () => {
+  it.each(['x-acce', 'x-access-token', 'x-access-token:abc', 'sk-an', 'sk-ant-', 'ghs_', 'ghs_AB'])(
+    'drops a cut text ending in the start of a token pattern: %s',
+    (tail) => {
+      const row = toTranscriptRow(wire(`word ${tail}`, { truncated: true }), [], NOW);
+      expect(row.text).toBe('word');
+      expect(toTranscriptRow(wire(`word ${tail}`), [], NOW).text).toBe(`word ${tail}`);
+    },
+  );
+
+  it('keeps a cut text ending in a short pattern fragment, which holds no secret', () => {
+    for (const tail of ['x', 'x-', 'gh', 'sk', 'sk-']) {
+      expect(toTranscriptRow(wire(`word ${tail}`, { truncated: true }), [], NOW).text).toBe(`word ${tail}`);
+    }
+  });
+
+  it.each([1, 2, 3])('drops the first %i chars of a known secret from the end of a cut text', (k) => {
+    const secret = 'topsecretvalue-1234567890';
+    const row = toTranscriptRow(wire(`before ${secret.slice(0, k)}`, { truncated: true }), [secret], NOW);
+    expect(row.text).toBe('before');
+    expect(row.truncated).toBe(true);
+  });
+
+  it('keeps ordinary cut text whole when it does not end in the start of a known secret', () => {
+    const secret = 'topsecretvalue-1234567890';
+    expect(toTranscriptRow(wire('a b c d', { truncated: true }), [secret], NOW).text).toBe('a b c d');
   });
 });

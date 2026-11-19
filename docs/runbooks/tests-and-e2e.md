@@ -80,6 +80,8 @@ devbox run e2e-local             # scripts/e2e-local.ts, then web Playwright e2e
 
 The pause tests in `apps/web/e2e/local/run.spec.ts` only run with a short idle time: start the stack with `RUN_IDLE_END_SECONDS=5 RUN_LEASE_TTL_SECONDS=4 TERMINAL_LEASE_INTERVAL_MS=1000 devbox run dev-bg`, then run `E2E_IDLE_END_SECONDS=5 devbox run e2e-local`. The interval must be at most half the lease TTL. `RUN_IDLE_END_SECONDS` overrides every agent's saved idle end while it is set to anything but 1800.
 
+The Stop session cases in `apps/web/e2e/local/stop-session.spec.ts` that need short timers (idle end, ending deadline) run only on a stack started with `RUN_IDLE_END_SECONDS=5 RUN_LEASE_TTL_SECONDS=4 TERMINAL_LEASE_INTERVAL_MS=1000 RUN_ENDING_DEADLINE_SECONDS=10`, with `E2E_IDLE_END_SECONDS=5` and `E2E_ENDING_DEADLINE_SECONDS=10` set for Playwright: `-g "TC-12|TC-15.2|TC-16.1"`. `TC-37.2` of `transcript.spec.ts` (a run paused by the idle timeout) also needs `E2E_IDLE_END_SECONDS`.
+
 The cluster-outage tests (`-g "cluster outage"`) need the stack started with `RUN_RECONNECT_WINDOW_SECONDS=20 devbox run dev-bg`, then `E2E_RECONNECT_WINDOW_SECONDS=20 pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "cluster outage"`; they simulate the outage by creating `<fake state dir>/kube/.outage`, which hits every run on that stack. Run only them (`-g`), never with the full `e2e-local`, and not on a stack you or other tests are using: use a separate stack.
 
 The e2e tests create their own users (`e2e-<rand>`), so they can run against a stack you are also using. For a clean slate, run `devbox run db-reset` first.

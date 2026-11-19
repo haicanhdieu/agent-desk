@@ -5,7 +5,7 @@ import {
   type TranscriptKind,
   type TranscriptWireEntry,
 } from '@agentdesk/contracts';
-import { redact } from '@agentdesk/core';
+import { redact, unfinishedTokenStart } from '@agentdesk/core';
 import { runs, runTranscriptEntries, withOrg, type Db, type Tx } from '@agentdesk/db';
 import { appendSeqEvent } from './follow-core';
 
@@ -32,20 +32,40 @@ export interface TranscriptRow {
   truncated: boolean;
 }
 
+/** Start index of the longest tail of `text` that is a prefix of one of the known `secrets`, else the length. */
+function secretFragmentStart(text: string, secrets: string[]): number {
+  let start = text.length;
+  for (const secret of secrets) {
+    for (let k = Math.min(secret.length, text.length); k >= 1; k -= 1) {
+      if (text.endsWith(secret.slice(0, k))) {
+        start = Math.min(start, text.length - k);
+        break;
+      }
+    }
+  }
+  return start;
+}
+
 /**
- * Redacts, then drops a final partial token when the adapter may have cut the text (a secret straddling the cut cannot
- * match a redaction pattern), and replaces NUL, which Postgres text rejects.
+ * Removes the end of a text the adapter may have cut when that end could be the start of a secret: a prefix of a known
+ * secret (even one char: the entry is already marked cut), or an unfinished token pattern (a secret straddling the cut
+ * cannot match a redaction pattern). Any other text, including one long unbroken token, stays whole.
+ */
+function dropSecretTail(text: string, secrets: string[]): string {
+  const start = Math.min(secretFragmentStart(text, secrets), unfinishedTokenStart(text));
+  return start === text.length ? text : text.slice(0, start).trimEnd();
+}
+
+/**
+ * Redacts, then (when the adapter may have cut the text) drops a trailing fragment that starts a secret, and replaces
+ * NUL, which Postgres text rejects.
  */
 function safeText(entry: TranscriptWireEntry, secrets: string[]): { text: string; cut: boolean } {
   let text = redact(entry.text, secrets);
   const maybeCut =
     entry.truncated === true ||
     (entry.kind === 'tool' && !UNCAPPED_TOOLS.has(entry.tool ?? '') && entry.text.length >= TOOL_SUMMARY_CAP);
-  if (maybeCut) {
-    let end = text.length;
-    while (end > 0 && !/\s/.test(text.charAt(end - 1))) end -= 1;
-    text = text.slice(0, end).trimEnd();
-  }
+  if (maybeCut) text = dropSecretTail(text, secrets);
   return { text: text.replaceAll('\u0000', '\uFFFD'), cut: maybeCut };
 }
 
