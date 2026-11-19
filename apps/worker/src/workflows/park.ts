@@ -63,6 +63,8 @@ export interface EndOutcomeInput {
   phase: RunPhase;
   /** What the run was doing when the idle timer began the end. */
   parkKind?: ParkKind;
+  /** Why the ending session parks (a person's Stop: 'stopped'); absent means the idle timer. */
+  parkReason?: PauseReason;
   /** The runner's end line reason: a hint from the pod's own output, never authority. */
   endReason?: EndReason;
   /** The pod vanished, or ended with no exit code, after the session started. */
@@ -87,7 +89,7 @@ export type EndOutcome =
 export function endOutcome(input: EndOutcomeInput): EndOutcome {
   if (input.ending) {
     if (input.finishRequested || input.parkKind === undefined) return { kind: 'succeeded' };
-    return { kind: 'park', parkKind: input.parkKind, reason: 'idle_timeout' };
+    return { kind: 'park', parkKind: input.parkKind, reason: input.parkReason ?? 'idle_timeout' };
   }
   const parkKind = lostKindOf(input.phase);
   if (input.podLost) return { kind: 'park', parkKind, reason: 'pod_lost' };

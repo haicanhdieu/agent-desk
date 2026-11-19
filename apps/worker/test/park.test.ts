@@ -176,6 +176,21 @@ describe('endOutcome', () => {
       { phase: 'running', exitCode: 0 },
       { kind: 'succeeded' },
     ],
+    [
+      'a person Stop while ending parks as stopped',
+      { ending: true, phase: 'ending', parkKind: 'needs_input', parkReason: 'stopped', exitCode: 0 },
+      park('needs_input', 'stopped'),
+    ],
+    [
+      'a person Stop with a lost pod still parks as stopped',
+      { ending: true, phase: 'ending', parkKind: 'needs_input', parkReason: 'stopped', podLost: true },
+      park('needs_input', 'stopped'),
+    ],
+    [
+      'a Finish wins over a stop reason',
+      { ending: true, finishRequested: true, phase: 'ending', parkKind: 'needs_input', parkReason: 'stopped' },
+      { kind: 'succeeded' },
+    ],
   ])('%s', (_name, input, expected) => {
     expect(endOutcome({ ...base, ...input })).toEqual(expected);
   });

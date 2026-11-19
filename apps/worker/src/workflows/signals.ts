@@ -41,6 +41,12 @@ export interface ResumeRunResult {
 /** Resumes a parked run; resolves once the workflow has accepted it (the workflow's real answer). */
 export const resumeRun = defineUpdate<ResumeRunResult>('resumeRun');
 
+export interface StopSessionResult {
+  accepted: true;
+}
+/** Ends a live session so the run parks as paused (reason `stopped`); resolves once the session is ending. */
+export const stopSession = defineUpdate<StopSessionResult>('stopSession');
+
 // Setup test signals
 export const endSetupTest = defineSignal<[]>('endSetupTest');
 

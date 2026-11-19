@@ -375,7 +375,7 @@ parkReason?: PauseReason;
 
 - Produces (behaviour the API relies on): `stopSession` fails with `ApplicationFailure` type `NotStoppable` and the messages in Global Constraints. If the run is finalized before the session could end, the message is "The run finished before it could be stopped".
 
-- [ ] **Step 1: Write the failing pure tests**
+- [x] **Step 1: Write the failing pure tests**
 
 `agent-phase.test.ts`, `describe('stopSessionRejection')`, with base `{ phase: 'running', ending: false, finishRequested: false, stopRequested: false, sessionStarted: true, patched: true }`:
 - returns `undefined` for phases `running`, `idle`, `agent_done`;
@@ -392,21 +392,21 @@ parkReason?: PauseReason;
 
 `gate.workflow.test.ts`: `expect(UPDATE.stopSession).toBe(signals.stopSession.name)`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker test -- agent-phase park gate.workflow`
 Expected: FAIL. `stopSessionRejection` and `stopSession` are not defined, and `parkReason` is ignored.
 
-- [ ] **Step 3: Implement the pure parts**
+- [x] **Step 3: Implement the pure parts**
 
 Add `stopSession` to `signals.ts`, `stopSessionRejection` to `agent-phase.ts`, and `parkReason` to `endOutcome`.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/worker test -- agent-phase park gate.workflow`
 Expected: PASS.
 
-- [ ] **Step 5: Write the failing workflow tests**
+- [x] **Step 5: Write the failing workflow tests**
 
 In `run.workflow.in-process.test.ts`, `describe('stop session')`, in the style of the existing park tests:
 - `stop from running, idle and done parks paused with reason stopped and posts no paused comment`, as an `it.each` over the three phases:
@@ -428,12 +428,12 @@ In `run.workflow.in-process.test.ts`, `describe('stop session')`, in the style o
 
 In `run.workflow.test.ts`, add a Temporal test-env scenario that is stopped, resumed and finished, and register the fixture name `run-stop-session` in the replay test's list.
 
-- [ ] **Step 6: Run them and see them fail**
+- [x] **Step 6: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker test -- run.workflow`
 Expected: FAIL. There is no `stopSession` handler.
 
-- [ ] **Step 7: Implement the workflow**
+- [x] **Step 7: Implement the workflow**
 
 In `run.workflow.ts`:
 - Add the state `stopRequested`, `parkReason: PauseReason | undefined`, `stopSessionPatch`, `podSessionStarted`. Read `stopSessionPatch = patched('stop-session')` right after `followerReconnect`.
@@ -446,12 +446,12 @@ In `run.workflow.ts`:
 
 Then run `UPDATE_REPLAY_FIXTURES=1 pnpm --filter @agentdesk/worker test -- run.workflow` once to write `run-stop-session-history.json`.
 
-- [ ] **Step 8: Run all worker tests**
+- [x] **Step 8: Run all worker tests**
 
 Run: `pnpm --filter @agentdesk/worker typecheck && pnpm --filter @agentdesk/worker test`
 Expected: PASS. Every existing replay fixture still replays.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 devbox run fix
@@ -473,7 +473,7 @@ transcript(org: OrgContext, runId: string, q: RunTranscriptQuery): Promise<RunTr
 // RunsController: @Post(routePath(routes.runs.stop)) @HttpCode(202); @Get(routePath(routes.runs.transcript)) with ZodPipe on params and query
 ```
 
-- [ ] **Step 1: Write the failing integration tests**
+- [x] **Step 1: Write the failing integration tests**
 
 In `runs.int.test.ts`, `describe('stop session')`:
 - `stop on a running, idle or done run is 202 via the stopSession update`. The fake temporal records `[UPDATE.stopSession]`.
@@ -493,23 +493,23 @@ In `runs.int.test.ts`, `describe('stop session')`:
 
 Each response goes through `expectContract('runs.transcript', …)`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs`
 Expected: FAIL with 404 for the unknown routes.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `stop` follows `finish`. The pre-check is the status in `STOPPABLE_RUN_STATUSES` with `sessionEndingAt` null (409 wording per the Agent call). Then `executeUpdate(UPDATE.stopSession)`, mapping `NotStoppable`, `WorkflowNotFoundError` and `AcceptedUpdateCompletedWorkflow` exactly as `finish` maps theirs.
 
 `transcript` follows `log`: `withOrg`, `loadRun`, then select `where run_id = $1 [and seq < before] order by seq desc limit limit + 1`. When there are `limit + 1` rows, drop the extra and set `nextBefore` to the smallest returned `seq`. Reverse the rows. Parse `kind` with `TranscriptKind`.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test -- runs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

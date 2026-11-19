@@ -28,6 +28,7 @@ import {
   resumeRun,
   runState,
   sessionStarted,
+  stopSession,
   terminalAttached,
   terminalDetached,
   terminalLease,
@@ -1200,5 +1201,216 @@ describe('attach leases (attach-leases)', () => {
     h.pods[0]?.exit({ exitCode: 137, agentStarted: true });
     await waitFor('parked', () => phase() === 'parked');
     expect(attached()).toBe(0);
+  });
+});
+
+describe('stop session', () => {
+  const DEADLINE_MS = 120 * 1000;
+  const GRACE_MS = 5 * 1000;
+  type Boundary = 'running' | 'needs_input' | 'done';
+
+  /** The first pod is up, its session reported started, and the run sits in `boundary`. */
+  async function toStoppable(h: Harness, boundary: Boundary = 'running'): Promise<void> {
+    await toRunning(h);
+    sendSignal(sessionStarted);
+    if (boundary !== 'running') {
+      sendSignal(agentState, boundary);
+      await waitFor('turn boundary', () => phase() === (boundary === 'done' ? 'agent_done' : 'idle'));
+    }
+  }
+
+  /** From now on the pod ignores the session end and keeps running until the test makes it exit. */
+  function stuckPod(h: Harness): void {
+    runtime.activities.endSession = () => {
+      h.calls.push('endSession');
+      return Promise.resolve();
+    };
+  }
+
+  async function stopStuck(h: Harness, boundary: Boundary = 'needs_input'): Promise<void> {
+    stuckPod(h);
+    await toStoppable(h, boundary);
+    await expect(sendUpdate(stopSession)).resolves.toEqual({ accepted: true });
+    await waitFor('ending', () => phase() === 'ending');
+  }
+
+  it.each<[Boundary]>([['running'], ['needs_input'], ['done']])(
+    'stop from %s parks paused with reason stopped and posts no paused comment',
+    async (boundary) => {
+      const h = start();
+      await toStoppable(h, boundary);
+      await expect(sendUpdate(stopSession)).resolves.toEqual({ accepted: true });
+      await waitFor('parked', () => phase() === 'parked');
+
+      expect(h.calls).toContain('endSession');
+      expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input', reason: 'stopped' })]);
+      expect(h.comments.map((c) => c.kind)).not.toContain('paused');
+      expect(h.outcome).toBeUndefined();
+    },
+  );
+
+  it('a stopped run resumes as Needs you and Finish then ends it succeeded with the volume deleted', async () => {
+    const h = start();
+    await toStoppable(h);
+    await sendUpdate(stopSession);
+    await waitFor('parked', () => phase() === 'parked');
+    await resumeToSessionUp(h);
+    expect(phase()).toBe('idle');
+
+    await expect(sendUpdate(finishRun)).resolves.toEqual({ accepted: true });
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+    expect(h.calls).toContain('deleteRunVolume');
+  });
+
+  it('a second stopSession before the main loop runs is rejected as already ending', async () => {
+    const h = start();
+    await toStoppable(h);
+    const first = sendUpdate(stopSession);
+    await expect(sendUpdate(stopSession)).rejects.toThrow('The session is already ending');
+    await expect(first).resolves.toEqual({ accepted: true });
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.parks).toHaveLength(1);
+  });
+
+  it('a finishRun sent right after stopSession, before the main loop runs, is rejected and the run parks as stopped', async () => {
+    const h = start();
+    await toStoppable(h, 'needs_input');
+    const first = sendUpdate(stopSession);
+    await expect(sendUpdate(finishRun)).rejects.toThrow('The session is already ending');
+    await expect(first).resolves.toEqual({ accepted: true });
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.parks).toEqual([expect.objectContaining({ reason: 'stopped' })]);
+    expect(h.outcome).toBeUndefined();
+  });
+
+  it('Finish while a stop is ending is rejected, and the run parks as stopped', async () => {
+    const h = start();
+    await stopStuck(h);
+    await expect(sendUpdate(finishRun)).rejects.toThrow();
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.parks).toEqual([expect.objectContaining({ reason: 'stopped' })]);
+  });
+
+  it('Stop while a Finish is ending is rejected and the run succeeds', async () => {
+    const h = start();
+    stuckPod(h);
+    await toStoppable(h, 'needs_input');
+    await sendUpdate(finishRun);
+    await waitFor('ending', () => phase() === 'ending');
+    await expect(sendUpdate(stopSession)).rejects.toThrow('The session is already ending');
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+    expect(h.parks).toEqual([]);
+  });
+
+  it('the idle timer ending first makes stopSession fail as already ending and parks with idle_timeout', async () => {
+    const h = start();
+    stuckPod(h);
+    await toStoppable(h, 'needs_input');
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+    fireTimer(600_000);
+    await waitFor('ending', () => phase() === 'ending');
+    await expect(sendUpdate(stopSession)).rejects.toThrow('The session is already ending');
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.parks).toEqual([expect.objectContaining({ reason: 'idle_timeout' })]);
+  });
+
+  it('an idle park in the same task as an accepted stop fails the update instead of leaving it waiting', async () => {
+    const h = start();
+    await toStoppable(h, 'needs_input');
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+    fireTimer(600_000);
+    const settled = sendUpdate(stopSession).then(
+      () => 'accepted',
+      (e: unknown) => (e instanceof Error ? e.message : String(e)),
+    );
+    await waitFor('parked', () => phase() === 'parked');
+    await expect(settled).resolves.toContain('The run finished before it could be stopped');
+    expect(h.parks).toEqual([expect.objectContaining({ reason: 'idle_timeout' })]);
+  });
+
+  it('Cancel while a stop is ending ends the run cancelled', async () => {
+    const h = start();
+    await stopStuck(h);
+    sendSignal(cancel);
+    await expect(h.done).resolves.toEqual({ status: 'cancelled' });
+    expect(h.parks).toEqual([]);
+  });
+
+  it('a pod lost while a stop is ending parks with reason stopped', async () => {
+    const h = start();
+    await stopStuck(h);
+    h.pods[0]?.exit({ exitCode: -1, agentStarted: true, podLost: true });
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input', reason: 'stopped' })]);
+  });
+
+  it('the ending deadline while a stop is ending deletes the Job and parks with reason stopped', async () => {
+    const h = start({ endingDeadlineSeconds: 120 });
+    runtime.activities.recordEndingDeadline = () => Promise.resolve();
+    await stopStuck(h);
+    await waitFor('deadline timer', () => pendingTimers().includes(DEADLINE_MS));
+    fireTimer(DEADLINE_MS);
+    await waitFor('grace timer', () => pendingTimers().includes(GRACE_MS));
+    fireTimer(GRACE_MS);
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.calls).toContain('deleteJob');
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input', reason: 'stopped' })]);
+  });
+
+  it('a Resume queued while a stop is ending runs right after the park', async () => {
+    const h = start();
+    await stopStuck(h);
+    await expect(sendUpdate(resumeRun)).resolves.toEqual({ accepted: true });
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    sendSignal(sessionStarted);
+    await waitFor('resume finished', () => phase() === 'idle');
+    expect(h.parks).toEqual([expect.objectContaining({ reason: 'stopped', resumeQueued: true })]);
+  });
+
+  it('stop before the pod reported session_started is rejected, and accepted after it', async () => {
+    const h = start();
+    await toRunning(h);
+    await expect(sendUpdate(stopSession)).rejects.toThrow('The agent has not started yet');
+    sendSignal(sessionStarted);
+    await expect(sendUpdate(stopSession)).resolves.toEqual({ accepted: true });
+  });
+
+  it('a resumed pod must report session_started again before it can be stopped', async () => {
+    const h = start();
+    await toStoppable(h);
+    await sendUpdate(stopSession);
+    await waitFor('parked', () => phase() === 'parked');
+    await expect(sendUpdate(resumeRun)).resolves.toEqual({ accepted: true });
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    sendSignal(sessionStarted);
+    await waitFor('resume finished', () => phase() === 'idle');
+    // The resumed pod's own report counts: stop is accepted now.
+    await expect(sendUpdate(stopSession)).resolves.toEqual({ accepted: true });
+  });
+
+  it('the started flag resets on park: a stale report does not let a second stop through before the next pod starts', async () => {
+    const h = start();
+    await toStoppable(h);
+    await sendUpdate(stopSession);
+    await waitFor('parked', () => phase() === 'parked');
+    // Parked is not a live phase; once resuming, the new pod has not reported yet.
+    await sendUpdate(resumeRun);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    await expect(sendUpdate(stopSession)).rejects.toThrow('Only a live session can be stopped');
+  });
+
+  it("a run that started before stop-session rejects stopSession and keeps today's sessionStarted rule", async () => {
+    runtime.unpatched.add('stop-session');
+    const h = start();
+    await toRunning(h);
+    sendSignal(sessionStarted);
+    await expect(sendUpdate(stopSession)).rejects.toThrow('started before Stop session was available');
+    // Today's rule: the signal only counts while resuming, so a later resume is not satisfied early.
+    await settle();
+    expect(phase()).toBe('running');
   });
 });

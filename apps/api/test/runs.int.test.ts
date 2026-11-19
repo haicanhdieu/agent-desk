@@ -3,8 +3,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError } from '@temporalio/client';
 import { eq, sql } from 'drizzle-orm';
 import { UPDATE } from '@agentdesk/core';
-import { agents, inboundEvents, runEvents, runs, withOrg } from '@agentdesk/db';
-import type { IgnoredEventDto, RunDto, RunListResponse, RunLogResponse } from '@agentdesk/contracts';
+import { agents, inboundEvents, runEvents, runTranscriptEntries, runs, withOrg } from '@agentdesk/db';
+import type {
+  IgnoredEventDto,
+  RunDto,
+  RunListResponse,
+  RunLogResponse,
+  RunTranscriptResponse,
+} from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -567,6 +573,160 @@ describe('cancel and finish', () => {
     } finally {
       t.temporal.client.workflow.getHandle = original;
     }
+  });
+});
+
+describe('stop session', () => {
+  const updateCall = (id: string) => [{ workflowId: `run-${id}`, args: [UPDATE.stopSession] }];
+  const failWith = (type: string, message: string) => () =>
+    new WorkflowUpdateFailedError('Workflow Update failed', ApplicationFailure.nonRetryable(message, type));
+
+  it.each(['running', 'idle', 'done'])('stop on a %s run is 202 via the stopSession update', async (status) => {
+    const run = await insertRun({ status, workflowId: 'x' });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/stop`);
+    expect(res.statusCode).toBe(202);
+    expectContract('runs.stop', res);
+    expect(t.temporal.callsOfKind('update')).toMatchObject(updateCall(run.id));
+    expect(t.temporal.callsOfKind('signal')).toHaveLength(0);
+    expect(((await get(`/api/runs/${run.id}`)).json() as RunDto).status).toBe(status);
+  });
+
+  it.each(['paused', 'queued', 'starting', 'succeeded', 'failed', 'cancelled'])(
+    'stop on a %s run is a 409 "Only a live session can be stopped" and sends nothing',
+    async (status) => {
+      const run = await insertRun({ status, workflowId: 'x' });
+      t.temporal.reset();
+      const res = await post(`/api/runs/${run.id}/stop`);
+      expect(res.statusCode).toBe(409);
+      expect((res.json() as { detail: string }).detail).toBe('Only a live session can be stopped');
+      expect(t.temporal.calls).toHaveLength(0);
+    },
+  );
+
+  it('stop while sessionEndingAt is set is a 409 "The session is already ending" and sends nothing', async () => {
+    const run = await insertRun({ status: 'idle', workflowId: 'x', sessionEndingAt: new Date() });
+    t.temporal.reset();
+    const res = await post(`/api/runs/${run.id}/stop`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe('The session is already ending');
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+
+  it('stop answered NotStoppable is a 409 with its message', async () => {
+    const run = await insertRun({ status: 'running', workflowId: 'x' });
+    t.temporal.reset();
+    t.temporal.updateFailure = failWith('NotStoppable', 'The agent has not started yet');
+    const res = await post(`/api/runs/${run.id}/stop`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe('The agent has not started yet');
+  });
+
+  it.each([
+    ['the workflow is gone', (id?: string) => new WorkflowNotFoundError('gone', id ?? '', undefined)],
+    ['it completed mid-update', () => failWith('AcceptedUpdateCompletedWorkflow', 'completed')()],
+  ])('stop when %s is a 409 Run is no longer active', async (_name, failure) => {
+    const run = await insertRun({ status: 'running', workflowId: 'x' });
+    t.temporal.reset();
+    t.temporal.updateFailure = failure;
+    const res = await post(`/api/runs/${run.id}/stop`);
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { detail: string }).detail).toBe('Run is no longer active');
+  });
+
+  it('stop failing for any other reason is not hidden as a 409', async () => {
+    const run = await insertRun({ status: 'running', workflowId: 'x' });
+    for (const failure of [failWith('SomethingElse', 'boom')(), new Error('temporal is down')]) {
+      t.temporal.reset();
+      t.temporal.updateFailure = () => failure;
+      expect((await post(`/api/runs/${run.id}/stop`)).statusCode).toBe(500);
+    }
+  });
+
+  it("stop on another org's run is 404 and without a session is 401", async () => {
+    const run = await insertRun({ status: 'running', workflowId: 'x' });
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/stop`, bob)).statusCode).toBe(404);
+    expect((await post(`/api/runs/${run.id}/stop`, '')).statusCode).toBe(401);
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+});
+
+describe('transcript', () => {
+  async function addEntries(runId: string, count: number, org = orgId): Promise<void> {
+    await withOrg(t.db, org, async (tx) => {
+      await tx.insert(runTranscriptEntries).values(
+        Array.from({ length: count }, (_v, i) => ({
+          orgId: org,
+          runId,
+          seq: i + 1,
+          sourceId: `${org}-m${i + 1}`,
+          at: new Date(Date.UTC(2026, 0, 1, 0, 0, i)),
+          kind: i % 2 === 0 ? 'user' : 'tool',
+          tool: i % 2 === 0 ? null : 'Bash',
+          text: `entry ${i + 1}`,
+        })),
+      );
+    });
+  }
+  const read = async (id: string, query = '', cookie = alice) =>
+    expectContract('runs.transcript', await get(`/api/runs/${id}/transcript${query}`, cookie)) as RunTranscriptResponse;
+
+  it('returns the newest page oldest first with nextBefore, then the older page', async () => {
+    const run = await insertRun();
+    await addEntries(run.id, 5);
+    const newest = await read(run.id, '?limit=2');
+    expect(newest.items.map((e) => e.seq)).toEqual([4, 5]);
+    expect(newest.nextBefore).toBe(4);
+    expect(newest.items[1]).toMatchObject({ kind: 'user', tool: null, text: 'entry 5', truncated: false });
+    expect(newest.items[0]).toMatchObject({ kind: 'tool', tool: 'Bash' });
+    const older = await read(run.id, '?limit=2&before=4');
+    expect(older.items.map((e) => e.seq)).toEqual([2, 3]);
+    expect(older.nextBefore).toBe(2);
+  });
+
+  it('nextBefore is null on the oldest page and for a run with no entries', async () => {
+    const run = await insertRun();
+    await addEntries(run.id, 3);
+    const oldest = await read(run.id, '?limit=2&before=3');
+    expect(oldest.items.map((e) => e.seq)).toEqual([1, 2]);
+    expect(oldest.nextBefore).toBeNull();
+    const all = await read(run.id);
+    expect(all.items).toHaveLength(3);
+    expect(all.nextBefore).toBeNull();
+    const empty = await insertRun();
+    expect(await read(empty.id)).toEqual({ items: [], nextBefore: null });
+  });
+
+  it.each(['?limit=0', '?limit=501', '?before=0'])('rejects %s with a 400', async (query) => {
+    const run = await insertRun();
+    expect((await get(`/api/runs/${run.id}/transcript${query}`)).statusCode).toBe(400);
+  });
+
+  it("another org's run is 404 and without a session is 401", async () => {
+    const run = await insertRun();
+    expect((await get(`/api/runs/${run.id}/transcript`, bob)).statusCode).toBe(404);
+    expect((await get(`/api/runs/${run.id}/transcript`, '')).statusCode).toBe(401);
+  });
+
+  it('rows of another org on the same run id are never returned', async () => {
+    const run = await insertRun();
+    await addEntries(run.id, 2);
+    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
+      .id;
+    await withOrg(t.db, bobOrg, (tx) =>
+      tx.insert(runTranscriptEntries).values({
+        orgId: bobOrg,
+        runId: run.id,
+        seq: 3,
+        sourceId: 'bob-only',
+        at: new Date(),
+        kind: 'user',
+        text: 'not for alice',
+      }),
+    );
+    const page = await read(run.id);
+    expect(page.items.map((e) => e.text)).toEqual(['entry 1', 'entry 2']);
   });
 });
 
