@@ -76,7 +76,7 @@ jobs:
   unit:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    name: test / unit (${{ matrix.pkg }})
+    name: test / unit (${{ matrix.pkg }}${{ matrix.shard && format(' {0}/{1}', matrix.shard, matrix.total) || '' }})
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     strategy:
@@ -84,7 +84,10 @@ jobs:
       matrix:
         include:
           - { pkg: api, dir: apps, script: 'test:unit:coverage' }
-          - { pkg: worker, dir: apps, script: 'test:unit:coverage' }
+          - { pkg: worker, dir: apps, script: 'test:unit:coverage', shard: 1, total: 4 }
+          - { pkg: worker, dir: apps, script: 'test:unit:coverage', shard: 2, total: 4 }
+          - { pkg: worker, dir: apps, script: 'test:unit:coverage', shard: 3, total: 4 }
+          - { pkg: worker, dir: apps, script: 'test:unit:coverage', shard: 4, total: 4 }
           - { pkg: web, dir: apps, script: 'test:coverage' }
           - { pkg: core, dir: packages, script: 'test:unit:coverage' }
           - { pkg: db, dir: packages, script: 'test:unit:coverage' }
@@ -92,10 +95,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/setup
-      - run: pnpm --filter "@agentdesk/${{ matrix.pkg }}" ${{ matrix.script }}
+      - run: pnpm --filter "@agentdesk/${{ matrix.pkg }}" ${{ matrix.script }}${{ matrix.shard && format(' --shard={0}/{1}', matrix.shard, matrix.total) || '' }}
       - uses: actions/upload-artifact@v4
         with:
-          name: coverage-${{ matrix.pkg }}-unit
+          name: coverage-${{ matrix.pkg }}-unit${{ matrix.shard && format('-{0}', matrix.shard) || '' }}
           path: ${{ matrix.dir }}/${{ matrix.pkg }}/coverage/unit/coverage-final.json
           if-no-files-found: error
           retention-days: 7

@@ -140,20 +140,20 @@ git commit -m "test(worker): split run.workflow tests into files of about 90 sec
 - Consumes: Task 3's files; the existing integration pattern `--shard=<i>/<n>` on package scripts.
 - Produces: worker unit shards with artifacts `coverage-worker-unit-<i>` (`scripts/coverage-merge.ts` already accepts the `-<n>` suffix on unit artifacts via `ARTIFACT_RE`).
 
-- [ ] **Step 1: Replace the single `worker` matrix entry with four entries**
+- [x] **Step 1: Replace the single `worker` matrix entry with four entries**
 
 Entries carry `shard` and `total` (`1..4`, `4`) next to `pkg`, `dir`, `script`. Other packages carry no `shard`. The test step appends `--shard=<shard>/<total>` only when `shard` is set (same pass-through the integration job uses). The artifact name becomes `coverage-<pkg>-unit` for unsharded entries and `coverage-<pkg>-unit-<shard>` for sharded ones; the path is unchanged. Job name: `test / unit (<pkg>)` or `test / unit (<pkg> <shard>/<total>)`.
 
-- [ ] **Step 2: Check the merge and the timing**
+- [x] **Step 2: Check the merge and the timing**
 
 Run: `pnpm exec vitest run --root scripts coverage-merge` (existing test covers the `-unit-<n>` suffix; if it does not, add a case in `scripts/coverage-merge.test.ts` first, watch it fail, then fix).
 Run each of the four shards locally: `pnpm --filter @agentdesk/worker exec vitest run --exclude '**/*.int.test.ts' --shard=<i>/4` and record each duration. Expected: every shard under about 3 minutes locally (CI target: under 5). If one shard is over, raise `total` and note it.
 
-- [ ] **Step 3: Docs**
+- [x] **Step 3: Docs**
 
 In `docs/conventions/testing.md` §9, say the `unit` matrix may shard a package (`shard`/`total`) and that the target is every unit job under 5 minutes; raise a package's shard count when its job nears it.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add .github/workflows/ci.yml docs/conventions/testing.md
