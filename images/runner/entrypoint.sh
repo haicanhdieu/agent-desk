@@ -3,7 +3,8 @@
 # provider adapter so `gh` works), CHECKOUT_REF, PROMPT, BOT_NAME, BOT_EMAIL, PLUGIN_MARKETPLACES (JSON
 # {store: source}, optional), SETUP_SCRIPT (optional), SETUP_TIMEOUT_SECONDS (digits, else 600), RUN_MODE (`setup_test`
 # opens an idle shell instead of the agent; `resume` continues a saved session on the run volume), AGENT (fixed list,
-# default claude), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR, AGENTDESK_LIB_DIR,
+# default claude), AGENT_MODEL (optional, passed to the agent as --model), ANTHROPIC_BASE_URL (optional custom API
+# address, only its origin is printed), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR, AGENTDESK_LIB_DIR,
 # AGENTDESK_HOME_SKEL and AGENTDESK_RUN_DIR (default /run/agentdesk, the in-memory volume that holds the `stop` and
 # `agent-exit` files) are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.
 # No `set -x`: the clone URL is a secret.
@@ -218,6 +219,27 @@ elif [ "${RUN_MODE:-}" = resume ]; then
   session_cmd="$AGENT_RESUME_CMD"
 else
   session_cmd="$AGENT_START_CMD"
+fi
+
+# One launch line per agent start (fresh and resume; not setup_test, where no agent runs): the agent, its model and the
+# origin of its API address. Values are only printed with printf '%s', and only the characters of a model id and an
+# address (letters, digits and . _ : / @ [ ] + -) are kept; anything else (control characters, C1 bytes, spaces) becomes
+# ?, so a value cannot forge a marker line. The origin is scheme://host[:port] only: a value that does not have that
+# exact shape (userinfo, odd scheme, empty host) prints as default, so no credential reaches the log.
+if [ "${RUN_MODE:-}" != setup_test ]; then
+  launch_model="${AGENT_MODEL:-default}"
+  launch_endpoint=default
+  if [ -n "${AGENT_ENDPOINT_URL:-}" ] && [[ "$AGENT_ENDPOINT_URL" == *://* ]]; then
+    endpoint_scheme="${AGENT_ENDPOINT_URL%%://*}"
+    endpoint_rest="${AGENT_ENDPOINT_URL#*://}"
+    endpoint_rest="${endpoint_rest%%[/?#]*}"
+    if [[ "$endpoint_scheme" =~ ^[A-Za-z][A-Za-z0-9+.-]*$ ]] &&
+      [[ "$endpoint_rest" =~ ^([A-Za-z0-9.-]+|\[[0-9A-Fa-f:.]+\])(:[0-9]+)?$ ]]; then
+      launch_endpoint="$endpoint_scheme://$endpoint_rest"
+    fi
+  fi
+  printf 'agentdesk: agent %s model %s endpoint %s\n' "$AGENT_DIR" "${launch_model//[!A-Za-z0-9._:\/@+\[\]-]/?}" \
+    "${launch_endpoint//[!A-Za-z0-9._:\/@+\[\]-]/?}"
 fi
 
 # remain-on-exit keeps the dead pane so its exit status and scrollback can be read. It is set before new-session (same

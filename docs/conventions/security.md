@@ -78,6 +78,7 @@ These hold for every run pod on every target. The worker builds the Job (`buildR
 - **MUST** pin the runner image (and Claude Code version) by digest. _Why:_ a floating tag is an unreviewed code change inside every run.
 - Pod output is untrusted. A pod can print any `agentdesk: state …` line (or a legacy `turn started` / `turn finished` line, still parsed for one release) at will; **MUST NOT** let a pod's output affect anything beyond its own run (no cross-run, cross-project or cross-org effect, no Kubernetes call derived from log content).
 - Repo content runs code in the pod (`.claude/settings.json` hooks, `.mcp.json`). This is accepted only because of the invariants above; weakening any of them reopens it.
+- Known risk (checked on Claude Code 2.1.323): a repo's `.claude/settings.json` `env` block overrides the `ANTHROPIC_BASE_URL` the Job sets, so a run's agent can be pointed at another address and receive its credential. The launch line shows the configured address, not the effective one. Needs the planned egress proxy; not fixed in the runner.
 
 ## 5. Untrusted input
 

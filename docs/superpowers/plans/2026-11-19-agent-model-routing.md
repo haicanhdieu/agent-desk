@@ -540,7 +540,7 @@ git commit -m "feat(api): per-rule model and agent, frozen on the run at intake"
 - Consumes: env `AGENT`, `AGENT_MODEL`, `ANTHROPIC_BASE_URL` as Task 3's `launchEnv` sets them (names fixed by the spec).
 - Produces: `AGENT_START_CMD='exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} "$PROMPT"'`, `AGENT_RESUME_CMD='exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} --continue'`, `AGENT_ENDPOINT_URL="${ANTHROPIC_BASE_URL:-}"` in `commands.sh`; `entrypoint.sh` prints `agentdesk: agent <AGENT_DIR> model <AGENT_MODEL or default> endpoint <origin of AGENT_ENDPOINT_URL or default>` once, right before it starts the agent's tmux session, in fresh and resume modes, with `printf '%s'`-style quoting.
 
-- [ ] **Step 1: Write the failing runner tests**
+- [x] **Step 1: Write the failing runner tests**
 
 In `entrypoint.test.ts`:
 - Update `normal mode starts the agent with the prompt command` and the resume test to the new command strings.
@@ -552,25 +552,25 @@ In `entrypoint.test.ts`:
 - `it('a model value is printed, never evaluated')`: `AGENT_MODEL='$(touch pwned)'` → no `pwned` file and the line shows the literal text.
 - Make sure the tmux shell sees `AGENT_MODEL` the way it sees `PROMPT` (assert with the existing env-capture helper).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/runner test -- entrypoint`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `commands.sh` as above. In `entrypoint.sh`, compute the origin with parameter expansion only (`scheme="${url%%://*}"`, `rest="${url#*://}"`, `origin="$scheme://${rest%%/*}"`), and print with `printf 'agentdesk: agent %s model %s endpoint %s\n' …`. Pass `AGENT_MODEL` into the tmux session env alongside `PROMPT`. Update the header comment's env list.
 
-- [ ] **Step 4: Run the runner tests**
+- [x] **Step 4: Run the runner tests**
 
 Run: `pnpm --filter @agentdesk/runner test`
 Expected: PASS.
 
-- [ ] **Step 5: Check the settings override (spec Agent call)**
+- [x] **Step 5: Check the settings override (spec Agent call)**
 
 With the Claude Code version pinned in `images/runner/Dockerfile`, check (its docs or a manual run of that version) whether a repo's `.claude/settings.json` `env` block can override `ANTHROPIC_BASE_URL`. If it can, add one line to `security.md` §4 or §5 naming it a known risk that needs the planned egress proxy, and say so in the PR. If it cannot, say that in the PR. Do not fix it here.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
