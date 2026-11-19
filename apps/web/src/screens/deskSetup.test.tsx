@@ -112,6 +112,71 @@ describe('DeskSetup', () => {
     expect(onEndTest).toHaveBeenCalled();
   });
 
+  describe('log actions', () => {
+    const testView = {
+      status: 'failed' as const,
+      phases: setupPhases.failed,
+      plugins: setupPlugins.result,
+      lines: setupTestTerminal,
+      scriptLabel: 'Draft',
+      checkout: 'main a91c3e2',
+      started: '14:31',
+    };
+    const logText = setupTestTerminal.map((line) => line.map((s) => s.text).join('')).join('\n');
+
+    it('Copy all puts the whole log on the clipboard and says so', async () => {
+      const ue = userEvent.setup();
+      render(<DeskSetup {...props} test={testView} />);
+      await ue.click(screen.getByRole('button', { name: 'Copy all' }));
+      expect(await navigator.clipboard.readText()).toBe(logText);
+      expect(await screen.findByRole('button', { name: 'Copied' })).toBeInTheDocument();
+    });
+
+    it('Copy all says when the clipboard is not available', async () => {
+      const ue = userEvent.setup();
+      render(<DeskSetup {...props} test={testView} />);
+      vi.spyOn(navigator.clipboard, 'writeText').mockRejectedValue(new Error('denied'));
+      await ue.click(screen.getByRole('button', { name: 'Copy all' }));
+      expect(await screen.findByRole('button', { name: 'Copy failed' })).toBeInTheDocument();
+    });
+
+    it('Find opens a search box that marks every match in the log and steps through them', async () => {
+      const ue = userEvent.setup();
+      render(<DeskSetup {...props} test={testView} />);
+      expect(screen.queryByRole('searchbox', { name: 'Find in log' })).not.toBeInTheDocument();
+      await ue.click(screen.getByRole('button', { name: 'Find in scrollback' }));
+      const box = screen.getByRole('searchbox', { name: 'Find in log' });
+      expect(box).toHaveFocus();
+      await ue.type(box, 'setup');
+      const log = screen.getByRole('log', { name: 'Test workspace terminal' });
+      const count = log.querySelectorAll('mark').length;
+      expect(count).toBeGreaterThan(1);
+      expect(screen.getByText(`1 of ${count}`)).toBeInTheDocument();
+      expect(log.querySelectorAll('mark')[0]).toHaveAttribute('aria-current', 'true');
+      await ue.click(screen.getByRole('button', { name: 'Next match' }));
+      expect(screen.getByText(`2 of ${count}`)).toBeInTheDocument();
+      expect(log.querySelectorAll('mark')[1]).toHaveAttribute('aria-current', 'true');
+      await ue.click(screen.getByRole('button', { name: 'Previous match' }));
+      expect(screen.getByText(`1 of ${count}`)).toBeInTheDocument();
+    });
+
+    it('Find ignores case, says when nothing matches, and closes with the log left unmarked', async () => {
+      const ue = userEvent.setup();
+      render(<DeskSetup {...props} test={testView} />);
+      await ue.click(screen.getByRole('button', { name: 'Find in scrollback' }));
+      const box = screen.getByRole('searchbox', { name: 'Find in log' });
+      await ue.type(box, 'AGENT-DESK RUNNER');
+      const log = screen.getByRole('log', { name: 'Test workspace terminal' });
+      expect(log.querySelectorAll('mark')).toHaveLength(1);
+      await ue.clear(box);
+      await ue.type(box, 'no such text');
+      expect(screen.getByText('No matches')).toBeInTheDocument();
+      expect(log.querySelectorAll('mark')).toHaveLength(0);
+      await ue.click(screen.getByRole('button', { name: 'Close find' }));
+      expect(screen.queryByRole('searchbox', { name: 'Find in log' })).not.toBeInTheDocument();
+    });
+  });
+
   it('a failed setup shows what failed above the log, and no shell tab or countdown', () => {
     render(
       <DeskSetup

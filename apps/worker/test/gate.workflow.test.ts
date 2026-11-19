@@ -61,6 +61,16 @@ async function settle(gate: WorkflowHandle): Promise<GateState> {
   }
   throw new Error('gate did not settle');
 }
+/** Polls describe() (not a query) until the workflow's current run differs from `oldRunId`. */
+async function untilNewRun(h: WorkflowHandle, oldRunId: string): Promise<void> {
+  for (let i = 0; i < 400; i += 1) {
+    const d = await h.describe();
+    if (d.runId !== oldRunId && d.status.name === 'RUNNING') return;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error('gate did not continue as new');
+}
+
 describe('constants', () => {
   it('signal names and thresholds match the shared names', () => {
     expect(signals.requestSlot.name).toBe(SIGNAL.requestSlot);
@@ -163,6 +173,9 @@ describe('ProjectGateWorkflow', () => {
       await Promise.all(noise.slice(i, i + 50).map((id) => gate.signal(signals.releaseSlot, id)));
     }
     const latest = env.client.workflow.getHandle(gate.workflowId);
+    // Do not query while the gate is mid-continue-as-new: a query buffered on the closing run is never answered by the
+    // test server (the intermittent 60 s timeout). Wait until the new run is current, then query it.
+    await untilNewRun(latest, gate.firstExecutionRunId);
     await settle(latest);
     const desc = await latest.describe();
     expect(desc.runId).not.toBe(gate.firstExecutionRunId);

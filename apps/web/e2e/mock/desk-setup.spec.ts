@@ -34,3 +34,37 @@ test('save a setup script version, test it, and see the result after the workspa
   await expect(page.getByText('Setup passed', { exact: true })).toBeVisible();
   await expect(page.getByRole('list', { name: 'Setup phases' })).toContainText('2 installed, 1 blocked');
 });
+
+test('find marks matches in the setup log and Copy all puts the log on the clipboard', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/setup`);
+  await page.getByRole('button', { name: 'Test setup' }).click();
+  await expect(page.getByText('Last test passed, matches the saved script')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'View log' }).click();
+
+  const log = page.getByRole('log', { name: 'Test workspace terminal' });
+  await expect(log).toBeVisible();
+
+  // Find: type a term, every match is marked, and Next moves the focused one.
+  await page.getByRole('button', { name: 'Find in scrollback' }).click();
+  const box = page.getByRole('searchbox', { name: 'Find in log' });
+  await expect(box).toBeFocused();
+  await box.fill('setup');
+  const marks = log.locator('mark');
+  const count = await marks.count();
+  expect(count).toBeGreaterThan(0);
+  await expect(page.getByText(`1 of ${count}`)).toBeVisible();
+  await expect(marks.first()).toHaveAttribute('aria-current', 'true');
+  await box.fill('no such text in the log');
+  await expect(page.getByText('No matches')).toBeVisible();
+  await expect(marks).toHaveCount(0);
+  await page.getByRole('button', { name: 'Close find' }).click();
+  await expect(box).toHaveCount(0);
+
+  // Copy all: the clipboard holds the whole log.
+  await page.getByRole('button', { name: 'Copy all' }).click();
+  await expect(page.getByRole('button', { name: 'Copied' })).toBeVisible();
+  const copied = await page.evaluate(() => navigator.clipboard.readText());
+  expect(copied).toBe(await log.evaluate((el) => Array.from(el.children, (row) => row.textContent ?? '').join('\n')));
+  expect(copied.length).toBeGreaterThan(0);
+});

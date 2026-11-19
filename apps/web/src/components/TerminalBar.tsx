@@ -10,6 +10,8 @@ export interface TerminalBarProps {
   onViewChange?(id: string): void;
   onFind?(): void;
   onCopyAll?(): void;
+  /** The result of the last Copy all, shown in the button until it resets. */
+  copyStatus?: 'copied' | 'failed';
 }
 
 export function TerminalBar({
@@ -20,6 +22,7 @@ export function TerminalBar({
   onViewChange,
   onFind,
   onCopyAll,
+  copyStatus,
 }: TerminalBarProps) {
   return (
     <div className={styles.termbar}>
@@ -56,8 +59,8 @@ export function TerminalBar({
       <Button variant="ghost" size="sm" icon="search" aria-label="Find in scrollback" onClick={onFind}>
         Find
       </Button>
-      <Button variant="ghost" size="sm" icon="copy" onClick={onCopyAll}>
-        Copy all
+      <Button variant="ghost" size="sm" icon={copyStatus === 'copied' ? 'check' : 'copy'} onClick={onCopyAll}>
+        {copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy all'}
       </Button>
     </div>
   );

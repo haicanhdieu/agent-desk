@@ -1,5 +1,6 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import styles from './Terminal.module.css';
+import { findMatches, type TermMatch } from './terminalFind';
 
 export type TermTone =
   'dim' | 'bold' | 'cyan' | 'green' | 'red' | 'yellow' | 'magenta' | 'accent' | 'add' | 'del' | 'dot' | 'dotw';
@@ -23,6 +24,53 @@ const toneClass: Record<TermTone, string> = {
 
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(' ');
 
+/** Matches grouped by line; `first` is the global index of the line's first match. */
+type MatchesByLine = Map<number, { first: number; matches: TermMatch[] }>;
+
+function groupByLine(matches: TermMatch[]): MatchesByLine {
+  const byLine: MatchesByLine = new Map();
+  matches.forEach((m, i) => {
+    const group = byLine.get(m.line);
+    if (group) group.matches.push(m);
+    else byLine.set(m.line, { first: i, matches: [m] });
+  });
+  return byLine;
+}
+
+/** The line's spans, with each match cut out of them into a `<mark>`; `current` is the index of the focused match. */
+function renderSpans(line: TermLine, byLine: MatchesByLine, lineIndex: number, current: number): ReactNode {
+  const group = byLine.get(lineIndex);
+  const first = group?.first ?? -1;
+  const here = group?.matches ?? [];
+  let offset = 0;
+  return line.map((s, j) => {
+    const from = offset;
+    const to = from + s.text.length;
+    offset = to;
+    const className = s.tone ? toneClass[s.tone] : undefined;
+    const parts: ReactNode[] = [];
+    let at = from;
+    here.forEach((m, k) => {
+      const start = Math.max(m.start, from);
+      const end = Math.min(m.end, to);
+      if (start >= end) return;
+      if (start > at) parts.push(s.text.slice(at - from, start - from));
+      parts.push(
+        <mark key={k} className={styles.find} aria-current={first + k === current ? 'true' : undefined}>
+          {s.text.slice(start - from, end - from)}
+        </mark>,
+      );
+      at = end;
+    });
+    if (at < to) parts.push(s.text.slice(at - from));
+    return (
+      <span key={j} className={className}>
+        {parts.length > 0 ? parts : s.text}
+      </span>
+    );
+  });
+}
+
 export interface TerminalProps {
   lines: TermLine[];
   cursor?: boolean;
@@ -30,6 +78,8 @@ export interface TerminalProps {
   dimmed?: boolean;
   /** A log to read in full: long lines wrap, the pane scrolls (keyboard too) and opens at the end. */
   scrollable?: boolean;
+  /** Marks every case-insensitive match of `query` and puts the match at `current` (0-based) in focus and in view. */
+  find?: { query: string; current: number };
   'aria-label'?: string;
 }
 
@@ -40,6 +90,7 @@ export function Terminal({
   anchor = 'bottom',
   dimmed,
   scrollable,
+  find,
   'aria-label': label = 'Claude Code terminal',
 }: TerminalProps) {
   const ref = useRef<HTMLDivElement>(null);
@@ -47,6 +98,14 @@ export function Terminal({
     const el = ref.current;
     if (scrollable && el) el.scrollTop = el.scrollHeight;
   }, [scrollable, lines.length]);
+  const query = find?.query ?? '';
+  const matches = useMemo(() => findMatches(lines, query), [lines, query]);
+  const byLine = useMemo(() => groupByLine(matches), [matches]);
+  const current = find && matches.length > 0 ? find.current % matches.length : -1;
+  // After the scroll-to-end effect, so a line appended while Find is open does not pull the focused match out of view.
+  useEffect(() => {
+    if (current >= 0) ref.current?.querySelector('mark[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest' });
+  }, [current, query, lines.length]);
   const rows = cursor && lines.length === 0 ? [[]] : lines;
   // The cursor sits on the input prompt row (a lone "> ") when there is one, otherwise on the last row.
   let last = rows.length - 1;
@@ -67,11 +126,7 @@ export function Terminal({
     >
       {rows.map((line, i) => (
         <div key={i} className={styles.line}>
-          {line.map((s, j) => (
-            <span key={j} className={s.tone ? toneClass[s.tone] : undefined}>
-              {s.text}
-            </span>
-          ))}
+          {renderSpans(line, byLine, i, current)}
           {cursor && i === last && <span className={styles.cursor} />}
         </div>
       ))}
