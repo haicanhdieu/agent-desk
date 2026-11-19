@@ -76,16 +76,16 @@ git commit -m "ci: shard unit tests into one job per package"
 - Consumes: job names from Task 1.
 - Produces: docs that say CI runs `test / unit (<pkg>)` per package plus `test / scripts`, and that a new package needs a matrix entry in the `unit` job.
 
-- [ ] **Step 1: Update the docs**
+- [x] **Step 1: Update the docs**
 
 Change "CI runs them as the jobs `test / unit` and `test / integration (<pkg> <i>/<n>)`" to name `test / unit (<pkg>)`, `test / scripts` and the integration job. Add one **MUST**-style line in §9: add a matrix entry to the `unit` job in `ci.yml` when you add a package with unit tests. Why: otherwise its tests never run in CI.
 
-- [ ] **Step 2: Verify no stale reference remains**
+- [x] **Step 2: Verify no stale reference remains**
 
 Run: `grep -rn "test / unit\b" docs README.md AGENTS.md`
 Expected: only the new `test / unit (<pkg>)` wording.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add docs
