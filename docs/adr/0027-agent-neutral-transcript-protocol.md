@@ -1,4 +1,4 @@
-# 0026. Agent-neutral transcript protocol with per-agent adapters
+# 0027. Agent-neutral transcript protocol with per-agent adapters
 
 - Status: Accepted
 - Date: 2026-11-19

@@ -249,7 +249,7 @@ fi
 tmux start-server \; set-option -g remain-on-exit on \; \
   new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$LIB_DIR/bin/agentdesk-session" "$session_cmd"
 # Sends the agent's saved conversation (agentdesk: transcript lines) that no hook has sent yet. Best effort: a hang,
-# a failure or an agent without a transcript.mjs adapter never blocks the session (docs/adr/0026).
+# a failure or an agent without a transcript.mjs adapter never blocks the session (docs/adr/0027).
 transcript_flush() {
   local adapter="$LIB_DIR/agents/$AGENT_DIR/transcript.mjs"
   [ -f "$adapter" ] || return 0

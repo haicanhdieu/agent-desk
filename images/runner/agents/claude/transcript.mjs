@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Claude Code transcript adapter: turns Claude's JSONL session log into `agentdesk: transcript <base64>` lines
-// (docs/adr/0026-agent-neutral-transcript-protocol.md). Plain ESM, no imports outside `node:*`.
+// (docs/adr/0027-agent-neutral-transcript-protocol.md). Plain ESM, no imports outside `node:*`.
 // The log text is untrusted: it is only parsed as JSON and forwarded as data, never a shell or a path.
 // Writes go only under AGENTDESK_STATE_DIR and to the status output.
 import {

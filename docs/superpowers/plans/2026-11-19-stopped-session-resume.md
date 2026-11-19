@@ -59,7 +59,7 @@ None. No new package, library, service, image, CI action, binary or workspace pa
 - Agent call: the Transcript page size is 200, the route's default (spec "Left to the builder").
 - Agent call: while the session is ending, the area always shows the Transcript, including its empty state. The saved-terminal-text fallback applies only once the run is paused or ended. Reason: the end flush lands with the park, and the page refetches then.
 - Agent call: mocked runs for this feature are seeded into the browser mock only, as `lifecycleRuns.ts` does. Behaviours (slow, failing, fail-once transcript; slow finish and cancel) are keyed by run number. The mock e2e specs install a fixed clock at `SESSION_MOCK_NOW`. Reason: MSW answers inside the service worker, which Playwright routing cannot reach, and relative times need a fixed now.
-- Agent call: the new ADR is `docs/adr/0026-agent-neutral-transcript-protocol.md`, the next free number.
+- Agent call: the new ADR is `docs/adr/0027-agent-neutral-transcript-protocol.md`, the next free number.
 - Agent call: if no real Claude Code 2.1.323 session can be recorded for the adapter fixtures, write them by hand from that version's JSONL format and say so in the PR. Reason: tests run without network or credentials.
 - Agent call: local cases that need short timers (idle timer, ending deadline) run only on a stack started with the env overrides, like the existing pause tests (`E2E_IDLE_END_SECONDS`, and a new `E2E_ENDING_DEADLINE_SECONDS`). Reason: the default timers are 30 and 1.5 minutes.
 - Agent call: TC-14.1 to TC-14.3 and TC-19.2 are not written as e2e specs. The lowest layers that prove them are the Task 2 Part A in-process workflow test (`runtime.unpatched.add('stop-session')`) and the Task 1 Part A / Task 6 Part A unit tests of `pauseReasonText`. Reason: see OPEN in the hand-off. The local stack cannot start a run on the old workflow code, and no screen prints the pause reason of a stopped run.
@@ -535,9 +535,9 @@ git commit -m "feat(api): stop a live session and read a run's transcript"
 - Modify: `images/runner/test/claude-hook.test.ts`
 - Modify: `images/runner/test/entrypoint.test.ts`
 - Modify: `images/runner/test/dockerfile.test.ts`
-- Create: `docs/adr/0026-agent-neutral-transcript-protocol.md`
+- Create: `docs/adr/0027-agent-neutral-transcript-protocol.md`
 - Modify: `docs/adr/README.md`
-- Modify: `docs/adr/0011-interactive-claude-code-in-tmux.md` (status line "Amended by 0026")
+- Modify: `docs/adr/0011-interactive-claude-code-in-tmux.md` (status line "Amended by 0027")
 - Modify: `packages/core/src/kube/log-parser.ts`
 - Modify: `packages/core/test/kube/log-parser.test.ts`
 - Create: `apps/worker/src/activities/transcript-store.ts`
@@ -648,7 +648,7 @@ Expected: FAIL.
 
 - [x] **Step 4: Write the ADR**
 
-`0026-agent-neutral-transcript-protocol.md` follows `0000-template.md`. Its content is spec §2 (wire line, `TranscriptWireEntry`), §2.2 (adapter contract, flush), the choice of hooks plus flush over a tail process, Postgres storage with redaction and the 20,000 cap, the read-only view, and alternatives B and C. It amends ADR 0011 ("history is final scrollback only") and extends ADR 0020's adapter model. Add the README row and the amendment line in 0011.
+`0027-agent-neutral-transcript-protocol.md` follows `0000-template.md`. Its content is spec §2 (wire line, `TranscriptWireEntry`), §2.2 (adapter contract, flush), the choice of hooks plus flush over a tail process, Postgres storage with redaction and the 20,000 cap, the read-only view, and alternatives B and C. It amends ADR 0011 ("history is final scrollback only") and extends ADR 0020's adapter model. Add the README row and the amendment line in 0011.
 
 - [x] **Step 5: Run the runner tests**
 
@@ -660,7 +660,7 @@ Expected: PASS.
 ```bash
 devbox run fix
 git add images/runner docs/adr
-git commit -m "feat(runner): hook and entrypoint flushes send transcript lines; ADR 0026"
+git commit -m "feat(runner): hook and entrypoint flushes send transcript lines; ADR 0027"
 ```
 
 #### Part C: Core parser kind `transcript` and the follower stores entries
