@@ -72,7 +72,7 @@ export const ConfigSchema = z
     RUN_POD_CPU_REQUEST: blankDefault(z.string().default('500m')),
     RUN_POD_CPU_LIMIT: blankDefault(z.string().default('2')),
     RUN_POD_MEMORY_REQUEST: blankDefault(z.string().default('1Gi')),
-    RUN_POD_MEMORY_LIMIT: blankDefault(z.string().default('4Gi')),
+    RUN_POD_MEMORY_LIMIT: blankDefault(z.string().default('2Gi')),
     RUN_POD_EPHEMERAL_STORAGE_LIMIT: blankDefault(z.string().default('4Gi')),
     RUN_POD_WORKSPACE_SIZE_LIMIT: blankDefault(z.string().default('4Gi')),
     RUN_POD_NODE_SELECTOR: optional(jsonValue(z.record(z.string(), z.string()))),

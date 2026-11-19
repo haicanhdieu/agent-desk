@@ -5,7 +5,7 @@ import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 // .agent/skills/dev-build/scripts/verify.sh runs lint, typecheck and tests for every touched package. A run pod has
-// 4 GiB, and each of those commands is a node process of 0.5-1 GiB, so how many run at once is what keeps the pod alive.
+// 2 GiB, and each of those commands is a node process of 0.5-1 GiB, so how many run at once is what keeps the pod alive.
 // The tests drive the real script in a throwaway git repo with a stub `pnpm` that records how many run at the same time.
 const verify = resolve(__dirname, '..', '.agent', 'skills', 'dev-build', 'scripts', 'verify.sh');
 const PACKAGES = ['a', 'b', 'c', 'd'];

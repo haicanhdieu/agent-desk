@@ -5,9 +5,9 @@
   "scripts": {
     "dev": "bash scripts/dev.sh up",
     "build": "turbo run build",
-    "test": "turbo run test --concurrency=2 && pnpm test:scripts",
-    "typecheck": "turbo run typecheck --concurrency=2 && tsc -p scripts",
-    "lint": "turbo run lint --concurrency=2 && eslint scripts eslint.config.mjs && tsx scripts/check-test-split.ts",
+    "test": "turbo run test --concurrency=${CHECK_CONCURRENCY:-2} && pnpm test:scripts",
+    "typecheck": "turbo run typecheck --concurrency=${CHECK_CONCURRENCY:-2} && tsc -p scripts",
+    "lint": "turbo run lint --concurrency=${CHECK_CONCURRENCY:-2} && eslint scripts eslint.config.mjs && tsx scripts/check-test-split.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:migrate": "pnpm --filter @agentdesk/api migrate",
@@ -16,8 +16,8 @@
     "stop": "bash scripts/dev.sh down",
     "test:e2e:local": "tsx scripts/e2e-local.ts",
     "test:scripts": "vitest run --root scripts",
-    "test:unit": "turbo run test:unit --concurrency=2",
-    "test:unit:coverage": "turbo run test:unit:coverage --concurrency=2 && turbo run test:coverage --concurrency=2 --filter=@agentdesk/web --filter=@agentdesk/contracts"
+    "test:unit": "turbo run test:unit --concurrency=${CHECK_CONCURRENCY:-2}",
+    "test:unit:coverage": "turbo run test:unit:coverage --concurrency=${CHECK_CONCURRENCY:-2} && turbo run test:coverage --concurrency=${CHECK_CONCURRENCY:-2} --filter=@agentdesk/web --filter=@agentdesk/contracts"
   },
   "devDependencies": {
     "@agentdesk/contracts": "workspace:*",
