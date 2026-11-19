@@ -27,5 +27,7 @@ if ! (set -C; printf '%s\n' "$$" > "$dir/$id.pid") 2>/dev/null; then
   echo "agentdesk-attach: already detached" >&2
   exit 3
 fi
-# exec keeps this pid: the file names the tmux client process itself.
-exec tmux attach -t '=agent'
+# exec keeps this pid: the file names the tmux client process itself. -u: tmux takes a client for UTF-8 only when
+# LC_ALL/LC_CTYPE/LANG say so (the C locale pinned above does not), and a client that is not UTF-8 gets every non-ASCII
+# glyph as underscores.
+exec tmux -u attach -t '=agent'
