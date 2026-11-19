@@ -10,6 +10,8 @@ export interface ProjectsProps {
   newHref: string;
   /** Where a project row links (its runs). Defaults to the prototype's `/runs`. */
   projectHref?: (project: Project) => string;
+  /** Where a row's More menu Settings goes (the project's settings). */
+  settingsHref?: (project: Project) => string;
   /** Where a row's "Switch to polling" goes (the project's settings). */
   switchToPollingHref?: (project: Project) => string;
 }
@@ -24,7 +26,14 @@ const columns = [
   { key: 'more', header: <span className="sr-only">Actions</span> },
 ];
 
-export function Projects({ user, projects, newHref, projectHref = () => '/runs', switchToPollingHref }: ProjectsProps) {
+export function Projects({
+  user,
+  projects,
+  newHref,
+  projectHref = () => '/runs',
+  settingsHref,
+  switchToPollingHref,
+}: ProjectsProps) {
   if (projects.length === 0) return <ProjectsEmpty user={user} createHref={newHref} />;
   return (
     <>
@@ -41,7 +50,13 @@ export function Projects({ user, projects, newHref, projectHref = () => '/runs',
         </p>
         <DataTable columns={columns}>
           {projects.map((p) => (
-            <ProjectRow key={p.id} project={p} href={projectHref(p)} switchToPollingHref={switchToPollingHref?.(p)} />
+            <ProjectRow
+              key={p.id}
+              project={p}
+              href={projectHref(p)}
+              settingsHref={settingsHref?.(p)}
+              switchToPollingHref={switchToPollingHref?.(p)}
+            />
           ))}
         </DataTable>
       </main>
