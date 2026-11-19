@@ -148,6 +148,45 @@ describe('MSW handler semantics', () => {
     expect(e.requestId).toMatch(/^req-mock-/);
   });
 
+  it('putCredential sets, keeps and clears the address; models of another org agent is 404', async () => {
+    const agentId = ids.agent.invoicerApi;
+    const address = (): Promise<string | null> => api.agents.get({ params: { projectId: P } }).then((a) => a.baseUrl);
+    await expect(address()).resolves.toBeNull();
+    await api.agents.putCredential({
+      params: { agentId },
+      body: { type: 'api_key', value: 'sk-test', baseUrl: 'https://gw.example.com/anthropic' },
+    });
+    await expect(address()).resolves.toBe('https://gw.example.com/anthropic');
+    await api.agents.putCredential({ params: { agentId }, body: { type: 'api_key', value: 'sk-test-2' } });
+    await expect(address()).resolves.toBe('https://gw.example.com/anthropic');
+    await api.agents.putCredential({
+      params: { agentId },
+      body: { type: 'api_key', value: 'sk-test-3', baseUrl: null },
+    });
+    await expect(address()).resolves.toBeNull();
+    expect(JSON.stringify(mockDb.snapshot())).not.toContain('sk-test');
+    const other = await rejection(api.agents.models({ params: { agentId: ids.agent.storefront } }));
+    expect(other.status).toBe(404);
+  });
+
+  it('agents.models answers the scenario set for the agent and drops beforeCredentialSave after a save', async () => {
+    const agentId = ids.agent.invoicerApi;
+    scenarios.agentModels(agentId, {
+      kind: 'live',
+      ids: ['m-1'],
+      beforeCredentialSave: { kind: 'fallback', reason: 'rejected' },
+    });
+    await expect(api.agents.models({ params: { agentId } })).resolves.toMatchObject({ reason: 'rejected' });
+    await api.agents.putCredential({ params: { agentId }, body: { type: 'api_key', value: 'x' } });
+    await expect(api.agents.models({ params: { agentId } })).resolves.toEqual({
+      source: 'live',
+      reason: null,
+      models: [{ id: 'm-1', label: 'm-1' }],
+    });
+    scenarios.agentModels(agentId, { kind: 'error' });
+    expect((await rejection(api.agents.models({ params: { agentId } }))).status).toBe(500);
+  });
+
   it('hides projects of other orgs (RLS) and switches with the active org', async () => {
     const e = await rejection(api.projects.get({ params: { projectId: ids.project.storefront } }));
     expect(e.status).toBe(404);

@@ -762,26 +762,26 @@ export async function podLogLines(runId: string): Promise<string[]>;
 
 MSW handlers: `agents.models` answers through `agentModelsAnswer` with the scenario stored in the mock db (cleared by `mockDb.reset()`); `agents.putCredential` applies `baseUrl` (absent keeps, string sets, `null` clears) and marks the credential saved for `beforeCredentialSave`. Invalid `model`/`baseUrl` bodies already get a 400 with the field pointer from the MSW contract layer (`parsePart`), like the API.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `agentModels.test.ts`: default answers (no credential → `no_credential` with opus/sonnet/haiku; credential → live fixture); a `live` scenario with `idsByBaseUrl` answers per address; `beforeCredentialSave` applies until a save; `fallback`, `error`, `pending` map as typed.
 `contract.test.ts`: `putCredential` with `baseUrl` then `agents.get` shows it; with `null` clears it; `agents.models` for another org's agent is 404.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- agentModels contract`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 As above. `browser.ts` reads `sessionStorage[AGENT_MODELS_SCENARIO_KEY]` once at start (try/catch, parse as JSON) and calls `scenarios.agentModels` for each entry. Move the helpers out of `run.spec.ts` and import them there; add `podLogLines`.
 
-- [ ] **Step 4: Run the tests and the moved local spec's typecheck**
+- [x] **Step 4: Run the tests and the moved local spec's typecheck**
 
 Run: `pnpm --filter @agentdesk/web test -- agentModels contract && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

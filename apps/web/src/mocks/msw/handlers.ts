@@ -16,7 +16,7 @@ import {
 } from '@agentdesk/contracts';
 import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
-import { agentModelsFixtures } from '../dto/agentModels';
+import { agentModelsAnswer } from './agentModels';
 import { promptPreviewFixture } from '../dto/rules';
 import { noPlugins } from '../dto/setup';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
@@ -346,13 +346,23 @@ const impl: Impl = {
     // Write-only: the value is dropped here, only the fact that one is set is kept.
     const updatedAt = now();
     agent.credential = { set: true, type: body.type, updatedAt, setBy: user.handle };
+    // Absent keeps the saved address, a string sets it, null clears it.
+    if (body.baseUrl !== undefined) agent.baseUrl = body.baseUrl;
+    if (!db().agentCredentialSaved.includes(agent.id)) db().agentCredentialSaved.push(agent.id);
     return { updatedAt };
   },
-  'agents.models': ({ params }) => {
+  'agents.models': async ({ params }) => {
     const agent = db().agents.find((a) => a.id === params.agentId);
     if (!agent) throw notFound('Agent');
     projectRow(agent.projectId);
-    return agentModelsFixtures.live;
+    const answer = agentModelsAnswer(
+      agent,
+      db().agentModelScenarios[agent.id],
+      db().agentCredentialSaved.includes(agent.id),
+    );
+    if (answer === 'pending') return new Promise<never>(() => undefined);
+    if (answer === 'error') throw new Problem({ status: 500, title: 'Internal server error', type: 'internal' });
+    return answer;
   },
 
   // Full skills; the SkillSummaryDto response schema strips `body` and `sha`.
