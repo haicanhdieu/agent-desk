@@ -32,7 +32,7 @@ export function useProjectPage(org: string, projectId: string, now: Date): Proje
     project: { ...toProject(dto, connection, org, now), org: frame.project.org },
     user: frame.user,
     paths,
-    links: { projects: paths.projects, runs: paths.runs, desk: paths.skills },
+    links: { projects: paths.projects, runs: paths.runs, desk: paths.rules },
     projectMenu: frame.projectMenu ?? { status: 'loading' },
   };
 }

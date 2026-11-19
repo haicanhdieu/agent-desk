@@ -44,7 +44,7 @@ export function useDeskFrame(org: string, projectId: string, now: Date): DeskFra
     links: {
       projects: paths.projects,
       runs: paths.runs,
-      desk: paths.skills,
+      desk: paths.rules,
       skills: paths.skills,
       rules: paths.rules,
       agent: paths.agent,
