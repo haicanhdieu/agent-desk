@@ -13,6 +13,7 @@ export { fakeSignature, FAKE_SIGNATURE_HEADER } from './adapters/fake/board';
 export * from './plugins/select-plugins';
 export * from './temporal-names';
 export * from './secrets/secret-store';
+export * from './secrets/credential-secret';
 export { MemorySecretStore } from './secrets/memory-secret-store';
 export { FileSecretStore } from './secrets/file-secret-store';
 export { KubeSecretStore, type SecretsApi } from './secrets/kube-secret-store';

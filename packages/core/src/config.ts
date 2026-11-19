@@ -107,6 +107,8 @@ export const ConfigSchema = z
     FAKE_STATE_DIR: blankDefault(z.string().default('.agentdesk/fake')),
     FAKE_WEBHOOK_SECRET: blankDefault(z.string().default('dev')),
     ENABLE_FAKE_PROVIDER: blankDefault(bool.default(false)),
+    /** Where an agent's model list comes from: the provider's live list, or only the built-in names (local stack, e2e). */
+    AGENT_MODELS_SOURCE: blankDefault(z.enum(['live', 'builtin']).default('live')),
     AUTH_DEV_LOGIN: blankDefault(bool.default(false)),
     SSE_SAFETY_TICK_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),
     SSE_DRAIN_TIMEOUT_MS: blankDefault(z.coerce.number().int().min(10).default(30000)),

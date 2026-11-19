@@ -26,7 +26,9 @@ import {
   classifyKubeError,
   promptSourceOf,
   buildRunJob,
+  credentialMatchesAddress,
   credentialSecretName,
+  parseCredentialSecret,
   parseLogLine,
   redact,
   runJobName,
@@ -180,7 +182,6 @@ const SetupMarkerPayload = z.object({
 const EndMarkerPayload = z.object({ reason: z.enum(END_REASONS), code: z.number().int() });
 /** The `finish` outbox marker; `status` is absent on markers written before it was recorded. */
 const FinishMarker = z.object({ status: z.string().optional() });
-const StoredCredential = z.object({ type: CredentialType, value: z.string().min(1) });
 
 const isFinal = (s: RunStatus): boolean =>
   s === 'succeeded' || s === 'failed' || s === 'cancelled' || s === 'timed_out';
@@ -381,7 +382,17 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
    * The stored agent credential, or null when none is set. The Secret name is derived from (org, agent), never
    * read from the database. A store error propagates (it must not look like "no credential").
    */
-  async function storedCredential(ctx: RunContext): Promise<{ type: CredentialType; value: string } | null> {
+  async function storedCredential(
+    ctx: RunContext,
+    agentBaseUrl: string | null,
+  ): Promise<{ type: CredentialType; value: string } | null> {
+    const secret = await readCredentialSecret(ctx);
+    // A credential saved for another address is not a credential for this agent (it is still redacted, see below).
+    return secret && credentialMatchesAddress(secret, agentBaseUrl) ? secret : null;
+  }
+
+  /** The Secret as stored, whatever address it was saved for: for redaction, and the base of `storedCredential`. */
+  async function readCredentialSecret(ctx: RunContext): Promise<ReturnType<typeof parseCredentialSecret>> {
     if (!ctx.agentId) return null;
     const name = credentialSecretName(ctx.orgId, ctx.agentId);
     let stored: Record<string, string> | null;
@@ -391,13 +402,12 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       // A store error may quote stored content (a parse error over a corrupt value): keep only its name.
       throw ApplicationFailure.retryable('credential store read failed', err instanceof Error ? err.name : 'Error');
     }
-    const parsed = StoredCredential.safeParse(stored);
-    return parsed.success ? parsed.data : null;
+    return parseCredentialSecret(stored);
   }
 
   /** The credential values to redact (values only; the runner env names are not needed). */
   async function credentialValues(ctx: RunContext): Promise<string[]> {
-    const cred = await storedCredential(ctx);
+    const cred = await readCredentialSecret(ctx);
     return cred ? [cred.value] : [];
   }
 
@@ -513,7 +523,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return undefined;
     // A resume happens long after `ctx` was loaded: the agent and its credential are read fresh (the agent may be gone).
-    const stored = await storedCredential(resume ? { ...ctx, agentId: d.agentId } : ctx);
+    const stored = await storedCredential(resume ? { ...ctx, agentId: d.agentId } : ctx, d.baseUrl);
     // An agent with a credential always has a kind; a run without an agent has no credential.
     if (!stored || d.agentKind === null) {
       throw resume

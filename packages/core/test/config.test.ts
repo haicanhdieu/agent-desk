@@ -207,3 +207,15 @@ describe('BOT_NAME', () => {
     expect(parseConfig(base).BOT_NAME).toBe('agentdesk[bot]');
   });
 });
+
+describe('AGENT_MODELS_SOURCE', () => {
+  it('defaults to live, treats blank as the default and accepts builtin', () => {
+    expect(parseConfig(base).AGENT_MODELS_SOURCE).toBe('live');
+    expect(parseConfig({ ...base, AGENT_MODELS_SOURCE: '' }).AGENT_MODELS_SOURCE).toBe('live');
+    expect(parseConfig({ ...base, AGENT_MODELS_SOURCE: 'builtin' }).AGENT_MODELS_SOURCE).toBe('builtin');
+  });
+
+  it('rejects any other value', () => {
+    expect(() => parseConfig({ ...base, AGENT_MODELS_SOURCE: 'other' })).toThrow();
+  });
+});

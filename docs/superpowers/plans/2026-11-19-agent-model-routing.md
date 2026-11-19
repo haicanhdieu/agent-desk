@@ -662,7 +662,7 @@ git commit -m "feat(worker): launch runs with the agent adapter env and the run 
 
 `models` order: 404 unless the agent exists in the org (`withOrg`), then `assertProjectVisible(tx, agent.projectId)`; `AGENT_MODELS_SOURCE === 'builtin'` → `{ source: 'builtin', reason: 'disabled', models: builtin }`; credential metadata unset or `secrets.get` null/unparsable → `no_credential`; `listModels` → `[]` gives `empty`, otherwise `{ source: 'live', reason: null, models }`; `AgentModelsError` `rejected` → `rejected`, `unreachable` and `invalid` → `unreachable`, logged with the error class and the address's host only; a `secrets.get` throw → generic 500.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `config.test.ts`: `AGENT_MODELS_SOURCE` defaults to `live`, accepts `builtin`, rejects `other`.
 - `agents.int.test.ts` (live source via `env: { AGENT_MODELS_SOURCE: 'live' }`, `agentHttp` a stub or a `MockAgent`-backed `guardedGetJson`):
@@ -680,21 +680,21 @@ git commit -m "feat(worker): launch runs with the agent adapter env and the run 
   - `it('PUT agent with an invalid model is 400 on /model')`; `it('PUT agent has no way to change the address')` (a `baseUrl` in the body is ignored and the address is unchanged).
 - `redact-body.test.ts`: `it('a credential body with an address keeps baseUrl and drops value')` (spec: the address is not secret and stays in the audit row).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- config && pnpm --filter @agentdesk/api test -- agents`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Config key; `.env.example` gets `AGENT_MODELS_SOURCE=builtin` with a comment that the local stack and e2e never call the provider; add `AGENT_MODELS_SOURCE` to every `passThroughEnv` list in `turbo.json` that has `ENABLE_FAKE_PROVIDER`. Provider, service and controller as above; register the provider in `app.module.ts`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- config && pnpm --filter @agentdesk/api test && pnpm typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

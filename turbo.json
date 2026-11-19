@@ -26,6 +26,7 @@
         "RUN_POD_*",
         "FAKE_*",
         "ENABLE_FAKE_PROVIDER",
+        "AGENT_MODELS_SOURCE",
         "SSE_*",
         "TERMINAL_*",
         "POLL_*",

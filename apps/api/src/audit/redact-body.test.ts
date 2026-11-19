@@ -72,3 +72,14 @@ describe('redactBody script text', () => {
     expect(redactBody({ body: { a: 'secret' } }, 'PUT setupScript.put')).toEqual({});
   });
 });
+
+describe('redactBody credential with an address', () => {
+  it('a credential body with an address keeps baseUrl and drops value', () => {
+    expect(
+      redactBody(
+        { type: 'api_key', value: 'sk-secret', baseUrl: 'https://gw.example.com/anthropic' },
+        'PUT agents.putCredential',
+      ),
+    ).toEqual({ type: 'api_key', baseUrl: 'https://gw.example.com/anthropic' });
+  });
+});

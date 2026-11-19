@@ -573,10 +573,18 @@ describe('createRunSecretAndJob agent env', () => {
 
   it('a resume reads the agent address fresh', async () => {
     const runId = await seedRun('x', 'queued');
-    await setAgent('base_url = $2', ['https://gw.example.com/anthropic']);
-    expect((await envAfter(runId, { resume: true }))?.ANTHROPIC_BASE_URL).toBe('https://gw.example.com/anthropic');
-    await setAgent('base_url = null', []);
-    expect((await envAfter(runId, { resume: true }))?.ANTHROPIC_BASE_URL).toBeUndefined();
+    const name = `org-${ORG}-agent-${AGENT}`;
+    try {
+      // The credential is saved for the address it is used with (a Secret for another address does not launch).
+      await secrets.put(name, { type: 'oauth_token', value: CRED, baseUrl: 'https://gw.example.com/anthropic' });
+      await setAgent('base_url = $2', ['https://gw.example.com/anthropic']);
+      expect((await envAfter(runId, { resume: true }))?.ANTHROPIC_BASE_URL).toBe('https://gw.example.com/anthropic');
+      await secrets.put(name, { type: 'oauth_token', value: CRED });
+      await setAgent('base_url = null', []);
+      expect((await envAfter(runId, { resume: true }))?.ANTHROPIC_BASE_URL).toBeUndefined();
+    } finally {
+      await secrets.put(name, { type: 'oauth_token', value: CRED });
+    }
   });
 
   it('a run without a recorded model uses the agent default', async () => {
@@ -2214,5 +2222,119 @@ describe('resume mode', () => {
     expect((err as ApplicationFailure).type).toBe('NoAgentCredential');
     expect((err as ApplicationFailure).nonRetryable).toBe(true);
     expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+});
+
+describe('a credential saved for another address', () => {
+  const NAME = `org-${ORG}-agent-${AGENT}`;
+  const OTHER = 'mismatched-credential-value-0123456789';
+  const setAddress = (address: string | null): Promise<unknown> =>
+    asOwner((c) => c.query('update agents set base_url = $1 where id = $2', [address, AGENT]));
+  const restore = async (): Promise<void> => {
+    await setAddress(null);
+    await secrets.put(NAME, { type: 'oauth_token', value: CRED });
+  };
+
+  it('a legacy Secret without an address launches only an agent with the default address', async () => {
+    try {
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx);
+      expect((await kube.podEnv(`run-${runId}`))?.CLAUDE_CODE_OAUTH_TOKEN).toBe(CRED);
+      await acts.deleteJob(ctx);
+      await acts.deleteRunVolume(ctx);
+
+      await setAddress('https://gw.example.com');
+      const runId2 = await seedRun('x');
+      const err = await createRunActivities(deps())
+        .createRunSecretAndJob(await ctxFor(runId2))
+        .catch((e: unknown) => e);
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+      expect((err as ApplicationFailure).message).toContain('no credential');
+    } finally {
+      await restore();
+    }
+  });
+
+  it('a Secret whose address differs fails the launch non-retryably and creates nothing', async () => {
+    try {
+      await setAddress('https://new.example.com');
+      await secrets.put(NAME, { type: 'oauth_token', value: OTHER, baseUrl: 'https://old.example.com' });
+      const runId = await seedRun('x');
+      const err = await createRunActivities(deps())
+        .createRunSecretAndJob(await ctxFor(runId))
+        .catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ApplicationFailure);
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+      expect((err as ApplicationFailure).message).toContain('no credential');
+      expect((err as ApplicationFailure).message).not.toContain(OTHER);
+      expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+      expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    } finally {
+      await restore();
+    }
+  });
+
+  it('a resume reads the address fresh and fails as NoAgentCredential on a mismatch', async () => {
+    try {
+      await secrets.put(NAME, { type: 'oauth_token', value: OTHER, baseUrl: 'https://old.example.com' });
+      const runId = await seedRun('x', 'queued');
+      await setAddress('https://new.example.com');
+      const err = await createRunActivities(deps())
+        .createRunSecretAndJob(await ctxFor(runId), { resume: true })
+        .catch((e: unknown) => e);
+      expect((err as ApplicationFailure).type).toBe('NoAgentCredential');
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+    } finally {
+      await restore();
+    }
+  });
+
+  it('TC-16.2: after a failed credential write (new address, metadata cleared, no Secret) no run launches', async () => {
+    try {
+      await asOwner((c) =>
+        c.query(
+          'update agents set base_url = $1, credential_secret_name = null, credential_type = null, credential_updated_at = null where id = $2',
+          ['https://new.example.com', AGENT],
+        ),
+      );
+      await secrets.delete(NAME);
+      const runId = await seedRun('x');
+      const err = await createRunActivities(deps())
+        .createRunSecretAndJob(await ctxFor(runId))
+        .catch((e: unknown) => e);
+      expect((err as ApplicationFailure).nonRetryable).toBe(true);
+      expect((err as ApplicationFailure).message).toContain('no credential');
+      expect(await kube.getRunPod(`run-${runId}`)).toBeNull();
+    } finally {
+      await asOwner((c) =>
+        c.query(
+          "update agents set credential_secret_name = $1, credential_type = 'oauth_token', credential_updated_at = now() where id = $2",
+          [NAME, AGENT],
+        ),
+      );
+      await restore();
+    }
+  });
+
+  it('a mismatching Secret is still redacted from a comment, never used to launch', async () => {
+    try {
+      await setAddress('https://new.example.com');
+      await secrets.put(NAME, { type: 'oauth_token', value: OTHER, baseUrl: 'https://old.example.com' });
+      const runId = await seedRun('x');
+      const ctx = await ctxFor(runId);
+      const before = (await store.listPosted()).length;
+      await createRunActivities(deps()).postComment(ctx, 'finish', {
+        status: 'failed',
+        scrollbackTail: `line1\n${OTHER}\nlast line`,
+      });
+      const posted = (await store.listPosted()).slice(before);
+      expect(posted).toHaveLength(1);
+      expect(posted[0]?.body).toContain('last line');
+      expect(posted[0]?.body).not.toContain(OTHER);
+    } finally {
+      await restore();
+    }
   });
 });

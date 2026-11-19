@@ -2,6 +2,7 @@ import { Body, Controller, Get, Inject, Param, Put } from '@nestjs/common';
 import {
   routes,
   type AgentDto,
+  type AgentModelsDto,
   type PutAgentRequest,
   type PutCredentialRequest,
   type PutCredentialResponse,
@@ -13,6 +14,7 @@ import { AgentsService } from './agents.service';
 
 const ProjectParam = new ZodPipe(routes.agents.get.params);
 const AgentParam = new ZodPipe(routes.agents.putCredential.params);
+const ModelsParam = new ZodPipe(routes.agents.models.params);
 const PutBody = new ZodPipe(routes.agents.put.body);
 const CredentialBody = new ZodPipe(routes.agents.putCredential.body);
 
@@ -41,5 +43,10 @@ export class AgentsController {
     @Body(CredentialBody) body: PutCredentialRequest,
   ): Promise<PutCredentialResponse> {
     return this.service.putCredential(org, p.agentId, body);
+  }
+
+  @Get(routePath(routes.agents.models))
+  models(@CurrentOrg() org: OrgContext, @Param(ModelsParam) p: { agentId: string }): Promise<AgentModelsDto> {
+    return this.service.models(org, p.agentId);
   }
 }
