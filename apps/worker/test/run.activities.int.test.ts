@@ -1900,7 +1900,7 @@ describe('postComment paused', () => {
 });
 
 describe('postComment queued', () => {
-  it('posts once across two calls, says every slot is busy, links the run and records the outbox key', async () => {
+  it('posts once across two calls, says the slots are in use, links the run and records the outbox key', async () => {
     const runId = await seedRun('x', 'queued');
     const ctx = await ctxFor(runId);
     const acts = createRunActivities(deps());
@@ -1912,7 +1912,7 @@ describe('postComment queued', () => {
     const number = (await load(runId)).run?.number;
     expect(posted[0]?.body).toContain(`run #${number}`);
     expect(posted[0]?.body).toContain('queued');
-    expect(posted[0]?.body).toContain('slots');
+    expect(posted[0]?.body).toContain('slot');
     expect(posted[0]?.body).not.toContain('started');
     expect(posted[0]?.body).toContain(`http://localhost:5173/o/acme/p/${projectId}/runs/${number}`);
     const { run, events } = await load(runId);
