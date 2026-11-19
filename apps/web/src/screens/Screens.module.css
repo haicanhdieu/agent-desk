@@ -522,3 +522,8 @@
 .deskWarning {
   padding: 12px 24px 0;
 }
+
+/* The default model id in the rule form help keeps to one line, as on the DeskRules boards. */
+.modelId {
+  white-space: nowrap;
+}

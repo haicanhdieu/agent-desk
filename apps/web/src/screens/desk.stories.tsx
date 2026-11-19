@@ -20,6 +20,8 @@ import { DeskSetup as DeskSetupScreen, type DeskSetupProps } from './DeskSetup';
 import { DeskAgent as DeskAgentScreen } from './DeskAgent';
 import { DeskRules as DeskRulesScreen, RulePane } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
+import { toModelList } from '@/components';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { StatusIcon } from '@/ds';
 import { viewport } from './viewports';
 
@@ -84,6 +86,12 @@ export const DeskSkillDelete: Story = {
   render: () => <DeskSkillsScreen {...skillsProps} deleting="code-e2e" rulesUsing={['/code-e2e']} />,
 };
 
+const modelField = {
+  list: toModelList({ status: 'success', data: agentModelsFixtures.live }, null),
+  defaultModel: 'claude-opus-4-5-20251101',
+  settingsHref: '#',
+};
+
 export const DeskRules: Story = {
   name: 'Routing rules, editing',
   decorators: artboard(900),
@@ -96,6 +104,7 @@ export const DeskRules: Story = {
       editingId="r2"
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={promptReady}
+      modelField={modelField}
     />
   ),
 };
@@ -115,6 +124,7 @@ export const DeskRulesPrompt: Story = {
       editingId="r6"
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={promptReady}
+      modelField={modelField}
     />
   ),
 };
@@ -144,6 +154,7 @@ export const DeskRulesPromptNew: Story = {
             enabled: true,
           }}
           skills={skills.map((s) => s.name)}
+          modelField={modelField}
           promptPreview={{ state: 'loading' }}
           onChange={() => undefined}
           onClose={() => undefined}
@@ -180,6 +191,7 @@ export const DeskRulesPromptError: Story = {
             enabled: true,
           }}
           skills={skills.map((s) => s.name)}
+          modelField={modelField}
           promptPreview={{ state: 'error', onRetry: () => undefined }}
           errors={{ prompt: 'Keep the prompt to 4000 characters or fewer.' }}
           onChange={() => undefined}
@@ -215,6 +227,7 @@ export const DeskRulesNewRuleError: Story = {
             enabled: true,
           }}
           skills={skills.map((s) => s.name)}
+          modelField={modelField}
           errors={{ command: 'A rule for /code-build already exists in this project.' }}
           onChange={() => undefined}
           onClose={() => undefined}

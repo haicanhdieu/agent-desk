@@ -132,7 +132,6 @@ function RuleEditor({ org, projectId, rule, agent, skills, onClose, onDelete }: 
         prompt: values.prompt,
       }}
       skills={skills}
-      agentModel={agent.model}
       promptPreview={promptPreview}
       onChange={(d) =>
         form.change({

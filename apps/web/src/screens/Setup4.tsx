@@ -5,6 +5,7 @@ import {
   GuardsCard,
   RuleForm,
   SetupLayout,
+  type ModelList,
   type RuleDraft,
   type PromptPreview,
   type RuleFormProps,
@@ -21,7 +22,8 @@ export interface Setup4Props extends SetupNav {
   skills: string[];
   followUp: { command: string; target: RuleTarget; skill: string; enabled: boolean };
   maxRunsPerTicket: number;
-  agentModel?: string;
+  /** The Model field's list; without it the field is hidden. */
+  modelList?: ModelList;
   credentialDetail?: string;
   agentSettingsHref?: string;
   ignoredHref?: string;
@@ -44,7 +46,7 @@ export function Setup4({
   skills,
   followUp,
   maxRunsPerTicket,
-  agentModel = 'opus',
+  modelList,
   credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
   backHref = '#',
   nextHref = '#',
@@ -86,7 +88,7 @@ export function Setup4({
         value={draft}
         skills={skills}
         agents={[draft.agent]}
-        agentModel={agentModel}
+        modelField={modelList && { list: modelList, help: 'Default model is the one picked in step 2.' }}
         agentLocked
         spacious
         onChange={setDraft}

@@ -454,7 +454,6 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
       promptPreview={promptPreview}
       followUp={FOLLOW_UP}
       maxRunsPerTicket={project.maxRunsPerTicket}
-      agentModel={agent.model}
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'skills', projectId)}
       onContinue={(d) => void onContinue(d)}

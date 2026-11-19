@@ -15,6 +15,8 @@ import {
 import { Setup1 as Setup1Screen } from './Setup1';
 import { Setup2 as Setup2Screen } from './Setup2';
 import { Setup3 as Setup3Screen } from './Setup3';
+import { toModelList } from '@/components';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { Setup4 as Setup4Screen } from './Setup4';
 import { SetupReady as SetupReadyScreen } from './SetupReady';
 import { SetupWorkspace as SetupWorkspaceScreen } from './SetupWorkspace';
@@ -176,6 +178,8 @@ export const Setup3: Story = {
   ),
 };
 
+const liveModels = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+
 export const Setup4: Story = {
   name: 'Setup 4, first rule',
   render: () => (
@@ -188,6 +192,7 @@ export const Setup4: Story = {
       followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+      modelList={liveModels}
     />
   ),
 };
@@ -207,6 +212,7 @@ export const Setup4Prompt: Story = {
       followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
       maxRunsPerTicket={agentSettings.maxRunsPerTicket}
       promptPreview={{ state: 'ready', systemLines: promptSystemLines }}
+      modelList={liveModels}
     />
   ),
 };

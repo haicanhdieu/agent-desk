@@ -5,6 +5,8 @@ import { DeskSkills } from './DeskSkills';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
 import { vi } from 'vitest';
+import { toModelList } from '@/components';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 
 const skillNames = skills.map((s) => s.name);
 const github = [{ term: 'Repository', value: 'harbor-labs/invoicer-api' }];
@@ -174,6 +176,28 @@ describe('DeskRules', () => {
     expect(
       within(selected[0] as HTMLElement).getByRole('button', { name: 'Edit rule /code-review' }),
     ).toBeInTheDocument();
+  });
+
+  it('the pane shows the default model help with a link to Agent & settings', () => {
+    const list = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+    render(
+      <DeskRules
+        frame={deskFrame}
+        rules={rules}
+        {...base}
+        editingId="r2"
+        modelField={{ list, defaultModel: 'opus', settingsHref: '/o/acme/p/p1/desk/agent' }}
+      />,
+    );
+    const pane = screen.getByRole('complementary', { name: 'Edit rule' });
+    expect(within(pane).getByRole('combobox', { name: 'Model' })).toBeInTheDocument();
+    expect(within(pane).getByText(/Default model is/)).toHaveTextContent(
+      'Default model is opus, set on Agent & settings.',
+    );
+    expect(within(pane).getByRole('link', { name: 'Agent & settings' })).toHaveAttribute(
+      'href',
+      '/o/acme/p/p1/desk/agent',
+    );
   });
 
   it('the pane edits a draft locally and the sentence follows', async () => {

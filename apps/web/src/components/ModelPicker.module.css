@@ -1,0 +1,11 @@
+.note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: var(--fs-12_5);
+  color: var(--faint);
+}
+.noteIcon {
+  display: inline-flex;
+  margin-top: 2px;
+}

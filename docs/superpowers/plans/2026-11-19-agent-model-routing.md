@@ -835,7 +835,7 @@ export function ModelPicker(props: ModelPickerProps): JSX.Element;
 
 Behaviour: options are `Default model` (with `withDefault`), then `list.models` in order (the id shown in mono as on the boards, the label as the option's `title`, the id stored), then `Other model…` last. "Other model…" is selected when `value` is a string not in `list.models`, or after the user picks it; picking it calls `onChange('')` and shows a `TextInput` with accessible name "Model name" holding `value`. Picking a listed model hides the input. Loading and error states still offer `Default model` and `Other model…`, with the Agent-call copy. The fallback note uses the `info` icon as on `DeskAgentCustomModel`. The select and input use the `mono` class, as on the boards.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `ModelPicker.test.tsx`:
 - `it('lists models in order with Other model… last')`; `it('withDefault puts Default model first and maps it to null')`.
@@ -846,21 +846,21 @@ Behaviour: options are `Default model` (with `withDefault`), then `list.models` 
 - `it('error marks the input invalid when Other model… is active, else the select')`.
 - `toModelList`: pending → loading; error → error; `{ source: 'live' }` → ready; `{ source: 'builtin', reason: 'unreachable' }` with `https://gateway.harbor-labs.com/v1/anthropic` → host `gateway.harbor-labs.com`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- ModelPicker`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the component and stories**
+- [x] **Step 3: Implement the component and stories**
 
 Stories (fed from `agentModelsFixtures`): Live list, Loading, Error, Fallback for each reason (no credential, unreachable with host, unreachable without host, rejected, empty, disabled), Typed model, Long id (200 chars), With default option.
 
-- [ ] **Step 4: Run the tests and build Storybook**
+- [x] **Step 4: Run the tests and build Storybook**
 
 Run: `pnpm --filter @agentdesk/web test -- ModelPicker && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS; Storybook builds.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -909,7 +909,7 @@ RulePaneProps.modelField?: { list: ModelList; defaultModel: string; settingsHref
 //   help = "Default model is the one picked in step 2."
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `SetupParts.test.tsx`: replace `RuleForm agentModel` with `it('"With agent" shows the agent name only')` → display value `Claude`.
 - `Composites.test.tsx`: agents `['Claude']`; `it('the Model field lists Default model, the models, then Other model…')`; `it('a rule model outside the list shows under Other model…')`; `it('a /model error marks the Model field')`.
@@ -917,21 +917,21 @@ RulePaneProps.modelField?: { list: ModelList; defaultModel: string; settingsHref
 - `setup.test.tsx`: Setup4 shows "Default model is the one picked in step 2.".
 - A RuleSentence check: a draft with `model: 'haiku'` renders no `haiku` (BR-30).
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SetupParts Composites desk.test setup.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Remove the `agentModel` prop chain (RuleForm, RulePane, DeskRules, Setup4, and the two routes, which stop passing it). Add `modelField` / `modelList` as above; the routes pass none yet (Tasks 14 and 15 wire them). Update stories to the boards: `DeskRules`, `DeskRulesPrompt`, `DeskRulesPromptNew`, `DeskRulesPromptError` and `Setup4` show "With agent" = `Claude` and the Model field with the board's live list (`DeskRulesPrompt` with `claude-haiku-4-5-20251001` selected, the others `Default model`); RuleForm and SidePane stories use `Claude`.
 
-- [ ] **Step 4: Run tests, Storybook and parity for the changed boards**
+- [x] **Step 4: Run tests, Storybook and parity for the changed boards**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`
 Expected: PASS; parity shows no new drift on `DeskRules*` and `Setup4` (fix drift in code; only Task 11 edits `design/parity-notes.md`).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

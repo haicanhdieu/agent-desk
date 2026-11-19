@@ -2,6 +2,8 @@ import { render, screen, within } from '@testing-library/react';
 import { vi } from 'vitest';
 import userEvent from '@testing-library/user-event';
 import { agentSettings, rules, skillTemplates, user } from '@/mocks';
+import { toModelList } from '@/components';
+import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 import { Setup1 } from './Setup1';
 import { Setup2 } from './Setup2';
 import { Setup3 } from './Setup3';
@@ -230,6 +232,24 @@ describe('Setup3', () => {
 });
 
 describe('Setup4', () => {
+  it('shows the Model field with the step 2 default help', () => {
+    const modelList = toModelList({ status: 'success', data: agentModelsFixtures.live }, null);
+    render(
+      <Setup4
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        rule={rules[0]}
+        skills={['code-build', 'code-review']}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        modelList={modelList}
+      />,
+    );
+    expect(screen.getByRole('combobox', { name: 'Model' })).toHaveDisplayValue('Default model');
+    expect(screen.getByText('Default model is the one picked in step 2.')).toBeInTheDocument();
+    expect(screen.getByLabelText('With agent')).toHaveDisplayValue('Claude');
+  });
   it('reads the PRD sentence', () => {
     const { container } = render(s4);
     const p = container.querySelector('p[class*="sentence"]');
