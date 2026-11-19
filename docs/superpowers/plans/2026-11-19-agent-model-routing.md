@@ -1365,7 +1365,7 @@ git commit -m "test(web): local e2e for rule models and the setup Agent step"
 
 Covers: BR-31 (TC-31.1, TC-31.2), BR-32 (TC-32.1, TC-32.2), BR-33 (TC-33.1, TC-33.2; the still-queued run is proven in Task 4), BR-34 (TC-34.1), BR-35 (TC-35.1–TC-35.3), BR-36 (TC-36.1, TC-36.2), BR-37 (TC-37.1–TC-37.3).
 
-- [ ] **Step 1: Write the specs**
+- [x] **Step 1: Write the specs**
 
 One `test` per TC, titled `TC-<n.m> …`. Set a rule's model with `PATCH /api/rules/:ruleId` (`RuleDto` parse) and the default model and address through Desk → Agent. Read the model from Run detail and `GET /api/runs/:runId` (`RunDto.agent.model`); read the launch line as `(await podLogLines(runId))[0]`. BR-34/BR-36: pause with a `--fake-fail` comment, wait for `paused`, change the default model or the address, click Resume, wait for the new pod, and read its first log line. BR-37: create a run, then clear `runs.model` (TC-37.3 also `runs.agent_id`) with `execFile('docker-compose', ['-f', composeFile, 'exec', '-T', 'postgres', 'psql', '-U', 'postgres', '-d', 'agentdesk', '-v', 'ON_ERROR_STOP=1'])`, the SQL with a `:'id'` variable on stdin and the id checked with `z.uuid()` first; `composeFile` = `process.env.AGENTDESK_COMPOSE_FILE` or the repo's `docker-compose.yml`.
 

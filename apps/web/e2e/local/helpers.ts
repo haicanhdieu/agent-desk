@@ -2,7 +2,7 @@ import { randomBytes, randomInt } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, type APIResponse, type Page } from '@playwright/test';
-import { InstallResponse } from '@agentdesk/contracts';
+import { AgentDto, InstallResponse } from '@agentdesk/contracts';
 import { z } from 'zod';
 
 // Shared by the local e2e specs: the stack's addresses, the dev-login project setup and the fake board helpers.
@@ -121,3 +121,50 @@ export async function podLogLines(runId: string): Promise<string[]> {
   const log = await readFile(`${FAKE_STATE_DIR}/kube/run-${runId}/log`, 'utf8').catch(() => '');
   return log === '' ? [] : log.split('\n');
 }
+
+// ---- Desk → Agent & settings: shared by the specs that drive the agent screen and its API ----
+
+export const deskAgentUrl = (handle: string, projectId: string) => `/o/${handle}/p/${projectId}/desk/agent`;
+export const modelSelect = (page: Page) => page.getByRole('combobox', { name: 'Default model' });
+export const addressInput = (page: Page) => page.getByRole('textbox', { name: 'API address' });
+export const newToken = (page: Page) => page.getByLabel('New token', { exact: true });
+export const newTokenValue = () => `sk-ant-e2e-${randomBytes(8).toString('hex')}`;
+
+export async function openAgent(page: Page, handle: string, projectId: string) {
+  await page.goto(deskAgentUrl(handle, projectId));
+  await expect(page.getByRole('heading', { name: 'Agent & settings', level: 1 })).toBeVisible();
+  // The picker leaves its loading state once the list is there.
+  await expect(modelSelect(page).locator('option')).toHaveText(['opus', 'sonnet', 'haiku', 'Other model…']);
+}
+
+export async function readAgent(page: Page, projectId: string): Promise<AgentDto> {
+  return AgentDto.parse(await ok(await page.request.get(`/api/projects/${projectId}/agent`), 200, 'agent'));
+}
+
+/** Given: the agent's saved default model (the run limits stay as they are). */
+export async function setDefaultModel(page: Page, projectId: string, model: string) {
+  const agent = await readAgent(page, projectId);
+  await ok(
+    await page.request.put(`/api/projects/${projectId}/agent`, {
+      data: { model, timeoutSeconds: agent.timeoutSeconds },
+    }),
+    200,
+    'set default model',
+  );
+}
+
+/** Given: a saved API address and a credential for it, through the agent API (the same route the screen uses). */
+export async function setAddressAndCredential(page: Page, agentId: string, baseUrl: string) {
+  await ok(
+    await page.request.put(`/api/agents/${agentId}/credential`, {
+      data: { type: 'api_key', value: newTokenValue(), baseUrl },
+    }),
+    200,
+    'set address and credential',
+  );
+}
+
+export const isAgentPut = (r: { url(): string; request(): { method(): string } }) =>
+  new URL(r.url()).pathname.endsWith('/agent') && r.request().method() === 'PUT';
+export const isCredentialPut = (r: { url(): string; request(): { method(): string } }) =>
+  /\/api\/agents\/[^/]+\/credential$/.test(new URL(r.url()).pathname) && r.request().method() === 'PUT';

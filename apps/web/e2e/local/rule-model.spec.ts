@@ -1,8 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { AgentDto, RuleDto } from '@agentdesk/contracts';
+import { RuleDto } from '@agentdesk/contracts';
 import { z } from 'zod';
-import { API, ok, signInAndCreateProject, signInAndStartProject } from './helpers';
+import { API, ok, readAgent, signInAndCreateProject, signInAndStartProject } from './helpers';
 
 /*
  * Local end-to-end for the rule form's Model field (Desk → Routing rules) and the setup wizard's Agent step (spec BR-19,
@@ -50,10 +50,6 @@ async function openAgentStep(page: Page, handle: string, projectId: string) {
   await page.goto(`/o/${handle}/projects/new/agent?project=${projectId}`);
   await expect(agentStepHeading(page)).toBeVisible();
   await waitForWizardList(page);
-}
-
-async function readAgent(page: Page, projectId: string): Promise<AgentDto> {
-  return AgentDto.parse(await ok(await page.request.get(`/api/projects/${projectId}/agent`), 200, 'agent'));
 }
 
 /**
