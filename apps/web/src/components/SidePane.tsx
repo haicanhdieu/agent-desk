@@ -18,7 +18,7 @@ export function SidePane({ title, width = 560, onClose, children, footer }: Side
         <h2 id={id}>{title}</h2>
         <IconButton icon="x" aria-label="Close" onClick={onClose} />
       </div>
-      {children}
+      <div className={styles.paneBody}>{children}</div>
       {footer && <div className={styles.paneFoot}>{footer}</div>}
     </aside>
   );

@@ -146,11 +146,35 @@ describe('RuleRow', () => {
     expect(screen.getByText(/Skill docs-update is not in/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More actions for /code-build' })).toBeInTheDocument();
   });
-  it('More button calls onMore when provided', async () => {
-    const onMore = vi.fn();
-    render(<RuleRow rule={row} stats="x" onToggle={() => {}} onMore={onMore} />);
-    await userEvent.click(screen.getByRole('button', { name: 'More actions for /code-build' }));
-    expect(onMore).toHaveBeenCalledTimes(1);
+  it('More opens a menu with Edit and Delete that call onSelect and onDelete, then closes', async () => {
+    const onSelect = vi.fn();
+    const onDelete = vi.fn();
+    render(<RuleRow rule={row} stats="x" onToggle={() => {}} onSelect={onSelect} onDelete={onDelete} />);
+    const more = screen.getByRole('button', { name: 'More actions for /code-build' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(more);
+    const menu = screen.getByRole('dialog', { name: 'Actions for /code-build' });
+    await userEvent.click(within(menu).getByRole('button', { name: 'Edit' }));
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(more);
+    await userEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }));
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  it('the menu closes on Escape and on a press outside it', async () => {
+    render(<RuleRow rule={row} stats="x" onToggle={() => {}} onSelect={() => {}} onDelete={() => {}} />);
+    const more = screen.getByRole('button', { name: 'More actions for /code-build' });
+    await userEvent.click(more);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    await userEvent.click(more);
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+  it('More is disabled when the row has no action to offer', () => {
+    render(<RuleRow rule={row} stats="x" onToggle={() => {}} />);
+    expect(screen.getByRole('button', { name: 'More actions for /code-build' })).toBeDisabled();
   });
   it('selected row marks aria-current and onSelect fires', async () => {
     const onSelect = vi.fn();
