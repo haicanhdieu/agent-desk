@@ -38,5 +38,10 @@ test('an idle run screen shows the End idle runs after the agent was saved with,
   // Client-side navigation keeps the mock store (a reload would reseed it).
   await page.getByRole('navigation', { name: 'Project' }).getByRole('link', { name: /^Runs/ }).click();
   await expect(page.getByText(/ends on its own after 10 minutes with nobody attached/)).toBeVisible();
-  await expect(page.getByText(/Auto-finish after 10m unattended/)).toBeVisible();
+  // The board can list several idle runs: every idle note must show the saved 10m, none a fixed 30m.
+  const anyNote = page.getByText(/Auto-finish after \d+m unattended/);
+  await expect(anyNote.first()).toBeVisible();
+  const total = await anyNote.count();
+  await expect(page.getByText(/Auto-finish after 10m unattended/)).toHaveCount(total);
+  await expect(page.getByText(/Auto-finish after 30m unattended/)).toHaveCount(0);
 });
