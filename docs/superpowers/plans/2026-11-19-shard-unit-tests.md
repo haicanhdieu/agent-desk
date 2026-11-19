@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Run the CI unit tests as parallel jobs (one per package) so the `test / unit` wall time drops from over 8 minutes to the slowest single package, with the full suite and the coverage gate unchanged.
+**Goal:** Run the CI unit tests as parallel jobs so that every `test / unit` job finishes in under 5 minutes (was over 8 minutes in one job), with the full suite and the coverage gate unchanged.
 
 **Architecture:** Turn the single `unit` job in `.github/workflows/ci.yml` into a matrix job with one entry per package, each running that package's own existing coverage script and uploading its own `coverage-<pkg>-unit` artifact. The root `pnpm test:scripts` run moves into its own job. The `coverage` and `gate` jobs keep working because a matrix job reports one aggregate `needs.unit.result` and artifact names do not change.
 
@@ -17,6 +17,9 @@
 - Do not touch `coverage-thresholds.json`, `coverage-baseline.json` or any coverage exclude (docs/conventions/testing.md §10).
 - `gate / ci-passed` stays the only required check and must still fail when any unit shard or the scripts job fails.
 - Every package's unit coverage file must still be produced: `if-no-files-found: error` stays.
+
+- Hard target: every `test / unit (...)` job under 5 minutes in CI. Measured baseline (run 44523730055): api, core, db, contracts under 1 minute, web 2m, worker 7m14s. In `apps/worker`, `test/run.workflow.test.ts` alone takes about 314s of 444s (next slowest files: 62s, 30s), and `fileParallelism` is `false` there, so file-level sharding cannot go under about 5 minutes until that file is split.
+- Never delete, skip or weaken a test while splitting: the set of test titles must be identical before and after.
 
 ## Review Focus
 
@@ -90,6 +93,71 @@ Expected: only the new `test / unit (<pkg>)` wording.
 ```bash
 git add docs
 git commit -m "docs(conventions): describe the per-package unit test jobs"
+```
+
+### Task 3: Split `run.workflow.test.ts` into files of about 90 seconds each
+
+**Files:**
+- Create: `apps/worker/test/helpers/run-workflow-harness.ts` (the shared scripted-activities setup now at the top of `run.workflow.test.ts`: `deferred`, `Script`, the worker/env start and stop, and whatever helpers the tests share)
+- Modify: `apps/worker/test/run.workflow.test.ts` (keep the first group of tests)
+- Create: two or three sibling files `apps/worker/test/run.workflow.<group>.test.ts`, grouped by the existing `describe` blocks (for example the base `RunWorkflow` tests, `parking (pause-resume)`, `resuming (pause-resume)`, and the rest)
+
+**Interfaces:**
+- Consumes: nothing from other tasks.
+- Produces: files whose measured durations are each under about 100s (local `vitest run <file>` time), and that together contain exactly the test titles the original file had.
+
+- [ ] **Step 1: Record the baseline**
+
+Run: `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.test.ts --reporter=json --outputFile=<scratch>/before.json`
+Save the sorted list of full test titles and the pass count. Expected: all pass, about 314s.
+
+- [ ] **Step 2: Move the shared setup into `test/helpers/run-workflow-harness.ts`**
+
+Move the setup code (everything the tests use that is not a test or a `describe`) with its exports named as it was. Each test file starts its own Temporal test environment through the harness in its own `beforeAll`/`afterAll`. Keep behaviour identical; no test body changes.
+
+- [ ] **Step 3: Split the tests by `describe` into files of about 90s each**
+
+Use the per-test timings from Step 1 to balance the files. Move tests verbatim. Name files `run.workflow.<group>.test.ts` (plain words, e.g. `parking`, `resuming`). `pnpm lint` runs `scripts/check-test-split.ts`: these tests do not use Docker, so they stay `*.test.ts`.
+
+- [ ] **Step 4: Prove nothing was lost and each file is fast**
+
+Run each new file with the JSON reporter; the union of titles must equal the Step 1 list exactly, with the same pass count; no `skip`, `only` or `todo`. Record each file's duration. Expected: every file under about 100s.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/worker/test
+git commit -m "test(worker): split run.workflow tests into files of about 90 seconds"
+```
+
+### Task 4: Shard the worker unit job
+
+**Files:**
+- Modify: `.github/workflows/ci.yml` (job `unit`)
+- Modify: `docs/conventions/testing.md` (§9 sharding line)
+
+**Interfaces:**
+- Consumes: Task 3's files; the existing integration pattern `--shard=<i>/<n>` on package scripts.
+- Produces: worker unit shards with artifacts `coverage-worker-unit-<i>` (`scripts/coverage-merge.ts` already accepts the `-<n>` suffix on unit artifacts via `ARTIFACT_RE`).
+
+- [ ] **Step 1: Replace the single `worker` matrix entry with four entries**
+
+Entries carry `shard` and `total` (`1..4`, `4`) next to `pkg`, `dir`, `script`. Other packages carry no `shard`. The test step appends `--shard=<shard>/<total>` only when `shard` is set (same pass-through the integration job uses). The artifact name becomes `coverage-<pkg>-unit` for unsharded entries and `coverage-<pkg>-unit-<shard>` for sharded ones; the path is unchanged. Job name: `test / unit (<pkg>)` or `test / unit (<pkg> <shard>/<total>)`.
+
+- [ ] **Step 2: Check the merge and the timing**
+
+Run: `pnpm exec vitest run --root scripts coverage-merge` (existing test covers the `-unit-<n>` suffix; if it does not, add a case in `scripts/coverage-merge.test.ts` first, watch it fail, then fix).
+Run each of the four shards locally: `pnpm --filter @agentdesk/worker exec vitest run --exclude '**/*.int.test.ts' --shard=<i>/4` and record each duration. Expected: every shard under about 3 minutes locally (CI target: under 5). If one shard is over, raise `total` and note it.
+
+- [ ] **Step 3: Docs**
+
+In `docs/conventions/testing.md` §9, say the `unit` matrix may shard a package (`shard`/`total`) and that the target is every unit job under 5 minutes; raise a package's shard count when its job nears it.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add .github/workflows/ci.yml docs/conventions/testing.md
+git commit -m "ci: shard the worker unit tests four ways"
 ```
 
 ## Verification and e2e
