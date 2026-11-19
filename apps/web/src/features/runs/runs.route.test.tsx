@@ -1,5 +1,5 @@
 import { focusManager } from '@tanstack/react-query';
-import { act, screen, waitFor, within } from '@testing-library/react';
+import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -27,6 +27,7 @@ let stopCapture: (() => void) | undefined;
 afterEach(() => {
   stopCapture?.();
   stopCapture = undefined;
+  localStorage.clear();
 });
 
 const runNumbers = () =>
@@ -51,6 +52,26 @@ describe('runs route', () => {
     expect(screen.getByText('Run 62 needs you.')).toBeInTheDocument();
     expect(screen.getByText('Waiting for a slot')).toBeInTheDocument();
     expect(screen.getByText('2 of 2')).toBeInTheDocument();
+  });
+
+  it('remembers the Grouped by ticket choice after the page is reloaded', async () => {
+    const first = await renderRoute(`${base}/runs`);
+    const toggle = () => screen.findByRole('button', { name: 'Grouped by ticket' });
+    expect(await toggle()).toHaveAttribute('aria-pressed', 'true');
+    await first.user.click(await toggle());
+    expect(await toggle()).toHaveAttribute('aria-pressed', 'false');
+
+    // A reload: a fresh app on the same browser storage.
+    cleanup();
+    await renderRoute(`${base}/runs`);
+    expect(await toggle()).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.queryByText('Rate-limit the public webhook endpoint')).not.toBeInTheDocument();
+  });
+
+  it('shows the list grouped when the stored Grouped by ticket value is unreadable', async () => {
+    localStorage.setItem('agentdesk.runs.grouped', 'bogus');
+    await renderRoute(`${base}/runs`);
+    expect(await screen.findByRole('button', { name: 'Grouped by ticket' })).toHaveAttribute('aria-pressed', 'true');
   });
 
   it('?filter=needs_you requests filter=needs_you and shows the idle and paused runs', async () => {
