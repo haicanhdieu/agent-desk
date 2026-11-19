@@ -779,7 +779,7 @@ Parts: A (Fake pod writes Claude-shaped logs and runs the transcript adapter); B
     - `--fake-unflushed`: after the first turn's flush, one more agent reply "UNFLUSHED-MARKER" is appended to the file without a flush.
     - `--fake-bad-transcript-lines`: after `session started`, three malformed `agentdesk: transcript` lines go to both `log` and `pane`: a 12,001-char body, `!!!`, and valid base64 of `{"id":"a b","kind":"agent","text":"x"}`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `fake-pod.test.ts`, run with `FAKE_TRANSCRIPT_ADAPTER` pointing at the real adapter and a temp volume:
 - `a fresh run sends the prompt and the first reply as transcript lines`: decode the `agentdesk: transcript` log lines and get `[user: PROMPT, agent: 'Fake agent reply 1']`.
@@ -788,21 +788,21 @@ In `fake-pod.test.ts`, run with `FAKE_TRANSCRIPT_ADAPTER` pointing at the real a
 - `no adapter file, or --fake-no-transcript, sends nothing`.
 - One test per flag, asserting the decoded lines. For example, `--fake-thinking` has no line containing `THINKING-MARKER`, `--fake-tools` has no `OUTPUT-MARKER`, and `--fake-unflushed` has `UNFLUSHED-MARKER` in the session file but not in the log.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `fake-claude-log.mjs` exports pure builders `userEntry(text)`, `replyEntry(text, { thinking?, tools?, apiError? })` and `toolResultEntry(text)`, returning objects in the Task 3 Part A fixture shapes, plus `appendEntry(file, entry)`. `fake-pod.mjs` wires them in and calls the adapter. PROMPT stays untrusted: it is only written to files and searched with `includes`, never executed.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod fake-gateway`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -836,25 +836,25 @@ export async function postedComments(page: Page): Promise<{ ticketNumber: number
 export async function transcriptOf(page: Page, runId: string): Promise<RunTranscriptEntryDto[]>;
 ```
 
-- [ ] **Step 1: Write the failing fake-pod tests**
+- [x] **Step 1: Write the failing fake-pod tests**
 
 One test per control: `hold-start logs session started only after release-start`, `slow-end ends only after release-end`, `hang-on-stop ignores stop and ends on kill`, `exit-ok ends with session ended reason=agent_exit code=0`, and `hardkill exits 137 with no end flush, no scrollback and no end line`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the controls, then run**
+- [x] **Step 3: Implement the controls, then run**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod`
 Expected: PASS.
 
-- [ ] **Step 4: Move the helpers**
+- [x] **Step 4: Move the helpers**
 
 Move `API`, `REPO`, `FAKE_STATE_DIR`, `ok`, `signInAndCreateProject` and `commentOnNewTicket` from `run.spec.ts` into `helpers.ts` and import them back. Add the three new helpers. Check: `pnpm --filter @agentdesk/web typecheck`, then, with the stack up, `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "a comment on the fake board becomes a live run"` still passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
