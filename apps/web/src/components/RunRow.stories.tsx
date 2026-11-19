@@ -163,6 +163,25 @@ export const Ungrouped: Story = {
   ),
 };
 
+/** Ungrouped list: a ticket title longer than the column is cut with an ellipsis (full title in the tooltip). */
+export const UngroupedLongTitle: Story = {
+  args: { run: base, tree: 'none', href: '#' },
+  render: () => (
+    <RunRow
+      run={{
+        ...base,
+        ticket: {
+          ...ticket,
+          title:
+            'Export invoices as CSV from the billing page including every historical adjustment, credit note and proration',
+        },
+      }}
+      tree="none"
+      href="#"
+    />
+  ),
+};
+
 export const GroupHeader: Story = {
   args: { run: base, tree: 'last', href: '#' },
   render: () => <TicketGroupRow group={group()} colSpan={8} />,
