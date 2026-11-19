@@ -1,5 +1,6 @@
 import { and, eq, notInArray, sql } from 'drizzle-orm';
 import {
+  agents,
   connections,
   inboundEvents,
   projects,
@@ -285,6 +286,7 @@ async function decideInTx(
     labelFilter: r.labelFilter,
     target: RuleTarget.parse(r.target),
     agentId: r.agentId,
+    model: r.model,
     skillName: r.skillName,
     prompt: r.prompt,
     enabled: r.enabled,
@@ -334,6 +336,17 @@ async function decideInTx(
     ...(proj.defaultBranch !== null ? { defaultBranch: proj.defaultBranch } : {}),
   });
 
+  // Freeze the model on the run: the rule's own, else the agent's default as it is now.
+  let runModel = decision.rule.model;
+  if (runModel === null) {
+    const [agent] = await tx
+      .select({ model: agents.model })
+      .from(agents)
+      .where(and(eq(agents.id, decision.rule.agentId), eq(agents.projectId, projectId)))
+      .limit(1);
+    runModel = agent?.model ?? null;
+  }
+
   try {
     // A savepoint: a unique violation must not abort the surrounding transaction.
     const run = await tx.transaction(async (sp) => {
@@ -344,6 +357,7 @@ async function decideInTx(
           projectId,
           ruleId: decision.rule.id,
           agentId: decision.rule.agentId,
+          model: runModel,
           command: decision.command,
           skillName: decision.rule.skillName,
           prompt: decision.rule.prompt,

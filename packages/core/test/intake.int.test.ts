@@ -40,7 +40,15 @@ interface Seed {
 }
 
 let seq = 0;
-async function seed(over: { labelFilter?: string[]; maxRunsPerTicket?: number; prompt?: string } = {}): Promise<Seed> {
+async function seed(
+  over: {
+    labelFilter?: string[];
+    maxRunsPerTicket?: number;
+    prompt?: string;
+    model?: string | null;
+    agentModel?: string;
+  } = {},
+): Promise<Seed> {
   seq += 1;
   const orgId = randomUUID();
   const externalId = `fake-${orgId}`;
@@ -69,7 +77,7 @@ async function seed(over: { labelFilter?: string[]; maxRunsPerTicket?: number; p
       .returning({ id: projects.id });
     const [a] = await tx
       .insert(agents)
-      .values({ orgId, projectId: p!.id, name: 'default', model: 'sonnet' })
+      .values({ orgId, projectId: p!.id, name: 'default', model: over.agentModel ?? 'sonnet' })
       .returning({ id: agents.id });
     await tx.insert(rules).values({
       orgId,
@@ -79,6 +87,7 @@ async function seed(over: { labelFilter?: string[]; maxRunsPerTicket?: number; p
       agentId: a!.id,
       target: 'any',
       labelFilter: over.labelFilter ?? [],
+      model: over.model ?? null,
     });
     return p!.id;
   });
@@ -277,6 +286,30 @@ describe('processTicketEvent', () => {
     const [run] = await runsOf(s);
     const [rule] = await withOrg(db, s.orgId, (tx) => tx.select().from(rules).where(eq(rules.projectId, s.projectId)));
     expect(run).toMatchObject({ prompt: 'Triage this.\nAdd labels.', skillName: null, ruleId: rule?.id });
+  });
+
+  it('a rule that names a model freezes it on the run', async () => {
+    const s = await seed({ model: 'haiku', agentModel: 'sonnet' });
+    const { deps } = harness();
+    await processTicketEvent(deps, eventFor(s), 'webhook');
+    expect((await runsOf(s))[0]?.model).toBe('haiku');
+  });
+
+  it('a rule that follows the default copies the agent default model at intake', async () => {
+    const s = await seed({ model: null, agentModel: 'opus' });
+    const { deps } = harness();
+    await processTicketEvent(deps, eventFor(s), 'webhook');
+    expect((await runsOf(s))[0]?.model).toBe('opus');
+  });
+
+  it('a run already queued keeps its model when the default changes', async () => {
+    const s = await seed({ model: null, agentModel: 'sonnet' });
+    const { deps } = harness();
+    await processTicketEvent(deps, eventFor(s), 'webhook');
+    await withOrg(db, s.orgId, (tx) =>
+      tx.update(agents).set({ model: 'opus' }).where(eq(agents.projectId, s.projectId)),
+    );
+    expect((await runsOf(s))[0]?.model).toBe('sonnet');
   });
 
   it('guards: an active run of the same prompt rule', async () => {

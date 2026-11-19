@@ -480,7 +480,7 @@ git commit -m "feat(core): Claude agent adapter for model lists, credential env 
 - Consumes: `RuleDto.model`, `CreateRuleRequest`/`UpdateRuleRequest` `agentId` and `model`, columns `rules.model`, `runs.model` (Task 1).
 - Produces: `RuleRow` = `Pick<RuleDto, … | 'model'>`; every new run row has `runs.model = rule.model ?? <agents.model of rule.agentId>`, read in the routing transaction; `RunDto.agent.model = run.model ?? agent.model ?? 'unknown'`; `POST /api/projects/:projectId/rules` and `PATCH /api/rules/:ruleId` accept `agentId` (must be an agent of the rule's project, else 422 with pointer `/agentId`, detail "Agent not found in this project") and `model` (`null` resets to the default model).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `intake.int.test.ts` (extend `seed` with an optional rule `model`):
 - `it('a rule that names a model freezes it on the run')`: rule `model: 'haiku'`, agent `model: 'sonnet'` → run `model === 'haiku'`.
@@ -497,24 +497,24 @@ git commit -m "feat(core): Claude agent adapter for model lists, credential env 
 - `it('agent.model is the run model when recorded')` (run `haiku`, agent `sonnet`).
 - `it('a run without a model shows the agent current default, and "unknown" when the agent is gone')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- intake && pnpm --filter @agentdesk/api test -- rules runs`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `route-event.ts`: add `'model'` to `RuleRow`.
 - `process-ticket-event.ts`: map `model: r.model` into `ruleList`; before the insert, when `decision.rule.model === null`, select `agents.model` for `decision.rule.agentId` on `tx`; insert `model`.
 - `rules.service.ts` `create`: resolve the agent by `body.agentId` within `projectId` (or the project's agent when absent); 422 via `UnprocessableProblemException([{ pointer: '/agentId', detail: 'Agent not found in this project' }])`; insert `model: body.model ?? null`. `update`: same agent check against the rule's project when `agentId` is present; set `model` when `body.model !== undefined`.
 - `runs.service.ts` `toListItem`: `model: row.model ?? agent?.model ?? 'unknown'`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- intake router && pnpm --filter @agentdesk/api test -- rules runs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

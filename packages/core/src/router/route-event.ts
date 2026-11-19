@@ -5,7 +5,7 @@ import { parseCommand } from './parse-command';
 /** The slice of a rule the router reads. Structural, so a parsed DB row or a RuleDto both fit. */
 export type RuleRow = Pick<
   RuleDto,
-  'id' | 'command' | 'labelFilter' | 'target' | 'agentId' | 'skillName' | 'prompt' | 'enabled'
+  'id' | 'command' | 'labelFilter' | 'target' | 'agentId' | 'model' | 'skillName' | 'prompt' | 'enabled'
 >;
 
 export type IgnoredOutcome =
