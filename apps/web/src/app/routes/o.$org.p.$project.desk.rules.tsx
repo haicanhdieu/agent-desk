@@ -60,12 +60,16 @@ function DeskRulesPage() {
   const close = () => void navigate({ search: {} });
   const onDelete = (id: string) =>
     remove.mutate(id, {
-      onSuccess: close,
+      // Only the deleted rule's own pane closes; another open rule or the new form stays.
+      onSuccess: () => {
+        if (search.rule === id) close();
+      },
       onError: (e) => toast.show(toastFromError(e)),
     });
 
   return (
     <DeskRules
+      height="viewport"
       frame={frame}
       rules={rules}
       skills={skillNames}
@@ -75,6 +79,7 @@ function DeskRulesPage() {
       onToggle={(id, enabled) => toggle.mutate({ id, enabled })}
       onCreate={() => open('new')}
       onEdit={open}
+      onDelete={onDelete}
       form={
         creating || editing ? (
           <RuleEditor

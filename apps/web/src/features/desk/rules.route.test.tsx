@@ -408,6 +408,37 @@ describe('desk rules route', () => {
       expect(projectRules().find((r) => r.command === 'no-preview')).toMatchObject({ kind: 'prompt' });
     });
 
+    const menuButton = (name: 'Edit' | 'Delete') =>
+      within(screen.getByRole('dialog', { name: 'Actions for /code-e2e' })).getByRole('button', { name });
+
+    it('the More menu: Edit opens the rule pane', async () => {
+      const { router, user } = await renderRoute(rulesPage);
+      await user.click(await screen.findByRole('button', { name: 'More actions for /code-e2e' }));
+      await user.click(menuButton('Edit'));
+      expect(await screen.findByRole('complementary', { name: 'Edit rule' })).toBeInTheDocument();
+      expect(router.state.location.search).toEqual({ rule: ids.rule.r3 });
+    });
+
+    it('the More menu: Delete removes that rule and keeps another open rule open', async () => {
+      const { router, user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r2}`);
+      await screen.findByRole('complementary', { name: 'Edit rule' });
+      await user.click(screen.getByRole('button', { name: 'More actions for /code-e2e' }));
+      await user.click(menuButton('Delete'));
+      await waitFor(() => expect(screen.queryByRole('switch', { name: 'Enable rule /code-e2e' })).toBeNull());
+      expect(mockDb.state.rules.some((r) => r.id === ids.rule.r3)).toBe(false);
+      expect(screen.getByRole('complementary', { name: 'Edit rule' })).toBeInTheDocument();
+      expect(router.state.location.search).toEqual({ rule: ids.rule.r2 });
+    });
+
+    it('the More menu: Delete closes the pane of the rule it deletes', async () => {
+      const { router, user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r3}`);
+      await screen.findByRole('complementary', { name: 'Edit rule' });
+      await user.click(screen.getByRole('button', { name: 'More actions for /code-e2e' }));
+      await user.click(menuButton('Delete'));
+      await waitFor(() => expect(screen.queryByRole('complementary')).toBeNull());
+      expect(router.state.location.search).toEqual({});
+    });
+
     it('Delete removes the rule and closes the pane', async () => {
       const { router, user } = await renderRoute(`${rulesPage}?rule=${ids.rule.r3}`);
       const edit = await screen.findByRole('complementary', {

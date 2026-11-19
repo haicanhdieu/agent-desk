@@ -186,11 +186,18 @@ describe('DeskRules', () => {
     expect(within(pane).getAllByText('/cr').length).toBeGreaterThan(0);
   });
 
-  it('More calls onMore with the rule id', async () => {
-    const onMore = vi.fn();
-    render(<DeskRules frame={deskFrame} rules={rules} {...base} onMore={onMore} />);
-    await userEvent.click(screen.getAllByRole('button', { name: /^More actions for \// })[2]);
-    expect(onMore).toHaveBeenCalledWith('r3');
+  it('the More menu offers Edit and Delete for that rule', async () => {
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    render(<DeskRules frame={deskFrame} rules={rules} {...base} onEdit={onEdit} onDelete={onDelete} />);
+    const more = screen.getAllByRole('button', { name: /^More actions for \// })[2];
+    const menu = () => within(screen.getByRole('dialog', { name: /^Actions for \// }));
+    await userEvent.click(more);
+    await userEvent.click(menu().getByRole('button', { name: 'Edit' }));
+    expect(onEdit).toHaveBeenCalledWith('r3');
+    await userEvent.click(more);
+    await userEvent.click(menu().getByRole('button', { name: 'Delete' }));
+    expect(onDelete).toHaveBeenCalledWith('r3');
   });
 });
 

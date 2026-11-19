@@ -14,7 +14,7 @@ const rule = {
 const meta = {
   title: 'Components/RuleRow',
   component: RuleRow,
-  args: { rule, stats: '14 runs this week, last 14:15', onToggle: () => {}, onSelect: () => {} },
+  args: { rule, stats: '14 runs this week, last 14:15', onToggle: () => {}, onSelect: () => {}, onDelete: () => {} },
   decorators: [
     (S) => (
       <div style={{ width: 760, border: '1px solid var(--line)', borderRadius: 10, overflow: 'hidden' }}>

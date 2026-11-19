@@ -1,6 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Banner, Button, Icon } from '@/ds';
 import {
+  AppShell,
   EmptyState,
   GuardsCard,
   RuleForm,
@@ -17,6 +18,8 @@ import { DeskFrame, type DeskFrameData } from './DeskFrame';
 export interface DeskRulesProps {
   /** Top bar and Desk navigation data. */
   frame: DeskFrameData;
+  /** `'viewport'` fits the page to the window (the app route): the page does not scroll, the rule list and the open pane's body do. */
+  height?: 'viewport';
   rules: Rule[];
   /** Skill names offered in the rule form. */
   skills: string[];
@@ -32,7 +35,6 @@ export interface DeskRulesProps {
   onToggle?(id: string, enabled: boolean): void;
   onCreate?(): void;
   onEdit?(id: string): void;
-  onMore?(id: string): void;
   onClose?(): void;
   onSave?(id: string, draft: RuleDraft): void;
   onDelete?(id: string): void;
@@ -154,6 +156,7 @@ function LocalRulePane({
 
 export function DeskRules({
   frame,
+  height,
   rules,
   skills,
   editingId,
@@ -164,13 +167,12 @@ export function DeskRules({
   onToggle,
   onCreate,
   onEdit,
-  onMore,
   onClose,
   onSave,
   onDelete,
 }: DeskRulesProps) {
   const editing = rules.find((r) => r.id === editingId);
-  return (
+  const page = (
     <DeskFrame active="rules" {...frame}>
       <main className={styles.rulesMain}>
         <div className={styles.rulesCol}>
@@ -206,7 +208,7 @@ export function DeskRules({
                   selected={r.id === editingId}
                   onToggle={(next) => onToggle?.(r.id, next)}
                   onSelect={() => onEdit?.(r.id)}
-                  onMore={() => onMore?.(r.id)}
+                  onDelete={onDelete && (() => onDelete(r.id))}
                 />
               ))}
             </div>
@@ -231,5 +233,12 @@ export function DeskRules({
           ))}
       </main>
     </DeskFrame>
+  );
+  return height === 'viewport' ? (
+    <AppShell height="viewport" topBar={null}>
+      {page}
+    </AppShell>
+  ) : (
+    page
   );
 }
