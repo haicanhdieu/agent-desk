@@ -193,7 +193,7 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 .prompt-box{margin:0;max-height:220px;overflow:auto;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:#12151A;font-family:var(--mono);font-size:12px;line-height:1.55;color:#D5DAE1;white-space:pre-wrap;overflow-wrap:anywhere}
 </style>
 </helmet>
-<div class="app" style="min-height:1080px;height:1080px;position:relative;overflow:hidden;">
+<div class="app" style="min-height:1220px;height:1220px;position:relative;overflow:hidden;">
 <header class="top">
 <a href="Projects.dc.html" class="brand" aria-label="Agent Desk, all projects"><svg aria-hidden="true" class="" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="3" width="19" height="18" rx="3.5"/><path d="M2.5 9.5h19"/><rect x="6.5" y="12.5" width="5" height="5" rx="1" fill="currentColor" stroke="none"/><path d="M14 14h4M14 17h3"/></svg>Agent Desk</a>
 <span class="sep"></span>
@@ -270,7 +270,8 @@ tr.needs td:first-child{box-shadow:inset 3px 0 0 var(--idle)}
 If a bug report has no steps to reproduce, ask for them in a comment.
 Do not change any code or open a pull request.</textarea><span class="help row" style="justify-content:space-between;gap:12px"><span>Don&#39;t paste passwords or tokens. This text is stored.</span><span class="counter">213 / 4000</span></span></div>
 <div class="field" style="grid-column:1/-1" role="group" aria-label="Added by Agent Desk"><span class="sys-l"><svg aria-hidden="true" class="" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Added by Agent Desk (can&#39;t be edited)</span><p class="sys"><span style="display:block">Ticket: <span class="ph">&lt;issue or PR #number&gt;</span> in harbor-labs/invoicer-api. Read it and all its comments with the gh CLI before you start.</span><span style="display:block">Arguments from the user: <span class="ph">&lt;text after /command&gt;</span></span><span style="display:block">When done, report on the ticket.</span><span style="display:block">Before you end a turn, run `agentdesk-status done &quot;&lt;one-line summary&gt;&quot;` if the task is complete, or `agentdesk-status needs_input &quot;&lt;your question&gt;&quot;` if you need an answer from the human.</span></p><span class="faint" style="font-size:12.5px">Your prompt comes first. These lines always follow it.</span></div>
-<div class="field"><label for="ra">With agent</label><select id="ra" class="input" disabled><option>Claude (opus)</option></select><span class="help">One agent per project in the PoC.</span></div>
+<div class="field"><label for="ra">With agent</label><select id="ra" class="input" disabled><option>Claude</option></select><span class="help">One agent per project in the PoC.</span></div>
+<div class="field"><label for="rm">Model</label><select id="rm" class="input mono"><option>Default model</option><option>claude-opus-4-5-20251101</option><option>claude-sonnet-4-5-20250929</option><option selected>claude-haiku-4-5-20251001</option><option>claude-opus-4-1-20250805</option><option>Other model…</option></select><span class="help">Default model is <span class="mono" style="white-space:nowrap">claude-opus-4-5-20251101</span>, set on <a href="DeskAgent.dc.html">Agent &amp; settings</a>.</span></div>
 <div class="field"><span class="flabel">Enabled</span><span class="row" style="gap:10px;height:34px"><button class="toggle on" aria-pressed="true" aria-label="Rule enabled"></button><span class="muted" style="font-size:13px">Matches new comments right away</span></span></div>
 </div>
 <div class="row" style="gap:8px;border-top:1px solid var(--line);padding-top:16px"><button class="btn danger"><svg aria-hidden="true" class="" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/></svg>Delete rule</button><span class="grow"></span><button class="btn ghost">Cancel</button><button class="btn primary">Save rule</button></div>
@@ -278,7 +279,7 @@ Do not change any code or open a pull request.</textarea><span class="help row" 
 </aside></main></div>
 </div>
 </x-dc>
-<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 1080}}'>
+<script type="text/x-dc" data-dc-script data-props='{"$preview": {"width": 1440, "height": 1220}}'>
 class Component extends DCLogic {
 renderVals() {
 return {};
