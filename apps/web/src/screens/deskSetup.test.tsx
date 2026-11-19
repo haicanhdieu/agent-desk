@@ -69,6 +69,22 @@ describe('DeskSetup', () => {
     expect(screen.getByLabelText('Setup script')).toHaveValue(SETUP_SCRIPT_STARTER);
     expect(screen.getByRole('button', { name: 'Save version 1' })).toBeEnabled();
   });
+  it('splits the column between the editor and the log only when fitting the window; a board keeps its fixed editor', () => {
+    const test = {
+      status: 'failed' as const,
+      phases: setupPhases.failed,
+      plugins: setupPlugins.result,
+      lines: setupTestTerminal,
+      scriptLabel: 'Draft',
+      checkout: 'main a91c3e2',
+      started: '14:31',
+    };
+    const editorBox = () => screen.getByLabelText('Setup script').closest('[class*="setupTestEditor"]');
+    const { rerender } = render(<DeskSetup {...props} test={test} />);
+    expect(editorBox()?.className).not.toMatch(/Fit/);
+    rerender(<DeskSetup {...props} height="viewport" test={test} />);
+    expect(editorBox()?.className).toMatch(/Fit/);
+  });
 
   it('a test in flight shows phases, the log and End test', async () => {
     const onEndTest = vi.fn();
@@ -127,6 +143,16 @@ describe('DeskSetup', () => {
     expect(screen.getByRole('main')).toHaveAttribute('aria-busy', 'true');
     rerender(<DeskSetup {...props} loadError="Server down" />);
     expect(screen.getByText('Could not load the setup script')).toBeInTheDocument();
+  });
+
+  it('fits the window in the loading and error states when asked to', () => {
+    const shell = () => screen.getByRole('main').closest('[class*="appViewport"]');
+    const { rerender } = render(<DeskSetup {...props} height="viewport" loading />);
+    expect(shell()).not.toBeNull();
+    rerender(<DeskSetup {...props} height="viewport" loadError="Server down" />);
+    expect(shell()).not.toBeNull();
+    rerender(<DeskSetup {...props} loadError="Server down" />);
+    expect(shell()).toBeNull();
   });
 });
 

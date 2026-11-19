@@ -441,13 +441,18 @@
   border-radius: var(--radius-8);
   overflow: hidden;
 }
-/* The editor and the log (.setupLogBox) share the height left under the header: equal parts, each scrolling inside. */
 .setupTestEditor {
-  flex: 1 1 0;
-  min-height: 96px;
+  height: 236px;
+  flex: 0 0 236px;
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid var(--line);
+}
+/* Fitting the window: the editor and the log (.setupLogBox) share the height left under the header, each scrolling inside. */
+.setupTestEditorFit {
+  height: auto;
+  flex: 1 1 0;
+  min-height: 96px;
 }
 .setupLogBox {
   flex: 1 1 0;

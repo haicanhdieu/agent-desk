@@ -99,3 +99,25 @@ test('the editor and the log split the viewport and scroll on their own; hiding 
   const o2 = await pageScroll(page);
   expect(o2.scroll).toBe(o2.inner);
 });
+
+test('hiding the log makes the editor taller', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.goto(SETUP);
+  await expect(page.getByText('Version 1, saved by kim-hale')).toBeVisible();
+  await fillEditor(page, longScript);
+  const editor = editorArea(page);
+
+  await page.getByRole('button', { name: 'Test setup' }).click();
+  await expect(page.getByText('Last test passed')).toBeVisible({ timeout: 15_000 });
+  await page.getByRole('button', { name: 'View log' }).click();
+  const log = page.getByRole('log', { name: 'Test workspace terminal' });
+  await expect(log).toBeVisible();
+  const before = await box(editor);
+
+  await page.getByRole('button', { name: 'End test' }).click();
+  await expect(log).toHaveCount(0);
+  const after = await box(editor);
+  expect(after.height).toBeGreaterThan(before.height);
+  const o = await pageScroll(page);
+  expect(o.scroll).toBe(o.inner);
+});

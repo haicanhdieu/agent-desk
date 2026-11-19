@@ -260,7 +260,15 @@ export function DeskSetup({
 
           {test ? (
             <>
-              <div className={styles.setupTestEditor}>{editor}</div>
+              <div
+                className={
+                  height === 'viewport'
+                    ? `${styles.setupTestEditor} ${styles.setupTestEditorFit}`
+                    : styles.setupTestEditor
+                }
+              >
+                {editor}
+              </div>
               <div className={styles.setupPhaseBar}>
                 <StatusBadge status={testStatus[test.status].status} variant="pill">
                   {testStatus[test.status].label}
