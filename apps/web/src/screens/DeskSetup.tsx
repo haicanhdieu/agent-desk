@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Banner, Button, Field, Icon, LabelChip, Skeleton, StatusBadge, StatusIcon, TextInput } from '@/ds';
 import {
   AppShell,
@@ -150,7 +150,7 @@ function SetupLog({ lines, onEndTest }: { lines: TermLine[]; onEndTest?(): void 
   const [query, setQuery] = useState('');
   const [current, setCurrent] = useState(0);
   const [copyStatus, setCopyStatus] = useState<'copied' | 'failed'>();
-  const total = findMatches(lines, query).length;
+  const total = useMemo(() => findMatches(lines, query).length, [lines, query]);
 
   useEffect(() => {
     if (!copyStatus) return;

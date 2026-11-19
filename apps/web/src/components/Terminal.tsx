@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import styles from './Terminal.module.css';
 import { findMatches, type TermMatch } from './terminalFind';
 
@@ -24,10 +24,24 @@ const toneClass: Record<TermTone, string> = {
 
 const cx = (...c: Array<string | false | undefined>) => c.filter(Boolean).join(' ');
 
+/** Matches grouped by line; `first` is the global index of the line's first match. */
+type MatchesByLine = Map<number, { first: number; matches: TermMatch[] }>;
+
+function groupByLine(matches: TermMatch[]): MatchesByLine {
+  const byLine: MatchesByLine = new Map();
+  matches.forEach((m, i) => {
+    const group = byLine.get(m.line);
+    if (group) group.matches.push(m);
+    else byLine.set(m.line, { first: i, matches: [m] });
+  });
+  return byLine;
+}
+
 /** The line's spans, with each match cut out of them into a `<mark>`; `current` is the index of the focused match. */
-function renderSpans(line: TermLine, matches: TermMatch[], lineIndex: number, current: number): ReactNode {
-  const first = matches.findIndex((m) => m.line === lineIndex);
-  const here = first === -1 ? [] : matches.slice(first).filter((m) => m.line === lineIndex);
+function renderSpans(line: TermLine, byLine: MatchesByLine, lineIndex: number, current: number): ReactNode {
+  const group = byLine.get(lineIndex);
+  const first = group?.first ?? -1;
+  const here = group?.matches ?? [];
   let offset = 0;
   return line.map((s, j) => {
     const from = offset;
@@ -84,11 +98,14 @@ export function Terminal({
     const el = ref.current;
     if (scrollable && el) el.scrollTop = el.scrollHeight;
   }, [scrollable, lines.length]);
-  const matches = findMatches(lines, find?.query ?? '');
+  const query = find?.query ?? '';
+  const matches = useMemo(() => findMatches(lines, query), [lines, query]);
+  const byLine = useMemo(() => groupByLine(matches), [matches]);
   const current = find && matches.length > 0 ? find.current % matches.length : -1;
+  // After the scroll-to-end effect, so a line appended while Find is open does not pull the focused match out of view.
   useEffect(() => {
     if (current >= 0) ref.current?.querySelector('mark[aria-current="true"]')?.scrollIntoView?.({ block: 'nearest' });
-  }, [current, find?.query]);
+  }, [current, query, lines.length]);
   const rows = cursor && lines.length === 0 ? [[]] : lines;
   // The cursor sits on the input prompt row (a lone "> ") when there is one, otherwise on the last row.
   let last = rows.length - 1;
@@ -109,7 +126,7 @@ export function Terminal({
     >
       {rows.map((line, i) => (
         <div key={i} className={styles.line}>
-          {renderSpans(line, matches, i, current)}
+          {renderSpans(line, byLine, i, current)}
           {cursor && i === last && <span className={styles.cursor} />}
         </div>
       ))}

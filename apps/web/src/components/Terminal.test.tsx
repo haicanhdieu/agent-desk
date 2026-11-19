@@ -235,6 +235,21 @@ describe('Terminal scrollable', () => {
     expect(log.className).toContain(styles.scroll);
   });
 
+  it('keeps the focused match in view when a line is appended while Find is open', () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+    try {
+      const log = [[{ text: 'error one' }], [{ text: 'fine' }]];
+      const find = { query: 'error', current: 0 };
+      const { rerender } = render(<Terminal lines={log} scrollable find={find} aria-label="Setup log" />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(1);
+      rerender(<Terminal lines={[...log, [{ text: 'more' }]]} scrollable find={find} aria-label="Setup log" />);
+      expect(scrollIntoView).toHaveBeenCalledTimes(2);
+    } finally {
+      Reflect.deleteProperty(Element.prototype, 'scrollIntoView');
+    }
+  });
+
   it('the default stays a clipped, non-focusable transcript', () => {
     render(<Terminal lines={lines} aria-label="Run log" />);
     const log = screen.getByRole('log', { name: 'Run log' });
