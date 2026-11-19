@@ -20,6 +20,8 @@
 .main {
   flex: 1;
   min-width: 0;
+  /* So a board that fills the window can shrink its content instead of growing the page. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
 }

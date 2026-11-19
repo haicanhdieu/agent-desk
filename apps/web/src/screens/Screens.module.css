@@ -406,6 +406,8 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Only when the window is too short even for the minimum heights below; the editor and the log scroll first. */
+  overflow-y: auto;
 }
 .setupDeskHead {
   display: flex;
@@ -431,7 +433,7 @@
 }
 .setupEditorBox {
   flex: 1;
-  min-height: 0;
+  min-height: 120px;
   display: flex;
   flex-direction: column;
   margin: 0 20px;
@@ -445,6 +447,18 @@
   display: flex;
   flex-direction: column;
   border-bottom: 1px solid var(--line);
+}
+/* Fitting the window: the editor and the log (.setupLogBox) share the height left under the header, each scrolling inside. */
+.setupTestEditorFit {
+  height: auto;
+  flex: 1 1 0;
+  min-height: 96px;
+}
+.setupLogBox {
+  flex: 1 1 0;
+  min-height: 96px;
+  display: flex;
+  flex-direction: column;
 }
 .setupFailure {
   padding: 0 16px 8px;
