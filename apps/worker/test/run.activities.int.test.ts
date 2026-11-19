@@ -891,8 +891,8 @@ describe('activity errors are redacted', () => {
 
 // The fake pod's log up to the agent starting, as lifecycle kinds (one log line each); the first turn finishes next.
 const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
-// The pod also logs the launch line and `git identity <name> <email>`: plain text lines, so they count as log lines but store no event.
-const PRELUDE_TEXT_LINES = 2;
+// The pod also logs the launch line, `git identity <name> <email>` and the first transcript line (the prompt): plain text lines, so they count as log lines but store no event.
+const PRELUDE_TEXT_LINES = 3;
 // The fake pod's first turn logs `state working` then `state needs_input`; the first turn's end is the first replayable boundary.
 const FIRST_TURN_LINE = PRELUDE_KINDS.length + PRELUDE_TEXT_LINES + 2;
 
