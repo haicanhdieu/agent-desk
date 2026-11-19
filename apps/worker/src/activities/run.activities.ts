@@ -47,7 +47,13 @@ export interface RequestSlotInput {
   limit: number;
 }
 
-export type CommentKind = 'start' | 'finish' | 'paused';
+export type CommentKind = 'queued' | 'start' | 'finish' | 'paused';
+
+/** What `requestSlot` knows about the gate once it has seen the request. */
+export interface RequestSlotResult {
+  /** Every slot is taken: the run waits in the gate's queue. */
+  queued: boolean;
+}
 
 export type ParkKind = 'needs_input' | 'done';
 export interface ParkResult {
@@ -109,8 +115,11 @@ export const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 export interface RunActivities {
   /** Reads the run, its project and agent under `withOrg`. Non-retryable when the run does not exist. */
   loadRun(orgId: string, runId: string): Promise<RunContext>;
-  /** `signalWithStart` on `gate-{projectId}` with `requestSlot(runId)`; idempotent (the gate de-duplicates). */
-  requestSlot(input: RequestSlotInput): Promise<void>;
+  /**
+   * `signalWithStart` on `gate-{projectId}` with `requestSlot(runId)`; idempotent (the gate de-duplicates). Says whether the
+   * run is queued; a result recorded before it reported that is `undefined`.
+   */
+  requestSlot(input: RequestSlotInput): Promise<RequestSlotResult | undefined>;
   /** The only writer of `runs.status` (Task 12). */
   setRunStatus(input: SetRunStatusInput): Promise<SetRunStatusResult>;
   /**

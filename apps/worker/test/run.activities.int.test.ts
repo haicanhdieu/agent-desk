@@ -1899,6 +1899,28 @@ describe('postComment paused', () => {
   });
 });
 
+describe('postComment queued', () => {
+  it('posts once across two calls, says every slot is busy, links the run and records the outbox key', async () => {
+    const runId = await seedRun('x', 'queued');
+    const ctx = await ctxFor(runId);
+    const acts = createRunActivities(deps());
+    const before = (await store.listPosted()).length;
+    await acts.postComment(ctx, 'queued');
+    await acts.postComment(ctx, 'queued');
+    const posted = (await store.listPosted()).slice(before);
+    expect(posted).toHaveLength(1);
+    const number = (await load(runId)).run?.number;
+    expect(posted[0]?.body).toContain(`run #${number}`);
+    expect(posted[0]?.body).toContain('queued');
+    expect(posted[0]?.body).toContain('slots');
+    expect(posted[0]?.body).not.toContain('started');
+    expect(posted[0]?.body).toContain(`http://localhost:5173/o/acme/p/${projectId}/runs/${number}`);
+    const { run, events } = await load(runId);
+    expect(Object.keys(run?.outbox ?? {})).toEqual(['queued']);
+    expect(events.filter((e) => e.type === 'comment').map((e) => e.payload.kind)).toEqual(['queued']);
+  });
+});
+
 describe('resume mode', () => {
   const RESUME_LINES = ['agentdesk: session started'];
 
