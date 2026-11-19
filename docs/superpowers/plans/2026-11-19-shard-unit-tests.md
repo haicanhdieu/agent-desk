@@ -106,24 +106,24 @@ git commit -m "docs(conventions): describe the per-package unit test jobs"
 - Consumes: nothing from other tasks.
 - Produces: files whose measured durations are each under about 100s (local `vitest run <file>` time), and that together contain exactly the test titles the original file had.
 
-- [ ] **Step 1: Record the baseline**
+- [x] **Step 1: Record the baseline**
 
 Run: `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.test.ts --reporter=json --outputFile=<scratch>/before.json`
 Save the sorted list of full test titles and the pass count. Expected: all pass, about 314s.
 
-- [ ] **Step 2: Move the shared setup into `test/helpers/run-workflow-harness.ts`**
+- [x] **Step 2: Move the shared setup into `test/helpers/run-workflow-harness.ts`**
 
 Move the setup code (everything the tests use that is not a test or a `describe`) with its exports named as it was. Each test file starts its own Temporal test environment through the harness in its own `beforeAll`/`afterAll`. Keep behaviour identical; no test body changes.
 
-- [ ] **Step 3: Split the tests by `describe` into files of about 90s each**
+- [x] **Step 3: Split the tests by `describe` into files of about 90s each**
 
 Use the per-test timings from Step 1 to balance the files. Move tests verbatim. Name files `run.workflow.<group>.test.ts` (plain words, e.g. `parking`, `resuming`). `pnpm lint` runs `scripts/check-test-split.ts`: these tests do not use Docker, so they stay `*.test.ts`.
 
-- [ ] **Step 4: Prove nothing was lost and each file is fast**
+- [x] **Step 4: Prove nothing was lost and each file is fast**
 
 Run each new file with the JSON reporter; the union of titles must equal the Step 1 list exactly, with the same pass count; no `skip`, `only` or `todo`. Record each file's duration. Expected: every file under about 100s.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add apps/worker/test
