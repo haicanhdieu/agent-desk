@@ -116,6 +116,7 @@ describe('AgentBaseUrl', () => {
     'https://2130706433',
     'https://0x7f.0.0.1',
     'https://[::1]',
+    'https://[1::2::3]',
     'https://[::ffff:127.0.0.1]',
     'not a url',
     'https://localhost.',

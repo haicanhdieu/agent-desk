@@ -38,3 +38,34 @@ describe('isBlockedIp', () => {
     expect(isBlockedIp(ip)).toBe(false);
   });
 });
+
+describe('isBlockedIp malformed input', () => {
+  it.each([
+    '',
+    '1.2.3',
+    '1.2.3.4.5',
+    '1.2.3.x',
+    '1.2.3.1234',
+    '1.2.3.256',
+    '::1.2.3.256',
+    '::1.2.3',
+    '1::2::3',
+    'gggg::1',
+    '1::g',
+    '1:2:3:4:5:6:7',
+    '1:2:3:4:5:6:7::8',
+    '12345::1',
+  ])('treats %s as not an IP, so not blocked', (input) => {
+    expect(isBlockedIp(input)).toBe(false);
+  });
+
+  it('judges a fully written 8-group IPv6 address', () => {
+    expect(isBlockedIp('fe80:0:0:0:0:0:0:1')).toBe(true);
+    expect(isBlockedIp('2606:4700:0:0:0:0:0:1111')).toBe(false);
+  });
+
+  it('accepts a compressed address with a trailing ::', () => {
+    expect(isBlockedIp('fc00::')).toBe(true);
+    expect(isBlockedIp('2606:4700::')).toBe(false);
+  });
+});
