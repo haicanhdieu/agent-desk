@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { Banner, Button, Field, Icon, LabelChip, Skeleton, StatusBadge, StatusIcon, TextInput } from '@/ds';
 import {
+  AppShell,
   CodeEditor,
   KeyValue,
   PluginList,
@@ -61,6 +62,8 @@ export interface SetupTestView {
 
 export interface DeskSetupProps {
   frame: DeskFrameData;
+  /** `'viewport'` fits the page to the window (the app route): the editor and the log split it and scroll inside. */
+  height?: 'viewport';
   loading?: boolean;
   loadError?: string;
   /** `null`: the project has no setup script yet. */
@@ -140,6 +143,7 @@ function LastTestBanner({ lastTest, onViewLog }: { lastTest?: LastSetupTest; onV
 
 export function DeskSetup({
   frame,
+  height,
   loading,
   loadError,
   script,
@@ -165,9 +169,17 @@ export function DeskSetup({
   const [note, setNote] = useState('');
   const dirty = value !== saved;
   const nextVersion = (script?.version ?? 0) + 1;
+  const fit = (page: ReactNode) =>
+    height === 'viewport' ? (
+      <AppShell height="viewport" topBar={null}>
+        {page}
+      </AppShell>
+    ) : (
+      page
+    );
 
   if (loading || loadError) {
-    return (
+    return fit(
       <DeskFrame active="setup" {...frame}>
         <main className={styles.setupDeskMain} aria-busy={loading || undefined}>
           <div className={styles.setupDeskHead}>
@@ -183,7 +195,7 @@ export function DeskSetup({
             )}
           </div>
         </main>
-      </DeskFrame>
+      </DeskFrame>,
     );
   }
 
@@ -208,7 +220,7 @@ export function DeskSetup({
     </Button>
   );
 
-  return (
+  return fit(
     <DeskFrame active="setup" {...frame}>
       <div className={styles.deskRow}>
         <main className={styles.setupDeskMain}>
@@ -262,23 +274,25 @@ export function DeskSetup({
                   </Banner>
                 </div>
               )}
-              <TerminalPane
-                bar={
-                  <TerminalBar
-                    views={[{ id: 'log', label: 'Log', icon: 'transcript' }]}
-                    activeView="log"
-                    connection={
-                      <span className={styles.setupTestMeta}>
-                        <Button variant="danger" size="sm" onClick={onEndTest}>
-                          End test
-                        </Button>
-                      </span>
-                    }
-                  />
-                }
-              >
-                <Terminal lines={test.lines} scrollable aria-label="Test workspace terminal" />
-              </TerminalPane>
+              <div className={styles.setupLogBox}>
+                <TerminalPane
+                  bar={
+                    <TerminalBar
+                      views={[{ id: 'log', label: 'Log', icon: 'transcript' }]}
+                      activeView="log"
+                      connection={
+                        <span className={styles.setupTestMeta}>
+                          <Button variant="danger" size="sm" onClick={onEndTest}>
+                            End test
+                          </Button>
+                        </span>
+                      }
+                    />
+                  }
+                >
+                  <Terminal lines={test.lines} scrollable aria-label="Test workspace terminal" />
+                </TerminalPane>
+              </div>
             </>
           ) : (
             <>
@@ -376,6 +390,6 @@ export function DeskSetup({
           )}
         </SidePanel>
       </div>
-    </DeskFrame>
+    </DeskFrame>,
   );
 }

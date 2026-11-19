@@ -34,6 +34,7 @@ function DeskSetupPage() {
   if (!script.isSuccess) {
     return (
       <DeskSetup
+        height="viewport"
         frame={frame}
         loading={script.isPending}
         loadError={script.isError ? messageOf(script.error) : undefined}
@@ -168,6 +169,7 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
   return (
     <DeskSetup
       key={draft?.key ?? 0}
+      height="viewport"
       frame={frame}
       {...view}
       {...(draft && { draft: draft.body })}

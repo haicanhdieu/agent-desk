@@ -1,5 +1,7 @@
 .termwrap {
   flex: 1;
+  /* So a pane in a fixed-height column shrinks to it and its log scrolls inside. */
+  min-height: 0;
   display: flex;
   flex-direction: column;
   background: var(--term);
