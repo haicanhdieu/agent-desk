@@ -34,11 +34,35 @@ describe('RunDetail actions', () => {
     expect(screen.queryByRole('button', { name: 'Finish' })).not.toBeInTheDocument();
   });
 
-  it.each(ended)('%s: no Cancel run or Finish, View ticket links to the ticket', (k) => {
+  it.each(ended)('%s: no Cancel run or Finish, the ticket link points at the ticket', (k) => {
     show(k);
+    const label = runDetails[k].run.ticket.kind === 'pr' ? 'View PR' : 'View issue';
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View ticket' })).toHaveAttribute('href', runDetails[k].run.ticket.href);
+    expect(screen.getByRole('link', { name: label })).toHaveAttribute('href', runDetails[k].run.ticket.href);
+  });
+
+  it.each([
+    ['pr', 'View PR'],
+    ['issue', 'View issue'],
+  ] as const)('labels the link of a %s ticket "%s", never "View ticket"', (kind, label) => {
+    const base = runDetails.RunSucceeded;
+    render(
+      <RunDetail
+        data={{ ...base, run: { ...base.run, ticket: { ...base.run.ticket, kind } } }}
+        lines={linesFor('RunSucceeded')}
+        needsYou={1}
+      />,
+    );
+    expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'View ticket' })).not.toBeInTheDocument();
+  });
+
+  it.each(ended)('%s: the ticket link opens in a new tab without giving the page access to the opener', (k) => {
+    show(k);
+    const link = screen.getByRole('link', { name: /^View (PR|issue)$/ });
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
   });
 
   it.each(Object.keys(runDetails) as RunDetailKey[])('%s: never says Retry about the run and has one main', (k) => {
@@ -117,7 +141,7 @@ describe('RunDetail paused, kept and expired sessions', () => {
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View ticket' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^View (PR|issue)$/ })).toBeInTheDocument();
   });
 
   it('paused: the buttons call back', async () => {
@@ -176,7 +200,7 @@ describe('RunDetail paused, kept and expired sessions', () => {
       screen.getByText('Nobody resumed this run within 7 days. The saved session was deleted.'),
     ).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^(Resume|Finish|Cancel|Re-open)/ })).not.toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'View ticket' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /^View (PR|issue)$/ })).toBeInTheDocument();
   });
 });
 
