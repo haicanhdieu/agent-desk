@@ -2,6 +2,7 @@ import type { WorkflowClient } from '@temporalio/client';
 import { QUERY, SIGNAL, TASK_QUEUE, WORKFLOW, gateWorkflowId } from '@agentdesk/core';
 import type { RequestSlotInput, RequestSlotResult } from './run.activities';
 import type { GateState } from '../workflows/signals';
+import type { ReconcileLogger } from './reconcile.activity';
 
 /** The slice of the Temporal workflow client `requestSlot` needs (`client.workflow` satisfies it). */
 export type GateSignaller = Pick<WorkflowClient, 'signalWithStart' | 'getHandle'>;
@@ -16,9 +17,16 @@ const GATE_SETTLE_POLL_MS = 25;
  * per run and re-sends `granted` to a run that is already active.
  *
  * Reports whether the run is waiting in the gate's queue (every slot is taken) so the workflow can tell the ticket.
- * The answer is informational: when the gate cannot be read it says `queued: false` instead of failing the request.
+ * The answer is informational and best effort, not a guarantee: it errs towards `queued: false`. When the gate cannot be
+ * read (a failed query, or one still unsettled after about a second of polling) a run that is in fact queued is reported
+ * as not queued and its ticket gets no queued comment. A query failure is logged (run id and error kind only) and never
+ * fails the request.
  */
-export async function requestSlot(client: GateSignaller, input: RequestSlotInput): Promise<RequestSlotResult> {
+export async function requestSlot(
+  client: GateSignaller,
+  input: RequestSlotInput,
+  log?: ReconcileLogger,
+): Promise<RequestSlotResult> {
   const workflowId = gateWorkflowId(input.projectId);
   await client.signalWithStart(WORKFLOW.projectGate, {
     workflowId,
@@ -36,7 +44,11 @@ export async function requestSlot(client: GateSignaller, input: RequestSlotInput
       state = await gate.query<GateState>(QUERY.gateState);
     }
     return { queued: state.settled && state.queue.includes(input.runId) };
-  } catch {
+  } catch (err) {
+    log?.warn('requestSlot could not read the project gate', {
+      runId: input.runId,
+      err: err instanceof Error ? err.name : 'unknown',
+    });
     return { queued: false };
   }
 }

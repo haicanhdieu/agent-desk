@@ -58,4 +58,21 @@ describe('requestSlot', () => {
     const { client } = fakeGate([new Error('query failed')]);
     await expect(requestSlot(client, input)).resolves.toEqual({ queued: false });
   });
+
+  it('logs a warning with the run and the error kind, never the error text, when the gate cannot be queried', async () => {
+    const { client } = fakeGate([new TypeError('secret-looking detail')]);
+    const warnings: { msg: string; meta?: Record<string, unknown> }[] = [];
+    const log = { warn: (msg: string, meta?: Record<string, unknown>) => void warnings.push({ msg, meta }) };
+    await expect(requestSlot(client, input, log)).resolves.toEqual({ queued: false });
+    expect(warnings).toEqual([
+      { msg: 'requestSlot could not read the project gate', meta: { runId: 'r1', err: 'TypeError' } },
+    ]);
+  });
+
+  it('logs nothing when the gate answers', async () => {
+    const { client } = fakeGate([settled({ active: ['r1'] })]);
+    const warnings: string[] = [];
+    await requestSlot(client, input, { warn: (msg) => void warnings.push(msg) });
+    expect(warnings).toEqual([]);
+  });
 });
