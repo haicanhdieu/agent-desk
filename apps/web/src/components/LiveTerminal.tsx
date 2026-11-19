@@ -105,7 +105,7 @@ export default function LiveTerminal({
             // Clear it once copied, so the next Ctrl+C is the interrupt again (Windows Terminal does the same).
             .then(() => term.clearSelection())
             .catch((err: unknown) => {
-              console.debug('Could not copy the terminal selection', err);
+              console.warn('Could not copy the terminal selection', err);
             });
         }
         return false;

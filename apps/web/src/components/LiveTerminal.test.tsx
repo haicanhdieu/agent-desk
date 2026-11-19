@@ -146,15 +146,15 @@ describe('LiveTerminal', () => {
     });
 
     it('a refused clipboard write is logged, not thrown', async () => {
-      const debug = vi.spyOn(console, 'debug').mockImplementation(() => undefined);
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
       const refused = new Error('denied');
       writeText.mockRejectedValue(refused);
       render(<LiveTerminal />);
       const term = FakeXterm.latest();
       term.select('copy me');
       act(() => term.pressKey('c', { ctrlKey: true }));
-      await vi.waitFor(() => expect(debug).toHaveBeenCalledWith('Could not copy the terminal selection', refused));
-      debug.mockRestore();
+      await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Could not copy the terminal selection', refused));
+      warn.mockRestore();
     });
 
     it('Shift+Ctrl+C is not a copy key: it reaches xterm as before', () => {
