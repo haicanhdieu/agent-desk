@@ -28,3 +28,11 @@ export const Ended: Story = {
     connection: <ConnectionIndicator state="ended" label="Ended, read-only, 1,208 lines" />,
   },
 };
+const liveArgs = {
+  views,
+  activeView: 'term',
+  size: '132×44',
+  connection: <ConnectionIndicator state="live" label="Live, attached as kim-hale" />,
+};
+export const Copied: Story = { args: { ...liveArgs, copyStatus: 'copied' } };
+export const CopyFailed: Story = { args: { ...liveArgs, copyStatus: 'failed' } };

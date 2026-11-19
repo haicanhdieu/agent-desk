@@ -28,6 +28,8 @@ export {
   type TerminalPlaceholderProps,
 } from './Terminal';
 export { TerminalBar, type TerminalBarProps } from './TerminalBar';
+export { TerminalFindBar, type TerminalFindBarProps } from './TerminalFindBar';
+export { findMatches, logText, type TermMatch } from './terminalFind';
 export { ConnectionIndicator, type ConnectionState, type ConnectionIndicatorProps } from './ConnectionIndicator';
 export { StartupChecklist, type StartupStep } from './StartupChecklist';
 export { EventLog, type EventLogProps } from './EventLog';

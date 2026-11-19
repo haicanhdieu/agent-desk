@@ -131,3 +131,5 @@ export const PlaceholderNoScrollback: Story = {
     </TerminalPane>
   ),
 };
+
+export const WithFindMatches: Story = { args: { lines: transcript, find: { query: 'the', current: 1 } } };

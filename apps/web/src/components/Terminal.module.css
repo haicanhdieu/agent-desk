@@ -271,3 +271,28 @@
   color: var(--faint);
   white-space: nowrap;
 }
+.findbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--term-bar-line);
+  background: var(--term-bar);
+}
+.findCount {
+  min-width: 64px;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12_5);
+  color: var(--faint);
+  white-space: nowrap;
+}
+.find {
+  background: var(--term-find-bg);
+  color: inherit;
+  border-radius: var(--radius-4);
+}
+.find[aria-current='true'] {
+  background: var(--term-find-current-bg);
+}

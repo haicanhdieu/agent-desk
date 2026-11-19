@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Banner, Button, Field, Icon, LabelChip, Skeleton, StatusBadge, StatusIcon, TextInput } from '@/ds';
 import {
   AppShell,
@@ -10,8 +10,11 @@ import {
   SidePanel,
   Terminal,
   TerminalBar,
+  TerminalFindBar,
   TerminalPane,
   VersionHistory,
+  findMatches,
+  logText,
   type PluginListProps,
   type ScriptVersion,
   type SetupPhase,
@@ -138,6 +141,74 @@ function LastTestBanner({ lastTest, onViewLog }: { lastTest?: LastSetupTest; onV
     >
       {lastTest.summary}
     </Banner>
+  );
+}
+
+/** The test's log: the bar's Find opens a find row that marks matches in the log, Copy all puts the whole log on the clipboard. */
+function SetupLog({ lines, onEndTest }: { lines: TermLine[]; onEndTest?(): void }) {
+  const [findOpen, setFindOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [current, setCurrent] = useState(0);
+  const [copyStatus, setCopyStatus] = useState<'copied' | 'failed'>();
+  const total = findMatches(lines, query).length;
+
+  useEffect(() => {
+    if (!copyStatus) return;
+    const t = setTimeout(() => setCopyStatus(undefined), 2000);
+    return () => clearTimeout(t);
+  }, [copyStatus]);
+
+  const copyAll = async () => {
+    try {
+      await navigator.clipboard.writeText(logText(lines));
+      setCopyStatus('copied');
+    } catch {
+      // No clipboard (an insecure page) or permission denied.
+      setCopyStatus('failed');
+    }
+  };
+  const step = (by: number) => total > 0 && setCurrent((c) => (((c + by) % total) + total) % total);
+
+  return (
+    <TerminalPane
+      bar={
+        <TerminalBar
+          views={[{ id: 'log', label: 'Log', icon: 'transcript' }]}
+          activeView="log"
+          connection={
+            <span className={styles.setupTestMeta}>
+              <Button variant="danger" size="sm" onClick={onEndTest}>
+                End test
+              </Button>
+            </span>
+          }
+          copyStatus={copyStatus}
+          onFind={() => setFindOpen(true)}
+          onCopyAll={() => void copyAll()}
+        />
+      }
+    >
+      {findOpen && (
+        <TerminalFindBar
+          query={query}
+          total={total}
+          current={current}
+          onQueryChange={(q) => {
+            setQuery(q);
+            setCurrent(0);
+          }}
+          onNext={() => step(1)}
+          onPrev={() => step(-1)}
+          onClose={() => setFindOpen(false)}
+        />
+      )}
+      <Terminal
+        lines={lines}
+        scrollable
+        find={findOpen ? { query, current } : undefined}
+        aria-label="Test workspace terminal"
+      />
+    </TerminalPane>
   );
 }
 
@@ -283,23 +354,7 @@ export function DeskSetup({
                 </div>
               )}
               <div className={styles.setupLogBox}>
-                <TerminalPane
-                  bar={
-                    <TerminalBar
-                      views={[{ id: 'log', label: 'Log', icon: 'transcript' }]}
-                      activeView="log"
-                      connection={
-                        <span className={styles.setupTestMeta}>
-                          <Button variant="danger" size="sm" onClick={onEndTest}>
-                            End test
-                          </Button>
-                        </span>
-                      }
-                    />
-                  }
-                >
-                  <Terminal lines={test.lines} scrollable aria-label="Test workspace terminal" />
-                </TerminalPane>
+                <SetupLog lines={test.lines} onEndTest={onEndTest} />
               </div>
             </>
           ) : (

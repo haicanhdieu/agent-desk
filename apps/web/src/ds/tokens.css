@@ -84,6 +84,8 @@
   --term-accent: #b9c6ff;
   --term-add-bg: rgba(122, 214, 159, 0.08);
   --term-del-bg: rgba(242, 138, 128, 0.08);
+  --term-find-bg: rgba(147, 169, 255, 0.28);
+  --term-find-current-bg: rgba(147, 169, 255, 0.6);
   --editor-changed-bg: rgba(122, 214, 159, 0.07);
   --md-h: #b9c6ff;
   --md-k: #c8a2f0;

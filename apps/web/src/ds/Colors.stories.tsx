@@ -32,6 +32,8 @@ const groups: Record<string, string[]> = {
     'term-accent',
     'term-add-bg',
     'term-del-bg',
+    'term-find-bg',
+    'term-find-current-bg',
   ],
   Banner: [
     'banner-warn-bg',
