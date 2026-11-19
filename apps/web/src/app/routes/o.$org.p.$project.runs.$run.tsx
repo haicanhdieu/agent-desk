@@ -126,6 +126,7 @@ function RunDetailRoute() {
 
   return (
     <RunDetail
+      height="viewport"
       data={data}
       // A pausing run greys the last scrollback it has: the terminal is closed, so the stored one stands in.
       lines={stored || pausing ? scrollbackLines(events) : undefined}

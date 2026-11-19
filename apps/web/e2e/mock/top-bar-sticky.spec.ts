@@ -1,13 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { INVOICER_API, ORG, PAUSED_RUN } from './mock';
+import { INVOICER_API, ORG } from './mock';
 
+// The run detail page is not here: it fills the viewport and scrolls inside (run-detail-layout.spec.ts).
 const pages: { name: string; path: string }[] = [
   { name: 'Projects', path: `/o/${ORG}/projects` },
   { name: 'Runs', path: `/o/${ORG}/p/${INVOICER_API}/runs` },
   { name: 'Needs you', path: `/o/${ORG}/p/${INVOICER_API}/needs-you` },
   { name: 'Desk skills', path: `/o/${ORG}/p/${INVOICER_API}/desk/skills` },
   { name: 'Desk routing rules', path: `/o/${ORG}/p/${INVOICER_API}/desk/rules` },
-  { name: 'Run detail', path: `/o/${ORG}/p/${INVOICER_API}/runs/${PAUSED_RUN}` },
 ];
 
 // Short enough that every page needs scrolling; the phone width covers the narrow layouts.

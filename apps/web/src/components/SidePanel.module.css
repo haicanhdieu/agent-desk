@@ -5,7 +5,9 @@
   background: var(--panel);
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  /* The panel scrolls on its own when it is taller than the page. */
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 .rail {
   width: 48px;
