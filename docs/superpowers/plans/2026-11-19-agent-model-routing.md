@@ -423,7 +423,7 @@ export function agentAdapterFor(kind: AgentKind, opts?: { http?: AgentHttpGet })
 Claude `launchEnv`: `AGENT=claude`; when `model !== ''`, `AGENT_MODEL=<model>` and `ANTHROPIC_MODEL=<model>`; when `baseUrl` is set, `ANTHROPIC_BASE_URL=<baseUrl>`; in that order.
 Claude `listModels`: URL = base (`baseUrl ?? CLAUDE_DEFAULT_BASE_URL`) with trailing slashes stripped from its path, plus `/v1/models`, query `limit=1000` (and `after_id=<last_id>` on later pages). Body schema: `{ data: { id: string; display_name?: string }[]; has_more?: boolean; last_id?: string | null }`. Label = `display_name ?? id`. Errors: `GuardedHttpError` → `unreachable`; 401/403 → `rejected`; any other non-2xx or a schema failure → `invalid`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 All HTTP through `agentAdapterFor('claude', { http: (u, h) => guardedGetJson(u, { headers: h, dispatcher: mockAgent }) })` with `MockAgent.disableNetConnect()`:
 - `it('sends x-api-key and anthropic-version for an API key')`; `it('sends a Bearer token and the oauth beta header for an OAuth token, and no x-api-key')`.
@@ -437,21 +437,21 @@ All HTTP through `agentAdapterFor('claude', { http: (u, h) => guardedGetJson(u, 
 - `launchEnv`: with `{ model: 'sonnet[1m]', baseUrl: 'https://gw.example.com/a' }` → exactly `AGENT=claude`, `AGENT_MODEL=sonnet[1m]`, `ANTHROPIC_MODEL=sonnet[1m]`, `ANTHROPIC_BASE_URL=https://gw.example.com/a`; with `baseUrl: null` no `ANTHROPIC_BASE_URL`; with `model: ''` no model entries.
 - `it('builtinModels are opus, sonnet and haiku')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- agents`
 Expected: FAIL (module not found).
 
-- [ ] **Step 3: Implement `types.ts`, `claude.ts`, `registry.ts`**
+- [x] **Step 3: Implement `types.ts`, `claude.ts`, `registry.ts`**
 
 `registry.ts` follows `adapters/registry.ts`: a `switch` on `kind` returning `createClaudeAdapter(http)`. Export the public names from `src/index.ts`.
 
-- [ ] **Step 4: Run the tests**
+- [x] **Step 4: Run the tests**
 
 Run: `pnpm --filter @agentdesk/core test -- agents && pnpm --filter @agentdesk/core typecheck`
 Expected: PASS, clean.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
