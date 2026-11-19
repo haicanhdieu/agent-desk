@@ -148,9 +148,14 @@ export function plainLines(text: string): TermLine[] {
     .split('\n')
     .slice(-SCROLLBACK_MAX_LINES)
     .map((line) => {
-      const plain = line.replace(CONTROLS, '');
+      const plain = plainText(line);
       return plain === '' ? [] : [{ text: plain }];
     });
+}
+
+/** Untrusted text without C0/C1 controls (tab and newline kept) and bidi embeddings, overrides and isolates. */
+export function plainText(text: string): string {
+  return text.replace(CONTROLS, '');
 }
 
 /**
@@ -296,6 +301,17 @@ function setupEndNote(run: RunListItem, took: string, links: RunDetailLinks): En
   };
 }
 
+/** A Finish ended a parked run: it paused before its last `succeeded` status, and no session is kept. */
+function finishedAfterPause(run: RunListItem, events: RunEventDto[]): boolean {
+  if (run.sessionExpiresAt !== null) return false;
+  const statuses = events.flatMap((e) => {
+    const status = e.type === 'status' ? StatusPayload.safeParse(e.payload).data?.status : undefined;
+    return status === undefined ? [] : [status];
+  });
+  const last = statuses.lastIndexOf('succeeded');
+  return last > 0 && statuses.slice(0, last).includes('paused');
+}
+
 function endNote(
   run: RunListItem,
   ticketRuns: RunListItem[],
@@ -316,7 +332,11 @@ function endNote(
       const next = ticketRuns.filter((r) => r.number > run.number).sort((a, b) => a.number - b.number)[0];
       return {
         title: `Succeeded in ${took}.`,
-        body: endedAt ? `Finished at ${endedAt}.` : '',
+        body: finishedAfterPause(run, events)
+          ? 'Finished. The session was deleted and cannot be resumed.'
+          : endedAt
+            ? `Finished at ${endedAt}.`
+            : '',
         actions: next
           ? [{ label: `Go to run ${next.number}`, href: `${links.runs}/${next.number}`, icon: 'chevron-right' }]
           : [],
@@ -488,19 +508,32 @@ function sessionOf(run: RunListItem, events: RunEventDto[], now: Date): RunDetai
     const left = run.sessionExpiresAt === null ? undefined : timeLeft(run.sessionExpiresAt, now);
     const code = crashed ? agentExitCode(events) : undefined;
     // A crashed or lost run's headline says what happened; the keep time moves to the line below it.
+    const stopped = reason === 'stopped';
     const resumable = (crashed || lost) && left !== undefined ? `Can be resumed for ${left}.` : undefined;
     const when =
       run.pausedAt === null ? undefined : `Paused ${relativeTime(run.pausedAt, now)}, ${pauseReasonText(reason)}`;
-    const detail = when === undefined ? resumable : resumable === undefined ? when : `${when}. ${resumable}`;
-    const headline = crashed
-      ? `Paused: agent crashed${code === undefined ? '' : ` (exit code ${code})`}`
-      : lost
-        ? lostPodHeadline(podExitCode(events))
-        : left === undefined
-          ? undefined
-          : `Paused: waiting for your answer. Can be resumed for ${left}.`;
+    const stoppedDetail = run.pausedAt === null ? undefined : `Stopped by you ${relativeTime(run.pausedAt, now)}.`;
+    const detail = stopped
+      ? stoppedDetail
+      : when === undefined
+        ? resumable
+        : resumable === undefined
+          ? when
+          : `${when}. ${resumable}`;
+    const headline = stopped
+      ? left === undefined
+        ? undefined
+        : `Stopped: can be resumed for ${left}.`
+      : crashed
+        ? `Paused: agent crashed${code === undefined ? '' : ` (exit code ${code})`}`
+        : lost
+          ? lostPodHeadline(podExitCode(events))
+          : left === undefined
+            ? undefined
+            : `Paused: waiting for your answer. Can be resumed for ${left}.`;
     return {
       state: 'paused',
+      ...(stopped && { stopped: true as const }),
       ...(headline !== undefined && { headline }),
       ...(detail !== undefined && { detail }),
       ...failed,
@@ -547,6 +580,7 @@ export function toRunDetail(
     elapsed: clock(elapsedMs),
     rule: `/${run.command}`,
     finalPrompt: run.finalPrompt,
+    pausedKeep: timeLeft(new Date(now.getTime() + run.pausedKeepSeconds * 1000).toISOString(), now),
     triggerNote: run.triggerSource === 'manual' ? '' : 'comment',
     startedAt: clockSeconds(startIso),
     ...(end !== undefined && {

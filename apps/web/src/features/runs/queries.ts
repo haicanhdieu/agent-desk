@@ -1,10 +1,12 @@
-import type { RunDto, RunEventDto, RunListFilter, RunListItem } from '@agentdesk/contracts';
-import { queryOptions } from '@tanstack/react-query';
+import type { RunDto, RunEventDto, RunListFilter, RunListItem, RunTranscriptResponse } from '@agentdesk/contracts';
+import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { api } from '../api';
 import { withPendingNote } from './pending';
 
 /** The contract's maximum page size. */
 export const RUN_LIST_PAGE_SIZE = 100;
+/** The transcript's page size (the route's default). */
+export const TRANSCRIPT_PAGE_SIZE = 200;
 /** Cap on pages fetched per list (1000 runs). */
 export const RUN_LIST_MAX_PAGES = 10;
 
@@ -84,6 +86,29 @@ export const runsQueries = {
         return [...log.items, ...live];
       },
       ...(final ? { staleTime: Infinity, refetchOnWindowFocus: false } : { refetchOnWindowFocus: true }),
+    }),
+  /**
+   * The saved transcript, newest page first (pages[0]); each page's `nextBefore` leads to the older one. It goes
+   * through the (cached) detail for the run id. Saved text does not change while the run has no pod, so it is never
+   * stale and not refetched on focus; useTranscriptReload refetches it when the pod goes away.
+   */
+  transcript: (org: string, projectId: string, number: number) =>
+    infiniteQueryOptions({
+      queryKey: [...runsKey(org, projectId), number, 'transcript'] as const,
+      queryFn: async ({ client, pageParam }): Promise<RunTranscriptResponse> => {
+        const run = await client.ensureQueryData(runsQueries.detail(org, projectId, number));
+        return api.runs.transcript({
+          params: { runId: run.id },
+          query: { limit: TRANSCRIPT_PAGE_SIZE, ...(pageParam !== undefined && { before: pageParam }) },
+        });
+      },
+      initialPageParam: undefined as number | undefined,
+      getNextPageParam: (p) => p.nextBefore ?? undefined,
+      staleTime: Infinity,
+      refetchOnWindowFocus: false,
+      // Agent call: no automatic retry. A failed load shows "Couldn't load the transcript" with a Retry button at once,
+      // instead of a skeleton for the retry delays; the person's Retry is the retry.
+      retry: false,
     }),
   ignored: (org: string, projectId: string) =>
     queryOptions({

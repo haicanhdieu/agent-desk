@@ -36,6 +36,8 @@ export interface ProblemInit {
   type?: string;
   detail?: string;
   errors?: { pointer: string; detail: string }[];
+  /** The request id the problem carries (body and header); `null` for none. A fresh one when left out. */
+  requestId?: string | null;
 }
 
 /** Thrown by a route implementation; turned into a problem+json response. */
@@ -54,18 +56,21 @@ export const invalid = (pointer: string, detail: string) =>
   new Problem({ status: 400, title: 'Validation failed', type: 'validation', errors: [{ pointer, detail }] });
 
 export function problemResponse(init: ProblemInit): Response {
-  const requestId = mockDb.nextRequestId();
+  const requestId = init.requestId === undefined ? mockDb.nextRequestId() : init.requestId;
   const body = ProblemSchema.parse({
     type: init.type ? `urn:agentdesk:problem:${init.type}` : 'about:blank',
     title: init.title,
     status: init.status,
     ...(init.detail !== undefined && { detail: init.detail }),
     ...(init.errors !== undefined && { errors: init.errors }),
-    requestId,
+    ...(requestId !== null && { requestId }),
   });
   return HttpResponse.json(body, {
     status: init.status,
-    headers: { 'content-type': 'application/problem+json', 'x-request-id': requestId },
+    headers: {
+      'content-type': 'application/problem+json',
+      ...(requestId !== null && { 'x-request-id': requestId }),
+    },
   });
 }
 

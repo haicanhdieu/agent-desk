@@ -18,6 +18,7 @@ import {
 import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { promptPreviewFixture } from '../dto/rules';
+import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
 import { noPlugins } from '../dto/setup';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
 import {
@@ -55,6 +56,12 @@ function session(): { user: MockUser; orgId: string } {
 }
 
 const db = () => mockDb.state;
+
+const SLOW_MS = 3_000;
+const slow = () => new Promise<void>((resolve) => setTimeout(resolve, SLOW_MS));
+/** Transcript requests that already failed once in this page load (failOnce); a reset starts over. */
+const failedOnce = new Set<number>();
+mockDb.onReset(() => failedOnce.clear());
 
 function projectRow(projectId: string): ProjectRow {
   const { orgId } = session();
@@ -513,24 +520,36 @@ const impl: Impl = {
   },
   'runs.get': ({ params }) => withAgentIdleEnd(runOf(params.runId)),
   'runs.log': ({ params }) => ({ items: db().runEvents[runOf(params.runId).id] ?? [] }),
-  'runs.cancel': ({ params }) => {
+  'runs.cancel': async ({ params }) => {
     const { user } = session();
     const run = runOf(params.runId);
     if (isFinal(run.status)) throw conflict('Run already ended');
+    if (slowActionRuns.has(run.number)) await slow();
     endRun(run, 'cancelled', `Cancel requested by ${user.handle}`);
     return null;
   },
-  'runs.finish': ({ params }) => {
+  'runs.finish': async ({ params }) => {
     const { user } = session();
     const run = runOf(params.runId);
     if (isFinal(run.status)) throw conflict('Run already ended');
     if (!FINISHABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Run is not waiting for you or done');
+    if (slowActionRuns.has(run.number)) await slow();
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
     return null;
   },
-  'runs.transcript': ({ params, query }) => {
+  'runs.transcript': async ({ params, query }) => {
+    const run = runOf(params.runId);
+    const behaviour = transcriptBehaviours[run.number];
+    if (behaviour === 'slow') await slow();
+    const failure = { status: 500, title: 'Internal Server Error', type: 'internal' };
+    if (behaviour === 'fail') throw new Problem({ ...failure, requestId: 'req-123' });
+    if (behaviour === 'failNoRequestId') throw new Problem({ ...failure, requestId: null });
+    if (behaviour === 'failOnce' && !failedOnce.has(run.number)) {
+      failedOnce.add(run.number);
+      throw new Problem({ ...failure, requestId: 'req-123' });
+    }
     // As the API: the newest window below `before`, oldest first; nextBefore is the window's first seq when older ones remain.
-    const all = db().runTranscripts[runOf(params.runId).id] ?? [];
+    const all = db().runTranscripts[run.id] ?? [];
     const { before } = query;
     const below = before === undefined ? all : all.filter((e) => e.seq < before);
     const items = below.slice(Math.max(0, below.length - query.limit));

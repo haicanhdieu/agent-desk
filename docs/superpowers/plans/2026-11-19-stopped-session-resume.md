@@ -1182,7 +1182,7 @@ export function plainText(text: string): string;
 //   body 'Finished. The session was deleted and cannot be resumed.'
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `detail.map.test.ts`:
 - `a stopped run's session is Stopped: can be resumed for 6 days. and Stopped by you 2 min ago.`, with a clock fixed 2 min after `pausedAt` and `sessionExpiresAt` 6 days 23 h 58 min ahead;
@@ -1202,21 +1202,21 @@ export function plainText(text: string): string;
 - `runsQueries.transcript fetches the newest page, then the older page with before`, using MSW node `server.use` for `runs.transcript`;
 - `useTranscriptReload invalidates when a pausing run becomes paused and not while it stays live`, using `renderHook` with a `QueryClient` spy.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.map transcript`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Export `plainText` from `detail.map.ts`, reusing its `CONTROLS` rule. Write `transcript.ts`, add the query, and add the Stopped and Finished branches.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.map transcript && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1277,7 +1277,7 @@ export const slowActionRuns: ReadonlySet<number>;                               
   - `failOnce`: the first request per page load fails like `fail`, and later requests succeed.
   - `slowActionRuns`: `runs.finish` / `runs.cancel` answer after 3,000 ms.
 
-- [ ] **Step 1: Write the failing fixture test**
+- [x] **Step 1: Write the failing fixture test**
 
 In `sessionRuns.test.ts`:
 - every run parses with `RunDto` and every entry with `RunTranscriptEntryDto`;
@@ -1286,12 +1286,12 @@ In `sessionRuns.test.ts`:
 - `TRANSCRIPT_LONG_RUN` has 1,000 entries;
 - stopped runs have `pauseReason: 'stopped'` and `sessionExpiresAt = pausedAt + 7 days`.
 
-- [ ] **Step 2: Run it and see it fail**
+- [x] **Step 2: Run it and see it fail**
 
 Run: `pnpm --filter @agentdesk/web test -- sessionRuns`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `mockDb.addTranscripts(byRunId)` to `db.ts`. Apply `transcriptBehaviours` in the `runs.transcript` handler and `slowActionRuns` in the finish and cancel handlers. Seed everything in `startMockWorker` next to the lifecycle runs. Add the constants and `SESSION_MOCK_NOW` to `e2e/mock/mock.ts`.
 
@@ -1300,7 +1300,7 @@ Add `mockDb.addTranscripts(byRunId)` to `db.ts`. Apply `transcriptBehaviours` in
 Run: `pnpm --filter @agentdesk/web test -- sessionRuns contract`, then `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/run.spec.ts`
 Expected: PASS. If a count in those specs moved because of the new runs, the specs need a different project or the counts need fixing. Fix the fixtures (another ticket or project), not the specs' intent.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1335,7 +1335,7 @@ export function useStopRun(org: string, projectId: string, opts?: { onError?(e: 
   - The live terminal mounts only for `live`.
   - Stop: `confirmingStop` state. `onStopOpen` opens it. `onStop` closes it and calls `stop.mutate(target)`. `stopping = stop.isPending`. A 409 toasts the server's message through `toastFromError`.
 
-- [ ] **Step 1: Write the failing route tests**
+- [x] **Step 1: Write the failing route tests**
 
 In `detail.route.test.tsx`, seeding with `mockDb.addRuns(sessionRunFixtures, sessionEventFixtures)` and `mockDb.addTranscripts(sessionTranscriptFixtures)`:
 - `a stopped run shows the Stopped notice and its Transcript, and never calls resume or opens a terminal socket`;
@@ -1349,19 +1349,19 @@ In `detail.route.test.tsx`, seeding with `mockDb.addRuns(sessionRunFixtures, ses
 - `Stop session waits while a finish is in flight`;
 - `a pausing run becoming paused refetches the transcript`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the mutation and the route wiring**
+- [x] **Step 3: Implement the mutation and the route wiring**
 
 - [ ] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.route realtime && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix

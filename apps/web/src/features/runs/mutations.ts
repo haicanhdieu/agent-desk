@@ -97,3 +97,25 @@ export function useResumeRun(org: string, projectId: string, { onError }: { onEr
     },
   });
 }
+
+/**
+ * Stop a live session: it parks as paused (stopped), resumable for the paused keep time. The API answers once the
+ * stop is accepted; the run then shows "Session ending…" and the park arrives on the run stream. Like a resume there
+ * is no pending note (a note lasts until the run is final, and a stopped run never is): `isPending` holds until the
+ * run, the lists and the project counts are refetched. A 409 (not started, already ending, not live) goes to
+ * `onError` with the server's message.
+ */
+export function useStopRun(org: string, projectId: string, { onError }: { onError?(e: unknown): void } = {}) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (run: RunRef) => api.runs.stop({ params: { runId: run.id } }),
+    onError: (e) => onError?.(e),
+    onSettled: async (_res, _e, run) => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: runsQueries.detail(org, projectId, run.number).queryKey }),
+        qc.invalidateQueries({ queryKey: listsKey(org, projectId) }),
+        qc.invalidateQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey, exact: true }),
+      ]);
+    },
+  });
+}

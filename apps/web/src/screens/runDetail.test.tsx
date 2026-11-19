@@ -631,6 +631,14 @@ describe('RunDetail Stop session', () => {
     expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
   });
 
+  it('the confirm stays closed when the run is no longer stoppable or is ending, even if it was open', () => {
+    const r = show('RunPaused', { stopConfirmOpen: true });
+    expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
+    r.unmount();
+    show('RunRunning', { stopConfirmOpen: true, data: { ...runDetails.RunRunning, pausing: true } });
+    expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
+  });
+
   it('the confirm has the title, the body with the keep time, Keep running and Stop session; Escape and Keep running call onStopClose; Stop session calls onStop', async () => {
     const onStopClose = vi.fn();
     const onStop = vi.fn();

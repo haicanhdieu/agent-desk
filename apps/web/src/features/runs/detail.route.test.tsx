@@ -3,6 +3,20 @@ import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { scrollbackText } from '@/mocks/dto/events';
 import { ids } from '@/mocks/dto/ids';
+import {
+  FINISHED_AFTER_PAUSE_RUN,
+  NOTHING_ENDED_RUN,
+  NOTHING_PAUSED_RUN,
+  SCROLLBACK_ENDED_RUN,
+  STOPPED_RUN,
+  STOP_IDLE_RUN,
+  STOP_RUNNING_RUN,
+  TRANSCRIPT_FLAKY_RUN,
+  TRANSCRIPT_LONG_RUN,
+  sessionEventFixtures,
+  sessionRunFixtures,
+  sessionTranscriptFixtures,
+} from '@/mocks/dto/sessionRuns';
 import { mockDb } from '@/mocks/msw/db';
 import { jsonResponse, routeHandler } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
@@ -451,16 +465,13 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
-  it('a pausing run shows its last scrollback greyed, as text, and opens no socket', async () => {
+  it('a pausing run shows the Transcript, not the last scrollback, and opens no socket', async () => {
     dbRun(IDLE).sessionEndingAt = iso(-5_000);
     pushEvent(IDLE, 'scrollback', { text: 'line one\n<b>line two</b>' });
     await renderRoute(`${base}/runs/${IDLE}`);
     await screen.findByText('Session ending…');
-    const log = await screen.findByRole('log');
-    expect(log).toHaveTextContent('line one');
-    expect(log).toHaveTextContent('<b>line two</b>');
-    expect(log.querySelector('b')).toBeNull();
-    expect(log.className).toMatch(/dimmed/);
+    expect(await screen.findByText('No conversation was saved for this run.')).toBeInTheDocument();
+    expect(screen.queryByText('line one')).not.toBeInTheDocument();
     expect(FakeWebSocket.instances).toHaveLength(0);
   });
 
@@ -587,5 +598,198 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
     await renderRoute(`${base}/runs/${SUCCEEDED}`);
     expect(await screen.findByText('Resume failed: nothing was kept to resume from')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+  });
+});
+
+describe('run detail route, stop session and the saved Transcript', () => {
+  const seed = () => {
+    mockDb.addRuns(sessionRunFixtures, sessionEventFixtures);
+    mockDb.addTranscripts(sessionTranscriptFixtures);
+  };
+  const open = async (n: number, opts?: Parameters<typeof renderRoute>[1]) => {
+    seed();
+    return renderRoute(`${base}/runs/${n}`, opts);
+  };
+  const transcriptCalls = (n: number) => mockDb.requests('GET', `/api/runs/${runId(n)}/transcript`);
+  const posts = (n: number, action: string) => mockDb.requests('POST', `/api/runs/${runId(n)}/${action}`);
+  const topButton = (name: string) => within(banner()).getByRole('button', { name });
+
+  it('a stopped run shows the Stopped notice and its Transcript, and never calls resume or opens a terminal socket', async () => {
+    await open(STOPPED_RUN);
+    expect(await screen.findByText(/^Stopped: can be resumed for /)).toBeInTheDocument();
+    expect(screen.getByText(/^Stopped by you /)).toBeInTheDocument();
+    const log = await screen.findByRole('log', { name: 'Transcript of the agent conversation' });
+    expect(within(log).getByText('Prompt')).toBeInTheDocument();
+    expect(within(log).getByText(/Add a refunds column to the weekly report/)).toBeInTheDocument();
+    expect(within(log).getByText('… (cut)')).toBeInTheDocument();
+    expect(screen.getByText('Paused, read-only')).toBeInTheDocument();
+    expect(posts(STOPPED_RUN, 'resume')).toBe(0);
+    expect(FakeWebSocket.instances).toHaveLength(0);
+  });
+
+  it('a paused run with no entries and stored scrollback falls back to Saved scrollback after the empty page', async () => {
+    // Run 95 ended with scrollback and no transcript: the empty first page leaves today's read-only terminal.
+    await open(SCROLLBACK_ENDED_RUN);
+    expect(await screen.findByText('Final scrollback')).toBeInTheDocument();
+    await waitFor(() => expect(transcriptCalls(SCROLLBACK_ENDED_RUN)).toBe(1));
+    expect(screen.queryByRole('log', { name: 'Transcript of the agent conversation' })).not.toBeInTheDocument();
+    expect(screen.queryByText('No conversation was saved for this run.')).not.toBeInTheDocument();
+  });
+
+  it('a run with neither shows No conversation was saved for this run. and the label Ended', async () => {
+    await open(NOTHING_ENDED_RUN);
+    expect(await screen.findByText('No conversation was saved for this run.')).toBeInTheDocument();
+    // The bar's indicator says Ended (not Ended, read-only); the side panel's Ended row is another element.
+    expect(screen.getAllByText('Ended').some((el) => el.tagName === 'SPAN' && el.querySelector('i'))).toBe(true);
+  });
+
+  it('a paused run with neither shows No conversation was saved for this run. and the label Paused', async () => {
+    await open(NOTHING_PAUSED_RUN);
+    expect(await screen.findByText('No conversation was saved for this run.')).toBeInTheDocument();
+    // The bar's indicator says Paused (not Paused, read-only).
+    expect(within(banner()).getByText('Paused')).toBeInTheDocument();
+    expect(screen.queryByText('Paused, read-only')).not.toBeInTheDocument();
+  });
+
+  it('the tab reads Transcript while loading and after a failed load; Retry refetches', async () => {
+    const { user } = await open(TRANSCRIPT_FLAKY_RUN);
+    expect(await screen.findByText("Couldn't load the transcript")).toBeInTheDocument();
+    expect(screen.getByText('Request ID req-123')).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Transcript' })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByRole('log', { name: 'Transcript of the agent conversation' })).toBeInTheDocument();
+    expect(transcriptCalls(TRANSCRIPT_FLAKY_RUN)).toBe(2);
+  });
+
+  it('Show earlier messages loads the older page', async () => {
+    const { user } = await open(TRANSCRIPT_LONG_RUN);
+    const log = await screen.findByRole('log', { name: 'Transcript of the agent conversation' });
+    expect(within(log).queryByText('Prompt')).not.toBeInTheDocument();
+    // 1,000 entries in pages of 200: four more pages reach the prompt, and then there is nothing earlier.
+    for (let page = 2; page <= 5; page += 1) {
+      await user.click(within(log).getByRole('button', { name: 'Show earlier messages' }));
+      await waitFor(() => expect(transcriptCalls(TRANSCRIPT_LONG_RUN)).toBe(page));
+    }
+    expect(await within(log).findByText('Prompt')).toBeInTheDocument();
+    expect(within(log).queryByRole('button', { name: 'Show earlier messages' })).not.toBeInTheDocument();
+  });
+
+  it('Stop session on an idle run posts at once and the page shows Session ending… after the refetch', async () => {
+    seed();
+    server.use(
+      routeHandler('runs.stop', async () => {
+        const run = dbRun(STOP_IDLE_RUN);
+        run.sessionEndingAt = new Date().toISOString();
+        return jsonResponse(null, 202);
+      }),
+    );
+    const { user } = await renderRoute(`${base}/runs/${STOP_IDLE_RUN}`);
+    await user.click(await screen.findByRole('button', { name: 'Stop session' }));
+    expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
+    expect(await screen.findByText('Session ending…')).toBeInTheDocument();
+    expect(posts(STOP_IDLE_RUN, 'stop')).toBe(1);
+  });
+
+  it('Stop session on a running run opens the confirm; Keep running posts nothing; Stop session posts', async () => {
+    const { user } = await open(STOP_RUNNING_RUN);
+    await user.click(await screen.findByRole('button', { name: 'Stop session' }));
+    const dialog = screen.getByRole('dialog', { name: 'Stop the session?' });
+    expect(dialog).toHaveTextContent('you can resume for 7 days.');
+    await user.click(within(dialog).getByRole('button', { name: 'Keep running' }));
+    expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
+    expect(posts(STOP_RUNNING_RUN, 'stop')).toBe(0);
+    await user.click(screen.getByRole('button', { name: 'Stop session' }));
+    const again = screen.getByRole('dialog', { name: 'Stop the session?' });
+    await user.click(within(again).getByRole('button', { name: 'Stop session' }));
+    await waitFor(() => expect(posts(STOP_RUNNING_RUN, 'stop')).toBe(1));
+    expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
+  });
+
+  it('an open Stop confirm does not reopen when the run pauses and is then running again', async () => {
+    const { user } = await open(STOP_RUNNING_RUN);
+    await user.click(await screen.findByRole('button', { name: 'Stop session' }));
+    expect(screen.getByRole('dialog', { name: 'Stop the session?' })).toBeInTheDocument();
+    const emit = (status: string, seq: number) =>
+      act(() =>
+        FakeEventSource.matching(`/api/runs/${runId(STOP_RUNNING_RUN)}/events`)
+          .at(-1)
+          ?.emit(
+            'status',
+            {
+              runId: runId(STOP_RUNNING_RUN),
+              number: STOP_RUNNING_RUN,
+              status,
+              seq,
+              exitCode: null,
+              failureReason: null,
+              waitingOn: null,
+              agentNote: null,
+              pausedAt: status === 'paused' ? new Date().toISOString() : null,
+              sessionExpiresAt: status === 'paused' ? new Date(Date.now() + 6 * 24 * 3_600_000).toISOString() : null,
+              sessionEndingAt: null,
+              pauseReason: status === 'paused' ? 'pod_lost' : null,
+            },
+            seq,
+          ),
+      );
+    emit('paused', 900);
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument());
+    emit('running', 901);
+    await within(banner()).findByRole('button', { name: 'Stop session' });
+    expect(screen.queryByRole('dialog', { name: 'Stop the session?' })).not.toBeInTheDocument();
+  });
+
+  it('a 409 from stop toasts The agent has not started yet', async () => {
+    const { user } = await open(STOP_IDLE_RUN, {
+      scenario: () => scenarios.problem('runs.stop', { status: 409, title: 'The agent has not started yet' }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Stop session' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('The agent has not started yet');
+  });
+
+  it('Stop session waits while a finish is in flight', async () => {
+    const release = holdAction('runs.finish');
+    const { user } = await open(STOP_IDLE_RUN);
+    await user.click((await screen.findAllByRole('button', { name: 'Finish run' }))[0] as HTMLElement);
+    await within(banner()).findByText('Finishing…');
+    expect(topButton('Stop session')).toBeDisabled();
+    release();
+  });
+
+  it('a pausing run becoming paused refetches the transcript', async () => {
+    seed();
+    dbRun(STOP_IDLE_RUN).sessionEndingAt = new Date(Date.now() - 5_000).toISOString();
+    await renderRoute(`${base}/runs/${STOP_IDLE_RUN}`);
+    await screen.findByText('Session ending…');
+    await waitFor(() => expect(transcriptCalls(STOP_IDLE_RUN)).toBe(1));
+    const source = FakeEventSource.matching(`/api/runs/${runId(STOP_IDLE_RUN)}/events`).at(-1);
+    if (!source) throw new Error('no stream');
+    act(() =>
+      source.emit(
+        'status',
+        {
+          runId: runId(STOP_IDLE_RUN),
+          number: STOP_IDLE_RUN,
+          status: 'paused',
+          seq: 900,
+          exitCode: null,
+          failureReason: null,
+          waitingOn: null,
+          agentNote: null,
+          pausedAt: new Date().toISOString(),
+          sessionExpiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
+          sessionEndingAt: null,
+          pauseReason: 'stopped',
+        },
+        900,
+      ),
+    );
+    expect(await screen.findByText(/^Stopped: can be resumed for /)).toBeInTheDocument();
+    await waitFor(() => expect(transcriptCalls(STOP_IDLE_RUN)).toBe(2));
+  });
+
+  it('a run finished after a pause says the session cannot be resumed', async () => {
+    await open(FINISHED_AFTER_PAUSE_RUN);
+    expect(await screen.findByText('Finished. The session was deleted and cannot be resumed.')).toBeInTheDocument();
   });
 });

@@ -188,6 +188,10 @@ export const mockDb = {
     state.runs.push(...structuredClone(runs));
     Object.assign(state.runEvents, structuredClone(events));
   },
+  /** Adds saved transcripts by run id, for the browser mock's extra fixtures. A reset drops them. */
+  addTranscripts(byRunId: Record<string, RunTranscriptEntryDto[]>): void {
+    Object.assign(state.runTranscripts, structuredClone(byRunId));
+  },
   /** Runs `hook` on every reset (live.ts stops scripted runs and drops stream listeners). */
   onReset(hook: () => void): void {
     resetHooks.push(hook);

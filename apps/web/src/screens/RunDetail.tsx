@@ -249,7 +249,7 @@ export function RunDetail({
         />
       </Popover>
       <Popover
-        open={!!stopConfirmOpen}
+        open={!!stopConfirmOpen && stoppable && data.pausing !== true}
         role="dialog"
         label="Stop the session?"
         onClose={onStopClose}

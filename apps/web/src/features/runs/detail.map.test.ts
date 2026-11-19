@@ -5,6 +5,7 @@ import { projectFixtures } from '@/mocks/dto/projects';
 import { runFixtures } from '@/mocks/dto/runs';
 import {
   pauseReasonText,
+  plainText,
   runDetailKey,
   SCROLLBACK_MAX_LINES,
   scrollbackLines,
@@ -827,5 +828,83 @@ describe('scrollbackLines', () => {
   it('no scrollback event (or a malformed one) → undefined', () => {
     expect(scrollbackLines([])).toBeUndefined();
     expect(scrollbackLines([ev(local(1, 0), 'scrollback', { text: 3 })])).toBeUndefined();
+  });
+});
+
+describe('toRunDetail, stopped and finished sessions', () => {
+  const MIN = 60_000;
+  const agoMs = (ms: number) => new Date(now.getTime() - ms).toISOString();
+  const aheadMs = (ms: number) => new Date(now.getTime() + ms).toISOString();
+  const stopped = (over: Partial<RunDto> = {}) =>
+    run({
+      status: 'paused',
+      startedAt: local(14, 0),
+      finishedAt: null,
+      idleSince: null,
+      pausedAt: agoMs(2 * MIN),
+      pauseReason: 'stopped',
+      sessionExpiresAt: aheadMs((6 * 24 * 60 + 23 * 60 + 58) * MIN),
+      ...over,
+    });
+  const status = (at: string, s: string) => ev(at, 'status', { status: s });
+
+  it("a stopped run's session is Stopped: can be resumed for 6 days. and Stopped by you 2 min ago.", () => {
+    const d = detail(stopped());
+    expect(d.session).toEqual({
+      state: 'paused',
+      stopped: true,
+      headline: 'Stopped: can be resumed for 6 days.',
+      detail: 'Stopped by you 2 min ago.',
+    });
+  });
+
+  it("a run paused by the idle timer keeps today's headline", () => {
+    const d = detail(stopped({ pauseReason: 'idle_timeout', agentNote: null }));
+    expect(d.session?.stopped).toBeUndefined();
+    expect(d.session?.headline).toBe('Paused: waiting for your answer. Can be resumed for 6 days.');
+  });
+
+  it('pausedKeep is 7 days for 604800 seconds', () => {
+    expect(detail(stopped({ pausedKeepSeconds: 604800 })).pausedKeep).toBe('7 days');
+    expect(detail(stopped({ pausedKeepSeconds: 3600 })).pausedKeep).toBe('1 hour');
+  });
+
+  describe('end note after a Finish', () => {
+    const succeeded = (over: Partial<RunDto> = {}) =>
+      run({
+        status: 'succeeded',
+        startedAt: local(11, 29, 7),
+        finishedAt: local(11, 30, 17),
+        sessionExpiresAt: null,
+        ...over,
+      });
+
+    it('a succeeded run with a paused status before it says Finished. The session was deleted and cannot be resumed.', () => {
+      const events = [
+        status(local(11, 10), 'paused'),
+        status(local(11, 20), 'running'),
+        status(local(11, 30), 'succeeded'),
+      ];
+      expect(detail(succeeded(), events).endNote?.body).toBe(
+        'Finished. The session was deleted and cannot be resumed.',
+      );
+    });
+
+    it("a succeeded run that never paused keeps today's body", () => {
+      const events = [status(local(11, 20), 'running'), status(local(11, 30), 'succeeded')];
+      expect(detail(succeeded(), events).endNote?.body).toBe('Finished at 11:30:17.');
+    });
+
+    it("a succeeded run with a kept session keeps today's body", () => {
+      const events = [status(local(11, 10), 'paused'), status(local(11, 30), 'succeeded')];
+      const r = succeeded({ sessionExpiresAt: aheadMs(60 * MIN) });
+      expect(detail(r, events).endNote?.body).toBe('Finished at 11:30:17.');
+    });
+  });
+});
+
+describe('plainText', () => {
+  it('strips U+202E and U+0007 and keeps newlines, tabs and runs of spaces', () => {
+    expect(plainText('a‮visible\u0007  b\n\tc     d')).toBe('avisible  b\n\tc     d');
   });
 });
