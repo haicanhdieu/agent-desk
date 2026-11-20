@@ -1,8 +1,12 @@
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
-import { and, eq, gte, inArray, sql } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, sql } from 'drizzle-orm';
 import { agents, projects, rules, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
   RuleTarget,
+  pageWindow,
+  toPage,
+  type Page,
+  type PageQuery,
   type PromptPreviewDto,
   type CreateRuleRequest,
   type RuleDto,
@@ -130,16 +134,31 @@ export class RulesService {
     ]);
   }
 
-  list(org: OrgContext, projectId: string): Promise<RuleDto[]> {
+  list(org: OrgContext, projectId: string, q: PageQuery): Promise<Page<RuleDto>> {
     return withOrg(this.db, org.orgId, async (tx) => {
       const project = (await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)))[0];
       if (!project) throw new NotFoundException('Project not found');
-      const rows = await tx.select().from(rules).where(eq(rules.projectId, projectId)).orderBy(rules.createdAt);
+      const { limit, offset } = pageWindow(q);
+      const [counted] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(rules)
+        .where(eq(rules.projectId, projectId));
+      const rows = await tx
+        .select()
+        .from(rules)
+        .where(eq(rules.projectId, projectId))
+        .orderBy(asc(rules.createdAt), asc(rules.id))
+        .limit(limit)
+        .offset(offset);
       const stats = await this.statsFor(
         tx,
         rows.map((r) => r.id),
       );
-      return rows.map((r) => this.toDto(r, stats.get(r.id)));
+      return toPage(
+        rows.map((r) => this.toDto(r, stats.get(r.id))),
+        counted?.total ?? 0,
+        q,
+      );
     });
   }
 

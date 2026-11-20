@@ -1,7 +1,7 @@
 <!-- dev-plan: kind=spec id=shared-pagination rev=2 hash=78d0477e708c source=issue#146 -->
 # Shared pagination for every data list (API and web): design
 
-Date: 2026-11-19 · Status: draft for approval · Source: issue #146 · Sensitive: no (no migration, no change to
+Date: 2026-11-19 · Status: draft for approval · Source: issue #146 · Sensitive: yes (one index migration; no change to
 `withOrg`/RLS, auth, webhooks, secrets, terminal or the run Job; existing list queries change shape but keep their
 org/project scope and authz)
 
@@ -136,8 +136,9 @@ None stated beyond the human's list of what is not a data list (the repo picker,
   where it has filters).
 - Agent call: skills are paged in memory in the API after the code host lists them, because the code host returns the
   whole skills folder and has no paging of its own.
-- Agent call: none of these orders needs a new index. Runs and ignored events already have matching indexes, and
-  projects, rules and setup versions are small per org or project. So there is no migration.
+- Agent call: one partial index on `inbound_events` (`project_id, received_at desc, id` where `outcome` starts with
+  `ignored_`) serves the Ignored list and the run stats count. Runs already have a matching index, and projects, rules
+  and setup versions are small per org or project. It is a plain `CREATE INDEX` because migrations run in one transaction.
 - These are breaking changes to the response shape, and the web app is the only client. Each list's contract, API and
   screen change must land together, or the web build breaks. The local e2e specs and API integration tests that read
   these routes change with them.
@@ -232,8 +233,8 @@ Showing 481–500 of 1,000      ‹ Previous  1  …  24  [25]  26  …  50  Nex
     kept for screen readers, and the arrows become square icon buttons;
   - under 790px: "Showing" is dropped (the range reads "481–500 of 1,000"), and the page buttons shrink to a narrow
     set: first, current and last, with "…" between them (`1 … 25 … 50`). The jump input and size select get narrower;
-  - under 590px: the range is hidden, and buttons, input and select use a smaller height and text size with tighter
-    gaps;
+  - under 590px: the range is hidden, the buttons use a smaller height and text size, and the input and select use a
+    smaller height, with tighter gaps;
   - under 360px: only the current page shows between the arrows;
   - it wraps to a second row only at 240px or below.
   The breakpoints and sizes are the board's. The builder maps its sizes to existing design tokens.
@@ -375,7 +376,7 @@ These rules are requirements. Each is what a user can see at the UI; the feature
 | BR-21 | conditional-display | When grouped by ticket is on, the member sees the page's runs grouped under ticket headers, and a ticket whose runs cross a page break shows its header again at the top of the next page.                                                          | spec Decided by the human, Screens Runs grouped |
 | BR-22 | calculation         | When a ticket group header is shown on any page, the member sees "N of max runs" counting all of that ticket's runs in the project, not only those on the page → the same N on both pages of a split ticket.                                          | spec Runs per ticket, Screens Runs grouped; board RunsPaged ("4 of 10 runs") |
 | BR-23 | calculation         | When a member views any page of the Runs screen, the chip counts (Needs you, Active, Queued, Ended, All, Ignored) are totals for the project, not for the page → e.g. Needs you 1, Active 2, Queued 1, Ended 59, All 63, Ignored 3 on page 4 of 4.   | spec Run list numbers from the server, Screens Runs grouped; board RunsPaged |
-| BR-24 | calculation         | When a member views any page of the Runs screen, the "Today: N runs, F failed" line counts runs queued since the member's local midnight and how many of those failed, whatever page is shown.                                                         | spec `runs.stats` (`today`, `since`); board RunsPaged |
+| BR-24 | calculation         | When a member views any page of the Runs screen, the "Today: N runs" line (with ", F failed" only when some failed) counts runs queued since the member's local midnight and how many of those failed, whatever page is shown.                                                         | spec `runs.stats` (`today`, `since`); board RunsPaged |
 | BR-25 | conditional-display | When the project has an idle run or queued runs, the member sees the needs-you banner on any page of the Runs screen, naming the newest idle run and the number of the oldest queued run ("Run 63 is waiting").                                       | spec `runs.stats` (`idleRun`, `nextQueuedNumber`); board RunsPaged |
 | BR-26 | conditional-display | When a member picks the Ignored chip with more than 20 ignored commands, they see the ignored rows paged with the control under them (e.g. "Showing 21–27 of 27" on page 2), no 100-row cap, and the chip count equals the total.                    | spec Screens Ignored; board RunsProblemsPaged |
 | BR-27 | conditional-display | When a member opens Needs you with more than 20 runs needing attention, they see the run cards paged ("Showing 21–21 of 21" on page 2), while the tab badge and title count still show the project's needs-you count.                                  | spec Screens Needs you; board NeedsYouPaged |
@@ -385,14 +386,14 @@ These rules are requirements. Each is what a user can see at the UI; the feature
 | BR-31 | calculation         | When the setup version history has more than 20 versions, the member sees the history paged with the control under it, and the header reads the real count ("23 versions"), not the number of rows on the page; loading, error and empty states show no control. | spec Screens Desk setup; boards DeskSetupPaged, DeskSetupVersionsLoading/Error/Empty |
 | BR-32 | limit               | When an org has more than 20 projects, the member sees up to 100 projects in the project switcher menu and in the Needs you page's project list, not only the first 20.                                                                              | spec Readers that need the whole set     |
 | BR-33 | limit               | When a project has more than 20 skills or rules, the member sees up to 100 of them in the Rules page's skill picker and in the Skills page's rule references, not only the first 20.                                                                  | spec Readers that need the whole set     |
-| BR-34 | validation          | When a member creates a skill or rule in the setup flow whose name matches an existing one beyond the first 20, the "already exists" check still finds it.                                                                                            | spec Readers that need the whole set     |
+| BR-34 | validation          | When a member creates a skill or rule in the setup flow whose name matches an existing one beyond the first 20, the check still finds it, so the step finishes and makes no duplicate.                                                                                            | spec Readers that need the whole set     |
 | BR-35 | limit               | When a ticket has more than 20 runs (up to the per-ticket maximum of 50), the member sees all of the ticket's runs in run detail's runs-of-the-same-ticket section, not 20.                                                                           | spec Readers that need the whole set     |
 | BR-36 | side-effect         | When a new run is queued while a member is on page 1 and the runs refetch, the member sees the new run at the top of page 1 and the range total grows by one; when a run on the current page changes status, its row shows the new status without a reload. | spec Web app State Live updates          |
 | BR-37 | permission          | When another org has rows in the same kind of list, a member sees totals, ranges, chip counts and pages that count and show only their own org's rows.                                                                                              | spec API rule Scope, Testing (API integration) |
 | BR-38 | navigation          | When the Runs screen has more than 20 runs created through the fake provider, a member sees page 2 showing the next runs and the chip counts matching the number of runs created.                                                                    | spec Testing E2E (local spec)            |
 | BR-39 | conditional-display | When the pagination control's own container is under 1070px wide, the member sees the "Go to page" and "Rows per page" labels and the "Previous"/"Next" words hidden visually (still announced to screen readers) and square icon arrow buttons, all still on one row. | spec `Pagination` One row at every width |
 | BR-40 | conditional-display | When the control's container is under 790px wide, the member sees "Showing" dropped from the range ("481–500 of 1,000") and a narrow page set of first, current and last with "…" between (`1 … 25 … 50`), with a narrower Go box and size select.     | spec `Pagination` One row at every width |
-| BR-41 | conditional-display | When the control's container is under 590px wide, the member no longer sees the range, and buttons, Go box and size select use a smaller height and text size with tighter gaps.                                                                      | spec `Pagination` One row at every width |
+| BR-41 | conditional-display | When the control's container is under 590px wide, the member no longer sees the range, the buttons use a smaller height and text size, and the Go box and size select use a smaller height, with tighter gaps.                                                                      | spec `Pagination` One row at every width |
 | BR-42 | conditional-display | When the control's container is under 360px wide, the member sees only the current page number between the arrows.                                                                                                                                   | spec `Pagination` One row at every width |
 | BR-43 | conditional-display | When the control's container is wider than 240px, the member sees it on one row at every width; at 240px or below it wraps to a second row.                                                                                                          | spec `Pagination` One row at every width |
 
@@ -426,7 +427,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 | TC-3.1 | boundary | mock | Projects screen with 20 projects | 1. Open Projects | All 20 rows shown; no page buttons, no Previous/Next, no "Go to page", no "Rows per page" chooser, no range text |
 | TC-3.2 | boundary | mock | Projects screen with 21 projects | 1. Open Projects | 20 rows shown; the control is shown under the table with page buttons and "Rows per page" |
 | TC-3.3 | positive | mock | Runs screen with 63 runs, "Rows per page" saved as 100 | 1. Open the Runs screen | All 63 runs shown on one page and the control is still shown including "Rows per page" |
-| TC-3.4 | state | mock | Runs screen with 63 runs, saved size 100 | 1. In "Rows per page" pick 20 | The list shows 20 runs and page buttons for 4 pages appear (the chooser let the member switch back) |
+| TC-3.4 | state | mock | Runs screen with 63 runs, saved size 100 | 1. In "Rows per page" pick 20 | The list shows 20 runs and the first, current and last page buttons for 4 pages appear: `1 2 … 4` on page 1 (the chooser let the member switch back) |
 | TC-3.5 | boundary | mock | Runs screen with 15 runs, saved size 20 | 1. Open the Runs screen | All 15 runs shown, no control |
 
 #### BR-4: Page buttons and gaps
@@ -444,7 +445,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-5.1 | positive | mock | Runs screen with 63 runs, on page 1 | 1. Click "Page 3" | Runs 41–60 shown; range reads "Showing 41–60 of 63"; "Page 3" is the current page; address holds `?page=3` |
+| TC-5.1 | positive | mock | Runs screen with 63 runs, on page 1 | 1. Click "Page 2" 2. Click "Page 3" | Runs 41–60 shown; range reads "Showing 41–60 of 63"; "Page 3" is the current page; address holds `?page=3` |
 | TC-5.2 | positive | mock | Runs screen on `?page=3` | 1. Click "Page 1" | Runs 1–20 shown; the address has no `page` parameter |
 | TC-5.3 | positive | mock | Projects screen with 26 projects | 1. Click "Page 2" | Rows 21–26 shown; "Showing 21–26 of 26"; address `?page=2` |
 
@@ -483,7 +484,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-9.1 | positive | mock | 63 runs, on page 1 | 1. Click "Page 3" 2. Reload the browser | Page 3 is still shown, same rows and range |
+| TC-9.1 | positive | mock | 63 runs, on page 1 | 1. Click "Page 2" 2. Click "Page 3" 3. Reload the browser | Page 3 is still shown, same rows and range |
 | TC-9.2 | positive | mock | 63 runs, on page 1 | 1. Click "Page 2" 2. Click "Page 3" 3. Press the browser Back button | Page 2 shown; address `?page=2` |
 | TC-9.3 | positive | mock | 63 runs | 1. Open the Runs screen address with `?page=2` in a fresh browser tab | Page 2 shown |
 | TC-9.4 | negative | mock | 63 runs | 1. Open the Runs screen with `?page=abc` | Page 1 shown |
@@ -628,8 +629,8 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-24.1 | positive | mock | Stats with 9 runs today, 1 failed | 1. Open page 4 | "Today: 9 runs, 1 failed" |
 | TC-24.2 | positive | mock | Same | 1. Open page 1 | The same Today line |
-| TC-24.3 | boundary | mock | No runs queued today | 1. Open the Runs screen | The Today line shows 0 runs and 0 failed |
-| TC-24.4 | positive | local | One run queued through the fake provider just now, none earlier today, and it has not failed | 1. Open the Runs screen | The Today line counts 1 run and 0 failed; runs queued before the member's local midnight are not counted (test environment: no way stated to back-date runs, so the before-midnight side is proven at the mock layer by TC-24.1 fixtures) |
+| TC-24.3 | boundary | mock | No runs queued today | 1. Open the Runs screen | The Today line shows "Today: 0 runs" (no failed part) |
+| TC-24.4 | positive | local | One run queued through the fake provider just now, none earlier today, and it has not failed | 1. Open the Runs screen | The Today line shows "Today: 1 run" (no failed part); runs queued before the member's local midnight are not counted (test environment: no way stated to back-date runs, so the before-midnight side is proven at the mock layer by TC-24.1 fixtures) |
 
 #### BR-25: Needs-you banner on any page
 
@@ -715,10 +716,10 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-34.1 | negative | local | 25 skills in the repo; the 25th by name is "zeta-skill" | 1. In the setup flow create a skill named zeta-skill | The flow reports that the name already exists; no skill is created |
-| TC-34.2 | negative | local | 25 routing rules; the 24th created is "late-rule" | 1. In the setup flow create a rule named late-rule | "already exists" is reported |
+| TC-34.1 | negative | local | 25 skills in the repo; the 25th by name is "zeta-skill" | 1. In the setup flow create a skill named zeta-skill | The step finishes and makes no duplicate (the setup flow quietly skips an item that already exists; it shows no "already exists" message) |
+| TC-34.2 | negative | local | 25 routing rules; the 24th created is "late-rule" | 1. In the setup flow create a rule named late-rule | The step finishes and makes no duplicate (the existing rule is skipped quietly) |
 | TC-34.3 | positive | local | Same skills | 1. Create a skill with a name not in the list | It is accepted (the check is not always on) |
-| TC-34.4 | negative | mock | 25 skills, name beyond the first 20 | 1. Create a skill with that name | "already exists" error, as TC-34.1, using mocked responses |
+| TC-34.4 | negative | mock | 25 skills, name beyond the first 20 | 1. Create a skill with that name | The step finishes and makes no duplicate, as TC-34.1, using mocked responses |
 
 #### BR-35: Same-ticket runs section
 
@@ -772,7 +773,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-41.1 | boundary | mock | 1,000 runs; container 590px | 1. Open Runs | The range text is shown |
-| TC-41.2 | boundary | mock | Container 589px | 1. Open Runs | The range is no longer shown; buttons, Go box and size select are smaller in height and text with tighter gaps; one row |
+| TC-41.2 | boundary | mock | Container 589px | 1. Open Runs | The range is no longer shown; the buttons are smaller in height and text, the Go box and size select are smaller in height, with tighter gaps; one row |
 
 #### BR-42: Container under 360px
 

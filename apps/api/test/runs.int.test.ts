@@ -6,9 +6,11 @@ import { UPDATE } from '@agentdesk/core';
 import { agents, inboundEvents, runEvents, runTranscriptEntries, runs, withOrg } from '@agentdesk/db';
 import type {
   IgnoredEventDto,
+  Page,
   RunDto,
   RunListResponse,
   RunLogResponse,
+  RunStatsDto,
   RunTranscriptResponse,
 } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
@@ -90,61 +92,214 @@ describe('runs list', () => {
     expect((await listRuns('', pid, bob)).statusCode).toBe(404);
   });
 
-  it('keyset pagination yields disjoint, complete pages even with identical queued_at', async () => {
+  async function seedRuns(n: number, over: Partial<typeof runs.$inferInsert> = {}) {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const base = Date.parse('2026-01-01T00:00:00.000Z');
+    // One bulk insert: distinct queued_at, the newest last inserted (so the list order is the reverse of insertion).
+    await withOrg(t.db, orgId, (tx) =>
+      tx.insert(runs).values(
+        Array.from({ length: n }, (_, i) => ({
+          orgId,
+          projectId: pid,
+          command: 'fix',
+          skillName: 'fix',
+          ticketRef: `bulk-${i}`,
+          ticketKind: 'issue' as const,
+          checkoutRef: 'refs/heads/main',
+          triggerSource: 'webhook' as const,
+          queuedAt: new Date(base + i * 1000),
+          ...over,
+        })),
+      ),
+    );
+    return pid;
+  }
+  const pageOf = async (query: string, pid: string, cookie = alice) =>
+    expectContract('runs.list', await listRuns(query, pid, cookie)) as RunListResponse;
+
+  it('pages runs: defaults, total, past the end', async () => {
+    const pid = await seedRuns(45);
+    const first = await pageOf('', pid);
+    expect(first).toMatchObject({ page: 1, pageSize: 20, total: 45 });
+    expect(first.items).toHaveLength(20);
+    expect((await pageOf('?page=3', pid)).items).toHaveLength(5);
+    const past = await listRuns('?page=4', pid);
+    expect(past.statusCode).toBe(200);
+    expect(past.json()).toMatchObject({ items: [], page: 4, total: 45 });
+  });
+
+  it('pages are disjoint and complete with identical queued_at, ordered by id', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     const same = new Date('2026-01-01T00:00:00.123Z');
-    const earlier = new Date('2025-12-31T00:00:00.000Z');
     const ids = new Set<string>();
     for (let i = 0; i < 7; i += 1) ids.add((await insertRun({ queuedAt: same }, pid)).id);
-    for (let i = 0; i < 2; i += 1) ids.add((await insertRun({ queuedAt: earlier }, pid)).id);
     const seen: string[] = [];
-    let cursor: string | null = null;
-    let pages = 0;
-    do {
-      const res = await listRuns(`?limit=2${cursor ? `&cursor=${cursor}` : ''}`, pid);
-      const page = expectContract('runs.list', res) as RunListResponse;
-      expect(page.items.length).toBeLessThanOrEqual(2);
-      seen.push(...page.items.map((r) => r.id));
-      cursor = page.nextCursor;
-      pages += 1;
-    } while (cursor && pages < 20);
-    expect(pages).toBe(5);
-    expect(new Set(seen).size).toBe(seen.length);
+    for (let page = 1; page <= 4; page += 1) {
+      const res = await pageOf(`?pageSize=2&page=${page}`, pid);
+      expect(res.items.length).toBe(page === 4 ? 1 : 2);
+      seen.push(...res.items.map((r) => r.id));
+    }
+    expect(seen).toHaveLength(7);
     expect(new Set(seen)).toEqual(ids);
-    // queued_at desc: the identical-timestamp rows come first, ties by id.
-    const tied = seen.slice(0, 7);
-    expect(tied).toEqual([...tied].sort());
+    expect(seen).toEqual([...seen].sort());
   });
 
-  it('tampered cursors with a valid shape but impossible date or bad uuid are 400 /cursor, never 500', async () => {
-    const uuid = randomUUID();
-    const enc = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
-    const bad = [
-      { t: '2026-99-99T99:99:99.000000Z', i: uuid },
-      { t: '2026-02-30T00:00:00.000000Z', i: uuid },
-      { t: '2026-01-01T25:00:00.000000Z', i: uuid },
-      { t: '2026-01-01T00:60:00.000000Z', i: uuid },
-      { t: '2026-01-01T00:00:61.000000Z', i: uuid },
-      { t: '2026-13-01T00:00:00.000000Z', i: uuid },
-      { t: '2026-01-01T00:00:00.000000Z', i: 'not-a-uuid' },
-      { t: '2026-01-01T00:00:00.000000Z', i: `${uuid}x` },
+  it('rejects page and pageSize out of bounds', async () => {
+    for (const q of ['?page=0', '?pageSize=101', '?pageSize=0', '?page=2147483648', '?limit=1000']) {
+      const res = await listRuns(q);
+      expect(res.statusCode, q).toBe(400);
+    }
+  });
+
+  it('total counts the filter and the ticket', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    for (const status of ['succeeded', 'failed', 'running', 'queued']) await insertRun({ status, ticketRef: 'T' }, pid);
+    await insertRun({ status: 'failed', ticketRef: 'U' }, pid);
+    const res = await pageOf('?filter=ended&ticket=T', pid);
+    expect(res.total).toBe(2);
+    expect(res.items.map((r) => r.ticket.ref)).toEqual(['T', 'T']);
+    expect((await pageOf('?filter=ended', pid)).total).toBe(3);
+  });
+
+  it("another org's runs are never counted", async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({}, pid);
+    expect((await pageOf('', pid)).total).toBe(1);
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    expect((await pageOf('', bobProject, bob)).total).toBe(0);
+  });
+});
+
+describe('runs.stats', () => {
+  const stats = (query: string, id = projectId, cookie = alice) =>
+    get(`/api/projects/${id}/runs/stats${query}`, cookie);
+  const SINCE = '2026-03-10T00:00:00.000Z';
+
+  async function seedMixed() {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const old = new Date('2026-01-01T00:00:00.000Z');
+    const statuses = [
+      'queued',
+      'starting',
+      'running',
+      'idle',
+      'paused',
+      'done',
+      'succeeded',
+      'succeeded',
+      'succeeded',
+      'failed',
+      'failed',
+      'expired',
     ];
-    for (const c of bad) {
-      const res = await listRuns(`?cursor=${enc(c)}`);
-      expect(res.statusCode, JSON.stringify(c)).toBe(400);
-      expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/cursor');
+    const made: (typeof runs.$inferSelect)[] = [];
+    for (const status of statuses) made.push(await insertRun({ status, queuedAt: old }, pid));
+    await withOrg(t.db, orgId, (tx) =>
+      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome)
+        select 'fake', 'poll', 'st-' || ${pid}::text || g, ${orgId}::uuid, ${pid}::uuid, 'ignored_no_command' from generate_series(1, 3) g`),
+    );
+    return { pid, made };
+  }
+
+  it('counts match the runs.list totals of each filter, plus the ignored events', async () => {
+    const { pid } = await seedMixed();
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.counts).toEqual({ needs_you: 2, active: 4, queued: 1, ended: 6, all: 12, ignored: 3 });
+    for (const [filter, n] of [
+      ['needs_you', 2],
+      ['active', 4],
+      ['queued', 1],
+      ['ended', 6],
+      ['all', 12],
+    ] as const) {
+      const list = expectContract('runs.list', await listRuns(`?filter=${filter}`, pid)) as RunListResponse;
+      expect(list.items, filter).toHaveLength(n);
     }
-    const ok = await listRuns(`?cursor=${enc({ t: '2026-02-28T23:59:59.999999Z', i: uuid })}`);
-    expect(ok.statusCode).toBe(200);
   });
 
-  it('malformed cursor is 400 with pointer /cursor; limit above the max is rejected', async () => {
-    for (const bad of ['!!!', 'e30', Buffer.from('{"t":"x","i":"y"}').toString('base64url')]) {
-      const res = await listRuns(`?cursor=${bad}`);
-      expect(res.statusCode).toBe(400);
-      expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/cursor');
-    }
-    expect((await listRuns('?limit=1000')).statusCode).toBe(400);
+  it('today counts runs queued at or after since, and failed ones among them', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({ status: 'succeeded', queuedAt: new Date('2026-03-10T00:00:00.000Z') }, pid);
+    await insertRun({ status: 'failed', queuedAt: new Date('2026-03-10T00:00:01.000Z') }, pid);
+    await insertRun({ status: 'failed', queuedAt: new Date('2026-03-09T23:59:59.000Z') }, pid);
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.today).toEqual({ total: 2, failed: 1 });
+    // 2026-03-10T02:00:00+02:00 is 2026-03-10T00:00:00Z, the same instant.
+    const offset = expectContract('runs.stats', await stats('?since=2026-03-10T02:00:00%2B02:00', pid)) as RunStatsDto;
+    expect(offset.today).toEqual({ total: 2, failed: 1 });
+    const later = expectContract('runs.stats', await stats('?since=2026-03-10T01:00:00%2B02:00', pid)) as RunStatsDto;
+    expect(later.today.total).toBe(3);
+  });
+
+  it('idleRun is the newest idle run as a list item, and null when none is idle', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const none = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(none.idleRun).toBeNull();
+    expect(none.nextQueuedNumber).toBeNull();
+    await insertRun({ status: 'idle', queuedAt: new Date('2026-01-01T00:00:00Z') }, pid);
+    const newest = await insertRun(
+      { status: 'idle', queuedAt: new Date('2026-02-01T00:00:00Z'), ticketRef: 'tk' },
+      pid,
+    );
+    await insertRun({ status: 'succeeded', queuedAt: new Date('2026-02-02T00:00:00Z'), ticketRef: 'tk' }, pid);
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.idleRun).toMatchObject({ id: newest.id, ticketRunCount: 2 });
+    expect(res.idleRun).not.toHaveProperty('prompt');
+  });
+
+  it('nextQueuedNumber is the number of the oldest queued run', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({ status: 'queued', queuedAt: new Date('2026-02-01T00:00:00Z') }, pid);
+    const oldest = await insertRun({ status: 'queued', queuedAt: new Date('2026-01-01T00:00:00Z') }, pid);
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.nextQueuedNumber).toBe(oldest.number);
+  });
+
+  it('a missing or malformed since is 400', async () => {
+    expect((await stats('')).statusCode).toBe(400);
+    expect((await stats('?since=yesterday')).statusCode).toBe(400);
+  });
+
+  it("another org's project is 404 and its runs never change this org's counts", async () => {
+    const { pid } = await seedMixed();
+    expect((await stats(`?since=${SINCE}`, pid, bob)).statusCode).toBe(404);
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    const before = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
+      .id;
+    await withOrg(t.db, bobOrg, (tx) =>
+      tx.insert(runs).values({
+        orgId: bobOrg,
+        projectId: bobProject,
+        command: 'fix',
+        skillName: 'fix',
+        ticketRef: 'b-1',
+        ticketKind: 'issue',
+        checkoutRef: 'refs/heads/main',
+        triggerSource: 'webhook',
+        status: 'idle',
+      }),
+    );
+    const after = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(after).toEqual(before);
+  });
+
+  it('GET .../runs/stats is not taken by runs.byNumber', async () => {
+    const res = await stats(`?since=${SINCE}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveProperty('counts');
+  });
+
+  it('runs.list items carry ticketRunCount across all statuses, whatever the filter', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({ ticketRef: 'T', status: 'succeeded' }, pid);
+    await insertRun({ ticketRef: 'T', status: 'queued' }, pid);
+    await insertRun({ ticketRef: 'T', status: 'queued' }, pid);
+    await insertRun({ ticketRef: 'U', status: 'queued' }, pid);
+    const res = expectContract('runs.list', await listRuns('?filter=queued', pid)) as RunListResponse;
+    const byTicket = new Map(res.items.map((r) => [r.ticket.ref, r.ticketRunCount]));
+    expect(res.items.filter((r) => r.ticket.ref === 'T').map((r) => r.ticketRunCount)).toEqual([3, 3]);
+    expect(byTicket.get('U')).toBe(1);
   });
 });
 
@@ -759,7 +914,7 @@ describe('transcript', () => {
 });
 
 describe('ignored list', () => {
-  it('returns only ignored_* outcomes for the project, newest first, max 100', async () => {
+  it('returns only ignored_* outcomes for the project, newest first', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     await withOrg(t.db, orgId, async (tx) => {
       const base = { provider: 'fake', channel: 'webhook', orgId, projectId: pid };
@@ -799,17 +954,82 @@ describe('ignored list', () => {
         { ...base, projectId: projectId, deliveryId: `d-${randomUUID()}`, outcome: 'ignored_no_rule' },
       ]);
     });
-    const items = expectContract('projects.ignored', await get(`/api/projects/${pid}/ignored`)) as IgnoredEventDto[];
+    const items = (
+      expectContract('projects.ignored', await get(`/api/projects/${pid}/ignored`)) as Page<IgnoredEventDto>
+    ).items;
     expect(items.map((i) => i.outcome)).toEqual(['ignored_unauthorized', 'ignored_no_command']);
     expect(items[0]).toMatchObject({ ticketRef: '10', author: 'mallory', command: 'fix', detail: 'not allowed' });
     expect(items[0]?.ticketKind).toBeNull();
+  });
 
-    const many = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+  async function seedIgnored(count: number): Promise<string> {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     await withOrg(t.db, orgId, (tx) =>
-      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome)
-        select 'fake', 'poll', 'bulk-' || g, ${orgId}::uuid, ${many}::uuid, 'ignored_no_command' from generate_series(1, 120) g`),
+      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome, received_at)
+        select 'fake', 'poll', 'bulk-' || ${pid} || '-' || g, ${orgId}::uuid, ${pid}::uuid, 'ignored_no_command',
+          timestamptz '2026-01-01T00:00:00Z' + ((g / 2) || ' seconds')::interval from generate_series(1, ${count}) g`),
     );
-    const capped = expectContract('projects.ignored', await get(`/api/projects/${many}/ignored`)) as IgnoredEventDto[];
-    expect(capped).toHaveLength(100);
+    return pid;
+  }
+  const ignoredPage = (query: string, pid: string, cookie = alice) =>
+    get(`/api/projects/${pid}/ignored${query}`, cookie);
+
+  it('pages the ignored list with a total and no 100 cap', async () => {
+    const pid = await seedIgnored(130);
+    const first = expectContract('projects.ignored', await ignoredPage('', pid)) as Page<IgnoredEventDto>;
+    expect(first).toMatchObject({ page: 1, pageSize: 20, total: 130 });
+    expect(first.items).toHaveLength(20);
+    const seventh = expectContract('projects.ignored', await ignoredPage('?page=7', pid)) as Page<IgnoredEventDto>;
+    expect(seventh.items).toHaveLength(10);
+    const past = await ignoredPage('?page=8', pid);
+    expect(past.statusCode).toBe(200);
+    expect(past.json()).toMatchObject({ items: [], page: 8, total: 130 });
+  });
+
+  it('orders newest received first with id ascending on ties, pages disjoint', async () => {
+    const pid = await seedIgnored(9);
+    const seen: IgnoredEventDto[] = [];
+    for (let page = 1; page <= 5; page += 1) {
+      const res = expectContract(
+        'projects.ignored',
+        await ignoredPage(`?pageSize=2&page=${page}`, pid),
+      ) as Page<IgnoredEventDto>;
+      seen.push(...res.items);
+    }
+    expect(seen).toHaveLength(9);
+    expect(new Set(seen.map((i) => i.id)).size).toBe(9);
+    for (let i = 1; i < seen.length; i += 1) {
+      const a = seen[i - 1];
+      const b = seen[i];
+      if (!a || !b) throw new Error('missing row');
+      expect(a.receivedAt >= b.receivedAt).toBe(true);
+      if (a.receivedAt === b.receivedAt) expect(a.id < b.id).toBe(true);
+    }
+  });
+
+  it('rejects page and pageSize out of bounds on the ignored list', async () => {
+    for (const q of ['?page=0', '?pageSize=101', '?pageSize=0', '?page=2147483648']) {
+      expect((await ignoredPage(q, projectId)).statusCode, q).toBe(400);
+    }
+  });
+
+  it('counts only the project events, not another org or project', async () => {
+    const pid = await seedIgnored(3);
+    expect((await ignoredPage('', pid, bob)).statusCode).toBe(404);
+    const before = (await ignoredPage('', pid)).json();
+    const sibling = await seedIgnored(5);
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
+      .id;
+    await withOrg(t.db, bobOrg, (tx) =>
+      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome, received_at)
+        select 'fake', 'poll', 'bob-' || g, ${bobOrg}::uuid, ${bobProject}::uuid, 'ignored_no_command',
+          timestamptz '2026-01-01T00:00:00Z' from generate_series(1, 4) g`),
+    );
+    expect((await ignoredPage('', sibling)).json()).toMatchObject({ total: 5 });
+    expect((await ignoredPage('', bobProject, bob)).json()).toMatchObject({ total: 4 });
+    const after = (await ignoredPage('', pid)).json();
+    expect(after).toMatchObject({ total: 3 });
+    expect(after).toEqual(before);
   });
 });

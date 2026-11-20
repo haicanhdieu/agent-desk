@@ -3,6 +3,9 @@ import { eq } from 'drizzle-orm';
 import { connections, projects, withOrg, type Db } from '@agentdesk/db';
 import {
   Provider,
+  slicePage,
+  type Page,
+  type PageQuery,
   type PutSkillRequest,
   type PutSkillResponse,
   type SkillDto,
@@ -55,9 +58,13 @@ export class SkillsService {
     };
   }
 
-  async list(org: OrgContext, projectId: string): Promise<SkillSummaryDto[]> {
+  async list(org: OrgContext, projectId: string, q: PageQuery): Promise<Page<SkillSummaryDto>> {
     const { host, project } = await this.codeHostFor(org, projectId);
-    return host.listSkills(project);
+    // Skill names are lowercase slugs, so code-unit order is A to Z.
+    const sorted = [...(await host.listSkills(project))].sort((a, b) =>
+      a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+    );
+    return slicePage(sorted, q);
   }
 
   async get(org: OrgContext, projectId: string, name: string): Promise<SkillDto> {

@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -224,6 +225,36 @@ describe('desk skills route', () => {
     expect(router.state.location.search).toEqual({});
   });
 
+  it('the delete dialog lists a rule beyond the first 20, from one whole-set read', async () => {
+    const template = mockDb.state.rules.find((r) => r.projectId === projectId);
+    if (!template) throw new Error('no seeded rule');
+    mockDb.state.rules = [
+      ...mockDb.state.rules.filter((r) => r.projectId !== projectId),
+      ...Array.from({ length: 25 }, (_, i) => ({
+        ...template,
+        id: ids.created(600 + i),
+        command: `rule-${String(i + 1).padStart(2, '0')}`,
+        skillName: i === 22 ? 'code-e2e' : 'code-build',
+      })),
+    ];
+    const reads: string[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (request.method === 'GET' && url.pathname === `/api/projects/${projectId}/rules`) reads.push(url.search);
+    };
+    server.events.on('request:start', listener);
+    try {
+      const { user } = await renderRoute(`${base}/skills?skill=code-e2e`);
+      await user.click(await screen.findByRole('button', { name: 'Delete skill' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete skill code-e2e?' });
+      expect(within(dialog).getByText('/rule-23')).toBeInTheDocument();
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(reads).toHaveLength(1);
+    expect(new URLSearchParams(reads[0]).get('pageSize')).toBe('100');
+  });
+
   it('renders skill text as text, never as HTML', async () => {
     skillRow('code-build').description = '<img src=x onerror="alert(1)">';
     await renderRoute(`${base}/skills`);
@@ -265,5 +296,88 @@ describe('project layout', () => {
     scenarios.serverError('skills.list');
     await renderRoute(`${base}/skills`);
     expect(await screen.findByRole('button', { name: /retry/i })).toBeInTheDocument();
+  });
+});
+
+describe('desk skills paging', () => {
+  const nameOf = (n: number) => `skill-${String(n).padStart(2, '0')}`;
+  /** Replaces the project's skills with `total` skills, skill-01 first. */
+  function seedSkills(total: number) {
+    mockDb.state.skills[projectId] = Array.from({ length: total }, (_, i) => ({
+      name: nameOf(i + 1),
+      description: `Skill ${i + 1}`,
+      path: `.claude/skills/${nameOf(i + 1)}/SKILL.md`,
+      lastCommit: { sha: 'a91c3e2', message: 'Add skills', at: '2026-11-10T14:00:00.000Z' },
+      body: `body of ${nameOf(i + 1)}`,
+      sha: `sha-${nameOf(i + 1)}`,
+    }));
+  }
+  const listed = () => within(screen.getByRole('navigation', { name: 'Skills' })).getAllByRole('link');
+
+  it('22 skills: 20 in the list with the control under it; Page 2 shows 2 and the open skill stays in the editor', async () => {
+    seedSkills(22);
+    const { user } = await renderRoute(`${base}/skills`);
+    const pagination = await screen.findByRole('navigation', { name: 'Pagination' });
+    expect(listed()).toHaveLength(20);
+    expect(pagination).toHaveTextContent('Showing 1–20 of 22');
+    expect(
+      screen.getByRole('navigation', { name: 'Skills' }).compareDocumentPosition(pagination) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const [page2] = screen.getAllByRole('button', { name: 'Page 2' });
+    if (!page2) throw new Error('no Page 2 button');
+    await user.click(page2);
+    await waitFor(() => expect(listed()).toHaveLength(2));
+    expect(listed().map((a) => a.textContent)).toEqual([
+      expect.stringContaining(nameOf(21)),
+      expect.stringContaining(nameOf(22)),
+    ]);
+    expect(screen.getByRole('heading', { level: 2, name: nameOf(1) })).toBeInTheDocument();
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`body of ${nameOf(1)}`);
+  });
+
+  it('while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+    seedSkills(22);
+    const { user } = await renderRoute(`${base}/skills`);
+    const pagination = await screen.findByRole('navigation', { name: 'Pagination' });
+    const page2Body = await (await fetch(`http://localhost:3000${skillsPath}?page=2&pageSize=20`)).json();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(`*${skillsPath}`, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('page') !== '2') return undefined;
+        await held;
+        return HttpResponse.json(page2Body);
+      }),
+    );
+    const [page2] = screen.getAllByRole('button', { name: 'Page 2' });
+    if (!page2) throw new Error('no Page 2 button');
+    await user.click(page2);
+    await waitFor(() => expect(pagination).toHaveAttribute('aria-busy', 'true'));
+    expect(listed()).toHaveLength(20);
+    expect(pagination).toHaveTextContent('Showing 1–20 of 22');
+    expect(within(pagination).getAllByRole('button', { name: 'Page 1' })[0]).toHaveAttribute('aria-current', 'page');
+    release();
+    await waitFor(() => expect(pagination).toHaveAttribute('aria-busy', 'false'));
+    expect(pagination).toHaveTextContent('Showing 21–22 of 22');
+    expect(within(pagination).getAllByRole('button', { name: 'Page 2' })[0]).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('?skill=<the 22nd skill> with no page opens it in the editor although it is not on page 1', async () => {
+    seedSkills(22);
+    await renderRoute(`${base}/skills?skill=${nameOf(22)}`);
+    expect(await screen.findByRole('heading', { level: 2, name: nameOf(22) })).toBeInTheDocument();
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`body of ${nameOf(22)}`);
+    expect(listed()).toHaveLength(20);
+  });
+
+  it('?page=4 with 22 skills goes to ?page=2', async () => {
+    seedSkills(22);
+    const { router } = await renderRoute(`${base}/skills?page=4`);
+    await waitFor(() => expect(router.state.location.search).toEqual({ page: '2' }));
+    await waitFor(() => expect(listed()).toHaveLength(2));
   });
 });

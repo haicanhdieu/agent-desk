@@ -1,7 +1,7 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api';
-import { setupQueries } from './queries';
+import { setupQueries, versionsKey } from './queries';
 
 // Setup script saves and test workspaces (spec §5.5). No optimistic updates: the cache takes what the server answers.
 
@@ -29,7 +29,7 @@ export function useSaveSetupScript(org: string, projectId: string) {
     onSuccess: async (saved) => {
       qc.setQueryData(setupQueries.script(org, projectId).queryKey, saved);
       await Promise.all([
-        qc.invalidateQueries({ queryKey: setupQueries.versions(org, projectId).queryKey }),
+        qc.invalidateQueries({ queryKey: versionsKey(org, projectId) }),
         qc.invalidateQueries({ queryKey: setupQueries.latest(org, projectId).queryKey }),
       ]);
     },

@@ -1,14 +1,19 @@
-import type { RunDto, RunEventDto, RunListFilter, RunListItem, RunTranscriptResponse } from '@agentdesk/contracts';
+import type {
+  Page,
+  PageQuery,
+  RunDto,
+  RunEventDto,
+  RunListFilter,
+  RunListItem,
+  RunStatsDto,
+  RunTranscriptResponse,
+} from '@agentdesk/contracts';
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { api } from '../api';
 import { withPendingNote } from './pending';
 
-/** The contract's maximum page size. */
-export const RUN_LIST_PAGE_SIZE = 100;
 /** The transcript's page size (the route's default). */
 export const TRANSCRIPT_PAGE_SIZE = 200;
-/** Cap on pages fetched per list (1000 runs). */
-export const RUN_LIST_MAX_PAGES = 10;
 
 /**
  * A run as cached: the list item plus `statusNote`, a client-only note while a cancel or finish is pending
@@ -16,50 +21,61 @@ export const RUN_LIST_MAX_PAGES = 10;
  * (pending.ts).
  */
 export type CachedRun = RunListItem & { statusNote?: string };
+/** A run without the list-only `ticketRunCount`: what the list rows and the detail have in common. */
+export type RunCore = Omit<RunListItem, 'ticketRunCount'>;
 /** A run as cached by the detail query: the full DTO (with the prompt texts) plus `statusNote`. */
 export type CachedRunDetail = RunDto & { statusNote?: string };
 
-export interface RunList {
-  items: CachedRun[];
-  /** More runs exist beyond the page cap. */
-  truncated: boolean;
+/** One page of a runs list, as cached. */
+export type RunList = Page<CachedRun>;
+
+/** Which page of a runs list: the filter, the ticket ref (the provider-local ticket number like `12`) and the page. */
+export interface RunListParams {
+  filter: RunListFilter;
+  ticket?: string;
+  page: number;
+  pageSize: number;
 }
 
 const projectKey = (org: string, projectId: string) => ['org', org, 'projects', projectId] as const;
 export const runsKey = (org: string, projectId: string) => [...projectKey(org, projectId), 'runs'] as const;
+/** Prefix of every cached `runs.stats` query (one per `since`). */
+export const runStatsKey = (org: string, projectId: string) => [...runsKey(org, projectId), 'stats'] as const;
 
 // Keys per spec §4.2. Runs queries refetch on window focus (as do the connection queries and, for its counts,
 // `projectsQueries.detail`).
 export const runsQueries = {
   /**
-   * Every run matching `filter` (and `ticket`, the ticket ref: the provider-local ticket number like `12`), newest
-   * first. The API pages by cursor; this follows `nextCursor` for up to `RUN_LIST_MAX_PAGES` pages of `RUN_LIST_PAGE_SIZE`. `truncated` is
-   * true when runs beyond that cap exist (logged in CONTRACT-GAPS.md; there is no aggregate count route).
-   * A failed page fails the whole query, and Query's retry starts again from page 1: keeping fetched pages across
-   * retries would need state outside the query function (or useInfiniteQuery, whose pages the screens don't need),
-   * and a fresh walk also avoids stitching pages from different moments. At most 10 pages, so the cost is bounded.
+   * One page of the runs matching `filter` (and `ticket`), newest first, with the total the server counted. The page
+   * is the last part of the key, so every page of every list is covered by the `...'list'` prefix.
    */
-  list: (org: string, projectId: string, filter: RunListFilter, ticket?: string) =>
+  list: (org: string, projectId: string, p: RunListParams) =>
     queryOptions({
-      queryKey: [...runsKey(org, projectId), 'list', filter, ...(ticket === undefined ? [] : [ticket])] as const,
+      queryKey: [...runsKey(org, projectId), 'list', p.filter, p.ticket ?? null, p.page, p.pageSize] as const,
       queryFn: async ({ client }): Promise<RunList> => {
-        const items: CachedRun[] = [];
-        let cursor: string | undefined;
-        for (let page = 0; page < RUN_LIST_MAX_PAGES; page += 1) {
-          const res = await api.runs.list({
-            params: { projectId },
-            query: {
-              filter,
-              limit: RUN_LIST_PAGE_SIZE,
-              ...(ticket !== undefined && { ticket }),
-              ...(cursor !== undefined && { cursor }),
-            },
-          });
-          items.push(...res.items.map((r) => withPendingNote(client, r)));
-          if (res.nextCursor === null) return { items, truncated: false };
-          cursor = res.nextCursor;
-        }
-        return { items, truncated: true };
+        const res = await api.runs.list({
+          params: { projectId },
+          query: {
+            filter: p.filter,
+            page: p.page,
+            pageSize: p.pageSize,
+            ...(p.ticket !== undefined && { ticket: p.ticket }),
+          },
+        });
+        return { ...res, items: res.items.map((r) => withPendingNote(client, r)) };
+      },
+      refetchOnWindowFocus: true,
+    }),
+  /**
+   * The Run list's numbers: chip counts, today's runs since `since` (the start of the local day), the newest idle run
+   * and the oldest queued run's number. Applying a status change invalidates it (applyEvents).
+   */
+  stats: (org: string, projectId: string, since: string) =>
+    queryOptions({
+      queryKey: [...runStatsKey(org, projectId), since] as const,
+      queryFn: async ({ client }): Promise<RunStatsDto> => {
+        const stats = await api.runs.stats({ params: { projectId }, query: { since } });
+        return { ...stats, idleRun: stats.idleRun && withPendingNote(client, stats.idleRun) };
       },
       refetchOnWindowFocus: true,
     }),
@@ -114,9 +130,9 @@ export const runsQueries = {
       // instead of a skeleton for the retry delays; the person's Retry is the retry.
       retry: false,
     }),
-  ignored: (org: string, projectId: string) =>
+  ignored: (org: string, projectId: string, q: PageQuery) =>
     queryOptions({
-      queryKey: [...projectKey(org, projectId), 'ignored'] as const,
-      queryFn: () => api.projects.ignored({ params: { projectId } }),
+      queryKey: [...projectKey(org, projectId), 'ignored', q.page, q.pageSize] as const,
+      queryFn: () => api.projects.ignored({ params: { projectId }, query: q }),
     }),
 };

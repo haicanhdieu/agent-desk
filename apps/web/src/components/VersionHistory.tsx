@@ -10,8 +10,10 @@ export interface ScriptVersion {
 }
 
 export interface VersionHistoryProps {
-  /** Newest first. The first entry is the current version. */
+  /** Newest first. */
   versions: ScriptVersion[];
+  /** The newest version overall. Only its row is marked current; a later page of a paged history has none. Defaults to the first row. */
+  currentVersion?: number;
   loading?: boolean;
   error?: string;
   onView?(version: number): void;
@@ -19,7 +21,7 @@ export interface VersionHistoryProps {
   onRestore?(version: number): void;
 }
 
-export function VersionHistory({ versions, loading, error, onView, onRestore }: VersionHistoryProps) {
+export function VersionHistory({ versions, currentVersion, loading, error, onView, onRestore }: VersionHistoryProps) {
   if (loading)
     return (
       <div role="status" aria-busy="true">
@@ -32,8 +34,8 @@ export function VersionHistory({ versions, loading, error, onView, onRestore }: 
     return <p className={styles.listNote}>No versions yet. The first save creates version 1.</p>;
   return (
     <ol className={styles.versions} aria-label="Setup script versions">
-      {versions.map((v, i) => {
-        const current = i === 0;
+      {versions.map((v) => {
+        const current = v.version === (currentVersion ?? versions[0]?.version);
         return (
           <li
             key={v.version}

@@ -10,7 +10,7 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { projectsQueries } from '../projects/queries';
 import { isFinal } from './map';
 import { clearPendingAction } from './pending';
-import { runsKey, runsQueries, type CachedRun, type RunList } from './queries';
+import { runStatsKey, runsKey, runsQueries, type RunCore, type RunList } from './queries';
 
 // Applying realtime messages (spec §5.1, §5.2) to the Query cache. Both streams patch through `applyRunStatus`, which
 // is idempotent: the run stream and the project stream deliver the same status change, and the second one finds the
@@ -41,7 +41,7 @@ const listsKey = (org: string, projectId: string) => [...runsKey(org, projectId)
  * The run with the new status. Timestamps the event does not carry are approximated with the client clock (the
  * detail is refetched when the run ends); a pending note ("Cancelling…") rides along.
  */
-function patched<T extends CachedRun>(run: T, e: StatusChange): T {
+function patched<T extends RunCore>(run: T, e: StatusChange): T {
   const at = new Date().toISOString();
   const status = e.status;
   return {
@@ -96,7 +96,7 @@ const countedIn = (key: CountKey, status: RunStatus): boolean => {
 };
 
 /** The run as cached, from its detail or any runs list row. */
-function cachedRun(qc: QueryClient, org: string, projectId: string, e: StatusChange): CachedRun | undefined {
+function cachedRun(qc: QueryClient, org: string, projectId: string, e: StatusChange): RunCore | undefined {
   const detail = qc.getQueryData(runsQueries.detail(org, projectId, e.number).queryKey);
   if (detail) return detail;
   for (const [, list] of qc.getQueriesData<RunList>({
@@ -108,10 +108,27 @@ function cachedRun(qc: QueryClient, org: string, projectId: string, e: StatusCha
   return undefined;
 }
 
-/** A list key's filter and ticket: ['org', org, 'projects', id, 'runs', 'list', filter, ticket?]. */
-function listScope(key: QueryKey): { filter: RunListFilter; ticket: unknown } | undefined {
+/** A list key's filter and ticket: ['org', org, 'projects', id, 'runs', 'list', filter, ticket | null, page, pageSize]. */
+function listScope(key: QueryKey): { filter: RunListFilter; ticket: string | undefined } | undefined {
   const filter = RunListFilter.safeParse(key[6]);
-  return filter.success ? { filter: filter.data, ticket: key[7] } : undefined;
+  if (!filter.success) return undefined;
+  const ticket = key[7];
+  return { filter: filter.data, ticket: typeof ticket === 'string' ? ticket : undefined };
+}
+
+/**
+ * Whether a status change may have added a run to, or removed one from, a list that does not hold it. With the run's
+ * previous status known, that is a change of the filter's membership on the run's own ticket. An uncached run's
+ * ticket and previous status are unknown: every ticket list its new status fits may hold it.
+ */
+function mayChangeMembership(
+  scope: { filter: RunListFilter; ticket: string | undefined },
+  before: RunCore | undefined,
+  to: RunStatus,
+): boolean {
+  if (before === undefined) return matches(scope.filter, to);
+  if (scope.ticket !== undefined && scope.ticket !== before.ticket.ref) return false;
+  return matches(scope.filter, to) !== matches(scope.filter, before.status);
 }
 
 /**
@@ -124,8 +141,9 @@ const leavesFinal = (from: RunStatus, to: RunStatus): boolean =>
 
 /**
  * Applies a status change to the run's detail and its row in every cached runs list, and moves the project counts.
- * A row that no longer matches its list's filter leaves the list; a list the run now belongs to but does not hold
- * (or whose membership cannot be told) is invalidated, as is the project when the run's previous status is unknown.
+ * A row that no longer matches its list's filter stays patched and its page is invalidated; so is a page that does
+ * not hold the run but whose filter the run joined or left (or may have: an uncached run), as is the project when
+ * the run's previous status is unknown.
  * A final status ends a pending cancel or finish (its note goes) after the patch.
  */
 export function applyRunStatus(qc: QueryClient, org: string, projectId: string, e: StatusChange): void {
@@ -151,25 +169,25 @@ export function applyRunStatus(qc: QueryClient, org: string, projectId: string, 
   })) {
     if (!list) continue;
     const scope = listScope(key);
-    const has = list.items.some((r) => r.id === e.runId);
-    if (has) {
-      const keep = scope === undefined || matches(scope.filter, e.status);
-      const items = keep
-        ? list.items.map((r) => (r.id === e.runId ? patched(r, e) : r))
-        : list.items.filter((r) => r.id !== e.runId);
-      qc.setQueryData<RunList>(key, { ...list, items });
+    // Pages are offset windows: a run that enters or leaves a filter shifts every later row and changes the total, so
+    // only the server can say what a page now holds. A page the change cannot touch is left alone.
+    const refetch = () => void qc.invalidateQueries({ queryKey: key, exact: true });
+    if (list.items.some((r) => r.id === e.runId)) {
+      // The row is patched in place (it may leave its filter: it stays until the refetch refills the page).
+      qc.setQueryData<RunList>(key, {
+        ...list,
+        items: list.items.map((r) => (r.id === e.runId ? patched(r, e) : r)),
+      });
+      if (changed && scope !== undefined && !matches(scope.filter, e.status)) refetch();
     } else if (!changed) {
       continue;
-    } else if (
-      scope === undefined ||
-      (matches(scope.filter, e.status) &&
-        (scope.ticket === undefined || before === undefined || scope.ticket === before.ticket.ref))
-    ) {
-      // The run belongs here now (an uncached run's ticket is unknown, so every ticket list may hold it): only the
-      // server has the row and its position.
-      void qc.invalidateQueries({ queryKey: key, exact: true });
+    } else if (scope === undefined || mayChangeMembership(scope, before, e.status)) {
+      refetch();
     }
   }
+
+  // The Run list's numbers (chips, Today, banner) are the server's: a change of status moves them.
+  if (changed) void qc.invalidateQueries({ queryKey: runStatsKey(org, projectId) });
 
   const project = projectsQueries.detail(org, projectId).queryKey;
   if (before === undefined) {

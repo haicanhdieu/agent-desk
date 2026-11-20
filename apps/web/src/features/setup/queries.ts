@@ -15,6 +15,6 @@ export const setupQueries = {
       queryFn: () => api.connections.repos({ params: { connectionId } }),
     }),
   agent: deskQueries.agent,
-  skills: deskQueries.skills,
-  rules: deskQueries.rules,
+  skills: deskQueries.allSkills,
+  rules: deskQueries.allRules,
 };

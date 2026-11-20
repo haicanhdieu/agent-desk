@@ -1,5 +1,5 @@
 import { Banner, Button, Icon, type IconName } from '@/ds';
-import { DataTable, EmptyState, IgnoredRow } from '@/components';
+import { DataTable, EmptyState, IgnoredRow, Pagination, type PaginationProps } from '@/components';
 import type { IgnoredCommand } from '@/mocks/types';
 import { RunsPage, type RunsPageProps } from './RunsPage';
 import styles from './Screens.module.css';
@@ -23,6 +23,8 @@ export interface RunsProblemsProps extends Omit<RunsPageProps, 'children' | 'ban
   filter?: 'ignored';
   warnings: RunsProblemsWarning[];
   ignored: IgnoredCommand[];
+  /** The page control, drawn directly under the ignored rows; the table is aria-busy while it loads. */
+  pagination?: PaginationProps;
 }
 
 const columns = [
@@ -34,7 +36,7 @@ const columns = [
   { key: 'actions', header: <span className="sr-only">Actions</span> },
 ];
 
-export function RunsProblems({ warnings, ignored, filter = 'ignored', ...page }: RunsProblemsProps) {
+export function RunsProblems({ warnings, ignored, filter = 'ignored', pagination, ...page }: RunsProblemsProps) {
   return (
     <RunsPage
       {...page}
@@ -64,11 +66,14 @@ export function RunsProblems({ warnings, ignored, filter = 'ignored', ...page }:
       {ignored.length === 0 ? (
         <EmptyState title="No ignored commands" />
       ) : (
-        <DataTable columns={columns}>
-          {ignored.map((item, i) => (
-            <IgnoredRow key={`${i}-${item.at}-${item.ticket.number}-${item.command}`} item={item} />
-          ))}
-        </DataTable>
+        <>
+          <DataTable columns={columns} busy={pagination?.busy}>
+            {ignored.map((item, i) => (
+              <IgnoredRow key={`${i}-${item.at}-${item.ticket.number}-${item.command}`} item={item} />
+            ))}
+          </DataTable>
+          {pagination && <Pagination {...pagination} />}
+        </>
       )}
     </RunsPage>
   );

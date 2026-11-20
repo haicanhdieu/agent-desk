@@ -1,5 +1,6 @@
 import type { SetupTestDto } from '@agentdesk/contracts';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { setupScript } from '@/mocks/setup';
@@ -65,6 +66,97 @@ describe('desk setup route', () => {
     const history = await screen.findByRole('list', { name: 'Setup script versions' });
     expect(within(history).getByText('Restore .NET tools before restore')).toBeInTheDocument();
     expect(screen.getByText('Not tested yet')).toBeInTheDocument();
+  });
+
+  describe('paged version history', () => {
+    const nav = () => screen.getByRole('navigation', { name: 'Pagination' });
+    const versionRows = () =>
+      within(screen.getByRole('list', { name: 'Setup script versions' })).getAllByRole('listitem');
+    function seedVersions(count: number) {
+      mockDb.state.setupScripts[projectId] = Array.from({ length: count }, (_, i) => ({
+        version: i + 1,
+        body: `echo ${i + 1}`,
+        note: `Change ${i + 1}`,
+        createdBy: 'kim-hale',
+        createdAt: new Date(Date.UTC(2026, 0, 1, 0, i)).toISOString(),
+      }));
+    }
+
+    it('23 versions: the header reads "23 versions" with 20 rows; Page 2 shows 3 rows', async () => {
+      seedVersions(23);
+      const { user, router } = await renderRoute(base());
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(screen.getByText('23 versions')).toBeInTheDocument();
+      expect(versionRows()).toHaveLength(20);
+      await user.click(screen.getAllByRole('button', { name: 'Page 2' })[0] as HTMLElement);
+      await waitFor(() => expect(versionRows()).toHaveLength(3));
+      expect(router.state.location.search).toEqual({ page: '2' });
+      expect(nav()).toHaveTextContent('Showing 21–23 of 23');
+      expect(screen.getByText('23 versions')).toBeInTheDocument();
+    });
+
+    it('while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+      seedVersions(23);
+      const { user } = await renderRoute(base());
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      const versionsApi = `${scriptPath()}/versions`;
+      const page2Body = await (await fetch(`http://localhost:3000${versionsApi}?page=2&pageSize=20`)).json();
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.get(`*${versionsApi}`, async ({ request }) => {
+          if (new URL(request.url).searchParams.get('page') !== '2') return undefined;
+          await held;
+          return HttpResponse.json(page2Body);
+        }),
+      );
+      await user.click(screen.getAllByRole('button', { name: 'Page 2' })[0] as HTMLElement);
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
+      expect(versionRows()).toHaveLength(20);
+      expect(nav()).toHaveTextContent('Showing 1–20 of 23');
+      expect(within(nav()).getAllByRole('button', { name: 'Page 1' })[0]).toHaveAttribute('aria-current', 'page');
+      release();
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'false'));
+      expect(nav()).toHaveTextContent('Showing 21–23 of 23');
+      expect(within(nav()).getAllByRole('button', { name: 'Page 2' })[0]).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('marks "current" only on the newest version: page 1 first row, never on page 2', async () => {
+      seedVersions(23);
+      const { user } = await renderRoute(base());
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(within(versionRows()[0] as HTMLElement).getByText(/· current/)).toBeInTheDocument();
+      await user.click(screen.getAllByRole('button', { name: 'Page 2' })[0] as HTMLElement);
+      await waitFor(() => expect(versionRows()).toHaveLength(3));
+      expect(screen.queryByText(/· current/)).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Restore version 3' })).toBeInTheDocument();
+    });
+
+    it('?page=5 is replaced by ?page=2', async () => {
+      seedVersions(23);
+      const { router } = await renderRoute(`${base()}?page=5`);
+      await waitFor(() => expect(router.state.location.search).toEqual({ page: '2' }));
+      await waitFor(() => expect(versionRows()).toHaveLength(3));
+    });
+
+    it('a project with 0 versions shows no pagination control', async () => {
+      await renderRoute(base(emptyProjectId));
+      await screen.findByText('No versions yet. The first save creates version 1.');
+      expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+    });
+
+    it('while loading and when failing there is no pagination control', async () => {
+      seedVersions(23);
+      scenarios.serverError('setupScript.versions', { delayMs: 150 });
+      await renderRoute(base());
+      await screen.findByLabelText('Setup script');
+      expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+      expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+      expect(await screen.findByText('Could not load the version history. Reload to try again.')).toBeInTheDocument();
+      expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+    });
   });
 
   it('the Desk nav links to workspace setup', async () => {

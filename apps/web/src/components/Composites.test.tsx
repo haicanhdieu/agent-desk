@@ -272,6 +272,13 @@ describe('SkillList', () => {
     expect(onNew).toHaveBeenCalled();
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);
   });
+  it('draws the footer under the list, outside the Skills navigation landmark', () => {
+    render(<SkillList skills={skills} branch="main" footer={<p>Footer text</p>} />);
+    const footer = screen.getByText('Footer text');
+    const nav = screen.getByRole('navigation', { name: 'Skills' });
+    expect(nav).not.toContainElement(footer);
+    expect(screen.getByRole('list').compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
 });
 
 describe('SkillList header stays in view', () => {

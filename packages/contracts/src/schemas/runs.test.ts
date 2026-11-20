@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RunStatusEvent } from './events';
 import { PauseReason, STOPPABLE_RUN_STATUSES } from '../enums';
-import { RunDto } from './runs';
+import { RunDto, RunListItem, RunStatsDto, RunStatsQuery } from './runs';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-11-16T10:00:00.000Z';
@@ -125,5 +125,40 @@ describe('stopped runs', () => {
   it('requires pausedKeepSeconds', () => {
     const { pausedKeepSeconds: _omit, ...rest } = run;
     expect(RunDto.safeParse(rest).success).toBe(false);
+  });
+});
+
+describe('RunListItem ticketRunCount', () => {
+  const { prompt: _p, finalPrompt: _f, ...item } = run;
+
+  it('requires the count of runs the ticket has had', () => {
+    expect(RunListItem.safeParse(item).success).toBe(false);
+    expect(RunListItem.safeParse({ ...item, ticketRunCount: 0 }).success).toBe(false);
+    const ok = RunListItem.safeParse({ ...item, ticketRunCount: 3 });
+    expect(ok.success && ok.data.ticketRunCount).toBe(3);
+  });
+
+  describe('RunStatsDto', () => {
+    const stats = {
+      counts: { needs_you: 2, active: 4, queued: 1, ended: 6, all: 12, ignored: 3 },
+      today: { total: 2, failed: 1 },
+      idleRun: { ...item, ticketRunCount: 1 },
+      nextQueuedNumber: 7,
+    };
+
+    it('parses a full example and null idleRun and nextQueuedNumber', () => {
+      expect(RunStatsDto.safeParse(stats).success).toBe(true);
+      expect(RunStatsDto.safeParse({ ...stats, idleRun: null, nextQueuedNumber: null }).success).toBe(true);
+    });
+
+    it('rejects a negative count', () => {
+      expect(RunStatsDto.safeParse({ ...stats, today: { total: -1, failed: 0 } }).success).toBe(false);
+    });
+
+    it('needs a since timestamp', () => {
+      expect(RunStatsQuery.safeParse({}).success).toBe(false);
+      expect(RunStatsQuery.safeParse({ since: 'yesterday' }).success).toBe(false);
+      expect(RunStatsQuery.safeParse({ since: NOW }).success).toBe(true);
+    });
   });
 });

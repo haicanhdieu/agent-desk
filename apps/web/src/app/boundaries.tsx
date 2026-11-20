@@ -2,8 +2,8 @@ import { ApiError } from '@agentdesk/contracts/client';
 import { useQueryErrorResetBoundary } from '@tanstack/react-query';
 import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/react-router';
 import { useEffect } from 'react';
-import { EmptyState } from '@/components';
-import { Banner, Button, Icon, Skeleton, type ToastInput } from '@/ds';
+import { EmptyState, RouteLoadError, RouteSkeleton } from '@/components';
+import { Button, type ToastInput } from '@/ds';
 import { signOutAndRedirect } from '@/features/auth/signOut';
 import styles from './boundaries.module.css';
 
@@ -80,23 +80,12 @@ export function LoaderErrorBanner({ error }: { error: ApiError }) {
   // Let suspense queries that failed fetch again when the route re-renders.
   useEffect(() => queryReset.reset(), [queryReset]);
   return (
-    <div className={styles.banner}>
-      <Banner
-        tone="err"
-        icon={<Icon name="warning" />}
-        title={error.title}
-        live="assertive"
-        centered
-        actions={
-          <Button icon="refresh" onClick={() => void router.invalidate()}>
-            Retry
-          </Button>
-        }
-      >
-        {error.detail}
-        {error.requestId && <span className={styles.requestId}> Request ID: {error.requestId}</span>}
-      </Banner>
-    </div>
+    <RouteLoadError
+      title={error.title}
+      detail={error.detail}
+      requestId={error.requestId}
+      onRetry={() => void router.invalidate()}
+    />
   );
 }
 
@@ -118,12 +107,7 @@ export function RouteError({ error }: ErrorComponentProps) {
 
 /** Shown when a route takes longer than 300 ms to load. Areas replace it with their own skeletons. */
 export function RoutePending() {
-  return (
-    <div className={styles.pending} aria-busy="true" role="status" aria-label="Loading">
-      <Skeleton variant="block" height={28} width="40%" />
-      <Skeleton variant="text" lines={4} />
-    </div>
-  );
+  return <RouteSkeleton />;
 }
 
 /** Toast for an inline mutation error: the problem title (and detail) for API errors. */

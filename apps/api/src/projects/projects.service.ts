@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { ScheduleNotFoundError, WorkflowNotFoundError, type Client } from '@temporalio/client';
-import { and, eq, inArray, isNotNull, sql } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNotNull, sql } from 'drizzle-orm';
 import {
   agents,
   connections,
@@ -17,8 +17,12 @@ import {
   PollInterval,
   Provider,
   SetupStep,
+  pageWindow,
+  toPage,
   TriggerMode,
   type CreateProjectRequest,
+  type Page,
+  type PageQuery,
   type ProjectConnectionDto,
   type ProjectDto,
   type UpdateProjectRequest,
@@ -179,14 +183,26 @@ export class ProjectsService {
     }
   }
 
-  async list(org: OrgContext): Promise<ProjectDto[]> {
+  async list(org: OrgContext, q: PageQuery): Promise<Page<ProjectDto>> {
+    const { limit, offset } = pageWindow(q);
     return withOrg(this.db, org.orgId, async (tx) => {
-      const rows = await tx.select().from(projects).orderBy(projects.createdAt);
+      const [counted] = await tx.select({ total: sql<number>`count(*)::int` }).from(projects);
+      const total = counted?.total ?? 0;
+      const rows = await tx
+        .select()
+        .from(projects)
+        .orderBy(asc(projects.createdAt), asc(projects.id))
+        .limit(limit)
+        .offset(offset);
       const counts = await this.countsFor(
         tx,
         rows.map((r) => r.id),
       );
-      return rows.map((r) => this.toDto(r, counts.get(r.id)));
+      return toPage(
+        rows.map((r) => this.toDto(r, counts.get(r.id))),
+        total,
+        q,
+      );
     });
   }
 

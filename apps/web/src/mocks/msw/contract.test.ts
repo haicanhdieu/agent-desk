@@ -76,7 +76,27 @@ describe('MSW handlers cover the contract', () => {
   });
 
   it('answers the default client, which calls relative /api paths', async () => {
-    await expect(defaultApi.projects.list()).resolves.toHaveLength(4);
+    await expect(defaultApi.projects.list()).resolves.toMatchObject({ total: 4, page: 1, pageSize: 20 });
+  });
+
+  it('pages projects by creation order, then id, with the real total', async () => {
+    const base = mockDb.state.projects.filter((p) => p.orgId === ids.org.alice);
+    const [seed] = base;
+    if (!seed) throw new Error('seed has no alice project');
+    const extra = Array.from({ length: 22 }, (_, i) => ({
+      ...seed,
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      repoPath: `dev/paged-${i}`,
+      name: `paged-${i}`,
+    }));
+    mockDb.state.projects = [...mockDb.state.projects, ...extra];
+    const first = await api.projects.list({ query: { page: 1, pageSize: 20 } });
+    const second = await api.projects.list({ query: { page: 2, pageSize: 20 } });
+    expect(first).toMatchObject({ total: 26, page: 1, pageSize: 20 });
+    expect(first.items).toHaveLength(20);
+    expect(second.items).toHaveLength(6);
+    expect(new Set([...first.items, ...second.items].map((p) => p.id)).size).toBe(26);
+    await expect(api.projects.list({ query: { page: 3 } })).resolves.toMatchObject({ items: [], total: 26 });
   });
 
   it('serves every GET route through its response schema', async () => {
@@ -86,24 +106,31 @@ describe('MSW handlers cover the contract', () => {
     await expect(api.connections.repos({ params: { connectionId: ids.connection.dev } })).resolves.toContainEqual(
       expect.objectContaining({ repoPath: 'dev/demo' }),
     );
-    expect((await api.projects.list()).map((p) => p.name)).toEqual([
+    expect((await api.projects.list()).items.map((p) => p.name)).toEqual([
       'invoicer-api',
       'invoicer-web',
-      'docs-site',
       'billing-jobs',
+      'docs-site',
     ]);
     await expect(api.projects.get({ params: { projectId: P } })).resolves.toMatchObject({
       // Run 62 is idle and run 64 is paused: both need a person.
       counts: { needsYou: 2, running: 2, queued: 1 },
     });
     await expect(api.projects.connection({ params: { projectId: P } })).resolves.toMatchObject({ mode: 'webhook' });
-    await expect(api.projects.ignored({ params: { projectId: P } })).resolves.toHaveLength(5);
+    await expect(
+      api.projects.ignored({ params: { projectId: P }, query: { page: 1, pageSize: 20 } }),
+    ).resolves.toMatchObject({
+      page: 1,
+      pageSize: 20,
+      total: 5,
+      items: expect.arrayContaining([expect.objectContaining({ id: expect.any(String) })]),
+    });
     await expect(api.agents.get({ params: { projectId: P } })).resolves.toMatchObject({ name: 'Claude' });
-    await expect(api.skills.list({ params: { projectId: P } })).resolves.toHaveLength(4);
+    await expect(api.skills.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 4 });
     await expect(api.skills.get({ params: { projectId: P, name: 'code-build' } })).resolves.toMatchObject({
       path: '.claude/skills/code-build/SKILL.md',
     });
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 6 });
     const list = await api.runs.list({ params: { projectId: P } });
     expect(list.items.map((r) => r.number)).toEqual([66, 65, 64, 63, 62, 61, 60, 57, 56, 55, 54, 52]);
     await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({
@@ -121,19 +148,33 @@ describe('MSW handlers cover the contract', () => {
     expect(needsYou.items.map((r) => r.number)).toEqual([64, 62]);
     const ended = await api.runs.list({ params: { projectId: P }, query: { filter: 'ended' } });
     expect(ended.items.map((r) => r.number)).toEqual([66, 65, 60, 57, 56, 55, 54, 52]);
-    const page1 = await api.runs.list({ params: { projectId: P }, query: { limit: 4 } });
+    const page1 = await api.runs.list({ params: { projectId: P }, query: { page: 1, pageSize: 4 } });
     expect(page1.items.map((r) => r.number)).toEqual([66, 65, 64, 63]);
-    expect(page1.nextCursor).not.toBeNull();
-    const page2 = await api.runs.list({
-      params: { projectId: P },
-      query: { limit: 4, cursor: page1.nextCursor ?? undefined },
-    });
+    expect(page1).toMatchObject({ page: 1, pageSize: 4, total: 12 });
+    const page2 = await api.runs.list({ params: { projectId: P }, query: { page: 2, pageSize: 4 } });
     expect(page2.items.map((r) => r.number)).toEqual([62, 61, 60, 57]);
+    const past = await api.runs.list({ params: { projectId: P }, query: { page: 9, pageSize: 4 } });
+    expect(past).toMatchObject({ items: [], total: 12 });
     const byTicket = await api.runs.list({
       params: { projectId: P },
       query: { ticket: '133' },
     });
     expect(byTicket.items.map((r) => r.number)).toEqual([57, 56]);
+    expect(byTicket.total).toBe(2);
+    // Every item carries how many runs its ticket has had, whatever the filter.
+    expect(byTicket.items.map((r) => r.ticketRunCount)).toEqual([2, 2]);
+  });
+
+  it('serves the run list numbers from the store: counts, today, the idle run and the next queued run', async () => {
+    const stats = await api.runs.stats({ params: { projectId: P }, query: { since: '2000-01-01T00:00:00.000Z' } });
+    expect(stats.counts).toEqual({ needs_you: 2, active: 2, queued: 1, ended: 8, all: 12, ignored: 5 });
+    expect(stats.today.total).toBe(12);
+    expect(stats.idleRun).toMatchObject({ number: 62, ticketRunCount: expect.any(Number) });
+    expect(stats.idleRun).not.toHaveProperty('prompt');
+    expect(stats.nextQueuedNumber).toBe(63);
+    const none = await api.runs.stats({ params: { projectId: P }, query: { since: '2999-01-01T00:00:00.000Z' } });
+    expect(none.today).toEqual({ total: 0, failed: 0 });
+    await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({ number: 62 });
   });
 });
 
@@ -199,7 +240,7 @@ describe('MSW handler semantics', () => {
     const e = await rejection(api.projects.get({ params: { projectId: ids.project.storefront } }));
     expect(e.status).toBe(404);
     mockDb.setActiveOrg(ids.org.acme);
-    expect((await api.projects.list()).map((p) => p.name)).toEqual(['storefront']);
+    expect((await api.projects.list()).items.map((p) => p.name)).toEqual(['storefront']);
   });
 
   it('creates, updates and deletes rules with a 409 on a duplicate command', async () => {
@@ -338,7 +379,7 @@ describe('MSW handler semantics', () => {
       lastCommit: { sha: commitSha, message: 'edit' },
     });
     await expect(api.skills.remove({ params: { projectId: P, name: 'code-review' }, query: {} })).resolves.toBeNull();
-    await expect(api.skills.list({ params: { projectId: P } })).resolves.toHaveLength(3);
+    await expect(api.skills.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 3 });
   });
 
   it('runs.transcript pages newest-first windows oldest first and runs.stop answers 202 on a live run', async () => {
@@ -483,9 +524,12 @@ describe('MSW handler semantics', () => {
     it('serves the saved script, its versions (newest first) and the plugins; a project without a script gets null', async () => {
       await expect(api.setupScript.get({ params: { projectId: P } })).resolves.toMatchObject({ version: 1 });
       await expect(api.setupScript.get({ params: { projectId: EMPTY } })).resolves.toBeNull();
-      await expect(api.setupScript.versions({ params: { projectId: P } })).resolves.toEqual([
-        expect.objectContaining({ version: 1, createdBy: 'kim-hale' }),
-      ]);
+      await expect(
+        api.setupScript.versions({ params: { projectId: P }, query: { page: 1, pageSize: 20 } }),
+      ).resolves.toMatchObject({
+        total: 1,
+        items: [expect.objectContaining({ version: 1, createdBy: 'kim-hale' })],
+      });
       await expect(api.setupScript.version({ params: { projectId: P, version: 1 } })).resolves.toMatchObject({
         version: 1,
         body: expect.stringContaining('set -euo pipefail'),
@@ -521,10 +565,19 @@ describe('MSW handler semantics', () => {
         status: 400,
         errors: [{ pointer: '/body', detail: 'Setup script is larger than 64 KiB' }],
       });
-      await expect(api.setupScript.versions({ params: { projectId: EMPTY } })).resolves.toEqual([
-        expect.objectContaining({ version: 2 }),
-        expect.objectContaining({ version: 1 }),
-      ]);
+      await expect(
+        api.setupScript.versions({ params: { projectId: EMPTY }, query: { page: 1, pageSize: 20 } }),
+      ).resolves.toMatchObject({
+        total: 2,
+        items: [expect.objectContaining({ version: 2 }), expect.objectContaining({ version: 1 })],
+      });
+      // Page 2 of size 1 is version 1; past the end is empty with the real total.
+      await expect(
+        api.setupScript.versions({ params: { projectId: EMPTY }, query: { page: 2, pageSize: 1 } }),
+      ).resolves.toMatchObject({ total: 2, items: [expect.objectContaining({ version: 1 })] });
+      await expect(
+        api.setupScript.versions({ params: { projectId: EMPTY }, query: { page: 3, pageSize: 1 } }),
+      ).resolves.toMatchObject({ total: 2, items: [] });
     });
 
     it('state is part of the store: it does not survive a reset (no leak between tests)', async () => {
@@ -589,7 +642,7 @@ describe('scenarios', () => {
     const e = await rejection(api.rules.update({ params: { ruleId: ids.rule.r1 }, body: { enabled: false } }));
     expect(e.status).toBe(500);
     expect(e.requestId).toMatch(/^req-mock-/);
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 6 });
   });
 
   it('problem returns the given problem', async () => {
@@ -602,8 +655,8 @@ describe('scenarios', () => {
   });
 
   it('overrides and db changes reset between tests', async () => {
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
-    await expect(api.projects.list()).resolves.toHaveLength(4);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 6 });
+    await expect(api.projects.list()).resolves.toMatchObject({ total: 4 });
   });
 });
 

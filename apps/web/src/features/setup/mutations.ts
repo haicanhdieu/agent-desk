@@ -11,10 +11,12 @@ import type {
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
 import { refreshAfterCredential } from '../desk/agent.form';
-import { projectsQueries } from '../projects/queries';
-import { setupQueries as scriptQueries } from '../setup-script/queries';
+import { rulesKey, skillsKey } from '../desk/queries';
+import { projectsListKey, projectsQueries } from '../projects/queries';
+import { setupQueries as scriptQueries, versionsKey } from '../setup-script/queries';
 import { setupQueries } from './queries';
 import { stepIndex } from './steps';
 import { SKILL_TEMPLATES } from './templates';
@@ -59,7 +61,7 @@ async function finishStep(
   const next =
     Object.keys(body).length > 0 ? await api.projects.update({ params: { projectId: project.id }, body }) : project;
   qc.setQueryData(projectsQueries.detail(org, project.id).queryKey, next);
-  await qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true });
+  await qc.invalidateQueries({ queryKey: projectsListKey(org) });
   return next;
 }
 
@@ -81,7 +83,7 @@ export function useSaveRepoStep(org: string) {
         : api.projects.update({ params: { projectId: input.project.id }, body: input.body }),
     onSuccess: async (project) => {
       qc.setQueryData(projectsQueries.detail(org, project.id).queryKey, project);
-      await qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true });
+      await qc.invalidateQueries({ queryKey: projectsListKey(org) });
     },
   });
 }
@@ -192,7 +194,7 @@ export function useSaveWorkspaceStep(org: string) {
         });
         qc.setQueryData(scriptQueries.script(org, project.id).queryKey, next);
         await Promise.all([
-          qc.invalidateQueries({ queryKey: scriptQueries.versions(org, project.id).queryKey }),
+          qc.invalidateQueries({ queryKey: versionsKey(org, project.id) }),
           qc.invalidateQueries({ queryKey: scriptQueries.latest(org, project.id).queryKey }),
         ]);
       }
@@ -207,12 +209,14 @@ export function useSaveSkillsStep(org: string) {
   return useMutation({
     mutationFn: async ({ project, names, message }: { project: ProjectDto; names: string[]; message: string }) => {
       if (names.length > 0) {
-        const existing = new Set((await api.skills.list({ params: { projectId: project.id } })).map((s) => s.name));
+        const existing = new Set(
+          (await api.skills.list({ params: { projectId: project.id }, query: WHOLE_SET })).items.map((s) => s.name),
+        );
         for (const t of SKILL_TEMPLATES) {
           if (!names.includes(t.name) || existing.has(t.name)) continue;
           await api.skills.put({ params: { projectId: project.id, name: t.name }, body: { body: t.body, message } });
         }
-        await qc.invalidateQueries({ queryKey: setupQueries.skills(org, project.id).queryKey });
+        await qc.invalidateQueries({ queryKey: skillsKey(org, project.id) });
       }
       return finishStep(qc, org, project, 'rules');
     },
@@ -236,7 +240,9 @@ export function useSaveRulesStep(org: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ project, rules }: { project: ProjectDto; rules: CreateRuleRequest[] }) => {
-      const existing = new Set((await api.rules.list({ params: { projectId: project.id } })).map((r) => r.command));
+      const existing = new Set(
+        (await api.rules.list({ params: { projectId: project.id }, query: WHOLE_SET })).items.map((r) => r.command),
+      );
       for (const [index, body] of rules.entries()) {
         if (existing.has(body.command)) continue;
         try {
@@ -245,7 +251,7 @@ export function useSaveRulesStep(org: string) {
           throw new RuleSaveError(index, e);
         }
       }
-      await qc.invalidateQueries({ queryKey: setupQueries.rules(org, project.id).queryKey });
+      await qc.invalidateQueries({ queryKey: rulesKey(org, project.id) });
       return finishStep(qc, org, project, 'ready');
     },
   });

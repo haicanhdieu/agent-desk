@@ -8,6 +8,7 @@ import {
   CreateRuleRequest,
   PutAgentRequest,
   RunListQuery,
+  RunListResponse,
   UpdateProjectRequest,
   flattenRoutes,
   routes,
@@ -41,7 +42,8 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(47);
+    expect(Object.keys(flat)).toHaveLength(48);
+    expect(flat['runs.stats']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/runs/stats' });
     expect(flat['agents.models']).toMatchObject({ method: 'GET', path: '/api/agents/:agentId/models' });
   });
   it('rejects timeoutSeconds above 7 days', () => {
@@ -104,13 +106,32 @@ describe('contract boundaries', () => {
       60, 604800, 86400,
     ]);
   });
-  it('RunListQuery.limit defaults to 50', () => {
-    expect(RunListQuery.parse({}).limit).toBe(50);
+  it('runs.list takes a page query and answers with a page envelope', () => {
+    expect(RunListQuery.parse({})).toEqual({ page: 1, pageSize: 20 });
+    expect(RunListQuery.parse({ filter: 'ended', ticket: '7', page: '3', pageSize: '50' })).toEqual({
+      filter: 'ended',
+      ticket: '7',
+      page: 3,
+      pageSize: 50,
+    });
+    expect(RunListQuery.safeParse({ limit: '5' }).success).toBe(false);
+    expect(RunListQuery.safeParse({ cursor: 'x' }).success).toBe(false);
+    expect(RunListQuery.safeParse({ pageSize: '101' }).success).toBe(false);
+    expect(RunListResponse.safeParse({ items: [], page: 1, pageSize: 20, total: 0 }).success).toBe(true);
+    expect(RunListResponse.safeParse({ items: [], nextCursor: null }).success).toBe(false);
   });
 
   it('registers rules.promptPreview under the project rules path', () => {
     const r = flattenRoutes(routes)['rules.promptPreview'];
     expect(r?.method).toBe('GET');
     expect(r?.path).toBe('/api/projects/:projectId/rules/prompt-preview');
+  });
+  it('projects.list takes a page query and answers with a page envelope', () => {
+    const r = flattenRoutes(routes)['projects.list'];
+    expect(r?.query?.parse({})).toEqual({ page: 1, pageSize: 20 });
+    expect(r?.query?.safeParse({ pageSize: 101 }).success).toBe(false);
+    const envelope = { items: [], page: 1, pageSize: 20, total: 0 };
+    expect(r?.response.safeParse(envelope).success).toBe(true);
+    expect(r?.response.safeParse([]).success).toBe(false);
   });
 });

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { PauseReason, RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
+import { PageQuery, pageOf } from './page';
 
 export const TicketDto = z.object({
   ref: z.string(),
@@ -64,21 +65,34 @@ export const RunDto = z.object({
 export type RunDto = z.infer<typeof RunDto>;
 
 /** A run in a list: the detail shape without the prompt texts (up to ~4 KB each), which only run detail needs. */
-export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true });
+export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true }).extend({
+  /** Runs this ticket has had in the project, all statuses. */
+  ticketRunCount: z.number().int().min(1),
+});
 export type RunListItem = z.infer<typeof RunListItem>;
 
-export const RunListQuery = z.object({
+const count = z.number().int().min(0);
+
+export const RunStatsQuery = z.object({ since: Timestamp });
+export type RunStatsQuery = z.infer<typeof RunStatsQuery>;
+
+/** The Run list's numbers, served by the API so they do not depend on how many runs a page holds. */
+export const RunStatsDto = z.object({
+  counts: z.object({ needs_you: count, active: count, queued: count, ended: count, all: count, ignored: count }),
+  today: z.object({ total: count, failed: count }),
+  idleRun: RunListItem.nullable(),
+  nextQueuedNumber: z.number().int().nullable(),
+});
+export type RunStatsDto = z.infer<typeof RunStatsDto>;
+
+// Strict: the retired `cursor` and `limit` parameters are a 400, not silently ignored.
+export const RunListQuery = PageQuery.extend({
   filter: RunListFilter.optional(),
   ticket: z.string().optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
+}).strict();
 export type RunListQuery = z.infer<typeof RunListQuery>;
 
-export const RunListResponse = z.object({
-  items: z.array(RunListItem),
-  nextCursor: z.string().nullable(),
-});
+export const RunListResponse = pageOf(RunListItem);
 export type RunListResponse = z.infer<typeof RunListResponse>;
 
 export const RunEventDto = z.object({

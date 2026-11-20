@@ -1,0 +1,15 @@
+.pending {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 16px;
+}
+
+.banner {
+  padding: 16px;
+}
+
+.requestId {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}

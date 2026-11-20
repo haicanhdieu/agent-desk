@@ -3,6 +3,7 @@ export * from './net';
 export * from './problem';
 export * from './routes';
 export * from './schemas/common';
+export * from './schemas/page';
 export * from './schemas/connections';
 export * from './schemas/projects';
 export * from './schemas/agents';

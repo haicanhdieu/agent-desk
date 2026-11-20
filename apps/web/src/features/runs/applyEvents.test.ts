@@ -1,4 +1,4 @@
-import type { ProjectDto, RunDto, RunEventDto } from '@agentdesk/contracts';
+import type { ProjectDto, RunDto, RunEventDto, RunListFilter, RunStatsDto } from '@agentdesk/contracts';
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
@@ -31,18 +31,31 @@ const project = (): ProjectDto => {
     counts: { needsYou: 1, running: 2, queued: 1 },
   };
 };
-const listOf = (...runs: CachedRun[]): RunList => ({
-  items: runs,
-  truncated: false,
+const listOf = (...runs: RunDto[]): RunList => ({
+  items: runs.map((r): CachedRun => ({ ...r, ticketRunCount: 1 })),
+  page: 1,
+  pageSize: 20,
+  total: runs.length,
 });
+/** The cached page of a list: filter, ticket, page (default 1) and the 20-row page size. */
+const L = (filter: RunListFilter, ticket?: string, page = 1) =>
+  runsQueries.list(org, projectId, { filter, ticket, page, pageSize: 20 });
+const SINCE = '2026-11-12T00:00:00.000Z';
+const statsData: RunStatsDto = {
+  counts: { needs_you: 1, active: 2, queued: 1, ended: 8, all: 12, ignored: 0 },
+  today: { total: 3, failed: 0 },
+  idleRun: null,
+  nextQueuedNumber: 63,
+};
 
 function seeded() {
   const qc = new QueryClient();
   qc.setQueryData(runsQueries.detail(org, projectId, 61).queryKey, run(61));
-  qc.setQueryData(runsQueries.list(org, projectId, 'all').queryKey, listOf(run(61), run(62), run(63)));
-  qc.setQueryData(runsQueries.list(org, projectId, 'active').queryKey, listOf(run(61), run(62)));
-  qc.setQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey, listOf(run(62)));
+  qc.setQueryData(L('all').queryKey, listOf(run(61), run(62), run(63)));
+  qc.setQueryData(L('active').queryKey, listOf(run(61), run(62)));
+  qc.setQueryData(L('needs_you').queryKey, listOf(run(62)));
   qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, project());
+  qc.setQueryData(runsQueries.stats(org, projectId, SINCE).queryKey, statsData);
   return qc;
 }
 const status = (n: number, s: RunDto['status'], seq = 20) => ({
@@ -106,23 +119,67 @@ describe('applyRunStatus, agent state', () => {
 });
 
 describe('applyRunStatus', () => {
-  it('patches the detail and every cached list row; a row that no longer fits its filter leaves it', () => {
+  it('patches the detail and every cached list row; a row that no longer fits its filter stays patched and its page is invalidated', () => {
     const qc = seeded();
     applyRunStatus(qc, org, projectId, status(61, 'idle'));
     expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)?.status).toBe('idle');
     expect(qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey)?.idleSince).not.toBeNull();
-    const all = qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey);
+    const all = qc.getQueryData(L('all').queryKey);
     expect(all?.items.find((r) => r.number === 61)?.status).toBe('idle');
-    expect(qc.getQueryData(runsQueries.list(org, projectId, 'active').queryKey)?.items.map((r) => r.status)).toEqual([
-      'idle',
-      'idle',
-    ]);
+    expect(qc.getQueryData(L('active').queryKey)?.items.map((r) => r.status)).toEqual(['idle', 'idle']);
     // needs_you now holds 61 on the server, but the cached list lacks the row: it is invalidated.
-    expect(qc.getQueryState(runsQueries.list(org, projectId, 'needs_you').queryKey)?.isInvalidated).toBe(true);
-    expect(qc.getQueryState(runsQueries.list(org, projectId, 'all').queryKey)?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(L('needs_you').queryKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(L('all').queryKey)?.isInvalidated).toBe(false);
 
+    // Review Focus 3: 62 leaves needs_you. Its row stays (patched) until the refetch refills the page, and that
+    // page is invalidated rather than shortened, because the page shifts and the total drops.
     applyRunStatus(qc, org, projectId, status(62, 'running'));
-    expect(qc.getQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey)?.items).toEqual([]);
+    const needs = qc.getQueryData(L('needs_you').queryKey);
+    expect(needs?.items.map((r) => [r.number, r.status])).toEqual([[62, 'running']]);
+    expect(needs?.total).toBe(1);
+    expect(qc.getQueryState(L('needs_you').queryKey)?.isInvalidated).toBe(true);
+  });
+
+  it('a run that leaves a filter invalidates its cached pages that do not hold it, too', () => {
+    const qc = seeded();
+    const page2 = L('active', undefined, 2).queryKey;
+    qc.setQueryData(page2, { ...listOf(run(63)), page: 2, total: 21 });
+    const other = L('queued', undefined, 2).queryKey;
+    qc.setQueryData(other, { ...listOf(run(63)), page: 2, total: 21 });
+    // Run 61 is running (cached in the detail): it was in active and queued is unaffected.
+    applyRunStatus(qc, org, projectId, status(61, 'succeeded'));
+    expect(qc.getQueryState(page2)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(other)?.isInvalidated).toBe(false);
+  });
+
+  it('a run that enters a filter invalidates a cached later page of it', () => {
+    const qc = seeded();
+    const page2 = L('needs_you', undefined, 2).queryKey;
+    qc.setQueryData(page2, { ...listOf(run(63)), page: 2, total: 21 });
+    applyRunStatus(qc, org, projectId, status(61, 'idle'));
+    expect(qc.getQueryState(page2)?.isInvalidated).toBe(true);
+  });
+
+  it('reads the filter and ticket from the key: a run entering needs_you invalidates only the list of its own ticket', () => {
+    const qc = seeded();
+    const mine = L('needs_you', run(63).ticket.ref).queryKey;
+    const other = L('needs_you', 'not-this-ticket').queryKey;
+    qc.setQueryData(mine, listOf());
+    qc.setQueryData(other, listOf());
+    // Run 63 is cached in the 'all' list, so its ticket is known.
+    applyRunStatus(qc, org, projectId, status(63, 'idle', 5));
+    expect(qc.getQueryState(mine)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(other)?.isInvalidated).toBe(false);
+  });
+
+  it('a status change invalidates the cached run stats, in any case of the change', () => {
+    const qc = seeded();
+    const stats = runsQueries.stats(org, projectId, SINCE).queryKey;
+    expect(qc.getQueryState(stats)?.isInvalidated).toBe(false);
+    applyRunStatus(qc, org, projectId, status(61, 'idle'));
+    expect(qc.getQueryState(stats)?.isInvalidated).toBe(true);
+    // The stats stay in the cache (so the page keeps showing numbers while they refetch).
+    expect(qc.getQueryData(stats)).toEqual(statsData);
   });
 
   it('moves the project counts once, however many streams deliver the change', () => {
@@ -151,8 +208,8 @@ describe('applyRunStatus', () => {
       seq: 2,
     });
     expect(qc.getQueryState(projectsQueries.detail(org, projectId).queryKey)?.isInvalidated).toBe(true);
-    expect(qc.getQueryState(runsQueries.list(org, projectId, 'all').queryKey)?.isInvalidated).toBe(true);
-    expect(qc.getQueryState(runsQueries.list(org, projectId, 'active').queryKey)?.isInvalidated).toBe(false);
+    expect(qc.getQueryState(L('all').queryKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(L('active').queryKey)?.isInvalidated).toBe(false);
   });
 
   it('drops a lagging change: an older seq, or one that would take a final run back to active', () => {
@@ -168,9 +225,7 @@ describe('applyRunStatus', () => {
     expect(detail?.status).toBe('succeeded');
     expect(detail?.finishedAt).not.toBeNull();
     expect(counts()).toEqual({ needsYou: 1, running: 1, queued: 1 });
-    expect(
-      qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey)?.items.find((r) => r.number === 61)?.status,
-    ).toBe('succeeded');
+    expect(qc.getQueryData(L('all').queryKey)?.items.find((r) => r.number === 61)?.status).toBe('succeeded');
 
     // A final run loaded over REST (no seq seen yet) is not taken back to active either.
     const fresh = seeded();
@@ -267,7 +322,7 @@ describe('applyRunStatus', () => {
       sessionExpiresAt: '2026-11-19T14:30:00.000Z',
       finishedAt: null,
     });
-    const row = qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey)?.items.find((r) => r.number === 61);
+    const row = qc.getQueryData(L('all').queryKey)?.items.find((r) => r.number === 61);
     expect(row?.pausedAt).toBe('2026-11-12T14:30:00.000Z');
     // Resumed: both go.
     applyRunStatus(qc, org, projectId, {
@@ -304,7 +359,7 @@ describe('applyRunStatus', () => {
     // Parked: the ending is over and the reason is known.
     applyRunStatus(qc, org, projectId, { ...withSession(32, null, 'pod_lost'), status: 'paused' });
     expect(qc.getQueryData(key)).toMatchObject({ status: 'paused', sessionEndingAt: null, pauseReason: 'pod_lost' });
-    const row = qc.getQueryData(runsQueries.list(org, projectId, 'all').queryKey)?.items.find((r) => r.number === 61);
+    const row = qc.getQueryData(L('all').queryKey)?.items.find((r) => r.number === 61);
     expect(row).toMatchObject({ sessionEndingAt: null, pauseReason: 'pod_lost' });
   });
 
@@ -325,10 +380,10 @@ describe('applyRunStatus', () => {
     const qc = seeded();
     const before = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
     applyRunStatus(qc, org, projectId, status(61, 'paused', 30));
-    const needs = qc.getQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey)?.items.map((r) => r.number);
+    const needs = qc.getQueryData(L('needs_you').queryKey)?.items.map((r) => r.number);
     expect(needs).toContain(62);
     // Run 61 is not cached in the needs-you list: that list is refetched to pick up the paused run.
-    expect(qc.getQueryState(runsQueries.list(org, projectId, 'needs_you').queryKey)?.isInvalidated).toBe(true);
+    expect(qc.getQueryState(L('needs_you').queryKey)?.isInvalidated).toBe(true);
     const after = qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
     expect(after?.needsYou).toBe((before?.needsYou ?? 0) + 1);
     expect(after?.running).toBe((before?.running ?? 0) - 1);
@@ -354,13 +409,13 @@ describe('applyRunStatus', () => {
   it('a paused run stays in the needs-you list when it was already there as idle', () => {
     const qc = seeded();
     applyRunStatus(qc, org, projectId, status(62, 'paused', 30));
-    const needs = qc.getQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey)?.items.map((r) => r.number);
+    const needs = qc.getQueryData(L('needs_you').queryKey)?.items.map((r) => r.number);
     expect(needs).toEqual([62]);
   });
 
   it('an uncached run also invalidates the ticket lists its status fits', () => {
     const qc = seeded();
-    const ticketList = runsQueries.list(org, projectId, 'all', '12').queryKey;
+    const ticketList = L('all', '12').queryKey;
     qc.setQueryData(ticketList, listOf());
     applyRunStatus(qc, org, projectId, { runId: ids.run(1, 99), number: 99, status: 'queued', seq: 2 });
     expect(qc.getQueryState(ticketList)?.isInvalidated).toBe(true);

@@ -16,7 +16,7 @@
 ## Global Constraints
 
 - AGENTS.md rules 1–11 apply to every task: contracts first; layering `apps → core → db → contracts` and `web → contracts` only; provider-agnostic names; `withOrg` on every query; no secrets in logs; untrusted text never interpolated; authz on every endpoint; no edits to applied migrations; a bug fix starts with a failing test; no network in tests; design tokens, stories and loading/empty/error states; strict TS with Zod at boundaries.
-- No new dependency, and no migration. Zod, Drizzle, TanStack Router and Query, the existing `ds` components and `localStorage` cover everything.
+- No new dependency, and one index migration. Zod, Drizzle, TanStack Router and Query, the existing `ds` components and `localStorage` cover everything.
 - Query: `page` is an integer ≥ 1, default 1, at most 2147483647. `pageSize` is an integer 1–100, default 20.
 - Response envelope: `{ items: T[], page: number, pageSize: number, total: number }`. `total` counts every row that matches the route's filters. The client derives the page count as `ceil(total / pageSize)`.
 - A `page` past the last page returns 200 with `items: []` and the real `total`, never a 4xx. The client then moves to the last page.
@@ -29,7 +29,7 @@
 - Each screen keeps its current layout, columns and copy. Only the control under the list and the server-fed numbers are new.
 - **Storybook first (a blocker from the spec, not an ordering preference):** Tasks 2–4 add the `Pagination` component, every screen story and the 20 boards before any task that wires the UI in `apps/web/src/{app,features}` (Tasks 5–10). Each of those tasks lists the Storybook tasks it needs under "Depends on".
 - Task 1 changes agent rules (ADR and convention docs), so its PR waits for a human.
-- Not sensitive (the spec says so): no migration, no change to `withOrg`/RLS, auth, webhooks, secrets, the terminal or the run Job. Existing list queries keep their org/project scope and authz.
+- Sensitive only for that migration (the spec says so): one index migration (RLS unchanged), no change to `withOrg`/RLS, auth, webhooks, secrets, the terminal or the run Job. Existing list queries keep their org/project scope and authz.
 - Before every commit, run `devbox run fix` until it prints `fix: clean.`. Use Conventional Commits with the package as scope.
 
 ## Review Focus
@@ -178,7 +178,7 @@ export function slicePage<T>(all: readonly T[], q: PageQuery): Page<T>;
 export function pageRange(page: number, pageSize: number, total: number): { first: number; last: number; pageCount: number };
 ```
 
-- [ ] **Step 1: Write the failing contract tests** in `page.test.ts`
+- [x] **Step 1: Write the failing contract tests** in `page.test.ts`
 
 - `PageQuery.parse({})` → `{ page: 1, pageSize: 20 }`; `PageQuery.parse({ page: '3', pageSize: '50' })` → `{ page: 3, pageSize: 50 }`.
 - `PageQuery.safeParse` fails for `page: '0'`, `'-1'`, `'1.5'`, `'abc'`, `'2147483648'`, and for `pageSize: '0'`, `'101'`. It passes for `page: '2147483647'` and `pageSize: '1'` and `'100'`.
@@ -188,28 +188,28 @@ export function pageRange(page: number, pageSize: number, total: number): { firs
 - `slicePage` over the letters `a`–`v` (22 items): page 2 size 20 → items `['u', 'v']` and total 22; page 3 → `[]` and total 22; size 100 → all 22.
 - `pageRange(25, 20, 1000)` → `{ first: 481, last: 500, pageCount: 50 }`; `(4, 20, 63)` → `{ 61, 63, 4 }`; `(1, 20, 0)` → `{ 0, 0, 0 }`; `(5, 20, 63)` → `{ 0, 0, 4 }`; `(51, 20, 1004)` → `{ 1001, 1004, 51 }`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/contracts test -- page`
 Expected: FAIL (module `./page` not found).
 
-- [ ] **Step 3: Implement `page.ts` and export it from `index.ts`**
+- [x] **Step 3: Implement `page.ts` and export it from `index.ts`**
 
 `PageQuery` uses `z.coerce.number().int().min(1).max(PAGE_MAX).default(1)` and `z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).default(PAGE_SIZE_DEFAULT)`, matching the other integer params in `routes.ts`. The module has no framework imports.
 
-- [ ] **Step 4: Run the contract tests**
+- [x] **Step 4: Run the contract tests**
 
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/contracts typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Write the ADR and convention edits**
+- [x] **Step 5: Write the ADR and convention edits**
 
-- `docs/adr/0026-offset-pagination-for-data-lists.md`, status **Proposed**, date 2026-11-19, source issue #146. Sections: Context (keyset rule today; no total, no jump to page; the 1000-run walk), Decision (offset pages with a total for every data list; the API rule and envelope from Global Constraints; `count(*)` in the same `withOrg` transaction; whole-set readers use page 1 at size 100), Alternatives (keyset with Previous/Next only; load more / infinite scroll, each with its trade-off from the spec's Approaches), Consequences (page drift under concurrent inserts is accepted; deep offsets cost more; no new index because runs and ignored events already have matching ones). Add its row to `docs/adr/README.md`.
+- `docs/adr/0026-offset-pagination-for-data-lists.md`, status **Proposed**, date 2026-11-19, source issue #146. Sections: Context (keyset rule today; no total, no jump to page; the 1000-run walk), Decision (offset pages with a total for every data list; the API rule and envelope from Global Constraints; `count(*)` in the same `withOrg` transaction; whole-set readers use page 1 at size 100), Alternatives (keyset with Previous/Next only; load more / infinite scroll, each with its trade-off from the spec's Approaches), Consequences (page drift under concurrent inserts is accepted; deep offsets cost more; runs already have a matching index, and one partial index on `inbound_events` (`project_id, received_at desc, id` where `outcome` starts with `ignored_`) is added by migration 0020). Add its row to `docs/adr/README.md`.
 - `backend.md` §11: replace the keyset line with: "List endpoints for data lists **MUST** take `page` (integer ≥ 1, default 1, max 2147483647) and `pageSize` (integer 1–100, default 20) through `PageQuery`, and return `pageOf(Item)`: `{ items, page, pageSize, total }`. A page past the end is 200 with `items: []` and the real `total`. _Why: numbered pages and jump to page need a total (ADR 0026)._"
 - `database.md` §8: replace the keyset `MUST` with: "**MUST** paginate data lists with `LIMIT`/`OFFSET` from `pageWindow` and a fixed `ORDER BY` that ends in a unique column (`id` or the natural unique key); `total` comes from a `count(*)` with the same `WHERE` in the same `withOrg` transaction, not a window function. Page drift under concurrent inserts is accepted (ADR 0026)." Change the composite-index `SHOULD` to "…in the same column order as the list's `ORDER BY` (e.g. `runs (project_id, queued_at desc, id)`)." Change the checklist item to "No queries in loops; data lists use offset pages (`PageQuery`, `pageOf`) with a fixed order ending in a unique column and a capped `pageSize`."
 - `frontend.md` §3: add "A data list **MUST** render the shared `Pagination` component under the list, keep its page in the URL as `?page=N` (page 1 leaves it out), and take its page size from the shared browser preference `usePageSize()` (`agentdesk.pageSize`; 20, 50 or 100)."
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -258,7 +258,7 @@ export function pageItems(page: number, pageCount: number, set: 'wide' | 'narrow
 export function formatCount(n: number): string;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `Pagination.test.tsx`
+- [x] **Step 1: Write the failing tests** in `Pagination.test.tsx`
 
 - `pageItems(1, 50, 'wide')` → `[1, 2, 'gap', 50]`; `(50, 50, 'wide')` → `[1, 'gap', 49, 50]`; `(25, 50, 'wide')` → `[1, 'gap', 24, 25, 26, 'gap', 50]`; `(3, 5, 'wide')` → `[1, 2, 3, 4, 5]`; `(1, 3, 'wide')` → `[1, 2, 3]`; `(4, 50, 'wide')` → `[1, 'gap', 3, 4, 5, 'gap', 50]`; `(1, 1, 'wide')` → `[1]`.
 - `pageItems(25, 50, 'narrow')` → `[1, 'gap', 25, 'gap', 50]`; `(1, 50, 'narrow')` → `[1, 'gap', 50]`; `(2, 50, 'narrow')` → `[1, 2, 'gap', 50]`.
@@ -271,16 +271,16 @@ export function formatCount(n: number): string;
 - `it('Rows per page offers exactly 20, 50 and 100')`, plus selecting 50 → `onPageSizeChange(50)`.
 - `it('busy marks the nav and disables every control')`: `nav` has `aria-busy="true"`, and every page button, Previous, Next, the "Go to page" box, Go and "Rows per page" are disabled.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- Pagination`
 Expected: FAIL (module not found).
 
-- [ ] **Step 3: Implement `Pagination.tsx` and `Pagination.module.css`**
+- [x] **Step 3: Implement `Pagination.tsx` and `Pagination.module.css`**
 
 Build it from `ds` `Button`, `TextInput` and `Select` only, styled with design tokens. Structure: `<nav aria-label="Pagination" aria-busy>` containing a range `<p>` (with "Showing " in its own span), an `<ol>` for the wide set and an `<ol>` for the narrow set, a current-only element for under 360px, a `<form>` for "Go to page" (its `onSubmit` is the Go action, so Enter works), and the labelled "Rows per page" `Select`. The labels and the Previous/Next words sit in spans that become visually hidden (sr-only pattern) under 1070px. Container queries go on the nav (`container-type: inline-size`) at `max-width` 1069px, 789px, 589px and 359px, with wrapping only at 240px or below. Copy the sizes from the board.
 
-- [ ] **Step 4: Write `Pagination.stories.tsx`** (title `Components/Pagination`)
+- [x] **Step 4: Write `Pagination.stories.tsx`** (title `Components/Pagination`)
 
 Stories: `MiddlePage` (25 of 50), `FirstPage`, `LastPage`, `FewPages` (3 pages), `ManyPages` (312 of 624, total 12,480), `JumpOutOfRange` (the box holds `80`), `Loading` (`busy`) and `Hidden` (total 20). Add `Compact1069`, `Compact789`, `Compact589` and `Compact359`, each the middle page in a container of that width. Add `Board`, which stacks the states at the board's widths in the board's order (this is the export the `Pagination` board maps to in Task 3). Use `parameters: { layout: 'padded' }`, and use no-op callbacks except in `JumpOutOfRange`.
 
@@ -289,7 +289,7 @@ Stories: `MiddlePage` (25 of 50), `FirstPage`, `LastPage`, `FewPages` (3 pages),
 Run: `pnpm --filter @agentdesk/web test -- Pagination stories.smoke && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -345,23 +345,23 @@ export function pagedVersions(total: number): ScriptVersion[];
 
 (`pagedProjects`, `pagedRules`, `pagedSkills` and `pagedVersions` are used by Task 4's stories. They live here so that `mocks/paged.ts` is written once.)
 
-- [ ] **Step 1: Write the failing screen tests** in `runs.test.tsx`
+- [x] **Step 1: Write the failing screen tests** in `runs.test.tsx`
 
 - `it('Runs draws the pagination control under the table and marks the table busy')`: render `Runs` with `pagination={{ page: 4, pageSize: 20, total: 63, busy: true, … }}` → a `navigation` named "Pagination" comes after the table in document order, and the table has `aria-busy="true"`.
 - `it('Runs with no runs shows the empty state and no control')`: `groups=[]` and `pagination` total 0 → "No runs match this filter" and no `navigation` named "Pagination".
 - `it('RunsProblems draws the control under the ignored rows')` and `it('NeedsYou draws the control under the cards')`.
 - `it('RouteSkeleton is a busy status')` and `it('RouteLoadError shows title, request ID and Retry')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- runs.test`
 Expected: FAIL (`pagination` not rendered; `RouteStates` missing).
 
-- [ ] **Step 3: Implement the screen props and `RouteStates.tsx`**
+- [x] **Step 3: Implement the screen props and `RouteStates.tsx`**
 
 Make `RoutePending` and `LoaderErrorBanner` in `app/boundaries.tsx` render `RouteSkeleton` and `RouteLoadError`. Their behaviour stays the same: Retry still calls `router.invalidate()` after the query reset.
 
-- [ ] **Step 4: Write the fixtures and stories**
+- [x] **Step 4: Write the fixtures and stories**
 
 `mocks/paged.ts` builds rows from the existing fixtures' shapes, copying the boards' visible values (ticket titles, rule commands, authors). In `runs.stories.tsx`, add:
 
@@ -375,7 +375,7 @@ Make `RoutePending` and `LoaderErrorBanner` in `app/boundaries.tsx` render `Rout
 
 Each story uses the existing `artboard(height)` and `viewport(1440, height)`, with heights from the base board (Runs 1000, RunsProblems 960, NeedsYou 740).
 
-- [ ] **Step 5: Register the 11 boards**
+- [x] **Step 5: Register the 11 boards**
 
 The boards are `Pagination`, `RunsPaged`, `RunsFlatPaged`, `RunsPageLoading`, `RunsEmpty`, `RunsProblemsPaged`, `RunsProblemsEmpty`, `NeedsYouPaged`, `NeedsYouEmpty`, `RouteLoading` and `RouteError`.
 
@@ -384,7 +384,7 @@ The boards are `Pagination`, `RunsPaged`, `RunsFlatPaged`, `RunsPageLoading`, `R
 - In `parity.mjs`, add the same 11 name → `[title, export]` pairs to `stories`.
 - In `coverage.test.ts`, raise the board count by 11 (34 → 45 on today's main; add 11 to whatever it is when this lands). Look up board stories in `../screens/*.stories.tsx` and `../components/Pagination.stories.tsx` through a second glob; leave the screens-layout test's module count and glob unchanged.
 
-- [ ] **Step 6: Run the tests and typecheck**
+- [x] **Step 6: Run the tests and typecheck**
 
 Run: `pnpm --filter @agentdesk/web test -- runs.test coverage stories.smoke boundaries shell && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
@@ -394,7 +394,7 @@ Expected: PASS.
 Run: `pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: "45 pairs written" (or the new total). Compare `parity-out/<board>.story.png` with `.proto.png` for the 11 new boards and fix differences that are not caused by the app's newer column names (the spec says the app's columns win). Do not commit `parity-out/` or `storybook-static/`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 devbox run fix
@@ -438,27 +438,27 @@ DeskSetupProps.versionsTotal?: number;          // header "N versions"; defaults
 DeskSetupProps.versionsPagination?: PaginationProps; // under VersionHistory; not drawn while versionsLoading or versionsError
 ```
 
-- [ ] **Step 1: Write the failing screen tests**
+- [x] **Step 1: Write the failing screen tests**
 
 - `entry.test.tsx`: `it('Projects draws the control under the table')`.
 - `desk.test.tsx`: `it('DeskRules puts the control between the list and Guards on every rule')` (document order: the last rule row, then the "Pagination" nav, then the "Guards on every rule" heading). `it('DeskRules with no rules shows No routing rules yet and no control')`. `it('DeskSkills puts the control under the list and keeps the active skill in the editor when it is not in the list')` (`active` is a skill absent from `skills`, and the editor shows its name). `it('DeskSkills with no skills shows No skills yet and no control')`.
 - `deskSetup.test.tsx`: `it('the header counts versionsTotal, not the rows shown')` (`versions` has 3 rows and `versionsTotal` is 23 → "23 versions"). `it('no control while versions load, fail or are empty')` covers the "Loading versions" status with `aria-busy`, the error text "Could not load the version history. Reload to try again.", and "0 versions" with "No versions yet. The first save creates version 1.".
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- entry.test desk.test deskSetup.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the screen props**
+- [x] **Step 3: Implement the screen props**
 
-- [ ] **Step 4: Write the stories**
+- [x] **Step 4: Write the stories**
 
 - `entry.stories.tsx`: `ProjectsPaged` (page 2 of 2, 26 projects, "Showing 21–26 of 26").
 - `desk.stories.tsx`: `DeskRulesPaged` (page 2 of 2, 24 rules), `DeskRulesEmpty`, `DeskSkillsPaged` (page 2 of 2, 22 skills, editor unchanged), `DeskSkillsEmpty`, `DeskSetupPaged` (page 2 of 2, header "23 versions"), `DeskSetupVersionsLoading` and `DeskSetupVersionsEmpty` (a saved script with "0 versions").
 - `DeskSetupVersionsError` already exists.
 - Heights are 900, as for the existing Projects and Desk stories.
 
-- [ ] **Step 5: Register the 9 boards**
+- [x] **Step 5: Register the 9 boards**
 
 The boards are `ProjectsPaged`, `DeskRulesPaged`, `DeskRulesEmpty`, `DeskSkillsPaged`, `DeskSkillsEmpty`, `DeskSetupPaged`, `DeskSetupVersionsLoading`, `DeskSetupVersionsError` and `DeskSetupVersionsEmpty`, registered the same way as in Task 3:
 
@@ -472,7 +472,7 @@ The boards are `ProjectsPaged`, `DeskRulesPaged`, `DeskRulesEmpty`, `DeskSkillsP
 Run: `pnpm --filter @agentdesk/web test -- entry.test desk.test deskSetup.test coverage stories.smoke && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: PASS, and "54 pairs written" (or the new total). Check the 9 new pairs by eye.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
@@ -540,7 +540,7 @@ projectsQueries.list(org: string, q: PageQuery)   // key [...projectsListKey(org
 projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
 ```
 
-- [ ] **Step 1: Write the failing helper tests** in `pagination.test.tsx`
+- [x] **Step 1: Write the failing helper tests** in `pagination.test.tsx`
 
 - `PageSearch.parse({ page: '3' })` → `{ page: '3' }`. `PageSearch.parse` maps each of `{ page: '0' }`, `{ page: '-2' }`, `{ page: '1.5' }`, `{ page: 'abc' }` and `{ page: '99999999999' }` to `{ page: undefined }`. `pageOfSearch({})` → 1; `pageToSearch(1)` → `undefined`; `pageToSearch(4)` → `'4'`.
 - `readPageSize()` → 20 when nothing is saved, and also when the saved value is `'33'`, `'abc'` or `'0'`; → 100 when `'100'` is saved.
@@ -549,7 +549,7 @@ projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
 - `usePaginationProps`: `onPageSizeChange(50)` saves 50 and calls `go(1)`. `onPageChange(3)` calls `go(3)`.
 - `usePagedQuery`: rendered with a QueryClient whose fetcher is held open, changing params from page 1 to page 2 keeps page 1's `data` with `busy: true`; releasing the fetch gives page 2's data with `busy: false`.
 
-- [ ] **Step 2: Write the failing API tests** in `projects.int.test.ts`, `describe('projects.list paging')`
+- [x] **Step 2: Write the failing API tests** in `projects.int.test.ts`, `describe('projects.list paging')`
 
 - Create 26 projects in org A, using the existing fixture helpers to insert rows (the HTTP create needs a reachable repo). Without a query, `items.length` is 20, `total` is 26, `page` is 1 and `pageSize` is 20.
 - `?page=2` returns 6 items, oldest created first, and the union of pages 1 and 2 has every id exactly once.
@@ -559,7 +559,7 @@ projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
 - Org B has 30 projects, and org A still sees `total: 26` with none of B's ids. An org with 0 projects gets `total: 0, items: []`. This also covers TC-20.3, TC-37.1 and TC-37.3 (Agent call).
 - Each response parses with the route's schema (`helpers/contract.ts`).
 
-- [ ] **Step 3: Write the failing web route tests**
+- [x] **Step 3: Write the failing web route tests**
 
 - `projects.route.test.tsx`:
   - 26 projects → 20 rows and "Showing 1–20 of 26". Clicking "Page 2" → 6 rows and `?page=2` in the location.
@@ -569,12 +569,12 @@ projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
   - While page 2's response is held, page 1's rows stay with the table `aria-busy="true"`.
 - `switcher.route.test.tsx`: with 26 projects, opening the project menu lists all 26 (a single request with `pageSize=100`). With 101 projects it lists 100.
 
-- [ ] **Step 4: Run them and see them fail**
+- [x] **Step 4: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- pagination projects.route switcher.route && pnpm --filter @agentdesk/api test -- projects`
 Expected: FAIL.
 
-- [ ] **Step 5: Implement**
+- [x] **Step 5: Implement**
 
 - Contracts: `projects.list` gets `query: PageQuery` and `response: pageOf(ProjectDto)`.
 - API: the controller takes `@Query(new ZodPipe(routes.projects.list.query))`. `ProjectsService.list(org, q)` runs, in one `withOrg`, a `count(*)` over `projects` and then the page `orderBy(asc(projects.createdAt), asc(projects.id)).limit(limit).offset(offset)`. `countsFor` runs over the page's ids only. The result goes through `toPage`.
@@ -591,7 +591,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- projects && pnpm --filter @agentdesk/web test -- pagination projects switcher contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/top-bar-sticky.spec.ts e2e/mock/external-links.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
@@ -656,7 +656,7 @@ export function todaySummary(today: RunStatsDto['today']): string; // "Today: 9 
 export function ticketRunCounts(items: RunListItem[]): Map<string, number>; // ticketKey → ticketRunCount
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `runs.int.test.ts`, `describe('runs.stats')`
+- [x] **Step 1: Write the failing API tests** in `runs.int.test.ts`, `describe('runs.stats')`
 
 - Seed a project with these runs: 1 queued (oldest queued number recorded), 1 starting, 1 running, 1 idle, 1 paused, 1 done, 3 succeeded, 2 failed, 1 expired, and 3 `ignored_*` inbound events.
   - Expected counts: `needs_you` 2, `active` 4 (starting, running, idle, done), `queued` 1, `ended` 6, `all` 12, `ignored` 3.
@@ -668,18 +668,18 @@ export function ticketRunCounts(items: RunListItem[]): Map<string, number>; // t
 - `GET …/runs/stats` is not taken by `runs.byNumber`.
 - `ticketRunCount` on `runs.list` items: ticket T has 3 runs (1 ended, 2 queued). With `filter=queued`, each T item carries `ticketRunCount: 3`.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `map.test.ts`: `todaySummary({ total: 9, failed: 1 })` → `'Today: 9 runs, 1 failed'`; `({ total: 1, failed: 0 })` → `'Today: 1 run'`; `({ total: 0, failed: 0 })` → `'Today: 0 runs'`. `startOfLocalDay(new Date(2026, 10, 19, 15, 4))` equals `new Date(2026, 10, 19).toISOString()`. `groupByTicket` with `ticketRunCounts` gives a group's `runsUsed` the server count even when fewer runs are on the list.
 - `runs.route.test.tsx`: the chips read the stats fixture (Needs you 1, Active 2, Queued 1, Ended 59, All 63, Ignored 3) while the run list holds 9 runs. The "Today" line comes from stats. The banner names `idleRun` and its slot note says "Run 63 is waiting" from `nextQueuedNumber`. The Runs route makes no request for `filter=all` unless the All chip is shown, and no `projects.ignored` request unless the Ignored chip is shown.
 - `applyEvents.test.ts`: a status change invalidates the cached `stats` query.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- map.test runs.route applyEvents`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces. Raise the route count in `routes.test.ts` by 1 and assert `flat['runs.stats']`. In `runs.test.ts`, check that `RunStatsDto` parses a full example and that `RunListItem` requires `ticketRunCount`.
 - API (`runs.service.ts`):
@@ -700,7 +700,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- runs map applyEvents realtime detail contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/run.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -751,7 +751,7 @@ export interface RunListParams { filter: RunListFilter; ticket?: string; page: n
 runsQueries.list(org: string, projectId: string, p: RunListParams) // key [...runsKey, 'list', p.filter, p.ticket ?? null, p.page, p.pageSize]
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `runs.int.test.ts`
+- [x] **Step 1: Write the failing API tests** in `runs.int.test.ts`
 
 Replace the three keyset/cursor tests with:
 
@@ -763,7 +763,7 @@ Replace the three keyset/cursor tests with:
 
 The other `listRuns(...)` calls move to `page`/`pageSize`.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `runs.route.test.tsx`:
   - 63 runs → 20 rows and "Showing 1–20 of 63". "Page 4" → 3 rows and `?page=4`.
@@ -779,12 +779,12 @@ The other `listRuns(...)` calls move to `page`/`pageSize`.
   - A row that leaves its page's filter stays patched, and that page's query is invalidated (Review Focus 3).
   - `listScope` reads filter and ticket from the new key shape.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- runs.route detail.route applyEvents realtime`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces. `client/api.test.ts` uses `{ filter: 'needs_you', page: 1, pageSize: 20 }` and the envelope.
 - API: `listPage` runs `count(*)` with the filter and ticket conditions, then the page `orderBy(desc(runs.queuedAt), asc(runs.id)).limit(limit).offset(offset)`, then `toPage`. Delete `isRealTimestamp`, `Cursor`, `encodeCursor`, `decodeCursor`, `QUEUED_AT_TEXT`, the cursor branch of `list`, and `isPgCode` if nothing else uses it.
@@ -802,7 +802,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/run.spec.ts e2e/mock/trigger.spec.ts e2e/mock/agent-limits.spec.ts && pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts`
 Expected: PASS. If the stack cannot start, say so in the PR and list `run.spec.ts` as written but not run.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -848,22 +848,22 @@ export const versionsKey: (org: string, projectId: string) => readonly [...setup
 setupQueries.versions(org: string, projectId: string, q: PageQuery)       // key [...versionsKey, q.page, q.pageSize]
 ```
 
-- [ ] **Step 1: Write the failing API tests**
+- [x] **Step 1: Write the failing API tests**
 
 - `runs.int.test.ts` `describe('ignored list')`: 130 ignored events → 20 items, `total: 130`; `?page=7` → 10 items (no 100 cap); newest received first with `id` ascending on ties; `?page=8` → empty with `total: 130`; bounds → 400; another org's events are not counted. The old "max 100" test goes.
 - `setup-script.int.test.ts`: 23 versions → page 1 holds versions 23..4, page 2 holds 3..1, `total: 23`; past the end → empty; bounds → 400; another org's project → 404.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `runs.route.test.tsx`: Ignored chip with 27 ignored → 20 rows; "Page 2" → 7 rows and "Showing 21–27 of 27"; the chip count is still from stats (27). From page 3 of All, clicking Ignored lands on page 1 of the ignored list. 20 ignored → no control.
 - `setup.route.test.tsx`: 23 versions → the header reads "23 versions" and 20 rows; "Page 2" → 3 rows; `?page=5` → `?page=2`; while loading, failing or with 0 versions there is no "Pagination" nav.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs setup-script && pnpm --filter @agentdesk/web test -- runs.route setup-script/setup.route`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces.
 - API: both services run `count(*)` and the page in one `withOrg` and use `toPage`; both controllers take `@Query(new ZodPipe(<route>.query))`. Remove `IGNORED_LIMIT`.
@@ -878,7 +878,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/api test -- runs setup-script && pnpm --filter @agentdesk/web test -- runs setup-script contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup.spec.ts e2e/mock/desk-setup-layout.spec.ts e2e/mock/runs-board.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -924,11 +924,11 @@ deskQueries.allRules(org: string, projectId: string)              // rules(org, 
 setupQueries.rules = deskQueries.allRules
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `rules.int.test.ts`
+- [x] **Step 1: Write the failing API tests** in `rules.int.test.ts`
 
 24 rules → 20 items, `total: 24`, oldest created first with `id` ascending on ties; `?page=2` → 4 items; past the end → empty with the real total; bounds → 400; another org's rules are not counted.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `rules.route.test.tsx`:
   - 24 rules → 20 rows and "Showing 1–20 of 24", with the control placed before "Guards on every rule". "Page 2" → 4 rows.
@@ -938,12 +938,12 @@ setupQueries.rules = deskQueries.allRules
 - `skills.route.test.tsx`: with 25 rules, the rule references of the skill being deleted list rules beyond the first 20 (one `pageSize=100` request).
 - `setup.route.test.tsx`: step 5 with 21 existing rules where `code-build` was created 21st → "Save rules and finish" creates no duplicate, finishes, and sends no `POST` for `code-build`.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- rules && pnpm --filter @agentdesk/web test -- rules.route skills.route setup/setup.route`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces.
 - API: `RulesService.list(org, projectId, q)` runs `count(*)` and the page `orderBy(asc(rules.createdAt), asc(rules.id))`; the controller adds the query pipe. Any `stats` the rule DTO carries keep coming from their grouped query over the page's ids.
@@ -962,7 +962,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/api test -- rules && pnpm --filter @agentdesk/web test -- desk setup contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/rules.spec.ts e2e/mock/rules-layout.spec.ts e2e/mock/setup.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -1009,22 +1009,22 @@ deskQueries.allSkills(org: string, projectId: string)             // skills(org,
 setupQueries.skills = deskQueries.allSkills
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `skills.int.test.ts`
+- [x] **Step 1: Write the failing API tests** in `skills.int.test.ts`
 
 With the fake code host holding 22 skills in shuffled order: page 1 holds the first 20 names A to Z, page 2 the last 2, `total: 22`; past the end → empty with `total: 22`; bounds → 400; another org's project → 404.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `skills.route.test.tsx`: 22 skills → 20 in the list with the control under it. "Page 2" → 2 skills, and the editor still shows the skill that was open (`active`). `?skill=<22nd name>` without `page` opens that skill in the editor. `?page=4` → `?page=2`.
 - `rules.route.test.tsx`: the skill picker offers 25 of 25 skills (one `pageSize=100` request) and 100 of 101.
 - `setup.route.test.tsx`: step 4 with 21 skills sorting before `code-review`, and `code-review` already in the repo → committing the templates sends no `PUT` for `code-review` and the step finishes.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- skills && pnpm --filter @agentdesk/web test -- skills.route rules.route setup/setup.route`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces.
 - API: `SkillsService.list(org, projectId, q)` returns `slicePage([...await host.listSkills(project)].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)), q)`. Skill names are lowercase slugs, so code-unit order is A to Z.
@@ -1042,7 +1042,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/api test -- skills && pnpm --filter @agentdesk/web test && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/rules.spec.ts e2e/mock/setup.spec.ts e2e/mock/desk-setup.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -1098,7 +1098,7 @@ export function mockListHandlers(lists: MockLists): RequestHandler[];
 export async function seedLists(page: Page, lists: MockLists): Promise<void>; // addInitScript writing MOCK_LISTS_KEY before the first load
 ```
 
-- [ ] **Step 1: Write the failing unit tests** in `e2eLists.test.ts`
+- [x] **Step 1: Write the failing unit tests** in `e2eLists.test.ts`
 
 - `applyMockLists({ runs: { total: 63, statuses: { starting: 1, running: 1, paused: 1, queued: 1 } } })`: the store holds 63 invoicer-api runs, and `runs.stats` answers Needs you 1, Active 2, Queued 1, Ended 59, All 63.
 - `ticketSize: 3` puts positions 19–21 on one ticket.
@@ -1107,9 +1107,9 @@ export async function seedLists(page: Page, lists: MockLists): Promise<void>; //
 - `fail` with `times: 3` fails three requests, then lets the handler answer.
 - An invalid JSON value under the key is ignored (the seed stays).
 
-- [ ] **Step 2: Implement** `e2eLists.ts`. `browser.ts` reads and parses the key in `startMockWorker` (inside a try, like `loadAuth`), calls `applyMockLists`, and prepends `mockListHandlers` with `worker.use`. `db.ts` gains the store writes `applyMockLists` needs. `mock.ts` gains `seedLists`.
+- [x] **Step 2: Implement** `e2eLists.ts`. `browser.ts` reads and parses the key in `startMockWorker` (inside a try, like `loadAuth`), calls `applyMockLists`, and prepends `mockListHandlers` with `worker.use`. `db.ts` gains the store writes `applyMockLists` needs. `mock.ts` gains `seedLists`.
 
-- [ ] **Step 3: Write `pagination-control.spec.ts`**
+- [x] **Step 3: Write `pagination-control.spec.ts`**
 
 Each test seeds its own lists and starts at `/o/alice/p/<INVOICER_API>/runs`. Rules and cases:
 
@@ -1156,7 +1156,7 @@ git commit -m "test(web): mock e2e for the pagination control"
 - Consumes: `seedLists`, `MockLists` (Task 11).
 - Produces: nothing.
 
-- [ ] **Step 1: Write `runs-paging.spec.ts`.** Rules and cases:
+- [x] **Step 1: Write `runs-paging.spec.ts`.** Rules and cases:
 
 - **BR-1:** TC-1.1–1.3.
 - **BR-11:** TC-11.1, TC-11.7.
@@ -1171,12 +1171,12 @@ git commit -m "test(web): mock e2e for the pagination control"
 - **BR-25:** TC-25.1–25.5.
 - **BR-36:** TC-36.3, delivering a status change on page 2 through the mock project event stream's existing scripted-run mechanism (`runScript`) for a run on that page.
 
-- [ ] **Step 2: Run the new spec only**
+- [x] **Step 2: Run the new spec only**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-paging.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1199,7 +1199,7 @@ git commit -m "test(web): mock e2e for paged runs and server-fed numbers"
 - Consumes: `seedLists`, `MockLists` (Task 11).
 - Produces: nothing.
 
-- [ ] **Step 1: Write `lists-paging.spec.ts`**, grouped by screen, covering these rules and cases:
+- [x] **Step 1: Write `lists-paging.spec.ts`**, grouped by screen, covering these rules and cases:
 
 - **Projects:** BR-3 TC-3.1, TC-3.2; BR-5 TC-5.3; BR-9 TC-9.6; BR-28 TC-28.1, TC-28.2; BR-18 TC-18.3.
 - **Across lists:** BR-1 TC-1.4; BR-13 TC-13.2, TC-13.3; BR-17 TC-17.2.
@@ -1210,12 +1210,12 @@ git commit -m "test(web): mock e2e for paged runs and server-fed numbers"
 - **Setup history:** BR-11 TC-11.6; BR-31 TC-31.1–31.5.
 - **Whole-set readers:** BR-32 TC-32.1–32.4; BR-33 TC-33.1–33.4; BR-34 TC-34.4 (step 4 and step 5 skip an existing item beyond the first 20 and finish); BR-35 TC-35.1–35.3.
 
-- [ ] **Step 2: Run the new spec only**
+- [x] **Step 2: Run the new spec only**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/lists-paging.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1240,7 +1240,7 @@ git commit -m "test(web): mock e2e for paged Projects, Desk lists and whole-set 
 - Consumes: the paged API routes and screens (Tasks 5–10); `ok`, `signInAndCreateProject`, `commentOnNewTicket` from `./helpers`.
 - Produces: nothing.
 
-- [ ] **Step 1: Write `pagination.spec.ts`**
+- [x] **Step 1: Write `pagination.spec.ts`**
 
 Each test signs in as a fresh dev-login user. Projects keep `maxConcurrentRuns: 1` (`PATCH /api/projects/:id`) so most runs stay queued. Runs come from `commentOnNewTicket` on separate tickets. Rules and cases:
 
@@ -1260,12 +1260,12 @@ Each test signs in as a fresh dev-login user. Projects keep `maxConcurrentRuns: 
 - **BR-37:** TC-37.2 (a second dev-login user, org B, creates 40 runs; org A with 25 sees "of 25" and All 25). TC-37.1 and TC-37.3 are proven in Task 5's API test (Agent call).
 - **BR-38:** TC-38.1–38.3.
 
-- [ ] **Step 2: Run the new spec only, with the stack up**
+- [x] **Step 2: Run the new spec only, with the stack up**
 
 Run: `devbox run dev-bg` (wait until api and web are Ready in `devbox services ls`), then `pnpm --filter @agentdesk/web exec playwright test e2e/local/pagination.spec.ts`
 Expected: PASS. If the stack cannot start (no Docker engine, runner pod), say so in the PR and list this spec as written but not run. Never tick it as passed.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix

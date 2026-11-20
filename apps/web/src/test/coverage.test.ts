@@ -13,16 +13,21 @@ type StoryModule = { default: { title: string; excludeStories?: unknown; include
   unknown
 >;
 const modules = Object.values(import.meta.glob<StoryModule>('../screens/*.stories.tsx', { eager: true }));
+// The Pagination board shows a component, not a screen, so its story file is looked up beside the screens.
+const boardModules = [
+  ...modules,
+  ...Object.values(import.meta.glob<StoryModule>('../components/Pagination.stories.tsx', { eager: true })),
+];
 
 describe('storybook coverage of prototype boards', () => {
-  it('lists exactly the 41 boards of canvas.json, in order', () => {
-    expect(order).toHaveLength(41);
+  it('lists exactly the 61 boards of canvas.json, in order', () => {
+    expect(order).toHaveLength(61);
     expect(Object.keys(boardStories)).toEqual(order);
   });
 
   it.each(order)('board %s has a story', (board) => {
     const { title, exportName } = boardStories[board as keyof typeof boardStories];
-    const mod = modules.find((m) => m.default.title === title);
+    const mod = boardModules.find((m) => m.default.title === title);
     expect(mod, `no stories file with title ${title}`).toBeDefined();
     expect(Object.keys(mod!), `${title} lacks export ${exportName}`).toContain(exportName);
   });
@@ -31,7 +36,7 @@ describe('storybook coverage of prototype boards', () => {
     'state %s has a story and names a real board',
     (_name, { title, exportName, board }) => {
       expect(order).toContain(board);
-      const mod = modules.find((m) => m.default.title === title);
+      const mod = boardModules.find((m) => m.default.title === title);
       expect(Object.keys(mod!), `${title} lacks export ${exportName}`).toContain(exportName);
     },
   );

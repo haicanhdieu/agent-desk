@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   routes,
   type CreateRuleRequest,
+  type Page,
+  type PageQuery,
   type PromptPreviewDto,
   type RuleDto,
   type UpdateRuleRequest,
@@ -13,6 +15,7 @@ import { RulesService } from './rules.service';
 
 const ProjectParam = new ZodPipe(routes.rules.list.params);
 const RuleParam = new ZodPipe(routes.rules.update.params);
+const ListQuery = new ZodPipe(routes.rules.list.query);
 const CreateBody = new ZodPipe(routes.rules.create.body);
 const UpdateBody = new ZodPipe(routes.rules.update.body);
 
@@ -21,8 +24,12 @@ export class RulesController {
   constructor(@Inject(RulesService) private readonly service: RulesService) {}
 
   @Get(routePath(routes.rules.list))
-  list(@CurrentOrg() org: OrgContext, @Param(ProjectParam) p: { projectId: string }): Promise<RuleDto[]> {
-    return this.service.list(org, p.projectId);
+  list(
+    @CurrentOrg() org: OrgContext,
+    @Param(ProjectParam) p: { projectId: string },
+    @Query(ListQuery) q: PageQuery,
+  ): Promise<Page<RuleDto>> {
+    return this.service.list(org, p.projectId, q);
   }
 
   @Get(routePath(routes.rules.promptPreview))

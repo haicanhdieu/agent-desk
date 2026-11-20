@@ -2,7 +2,7 @@ import type { QueryResultRow } from 'pg';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { ScheduleNotFoundError, WorkflowNotFoundError } from '@temporalio/client';
-import type { ProjectDto } from '@agentdesk/contracts';
+import type { Page, ProjectDto } from '@agentdesk/contracts';
 import { SIGNAL, credentialSecretName } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
@@ -103,7 +103,7 @@ describe('projects', () => {
     const get = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
     expectContract('projects.get', get);
     const list = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie: alice } });
-    expect((expectContract('projects.list', list) as ProjectDto[]).some((x) => x.id === p.id)).toBe(true);
+    expect((expectContract('projects.list', list) as Page<ProjectDto>).items.some((x) => x.id === p.id)).toBe(true);
   });
 
   it('rejects a duplicate repo with 409 and an unknown/foreign connection with 404', async () => {
@@ -137,7 +137,7 @@ describe('projects', () => {
       expect(res.statusCode, `${method} ${url}`).toBe(404);
     }
     const list = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie: bob } });
-    expect(expectContract('projects.list', list)).toEqual([]);
+    expect(expectContract('projects.list', list)).toEqual({ items: [], page: 1, pageSize: 20, total: 0 });
     const still = await t.app.inject({ method: 'GET', url: `/api/projects/${p.id}`, headers: { cookie: alice } });
     expect(still.statusCode).toBe(200);
   });
@@ -575,5 +575,101 @@ describe('POST /api/projects/:projectId/connection/poll (Check now)', () => {
     const id = await pollingProject();
     expect((await checkNow(id, carol)).statusCode).toBe(403);
     expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
+  });
+});
+
+describe('projects.list paging', () => {
+  let a: string;
+  let b: string;
+  let aOrg: string;
+  let bOrg: string;
+  let aConn: string;
+  let bConn: string;
+  let empty: string;
+  const aIds: string[] = [];
+  const bIds: string[] = [];
+
+  const orgIdOf = async (slug: string): Promise<string> =>
+    (await t.db.pool.query('select id from organization where slug = $1', [slug])).rows[0].id;
+
+  /** Inserts `count` projects straight into the org (the HTTP create needs a reachable repo), oldest first. */
+  async function seed(orgId: string, conn: string, prefix: string, count: number, createdAt?: Date): Promise<string[]> {
+    const res = await asOrg(
+      orgId,
+      `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id, created_at)
+       select $1::uuid, $3 || g, $3 || g, $2::uuid, $2::uuid, coalesce($5::timestamptz, now() - interval '1 day' + g * interval '1 second')
+       from generate_series(1, $4::int) g returning id`,
+      [orgId, conn, prefix, count, createdAt ?? null],
+    );
+    return res.rows.map((r) => r.id as string);
+  }
+  const list = (cookie: string, qs = '') =>
+    t.app.inject({ method: 'GET', url: `/api/projects${qs}`, headers: { cookie } });
+
+  beforeAll(async () => {
+    a = await loginAs(t, 'paging-a');
+    b = await loginAs(t, 'paging-b');
+    empty = await loginAs(t, 'paging-empty');
+    aConn = await installFakeConnection(a);
+    bConn = await installFakeConnection(b);
+    aOrg = await orgIdOf('paging-a');
+    bOrg = await orgIdOf('paging-b');
+    aIds.push(...(await seed(aOrg, aConn, 'paging-a/p', 26)));
+    bIds.push(...(await seed(bOrg, bConn, 'paging-b/p', 30)));
+  });
+
+  async function installFakeConnection(cookie: string): Promise<string> {
+    const inst = await t.app.inject({ method: 'POST', url: '/api/connections/fake/install', headers: { cookie } });
+    const u = new URL((inst.json() as { url: string }).url);
+    const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie } });
+    return new URL(String(cb.headers['location'])).searchParams.get('connection') ?? '';
+  }
+
+  it('returns the first 20 of 26 with the real total by default', async () => {
+    const page = expectContract('projects.list', await list(a)) as Page<ProjectDto>;
+    expect(page.items).toHaveLength(20);
+    expect(page).toMatchObject({ total: 26, page: 1, pageSize: 20 });
+    expect(page.items.map((p) => p.id)).toEqual(aIds.slice(0, 20));
+  });
+
+  it('TC-20.3: page 2 holds the last 6, oldest created first, and the pages cover every id once', async () => {
+    const p1 = expectContract('projects.list', await list(a)) as Page<ProjectDto>;
+    const p2 = expectContract('projects.list', await list(a, '?page=2')) as Page<ProjectDto>;
+    expect(p2.items).toHaveLength(6);
+    expect(p2.items.map((p) => p.id)).toEqual(aIds.slice(20));
+    const all = [...p1.items, ...p2.items].map((p) => p.id);
+    expect(new Set(all).size).toBe(26);
+    expect([...all].sort()).toEqual([...aIds].sort());
+  });
+
+  it('orders rows with equal created_at by id, the same on every request', async () => {
+    const conn = await installFakeConnection(await loginAs(t, 'paging-ties'));
+    const orgId = await orgIdOf('paging-ties');
+    const ids = await seed(orgId, conn, 'paging-ties/p', 22, new Date('2026-01-01T00:00:00Z'));
+    const cookie = await loginAs(t, 'paging-ties');
+    const first = (expectContract('projects.list', await list(cookie)) as Page<ProjectDto>).items.map((p) => p.id);
+    const second = (expectContract('projects.list', await list(cookie)) as Page<ProjectDto>).items.map((p) => p.id);
+    expect(first).toEqual(second);
+    expect(first).toEqual([...ids].sort().slice(0, 20));
+  });
+
+  it('a page past the last is 200 with no items and the real total', async () => {
+    const res = await list(a, '?page=3');
+    expect(res.statusCode).toBe(200);
+    expect(expectContract('projects.list', res)).toMatchObject({ items: [], total: 26, page: 3 });
+  });
+
+  it.each(['?page=0', '?pageSize=0', '?pageSize=101', '?page=abc', '?page=2147483648'])('%s is a 400', async (qs) => {
+    expect((await list(a, qs)).statusCode).toBe(400);
+  });
+
+  it('TC-37.1, TC-37.3: counts and lists only the caller org, and an org without projects gets total 0', async () => {
+    const mine = expectContract('projects.list', await list(a, '?pageSize=100')) as Page<ProjectDto>;
+    expect(mine.total).toBe(26);
+    expect(mine.items.some((p) => bIds.includes(p.id))).toBe(false);
+    const theirs = expectContract('projects.list', await list(b, '?pageSize=100')) as Page<ProjectDto>;
+    expect(theirs.total).toBe(30);
+    expect(theirs.items.some((p) => aIds.includes(p.id))).toBe(false);
+    expect(expectContract('projects.list', await list(empty))).toMatchObject({ items: [], total: 0 });
   });
 });

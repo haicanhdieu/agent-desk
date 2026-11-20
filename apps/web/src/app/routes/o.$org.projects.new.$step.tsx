@@ -413,7 +413,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
     useState<StepErrors<'command' | 'labels' | 'target' | 'skill' | 'prompt' | 'model'>>(noErrors);
   const models = useQuery(deskQueries.agentModels(org, agent.id));
   const promptPreview = usePromptPreview(org, projectId, true);
-  const skillNames = skills.map((s) => s.name);
+  const skillNames = skills.items.map((s) => s.name);
   const rule: RuleDraft = {
     command: 'code-build',
     target: 'issue',
@@ -494,12 +494,13 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { data: skills } = useSuspenseQuery(setupQueries.skills(org, projectId));
-  const { data: rules } = useSuspenseQuery(setupQueries.rules(org, projectId));
+  const { data: rulesPage } = useSuspenseQuery(setupQueries.rules(org, projectId));
+  const rules = rulesPage.items;
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
   const warning = useSetupWarning(org, projectId);
   const first = rules[0];
   const label = first?.labelFilter[0];
-  const skillList = skills.map((s) => s.name).join(', ');
+  const skillList = skills.items.map((s) => s.name).join(', ');
   const summary = [
     { term: 'Repository', value: <span className="mono">{project.repoPath}</span> },
     {

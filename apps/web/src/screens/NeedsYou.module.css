@@ -68,3 +68,8 @@
   align-items: center;
   gap: 10px;
 }
+
+.cards {
+  display: flex;
+  flex-direction: column;
+}

@@ -1,8 +1,11 @@
-import { act, screen, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { describe, expect, it, vi } from 'vitest';
+import { http } from 'msw';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
+import { jsonResponse } from '@/mocks/msw/http';
+import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
 
@@ -85,5 +88,127 @@ describe('projects route clock', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/** Replaces the alice projects with `total` rows created one second apart. */
+function seedProjects(total: number) {
+  const [template] = mockDb.state.projects.filter((p) => p.orgId === ids.org.alice);
+  if (!template) throw new Error('seed has no alice project');
+  mockDb.state.projects = Array.from({ length: total }, (_, i) => ({
+    ...template,
+    id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+    name: `project-${String(i + 1).padStart(2, '0')}`,
+    repoPath: `dev/project-${String(i + 1).padStart(2, '0')}`,
+    createdAt: new Date(Date.UTC(2026, 0, 1, 0, 0, i)).toISOString(),
+  }));
+}
+/** The wide page list comes first; jsdom shows both lists, the CSS container query picks one. */
+function pageButton(n: number): HTMLElement {
+  const [button] = screen.getAllByRole('button', { name: `Page ${n}` });
+  if (!button) throw new Error(`no Page ${n} button`);
+  return button;
+}
+const bodyRows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
+
+describe('projects route paging', () => {
+  afterEach(() => localStorage.clear());
+
+  it('shows 20 of 26 rows with the range, and page 2 the other 6 with ?page=2', async () => {
+    seedProjects(26);
+    const { user, router } = await renderRoute('/o/alice/projects');
+    expect(await screen.findByText('Showing')).toBeInTheDocument();
+    expect(screen.getByText('1–20')).toBeInTheDocument();
+    expect(bodyRows()).toHaveLength(20);
+
+    await user.click(pageButton(2));
+
+    await waitFor(() => expect(bodyRows()).toHaveLength(6));
+    expect(router.state.location.search).toEqual({ page: '2' });
+    expect(screen.getByText('21–26')).toBeInTheDocument();
+  });
+
+  it('replaces a page past the last with the last page', async () => {
+    seedProjects(26);
+    const { router } = await renderRoute('/o/alice/projects?page=9');
+    await waitFor(() => expect(router.state.location.search).toEqual({ page: '2' }));
+    await waitFor(() => expect(bodyRows()).toHaveLength(6));
+    expect(router.history.length).toBe(1);
+  });
+
+  it('shows page 1 for a page number the API would refuse', async () => {
+    seedProjects(26);
+    const { router } = await renderRoute('/o/alice/projects?page=99999999999');
+    expect(await screen.findByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
+    expect(bodyRows()).toHaveLength(20);
+    expect(router.state.location.search).toEqual({});
+  });
+
+  it('shows no pagination with 20 projects', async () => {
+    seedProjects(20);
+    await renderRoute('/o/alice/projects');
+    await screen.findByRole('link', { name: 'project-20' });
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+  });
+
+  it('a new page size shows that many rows and returns to page 1', async () => {
+    seedProjects(26);
+    const { user, router } = await renderRoute('/o/alice/projects?page=2');
+    await waitFor(() => expect(bodyRows()).toHaveLength(6));
+    await user.selectOptions(screen.getByLabelText('Rows per page'), '50');
+    await waitFor(() => expect(bodyRows()).toHaveLength(26));
+    expect(router.state.location.search).toEqual({});
+    expect(localStorage.getItem('agentdesk.pageSize')).toBe('50');
+  });
+
+  it('while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+    seedProjects(26);
+    const page2 = await (await fetch('http://localhost:3000/api/projects?page=2')).json();
+    const { user } = await renderRoute('/o/alice/projects');
+    await screen.findByText('1–20');
+    const nav = () => screen.getByRole('navigation', { name: 'Pagination' });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('*/api/projects', async () => {
+        await held;
+        return jsonResponse(page2);
+      }),
+    );
+    await user.click(pageButton(2));
+    await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
+    expect(nav()).toHaveTextContent('Showing 1–20 of 26');
+    expect(pageButton(1)).toHaveAttribute('aria-current', 'page');
+    release();
+    await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'false'));
+    expect(nav()).toHaveTextContent('Showing 21–26 of 26');
+    expect(pageButton(2)).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('keeps page 1 on screen, busy, while page 2 loads', async () => {
+    seedProjects(26);
+    const page2 = await (await fetch('http://localhost:3000/api/projects?page=2')).json();
+    const { user } = await renderRoute('/o/alice/projects');
+    await screen.findByText('1–20');
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('*/api/projects', async () => {
+        await held;
+        return jsonResponse(page2);
+      }),
+    );
+
+    await user.click(pageButton(2));
+
+    await waitFor(() => expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true'));
+    expect(bodyRows()).toHaveLength(20);
+    release();
+    await waitFor(() => expect(bodyRows()).toHaveLength(6));
+    expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy');
   });
 });

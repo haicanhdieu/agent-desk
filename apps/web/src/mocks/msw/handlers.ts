@@ -6,6 +6,7 @@ import {
   type RouteDef,
   type RuleDto,
   FINAL_RUN_STATUSES,
+  slicePage,
   type ProjectConnectionDto,
   type ProjectDto,
   type RunDto,
@@ -129,6 +130,12 @@ function assertUniqueCommand(projectId: string, command: string, exceptId?: stri
   }
 }
 
+/** As the API: a list item carries how many runs its ticket has had in the project, all statuses. */
+const withTicketRunCount = (run: RunDto): RunDto & { ticketRunCount: number } => ({
+  ...run,
+  ticketRunCount: db().runs.filter((r) => r.projectId === run.projectId && r.ticket.ref === run.ticket.ref).length,
+});
+
 function runOf(runId: string): RunDto {
   const run = db().runs.find((r) => r.id === runId);
   if (!run) throw notFound('Run');
@@ -231,11 +238,14 @@ const impl: Impl = {
     return db().repos[params.connectionId] ?? [];
   },
 
-  'projects.list': () => {
+  'projects.list': ({ query }) => {
     const { orgId } = session();
-    return db()
+    // As the API: creation order, ties broken by id.
+    const rows = db()
       .projects.filter((p) => p.orgId === orgId)
-      .map(toProjectDto);
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
+    const page = slicePage(rows, query);
+    return { ...page, items: page.items.map(toProjectDto) };
   },
   'projects.create': ({ body }) => {
     const { orgId } = session();
@@ -333,7 +343,7 @@ const impl: Impl = {
     db().triggers[row.id] = trig;
     return null;
   },
-  'projects.ignored': ({ params }) => db().ignored[projectRow(params.projectId).id] ?? [],
+  'projects.ignored': ({ params, query }) => slicePage(db().ignored[projectRow(params.projectId).id] ?? [], query),
 
   'agents.get': ({ params }) => agentOf(projectRow(params.projectId).id),
   'agents.put': ({ params, body }) => {
@@ -374,7 +384,11 @@ const impl: Impl = {
   },
 
   // Full skills; the SkillSummaryDto response schema strips `body` and `sha`.
-  'skills.list': ({ params }) => skillsOf(projectRow(params.projectId).id),
+  'skills.list': ({ params, query }) =>
+    slicePage(
+      [...skillsOf(projectRow(params.projectId).id)].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+      query,
+    ),
   'skills.get': ({ params }) => skillOf(projectRow(params.projectId).id, params.name),
   'skills.put': ({ params, body }) => {
     const list = skillsOf(projectRow(params.projectId).id);
@@ -424,10 +438,13 @@ const impl: Impl = {
     for (const t of db().setupTests) if (t.projectId === projectId) t.matchesCurrentScript = t.scriptSha256 === sha;
     return next;
   },
-  'setupScript.versions': ({ params }) =>
-    [...setupVersionsOf(projectRow(params.projectId).id)]
-      .reverse()
-      .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt })),
+  'setupScript.versions': ({ params, query }) =>
+    slicePage(
+      [...setupVersionsOf(projectRow(params.projectId).id)]
+        .reverse()
+        .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt })),
+      query,
+    ),
   'setupScript.version': ({ params }) => {
     const found = setupVersionsOf(projectRow(params.projectId).id).find((v) => v.version === params.version);
     if (!found) throw notFound('Setup script version');
@@ -470,7 +487,12 @@ const impl: Impl = {
     endSetupTest(found);
     return null;
   },
-  'rules.list': ({ params }) => db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
+  // As the API: creation order (the store keeps rules in the order they were created).
+  'rules.list': ({ params, query }) =>
+    slicePage(
+      db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
+      query,
+    ),
   'rules.create': ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
     assertUniqueCommand(projectId, body.command);
@@ -523,16 +545,37 @@ const impl: Impl = {
 
   'runs.list': ({ params, query }) => {
     const projectId = projectRow(params.projectId).id;
-    const cursor = query.cursor === undefined ? Infinity : Number(query.cursor);
     const matching = db()
       .runs.filter((r) => r.projectId === projectId)
       .filter((r) => matchesFilter(query.filter, r.status))
       .filter((r) => query.ticket === undefined || r.ticket.ref === query.ticket)
-      .filter((r) => r.number < cursor)
-      .sort((a, b) => b.number - a.number);
-    const items = matching.slice(0, query.limit).map(withAgentIdleEnd);
-    const last = items.at(-1);
-    return { items, nextCursor: matching.length > items.length && last ? String(last.number) : null };
+      .sort((a, b) => b.number - a.number)
+      .map((r) => withTicketRunCount(withAgentIdleEnd(r)));
+    return slicePage(matching, query);
+  },
+  // Before byNumber, as in the API: `stats` is not a run number.
+  'runs.stats': ({ params, query }) => {
+    const projectId = projectRow(params.projectId).id;
+    const runs = db().runs.filter((r) => r.projectId === projectId);
+    const since = Date.parse(query.since);
+    const today = runs.filter((r) => Date.parse(r.queuedAt) >= since);
+    const idle = runs.filter((r) => r.status === 'idle').sort((a, b) => b.queuedAt.localeCompare(a.queuedAt))[0];
+    const nextQueued = runs
+      .filter((r) => r.status === 'queued')
+      .sort((a, b) => a.queuedAt.localeCompare(b.queuedAt))[0];
+    return {
+      counts: {
+        needs_you: runs.filter((r) => matchesFilter('needs_you', r.status)).length,
+        active: runs.filter((r) => matchesFilter('active', r.status)).length,
+        queued: runs.filter((r) => matchesFilter('queued', r.status)).length,
+        ended: runs.filter((r) => matchesFilter('ended', r.status)).length,
+        all: runs.length,
+        ignored: (db().ignored[projectId] ?? []).length,
+      },
+      today: { total: today.length, failed: today.filter((r) => r.status === 'failed').length },
+      idleRun: idle ? withTicketRunCount(withAgentIdleEnd(idle)) : null,
+      nextQueuedNumber: nextQueued?.number ?? null,
+    };
   },
   'runs.byNumber': ({ params }) => {
     const projectId = projectRow(params.projectId).id;

@@ -1,7 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { expect, test, type Page } from '@playwright/test';
-import { RuleDto } from '@agentdesk/contracts';
-import { z } from 'zod';
+import { RuleDto, pageOf } from '@agentdesk/contracts';
 import { API, ok, readAgent, signInAndCreateProject, signInAndStartProject } from './helpers';
 
 /*
@@ -172,9 +171,9 @@ async function expectModel(page: Page, shown: string, typed?: string) {
 
 /** Given: a rule saved through the rules API (the same route the form uses), naming `model` or following the default. */
 async function createRule(page: Page, projectId: string, command: string, model: string | null) {
-  const rules = z
-    .array(RuleDto)
-    .parse(await ok(await page.request.get(`/api/projects/${projectId}/rules`), 200, 'rules'));
+  const { items: rules } = pageOf(RuleDto).parse(
+    await ok(await page.request.get(`/api/projects/${projectId}/rules?pageSize=100`), 200, 'rules'),
+  );
   const skillName = rules.find((r) => r.skillName !== null)?.skillName;
   expect(skillName, 'a skill rule from the setup to borrow its skill').toBeTruthy();
   const rule = RuleDto.parse(
@@ -191,9 +190,9 @@ async function createRule(page: Page, projectId: string, command: string, model:
 }
 
 async function listRuleCommands(page: Page, projectId: string): Promise<string[]> {
-  const rules = z
-    .array(RuleDto)
-    .parse(await ok(await page.request.get(`/api/projects/${projectId}/rules`), 200, 'rules'));
+  const { items: rules } = pageOf(RuleDto).parse(
+    await ok(await page.request.get(`/api/projects/${projectId}/rules?pageSize=100`), 200, 'rules'),
+  );
   return rules.map((r) => r.command);
 }
 

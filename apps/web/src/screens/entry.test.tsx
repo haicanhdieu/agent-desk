@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import type { PaginationProps } from '@/components';
 import { projects, user } from '@/mocks';
 import { SignIn } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
@@ -105,5 +106,21 @@ describe('Projects', () => {
     render(<Projects user={user} projects={projects} newHref="/new" />);
     expect(screen.getByRole('link', { name: 'docs-site' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'More for docs-site' })).toBeInTheDocument();
+  });
+});
+
+describe('Projects pagination', () => {
+  it('Projects draws the control under the table', () => {
+    const pagination: PaginationProps = {
+      page: 2,
+      pageSize: 20,
+      total: 26,
+      onPageChange: () => undefined,
+      onPageSizeChange: () => undefined,
+    };
+    render(<Projects user={user} projects={projects} newHref="/new" pagination={pagination} />);
+    const nav = screen.getByRole('navigation', { name: 'Pagination' });
+    expect(screen.getByRole('table').compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(nav).toHaveTextContent('Showing 21–26 of 26');
   });
 });

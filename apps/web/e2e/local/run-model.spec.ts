@@ -3,7 +3,7 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Page } from '@playwright/test';
-import { RuleDto, RunDto } from '@agentdesk/contracts';
+import { RuleDto, RunDto, pageOf } from '@agentdesk/contracts';
 import { z } from 'zod';
 import {
   API,
@@ -56,7 +56,9 @@ async function readRun(page: Page, runId: string): Promise<RunDto> {
 }
 
 async function listRules(page: Page, projectId: string): Promise<RuleDto[]> {
-  return z.array(RuleDto).parse(await ok(await page.request.get(`/api/projects/${projectId}/rules`), 200, 'rules'));
+  return pageOf(RuleDto).parse(
+    await ok(await page.request.get(`/api/projects/${projectId}/rules?pageSize=100`), 200, 'rules'),
+  ).items;
 }
 
 /** Given: the rule's own model (null follows the default), set through the rules API; the reply is checked. */

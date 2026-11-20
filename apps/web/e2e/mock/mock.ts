@@ -1,6 +1,7 @@
 import type { Locator, Page } from '@playwright/test';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/mocks/msw/agentModels';
 import { ids } from '../../src/mocks/dto/ids';
+import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
 
 /*
  * Mock-mode controls for the e2e specs. There is no test hook in the app: these use what `vite --mode mock` already
@@ -110,3 +111,17 @@ export const OTHER = 'Other model…';
 export const BUILTIN = ['opus', 'sonnet', 'haiku'];
 /** The `<option>` elements of a select; `toHaveText([...])` on it checks the options in order. */
 export const options = (select: Locator): Locator => select.locator('option');
+
+/**
+ * Replaces the invoicer-api lists (and alice's projects) with generated rows for this test, and can hold back or fail
+ * list requests (src/mocks/msw/e2eLists.ts). Call before the first `page.goto`: browser.ts reads the key once when the
+ * mock worker starts. It lives in sessionStorage, so a reload in the same tab keeps it.
+ */
+export async function seedLists(page: Page, lists: MockLists): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [MOCK_LISTS_KEY, JSON.stringify(lists)] as const,
+  );
+}

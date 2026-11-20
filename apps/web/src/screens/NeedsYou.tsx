@@ -1,10 +1,12 @@
 import { AppLink, Button, Icon, StatusBadge } from '@/ds';
 import {
   GitHubComment,
+  Pagination,
   ProjectMenu,
   ProjectStrip,
   SurfaceCard,
   TopBar,
+  type PaginationProps,
   type ProjectSwitchMenu,
   type TopBarProps,
 } from '@/components';
@@ -32,6 +34,8 @@ export interface NeedsYouProps {
   resuming?: number;
   /** Href of a project in the switcher; defaults to '#'. */
   projectHref?(p: Project): string;
+  /** The page control, drawn under the run cards; the cards are aria-busy while it loads. */
+  pagination?: PaginationProps;
   /** In the app the page gets the project top bar; the board has none. */
   topBar?: { user: Actor; links?: TopBarProps['links']; projectMenu?: ProjectSwitchMenu };
 }
@@ -51,6 +55,7 @@ export function NeedsYou({
   resuming,
   projectHref = () => '#',
   topBar,
+  pagination,
 }: NeedsYouProps) {
   // The desktop notification is for a run that asked something; a paused run has nothing to ask.
   const first = runs.find((r) => r.run.status === 'idle');
@@ -110,48 +115,51 @@ export function NeedsYou({
         </SurfaceCard>
         <SurfaceCard caption='On GitHub: the bot edits its own start comment as the run changes state, so the ticket shows "waiting for your input" without a new comment or extra notification noise.'>
           {runs.length === 0 && none}
-          {runs.map(({ run, href, idleAt, endsAt }) =>
-            run.status === 'paused' ? (
-              <GitHubComment
-                key={run.id}
-                author="agent-desk[bot]"
-                bot
-                meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
-              >
-                <span>{`Run ${run.id} is paused and can be resumed.`}</span>
-                <span className={`muted ${styles.ghSub}`}>{run.statusNote}</span>
-                <span className={mock.pausedActions}>
-                  <StatusBadge status="paused" variant="pill" />
-                  <Button
-                    size="sm"
-                    variant="go"
-                    icon="play"
-                    disabled={resuming !== undefined}
-                    onClick={() => onResume?.(run)}
-                  >
-                    Resume
-                  </Button>
-                </span>
-                <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
-              </GitHubComment>
-            ) : (
-              <GitHubComment
-                key={run.id}
-                author="agent-desk[bot]"
-                bot
-                meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
-              >
-                <span>
-                  <b>Run {run.id}</b> <span className="mono">{run.skill}</span> is waiting for your input.
-                </span>
-                <span className={`muted ${styles.ghSub}`}>
-                  Started {run.startedAt} by a <span className="mono">{run.command}</span> comment from{' '}
-                  {run.triggeredBy.login}. It ends on its own at {endsAt} if nobody opens it.
-                </span>
-                <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
-              </GitHubComment>
-            ),
-          )}
+          <div className={mock.cards} aria-busy={pagination?.busy || undefined}>
+            {runs.map(({ run, href, idleAt, endsAt }) =>
+              run.status === 'paused' ? (
+                <GitHubComment
+                  key={run.id}
+                  author="agent-desk[bot]"
+                  bot
+                  meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
+                >
+                  <span>{`Run ${run.id} is paused and can be resumed.`}</span>
+                  <span className={`muted ${styles.ghSub}`}>{run.statusNote}</span>
+                  <span className={mock.pausedActions}>
+                    <StatusBadge status="paused" variant="pill" />
+                    <Button
+                      size="sm"
+                      variant="go"
+                      icon="play"
+                      disabled={resuming !== undefined}
+                      onClick={() => onResume?.(run)}
+                    >
+                      Resume
+                    </Button>
+                  </span>
+                  <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
+                </GitHubComment>
+              ) : (
+                <GitHubComment
+                  key={run.id}
+                  author="agent-desk[bot]"
+                  bot
+                  meta={`commented on ${ticketLabel(run)}, edited ${idleAt}`}
+                >
+                  <span>
+                    <b>Run {run.id}</b> <span className="mono">{run.skill}</span> is waiting for your input.
+                  </span>
+                  <span className={`muted ${styles.ghSub}`}>
+                    Started {run.startedAt} by a <span className="mono">{run.command}</span> comment from{' '}
+                    {run.triggeredBy.login}. It ends on its own at {endsAt} if nobody opens it.
+                  </span>
+                  <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
+                </GitHubComment>
+              ),
+            )}
+            {pagination && runs.length > 0 && <Pagination {...pagination} />}
+          </div>
         </SurfaceCard>
         <SurfaceCard caption="Desktop notification, opt-in from the bell in the top bar. Sent once when a run becomes idle, again 2 minutes before auto-finish.">
           {first ? (

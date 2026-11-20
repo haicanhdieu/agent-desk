@@ -1,10 +1,13 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell } from '@/components';
+import { AppShell, type PaginationProps } from '@/components';
 import {
   agentSettings,
   connectionCopy,
   connections,
   deskFrame,
+  pagedRules,
+  pagedSkills,
+  pagedVersions,
   promptSystemLines,
   rules,
   TRIAGE_PROMPT,
@@ -574,4 +577,100 @@ export const DeskSetupLoadError: Story = {
   decorators: artboard(900),
   globals: viewport(1440, 900),
   render: () => <DeskSetupScreen {...setupProps} loadError="The server did not answer. Reload to try again." />,
+};
+
+const noop = () => undefined;
+const pagination = (page: number, total: number): PaginationProps => ({
+  page,
+  pageSize: 20,
+  total,
+  onPageChange: noop,
+  onPageSizeChange: noop,
+});
+
+/** Page 2 of 2 of 24 routing rules: the control sits between the list and the guards card. */
+export const DeskRulesPaged: Story = {
+  name: 'Routing rules, page 2 of 2',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      rules={pagedRules(24).slice(20)}
+      skills={skills.map((s) => s.name)}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      pagination={pagination(2, 24)}
+    />
+  ),
+};
+
+/** No routing rules: the empty state, no control. */
+export const DeskRulesEmpty: Story = {
+  name: 'Routing rules, empty',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskRulesScreen
+      frame={deskFrame}
+      rules={[]}
+      skills={skills.map((s) => s.name)}
+      maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+      pagination={pagination(1, 0)}
+    />
+  ),
+};
+
+/** Page 2 of 2 of 22 skills: the editor keeps the skill it had open, which is on page 1. */
+export const DeskSkillsPaged: Story = {
+  name: 'Skills, page 2 of 2',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSkillsScreen
+      {...skillsProps}
+      skills={pagedSkills(22).slice(20)}
+      active={skills.find((s) => s.name === skillsProps.activeName)}
+      pagination={pagination(2, 22)}
+    />
+  ),
+};
+
+/** No skills: the empty state, no control. */
+export const DeskSkillsEmpty: Story = {
+  name: 'Skills, empty',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen frame={deskFrame} skills={[]} pagination={pagination(1, 0)} />,
+};
+
+/** Page 2 of 2 of 23 setup script versions; the header counts all 23. */
+export const DeskSetupPaged: Story = {
+  name: 'Workspace setup, version history page 2 of 2',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSetupScreen
+      {...setupProps}
+      versions={pagedVersions(23).slice(20)}
+      versionsTotal={23}
+      versionsPagination={pagination(2, 23)}
+    />
+  ),
+};
+
+export const DeskSetupVersionsLoading: Story = {
+  name: 'Workspace setup, version history loading',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSetupScreen {...setupProps} versions={[]} versionsLoading />,
+};
+
+/** A saved script whose history is empty: "0 versions", no control. */
+export const DeskSetupVersionsEmpty: Story = {
+  name: 'Workspace setup, version history empty',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskSetupScreen {...setupProps} versions={[]} versionsTotal={0} versionsPagination={pagination(1, 0)} />
+  ),
 };

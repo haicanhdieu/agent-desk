@@ -60,3 +60,41 @@ describe('project switcher navigation', () => {
     expect(screen.queryByRole('dialog', { name: 'Projects' })).toBeNull();
   });
 });
+
+describe('project switcher with many projects', () => {
+  function seed(total: number) {
+    const [template] = mockDb.state.projects.filter((p) => p.orgId === ids.org.alice);
+    if (!template) throw new Error('seed has no alice project');
+    mockDb.state.projects = [
+      template,
+      ...Array.from({ length: total - 1 }, (_, i) => ({
+        ...template,
+        id: `00000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+        name: `extra-${String(i + 1).padStart(3, '0')}`,
+        repoPath: `dev/extra-${i + 1}`,
+        createdAt: new Date(Date.UTC(2026, 11, 1, 0, 0, i)).toISOString(),
+      })),
+    ];
+  }
+
+  it('lists all 26 projects with one request for 100 rows', async () => {
+    seed(26);
+    const { user } = await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    await user.click(switcher());
+    const menu = await screen.findByRole('dialog', { name: 'Projects' });
+    await within(menu).findAllByRole('link');
+    expect(within(menu).getAllByRole('link')).toHaveLength(26);
+    expect(mockDb.requests('GET', '/api/projects')).toBe(1);
+  });
+
+  it('lists 100 of 101 projects', async () => {
+    seed(101);
+    const { user } = await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    await user.click(switcher());
+    const menu = await screen.findByRole('dialog', { name: 'Projects' });
+    await within(menu).findAllByRole('link');
+    expect(within(menu).getAllByRole('link')).toHaveLength(100);
+  });
+});

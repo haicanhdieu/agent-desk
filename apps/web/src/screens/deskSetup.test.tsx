@@ -13,6 +13,7 @@ import {
   user,
 } from '@/mocks';
 import { DeskSetup, SETUP_SCRIPT_STARTER, type DeskSetupProps } from './DeskSetup';
+import type { PaginationProps } from '@/components';
 import { SetupWorkspace } from './SetupWorkspace';
 import { RunDetail } from './RunDetail';
 
@@ -247,5 +248,50 @@ describe('RunDetail setup failed', () => {
     expect(screen.getAllByText('Setup failed').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Version 5' })).toBeInTheDocument();
     expect(screen.getByText(/Setup failed after 52s/)).toBeInTheDocument();
+  });
+});
+
+describe('DeskSetup version history paging', () => {
+  const versionsPagination: PaginationProps = {
+    page: 2,
+    pageSize: 20,
+    total: 23,
+    onPageChange: () => undefined,
+    onPageSizeChange: () => undefined,
+  };
+
+  it('the header counts versionsTotal, not the rows shown', () => {
+    render(
+      <DeskSetup
+        {...props}
+        versions={setupVersions.slice(0, 3)}
+        versionsTotal={23}
+        versionsPagination={versionsPagination}
+      />,
+    );
+    expect(screen.getByText('23 versions')).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
+  });
+
+  it('no control while versions load, fail or are empty', () => {
+    const { rerender } = render(<DeskSetup {...props} versionsLoading versionsPagination={versionsPagination} />);
+    expect(screen.getByRole('status')).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+    rerender(
+      <DeskSetup
+        {...props}
+        versions={[]}
+        versionsError="Could not load the version history. Reload to try again."
+        versionsPagination={versionsPagination}
+      />,
+    );
+    expect(screen.getByText('Could not load the version history. Reload to try again.')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+    rerender(
+      <DeskSetup {...props} versions={[]} versionsTotal={0} versionsPagination={{ ...versionsPagination, total: 0 }} />,
+    );
+    expect(screen.getByText('0 versions')).toBeInTheDocument();
+    expect(screen.getByText('No versions yet. The first save creates version 1.')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
   });
 });

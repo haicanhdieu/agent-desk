@@ -1,6 +1,14 @@
 import { useState } from 'react';
-import { Button } from '@/ds';
-import { DataTable, EmptyState, NeedsYouBanner, RunRow, TicketGroupRow } from '@/components';
+import { Banner, Button, StatusIcon } from '@/ds';
+import {
+  DataTable,
+  EmptyState,
+  NeedsYouBanner,
+  Pagination,
+  RunRow,
+  TicketGroupRow,
+  type PaginationProps,
+} from '@/components';
 import type { RunStatus } from '@/ds/tokens';
 import type { RunSummary, TicketGroup } from '@/mocks/types';
 import { RunsPage, type RunsFilter, type RunsPageProps } from './RunsPage';
@@ -10,17 +18,21 @@ export type { RunsFilter } from './RunsPage';
 export interface RunsProps extends Omit<RunsPageProps, 'children' | 'banners'> {
   groups: TicketGroup[];
   needsYouRun?: { run: RunSummary; askedAgo: string; slotNote: string; href: string };
+  /** Number of the oldest queued run, shown as a plain "is waiting" banner when no run is idle. Ignored while `needsYouRun` is set (its slot note already names it). */
+  waitingRun?: number;
   /** In-app href of a run; defaults to the prototype's `/runs/<id>`. */
   runHref?(run: RunSummary): string;
   /** Href for the empty state's "Show all runs" (a link instead of the `onFilter('all')` button). */
   showAllHref?: string;
+  /** The page control, drawn directly under the table; the table is aria-busy while it loads. */
+  pagination?: PaginationProps;
 }
 
 const statuses: Record<Exclude<RunsFilter, 'all' | 'ignored'>, RunStatus[]> = {
   // As the API's needs_you list: a paused run waits for a person too.
   needs_you: ['idle', 'paused'],
-  // Same meaning as the API's `active` filter: idle runs are still active (they hold a slot).
-  active: ['starting', 'running', 'idle'],
+  // Same meaning as the API's `active` filter (ACTIVE_RUN_STATUSES): idle and done runs still hold a slot.
+  active: ['starting', 'running', 'idle', 'done'],
   queued: ['queued'],
   ended: ['succeeded', 'failed', 'cancelled', 'timed_out', 'expired'],
 };
@@ -71,11 +83,13 @@ function rowActions(run: RunSummary, runHref: (r: RunSummary) => string) {
 export function Runs({
   groups,
   needsYouRun,
+  waitingRun,
   filter,
   runHref = defaultRunHref,
   showAllHref,
   grouped: groupedProp,
   onGroupedChange,
+  pagination,
   ...page
 }: RunsProps) {
   // Controlled when the container passes `grouped` (it persists the choice); otherwise the screen keeps it itself.
@@ -98,9 +112,15 @@ export function Runs({
           href={needsYouRun.href}
         />
       )}
+      {!needsYouRun && waitingRun !== undefined && (
+        <Banner tone="idle" icon={<StatusIcon status="queued" size={18} />}>
+          Run {waitingRun} is waiting for a free slot.
+        </Banner>
+      )}
       {shown.length === 0 ? (
         <EmptyState
           title="No runs match this filter"
+          headingLevel={2}
           body="Runs appear here when a ticket comment starts one."
           action={
             showAllHref !== undefined ? (
@@ -115,24 +135,27 @@ export function Runs({
           }
         />
       ) : (
-        <DataTable columns={columns}>
-          {grouped
-            ? shown.flatMap((g) => [
-                <TicketGroupRow key={`g${g.ticket.number}`} group={g} colSpan={columns.length} />,
-                ...g.runs.map((r, i) => (
-                  <RunRow
-                    key={r.id}
-                    run={r}
-                    tree={i === g.runs.length - 1 ? 'last' : 'mid'}
-                    href={runHref(r)}
-                    actions={rowActions(r, runHref)}
-                  />
-                )),
-              ])
-            : flat.map((r) => (
-                <RunRow key={r.id} run={r} tree="none" href={runHref(r)} actions={rowActions(r, runHref)} />
-              ))}
-        </DataTable>
+        <>
+          <DataTable columns={columns} busy={pagination?.busy}>
+            {grouped
+              ? shown.flatMap((g) => [
+                  <TicketGroupRow key={`g${g.ticket.number}`} group={g} colSpan={columns.length} />,
+                  ...g.runs.map((r, i) => (
+                    <RunRow
+                      key={r.id}
+                      run={r}
+                      tree={i === g.runs.length - 1 ? 'last' : 'mid'}
+                      href={runHref(r)}
+                      actions={rowActions(r, runHref)}
+                    />
+                  )),
+                ])
+              : flat.map((r) => (
+                  <RunRow key={r.id} run={r} tree="none" href={runHref(r)} actions={rowActions(r, runHref)} />
+                ))}
+          </DataTable>
+          {pagination && <Pagination {...pagination} />}
+        </>
       )}
     </RunsPage>
   );

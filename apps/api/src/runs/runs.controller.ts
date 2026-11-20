@@ -2,12 +2,16 @@ import { Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/c
 import {
   routes,
   type IgnoredEventDto,
+  type Page,
+  type PageQuery,
   type RunDto,
   type RunListQuery,
   type RunListResponse,
   type RunLogResponse,
   type RunTranscriptQuery,
   type RunTranscriptResponse,
+  type RunStatsDto,
+  type RunStatsQuery,
 } from '@agentdesk/contracts';
 import { CurrentOrg, type OrgContext } from '../auth/org-context';
 import { routePath } from '../common/route-path';
@@ -19,6 +23,8 @@ const NumberParam = new ZodPipe(routes.runs.byNumber.params);
 const RunParam = new ZodPipe(routes.runs.get.params);
 const ListQuery = new ZodPipe(routes.runs.list.query);
 const TranscriptQuery = new ZodPipe(routes.runs.transcript.query);
+const IgnoredQuery = new ZodPipe(routes.projects.ignored.query);
+const StatsQuery = new ZodPipe(routes.runs.stats.query);
 
 @Controller()
 export class RunsController {
@@ -33,6 +39,16 @@ export class RunsController {
     return this.service.list(org, p.projectId, q);
   }
 
+  /** Declared before byNumber so `stats` is not read as a run number. */
+  @Get(routePath(routes.runs.stats))
+  stats(
+    @CurrentOrg() org: OrgContext,
+    @Param(ProjectParam) p: { projectId: string },
+    @Query(StatsQuery) q: RunStatsQuery,
+  ): Promise<RunStatsDto> {
+    return this.service.stats(org, p.projectId, q.since);
+  }
+
   @Get(routePath(routes.runs.byNumber))
   byNumber(
     @CurrentOrg() org: OrgContext,
@@ -42,8 +58,12 @@ export class RunsController {
   }
 
   @Get(routePath(routes.projects.ignored))
-  ignored(@CurrentOrg() org: OrgContext, @Param(ProjectParam) p: { projectId: string }): Promise<IgnoredEventDto[]> {
-    return this.service.ignored(org, p.projectId);
+  ignored(
+    @CurrentOrg() org: OrgContext,
+    @Param(ProjectParam) p: { projectId: string },
+    @Query(IgnoredQuery) q: PageQuery,
+  ): Promise<Page<IgnoredEventDto>> {
+    return this.service.ignored(org, p.projectId, q);
   }
 
   @Get(routePath(routes.runs.get))

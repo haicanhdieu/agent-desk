@@ -5,7 +5,7 @@ import { DeskSkills } from './DeskSkills';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
 import { vi } from 'vitest';
-import { toModelList } from '@/components';
+import { toModelList, type PaginationProps } from '@/components';
 import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 
 const skillNames = skills.map((s) => s.name);
@@ -669,5 +669,53 @@ describe('DeskAgent', () => {
       open({ settings: { ...settings, credential: { type: 'oauth_token', setAt: '', setBy: '' } } });
       expect(screen.queryByText(/Set .* by /)).toBeNull();
     });
+  });
+});
+
+describe('Desk lists with pagination', () => {
+  const pagination = (total: number): PaginationProps => ({
+    page: 2,
+    pageSize: 20,
+    total,
+    onPageChange: () => undefined,
+    onPageSizeChange: () => undefined,
+  });
+
+  it('DeskRules puts the control between the list and Guards on every rule', () => {
+    render(
+      <DeskRules
+        frame={deskFrame}
+        rules={rules}
+        skills={skillNames}
+        maxRunsPerTicket={10}
+        pagination={pagination(24)}
+      />,
+    );
+    const lastRule = screen.getAllByText(rules[rules.length - 1].command)[0];
+    const nav = screen.getByRole('navigation', { name: 'Pagination' });
+    const guards = screen.getByRole('heading', { name: 'Guards on every rule' });
+    expect(lastRule.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(nav.compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('DeskRules with no rules shows No routing rules yet and no control', () => {
+    render(
+      <DeskRules frame={deskFrame} rules={[]} skills={skillNames} maxRunsPerTicket={10} pagination={pagination(0)} />,
+    );
+    expect(screen.getByRole('heading', { level: 2, name: 'No routing rules yet' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+  });
+
+  it('DeskSkills puts the control under the list and keeps the active skill in the editor when it is not in the list', () => {
+    const active = { ...skills[0], name: 'not-on-this-page', path: '.claude/skills/not-on-this-page/SKILL.md' };
+    render(<DeskSkills frame={deskFrame} skills={skills.slice(1)} active={active} pagination={pagination(22)} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'not-on-this-page' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
+  });
+
+  it('DeskSkills with no skills shows No skills yet and no control', () => {
+    render(<DeskSkills frame={deskFrame} skills={[]} pagination={pagination(0)} />);
+    expect(screen.getByRole('heading', { name: /No skills yet/ })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
   });
 });

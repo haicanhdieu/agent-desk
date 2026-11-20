@@ -1,9 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { agents, projects, runs, withOrg } from '@agentdesk/db';
+import { agents, projects, rules as rulesTable, runs, withOrg } from '@agentdesk/db';
 import { createHash } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines } from '@agentdesk/core';
-import type { RuleDto } from '@agentdesk/contracts';
+import type { Page, RuleDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -37,8 +37,11 @@ const create = (payload: object, id = projectId, cookie = alice) =>
   t.app.inject({ method: 'POST', url: `/api/projects/${id}/rules`, headers: { cookie }, payload });
 const patch = (id: string, payload: object, cookie = alice) =>
   t.app.inject({ method: 'PATCH', url: `/api/rules/${id}`, headers: { cookie }, payload });
-const list = (id = projectId, cookie = alice) =>
-  t.app.inject({ method: 'GET', url: `/api/projects/${id}/rules`, headers: { cookie } });
+const list = (id = projectId, cookie = alice, query = '') =>
+  t.app.inject({ method: 'GET', url: `/api/projects/${id}/rules${query}`, headers: { cookie } });
+/** Every rule of the project: page 1 at the largest page size. */
+const allRules = async (id = projectId): Promise<RuleDto[]> =>
+  (expectContract('rules.list', await list(id, alice, '?pageSize=100')) as Page<RuleDto>).items;
 const errorsOf = (r: { json: () => unknown }) => (r.json() as { errors: { pointer: string; detail: string }[] }).errors;
 
 describe('rules', () => {
@@ -107,7 +110,7 @@ describe('rules', () => {
         { ...base, queuedAt: old, triggerCommentId: 'c2' },
       ]);
     });
-    const rows = expectContract('rules.list', await list()) as RuleDto[];
+    const rows = await allRules();
     const r = rows.find((x) => x.id === rule.id);
     expect(r?.stats.runs30d).toBe(1);
     expect(r?.stats.lastRunAt).toBe(recent.toISOString());
@@ -129,7 +132,7 @@ describe('rules', () => {
     expect(
       (await t.app.inject({ method: 'DELETE', url: `/api/rules/${rule.id}`, headers: { cookie: alice } })).statusCode,
     ).toBe(404);
-    expect(((await list().then((r) => r.json())) as RuleDto[]).map((r) => r.command)).toEqual(['second']);
+    expect((await allRules()).map((r) => r.command)).toEqual(['second']);
     const kept = await withOrg(t.db, orgId, (tx) => tx.select().from(runs));
     expect(kept).toHaveLength(2);
   });
@@ -142,7 +145,7 @@ describe('rule agent and model', () => {
         id: string;
       }
     ).id;
-  const ruleCount = async (id: string): Promise<number> => ((await list(id).then((r) => r.json())) as unknown[]).length;
+  const ruleCount = async (id: string): Promise<number> => (await allRules(id)).length;
 
   it('create stores model and returns it; absent model is null', async () => {
     const withModel = expectContract('rules.create', await create({ ...valid, command: 'm-set', model: 'haiku' }));
@@ -177,7 +180,7 @@ describe('rule agent and model', () => {
     const res = await patch(made.id, { agentId: await agentOf(other), model: 'haiku' });
     expect(res.statusCode).toBe(422);
     expect(errorsOf(res)).toEqual([{ pointer: '/agentId', detail: 'Agent not found in this project' }]);
-    const after = ((await list().then((r) => r.json())) as RuleDto[]).find((r) => r.id === made.id);
+    const after = (await allRules()).find((r) => r.id === made.id);
     expect(after).toMatchObject({ agentId: own, model: null });
   });
 
@@ -243,7 +246,7 @@ describe('rule agent and model', () => {
     const upd = await patch(made.id, { agentId: foreign, model: 'haiku' });
     expect(upd.statusCode).toBe(422);
     expect(errorsOf(upd)).toEqual([{ pointer: '/agentId', detail: 'Agent not found in this project' }]);
-    const after = ((await list().then((r) => r.json())) as RuleDto[]).find((r) => r.id === made.id);
+    const after = (await allRules()).find((r) => r.id === made.id);
     expect(after).toMatchObject({ agentId: own, model: null });
   });
 
@@ -361,5 +364,83 @@ describe('prompt preview', () => {
   it('is 401 signed out and 404 for another org project', async () => {
     expect((await preview(projectId, '')).statusCode).toBe(401);
     expect((await preview(projectId, bob)).statusCode).toBe(404);
+  });
+});
+
+describe('paged rules', () => {
+  const seed = async (pid: string, cookie: string, org: string, count: number, tieFrom: number) => {
+    const agent = (
+      (await t.app.inject({ method: 'GET', url: `/api/projects/${pid}/agent`, headers: { cookie } })).json() as {
+        id: string;
+      }
+    ).id;
+    const start = Date.parse('2026-01-01T00:00:00Z');
+    await withOrg(t.db, org, (tx) =>
+      tx.insert(rulesTable).values(
+        Array.from({ length: count }, (_, i) => ({
+          orgId: org,
+          projectId: pid,
+          command: `r${String(i + 1).padStart(2, '0')}`,
+          labelFilter: [],
+          target: 'issue',
+          agentId: agent,
+          prompt: 'p',
+          // Rules from `tieFrom` on share one timestamp, so only the id breaks the tie.
+          createdAt: new Date(start + Math.min(i, tieFrom) * 1000),
+          enabled: true,
+        })),
+      ),
+    );
+  };
+  let pid: string;
+
+  beforeAll(async () => {
+    pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await seed(pid, alice, orgId, 24, 20);
+    // Another org's rules must not count towards alice's total.
+    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
+      .id;
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    await seed(bobProject, bob, bobOrg, 5, 5);
+  });
+
+  const page = async (query: string) => expectContract('rules.list', await list(pid, alice, query)) as Page<RuleDto>;
+
+  it('page 1 holds 20 rules, oldest created first, with the real total', async () => {
+    const p = await page('');
+    expect(p).toMatchObject({ page: 1, pageSize: 20, total: 24 });
+    expect(p.items).toHaveLength(20);
+    expect(p.items.slice(0, 3).map((r) => r.command)).toEqual(['r01', 'r02', 'r03']);
+  });
+
+  it('rules created in the same instant come in id order, and the pages cover every rule once', async () => {
+    const first = await page('?pageSize=10');
+    const second = await page('?pageSize=10&page=2');
+    const third = await page('?pageSize=10&page=3');
+    const all = [...first.items, ...second.items, ...third.items];
+    expect(all).toHaveLength(24);
+    expect(new Set(all.map((r) => r.id)).size).toBe(24);
+    const tied = all.slice(20);
+    expect(tied.map((r) => r.id)).toEqual([...tied.map((r) => r.id)].sort());
+  });
+
+  it('page 2 holds the last 4', async () => {
+    const p = await page('?page=2');
+    expect(p).toMatchObject({ page: 2, total: 24 });
+    expect(p.items).toHaveLength(4);
+  });
+
+  it('a page past the last is 200 with no items and the real total', async () => {
+    expect(await page('?page=9')).toMatchObject({ items: [], page: 9, total: 24 });
+  });
+
+  it('out-of-range page or pageSize is 400', async () => {
+    for (const q of ['?page=0', '?page=2147483648', '?pageSize=0', '?pageSize=101', '?page=x'])
+      expect((await list(pid, alice, q)).statusCode).toBe(400);
+  });
+
+  it('another org rules are not counted, and a foreign project is 404', async () => {
+    expect((await page('')).total).toBe(24);
+    expect((await list(pid, bob)).statusCode).toBe(404);
   });
 });

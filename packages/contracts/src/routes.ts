@@ -16,9 +16,10 @@ import {
   UpdateProjectRequest,
 } from './schemas/projects';
 import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
+import { PageQuery, pageOf } from './schemas/page';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
-import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
 import { RunTranscriptQuery, RunTranscriptResponse } from './schemas/transcript';
+import { RunDto, RunListQuery, RunListResponse, RunLogResponse, RunStatsDto, RunStatsQuery } from './schemas/runs';
 import {
   CreateSetupTestRequest,
   PluginsDto,
@@ -82,7 +83,7 @@ export const routes = {
     },
   },
   projects: {
-    list: { method: 'GET', path: '/api/projects', response: z.array(ProjectDto) },
+    list: { method: 'GET', path: '/api/projects', query: PageQuery, response: pageOf(ProjectDto) },
     create: { method: 'POST', path: '/api/projects', body: CreateProjectRequest, response: ProjectDto },
     get: { method: 'GET', path: '/api/projects/:projectId', params: projectParams, response: ProjectDto },
     update: {
@@ -113,7 +114,8 @@ export const routes = {
       method: 'GET',
       path: '/api/projects/:projectId/ignored',
       params: projectParams,
-      response: z.array(IgnoredEventDto),
+      query: PageQuery,
+      response: pageOf(IgnoredEventDto),
     },
     /** SSE (text/event-stream): `event: run` frames, each a ProjectRunEvent. */
     events: {
@@ -151,7 +153,8 @@ export const routes = {
       method: 'GET',
       path: '/api/projects/:projectId/skills',
       params: projectParams,
-      response: z.array(SkillSummaryDto),
+      query: PageQuery,
+      response: pageOf(SkillSummaryDto),
     },
     get: { method: 'GET', path: '/api/projects/:projectId/skills/:name', params: skillParams, response: SkillDto },
     put: {
@@ -170,7 +173,13 @@ export const routes = {
     },
   },
   rules: {
-    list: { method: 'GET', path: '/api/projects/:projectId/rules', params: projectParams, response: z.array(RuleDto) },
+    list: {
+      method: 'GET',
+      path: '/api/projects/:projectId/rules',
+      params: projectParams,
+      query: PageQuery,
+      response: pageOf(RuleDto),
+    },
     create: {
       method: 'POST',
       path: '/api/projects/:projectId/rules',
@@ -211,7 +220,8 @@ export const routes = {
       method: 'GET',
       path: '/api/projects/:projectId/setup-script/versions',
       params: projectParams,
-      response: z.array(SetupScriptVersionDto),
+      query: PageQuery,
+      response: pageOf(SetupScriptVersionDto),
     },
     version: {
       method: 'GET',
@@ -267,6 +277,13 @@ export const routes = {
       params: projectParams,
       query: RunListQuery,
       response: RunListResponse,
+    },
+    stats: {
+      method: 'GET',
+      path: '/api/projects/:projectId/runs/stats',
+      params: projectParams,
+      query: RunStatsQuery,
+      response: RunStatsDto,
     },
     byNumber: {
       method: 'GET',

@@ -362,7 +362,9 @@ describe('project events', () => {
         seq: 30,
       });
     });
-    const all = queryClient.getQueryData(runsQueries.list(org, projectId, 'all').queryKey);
+    const all = queryClient.getQueryData(
+      runsQueries.list(org, projectId, { filter: 'all', page: 1, pageSize: 20 }).queryKey,
+    );
     expect(all?.items.find((r) => r.number === 61)?.status).toBe('idle');
     expect(queryClient.getQueryData(['org', org, 'projects', projectId])).toMatchObject({
       counts: { needsYou: 3, running: 2 },
@@ -372,8 +374,8 @@ describe('project events', () => {
   it('closes after the tab is hidden for 60 s; on visible a new stream opens and the runs queries refetch', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const qc = new QueryClient();
-    const listKey = runsQueries.list(org, projectId, 'all').queryKey;
-    qc.setQueryData(listKey, { items: [fixture(61)], truncated: false });
+    const listKey = runsQueries.list(org, projectId, { filter: 'all', page: 1, pageSize: 20 }).queryKey;
+    qc.setQueryData(listKey, { items: [{ ...fixture(61), ticketRunCount: 1 }], page: 1, pageSize: 20, total: 1 });
     renderHook(() => useProjectEvents(org, projectId), {
       wrapper: wrapperFor(qc),
     });
@@ -398,8 +400,8 @@ describe('project events', () => {
 
   it('a browser reconnect catches up once the stream is open again', () => {
     const qc = new QueryClient();
-    const listKey = runsQueries.list(org, projectId, 'all').queryKey;
-    qc.setQueryData(listKey, { items: [fixture(61)], truncated: false });
+    const listKey = runsQueries.list(org, projectId, { filter: 'all', page: 1, pageSize: 20 }).queryKey;
+    qc.setQueryData(listKey, { items: [{ ...fixture(61), ticketRunCount: 1 }], page: 1, pageSize: 20, total: 1 });
     renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(qc) });
     const source = projectSource();
     act(() => source.open());
@@ -416,8 +418,8 @@ describe('project events', () => {
     vi.spyOn(Math, 'random').mockReturnValue(0);
     // Unobserved, the list would be garbage-collected during the minutes this test skips.
     const qc = new QueryClient({ defaultOptions: { queries: { gcTime: Infinity } } });
-    const listKey = runsQueries.list(org, projectId, 'all').queryKey;
-    qc.setQueryData(listKey, { items: [fixture(61)], truncated: false });
+    const listKey = runsQueries.list(org, projectId, { filter: 'all', page: 1, pageSize: 20 }).queryKey;
+    qc.setQueryData(listKey, { items: [{ ...fixture(61), ticketRunCount: 1 }], page: 1, pageSize: 20, total: 1 });
     renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(qc) });
 
     const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000, 30_000];
@@ -439,8 +441,8 @@ describe('project events', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     vi.spyOn(Math, 'random').mockReturnValue(0);
     const qc = new QueryClient();
-    const listKey = runsQueries.list(org, projectId, 'all').queryKey;
-    qc.setQueryData(listKey, { items: [fixture(61)], truncated: false });
+    const listKey = runsQueries.list(org, projectId, { filter: 'all', page: 1, pageSize: 20 }).queryKey;
+    qc.setQueryData(listKey, { items: [{ ...fixture(61), ticketRunCount: 1 }], page: 1, pageSize: 20, total: 1 });
     renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(qc) });
     for (const delay of [1_000, 2_000, 4_000]) {
       act(() => projectSource().fail(FakeEventSource.CLOSED));

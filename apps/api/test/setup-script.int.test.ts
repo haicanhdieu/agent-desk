@@ -2,7 +2,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withOrg } from '@agentdesk/db';
-import type { SetupScriptDto, SetupScriptVersionDto } from '@agentdesk/contracts';
+import type { Page, SetupScriptDto, SetupScriptVersionDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -130,13 +130,37 @@ describe('setup script API', () => {
     await put({ body: 'one', baseVersion: null });
     await put({ body: 'two', baseVersion: 1, note: 'n2' });
     const listRes = await get('/versions');
-    const list = expectContract('setupScript.versions', listRes) as SetupScriptVersionDto[];
+    const list = (expectContract('setupScript.versions', listRes) as Page<SetupScriptVersionDto>).items;
     expect(list.map((v) => v.version)).toEqual([2, 1]);
-    for (const v of listRes.json() as object[]) expect(v).not.toHaveProperty('body');
+    for (const v of (listRes.json() as { items: object[] }).items) expect(v).not.toHaveProperty('body');
     const v1 = expectContract('setupScript.version', await get('/versions/1')) as SetupScriptDto;
     expect(v1.body).toBe('one');
     expect((await get('/versions/3')).statusCode).toBe(404);
     expect((await get('/versions/9999999999')).statusCode).toBe(400);
+  });
+
+  it('pages the version history newest first with a total', async () => {
+    await freshProject();
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx.execute(sql`insert into setup_script_versions (project_id, org_id, version, body, created_by)
+        select ${projectId}::uuid, ${aliceOrg}::uuid, g, 'echo ' || g, 'alice' from generate_series(1, 23) g`),
+    );
+    const one = expectContract('setupScript.versions', await get('/versions')) as Page<SetupScriptVersionDto>;
+    expect(one).toMatchObject({ page: 1, pageSize: 20, total: 23 });
+    expect(one.items.map((v) => v.version)).toEqual(Array.from({ length: 20 }, (_, i) => 23 - i));
+    const two = expectContract('setupScript.versions', await get('/versions?page=2')) as Page<SetupScriptVersionDto>;
+    expect(two.items.map((v) => v.version)).toEqual([3, 2, 1]);
+    const past = await get('/versions?page=3');
+    expect(past.statusCode).toBe(200);
+    expect(past.json()).toMatchObject({ items: [], page: 3, total: 23 });
+  });
+
+  it('rejects version history page bounds with 400 and another org project with 404', async () => {
+    await freshProject();
+    for (const q of ['?page=0', '?pageSize=101', '?pageSize=0', '?page=2147483648']) {
+      expect((await get(`/versions${q}`)).statusCode, q).toBe(400);
+    }
+    expect((await get('/versions?page=1', bob)).statusCode).toBe(404);
   });
 
   it('restore is a PUT with version N body, creating N+1', async () => {
@@ -148,7 +172,7 @@ describe('setup script API', () => {
       r.json(),
     )) as SetupScriptDto;
     expect(restored).toMatchObject({ version: 3, body: 'one' });
-    expect(((await get('/versions').then((r) => r.json())) as unknown[]).length).toBe(3);
+    expect(((await get('/versions').then((r) => r.json())) as { total: number }).total).toBe(3);
   });
 
   it('versions stay readable, with the user id as createdBy, after the creator user row is deleted', async () => {
@@ -167,7 +191,7 @@ describe('setup script API', () => {
 
     const cur = (await get().then((r) => r.json())) as SetupScriptDto;
     expect(cur).toMatchObject({ version: 2, body: 'two', createdBy: daveId });
-    const list = (await get('/versions').then((r) => r.json())) as SetupScriptVersionDto[];
+    const list = ((await get('/versions').then((r) => r.json())) as Page<SetupScriptVersionDto>).items;
     expect(list.map((v) => [v.version, v.createdBy])).toEqual([
       [2, daveId],
       [1, 'alice'],

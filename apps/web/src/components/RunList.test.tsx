@@ -243,6 +243,14 @@ describe('EmptyState', () => {
     expect(screen.getByText('Comment /build on an issue.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Open GitHub' })).toBeInTheDocument();
   });
+
+  it('titles with an h3 by default and an h2 when asked', () => {
+    const { unmount } = render(<EmptyState title="Nothing here" />);
+    expect(screen.getByRole('heading', { level: 3, name: 'Nothing here' })).toBeInTheDocument();
+    unmount();
+    render(<EmptyState title="Nothing here" headingLevel={2} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Nothing here' })).toBeInTheDocument();
+  });
 });
 
 describe('NeedsYouBanner', () => {

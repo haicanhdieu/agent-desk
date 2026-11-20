@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 41 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 61 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -55,6 +55,26 @@ export const boardStories = {
   DeskAgentAddressChanged: { title: desk, exportName: 'DeskAgentAddressChanged' },
   DeskSetup: { title: desk, exportName: 'DeskSetup' },
   DeskSetupTest: { title: desk, exportName: 'DeskSetupTest' },
+  Pagination: { title: 'Components/Pagination', exportName: 'Board' },
+  RunsPaged: { title: runs, exportName: 'RunsPaged' },
+  RunsFlatPaged: { title: runs, exportName: 'RunsFlatPaged' },
+  RunsPageLoading: { title: runs, exportName: 'RunsPageLoading' },
+  RunsEmpty: { title: runs, exportName: 'RunsEmpty' },
+  RunsProblemsPaged: { title: runs, exportName: 'RunsProblemsPaged' },
+  RunsProblemsEmpty: { title: runs, exportName: 'RunsProblemsEmpty' },
+  NeedsYouPaged: { title: runs, exportName: 'NeedsYouPaged' },
+  NeedsYouEmpty: { title: runs, exportName: 'NeedsYouNone' },
+  RouteLoading: { title: runs, exportName: 'RouteLoading' },
+  RouteError: { title: runs, exportName: 'RouteError' },
+  ProjectsPaged: { title: 'Screens/Entry', exportName: 'ProjectsPaged' },
+  DeskRulesPaged: { title: desk, exportName: 'DeskRulesPaged' },
+  DeskRulesEmpty: { title: desk, exportName: 'DeskRulesEmpty' },
+  DeskSkillsPaged: { title: desk, exportName: 'DeskSkillsPaged' },
+  DeskSkillsEmpty: { title: desk, exportName: 'DeskSkillsEmpty' },
+  DeskSetupPaged: { title: desk, exportName: 'DeskSetupPaged' },
+  DeskSetupVersionsLoading: { title: desk, exportName: 'DeskSetupVersionsLoading' },
+  DeskSetupVersionsError: { title: desk, exportName: 'DeskSetupVersionsError' },
+  DeskSetupVersionsEmpty: { title: desk, exportName: 'DeskSetupVersionsEmpty' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;
@@ -65,9 +85,8 @@ export const stateStories = {
   Setup2Fallback: { title: setup, exportName: 'Setup2Fallback', board: 'Setup2' },
   SetupReadyWithWarning: { title: setup, exportName: 'SetupReadyWithWarning', board: 'SetupReady' },
   SetupReadyPolling: { title: setup, exportName: 'SetupReadyPolling', board: 'SetupReady' },
+  RunsQueuedOnly: { title: runs, exportName: 'RunsQueuedOnly', board: 'RunsPaged' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
-  RunsProblemsEmpty: { title: runs, exportName: 'RunsProblemsEmpty', board: 'RunsProblems' },
-  NeedsYouNone: { title: runs, exportName: 'NeedsYouNone', board: 'NeedsYou' },
   NeedsYouPaused: { title: runs, exportName: 'NeedsYouPaused', board: 'NeedsYou' },
   RunPaused: { title: detail, exportName: 'RunPaused', board: 'RunIdle' },
   RunPausedResuming: { title: detail, exportName: 'RunPausedResuming', board: 'RunIdle' },
@@ -93,7 +112,6 @@ export const stateStories = {
   DeskSetupStale: { title: desk, exportName: 'DeskSetupStale', board: 'DeskSetup' },
   DeskSetupConflict: { title: desk, exportName: 'DeskSetupConflict', board: 'DeskSetup' },
   DeskSetupEmpty: { title: desk, exportName: 'DeskSetupEmpty', board: 'DeskSetup' },
-  DeskSetupVersionsError: { title: desk, exportName: 'DeskSetupVersionsError', board: 'DeskSetup' },
   DeskSetupLoading: { title: desk, exportName: 'DeskSetupLoading', board: 'DeskSetup' },
   DeskSetupLoadError: { title: desk, exportName: 'DeskSetupLoadError', board: 'DeskSetup' },
   RunTerminalAreaDone: { title: terminalArea, exportName: 'Done', board: 'RunIdle' },

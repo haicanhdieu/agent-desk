@@ -1,6 +1,6 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError, type Client } from '@temporalio/client';
-import { and, asc, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
 import {
   agents,
@@ -29,81 +29,28 @@ import {
   PauseReason,
   WaitingOn,
   canResume,
+  pageWindow,
+  toPage,
   type IgnoredEventDto,
+  type Page,
+  type PageQuery,
   type RunDto,
   type RunListItem,
   type RunListQuery,
+  type RunListFilter,
   type RunListResponse,
   type RunLogResponse,
   type RunTranscriptQuery,
   type RunTranscriptResponse,
+  type RunStatsDto,
 } from '@agentdesk/contracts';
 import { SIGNAL, TASK_QUEUE, UPDATE, WORKFLOW, runWorkflowId } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
-import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 
 /** The log endpoint has no pagination in the contract: it returns at most the newest LOG_CAP events, oldest first. */
 export const LOG_CAP = 5000;
-export const IGNORED_LIMIT = 100;
-
-const TS_ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/;
-
-/** The shape check plus a real calendar/clock check (month 1-12, valid day for month/year, hh<24, mm/ss<60). */
-function isRealTimestamp(t: string): boolean {
-  if (!TS_ISO.test(t)) return false;
-  const [y, mo, d, h, mi, sec] = t.split(/[-T:.Z]/).map(Number);
-  if (
-    y === undefined ||
-    mo === undefined ||
-    d === undefined ||
-    h === undefined ||
-    mi === undefined ||
-    sec === undefined
-  )
-    return false;
-  const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-  return (
-    mo >= 1 &&
-    mo <= 12 &&
-    d >= 1 &&
-    d <= daysInMonth &&
-    h < 24 &&
-    mi < 60 &&
-    sec < 60 &&
-    !Number.isNaN(Date.parse(t.slice(0, 23) + 'Z'))
-  );
-}
-const Cursor = z.object({ t: z.string().refine(isRealTimestamp), i: z.uuid() });
-type Cursor = z.infer<typeof Cursor>;
-
-/** Microsecond-exact timestamp text (a JS Date would truncate to milliseconds and break tie-breaking). */
-const QUEUED_AT_TEXT = sql<string>`to_char(${runs.queuedAt} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
-
-function encodeCursor(c: Cursor): string {
-  return Buffer.from(JSON.stringify(c), 'utf8').toString('base64url');
-}
-
-function decodeCursor(raw: string): Cursor {
-  const bad = () => new ValidationProblemException([{ pointer: '/cursor', detail: 'malformed cursor' }]);
-  if (!/^[A-Za-z0-9_-]+$/.test(raw)) throw bad();
-  try {
-    const parsed = Cursor.safeParse(JSON.parse(Buffer.from(raw, 'base64url').toString('utf8')));
-    if (!parsed.success) throw bad();
-    return parsed.data;
-  } catch {
-    throw bad();
-  }
-}
-
-function isPgCode(err: unknown, codes: string[]): boolean {
-  for (let e: unknown = err, depth = 0; typeof e === 'object' && e !== null && depth < 4; depth += 1) {
-    if ('code' in e && typeof e.code === 'string' && codes.includes(e.code)) return true;
-    e = 'cause' in e ? e.cause : undefined;
-  }
-  return false;
-}
 
 const isFinal = (status: string): boolean => (FINAL_RUN_STATUSES as readonly string[]).includes(status);
 
@@ -124,11 +71,15 @@ export class RunsService {
   ) {}
 
   private toDto(row: RunRow, agent: AgentInfo | undefined): RunDto {
-    return { ...this.toListItem(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
+    return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
   }
 
-  /** The run without its prompt texts: what a list carries (see RunListItem). */
-  private toListItem(row: RunRow, agent: AgentInfo | undefined): RunListItem {
+  /** The run without its prompt texts, and without the list-only ticket count. */
+  private toListItem(row: RunRow, agent: AgentInfo | undefined, ticketRunCount: number): RunListItem {
+    return { ...this.toBase(row, agent), ticketRunCount };
+  }
+
+  private toBase(row: RunRow, agent: AgentInfo | undefined): Omit<RunListItem, 'ticketRunCount'> {
     return {
       id: row.id,
       number: row.number,
@@ -195,9 +146,46 @@ export class RunsService {
     return this.toDto(row, row.agentId === null ? undefined : (await this.agentsFor(tx, [row])).get(row.agentId));
   }
 
-  private async listItems(tx: Tx, rows: RunRow[]): Promise<RunListItem[]> {
+  /** Runs each ticket has had in the project, all statuses: one grouped query for the tickets on the page. */
+  private async ticketRunCountsFor(tx: Tx, projectId: string, refs: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const unique = [...new Set(refs)];
+    if (unique.length === 0) return out;
+    const found = await tx
+      .select({ ref: runs.ticketRef, n: sql<number>`count(*)::int` })
+      .from(runs)
+      .where(and(eq(runs.projectId, projectId), inArray(runs.ticketRef, unique)))
+      .groupBy(runs.ticketRef);
+    for (const f of found) out.set(f.ref, f.n);
+    return out;
+  }
+
+  private async listItems(tx: Tx, projectId: string, rows: RunRow[]): Promise<RunListItem[]> {
     const ag = await this.agentsFor(tx, rows);
-    return rows.map((r) => this.toListItem(r, r.agentId === null ? undefined : ag.get(r.agentId)));
+    const counts = await this.ticketRunCountsFor(
+      tx,
+      projectId,
+      rows.map((r) => r.ticketRef),
+    );
+    return rows.map((r) =>
+      this.toListItem(r, r.agentId === null ? undefined : ag.get(r.agentId), counts.get(r.ticketRef) ?? 1),
+    );
+  }
+
+  /** The status condition of a run list filter; `all` and no filter have none. */
+  private statusIn(filter: RunListFilter | undefined): SQL | undefined {
+    switch (filter) {
+      case 'needs_you':
+        return inArray(runs.status, ['idle', 'paused']);
+      case 'active':
+        return inArray(runs.status, [...ACTIVE_RUN_STATUSES]);
+      case 'queued':
+        return eq(runs.status, 'queued');
+      case 'ended':
+        return inArray(runs.status, [...FINAL_RUN_STATUSES]);
+      default:
+        return undefined;
+    }
   }
 
   private async requireProject(tx: Tx, projectId: string): Promise<void> {
@@ -212,58 +200,84 @@ export class RunsService {
   }
 
   async list(org: OrgContext, projectId: string, q: RunListQuery): Promise<RunListResponse> {
-    const cursor = q.cursor === undefined ? undefined : decodeCursor(q.cursor);
-    try {
-      return await this.listPage(org, projectId, q, cursor);
-    } catch (err) {
-      // Defence in depth: a timestamp Postgres rejects (22007 invalid format, 22008 out of range) is a bad cursor.
-      if (cursor && isPgCode(err, ['22007', '22008'])) {
-        throw new ValidationProblemException([{ pointer: '/cursor', detail: 'malformed cursor' }]);
-      }
-      throw err;
-    }
-  }
-
-  private async listPage(org: OrgContext, projectId: string, q: RunListQuery, cursor: Cursor | undefined) {
     return withOrg(this.db, org.orgId, async (tx) => {
       await this.requireProject(tx, projectId);
-      const conds: (SQL | undefined)[] = [eq(runs.projectId, projectId)];
-      switch (q.filter) {
-        case 'needs_you':
-          conds.push(inArray(runs.status, ['idle', 'paused']));
-          break;
-        case 'active':
-          conds.push(inArray(runs.status, [...ACTIVE_RUN_STATUSES]));
-          break;
-        case 'queued':
-          conds.push(eq(runs.status, 'queued'));
-          break;
-        case 'ended':
-          conds.push(inArray(runs.status, [...FINAL_RUN_STATUSES]));
-          break;
-        default:
-          break;
-      }
-      if (q.ticket !== undefined) conds.push(eq(runs.ticketRef, q.ticket));
-      if (cursor) {
-        const t = sql`${cursor.t}::timestamptz`;
-        conds.push(or(sql`${runs.queuedAt} < ${t}`, and(sql`${runs.queuedAt} = ${t}`, sql`${runs.id} > ${cursor.i}`)));
-      }
-      const rows = await tx
-        .select({ run: runs, queuedAtText: QUEUED_AT_TEXT })
+      const where = and(
+        eq(runs.projectId, projectId),
+        this.statusIn(q.filter),
+        q.ticket === undefined ? undefined : eq(runs.ticketRef, q.ticket),
+      );
+      const { limit, offset } = pageWindow(q);
+      const [counted] = await tx
+        .select({ total: sql<number>`count(*)::int` })
         .from(runs)
-        .where(and(...conds))
+        .where(where);
+      const rows = await tx
+        .select()
+        .from(runs)
+        .where(where)
         .orderBy(desc(runs.queuedAt), asc(runs.id))
-        .limit(q.limit + 1);
-      const page = rows.slice(0, q.limit);
-      const last = page[page.length - 1];
-      const nextCursor = rows.length > q.limit && last ? encodeCursor({ t: last.queuedAtText, i: last.run.id }) : null;
+        .limit(limit)
+        .offset(offset);
+      return toPage(await this.listItems(tx, projectId, rows), counted?.total ?? 0, q);
+    });
+  }
+
+  /** The Run list's numbers in one transaction: chip counts, today's runs, the idle run and the next queued number. */
+  async stats(org: OrgContext, projectId: string, since: string): Promise<RunStatsDto> {
+    const sinceDate = new Date(since);
+    return withOrg(this.db, org.orgId, async (tx) => {
+      await this.requireProject(tx, projectId);
+      const inStatuses = (statuses: readonly string[]) =>
+        sql`${runs.status} in (${sql.join(
+          statuses.map((x) => sql`${x}`),
+          sql`, `,
+        )})`;
+      const [c] = await tx
+        .select({
+          needsYou: sql<number>`(count(*) filter (where ${inStatuses(['idle', 'paused'])}))::int`,
+          active: sql<number>`(count(*) filter (where ${inStatuses(ACTIVE_RUN_STATUSES)}))::int`,
+          queued: sql<number>`(count(*) filter (where ${runs.status} = 'queued'))::int`,
+          ended: sql<number>`(count(*) filter (where ${inStatuses(FINAL_RUN_STATUSES)}))::int`,
+          all: sql<number>`count(*)::int`,
+          todayTotal: sql<number>`(count(*) filter (where ${runs.queuedAt} >= ${sinceDate}))::int`,
+          todayFailed: sql<number>`(count(*) filter (where ${runs.queuedAt} >= ${sinceDate} and ${runs.status} = 'failed'))::int`,
+        })
+        .from(runs)
+        .where(eq(runs.projectId, projectId));
+      const [ign] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(inboundEvents)
+        .where(and(eq(inboundEvents.projectId, projectId), sql`starts_with(${inboundEvents.outcome}, 'ignored_')`));
+      const idleRow = (
+        await tx
+          .select()
+          .from(runs)
+          .where(and(eq(runs.projectId, projectId), eq(runs.status, 'idle')))
+          .orderBy(desc(runs.queuedAt), asc(runs.id))
+          .limit(1)
+      )[0];
+      const queuedRow = (
+        await tx
+          .select({ number: runs.number })
+          .from(runs)
+          .where(and(eq(runs.projectId, projectId), eq(runs.status, 'queued')))
+          .orderBy(asc(runs.queuedAt), desc(runs.id))
+          .limit(1)
+      )[0];
+      const idleRun = idleRow ? ((await this.listItems(tx, projectId, [idleRow]))[0] ?? null) : null;
       return {
-        items: await this.listItems(
-          tx,
-          page.map((r) => r.run),
-        ),
-        nextCursor,
+        counts: {
+          needs_you: c?.needsYou ?? 0,
+          active: c?.active ?? 0,
+          queued: c?.queued ?? 0,
+          ended: c?.ended ?? 0,
+          all: c?.all ?? 0,
+          ignored: ign?.n ?? 0,
+        },
+        today: { total: c?.todayTotal ?? 0, failed: c?.todayFailed ?? 0 },
+        idleRun,
+        nextQueuedNumber: queuedRow?.number ?? null,
       };
     });
   }
@@ -485,16 +499,23 @@ export class RunsService {
     }
   }
 
-  async ignored(org: OrgContext, projectId: string): Promise<IgnoredEventDto[]> {
+  async ignored(org: OrgContext, projectId: string, q: PageQuery): Promise<Page<IgnoredEventDto>> {
     return withOrg(this.db, org.orgId, async (tx) => {
       await this.requireProject(tx, projectId);
+      const where = and(eq(inboundEvents.projectId, projectId), sql`starts_with(${inboundEvents.outcome}, 'ignored_')`);
+      const { limit, offset } = pageWindow(q);
+      const [counted] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(inboundEvents)
+        .where(where);
       const rows = await tx
         .select()
         .from(inboundEvents)
-        .where(and(eq(inboundEvents.projectId, projectId), sql`starts_with(${inboundEvents.outcome}, 'ignored_')`))
+        .where(where)
         .orderBy(desc(inboundEvents.receivedAt), asc(inboundEvents.id))
-        .limit(IGNORED_LIMIT);
-      return rows.map((r) => ({
+        .limit(limit)
+        .offset(offset);
+      const items = rows.map((r) => ({
         id: r.id,
         receivedAt: r.receivedAt.toISOString(),
         ticketRef: r.ticketRef,
@@ -505,6 +526,7 @@ export class RunsService {
         outcome: r.outcome,
         detail: r.detail,
       }));
+      return toPage(items, counted?.total ?? 0, q);
     });
   }
 }
