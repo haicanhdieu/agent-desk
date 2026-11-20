@@ -43,14 +43,16 @@ wants to repeat Re-open and Finish while the retained session is still valid.
   workflow state once the resumed session is up (`resumedKeep: { kind, expiresAt } | undefined`, cleared on park or
   end). In the end-of-session outcome (`endOutcome` caller, around the `pauseResume && ending && parkKind !== undefined
   && !finishRequested` branch), when `finishRequested`, the patch is on, `resumedKeep?.kind === 'done'` and
-  `Date.parse(resumedKeep.expiresAt) > Date.now()`, call `park(c, 'done', 'finish', …, keepUntil)` instead of
-  returning `succeeded`. `park` skips the finish comment for this case.
+  `Date.parse(resumedKeep.expiresAt) > Date.now()`, call `park(c, 'done', 'idle_timeout', …, keepUntil)` instead of
+  returning `succeeded`. `park` skips the finish comment for this case. This runs only inside the existing
+  `podLostParks && agentStarted === true` branch: a pod result without `agentStarted` is not re-parked and the volume
+  is deleted as before.
 - `apps/worker/src/activities/session.activity.ts` `parkRun`: accept an optional `keepUntil: string` (ISO). When
-  present and in the future it is the `sessionExpiresAt` (instead of `at + keepSeconds`); the cap logic is unchanged.
+  present and in the future it is the `sessionExpiresAt` (instead of `at + keepSeconds`); when it is not after `at`
+  (it fell due while parking) nothing is kept, so the workflow deletes the volume; the cap logic is unchanged.
   Not reusing `restoreParked`, which appends a `resume_failed` event.
 - `apps/worker/src/workflows/park.ts`: a pure helper deciding the re-park so it is unit-testable.
-- `PauseReason` gets no new value if `finish` can be avoided; Agent call: reuse `idle_timeout`-style reason only if the
-  `pause_reason` constraint forbids a new one (a new reason would need a migration).
+- `PauseReason` gets no new value. Agent call: the re-park uses `idle_timeout`, the only generic reason; a `finish` value would need a migration.
 - Web: the MSW `runs.finish` handler and the run fixtures mirror the behavior; no contract change.
 
 ## UI and Storybook
@@ -79,5 +81,4 @@ None: no new dependency.
 
 ## Agent calls
 
-- Agent call: no migration; the existing pause reason `idle_timeout` is not reused for this park unless `pause_reason`
-  forbids another value — the implementer checks the schema and records the choice in the PR.
+- Agent call: no migration; the re-park reuses the pause reason `idle_timeout` because no `finish` value exists and adding one needs a migration.
