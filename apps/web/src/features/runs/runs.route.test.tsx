@@ -395,7 +395,7 @@ describe('runs route', () => {
       expect(again.router.state.location.search).toEqual({});
     });
 
-    it('from ?page=3 every chip and the grouped toggle land on page 1, and no filter or ticket href carries page', async () => {
+    it('TC-15.3: from ?page=3 every chip and the grouped toggle land on page 1, and no filter or ticket href carries page', async () => {
       seedRuns(63);
       const { user, router } = await renderRoute(`${base}/runs?page=3&ticket=12`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
@@ -408,6 +408,22 @@ describe('runs route', () => {
       }
       await user.click(screen.getByRole('button', { name: 'Grouped by ticket' }));
       await waitFor(() => expect(router.state.location.search).not.toHaveProperty('page'));
+    });
+
+    it('TC-15.3: changing the ticket from ?page=3 shows page 1 of the filtered result', async () => {
+      // 25 runs on ticket 12 and 38 on their own tickets; the app has no ticket text box, the filter is ?ticket=.
+      seedRuns(63, { ticketOf: (n) => (n <= 25 ? '12' : String(n)) });
+      const { router } = await renderRoute(`${base}/runs?page=3`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(nav()).toHaveTextContent('Showing 41–60 of 63');
+      await router.navigate({
+        to: '/o/$org/p/$project/runs',
+        params: { org: 'alice', project: projectId },
+        search: { ticket: '12' },
+      });
+      await waitFor(() => expect(nav()).toHaveTextContent('Showing 1–20 of 25'));
+      expect(runNumbers()).toHaveLength(20);
+      expect(router.state.location.search).toEqual({ ticket: '12' });
     });
 
     it('grouped: a ticket split across pages shows its header on both with the same "N of max runs"', async () => {

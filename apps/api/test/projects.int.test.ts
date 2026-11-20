@@ -632,7 +632,7 @@ describe('projects.list paging', () => {
     expect(page.items.map((p) => p.id)).toEqual(aIds.slice(0, 20));
   });
 
-  it('page 2 holds the last 6, oldest created first, and the pages cover every id once', async () => {
+  it('TC-20.3: page 2 holds the last 6, oldest created first, and the pages cover every id once', async () => {
     const p1 = expectContract('projects.list', await list(a)) as Page<ProjectDto>;
     const p2 = expectContract('projects.list', await list(a, '?page=2')) as Page<ProjectDto>;
     expect(p2.items).toHaveLength(6);
@@ -663,7 +663,7 @@ describe('projects.list paging', () => {
     expect((await list(a, qs)).statusCode).toBe(400);
   });
 
-  it('counts and lists only the caller org, and an org without projects gets total 0', async () => {
+  it('TC-37.1, TC-37.3: counts and lists only the caller org, and an org without projects gets total 0', async () => {
     const mine = expectContract('projects.list', await list(a, '?pageSize=100')) as Page<ProjectDto>;
     expect(mine.total).toBe(26);
     expect(mine.items.some((p) => bIds.includes(p.id))).toBe(false);

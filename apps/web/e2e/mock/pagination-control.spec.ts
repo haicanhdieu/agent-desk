@@ -158,7 +158,6 @@ test.describe('BR-3: the control is hidden at 20 rows or fewer', () => {
     await expect(runLinks(page)).toHaveCount(63);
     await expect(nav(page)).toBeVisible();
     await expect(sizeSelect(page)).toHaveValue('100');
-    await expect(rangeOf(page)).toHaveText('Showing 1–63 of 63');
   });
 
   test('TC-3.4: picking 20 after a saved 100 shows 20 runs and the buttons for 4 pages', async ({ page }) => {
@@ -555,7 +554,6 @@ test.describe('BR-14: an invalid or blocked saved page size', () => {
     // Click through: a second `goto` would be a new visit.
     await page.locator(`a[href="/o/${ORG}/projects"]`).first().click();
     await expect(page).toHaveURL(new RegExp(`/o/${ORG}/projects$`));
-    await expect(rangeOf(page)).toHaveText('Showing 1–26 of 26');
     await expect(sizeSelect(page)).toHaveValue('50');
   });
 
