@@ -486,6 +486,37 @@ describe('resume', () => {
     },
   );
 
+  it('a run that started before finish-reparks existed still deletes the volume on Finish after a done Re-open', async () => {
+    runtime.unpatched.add('finish-reparks');
+    const h = start();
+    await toParked(h, 'done');
+    await resumeToSessionUp(h);
+    await expect(sendUpdate(finishRun)).resolves.toEqual({ accepted: true });
+    h.pods[1]?.exit({ exitCode: 0, agentStarted: true });
+
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+    expect(h.calls).toContain('deleteRunVolume');
+    expect(h.calls.filter((c) => c.startsWith('parkRun'))).toHaveLength(1);
+  });
+
+  it('a Finish after a done Re-open whose pod result lacks agentStarted is not re-parked: the volume is deleted', async () => {
+    const h = start();
+    await toParked(h, 'done');
+    await resumeToSessionUp(h);
+    // The default fake ends the pod with agentStarted true; this pod's result carries no such field.
+    runtime.activities.endSession = () => {
+      h.calls.push('endSession');
+      return Promise.resolve();
+    };
+    await expect(sendUpdate(finishRun)).resolves.toEqual({ accepted: true });
+    await waitFor('end requested', () => h.calls.includes('endSession'));
+    h.pods[1]?.exit({ exitCode: 0 });
+
+    await h.done;
+    expect(h.calls).toContain('deleteRunVolume');
+    expect(h.calls.filter((c) => c.startsWith('parkRun'))).toHaveLength(1);
+  });
+
   it('the resumed pod gets the rest of the time limit, and a fresh hard timer for exactly that', async () => {
     const h = start({ timeoutSeconds: 7200 });
     await toParked(h, 'needs_input', 900);

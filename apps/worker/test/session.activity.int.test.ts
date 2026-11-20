@@ -251,7 +251,7 @@ describe('parkRun', () => {
     expect((await load(runId)).run?.sessionExpiresAt?.toISOString()).toBe(atPlus(1200));
   });
 
-  it('parkRun ignores a keepUntil that is not after at', async () => {
+  it('parkRun with a keepUntil that is not after at keeps nothing, never a fresh retention', async () => {
     const p = await seedProject({ done: 3600 });
     for (const keepUntil of [AT, atPlus(-60)]) {
       const runId = await seedRun(p, 'done');
@@ -261,8 +261,23 @@ describe('parkRun', () => {
         reason: 'idle_timeout',
         keepUntil,
       });
-      expect(result.sessionExpiresAt).toBe(atPlus(3600));
+      expect(result).toEqual({ status: 'succeeded', sessionExpiresAt: null });
+      expect((await load(runId)).run?.sessionExpiresAt).toBeNull();
     }
+  });
+
+  it('parkRun with keepUntil for kind done still applies the per-project cap', async () => {
+    const p = await seedProject({ done: 3600 });
+    const kept: string[] = [];
+    for (let i = 0; i < 10; i++) kept.push(await seedRun(p, 'succeeded', atPlus(1000 + i * 100)));
+    const runId = await seedRun(p, 'done');
+    await acts().parkRun(await ctxFor(runId), {
+      kind: 'done',
+      at: AT,
+      reason: 'idle_timeout',
+      keepUntil: atPlus(1200),
+    });
+    expect(signals).toEqual([{ runId: kept[0], signal: 'dropSession' }]);
   });
 
   it('parkRun rejects an unparseable keepUntil as non-retryable', async () => {

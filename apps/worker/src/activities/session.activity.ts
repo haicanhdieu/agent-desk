@@ -45,7 +45,7 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
       reason?: PauseReason;
       resumeQueued?: boolean;
       podExitCode?: number;
-      /** An earlier session deadline to keep; used only when it is after `at`. */
+      /** An earlier session deadline to keep, never extended: when it is not after `at`, nothing is kept. */
       keepUntil?: string;
     },
   ): Promise<ParkResult> {
@@ -63,9 +63,9 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
         input.kind === 'needs_input'
           ? (agent?.paused ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT)
           : (agent?.done ?? AGENT_DONE_KEEP_SECONDS_DEFAULT);
-      const keep = keepSeconds > 0;
-      const expiresAt =
-        keepUntil && keepUntil.getTime() > at.getTime() ? keepUntil : new Date(at.getTime() + keepSeconds * 1000);
+      // A deadline that fell due between the workflow's check and this write keeps nothing (no fresh retention).
+      const keep = keepUntil ? keepUntil.getTime() > at.getTime() : keepSeconds > 0;
+      const expiresAt = keepUntil ?? new Date(at.getTime() + keepSeconds * 1000);
       const status = input.kind === 'needs_input' ? 'paused' : 'succeeded';
       const written = await setRunStatusTx(tx, {
         orgId: ctx.orgId,
