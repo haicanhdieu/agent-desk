@@ -1,13 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { INVOICER_API, ORG } from './mock';
 
-// The run detail and Routing rules pages are not here: they fill the viewport and scroll inside (run-detail-layout.spec.ts,
-// rules-layout.spec.ts).
+// The run detail, Routing rules and Skills pages are not here: they fill the viewport and scroll inside
+// (run-detail-layout.spec.ts, rules-layout.spec.ts, skills-layout.spec.ts).
 const pages: { name: string; path: string }[] = [
   { name: 'Projects', path: `/o/${ORG}/projects` },
   { name: 'Runs', path: `/o/${ORG}/p/${INVOICER_API}/runs` },
   { name: 'Needs you', path: `/o/${ORG}/p/${INVOICER_API}/needs-you` },
-  { name: 'Desk skills', path: `/o/${ORG}/p/${INVOICER_API}/desk/skills` },
 ];
 
 // Short enough that every page needs scrolling; the phone width covers the narrow layouts.
@@ -54,14 +53,13 @@ for (const vp of viewports) {
   }
 }
 
-test('a dialog opened on a Desk page dims the top bar too, even after scrolling', async ({ page }) => {
+test('a dialog opened on a Desk page dims the top bar too', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 400 });
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/skills`);
   await page.getByRole('button', { name: 'Delete skill' }).click();
   const dialog = page.getByRole('dialog', { name: /^Delete skill / });
   await expect(dialog).toBeVisible();
 
-  await scrollBy(page, 200);
   const barIsCovered = await page.evaluate(
     () => !document.querySelector('header')?.contains(document.elementFromPoint(8, 8)),
   );

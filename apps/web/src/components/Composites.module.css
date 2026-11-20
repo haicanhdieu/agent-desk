@@ -340,6 +340,13 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* The column scrolls on its own when the list is taller than the window. */
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.skills > * {
+  flex-shrink: 0;
 }
 .skillsHead {
   display: flex;
@@ -399,6 +406,7 @@
 }
 
 .commitBar {
+  flex-shrink: 0;
   border-top: 1px solid var(--line);
   padding: 12px 20px 0;
   background: var(--panel);

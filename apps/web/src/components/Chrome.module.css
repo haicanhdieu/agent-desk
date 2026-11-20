@@ -180,6 +180,13 @@
   flex-direction: column;
   gap: 2px;
   background: var(--bg);
+  /* The nav scrolls on its own when it is taller than the window. */
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.subnav > * {
+  flex-shrink: 0;
 }
 .subnav a {
   display: flex;
