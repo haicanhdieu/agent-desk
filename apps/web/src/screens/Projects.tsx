@@ -1,5 +1,5 @@
 import { Button } from '@/ds';
-import { DataTable, ProjectRow, TopBar } from '@/components';
+import { DataTable, Pagination, ProjectRow, TopBar, type PaginationProps } from '@/components';
 import type { Actor, Project } from '@/mocks/types';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import styles from './Screens.module.css';
@@ -14,6 +14,8 @@ export interface ProjectsProps {
   settingsHref?: (project: Project) => string;
   /** Where a row's "Switch to polling" goes (the project's settings). */
   switchToPollingHref?: (project: Project) => string;
+  /** The paging control under the table; its `busy` marks the table aria-busy. */
+  pagination?: PaginationProps;
 }
 
 const columns = [
@@ -33,6 +35,7 @@ export function Projects({
   projectHref = () => '/runs',
   settingsHref,
   switchToPollingHref,
+  pagination,
 }: ProjectsProps) {
   if (projects.length === 0) return <ProjectsEmpty user={user} createHref={newHref} />;
   return (
@@ -48,7 +51,7 @@ export function Projects({
         <p className={`muted ${styles.listIntro}`}>
           After sign-in you land on the runs of the project you used last. This list is one click away on the logo.
         </p>
-        <DataTable columns={columns}>
+        <DataTable columns={columns} busy={pagination?.busy}>
           {projects.map((p) => (
             <ProjectRow
               key={p.id}
@@ -59,6 +62,7 @@ export function Projects({
             />
           ))}
         </DataTable>
+        {pagination && <Pagination {...pagination} />}
       </main>
     </>
   );

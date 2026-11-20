@@ -6,10 +6,12 @@ import {
   CommitBar,
   ConfirmDeleteDialog,
   EmptyState,
+  Pagination,
   SkillDiff,
   SkillList,
   SkillPreviewPane,
   type SkillPreviewPaneProps,
+  type PaginationProps,
 } from '@/components';
 import type { Skill } from '@/mocks/types';
 import styles from './Screens.module.css';
@@ -24,6 +26,10 @@ export interface DeskSkillsProps {
   height?: 'viewport';
   skills: Skill[];
   activeName?: string;
+  /** The editor's skill. Defaults to the one named `activeName` in `skills`, else the first; pass it when the list is a page that may not hold it. */
+  active?: Skill;
+  /** The paging control under the skill list; not drawn without skills. */
+  pagination?: PaginationProps;
   dirty?: boolean;
   /** 1-based lines marked as changed in the editor. */
   changedLines?: number[];
@@ -141,6 +147,8 @@ export function DeskSkills({
   height,
   skills,
   activeName,
+  active: activeSkill,
+  pagination,
   dirty = false,
   changedLines = [],
   view = 'edit',
@@ -158,7 +166,7 @@ export function DeskSkills({
   onConfirmDelete,
   onCommit,
 }: DeskSkillsProps) {
-  const active = skills.find((s) => s.name === activeName) ?? skills[0];
+  const active = activeSkill ?? skills.find((s) => s.name === activeName) ?? skills[0];
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
   const page = (
     <>
@@ -174,6 +182,7 @@ export function DeskSkills({
               ...(skillHref && { href: skillHref(s.name) }),
             }))}
             onSelect={onSelect}
+            footer={skills.length > 0 && pagination ? <Pagination {...pagination} /> : undefined}
           />
           <main className={styles.skillsMain}>
             {active ? (

@@ -438,27 +438,27 @@ DeskSetupProps.versionsTotal?: number;          // header "N versions"; defaults
 DeskSetupProps.versionsPagination?: PaginationProps; // under VersionHistory; not drawn while versionsLoading or versionsError
 ```
 
-- [ ] **Step 1: Write the failing screen tests**
+- [x] **Step 1: Write the failing screen tests**
 
 - `entry.test.tsx`: `it('Projects draws the control under the table')`.
 - `desk.test.tsx`: `it('DeskRules puts the control between the list and Guards on every rule')` (document order: the last rule row, then the "Pagination" nav, then the "Guards on every rule" heading). `it('DeskRules with no rules shows No routing rules yet and no control')`. `it('DeskSkills puts the control under the list and keeps the active skill in the editor when it is not in the list')` (`active` is a skill absent from `skills`, and the editor shows its name). `it('DeskSkills with no skills shows No skills yet and no control')`.
 - `deskSetup.test.tsx`: `it('the header counts versionsTotal, not the rows shown')` (`versions` has 3 rows and `versionsTotal` is 23 → "23 versions"). `it('no control while versions load, fail or are empty')` covers the "Loading versions" status with `aria-busy`, the error text "Could not load the version history. Reload to try again.", and "0 versions" with "No versions yet. The first save creates version 1.".
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- entry.test desk.test deskSetup.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the screen props**
+- [x] **Step 3: Implement the screen props**
 
-- [ ] **Step 4: Write the stories**
+- [x] **Step 4: Write the stories**
 
 - `entry.stories.tsx`: `ProjectsPaged` (page 2 of 2, 26 projects, "Showing 21–26 of 26").
 - `desk.stories.tsx`: `DeskRulesPaged` (page 2 of 2, 24 rules), `DeskRulesEmpty`, `DeskSkillsPaged` (page 2 of 2, 22 skills, editor unchanged), `DeskSkillsEmpty`, `DeskSetupPaged` (page 2 of 2, header "23 versions"), `DeskSetupVersionsLoading` and `DeskSetupVersionsEmpty` (a saved script with "0 versions").
 - `DeskSetupVersionsError` already exists.
 - Heights are 900, as for the existing Projects and Desk stories.
 
-- [ ] **Step 5: Register the 9 boards**
+- [x] **Step 5: Register the 9 boards**
 
 The boards are `ProjectsPaged`, `DeskRulesPaged`, `DeskRulesEmpty`, `DeskSkillsPaged`, `DeskSkillsEmpty`, `DeskSetupPaged`, `DeskSetupVersionsLoading`, `DeskSetupVersionsError` and `DeskSetupVersionsEmpty`, registered the same way as in Task 3:
 
@@ -472,7 +472,7 @@ The boards are `ProjectsPaged`, `DeskRulesPaged`, `DeskRulesEmpty`, `DeskSkillsP
 Run: `pnpm --filter @agentdesk/web test -- entry.test desk.test deskSetup.test coverage stories.smoke && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: PASS, and "54 pairs written" (or the new total). Check the 9 new pairs by eye.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix

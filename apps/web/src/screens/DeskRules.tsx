@@ -5,6 +5,8 @@ import {
   EmptyState,
   type ModelList,
   GuardsCard,
+  Pagination,
+  type PaginationProps,
   RuleForm,
   RuleRow,
   SidePane,
@@ -22,6 +24,8 @@ export interface DeskRulesProps {
   /** `'viewport'` fits the page to the window (the app route): the page does not scroll, the rule list and the open pane's body do. */
   height?: 'viewport';
   rules: Rule[];
+  /** The paging control between the rule list and the guards card; not drawn without rules. */
+  pagination?: PaginationProps;
   /** Skill names offered in the rule form. */
   skills: string[];
   /** The selected rule (row marked current). Without `form`, its pane opens with a local draft. */
@@ -176,6 +180,7 @@ export function DeskRules({
   frame,
   height,
   rules,
+  pagination,
   skills,
   editingId,
   maxRunsPerTicket,
@@ -209,6 +214,7 @@ export function DeskRules({
           {rules.length === 0 ? (
             <EmptyState
               title="No routing rules yet"
+              headingLevel={2}
               body="A rule maps a command in a comment, like /code-build, to a skill. Add one to let comments start runs."
               action={
                 <Button variant="primary" icon="plus" onClick={onCreate}>
@@ -232,6 +238,7 @@ export function DeskRules({
               ))}
             </div>
           )}
+          {rules.length > 0 && pagination && <Pagination {...pagination} />}
           <GuardsCard
             maxRunsPerTicket={maxRunsPerTicket}
             changeHref={guardLinks?.change ?? '/desk/agent'}

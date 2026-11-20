@@ -425,6 +425,78 @@
    "h": 1000,
    "title": "Any paged list \u2014 failed to load",
    "expand": "fill"
+  },
+  "ProjectsPaged.dc.html": {
+   "x": 0,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 page 2 of 2, 26 projects",
+   "expand": "fill"
+  },
+  "DeskRulesPaged.dc.html": {
+   "x": 1520,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 routing rules, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskRulesEmpty.dc.html": {
+   "x": 3040,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 routing rules, empty",
+   "expand": "fill"
+  },
+  "DeskSkillsPaged.dc.html": {
+   "x": 4560,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 skills, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskSkillsEmpty.dc.html": {
+   "x": 6080,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 skills, empty",
+   "expand": "fill"
+  },
+  "DeskSetupPaged.dc.html": {
+   "x": 7600,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 setup, version history page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskSetupVersionsLoading.dc.html": {
+   "x": 9120,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 setup, version history loading",
+   "expand": "fill"
+  },
+  "DeskSetupVersionsError.dc.html": {
+   "x": 10640,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 setup, version history failed to load",
+   "expand": "fill"
+  },
+  "DeskSetupVersionsEmpty.dc.html": {
+   "x": 12160,
+   "y": 10400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 setup, version history empty",
+   "expand": "fill"
   }
  },
  "order": [
@@ -479,7 +551,16 @@
   "NeedsYouPaged.dc.html",
   "NeedsYouEmpty.dc.html",
   "RouteLoading.dc.html",
-  "RouteError.dc.html"
+  "RouteError.dc.html",
+  "ProjectsPaged.dc.html",
+  "DeskRulesPaged.dc.html",
+  "DeskRulesEmpty.dc.html",
+  "DeskSkillsPaged.dc.html",
+  "DeskSkillsEmpty.dc.html",
+  "DeskSetupPaged.dc.html",
+  "DeskSetupVersionsLoading.dc.html",
+  "DeskSetupVersionsError.dc.html",
+  "DeskSetupVersionsEmpty.dc.html"
  ],
  "notes": {
   "t-intro": {

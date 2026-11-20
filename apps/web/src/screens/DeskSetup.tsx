@@ -12,7 +12,9 @@ import {
   TerminalBar,
   TerminalFindBar,
   TerminalPane,
+  Pagination,
   VersionHistory,
+  type PaginationProps,
   findMatches,
   logText,
   type PluginListProps,
@@ -77,6 +79,10 @@ export interface DeskSetupProps {
   changedLines?: number[];
   plugins: PluginListProps;
   versions: ScriptVersion[];
+  /** The version count in the header; defaults to `versions.length`. */
+  versionsTotal?: number;
+  /** The paging control under the history; not drawn while it loads, fails or is empty. */
+  versionsPagination?: PaginationProps;
   versionsLoading?: boolean;
   /** The version history could not be loaded. */
   versionsError?: string;
@@ -222,6 +228,8 @@ export function DeskSetup({
   changedLines = [],
   plugins,
   versions,
+  versionsTotal = versions.length,
+  versionsPagination,
   versionsLoading,
   versionsError,
   lastTest,
@@ -437,7 +445,7 @@ export function DeskSetup({
                 title="Version history"
                 aside={
                   <span className="faint">
-                    {versions.length} {versions.length === 1 ? 'version' : 'versions'}
+                    {versionsTotal} {versionsTotal === 1 ? 'version' : 'versions'}
                   </span>
                 }
               >
@@ -448,6 +456,9 @@ export function DeskSetup({
                   onView={onViewVersion}
                   onRestore={onRestore}
                 />
+                {versionsPagination && !versionsLoading && !versionsError && versions.length > 0 && (
+                  <Pagination {...versionsPagination} />
+                )}
               </Section>
             </>
           )}

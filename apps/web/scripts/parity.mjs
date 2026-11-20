@@ -48,6 +48,15 @@ const stories = {
   NeedsYouEmpty: ['Screens/Runs', 'NeedsYouNone'],
   RouteLoading: ['Screens/Runs', 'RouteLoading'],
   RouteError: ['Screens/Runs', 'RouteError'],
+  ProjectsPaged: ['Screens/Entry', 'ProjectsPaged'],
+  DeskRulesPaged: ['Screens/Desk', 'DeskRulesPaged'],
+  DeskRulesEmpty: ['Screens/Desk', 'DeskRulesEmpty'],
+  DeskSkillsPaged: ['Screens/Desk', 'DeskSkillsPaged'],
+  DeskSkillsEmpty: ['Screens/Desk', 'DeskSkillsEmpty'],
+  DeskSetupPaged: ['Screens/Desk', 'DeskSetupPaged'],
+  DeskSetupVersionsLoading: ['Screens/Desk', 'DeskSetupVersionsLoading'],
+  DeskSetupVersionsError: ['Screens/Desk', 'DeskSetupVersionsError'],
+  DeskSetupVersionsEmpty: ['Screens/Desk', 'DeskSetupVersionsEmpty'],
   ...Object.fromEntries(
     [
       'Starting',

@@ -360,6 +360,11 @@
   padding: 0 6px 6px;
   margin: 0;
 }
+.skillsNav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .skillItems {
   margin: 0;
   padding: 0;
