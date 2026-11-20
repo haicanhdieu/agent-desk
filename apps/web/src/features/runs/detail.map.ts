@@ -13,7 +13,7 @@ import { statusTokens } from '@/ds';
 import type { RunDetailData, RunDetailKey } from '@/mocks/types';
 import { clockElapsed, formatLimit } from '../duration';
 import { relativeTime, timeLeft } from '../relativeTime';
-import { duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
+import { dateTime, duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
 import type { CachedRunDetail } from './queries';
 import type { TerminalState } from './useTerminal';
 
@@ -411,14 +411,6 @@ function connection(run: RunListItem, lines: TermLine[] | undefined): RunDetailD
   if (lines === undefined) return { state: 'ended', label: 'Ended' };
   return { state: 'ended', label: `Ended, read-only, ${lines.length.toLocaleString('en-US')} lines` };
 }
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-
-/** Local "13 Nov, 09:05". */
-const dateTime = (iso: string): string => {
-  const d = new Date(iso);
-  return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
 
 /** The exit code in the newest `session_ended` event of the log; undefined if there is none or it is malformed. */
 function agentExitCode(events: RunEventDto[]): number | undefined {
