@@ -21,6 +21,7 @@ import { ApplicationFailure } from '@temporalio/workflow';
 import { HISTORY_TOO_LONG_REASON, RunWorkflow, type RunOutcome } from '../src/workflows/run.workflow';
 import {
   agentState,
+  personInput,
   cancel,
   dropSession,
   finishRun,
@@ -36,12 +37,14 @@ import {
 } from '../src/workflows/signals';
 import type {
   CommentKind,
+  RecordAutoResumeInput,
   FinishDetails,
   FollowPodLogsResult,
   ParkResult,
   RunContext,
 } from '../src/activities/run.activities';
 import type { SetRunStatusInput } from '../src/activities/run-status.activity';
+import type { ResumeNoteInput } from '@agentdesk/core';
 
 const T0 = new Date('2026-01-01T00:00:00.000Z');
 const KEEP = 3600;
@@ -58,7 +61,9 @@ interface Harness {
   statuses: SetRunStatusInput[];
   comments: { kind: CommentKind; details?: FinishDetails }[];
   pods: Pod[];
-  createOpts: ({ resume?: boolean; deadlineSeconds?: number } | undefined)[];
+  createOpts: ({ resume?: boolean; deadlineSeconds?: number; note?: ResumeNoteInput } | undefined)[];
+  /** The input of every recordAutoResume call, in order. */
+  autoResumes: RecordAutoResumeInput[];
   parks: { kind: string; reason?: string; resumeQueued?: boolean }[];
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   kept: string[];
@@ -103,6 +108,7 @@ function start(
     comments: [],
     pods: [],
     createOpts: [],
+    autoResumes: [],
     parks: [],
     restores: [],
     kept: [],
@@ -135,7 +141,10 @@ function start(
     h.calls.push(`setRunStatus:${input.status}`);
     return Promise.resolve({});
   };
-  a.createRunSecretAndJob = (_c: RunContext, opts?: { resume?: boolean; deadlineSeconds?: number }) => {
+  a.createRunSecretAndJob = (
+    _c: RunContext,
+    opts?: { resume?: boolean; deadlineSeconds?: number; note?: ResumeNoteInput },
+  ) => {
     h.createOpts.push(opts);
     h.calls.push(opts?.resume ? 'createRunSecretAndJob:resume' : 'createRunSecretAndJob');
     if (opts?.resume && h.resumeCreateError) return Promise.reject(h.resumeCreateError);
@@ -175,6 +184,11 @@ function start(
     h.calls.push(`parkRun:${input.kind}`);
     const expiry = h.keepSeconds === undefined ? null : new Date(Date.now() + h.keepSeconds * 1000).toISOString();
     return Promise.resolve({ status: input.kind === 'done' ? 'succeeded' : 'paused', sessionExpiresAt: expiry });
+  };
+  a.recordAutoResume = (_c: RunContext, input: RecordAutoResumeInput) => {
+    h.autoResumes.push(input);
+    h.calls.push(`recordAutoResume:${input.event}`);
+    return Promise.resolve();
   };
   a.endKeptSession = (_c: RunContext, reason: string) => {
     h.kept.push(reason);
@@ -1412,5 +1426,481 @@ describe('stop session', () => {
     // Today's rule: the signal only counts while resuming, so a later resume is not satisfied early.
     await settle();
     expect(phase()).toBe('running');
+  });
+});
+
+describe('automatic resume after an unexpected pod end', () => {
+  const OOM = { exitCode: 137, agentStarted: true, podReason: 'OOMKilled' } as const;
+  const KILLED_OOM = { kind: 'killed', exitCode: 137, podReason: 'OOMKilled' } as const;
+  const KILLED = { kind: 'killed', exitCode: 137 } as const;
+  const paused = (h: Harness): number => h.comments.filter((c) => c.kind === 'paused').length;
+
+  /** Pod `n` ends with `result`; the workflow parks and, when it resumes by itself, starts pod `n + 1`. */
+  async function podEnds(h: Harness, n: number, result: FollowPodLogsResult): Promise<void> {
+    await waitFor(`pod ${n}`, () => h.pods.length === n + 1);
+    h.pods[n]?.exit(result);
+  }
+
+  /** The automatically resumed pod `n` reports its session: the run is back (idle). */
+  async function sessionUp(h: Harness, n: number): Promise<void> {
+    await waitFor(`resumed pod ${n}`, () => h.pods.length === n + 1);
+    sendSignal(sessionStarted);
+    await waitFor('resume finished', () => phase() !== 'resuming');
+  }
+
+  it('a pod_lost park with autoResumeMax 5 resumes at once, without the paused comment', async () => {
+    const h = start({ autoResumeMax: 5 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'needs_input', reason: 'pod_lost' })]);
+    expect(h.autoResumes).toEqual([{ event: 'resume', try: 1, max: 5, end: KILLED_OOM, at: expect.any(String) }]);
+    expect(h.comments.map((c) => c.kind)).not.toContain('paused');
+    expect(h.createOpts.at(-1)).toMatchObject({ resume: true, note: { end: KILLED_OOM, try: 1, max: 5 } });
+    sendSignal(sessionStarted);
+    await waitFor('idle', () => phase() === 'idle');
+    expect(h.statuses.map((s) => s.status)).toEqual(['starting', 'queued', 'starting', 'idle']);
+  });
+
+  it("a person's Resume cannot land while the automatic try is being recorded, so it never counts as automatic", async () => {
+    const h = start({ autoResumeMax: 5 });
+    let release: () => void = () => undefined;
+    runtime.activities.recordAutoResume = (_c: RunContext, input: RecordAutoResumeInput) => {
+      h.autoResumes.push(input);
+      return new Promise<void>((resolve) => {
+        release = resolve;
+      });
+    };
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('event being recorded', () => h.autoResumes.length === 1);
+
+    await expect(sendUpdate(resumeRun)).rejects.toThrow('already being resumed');
+    release();
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    expect(h.autoResumes).toHaveLength(1);
+    expect(h.createOpts.at(-1)).toMatchObject({ note: { try: 1, max: 5 } });
+  });
+
+  it('agent_crashed (agent_exit 1) also resumes, with kind agent_exit', async () => {
+    const h = start({ autoResumeMax: 5 });
+    await podEnds(h, 0, { exitCode: 1, endReason: 'agent_exit', agentStarted: true });
+    await waitFor('resumed pod', () => h.pods.length === 2);
+
+    expect(h.parks).toEqual([expect.objectContaining({ reason: 'agent_crashed' })]);
+    expect(h.autoResumes).toEqual([
+      { event: 'resume', try: 1, max: 5, end: { kind: 'agent_exit', exitCode: 1 }, at: expect.any(String) },
+    ]);
+  });
+
+  it('the try number goes up while nobody interacts', async () => {
+    const h = start({ autoResumeMax: 5 });
+    await podEnds(h, 0, OOM);
+    await sessionUp(h, 1);
+    h.pods[1]?.exit(OOM);
+    await sessionUp(h, 2);
+    h.pods[2]?.exit(OOM);
+    await waitFor('third resume', () => h.pods.length === 4);
+
+    expect(h.autoResumes.map((r) => (r.event === 'resume' ? r.try : -1))).toEqual([1, 2, 3]);
+  });
+
+  it('at the limit the run stays paused with the gave_up event and the paused comment', async () => {
+    const h = start({ autoResumeMax: 2 });
+    await podEnds(h, 0, OOM);
+    await sessionUp(h, 1);
+    h.pods[1]?.exit(OOM);
+    await sessionUp(h, 2);
+    h.pods[2]?.exit(OOM);
+    await waitFor('gave up', () => h.autoResumes.length === 3);
+    await waitFor('parked', () => phase() === 'parked');
+
+    expect(h.autoResumes).toEqual([
+      expect.objectContaining({ event: 'resume', try: 1 }),
+      expect.objectContaining({ event: 'resume', try: 2 }),
+      { event: 'gave_up', tries: 2, at: expect.any(String) },
+    ]);
+    expect(paused(h)).toBe(1);
+    expect(h.pods).toHaveLength(3);
+  });
+
+  it('a person typing while the run parks does not change the tries in the gave_up event', async () => {
+    const h = start({ autoResumeMax: 1 });
+    await podEnds(h, 0, OOM);
+    await sessionUp(h, 1);
+    const parkRun = runtime.activities.parkRun as (...args: unknown[]) => Promise<unknown>;
+    runtime.activities.parkRun = (...args: unknown[]) => {
+      sendSignal(personInput);
+      return parkRun(...args);
+    };
+    h.pods[1]?.exit(OOM);
+    await waitFor('gave up', () => h.autoResumes.length === 2);
+    await waitFor('parked', () => phase() === 'parked');
+
+    expect(h.autoResumes[1]).toEqual({ event: 'gave_up', tries: 1, at: expect.any(String) });
+    expect(h.outcome).toBeUndefined();
+  });
+
+  it('personInput resets the count', async () => {
+    const h = start({ autoResumeMax: 1 });
+    await podEnds(h, 0, OOM);
+    await sessionUp(h, 1);
+    sendSignal(personInput);
+    h.pods[1]?.exit(OOM);
+    await waitFor('second resume', () => h.pods.length === 3);
+
+    expect(h.autoResumes.map((r) => r.event)).toEqual(['resume', 'resume']);
+    expect(h.autoResumes[1]).toMatchObject({ try: 1 });
+  });
+
+  it("a person's Resume resets the count", async () => {
+    const h = start({ autoResumeMax: 1 });
+    await podEnds(h, 0, OOM);
+    await sessionUp(h, 1);
+    h.pods[1]?.exit(OOM);
+    await waitFor('gave up', () => h.autoResumes.length === 2);
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.autoResumes[1]).toMatchObject({ event: 'gave_up' });
+
+    await sendUpdate(resumeRun);
+    await sessionUp(h, 2);
+    h.pods[2]?.exit(OOM);
+    await waitFor('resume again', () => h.pods.length === 4);
+
+    expect(h.autoResumes.at(-1)).toMatchObject({ event: 'resume', try: 1 });
+  });
+
+  it("a person's Resume after an unexpected end sends the note without try", async () => {
+    const h = start({ autoResumeMax: 0 });
+    await toRunning(h);
+    h.pods[0]?.exit({ exitCode: 137, agentStarted: true });
+    await waitFor('parked', () => phase() === 'parked');
+    expect(h.autoResumes).toEqual([]);
+    expect(paused(h)).toBe(1);
+
+    await sendUpdate(resumeRun);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    expect(h.createOpts.at(-1)?.note).toEqual({ end: KILLED });
+  });
+
+  it('after a resumed session came up, a later idle park sends no note on the next Resume', async () => {
+    const h = start({ autoResumeMax: 0 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('parked', () => phase() === 'parked');
+    await resumeToSessionUp(h);
+    sendSignal(agentState, 'needs_input');
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+    fireTimer(600_000);
+    await waitFor('parked again', () => h.parks.length === 2 && phase() === 'parked');
+    expect(h.parks[1]).toMatchObject({ reason: 'idle_timeout' });
+
+    await sendUpdate(resumeRun);
+    await waitFor('resumed pod', () => h.pods.length === 3);
+    expect(h.createOpts.at(-1)).not.toHaveProperty('note');
+  });
+
+  it.each([
+    ['0', { autoResumeMax: 0 }],
+    ['absent', {}],
+  ])('autoResumeMax %s behaves as today', async (_name, over) => {
+    const h = start(over);
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('parked', () => phase() === 'parked');
+    await settle();
+
+    expect(h.calls.filter((c) => c.startsWith('recordAutoResume'))).toEqual([]);
+    expect(paused(h)).toBe(1);
+    expect(h.pods).toHaveLength(1);
+  });
+
+  it('a done park is not resumed', async () => {
+    const h = start({ autoResumeMax: 5 });
+    await toRunning(h);
+    sendSignal(agentState, 'done');
+    await waitFor('agent_done', () => phase() === 'agent_done');
+    h.pods[0]?.exit(OOM);
+    await waitFor('parked', () => phase() === 'parked');
+    await settle();
+
+    expect(h.parks).toEqual([expect.objectContaining({ kind: 'done', reason: 'pod_lost' })]);
+    expect(h.autoResumes).toEqual([]);
+    expect(h.pods).toHaveLength(1);
+  });
+
+  it('an idle-timer park never resumes automatically', async () => {
+    const idle = start({ autoResumeMax: 5 });
+    await toParked(idle, 'needs_input');
+    await settle();
+    expect(idle.autoResumes).toEqual([]);
+    expect(idle.pods).toHaveLength(1);
+    expect(phase()).toBe('parked');
+  });
+
+  it('a Stop never resumes automatically', async () => {
+    const stopped = start({ autoResumeMax: 5 });
+    await toRunning(stopped);
+    sendSignal(sessionStarted);
+    await sendUpdate(stopSession);
+    await waitFor('parked', () => phase() === 'parked');
+    await settle();
+    expect(stopped.autoResumes).toEqual([]);
+    expect(stopped.pods).toHaveLength(1);
+  });
+
+  it('a Finish never resumes automatically', async () => {
+    const finished = start({ autoResumeMax: 5 });
+    await toRunning(finished);
+    sendSignal(agentState, 'needs_input');
+    await waitFor('idle', () => phase() === 'idle');
+    await sendUpdate(finishRun);
+    await expect(finished.done).resolves.toMatchObject({ status: 'succeeded' });
+    expect(finished.autoResumes).toEqual([]);
+  });
+
+  it('Cancel during an automatic try cancels the run', async () => {
+    const h = start({ autoResumeMax: 5 });
+    h.holdResumeSlot = true;
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resume queued', () => h.slotRequests === 2);
+    sendSignal(cancel);
+
+    await expect(h.done).resolves.toEqual({ status: 'cancelled' });
+    expect(h.calls).not.toContain('restoreParked');
+  });
+
+  it("Cancel during a person's Resume still only takes it back", async () => {
+    const h = start({ autoResumeMax: 5 });
+    await toRunning(h);
+    sendSignal(agentState, 'needs_input');
+    await waitFor('idle timer', () => pendingTimers().includes(600_000));
+    fireTimer(600_000);
+    await waitFor('parked', () => phase() === 'parked');
+    h.holdResumeSlot = true;
+    await sendUpdate(resumeRun);
+    await waitFor('resume queued', () => h.slotRequests === 2);
+    sendSignal(cancel);
+
+    await waitFor('restoreParked', () => h.restores.length === 1);
+    await waitFor('parked again', () => phase() === 'parked');
+    expect(h.outcome).toBeUndefined();
+  });
+
+  it('a failed automatic try posts the paused comment once and waits', async () => {
+    const h = start({ autoResumeMax: 5 });
+    h.resumeCreateError = failedActivity('createRunSecretAndJob', 'no credential', 'NoAgentCredential');
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('restoreParked', () => h.restores.length === 1);
+    await waitFor('parked again', () => phase() === 'parked');
+    await settle();
+
+    expect(paused(h)).toBe(1);
+    expect(h.autoResumes).toHaveLength(1);
+    expect(h.outcome).toBeUndefined();
+  });
+
+  it("a run started before the patch keeps today's behaviour", async () => {
+    runtime.unpatched.add('auto-resume');
+    const h = start({ autoResumeMax: 5 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('parked', () => phase() === 'parked');
+    await settle();
+
+    expect(h.autoResumes).toEqual([]);
+    expect(paused(h)).toBe(1);
+    expect(h.pods).toHaveLength(1);
+    expect(h.createOpts).toHaveLength(1);
+  });
+});
+
+describe('retrying an automatic try whose pod could not start', () => {
+  const OOM = { exitCode: 137, agentStarted: true, podReason: 'OOMKilled' } as const;
+  const START_FAILS = failedActivity('createRunSecretAndJob', 'quota exceeded');
+  const paused = (h: Harness): number => h.comments.filter((c) => c.kind === 'paused').length;
+  const tries = (h: Harness): number[] => h.autoResumes.map((r) => (r.event === 'resume' ? r.try : -1));
+
+  /** The first pod ends and the first automatic try fails to start; the run waits for the retry timer. */
+  async function toRetryWait(h: Harness, ms = 60_000): Promise<void> {
+    h.resumeCreateError = START_FAILS;
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('first try failed', () => h.restores.length === 1);
+    await waitFor('retry timer', () => pendingTimers().includes(ms));
+  }
+
+  it('a try whose pod could not start uses a try and is retried after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the pod could not start' })]);
+    expect(paused(h)).toBe(0);
+    expect(phase()).toBe('parked');
+    h.resumeCreateError = undefined;
+    fireTimer(60_000);
+    await waitFor('second try', () => h.pods.length === 2);
+
+    expect(tries(h)).toEqual([1, 2]);
+    expect(h.createOpts.at(-1)).toMatchObject({ resume: true, note: { try: 2, max: 3 } });
+    sendSignal(sessionStarted);
+    await waitFor('idle', () => phase() === 'idle');
+  });
+
+  it('the waits grow 1, 2, 4, 8, 10 minutes', async () => {
+    const h = start({ autoResumeMax: 10 });
+    await toRetryWait(h);
+    const waits = [60_000, 120_000, 240_000, 480_000, 600_000, 600_000];
+    for (const [i, ms] of waits.entries()) {
+      await waitFor(`wait ${i + 1}`, () => h.restores.length === i + 1 && pendingTimers().includes(ms));
+      fireTimer(ms);
+    }
+    await waitFor('seventh try failed', () => h.restores.length === waits.length + 1);
+
+    expect(tries(h)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('at the limit after failed starts it gives up with gave_up and one paused comment', async () => {
+    const h = start({ autoResumeMax: 2 });
+    await toRetryWait(h);
+    fireTimer(60_000);
+    await waitFor('gave up', () => h.autoResumes.length === 3);
+    await waitFor('paused comment', () => paused(h) === 1);
+    await settle();
+
+    expect(h.autoResumes).toEqual([
+      expect.objectContaining({ event: 'resume', try: 1 }),
+      expect.objectContaining({ event: 'resume', try: 2 }),
+      { event: 'gave_up', tries: 2, at: expect.any(String) },
+    ]);
+    expect(pendingTimers()).not.toContain(120_000);
+    expect(phase()).toBe('parked');
+  });
+
+  it('a resumed pod that exits 137 before session started uses a try and is retried after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    h.pods[1]?.exit({ exitCode: 137 });
+    await waitFor('retry timer', () => pendingTimers().includes(60_000));
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the pod could not start' })]);
+    expect(paused(h)).toBe(0);
+    fireTimer(60_000);
+    await waitFor('second try', () => h.pods.length === 3);
+    expect(tries(h)).toEqual([1, 2]);
+  });
+
+  it('the hard timer firing before the session came up uses a try and is retried after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    const allowance = h.createOpts.at(-1)?.deadlineSeconds;
+    expect(allowance).toBeGreaterThan(0);
+    fireTimer((allowance ?? 0) * 1000);
+    await waitFor('retry timer', () => pendingTimers().includes(60_000));
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the pod could not start' })]);
+    expect(paused(h)).toBe(0);
+    fireTimer(60_000);
+    await waitFor('second try', () => h.pods.length === 3);
+    expect(tries(h)).toEqual([1, 2]);
+  });
+
+  it('no saved session is not retried and posts the paused comment', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    h.pods[1]?.exit({ exitCode: 79, resumeFailed: true });
+    await waitFor('paused comment', () => paused(h) === 1);
+    await settle();
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'no saved session was found' })]);
+    expect(pendingTimers()).not.toContain(60_000);
+    expect(tries(h)).toEqual([1]);
+  });
+
+  it('a missing agent or credential is not retried and posts the paused comment', async () => {
+    const h = start({ autoResumeMax: 3 });
+    h.resumeCreateError = failedActivity('createRunSecretAndJob', 'no credential', 'NoAgentCredential');
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('paused comment', () => paused(h) === 1);
+    await settle();
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the agent or its credential is missing' })]);
+    expect(pendingTimers()).not.toContain(60_000);
+    expect(tries(h)).toEqual([1]);
+  });
+
+  it('Finish during the retry wait succeeds and no try starts after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    await sendUpdate(finishRun);
+
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+    if (pendingTimers().includes(60_000)) fireTimer(60_000);
+    await settle();
+    expect(tries(h)).toEqual([1]);
+    expect(h.pods).toHaveLength(1);
+  });
+
+  it("a person's Resume during the retry wait runs at once and resets the count", async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    h.resumeCreateError = undefined;
+    await sendUpdate(resumeRun);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+
+    expect(h.createOpts.at(-1)?.note).toEqual({ end: { kind: 'killed', exitCode: 137, podReason: 'OOMKilled' } });
+    sendSignal(sessionStarted);
+    await waitFor('idle', () => phase() === 'idle');
+    expect(pendingTimers()).not.toContain(60_000);
+    h.pods[1]?.exit(OOM);
+    await waitFor('next automatic try', () => h.pods.length === 3);
+    expect(tries(h)).toEqual([1, 1]);
+  });
+
+  it("a person's Resume that fails during the retry wait is not retried automatically", async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    await sendUpdate(resumeRun);
+    await waitFor('second restore', () => h.restores.length === 2);
+    await settle();
+
+    expect(pendingTimers()).not.toContain(60_000);
+    expect(tries(h)).toEqual([1]);
+    expect(phase()).toBe('parked');
+  });
+
+  it('Cancel during the retry wait cancels the run', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    sendSignal(cancel);
+
+    await expect(h.done).resolves.toEqual({ status: 'cancelled' });
+  });
+
+  it("the kept session's expiry during the wait expires the run as today", async () => {
+    const h = start({ autoResumeMax: 5 }, { keepSeconds: 90 });
+    await toRetryWait(h);
+    vi.setSystemTime(new Date(T0.getTime() + 60_000));
+    fireTimer(60_000);
+    await waitFor('second try failed', () => h.restores.length === 2);
+    await waitFor('expiry timer', () => pendingTimers().includes(30_000));
+    // The next wait would outlast the kept session, so the retry is dropped and the person is told once.
+    expect(paused(h)).toBe(1);
+    expect(tries(h)).toEqual([1, 2]);
+    vi.setSystemTime(new Date(T0.getTime() + 91_000));
+    fireTimer(30_000);
+
+    await expect(h.done).resolves.toMatchObject({ status: 'expired' });
+    expect(h.kept).toEqual(['expired']);
   });
 });

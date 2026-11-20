@@ -102,6 +102,8 @@ export type AgentSettings = {
   idleEndMinutes: number;
   maxConcurrent: number;
   maxRunsPerTicket: number;
+  /** How many times in a row a run resumes by itself after its pod ends unexpectedly; 0 turns it off. */
+  autoResumeMax: number;
 };
 
 export type RunDetailData = {
@@ -144,6 +146,8 @@ export type RunDetailData = {
     headline?: string;
     detail?: string;
     resumeFailure?: string;
+    /** "Tried to resume automatically N times.": a third line under `detail` once the tries ran out. */
+    autoResumeGaveUp?: string;
     /** A person's Stop parked the run (pauseReason 'stopped'): the paused notice's icon reads "Stopped". */
     stopped?: true;
   };
@@ -175,4 +179,11 @@ export type RunDetailKey =
   | 'RunStopped'
   | 'RunSucceededFinished'
   | 'RunRunningStop'
-  | 'RunIdleEnding';
+  | 'RunIdleEnding'
+  | 'RunStoppedPodLost'
+  | 'RunStoppedPodLostGaveUp'
+  | 'RunStoppedPodLostGaveUpOnce'
+  | 'RunStoppedCrashedGaveUp'
+  | 'RunStoppedAutoResumeWaiting'
+  | 'RunStoppedAutoResumeFailedGaveUp'
+  | 'RunRunningAutoResume';

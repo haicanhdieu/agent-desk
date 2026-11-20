@@ -1,5 +1,6 @@
 import { setupWorker } from 'msw/browser';
 import { z } from 'zod';
+import { autoResumeEventFixtures, autoResumeRunFixtures } from '../dto/autoResumeRuns';
 import { lifecycleEventFixtures, lifecycleRunFixtures } from '../dto/lifecycleRuns';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from './agentModels';
 import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } from '../dto/sessionRuns';
@@ -92,6 +93,8 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     loadAgentModels();
     // Runs in the terminal lifecycle states (pausing, crashed, resume failed, resumed), for the mocked e2e specs.
     mockDb.addRuns(lifecycleRunFixtures, lifecycleEventFixtures);
+    // Runs after an unexpected pod end with automatic resume (gave up, waiting between tries, resumed), for the mocked e2e specs.
+    mockDb.addRuns(autoResumeRunFixtures, autoResumeEventFixtures);
     // Stopped runs and runs with a saved transcript, for the mocked e2e specs (dto/sessionRuns.ts).
     mockDb.addRuns(sessionRunFixtures, sessionEventFixtures);
     mockDb.addTranscripts(sessionTranscriptFixtures);

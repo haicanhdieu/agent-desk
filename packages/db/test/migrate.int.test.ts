@@ -521,6 +521,54 @@ describe('bootstrap and migrations', () => {
       expect(sqlText).not.toMatch(/\b(create\s+policy|alter\s+policy|grant)\b/i);
     });
 
+    it('agents.auto_resume_max defaults to 5 for new agents and is limited to 0 to 10', async () => {
+      const ins = (name: string, extra: string) =>
+        inOrg((c) =>
+          c
+            .query(
+              `insert into agents (org_id, project_id, name, model${extra ? ', ' + extra.split('=')[0] : ''})
+               values ($1, $2, $3, 'm'${extra ? ', ' + extra.split('=')[1] : ''})`,
+              [orgId, projectId, name],
+            )
+            .then(() => undefined),
+        );
+      await expect(ins(`a-${randomUUID()}`, 'auto_resume_max=-1')).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'agents_auto_resume_max_check',
+      });
+      await expect(ins(`a-${randomUUID()}`, 'auto_resume_max=11')).rejects.toMatchObject({
+        code: '23514',
+        constraint: 'agents_auto_resume_max_check',
+      });
+      const names = { zero: `a-${randomUUID()}`, ten: `a-${randomUUID()}`, none: `a-${randomUUID()}` };
+      await ins(names.zero, 'auto_resume_max=0');
+      await ins(names.ten, 'auto_resume_max=10');
+      await ins(names.none, '');
+      const rows = await query<{ name: string; auto_resume_max: number }>(
+        env.adminUrl.replace(/\/[^/]*$/, '/agentdesk'),
+        'select name, auto_resume_max from agents where name = any($1)',
+        [Object.values(names)],
+      );
+      const byName = new Map(rows.map((r) => [r.name, r.auto_resume_max]));
+      expect(byName.get(names.zero)).toBe(0);
+      expect(byName.get(names.ten)).toBe(10);
+      // The row inserted without the column gets 5.
+      expect(byName.get(names.none)).toBe(5);
+    });
+
+    it('the auto resume migration only adds a column and a check', async () => {
+      const sqlText = await readFile(new URL('../migrations/0021_agent_auto_resume_max.sql', import.meta.url), 'utf8');
+      const statements = sqlText
+        .split('--> statement-breakpoint')
+        .map((x) => x.trim())
+        .filter(Boolean);
+      expect(statements).toHaveLength(2);
+      expect(statements[0]).toMatch(/^ALTER TABLE "agents" ADD COLUMN "auto_resume_max" integer DEFAULT 5 NOT NULL;$/);
+      expect(statements[1]).toMatch(
+        /^ALTER TABLE "agents" ADD CONSTRAINT "agents_auto_resume_max_check" CHECK \(.*between 0 and 10\);$/,
+      );
+    });
+
     it('the agent model routing migration only adds columns and checks: no row writes, no policy or grant changes', async () => {
       const sqlText = await readFile(new URL('../migrations/0017_agent_model_routing.sql', import.meta.url), 'utf8');
       expect(sqlText).not.toMatch(/\b(update|insert|delete)\b/i);

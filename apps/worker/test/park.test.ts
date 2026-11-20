@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   RESUME_MIN_SECONDS,
+  AUTO_RESUME_WAIT_MAX_SECONDS,
+  UNEXPECTED_END_KINDS,
+  autoResumeDecision,
+  autoResumeWaitSeconds,
   cancelEffect,
   endOutcome,
+  unexpectedEndOf,
   parkKindOf,
   phaseOfParkKind,
   resumeRejection,
@@ -12,6 +17,7 @@ import {
   type ParkKind,
   type PauseReason,
 } from '../src/workflows/park';
+import { END_REASONS } from '../src/workflows/run.workflow';
 import type { RunPhase } from '../src/workflows/signals';
 
 const PHASES: RunPhase[] = [
@@ -193,5 +199,101 @@ describe('endOutcome', () => {
     ],
   ])('%s', (_name, input, expected) => {
     expect(endOutcome({ ...base, ...input })).toEqual(expected);
+  });
+});
+
+describe('unexpectedEndOf', () => {
+  const base = { ending: false, finishRequested: false, phase: 'running' as const, podLost: false, exitCode: 137 };
+
+  it('names each unexpected end with its facts', () => {
+    expect(unexpectedEndOf({ ...base, podReason: 'OOMKilled' })).toEqual({
+      kind: 'killed',
+      exitCode: 137,
+      podReason: 'OOMKilled',
+    });
+    expect(unexpectedEndOf({ ...base, podLost: true, exitCode: -1 })).toEqual({ kind: 'lost' });
+    expect(unexpectedEndOf({ ...base, endReason: 'signal', exitCode: 143 })).toEqual({ kind: 'signal' });
+    expect(unexpectedEndOf({ ...base, endReason: 'session_gone', exitCode: 0 })).toEqual({ kind: 'session_gone' });
+    expect(unexpectedEndOf({ ...base, endReason: 'agent_exit', exitCode: 1 })).toEqual({
+      kind: 'agent_exit',
+      exitCode: 1,
+    });
+    expect(unexpectedEndOf({ ...base, endReason: 'stop_request', exitCode: 0 })).toEqual({
+      kind: 'killed',
+      exitCode: 0,
+    });
+  });
+
+  it('keeps the pod reason on a stop_request end the workflow did not ask for', () => {
+    expect(unexpectedEndOf({ ...base, endReason: 'stop_request', podReason: 'OOMKilled' })).toEqual({
+      kind: 'killed',
+      exitCode: 137,
+      podReason: 'OOMKilled',
+    });
+  });
+
+  it('leaves out an absent pod reason', () => {
+    const end = unexpectedEndOf(base);
+    expect(end).toEqual({ kind: 'killed', exitCode: 137 });
+    expect(end && 'podReason' in end).toBe(false);
+  });
+
+  it('gives undefined for expected ends', () => {
+    expect(unexpectedEndOf({ ...base, ending: true, parkKind: 'needs_input' })).toBeUndefined();
+    expect(unexpectedEndOf({ ...base, exitCode: 0 })).toBeUndefined();
+    expect(unexpectedEndOf({ ...base, endReason: 'agent_exit', exitCode: 0 })).toBeUndefined();
+  });
+
+  it('lists the five kinds', () => {
+    expect([...UNEXPECTED_END_KINDS]).toEqual(['killed', 'lost', 'signal', 'session_gone', 'agent_exit']);
+  });
+
+  it('matches endOutcome: unexpected exactly when it parks as pod_lost or agent_crashed', () => {
+    const parkKinds: (ParkKind | undefined)[] = [undefined, 'needs_input', 'done'];
+    const reasons = [undefined, ...END_REASONS];
+    for (const ending of [false, true])
+      for (const finishRequested of [false, true])
+        for (const parkKind of parkKinds)
+          for (const endReason of reasons)
+            for (const podLost of [false, true])
+              for (const exitCode of [-1, 0, 1, 137]) {
+                const input = {
+                  ending,
+                  finishRequested,
+                  phase: 'running' as const,
+                  podLost,
+                  exitCode,
+                  ...(parkKind ? { parkKind } : {}),
+                  ...(endReason ? { endReason } : {}),
+                };
+                const out = endOutcome(input);
+                const expected = out.kind === 'park' && (out.reason === 'pod_lost' || out.reason === 'agent_crashed');
+                expect(unexpectedEndOf(input) !== undefined, JSON.stringify(input)).toBe(expected);
+              }
+  });
+});
+
+describe('autoResumeDecision', () => {
+  it('resumes below the limit, gives up at it, and is off for 0 or a done park', () => {
+    expect(autoResumeDecision(0, 5, 'needs_input')).toBe('resume');
+    expect(autoResumeDecision(4, 5, 'needs_input')).toBe('resume');
+    expect(autoResumeDecision(5, 5, 'needs_input')).toBe('gave_up');
+    expect(autoResumeDecision(0, 0, 'needs_input')).toBe('off');
+    expect(autoResumeDecision(0, 5, 'done')).toBe('off');
+  });
+});
+
+describe('autoResumeWaitSeconds', () => {
+  it('doubles from a minute and stops at ten minutes', () => {
+    expect([1, 2, 3, 4, 5, 9].map(autoResumeWaitSeconds)).toEqual([60, 120, 240, 480, 600, 600]);
+    expect(AUTO_RESUME_WAIT_MAX_SECONDS).toBe(600);
+  });
+});
+
+describe('cancelEffect for an automatic resume', () => {
+  it('stops the run when the workflow started the resume, aborts it when a person did', () => {
+    expect(cancelEffect('resuming', 'needs_input', false, true)).toBe('stop_run');
+    expect(cancelEffect('resuming', 'needs_input', false, false)).toBe('abort_resume');
+    expect(cancelEffect('resuming', 'needs_input', false)).toBe('abort_resume');
   });
 });

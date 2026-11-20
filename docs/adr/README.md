@@ -110,6 +110,7 @@ The choice and the concrete rules that follow from it.
 | [0026](0026-agent-adapters-for-models-and-endpoint.md)             | Agent adapters own the model list, the model and the API address            | Accepted | 2026-11-19 |
 | [0027](0027-agent-neutral-transcript-protocol.md)                  | Agent-neutral transcript protocol with per-agent adapters                   | Accepted | 2026-11-19 |
 | [0028](0028-offset-pagination-for-data-lists.md)                   | Data lists use offset pages with a total                                    | Proposed | 2026-11-19 |
+| [0029](0029-unexpected-pod-ends-resume-automatically.md)           | Unexpected pod ends resume automatically, up to a per-agent limit           | Accepted | 2026-11-20 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the

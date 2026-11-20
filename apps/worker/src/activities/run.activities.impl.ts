@@ -3,6 +3,7 @@ import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  AGENT_AUTO_RESUME_MAX_DEFAULT,
   AGENT_IDLE_END_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   AgentKind,
@@ -36,10 +37,13 @@ import {
   runLabels,
   runPodConfigFrom,
   resolveRunAuthor,
+  resumeNoteText,
+  usablePodReason,
   runVolumeName,
   toAdapterProject,
   type AdapterProject,
   type AdapterRegistry,
+  type ResumeNoteInput,
   type Clock,
   type EndReason,
   type LogLineKind,
@@ -434,6 +438,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           maxConcurrentRuns: projects.maxConcurrentRuns,
           timeoutSeconds: agents.timeoutSeconds,
           idleEndSeconds: agents.idleEndSeconds,
+          autoResumeMax: agents.autoResumeMax,
         })
         .from(runs)
         .innerJoin(projects, eq(projects.id, runs.projectId))
@@ -456,6 +461,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         deps.config.RUN_IDLE_END_SECONDS !== IDLE_END_SECONDS
           ? deps.config.RUN_IDLE_END_SECONDS
           : (row.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT),
+      autoResumeMax: row.autoResumeMax ?? AGENT_AUTO_RESUME_MAX_DEFAULT,
       endingDeadlineSeconds: deps.config.RUN_ENDING_DEADLINE_SECONDS,
       leaseTtlSeconds: deps.config.RUN_LEASE_TTL_SECONDS,
     };
@@ -519,7 +525,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
 
   async function createRunSecretAndJob(
     ctx: RunContext,
-    opts: { resume?: boolean; deadlineSeconds?: number } = {},
+    opts: { resume?: boolean; deadlineSeconds?: number; note?: ResumeNoteInput } = {},
   ): Promise<TokenRefreshPlan | undefined> {
     const resume = opts.resume === true;
     const d = await mustDetails(ctx.orgId, ctx.runId);
@@ -607,6 +613,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         agentEnv: adapter.launchEnv({ model: d.model, baseUrl: d.baseUrl }),
         deadlineSeconds: opts.deadlineSeconds ?? ctx.timeoutSeconds,
         resume,
+        resumeNote: resume && opts.note ? resumeNoteText(opts.note, deps.config.RUN_POD_MEMORY_LIMIT) : undefined,
         botName: deps.config.BOT_NAME,
         botEmail: deps.config.BOT_EMAIL,
         author: resolveRunAuthor(d, { name: deps.config.BOT_NAME, email: deps.config.BOT_EMAIL }, codeHost),
@@ -1063,11 +1070,13 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         },
         afterStream: async (pass) => {
           await pass.throwIfCancelled();
-          const exitCode = await waitForExit(ctx, pass.signal, pass.cluster);
+          const exit = await waitForExit(ctx, pass.signal, pass.cluster);
           await pass.throwIfCancelled();
           // The log stream dropped while the container still runs: re-attach. An unfinished block is not stored; the
           // next pass re-reads it from its begin line (`durable` never passed it).
-          if (exitCode === 'running') return 'reattach';
+          if (exit === 'running') return 'reattach';
+          const exitCode = 'code' in exit ? exit.code : exit;
+          const podReason = exit.podReason;
           await flushBlock(pass, pass.index);
           await pass.flushPending();
           pass.markDurable(pass.index);
@@ -1091,6 +1100,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
                 agentStarted: true,
                 podLost: true as const,
                 lostText: exitCode.gone,
+                ...(podReason !== undefined ? { podReason } : {}),
                 ...(lost ? { endReason: lost } : {}),
               },
             };
@@ -1102,6 +1112,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
             done: {
               exitCode,
               ...(endReason ? { endReason } : {}),
+              ...(podReason !== undefined ? { podReason } : {}),
               ...(tail !== undefined ? { scrollbackTail: tail } : {}),
               agentStarted: pre.agentStarted,
               ...(resumeFailed ? { resumeFailed: true as const } : {}),
@@ -1123,16 +1134,20 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     ctx: RunContext,
     signal: AbortSignal,
     cluster: FollowPass['cluster'],
-  ): Promise<number | 'running' | { gone: string }> {
+  ): Promise<{ code: number; podReason?: string } | 'running' | { gone: string; podReason?: string }> {
     const deadline = clock.now().getTime() + EXIT_WAIT_MS;
+    // The kill reason of the last pod read, kept beside the code (and beside `gone`) when it is a plain word.
+    let reason: string | undefined;
     for (;;) {
       const pod = await cluster(() => kube.getRunPod(runJobName(ctx.runId)));
-      if (!pod) return { gone: 'the run pod disappeared before it reported an exit code' };
-      if (pod.exitCode !== null) return pod.exitCode;
+      if (pod) reason = usablePodReason(pod.reason);
+      const podReason = reason !== undefined ? { podReason: reason } : {};
+      if (!pod) return { gone: 'the run pod disappeared before it reported an exit code', ...podReason };
+      if (pod.exitCode !== null) return { code: pod.exitCode, ...podReason };
       if (clock.now().getTime() > deadline) {
         if (pod.phase === 'Running') return 'running';
-        const reason = pod.reason ? `: ${oneLine(pod.reason).slice(0, ERROR_MESSAGE_MAX)}` : '';
-        return { gone: `the run pod ended (${pod.phase}) without an exit code${reason}` };
+        const why = pod.reason ? `: ${oneLine(pod.reason).slice(0, ERROR_MESSAGE_MAX)}` : '';
+        return { gone: `the run pod ended (${pod.phase}) without an exit code${why}`, ...podReason };
       }
       if (signal.aborted) return 'running';
       await sleep(pollMs, signal);
@@ -1279,6 +1294,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     endSession: guarded('end session', endSession),
     deleteJob: guarded('delete run Job', deleteJob),
     recordEndingDeadline: guarded('record ending deadline', recordEndingDeadline),
+    recordAutoResume: guarded('record auto resume', session.recordAutoResume),
     ensureJobGone: guarded('clean up run Job', ensureJobGone),
     deleteRunVolume: guarded('delete run volume', deleteRunVolume),
     parkRun: guarded('park run', session.parkRun),

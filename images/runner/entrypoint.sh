@@ -3,7 +3,8 @@
 # provider adapter so `gh` works), CHECKOUT_REF, PROMPT, BOT_NAME, BOT_EMAIL, PLUGIN_MARKETPLACES (JSON
 # {store: source}, optional), SETUP_SCRIPT (optional), SETUP_TIMEOUT_SECONDS (digits, else 600), RUN_MODE (`setup_test`
 # opens an idle shell instead of the agent; `resume` continues a saved session on the run volume), AGENT (fixed list,
-# default claude), AGENT_MODEL (optional, passed to the agent as --model), ANTHROPIC_BASE_URL (optional custom API
+# default claude), RESUME_NOTE (optional, resume only: one message sent as the continued session's first prompt),
+# AGENT_MODEL (optional, passed to the agent as --model), ANTHROPIC_BASE_URL (optional custom API
 # address, only its origin is printed), and CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY. AGENTDESK_REPO_DIR, AGENTDESK_LIB_DIR,
 # AGENTDESK_HOME_SKEL and AGENTDESK_RUN_DIR (default /run/agentdesk, the in-memory volume that holds the `stop` and
 # `agent-exit` files) are test seams. Untrusted values are only ever expanded as quoted values, never evaluated.

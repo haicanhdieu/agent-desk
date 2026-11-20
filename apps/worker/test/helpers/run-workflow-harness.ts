@@ -6,13 +6,14 @@ import { createTimeSkippingTestEnv } from './temporal-env';
 import { Worker } from '@temporalio/worker';
 import { ApplicationFailure, CancelledFailure, Context } from '@temporalio/activity';
 import type { WorkflowHandle } from '@temporalio/client';
-import { QUERY, TASK_QUEUE, WORKFLOW, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
+import { QUERY, TASK_QUEUE, WORKFLOW, gateWorkflowId, runWorkflowId, type ResumeNoteInput } from '@agentdesk/core';
 import type { RunStatus } from '@agentdesk/contracts';
 import type { GateState, RunState } from '../../src/workflows/signals';
 import {
   type CommentKind,
   type FinishDetails,
   type FollowPodLogsResult,
+  type RecordAutoResumeInput,
   type RunActivities,
   type RunContext,
 } from '../../src/activities/run.activities';
@@ -88,7 +89,7 @@ export interface Script {
   /** What createRunSecretAndJob and refreshWorkspaceToken report as the next refresh delay (seconds). */
   plannedRefreshSeconds?: number;
   /** The options of every createRunSecretAndJob call, in order (undefined for the first pod). */
-  createOpts: ({ resume?: boolean; deadlineSeconds?: number } | undefined)[];
+  createOpts: ({ resume?: boolean; deadlineSeconds?: number; note?: ResumeNoteInput } | undefined)[];
   /** The options of every followPodLogs call, in order. */
   followOpts: ({ resume?: boolean } | undefined)[];
   /** Settles the current resumed pod's `followPodLogs` (a fresh one per resume). */
@@ -109,10 +110,14 @@ export interface Script {
   deleteJobPermanent?: boolean;
   /** The next N endSession attempts throw a retryable cluster error. */
   endSessionFailFirst?: number;
+  /** The first N resumed createRunSecretAndJob calls throw a non-retryable start failure (the pod could not start). */
+  resumeCreateFailFirst?: number;
   /** Every resumed createRunSecretAndJob attempt throws a retryable cluster error. */
   resumeCreateFailsRetryable?: boolean;
   /** What endSession resolves: the current pod's logs. */
   currentLogs?: Deferred<FollowPodLogsResult>;
+  /** The input of every recordAutoResume call, in order. */
+  autoResumes: RecordAutoResumeInput[];
   /** The inputs of every restoreParked call. */
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   /** The expiry the latest parkRun reported. */
@@ -197,6 +202,10 @@ export function activities(): RunActivities {
       s.calls.push('createRunSecretAndJob');
       s.createOpts.push(opts);
       if (opts?.resume && s.resumeCreateFailsRetryable) throw new Error('fetch failed');
+      if (opts?.resume && s.resumeCreateFailFirst !== undefined) {
+        const resumed = s.createOpts.filter((o) => o?.resume).length;
+        if (resumed <= s.resumeCreateFailFirst) throw ApplicationFailure.nonRetryable('quota exceeded', 'StartFailed');
+      }
       if (opts?.resume && s.resumeCreateFailure !== undefined) {
         throw ApplicationFailure.nonRetryable('the agent or its credential is missing', s.resumeCreateFailure);
       }
@@ -293,6 +302,11 @@ export function activities(): RunActivities {
     async endKeptSession(ctx, reason) {
       script(ctx.runId).calls.push(`endKeptSession:${reason}`);
     },
+    async recordAutoResume(ctx, input) {
+      const s = script(ctx.runId);
+      s.calls.push('recordAutoResume');
+      s.autoResumes.push(input);
+    },
     async restoreParked(ctx, input) {
       const s = script(ctx.runId);
       s.calls.push('restoreParked');
@@ -333,6 +347,7 @@ export function newRun(
     resumeLogs: deferred(),
     resumeFollowStarted: deferred(),
     restores: [],
+    autoResumes: [],
     endingDeadlines: [],
     parkReasons: [],
   };

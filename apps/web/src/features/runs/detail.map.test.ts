@@ -206,6 +206,68 @@ describe('toRunDetail, paused, kept and expired sessions', () => {
       });
     });
 
+    describe('automatic resume gave up', () => {
+      const gaveUp = (tries: unknown) => lifecycleEvent({ kind: 'auto_resume_gave_up', tries, text: 'gave up' });
+      const parked = ev(local(14, 10), 'status', { status: 'paused' });
+      const oom = 'Paused: the pod was killed, most likely out of memory (exit code 137)';
+
+      it('shows the tries line and keeps the headline', () => {
+        const d = detail(lost(), [parked, exited(137), gaveUp(5), comment('paused')]);
+        expect(d.session?.autoResumeGaveUp).toBe('Tried to resume automatically 5 times.');
+        expect(d.session?.headline).toBe(oom);
+      });
+
+      it('one try is singular', () => {
+        expect(detail(lost(), [parked, exited(137), gaveUp(1)]).session?.autoResumeGaveUp).toBe(
+          'Tried to resume automatically 1 time.',
+        );
+      });
+
+      it('an agent crash gets the line and its own headline', () => {
+        const crashed = paused({ pauseReason: 'agent_crashed' });
+        const end = ev(local(14, 10), 'lifecycle', { kind: 'session_ended', reason: 'agent_exit', code: 1 });
+        const d = detail(crashed, [parked, end, gaveUp(5)]);
+        expect(d.session?.autoResumeGaveUp).toBe('Tried to resume automatically 5 times.');
+        expect(d.session?.headline).toBe('Paused: agent crashed (exit code 1)');
+      });
+
+      it('no event: no line', () => {
+        expect(detail(lost(), [parked, exited(137)]).session?.autoResumeGaveUp).toBeUndefined();
+      });
+
+      it.each([0, 11, '5', undefined])('tries %s is not a valid count: no line', (tries) => {
+        expect(detail(lost(), [parked, gaveUp(tries)]).session?.autoResumeGaveUp).toBeUndefined();
+      });
+
+      it('a running status after the event: no line', () => {
+        const events = [parked, gaveUp(5), ev(local(14, 12), 'status', { status: 'running' })];
+        expect(detail(lost(), events).session?.autoResumeGaveUp).toBeUndefined();
+      });
+
+      it('an idle-timeout pause: no line', () => {
+        expect(detail(paused(), [parked, gaveUp(5)]).session?.autoResumeGaveUp).toBeUndefined();
+      });
+
+      it('a failed resume then giving up: both the failure bar and the line', () => {
+        const events = [
+          parked,
+          lifecycleEvent({ kind: 'resume_failed', reason: 'the pod could not start' }),
+          gaveUp(5),
+          comment('paused'),
+        ];
+        const s = detail(lost(), events).session;
+        expect(s?.resumeFailure).toBe('Resume failed: the pod could not start');
+        expect(s?.autoResumeGaveUp).toBe('Tried to resume automatically 5 times.');
+      });
+
+      it('a failed resume without giving up: the bar and no line (still waiting)', () => {
+        const events = [parked, lifecycleEvent({ kind: 'resume_failed', reason: 'the pod could not start' })];
+        const s = detail(lost(), events).session;
+        expect(s?.resumeFailure).toBe('Resume failed: the pod could not start');
+        expect(s?.autoResumeGaveUp).toBeUndefined();
+      });
+    });
+
     it('another exit code: names the code but does not claim a cause', () => {
       expect(detail(lost(), [exited(143)]).session?.headline).toBe(
         'Paused: the pod stopped unexpectedly (exit code 143)',

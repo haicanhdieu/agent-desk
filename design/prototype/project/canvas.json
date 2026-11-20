@@ -497,6 +497,86 @@
    "h": 900,
    "title": "Desk \u2014 setup, version history empty",
    "expand": "fill"
+  },
+  "RunStoppedPodLost.dc.html": {
+   "x": 9120,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 paused, pod killed, automatic resume off or not yet tried",
+   "expand": "fill"
+  },
+  "RunStoppedPodLostGaveUp.dc.html": {
+   "x": 10640,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 paused, pod killed, automatic resume gave up after 5 tries",
+   "expand": "fill"
+  },
+  "RunStoppedPodLostGaveUpOnce.dc.html": {
+   "x": 12160,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 paused, pod killed, automatic resume gave up after 1 try",
+   "expand": "fill"
+  },
+  "RunStoppedCrashedGaveUp.dc.html": {
+   "x": 13680,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 paused, agent crashed, automatic resume gave up after 5 tries",
+   "expand": "fill"
+  },
+  "RunStoppedAutoResumeWaiting.dc.html": {
+   "x": 15200,
+   "y": 5220,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 paused, automatic try could not start, waiting for the next try",
+   "expand": "fill"
+  },
+  "RunStoppedAutoResumeFailedGaveUp.dc.html": {
+   "x": 13680,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 62 \u2014 paused, last automatic try could not start, gave up after 5 tries",
+   "expand": "fill"
+  },
+  "RunRunningAutoResume.dc.html": {
+   "x": 15200,
+   "y": 6500,
+   "w": 1440,
+   "h": 900,
+   "title": "Run 61 \u2014 running again after an automatic resume",
+   "expand": "fill"
+  },
+  "DeskAgentAutoResume.dc.html": {
+   "x": 13680,
+   "y": 10400,
+   "w": 1440,
+   "h": 1480,
+   "title": "Desk \u2014 agent and settings, automatic resumes after a crash",
+   "expand": "fill"
+  },
+  "DeskAgentAutoResumeChanged.dc.html": {
+   "x": 15200,
+   "y": 10400,
+   "w": 1440,
+   "h": 1480,
+   "title": "Desk \u2014 agent and settings, automatic resumes changed to 2",
+   "expand": "fill"
+  },
+  "DeskAgentAutoResumeError.dc.html": {
+   "x": 16720,
+   "y": 10400,
+   "w": 1440,
+   "h": 1480,
+   "title": "Desk \u2014 agent and settings, automatic resumes out of range",
+   "expand": "fill"
   }
  },
  "order": [
@@ -530,6 +610,13 @@
   "RunTranscriptStates.dc.html",
   "RunRunningStop.dc.html",
   "RunIdleEnding.dc.html",
+  "RunStoppedPodLost.dc.html",
+  "RunStoppedPodLostGaveUp.dc.html",
+  "RunStoppedPodLostGaveUpOnce.dc.html",
+  "RunStoppedCrashedGaveUp.dc.html",
+  "RunStoppedAutoResumeWaiting.dc.html",
+  "RunStoppedAutoResumeFailedGaveUp.dc.html",
+  "RunRunningAutoResume.dc.html",
   "DeskSkills.dc.html",
   "DeskSkillDelete.dc.html",
   "DeskRules.dc.html",
@@ -539,6 +626,9 @@
   "DeskAgent.dc.html",
   "DeskAgentCustomModel.dc.html",
   "DeskAgentAddressChanged.dc.html",
+  "DeskAgentAutoResume.dc.html",
+  "DeskAgentAutoResumeChanged.dc.html",
+  "DeskAgentAutoResumeError.dc.html",
   "DeskSetup.dc.html",
   "DeskSetupTest.dc.html",
   "Pagination.dc.html",

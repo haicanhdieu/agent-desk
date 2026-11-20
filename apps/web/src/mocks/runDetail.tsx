@@ -43,7 +43,18 @@ const runningChain: RunDetailData['chain'] = [
   },
 ];
 
-type BaseKey = Exclude<RunDetailKey, 'RunRunningStop' | 'RunIdleEnding'>;
+type BaseKey = Exclude<
+  RunDetailKey,
+  | 'RunRunningStop'
+  | 'RunIdleEnding'
+  | 'RunStoppedPodLost'
+  | 'RunStoppedPodLostGaveUp'
+  | 'RunStoppedPodLostGaveUpOnce'
+  | 'RunStoppedCrashedGaveUp'
+  | 'RunStoppedAutoResumeWaiting'
+  | 'RunStoppedAutoResumeFailedGaveUp'
+  | 'RunRunningAutoResume'
+>;
 const runDetailsBase: Record<BaseKey, RunDetailData> = {
   RunStarting: {
     // The Runs board lists run 63 as queued; the RunStarting board shows it once the slot is claimed.
@@ -502,6 +513,19 @@ const runDetailsBase: Record<BaseKey, RunDetailData> = {
   },
 };
 
+// Helpers for RunStoppedPodLost and the boards after it: a paused run after an unexpected pod end (automatic resume).
+const podKilled = {
+  headline: 'Paused: the pod was killed, most likely out of memory (exit code 137)',
+  detail: 'Paused 2 min ago, the pod stopped unexpectedly (out of memory / evicted). Can be resumed for 6 days.',
+};
+const podStart = 'Resume failed: the pod could not start';
+const gaveUp = (n: number) => `Tried to resume automatically ${n} ${n === 1 ? 'time' : 'times'}.`;
+const pausedAfterCrash = (session: Omit<NonNullable<RunDetailData['session']>, 'state'>): RunDetailData => ({
+  ...runDetailsBase.RunStopped,
+  run: { ...runDetailsBase.RunStopped.run, statusNote: undefined },
+  session: { state: 'paused', ...session },
+});
+
 // Prototype boards RunRunningStop and RunIdleEnding (Stop session): the running and idle boards with the keep time.
 export const runDetails: Record<RunDetailKey, RunDetailData> = {
   ...runDetailsBase,
@@ -511,5 +535,37 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
     pausedKeep: '7 days',
     pausing: true,
     connection: { state: 'none', label: 'Ending…' },
+  },
+  RunStoppedPodLost: pausedAfterCrash(podKilled),
+  RunStoppedPodLostGaveUp: pausedAfterCrash({ ...podKilled, autoResumeGaveUp: gaveUp(5) }),
+  RunStoppedPodLostGaveUpOnce: pausedAfterCrash({ ...podKilled, autoResumeGaveUp: gaveUp(1) }),
+  RunStoppedCrashedGaveUp: pausedAfterCrash({
+    headline: 'Paused: agent crashed (exit code 1)',
+    detail: 'Paused 2 min ago, the agent crashed. Can be resumed for 6 days.',
+    autoResumeGaveUp: gaveUp(5),
+  }),
+  RunStoppedAutoResumeWaiting: pausedAfterCrash({ ...podKilled, resumeFailure: podStart }),
+  RunStoppedAutoResumeFailedGaveUp: pausedAfterCrash({
+    ...podKilled,
+    resumeFailure: podStart,
+    autoResumeGaveUp: gaveUp(5),
+  }),
+  // Run 61 again after an automatic resume: the first try, 16 minutes in.
+  RunRunningAutoResume: {
+    ...runDetailsBase.RunRunning,
+    run: { ...runsById[61], duration: '16m 05s' },
+    elapsed: '16:05',
+    chain: runningChain.slice(0, 1),
+    lifecycle: [
+      { at: '14:05:19', text: 'Pod running' },
+      { at: '14:05:27', text: 'Claude Code started' },
+      {
+        at: '14:18:41',
+        text: 'The last session was killed (OOMKilled, exit 137, limit 3Gi). Resuming automatically, try 1 of 5.',
+      },
+      { at: '14:18:52', text: 'Pod running' },
+      { at: '14:18:58', text: 'Session resumed' },
+    ],
+    time: { elapsed: '16:05', limit: '30 min', percent: 54 },
   },
 };

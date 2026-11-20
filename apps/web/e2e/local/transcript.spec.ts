@@ -8,6 +8,7 @@ import {
   commentOnNewTicket,
   projectFor,
   runOf,
+  setAutoResumeMax,
   touchPodFile,
   transcriptOf,
   waitForStatus,
@@ -334,6 +335,7 @@ test.describe('BR-51: two sessions, each entry once', () => {
 test.describe('BR-52: a pod killed hard', () => {
   /** A run killed hard in the middle of a turn; returns once it is paused. */
   async function killedMidTurn(page: Page): Promise<Started> {
+    await setAutoResumeMax(page, (await projectFor(page)).projectId, 0);
     const s = await openLive(page, '--fake-unflushed');
     await typeLine(page, 'MID-TURN');
     await expect(pill(page, 'Running')).toBeVisible({ timeout: 15_000 });
@@ -482,6 +484,7 @@ test.describe('BR-56: agent-side error notice', () => {
   test('TC-56.2 a run that fails with a rejected credential shows the API error as a centred notice under the prompt', async ({
     page,
   }) => {
+    await setAutoResumeMax(page, (await projectFor(page)).projectId, 0);
     const s = await startRun(page, '--fake-api-error');
     await waitForStatus(page, s.runId, 'paused', 90_000);
     await openRun(page, s);

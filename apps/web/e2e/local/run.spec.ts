@@ -3,7 +3,16 @@ import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
 import { RunDto, RunLogResponse } from '@agentdesk/contracts';
-import { API, CommentResult, FAKE_STATE_DIR, REPO, commentOnNewTicket, ok, signInAndCreateProject } from './helpers';
+import {
+  API,
+  CommentResult,
+  FAKE_STATE_DIR,
+  REPO,
+  commentOnNewTicket,
+  ok,
+  setAutoResumeMax,
+  signInAndCreateProject,
+} from './helpers';
 
 /*
  * Real localhost end-to-end: the Vite dev server (proxy to the API on :3000) and the stack from `pnpm dev` at the repo
@@ -123,6 +132,7 @@ test('a --fake-done run shows Done and Finish closes it as succeeded', async ({ 
 
 test('a --fake-fail run pauses with "agent crashed (exit code 3)" and offers Resume', async ({ page }) => {
   const { handle, projectId } = await signInAndCreateProject(page);
+  await setAutoResumeMax(page, projectId, 0);
   const runId = await commentOnNewTicket(page, handle, projectId, '/code-review --fake-fail');
   const number = RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run')).number;
 
@@ -369,6 +379,7 @@ test.describe('cluster outage', () => {
 
   test('an outage longer than the window parks the run with its work kept and it can be resumed', async ({ page }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setAutoResumeMax(page, projectId, 0);
     const runId = await commentOnNewTicket(page, handle, projectId, '/code-review');
     const number = (await runOf(page, runId)).number;
     await expect.poll(async () => (await runOf(page, runId)).status, { timeout: 60_000 }).toBe('idle');

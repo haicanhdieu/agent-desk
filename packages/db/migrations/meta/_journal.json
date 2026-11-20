@@ -148,6 +148,13 @@
       "when": 1795169919315,
       "tag": "0020_inbound_events_ignored_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1795181889478,
+      "tag": "0021_agent_auto_resume_max",
+      "breakpoints": true
     }
   ]
 }

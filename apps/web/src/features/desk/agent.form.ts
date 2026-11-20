@@ -36,6 +36,7 @@ export function limitsOf(agent: AgentDto, project: ProjectDto): AgentLimits {
     idleEndMinutes: Math.round(agent.idleEndSeconds / 60),
     maxConcurrent: project.maxConcurrentRuns,
     maxRunsPerTicket: project.maxRunsPerTicket,
+    autoResumeMax: agent.autoResumeMax,
   };
 }
 
@@ -45,6 +46,7 @@ export interface LimitsRequests {
   pausedKeepSeconds?: number;
   doneKeepSeconds?: number;
   idleEndSeconds?: number;
+  autoResumeMax?: number;
 }
 
 /**
@@ -63,6 +65,7 @@ export function limitsRequests(base: AgentLimits, next: AgentLimits): LimitsRequ
     ...(changed('pausedKeepMinutes') && { pausedKeepSeconds: Math.round(next.pausedKeepMinutes * 60) }),
     ...(changed('doneKeepMinutes') && { doneKeepSeconds: Math.round(next.doneKeepMinutes * 60) }),
     ...(changed('idleEndMinutes') && { idleEndSeconds: Math.round(next.idleEndMinutes * 60) }),
+    ...(changed('autoResumeMax') && { autoResumeMax: next.autoResumeMax }),
   };
 }
 
@@ -74,6 +77,7 @@ export const LIMIT_POINTERS: Record<string, LimitField> = {
   '/idleEndSeconds': 'idleEndMinutes',
   '/maxConcurrentRuns': 'maxConcurrent',
   '/maxRunsPerTicket': 'maxRunsPerTicket',
+  '/autoResumeMax': 'autoResumeMax',
 };
 
 const LIMIT_FIELDS: ReadonlySet<string> = new Set(Object.values(LIMIT_POINTERS));
@@ -85,7 +89,8 @@ export const hasLimitChanges = (req: LimitsRequests): boolean =>
   req.timeoutSeconds !== undefined ||
   req.pausedKeepSeconds !== undefined ||
   req.doneKeepSeconds !== undefined ||
-  req.idleEndSeconds !== undefined;
+  req.idleEndSeconds !== undefined ||
+  req.autoResumeMax !== undefined;
 
 /**
  * Saves the limits: `projects.update` for the run limits and `agents.put` for the timeout and keep times, in parallel. `agents.put`
@@ -110,7 +115,10 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
     };
   };
   const saveAgent = async (
-    changes: Pick<LimitsRequests, 'timeoutSeconds' | 'pausedKeepSeconds' | 'doneKeepSeconds' | 'idleEndSeconds'>,
+    changes: Pick<
+      LimitsRequests,
+      'timeoutSeconds' | 'pausedKeepSeconds' | 'doneKeepSeconds' | 'idleEndSeconds' | 'autoResumeMax'
+    >,
   ) => {
     const agent = await qc.fetchQuery({ ...deskQueries.agent(org, projectId), staleTime: 0 });
     // `agents.put` replaces the agent: the run time limit is always sent, the keep times and idle end only when
@@ -124,6 +132,7 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
         ...(changes.pausedKeepSeconds !== undefined && { pausedKeepSeconds: changes.pausedKeepSeconds }),
         ...(changes.doneKeepSeconds !== undefined && { doneKeepSeconds: changes.doneKeepSeconds }),
         ...(changes.idleEndSeconds !== undefined && { idleEndSeconds: changes.idleEndSeconds }),
+        ...(changes.autoResumeMax !== undefined && { autoResumeMax: changes.autoResumeMax }),
       },
     });
     qc.setQueryData(deskQueries.agent(org, projectId).queryKey, saved);
@@ -133,6 +142,7 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
       pausedKeepMinutes: Math.round(saved.pausedKeepSeconds / 60),
       doneKeepMinutes: Math.round(saved.doneKeepSeconds / 60),
       idleEndMinutes: Math.round(saved.idleEndSeconds / 60),
+      autoResumeMax: saved.autoResumeMax,
     };
   };
 

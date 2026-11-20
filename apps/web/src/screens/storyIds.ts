@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 61 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 71 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -44,6 +44,13 @@ export const boardStories = {
   RunTranscriptStates: { title: detail, exportName: 'RunTranscriptStates' },
   RunRunningStop: { title: detail, exportName: 'RunRunningStop' },
   RunIdleEnding: { title: detail, exportName: 'RunIdleEnding' },
+  RunStoppedPodLost: { title: detail, exportName: 'RunStoppedPodLost' },
+  RunStoppedPodLostGaveUp: { title: detail, exportName: 'RunStoppedPodLostGaveUp' },
+  RunStoppedPodLostGaveUpOnce: { title: detail, exportName: 'RunStoppedPodLostGaveUpOnce' },
+  RunStoppedCrashedGaveUp: { title: detail, exportName: 'RunStoppedCrashedGaveUp' },
+  RunStoppedAutoResumeWaiting: { title: detail, exportName: 'RunStoppedAutoResumeWaiting' },
+  RunStoppedAutoResumeFailedGaveUp: { title: detail, exportName: 'RunStoppedAutoResumeFailedGaveUp' },
+  RunRunningAutoResume: { title: detail, exportName: 'RunRunningAutoResume' },
   DeskSkills: { title: desk, exportName: 'DeskSkills' },
   DeskSkillDelete: { title: desk, exportName: 'DeskSkillDelete' },
   DeskRules: { title: desk, exportName: 'DeskRules' },
@@ -53,6 +60,9 @@ export const boardStories = {
   DeskAgent: { title: desk, exportName: 'DeskAgent' },
   DeskAgentCustomModel: { title: desk, exportName: 'DeskAgentCustomModel' },
   DeskAgentAddressChanged: { title: desk, exportName: 'DeskAgentAddressChanged' },
+  DeskAgentAutoResume: { title: desk, exportName: 'DeskAgentAutoResume' },
+  DeskAgentAutoResumeChanged: { title: desk, exportName: 'DeskAgentAutoResumeChanged' },
+  DeskAgentAutoResumeError: { title: desk, exportName: 'DeskAgentAutoResumeError' },
   DeskSetup: { title: desk, exportName: 'DeskSetup' },
   DeskSetupTest: { title: desk, exportName: 'DeskSetupTest' },
   Pagination: { title: 'Components/Pagination', exportName: 'Board' },

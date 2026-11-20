@@ -20,7 +20,7 @@ import {
 } from '@agentdesk/core';
 import { createDb, runEvents, runs, runTranscriptEntries, setupScriptVersions, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
-import type { FollowPodLogsResult, RunContext } from '../src/activities/run.activities';
+import type { FollowPodLogsResult, RunActivities, RunContext } from '../src/activities/run.activities';
 import { createRunActivities, type RunActivityDeps, type RunSignaller } from '../src/activities/run.activities.impl';
 import { appendRunEvent } from '../src/activities/run-events';
 import { setRunStatus } from '../src/activities/run-status.activity';
@@ -232,6 +232,7 @@ describe('loadRun', () => {
       timeoutSeconds: 900,
       maxConcurrentRuns: 3,
       idleEndSeconds: 1800,
+      autoResumeMax: 5,
       endingDeadlineSeconds: 90,
       leaseTtlSeconds: 300,
     });
@@ -280,6 +281,22 @@ describe('loadRun', () => {
       const runId = await seedRun('x', 'queued');
       await asOwner((c) => c.query(`update runs set agent_id = null where id = $1`, [runId]));
       expect((await ctxFor(runId)).idleEndSeconds).toBe(1800);
+    });
+  });
+
+  describe('autoResumeMax per agent', () => {
+    afterEach(() => asOwner((c) => c.query(`update agents set auto_resume_max = 5 where id = $1`, [AGENT])));
+
+    it('takes autoResumeMax from the agent row', async () => {
+      await asOwner((c) => c.query(`update agents set auto_resume_max = 2 where id = $1`, [AGENT]));
+      const runId = await seedRun('x', 'queued');
+      expect((await ctxFor(runId)).autoResumeMax).toBe(2);
+    });
+
+    it('uses AGENT_AUTO_RESUME_MAX_DEFAULT when the agent row is gone', async () => {
+      const runId = await seedRun('x', 'queued');
+      await asOwner((c) => c.query(`update runs set agent_id = null where id = $1`, [runId]));
+      expect((await ctxFor(runId)).autoResumeMax).toBe(5);
     });
   });
 
@@ -1450,6 +1467,27 @@ describe('followPodLogs', () => {
         });
       });
 
+      it('returns the pod kill reason when the pod was killed from outside, and none for a clean exit', async () => {
+        const lines = ['agentdesk: session started'];
+        const withReason = (reason: string | null, exitCode: number): KubeGateway =>
+          wrapKube({
+            readSecret: async () => null,
+            getRunPod: async (name) => ({ name, phase: 'Failed', pendingSince: null, reason, exitCode }),
+            streamLogs: async function* () {
+              yield* lines;
+            },
+          });
+        const killedCtx = await ctxFor(await seedRun('x'));
+        const killed = await follow(killedCtx, deps({ kube: withReason('Killed', 137) })).promise;
+        expect(killed).toMatchObject({ exitCode: 137, podReason: 'Killed' });
+        const cleanCtx = await ctxFor(await seedRun('x'));
+        const clean = await follow(cleanCtx, deps({ kube: withReason(null, 0) })).promise;
+        expect(clean.podReason).toBeUndefined();
+        const oddCtx = await ctxFor(await seedRun('x'));
+        const odd = await follow(oddCtx, deps({ kube: withReason('not a word; rm', 1) })).promise;
+        expect(odd.podReason).toBeUndefined();
+      });
+
       it('a pod that ended with an exit code and no end line is not podLost', async () => {
         const runId = await seedRun('x');
         const ctx = await ctxFor(runId);
@@ -2134,6 +2172,36 @@ describe('resume mode', () => {
     expect(await kube.listRunVolumeClaims()).toContainEqual(expect.objectContaining({ name: `run-${runId}` }));
     await acts.deleteJob(ctx);
     await acts.deleteRunVolume(ctx);
+  });
+
+  describe('RESUME_NOTE', () => {
+    const note = { end: { kind: 'agent_exit', exitCode: 1 } } as const;
+    const envAfter = async (opts: Parameters<RunActivities['createRunSecretAndJob']>[1]) => {
+      const runId = await seedRun('x', 'queued');
+      const ctx = await ctxFor(runId);
+      const acts = createRunActivities(deps());
+      await acts.createRunSecretAndJob(ctx, opts);
+      const env = await kube.podEnv(`run-${runId}`);
+      await acts.deleteJob(ctx);
+      await acts.deleteRunVolume(ctx);
+      return env;
+    };
+
+    it('a resume with a note starts the pod with the fixed note text', async () => {
+      expect((await envAfter({ resume: true, note }))?.RESUME_NOTE).toBe(
+        'Agent Desk: your last session was killed (agent CLI exited with code 1). Resumed. Background processes and /tmp are gone.',
+      );
+    });
+
+    it('an automatic resume names the try', async () => {
+      const env = await envAfter({ resume: true, note: { ...note, try: 2, max: 5 } });
+      expect(env?.RESUME_NOTE).toContain('Resumed, try 2/5. ');
+    });
+
+    it('a resume without a note and a fresh start with a note have no RESUME_NOTE', async () => {
+      expect((await envAfter({ resume: true }))?.RESUME_NOTE).toBeUndefined();
+      expect((await envAfter({ note }))?.RESUME_NOTE).toBeUndefined();
+    });
   });
 
   it('createRunSecretAndJob with resume starts a NEW pod after a park, not the finished one', async () => {

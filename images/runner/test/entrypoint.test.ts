@@ -1,5 +1,14 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -7,7 +16,8 @@ import { describe, expect, it } from 'vitest';
 import { runEntrypoint } from './harness.js';
 
 const START_CMD = 'exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} "$PROMPT"';
-const RESUME_CMD = 'exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} --continue';
+const RESUME_CMD =
+  'exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} --continue ${RESUME_NOTE:+"$RESUME_NOTE"}';
 
 type Result = Awaited<ReturnType<typeof runEntrypoint>>;
 
@@ -366,6 +376,38 @@ describe('entrypoint home on the volume and resume mode', () => {
         'sonnet[1m]',
         '--continue',
       ]);
+    });
+
+    const hostileNote = 'Agent Desk: killed (OOMKilled, exit 137). "q" $(touch /tmp/pwn) `back` ; rm -rf /';
+
+    it('resume with RESUME_NOTE passes it as one argv element after --continue', async () => {
+      rmSync('/tmp/pwn', { force: true });
+      const env = { RESUME_NOTE: hostileNote, PROMPT: 'p' };
+      const { home, repo } = resumable();
+      const r = await runEntrypoint({ ...env, RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo }, {});
+      const argv = argvOf(newSession(r)?.argv.at(-1) ?? '', env);
+      expect(argv.slice(-2)).toEqual(['--continue', hostileNote]);
+      expect(existsSync('/tmp/pwn')).toBe(false);
+    });
+
+    it('resume without RESUME_NOTE ends with --continue', async () => {
+      const env = { PROMPT: 'p' };
+      const { home, repo } = resumable();
+      const r = await runEntrypoint({ ...env, RUN_MODE: 'resume', HOME: home, AGENTDESK_REPO_DIR: repo }, {});
+      expect(argvOf(newSession(r)?.argv.at(-1) ?? '', env).at(-1)).toBe('--continue');
+    });
+
+    it('a fresh start ignores RESUME_NOTE', async () => {
+      const env = { RESUME_NOTE: 'a note', PROMPT: 'the prompt' };
+      const r = await runEntrypoint(env, {});
+      expect(argvOf(newSession(r)?.argv.at(-1) ?? '', env).slice(-1)).toEqual(['the prompt']);
+    });
+
+    it('names RESUME_NOTE in the entrypoint header comment', () => {
+      const head = readFileSync(join(import.meta.dirname, '..', 'entrypoint.sh'), 'utf8')
+        .split('\n')
+        .slice(0, 12);
+      expect(head.join('\n')).toContain('RESUME_NOTE');
     });
 
     it('passes a hostile model as one argv element, never evaluated', async () => {

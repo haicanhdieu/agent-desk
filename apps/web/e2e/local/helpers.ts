@@ -6,6 +6,7 @@ import {
   AgentDto,
   InstallResponse,
   RunDto,
+  RunLogResponse,
   RunTranscriptResponse,
   type RunTranscriptEntryDto,
 } from '@agentdesk/contracts';
@@ -156,6 +157,16 @@ export async function transcriptOf(page: Page, runId: string): Promise<RunTransc
   return pages.flat();
 }
 
+/** The `text` of every `lifecycle` event of a run (`GET /api/runs/:runId/log`), oldest first; events without a text are left out. */
+export async function lifecycleTexts(page: Page, runId: string): Promise<string[]> {
+  const log = RunLogResponse.parse(await ok(await page.request.get(`/api/runs/${runId}/log`), 200, 'run log'));
+  return log.items.flatMap((e) => {
+    if (e.type !== 'lifecycle') return [];
+    const text = e.payload['text'];
+    return typeof text === 'string' ? [text] : [];
+  });
+}
+
 let shared: { handle: string; projectId: string } | undefined;
 
 /** One dev-login user and project per worker: made on first use, signed in again on the next. */
@@ -218,6 +229,18 @@ export async function setDefaultModel(page: Page, projectId: string, model: stri
     }),
     200,
     'set default model',
+  );
+}
+
+/** Given: the agent's automatic-resume limit (the model and run limits stay as they are). 0 pins the "off" behaviour. */
+export async function setAutoResumeMax(page: Page, projectId: string, value: number): Promise<void> {
+  const agent = await readAgent(page, projectId);
+  await ok(
+    await page.request.put(`/api/projects/${projectId}/agent`, {
+      data: { model: agent.model, timeoutSeconds: agent.timeoutSeconds, autoResumeMax: value },
+    }),
+    200,
+    'set auto resume max',
   );
 }
 

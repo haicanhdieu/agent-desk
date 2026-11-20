@@ -70,6 +70,7 @@ describe('agents', () => {
       maxTurns: 50,
       timeoutSeconds: 86400,
       idleEndSeconds: 1800,
+      autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
   });
@@ -114,6 +115,26 @@ describe('agents', () => {
       const errors = (res.json() as { errors: { pointer: string; detail: string }[] }).errors;
       expect(errors.map((e) => e.pointer)).toContain('/idleEndSeconds');
       expect(errors.map((e) => e.detail).join(' ')).toMatch(/5 minutes and 7 days/);
+    }
+  });
+
+  it('PUT saves autoResumeMax, omitting it keeps the stored value, and GET returns it', async () => {
+    const saved = expectContract(
+      'agents.put',
+      await putAgent({ model: 'sonnet', timeoutSeconds: 86400, autoResumeMax: 2 }),
+    );
+    expect(saved).toMatchObject({ autoResumeMax: 2 });
+    const kept = expectContract('agents.put', await putAgent({ model: 'opus', timeoutSeconds: 86400 }));
+    expect(kept).toMatchObject({ autoResumeMax: 2 });
+    expect(expectContract('agents.get', await getAgent())).toMatchObject({ autoResumeMax: 2 });
+  });
+
+  it('PUT with autoResumeMax under 0 or over 10 is a 400 with pointer /autoResumeMax', async () => {
+    for (const autoResumeMax of [-1, 11]) {
+      const res = await putAgent({ model: 'sonnet', timeoutSeconds: 86400, autoResumeMax });
+      expect(res.statusCode).toBe(400);
+      const errors = (res.json() as { errors: { pointer: string; detail: string }[] }).errors;
+      expect(errors.map((e) => e.pointer)).toContain('/autoResumeMax');
     }
   });
 

@@ -1,5 +1,5 @@
 import type { PauseReason, RunStatus } from '@agentdesk/contracts';
-import type { EndReason } from '@agentdesk/core';
+import type { EndReason, ResumeNoteInput, UnexpectedEnd } from '@agentdesk/core';
 import type { TokenRefreshPlan } from '../workflows/token-refresh';
 import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activity';
 
@@ -28,6 +28,8 @@ export interface RunContext {
   maxConcurrentRuns: number;
   /** Idle end, seconds. The agent's `idleEndSeconds` (default `IDLE_END_SECONDS`, 1800); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
+  /** Automatic resumes in a row after an unexpected pod end; the agent's `autoResumeMax` (`AGENT_AUTO_RESUME_MAX_DEFAULT` when the agent row is gone). Read once when the run starts. */
+  autoResumeMax?: number;
   /** Seconds an `ending` session may take before the Job is deleted (normally `ENDING_DEADLINE_SECONDS`, 90); a test seam. */
   endingDeadlineSeconds?: number;
   /** Seconds an attach lease lives without a renewal (normally `TERMINAL_LEASE_TTL_SECONDS`, 300); a test seam like `idleEndSeconds`. */
@@ -73,6 +75,10 @@ export interface FinishDetails {
   scrollbackTail?: string;
 }
 
+export type RecordAutoResumeInput =
+  | { event: 'resume'; try: number; max: number; end: UnexpectedEnd; at: string }
+  | { event: 'gave_up'; tries: number; at: string };
+
 export interface FollowPodLogsResult {
   /** Container exit code. */
   exitCode: number;
@@ -102,6 +108,8 @@ export interface FollowPodLogsResult {
    * "the run pod ended (<phase>) without an exit code: <reason>"). Runs that started before `pod-lost-parks` fail with it.
    */
   lostText?: string;
+  /** The run pod's kill reason (`terminated.reason`, else the pod's `status.reason`) when it matches ^[A-Za-z]{1,40}$. */
+  podReason?: string;
   /**
    * With `podLost`: the cluster stayed unreachable for the whole reconnect window, so nothing is known about the pod.
    * The run parks with its volume kept instead of failing.
@@ -128,7 +136,7 @@ export interface RunActivities {
    */
   createRunSecretAndJob(
     ctx: RunContext,
-    opts?: { resume?: boolean; deadlineSeconds?: number },
+    opts?: { resume?: boolean; deadlineSeconds?: number; note?: ResumeNoteInput },
   ): Promise<TokenRefreshPlan | undefined>;
   /**
    * Mints a new workspace token and writes it into the existing run Secret; the pod reads it from a mounted file, so
@@ -186,4 +194,6 @@ export interface RunActivities {
     ctx: RunContext,
     input: { kind: ParkKind; sessionExpiresAt: string; reason: string; at: string },
   ): Promise<void>;
+  /** Appends one `lifecycle` event: `auto_resume` or `auto_resume_gave_up` (fixed text, §3). */
+  recordAutoResume(ctx: RunContext, input: RecordAutoResumeInput): Promise<void>;
 }

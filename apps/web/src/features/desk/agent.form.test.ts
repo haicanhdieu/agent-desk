@@ -31,6 +31,12 @@ const agent: AgentDto = fixture(agentFixtures);
 const project: ProjectDto = fixture(projectFixtures);
 const base = limitsOf(agent, project);
 
+describe('limitsOf', () => {
+  it('carries the agent automatic resume limit', () => {
+    expect(limitsOf({ ...agent, autoResumeMax: 2 }, project).autoResumeMax).toBe(2);
+  });
+});
+
 describe('toAgentSettings', () => {
   it('maps seconds to minutes and the credential to a relative "set at" and who set it', () => {
     expect(toAgentSettings(agent, project, now)).toEqual({
@@ -44,6 +50,7 @@ describe('toAgentSettings', () => {
       idleEndMinutes: 30,
       maxConcurrent: 2,
       maxRunsPerTicket: 10,
+      autoResumeMax: 5,
     });
   });
 
@@ -84,6 +91,20 @@ describe('limitsRequests', () => {
       project: { maxConcurrentRuns: 3 },
       timeoutSeconds: 3600,
     });
+  });
+});
+
+describe('limitsRequests automatic resumes', () => {
+  it('a changed value is sent as is', () => {
+    expect(limitsRequests(base, { ...base, autoResumeMax: 2 })).toEqual({ autoResumeMax: 2 });
+  });
+
+  it('an unchanged value sends nothing', () => {
+    expect(limitsRequests(base, { ...base, autoResumeMax: base.autoResumeMax })).toEqual({});
+  });
+
+  it('0 (off) counts as a change', () => {
+    expect(hasLimitChanges({ autoResumeMax: 0 })).toBe(true);
   });
 });
 

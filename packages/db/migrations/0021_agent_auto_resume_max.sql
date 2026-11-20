@@ -1,0 +1,2 @@
+ALTER TABLE "agents" ADD COLUMN "auto_resume_max" integer DEFAULT 5 NOT NULL;--> statement-breakpoint
+ALTER TABLE "agents" ADD CONSTRAINT "agents_auto_resume_max_check" CHECK ("agents"."auto_resume_max" between 0 and 10);

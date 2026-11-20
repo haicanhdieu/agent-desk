@@ -49,6 +49,8 @@ export interface RunJobInput {
   deadlineSeconds: number;
   /** True for a resumed pod: the runner continues the saved session from the volume (no prompt, checkout or setup). */
   resume: boolean;
+  /** Fixed note text from resumeNoteText; env RESUME_NOTE on a resume only. */
+  resumeNote?: string;
   botName: string;
   botEmail: string;
   /**
@@ -257,7 +259,11 @@ export function buildRunJob(input: RunJobInput): V1Job {
     ...input.agentEnv.map((e) => ({ name: e.name, value: e.value })),
   ];
   const env: V1EnvVar[] = input.resume
-    ? [{ name: 'RUN_MODE', value: 'resume' }, ...common]
+    ? [
+        { name: 'RUN_MODE', value: 'resume' },
+        ...(input.resumeNote ? [{ name: 'RESUME_NOTE', value: input.resumeNote }] : []),
+        ...common,
+      ]
     : [
         { name: 'CHECKOUT_REF', value: input.checkoutRef },
         { name: 'PROMPT', value: input.prompt },

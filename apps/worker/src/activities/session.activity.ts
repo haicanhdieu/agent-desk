@@ -6,23 +6,26 @@ import {
   RunStatus,
   type PauseReason,
 } from '@agentdesk/contracts';
-import { SIGNAL, redact, type Config } from '@agentdesk/core';
+import { SIGNAL, autoResumeEventText, autoResumeGaveUpText, redact, type Config } from '@agentdesk/core';
 import { agents, notifyRunStatus, runs, withOrg, type Db } from '@agentdesk/db';
 import { ERROR_MESSAGE_MAX, oneLine } from './activity-utils';
 import { appendRunEvent } from './run-events';
 import { setRunStatusTx } from './run-status.activity';
-import type { ParkKind, ParkResult, RunActivities, RunContext } from './run.activities';
+import type { ParkKind, ParkResult, RecordAutoResumeInput, RunActivities, RunContext } from './run.activities';
 
 /** What the session activities need. `signalRun` is the run-workflow signaller of the other run activities. */
 export interface SessionActivityDeps {
   db: Db;
-  config: Pick<Config, 'RUN_KEPT_DONE_SESSIONS_PER_PROJECT'>;
+  config: Pick<Config, 'RUN_KEPT_DONE_SESSIONS_PER_PROJECT' | 'RUN_POD_MEMORY_LIMIT'>;
   signaller: { signalRun(runId: string, signal: string, arg?: string): Promise<void> };
   /** Values to redact from a stored reason (the agent credential); a read error propagates (fail closed). */
   redactionValues(ctx: RunContext): Promise<string[]>;
 }
 
-export type SessionActivityImpls = Pick<RunActivities, 'parkRun' | 'endKeptSession' | 'restoreParked'>;
+export type SessionActivityImpls = Pick<
+  RunActivities,
+  'parkRun' | 'endKeptSession' | 'restoreParked' | 'recordAutoResume'
+>;
 
 const parseAt = (at: string): Date => {
   const d = new Date(at);
@@ -177,6 +180,31 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
     });
   }
 
+  async function recordAutoResume(ctx: RunContext, input: RecordAutoResumeInput): Promise<void> {
+    const ts = parseAt(input.at);
+    const bad = (): never => {
+      throw ApplicationFailure.nonRetryable('invalid auto resume input');
+    };
+    const whole = (n: number, min: number, max: number): boolean => Number.isInteger(n) && n >= min && n <= max;
+    let payload: Record<string, unknown>;
+    if (input.event === 'resume') {
+      if (!whole(input.max, 1, 10) || !whole(input.try, 1, input.max)) bad();
+      payload = {
+        kind: 'auto_resume',
+        try: input.try,
+        max: input.max,
+        text: autoResumeEventText({ end: input.end, try: input.try, max: input.max }, deps.config.RUN_POD_MEMORY_LIMIT),
+      };
+    } else {
+      if (!whole(input.tries, 1, 10)) bad();
+      payload = { kind: 'auto_resume_gave_up', tries: input.tries, text: autoResumeGaveUpText(input.tries) };
+    }
+    await withOrg(db, ctx.orgId, async (tx) => {
+      const ev = await appendRunEvent(tx, ctx.orgId, { runId: ctx.runId, type: 'lifecycle', payload, ts });
+      if (!ev) throw ApplicationFailure.nonRetryable('run not found');
+    });
+  }
+
   async function restoreParked(
     ctx: RunContext,
     input: { kind: ParkKind; sessionExpiresAt: string; reason: string; at: string },
@@ -210,5 +238,5 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
     });
   }
 
-  return { parkRun, endKeptSession, restoreParked };
+  return { parkRun, endKeptSession, restoreParked, recordAutoResume };
 }

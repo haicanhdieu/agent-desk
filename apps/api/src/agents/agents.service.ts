@@ -43,6 +43,7 @@ function toDto(row: AgentRow): AgentDto {
     pausedKeepSeconds: row.pausedKeepSeconds,
     doneKeepSeconds: row.doneKeepSeconds,
     idleEndSeconds: row.idleEndSeconds,
+    autoResumeMax: row.autoResumeMax,
     credential: {
       set: type !== null && row.credentialUpdatedAt !== null,
       type,
@@ -92,6 +93,7 @@ export class AgentsService {
           pausedKeepSeconds: body.pausedKeepSeconds,
           doneKeepSeconds: body.doneKeepSeconds,
           idleEndSeconds: body.idleEndSeconds,
+          autoResumeMax: body.autoResumeMax,
         })
         .where(eq(agents.projectId, projectId))
         .returning();

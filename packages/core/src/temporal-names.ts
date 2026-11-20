@@ -33,6 +33,8 @@ export const SIGNAL = {
   terminalDetached: 'terminalDetached',
   /** RunWorkflow: the connection ids of the sockets the API holds open for this run. Args: [string[]]. */
   terminalLease: 'terminalLease',
+  /** RunWorkflow: a person typed into the run's terminal; resets the automatic-resume count. No args. */
+  personInput: 'personInput',
   finish: 'finish',
   cancel: 'cancel',
   /** SetupTestWorkflow: end the test now (cancels setup, then deletes the workspace). */

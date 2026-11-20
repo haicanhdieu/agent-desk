@@ -4,10 +4,18 @@ import type { TestWorkflowEnvironment } from '@temporalio/testing';
 import { createTimeSkippingTestEnv } from './helpers/temporal-env';
 import { Worker } from '@temporalio/worker';
 import type { WorkflowHandle } from '@temporalio/client';
-import { GATE_CONTINUE_AS_NEW_AFTER, SIGNAL, UPDATE, gateWorkflowId, runWorkflowId } from '@agentdesk/core';
+import {
+  GATE_CONTINUE_AS_NEW_AFTER,
+  SIGNAL,
+  UNEXPECTED_END_KINDS,
+  UPDATE,
+  gateWorkflowId,
+  runWorkflowId,
+} from '@agentdesk/core';
 import * as signals from '../src/workflows/signals';
 import { gateState, type GateState } from '../src/workflows/signals';
 import { CONTINUE_AS_NEW_AFTER } from '../src/workflows/gate.workflow';
+import { UNEXPECTED_END_KINDS as WORKFLOW_UNEXPECTED_END_KINDS } from '../src/workflows/park';
 import { grantsQuery } from './stub-workflows';
 
 let env: TestWorkflowEnvironment;
@@ -88,9 +96,16 @@ describe('constants', () => {
     expect(signals.terminalLease.name).toBe(SIGNAL.terminalLease);
     expect(signals.sessionStarted.name).toBe(SIGNAL.sessionStarted);
     expect(signals.dropSession.name).toBe(SIGNAL.dropSession);
+    expect(signals.personInput.name).toBe(SIGNAL.personInput);
     expect(UPDATE.resumeRun).toBe(signals.resumeRun.name);
     expect(UPDATE.stopSession).toBe(signals.stopSession.name);
     expect(CONTINUE_AS_NEW_AFTER).toBe(GATE_CONTINUE_AS_NEW_AFTER);
+  });
+});
+
+describe('mirrored constants', () => {
+  it('the workflow-side unexpected end kinds equal core', () => {
+    expect([...WORKFLOW_UNEXPECTED_END_KINDS]).toEqual([...UNEXPECTED_END_KINDS]);
   });
 });
 

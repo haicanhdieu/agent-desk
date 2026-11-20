@@ -202,6 +202,36 @@ describe('desk agent route', () => {
     expect(agentRow().idleEndSeconds).toBe(1800);
   });
 
+  it('saving 2 automatic resumes sends autoResumeMax 2 and shows it after a reload', async () => {
+    const sent = captureWrites();
+    const { user } = await openPage();
+    const resumes = field('Automatic resumes after a crash');
+    expect(resumes).toHaveValue('5');
+    await user.clear(resumes);
+    await user.type(resumes, '2');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Limits saved')).toBeInTheDocument();
+    await waitFor(() => expect(sent.every((s) => s.body !== undefined)).toBe(true));
+    expect(sent).toEqual([
+      { method: 'PUT', path: agentPath, body: { model: 'opus', timeoutSeconds: 1800, autoResumeMax: 2 } },
+    ]);
+    expect(agentRow().autoResumeMax).toBe(2);
+    expect(field('Automatic resumes after a crash')).toHaveValue('2');
+  });
+
+  it('12 automatic resumes shows "Automatic resumes must be between 0 and 10" on the field and saves nothing', async () => {
+    const { user } = await openPage();
+    const resumes = field('Automatic resumes after a crash');
+    await user.clear(resumes);
+    await user.type(resumes, '12');
+    await user.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(await screen.findByText('Automatic resumes must be between 0 and 10')).toBeInTheDocument();
+    expect(resumes).toHaveAttribute('aria-invalid', 'true');
+    expect(resumes).toHaveValue('12');
+    expect(screen.queryByText('Limits saved')).toBeNull();
+    expect(agentRow().autoResumeMax).toBe(5);
+  });
+
   it('0 for a finished run sends doneKeepSeconds 0', async () => {
     const sent = captureWrites();
     const { user } = await openPage();

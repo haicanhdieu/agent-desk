@@ -27,7 +27,13 @@ import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
 
 export type LimitField =
-  'timeoutMinutes' | 'pausedKeepMinutes' | 'doneKeepMinutes' | 'idleEndMinutes' | 'maxConcurrent' | 'maxRunsPerTicket';
+  | 'timeoutMinutes'
+  | 'pausedKeepMinutes'
+  | 'doneKeepMinutes'
+  | 'idleEndMinutes'
+  | 'maxConcurrent'
+  | 'maxRunsPerTicket'
+  | 'autoResumeMax';
 export type AgentLimits = Record<LimitField, number>;
 
 export interface DeskAgentProps {
@@ -149,6 +155,7 @@ export function DeskAgent({
     idle: String(settings.idleEndMinutes),
     concurrent: String(settings.maxConcurrent),
     perTicket: String(settings.maxRunsPerTicket),
+    autoResume: String(settings.autoResumeMax),
   });
   const set = (k: keyof typeof limits) => (e: { target: { value: string } }) =>
     setLimits({ ...limits, [k]: e.target.value });
@@ -396,6 +403,24 @@ export function DeskAgent({
                 />
               )}
             </Field>
+            <Field
+              label="Automatic resumes after a crash"
+              help="How many times in a row a run resumes by itself after its pod is killed or the agent crashes. Typing in the terminal or pressing Resume starts the count again. 0 turns it off."
+              error={limitsErrors.autoResumeMax}
+            >
+              {({ id, describedBy, invalid }) => (
+                <TextInput
+                  numeric
+                  id={id}
+                  aria-describedby={describedBy}
+                  aria-invalid={invalid}
+                  inputMode="numeric"
+                  style={narrow}
+                  value={limits.autoResume}
+                  onChange={set('autoResume')}
+                />
+              )}
+            </Field>
           </div>
           {limitsError && (
             <Banner tone="err" icon={<Icon name="warning" size={16} />} title={limitsError} live="assertive" />
@@ -413,6 +438,7 @@ export function DeskAgent({
                   idleEndMinutes: Number(limits.idle),
                   maxConcurrent: Number(limits.concurrent),
                   maxRunsPerTicket: Number(limits.perTicket),
+                  autoResumeMax: Number(limits.autoResume),
                 })
               }
             >

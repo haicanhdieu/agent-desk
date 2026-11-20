@@ -17,4 +17,5 @@ export const agentSettings: AgentSettings = {
   idleEndMinutes: 30,
   maxConcurrent: 2,
   maxRunsPerTicket: 10,
+  autoResumeMax: 5,
 };
