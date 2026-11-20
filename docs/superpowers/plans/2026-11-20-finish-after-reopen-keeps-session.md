@@ -68,10 +68,10 @@
 **Interfaces:**
 - Consumes: mock resume state (what `runs.resume` sets for a done re-open).
 
-- [ ] **Step 1: Write failing tests:** a handler test (re-open a kept succeeded mock run, finish it, `sessionExpiresAt` still set and unchanged, so `canResume` is true) and the mock Playwright spec `TC-1: Finish after Re-open still offers Re-open session` plus `TC-2: a paused run resumed then finished is not re-openable`, following `apps/web/e2e/mock/stop-session.spec.ts`.
-- [ ] **Step 2: Run** the handler test with vitest; Expected FAIL. Build and run the spec as in `docs/runbooks/tests-and-e2e.md` §3a (mock); Expected FAIL.
-- [ ] **Step 3: Implement** the handler change: when the run was re-opened from a kept succeeded session, `runs.finish` returns it to `succeeded` with the original `sessionExpiresAt`; otherwise `endRun` as today.
-- [ ] **Step 4: Re-run both.** Expected: PASS.
+- [x] **Step 1: Write failing tests:** a handler test (re-open a kept succeeded mock run, finish it, `sessionExpiresAt` still set and unchanged, so `canResume` is true) and the mock Playwright spec `TC-1: Finish after Re-open still offers Re-open session` plus `TC-2: a paused run resumed then finished is not re-openable`, following `apps/web/e2e/mock/stop-session.spec.ts`.
+- [x] **Step 2: Run** the handler test with vitest; Expected FAIL. Build and run the spec as in `docs/runbooks/tests-and-e2e.md` §3a (mock); Expected FAIL.
+- [x] **Step 3: Implement** the handler change: when the run was re-opened from a kept succeeded session, `runs.finish` returns it to `succeeded` with the original `sessionExpiresAt`; otherwise `endRun` as today.
+- [x] **Step 4: Re-run both.** Expected: PASS.
 - [ ] **Step 5: Commit** `feat(web): mock finish after re-open keeps the session`.
 
 ## Self-review

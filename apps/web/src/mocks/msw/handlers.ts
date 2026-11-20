@@ -149,6 +149,9 @@ const withAgentIdleEnd = (run: RunDto): RunDto => {
   return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds, pausedKeepSeconds: agent.pausedKeepSeconds } : run;
 };
 
+/** The kept-session deadline of a run re-opened from a kept succeeded session, by run object (reset with the store). */
+const reopenedKeepUntil = new WeakMap<RunDto, string>();
+
 /** Ends the run now; open event streams see the note and the status (live.ts). */
 function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
   run.finishedAt = now();
@@ -601,6 +604,18 @@ const impl: Impl = {
     if (isFinal(run.status)) throw conflict('Run already ended');
     if (!FINISHABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Run is not waiting for you or done');
     if (slowActionRuns.has(run.number)) await slow();
+    const keptUntil = reopenedKeepUntil.get(run);
+    if (keptUntil !== undefined) {
+      // As the worker (ADR 0030): Finish on a re-opened kept session parks the run again, succeeded, with the
+      // original deadline (retention is not extended).
+      reopenedKeepUntil.delete(run);
+      run.finishedAt = now();
+      run.exitCode = 0;
+      run.sessionExpiresAt = keptUntil;
+      appendRunEvent(run, 'lifecycle', { text: `Finish clicked by ${user.handle}` });
+      setRunStatus(run, 'succeeded');
+      return null;
+    }
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
     return null;
   },
@@ -641,6 +656,9 @@ const impl: Impl = {
     if (!agentOf(run.projectId).credential.set) {
       throw conflict('This project has no agent credential, so the run cannot be resumed');
     }
+    // A re-open of a kept succeeded session remembers its deadline, so Finish can park it again.
+    if (run.status === 'succeeded' && run.sessionExpiresAt !== null) reopenedKeepUntil.set(run, run.sessionExpiresAt);
+    else reopenedKeepUntil.delete(run);
     run.pausedAt = null;
     run.sessionExpiresAt = null;
     run.sessionEndingAt = null;
@@ -655,6 +673,8 @@ const impl: Impl = {
       { afterMs: 1_500, status: 'starting' },
       { afterMs: 1_500, lifecycle: 'Pod running' },
       { afterMs: 1_000, lifecycle: 'Session resumed', status: 'running' },
+      // The agent's turn ends, so Finish run is offered.
+      { afterMs: 4_000, lifecycle: 'Turn finished', status: 'done' },
     ]);
     return null;
   },

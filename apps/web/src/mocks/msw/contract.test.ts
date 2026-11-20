@@ -13,6 +13,7 @@ import {
   RunEventDto,
   SetupScriptDto,
   SkillDto,
+  canResume,
   flattenRoutes,
   routes,
 } from '@agentdesk/contracts';
@@ -469,6 +470,31 @@ describe('MSW handler semantics', () => {
     it('re-opens a succeeded run whose session is still kept', async () => {
       await expect(resume(65)).resolves.toBeNull();
       await expect(runOf(65)).resolves.toMatchObject({ status: 'queued', finishedAt: null });
+    });
+
+    it('finishing a run re-opened from a kept succeeded session keeps the session and its original expiry', async () => {
+      const before = await runOf(65);
+      await resume(65);
+      const row = mockDb.state.runs.find((r) => r.id === before.id);
+      if (!row) throw new Error('run 65 missing');
+      row.status = 'done';
+      await expect(api.runs.finish({ params: { runId: before.id } })).resolves.toBeNull();
+      const after = await api.runs.get({ params: { runId: before.id } });
+      expect(before.sessionExpiresAt).not.toBeNull();
+      expect(after).toMatchObject({ status: 'succeeded', sessionExpiresAt: before.sessionExpiresAt });
+      expect(canResume(after, new Date())).toBe(true);
+    });
+
+    it('finishing a paused run that was resumed ends it for good, with no kept session', async () => {
+      const before = await runOf(64);
+      await resume(64);
+      const row = mockDb.state.runs.find((r) => r.id === before.id);
+      if (!row) throw new Error('run 64 missing');
+      row.status = 'done';
+      await expect(api.runs.finish({ params: { runId: before.id } })).resolves.toBeNull();
+      const after = await api.runs.get({ params: { runId: before.id } });
+      expect(after).toMatchObject({ status: 'succeeded', sessionExpiresAt: null });
+      expect(canResume(after, new Date())).toBe(false);
     });
 
     it('a second resume is a 409 saying it is already being resumed', async () => {
