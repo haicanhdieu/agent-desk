@@ -3,6 +3,7 @@ import { ApplicationFailure } from '@temporalio/common';
 import { and, desc, eq, gt, inArray, isNull, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import {
+  AGENT_AUTO_RESUME_MAX_DEFAULT,
   AGENT_IDLE_END_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   AgentKind,
@@ -434,6 +435,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
           maxConcurrentRuns: projects.maxConcurrentRuns,
           timeoutSeconds: agents.timeoutSeconds,
           idleEndSeconds: agents.idleEndSeconds,
+          autoResumeMax: agents.autoResumeMax,
         })
         .from(runs)
         .innerJoin(projects, eq(projects.id, runs.projectId))
@@ -456,6 +458,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
         deps.config.RUN_IDLE_END_SECONDS !== IDLE_END_SECONDS
           ? deps.config.RUN_IDLE_END_SECONDS
           : (row.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT),
+      autoResumeMax: row.autoResumeMax ?? AGENT_AUTO_RESUME_MAX_DEFAULT,
       endingDeadlineSeconds: deps.config.RUN_ENDING_DEADLINE_SECONDS,
       leaseTtlSeconds: deps.config.RUN_LEASE_TTL_SECONDS,
     };

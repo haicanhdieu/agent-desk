@@ -221,6 +221,18 @@ export async function setDefaultModel(page: Page, projectId: string, model: stri
   );
 }
 
+/** Given: the agent's automatic-resume limit (the model and run limits stay as they are). 0 pins the "off" behaviour. */
+export async function setAutoResumeMax(page: Page, projectId: string, value: number): Promise<void> {
+  const agent = await readAgent(page, projectId);
+  await ok(
+    await page.request.put(`/api/projects/${projectId}/agent`, {
+      data: { model: agent.model, timeoutSeconds: agent.timeoutSeconds, autoResumeMax: value },
+    }),
+    200,
+    'set auto resume max',
+  );
+}
+
 /** Given: a saved API address and a credential for it, through the agent API (the same route the screen uses). */
 export async function setAddressAndCredential(page: Page, agentId: string, baseUrl: string) {
   await ok(

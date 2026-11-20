@@ -295,6 +295,7 @@ const impl: Impl = {
       pausedKeepSeconds: 604800,
       doneKeepSeconds: 86400,
       idleEndSeconds: 1800,
+      autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
     return toProjectDto(row);
@@ -354,6 +355,7 @@ const impl: Impl = {
     agent.pausedKeepSeconds = body.pausedKeepSeconds ?? agent.pausedKeepSeconds;
     agent.doneKeepSeconds = body.doneKeepSeconds ?? agent.doneKeepSeconds;
     agent.idleEndSeconds = body.idleEndSeconds ?? agent.idleEndSeconds;
+    agent.autoResumeMax = body.autoResumeMax ?? agent.autoResumeMax;
     return agent;
   },
   'agents.putCredential': ({ params, body }) => {

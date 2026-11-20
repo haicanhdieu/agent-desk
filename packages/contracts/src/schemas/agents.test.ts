@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  AGENT_AUTO_RESUME_MAX_DEFAULT,
+  AGENT_AUTO_RESUME_MAX_MAX,
+  AGENT_AUTO_RESUME_MAX_MIN,
   AGENT_IDLE_END_SECONDS_DEFAULT,
   AGENT_IDLE_END_SECONDS_MAX,
   AGENT_IDLE_END_SECONDS_MIN,
@@ -53,6 +56,7 @@ describe('AgentDto idle end', () => {
       pausedKeepSeconds: 3600,
       doneKeepSeconds: 0,
       idleEndSeconds: 900,
+      autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     };
     expect(AgentDto.parse(dto).idleEndSeconds).toBe(900);
@@ -176,6 +180,7 @@ describe('agent model and address contracts', () => {
       pausedKeepSeconds: 3600,
       doneKeepSeconds: 0,
       idleEndSeconds: 300,
+      autoResumeMax: 5,
       credential: { set: false, type: null, updatedAt: null, setBy: null },
     });
     expect(r.success).toBe(true);
@@ -186,5 +191,47 @@ describe('agent model and address contracts', () => {
       AgentModelsDto.safeParse({ source: 'builtin', reason: 'disabled', models: [{ id: 'opus', label: 'opus' }] })
         .success,
     ).toBe(true);
+  });
+});
+
+describe('autoResumeMax', () => {
+  it('the bounds are 0 to 10 and the default is 5', () => {
+    expect([AGENT_AUTO_RESUME_MAX_MIN, AGENT_AUTO_RESUME_MAX_MAX, AGENT_AUTO_RESUME_MAX_DEFAULT]).toEqual([0, 10, 5]);
+  });
+
+  it('is optional on a put and accepts 0 to 10', () => {
+    expect(PutAgentRequest.parse(base).autoResumeMax).toBeUndefined();
+    for (const v of [0, 5, 10]) expect(PutAgentRequest.parse({ ...base, autoResumeMax: v }).autoResumeMax).toBe(v);
+  });
+
+  it('rejects out-of-range values and fractions, with a plain message', () => {
+    for (const v of [-1, 11, 2.5]) {
+      expect(PutAgentRequest.safeParse({ ...base, autoResumeMax: v }).success).toBe(false);
+    }
+    for (const v of [-1, 11]) {
+      const r = PutAgentRequest.safeParse({ ...base, autoResumeMax: v });
+      expect(r.error?.issues.map((i) => [i.path, i.message])).toEqual([
+        [['autoResumeMax'], 'Automatic resumes must be between 0 and 10'],
+      ]);
+    }
+  });
+
+  it('AgentDto requires it', () => {
+    const dto = {
+      id: '11111111-1111-4111-8111-111111111111',
+      projectId: '22222222-2222-4222-8222-222222222222',
+      name: 'Claude',
+      provider: 'claude',
+      model: 'opus',
+      baseUrl: null,
+      maxTurns: null,
+      timeoutSeconds: 60,
+      pausedKeepSeconds: 3600,
+      doneKeepSeconds: 0,
+      idleEndSeconds: 900,
+      credential: { set: false, type: null, updatedAt: null, setBy: null },
+    };
+    expect(AgentDto.safeParse(dto).success).toBe(false);
+    expect(AgentDto.safeParse({ ...dto, autoResumeMax: 5 }).success).toBe(true);
   });
 });

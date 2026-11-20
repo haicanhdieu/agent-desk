@@ -432,6 +432,11 @@ async function failureScenario(name: string): Promise<void> {
   let runId: string | undefined;
   try {
     s = await setup(name, 'webhook');
+    // The crash must park the run, not resume it by itself (spec 2026-11-20): turn automatic resume off.
+    const agent = await s.session.json('GET', `/api/projects/${s.project.id}/agent`, AgentDto);
+    await s.session.call('PUT', `/api/projects/${s.project.id}/agent`, {
+      body: { model: agent.model, timeoutSeconds: agent.timeoutSeconds, autoResumeMax: 0 },
+    });
     const result = await comment(s, '/code-review --fake-fail', 'webhook');
     runId = result.runId;
     assert(runId, `webhook: no runId (outcome ${result.outcome})`);

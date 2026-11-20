@@ -20,6 +20,7 @@ import {
   podLogLines,
   readAgent,
   setAddressAndCredential,
+  setAutoResumeMax,
   setDefaultModel,
   signInAndCreateProject,
 } from './helpers';
@@ -148,6 +149,7 @@ async function firstLogLine(runId: string): Promise<string> {
  * resumed one.
  */
 async function startPausedRun(page: Page, handle: string, projectId: string) {
+  await setAutoResumeMax(page, projectId, 0);
   const runId = await commentOnNewTicket(page, handle, projectId, `/${FOLLOW_UP} --fake-fail`);
   const firstPodLine = await firstLogLine(runId);
   await expect.poll(async () => (await readRun(page, runId)).status, { timeout: 60_000 }).toBe('paused');

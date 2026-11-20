@@ -28,6 +28,8 @@ export interface RunContext {
   maxConcurrentRuns: number;
   /** Idle end, seconds. The agent's `idleEndSeconds` (default `IDLE_END_SECONDS`, 1800); a field so the policy is not baked into workflow code. */
   idleEndSeconds?: number;
+  /** Automatic resumes in a row after an unexpected pod end; the agent's `autoResumeMax` (`AGENT_AUTO_RESUME_MAX_DEFAULT` when the agent row is gone). Read once when the run starts. */
+  autoResumeMax?: number;
   /** Seconds an `ending` session may take before the Job is deleted (normally `ENDING_DEADLINE_SECONDS`, 90); a test seam. */
   endingDeadlineSeconds?: number;
   /** Seconds an attach lease lives without a renewal (normally `TERMINAL_LEASE_TTL_SECONDS`, 300); a test seam like `idleEndSeconds`. */

@@ -109,6 +109,8 @@ export const agents = pgTable(
     doneKeepSeconds: integer('done_keep_seconds').notNull().default(86400),
     // Idle end: 5 minutes to 7 days, default 30 minutes. Mirrors AGENT_IDLE_END_SECONDS_* in @agentdesk/contracts.
     idleEndSeconds: integer('idle_end_seconds').notNull().default(1800),
+    // Automatic resumes after an unexpected pod end: 0 (off) to 10, default 5. Mirrors AGENT_AUTO_RESUME_MAX_* in contracts.
+    autoResumeMax: integer('auto_resume_max').notNull().default(5),
     createdAt: ts('created_at').notNull().defaultNow(),
   },
   (t) => [
@@ -118,6 +120,7 @@ export const agents = pgTable(
     check('agents_paused_keep_check', sql`${t.pausedKeepSeconds} between 3600 and 2592000`),
     check('agents_done_keep_check', sql`${t.doneKeepSeconds} between 0 and 604800`),
     check('agents_idle_end_check', sql`${t.idleEndSeconds} between 300 and 604800`),
+    check('agents_auto_resume_max_check', sql`${t.autoResumeMax} between 0 and 10`),
     check(
       'agents_base_url_check',
       sql`${t.baseUrl} is null or (${t.baseUrl} like 'https://%' and char_length(${t.baseUrl}) <= 2048)`,

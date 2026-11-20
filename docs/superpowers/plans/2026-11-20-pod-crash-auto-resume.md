@@ -16,7 +16,7 @@
 - AGENTS.md rules 1 to 11 bind every task. Layering is `apps → core → db → contracts`, and `web → contracts` only. Names stay generic (`autoResumeMax`, `auto_resume`, `personInput`). The agent column is read and written only through the existing scoped agent queries and `withOrg`.
 - No new dependency: no package, library, service, image, CI action, binary or workspace package.
 - Setting bounds: `AGENT_AUTO_RESUME_MAX_MIN = 0`, `AGENT_AUTO_RESUME_MAX_MAX = 10`, `AGENT_AUTO_RESUME_MAX_DEFAULT = 5`. Message, verbatim: "Automatic resumes must be between 0 and 10". 0 turns automatic resume off.
-- Migration: `packages/db/migrations/0020_agent_auto_resume_max.sql` adds `agents.auto_resume_max integer not null default 5` with `check (auto_resume_max between 0 and 10)`, named `agents_auto_resume_max_check`. Existing agents get 5. Never edit 0000 to 0019.
+- Migration: `packages/db/migrations/0021_agent_auto_resume_max.sql` adds `agents.auto_resume_max integer not null default 5` with `check (auto_resume_max between 0 and 10)`, named `agents_auto_resume_max_check`. Existing agents get 5. Never edit 0000 to 0020.
 - Unexpected ends are exactly the parks with `pauseReason` `pod_lost` or `agent_crashed` after the agent started. Kinds: `killed`, `lost`, `signal`, `session_gone`, `agent_exit`.
 - Note, verbatim. Automatic resume: `Agent Desk: your last session was killed (<bracket>). Resumed, try <try>/<max>. Background processes and /tmp are gone.` A person's Resume: `Agent Desk: your last session was killed (<bracket>). Resumed. Background processes and /tmp are gone.`
 - Brackets, verbatim: `killed` + `OOMKilled` → `OOMKilled, exit 137, limit <RUN_POD_MEMORY_LIMIT>`; `killed` + another usable reason → `<reason>, exit <code>`; `killed` with no usable reason → `exit <code>`; `lost` → `pod lost, no exit code`; `signal` → `SIGTERM from outside`; `session_gone` → `terminal session died`; `agent_exit` → `agent CLI exited with code <code>`. The code is the pod's real exit code from the cluster, never the end line's.
@@ -124,8 +124,8 @@ graph LR
 - Modify: `packages/contracts/src/schemas/agents.ts`
 - Modify: `packages/contracts/src/schemas/agents.test.ts`
 - Modify: `packages/db/src/schema/app.ts`
-- Create: `packages/db/migrations/0020_agent_auto_resume_max.sql` (generated, then checked)
-- Create: `packages/db/migrations/meta/0020_snapshot.json` (generated)
+- Create: `packages/db/migrations/0021_agent_auto_resume_max.sql` (generated, then checked)
+- Create: `packages/db/migrations/meta/0021_snapshot.json` (generated)
 - Modify: `packages/db/migrations/meta/_journal.json` (generated)
 - Modify: `packages/db/test/migrate.int.test.ts`
 - Modify: `apps/api/src/agents/agents.service.ts`
@@ -167,7 +167,7 @@ autoResumeMax: z.number().int().min(0, { message: 'Automatic resumes must be bet
 - Produces (core): `SIGNAL.personInput = 'personInput'`, with the doc "RunWorkflow: a person typed into the run's terminal; resets the automatic-resume count. No args."
 - Produces (local e2e): `export async function setAutoResumeMax(page: Page, projectId: string, value: number): Promise<void>` in `apps/web/e2e/local/helpers.ts`. It reads the agent, then `PUT /api/projects/:projectId/agent` with its `model`, `timeoutSeconds` and `autoResumeMax: value`, and expects 200.
 
-- [ ] **Step 1: Write the failing contract tests** in `agents.test.ts`
+- [x] **Step 1: Write the failing contract tests** in `agents.test.ts`
 
 ```ts
 expect(PutAgentRequest.parse({ model: 'opus', timeoutSeconds: 3600 }).autoResumeMax).toBeUndefined();
@@ -181,29 +181,29 @@ expect([AGENT_AUTO_RESUME_MAX_MIN, AGENT_AUTO_RESUME_MAX_MAX, AGENT_AUTO_RESUME_
 // AgentDto requires autoResumeMax (a fixture without it fails to parse).
 ```
 
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test agents`. Expected: FAIL (`autoResumeMax` not in the schema).
-- [ ] **Step 3: Add the constants and both fields** in `packages/contracts/src/schemas/agents.ts`, next to the idle-end ones.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Write the failing migration test** in `migrate.int.test.ts`: `agents.auto_resume_max defaults to 5 for new and existing agents and is limited to 0 to 10`. Copy the shape of the idle-end test: inserts with `auto_resume_max=-1` and `=11` reject with `code: '23514'` and `constraint: 'agents_auto_resume_max_check'`; `0` and `10` succeed; a row inserted without the column reads 5; and the SQL file `0020_agent_auto_resume_max.sql` adds exactly that column and that check.
-- [ ] **Step 6: Add the Drizzle column and check** in `packages/db/src/schema/app.ts` (beside `idleEndSeconds`). Then run `pnpm --filter @agentdesk/db db:generate -- --name agent_auto_resume_max`. Check that the SQL holds only the `ADD COLUMN "auto_resume_max" integer DEFAULT 5 NOT NULL` and `ADD CONSTRAINT "agents_auto_resume_max_check" CHECK (... between 0 and 10)` statements, like `0015_agent_idle_end.sql`.
-- [ ] **Step 7: Run** `pnpm --filter @agentdesk/db test:integration migrate`. Expected: PASS.
-- [ ] **Step 8: Write the failing API tests** in `apps/api/test/agents.int.test.ts`:
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test agents`. Expected: FAIL (`autoResumeMax` not in the schema).
+- [x] **Step 3: Add the constants and both fields** in `packages/contracts/src/schemas/agents.ts`, next to the idle-end ones.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Write the failing migration test** in `migrate.int.test.ts`: `agents.auto_resume_max defaults to 5 for new and existing agents and is limited to 0 to 10`. Copy the shape of the idle-end test: inserts with `auto_resume_max=-1` and `=11` reject with `code: '23514'` and `constraint: 'agents_auto_resume_max_check'`; `0` and `10` succeed; a row inserted without the column reads 5; and the SQL file `0021_agent_auto_resume_max.sql` adds exactly that column and that check.
+- [x] **Step 6: Add the Drizzle column and check** in `packages/db/src/schema/app.ts` (beside `idleEndSeconds`). Then run `pnpm --filter @agentdesk/db db:generate -- --name agent_auto_resume_max`. Check that the SQL holds only the `ADD COLUMN "auto_resume_max" integer DEFAULT 5 NOT NULL` and `ADD CONSTRAINT "agents_auto_resume_max_check" CHECK (... between 0 and 10)` statements, like `0015_agent_idle_end.sql`.
+- [x] **Step 7: Run** `pnpm --filter @agentdesk/db test:integration migrate`. Expected: PASS.
+- [x] **Step 8: Write the failing API tests** in `apps/api/test/agents.int.test.ts`:
   - `GET` shows `autoResumeMax: 5`.
   - `PUT` with `autoResumeMax: 2` saves it, and a later `PUT` without it keeps 2 (`expectContract('agents.get', …)` shows 2).
   - `PUT` with `autoResumeMax` -1 or 11 is a 400 whose errors include pointer `/autoResumeMax`.
-- [ ] **Step 9: Map the field** in `agents.service.ts`: `toDto` sets `autoResumeMax: row.autoResumeMax`, and `put` sets `autoResumeMax: body.autoResumeMax` (undefined is skipped). Run `pnpm --filter @agentdesk/api test:integration agents`. Expected: PASS.
-- [ ] **Step 10: Write the failing `loadRun` tests** in `run.activities.int.test.ts`: the "returns the run context" expectation gains `autoResumeMax: 5`; `takes autoResumeMax from the agent row` (`update agents set auto_resume_max = 2` → 2); `uses AGENT_AUTO_RESUME_MAX_DEFAULT when the agent row is gone` → 5.
-- [ ] **Step 11: Add the field** to `RunContext`, and have `loadRun` select `agents.autoResumeMax` and set `autoResumeMax: row.autoResumeMax ?? AGENT_AUTO_RESUME_MAX_DEFAULT`. Run `pnpm --filter @agentdesk/worker test:integration run.activities.int`. Expected: PASS.
-- [ ] **Step 12: Add `SIGNAL.personInput`** to `packages/core/src/temporal-names.ts`.
-- [ ] **Step 13: Keep the web compiling.** Add `autoResumeMax: 5` to every `AgentDto` literal: `mocks/dto/agents.ts`, the agent row `handlers.ts` creates with a new project, `agent.form.test.ts`, `agent.route.test.tsx` and `desk/map.test.ts`. The `agents.put` handler sets `agent.autoResumeMax = body.autoResumeMax ?? agent.autoResumeMax`. Run `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 14: Pin the existing crash specs to "off".** Add `setAutoResumeMax` to `helpers.ts`. Call `setAutoResumeMax(page, projectId, 0)` before the run is triggered in these places:
+- [x] **Step 9: Map the field** in `agents.service.ts`: `toDto` sets `autoResumeMax: row.autoResumeMax`, and `put` sets `autoResumeMax: body.autoResumeMax` (undefined is skipped). Run `pnpm --filter @agentdesk/api test:integration agents`. Expected: PASS.
+- [x] **Step 10: Write the failing `loadRun` tests** in `run.activities.int.test.ts`: the "returns the run context" expectation gains `autoResumeMax: 5`; `takes autoResumeMax from the agent row` (`update agents set auto_resume_max = 2` → 2); `uses AGENT_AUTO_RESUME_MAX_DEFAULT when the agent row is gone` → 5.
+- [x] **Step 11: Add the field** to `RunContext`, and have `loadRun` select `agents.autoResumeMax` and set `autoResumeMax: row.autoResumeMax ?? AGENT_AUTO_RESUME_MAX_DEFAULT`. Run `pnpm --filter @agentdesk/worker test:integration run.activities.int`. Expected: PASS.
+- [x] **Step 12: Add `SIGNAL.personInput`** to `packages/core/src/temporal-names.ts`.
+- [x] **Step 13: Keep the web compiling.** Add `autoResumeMax: 5` to every `AgentDto` literal: `mocks/dto/agents.ts`, the agent row `handlers.ts` creates with a new project, `agent.form.test.ts`, `agent.route.test.tsx` and `desk/map.test.ts`. The `agents.put` handler sets `agent.autoResumeMax = body.autoResumeMax ?? agent.autoResumeMax`. Run `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 14: Pin the existing crash specs to "off".** Add `setAutoResumeMax` to `helpers.ts`. Call `setAutoResumeMax(page, projectId, 0)` before the run is triggered in these places:
   - `run.spec.ts`: `a --fake-fail run pauses with "agent crashed (exit code 3)" and offers Resume`, and `an outage longer than the window parks the run with its work kept and it can be resumed`.
   - `run-model.spec.ts`: `startPausedRun`.
   - `transcript.spec.ts`: `killedMidTurn` (BR-52) and `TC-56.2`.
 
   In `scripts/e2e-local.ts` `failureScenario`, PUT the agent with `autoResumeMax: 0` after `setup` (same body shape as the helper).
-- [ ] **Step 15: Run the changed local specs** with the stack up (tests-and-e2e.md §3a), for example `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "fake-fail run pauses"`, and the same for each title above. `scripts/e2e-local.ts` has no filter, so run it once with `pnpm test:e2e:local`. Expected: PASS, unchanged behaviour. If the stack cannot start, say so in the PR and list the specs.
-- [ ] **Step 16: Typecheck and test the touched packages** (`contracts`, `db`, `api`, `worker`, `core`, `web`), then commit: `feat(contracts): agent autoResumeMax setting with its column, API and run context`.
+- [x] **Step 15: Run the changed local specs** with the stack up (tests-and-e2e.md §3a), for example `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "fake-fail run pauses"`, and the same for each title above. `scripts/e2e-local.ts` has no filter, so run it once with `pnpm test:e2e:local`. Expected: PASS, unchanged behaviour. If the stack cannot start, say so in the PR and list the specs.
+- [x] **Step 16: Typecheck and test the touched packages** (`contracts`, `db`, `api`, `worker`, `core`, `web`), then commit: `feat(contracts): agent autoResumeMax setting with its column, API and run context`.
 
 ---
 

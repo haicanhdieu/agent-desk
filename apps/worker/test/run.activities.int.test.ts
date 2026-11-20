@@ -232,6 +232,7 @@ describe('loadRun', () => {
       timeoutSeconds: 900,
       maxConcurrentRuns: 3,
       idleEndSeconds: 1800,
+      autoResumeMax: 5,
       endingDeadlineSeconds: 90,
       leaseTtlSeconds: 300,
     });
@@ -280,6 +281,22 @@ describe('loadRun', () => {
       const runId = await seedRun('x', 'queued');
       await asOwner((c) => c.query(`update runs set agent_id = null where id = $1`, [runId]));
       expect((await ctxFor(runId)).idleEndSeconds).toBe(1800);
+    });
+  });
+
+  describe('autoResumeMax per agent', () => {
+    afterEach(() => asOwner((c) => c.query(`update agents set auto_resume_max = 5 where id = $1`, [AGENT])));
+
+    it('takes autoResumeMax from the agent row', async () => {
+      await asOwner((c) => c.query(`update agents set auto_resume_max = 2 where id = $1`, [AGENT]));
+      const runId = await seedRun('x', 'queued');
+      expect((await ctxFor(runId)).autoResumeMax).toBe(2);
+    });
+
+    it('uses AGENT_AUTO_RESUME_MAX_DEFAULT when the agent row is gone', async () => {
+      const runId = await seedRun('x', 'queued');
+      await asOwner((c) => c.query(`update runs set agent_id = null where id = $1`, [runId]));
+      expect((await ctxFor(runId)).autoResumeMax).toBe(5);
     });
   });
 

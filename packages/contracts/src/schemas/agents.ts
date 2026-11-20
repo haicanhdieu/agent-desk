@@ -21,6 +21,7 @@ export const AgentDto = z.object({
   pausedKeepSeconds: z.number().int(),
   doneKeepSeconds: z.number().int(),
   idleEndSeconds: z.number().int(),
+  autoResumeMax: z.number().int(),
   credential: z.object({
     set: z.boolean(),
     type: CredentialType.nullable(),
@@ -49,6 +50,10 @@ export const AGENT_DONE_KEEP_SECONDS_DEFAULT = 86400;
 export const AGENT_IDLE_END_SECONDS_MIN = 300;
 export const AGENT_IDLE_END_SECONDS_MAX = 604800;
 export const AGENT_IDLE_END_SECONDS_DEFAULT = 1800;
+/** Automatic resumes after an unexpected pod end, in a row (spec 2026-11-20): 0 (off) to 10, default 5. */
+export const AGENT_AUTO_RESUME_MAX_MIN = 0;
+export const AGENT_AUTO_RESUME_MAX_MAX = 10;
+export const AGENT_AUTO_RESUME_MAX_DEFAULT = 5;
 
 export const AGENT_MODEL_ID_MAX = 200;
 export const AgentModelId = z
@@ -136,6 +141,13 @@ export const PutAgentRequest = z.object({
     .int()
     .min(AGENT_IDLE_END_SECONDS_MIN, { message: 'Idle runs must end after between 5 minutes and 7 days' })
     .max(AGENT_IDLE_END_SECONDS_MAX, { message: 'Idle runs must end after between 5 minutes and 7 days' })
+    .optional(),
+  /** Absent keeps the stored value. */
+  autoResumeMax: z
+    .number()
+    .int()
+    .min(AGENT_AUTO_RESUME_MAX_MIN, { message: 'Automatic resumes must be between 0 and 10' })
+    .max(AGENT_AUTO_RESUME_MAX_MAX, { message: 'Automatic resumes must be between 0 and 10' })
     .optional(),
 });
 export type PutAgentRequest = z.infer<typeof PutAgentRequest>;
