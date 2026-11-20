@@ -58,6 +58,15 @@ export class Terminal {
   private screen: HTMLElement | undefined;
   private keyHandler: ((event: KeyboardEvent) => boolean) | undefined;
   private selected = '';
+  private readonly oscHandlers = new Map<number, (data: string) => boolean | Promise<boolean>>();
+
+  /** The slice of xterm's escape sequence parser the app uses: OSC handlers. Fired by `osc()`. */
+  readonly parser = {
+    registerOscHandler: (ident: number, callback: (data: string) => boolean | Promise<boolean>): Disposable => {
+      this.oscHandlers.set(ident, callback);
+      return { dispose: () => this.oscHandlers.delete(ident) };
+    },
+  };
 
   constructor(options: FakeXtermOptions = {}) {
     this.options = { ...options };
@@ -150,6 +159,12 @@ export class Terminal {
     if (this.keyHandler && !this.keyHandler(event)) return event;
     this.data.fire(event.altKey ? '\x1b\r' : '\r');
     return event;
+  }
+
+  /** The program prints an OSC sequence `ESC ] ident ; data BEL`: calls the handler registered for `ident`, with the data after the first `;`. */
+  osc(ident: number, data: string): void {
+    if (this.disposed) return;
+    void this.oscHandlers.get(ident)?.(data);
   }
 
   /** The user selects `text` on the screen (an empty string clears it). */

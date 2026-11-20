@@ -182,6 +182,81 @@ describe('LiveTerminal', () => {
     });
   });
 
+  // Claude Code turns on mouse reporting and copies a selection itself: it prints OSC 52 (`ESC ] 52 ; c ; <base64> BEL`),
+  // which xterm ignores unless something handles it. The handler gets the text after `52;`.
+  describe('the clipboard sequence (OSC 52)', () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>();
+    const b64 = (text: string) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+    beforeEach(() => {
+      writeText.mockReset().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+    });
+
+    it('copies the text the program sets to the clipboard, decoded as UTF-8', () => {
+      render(<LiveTerminal />);
+      FakeXterm.latest().osc(52, `c;${b64('héllo ✻ wörld')}`);
+      expect(writeText).toHaveBeenCalledExactlyOnceWith('héllo ✻ wörld');
+    });
+
+    it('accepts any selection parameter, including none (what tmux forwards)', () => {
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      term.osc(52, `;${b64('one')}`);
+      term.osc(52, `pc;${b64('two')}`);
+      expect(writeText.mock.calls).toEqual([['one'], ['two']]);
+    });
+
+    it('never answers the read query: a pod cannot read the host clipboard', () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      FakeXterm.latest().osc(52, 'c;?');
+      expect(writeText).not.toHaveBeenCalled();
+      expect(onData).not.toHaveBeenCalled();
+    });
+
+    it('ignores an empty payload and invalid base64 without throwing', () => {
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      term.osc(52, 'c;');
+      term.osc(52, 'c;!!not base64!!');
+      term.osc(52, 'c');
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('read-only: a finished run never writes the clipboard', () => {
+      render(<LiveTerminal readOnly initial="done" />);
+      FakeXterm.latest().osc(52, `c;${b64('replayed')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('does nothing after unmount', () => {
+      const { unmount } = render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      unmount();
+      term.osc(52, `c;${b64('late')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('a refused clipboard write is logged, not thrown', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const refused = new Error('denied');
+      writeText.mockRejectedValue(refused);
+      render(<LiveTerminal />);
+      FakeXterm.latest().osc(52, `c;${b64('x')}`);
+      await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Could not copy the text the program set', refused));
+      warn.mockRestore();
+    });
+
+    it('without the clipboard API it does nothing', () => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      render(<LiveTerminal />);
+      expect(() => FakeXterm.latest().osc(52, `c;${b64('x')}`)).not.toThrow();
+    });
+  });
+
   it('read-only: Shift+Enter sends nothing', () => {
     const onData = vi.fn();
     render(<LiveTerminal readOnly onData={onData} />);

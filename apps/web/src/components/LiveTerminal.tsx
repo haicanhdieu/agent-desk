@@ -40,6 +40,21 @@ function isCopyKey(event: KeyboardEvent): boolean {
   return event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
 }
 
+/**
+ * The text of an OSC 52 "set clipboard" payload (`<selection>;<base64>`, what xterm hands over after `52;`), or
+ * undefined for anything else: the `?` read query, an empty payload (clear) or invalid base64.
+ */
+function clipboardText(data: string): string | undefined {
+  const split = data.indexOf(';');
+  const payload = split < 0 ? '' : data.slice(split + 1);
+  if (payload === '' || payload === '?') return undefined;
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(Uint8Array.from(atob(payload), (c) => c.charCodeAt(0)));
+  } catch {
+    return undefined;
+  }
+}
+
 export default function LiveTerminal({
   onData,
   onResize,
@@ -118,6 +133,23 @@ export default function LiveTerminal({
       return false;
     });
 
+    // Claude Code turns on mouse reporting and copies a selection itself, by printing OSC 52 (set clipboard). xterm
+    // ignores it unless handled, so the copy never reached the clipboard. Only "set" is honoured: the `?` query is never
+    // answered (a pod must not read the host clipboard), and a finished run's replayed scrollback never writes it.
+    // The handler runs shortly after the mouse-up, while the browser still counts the user's gesture; where it does not,
+    // the refused write is logged.
+    const osc52 = noInput
+      ? undefined
+      : term.parser.registerOscHandler(52, (data) => {
+          const copied = clipboardText(data);
+          if (copied !== undefined && navigator.clipboard) {
+            navigator.clipboard.writeText(copied).catch((err: unknown) => {
+              console.warn('Could not copy the text the program set', err);
+            });
+          }
+          return true;
+        });
+
     const report = () => callbacks.current.onResize?.({ cols: term.cols, rows: term.rows });
     const subscriptions = [
       term.onResize(report),
@@ -153,6 +185,7 @@ export default function LiveTerminal({
       observer?.disconnect();
       cancelAnimationFrame(frame);
       for (const s of subscriptions) s.dispose();
+      osc52?.dispose();
       termRef.current = null;
       term.dispose();
     };
