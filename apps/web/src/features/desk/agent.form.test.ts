@@ -94,6 +94,20 @@ describe('limitsRequests', () => {
   });
 });
 
+describe('limitsRequests automatic resumes', () => {
+  it('a changed value is sent as is', () => {
+    expect(limitsRequests(base, { ...base, autoResumeMax: 2 })).toEqual({ autoResumeMax: 2 });
+  });
+
+  it('an unchanged value sends nothing', () => {
+    expect(limitsRequests(base, { ...base, autoResumeMax: base.autoResumeMax })).toEqual({});
+  });
+
+  it('0 (off) counts as a change', () => {
+    expect(hasLimitChanges({ autoResumeMax: 0 })).toBe(true);
+  });
+});
+
 describe('limitsRequests keep times', () => {
   it('a changed paused keep time is sent in seconds', () => {
     expect(limitsRequests(base, { ...base, pausedKeepMinutes: 3 * 1440 })).toEqual({ pausedKeepSeconds: 259200 });

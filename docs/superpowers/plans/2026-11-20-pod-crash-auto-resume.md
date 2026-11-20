@@ -681,7 +681,7 @@ More rules:
   - `sessionOf` sets `autoResumeGaveUp` for a paused `pod_lost` or `agent_crashed` run when scanning back from the newest event finds that payload before any `status` event other than `paused`.
   - `resumeFailure` ignores `auto_resume_gave_up` events, as it ignores comments, when it picks the newest event.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - In `agent.form.test.ts`: `limitsRequests(base, { ...base, autoResumeMax: 2 })` equals `{ autoResumeMax: 2 }`; an unchanged value sends nothing; `hasLimitChanges({ autoResumeMax: 0 })` is true.
   - In `agent.route.test.tsx`: `saving 2 automatic resumes sends autoResumeMax 2 and shows it after a reload` (PUT body `{ model: 'opus', timeoutSeconds: 1800, autoResumeMax: 2 }`); `12 automatic resumes shows "Automatic resumes must be between 0 and 10" on the field and saves nothing`.
   - In `detail.map.test.ts`, for a paused `pod_lost` run:
@@ -692,10 +692,10 @@ More rules:
     - A `status running` after the event → no line. An `idle_timeout` pause with the event → no line.
     - `status paused`, `resume_failed 'the pod could not start'`, `auto_resume_gave_up 5`, `comment` → `resumeFailure: 'Resume failed: the pod could not start'` and the line.
     - `… resume_failed` with no gave-up → the bar and no line (the waiting state).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test agent.form agent.route detail.map`. Expected: FAIL.
-- [ ] **Step 3: Implement** the form changes in `agent.form.ts` and the payload, `sessionOf` and `resumeFailure` changes in `detail.map.ts`.
-- [ ] **Step 4: Run** the same command, then `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(web): save automatic resumes and show when automatic resume gave up`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test agent.form agent.route detail.map`. Expected: FAIL.
+- [x] **Step 3: Implement** the form changes in `agent.form.ts` and the payload, `sessionOf` and `resumeFailure` changes in `detail.map.ts`.
+- [x] **Step 4: Run** the same command, then `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(web): save automatic resumes and show when automatic resume gave up`.
 
 ---
 
@@ -723,9 +723,9 @@ More rules:
 
   `browser.ts` seeds them with `mockDb.addRuns(autoResumeRunFixtures, autoResumeEventFixtures)`.
 
-- [ ] **Step 1: Write the fixture test** `autoResumeRuns.test.ts`: every run and event parses through `RunDto` / `RunEventDto`, and `toRunDetail` reads each as the state it stands for (for example run 99's `session.autoResumeGaveUp` is `'Tried to resume automatically 5 times.'`). Run `pnpm --filter @agentdesk/web test autoResumeRuns`. Expected: FAIL, then PASS after Step 2.
-- [ ] **Step 2: Add the fixtures and the seeding.**
-- [ ] **Step 3: Write the mock specs** in `auto-resume.spec.ts`, one `test` per case:
+- [x] **Step 1: Write the fixture test** `autoResumeRuns.test.ts`: every run and event parses through `RunDto` / `RunEventDto`, and `toRunDetail` reads each as the state it stands for (for example run 99's `session.autoResumeGaveUp` is `'Tried to resume automatically 5 times.'`). Run `pnpm --filter @agentdesk/web test autoResumeRuns`. Expected: FAIL, then PASS after Step 2.
+- [x] **Step 2: Add the fixtures and the seeding.**
+- [x] **Step 3: Write the mock specs** in `auto-resume.spec.ts`, one `test` per case:
   - `Automatic resumes after a crash shows 5 by default with its help text`.
   - `a saved change to 2 is shown again after leaving the page`. Fill 2, press Save limits, see "Limits saved", leave by the "Routing rules" link and come back, and the value is `'2'`.
   - `12 is refused with "Automatic resumes must be between 0 and 10", the field marked invalid, and nothing saved`.
@@ -736,8 +736,8 @@ More rules:
   - `while waiting between tries the page shows "Resume failed: the pod could not start" and no gave-up line` (run 102).
   - `when the last try could not start the page shows the Resume failed bar and the gave-up line` (run 103).
   - `a running run's Lifecycle list shows the automatic resume line`. Run 104's side panel Lifecycle shows "The last session was killed (OOMKilled, exit 137, limit 3Gi). Resuming automatically, try 1 of 5." between "Claude Code started" and "Pod running".
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock`, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/auto-resume.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit:** `test(web): mock e2e for automatic resume after a crash`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock`, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/auto-resume.spec.ts`. Expected: PASS.
+- [x] **Step 5: Commit:** `test(web): mock e2e for automatic resume after a crash`.
 
 ---
 

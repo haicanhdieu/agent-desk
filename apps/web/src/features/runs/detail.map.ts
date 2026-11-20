@@ -120,6 +120,11 @@ const PodExitKind = z.object({ kind: z.literal('pod_exit') });
  */
 const PodExitPayload = z.object({ kind: z.literal('pod_exit'), code: z.number().int().min(0).max(255).nullable() });
 const ResumeFailedPayload = z.object({ kind: z.literal('resume_failed'), reason: z.string().optional() });
+/** The worker's note that automatic resume ran out of tries (written by the worker, not by anything in the pod). */
+const AutoResumeGaveUpPayload = z.object({
+  kind: z.literal('auto_resume_gave_up'),
+  tries: z.number().int().min(1).max(10),
+});
 
 const textOf = (e: RunEventDto): string | undefined => TextPayload.safeParse(e.payload).data?.text;
 
@@ -464,11 +469,35 @@ function resumedNote(run: RunCore, events: RunEventDto[]): string | undefined {
   return `Resumed. ${said}Background tasks and sub-agents that were running when it paused were stopped.`;
 }
 
+const isGaveUp = (e: RunEventDto): boolean =>
+  e.type === 'lifecycle' && AutoResumeGaveUpPayload.safeParse(e.payload).success;
+
+/**
+ * The line saying automatic resume ran out of tries: the `auto_resume_gave_up` event, found scanning back from the
+ * newest event before any status other than `paused` (a later status means the run moved on).
+ */
+function autoResumeGaveUpLine(events: RunEventDto[]): string | undefined {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const e = events[i];
+    if (e === undefined) continue;
+    if (e.type === 'status') {
+      if (StatusPayload.safeParse(e.payload).data?.status !== 'paused') return undefined;
+      continue;
+    }
+    const gaveUp = e.type === 'lifecycle' ? AutoResumeGaveUpPayload.safeParse(e.payload) : undefined;
+    if (gaveUp?.success) {
+      const { tries } = gaveUp.data;
+      return `Tried to resume automatically ${tries} ${tries === 1 ? 'time' : 'times'}.`;
+    }
+  }
+  return undefined;
+}
+
 /** The reason of a resume that fell back, when it is the latest event of the run apart from comments (the run is parked again). */
 function resumeFailure(events: RunEventDto[]): string | undefined {
   // The park appends the failure and then posts the ticket comment (a `comment` event), so the newest event that is
   // not a comment decides; a later status or lifecycle event means the run moved on.
-  const last = events.filter((e) => e.type !== 'comment').at(-1);
+  const last = events.filter((e) => e.type !== 'comment' && !isGaveUp(e)).at(-1);
   const failed = last?.type === 'lifecycle' ? ResumeFailedPayload.safeParse(last.payload) : undefined;
   if (!failed?.success) return undefined;
   return failed.data.reason ? `Resume failed: ${failed.data.reason}` : 'Resume failed';
@@ -522,11 +551,13 @@ function sessionOf(run: RunCore, events: RunEventDto[], now: Date): RunDetailDat
           : left === undefined
             ? undefined
             : `Paused: waiting for your answer. Can be resumed for ${left}.`;
+    const gaveUp = crashed || lost ? autoResumeGaveUpLine(events) : undefined;
     return {
       state: 'paused',
       ...(stopped && { stopped: true as const }),
       ...(headline !== undefined && { headline }),
       ...(detail !== undefined && { detail }),
+      ...(gaveUp !== undefined && { autoResumeGaveUp: gaveUp }),
       ...failed,
     };
   }

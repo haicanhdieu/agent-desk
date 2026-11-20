@@ -37,6 +37,13 @@ export const CRASHED_RUN = 68;
 export const RESUME_FAILED_RUN = 69;
 export const RESUMED_RUN = 70;
 export const KILLED_RUN = 71;
+/** The runs after an unexpected pod end with automatic resume (src/mocks/dto/autoResumeRuns.ts, browser mock only). */
+export const GAVE_UP_RUN = 99;
+export const GAVE_UP_ONCE_RUN = 100;
+export const CRASHED_GAVE_UP_RUN = 101;
+export const AUTO_WAITING_RUN = 102;
+export const AUTO_FAILED_GAVE_UP_RUN = 103;
+export const AUTO_RESUMED_RUNNING_RUN = 104;
 /**
  * The runs for stop session and the saved Transcript (src/mocks/dto/sessionRuns.ts, browser mock only). The mocked
  * specs install a fixed clock at SESSION_MOCK_NOW so their relative times ("Stopped by you 2 min ago.") hold.
