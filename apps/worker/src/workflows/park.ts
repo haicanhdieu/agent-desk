@@ -41,13 +41,14 @@ export function resumeRejection(phase: RunPhase): string | undefined {
   return 'Only a paused run, or a finished run whose session is still kept, can be resumed';
 }
 
-/** What a cancel does in this phase. */
+/** What a cancel does in this phase. `automatic`: the current resume was started by the workflow; a cancel before its session is up stops the run. */
 export function cancelEffect(
   phase: RunPhase,
   kind: ParkKind | undefined,
   sessionUp: boolean,
+  automatic = false,
 ): 'stop_run' | 'abort_resume' | 'ignore' {
-  if (phase === 'resuming' && !sessionUp) return 'abort_resume';
+  if (phase === 'resuming' && !sessionUp && !automatic) return 'abort_resume';
   if (phase === 'parked' && kind === 'done') return 'ignore';
   return 'stop_run';
 }
@@ -100,4 +101,49 @@ export function endOutcome(input: EndOutcomeInput): EndOutcome {
   if (input.endReason !== 'agent_exit') return { kind: 'park', parkKind, reason: 'pod_lost' };
   if (input.exitCode === 0) return { kind: 'succeeded' };
   return { kind: 'park', parkKind, reason: 'agent_crashed' };
+}
+
+/** Mirrors UNEXPECTED_END_KINDS in @agentdesk/core (workflow code cannot import core); a test asserts equality. */
+export const UNEXPECTED_END_KINDS = ['killed', 'lost', 'signal', 'session_gone', 'agent_exit'] as const;
+export type UnexpectedEndKind = (typeof UNEXPECTED_END_KINDS)[number];
+export interface UnexpectedEnd {
+  kind: UnexpectedEndKind;
+  exitCode?: number;
+  podReason?: string;
+}
+
+const killed = (input: { exitCode: number; podReason?: string }): UnexpectedEnd => ({
+  kind: 'killed',
+  exitCode: input.exitCode,
+  ...(input.podReason !== undefined ? { podReason: input.podReason } : {}),
+});
+
+/** The kind of unexpected end and its facts, in `endOutcome`'s order; undefined for any end that is not unexpected. */
+export function unexpectedEndOf(input: EndOutcomeInput & { podReason?: string }): UnexpectedEnd | undefined {
+  if (input.ending) return undefined;
+  if (input.podLost) return { kind: 'lost' };
+  if (input.endReason === undefined) {
+    if (input.exitCode === 0) return undefined;
+    return killed(input);
+  }
+  if (input.endReason === 'signal') return { kind: 'signal' };
+  if (input.endReason === 'session_gone') return { kind: 'session_gone' };
+  if (input.endReason === 'stop_request') return killed(input);
+  if (input.exitCode === 0) return undefined;
+  return { kind: 'agent_exit', exitCode: input.exitCode };
+}
+
+export type AutoResumeDecision = 'resume' | 'gave_up' | 'off';
+
+/** off: max <= 0 or the park kind is done; gave_up: streak >= max; else resume. */
+export function autoResumeDecision(streak: number, max: number, parkKind: ParkKind): AutoResumeDecision {
+  if (max <= 0 || parkKind === 'done') return 'off';
+  return streak >= max ? 'gave_up' : 'resume';
+}
+
+export const AUTO_RESUME_WAIT_MAX_SECONDS = 600;
+
+/** Wait before the next try after `failedStarts` tries in a row whose pod could not start: 60, 120, 240, 480, then 600. */
+export function autoResumeWaitSeconds(failedStarts: number): number {
+  return Math.min(AUTO_RESUME_WAIT_MAX_SECONDS, 60 * 2 ** Math.max(0, failedStarts - 1));
 }

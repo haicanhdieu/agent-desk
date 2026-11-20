@@ -241,7 +241,7 @@ export function cancelEffect(phase: RunPhase, kind: ParkKind | undefined, sessio
 
 Mapping (Agent calls above): `podLost` → `{ kind: 'lost' }`. No end line and a non-zero code → `{ kind: 'killed', exitCode, podReason }`. End line `signal` → `{ kind: 'signal' }`. `session_gone` → `{ kind: 'session_gone' }`. `stop_request` while not ending → `killed`. `agent_exit` with a non-zero code → `{ kind: 'agent_exit', exitCode }`. `podReason` is copied only when given; absent facts are left out, never set to `undefined`.
 
-- [ ] **Step 1: Write the failing tests** in `park.test.ts`:
+- [x] **Step 1: Write the failing tests** in `park.test.ts`:
 
 ```ts
 const base = { ending: false, finishRequested: false, phase: 'running' as const, podLost: false, exitCode: 137 };
@@ -261,10 +261,10 @@ expect(unexpectedEndOf({ ...base, endReason: 'agent_exit', exitCode: 0 })).toBeU
   - `autoResumeDecision`: `(0, 5, 'needs_input')` → `'resume'`; `(4, 5, 'needs_input')` → `'resume'`; `(5, 5, 'needs_input')` → `'gave_up'`; `(0, 0, 'needs_input')` → `'off'`; `(0, 5, 'done')` → `'off'`.
   - `autoResumeWaitSeconds`: `[1, 2, 3, 4, 5, 9].map(autoResumeWaitSeconds)` equals `[60, 120, 240, 480, 600, 600]`.
   - `cancelEffect`: `('resuming', 'needs_input', false, true)` → `'stop_run'`; `('resuming', 'needs_input', false, false)` → `'abort_resume'`; with `automatic` omitted the existing cases are unchanged.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker test park`. Expected: FAIL (not exported).
-- [ ] **Step 3: Implement** the four exports and the `cancelEffect` parameter in `park.ts`. `unexpectedEndOf` follows `endOutcome`'s branches one for one, so the parity test pins it.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Typecheck and commit:** `feat(worker): decisions for resuming a run after an unexpected pod end`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker test park`. Expected: FAIL (not exported).
+- [x] **Step 3: Implement** the four exports and the `cancelEffect` parameter in `park.ts`. `unexpectedEndOf` follows `endOutcome`'s branches one for one, so the parity test pins it.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Typecheck and commit:** `feat(worker): decisions for resuming a run after an unexpected pod end`.
 
 ---
 
