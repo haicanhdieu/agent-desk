@@ -8,7 +8,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 // 2 GiB, and each of those commands is a node process of 0.5-1 GiB, so how many run at once is what keeps the pod alive.
 // The tests drive the real script in a throwaway git repo with a stub `pnpm` that records how many run at the same time.
 const verify = resolve(__dirname, '..', '.agent', 'skills', 'dev-build', 'scripts', 'verify.sh');
-const PACKAGES = ['a', 'b', 'c', 'd'];
+// 2 packages give 4 light commands (enough to tell a cap of 1, 2 or 3 apart) and keep a serial run near 2.4 s. With 4
+// packages a CHECK_CONCURRENCY=1 run is 12 x 0.4 s = 4.8 s of fixed sleeping, right at the 5 s test timeout.
+const PACKAGES = ['a', 'b'];
 
 let dir: string;
 let repo: string;
@@ -86,7 +88,7 @@ describe('verify.sh', () => {
 
   it('runs at most 2 lint/typecheck commands at the same time, however many packages changed', async () => {
     expect(await runVerify()).toBe(0);
-    // 4 packages x (lint + typecheck) = 8 light commands; run all at once they peak at 8.
+    // 2 packages x (lint + typecheck) = 4 light commands; run all at once they peak at 4.
     expect(peak()).toBeLessThanOrEqual(2);
     expect(peak()).toBe(2);
   });
