@@ -69,6 +69,12 @@ async function until<T>(fn: () => T | undefined | false | Promise<T | undefined 
   }
 }
 
+/**
+ * A test ends when its client sees the close, but the server's cleanup (which issues `agentdesk-detach`) can run just
+ * after. Wait for it so a late detach is not counted against the next test's exec log.
+ */
+const previousSocketsCleanedUp = (): Promise<true> => until(() => t.app.get(TerminalGateway).openCount() === 0);
+
 const orgIdOf = async (slug: string): Promise<string> =>
   ((await t.db.pool.query('select id from organization where slug = $1', [slug])).rows[0] as { id: string }).id;
 
@@ -226,7 +232,8 @@ const signalsFor = (runId: string, name: string) =>
   t.temporal.callsOfKind('signal').filter((c) => c.workflowId === runWorkflowId(runId) && c.args[0] === name);
 
 describe('terminal relay', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await previousSocketsCleanedUp();
     execCalls = 0;
     execLog.length = 0;
     execOverride = undefined;
@@ -879,7 +886,8 @@ const connectSetup = (id: string, opts: { cookie?: string; origin?: string | nul
   connect(id, { ...opts, path: stPath(id) });
 
 describe('terminal relay: setup tests', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    await previousSocketsCleanedUp();
     execCalls = 0;
     execLog.length = 0;
     execOverride = undefined;
