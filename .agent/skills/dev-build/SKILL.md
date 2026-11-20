@@ -17,14 +17,14 @@ No human in the loop. **You never halt on your own judgment.** A question that w
 
 You keep what is outward-facing or a gate: every issue comment, board move and issue label, and every stop, block or retry decision. Subagents read, build, check and open the PR, so long output and untrusted ticket text stay out of your context. The Advisor answers would-be-human questions; acting on its answer is your call.
 
-| Step      | Done by                                                    | Tier / effort                                     |
-| --------- | ---------------------------------------------------------- | ------------------------------------------------- |
-| 1 Triage  | Triage agent                                               | `medium` / `high`                                 |
-| 2 Start   | `scripts/start.sh` (no model)                              |                                                   |
-| 3 Build   | Fixer or Implementer(s)                                    | `medium` / `high` (Fixer), `medium` (Implementer) |
-| 4 Verify  | Verifier and Self-reviewer, in parallel                    | `low` / `low` and `medium` / `medium`             |
-| 5 Open PR | PR agent                                                   | `low` / `low`                                     |
-| Any step  | Advisor, only for would-be-human questions (max 8 per run) | `high` / `high`                                   |
+| Step      | Done by                                                                                 | Tier / effort                                                   |
+| --------- | --------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| 1 Triage  | Triage agent                                                                            | `medium` / `high`                                               |
+| 2 Start   | `scripts/start.sh` (no model)                                                           |                                                                 |
+| 3 Build   | Fixer or Implementer(s)                                                                 | `medium` / `high` (Fixer), `medium` (Implementer)               |
+| 4 Verify  | E2E verifier first (with E2E requirements), then Verifier and Self-reviewer in parallel | `medium` / `medium`, then `low` / `low` and `medium` / `medium` |
+| 5 Open PR | PR agent                                                                                | `low` / `low`                                                   |
+| Any step  | Advisor, only for would-be-human questions (max 8 per run)                              | `high` / `high`                                                 |
 
 Multi-unit mode adds a **Reviewer** (tier `medium`, effort `medium`; effort `high` when sensitive, tier stays `medium`) per unit and once for the whole branch.
 
@@ -116,23 +116,30 @@ If either fails, re-dispatch once with "You did not follow <skill>. Load it now 
 
 ### 4. Verify
 
-After the last builder, spawn the **Verifier** and **Self-reviewer** in one message (parallel). They share the worktree: the Verifier runs commands and may briefly revert and restore the fix's source files (bugs only), so the Self-reviewer reads only from git, never from disk.
+After the last builder, with E2E requirements, spawn the **E2E verifier** first and wait for it (below). Then spawn the **Verifier** and **Self-reviewer** in one message (parallel), on the HEAD the E2E verifier reported, so any e2e test fix it committed is linted, typechecked and reviewed in the same round. Spawn them even when the E2E verifier found product bugs, so the builder gets every failure at once. The Verifier and Self-reviewer share the worktree: the Verifier runs commands and may briefly revert and restore the fix's source files (bugs only), so the Self-reviewer reads only from git, never from disk.
 
 - **Verifier:** runs `scripts/verify.sh` once: `devbox run fix`, then lint and typecheck per touched package 2 at a time, then unit tests scoped to the change (`vitest --changed <base>`; a shared `packages/*` runs its full unit suite; integration tests only when the diff touches one or `packages/db`). The full suites and integration shards are CI's job. For a bug, it also proves the regression test fails without the fix. Returns exit codes and verbatim output; fixes nothing.
 - **No repeated checks.** Builders run only the tests they wrote (never the full suite, typecheck or lint). The Verifier's run is the one local gate; the PR agent reuses it (create-pr preflight) and reruns nothing on the same head.
 - **Self-reviewer:** reads the diff against [code-review-checklist.md](../../../docs/conventions/code-review-checklist.md), checks scope (only what the ticket asks, about 800 changed lines or fewer) and TDD evidence. Returns findings; changes nothing.
-- **E2E requirements.** When Triage's `E2E REQUIREMENTS` names a file (a spec or plan with a `## E2E requirements` section, as `dev-plan` writes), keep both agents' E2E steps in their prompts and fill in the file paths; **never drop or shorten them**, in any round, for any reason. The Verifier runs the e2e specs of the branch (its step 4). The Self-reviewer checks every rule (`BR-<n>`) and case (`TC-<n.m>`) against the e2e specs and the product code (its step 6), and files a finding for each miss. The rules and cases are the truth; the code, the mocks and the tests are what is being checked, because any of them may hold the bug. With `E2E REQUIREMENTS: none`, drop those two steps.
+- **E2E verifier.** When Triage's `E2E REQUIREMENTS` names a file (a spec or plan with a `## E2E requirements` section, as `dev-plan` writes), spawn it every round; **never skip it or shorten its prompt**, in any round, for any reason (a red unit test, a long stack start, a hurry). It runs `pnpm env:detect`, starts the stack from the worktree as the runbook for that environment says ([tests-and-e2e.md](../../../docs/runbooks/tests-and-e2e.md) §4 on devbox, §4a and [runner-pod.md](../../../docs/runbooks/runner-pod.md) in a runner pod), runs the branch's mock and local specs, and sorts each failure: **PRODUCT_BUG** (the product misses the case's Expected; it reports, never fixes), **TEST_ISSUE** (the product meets the case but the test code is wrong; it fixes files under `apps/web/e2e/` only, reruns, up to 3 tries per test, commits as `test(web): …`), or an environment problem. With E2E requirements, also keep the Self-reviewer's E2E step and fill in the file paths; never drop it. The Self-reviewer checks every rule (`BR-<n>`) and case (`TC-<n.m>`) against the e2e specs and the product code (its step 6), and files a finding for each miss. The rules and cases are the truth; the code, the mocks and the tests are what is being checked, because any of them may hold the bug. With `E2E REQUIREMENTS: none`, drop those two steps.
 
 Read both yourself (`superpowers:verification-before-completion`):
 
 1. Pass/fail from exit codes and output, not words: `fix` prints `fix: clean.`, every exit code is 0, a bug's `REGRESSION CHECK` says it failed without the fix, `TREE CLEAN AFTER` is `yes`, and `HEAD` matches `git -C <worktree> rev-parse HEAD`. The `low` Verifier can copy wrongly: rerun one command yourself (the scoped test command of the main change) and confirm.
-2. **E2E, when requirements are present.** All of these hold, or the round is red:
-   - the Self-reviewer's `E2E COVERAGE` has a line for every case in the section (count the `TC-` ids yourself: `git -C <worktree> show HEAD:<file> | grep -c "^| TC-"`), and none says `no test`;
-   - every case marked `matches` names a test that the Verifier's `E2E` block shows as run and passed. A test the Self-reviewer cites but the Verifier did not run is not proven;
-   - the Verifier's skip grep is empty, and its `E2E` block is not "no e2e spec added or changed on this branch";
-   - nothing is `unavailable`. One exception, from [AGENTS.md](../../../AGENTS.md) (E2E for every implementation): the local stack truly cannot start because the machine has no container engine (`pnpm env:detect` shows it; a runner pod without the stack). Then the mock specs must still have run and passed, and you give the PR agent the local specs as "written, not run", never as passed. A stack that failed to start on a machine that has an engine is a failed check.
+2. **E2E, when requirements are present.** First read the E2E verifier's reply:
+   - **PRODUCT_BUG:** goes to the builder that owns the code, like a Verifier failure (fixed, not assessed), with the case id, its Expected text, the verbatim error and the file:line. Then a new round.
+   - **TEST_FIXES:** for each commit, open its diff (`git -C <worktree> show <sha>`) and the case. It touches only `apps/web/e2e/`, it moves the test toward the case's Given/Steps/Expected, and it does not loosen an assertion, delete a test, add skip/fixme/only or an unexplained timeout. A fix that fails this check is a product bug hidden by the test: revert it through the builder (`git revert <sha>` in a fresh builder prompt) and send the original failure as a PRODUCT_BUG.
+   - **TEST_ISSUE_UNFIXED:** a failed agent; re-dispatch the E2E verifier once with the error, then it is a stop condition for the Advisor.
+   - **ENV_ISSUE / ENV_BLOCKED:** a failed check, never passed. Re-dispatch the E2E verifier once with the evidence; still failing is a stop condition for the Advisor (it may rule how to free the stack; it never waives the run).
+   - Its `HEAD` must equal `git -C <worktree> rev-parse HEAD` and the HEAD the Verifier ran on; `STACK STOPPED` and `TREE CLEAN AFTER` are `yes`.
 
-   A failing e2e spec means the product is wrong until the builder shows, by quoting the case, that the spec departs from it. Never accept "the test was wrong" on the builder's word: open the case and the assertion.
+   Then all of these hold, or the round is red:
+   - the Self-reviewer's `E2E COVERAGE` has a line for every case in the section (count the `TC-` ids yourself: `git -C <worktree> show HEAD:<file> | grep -c "^| TC-"`), and none says `no test`;
+   - every case marked `matches` names a test that the E2E verifier's `RESULTS` show as run and passed on that HEAD. A test the Self-reviewer cites but the E2E verifier did not run is not proven;
+   - the E2E verifier's `SKIP GREP` is empty, and its `SPECS` is not "no e2e spec added or changed on this branch";
+   - `FAILURES` is `none`. One exception, from [AGENTS.md](../../../AGENTS.md) (E2E for every implementation): `NO_ENGINE`, the machine has no container engine and is not a runner pod (the `ENV` line's env:detect output shows it). Then the mock specs must still have run and passed, and you give the PR agent the local specs as "written, not run", never as passed. A runner pod uses `runner-stack.sh` and is never `NO_ENGINE`; a stack that failed to start on a machine that has an engine is a failed check.
+
+   A failing e2e spec means the product is wrong until someone shows, by quoting the case, that the spec departs from it. Never accept "the test was wrong" on the word of the builder or the E2E verifier: open the case and the assertion.
 
 3. Self-reviewer `findings` are real until you read the code and rule otherwise. Every finding that holds is fixed, minor ones and nits included; none is left for the PR. Out-of-scope changes go back to the builder to remove. If you still can't tell whether a finding is real, or its fix needs a choice no rule settles, ask the Advisor. A Verifier failure is never an Advisor question.
 
@@ -142,7 +149,7 @@ Failures and findings go to the builder that owns the code (step 3 rules, a fres
 
 **Builders re-verify findings; they do not obey.** A Self-reviewer or Reviewer finding is a claim. Send it in the Implementer prompt's "Findings to assess" block (a Verifier failure is not a finding: it is fixed, not assessed). The builder fixes only what passes the [validity test](../dev-review/severity.md#validity-test-before-anyone-fixes-a-finding) (real; violates a named requirement, rule, convention or standard; in scope with a safe fix) and declines the rest with a reason and evidence. Check its `ASSESSMENT`, `DECLINED` and `UNSURE`: open the cited file:line or test for each decline and accept it only if it holds; otherwise re-dispatch once with your counter-evidence, then the Advisor if you still disagree. A finding closed as declined does not count against the round caps and is listed under judgment calls in the PR body. Never re-send a declined finding that you accepted.
 
-**Cap: 3 verify rounds per run** (the first plus at most 2 after fixes; a round = both agents ran). If round 3 still fails or has findings, ask the Advisor (stop condition). On `needs_human` only: push the branch, post **Needs clarification** ("I stopped", `Stopped at: verify, round 3`, the verbatim failing command and last output lines, or the open findings), `board.sh status <n> Blocked`, report. Never go to step 5 over a red round; never ask the Advisor to waive a failing check, only how to fix it. Rounds restart at 1 on a resumed run. Never claim success, open the PR or move the card on output you did not see pass. `format:check` fails repo-wide until the one-time reformat lands; `fix` covers your files.
+**Cap: 3 verify rounds per run** (the first plus at most 2 after fixes; a round = every verify agent ran: E2E verifier when required, Verifier, Self-reviewer). The E2E verifier's own test-fix retries happen inside one round and do not count. If round 3 still fails or has findings, ask the Advisor (stop condition). On `needs_human` only: push the branch, post **Needs clarification** ("I stopped", `Stopped at: verify, round 3`, the verbatim failing command and last output lines, or the open findings), `board.sh status <n> Blocked`, report. Never go to step 5 over a red round; never ask the Advisor to waive a failing check, only how to fix it. Rounds restart at 1 on a resumed run. Never claim success, open the PR or move the card on output you did not see pass. `format:check` fails repo-wide until the one-time reformat lands; `fix` covers your files.
 
 ### 5. Open the PR
 
@@ -238,7 +245,10 @@ These hold even when the user says to hurry or skip a step. Say so in your repor
 | "I'll ask in the terminal and wait"                 | Post on the issue, set Blocked, stop.                      |
 | "Ask all the gaps at once, it saves a round"        | One question per message. The next run asks the next.      |
 | "Round 3 is red but close, open the PR anyway"      | Never. Ask the Advisor how to fix; it can't waive.         |
-| "Unit tests cover it; skip the e2e this round"      | E2E requirements present: both E2E steps run, every round. |
+| "Unit tests cover it; skip the e2e this round"      | E2E requirements present: E2E verifier runs, every round.  |
+| "The stack takes long to start; skip local specs"   | Start it as the runbook says for the env. Only no-engine.  |
+| "The e2e failed; the test is flaky, mark it skip"   | Sort it: product bug to builder, test issue fixed + rerun. |
+| "The E2E verifier says TEST_ISSUE, accept it"       | Open its commit and the case. Loosened = product bug.      |
 | "The e2e fails but the code looks right"            | The rule is the truth. The code is wrong until proven.     |
 | "The test passes, so the rule is met"               | Tests can be wrong too. Self-reviewer checks vs the case.  |
 | "The rule is outdated; adjust the case or the test" | Never edit a rule to fit code. Advisor, then a human.      |
