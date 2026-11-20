@@ -1,6 +1,14 @@
 import { useState } from 'react';
 import { Button } from '@/ds';
-import { DataTable, EmptyState, NeedsYouBanner, RunRow, TicketGroupRow } from '@/components';
+import {
+  DataTable,
+  EmptyState,
+  NeedsYouBanner,
+  Pagination,
+  RunRow,
+  TicketGroupRow,
+  type PaginationProps,
+} from '@/components';
 import type { RunStatus } from '@/ds/tokens';
 import type { RunSummary, TicketGroup } from '@/mocks/types';
 import { RunsPage, type RunsFilter, type RunsPageProps } from './RunsPage';
@@ -14,6 +22,8 @@ export interface RunsProps extends Omit<RunsPageProps, 'children' | 'banners'> {
   runHref?(run: RunSummary): string;
   /** Href for the empty state's "Show all runs" (a link instead of the `onFilter('all')` button). */
   showAllHref?: string;
+  /** The page control, drawn directly under the table; the table is aria-busy while it loads. */
+  pagination?: PaginationProps;
 }
 
 const statuses: Record<Exclude<RunsFilter, 'all' | 'ignored'>, RunStatus[]> = {
@@ -76,6 +86,7 @@ export function Runs({
   showAllHref,
   grouped: groupedProp,
   onGroupedChange,
+  pagination,
   ...page
 }: RunsProps) {
   // Controlled when the container passes `grouped` (it persists the choice); otherwise the screen keeps it itself.
@@ -101,6 +112,7 @@ export function Runs({
       {shown.length === 0 ? (
         <EmptyState
           title="No runs match this filter"
+          headingLevel={2}
           body="Runs appear here when a ticket comment starts one."
           action={
             showAllHref !== undefined ? (
@@ -115,24 +127,27 @@ export function Runs({
           }
         />
       ) : (
-        <DataTable columns={columns}>
-          {grouped
-            ? shown.flatMap((g) => [
-                <TicketGroupRow key={`g${g.ticket.number}`} group={g} colSpan={columns.length} />,
-                ...g.runs.map((r, i) => (
-                  <RunRow
-                    key={r.id}
-                    run={r}
-                    tree={i === g.runs.length - 1 ? 'last' : 'mid'}
-                    href={runHref(r)}
-                    actions={rowActions(r, runHref)}
-                  />
-                )),
-              ])
-            : flat.map((r) => (
-                <RunRow key={r.id} run={r} tree="none" href={runHref(r)} actions={rowActions(r, runHref)} />
-              ))}
-        </DataTable>
+        <>
+          <DataTable columns={columns} busy={pagination?.busy}>
+            {grouped
+              ? shown.flatMap((g) => [
+                  <TicketGroupRow key={`g${g.ticket.number}`} group={g} colSpan={columns.length} />,
+                  ...g.runs.map((r, i) => (
+                    <RunRow
+                      key={r.id}
+                      run={r}
+                      tree={i === g.runs.length - 1 ? 'last' : 'mid'}
+                      href={runHref(r)}
+                      actions={rowActions(r, runHref)}
+                    />
+                  )),
+                ])
+              : flat.map((r) => (
+                  <RunRow key={r.id} run={r} tree="none" href={runHref(r)} actions={rowActions(r, runHref)} />
+                ))}
+          </DataTable>
+          {pagination && <Pagination {...pagination} />}
+        </>
       )}
     </RunsPage>
   );

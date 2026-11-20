@@ -1,5 +1,20 @@
 import { render, screen, within } from '@testing-library/react';
-import { ignored, projects, runs, ticketGroups, user } from '@/mocks';
+import userEvent from '@testing-library/user-event';
+import { RouteLoadError, RouteSkeleton } from '@/components';
+import {
+  ignored,
+  pagedIgnored,
+  pagedNeedsYou,
+  pagedProjects,
+  pagedRules,
+  pagedRuns,
+  pagedSkills,
+  pagedVersions,
+  projects,
+  runs,
+  ticketGroups,
+  user,
+} from '@/mocks';
 import { filterGroups, Runs, type RunsFilter } from './Runs';
 import { RunsProblems } from './RunsProblems';
 import { NeedsYou } from './NeedsYou';
@@ -59,7 +74,7 @@ describe('Runs', () => {
   it('shows the empty state when there are no groups', () => {
     render(<Runs {...base} groups={[]} filter="all" />);
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
-    expect(screen.getByRole('heading', { level: 3 })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: 'No runs match this filter' })).toBeInTheDocument();
   });
 
   it('orders group #131 rows 55, 56, 57 with tree mid, mid, last', () => {
@@ -255,5 +270,101 @@ describe('RunsProblems empty', () => {
     render(<RunsProblems {...base} filter="ignored" warnings={[]} ignored={[]} />);
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'No ignored commands' })).toBeInTheDocument();
+  });
+});
+
+describe('pagination on the run screens', () => {
+  const pagination = (total: number, busy = false) => ({
+    page: 4,
+    pageSize: 20 as const,
+    total,
+    busy,
+    onPageChange: () => undefined,
+    onPageSizeChange: () => undefined,
+  });
+
+  it('Runs draws the pagination control under the table and marks the table busy', () => {
+    render(<Runs {...base} filter="all" pagination={pagination(63, true)} />);
+    const table = screen.getByRole('table');
+    const nav = screen.getByRole('navigation', { name: 'Pagination' });
+    expect(table).toHaveAttribute('aria-busy', 'true');
+    expect(table.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('Runs without a busy page leaves aria-busy off the table', () => {
+    render(<Runs {...base} filter="all" pagination={pagination(63)} />);
+    expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy');
+  });
+
+  it('Runs with no runs shows the empty state and no control', () => {
+    render(<Runs {...base} groups={[]} filter="all" pagination={pagination(0)} />);
+    expect(screen.getByText('No runs match this filter')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+  });
+
+  it('RunsProblems draws the control under the ignored rows', () => {
+    render(
+      <RunsProblems {...base} filter="ignored" warnings={[]} ignored={ignored} pagination={pagination(27, true)} />,
+    );
+    const table = screen.getByRole('table');
+    const nav = screen.getByRole('navigation', { name: 'Pagination' });
+    expect(table).toHaveAttribute('aria-busy', 'true');
+    expect(table.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('NeedsYou draws the control under the cards', () => {
+    const run = runs.find((r) => r.id === 62)!;
+    render(
+      <NeedsYou
+        project={project}
+        projects={projects}
+        runs={[{ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' }]}
+        pagination={pagination(21, true)}
+      />,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Pagination' });
+    const card = screen.getByRole('link', { name: 'Open run 62 in Agent Desk' });
+    expect(card.compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.closest('[aria-busy="true"]')).not.toBeNull();
+  });
+
+  it('NeedsYou draws no control when the list is empty', () => {
+    render(<NeedsYou project={project} projects={projects} runs={[]} pagination={pagination(21, true)} />);
+    expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+  });
+});
+
+describe('RouteStates', () => {
+  it('RouteSkeleton is a busy status', () => {
+    render(<RouteSkeleton />);
+    const status = screen.getByRole('status', { name: 'Loading' });
+    expect(status).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('RouteLoadError shows title, request ID and Retry', async () => {
+    const onRetry = vi.fn();
+    render(<RouteLoadError title="Internal server error" detail="Try again." requestId="req-9" onRetry={onRetry} />);
+    expect(screen.getByText('Internal server error')).toBeInTheDocument();
+    expect(screen.getByText(/Request ID: req-9/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledOnce();
+  });
+});
+
+describe('paged fixtures', () => {
+  it('pagedRuns is newest first and deterministic', () => {
+    const a = pagedRuns(63);
+    expect(a.map((r) => r.id).slice(0, 2)).toEqual([63, 62]);
+    expect(a.at(-1)?.id).toBe(1);
+    expect(a).toHaveLength(63);
+    expect(pagedRuns(63)).toEqual(a);
+  });
+  it('the other fixtures hold exactly total rows', () => {
+    expect(pagedIgnored(27)).toHaveLength(27);
+    expect(pagedNeedsYou(21)).toHaveLength(21);
+    expect(pagedProjects(25)).toHaveLength(25);
+    expect(pagedRules(25)).toHaveLength(25);
+    expect(pagedSkills(25)).toHaveLength(25);
+    expect(pagedVersions(25).map((v) => v.version)).toEqual(Array.from({ length: 25 }, (_, i) => 25 - i));
   });
 });

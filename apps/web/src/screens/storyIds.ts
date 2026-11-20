@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 41 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 52 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -55,6 +55,17 @@ export const boardStories = {
   DeskAgentAddressChanged: { title: desk, exportName: 'DeskAgentAddressChanged' },
   DeskSetup: { title: desk, exportName: 'DeskSetup' },
   DeskSetupTest: { title: desk, exportName: 'DeskSetupTest' },
+  Pagination: { title: 'Components/Pagination', exportName: 'Board' },
+  RunsPaged: { title: runs, exportName: 'RunsPaged' },
+  RunsFlatPaged: { title: runs, exportName: 'RunsFlatPaged' },
+  RunsPageLoading: { title: runs, exportName: 'RunsPageLoading' },
+  RunsEmpty: { title: runs, exportName: 'RunsEmpty' },
+  RunsProblemsPaged: { title: runs, exportName: 'RunsProblemsPaged' },
+  RunsProblemsEmpty: { title: runs, exportName: 'RunsProblemsEmpty' },
+  NeedsYouPaged: { title: runs, exportName: 'NeedsYouPaged' },
+  NeedsYouEmpty: { title: runs, exportName: 'NeedsYouNone' },
+  RouteLoading: { title: runs, exportName: 'RouteLoading' },
+  RouteError: { title: runs, exportName: 'RouteError' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;
@@ -66,8 +77,6 @@ export const stateStories = {
   SetupReadyWithWarning: { title: setup, exportName: 'SetupReadyWithWarning', board: 'SetupReady' },
   SetupReadyPolling: { title: setup, exportName: 'SetupReadyPolling', board: 'SetupReady' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
-  RunsProblemsEmpty: { title: runs, exportName: 'RunsProblemsEmpty', board: 'RunsProblems' },
-  NeedsYouNone: { title: runs, exportName: 'NeedsYouNone', board: 'NeedsYou' },
   NeedsYouPaused: { title: runs, exportName: 'NeedsYouPaused', board: 'NeedsYou' },
   RunPaused: { title: detail, exportName: 'RunPaused', board: 'RunIdle' },
   RunPausedResuming: { title: detail, exportName: 'RunPausedResuming', board: 'RunIdle' },

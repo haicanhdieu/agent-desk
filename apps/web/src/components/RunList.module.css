@@ -189,6 +189,7 @@ a.fchip:hover {
   padding: 40px 16px;
   color: var(--muted);
 }
+.empty h2,
 .empty h3 {
   font-size: var(--fs-14);
   font-weight: 600;

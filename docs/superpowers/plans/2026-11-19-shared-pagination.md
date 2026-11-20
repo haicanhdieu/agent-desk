@@ -345,23 +345,23 @@ export function pagedVersions(total: number): ScriptVersion[];
 
 (`pagedProjects`, `pagedRules`, `pagedSkills` and `pagedVersions` are used by Task 4's stories. They live here so that `mocks/paged.ts` is written once.)
 
-- [ ] **Step 1: Write the failing screen tests** in `runs.test.tsx`
+- [x] **Step 1: Write the failing screen tests** in `runs.test.tsx`
 
 - `it('Runs draws the pagination control under the table and marks the table busy')`: render `Runs` with `pagination={{ page: 4, pageSize: 20, total: 63, busy: true, … }}` → a `navigation` named "Pagination" comes after the table in document order, and the table has `aria-busy="true"`.
 - `it('Runs with no runs shows the empty state and no control')`: `groups=[]` and `pagination` total 0 → "No runs match this filter" and no `navigation` named "Pagination".
 - `it('RunsProblems draws the control under the ignored rows')` and `it('NeedsYou draws the control under the cards')`.
 - `it('RouteSkeleton is a busy status')` and `it('RouteLoadError shows title, request ID and Retry')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- runs.test`
 Expected: FAIL (`pagination` not rendered; `RouteStates` missing).
 
-- [ ] **Step 3: Implement the screen props and `RouteStates.tsx`**
+- [x] **Step 3: Implement the screen props and `RouteStates.tsx`**
 
 Make `RoutePending` and `LoaderErrorBanner` in `app/boundaries.tsx` render `RouteSkeleton` and `RouteLoadError`. Their behaviour stays the same: Retry still calls `router.invalidate()` after the query reset.
 
-- [ ] **Step 4: Write the fixtures and stories**
+- [x] **Step 4: Write the fixtures and stories**
 
 `mocks/paged.ts` builds rows from the existing fixtures' shapes, copying the boards' visible values (ticket titles, rule commands, authors). In `runs.stories.tsx`, add:
 
@@ -375,7 +375,7 @@ Make `RoutePending` and `LoaderErrorBanner` in `app/boundaries.tsx` render `Rout
 
 Each story uses the existing `artboard(height)` and `viewport(1440, height)`, with heights from the base board (Runs 1000, RunsProblems 960, NeedsYou 740).
 
-- [ ] **Step 5: Register the 11 boards**
+- [x] **Step 5: Register the 11 boards**
 
 The boards are `Pagination`, `RunsPaged`, `RunsFlatPaged`, `RunsPageLoading`, `RunsEmpty`, `RunsProblemsPaged`, `RunsProblemsEmpty`, `NeedsYouPaged`, `NeedsYouEmpty`, `RouteLoading` and `RouteError`.
 
@@ -384,7 +384,7 @@ The boards are `Pagination`, `RunsPaged`, `RunsFlatPaged`, `RunsPageLoading`, `R
 - In `parity.mjs`, add the same 11 name → `[title, export]` pairs to `stories`.
 - In `coverage.test.ts`, raise the board count by 11 (34 → 45 on today's main; add 11 to whatever it is when this lands). Look up board stories in `../screens/*.stories.tsx` and `../components/Pagination.stories.tsx` through a second glob; leave the screens-layout test's module count and glob unchanged.
 
-- [ ] **Step 6: Run the tests and typecheck**
+- [x] **Step 6: Run the tests and typecheck**
 
 Run: `pnpm --filter @agentdesk/web test -- runs.test coverage stories.smoke boundaries shell && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
@@ -394,7 +394,7 @@ Expected: PASS.
 Run: `pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: "45 pairs written" (or the new total). Compare `parity-out/<board>.story.png` with `.proto.png` for the 11 new boards and fix differences that are not caused by the app's newer column names (the spec says the app's columns win). Do not commit `parity-out/` or `storybook-static/`.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 devbox run fix

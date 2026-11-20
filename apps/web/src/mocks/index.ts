@@ -43,3 +43,4 @@ export {
   setupTestTerminal,
   setupFailedRunTerminal,
 } from './setup';
+export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';

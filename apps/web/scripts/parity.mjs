@@ -37,6 +37,17 @@ const stories = {
   SetupReady: ['Screens/Setup', 'SetupReady'],
   Runs: ['Screens/Runs', 'Runs'],
   RunsProblems: ['Screens/Runs', 'RunsProblems'],
+  Pagination: ['Components/Pagination', 'Board'],
+  RunsPaged: ['Screens/Runs', 'RunsPaged'],
+  RunsFlatPaged: ['Screens/Runs', 'RunsFlatPaged'],
+  RunsPageLoading: ['Screens/Runs', 'RunsPageLoading'],
+  RunsEmpty: ['Screens/Runs', 'RunsEmpty'],
+  RunsProblemsPaged: ['Screens/Runs', 'RunsProblemsPaged'],
+  RunsProblemsEmpty: ['Screens/Runs', 'RunsProblemsEmpty'],
+  NeedsYouPaged: ['Screens/Runs', 'NeedsYouPaged'],
+  NeedsYouEmpty: ['Screens/Runs', 'NeedsYouNone'],
+  RouteLoading: ['Screens/Runs', 'RouteLoading'],
+  RouteError: ['Screens/Runs', 'RouteError'],
   ...Object.fromEntries(
     [
       'Starting',

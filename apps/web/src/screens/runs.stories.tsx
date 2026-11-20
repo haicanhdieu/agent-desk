@@ -1,6 +1,19 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell } from '@/components';
-import { connectionWarnings, ignored, projects, runDetails, runs, ticketGroups, user } from '@/mocks';
+import { AppShell, RouteLoadError, RouteSkeleton, type PaginationProps } from '@/components';
+import {
+  connectionWarnings,
+  ignored,
+  pagedIgnored,
+  pagedNeedsYou,
+  pagedRuns,
+  projects,
+  runDetails,
+  runs,
+  ticketGroups,
+  tickets,
+  user,
+} from '@/mocks';
+import type { TicketGroup } from '@/mocks/types';
 import { NeedsYou as NeedsYouScreen } from './NeedsYou';
 import { Runs as RunsScreen } from './Runs';
 import { RunsProblems as RunsProblemsScreen, type RunsProblemsWarning } from './RunsProblems';
@@ -132,6 +145,169 @@ export const NeedsYouPaused: Story = {
         ...runs.filter((r) => r.id === 62).map((run) => ({ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' })),
       ]}
       onResume={() => {}}
+    />
+  ),
+};
+
+const noop = () => undefined;
+const pagination = (page: number, total: number, busy?: boolean): PaginationProps => ({
+  page,
+  pageSize: 20,
+  total,
+  ...(busy !== undefined && { busy }),
+  onPageChange: noop,
+  onPageSizeChange: noop,
+});
+
+/** Page 4 of 4 of 63 runs: Run 3 and 2 of a ticket whose first runs are on earlier pages, then Run 1. */
+const lastPageRuns = pagedRuns(63).slice(60);
+const lastPageGroups: TicketGroup[] = [
+  {
+    ticket: tickets.issue139,
+    chainNote: 'Issue #139 → PR #140',
+    runsUsed: 4,
+    runsMax: 10,
+    runs: lastPageRuns.slice(0, 2).map((r) => ({ ...r, ticket: tickets.issue139 })),
+  },
+  {
+    ticket: tickets.issue131,
+    runsUsed: 1,
+    runsMax: 10,
+    runs: lastPageRuns.slice(2).map((r) => ({ ...r, ticket: tickets.issue131 })),
+  },
+];
+const pagedCommon = { ...common, needsYou: 1, today: 'Today: 9 runs, 1 failed' };
+const pagedCounts: Record<RunsFilter, number> = { needs_you: 1, active: 2, queued: 1, ended: 59, all: 63, ignored: 3 };
+const pagedNeedsYouRun = {
+  run: runs.find((r) => r.id === 62)!,
+  askedAgo: '3 minutes ago',
+  slotNote:
+    'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
+  href: '/runs/62',
+};
+
+/** The last of four pages, grouped: a continued ticket header shows its full "4 of 10 runs". */
+export const RunsPaged: Story = {
+  name: 'Runs, grouped, page 4 of 4',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...pagedCommon}
+      filter="all"
+      counts={pagedCounts}
+      groups={lastPageGroups}
+      needsYouRun={pagedNeedsYouRun}
+      pagination={pagination(4, 63)}
+    />
+  ),
+};
+
+const flatRuns = pagedRuns(1004).slice(1000);
+/** Flat list, the last of 51 pages of 1,004 runs. */
+export const RunsFlatPaged: Story = {
+  name: 'Runs, flat, page 51 of 51, 1,004 runs',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...pagedCommon}
+      needsYou={0}
+      slots={{ used: 0, total: 2 }}
+      filter="all"
+      grouped={false}
+      counts={{ needs_you: 0, active: 0, queued: 0, ended: 1004, all: 1004, ignored: 3 }}
+      groups={flatRuns.map((r) => ({ ticket: r.ticket, runsUsed: 1, runsMax: 10, runs: [r] }))}
+      pagination={pagination(51, 1004)}
+    />
+  ),
+};
+
+/** Page 3 is on its way: page 4 stays on screen, the table is busy and the control is disabled. */
+export const RunsPageLoading: Story = {
+  name: 'Runs, grouped, loading page 3 from page 4',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...pagedCommon}
+      filter="all"
+      counts={pagedCounts}
+      groups={lastPageGroups}
+      needsYouRun={pagedNeedsYouRun}
+      pagination={pagination(4, 63, true)}
+    />
+  ),
+};
+
+/** A filter with no runs: the empty state, no control. */
+export const RunsEmpty: Story = {
+  name: 'Runs, empty, no runs match the filter',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...pagedCommon}
+      needsYou={0}
+      slots={{ used: 0, total: 2 }}
+      filter="active"
+      counts={{ needs_you: 0, active: 0, queued: 0, ended: 63, all: 63, ignored: 3 }}
+      groups={[]}
+      pagination={pagination(1, 0)}
+    />
+  ),
+};
+
+/** Page 2 of 2 of 27 ignored commands. */
+export const RunsProblemsPaged: Story = {
+  name: 'Runs, ignored commands, page 2 of 2',
+  decorators: artboard(960),
+  globals: viewport(1440, 960),
+  render: () => (
+    <RunsProblemsScreen
+      {...common}
+      counts={{ ...counts, ignored: 27 }}
+      ignored={pagedIgnored(27).slice(20)}
+      warnings={[connectionWarnings.webhookSilent, credentialWarning]}
+      pagination={pagination(2, 27)}
+    />
+  ),
+};
+
+/** Page 2 of 2 of 21 runs waiting for a person: the last page holds one card. */
+export const NeedsYouPaged: Story = {
+  name: 'Needs you, run cards, page 2 of 2',
+  decorators: artboard(740),
+  globals: viewport(1440, 740),
+  render: () => (
+    <NeedsYouScreen
+      project={{ ...project, needsYou: 21 }}
+      projects={projects.slice(0, 3).map((p) => (p.id === project.id ? { ...p, needsYou: 21 } : p))}
+      runs={pagedNeedsYou(21).slice(20)}
+      pagination={pagination(2, 21)}
+    />
+  ),
+};
+
+/** Any paged list on first load: the route skeleton in the Runs frame. */
+export const RouteLoading: Story = {
+  name: 'Any paged list, first load',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => <RouteSkeleton />,
+};
+
+/** Any paged list that failed to load: the route error with its request ID and Retry. */
+export const RouteError: Story = {
+  name: 'Any paged list, failed to load',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RouteLoadError
+      title="Internal server error"
+      detail="The server could not load this list."
+      requestId="req_8f3a2c1d"
+      onRetry={noop}
     />
   ),
 };
