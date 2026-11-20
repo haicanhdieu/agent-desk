@@ -757,7 +757,7 @@ More rules:
   - The fake pod's note (Task 4), `personInput` from the relay (Task 5), the workflow (Task 7) and the gave-up line (Task 9).
 - Produces: `export async function lifecycleTexts(page: Page, runId: string): Promise<string[]>` in `helpers.ts`. It reads `GET /api/runs/:runId/log` (`RunLogResponse`) and returns each `lifecycle` payload's `text`, the same way `lifecycleKinds` reads kinds.
 
-- [ ] **Step 1: Write the local specs** in `auto-resume.spec.ts`, each on its own project (`signInAndCreateProject`) and cancelling its run at the end (best effort):
+- [x] **Step 1: Write the local specs** in `auto-resume.spec.ts`, each on its own project (`signInAndCreateProject`) and cancelling its run at the end (best effort):
   - `a killed run comes back to Needs you by itself, logs "Resuming automatically, try 1 of 5" and shows the note`.
     1. Start `/code-review` and wait for `idle`. `touchPodFile(runId, 'hardkill')`.
     2. Poll `lifecycleTexts` until it contains a text matching `/^The last session was killed \(Error, exit 137\)\. Resuming automatically, try 1 of 5\.$/`.
@@ -765,8 +765,8 @@ More rules:
   - `with the limit at 1, a second kill leaves the run paused with "Tried to resume automatically 1 time."`. `setAutoResumeMax(page, projectId, 1)` before the comment. Kill → back to `idle` (try 1 of 1). Kill again without typing → `paused` with `pauseReason` `pod_lost`. The page shows "Tried to resume automatically 1 time." beside Resume and Finish. Keep the "limit 1, kill, wait for idle, kill, wait for paused" steps in a local helper of the spec, `gaveUpOnce(page)`, so the last test can reuse them.
   - `typing in the terminal between kills lets the run resume again`. Limit 1. Kill → back to `idle`. Open the live terminal, type `hello` and press Enter, and wait for the fake reply. Kill again → back to `idle`, with a second `try 1 of 1` text in `lifecycleTexts` and no gave-up line.
   - `a person's Resume after the limit shows the note without a try number`. Reach the gave-up state with `gaveUpOnce(page)`, then press Resume. The terminal contains `Agent Desk: your last session was killed (Error, exit 137). Resumed. Background processes and /tmp are gone.` and no text matching `/Resumed, try \d+\/\d+/` after the reconnect.
-- [ ] **Step 2: Add** `lifecycleTexts` to `helpers.ts`.
-- [ ] **Step 3: Run** the new spec with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/auto-resume.spec.ts`. Expected: PASS. If the stack truly cannot start, say so in the PR and list these four specs as written but not run.
-- [ ] **Step 4: Commit:** `test(web): local e2e for automatic resume after a pod is killed`.
+- [x] **Step 2: Add** `lifecycleTexts` to `helpers.ts`.
+- [x] **Step 3: Run** the new spec with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/auto-resume.spec.ts`. Expected: PASS. If the stack truly cannot start, say so in the PR and list these four specs as written but not run.
+- [x] **Step 4: Commit:** `test(web): local e2e for automatic resume after a pod is killed`.
 
 Not proved by e2e: the retry wait of 1 to 10 minutes after a try whose pod could not start (Task 8). The fake stack cannot hold a Job in deletion on purpose, and a real wait takes minutes. The lowest layer that proves it is Task 8's in-process workflow tests with fired timers and its Temporal-env test.

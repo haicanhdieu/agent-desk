@@ -6,6 +6,7 @@ import {
   AgentDto,
   InstallResponse,
   RunDto,
+  RunLogResponse,
   RunTranscriptResponse,
   type RunTranscriptEntryDto,
 } from '@agentdesk/contracts';
@@ -154,6 +155,16 @@ export async function transcriptOf(page: Page, runId: string): Promise<RunTransc
     before = res.nextBefore;
   } while (before !== null);
   return pages.flat();
+}
+
+/** The `text` of every `lifecycle` event of a run (`GET /api/runs/:runId/log`), oldest first; events without a text are left out. */
+export async function lifecycleTexts(page: Page, runId: string): Promise<string[]> {
+  const log = RunLogResponse.parse(await ok(await page.request.get(`/api/runs/${runId}/log`), 200, 'run log'));
+  return log.items.flatMap((e) => {
+    if (e.type !== 'lifecycle') return [];
+    const text = e.payload['text'];
+    return typeof text === 'string' ? [text] : [];
+  });
 }
 
 let shared: { handle: string; projectId: string } | undefined;
