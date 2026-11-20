@@ -32,6 +32,9 @@ export const lastSeqOf = (list: RunEventDto[] | undefined): number =>
 /** A status change: from the run stream (with exit code and reason) or the project stream (without). */
 export type StatusChange = RunStatusEvent | ProjectRunEvent;
 
+/** The run stream's change carries the whole run row's state; the project stream's has only the status. */
+const isFullChange = (e: StatusChange): e is RunStatusEvent => 'sessionEndingAt' in e;
+
 const listsKey = (org: string, projectId: string) => [...runsKey(org, projectId), 'list'] as const;
 
 /**
@@ -128,10 +131,14 @@ const leavesFinal = (from: RunStatus, to: RunStatus): boolean =>
 export function applyRunStatus(qc: QueryClient, org: string, projectId: string, e: StatusChange): void {
   const before = cachedRun(qc, org, projectId, e);
   // The two streams deliver the same changes at different times: a change at or before one already applied (a
-  // lagging project stream), or one that would take a final run back to an active status, is stale.
+  // lagging project stream), or one that would take a final run back to an active status, is stale. The exception is
+  // the run stream's full change of a seq already applied: the project stream's change of that seq carries no kept
+  // session, pause reason or ending time, and the run stream also reports those changes of the run row that add no
+  // event (the session starts ending), so it still applies. Patching twice is harmless; the counts move once below.
   const applied = appliedSeqsOf(qc);
   const last = applied.get(e.runId);
-  if ((last !== undefined && e.seq <= last) || (before !== undefined && leavesFinal(before.status, e.status))) {
+  const stale = last !== undefined && (e.seq < last || (e.seq === last && !isFullChange(e)));
+  if (stale || (before !== undefined && leavesFinal(before.status, e.status))) {
     return;
   }
   applied.set(e.runId, e.seq);

@@ -91,11 +91,14 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   await page.getByRole('region', { name: 'Terminal' }).getByRole('button', { name: 'Finish run' }).click();
   await expect(status('Succeeded')).toBeVisible({ timeout: 30_000 });
 
-  // The session stays as read-only final scrollback.
-  const view = page.getByRole('region', { name: 'Terminal' });
-  await expect(view.getByRole('tab', { name: 'Final scrollback', selected: true })).toBeVisible();
+  // With no live pod the saved conversation stays as the read-only Transcript.
+  const view = page.getByRole('region', { name: 'Transcript' });
+  await expect(view.getByRole('tab', { name: 'Transcript', selected: true })).toBeVisible();
   await expect(view.getByText(/^Ended, read-only/)).toBeVisible();
-  await expect(terminal).toContainText('Fake Claude Code', { timeout: 15_000 });
+  await expect(view.getByRole('log', { name: 'Transcript of the agent conversation' })).toContainText(
+    'Fake agent reply',
+    { timeout: 15_000 },
+  );
 
   expect(consoleErrors).toEqual([]);
 });
