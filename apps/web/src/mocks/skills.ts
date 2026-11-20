@@ -32,6 +32,77 @@ and checked out at \`main\`. Work only in this repository.
 const stub = (name: string, description: string) =>
   `---\nname: ${name}\ndescription: ${description}\n---\n\n# ${name}\n`;
 
+const qaFrontMatter = `---
+name: qa-e2e
+description: Exploratory QA pass with Playwright on a PR preview.
+---
+`;
+
+const qaDiagram = `flowchart LR
+  Explore --> Report`;
+
+const qaRichBody = `${qaFrontMatter}
+# qa-e2e
+
+Open the PR preview and try the changed screens the way a person would.
+
+## Checks
+
+| Area | What to try | Done when |
+| --- | --- | --- |
+| Sign in | Log in and out twice | No error toast |
+| Skills | Edit a skill and open Preview | The text renders |
+
+## Flow
+
+\`\`\`mermaid
+${qaDiagram}
+\`\`\`
+
+## Not drawn
+
+\`\`\`mermaid
+this is not a diagram
+\`\`\`
+`;
+
+/** Fixtures for the Preview stories and tests; \`rich\` is the qa-e2e skill's body. */
+export const skillPreviewSamples = {
+  rich: qaRichBody,
+  table: `${qaFrontMatter}
+# Table sample
+
+| Area | What to try |
+| --- | --- |
+| Sign in | Log in |
+`,
+  diagram: `${qaFrontMatter}
+# Diagram sample
+
+\`\`\`mermaid
+${qaDiagram}
+\`\`\`
+`,
+  brokenDiagram: `${qaFrontMatter}
+# Broken diagram sample
+
+\`\`\`mermaid
+this is not a diagram
+\`\`\`
+`,
+  frontMatterOnly: qaFrontMatter,
+};
+
+/** code-build's body with step 5 reworded, a new step after it, and the "never push to main" rule removed. */
+export const skillDiffDraft = codeBuildBody
+  .replace(
+    '5. Run `dotnet format --verify-no-changes` and fix what it reports.',
+    '5. Run `dotnet format` and commit what it changes.\n6. Run the linter and fix every warning.',
+  )
+  .replace('6. Push, then', '7. Push, then')
+  .replace('7. Comment `/code-review`', '8. Comment `/code-review`')
+  .replace('- Never push to `main`.\n', '');
+
 const lastCommit = 'a91c3e2, 2 days ago';
 
 export const skills: Skill[] = [
@@ -62,7 +133,7 @@ export const skills: Skill[] = [
   {
     name: 'qa-e2e',
     description: 'Exploratory QA pass with Playwright on a PR preview.',
-    body: stub('qa-e2e', 'Exploratory QA pass with Playwright on a PR preview.'),
+    body: skillPreviewSamples.rich,
     ruleSummary: '1 rule, off',
     path: '.claude/skills/qa-e2e/SKILL.md',
     lastCommit,

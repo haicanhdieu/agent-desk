@@ -147,12 +147,12 @@ export const skillPreviewSamples: {
 export const skillDiffDraft: string; // code-build's body with step 5 reworded, a new step after it, and the "- Never push to `main`." rule removed
 ```
 
-- [ ] **Step 1: Add the `diff` package**
+- [x] **Step 1: Add the `diff` package**
 
 Run: `pnpm --filter @agentdesk/web add diff@9.0.0`
 Expected: `apps/web/package.json` gets `"diff": "^9.0.0"`, and `pnpm --filter @agentdesk/web list diff` shows `diff 9.0.0`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `lineDiff.test.ts` (`DiffLine` objects written in full in the assertions):
 
@@ -174,25 +174,25 @@ Expected: `apps/web/package.json` gets `"diff": "^9.0.0"`, and `pnpm --filter @a
 - `it('keeps colons in values and joins continuation lines')` (Review Focus 2): `'---\ndescription: Build: then test\nnote: >\n  Long text\n  here\n---\n'` → `[{key:'description',value:'Build: then test'},{key:'note',value:'> Long text here'}]`.
 - `it('splitFrontMatter accepts CRLF')` (Review Focus 1): `'---\r\nname: x\r\n---\r\nbody'` → fields `[{key:'name',value:'x'}]`, body `'body'`.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- lineDiff frontMatter`
 Expected: FAIL, the modules do not exist.
 
-- [ ] **Step 4: Implement `lineDiff` and `splitFrontMatter`**
+- [x] **Step 4: Implement `lineDiff` and `splitFrontMatter`**
 
 `lineDiff` calls `diffLines(base, draft)` with default options (compare as stored). It splits each change's `value` on `\n`, drops the empty piece after a final `\n`, strips a trailing `\r` from each line, and numbers lines per side as it goes. `splitFrontMatter` follows the parsing Agent call above. A field line matches `/^([A-Za-z0-9_-]+):(?:[ \t]+(.*))?$/`, and the value is trimmed (`''` when absent).
 
-- [ ] **Step 5: Add the fixtures**
+- [x] **Step 5: Add the fixtures**
 
 In `mocks/skills.ts`, the `qa-e2e` entry's body becomes `skillPreviewSamples.rich`. Its front matter stays exactly `name: qa-e2e` / `description: Exploratory QA pass with Playwright on a PR preview.`, then: an `# qa-e2e` heading and one paragraph; a `## Checks` heading over a GFM table with the header cells `Area`, `What to try`, `Done when` and two rows; a `## Flow` heading over a ```` ```mermaid ```` fence starting `flowchart LR` with a node labelled `Explore`; a `## Not drawn` heading over a ```` ```mermaid ```` fence whose first line is `this is not a diagram`. Build the other samples and `skillDiffDraft` as their comments in Interfaces say, and re-export both names from `mocks/index.ts` beside `skills`.
 
-- [ ] **Step 6: Run the tests, typecheck and lint**
+- [x] **Step 6: Run the tests, typecheck and lint**
 
 Run: `pnpm --filter @agentdesk/web test -- lineDiff frontMatter mocks contract && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint`
 Expected: PASS. The `mocks` and `contract` tests still pass (four skills, unchanged descriptions).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
@@ -228,7 +228,7 @@ export function SkillDiff(props: SkillDiffProps): JSX.Element;
 // DiffLine with data-kind="same" | "add" | "del"; rows "add"/"del" hold a visually hidden "Added"/"Removed".
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `SkillDiff.test.tsx`, with `base = 'a\nb\nc'` and `draft = 'a\nB\nc\nd'`:
 
@@ -239,16 +239,16 @@ export function SkillDiff(props: SkillDiffProps): JSX.Element;
 - `it('shows "No changes. The editor matches main." when the draft equals main')`: no `[data-kind]` rows.
 - `it('shows skill text as text')`: a draft line `<script>alert(1)</script>` gives no `script` element, and the text is visible.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillDiff`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `SkillDiff` and its CSS**
+- [x] **Step 3: Implement `SkillDiff` and its CSS**
 
 Rows and colours follow Global Constraints. The text spans use the `highlightMarkdown` kinds, with the same token colours `CodeEditor.module.css` gives each kind. The root fills the column's scroll area. Compute `lineDiff(base, draft)` straight in render, with no memo.
 
-- [ ] **Step 4: Write the stories**
+- [x] **Step 4: Write the stories**
 
 `Components/SkillDiff`: `WithChanges` (`base` = code-build's body from `skills`, `draft` = `skillDiffDraft`, which gives a changed line, an added line and a removed line) and `Empty` (`base` and `draft` the same body).
 
@@ -257,7 +257,7 @@ Rows and colours follow Global Constraints. The text spans use the `highlightMar
 Run: `pnpm --filter @agentdesk/web test -- SkillDiff stories.smoke cssModules && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS, with no axe violations and Storybook built.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
