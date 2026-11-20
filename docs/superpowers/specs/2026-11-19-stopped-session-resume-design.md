@@ -46,6 +46,7 @@ The human wants:
    keep time (`pausedKeepSeconds`, 7 days by default). This also applies when the agent had said it was done.
 7. **Finish stays final.** Finish run ends the run as `succeeded`, deletes the kept session and is never resumable
    afterwards. That is today's behaviour; this change keeps it and covers it with tests.
+   _Amended 2026-11-20 ([ADR 0030](../../adr/0030-finish-after-reopen-keeps-the-session.md)): a Finish on a session re-opened from a kept succeeded session re-parks the run and keeps its session until the original deadline. Every other Finish stays final._
 8. **Open to more agents.** Everything Claude-specific about the transcript sits in the Claude adapter in the runner
    image. Adding another agent's transcript later means adding that agent's adapter file, with no change to contracts,
    tables, worker or web.
@@ -62,7 +63,7 @@ The human wants:
 ## Anti-goals (from the requirement)
 
 - Starting a pod or an agent just so someone can read a stopped session.
-- A temporary stop that ends the run for good, or a Finish that leaves the run resumable.
+- A temporary stop that ends the run for good, or a Finish that leaves the run resumable. (Amended 2026-11-20: a Finish after Re-open of a kept succeeded session may leave it resumable; see ADR 0030.)
 - Stopped and finished looking the same, on the page or in the run lifecycle.
 
 ## Constraints

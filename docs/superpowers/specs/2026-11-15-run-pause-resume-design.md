@@ -121,7 +121,7 @@ When the idle timer fires (same condition as today: at a turn boundary, nobody a
 
 The run workflow stays open while a session is kept. It is the single owner of the session: it waits for resume, finish, cancel, or a durable expiry timer. On expiry it deletes the volume and writes `expired` (paused) or just clears `sessionExpiresAt` (succeeded), then closes. New workflow code is guarded with `patched()` so runs started before the deploy replay unchanged; those older runs keep today's behaviour.
 
-A person pressing Finish, a cancel, a failure, a hard timeout, or the agent exiting on its own all end the run as today and delete the volume in `finalize`.
+_Amended 2026-11-20 ([ADR 0030](../../adr/0030-finish-after-reopen-keeps-the-session.md)): a Finish on a session re-opened from a kept succeeded session re-parks the run and keeps the volume until the original deadline._ A person pressing Finish, a cancel, a failure, a hard timeout, or the agent exiting on its own all end the run as today and delete the volume in `finalize`.
 
 ### 5. Resuming (contracts, api, worker, runner)
 
