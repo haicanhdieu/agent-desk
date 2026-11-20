@@ -680,6 +680,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           // Agent call: reason `idle_timeout`, the only generic PauseReason (the others say crash or Stop); no migration.
           const keepUntil = resumedKeep?.expiresAt;
           finishRequested = false;
+          // Recorded so a `dropSession` and the cancel rules treat the re-parked run like any other done run.
+          parkKind = 'done';
           const parked = await park(c, 'done', 'idle_timeout', undefined, 'off', 0, keepUntil);
           if ('pod' in parked) {
             pod = parked.pod;

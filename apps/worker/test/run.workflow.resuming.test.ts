@@ -293,6 +293,18 @@ describe('RunWorkflow', () => {
         expect((await h.result()).status).toBe('cancelled');
       });
 
+      it('a dropSession after the re-park gives the kept session up like any parked done run', async () => {
+        const { s, h } = await live('done');
+        expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
+        s.resumeLogs.resolve({ exitCode: 0, agentStarted: true });
+        await waitFor(() => count(s, 'parkRun:done') === 2, 'second park');
+        await waitPhase(h, 'parked');
+        await h.signal(signals.dropSession);
+        expect((await h.result()).status).toBe('succeeded');
+        expect(count(s, 'endKeptSession:dropped')).toBe(1);
+        expect(count(s, 'deleteRunVolume')).toBe(1);
+      });
+
       it('after the kept deadline has passed, Finish deletes the volume and succeeds', async () => {
         const { s, h } = await parked('done', {}, 2);
         await resume(s, h);
