@@ -71,3 +71,29 @@ test('the page fits the viewport; the Desk nav, the skill list and the editor ea
     await area.evaluate((el) => el.scrollTo(0, 0));
   }
 });
+
+test('the Skills header and path line stay in view while the skill list scrolls', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: HEIGHT });
+  await page.goto(SKILLS);
+  const list = page.getByRole('navigation', { name: 'Skills' });
+  const head = list.getByRole('heading', { level: 2, name: 'Skills' });
+  const path = list.getByText(/^\.claude\/skills\/ on /);
+  await expect(head).toBeVisible();
+  const before = { head: await box(head), path: await box(path) };
+
+  const area = await scroller(list);
+  await area.evaluate((el) => el.scrollTo(0, 5000));
+  expect(await area.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+
+  // The header and path line did not move, and both are still inside the column.
+  const column = await box(list);
+  for (const [name, loc] of [
+    ['head', head],
+    ['path', path],
+  ] as const) {
+    const b = await box(loc);
+    expect(b.y).toBe(before[name].y);
+    expect(b.y).toBeGreaterThanOrEqual(column.y);
+    expect(b.y + b.height).toBeLessThanOrEqual(column.y + column.height);
+  }
+});

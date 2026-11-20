@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
@@ -269,6 +271,25 @@ describe('SkillList', () => {
     await userEvent.click(screen.getByRole('button', { name: 'New skill' }));
     expect(onNew).toHaveBeenCalled();
     expect(screen.queryAllByRole('listitem')).toHaveLength(0);
+  });
+});
+
+describe('SkillList header stays in view', () => {
+  // jsdom does no layout, so read the stylesheet: the "Skills" header and the path line must sit outside the scrolling
+  // area, and only the list of skills scrolls under them. Layout is proven by e2e/mock/skills-layout.spec.ts.
+  const css = readFileSync(resolve(__dirname, 'Composites.module.css'), 'utf8');
+  const rule = (name: string) => {
+    const body = new RegExp(`^\\.${name} \\{([^}]*)\\}`, 'm').exec(css)?.[1];
+    if (body === undefined) throw new Error(`no .${name} rule`);
+    return body;
+  };
+  it('the column does not scroll as a whole, so its header cannot scroll away', () => {
+    expect(rule('skills')).not.toMatch(/overflow-y:\s*(auto|scroll)/);
+  });
+  it('the skill list scrolls inside the column', () => {
+    const items = rule('skillItems');
+    expect(items).toMatch(/overflow-y:\s*auto/);
+    expect(items).toMatch(/min-height:\s*0/);
   });
 });
 

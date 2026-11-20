@@ -340,10 +340,9 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  /* The column scrolls on its own when the list is taller than the window. */
+  /* The column fits the window; its header stays in view and only the skill list scrolls (.skillItems). */
   min-height: 0;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
 }
 .skills > * {
   flex-shrink: 0;
@@ -368,6 +367,14 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
+  /* The list scrolls under the header when it is taller than the window. */
+  flex-shrink: 1;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+.skillItems > * {
+  flex-shrink: 0;
 }
 .skill {
   display: flex;
