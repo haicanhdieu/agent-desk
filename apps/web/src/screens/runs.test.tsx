@@ -47,8 +47,31 @@ describe('filterGroups', () => {
     expect(g).toHaveLength(1);
     expect(g[0].runs.map((r) => r.id)).toEqual([62]);
     expect(filterGroups(ticketGroups, 'queued').map((x) => x.runs[0].id)).toEqual([63]);
-    // `active` matches the API filter: starting, running and idle.
+    // `active` matches the API filter: starting, running, idle and done.
     expect(filterGroups(ticketGroups, 'active').flatMap((x) => x.runs.map((r) => r.id))).toEqual([62, 61]);
+  });
+});
+
+describe('Runs under the Active filter', () => {
+  it('lists a done run, as the API counts it, so the rows match the pager range', () => {
+    const doneRun = { ...runs.find((r) => r.id === 61)!, id: 90, status: 'done' as const };
+    const groups = [{ ...ticketGroups[0], runs: [doneRun] }];
+    render(
+      <Runs
+        {...base}
+        groups={groups}
+        filter="active"
+        pagination={{
+          page: 1,
+          pageSize: 20,
+          total: 1,
+          onPageChange: () => undefined,
+          onPageSizeChange: () => undefined,
+        }}
+      />,
+    );
+    expect(runIds()).toEqual([90]);
+    expect(screen.queryByText('No runs match this filter')).not.toBeInTheDocument();
   });
 });
 

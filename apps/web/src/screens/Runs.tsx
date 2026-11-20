@@ -31,8 +31,8 @@ export interface RunsProps extends Omit<RunsPageProps, 'children' | 'banners'> {
 const statuses: Record<Exclude<RunsFilter, 'all' | 'ignored'>, RunStatus[]> = {
   // As the API's needs_you list: a paused run waits for a person too.
   needs_you: ['idle', 'paused'],
-  // Same meaning as the API's `active` filter: idle runs are still active (they hold a slot).
-  active: ['starting', 'running', 'idle'],
+  // Same meaning as the API's `active` filter (ACTIVE_RUN_STATUSES): idle and done runs still hold a slot.
+  active: ['starting', 'running', 'idle', 'done'],
   queued: ['queued'],
   ended: ['succeeded', 'failed', 'cancelled', 'timed_out', 'expired'],
 };
