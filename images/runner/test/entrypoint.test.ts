@@ -797,7 +797,7 @@ describe('entrypoint stop request and agent exit file', () => {
         .find((c) => c.argv.includes('new-session'))
         ?.argv.join(' ') ?? '';
     expect(start).toContain('set-option -g set-clipboard on');
-    expect(start).toContain('set-option -ga terminal-features xterm*:clipboard');
+    expect(start).toContain('set-option -ga terminal-features *:clipboard');
     expect(start.indexOf('set-clipboard on')).toBeLessThan(start.indexOf('new-session'));
   });
 

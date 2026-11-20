@@ -248,9 +248,10 @@ fi
 # gets the wrapper and the fixed command as two separate arguments (run directly, no extra shell).
 # set-clipboard on: tmux forwards the OSC 52 (set clipboard) sequence Claude Code prints for a mouse selection to the
 # attached client; the default (external) drops it, so the copy never reaches the browser. terminal-features tells tmux
-# the client's xterm terminal can take it. The browser side handles only the "set" form.
+# any client terminal can take it (the browser terminal is xterm.js, whatever TERM the exec gives). The browser side
+# handles only the "set" form.
 tmux start-server \; set-option -g remain-on-exit on \; \
-  set-option -g set-clipboard on \; set-option -ga terminal-features 'xterm*:clipboard' \; \
+  set-option -g set-clipboard on \; set-option -ga terminal-features '*:clipboard' \; \
   new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$LIB_DIR/bin/agentdesk-session" "$session_cmd"
 # Sends the agent's saved conversation (agentdesk: transcript lines) that no hook has sent yet. Best effort: a hang,
 # a failure or an agent without a transcript.mjs adapter never blocks the session (docs/adr/0027).
