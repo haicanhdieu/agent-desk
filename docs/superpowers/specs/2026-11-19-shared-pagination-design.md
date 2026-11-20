@@ -232,8 +232,8 @@ Showing 481–500 of 1,000      ‹ Previous  1  …  24  [25]  26  …  50  Nex
     kept for screen readers, and the arrows become square icon buttons;
   - under 790px: "Showing" is dropped (the range reads "481–500 of 1,000"), and the page buttons shrink to a narrow
     set: first, current and last, with "…" between them (`1 … 25 … 50`). The jump input and size select get narrower;
-  - under 590px: the range is hidden, and buttons, input and select use a smaller height and text size with tighter
-    gaps;
+  - under 590px: the range is hidden, the buttons use a smaller height and text size, and the input and select use a
+    smaller height, with tighter gaps;
   - under 360px: only the current page shows between the arrows;
   - it wraps to a second row only at 240px or below.
   The breakpoints and sizes are the board's. The builder maps its sizes to existing design tokens.
@@ -392,7 +392,7 @@ These rules are requirements. Each is what a user can see at the UI; the feature
 | BR-38 | navigation          | When the Runs screen has more than 20 runs created through the fake provider, a member sees page 2 showing the next runs and the chip counts matching the number of runs created.                                                                    | spec Testing E2E (local spec)            |
 | BR-39 | conditional-display | When the pagination control's own container is under 1070px wide, the member sees the "Go to page" and "Rows per page" labels and the "Previous"/"Next" words hidden visually (still announced to screen readers) and square icon arrow buttons, all still on one row. | spec `Pagination` One row at every width |
 | BR-40 | conditional-display | When the control's container is under 790px wide, the member sees "Showing" dropped from the range ("481–500 of 1,000") and a narrow page set of first, current and last with "…" between (`1 … 25 … 50`), with a narrower Go box and size select.     | spec `Pagination` One row at every width |
-| BR-41 | conditional-display | When the control's container is under 590px wide, the member no longer sees the range, and buttons, Go box and size select use a smaller height and text size with tighter gaps.                                                                      | spec `Pagination` One row at every width |
+| BR-41 | conditional-display | When the control's container is under 590px wide, the member no longer sees the range, the buttons use a smaller height and text size, and the Go box and size select use a smaller height, with tighter gaps.                                                                      | spec `Pagination` One row at every width |
 | BR-42 | conditional-display | When the control's container is under 360px wide, the member sees only the current page number between the arrows.                                                                                                                                   | spec `Pagination` One row at every width |
 | BR-43 | conditional-display | When the control's container is wider than 240px, the member sees it on one row at every width; at 240px or below it wraps to a second row.                                                                                                          | spec `Pagination` One row at every width |
 
@@ -426,7 +426,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 | TC-3.1 | boundary | mock | Projects screen with 20 projects | 1. Open Projects | All 20 rows shown; no page buttons, no Previous/Next, no "Go to page", no "Rows per page" chooser, no range text |
 | TC-3.2 | boundary | mock | Projects screen with 21 projects | 1. Open Projects | 20 rows shown; the control is shown under the table with page buttons and "Rows per page" |
 | TC-3.3 | positive | mock | Runs screen with 63 runs, "Rows per page" saved as 100 | 1. Open the Runs screen | All 63 runs shown on one page and the control is still shown including "Rows per page" |
-| TC-3.4 | state | mock | Runs screen with 63 runs, saved size 100 | 1. In "Rows per page" pick 20 | The list shows 20 runs and page buttons for 4 pages appear (the chooser let the member switch back) |
+| TC-3.4 | state | mock | Runs screen with 63 runs, saved size 100 | 1. In "Rows per page" pick 20 | The list shows 20 runs and the first, current and last page buttons for 4 pages appear: `1 2 … 4` on page 1 (the chooser let the member switch back) |
 | TC-3.5 | boundary | mock | Runs screen with 15 runs, saved size 20 | 1. Open the Runs screen | All 15 runs shown, no control |
 
 #### BR-4: Page buttons and gaps
@@ -444,7 +444,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-5.1 | positive | mock | Runs screen with 63 runs, on page 1 | 1. Click "Page 3" | Runs 41–60 shown; range reads "Showing 41–60 of 63"; "Page 3" is the current page; address holds `?page=3` |
+| TC-5.1 | positive | mock | Runs screen with 63 runs, on page 1 | 1. Click "Page 2" 2. Click "Page 3" | Runs 41–60 shown; range reads "Showing 41–60 of 63"; "Page 3" is the current page; address holds `?page=3` |
 | TC-5.2 | positive | mock | Runs screen on `?page=3` | 1. Click "Page 1" | Runs 1–20 shown; the address has no `page` parameter |
 | TC-5.3 | positive | mock | Projects screen with 26 projects | 1. Click "Page 2" | Rows 21–26 shown; "Showing 21–26 of 26"; address `?page=2` |
 
@@ -483,7 +483,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-9.1 | positive | mock | 63 runs, on page 1 | 1. Click "Page 3" 2. Reload the browser | Page 3 is still shown, same rows and range |
+| TC-9.1 | positive | mock | 63 runs, on page 1 | 1. Click "Page 2" 2. Click "Page 3" 3. Reload the browser | Page 3 is still shown, same rows and range |
 | TC-9.2 | positive | mock | 63 runs, on page 1 | 1. Click "Page 2" 2. Click "Page 3" 3. Press the browser Back button | Page 2 shown; address `?page=2` |
 | TC-9.3 | positive | mock | 63 runs | 1. Open the Runs screen address with `?page=2` in a fresh browser tab | Page 2 shown |
 | TC-9.4 | negative | mock | 63 runs | 1. Open the Runs screen with `?page=abc` | Page 1 shown |
@@ -772,7 +772,7 @@ Conventions: "member" is a signed-in org member. "Runs screen" is a project's Ru
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-41.1 | boundary | mock | 1,000 runs; container 590px | 1. Open Runs | The range text is shown |
-| TC-41.2 | boundary | mock | Container 589px | 1. Open Runs | The range is no longer shown; buttons, Go box and size select are smaller in height and text with tighter gaps; one row |
+| TC-41.2 | boundary | mock | Container 589px | 1. Open Runs | The range is no longer shown; the buttons are smaller in height and text, the Go box and size select are smaller in height, with tighter gaps; one row |
 
 #### BR-42: Container under 360px
 

@@ -107,7 +107,13 @@ function DeskSkillsPage() {
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p), skill: activeName }), replace });
   useClampToLastPage(current, skillsPage.pageSize, skillsPage.total, (p) => go(p, true));
-  const pagination = usePaginationProps({ page: current, total: skillsPage.total, busy, go });
+  const pagination = usePaginationProps({
+    page: skillsPage.page,
+    pageSize: skillsPage.pageSize,
+    total: skillsPage.total,
+    busy,
+    go,
+  });
 
   const onCommit = (body: string, message: string) => {
     if (!detail || activeName === undefined || committing.current) return;

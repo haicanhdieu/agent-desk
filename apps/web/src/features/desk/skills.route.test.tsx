@@ -1,4 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
@@ -334,6 +335,35 @@ describe('desk skills paging', () => {
     ]);
     expect(screen.getByRole('heading', { level: 2, name: nameOf(1) })).toBeInTheDocument();
     expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`body of ${nameOf(1)}`);
+  });
+
+  it('while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+    seedSkills(22);
+    const { user } = await renderRoute(`${base}/skills`);
+    const pagination = await screen.findByRole('navigation', { name: 'Pagination' });
+    const page2Body = await (await fetch(`http://localhost:3000${skillsPath}?page=2&pageSize=20`)).json();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get(`*${skillsPath}`, async ({ request }) => {
+        if (new URL(request.url).searchParams.get('page') !== '2') return undefined;
+        await held;
+        return HttpResponse.json(page2Body);
+      }),
+    );
+    const [page2] = screen.getAllByRole('button', { name: 'Page 2' });
+    if (!page2) throw new Error('no Page 2 button');
+    await user.click(page2);
+    await waitFor(() => expect(pagination).toHaveAttribute('aria-busy', 'true'));
+    expect(listed()).toHaveLength(20);
+    expect(pagination).toHaveTextContent('Showing 1–20 of 22');
+    expect(within(pagination).getAllByRole('button', { name: 'Page 1' })[0]).toHaveAttribute('aria-current', 'page');
+    release();
+    await waitFor(() => expect(pagination).toHaveAttribute('aria-busy', 'false'));
+    expect(pagination).toHaveTextContent('Showing 21–22 of 22');
+    expect(within(pagination).getAllByRole('button', { name: 'Page 2' })[0]).toHaveAttribute('aria-current', 'page');
   });
 
   it('?skill=<the 22nd skill> with no page opens it in the editor although it is not on page 1', async () => {

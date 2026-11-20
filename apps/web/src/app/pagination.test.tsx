@@ -118,6 +118,14 @@ describe('usePaginationProps', () => {
     expect(go).toHaveBeenCalledWith(1);
   });
 
+  it('reports the size of the page on screen, not the saved one, when given', () => {
+    localStorage.setItem(PAGE_SIZE_STORAGE_KEY, '50');
+    const { result } = renderHook(() =>
+      usePaginationProps({ page: 1, pageSize: 20, total: 90, busy: true, go: vi.fn() }),
+    );
+    expect(result.current.pageSize).toBe(20);
+  });
+
   it('goes to the chosen page', () => {
     const go = vi.fn();
     const { result } = renderHook(() => usePaginationProps({ page: 1, total: 90, busy: false, go }));

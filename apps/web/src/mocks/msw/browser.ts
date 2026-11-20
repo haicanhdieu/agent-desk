@@ -4,6 +4,7 @@ import { lifecycleEventFixtures, lifecycleRunFixtures } from '../dto/lifecycleRu
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from './agentModels';
 import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } from '../dto/sessionRuns';
 import { mockDb } from './db';
+import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from './e2eLists';
 import { handlers } from './handlers';
 import { scenarios, setScenarioTarget } from './scenarios';
 import { DEFAULT_RUN_SCRIPT, streamHandlers } from './stream-handlers';
@@ -58,6 +59,22 @@ function loadAgentModels(): void {
   }
 }
 
+// The mocked e2e specs seed list sizes and held or failing list requests here before the first load (e2e/mock/mock.ts
+// `seedLists`, e2eLists.ts). Anything unparsable is ignored and the seed stays.
+function loadLists(): void {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(MOCK_LISTS_KEY);
+  } catch {
+    // Storage blocked: the seed stays.
+  }
+  const lists = parseMockLists(raw);
+  if (lists === undefined) return;
+  // Not inside the try: a seed that cannot be applied (a missing fixture) must fail loudly, not leave the default data.
+  applyMockLists(lists);
+  worker.use(...mockListHandlers(lists));
+}
+
 function saveAuth(): void {
   try {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify(mockDb.auth));
@@ -78,6 +95,8 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     // Stopped runs and runs with a saved transcript, for the mocked e2e specs (dto/sessionRuns.ts).
     mockDb.addRuns(sessionRunFixtures, sessionEventFixtures);
     mockDb.addTranscripts(sessionTranscriptFixtures);
+    // After the extra fixtures: a seeded run count replaces every invoicer-api run, these included.
+    loadLists();
     // A clean click-through shows a live run: open run 63 and watch it start (stream-handlers.ts).
     scenarios.runScript(DEFAULT_RUN_SCRIPT.runId, DEFAULT_RUN_SCRIPT.steps, { start: 'onStream' });
     worker.events.on('response:mocked', ({ request }) => {

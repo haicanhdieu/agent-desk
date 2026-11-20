@@ -77,7 +77,8 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
   useClampToLastPage(currentPage, pageSize, versions.data?.total ?? 0, (p) => goToPage(p, true));
   const versionsPagination = usePaginationProps({
-    page: currentPage,
+    page: versions.data?.page ?? currentPage,
+    pageSize: versions.data?.pageSize,
     total: versions.data?.total ?? 0,
     busy: versions.isPlaceholderData,
     go: goToPage,

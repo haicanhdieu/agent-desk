@@ -161,6 +161,32 @@ describe('projects route paging', () => {
     expect(localStorage.getItem('agentdesk.pageSize')).toBe('50');
   });
 
+  it('while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+    seedProjects(26);
+    const page2 = await (await fetch('http://localhost:3000/api/projects?page=2')).json();
+    const { user } = await renderRoute('/o/alice/projects');
+    await screen.findByText('1–20');
+    const nav = () => screen.getByRole('navigation', { name: 'Pagination' });
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('*/api/projects', async () => {
+        await held;
+        return jsonResponse(page2);
+      }),
+    );
+    await user.click(pageButton(2));
+    await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
+    expect(nav()).toHaveTextContent('Showing 1–20 of 26');
+    expect(pageButton(1)).toHaveAttribute('aria-current', 'page');
+    release();
+    await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'false'));
+    expect(nav()).toHaveTextContent('Showing 21–26 of 26');
+    expect(pageButton(2)).toHaveAttribute('aria-current', 'page');
+  });
+
   it('keeps page 1 on screen, busy, while page 2 loads', async () => {
     seedProjects(26);
     const page2 = await (await fetch('http://localhost:3000/api/projects?page=2')).json();

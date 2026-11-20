@@ -189,6 +189,9 @@
   .row {
     flex-wrap: wrap;
   }
+  .tools {
+    flex: 1 1 100%;
+  }
 }
 .srOnly {
   position: absolute;

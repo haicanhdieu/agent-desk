@@ -54,7 +54,7 @@ function NeedsYouRoute() {
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
   useClampToLastPage(current, idle.pageSize, idle.total, (p) => go(p, true));
-  const pagination = usePaginationProps({ page: current, total: idle.total, busy, go });
+  const pagination = usePaginationProps({ page: idle.page, pageSize: idle.pageSize, total: idle.total, busy, go });
   const { data: all } = useSuspenseQuery(projectsQueries.all(org));
   const dtos = all.items;
   // The switcher shows each project's connection warning: one request per project, in parallel.

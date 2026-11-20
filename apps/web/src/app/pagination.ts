@@ -112,16 +112,19 @@ export function useClampToLastPage(page: number, pageSize: number, total: number
 
 /** PaginationProps for a route: page changes and size changes (size → page 1) go through `go`. */
 export function usePaginationProps(args: {
+  /** The page on screen (the loaded page's own page), so the control reads the old page while the next one loads. */
   page: number;
+  /** The size of the page on screen; default: the saved size. */
+  pageSize?: number;
   total: number;
   busy: boolean;
   go(page: number): void;
 }): PaginationProps {
-  const [pageSize, setPageSize] = usePageSize();
+  const [savedSize, setPageSize] = usePageSize();
   const { page, total, busy, go } = args;
   return {
     page,
-    pageSize,
+    pageSize: PAGE_SIZE_OPTIONS.find((o) => o === args.pageSize) ?? savedSize,
     total,
     busy,
     onPageChange: go,

@@ -126,7 +126,13 @@ function IgnoredView({
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
   useClampToLastPage(current, ignoredPage.pageSize, ignoredPage.total, (p) => go(p, true));
-  const pagination = usePaginationProps({ page: current, total: ignoredPage.total, busy, go });
+  const pagination = usePaginationProps({
+    page: ignoredPage.page,
+    pageSize: ignoredPage.pageSize,
+    total: ignoredPage.total,
+    busy,
+    go,
+  });
   const repoUrl = repoUrlOf(page.dto.repoPath);
   const recheck = () => void queryClient.invalidateQueries(projectsQueries.connection(org, projectId));
   const warning = toConnectionWarning(page.connection, page.connectionDto, page.paths.agent, now);
@@ -169,7 +175,13 @@ function ListView({
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
   useClampToLastPage(current, listed.pageSize, listed.total, (p) => go(p, true));
-  const pagination = usePaginationProps({ page: current, total: listed.total, busy, go });
+  const pagination = usePaginationProps({
+    page: listed.page,
+    pageSize: listed.pageSize,
+    total: listed.total,
+    busy,
+    go,
+  });
   // Grouping changes what a page holds, so the toggle returns to page 1.
   const setGrouped = (next: boolean) => {
     setGroupedPref(next);

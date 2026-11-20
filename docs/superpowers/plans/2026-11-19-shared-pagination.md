@@ -1098,7 +1098,7 @@ export function mockListHandlers(lists: MockLists): RequestHandler[];
 export async function seedLists(page: Page, lists: MockLists): Promise<void>; // addInitScript writing MOCK_LISTS_KEY before the first load
 ```
 
-- [ ] **Step 1: Write the failing unit tests** in `e2eLists.test.ts`
+- [x] **Step 1: Write the failing unit tests** in `e2eLists.test.ts`
 
 - `applyMockLists({ runs: { total: 63, statuses: { starting: 1, running: 1, paused: 1, queued: 1 } } })`: the store holds 63 invoicer-api runs, and `runs.stats` answers Needs you 1, Active 2, Queued 1, Ended 59, All 63.
 - `ticketSize: 3` puts positions 19–21 on one ticket.
@@ -1107,9 +1107,9 @@ export async function seedLists(page: Page, lists: MockLists): Promise<void>; //
 - `fail` with `times: 3` fails three requests, then lets the handler answer.
 - An invalid JSON value under the key is ignored (the seed stays).
 
-- [ ] **Step 2: Implement** `e2eLists.ts`. `browser.ts` reads and parses the key in `startMockWorker` (inside a try, like `loadAuth`), calls `applyMockLists`, and prepends `mockListHandlers` with `worker.use`. `db.ts` gains the store writes `applyMockLists` needs. `mock.ts` gains `seedLists`.
+- [x] **Step 2: Implement** `e2eLists.ts`. `browser.ts` reads and parses the key in `startMockWorker` (inside a try, like `loadAuth`), calls `applyMockLists`, and prepends `mockListHandlers` with `worker.use`. `db.ts` gains the store writes `applyMockLists` needs. `mock.ts` gains `seedLists`.
 
-- [ ] **Step 3: Write `pagination-control.spec.ts`**
+- [x] **Step 3: Write `pagination-control.spec.ts`**
 
 Each test seeds its own lists and starts at `/o/alice/p/<INVOICER_API>/runs`. Rules and cases:
 

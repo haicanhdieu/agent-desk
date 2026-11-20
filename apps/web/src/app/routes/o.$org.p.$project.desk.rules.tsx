@@ -84,7 +84,13 @@ function DeskRulesPage() {
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
   useClampToLastPage(current, rulesPage.pageSize, rulesPage.total, (p) => go(p, true));
-  const pagination = usePaginationProps({ page: current, total: rulesPage.total, busy, go });
+  const pagination = usePaginationProps({
+    page: rulesPage.page,
+    pageSize: rulesPage.pageSize,
+    total: rulesPage.total,
+    busy,
+    go,
+  });
   const open = (rule: string) => void navigate({ search: (prev) => ({ ...prev, rule }) });
   const close = () => void navigate({ search: (prev) => ({ ...prev, rule: undefined }) });
   const onDelete = (id: string) =>

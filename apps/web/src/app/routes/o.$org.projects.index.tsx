@@ -47,7 +47,7 @@ function ProjectsPage() {
   const go = (p: number, replace = false) =>
     void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
   useClampToLastPage(page, data.pageSize, data.total, (p) => go(p, true));
-  const pagination = usePaginationProps({ page, total: data.total, busy, go });
+  const pagination = usePaginationProps({ page: data.page, pageSize: data.pageSize, total: data.total, busy, go });
   const handle = session?.user.handle ?? '';
   const user: Actor = {
     login: handle,

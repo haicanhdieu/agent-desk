@@ -435,12 +435,73 @@ describe('runs route', () => {
       expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true');
       expect(runNumbers()).toHaveLength(20);
       expect(runNumbers()).toContain(63);
+      // The control still describes the page on screen, not the one being loaded.
+      expect(nav()).toHaveTextContent('Showing 1–20 of 63');
+      expect(pageButton(1)).toHaveAttribute('aria-current', 'page');
+      expect(pageButton(2)).not.toHaveAttribute('aria-current');
       for (const control of [...within(nav()).getAllByRole('button'), screen.getByLabelText('Rows per page')]) {
         expect(control).toBeDisabled();
       }
       release();
       await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'false'));
       expect(runNumbers()).not.toContain(63);
+      expect(nav()).toHaveTextContent('Showing 21–40 of 63');
+      expect(pageButton(2)).toHaveAttribute('aria-current', 'page');
+    });
+
+    it('while the 50-row page is held, the 20 rows stay and the control still reads "Showing 1–20"', async () => {
+      seedRuns(63);
+      const page50 = await (await fetch(`http://localhost:3000${runsApi}?filter=all&page=1&pageSize=50`)).json();
+      const { user } = await renderRoute(`${base}/runs`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.get(`*${runsApi}`, async () => {
+          await held;
+          return HttpResponse.json(page50);
+        }),
+      );
+      await user.selectOptions(screen.getByLabelText('Rows per page'), '50');
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
+      expect(runNumbers()).toHaveLength(20);
+      expect(nav()).toHaveTextContent('Showing 1–20 of 63');
+      expect(screen.getByLabelText('Rows per page')).toHaveValue('20');
+      release();
+      await waitFor(() => expect(runNumbers()).toHaveLength(50));
+      expect(nav()).toHaveTextContent('Showing 1–50 of 63');
+      expect(screen.getByLabelText('Rows per page')).toHaveValue('50');
+    });
+
+    it('needs you: while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+      seedRuns(21, { from: 62, status: 'idle' });
+      const { user } = await renderRoute(`${base}/needs-you`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      const page2Body = await (
+        await fetch(`http://localhost:3000${runsApi}?filter=needs_you&page=2&pageSize=20`)
+      ).json();
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.get(`*${runsApi}`, async ({ request }) => {
+          if (new URL(request.url).searchParams.get('page') !== '2') return undefined;
+          await held;
+          return HttpResponse.json(page2Body);
+        }),
+      );
+      await user.click(pageButton(2));
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
+      expect(screen.getAllByRole('link', { name: /^Open run \d+ in Agent Desk$/ })).toHaveLength(20);
+      expect(nav()).toHaveTextContent('Showing 1–20 of 21');
+      expect(pageButton(1)).toHaveAttribute('aria-current', 'page');
+      release();
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'false'));
+      expect(nav()).toHaveTextContent('Showing 21–21 of 21');
+      expect(pageButton(2)).toHaveAttribute('aria-current', 'page');
     });
 
     it('needs you: 21 runs show 20 cards; Page 2 shows 1 card and "Showing 21–21 of 21"; the tab badge stays at 21', async () => {
@@ -484,6 +545,34 @@ describe('runs route', () => {
       await waitFor(() => expect(ignoredRows()).toHaveLength(7));
       expect(nav()).toHaveTextContent('Showing 21–27 of 27');
       expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveTextContent('27');
+    });
+
+    it('while page 2 is held, the control still reads "Showing 1–20" with Page 1 current; then the new range', async () => {
+      seedIgnored(27);
+      const { user } = await renderRoute(`${base}/runs?filter=ignored`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      const ignoredApi = `/api/projects/${projectId}/ignored`;
+      const page2Body = await (await fetch(`http://localhost:3000${ignoredApi}?page=2&pageSize=20`)).json();
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.get(`*${ignoredApi}`, async ({ request }) => {
+          if (new URL(request.url).searchParams.get('page') !== '2') return undefined;
+          await held;
+          return HttpResponse.json(page2Body);
+        }),
+      );
+      await user.click(screen.getAllByRole('button', { name: 'Page 2' })[0] as HTMLElement);
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
+      expect(ignoredRows()).toHaveLength(20);
+      expect(nav()).toHaveTextContent('Showing 1–20 of 27');
+      expect(within(nav()).getAllByRole('button', { name: 'Page 1' })[0]).toHaveAttribute('aria-current', 'page');
+      release();
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'false'));
+      expect(nav()).toHaveTextContent('Showing 21–27 of 27');
+      expect(within(nav()).getAllByRole('button', { name: 'Page 2' })[0]).toHaveAttribute('aria-current', 'page');
     });
 
     it('from page 3 of All, the Ignored chip lands on page 1 of the ignored list', async () => {
