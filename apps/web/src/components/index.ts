@@ -94,3 +94,6 @@ export { TriggerModeSetting, type TriggerModeSettingProps } from './TriggerModeS
 export { PluginList, type PluginListProps, type PluginState } from './PluginList';
 export { SetupPhases, type SetupPhase, type SetupPhaseState } from './SetupPhases';
 export { VersionHistory, type VersionHistoryProps, type ScriptVersion } from './VersionHistory';
+export { SkillDiff, type SkillDiffProps } from './SkillDiff';
+export { SkillPreviewPane, type SkillPreviewPaneProps, type SkillPreviewModule } from './SkillPreviewPane';
+export type { SkillPreviewProps } from './SkillPreview';

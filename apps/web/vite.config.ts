@@ -49,6 +49,8 @@ export default defineConfig(({ mode }) => {
       setupFiles: ['./src/test/setup.ts'],
       css: { include: [/tokens\.css/], modules: { classNameStrategy: 'non-scoped' } },
       include: ['src/**/*.test.{ts,tsx}'],
+      // @streamdown/mermaid imports 'mermaid'; inlined so the vi.mock('mermaid') double in test/setup.ts reaches it.
+      server: { deps: { inline: ['@streamdown/mermaid'] } },
       coverage: {
         provider: 'v8',
         reporter: ['json', 'json-summary', 'lcov', 'text-summary'],

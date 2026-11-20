@@ -36,14 +36,90 @@ describe('DeskSkills', () => {
     expect(screen.getByRole('button', { name: 'Commit to main' })).toBeDisabled();
   });
 
-  it('view switches Edit/Preview/Diff and read-only outside Edit', async () => {
-    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" changedLines={[17]} />);
-    const seg = screen.getByRole('radiogroup', { name: 'Editor view' });
-    expect(within(seg).getByRole('radio', { name: 'Edit' })).toBeChecked();
-    expect(screen.getByLabelText('SKILL.md source')).not.toHaveAttribute('readonly');
-    await userEvent.click(within(seg).getByRole('radio', { name: 'Diff' }));
-    expect(within(seg).getByRole('radio', { name: 'Diff' })).toBeChecked();
-    expect(screen.getByLabelText('SKILL.md source')).toHaveAttribute('readonly');
+  const radio = (name: string) =>
+    within(screen.getByRole('radiogroup', { name: 'Editor view' })).getByRole('radio', { name });
+  const codeBuild = skills[0];
+
+  it('Preview shows the draft as formatted Markdown with no editable source', async () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    expect(radio('Edit')).toBeChecked();
+    await userEvent.click(radio('Preview'));
+    const region = await screen.findByRole('region', { name: 'Skill preview' });
+    expect(within(region).getByRole('heading', { name: 'Build a user story' })).toBeInTheDocument();
+    expect(screen.queryByLabelText('SKILL.md source')).toBeNull();
+  });
+
+  it("Diff lists the draft's changes against main and is read-only", async () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    await userEvent.type(screen.getByLabelText('SKILL.md source'), 'x');
+    await userEvent.click(radio('Diff'));
+    const region = screen.getByRole('region', { name: 'Changes against main' });
+    expect(region.querySelector('[data-kind="del"]')).not.toBeNull();
+    expect(region.querySelector('[data-kind="add"]')).not.toBeNull();
+    expect(screen.queryByLabelText('SKILL.md source')).toBeNull();
+  });
+
+  it('Diff with no edits shows "No changes. The editor matches main."', async () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    await userEvent.click(radio('Diff'));
+    expect(screen.getByText('No changes. The editor matches main.')).toBeInTheDocument();
+  });
+
+  it('switching Edit -> Preview -> Diff -> Edit keeps the draft', async () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" />);
+    await userEvent.type(screen.getByLabelText('SKILL.md source'), 'x');
+    await userEvent.click(radio('Preview'));
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    await userEvent.click(radio('Diff'));
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    await userEvent.click(radio('Edit'));
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`${codeBuild.body}x`);
+  });
+
+  it('Commit sends the draft from Preview and from Diff', async () => {
+    const onCommit = vi.fn();
+    render(
+      <DeskSkills frame={deskFrame} skills={skills} activeName="code-build" commitMessage="msg" onCommit={onCommit} />,
+    );
+    await userEvent.type(screen.getByLabelText('SKILL.md source'), 'x');
+    await userEvent.click(radio('Preview'));
+    await userEvent.click(screen.getByRole('button', { name: 'Commit to main' }));
+    expect(onCommit).toHaveBeenLastCalledWith(`${codeBuild.body}x`, 'msg');
+    await userEvent.click(radio('Diff'));
+    await userEvent.click(screen.getByRole('button', { name: 'Commit to main' }));
+    expect(onCommit).toHaveBeenCalledTimes(2);
+    expect(onCommit).toHaveBeenLastCalledWith(`${codeBuild.body}x`, 'msg');
+  });
+
+  it('a failed preview leaves Diff, Discard and Commit usable', async () => {
+    const onCommit = vi.fn();
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    render(
+      <DeskSkills
+        frame={deskFrame}
+        skills={skills}
+        activeName="code-build"
+        commitMessage="msg"
+        onCommit={onCommit}
+        preview={{ load: () => Promise.reject(new Error('x')) }}
+      />,
+    );
+    await userEvent.type(screen.getByLabelText('SKILL.md source'), 'x');
+    await userEvent.click(radio('Preview'));
+    expect(await screen.findByText('Could not show the preview')).toBeInTheDocument();
+    await userEvent.click(radio('Diff'));
+    expect(
+      screen.getByRole('region', { name: 'Changes against main' }).querySelector('[data-kind="add"]'),
+    ).not.toBeNull();
+    await userEvent.click(screen.getByRole('button', { name: 'Commit to main' }));
+    expect(onCommit).toHaveBeenCalledWith(`${codeBuild.body}x`, 'msg');
+  });
+
+  it('initialDraft starts the draft from the given text', () => {
+    render(<DeskSkills frame={deskFrame} skills={skills} activeName="code-build" initialDraft="# Changed" />);
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue('# Changed');
+    expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
   });
 
   it('deleting opens a named dialog whose confirm needs the typed name', async () => {

@@ -147,12 +147,12 @@ export const skillPreviewSamples: {
 export const skillDiffDraft: string; // code-build's body with step 5 reworded, a new step after it, and the "- Never push to `main`." rule removed
 ```
 
-- [ ] **Step 1: Add the `diff` package**
+- [x] **Step 1: Add the `diff` package**
 
 Run: `pnpm --filter @agentdesk/web add diff@9.0.0`
 Expected: `apps/web/package.json` gets `"diff": "^9.0.0"`, and `pnpm --filter @agentdesk/web list diff` shows `diff 9.0.0`.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `lineDiff.test.ts` (`DiffLine` objects written in full in the assertions):
 
@@ -174,25 +174,25 @@ Expected: `apps/web/package.json` gets `"diff": "^9.0.0"`, and `pnpm --filter @a
 - `it('keeps colons in values and joins continuation lines')` (Review Focus 2): `'---\ndescription: Build: then test\nnote: >\n  Long text\n  here\n---\n'` → `[{key:'description',value:'Build: then test'},{key:'note',value:'> Long text here'}]`.
 - `it('splitFrontMatter accepts CRLF')` (Review Focus 1): `'---\r\nname: x\r\n---\r\nbody'` → fields `[{key:'name',value:'x'}]`, body `'body'`.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- lineDiff frontMatter`
 Expected: FAIL, the modules do not exist.
 
-- [ ] **Step 4: Implement `lineDiff` and `splitFrontMatter`**
+- [x] **Step 4: Implement `lineDiff` and `splitFrontMatter`**
 
 `lineDiff` calls `diffLines(base, draft)` with default options (compare as stored). It splits each change's `value` on `\n`, drops the empty piece after a final `\n`, strips a trailing `\r` from each line, and numbers lines per side as it goes. `splitFrontMatter` follows the parsing Agent call above. A field line matches `/^([A-Za-z0-9_-]+):(?:[ \t]+(.*))?$/`, and the value is trimmed (`''` when absent).
 
-- [ ] **Step 5: Add the fixtures**
+- [x] **Step 5: Add the fixtures**
 
 In `mocks/skills.ts`, the `qa-e2e` entry's body becomes `skillPreviewSamples.rich`. Its front matter stays exactly `name: qa-e2e` / `description: Exploratory QA pass with Playwright on a PR preview.`, then: an `# qa-e2e` heading and one paragraph; a `## Checks` heading over a GFM table with the header cells `Area`, `What to try`, `Done when` and two rows; a `## Flow` heading over a ```` ```mermaid ```` fence starting `flowchart LR` with a node labelled `Explore`; a `## Not drawn` heading over a ```` ```mermaid ```` fence whose first line is `this is not a diagram`. Build the other samples and `skillDiffDraft` as their comments in Interfaces say, and re-export both names from `mocks/index.ts` beside `skills`.
 
-- [ ] **Step 6: Run the tests, typecheck and lint**
+- [x] **Step 6: Run the tests, typecheck and lint**
 
 Run: `pnpm --filter @agentdesk/web test -- lineDiff frontMatter mocks contract && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint`
 Expected: PASS. The `mocks` and `contract` tests still pass (four skills, unchanged descriptions).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
@@ -228,7 +228,7 @@ export function SkillDiff(props: SkillDiffProps): JSX.Element;
 // DiffLine with data-kind="same" | "add" | "del"; rows "add"/"del" hold a visually hidden "Added"/"Removed".
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `SkillDiff.test.tsx`, with `base = 'a\nb\nc'` and `draft = 'a\nB\nc\nd'`:
 
@@ -239,16 +239,16 @@ export function SkillDiff(props: SkillDiffProps): JSX.Element;
 - `it('shows "No changes. The editor matches main." when the draft equals main')`: no `[data-kind]` rows.
 - `it('shows skill text as text')`: a draft line `<script>alert(1)</script>` gives no `script` element, and the text is visible.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillDiff`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement `SkillDiff` and its CSS**
+- [x] **Step 3: Implement `SkillDiff` and its CSS**
 
 Rows and colours follow Global Constraints. The text spans use the `highlightMarkdown` kinds, with the same token colours `CodeEditor.module.css` gives each kind. The root fills the column's scroll area. Compute `lineDiff(base, draft)` straight in render, with no memo.
 
-- [ ] **Step 4: Write the stories**
+- [x] **Step 4: Write the stories**
 
 `Components/SkillDiff`: `WithChanges` (`base` = code-build's body from `skills`, `draft` = `skillDiffDraft`, which gives a changed line, an added line and a removed line) and `Empty` (`base` and `draft` the same body).
 
@@ -257,7 +257,7 @@ Rows and colours follow Global Constraints. The text spans use the `highlightMar
 Run: `pnpm --filter @agentdesk/web test -- SkillDiff stories.smoke cssModules && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS, with no axe violations and Storybook built.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -295,12 +295,12 @@ export default SkillPreview; // the React.lazy target of Task 4
 // DOM contract: a <section aria-label="Skill preview"> holding the KeyValue fields, then the Markdown body.
 ```
 
-- [ ] **Step 1: Add the `streamdown` package**
+- [x] **Step 1: Add the `streamdown` package**
 
 Run: `pnpm --filter @agentdesk/web add streamdown@2.8.0`
 Expected: `"streamdown": "^2.8.0"` in `apps/web/package.json`, and `pnpm --filter @agentdesk/web list streamdown` shows 2.8.0.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `SkillPreview.test.tsx`:
 
@@ -314,25 +314,25 @@ Expected: `"streamdown": "^2.8.0"` in `apps/web/package.json`, and `pnpm --filte
 - `it('renders other code fences as plain mono blocks')`: a ```` ```bash ```` fence's text is inside `pre`/`code`.
 - `it('shows the empty message for empty or whitespace-only text')`: `''` and `'  \n'` → "Nothing to preview yet. Write the skill in Edit.". `skillPreviewSamples.frontMatterOnly` → its fields and the same message.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreview`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement `SkillPreview` and its CSS**
+- [x] **Step 4: Implement `SkillPreview` and its CSS**
 
 Pipeline per the spec's "Preview" section: `splitFrontMatter(value)`, then `KeyValue` for the fields, then the empty message or `<Streamdown …>` on the body with the Global Constraints props. Its `components` prop overrides: `h1`–`h6` (the Agent call levels, styled by Markdown level), `a` (new tab; plain text when the transform removed the href), and `img` (alt text or URL as text). The link-safety modal is turned off. Check every prop name against the installed `streamdown` 2.8.0 types. Style every element Streamdown draws (headings, paragraphs, lists, task-list checkboxes, blockquote, inline code, code blocks, table parts, links, horizontal rule) in the CSS module, scoped to the section. `:global([data-streamdown="…"])` selectors are allowed. Tokens only. The section fills the column's scroll area.
 
-- [ ] **Step 5: Write the stories**
+- [x] **Step 5: Write the stories**
 
 `Components/SkillPreview`: `Default` (code-build's body from `skills`), `WithTable` (`skillPreviewSamples.table`), `Empty` (`''`).
 
-- [ ] **Step 6: Run the tests, smoke + axe, typecheck, lint and Storybook**
+- [x] **Step 6: Run the tests, smoke + axe, typecheck, lint and Storybook**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreview stories.smoke cssModules && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS, with no axe violations.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
@@ -370,7 +370,7 @@ export function SkillPreviewPane(props: SkillPreviewPaneProps): JSX.Element;
 // Forwards every SkillPreviewProps field (Task 5 adds loadMermaid) to the loaded component.
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `SkillPreviewPane.test.tsx`:
 
@@ -380,25 +380,25 @@ export function SkillPreviewPane(props: SkillPreviewPaneProps): JSX.Element;
 - `it('shows the error state when rendering throws')`: `load` resolves to a component that throws → the same banner.
 - `it('Try again loads the preview again after a failed load')` (Review Focus 5): `load` rejects once, then resolves to a stub that renders `value`. Clicking "Try again" calls `load` a second time and shows the text.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreviewPane`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the pane**
+- [x] **Step 3: Implement the pane**
 
 The pane renders an error-boundary class (`getDerivedStateFromError`), then `<Suspense>` with the Skeleton fallback (`variant="text"`, about 8 lines, inside the status element), then the lazy component. Keep an `attempt` number in state and build the lazy component from `load` for each attempt. "Try again" bumps `attempt` and resets the boundary (see the Agent call). The banner is `tone="err"`, `title="Could not show the preview"`, `live="assertive"`, with a small "Try again" `Button`. The root fills the column's scroll area.
 
-- [ ] **Step 4: Write the stories**
+- [x] **Step 4: Write the stories**
 
 `Components/SkillPreviewPane`: `Loading` (`load={() => new Promise(() => {})}`) and `Error` (`load={() => Promise.reject(new Error('chunk failed'))}`), both with `value={skillPreviewSamples.table}`.
 
-- [ ] **Step 5: Run the tests, smoke + axe, typecheck, lint and Storybook**
+- [x] **Step 5: Run the tests, smoke + axe, typecheck, lint and Storybook**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreviewPane stories.smoke cssModules && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -447,16 +447,16 @@ export const FakeMermaid: {
 // graph or sequenceDiagram, and rejects others with Error('No diagram type detected').
 ```
 
-- [ ] **Step 1: Add the Mermaid packages**
+- [x] **Step 1: Add the Mermaid packages**
 
 Run: `pnpm --filter @agentdesk/web add @streamdown/mermaid@1.0.4 mermaid@11.17.2`
 Expected: both appear in `apps/web/package.json` with `^` ranges, and `pnpm --filter @agentdesk/web list @streamdown/mermaid mermaid` shows 1.0.4 and 11.17.2.
 
-- [ ] **Step 2: Add the jsdom double**
+- [x] **Step 2: Add the jsdom double**
 
 Create `fakeMermaid.ts` per Interfaces. In `setup.ts`, mock `mermaid` next to the xterm mocks with a matching comment, and call `FakeMermaid.reset()` in `afterEach`. If the plugin path needs `IntersectionObserver`, add a minimal stub that reports every element visible at once.
 
-- [ ] **Step 3: Write the failing tests**
+- [x] **Step 3: Write the failing tests**
 
 Add to `SkillPreview.test.tsx`. Wrap `createMermaidPlugin` with `vi.fn` through `vi.mock('@streamdown/mermaid', async (importOriginal) => …)`.
 
@@ -468,25 +468,25 @@ Add to `SkillPreview.test.tsx`. Wrap `createMermaidPlugin` with `vi.fn` through 
 - `it('a diagram that cannot be drawn shows the notice, the error and the source; the rest renders')`: `skillPreviewSamples.rich` → "This diagram could not be drawn" once, the text `No diagram type detected`, `this is not a diagram` in a code block, plus the table and the drawn diagram.
 - `it('Try again redraws a failed diagram')`: clicking "Try again" in the notice calls the plugin's `retry`, so `FakeMermaid` is asked to render again.
 
-- [ ] **Step 4: Run them and see them fail**
+- [x] **Step 4: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreview`
 Expected: FAIL.
 
-- [ ] **Step 5: Implement diagrams in `SkillPreview`**
+- [x] **Step 5: Implement diagrams in `SkillPreview`**
 
 Detect a fence with `/^ {0,3}(`{3,}|~{3,})[ \t]*mermaid\b/m`. Only then call `loadMermaid` (once per mount), build the plugin with the strict config, and pass it to `<Streamdown>`. `themeVariables` come from tokens via `getComputedStyle` (Agent call). Until the plugin is ready, mermaid fences show the "Loading diagram…" placeholder. Restyle Streamdown's own diagram placeholder with tokens in the CSS module, or route mermaid fences through a `components` override that keeps the strict plugin (spec "Left to the builder"). It must never be a blank gap. Streamdown's `mermaid.errorComponent` renders an `err`-tone notice: "This diagram could not be drawn", the error message as text, the fence source as a plain code block, and a "Try again" button that calls `retry`. Check names against the installed types.
 
-- [ ] **Step 6: Write the stories**
+- [x] **Step 6: Write the stories**
 
 Add to `Components/SkillPreview`: `WithDiagram` (`skillPreviewSamples.diagram`), `DiagramLoading` (`loadMermaid={() => new Promise(() => {})}`), `DiagramError` (`skillPreviewSamples.brokenDiagram`).
 
-- [ ] **Step 7: Run the tests, smoke + axe, typecheck, lint and Storybook**
+- [x] **Step 7: Run the tests, smoke + axe, typecheck, lint and Storybook**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS (the whole web suite, since `setup.ts` changed). In the built Storybook, `WithDiagram` draws a real diagram and `DiagramError` shows the notice.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 devbox run fix
@@ -525,7 +525,7 @@ initialDraft?: string;
 preview?: Pick<SkillPreviewPaneProps, 'load' | 'loadMermaid'>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `desk.test.tsx`, replace `'view switches Edit/Preview/Diff and read-only outside Edit'` with:
 
@@ -537,16 +537,16 @@ In `desk.test.tsx`, replace `'view switches Edit/Preview/Diff and read-only outs
 - `it('a failed preview leaves Diff, Discard and Commit usable')`: with `preview={{ load: () => Promise.reject(new Error('x')) }}` and an edit, Preview shows "Could not show the preview". Switching to Diff then lists the change, and Commit calls `onCommit` with the draft.
 - `it('initialDraft starts the draft from the given text')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- desk.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add the barrel lines. In `SkillEditor`, `value` starts from `initialDraft ?? skill.body`. Render `CodeEditor` only for Edit, with exactly today's props for Edit (`changedLines={changedLines}`, not read-only). Render `<SkillPreviewPane value={value} {...preview} />` for Preview and `<SkillDiff base={skill.body} draft={value} />` for Diff. The header, chip, Discard and commit bar stay as they are. Import both views from `@/components`.
 
-- [ ] **Step 4: Add the screen stories and register them**
+- [x] **Step 4: Add the screen stories and register them**
 
 In `desk.stories.tsx` (same `artboard(900)` and `viewport(1440, 900)` as `DeskSkills`), add the seven stories from the Agent call. The Preview stories open `qa-e2e` with `view="preview"`: `DeskSkillsPreviewEmpty` with that skill's body set to `skillPreviewSamples.frontMatterOnly`; `Loading` and `Error` through `preview.load` (pending, rejecting); `DiagramLoading` through `preview.loadMermaid` (pending). `DeskSkillsDiff` opens code-build with `view="diff"` and `initialDraft={skillDiffDraft}`; `DeskSkillsDiffEmpty` has no draft. Register all seven in `stateStories` with `title: desk` and `board: 'DeskSkills'`.
 
@@ -560,7 +560,7 @@ Expected: PASS. `coverage.test.ts` sees no orphan story. Parity shows no new dri
 Run: `pnpm --filter @agentdesk/web exec vite build`
 Expected: no "dynamic import will not move module into another chunk" warning. The entry chunk `apps/web/dist/assets/index-*.js` contains neither `data-streamdown` nor `securityLevel` (`grep -c` gives 0). Both strings are found in separate chunks.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
@@ -582,7 +582,7 @@ git commit -m "feat(web): Preview and Diff views in the Skills editor"
 
 - Consumes: `ORG`, `INVOICER_API` from `./mock`; the `qa-e2e` fixture (Task 1), served by MSW at `/o/${ORG}/p/${INVOICER_API}/desk/skills?skill=qa-e2e`; the DOM contracts of Tasks 2, 3 and 6 (region names, `data-kind` rows, the "Editor view" radiogroup, the "SKILL.md source" textbox, the "Discard" and "Commit to main" buttons).
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 Each test starts from one `page.goto` (the store reseeds on every load) and then moves by clicks:
 
@@ -595,17 +595,17 @@ Each test starts from one `page.goto` (the store reseeds on every load) and then
 - `test('wide preview content scrolls inside the editor column')` (Review Focus 4): fill a table with one 400-character cell and a 400-character code line. In Preview, `document.documentElement.scrollWidth` equals `innerWidth`, and the skill heading and "Commit to main" stay in view.
 - `test('Preview and Diff keep the header and commit bar in view')`: at a 1280×300 viewport, for Preview and for Diff, the `h2` and "Commit to main" are inside the viewport and the page does not scroll (`scrollHeight` equals `innerHeight`).
 
-- [ ] **Step 2: Build the mock app and run the spec**
+- [x] **Step 2: Build the mock app and run the spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/skills-preview-diff.spec.ts`
 Expected: 8 passed. Run only this spec, never the full e2e suite. If a test fails because of app code, fix it in the task that owns that code, not here.
 
-- [ ] **Step 3: Typecheck and lint**
+- [x] **Step 3: Typecheck and lint**
 
 Run: `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 devbox run fix

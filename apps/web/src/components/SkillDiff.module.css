@@ -1,0 +1,65 @@
+.diff {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  background: var(--input-bg);
+  color: var(--term-text);
+  font-family: var(--mono);
+  font-size: var(--fs-13);
+  line-height: 1.6;
+}
+.inner {
+  width: max-content;
+  min-width: 100%;
+  padding: 14px 0;
+}
+.row {
+  display: grid;
+  grid-template-columns: 44px 44px 20px minmax(0, 1fr);
+  white-space: pre;
+  padding-right: 2ch;
+}
+.add {
+  background: var(--term-add-bg);
+}
+.del {
+  background: var(--term-del-bg);
+}
+.ln {
+  color: var(--ln);
+  text-align: right;
+  padding-right: 14px;
+  user-select: none;
+}
+.glyph {
+  text-align: center;
+  user-select: none;
+}
+.add .glyph {
+  color: var(--ok);
+}
+.del .glyph {
+  color: var(--fail);
+}
+.empty {
+  margin: 0;
+  padding: 14px;
+  color: var(--ln);
+  font-family: var(--sans);
+}
+.h {
+  color: var(--md-h);
+  font-weight: 600;
+}
+.k {
+  color: var(--md-k);
+}
+.c {
+  color: var(--md-c);
+}
+.f {
+  color: var(--md-f);
+}
+.text {
+  min-width: 0;
+}
