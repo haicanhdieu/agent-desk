@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { FakeFitAddon, FakeWebglAddon, FakeXterm } from '@/test/fakeXterm';
@@ -179,6 +179,185 @@ describe('LiveTerminal', () => {
       });
       expect(onData).not.toHaveBeenCalled();
       expect(event?.defaultPrevented).toBe(false);
+    });
+  });
+
+  // Claude Code turns on mouse reporting and copies a selection itself: it prints OSC 52 (`ESC ] 52 ; c ; <base64> BEL`),
+  // which xterm ignores unless something handles it. The handler gets the text after `52;`.
+  describe('the clipboard sequence (OSC 52)', () => {
+    const writeText = vi.fn<(text: string) => Promise<void>>();
+    const b64 = (text: string) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+    beforeEach(() => {
+      writeText.mockReset().mockResolvedValue(undefined);
+      Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true });
+    });
+    afterEach(() => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      vi.restoreAllMocks();
+    });
+    // The write needs a user gesture a moment before: a press inside the terminal, released anywhere (a selection).
+    const pointerUp = () => {
+      fireEvent.pointerDown(screen.getByRole('group'));
+      fireEvent.pointerUp(screen.getByRole('group'));
+    };
+
+    it('copies the text the program sets to the clipboard, decoded as UTF-8', () => {
+      render(<LiveTerminal />);
+      pointerUp();
+      FakeXterm.latest().osc(52, `c;${b64('héllo ✻ wörld')}`);
+      expect(writeText).toHaveBeenCalledExactlyOnceWith('héllo ✻ wörld');
+    });
+
+    it('accepts any selection parameter, including none (what tmux forwards)', () => {
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      pointerUp();
+      term.osc(52, `;${b64('one')}`);
+      term.osc(52, `pc;${b64('two')}`);
+      expect(writeText.mock.calls).toEqual([['one'], ['two']]);
+    });
+
+    it('never answers the read query: a pod cannot read the host clipboard', () => {
+      const onData = vi.fn();
+      render(<LiveTerminal onData={onData} />);
+      pointerUp();
+      FakeXterm.latest().osc(52, 'c;?');
+      expect(writeText).not.toHaveBeenCalled();
+      expect(onData).not.toHaveBeenCalled();
+    });
+
+    it('ignores an empty payload and invalid base64 without throwing', () => {
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      pointerUp();
+      term.osc(52, 'c;');
+      term.osc(52, 'c;!!not base64!!');
+      term.osc(52, 'c');
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('read-only: a finished run never writes the clipboard', () => {
+      render(<LiveTerminal readOnly initial="done" />);
+      pointerUp();
+      FakeXterm.latest().osc(52, `c;${b64('replayed')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('does nothing after unmount', () => {
+      const { unmount } = render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      unmount();
+      term.osc(52, `c;${b64('late')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('a refused clipboard write is logged, not thrown', async () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+      const refused = new Error('denied');
+      writeText.mockRejectedValue(refused);
+      render(<LiveTerminal />);
+      pointerUp();
+      FakeXterm.latest().osc(52, `c;${b64('x')}`);
+      await vi.waitFor(() => expect(warn).toHaveBeenCalledWith('Could not copy the text the program set', refused));
+      warn.mockRestore();
+    });
+
+    it('without the clipboard API it does nothing', () => {
+      Reflect.deleteProperty(navigator, 'clipboard');
+      render(<LiveTerminal />);
+      pointerUp();
+      expect(() => FakeXterm.latest().osc(52, `c;${b64('x')}`)).not.toThrow();
+    });
+
+    it('writes nothing when no user gesture came first: pod output cannot set the clipboard alone', () => {
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      term.osc(52, `c;${b64('injected')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('Ctrl+C is the interrupt sent to the pod, not a gesture: it does not open the window', () => {
+      render(<LiveTerminal />);
+      fireEvent.keyDown(screen.getByRole('group'), { key: 'c', ctrlKey: true });
+      fireEvent.keyDown(screen.getByRole('group'), { key: 'a' });
+      FakeXterm.latest().osc(52, `c;${b64('answer to the interrupt')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('a selection released outside the terminal still opens the window', () => {
+      render(<LiveTerminal />);
+      fireEvent.pointerDown(screen.getByRole('group'));
+      fireEvent.pointerUp(document.body);
+      FakeXterm.latest().osc(52, `c;${b64('dragged out')}`);
+      expect(writeText).toHaveBeenCalledExactlyOnceWith('dragged out');
+    });
+
+    it('a press that did not start in the terminal is not a gesture', () => {
+      render(<LiveTerminal />);
+      fireEvent.pointerUp(document.body);
+      FakeXterm.latest().osc(52, `c;${b64('elsewhere')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('a cancelled press is not a gesture: a later release elsewhere does not open the window', () => {
+      render(<LiveTerminal />);
+      fireEvent.pointerDown(screen.getByRole('group'));
+      fireEvent.pointerCancel(screen.getByRole('group'));
+      fireEvent.pointerUp(document.body);
+      FakeXterm.latest().osc(52, `c;${b64('after a cancel')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('a newer press elsewhere supersedes one in the terminal that never ended', () => {
+      render(<LiveTerminal />);
+      fireEvent.pointerDown(screen.getByRole('group'));
+      fireEvent.pointerDown(document.body);
+      fireEvent.pointerUp(document.body);
+      FakeXterm.latest().osc(52, `c;${b64('unrelated click')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('one press opens the window once: a later release with no press does not renew it', () => {
+      let now = 10_000;
+      vi.spyOn(performance, 'now').mockImplementation(() => now);
+      render(<LiveTerminal />);
+      pointerUp();
+      now += 5_000;
+      fireEvent.pointerUp(document.body);
+      FakeXterm.latest().osc(52, `c;${b64('stale window')}`);
+      expect(writeText).not.toHaveBeenCalled();
+    });
+
+    it('writes nothing once the gesture window has passed', () => {
+      let now = 10_000;
+      vi.spyOn(performance, 'now').mockImplementation(() => now);
+      render(<LiveTerminal />);
+      const term = FakeXterm.latest();
+      pointerUp();
+      now += 1_900;
+      term.osc(52, `c;${b64('in time')}`);
+      expect(writeText).toHaveBeenCalledExactlyOnceWith('in time');
+      now += 200;
+      term.osc(52, `c;${b64('too late')}`);
+      expect(writeText).toHaveBeenCalledTimes(1);
+    });
+
+    it('stops listening for gestures after unmount', () => {
+      const { unmount } = render(<LiveTerminal />);
+      const removeHost = vi.spyOn(screen.getByRole('group'), 'removeEventListener');
+      const removeDoc = vi.spyOn(document, 'removeEventListener');
+      unmount();
+      const gesture = (calls: unknown[][]) =>
+        calls
+          .filter(([type]) => type === 'pointerdown' || type === 'pointerup' || type === 'pointercancel')
+          .map(([type, , options]) => [type, options]);
+      expect(gesture(removeDoc.mock.calls)).toEqual([
+        ['pointerdown', { capture: true }],
+        ['pointercancel', { capture: true }],
+        ['pointerup', { capture: true }],
+      ]);
+      expect(gesture(removeHost.mock.calls)).toEqual([]);
+      expect(removeHost.mock.calls.some(([type]) => type === 'keydown')).toBe(false);
     });
   });
 

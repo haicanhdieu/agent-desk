@@ -100,13 +100,15 @@ test('a live idle run opens a terminal socket (control for the pausing run)', as
 /** Records the binary frames the page sends on its terminal socket, as strings, whatever replaces the constructor later. */
 async function recordTerminalFrames(page: Page): Promise<() => Promise<string[]>> {
   await page.addInitScript(() => {
-    const w = window as unknown as { __frames: string[] };
+    const w = window as unknown as { __frames: string[]; __sockets: WebSocket[] };
     w.__frames = [];
+    w.__sockets = [];
     let impl: typeof WebSocket = window.WebSocket;
     const wrap = (ctor: typeof WebSocket): typeof WebSocket =>
       new Proxy(ctor, {
         construct(target, args, newTarget) {
           const socket: WebSocket = Reflect.construct(target, args, newTarget);
+          w.__sockets.push(socket);
           const send = socket.send.bind(socket);
           socket.send = (data) => {
             if (typeof data !== 'string' && !(data instanceof Blob)) {
@@ -287,4 +289,69 @@ test('in a live run terminal Ctrl+C copies the selected text and sends nothing; 
   expect(copied.trim()).not.toBe('');
   await expect(terminal).toContainText(copied.trim());
   expect(await frames()).toEqual(['\x03']);
+});
+
+/** Makes the page's newest terminal socket deliver `text` as terminal output (needs recordTerminalFrames first). */
+async function printInTerminal(page: Page, text: string): Promise<void> {
+  await page.evaluate((t) => {
+    const sockets = (window as unknown as { __sockets: WebSocket[] }).__sockets;
+    const socket = sockets.at(-1);
+    if (!socket) throw new Error('no terminal socket');
+    const data = new TextEncoder().encode(t).buffer;
+    socket.dispatchEvent(new MessageEvent('message', { data }));
+  }, text);
+}
+
+// Claude Code turns on mouse reporting and copies a mouse selection itself by printing OSC 52 (set clipboard), which
+// xterm ignores unless handled. The sequence is the one tmux forwards: ESC ] 52 ; <selection> ; <base64> BEL. Pod output is
+// untrusted, so it only writes the clipboard within a moment of a mouse release that ended a press inside the terminal.
+test('in a live run terminal an OSC 52 sequence sets the clipboard, decoded as UTF-8; the read query changes nothing', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await recordTerminalFrames(page);
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await page.evaluate(() => navigator.clipboard.writeText('stale'));
+
+  const osc52 = (selection: string, payload: string) => `\x1b]52;${selection};${payload}\x07`;
+  const base64 = (text: string) => Buffer.from(text, 'utf8').toString('base64');
+  const readClipboard = () => page.evaluate(() => navigator.clipboard.readText());
+
+  // The query is not answered and does not touch the clipboard.
+  await printInTerminal(page, osc52('c', '?'));
+  await printInTerminal(page, 'after the query');
+  await expect(terminal).toContainText('after the query');
+  expect(await readClipboard()).toBe('stale');
+
+  // A real mouse press and release over the terminal (the end of a selection) is the gesture.
+  const box = await terminal.boundingBox();
+  if (!box) throw new Error('terminal has no box');
+  await page.mouse.move(box.x + 30, box.y + 20);
+  await page.mouse.down();
+  await page.mouse.up();
+  await printInTerminal(page, osc52('c', base64('copied by claude ✻ héllo')));
+  await expect.poll(readClipboard).toBe('copied by claude ✻ héllo');
+  // The sequence is consumed: it is not drawn on the screen.
+  await expect(terminal).not.toContainText(']52');
+});
+
+test('in a live run terminal an OSC 52 sequence with no user gesture leaves the clipboard unchanged', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await recordTerminalFrames(page);
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await page.evaluate(() => navigator.clipboard.writeText('stale'));
+
+  const payload = Buffer.from('injected by the pod', 'utf8').toString('base64');
+  await printInTerminal(page, `\x1b]52;c;${payload}\x07`);
+  await printInTerminal(page, 'after the sequence');
+  await expect(terminal).toContainText('after the sequence');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('stale');
 });

@@ -787,6 +787,20 @@ describe('entrypoint stop request and agent exit file', () => {
     expect(r.exitCode).toBe(1);
   });
 
+  // Claude Code copies a mouse selection with an OSC 52 escape. tmux's default (set-clipboard external) drops the
+  // sequence an application prints, so it never reaches the browser; `on` forwards it to the attached client, and the
+  // client's terminal-features must say its terminal can take it.
+  it('lets tmux forward an application clipboard (OSC 52) to the attached terminal', async () => {
+    const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
+    const start =
+      tmuxCalls(r)
+        .find((c) => c.argv.includes('new-session'))
+        ?.argv.join(' ') ?? '';
+    expect(start).toContain('set-option -g set-clipboard on');
+    expect(start).toContain('set-option -ga terminal-features *:clipboard');
+    expect(start.indexOf('set-clipboard on')).toBeLessThan(start.indexOf('new-session'));
+  });
+
   it('runs the fixed session command through agentdesk-session and passes only that command', async () => {
     const r = await runEntrypoint({ STUB_TMUX_MODE: 'alive', AGENTDESK_RUN_DIR: runDirWith({ stop: '' }) }, {});
     const argv = tmuxCalls(r).find((c) => c.argv.includes('new-session'))?.argv ?? [];
