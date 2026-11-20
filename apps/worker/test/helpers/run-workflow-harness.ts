@@ -124,6 +124,10 @@ export interface Script {
   lastExpiry?: string;
   /** The pause reason of every parkRun call, in order. */
   parkReasons: string[];
+  /** The `keepUntil` of every parkRun call (undefined when absent), in order. */
+  parkKeepUntils: (string | undefined)[];
+  /** The expiry every parkRun call reported, in order. */
+  parkExpiries: (string | null)[];
   /** The input of every recordEndingDeadline call (without the timestamp). */
   endingDeadlines: { scrollbackSaved: boolean }[];
   /** Runs inside deleteJob, before it returns (stands in for the pod dying while the Job is being deleted). */
@@ -291,11 +295,18 @@ export function activities(): RunActivities {
       const s = script(ctx.runId);
       s.calls.push(`parkRun:${input.kind}`);
       s.parkReasons.push(input.reason ?? 'idle_timeout');
+      s.parkKeepUntils.push(input.keepUntil);
       // Like the real activity, the expiry counts from the workflow's own `at`, so time skipping cannot make it stale.
-      const sessionExpiresAt =
+      const fresh =
         s.parkKeepSeconds === undefined
           ? null
           : new Date(Date.parse(input.at) + s.parkKeepSeconds * 1000).toISOString();
+      // Like the real activity: a `keepUntil` later than `at` is kept, whatever the retention would give.
+      const sessionExpiresAt =
+        fresh !== null && input.keepUntil !== undefined && Date.parse(input.keepUntil) > Date.parse(input.at)
+          ? input.keepUntil
+          : fresh;
+      s.parkExpiries.push(sessionExpiresAt);
       if (sessionExpiresAt !== null) s.lastExpiry = sessionExpiresAt;
       return { status: input.kind === 'done' ? 'succeeded' : 'paused', sessionExpiresAt };
     },
@@ -350,6 +361,8 @@ export function newRun(
     autoResumes: [],
     endingDeadlines: [],
     parkReasons: [],
+    parkKeepUntils: [],
+    parkExpiries: [],
   };
   scripts.set(runId, s);
   return s;

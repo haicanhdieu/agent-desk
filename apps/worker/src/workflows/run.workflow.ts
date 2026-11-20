@@ -50,6 +50,7 @@ import {
   autoResumeWaitSeconds,
   cancelEffect,
   endOutcome,
+  shouldRepark,
   parkKindOf,
   phaseOfParkKind,
   resumeRejection,
@@ -119,6 +120,8 @@ const STOP_SESSION_PATCH = 'stop-session';
 const AUTO_RESUME_PATCH = 'auto-resume';
 /** Marks runs that tell the ticket when they wait for a slot, so a run already waiting at deploy time replays unchanged. */
 const QUEUED_COMMENT_PATCH = 'queued-comment';
+/** Marks runs where a Finish after a done Re-open re-parks the kept session; read once, right after `autoResume`. */
+const FINISH_REPARKS_PATCH = 'finish-reparks';
 /** Plain-language reason shown on the run when its history grew too long. */
 export const HISTORY_TOO_LONG_REASON =
   'The run was stopped because its activity log grew too long for the scheduler to keep tracking. Start a new run to continue.';
@@ -241,6 +244,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let stopSessionPatch = false;
   /** `patched('auto-resume')`, read once right after `stopSessionPatch`; false keeps today's behaviour for runs that started before. */
   let autoResume = false;
+  /** `patched('finish-reparks')`, read once right after `autoResume`; false keeps deleting the volume on Finish. */
+  let finishReparks = false;
+  /** The kept session the current pod was resumed from; cleared at the next park and when the run ends. */
+  let resumedKeep: { kind: ParkKind; expiresAt: string } | undefined;
   /** Automatic resumes in a row since a person last interacted (Resume or typing). */
   let autoResumeStreak = 0;
   /** The latest unexpected pod end, until a resumed session comes up; the next resume's note says so. */
@@ -492,6 +499,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     followerReconnect = patched(FOLLOWER_RECONNECT_PATCH);
     stopSessionPatch = patched(STOP_SESSION_PATCH);
     autoResume = patched(AUTO_RESUME_PATCH);
+    finishReparks = patched(FINISH_REPARKS_PATCH);
     if (c.leaseTtlSeconds !== undefined) leaseTtlMs = c.leaseTtlSeconds * 1000;
 
     // 1. Acquire a slot.
@@ -663,6 +671,24 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           }
           return parked;
         }
+        if (
+          decision.kind === 'succeeded' &&
+          finishReparks &&
+          ending &&
+          shouldRepark({ finishRequested, kept: resumedKeep, nowMs: Date.now() })
+        ) {
+          // Agent call: reason `idle_timeout`, the only generic PauseReason (the others say crash or Stop); no migration.
+          const keepUntil = resumedKeep?.expiresAt;
+          finishRequested = false;
+          // Recorded so a `dropSession` and the cancel rules treat the re-parked run like any other done run.
+          parkKind = 'done';
+          const parked = await park(c, 'done', 'idle_timeout', undefined, 'off', 0, keepUntil);
+          if ('pod' in parked) {
+            pod = parked.pod;
+            continue;
+          }
+          return parked;
+        }
         if (decision.kind === 'succeeded') {
           return { status: 'succeeded', ...(exitCode !== undefined ? { exitCode } : {}), podExited: true };
         }
@@ -798,6 +824,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     podExitCode?: number,
     auto: AutoResumeDecision = 'off',
     triesAtDecision = 0,
+    keepUntil?: string,
   ): Promise<Outcome | { pod: Pod }> {
     hardTimer.cancel();
     usedSeconds += Math.max(0, Math.floor((Date.now() - podStartedMs) / 1000));
@@ -810,16 +837,19 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     slotRequested = false;
     await attempt('releaseSlot', () => getExternalWorkflowHandle(`gate-${c.projectId}`).signal(releaseSlot, runId));
     // `resumeAccepted` here is a Resume queued behind the ending: the activity records it if nothing is kept to resume from.
+    resumedKeep = undefined;
     const parked = await act.parkRun(c, {
       kind,
+      ...(keepUntil !== undefined ? { keepUntil } : {}),
       at: new Date().toISOString(),
       reason,
       // -1 is the placeholder for a pod that vanished: there is no exit code to report.
       ...(reason === 'pod_lost' && podExitCode !== undefined && podExitCode >= 0 ? { podExitCode } : {}),
       ...(resumeAccepted ? { resumeQueued: true } : {}),
     });
-    if (reason === 'stopped' || auto === 'resume') {
-      // A person's Stop is not announced on the ticket, nor is a pause the workflow resumes from by itself.
+    if (reason === 'stopped' || auto === 'resume' || keepUntil !== undefined) {
+      // A person's Stop is not announced on the ticket, nor is a pause the workflow resumes from by itself, nor a
+      // re-park after Finish (the finish comment was posted at the first park).
     } else if (kind === 'needs_input') await act.postComment(c, 'paused');
     else await act.postComment(c, 'finish', { status: 'succeeded' });
     // `ending` described the pod's session end, which is over; a person Finish sets it again.
@@ -982,6 +1012,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       resumePending = false;
       idleFixPending = false;
       phase = phaseOfParkKind(kind);
+      resumedKeep = { kind, expiresAt };
       epoch += 1;
       await status(statusOfParkKind(kind), { keepAgentNote: true, session: null });
       return pod;
