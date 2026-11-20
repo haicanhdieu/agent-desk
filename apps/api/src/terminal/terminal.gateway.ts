@@ -25,6 +25,7 @@ import { DB } from '../db/db.module';
 import { KUBE_GATEWAY } from '../kube/kube-gateway.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { TerminalLeases } from './terminal-leases';
+import { isPersonTyping } from './typing';
 import { runTarget, setupTestTarget, terminalKey, type TerminalTarget } from './terminal-targets';
 
 /** Close codes (spec 7.5); the browser treats 4403, 4409 and 4410 as terminal, 4401 as "sign in". */
@@ -133,6 +134,10 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   signalRetryMs = 100;
   /** How often a run's live socket ids are signalled to its workflow (test seam; set from config). */
   leaseIntervalMs: number;
+  /** At most one personInput signal per run terminal in this time (test seam). */
+  personInputIntervalMs = 60_000;
+  /** When personInput was last signalled, keyed by `terminalKey`; dropped when the key's last socket goes. */
+  private readonly lastPersonInput = new Map<string, number>();
   private readonly leases: TerminalLeases;
 
   constructor(
@@ -408,7 +413,17 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private onInput(conn: Conn, buf: Buffer): void {
-    conn.session?.write(new Uint8Array(buf.buffer, buf.byteOffset, buf.length));
+    const bytes = new Uint8Array(buf.buffer, buf.byteOffset, buf.length);
+    conn.session?.write(bytes);
+    // Only an authorized socket with a live exec session gets here with a session; replies from the terminal
+    // (cursor reports, colour answers, focus, mouse) are not a person typing.
+    if (!conn.session || !conn.target.onPersonInput || !isPersonTyping(bytes)) return;
+    const key = terminalKey(conn.target, conn.runId);
+    const now = Date.now();
+    const last = this.lastPersonInput.get(key);
+    if (last !== undefined && now - last < this.personInputIntervalMs) return;
+    this.lastPersonInput.set(key, now);
+    conn.target.onPersonInput(conn.runId).catch(() => undefined); // the run target's signaller already logged a give-up
   }
 
   private onOutput(conn: Conn, d: Uint8Array): void {
@@ -530,6 +545,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
       set?.delete(conn);
       if (set?.size === 0) {
         this.byRun.delete(key);
+        this.lastPersonInput.delete(key);
       }
     }
     if (conn.attachSignal) {

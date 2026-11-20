@@ -510,6 +510,111 @@ describe('terminal relay', () => {
     expect(signalsFor(runId, SIGNAL.terminalDetached)[0]?.args).toEqual([SIGNAL.terminalDetached, id]);
   });
 
+  describe('person input', () => {
+    const type = (c: Client, text: string): void => c.ws.send(Buffer.from(text), { binary: true });
+    const attached = async (runId: string): Promise<Client> => {
+      const c = connect(runId, { cookie: alice });
+      await c.opened;
+      await until(() => signalsFor(runId, SIGNAL.terminalAttached).length === 1);
+      return c;
+    };
+
+    it('signals personInput once, with no args, when a person types into a live run terminal', async () => {
+      const runId = await makeRun('running');
+      const c = await attached(runId);
+      type(c, 'ls\r');
+      await until(() => signalsFor(runId, SIGNAL.personInput).length === 1);
+      expect(signalsFor(runId, SIGNAL.personInput)[0]?.args).toEqual([SIGNAL.personInput]);
+      c.ws.close();
+      await c.closed;
+    });
+
+    it('signals at most once per interval for a run, and again once the interval has passed', async () => {
+      const gateway = t.app.get(TerminalGateway);
+      try {
+        const runId = await makeRun('running');
+        const c = await attached(runId);
+        type(c, 'a');
+        type(c, 'b');
+        await until(() => signalsFor(runId, SIGNAL.personInput).length === 1);
+        await sleep(100);
+        expect(signalsFor(runId, SIGNAL.personInput)).toHaveLength(1); // the default 60 s interval holds the second chunk back
+        gateway.personInputIntervalMs = 0; // the interval has passed
+        type(c, 'c');
+        await until(() => signalsFor(runId, SIGNAL.personInput).length === 2);
+        c.ws.close();
+        await c.closed;
+      } finally {
+        gateway.personInputIntervalMs = 60_000;
+      }
+    });
+
+    it('does not throttle a reconnect: the last socket closing resets the interval for that run', async () => {
+      const runId = await makeRun('running');
+      const first = await attached(runId);
+      type(first, 'a');
+      await until(() => signalsFor(runId, SIGNAL.personInput).length === 1);
+      first.ws.close();
+      await first.closed;
+      await until(() => signalsFor(runId, SIGNAL.terminalDetached).length === 1);
+      const second = connect(runId, { cookie: alice });
+      await second.opened;
+      await until(() => signalsFor(runId, SIGNAL.terminalAttached).length === 2);
+      type(second, 'b');
+      await until(() => signalsFor(runId, SIGNAL.personInput).length === 2);
+      second.ws.close();
+      await second.closed;
+    });
+
+    it('does not signal for a terminal reply (a cursor position report)', async () => {
+      const runId = await makeRun('running');
+      const c = await attached(runId);
+      type(c, '\x1b[12;40R');
+      await sleep(150);
+      expect(signalsFor(runId, SIGNAL.personInput)).toHaveLength(0);
+      type(c, 'x');
+      await until(() => signalsFor(runId, SIGNAL.personInput).length === 1);
+      c.ws.close();
+      await c.closed;
+    });
+
+    it('does not signal for a socket refused by authorization', async () => {
+      const runId = await makeRun('running');
+      const noSession = connect(runId);
+      noSession.ws.on('open', () => noSession.ws.send(Buffer.from('ls\r'), { binary: true }));
+      expect(await noSession.closed).toBe(4401);
+      const other = connect(runId, { cookie: carol });
+      other.ws.on('open', () => other.ws.send(Buffer.from('ls\r'), { binary: true }));
+      expect(await other.closed).toBe(4403);
+      await sleep(150);
+      expect(signalsFor(runId, SIGNAL.personInput)).toHaveLength(0);
+    });
+
+    it('keeps relaying when the personInput signal fails', async () => {
+      const gateway = t.app.get(TerminalGateway);
+      gateway.signalRetryMs = 5;
+      gateway.personInputIntervalMs = 20;
+      try {
+        const runId = await makeRun('running');
+        const c = await attached(runId);
+        t.temporal.signalHook = async (name) => {
+          if (name === SIGNAL.personInput) throw new Error('boom');
+        };
+        type(c, 'echo first\r');
+        await until(() => c.bytes().includes('echo first'));
+        await sleep(100);
+        type(c, 'echo second\r');
+        await until(() => c.bytes().includes('echo second'));
+        expect(signalsFor(runId, SIGNAL.personInput)).toHaveLength(0);
+        c.ws.close();
+        await c.closed;
+      } finally {
+        gateway.signalRetryMs = 100;
+        gateway.personInputIntervalMs = 60_000;
+      }
+    });
+  });
+
   describe('attach leases', () => {
     const leaseIds = (runId: string): string[][] =>
       signalsFor(runId, SIGNAL.terminalLease).map((x) => (Array.isArray(x.args[1]) ? x.args[1].map(String) : []));
@@ -910,6 +1015,19 @@ describe('terminal relay: setup tests', () => {
     await c.closed;
     await sleep(300);
     expect(t.temporal.callsOfKind('signal')).toHaveLength(0);
+  });
+
+  it('does not signal personInput when a person types into a setup-test terminal', async () => {
+    const id = await makeSetupTest('running');
+    const c = connectSetup(id, { cookie: alice });
+    await c.opened;
+    await until(() => execCalls === 1);
+    c.ws.send(Buffer.from('ls\r'), { binary: true });
+    await until(() => c.bytes().includes('ls'));
+    await sleep(150);
+    expect(t.temporal.callsOfKind('signal')).toHaveLength(0);
+    c.ws.close();
+    await c.closed;
   });
 
   it('a passed test whose workspace is still up is attachable', async () => {

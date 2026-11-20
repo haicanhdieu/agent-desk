@@ -440,25 +440,25 @@ onPersonInput?(id: string): Promise<void>;
 personInputIntervalMs = 60_000;
 ```
 
-- [ ] **Step 1: Write the failing unit tests** in `typing.test.ts`. Use `const b = (s: string) => new TextEncoder().encode(s)`, and `Uint8Array.of(0x9b, 0x41)` for 8-bit CSI.
+- [x] **Step 1: Write the failing unit tests** in `typing.test.ts`. Use `const b = (s: string) => new TextEncoder().encode(s)`, and `Uint8Array.of(0x9b, 0x41)` for 8-bit CSI.
   - True for: `'a'`, `'\r'`, `'\x7f'` (Backspace), `'\x03'` (Ctrl-C), `'\x1b'` (Esc alone), `'\x1bx'` (Alt-x), `'\x1b[200~pasted text\x1b[201~'`, `'\x1b[Ahello'`.
   - False for (Review Focus 1): `'\x1b[12;40R'` (CPR), `'\x1b[?1;2c'` (DA), `'\x1b]11;rgb:1e1e/1e1e/1e1e\x1b\\'` and `'\x1b]10;rgb:ffff/ffff/ffff\x07'` (OSC colour replies), `'\x1bP1$r0m\x1b\\'` (DCS), `'\x1b[I'` and `'\x1b[O'` (focus), `'\x1b[<0;10;5M'` (SGR mouse), `'\x1b[M !!'` (X10 mouse), `'\x1bOA'` (SS3), `'\x1b[A\x1b[B'` (arrow keys), `Uint8Array.of(0x9b, 0x41)`, and an empty array.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test:unit typing`. Expected: FAIL.
-- [ ] **Step 3: Implement** `isPersonTyping` as a byte scanner, one pass with no regex over decoded text. An unterminated OSC or DCS consumes the rest of the chunk.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Write the failing gateway tests** in `terminal.int.test.ts`, using `signalsFor(runId, SIGNAL.personInput)`:
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test:unit typing`. Expected: FAIL.
+- [x] **Step 3: Implement** `isPersonTyping` as a byte scanner, one pass with no regex over decoded text. An unterminated OSC or DCS consumes the rest of the chunk.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Write the failing gateway tests** in `terminal.int.test.ts`, using `signalsFor(runId, SIGNAL.personInput)`:
   - An authorized run socket with a live session that sends `'ls\r'` → exactly one `personInput` with no args.
   - Two typed chunks within the interval → still one. After `gateway.personInputIntervalMs` elapses (set it to 50 ms in the test) another typed chunk → two.
   - `'\x1b[12;40R'` only → none.
   - A socket refused by authorization (4401/4403) that sends bytes → none.
   - A setup-test terminal that sends `'ls\r'` → none.
   - A failing signal (`t.temporal.signalHook` throws) leaves the relay working: later output still reaches the socket.
-- [ ] **Step 6: Implement.**
+- [x] **Step 6: Implement.**
   - `runTarget` gets `onPersonInput: (id) => send(id, SIGNAL.personInput, [])`.
   - `onInput` writes to the session first. Then, only if `conn.session` is set, `conn.target.onPersonInput` exists and `isPersonTyping(buf)` holds, it checks `lastPersonInput: Map<string, number>` keyed by `terminalKey(conn.target, conn.runId)` against `personInputIntervalMs`. It records the time before sending and fires `onPersonInput(conn.runId).catch(() => undefined)` without awaiting.
   - Delete the map entry when the last socket of that key is unregistered.
-- [ ] **Step 7: Run** `pnpm --filter @agentdesk/api test:integration terminal && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 8: Commit:** `feat(api): signal personInput when a person types in a run terminal`.
+- [x] **Step 7: Run** `pnpm --filter @agentdesk/api test:integration terminal && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 8: Commit:** `feat(api): signal personInput when a person types in a run terminal`.
 
 ---
 

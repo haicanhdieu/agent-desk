@@ -23,6 +23,8 @@ export interface TerminalTarget {
   onDetach?(id: string, connectionId: string): Promise<void>;
   /** The connection ids of the sockets still open for this target id; sent on a timer while any is open. */
   onLease?(id: string, connectionIds: string[]): Promise<void>;
+  /** A person typed into this target's terminal (best effort; the run target signals personInput). */
+  onPersonInput?(id: string): Promise<void>;
 }
 
 /** Connection-map key: a run id and a setup-test id can never collide. */
@@ -59,6 +61,7 @@ export function runTarget(signalWithRetry: RunSignaller, path: string): Terminal
     onAttach: (id, connectionId) => send(id, SIGNAL.terminalAttached, [connectionId]),
     onDetach: (id, connectionId) => send(id, SIGNAL.terminalDetached, [connectionId]),
     onLease: (id, connectionIds) => send(id, SIGNAL.terminalLease, [connectionIds]),
+    onPersonInput: (id) => send(id, SIGNAL.personInput, []),
   };
 }
 
