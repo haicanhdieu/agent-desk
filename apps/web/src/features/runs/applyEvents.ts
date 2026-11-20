@@ -10,7 +10,7 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query';
 import { projectsQueries } from '../projects/queries';
 import { isFinal } from './map';
 import { clearPendingAction } from './pending';
-import { runsKey, runsQueries, type CachedRun, type RunList } from './queries';
+import { runStatsKey, runsKey, runsQueries, type RunCore, type RunList } from './queries';
 
 // Applying realtime messages (spec §5.1, §5.2) to the Query cache. Both streams patch through `applyRunStatus`, which
 // is idempotent: the run stream and the project stream deliver the same status change, and the second one finds the
@@ -41,7 +41,7 @@ const listsKey = (org: string, projectId: string) => [...runsKey(org, projectId)
  * The run with the new status. Timestamps the event does not carry are approximated with the client clock (the
  * detail is refetched when the run ends); a pending note ("Cancelling…") rides along.
  */
-function patched<T extends CachedRun>(run: T, e: StatusChange): T {
+function patched<T extends RunCore>(run: T, e: StatusChange): T {
   const at = new Date().toISOString();
   const status = e.status;
   return {
@@ -96,7 +96,7 @@ const countedIn = (key: CountKey, status: RunStatus): boolean => {
 };
 
 /** The run as cached, from its detail or any runs list row. */
-function cachedRun(qc: QueryClient, org: string, projectId: string, e: StatusChange): CachedRun | undefined {
+function cachedRun(qc: QueryClient, org: string, projectId: string, e: StatusChange): RunCore | undefined {
   const detail = qc.getQueryData(runsQueries.detail(org, projectId, e.number).queryKey);
   if (detail) return detail;
   for (const [, list] of qc.getQueriesData<RunList>({
@@ -170,6 +170,9 @@ export function applyRunStatus(qc: QueryClient, org: string, projectId: string, 
       void qc.invalidateQueries({ queryKey: key, exact: true });
     }
   }
+
+  // The Run list's numbers (chips, Today, banner) are the server's: a change of status moves them.
+  if (changed) void qc.invalidateQueries({ queryKey: runStatsKey(org, projectId) });
 
   const project = projectsQueries.detail(org, projectId).queryKey;
   if (before === undefined) {

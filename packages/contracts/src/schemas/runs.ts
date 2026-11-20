@@ -64,8 +64,25 @@ export const RunDto = z.object({
 export type RunDto = z.infer<typeof RunDto>;
 
 /** A run in a list: the detail shape without the prompt texts (up to ~4 KB each), which only run detail needs. */
-export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true });
+export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true }).extend({
+  /** Runs this ticket has had in the project, all statuses. */
+  ticketRunCount: z.number().int().min(1),
+});
 export type RunListItem = z.infer<typeof RunListItem>;
+
+const count = z.number().int().min(0);
+
+export const RunStatsQuery = z.object({ since: Timestamp });
+export type RunStatsQuery = z.infer<typeof RunStatsQuery>;
+
+/** The Run list's numbers, served by the API so they do not depend on how many runs a page holds. */
+export const RunStatsDto = z.object({
+  counts: z.object({ needs_you: count, active: count, queued: count, ended: count, all: count, ignored: count }),
+  today: z.object({ total: count, failed: count }),
+  idleRun: RunListItem.nullable(),
+  nextQueuedNumber: z.number().int().nullable(),
+});
+export type RunStatsDto = z.infer<typeof RunStatsDto>;
 
 export const RunListQuery = z.object({
   filter: RunListFilter.optional(),

@@ -18,8 +18,8 @@ import {
 import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { PageQuery, pageOf } from './schemas/page';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
-import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
 import { RunTranscriptQuery, RunTranscriptResponse } from './schemas/transcript';
+import { RunDto, RunListQuery, RunListResponse, RunLogResponse, RunStatsDto, RunStatsQuery } from './schemas/runs';
 import {
   CreateSetupTestRequest,
   PluginsDto,
@@ -268,6 +268,13 @@ export const routes = {
       params: projectParams,
       query: RunListQuery,
       response: RunListResponse,
+    },
+    stats: {
+      method: 'GET',
+      path: '/api/projects/:projectId/runs/stats',
+      params: projectParams,
+      query: RunStatsQuery,
+      response: RunStatsDto,
     },
     byNumber: {
       method: 'GET',

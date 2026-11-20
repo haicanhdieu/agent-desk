@@ -9,6 +9,7 @@ import type {
   RunDto,
   RunListResponse,
   RunLogResponse,
+  RunStatsDto,
   RunTranscriptResponse,
 } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
@@ -145,6 +146,139 @@ describe('runs list', () => {
       expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/cursor');
     }
     expect((await listRuns('?limit=1000')).statusCode).toBe(400);
+  });
+});
+
+describe('runs.stats', () => {
+  const stats = (query: string, id = projectId, cookie = alice) =>
+    get(`/api/projects/${id}/runs/stats${query}`, cookie);
+  const SINCE = '2026-03-10T00:00:00.000Z';
+
+  async function seedMixed() {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const old = new Date('2026-01-01T00:00:00.000Z');
+    const statuses = [
+      'queued',
+      'starting',
+      'running',
+      'idle',
+      'paused',
+      'done',
+      'succeeded',
+      'succeeded',
+      'succeeded',
+      'failed',
+      'failed',
+      'expired',
+    ];
+    const made: (typeof runs.$inferSelect)[] = [];
+    for (const status of statuses) made.push(await insertRun({ status, queuedAt: old }, pid));
+    await withOrg(t.db, orgId, (tx) =>
+      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome)
+        select 'fake', 'poll', 'st-' || ${pid}::text || g, ${orgId}::uuid, ${pid}::uuid, 'ignored_no_command' from generate_series(1, 3) g`),
+    );
+    return { pid, made };
+  }
+
+  it('counts match the runs.list totals of each filter, plus the ignored events', async () => {
+    const { pid } = await seedMixed();
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.counts).toEqual({ needs_you: 2, active: 4, queued: 1, ended: 6, all: 12, ignored: 3 });
+    for (const [filter, n] of [
+      ['needs_you', 2],
+      ['active', 4],
+      ['queued', 1],
+      ['ended', 6],
+      ['all', 12],
+    ] as const) {
+      const list = expectContract('runs.list', await listRuns(`?filter=${filter}`, pid)) as RunListResponse;
+      expect(list.items, filter).toHaveLength(n);
+    }
+  });
+
+  it('today counts runs queued at or after since, and failed ones among them', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({ status: 'succeeded', queuedAt: new Date('2026-03-10T00:00:00.000Z') }, pid);
+    await insertRun({ status: 'failed', queuedAt: new Date('2026-03-10T00:00:01.000Z') }, pid);
+    await insertRun({ status: 'failed', queuedAt: new Date('2026-03-09T23:59:59.000Z') }, pid);
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.today).toEqual({ total: 2, failed: 1 });
+    // 2026-03-10T02:00:00+02:00 is 2026-03-10T00:00:00Z, the same instant.
+    const offset = expectContract('runs.stats', await stats('?since=2026-03-10T02:00:00%2B02:00', pid)) as RunStatsDto;
+    expect(offset.today).toEqual({ total: 2, failed: 1 });
+    const later = expectContract('runs.stats', await stats('?since=2026-03-10T01:00:00%2B02:00', pid)) as RunStatsDto;
+    expect(later.today.total).toBe(3);
+  });
+
+  it('idleRun is the newest idle run as a list item, and null when none is idle', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const none = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(none.idleRun).toBeNull();
+    expect(none.nextQueuedNumber).toBeNull();
+    await insertRun({ status: 'idle', queuedAt: new Date('2026-01-01T00:00:00Z') }, pid);
+    const newest = await insertRun(
+      { status: 'idle', queuedAt: new Date('2026-02-01T00:00:00Z'), ticketRef: 'tk' },
+      pid,
+    );
+    await insertRun({ status: 'succeeded', queuedAt: new Date('2026-02-02T00:00:00Z'), ticketRef: 'tk' }, pid);
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.idleRun).toMatchObject({ id: newest.id, ticketRunCount: 2 });
+    expect(res.idleRun).not.toHaveProperty('prompt');
+  });
+
+  it('nextQueuedNumber is the number of the oldest queued run', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({ status: 'queued', queuedAt: new Date('2026-02-01T00:00:00Z') }, pid);
+    const oldest = await insertRun({ status: 'queued', queuedAt: new Date('2026-01-01T00:00:00Z') }, pid);
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.nextQueuedNumber).toBe(oldest.number);
+  });
+
+  it('a missing or malformed since is 400', async () => {
+    expect((await stats('')).statusCode).toBe(400);
+    expect((await stats('?since=yesterday')).statusCode).toBe(400);
+  });
+
+  it("another org's project is 404 and its runs never change this org's counts", async () => {
+    const { pid } = await seedMixed();
+    expect((await stats(`?since=${SINCE}`, pid, bob)).statusCode).toBe(404);
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    const before = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
+      .id;
+    await withOrg(t.db, bobOrg, (tx) =>
+      tx.insert(runs).values({
+        orgId: bobOrg,
+        projectId: bobProject,
+        command: 'fix',
+        skillName: 'fix',
+        ticketRef: 'b-1',
+        ticketKind: 'issue',
+        checkoutRef: 'refs/heads/main',
+        triggerSource: 'webhook',
+        status: 'idle',
+      }),
+    );
+    const after = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(after).toEqual(before);
+  });
+
+  it('GET .../runs/stats is not taken by runs.byNumber', async () => {
+    const res = await stats(`?since=${SINCE}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toHaveProperty('counts');
+  });
+
+  it('runs.list items carry ticketRunCount across all statuses, whatever the filter', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({ ticketRef: 'T', status: 'succeeded' }, pid);
+    await insertRun({ ticketRef: 'T', status: 'queued' }, pid);
+    await insertRun({ ticketRef: 'T', status: 'queued' }, pid);
+    await insertRun({ ticketRef: 'U', status: 'queued' }, pid);
+    const res = expectContract('runs.list', await listRuns('?filter=queued', pid)) as RunListResponse;
+    const byTicket = new Map(res.items.map((r) => [r.ticket.ref, r.ticketRunCount]));
+    expect(res.items.filter((r) => r.ticket.ref === 'T').map((r) => r.ticketRunCount)).toEqual([3, 3]);
+    expect(byTicket.get('U')).toBe(1);
   });
 });
 

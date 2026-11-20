@@ -1,4 +1,4 @@
-import type { ProjectDto, RunDto, RunEventDto } from '@agentdesk/contracts';
+import type { ProjectDto, RunDto, RunEventDto, RunStatsDto } from '@agentdesk/contracts';
 import { QueryClient } from '@tanstack/react-query';
 import { describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
@@ -31,10 +31,17 @@ const project = (): ProjectDto => {
     counts: { needsYou: 1, running: 2, queued: 1 },
   };
 };
-const listOf = (...runs: CachedRun[]): RunList => ({
-  items: runs,
+const listOf = (...runs: RunDto[]): RunList => ({
+  items: runs.map((r): CachedRun => ({ ...r, ticketRunCount: 1 })),
   truncated: false,
 });
+const SINCE = '2026-11-12T00:00:00.000Z';
+const statsData: RunStatsDto = {
+  counts: { needs_you: 1, active: 2, queued: 1, ended: 8, all: 12, ignored: 0 },
+  today: { total: 3, failed: 0 },
+  idleRun: null,
+  nextQueuedNumber: 63,
+};
 
 function seeded() {
   const qc = new QueryClient();
@@ -43,6 +50,7 @@ function seeded() {
   qc.setQueryData(runsQueries.list(org, projectId, 'active').queryKey, listOf(run(61), run(62)));
   qc.setQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey, listOf(run(62)));
   qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, project());
+  qc.setQueryData(runsQueries.stats(org, projectId, SINCE).queryKey, statsData);
   return qc;
 }
 const status = (n: number, s: RunDto['status'], seq = 20) => ({
@@ -123,6 +131,16 @@ describe('applyRunStatus', () => {
 
     applyRunStatus(qc, org, projectId, status(62, 'running'));
     expect(qc.getQueryData(runsQueries.list(org, projectId, 'needs_you').queryKey)?.items).toEqual([]);
+  });
+
+  it('a status change invalidates the cached run stats, in any case of the change', () => {
+    const qc = seeded();
+    const stats = runsQueries.stats(org, projectId, SINCE).queryKey;
+    expect(qc.getQueryState(stats)?.isInvalidated).toBe(false);
+    applyRunStatus(qc, org, projectId, status(61, 'idle'));
+    expect(qc.getQueryState(stats)?.isInvalidated).toBe(true);
+    // The stats stay in the cache (so the page keeps showing numbers while they refetch).
+    expect(qc.getQueryData(stats)).toEqual(statsData);
   });
 
   it('moves the project counts once, however many streams deliver the change', () => {

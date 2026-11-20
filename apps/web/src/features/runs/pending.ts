@@ -1,6 +1,6 @@
-import type { RunListItem } from '@agentdesk/contracts';
 import type { QueryClient } from '@tanstack/react-query';
 import { isFinal } from './map';
+import type { RunCore } from './queries';
 
 // Pending cancel / finish actions (spec §4.3). From the click until the run is final, the run carries the note
 // ("Cancelling…") in every cached copy, even across refetches: the run queries' queryFns re-apply it to fresh data.
@@ -48,7 +48,7 @@ export function clearPendingAction(qc: QueryClient, runId: string): void {
  * Fresh run data with the pending note re-applied. A final run ends the entry instead (and keeps no note). Run
  * queryFns pass every loaded run through this.
  */
-export function withPendingNote<T extends RunListItem>(qc: QueryClient, run: T): T & { statusNote?: string } {
+export function withPendingNote<T extends RunCore>(qc: QueryClient, run: T): T & { statusNote?: string } {
   const entry = entriesOf(qc).get(run.id);
   if (!entry) return run;
   if (isFinal(run.status)) {

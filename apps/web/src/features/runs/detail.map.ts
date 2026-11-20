@@ -3,7 +3,6 @@ import {
   type PauseReason,
   type ProjectDto,
   type RunDto,
-  type RunListItem,
   type RunEventDto,
   type RunStatus,
 } from '@agentdesk/contracts';
@@ -14,7 +13,7 @@ import type { RunDetailData, RunDetailKey } from '@/mocks/types';
 import { clockElapsed, formatLimit } from '../duration';
 import { relativeTime, timeLeft } from '../relativeTime';
 import { dateTime, duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
-import type { CachedRunDetail } from './queries';
+import type { CachedRunDetail, RunCore } from './queries';
 import type { TerminalState } from './useTerminal';
 
 // Run detail view model (spec §3.2): one RunDetailData per run, for the eight RunDetail boards.
@@ -182,7 +181,7 @@ export function scrollbackText(events: RunEventDto[]): string | undefined {
 }
 
 /** When each startup step happened, from the status and lifecycle events (and the run itself). */
-function startupMarks(run: RunListItem, events: RunEventDto[]) {
+function startupMarks(run: RunCore, events: RunEventDto[]) {
   const statusAt = (s: RunStatus) =>
     events.find((e) => e.type === 'status' && StatusPayload.safeParse(e.payload).data?.status === s)?.ts;
   const lifecycleAt = (re: RegExp) => events.find((e) => e.type === 'lifecycle' && re.test(textOf(e) ?? ''))?.ts;
@@ -195,7 +194,7 @@ function startupMarks(run: RunListItem, events: RunEventDto[]) {
   };
 }
 
-function startup(run: RunListItem, events: RunEventDto[]): NonNullable<RunDetailData['startup']> {
+function startup(run: RunCore, events: RunEventDto[]): NonNullable<RunDetailData['startup']> {
   const m = startupMarks(run, events);
   const steps: { label: string; at: string | undefined; detail?: string }[] = [
     {
@@ -233,13 +232,13 @@ function startup(run: RunListItem, events: RunEventDto[]): NonNullable<RunDetail
   });
 }
 
-function chainNote(r: RunListItem, now: Date): string {
+function chainNote(r: RunCore, now: Date): string {
   const label = statusTokens[r.status].label;
   const took = isFinal(r.status) ? duration(r, now) : undefined;
   return took === undefined ? label : `${label} in ${took}`;
 }
 
-function chain(run: RunListItem, ticketRuns: RunListItem[], runsHref: string, now: Date): ChainStep[] {
+function chain(run: RunCore, ticketRuns: RunCore[], runsHref: string, now: Date): ChainStep[] {
   const runs = ticketRuns.some((r) => r.number === run.number)
     ? ticketRuns.map((r) => (r.number === run.number ? run : r))
     : [...ticketRuns, run];
@@ -270,18 +269,18 @@ export interface RunDetailLinks {
 type EndNote = NonNullable<RunDetailData['endNote']>;
 
 /** A run that failed before the agent started, in the setup script. */
-const failedInSetup = (run: RunListItem): boolean => run.status === 'failed' && run.failureStage === 'setup';
+const failedInSetup = (run: RunCore): boolean => run.status === 'failed' && run.failureStage === 'setup';
 
 /**
  * When the run's work began. `started_at` is set once the session starts, so a run that failed in setup has none:
  * the slot claim (the `starting` status) stands in, then the queue time.
  */
-function workStart(run: RunListItem, events: RunEventDto[]): string {
+function workStart(run: RunCore, events: RunEventDto[]): string {
   if (run.startedAt !== null) return run.startedAt;
   return (run.failureStage === 'setup' ? startupMarks(run, events).slot : undefined) ?? run.queuedAt;
 }
 
-function setupEndNote(run: RunListItem, took: string, links: RunDetailLinks): EndNote {
+function setupEndNote(run: RunCore, took: string, links: RunDetailLinks): EndNote {
   const timedOut = /timed out/i.test(run.failureReason ?? '');
   const cause = timedOut
     ? 'the setup script timed out'
@@ -313,8 +312,8 @@ function finishedAfterPause(run: RunListItem, events: RunEventDto[]): boolean {
 }
 
 function endNote(
-  run: RunListItem,
-  ticketRuns: RunListItem[],
+  run: RunCore,
+  ticketRuns: RunCore[],
   links: RunDetailLinks,
   now: Date,
   events: RunEventDto[],
@@ -399,7 +398,7 @@ export function terminalConnection(terminal: TerminalState, stream: ConnectionSt
   }
 }
 
-function connection(run: RunListItem, lines: TermLine[] | undefined): RunDetailData['connection'] {
+function connection(run: RunCore, lines: TermLine[] | undefined): RunDetailData['connection'] {
   if (terminalArea(run) === 'pausing') return { state: 'none', label: 'Ending…' };
   if (run.status === 'paused') {
     return {
@@ -459,7 +458,7 @@ function parkedBefore(events: RunEventDto[]): boolean {
 }
 
 /** The banner of a run that was resumed and has not started a new turn (the agent's note is untrusted text). */
-function resumedNote(run: RunListItem, events: RunEventDto[]): string | undefined {
+function resumedNote(run: RunCore, events: RunEventDto[]): string | undefined {
   if ((run.status !== 'idle' && run.status !== 'done') || !parkedBefore(events)) return undefined;
   const said = run.agentNote ? `The agent ${run.status === 'done' ? 'said' : 'asked'}: ${run.agentNote}. ` : '';
   return `Resumed. ${said}Background tasks and sub-agents that were running when it paused were stopped.`;
@@ -476,7 +475,7 @@ function resumeFailure(events: RunEventDto[]): string | undefined {
 }
 
 /** The kept (paused, or succeeded with a session that is still kept) or expired session of a run (ADR 0022). */
-function sessionOf(run: RunListItem, events: RunEventDto[], now: Date): RunDetailData['session'] {
+function sessionOf(run: RunCore, events: RunEventDto[], now: Date): RunDetailData['session'] {
   if (run.status === 'expired') {
     const days =
       run.pausedAt !== null && run.finishedAt !== null
@@ -547,7 +546,7 @@ export function toRunDetail(
   run: CachedRunDetail,
   events: RunEventDto[],
   project: ProjectDto,
-  ticketRuns: RunListItem[],
+  ticketRuns: RunCore[],
   now: Date,
   links: RunDetailLinks,
 ): RunDetailData {

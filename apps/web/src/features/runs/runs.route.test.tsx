@@ -1,7 +1,10 @@
+import type { RunStatsDto } from '@agentdesk/contracts';
 import { focusManager } from '@tanstack/react-query';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
+import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
+import { runFixtures } from '@/mocks/dto/runs';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
@@ -52,6 +55,64 @@ describe('runs route', () => {
     expect(screen.getByText('Run 62 needs you.')).toBeInTheDocument();
     expect(screen.getByText('Waiting for a slot')).toBeInTheDocument();
     expect(screen.getByText('2 of 2')).toBeInTheDocument();
+  });
+
+  describe('numbers served by runs.stats', () => {
+    const idle62 = runFixtures.find((r) => r.projectId === projectId && r.number === 62);
+    if (!idle62) throw new Error('run 62 fixture missing');
+    // Numbers that the nine listed runs cannot add up to, and an idle run that is not on the list.
+    const stats: RunStatsDto = {
+      counts: { needs_you: 1, active: 2, queued: 1, ended: 59, all: 63, ignored: 3 },
+      today: { total: 9, failed: 1 },
+      idleRun: { ...idle62, number: 70, ticketRunCount: 1 },
+      nextQueuedNumber: 63,
+    };
+
+    it('feeds the chips, the Today line and the banner, whatever the list holds', async () => {
+      mockDb.state.runs = mockDb.state.runs.filter((r) => ![64, 65, 66].includes(r.number));
+      server.use(http.get(`*${runsApi}/stats`, () => HttpResponse.json(stats)));
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(runNumbers()).toHaveLength(9);
+      const chip = (name: RegExp) => within(chips()).getByRole('link', { name });
+      expect(chip(/^Needs you/)).toHaveTextContent('1');
+      expect(chip(/^Active/)).toHaveTextContent('2');
+      expect(chip(/^Queued/)).toHaveTextContent('1');
+      expect(chip(/^Ended/)).toHaveTextContent('59');
+      expect(chip(/^All/)).toHaveTextContent('63');
+      expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveTextContent('3');
+      expect(screen.getByText('Today: 9 runs, 1 failed')).toBeInTheDocument();
+      expect(screen.getByText('Run 70 needs you.')).toBeInTheDocument();
+      expect(screen.getByText(/so Run 63 is waiting/)).toBeInTheDocument();
+    });
+
+    it('asks for the stats of the local day and for no unfiltered list or ignored events on another chip', async () => {
+      const queries = captureRunListQueries();
+      const statsQueries: string[] = [];
+      const listener = ({ request }: { request: Request }) => {
+        const url = new URL(request.url);
+        if (url.pathname === `${runsApi}/stats`) statsQueries.push(url.search);
+      };
+      server.events.on('request:start', listener);
+      try {
+        await renderRoute(`${base}/runs?filter=queued`);
+        await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      } finally {
+        server.events.removeListener('request:start', listener);
+      }
+      const since = new URLSearchParams(statsQueries[0]).get('since');
+      expect(since).toBe(new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate()).toISOString());
+      expect(queries.map((q) => new URLSearchParams(q).get('filter'))).toEqual(['queued']);
+      expect(mockDb.requests('GET', `/api/projects/${projectId}/ignored`)).toBe(0);
+    });
+
+    it('loads the ignored events, and no run list, only on the Ignored chip', async () => {
+      const queries = captureRunListQueries();
+      await renderRoute(`${base}/runs?filter=ignored`);
+      expect(await screen.findByRole('heading', { level: 2, name: 'Ignored commands' })).toBeInTheDocument();
+      expect(mockDb.requests('GET', `/api/projects/${projectId}/ignored`)).toBe(1);
+      expect(queries).toEqual([]);
+    });
   });
 
   it('remembers the Grouped by ticket choice after the page is reloaded', async () => {
@@ -154,6 +215,19 @@ describe('runs route', () => {
     await waitFor(() => expect(router.state.location.searchStr).toBe('?filter=ended&ticket=12'));
     expect(router.state.location.search).toEqual({ filter: 'ended', ticket: '12' });
     expect(router.state.location.href).not.toContain('%22');
+  });
+
+  it('?filter=ignored&ticket=139 keeps the ticket on every filter chip link', async () => {
+    await renderRoute(`${base}/runs?filter=ignored&ticket=139`);
+    await screen.findByRole('heading', { level: 2, name: 'Ignored commands' });
+    expect(within(chips()).getByRole('link', { name: /^Ended/ })).toHaveAttribute(
+      'href',
+      `${base}/runs?filter=ended&ticket=139`,
+    );
+    expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute(
+      'href',
+      `${base}/runs?filter=ignored&ticket=139`,
+    );
   });
 
   it('?filter=active lists every active run, idle included, matching its chip count', async () => {

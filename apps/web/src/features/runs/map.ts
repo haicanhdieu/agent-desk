@@ -3,7 +3,7 @@ import {
   type IgnoredEventDto,
   type ProjectConnectionDto,
   type RunListItem,
-  type RunListFilter,
+  type RunStatsDto,
 } from '@agentdesk/contracts';
 import { connectionCopy } from '@/mocks/connection';
 import type {
@@ -15,7 +15,7 @@ import type {
   TicketGroup,
 } from '@/mocks/types';
 import { relativeTime, timeLeft } from '../relativeTime';
-import type { CachedRun } from './queries';
+import type { RunCore } from './queries';
 
 const MIN = 60_000;
 
@@ -75,12 +75,12 @@ export function safeHref(url: string): string {
 /** Label colours arrive as 6-digit hex without '#'; anything else gets no swatch. */
 const labelColor = (color: string) => (/^[0-9a-f]{6}$/i.test(color) ? `#${color.toLowerCase()}` : '');
 
-export const isFinal = (status: RunListItem['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
+export const isFinal = (status: RunCore['status']) => FINAL_RUN_STATUSES.some((s) => s === status);
 
 /** An agent's idle end in whole minutes (the form edits it in minutes). */
 const idleEndMinutes = (idleEndSeconds: number): number => Math.round(idleEndSeconds / 60);
 
-function statusNote(dto: RunListItem, now: Date): string | undefined {
+function statusNote(dto: RunCore, now: Date): string | undefined {
   switch (dto.status) {
     case 'queued':
       return 'Waiting for a slot';
@@ -109,7 +109,7 @@ function statusNote(dto: RunListItem, now: Date): string | undefined {
 }
 
 /** Final runs: start to finish. Paused runs: start to the pause. Runs still going: start to now. Queued runs: none. */
-export function duration(dto: RunListItem, now: Date): string | undefined {
+export function duration(dto: RunCore, now: Date): string | undefined {
   if (!dto.startedAt) return undefined;
   const start = Date.parse(dto.startedAt);
   if (isFinal(dto.status)) return dto.finishedAt ? formatDuration(Date.parse(dto.finishedAt) - start) : undefined;
@@ -118,7 +118,7 @@ export function duration(dto: RunListItem, now: Date): string | undefined {
 }
 
 /** A pending cancel or finish ("Cancelling…") shows instead of the derived note. */
-export function toRunSummary(dto: CachedRun, now: Date): RunSummary {
+export function toRunSummary(dto: RunCore & { statusNote?: string }, now: Date): RunSummary {
   const login = dto.triggeredBy ?? '—';
   const note = dto.statusNote ?? statusNote(dto, now);
   const time = duration(dto, now);
@@ -147,16 +147,16 @@ export function toRunSummary(dto: CachedRun, now: Date): RunSummary {
 /** Identity of a ticket within a project (an issue and a PR can share a number on some hosts). */
 export const ticketKey = (t: { kind: string; number: number }): string => `${t.kind}:${t.number}`;
 
-/** Runs per ticket over a run list (pass the unfiltered list so filters don't shrink "N of max runs"). */
-export function runsPerTicket(runs: RunListItem[]): Map<string, number> {
+/** Runs each ticket has had, by ticket key, as the server counted them (`ticketRunCount`, all statuses). */
+export function ticketRunCounts(items: RunListItem[]): Map<string, number> {
   const used = new Map<string, number>();
-  for (const r of runs) used.set(ticketKey(r.ticket), (used.get(ticketKey(r.ticket)) ?? 0) + 1);
+  for (const r of items) used.set(ticketKey(r.ticket), r.ticketRunCount);
   return used;
 }
 
 /**
  * One group per ticket, newest run's group first; runs inside a group oldest first. `runsUsed` comes from `used`
- * (runs per ticket over the unfiltered list) when given, else the group's own run count.
+ * (`ticketRunCounts`: the server's count of every run the ticket has had) when given, else the group's own run count.
  */
 export function groupByTicket(
   runs: RunSummary[],
@@ -180,33 +180,17 @@ export function groupByTicket(
     .sort((a, b) => newest(b) - newest(a));
 }
 
-/**
- * Chip counts: needs-you, active and queued from the project's server-side counts (uncapped); ended and all from the
- * unfiltered run list. `active` follows the API filter (starting, running and idle), which is what `counts.running`
- * counts.
- */
-export function chipCounts(
-  counts: { needsYou: number; running: number; queued: number },
-  all: RunListItem[],
-): Record<RunListFilter, number> {
-  return {
-    needs_you: counts.needsYou,
-    active: counts.running,
-    queued: counts.queued,
-    ended: all.filter((r) => isFinal(r.status)).length,
-    all: all.length,
-  };
-}
-
 const sameLocalDay = (a: Date, b: Date) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
-/** "Today: 9 runs, 1 failed" over the runs queued today (local day). */
-export function todaySummary(runs: RunListItem[], now: Date): string {
-  const today = runs.filter((r) => sameLocalDay(new Date(r.queuedAt), now));
-  const failed = today.filter((r) => r.status === 'failed').length;
-  const n = today.length;
-  return `Today: ${n} ${n === 1 ? 'run' : 'runs'}${failed > 0 ? `, ${failed} failed` : ''}`;
+/** Local midnight of `now`'s day as an ISO timestamp: the `since` of `runs.stats`. */
+export const startOfLocalDay = (now: Date): string =>
+  new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+/** "Today: 9 runs, 1 failed" from the server's counts of the runs queued today. */
+export function todaySummary(today: RunStatsDto['today']): string {
+  const { total, failed } = today;
+  return `Today: ${total} ${total === 1 ? 'run' : 'runs'}${failed > 0 ? `, ${failed} failed` : ''}`;
 }
 
 /** The pinned banner's slot sentence for an idle run. */

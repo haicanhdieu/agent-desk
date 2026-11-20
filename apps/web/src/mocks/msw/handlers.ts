@@ -130,6 +130,12 @@ function assertUniqueCommand(projectId: string, command: string, exceptId?: stri
   }
 }
 
+/** As the API: a list item carries how many runs its ticket has had in the project, all statuses. */
+const withTicketRunCount = (run: RunDto): RunDto & { ticketRunCount: number } => ({
+  ...run,
+  ticketRunCount: db().runs.filter((r) => r.projectId === run.projectId && r.ticket.ref === run.ticket.ref).length,
+});
+
 function runOf(runId: string): RunDto {
   const run = db().runs.find((r) => r.id === runId);
   if (!run) throw notFound('Run');
@@ -534,9 +540,33 @@ const impl: Impl = {
       .filter((r) => query.ticket === undefined || r.ticket.ref === query.ticket)
       .filter((r) => r.number < cursor)
       .sort((a, b) => b.number - a.number);
-    const items = matching.slice(0, query.limit).map(withAgentIdleEnd);
+    const items = matching.slice(0, query.limit).map((r) => withTicketRunCount(withAgentIdleEnd(r)));
     const last = items.at(-1);
     return { items, nextCursor: matching.length > items.length && last ? String(last.number) : null };
+  },
+  // Before byNumber, as in the API: `stats` is not a run number.
+  'runs.stats': ({ params, query }) => {
+    const projectId = projectRow(params.projectId).id;
+    const runs = db().runs.filter((r) => r.projectId === projectId);
+    const since = Date.parse(query.since);
+    const today = runs.filter((r) => Date.parse(r.queuedAt) >= since);
+    const idle = runs.filter((r) => r.status === 'idle').sort((a, b) => b.queuedAt.localeCompare(a.queuedAt))[0];
+    const nextQueued = runs
+      .filter((r) => r.status === 'queued')
+      .sort((a, b) => a.queuedAt.localeCompare(b.queuedAt))[0];
+    return {
+      counts: {
+        needs_you: runs.filter((r) => matchesFilter('needs_you', r.status)).length,
+        active: runs.filter((r) => matchesFilter('active', r.status)).length,
+        queued: runs.filter((r) => matchesFilter('queued', r.status)).length,
+        ended: runs.filter((r) => matchesFilter('ended', r.status)).length,
+        all: runs.length,
+        ignored: (db().ignored[projectId] ?? []).length,
+      },
+      today: { total: today.length, failed: today.filter((r) => r.status === 'failed').length },
+      idleRun: idle ? withTicketRunCount(withAgentIdleEnd(idle)) : null,
+      nextQueuedNumber: nextQueued?.number ?? null,
+    };
   },
   'runs.byNumber': ({ params }) => {
     const projectId = projectRow(params.projectId).id;

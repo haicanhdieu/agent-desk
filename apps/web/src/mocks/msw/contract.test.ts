@@ -154,6 +154,20 @@ describe('MSW handlers cover the contract', () => {
       query: { ticket: '133' },
     });
     expect(byTicket.items.map((r) => r.number)).toEqual([57, 56]);
+    // Every item carries how many runs its ticket has had, whatever the filter.
+    expect(byTicket.items.map((r) => r.ticketRunCount)).toEqual([2, 2]);
+  });
+
+  it('serves the run list numbers from the store: counts, today, the idle run and the next queued run', async () => {
+    const stats = await api.runs.stats({ params: { projectId: P }, query: { since: '2000-01-01T00:00:00.000Z' } });
+    expect(stats.counts).toEqual({ needs_you: 2, active: 2, queued: 1, ended: 8, all: 12, ignored: 5 });
+    expect(stats.today.total).toBe(12);
+    expect(stats.idleRun).toMatchObject({ number: 62, ticketRunCount: expect.any(Number) });
+    expect(stats.idleRun).not.toHaveProperty('prompt');
+    expect(stats.nextQueuedNumber).toBe(63);
+    const none = await api.runs.stats({ params: { projectId: P }, query: { since: '2999-01-01T00:00:00.000Z' } });
+    expect(none.today).toEqual({ total: 0, failed: 0 });
+    await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({ number: 62 });
   });
 });
 

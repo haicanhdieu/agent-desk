@@ -656,7 +656,7 @@ export function todaySummary(today: RunStatsDto['today']): string; // "Today: 9 
 export function ticketRunCounts(items: RunListItem[]): Map<string, number>; // ticketKey → ticketRunCount
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `runs.int.test.ts`, `describe('runs.stats')`
+- [x] **Step 1: Write the failing API tests** in `runs.int.test.ts`, `describe('runs.stats')`
 
 - Seed a project with these runs: 1 queued (oldest queued number recorded), 1 starting, 1 running, 1 idle, 1 paused, 1 done, 3 succeeded, 2 failed, 1 expired, and 3 `ignored_*` inbound events.
   - Expected counts: `needs_you` 2, `active` 4 (starting, running, idle, done), `queued` 1, `ended` 6, `all` 12, `ignored` 3.
@@ -668,18 +668,18 @@ export function ticketRunCounts(items: RunListItem[]): Map<string, number>; // t
 - `GET …/runs/stats` is not taken by `runs.byNumber`.
 - `ticketRunCount` on `runs.list` items: ticket T has 3 runs (1 ended, 2 queued). With `filter=queued`, each T item carries `ticketRunCount: 3`.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `map.test.ts`: `todaySummary({ total: 9, failed: 1 })` → `'Today: 9 runs, 1 failed'`; `({ total: 1, failed: 0 })` → `'Today: 1 run'`; `({ total: 0, failed: 0 })` → `'Today: 0 runs'`. `startOfLocalDay(new Date(2026, 10, 19, 15, 4))` equals `new Date(2026, 10, 19).toISOString()`. `groupByTicket` with `ticketRunCounts` gives a group's `runsUsed` the server count even when fewer runs are on the list.
 - `runs.route.test.tsx`: the chips read the stats fixture (Needs you 1, Active 2, Queued 1, Ended 59, All 63, Ignored 3) while the run list holds 9 runs. The "Today" line comes from stats. The banner names `idleRun` and its slot note says "Run 63 is waiting" from `nextQueuedNumber`. The Runs route makes no request for `filter=all` unless the All chip is shown, and no `projects.ignored` request unless the Ignored chip is shown.
 - `applyEvents.test.ts`: a status change invalidates the cached `stats` query.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- map.test runs.route applyEvents`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces. Raise the route count in `routes.test.ts` by 1 and assert `flat['runs.stats']`. In `runs.test.ts`, check that `RunStatsDto` parses a full example and that `RunListItem` requires `ticketRunCount`.
 - API (`runs.service.ts`):
@@ -700,7 +700,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- runs map applyEvents realtime detail contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/run.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix

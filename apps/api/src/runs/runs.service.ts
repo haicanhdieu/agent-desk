@@ -33,10 +33,12 @@ import {
   type RunDto,
   type RunListItem,
   type RunListQuery,
+  type RunListFilter,
   type RunListResponse,
   type RunLogResponse,
   type RunTranscriptQuery,
   type RunTranscriptResponse,
+  type RunStatsDto,
 } from '@agentdesk/contracts';
 import { SIGNAL, TASK_QUEUE, UPDATE, WORKFLOW, runWorkflowId } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
@@ -124,11 +126,15 @@ export class RunsService {
   ) {}
 
   private toDto(row: RunRow, agent: AgentInfo | undefined): RunDto {
-    return { ...this.toListItem(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
+    return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
   }
 
-  /** The run without its prompt texts: what a list carries (see RunListItem). */
-  private toListItem(row: RunRow, agent: AgentInfo | undefined): RunListItem {
+  /** The run without its prompt texts, and without the list-only ticket count. */
+  private toListItem(row: RunRow, agent: AgentInfo | undefined, ticketRunCount: number): RunListItem {
+    return { ...this.toBase(row, agent), ticketRunCount };
+  }
+
+  private toBase(row: RunRow, agent: AgentInfo | undefined): Omit<RunListItem, 'ticketRunCount'> {
     return {
       id: row.id,
       number: row.number,
@@ -195,9 +201,46 @@ export class RunsService {
     return this.toDto(row, row.agentId === null ? undefined : (await this.agentsFor(tx, [row])).get(row.agentId));
   }
 
-  private async listItems(tx: Tx, rows: RunRow[]): Promise<RunListItem[]> {
+  /** Runs each ticket has had in the project, all statuses: one grouped query for the tickets on the page. */
+  private async ticketRunCountsFor(tx: Tx, projectId: string, refs: string[]): Promise<Map<string, number>> {
+    const out = new Map<string, number>();
+    const unique = [...new Set(refs)];
+    if (unique.length === 0) return out;
+    const found = await tx
+      .select({ ref: runs.ticketRef, n: sql<number>`count(*)::int` })
+      .from(runs)
+      .where(and(eq(runs.projectId, projectId), inArray(runs.ticketRef, unique)))
+      .groupBy(runs.ticketRef);
+    for (const f of found) out.set(f.ref, f.n);
+    return out;
+  }
+
+  private async listItems(tx: Tx, projectId: string, rows: RunRow[]): Promise<RunListItem[]> {
     const ag = await this.agentsFor(tx, rows);
-    return rows.map((r) => this.toListItem(r, r.agentId === null ? undefined : ag.get(r.agentId)));
+    const counts = await this.ticketRunCountsFor(
+      tx,
+      projectId,
+      rows.map((r) => r.ticketRef),
+    );
+    return rows.map((r) =>
+      this.toListItem(r, r.agentId === null ? undefined : ag.get(r.agentId), counts.get(r.ticketRef) ?? 1),
+    );
+  }
+
+  /** The status condition of a run list filter; `all` and no filter have none. */
+  private statusIn(filter: RunListFilter | undefined): SQL | undefined {
+    switch (filter) {
+      case 'needs_you':
+        return inArray(runs.status, ['idle', 'paused']);
+      case 'active':
+        return inArray(runs.status, [...ACTIVE_RUN_STATUSES]);
+      case 'queued':
+        return eq(runs.status, 'queued');
+      case 'ended':
+        return inArray(runs.status, [...FINAL_RUN_STATUSES]);
+      default:
+        return undefined;
+    }
   }
 
   private async requireProject(tx: Tx, projectId: string): Promise<void> {
@@ -227,23 +270,7 @@ export class RunsService {
   private async listPage(org: OrgContext, projectId: string, q: RunListQuery, cursor: Cursor | undefined) {
     return withOrg(this.db, org.orgId, async (tx) => {
       await this.requireProject(tx, projectId);
-      const conds: (SQL | undefined)[] = [eq(runs.projectId, projectId)];
-      switch (q.filter) {
-        case 'needs_you':
-          conds.push(inArray(runs.status, ['idle', 'paused']));
-          break;
-        case 'active':
-          conds.push(inArray(runs.status, [...ACTIVE_RUN_STATUSES]));
-          break;
-        case 'queued':
-          conds.push(eq(runs.status, 'queued'));
-          break;
-        case 'ended':
-          conds.push(inArray(runs.status, [...FINAL_RUN_STATUSES]));
-          break;
-        default:
-          break;
-      }
+      const conds: (SQL | undefined)[] = [eq(runs.projectId, projectId), this.statusIn(q.filter)];
       if (q.ticket !== undefined) conds.push(eq(runs.ticketRef, q.ticket));
       if (cursor) {
         const t = sql`${cursor.t}::timestamptz`;
@@ -261,9 +288,69 @@ export class RunsService {
       return {
         items: await this.listItems(
           tx,
+          projectId,
           page.map((r) => r.run),
         ),
         nextCursor,
+      };
+    });
+  }
+
+  /** The Run list's numbers in one transaction: chip counts, today's runs, the idle run and the next queued number. */
+  async stats(org: OrgContext, projectId: string, since: string): Promise<RunStatsDto> {
+    const sinceDate = new Date(since);
+    return withOrg(this.db, org.orgId, async (tx) => {
+      await this.requireProject(tx, projectId);
+      const inStatuses = (statuses: readonly string[]) =>
+        sql`${runs.status} in (${sql.join(
+          statuses.map((x) => sql`${x}`),
+          sql`, `,
+        )})`;
+      const [c] = await tx
+        .select({
+          needsYou: sql<number>`(count(*) filter (where ${inStatuses(['idle', 'paused'])}))::int`,
+          active: sql<number>`(count(*) filter (where ${inStatuses(ACTIVE_RUN_STATUSES)}))::int`,
+          queued: sql<number>`(count(*) filter (where ${runs.status} = 'queued'))::int`,
+          ended: sql<number>`(count(*) filter (where ${inStatuses(FINAL_RUN_STATUSES)}))::int`,
+          all: sql<number>`count(*)::int`,
+          todayTotal: sql<number>`(count(*) filter (where ${runs.queuedAt} >= ${sinceDate}))::int`,
+          todayFailed: sql<number>`(count(*) filter (where ${runs.queuedAt} >= ${sinceDate} and ${runs.status} = 'failed'))::int`,
+        })
+        .from(runs)
+        .where(eq(runs.projectId, projectId));
+      const [ign] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(inboundEvents)
+        .where(and(eq(inboundEvents.projectId, projectId), sql`starts_with(${inboundEvents.outcome}, 'ignored_')`));
+      const idleRow = (
+        await tx
+          .select()
+          .from(runs)
+          .where(and(eq(runs.projectId, projectId), eq(runs.status, 'idle')))
+          .orderBy(desc(runs.queuedAt), asc(runs.id))
+          .limit(1)
+      )[0];
+      const queuedRow = (
+        await tx
+          .select({ number: runs.number })
+          .from(runs)
+          .where(and(eq(runs.projectId, projectId), eq(runs.status, 'queued')))
+          .orderBy(asc(runs.queuedAt), desc(runs.id))
+          .limit(1)
+      )[0];
+      const idleRun = idleRow ? ((await this.listItems(tx, projectId, [idleRow]))[0] ?? null) : null;
+      return {
+        counts: {
+          needs_you: c?.needsYou ?? 0,
+          active: c?.active ?? 0,
+          queued: c?.queued ?? 0,
+          ended: c?.ended ?? 0,
+          all: c?.all ?? 0,
+          ignored: ign?.n ?? 0,
+        },
+        today: { total: c?.todayTotal ?? 0, failed: c?.todayFailed ?? 0 },
+        idleRun,
+        nextQueuedNumber: queuedRow?.number ?? null,
       };
     });
   }

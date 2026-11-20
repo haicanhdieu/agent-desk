@@ -1,4 +1,11 @@
-import type { RunDto, RunEventDto, RunListFilter, RunListItem, RunTranscriptResponse } from '@agentdesk/contracts';
+import type {
+  RunDto,
+  RunEventDto,
+  RunListFilter,
+  RunListItem,
+  RunStatsDto,
+  RunTranscriptResponse,
+} from '@agentdesk/contracts';
 import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
 import { api } from '../api';
 import { withPendingNote } from './pending';
@@ -16,6 +23,8 @@ export const RUN_LIST_MAX_PAGES = 10;
  * (pending.ts).
  */
 export type CachedRun = RunListItem & { statusNote?: string };
+/** A run without the list-only `ticketRunCount`: what the list rows and the detail have in common. */
+export type RunCore = Omit<RunListItem, 'ticketRunCount'>;
 /** A run as cached by the detail query: the full DTO (with the prompt texts) plus `statusNote`. */
 export type CachedRunDetail = RunDto & { statusNote?: string };
 
@@ -27,6 +36,8 @@ export interface RunList {
 
 const projectKey = (org: string, projectId: string) => ['org', org, 'projects', projectId] as const;
 export const runsKey = (org: string, projectId: string) => [...projectKey(org, projectId), 'runs'] as const;
+/** Prefix of every cached `runs.stats` query (one per `since`). */
+export const runStatsKey = (org: string, projectId: string) => [...runsKey(org, projectId), 'stats'] as const;
 
 // Keys per spec §4.2. Runs queries refetch on window focus (as do the connection queries and, for its counts,
 // `projectsQueries.detail`).
@@ -60,6 +71,19 @@ export const runsQueries = {
           cursor = res.nextCursor;
         }
         return { items, truncated: true };
+      },
+      refetchOnWindowFocus: true,
+    }),
+  /**
+   * The Run list's numbers: chip counts, today's runs since `since` (the start of the local day), the newest idle run
+   * and the oldest queued run's number. Applying a status change invalidates it (applyEvents).
+   */
+  stats: (org: string, projectId: string, since: string) =>
+    queryOptions({
+      queryKey: [...runStatsKey(org, projectId), since] as const,
+      queryFn: async ({ client }): Promise<RunStatsDto> => {
+        const stats = await api.runs.stats({ params: { projectId }, query: { since } });
+        return { ...stats, idleRun: stats.idleRun && withPendingNote(client, stats.idleRun) };
       },
       refetchOnWindowFocus: true,
     }),

@@ -41,7 +41,8 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(47);
+    expect(Object.keys(flat)).toHaveLength(48);
+    expect(flat['runs.stats']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/runs/stats' });
     expect(flat['agents.models']).toMatchObject({ method: 'GET', path: '/api/agents/:agentId/models' });
   });
   it('rejects timeoutSeconds above 7 days', () => {

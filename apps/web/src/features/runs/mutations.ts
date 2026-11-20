@@ -2,7 +2,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { api } from '../api';
 import { projectsQueries } from '../projects/queries';
 import { clearPendingAction, hasPendingAction, RUN_ACTION_NOTE, setPendingAction, type RunAction } from './pending';
-import { runsKey, runsQueries, type CachedRun, type RunList } from './queries';
+import { runStatsKey, runsKey, runsQueries, type RunCore, type RunList } from './queries';
 
 // Cancel and finish (spec §4.3): a status note on the run wherever it is cached, from the click until the run is
 // final. The final status comes from the run event stream (Task 13) or a refetch; the note survives refetches of the
@@ -18,7 +18,7 @@ export interface RunRef {
   number: number;
 }
 
-const withNote = <T extends CachedRun>(r: T, statusNote: string | undefined): T => ({ ...r, statusNote });
+const withNote = <T extends RunCore>(r: T, statusNote: string | undefined): T => ({ ...r, statusNote });
 
 const listsKey = (org: string, projectId: string) => [...runsKey(org, projectId), 'list'] as const;
 
@@ -57,6 +57,7 @@ function useRunAction(action: RunAction, org: string, projectId: string, onError
       await Promise.all([
         qc.invalidateQueries({ queryKey: runsQueries.detail(org, projectId, run.number).queryKey }),
         qc.invalidateQueries({ queryKey: listsKey(org, projectId) }),
+        qc.invalidateQueries({ queryKey: runStatsKey(org, projectId) }),
         qc.invalidateQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey, exact: true }),
       ]);
     },
@@ -92,6 +93,7 @@ export function useResumeRun(org: string, projectId: string, { onError }: { onEr
       await Promise.all([
         qc.invalidateQueries({ queryKey: runsQueries.detail(org, projectId, run.number).queryKey }),
         qc.invalidateQueries({ queryKey: listsKey(org, projectId) }),
+        qc.invalidateQueries({ queryKey: runStatsKey(org, projectId) }),
         qc.invalidateQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey, exact: true }),
       ]);
     },

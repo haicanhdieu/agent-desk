@@ -8,6 +8,8 @@ import {
   type RunLogResponse,
   type RunTranscriptQuery,
   type RunTranscriptResponse,
+  type RunStatsDto,
+  type RunStatsQuery,
 } from '@agentdesk/contracts';
 import { CurrentOrg, type OrgContext } from '../auth/org-context';
 import { routePath } from '../common/route-path';
@@ -19,6 +21,7 @@ const NumberParam = new ZodPipe(routes.runs.byNumber.params);
 const RunParam = new ZodPipe(routes.runs.get.params);
 const ListQuery = new ZodPipe(routes.runs.list.query);
 const TranscriptQuery = new ZodPipe(routes.runs.transcript.query);
+const StatsQuery = new ZodPipe(routes.runs.stats.query);
 
 @Controller()
 export class RunsController {
@@ -31,6 +34,16 @@ export class RunsController {
     @Query(ListQuery) q: RunListQuery,
   ): Promise<RunListResponse> {
     return this.service.list(org, p.projectId, q);
+  }
+
+  /** Declared before byNumber so `stats` is not read as a run number. */
+  @Get(routePath(routes.runs.stats))
+  stats(
+    @CurrentOrg() org: OrgContext,
+    @Param(ProjectParam) p: { projectId: string },
+    @Query(StatsQuery) q: RunStatsQuery,
+  ): Promise<RunStatsDto> {
+    return this.service.stats(org, p.projectId, q.since);
   }
 
   @Get(routePath(routes.runs.byNumber))

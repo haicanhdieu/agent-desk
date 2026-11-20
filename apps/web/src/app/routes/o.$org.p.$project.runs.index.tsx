@@ -8,8 +8,8 @@ import {
   groupByTicket,
   idleSlotNote,
   repoUrlOf,
-  chipCounts,
-  runsPerTicket,
+  startOfLocalDay,
+  ticketRunCounts,
   toConnectionWarning,
   toIgnored,
   todaySummary,
@@ -31,38 +31,28 @@ const RunsSearch = z.object({
 });
 type RunsSearch = z.infer<typeof RunsSearch>;
 
-const listFilterOf = (filter: RunsFilter): RunListFilter => (filter === 'ignored' ? 'all' : filter);
-
 export const Route = createFileRoute('/o/$org/p/$project/runs/')({
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
   loaderDeps: ({ search }) => ({ filter: search.filter ?? 'all', ticket: search.ticket }),
   loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter, ticket } }) => {
+    // The numbers come from runs.stats; the list and the ignored events load only for the view that shows them.
     await Promise.all([
       queryClient.ensureQueryData(projectsQueries.detail(org, project)),
-      // The unfiltered list feeds the ended/all counts, runs per ticket, the "today" line and the needs-you banner.
-      queryClient.ensureQueryData(runsQueries.list(org, project, 'all')),
-      queryClient.ensureQueryData(runsQueries.ignored(org, project)),
-      queryClient.ensureQueryData(runsQueries.list(org, project, listFilterOf(filter), ticket)),
+      queryClient.ensureQueryData(runsQueries.stats(org, project, startOfLocalDay(new Date()))),
+      filter === 'ignored'
+        ? queryClient.ensureQueryData(runsQueries.ignored(org, project))
+        : queryClient.ensureQueryData(runsQueries.list(org, project, filter, ticket)),
     ]);
   },
   component: RunsRoute,
 });
 
-function RunsRoute() {
-  const { org, project: projectId } = Route.useParams();
-  const search = Route.useSearch();
-  const filter: RunsFilter = search.filter ?? 'all';
-  const now = useNow();
-  const [grouped, setGrouped] = useGroupedPref();
-  const queryClient = useQueryClient();
+/** What both views share: the project page, and the numbers (chips, Today, slots) from the server. */
+function useRunsCommon(org: string, projectId: string, ticket: string | undefined, now: Date) {
   const page = useProjectPage(org, projectId, now);
   const { paths, dto } = page;
-  const { data: all } = useSuspenseQuery(runsQueries.list(org, projectId, 'all'));
-  const { data: listed } = useSuspenseQuery(runsQueries.list(org, projectId, listFilterOf(filter), search.ticket));
-  const { data: ignoredDtos } = useSuspenseQuery(runsQueries.ignored(org, projectId));
-
-  const counts: Record<RunsFilter, number> = { ...chipCounts(dto.counts, all.items), ignored: ignoredDtos.length };
-  const ticketQuery = search.ticket === undefined ? '' : `ticket=${search.ticket}`;
+  const { data: stats } = useSuspenseQuery(runsQueries.stats(org, projectId, startOfLocalDay(now)));
+  const ticketQuery = ticket === undefined ? '' : `ticket=${ticket}`;
   const filterHref = (f: RunsFilter) => {
     const query = [f === 'all' ? '' : `filter=${f}`, ticketQuery].filter(Boolean).join('&');
     return query ? `${paths.runs}?${query}` : paths.runs;
@@ -76,36 +66,79 @@ function RunsRoute() {
     // Idle runs hold a slot too.
     // counts.running is every live job (starting, running, idle): each holds a slot.
     slots: { used: dto.counts.running, total: dto.maxConcurrentRuns },
-    today: todaySummary(all.items, now),
-    counts,
+    today: todaySummary(stats.today),
+    counts: stats.counts,
     filterHref,
   };
+  return { page, stats, common };
+}
 
-  if (filter === 'ignored') {
-    const repoUrl = repoUrlOf(dto.repoPath);
-    const recheck = () => void queryClient.invalidateQueries(projectsQueries.connection(org, projectId));
-    const warning = toConnectionWarning(page.connection, page.connectionDto, paths.agent, now);
-    const warnings: RunsProblemsWarning[] = warning
-      ? [{ ...warning, actions: warning.actions.map((a) => (a.href ? a : { ...a, onClick: recheck })) }]
-      : [];
-    return (
-      <RunsProblems
-        {...common}
-        filter="ignored"
-        warnings={warnings}
-        ignored={ignoredDtos.map((i) => toIgnored(i, repoUrl))}
-      />
-    );
-  }
+function RunsRoute() {
+  const { org, project } = Route.useParams();
+  const search = Route.useSearch();
+  const now = useNow();
+  return search.filter === 'ignored' ? (
+    <IgnoredView org={org} projectId={project} ticket={search.ticket} now={now} />
+  ) : (
+    <ListView org={org} projectId={project} filter={search.filter ?? 'all'} ticket={search.ticket} now={now} />
+  );
+}
+
+function IgnoredView({
+  org,
+  projectId,
+  ticket,
+  now,
+}: {
+  org: string;
+  projectId: string;
+  ticket: string | undefined;
+  now: Date;
+}) {
+  const queryClient = useQueryClient();
+  const { page, common } = useRunsCommon(org, projectId, ticket, now);
+  const { data: ignoredDtos } = useSuspenseQuery(runsQueries.ignored(org, projectId));
+  const repoUrl = repoUrlOf(page.dto.repoPath);
+  const recheck = () => void queryClient.invalidateQueries(projectsQueries.connection(org, projectId));
+  const warning = toConnectionWarning(page.connection, page.connectionDto, page.paths.agent, now);
+  const warnings: RunsProblemsWarning[] = warning
+    ? [{ ...warning, actions: warning.actions.map((a) => (a.href ? a : { ...a, onClick: recheck })) }]
+    : [];
+  return (
+    <RunsProblems
+      {...common}
+      filter="ignored"
+      warnings={warnings}
+      ignored={ignoredDtos.map((i) => toIgnored(i, repoUrl))}
+    />
+  );
+}
+
+function ListView({
+  org,
+  projectId,
+  filter,
+  ticket,
+  now,
+}: {
+  org: string;
+  projectId: string;
+  filter: RunListFilter;
+  ticket: string | undefined;
+  now: Date;
+}) {
+  const [grouped, setGrouped] = useGroupedPref();
+  const { page, stats, common } = useRunsCommon(org, projectId, ticket, now);
+  const { paths, dto } = page;
+  const { data: listed } = useSuspenseQuery(runsQueries.list(org, projectId, filter, ticket));
 
   const summaries = listed.items.map((r) => toRunSummary(r, now));
-  // The newest idle run gets the pinned banner; the oldest queued run is the one it keeps waiting.
-  const idle = all.items.find((r) => r.status === 'idle');
-  const waiting = all.items.filter((r) => r.status === 'queued').at(-1);
+  // The newest idle run gets the pinned banner; the oldest queued run is the one it keeps waiting. Both come from stats.
+  const idle = stats.idleRun ?? undefined;
   const needsYouRun = idle && {
     run: toRunSummary(idle, now),
     askedAgo: relativeTime(idle.idleSince ?? idle.startedAt ?? idle.queuedAt, now),
-    slotNote: idleSlotNote(dto.maxConcurrentRuns, waiting?.number, idle.idleEndSeconds),
+    slotNote: idleSlotNote(dto.maxConcurrentRuns, stats.nextQueuedNumber ?? undefined, idle.idleEndSeconds),
     href: runHref(paths, idle.number),
   };
 
@@ -115,7 +148,7 @@ function RunsRoute() {
       filter={filter}
       grouped={grouped}
       onGroupedChange={setGrouped}
-      groups={groupByTicket(summaries, dto.maxRunsPerTicket, runsPerTicket(all.items))}
+      groups={groupByTicket(summaries, dto.maxRunsPerTicket, ticketRunCounts(listed.items))}
       needsYouRun={needsYouRun}
       runHref={(r) => runHref(paths, r.id)}
       showAllHref={paths.runs}

@@ -1,7 +1,16 @@
-import type { IgnoredEventDto, RunDto } from '@agentdesk/contracts';
+import type { IgnoredEventDto, RunDto, RunListItem } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { runFixtures } from '@/mocks/dto/runs';
-import { chipCounts, formatDuration, groupByTicket, runsPerTicket, safeHref, toIgnored, toRunSummary } from './map';
+import {
+  formatDuration,
+  groupByTicket,
+  safeHref,
+  startOfLocalDay,
+  ticketRunCounts,
+  toIgnored,
+  todaySummary,
+  toRunSummary,
+} from './map';
 
 const base = runFixtures.find((r) => r.number === 60);
 if (!base) throw new Error('run 60 fixture missing');
@@ -213,11 +222,10 @@ describe('groupByTicket', () => {
     expect(groups[0]?.runsMax).toBe(10);
   });
 
-  it('takes runsUsed from the unfiltered per-ticket counts, so a filter does not shrink it', () => {
+  it('takes runsUsed from the server ticket counts, even when fewer runs are on the list', () => {
     const t12 = { ...base.ticket, number: 12, ref: '12' };
-    const unfiltered = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => run({ number: n, ticket: t12, status: 'succeeded' }));
     const queued = run({ number: 9, ticket: t12, status: 'queued', startedAt: null, finishedAt: null });
-    const used = runsPerTicket([...unfiltered, queued]);
+    const used = ticketRunCounts([{ ...queued, ticketRunCount: 9 }]);
     const groups = groupByTicket([toRunSummary(queued, now)], 10, used);
     expect(groups[0]?.runs.map((r) => r.id)).toEqual([9]);
     expect(groups[0]?.runsUsed).toBe(9);
@@ -230,16 +238,29 @@ describe('groupByTicket', () => {
   });
 });
 
-describe('chipCounts', () => {
-  it('takes needs-you, active (incl. idle) and queued from project counts; ended and all from the list', () => {
-    const list = runFixtures.filter((r) => r.projectId === base.projectId);
-    expect(chipCounts({ needsYou: 1, running: 2, queued: 1 }, list)).toEqual({
-      needs_you: 1,
-      active: 2,
-      queued: 1,
-      ended: 8,
-      all: 12,
+describe('ticketRunCounts', () => {
+  it('maps each ticket key to the server ticketRunCount', () => {
+    const item = (number: number, ticketNumber: number, ticketRunCount: number): RunListItem => ({
+      ...run({ number, ticket: { ...base.ticket, number: ticketNumber, ref: String(ticketNumber) } }),
+      ticketRunCount,
     });
+    const counts = ticketRunCounts([item(1, 5, 3), item(2, 5, 3), item(3, 6, 1)]);
+    expect(counts.get(`${base.ticket.kind}:5`)).toBe(3);
+    expect(counts.get(`${base.ticket.kind}:6`)).toBe(1);
+  });
+});
+
+describe('todaySummary', () => {
+  it('reads the server counts, singular for one run, failures only when there are some', () => {
+    expect(todaySummary({ total: 9, failed: 1 })).toBe('Today: 9 runs, 1 failed');
+    expect(todaySummary({ total: 1, failed: 0 })).toBe('Today: 1 run');
+    expect(todaySummary({ total: 0, failed: 0 })).toBe('Today: 0 runs');
+  });
+});
+
+describe('startOfLocalDay', () => {
+  it('is local midnight as an ISO timestamp', () => {
+    expect(startOfLocalDay(new Date(2026, 10, 19, 15, 4))).toBe(new Date(2026, 10, 19).toISOString());
   });
 });
 
