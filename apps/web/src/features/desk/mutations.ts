@@ -6,7 +6,7 @@ import { useToast } from '@/ds';
 import { api } from '../api';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { waitForPoll } from './checkNow';
-import { deskQueries, rulesKey } from './queries';
+import { deskQueries, rulesKey, skillsKey } from './queries';
 
 // Skill commit and delete (spec §4.3): no optimistic update; the affected desk keys are invalidated on success.
 
@@ -31,7 +31,7 @@ export function useCommitSkill(org: string, projectId: string) {
       api.skills.put({ params: { projectId, name }, body: { body, message, sha } }),
     onSuccess: async (_res, { name }) => {
       await Promise.all([
-        qc.invalidateQueries({ queryKey: deskQueries.skills(org, projectId).queryKey }),
+        qc.invalidateQueries({ queryKey: skillsKey(org, projectId) }),
         qc.invalidateQueries({ queryKey: deskQueries.skill(org, projectId, name).queryKey }),
       ]);
     },
@@ -51,7 +51,7 @@ export function useDeleteSkill(org: string, projectId: string) {
     onSuccess: async (_res, { name }) => {
       // The deleted skill is only marked stale: refetching it now would 404 while the page still shows it.
       await Promise.all([
-        qc.invalidateQueries({ queryKey: deskQueries.skills(org, projectId).queryKey }),
+        qc.invalidateQueries({ queryKey: skillsKey(org, projectId) }),
         qc.invalidateQueries({ queryKey: deskQueries.skill(org, projectId, name).queryKey, refetchType: 'none' }),
       ]);
     },

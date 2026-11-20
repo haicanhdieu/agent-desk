@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
 import { refreshAfterCredential } from '../desk/agent.form';
-import { rulesKey } from '../desk/queries';
+import { rulesKey, skillsKey } from '../desk/queries';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { setupQueries as scriptQueries, versionsKey } from '../setup-script/queries';
 import { setupQueries } from './queries';
@@ -209,12 +209,14 @@ export function useSaveSkillsStep(org: string) {
   return useMutation({
     mutationFn: async ({ project, names, message }: { project: ProjectDto; names: string[]; message: string }) => {
       if (names.length > 0) {
-        const existing = new Set((await api.skills.list({ params: { projectId: project.id } })).map((s) => s.name));
+        const existing = new Set(
+          (await api.skills.list({ params: { projectId: project.id }, query: WHOLE_SET })).items.map((s) => s.name),
+        );
         for (const t of SKILL_TEMPLATES) {
           if (!names.includes(t.name) || existing.has(t.name)) continue;
           await api.skills.put({ params: { projectId: project.id, name: t.name }, body: { body: t.body, message } });
         }
-        await qc.invalidateQueries({ queryKey: setupQueries.skills(org, project.id).queryKey });
+        await qc.invalidateQueries({ queryKey: skillsKey(org, project.id) });
       }
       return finishStep(qc, org, project, 'rules');
     },

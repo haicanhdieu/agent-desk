@@ -747,3 +747,53 @@ describe('desk rules route', () => {
     });
   });
 });
+
+describe('skill picker', () => {
+  /** Replaces the project's skills with `total` skills named skill-001 and up. */
+  function seedSkills(total: number) {
+    mockDb.state.skills[projectId] = Array.from({ length: total }, (_, i) => {
+      const name = `skill-${String(i + 1).padStart(3, '0')}`;
+      return {
+        name,
+        description: `Skill ${i + 1}`,
+        path: `.claude/skills/${name}/SKILL.md`,
+        lastCommit: { sha: 'a91c3e2', message: 'Add skills', at: '2026-11-10T14:00:00.000Z' },
+        body: `body ${i + 1}`,
+        sha: `sha-${name}`,
+      };
+    });
+  }
+  /** The query strings of every skills list request while `run` is going. */
+  async function skillListQueries(run: () => Promise<void>) {
+    const queries: string[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (request.method === 'GET' && url.pathname === `/api/projects/${projectId}/skills`) queries.push(url.search);
+    };
+    server.events.on('request:start', listener);
+    try {
+      await run();
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    return queries;
+  }
+
+  it.each([
+    [25, 25],
+    [101, 100],
+  ])('%i skills: the picker offers %i, read with one pageSize=100 request', async (total, offered) => {
+    seedSkills(total);
+    let options = 0;
+    const queries = await skillListQueries(async () => {
+      await renderRoute(`${rulesPage}?rule=new`);
+      const form = await screen.findByRole('complementary', { name: 'New rule' });
+      options = within(within(form).getByRole('combobox', { name: 'Skill' })).getAllByRole('option').length;
+    });
+    expect(options).toBe(offered);
+    expect(queries).toHaveLength(1);
+    const q = new URLSearchParams(queries[0]);
+    expect(q.get('pageSize')).toBe('100');
+    expect(q.get('page')).toBe('1');
+  });
+});

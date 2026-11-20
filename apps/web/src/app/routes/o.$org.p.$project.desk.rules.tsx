@@ -41,7 +41,7 @@ export const Route = createFileRoute('/o/$org/p/$project/desk/rules')({
   loader: async ({ context: { queryClient }, params: { org, project }, deps: { page }, cause }) => {
     await Promise.all([
       loadPage(queryClient, deskQueries.rules(org, project, { page, pageSize: readPageSize() }), cause),
-      queryClient.ensureQueryData(deskQueries.skills(org, project)),
+      queryClient.ensureQueryData(deskQueries.allSkills(org, project)),
       queryClient.ensureQueryData(deskQueries.agent(org, project)),
     ]);
   },
@@ -62,14 +62,14 @@ function DeskRulesPage() {
     deskQueries.rules(org, projectId, q),
   );
   const ruleDtos = rulesPage.items;
-  const { data: skillDtos } = useSuspenseQuery(deskQueries.skills(org, projectId));
+  const { data: skillsPage } = useSuspenseQuery(deskQueries.allSkills(org, projectId));
   const { data: agent } = useSuspenseQuery(deskQueries.agent(org, projectId));
   const toggle = useToggleRule(org, projectId, {
     onError: (e) => toast.show(toastFromError(e)),
   });
   const remove = useDeleteRule(org, projectId);
 
-  const skillNames = skillDtos.map((s) => s.name);
+  const skillNames = skillsPage.items.map((s) => s.name);
   const rules = ruleDtos.map((r) => toRule(r, agent, now, skillNames));
   const onPage = search.rule === undefined ? undefined : ruleDtos.find((r) => r.id === search.rule);
   // A rule linked from another page opens from the whole-set read (read only when the link needs it).

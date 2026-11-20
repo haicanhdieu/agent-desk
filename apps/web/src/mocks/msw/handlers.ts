@@ -384,7 +384,11 @@ const impl: Impl = {
   },
 
   // Full skills; the SkillSummaryDto response schema strips `body` and `sha`.
-  'skills.list': ({ params }) => skillsOf(projectRow(params.projectId).id),
+  'skills.list': ({ params, query }) =>
+    slicePage(
+      [...skillsOf(projectRow(params.projectId).id)].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)),
+      query,
+    ),
   'skills.get': ({ params }) => skillOf(projectRow(params.projectId).id, params.name),
   'skills.put': ({ params, body }) => {
     const list = skillsOf(projectRow(params.projectId).id);

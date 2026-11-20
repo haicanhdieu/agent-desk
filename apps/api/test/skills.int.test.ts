@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
+import type { Page, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
 import { loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
@@ -45,8 +45,8 @@ describe('skills', () => {
     const list = expectContract(
       'skills.list',
       await t.app.inject({ method: 'GET', url: url(), headers: { cookie: alice } }),
-    ) as SkillSummaryDto[];
-    expect(list.map((s) => s.name)).toContain('fix');
+    ) as Page<SkillSummaryDto>;
+    expect(list.items.map((s) => s.name)).toContain('fix');
   });
 
   it('PUT with a stale sha is a 409 problem', async () => {
@@ -83,6 +83,52 @@ describe('skills', () => {
     expect(del2.statusCode).toBe(204);
     const del3 = await t.app.inject({ method: 'DELETE', url: url('gone2'), headers: { cookie: alice } });
     expect(del3.statusCode).toBe(404);
+  });
+
+  describe('paging', () => {
+    const names = Array.from({ length: 22 }, (_, i) => `page-skill-${String.fromCharCode(97 + i)}`);
+    let pagedProject: string;
+    const listPage = (query: string, cookie = alice) =>
+      t.app.inject({ method: 'GET', url: `/api/projects/${pagedProject}/skills${query}`, headers: { cookie } });
+
+    beforeAll(async () => {
+      pagedProject = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+      // Shuffled insert order (every 7th name, 22 and 7 share no factor): the list must still come back A to Z.
+      for (let i = 0; i < names.length; i++) {
+        const name = names[(i * 7) % names.length];
+        const res = await t.app.inject({
+          method: 'PUT',
+          url: `/api/projects/${pagedProject}/skills/${name}`,
+          headers: { cookie: alice },
+          payload: { body: `body of ${name}`, message: 'seed' },
+        });
+        expect(res.statusCode).toBe(200);
+      }
+    });
+
+    it('page 1 holds the first 20 names A to Z, page 2 the last 2', async () => {
+      const first = expectContract('skills.list', await listPage('?page=1&pageSize=20')) as Page<SkillSummaryDto>;
+      expect(first.items.map((s) => s.name)).toEqual(names.slice(0, 20));
+      expect(first.total).toBe(22);
+      const second = expectContract('skills.list', await listPage('?page=2&pageSize=20')) as Page<SkillSummaryDto>;
+      expect(second.items.map((s) => s.name)).toEqual(names.slice(20));
+      expect(second.total).toBe(22);
+    });
+
+    it('a page past the end is empty with the real total', async () => {
+      const res = expectContract('skills.list', await listPage('?page=3&pageSize=20')) as Page<SkillSummaryDto>;
+      expect(res.items).toEqual([]);
+      expect(res.total).toBe(22);
+    });
+
+    it('out-of-range paging is a 400', async () => {
+      expect((await listPage('?page=0')).statusCode).toBe(400);
+      expect((await listPage('?pageSize=101')).statusCode).toBe(400);
+    });
+
+    it("another org's project is a 404", async () => {
+      expect((await listPage('?page=1&pageSize=20', bob)).statusCode).toBe(404);
+    });
   });
 
   it('another org gets 404 on every route', async () => {

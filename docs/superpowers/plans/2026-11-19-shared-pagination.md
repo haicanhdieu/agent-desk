@@ -1009,22 +1009,22 @@ deskQueries.allSkills(org: string, projectId: string)             // skills(org,
 setupQueries.skills = deskQueries.allSkills
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `skills.int.test.ts`
+- [x] **Step 1: Write the failing API tests** in `skills.int.test.ts`
 
 With the fake code host holding 22 skills in shuffled order: page 1 holds the first 20 names A to Z, page 2 the last 2, `total: 22`; past the end → empty with `total: 22`; bounds → 400; another org's project → 404.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `skills.route.test.tsx`: 22 skills → 20 in the list with the control under it. "Page 2" → 2 skills, and the editor still shows the skill that was open (`active`). `?skill=<22nd name>` without `page` opens that skill in the editor. `?page=4` → `?page=2`.
 - `rules.route.test.tsx`: the skill picker offers 25 of 25 skills (one `pageSize=100` request) and 100 of 101.
 - `setup.route.test.tsx`: step 4 with 21 skills sorting before `code-review`, and `code-review` already in the repo → committing the templates sends no `PUT` for `code-review` and the step finishes.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- skills && pnpm --filter @agentdesk/web test -- skills.route rules.route setup/setup.route`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces.
 - API: `SkillsService.list(org, projectId, q)` returns `slicePage([...await host.listSkills(project)].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0)), q)`. Skill names are lowercase slugs, so code-unit order is A to Z.
@@ -1042,7 +1042,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/api test -- skills && pnpm --filter @agentdesk/web test && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/rules.spec.ts e2e/mock/setup.spec.ts e2e/mock/desk-setup.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix

@@ -2,6 +2,8 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Put, Query } fr
 import {
   routes,
   type DeleteSkillQuery,
+  type Page,
+  type PageQuery,
   type PutSkillRequest,
   type PutSkillResponse,
   type SkillDto,
@@ -13,6 +15,7 @@ import { ZodPipe } from '../common/zod-validation';
 import { SkillsService } from './skills.service';
 
 const ProjectParam = new ZodPipe(routes.skills.list.params);
+const ListQuery = new ZodPipe(routes.skills.list.query);
 const SkillParams = new ZodPipe(routes.skills.get.params);
 const PutBody = new ZodPipe(routes.skills.put.body);
 const DeleteQuery = new ZodPipe(routes.skills.remove.query);
@@ -27,8 +30,12 @@ export class SkillsController {
   constructor(@Inject(SkillsService) private readonly service: SkillsService) {}
 
   @Get(routePath(routes.skills.list))
-  list(@CurrentOrg() org: OrgContext, @Param(ProjectParam) p: { projectId: string }): Promise<SkillSummaryDto[]> {
-    return this.service.list(org, p.projectId);
+  list(
+    @CurrentOrg() org: OrgContext,
+    @Param(ProjectParam) p: { projectId: string },
+    @Query(ListQuery) q: PageQuery,
+  ): Promise<Page<SkillSummaryDto>> {
+    return this.service.list(org, p.projectId, q);
   }
 
   @Get(routePath(routes.skills.get))

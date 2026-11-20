@@ -680,3 +680,36 @@ describe('setup agent step and step 4 model wiring', () => {
     expect(follow?.model).toBeNull();
   });
 });
+
+describe('skills step on a long skill list', () => {
+  it('21 skills sort before code-review and it is already in the repo: committing the templates sends no PUT for it', async () => {
+    const id = seedAt('skills');
+    const existing = (name: string) => ({
+      name,
+      description: name,
+      path: `.claude/skills/${name}/SKILL.md`,
+      lastCommit: { sha: 'a91c3e2', message: 'Add skills', at: '2026-11-10T14:00:00.000Z' },
+      body: `body of ${name}`,
+      sha: `sha-${name}`,
+    });
+    mockDb.state.skills[id] = [
+      ...Array.from({ length: 21 }, (_, i) => existing(`a-skill-${String(i + 1).padStart(2, '0')}`)),
+      existing('code-review'),
+    ];
+    const putPaths: string[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      if (request.method === 'PUT') putPaths.push(new URL(request.url).pathname);
+    };
+    server.events.on('request:start', listener);
+    try {
+      const { router, user } = await renderRoute(`${base}/skills?project=${id}`);
+      await user.click(await screen.findByRole('button', { name: /^Commit \d+ skills? and continue$/ }));
+      await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/rules`));
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(putPaths.filter((p) => p.endsWith('/skills/code-review'))).toEqual([]);
+    expect(putPaths.some((p) => p.endsWith('/skills/code-build'))).toBe(true);
+    expect(projectRow(id).setupStep).toBe('rules');
+  });
+});

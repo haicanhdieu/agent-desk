@@ -153,7 +153,8 @@ export const routes = {
       method: 'GET',
       path: '/api/projects/:projectId/skills',
       params: projectParams,
-      response: z.array(SkillSummaryDto),
+      query: PageQuery,
+      response: pageOf(SkillSummaryDto),
     },
     get: { method: 'GET', path: '/api/projects/:projectId/skills/:name', params: skillParams, response: SkillDto },
     put: {

@@ -126,7 +126,7 @@ describe('MSW handlers cover the contract', () => {
       items: expect.arrayContaining([expect.objectContaining({ id: expect.any(String) })]),
     });
     await expect(api.agents.get({ params: { projectId: P } })).resolves.toMatchObject({ name: 'Claude' });
-    await expect(api.skills.list({ params: { projectId: P } })).resolves.toHaveLength(4);
+    await expect(api.skills.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 4 });
     await expect(api.skills.get({ params: { projectId: P, name: 'code-build' } })).resolves.toMatchObject({
       path: '.claude/skills/code-build/SKILL.md',
     });
@@ -379,7 +379,7 @@ describe('MSW handler semantics', () => {
       lastCommit: { sha: commitSha, message: 'edit' },
     });
     await expect(api.skills.remove({ params: { projectId: P, name: 'code-review' }, query: {} })).resolves.toBeNull();
-    await expect(api.skills.list({ params: { projectId: P } })).resolves.toHaveLength(3);
+    await expect(api.skills.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 3 });
   });
 
   it('runs.transcript pages newest-first windows oldest first and runs.stop answers 202 on a live run', async () => {

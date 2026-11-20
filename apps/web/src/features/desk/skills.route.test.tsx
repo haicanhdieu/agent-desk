@@ -297,3 +297,57 @@ describe('project layout', () => {
     expect(await screen.findByRole('button', { name: /retry/i })).toBeInTheDocument();
   });
 });
+
+describe('desk skills paging', () => {
+  const nameOf = (n: number) => `skill-${String(n).padStart(2, '0')}`;
+  /** Replaces the project's skills with `total` skills, skill-01 first. */
+  function seedSkills(total: number) {
+    mockDb.state.skills[projectId] = Array.from({ length: total }, (_, i) => ({
+      name: nameOf(i + 1),
+      description: `Skill ${i + 1}`,
+      path: `.claude/skills/${nameOf(i + 1)}/SKILL.md`,
+      lastCommit: { sha: 'a91c3e2', message: 'Add skills', at: '2026-11-10T14:00:00.000Z' },
+      body: `body of ${nameOf(i + 1)}`,
+      sha: `sha-${nameOf(i + 1)}`,
+    }));
+  }
+  const listed = () => within(screen.getByRole('navigation', { name: 'Skills' })).getAllByRole('link');
+
+  it('22 skills: 20 in the list with the control under it; Page 2 shows 2 and the open skill stays in the editor', async () => {
+    seedSkills(22);
+    const { user } = await renderRoute(`${base}/skills`);
+    const pagination = await screen.findByRole('navigation', { name: 'Pagination' });
+    expect(listed()).toHaveLength(20);
+    expect(pagination).toHaveTextContent('Showing 1–20 of 22');
+    expect(
+      screen.getByRole('navigation', { name: 'Skills' }).compareDocumentPosition(pagination) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const [page2] = screen.getAllByRole('button', { name: 'Page 2' });
+    if (!page2) throw new Error('no Page 2 button');
+    await user.click(page2);
+    await waitFor(() => expect(listed()).toHaveLength(2));
+    expect(listed().map((a) => a.textContent)).toEqual([
+      expect.stringContaining(nameOf(21)),
+      expect.stringContaining(nameOf(22)),
+    ]);
+    expect(screen.getByRole('heading', { level: 2, name: nameOf(1) })).toBeInTheDocument();
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`body of ${nameOf(1)}`);
+  });
+
+  it('?skill=<the 22nd skill> with no page opens it in the editor although it is not on page 1', async () => {
+    seedSkills(22);
+    await renderRoute(`${base}/skills?skill=${nameOf(22)}`);
+    expect(await screen.findByRole('heading', { level: 2, name: nameOf(22) })).toBeInTheDocument();
+    expect(screen.getByLabelText('SKILL.md source')).toHaveValue(`body of ${nameOf(22)}`);
+    expect(listed()).toHaveLength(20);
+  });
+
+  it('?page=4 with 22 skills goes to ?page=2', async () => {
+    seedSkills(22);
+    const { router } = await renderRoute(`${base}/skills?page=4`);
+    await waitFor(() => expect(router.state.location.search).toEqual({ page: '2' }));
+    await waitFor(() => expect(listed()).toHaveLength(2));
+  });
+});
