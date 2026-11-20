@@ -106,6 +106,10 @@ export const runsQueries = {
       getNextPageParam: (p) => p.nextBefore ?? undefined,
       staleTime: Infinity,
       refetchOnWindowFocus: false,
+      // The run may have been resumed and stopped again while this screen was away; useTranscriptReload only sees the
+      // area turn while mounted, so a remount refetches instead of showing the cached pages. It runs only while
+      // enabled (no pod), so it never fetches for a live run.
+      refetchOnMount: 'always',
       // Agent call: no automatic retry. A failed load shows "Couldn't load the transcript" with a Retry button at once,
       // instead of a skeleton for the retry delays; the person's Retry is the retry.
       retry: false,

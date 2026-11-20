@@ -115,6 +115,25 @@ describe('runsQueries.transcript', () => {
       { before: '5', limit: String(TRANSCRIPT_PAGE_SIZE) },
     ]);
   });
+
+  it('refetches cached pages when it is mounted again', async () => {
+    let requests = 0;
+    server.use(
+      routeHandler('runs.transcript', () => {
+        requests += 1;
+        return Promise.resolve(jsonResponse(page([entry(requests)])));
+      }),
+    );
+    const qc = new QueryClient();
+    const options = runsQueries.transcript(org, projectId, 61);
+    await qc.fetchInfiniteQuery(options);
+    expect(requests).toBe(1);
+    const observer = new InfiniteQueryObserver(qc, options);
+    const unsubscribe = observer.subscribe(() => undefined);
+    await vi.waitFor(() => expect(requests).toBe(2));
+    await vi.waitFor(() => expect(observer.getCurrentResult().data?.pages[0]?.items[0]?.seq).toBe(2));
+    unsubscribe();
+  });
 });
 
 describe('useTranscriptReload', () => {
