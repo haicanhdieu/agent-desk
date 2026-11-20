@@ -24,7 +24,6 @@
     "pg": "^8.23.1"
   },
   "devDependencies": {
-    "@better-auth/cli": "^1.4.21",
     "@testcontainers/postgresql": "^12.2.1",
     "@types/pg": "^8.23.1",
     "@vitest/coverage-v8": "^5.1.0",
