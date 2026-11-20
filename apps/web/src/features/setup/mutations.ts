@@ -11,8 +11,10 @@ import type {
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
+import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
 import { refreshAfterCredential } from '../desk/agent.form';
+import { rulesKey } from '../desk/queries';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { setupQueries as scriptQueries, versionsKey } from '../setup-script/queries';
 import { setupQueries } from './queries';
@@ -236,7 +238,9 @@ export function useSaveRulesStep(org: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ project, rules }: { project: ProjectDto; rules: CreateRuleRequest[] }) => {
-      const existing = new Set((await api.rules.list({ params: { projectId: project.id } })).map((r) => r.command));
+      const existing = new Set(
+        (await api.rules.list({ params: { projectId: project.id }, query: WHOLE_SET })).items.map((r) => r.command),
+      );
       for (const [index, body] of rules.entries()) {
         if (existing.has(body.command)) continue;
         try {
@@ -245,7 +249,7 @@ export function useSaveRulesStep(org: string) {
           throw new RuleSaveError(index, e);
         }
       }
-      await qc.invalidateQueries({ queryKey: setupQueries.rules(org, project.id).queryKey });
+      await qc.invalidateQueries({ queryKey: rulesKey(org, project.id) });
       return finishStep(qc, org, project, 'ready');
     },
   });

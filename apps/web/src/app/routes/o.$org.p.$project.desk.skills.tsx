@@ -23,7 +23,7 @@ export const Route = createFileRoute('/o/$org/p/$project/desk/skills')({
   loader: async ({ context: { queryClient }, params: { org, project }, deps }) => {
     const [skills] = await Promise.all([
       queryClient.ensureQueryData(deskQueries.skills(org, project)),
-      queryClient.ensureQueryData(deskQueries.rules(org, project)),
+      queryClient.ensureQueryData(deskQueries.allRules(org, project)),
     ]);
     const name = openSkill(
       skills.map((s) => s.name),
@@ -42,7 +42,8 @@ function DeskSkillsPage() {
   const now = useNow();
   const frame = useDeskFrame(org, projectId, now);
   const { data: list } = useSuspenseQuery(deskQueries.skills(org, projectId));
-  const { data: rules } = useSuspenseQuery(deskQueries.rules(org, projectId));
+  const { data: rulesPage } = useSuspenseQuery(deskQueries.allRules(org, projectId));
+  const rules = rulesPage.items;
   const activeName = openSkill(
     list.map((s) => s.name),
     search.skill,

@@ -1,3 +1,4 @@
+import type { Page, RuleDto } from '@agentdesk/contracts';
 import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
@@ -640,6 +641,109 @@ describe('desk rules route', () => {
       await user.click(row);
       const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
       expect(within(edit).getAllByText(/When/)[0]).not.toHaveTextContent('claude-secret-model-1');
+    });
+  });
+
+  describe('paging', () => {
+    const ruleId = (n: number) => ids.created(500 + n);
+    const commandOf = (n: number) => `rule-${String(n).padStart(2, '0')}`;
+    /** Replaces the project's rules with `total` rules, rule-01 created first. */
+    function seedRules(total: number) {
+      const template = ruleRow(ids.rule.r1);
+      mockDb.state.rules = [
+        ...mockDb.state.rules.filter((r) => r.projectId !== projectId),
+        ...Array.from({ length: total }, (_, i) => ({
+          ...template,
+          id: ruleId(i + 1),
+          command: commandOf(i + 1),
+          skillName: 'code-build',
+          enabled: true,
+        })),
+      ];
+    }
+    const rows = () => screen.queryAllByRole('switch', { name: /^Enable rule \// });
+    const nav = () => screen.getByRole('navigation', { name: 'Pagination' });
+    const page2 = async (user: Awaited<ReturnType<typeof renderRoute>>['user']) => {
+      const [button] = screen.getAllByRole('button', { name: 'Page 2' });
+      if (!button) throw new Error('no Page 2 button');
+      await user.click(button);
+    };
+    const cachedPages = (queryClient: Awaited<ReturnType<typeof renderRoute>>['queryClient']) =>
+      queryClient.getQueriesData<Page<RuleDto>>({
+        queryKey: ['org', 'alice', 'projects', projectId, 'desk', 'rules'],
+      });
+    const enabledIn = (pages: [unknown, Page<RuleDto> | undefined][], id: string) =>
+      pages.flatMap(([, page]) => page?.items.filter((r) => r.id === id).map((r) => r.enabled) ?? []);
+
+    it('24 rules: 20 rows and "Showing 1–20 of 24", the control before the guards; Page 2 shows 4 rows', async () => {
+      seedRules(24);
+      const { user } = await renderRoute(rulesPage);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(rows()).toHaveLength(20);
+      expect(nav()).toHaveTextContent('Showing 1–20 of 24');
+      const guards = screen.getByText('Guards on every rule');
+      expect(nav().compareDocumentPosition(guards) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+      await page2(user);
+      await waitFor(() => expect(rows()).toHaveLength(4));
+      expect(nav()).toHaveTextContent('Showing 21–24 of 24');
+    });
+
+    it('Review Focus 1: deleting the only rule on page 2 lands on page 1 with its rules', async () => {
+      seedRules(21);
+      const { router, user } = await renderRoute(`${rulesPage}?page=2`);
+      await screen.findByRole('switch', { name: `Enable rule /${commandOf(21)}` });
+      expect(rows()).toHaveLength(1);
+      await user.click(screen.getByRole('button', { name: `More actions for /${commandOf(21)}` }));
+      await user.click(
+        within(screen.getByRole('dialog', { name: `Actions for /${commandOf(21)}` })).getByRole('button', {
+          name: 'Delete',
+        }),
+      );
+      await waitFor(() => expect(rows()).toHaveLength(20));
+      expect(router.state.location.search).toEqual({});
+      expect(screen.queryByText(/No routing rules/)).toBeNull();
+    });
+
+    it('Review Focus 5: a toggle on page 2 flips that rule in its page and the whole set; a late failure reverts only it', async () => {
+      seedRules(24);
+      // Rule 22 is on page 2; opening it from page 1 reads the whole set, so both copies are cached.
+      scriptUpdates({ 1: { outcome: 'fail', delayMs: 80 }, 2: { outcome: 'ok', delayMs: 0 } });
+      const { user, queryClient } = await renderRoute(`${rulesPage}?rule=${ruleId(22)}`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      await page2(user);
+      await waitFor(() => expect(rows()).toHaveLength(4));
+      expect(cachedPages(queryClient).length).toBeGreaterThanOrEqual(3);
+
+      await user.click(toggleFor(commandOf(22)));
+      expect(toggleFor(commandOf(22))).toHaveAttribute('aria-checked', 'false');
+      expect(enabledIn(cachedPages(queryClient), ruleId(22)).length).toBeGreaterThanOrEqual(2);
+      expect(enabledIn(cachedPages(queryClient), ruleId(22)).every((e) => !e)).toBe(true);
+      await user.click(toggleFor(commandOf(23)));
+      await waitFor(() => expect(ruleRow(ruleId(23)).enabled).toBe(false));
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Internal server error');
+      await waitFor(() => expect(toggleFor(commandOf(22))).toHaveAttribute('aria-checked', 'true'));
+      expect(enabledIn(cachedPages(queryClient), ruleId(22)).every((e) => e)).toBe(true);
+      expect(enabledIn(cachedPages(queryClient), ruleId(23)).every((e) => !e)).toBe(true);
+      expect(toggleFor(commandOf(23))).toHaveAttribute('aria-checked', 'false');
+    });
+
+    it('?rule=<rule 22> with no page opens its editor although it is not on page 1', async () => {
+      seedRules(24);
+      await renderRoute(`${rulesPage}?rule=${ruleId(22)}`);
+      const edit = await screen.findByRole('complementary', { name: 'Edit rule' });
+      expect(within(edit).getByLabelText('Command')).toHaveValue(commandOf(22));
+      expect(rows()).toHaveLength(20);
+    });
+
+    it('opening a rule keeps the page in the address', async () => {
+      seedRules(24);
+      const { router, user } = await renderRoute(`${rulesPage}?page=2`);
+      await user.click(await screen.findByRole('button', { name: `Edit rule /${commandOf(21)}` }));
+      await screen.findByRole('complementary', { name: 'Edit rule' });
+      expect(router.state.location.search).toEqual({ page: '2', rule: ruleId(21) });
+      await user.click(within(pane('Edit rule')).getByRole('button', { name: 'Cancel' }));
+      await waitFor(() => expect(router.state.location.search).toEqual({ page: '2' }));
     });
   });
 });

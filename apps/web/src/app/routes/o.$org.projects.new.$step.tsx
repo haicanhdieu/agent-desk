@@ -494,7 +494,8 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
   const { data: skills } = useSuspenseQuery(setupQueries.skills(org, projectId));
-  const { data: rules } = useSuspenseQuery(setupQueries.rules(org, projectId));
+  const { data: rulesPage } = useSuspenseQuery(setupQueries.rules(org, projectId));
+  const rules = rulesPage.items;
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
   const warning = useSetupWarning(org, projectId);
   const first = rules[0];

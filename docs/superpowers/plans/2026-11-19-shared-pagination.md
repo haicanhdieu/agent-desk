@@ -924,11 +924,11 @@ deskQueries.allRules(org: string, projectId: string)              // rules(org, 
 setupQueries.rules = deskQueries.allRules
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `rules.int.test.ts`
+- [x] **Step 1: Write the failing API tests** in `rules.int.test.ts`
 
 24 rules → 20 items, `total: 24`, oldest created first with `id` ascending on ties; `?page=2` → 4 items; past the end → empty with the real total; bounds → 400; another org's rules are not counted.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `rules.route.test.tsx`:
   - 24 rules → 20 rows and "Showing 1–20 of 24", with the control placed before "Guards on every rule". "Page 2" → 4 rows.
@@ -938,12 +938,12 @@ setupQueries.rules = deskQueries.allRules
 - `skills.route.test.tsx`: with 25 rules, the rule references of the skill being deleted list rules beyond the first 20 (one `pageSize=100` request).
 - `setup.route.test.tsx`: step 5 with 21 existing rules where `code-build` was created 21st → "Save rules and finish" creates no duplicate, finishes, and sends no `POST` for `code-build`.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- rules && pnpm --filter @agentdesk/web test -- rules.route skills.route setup/setup.route`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces.
 - API: `RulesService.list(org, projectId, q)` runs `count(*)` and the page `orderBy(asc(rules.createdAt), asc(rules.id))`; the controller adds the query pipe. Any `stats` the rule DTO carries keep coming from their grouped query over the page's ids.
@@ -962,7 +962,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/api test -- rules && pnpm --filter @agentdesk/web test -- desk setup contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/rules.spec.ts e2e/mock/rules-layout.spec.ts e2e/mock/setup.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix

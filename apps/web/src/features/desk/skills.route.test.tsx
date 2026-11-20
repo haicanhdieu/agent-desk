@@ -224,6 +224,36 @@ describe('desk skills route', () => {
     expect(router.state.location.search).toEqual({});
   });
 
+  it('the delete dialog lists a rule beyond the first 20, from one whole-set read', async () => {
+    const template = mockDb.state.rules.find((r) => r.projectId === projectId);
+    if (!template) throw new Error('no seeded rule');
+    mockDb.state.rules = [
+      ...mockDb.state.rules.filter((r) => r.projectId !== projectId),
+      ...Array.from({ length: 25 }, (_, i) => ({
+        ...template,
+        id: ids.created(600 + i),
+        command: `rule-${String(i + 1).padStart(2, '0')}`,
+        skillName: i === 22 ? 'code-e2e' : 'code-build',
+      })),
+    ];
+    const reads: string[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (request.method === 'GET' && url.pathname === `/api/projects/${projectId}/rules`) reads.push(url.search);
+    };
+    server.events.on('request:start', listener);
+    try {
+      const { user } = await renderRoute(`${base}/skills?skill=code-e2e`);
+      await user.click(await screen.findByRole('button', { name: 'Delete skill' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete skill code-e2e?' });
+      expect(within(dialog).getByText('/rule-23')).toBeInTheDocument();
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(reads).toHaveLength(1);
+    expect(new URLSearchParams(reads[0]).get('pageSize')).toBe('100');
+  });
+
   it('renders skill text as text, never as HTML', async () => {
     skillRow('code-build').description = '<img src=x onerror="alert(1)">';
     await renderRoute(`${base}/skills`);

@@ -3,6 +3,17 @@ import { useQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute } from '@tanstack/react-router';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
+import {
+  PageSearch,
+  loadPage,
+  pageOfSearch,
+  pageToSearch,
+  readPageSize,
+  useClampToLastPage,
+  usePageSize,
+  usePagedQuery,
+  usePaginationProps,
+} from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import { projectPaths, useDeskFrame } from '@/features/desk/frame';
@@ -17,6 +28,7 @@ import { DeskRules, RulePane } from '@/screens';
 
 /** `rule`: `new` opens the create form, a rule id opens that rule; anything else opens nothing. */
 const RulesSearch = z.object({
+  ...PageSearch.shape,
   rule: z
     .union([z.literal('new'), z.uuid()])
     .optional()
@@ -25,9 +37,10 @@ const RulesSearch = z.object({
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/rules')({
   validateSearch: (search) => RulesSearch.parse(search),
-  loader: async ({ context: { queryClient }, params: { org, project } }) => {
+  loaderDeps: ({ search }) => ({ page: pageOfSearch(search) }),
+  loader: async ({ context: { queryClient }, params: { org, project }, deps: { page }, cause }) => {
     await Promise.all([
-      queryClient.ensureQueryData(deskQueries.rules(org, project)),
+      loadPage(queryClient, deskQueries.rules(org, project, { page, pageSize: readPageSize() }), cause),
       queryClient.ensureQueryData(deskQueries.skills(org, project)),
       queryClient.ensureQueryData(deskQueries.agent(org, project)),
     ]);
@@ -43,7 +56,12 @@ function DeskRulesPage() {
   const now = useNow();
   const frame = useDeskFrame(org, projectId, now);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
-  const { data: ruleDtos } = useSuspenseQuery(deskQueries.rules(org, projectId));
+  const current = pageOfSearch(search);
+  const [pageSize] = usePageSize();
+  const { data: rulesPage, busy } = usePagedQuery({ page: current, pageSize }, (q) =>
+    deskQueries.rules(org, projectId, q),
+  );
+  const ruleDtos = rulesPage.items;
   const { data: skillDtos } = useSuspenseQuery(deskQueries.skills(org, projectId));
   const { data: agent } = useSuspenseQuery(deskQueries.agent(org, projectId));
   const toggle = useToggleRule(org, projectId, {
@@ -53,12 +71,22 @@ function DeskRulesPage() {
 
   const skillNames = skillDtos.map((s) => s.name);
   const rules = ruleDtos.map((r) => toRule(r, agent, now, skillNames));
-  const editing = search.rule === undefined ? undefined : ruleDtos.find((r) => r.id === search.rule);
+  const onPage = search.rule === undefined ? undefined : ruleDtos.find((r) => r.id === search.rule);
+  // A rule linked from another page opens from the whole-set read (read only when the link needs it).
+  const { data: wholeSet } = useQuery({
+    ...deskQueries.allRules(org, projectId),
+    enabled: search.rule !== undefined && search.rule !== 'new' && onPage === undefined,
+  });
+  const editing = onPage ?? (search.rule === undefined ? undefined : wholeSet?.items.find((r) => r.id === search.rule));
   const creating = search.rule === 'new';
   const paths = projectPaths(org, projectId);
 
-  const open = (rule: string) => void navigate({ search: { rule } });
-  const close = () => void navigate({ search: {} });
+  const go = (p: number, replace = false) =>
+    void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
+  useClampToLastPage(current, rulesPage.pageSize, rulesPage.total, (p) => go(p, true));
+  const pagination = usePaginationProps({ page: current, total: rulesPage.total, busy, go });
+  const open = (rule: string) => void navigate({ search: (prev) => ({ ...prev, rule }) });
+  const close = () => void navigate({ search: (prev) => ({ ...prev, rule: undefined }) });
   const onDelete = (id: string) =>
     remove.mutate(id, {
       // Only the deleted rule's own pane closes; another open rule or the new form stays.
@@ -73,6 +101,7 @@ function DeskRulesPage() {
       height="viewport"
       frame={frame}
       rules={rules}
+      pagination={pagination}
       skills={skillNames}
       editingId={editing?.id}
       maxRunsPerTicket={project.maxRunsPerTicket}

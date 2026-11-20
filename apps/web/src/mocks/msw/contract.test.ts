@@ -130,7 +130,7 @@ describe('MSW handlers cover the contract', () => {
     await expect(api.skills.get({ params: { projectId: P, name: 'code-build' } })).resolves.toMatchObject({
       path: '.claude/skills/code-build/SKILL.md',
     });
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 6 });
     const list = await api.runs.list({ params: { projectId: P } });
     expect(list.items.map((r) => r.number)).toEqual([66, 65, 64, 63, 62, 61, 60, 57, 56, 55, 54, 52]);
     await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({
@@ -642,7 +642,7 @@ describe('scenarios', () => {
     const e = await rejection(api.rules.update({ params: { ruleId: ids.rule.r1 }, body: { enabled: false } }));
     expect(e.status).toBe(500);
     expect(e.requestId).toMatch(/^req-mock-/);
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 6 });
   });
 
   it('problem returns the given problem', async () => {
@@ -655,7 +655,7 @@ describe('scenarios', () => {
   });
 
   it('overrides and db changes reset between tests', async () => {
-    await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
+    await expect(api.rules.list({ params: { projectId: P } })).resolves.toMatchObject({ total: 6 });
     await expect(api.projects.list()).resolves.toMatchObject({ total: 4 });
   });
 });

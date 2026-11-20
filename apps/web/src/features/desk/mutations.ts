@@ -1,4 +1,4 @@
-import type { CreateRuleRequest, RuleDto, UpdateProjectRequest, UpdateRuleRequest } from '@agentdesk/contracts';
+import type { CreateRuleRequest, Page, RuleDto, UpdateProjectRequest, UpdateRuleRequest } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useRef } from 'react';
@@ -6,7 +6,7 @@ import { useToast } from '@/ds';
 import { api } from '../api';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { waitForPoll } from './checkNow';
-import { deskQueries } from './queries';
+import { deskQueries, rulesKey } from './queries';
 
 // Skill commit and delete (spec §4.3): no optimistic update; the affected desk keys are invalidated on success.
 
@@ -58,7 +58,8 @@ export function useDeleteSkill(org: string, projectId: string) {
   });
 }
 
-// Rules (spec §4.3): the enable toggle is optimistic on the rules cache; create, edit and delete invalidate it.
+// Rules (spec §4.3): the enable toggle is optimistic on every cached page of the rules list; create, edit and delete
+// invalidate them all.
 
 /** Per-rule toggle bookkeeping: the newest request, how many are in flight, and the last state the server confirmed. */
 interface ToggleTrack {
@@ -77,11 +78,14 @@ interface ToggleTrack {
  */
 export function useToggleRule(org: string, projectId: string, { onError }: { onError?(e: unknown): void } = {}) {
   const qc = useQueryClient();
-  const queryKey = deskQueries.rules(org, projectId).queryKey;
+  const queryKey = rulesKey(org, projectId);
   const tracks = useRef(new Map<string, ToggleTrack>());
   const seq = useRef(0);
   const setEnabled = (id: string, enabled: boolean) =>
-    qc.setQueryData(queryKey, (rules) => rules?.map((r) => (r.id === id ? { ...r, enabled } : r)));
+    qc.setQueriesData<Page<RuleDto>>(
+      { queryKey },
+      (page) => page && { ...page, items: page.items.map((r) => (r.id === id ? { ...r, enabled } : r)) },
+    );
   /** Called when a request settles; shows `value` if it is the newest request, else the confirmed state once idle. */
   const settle = (id: string, n: number, value: (t: ToggleTrack) => boolean) => {
     const t = tracks.current.get(id);
@@ -95,7 +99,11 @@ export function useToggleRule(org: string, projectId: string, { onError }: { onE
       api.rules.update({ params: { ruleId: id }, body: { enabled } }),
     onMutate: async ({ id, enabled }) => {
       const n = ++seq.current;
-      const current = qc.getQueryData(queryKey)?.find((r) => r.id === id)?.enabled ?? !enabled;
+      const current =
+        qc
+          .getQueriesData<Page<RuleDto>>({ queryKey })
+          .flatMap(([, page]) => page?.items ?? [])
+          .find((r) => r.id === id)?.enabled ?? !enabled;
       const t = tracks.current.get(id) ?? { latest: n, pending: 0, confirmed: current, confirmedBy: 0 };
       t.latest = n;
       t.pending += 1;
@@ -126,7 +134,7 @@ export function useSaveRule(org: string, projectId: string) {
       input.id === undefined
         ? api.rules.create({ params: { projectId }, body: input.body })
         : api.rules.update({ params: { ruleId: input.id }, body: input.body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: deskQueries.rules(org, projectId).queryKey }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: rulesKey(org, projectId) }),
   });
 }
 
@@ -134,7 +142,7 @@ export function useDeleteRule(org: string, projectId: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) => api.rules.remove({ params: { ruleId: id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: deskQueries.rules(org, projectId).queryKey }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: rulesKey(org, projectId) }),
   });
 }
 

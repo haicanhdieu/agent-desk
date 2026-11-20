@@ -1,7 +1,12 @@
 import { queryOptions } from '@tanstack/react-query';
+import type { PageQuery } from '@agentdesk/contracts';
+import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
 
 const deskKey = (org: string, projectId: string) => ['org', org, 'projects', projectId, 'desk'] as const;
+
+/** Prefix of every cached page of the rules list, the whole-set read included (invalidate with it). */
+export const rulesKey = (org: string, projectId: string) => [...deskKey(org, projectId), 'rules'] as const;
 
 // Desk reads (spec §4.2). The setup flow reads agent, skills and rules through these too, so both share the cache.
 export const deskQueries = {
@@ -15,11 +20,13 @@ export const deskQueries = {
       queryKey: [...deskKey(org, projectId), 'skill', name] as const,
       queryFn: () => api.skills.get({ params: { projectId, name } }),
     }),
-  rules: (org: string, projectId: string) =>
+  rules: (org: string, projectId: string, q: PageQuery) =>
     queryOptions({
-      queryKey: [...deskKey(org, projectId), 'rules'] as const,
-      queryFn: () => api.rules.list({ params: { projectId } }),
+      queryKey: [...rulesKey(org, projectId), q.page, q.pageSize] as const,
+      queryFn: () => api.rules.list({ params: { projectId }, query: q }),
     }),
+  /** Page 1 at the maximum size: for the readers that need every rule (skill references, setup checks, a rule off the page). */
+  allRules: (org: string, projectId: string) => deskQueries.rules(org, projectId, WHOLE_SET),
   // The lines Agent Desk appends to a custom prompt change only with a deploy or the repo path.
   promptPreview: (org: string, projectId: string) =>
     queryOptions({

@@ -172,7 +172,13 @@ export const routes = {
     },
   },
   rules: {
-    list: { method: 'GET', path: '/api/projects/:projectId/rules', params: projectParams, response: z.array(RuleDto) },
+    list: {
+      method: 'GET',
+      path: '/api/projects/:projectId/rules',
+      params: projectParams,
+      query: PageQuery,
+      response: pageOf(RuleDto),
+    },
     create: {
       method: 'POST',
       path: '/api/projects/:projectId/rules',

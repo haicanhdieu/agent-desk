@@ -105,6 +105,38 @@ describe('setup flow', () => {
     expect(screen.getByText('Polling every 10 min')).toBeInTheDocument();
   });
 
+  it('step 5 with 21 existing rules, code-build the 21st: no duplicate, it finishes, no POST for code-build', async () => {
+    const id = seedAt('rules');
+    const template = mockDb.state.rules.find((r) => r.projectId === id);
+    if (!template) throw new Error('no seeded rule');
+    mockDb.state.rules = [
+      ...mockDb.state.rules.filter((r) => r.projectId !== id),
+      ...Array.from({ length: 21 }, (_, i) => ({
+        ...template,
+        id: ids.created(700 + i),
+        command: i === 20 ? 'code-build' : `rule-${String(i + 1).padStart(2, '0')}`,
+      })),
+    ];
+    const posts: unknown[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      if (request.method === 'POST' && new URL(request.url).pathname === `/api/projects/${id}/rules`)
+        void request
+          .clone()
+          .json()
+          .then((b: unknown) => posts.push(b));
+    };
+    server.events.on('request:start', listener);
+    try {
+      const { router, user } = await renderRoute(`${base}/rules?project=${id}`);
+      await user.click(await screen.findByRole('button', { name: 'Save rules and finish' }));
+      await waitFor(() => expect(router.state.location.pathname).toBe(`${base}/ready`));
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(posts).not.toContainEqual(expect.objectContaining({ command: 'code-build' }));
+    expect(mockDb.state.rules.filter((r) => r.projectId === id && r.command === 'code-build')).toHaveLength(1);
+  });
+
   it('the first rule can be a custom prompt and saves with kind prompt', async () => {
     const id = seedAt('rules');
     const { router, user } = await renderRoute(`${base}/rules?project=${id}`);

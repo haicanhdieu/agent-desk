@@ -16,5 +16,5 @@ export const setupQueries = {
     }),
   agent: deskQueries.agent,
   skills: deskQueries.skills,
-  rules: deskQueries.rules,
+  rules: deskQueries.allRules,
 };

@@ -483,7 +483,12 @@ const impl: Impl = {
     endSetupTest(found);
     return null;
   },
-  'rules.list': ({ params }) => db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
+  // As the API: creation order (the store keeps rules in the order they were created).
+  'rules.list': ({ params, query }) =>
+    slicePage(
+      db().rules.filter((r) => r.projectId === projectRow(params.projectId).id),
+      query,
+    ),
   'rules.create': ({ params, body }) => {
     const projectId = projectRow(params.projectId).id;
     assertUniqueCommand(projectId, body.command);
