@@ -8,6 +8,7 @@ import {
   CreateRuleRequest,
   PutAgentRequest,
   RunListQuery,
+  RunListResponse,
   UpdateProjectRequest,
   flattenRoutes,
   routes,
@@ -105,8 +106,19 @@ describe('contract boundaries', () => {
       60, 604800, 86400,
     ]);
   });
-  it('RunListQuery.limit defaults to 50', () => {
-    expect(RunListQuery.parse({}).limit).toBe(50);
+  it('runs.list takes a page query and answers with a page envelope', () => {
+    expect(RunListQuery.parse({})).toEqual({ page: 1, pageSize: 20 });
+    expect(RunListQuery.parse({ filter: 'ended', ticket: '7', page: '3', pageSize: '50' })).toEqual({
+      filter: 'ended',
+      ticket: '7',
+      page: 3,
+      pageSize: 50,
+    });
+    expect(RunListQuery.safeParse({ limit: '5' }).success).toBe(false);
+    expect(RunListQuery.safeParse({ cursor: 'x' }).success).toBe(false);
+    expect(RunListQuery.safeParse({ pageSize: '101' }).success).toBe(false);
+    expect(RunListResponse.safeParse({ items: [], page: 1, pageSize: 20, total: 0 }).success).toBe(true);
+    expect(RunListResponse.safeParse({ items: [], nextCursor: null }).success).toBe(false);
   });
 
   it('registers rules.promptPreview under the project rules path', () => {

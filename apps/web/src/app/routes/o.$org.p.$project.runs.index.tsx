@@ -1,7 +1,18 @@
 import { RunListFilter } from '@agentdesk/contracts';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
+import {
+  PageSearch,
+  loadPage,
+  pageOfSearch,
+  pageToSearch,
+  readPageSize,
+  useClampToLastPage,
+  usePageSize,
+  usePagedQuery,
+  usePaginationProps,
+} from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { projectsQueries } from '@/features/projects/queries';
 import {
@@ -23,6 +34,7 @@ import { Runs, RunsProblems, type RunsFilter, type RunsProblemsWarning } from '@
 
 /** `filter`: a run list filter or `ignored`; anything else falls back to all. `ticket`: a ticket number. */
 const RunsSearch = z.object({
+  ...PageSearch.shape,
   filter: z
     .enum([...RunListFilter.options, 'ignored'])
     .optional()
@@ -33,15 +45,23 @@ type RunsSearch = z.infer<typeof RunsSearch>;
 
 export const Route = createFileRoute('/o/$org/p/$project/runs/')({
   validateSearch: (search): RunsSearch => RunsSearch.parse(search),
-  loaderDeps: ({ search }) => ({ filter: search.filter ?? 'all', ticket: search.ticket }),
-  loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter, ticket } }) => {
+  loaderDeps: ({ search }) => ({
+    filter: search.filter ?? 'all',
+    ticket: search.ticket,
+    page: pageOfSearch(search),
+  }),
+  loader: async ({ context: { queryClient }, params: { org, project }, deps: { filter, ticket, page }, cause }) => {
     // The numbers come from runs.stats; the list and the ignored events load only for the view that shows them.
     await Promise.all([
       queryClient.ensureQueryData(projectsQueries.detail(org, project)),
       queryClient.ensureQueryData(runsQueries.stats(org, project, startOfLocalDay(new Date()))),
       filter === 'ignored'
         ? queryClient.ensureQueryData(runsQueries.ignored(org, project))
-        : queryClient.ensureQueryData(runsQueries.list(org, project, filter, ticket)),
+        : loadPage(
+            queryClient,
+            runsQueries.list(org, project, { filter, ticket, page, pageSize: readPageSize() }),
+            cause,
+          ),
     ]);
   },
   component: RunsRoute,
@@ -127,10 +147,24 @@ function ListView({
   ticket: string | undefined;
   now: Date;
 }) {
-  const [grouped, setGrouped] = useGroupedPref();
+  const [grouped, setGroupedPref] = useGroupedPref();
   const { page, stats, common } = useRunsCommon(org, projectId, ticket, now);
   const { paths, dto } = page;
-  const { data: listed } = useSuspenseQuery(runsQueries.list(org, projectId, filter, ticket));
+  const navigate = useNavigate({ from: Route.fullPath });
+  const current = pageOfSearch(Route.useSearch());
+  const [pageSize] = usePageSize();
+  const { data: listed, busy } = usePagedQuery({ filter, ticket, page: current, pageSize }, (q) =>
+    runsQueries.list(org, projectId, q),
+  );
+  const go = (p: number, replace = false) =>
+    void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
+  useClampToLastPage(current, listed.pageSize, listed.total, (p) => go(p, true));
+  const pagination = usePaginationProps({ page: current, total: listed.total, busy, go });
+  // Grouping changes what a page holds, so the toggle returns to page 1.
+  const setGrouped = (next: boolean) => {
+    setGroupedPref(next);
+    go(1, true);
+  };
 
   const summaries = listed.items.map((r) => toRunSummary(r, now));
   // The newest idle run gets the pinned banner; the oldest queued run is the one it keeps waiting. Both come from stats.
@@ -152,6 +186,7 @@ function ListView({
       needsYouRun={needsYouRun}
       runHref={(r) => runHref(paths, r.id)}
       showAllHref={paths.runs}
+      pagination={pagination}
     />
   );
 }

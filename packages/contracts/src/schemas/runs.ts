@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { PauseReason, RuleKind, RunListFilter, RunStatus, TicketKind, TriggerSource } from '../enums';
 import { AgentNote, WaitingOn } from './agent-state';
 import { Id, Timestamp } from './common';
+import { PageQuery, pageOf } from './page';
 
 export const TicketDto = z.object({
   ref: z.string(),
@@ -84,18 +85,14 @@ export const RunStatsDto = z.object({
 });
 export type RunStatsDto = z.infer<typeof RunStatsDto>;
 
-export const RunListQuery = z.object({
+// Strict: the retired `cursor` and `limit` parameters are a 400, not silently ignored.
+export const RunListQuery = PageQuery.extend({
   filter: RunListFilter.optional(),
   ticket: z.string().optional(),
-  cursor: z.string().optional(),
-  limit: z.coerce.number().int().min(1).max(100).default(50),
-});
+}).strict();
 export type RunListQuery = z.infer<typeof RunListQuery>;
 
-export const RunListResponse = z.object({
-  items: z.array(RunListItem),
-  nextCursor: z.string().nullable(),
-});
+export const RunListResponse = pageOf(RunListItem);
 export type RunListResponse = z.infer<typeof RunListResponse>;
 
 export const RunEventDto = z.object({

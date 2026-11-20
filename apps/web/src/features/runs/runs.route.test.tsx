@@ -1,4 +1,4 @@
-import type { RunStatsDto } from '@agentdesk/contracts';
+import type { RunDto, RunStatsDto } from '@agentdesk/contracts';
 import { focusManager } from '@tanstack/react-query';
 import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
@@ -294,13 +294,15 @@ describe('runs route', () => {
       mockDb.state.runs = [...mockDb.state.runs, ...extra, ...old];
     }
 
-    it('"All" lists and counts every run, following the cursor', async () => {
+    it('"All" shows 20 rows of a page and counts every run from the server', async () => {
       seedMany();
+      const queries = captureRunListQueries();
       await renderRoute(`${base}/runs`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
-      expect(runNumbers()).toHaveLength(12 + 120 + 2);
+      expect(runNumbers()).toHaveLength(20);
       expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveTextContent('134');
       expect(within(chips()).getByRole('link', { name: /^Ended/ })).toHaveTextContent(String(8 + 122));
+      expect(queries.map((q) => new URLSearchParams(q).get('pageSize'))).toEqual(['20']);
     });
 
     it('?ticket= asks the server for the ticket ref and finds its oldest runs', async () => {
@@ -311,6 +313,147 @@ describe('runs route', () => {
       expect(runNumbers()).toEqual([1, 2]);
       expect(queries.some((q) => new URLSearchParams(q).get('ticket') === ticket12Ref)).toBe(true);
       expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+    });
+  });
+
+  describe('paging', () => {
+    /** Replaces the project's runs with `total` runs numbered 1..total, each on its own ticket unless `ticketOf` says. */
+    function seedRuns(
+      total: number,
+      opts: { from?: number; status?: RunDto['status']; ticketOf?: (n: number) => string } = {},
+    ) {
+      const template = mockDb.state.runs.find((r) => r.number === (opts.from ?? 60));
+      if (!template) throw new Error('template run missing');
+      const ticketOf = opts.ticketOf ?? String;
+      mockDb.state.runs = [
+        ...mockDb.state.runs.filter((r) => r.projectId !== projectId),
+        ...Array.from({ length: total }, (_, i) => {
+          const n = i + 1;
+          const ref = ticketOf(n);
+          return {
+            ...template,
+            id: ids.run(1, n),
+            number: n,
+            status: opts.status ?? 'succeeded',
+            queuedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, n)).toISOString(),
+            ticket: { ...template.ticket, number: Number(ref), ref },
+          };
+        }),
+      ];
+    }
+    const nav = () => screen.getByRole('navigation', { name: 'Pagination' });
+    /** The wide page list comes first; jsdom shows both lists, the CSS container query picks one. */
+    const pageButton = (n: number) => {
+      const [button] = screen.getAllByRole('button', { name: `Page ${n}` });
+      if (!button) throw new Error(`no Page ${n} button`);
+      return button;
+    };
+
+    it('63 runs: 20 rows and "Showing 1–20 of 63"; Page 4 shows 3 rows and ?page=4', async () => {
+      seedRuns(63);
+      const { user, router } = await renderRoute(`${base}/runs`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(runNumbers()).toHaveLength(20);
+      expect(nav()).toHaveTextContent('Showing 1–20 of 63');
+      await user.click(pageButton(4));
+      await waitFor(() => expect(runNumbers()).toHaveLength(3));
+      expect(router.state.location.search).toEqual({ page: '4' });
+      expect(nav()).toHaveTextContent('Showing 61–63 of 63');
+    });
+
+    it('?page=99 is replaced by the last page; ?page=abc shows page 1', async () => {
+      seedRuns(63);
+      const { router } = await renderRoute(`${base}/runs?page=99`);
+      await waitFor(() => expect(router.state.location.search).toEqual({ page: '4' }));
+      await waitFor(() => expect(runNumbers()).toHaveLength(3));
+      cleanup();
+      const again = await renderRoute(`${base}/runs?page=abc`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(runNumbers()).toHaveLength(20);
+      expect(nav()).toHaveTextContent('Showing 1–20 of 63');
+      expect(again.router.state.location.search).toEqual({});
+    });
+
+    it('from ?page=3 every chip and the grouped toggle land on page 1, and no filter or ticket href carries page', async () => {
+      seedRuns(63);
+      const { user, router } = await renderRoute(`${base}/runs?page=3&ticket=12`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      const links = [...within(chips()).getAllByRole('link'), screen.getByRole('link', { name: /^Ignored/ })];
+      expect(links.length).toBeGreaterThanOrEqual(6);
+      for (const l of links) {
+        const href = l.getAttribute('href') ?? '';
+        expect(href, href).not.toContain('page');
+        expect(href, href).toContain('ticket=12');
+      }
+      await user.click(screen.getByRole('button', { name: 'Grouped by ticket' }));
+      await waitFor(() => expect(router.state.location.search).not.toHaveProperty('page'));
+    });
+
+    it('grouped: a ticket split across pages shows its header on both with the same "N of max runs"', async () => {
+      // Newest first: numbers 63..44 are page 1; runs 45, 44 and 43 (positions 19, 20, 21) share one ticket.
+      seedRuns(63, { ticketOf: (n) => (n >= 43 && n <= 45 ? '9000' : String(n)) });
+      const { user } = await renderRoute(`${base}/runs`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(screen.getAllByText('3 of 10 runs')).toHaveLength(1);
+      expect(
+        runNumbers()
+          .slice(-2)
+          .sort((a, b) => a - b),
+      ).toEqual([44, 45]);
+      await user.click(pageButton(2));
+      await waitFor(() => expect(runNumbers()).toContain(43));
+      expect(runNumbers()).toHaveLength(20);
+      expect(screen.getAllByText('3 of 10 runs')).toHaveLength(1);
+    });
+
+    it('"Rows per page" 50 shows 50 rows on page 1', async () => {
+      seedRuns(63);
+      const { user } = await renderRoute(`${base}/runs?page=2`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      await user.selectOptions(screen.getByLabelText('Rows per page'), '50');
+      await waitFor(() => expect(runNumbers()).toHaveLength(50));
+      expect(nav()).toHaveTextContent('Showing 1–50 of 63');
+    });
+
+    it('while page 2 is held, page 1 stays with the table and nav busy and every control disabled', async () => {
+      seedRuns(63);
+      const page2 = await (await fetch(`http://localhost:3000${runsApi}?filter=all&page=2&pageSize=20`)).json();
+      const { user } = await renderRoute(`${base}/runs`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      let release: () => void = () => undefined;
+      const held = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      server.use(
+        http.get(`*${runsApi}`, async () => {
+          await held;
+          return HttpResponse.json(page2);
+        }),
+      );
+      await user.click(pageButton(2));
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'true'));
+      expect(screen.getByRole('table')).toHaveAttribute('aria-busy', 'true');
+      expect(runNumbers()).toHaveLength(20);
+      expect(runNumbers()).toContain(63);
+      for (const control of [...within(nav()).getAllByRole('button'), screen.getByLabelText('Rows per page')]) {
+        expect(control).toBeDisabled();
+      }
+      release();
+      await waitFor(() => expect(nav()).toHaveAttribute('aria-busy', 'false'));
+      expect(runNumbers()).not.toContain(63);
+    });
+
+    it('needs you: 21 runs show 20 cards; Page 2 shows 1 card and "Showing 21–21 of 21"; the tab badge stays at 21', async () => {
+      seedRuns(21, { from: 62, status: 'idle' });
+      const { user } = await renderRoute(`${base}/needs-you`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      const cards = () => screen.getAllByRole('link', { name: /^Open run \d+ in Agent Desk$/ });
+      expect(cards()).toHaveLength(20);
+      expect(screen.getByText('(21) Needs you, invoicer-api')).toBeInTheDocument();
+      await user.click(pageButton(2));
+      await waitFor(() => expect(cards()).toHaveLength(1));
+      expect(nav()).toHaveTextContent('Showing 21–21 of 21');
+      expect(screen.getByText('(21) Needs you, invoicer-api')).toBeInTheDocument();
     });
   });
 

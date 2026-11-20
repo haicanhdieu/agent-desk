@@ -1,6 +1,17 @@
 import { useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { toastFromError } from '@/app/boundaries';
+import {
+  PageSearch,
+  loadPage,
+  pageOfSearch,
+  pageToSearch,
+  readPageSize,
+  useClampToLastPage,
+  usePageSize,
+  usePagedQuery,
+  usePaginationProps,
+} from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import { projectPaths } from '@/features/desk/frame';
@@ -13,9 +24,15 @@ import { runsQueries } from '@/features/runs/queries';
 import { NeedsYou, type NeedsYouRun } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/p/$project/needs-you')({
-  loader: async ({ context: { queryClient }, params: { org, project } }) => {
+  validateSearch: PageSearch,
+  loaderDeps: ({ search }) => ({ page: pageOfSearch(search) }),
+  loader: async ({ context: { queryClient }, params: { org, project }, deps: { page }, cause }) => {
     await Promise.all([
-      queryClient.ensureQueryData(runsQueries.list(org, project, 'needs_you')),
+      loadPage(
+        queryClient,
+        runsQueries.list(org, project, { filter: 'needs_you', page, pageSize: readPageSize() }),
+        cause,
+      ),
       queryClient.ensureQueryData(projectsQueries.all(org)),
     ]);
   },
@@ -28,7 +45,16 @@ function NeedsYouRoute() {
   const toast = useToast();
   const resume = useResumeRun(org, projectId, { onError: (e) => toast.show(toastFromError(e)) });
   const page = useProjectPage(org, projectId, now);
-  const { data: idle } = useSuspenseQuery(runsQueries.list(org, projectId, 'needs_you'));
+  const navigate = useNavigate({ from: Route.fullPath });
+  const current = pageOfSearch(Route.useSearch());
+  const [pageSize] = usePageSize();
+  const { data: idle, busy } = usePagedQuery({ filter: 'needs_you' as const, page: current, pageSize }, (q) =>
+    runsQueries.list(org, projectId, q),
+  );
+  const go = (p: number, replace = false) =>
+    void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
+  useClampToLastPage(current, idle.pageSize, idle.total, (p) => go(p, true));
+  const pagination = usePaginationProps({ page: current, total: idle.total, busy, go });
   const { data: all } = useSuspenseQuery(projectsQueries.all(org));
   const dtos = all.items;
   // The switcher shows each project's connection warning: one request per project, in parallel.
@@ -61,6 +87,7 @@ function NeedsYouRoute() {
       }}
       resuming={resume.isPending ? resume.variables.number : undefined}
       projectHref={(p) => projectPaths(org, p.id).needsYou}
+      pagination={pagination}
       topBar={{ user: page.user, links: page.links, projectMenu: page.projectMenu }}
     />
   );

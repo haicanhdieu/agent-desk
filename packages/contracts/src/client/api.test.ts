@@ -26,10 +26,10 @@ describe('createApi', () => {
   });
 
   it('serializes query params and prefixes baseUrl', async () => {
-    const f = mockFetch(json({ items: [], nextCursor: null }));
+    const f = mockFetch(json({ items: [], page: 1, pageSize: 20, total: 0 }));
     const api = createApi({ fetch: f, baseUrl: 'http://x' });
-    await api.runs.list({ params: { projectId: P }, query: { filter: 'needs_you', limit: 50 } });
-    expect(f.mock.calls[0]?.[0]).toBe(`http://x/api/projects/${P}/runs?filter=needs_you&limit=50`);
+    await api.runs.list({ params: { projectId: P }, query: { filter: 'needs_you', page: 1, pageSize: 20 } });
+    expect(f.mock.calls[0]?.[0]).toBe(`http://x/api/projects/${P}/runs?filter=needs_you&page=1&pageSize=20`);
   });
 
   it('sends JSON body with content-type', async () => {

@@ -793,3 +793,46 @@ describe('run detail route, stop session and the saved Transcript', () => {
     expect(await screen.findByText('Finished. The session was deleted and cannot be resumed.')).toBeInTheDocument();
   });
 });
+
+describe('run detail, runs of the same ticket', () => {
+  /** Gives `count` runs (the open run included) one ticket, so the chain holds all of them. */
+  function seedChain(count: number) {
+    const open = dbRun(61);
+    const others = Array.from({ length: count - 1 }, (_, i) => ({
+      ...open,
+      id: ids.run(1, 200 + i),
+      number: 200 + i,
+      queuedAt: new Date(Date.UTC(2026, 10, 13, 0, 0, i)).toISOString(),
+    }));
+    mockDb.state.runs = [...mockDb.state.runs, ...others];
+  }
+  /** The query strings of the run-list requests (`GET /runs`, not stats or one run). */
+  function captureListQueries() {
+    const queries: string[] = [];
+    const listener = ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (request.method === 'GET' && url.pathname === `/api/projects/${projectId}/runs`) queries.push(url.search);
+    };
+    server.events.on('request:start', listener);
+    return { queries, stop: () => server.events.removeListener('request:start', listener) };
+  }
+
+  it.each([21, 50])('a ticket with %i runs lists all of them with one pageSize=100 request', async (count) => {
+    seedChain(count);
+    const capture = captureListQueries();
+    try {
+      await renderRoute(`${base}/runs/61`);
+      await screen.findByText('Chain on this ticket');
+      // Every other run of the ticket is a step of the chain with a link; the open run is "This run".
+      const steps = screen.getAllByRole('link').filter((a) => /\/runs\/2\d\d$/.test(a.getAttribute('href') ?? ''));
+      expect(steps).toHaveLength(count - 1);
+    } finally {
+      capture.stop();
+    }
+    expect(capture.queries).toHaveLength(1);
+    const q = new URLSearchParams(capture.queries[0]);
+    expect(q.get('pageSize')).toBe('100');
+    expect(q.get('page')).toBe('1');
+    expect(q.get('ticket')).toBe(dbRun(61).ticket.ref);
+  });
+});

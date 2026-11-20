@@ -4,6 +4,7 @@ import { createFileRoute, notFound } from '@tanstack/react-router';
 import { lazy, Suspense, useCallback, useRef, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
+import { WHOLE_SET } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import type { TranscriptProps } from '@/components';
 import type { LiveTerminalHandle } from '@/components/LiveTerminal';
@@ -50,7 +51,9 @@ export const Route = createFileRoute('/o/$org/p/$project/runs/$run')({
     await Promise.all([
       queryClient.ensureQueryData(runsQueries.events(org, project, number, isFinal(dto.status))),
       // The chain: every run on the same ticket.
-      queryClient.ensureQueryData(runsQueries.list(org, project, 'all', dto.ticket.ref)),
+      queryClient.ensureQueryData(
+        runsQueries.list(org, project, { filter: 'all', ticket: dto.ticket.ref, ...WHOLE_SET }),
+      ),
     ]);
   },
   component: RunDetailRoute,
@@ -65,7 +68,9 @@ function RunDetailRoute() {
   const { data: dto } = useSuspenseQuery(runsQueries.detail(org, projectId, number));
   const final = isFinal(dto.status);
   const { data: events } = useSuspenseQuery(runsQueries.events(org, projectId, number, final));
-  const { data: ticketRuns } = useSuspenseQuery(runsQueries.list(org, projectId, 'all', dto.ticket.ref));
+  const { data: ticketRuns } = useSuspenseQuery(
+    runsQueries.list(org, projectId, { filter: 'all', ticket: dto.ticket.ref, ...WHOLE_SET }),
+  );
   // Live status and log while the run is not final (spec §5.1).
   const stream = useRunEvents(org, projectId, number, dto.id, !final);
   // Turned final while open: the run and its log (the final scrollback) reload.

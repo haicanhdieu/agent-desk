@@ -91,61 +91,81 @@ describe('runs list', () => {
     expect((await listRuns('', pid, bob)).statusCode).toBe(404);
   });
 
-  it('keyset pagination yields disjoint, complete pages even with identical queued_at', async () => {
+  async function seedRuns(n: number, over: Partial<typeof runs.$inferInsert> = {}) {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const base = Date.parse('2026-01-01T00:00:00.000Z');
+    // One bulk insert: distinct queued_at, the newest last inserted (so the list order is the reverse of insertion).
+    await withOrg(t.db, orgId, (tx) =>
+      tx.insert(runs).values(
+        Array.from({ length: n }, (_, i) => ({
+          orgId,
+          projectId: pid,
+          command: 'fix',
+          skillName: 'fix',
+          ticketRef: `bulk-${i}`,
+          ticketKind: 'issue' as const,
+          checkoutRef: 'refs/heads/main',
+          triggerSource: 'webhook' as const,
+          queuedAt: new Date(base + i * 1000),
+          ...over,
+        })),
+      ),
+    );
+    return pid;
+  }
+  const pageOf = async (query: string, pid: string, cookie = alice) =>
+    expectContract('runs.list', await listRuns(query, pid, cookie)) as RunListResponse;
+
+  it('pages runs: defaults, total, past the end', async () => {
+    const pid = await seedRuns(45);
+    const first = await pageOf('', pid);
+    expect(first).toMatchObject({ page: 1, pageSize: 20, total: 45 });
+    expect(first.items).toHaveLength(20);
+    expect((await pageOf('?page=3', pid)).items).toHaveLength(5);
+    const past = await listRuns('?page=4', pid);
+    expect(past.statusCode).toBe(200);
+    expect(past.json()).toMatchObject({ items: [], page: 4, total: 45 });
+  });
+
+  it('pages are disjoint and complete with identical queued_at, ordered by id', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     const same = new Date('2026-01-01T00:00:00.123Z');
-    const earlier = new Date('2025-12-31T00:00:00.000Z');
     const ids = new Set<string>();
     for (let i = 0; i < 7; i += 1) ids.add((await insertRun({ queuedAt: same }, pid)).id);
-    for (let i = 0; i < 2; i += 1) ids.add((await insertRun({ queuedAt: earlier }, pid)).id);
     const seen: string[] = [];
-    let cursor: string | null = null;
-    let pages = 0;
-    do {
-      const res = await listRuns(`?limit=2${cursor ? `&cursor=${cursor}` : ''}`, pid);
-      const page = expectContract('runs.list', res) as RunListResponse;
-      expect(page.items.length).toBeLessThanOrEqual(2);
-      seen.push(...page.items.map((r) => r.id));
-      cursor = page.nextCursor;
-      pages += 1;
-    } while (cursor && pages < 20);
-    expect(pages).toBe(5);
-    expect(new Set(seen).size).toBe(seen.length);
+    for (let page = 1; page <= 4; page += 1) {
+      const res = await pageOf(`?pageSize=2&page=${page}`, pid);
+      expect(res.items.length).toBe(page === 4 ? 1 : 2);
+      seen.push(...res.items.map((r) => r.id));
+    }
+    expect(seen).toHaveLength(7);
     expect(new Set(seen)).toEqual(ids);
-    // queued_at desc: the identical-timestamp rows come first, ties by id.
-    const tied = seen.slice(0, 7);
-    expect(tied).toEqual([...tied].sort());
+    expect(seen).toEqual([...seen].sort());
   });
 
-  it('tampered cursors with a valid shape but impossible date or bad uuid are 400 /cursor, never 500', async () => {
-    const uuid = randomUUID();
-    const enc = (o: object) => Buffer.from(JSON.stringify(o)).toString('base64url');
-    const bad = [
-      { t: '2026-99-99T99:99:99.000000Z', i: uuid },
-      { t: '2026-02-30T00:00:00.000000Z', i: uuid },
-      { t: '2026-01-01T25:00:00.000000Z', i: uuid },
-      { t: '2026-01-01T00:60:00.000000Z', i: uuid },
-      { t: '2026-01-01T00:00:61.000000Z', i: uuid },
-      { t: '2026-13-01T00:00:00.000000Z', i: uuid },
-      { t: '2026-01-01T00:00:00.000000Z', i: 'not-a-uuid' },
-      { t: '2026-01-01T00:00:00.000000Z', i: `${uuid}x` },
-    ];
-    for (const c of bad) {
-      const res = await listRuns(`?cursor=${enc(c)}`);
-      expect(res.statusCode, JSON.stringify(c)).toBe(400);
-      expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/cursor');
+  it('rejects page and pageSize out of bounds', async () => {
+    for (const q of ['?page=0', '?pageSize=101', '?pageSize=0', '?page=2147483648', '?limit=1000']) {
+      const res = await listRuns(q);
+      expect(res.statusCode, q).toBe(400);
     }
-    const ok = await listRuns(`?cursor=${enc({ t: '2026-02-28T23:59:59.999999Z', i: uuid })}`);
-    expect(ok.statusCode).toBe(200);
   });
 
-  it('malformed cursor is 400 with pointer /cursor; limit above the max is rejected', async () => {
-    for (const bad of ['!!!', 'e30', Buffer.from('{"t":"x","i":"y"}').toString('base64url')]) {
-      const res = await listRuns(`?cursor=${bad}`);
-      expect(res.statusCode).toBe(400);
-      expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/cursor');
-    }
-    expect((await listRuns('?limit=1000')).statusCode).toBe(400);
+  it('total counts the filter and the ticket', async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    for (const status of ['succeeded', 'failed', 'running', 'queued']) await insertRun({ status, ticketRef: 'T' }, pid);
+    await insertRun({ status: 'failed', ticketRef: 'U' }, pid);
+    const res = await pageOf('?filter=ended&ticket=T', pid);
+    expect(res.total).toBe(2);
+    expect(res.items.map((r) => r.ticket.ref)).toEqual(['T', 'T']);
+    expect((await pageOf('?filter=ended', pid)).total).toBe(3);
+  });
+
+  it("another org's runs are never counted", async () => {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    await insertRun({}, pid);
+    expect((await pageOf('', pid)).total).toBe(1);
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    expect((await pageOf('', bobProject, bob)).total).toBe(0);
   });
 });
 

@@ -141,19 +141,19 @@ describe('MSW handlers cover the contract', () => {
     expect(needsYou.items.map((r) => r.number)).toEqual([64, 62]);
     const ended = await api.runs.list({ params: { projectId: P }, query: { filter: 'ended' } });
     expect(ended.items.map((r) => r.number)).toEqual([66, 65, 60, 57, 56, 55, 54, 52]);
-    const page1 = await api.runs.list({ params: { projectId: P }, query: { limit: 4 } });
+    const page1 = await api.runs.list({ params: { projectId: P }, query: { page: 1, pageSize: 4 } });
     expect(page1.items.map((r) => r.number)).toEqual([66, 65, 64, 63]);
-    expect(page1.nextCursor).not.toBeNull();
-    const page2 = await api.runs.list({
-      params: { projectId: P },
-      query: { limit: 4, cursor: page1.nextCursor ?? undefined },
-    });
+    expect(page1).toMatchObject({ page: 1, pageSize: 4, total: 12 });
+    const page2 = await api.runs.list({ params: { projectId: P }, query: { page: 2, pageSize: 4 } });
     expect(page2.items.map((r) => r.number)).toEqual([62, 61, 60, 57]);
+    const past = await api.runs.list({ params: { projectId: P }, query: { page: 9, pageSize: 4 } });
+    expect(past).toMatchObject({ items: [], total: 12 });
     const byTicket = await api.runs.list({
       params: { projectId: P },
       query: { ticket: '133' },
     });
     expect(byTicket.items.map((r) => r.number)).toEqual([57, 56]);
+    expect(byTicket.total).toBe(2);
     // Every item carries how many runs its ticket has had, whatever the filter.
     expect(byTicket.items.map((r) => r.ticketRunCount)).toEqual([2, 2]);
   });

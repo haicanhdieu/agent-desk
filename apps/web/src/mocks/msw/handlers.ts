@@ -533,16 +533,13 @@ const impl: Impl = {
 
   'runs.list': ({ params, query }) => {
     const projectId = projectRow(params.projectId).id;
-    const cursor = query.cursor === undefined ? Infinity : Number(query.cursor);
     const matching = db()
       .runs.filter((r) => r.projectId === projectId)
       .filter((r) => matchesFilter(query.filter, r.status))
       .filter((r) => query.ticket === undefined || r.ticket.ref === query.ticket)
-      .filter((r) => r.number < cursor)
-      .sort((a, b) => b.number - a.number);
-    const items = matching.slice(0, query.limit).map((r) => withTicketRunCount(withAgentIdleEnd(r)));
-    const last = items.at(-1);
-    return { items, nextCursor: matching.length > items.length && last ? String(last.number) : null };
+      .sort((a, b) => b.number - a.number)
+      .map((r) => withTicketRunCount(withAgentIdleEnd(r)));
+    return slicePage(matching, query);
   },
   // Before byNumber, as in the API: `stats` is not a run number.
   'runs.stats': ({ params, query }) => {

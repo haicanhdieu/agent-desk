@@ -751,7 +751,7 @@ export interface RunListParams { filter: RunListFilter; ticket?: string; page: n
 runsQueries.list(org: string, projectId: string, p: RunListParams) // key [...runsKey, 'list', p.filter, p.ticket ?? null, p.page, p.pageSize]
 ```
 
-- [ ] **Step 1: Write the failing API tests** in `runs.int.test.ts`
+- [x] **Step 1: Write the failing API tests** in `runs.int.test.ts`
 
 Replace the three keyset/cursor tests with:
 
@@ -763,7 +763,7 @@ Replace the three keyset/cursor tests with:
 
 The other `listRuns(...)` calls move to `page`/`pageSize`.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `runs.route.test.tsx`:
   - 63 runs → 20 rows and "Showing 1–20 of 63". "Page 4" → 3 rows and `?page=4`.
@@ -779,12 +779,12 @@ The other `listRuns(...)` calls move to `page`/`pageSize`.
   - A row that leaves its page's filter stays patched, and that page's query is invalidated (Review Focus 3).
   - `listScope` reads filter and ticket from the new key shape.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- runs.route detail.route applyEvents realtime`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces. `client/api.test.ts` uses `{ filter: 'needs_you', page: 1, pageSize: 20 }` and the envelope.
 - API: `listPage` runs `count(*)` with the filter and ticket conditions, then the page `orderBy(desc(runs.queuedAt), asc(runs.id)).limit(limit).offset(offset)`, then `toPage`. Delete `isRealTimestamp`, `Cursor`, `encodeCursor`, `decodeCursor`, `QUEUED_AT_TEXT`, the cursor branch of `list`, and `isPgCode` if nothing else uses it.
@@ -802,7 +802,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/run.spec.ts e2e/mock/trigger.spec.ts e2e/mock/agent-limits.spec.ts && pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts`
 Expected: PASS. If the stack cannot start, say so in the PR and list `run.spec.ts` as written but not run.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
