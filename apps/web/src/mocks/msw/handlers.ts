@@ -343,7 +343,7 @@ const impl: Impl = {
     db().triggers[row.id] = trig;
     return null;
   },
-  'projects.ignored': ({ params }) => db().ignored[projectRow(params.projectId).id] ?? [],
+  'projects.ignored': ({ params, query }) => slicePage(db().ignored[projectRow(params.projectId).id] ?? [], query),
 
   'agents.get': ({ params }) => agentOf(projectRow(params.projectId).id),
   'agents.put': ({ params, body }) => {
@@ -434,10 +434,13 @@ const impl: Impl = {
     for (const t of db().setupTests) if (t.projectId === projectId) t.matchesCurrentScript = t.scriptSha256 === sha;
     return next;
   },
-  'setupScript.versions': ({ params }) =>
-    [...setupVersionsOf(projectRow(params.projectId).id)]
-      .reverse()
-      .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt })),
+  'setupScript.versions': ({ params, query }) =>
+    slicePage(
+      [...setupVersionsOf(projectRow(params.projectId).id)]
+        .reverse()
+        .map((v) => ({ version: v.version, note: v.note, createdBy: v.createdBy, createdAt: v.createdAt })),
+      query,
+    ),
   'setupScript.version': ({ params }) => {
     const found = setupVersionsOf(projectRow(params.projectId).id).find((v) => v.version === params.version);
     if (!found) throw notFound('Setup script version');

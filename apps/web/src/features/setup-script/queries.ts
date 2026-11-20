@@ -1,7 +1,11 @@
 import { queryOptions } from '@tanstack/react-query';
+import type { PageQuery } from '@agentdesk/contracts';
 import { api } from '../api';
 
 const setupKey = (org: string, projectId: string) => ['org', org, 'projects', projectId, 'setup'] as const;
+
+/** Prefix of every cached page of the version history. */
+export const versionsKey = (org: string, projectId: string) => [...setupKey(org, projectId), 'versions'] as const;
 
 // Workspace setup reads (spec §5.5): the saved script and its history, the plugins panel and the latest setup test.
 export const setupQueries = {
@@ -10,10 +14,10 @@ export const setupQueries = {
       queryKey: [...setupKey(org, projectId), 'script'] as const,
       queryFn: () => api.setupScript.get({ params: { projectId } }),
     }),
-  versions: (org: string, projectId: string) =>
+  versions: (org: string, projectId: string, q: PageQuery) =>
     queryOptions({
-      queryKey: [...setupKey(org, projectId), 'versions'] as const,
-      queryFn: () => api.setupScript.versions({ params: { projectId } }),
+      queryKey: [...versionsKey(org, projectId), q.page, q.pageSize] as const,
+      queryFn: () => api.setupScript.versions({ params: { projectId }, query: q }),
     }),
   version: (org: string, projectId: string, version: number) =>
     queryOptions({

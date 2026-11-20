@@ -848,22 +848,22 @@ export const versionsKey: (org: string, projectId: string) => readonly [...setup
 setupQueries.versions(org: string, projectId: string, q: PageQuery)       // key [...versionsKey, q.page, q.pageSize]
 ```
 
-- [ ] **Step 1: Write the failing API tests**
+- [x] **Step 1: Write the failing API tests**
 
 - `runs.int.test.ts` `describe('ignored list')`: 130 ignored events → 20 items, `total: 130`; `?page=7` → 10 items (no 100 cap); newest received first with `id` ascending on ties; `?page=8` → empty with `total: 130`; bounds → 400; another org's events are not counted. The old "max 100" test goes.
 - `setup-script.int.test.ts`: 23 versions → page 1 holds versions 23..4, page 2 holds 3..1, `total: 23`; past the end → empty; bounds → 400; another org's project → 404.
 
-- [ ] **Step 2: Write the failing web tests**
+- [x] **Step 2: Write the failing web tests**
 
 - `runs.route.test.tsx`: Ignored chip with 27 ignored → 20 rows; "Page 2" → 7 rows and "Showing 21–27 of 27"; the chip count is still from stats (27). From page 3 of All, clicking Ignored lands on page 1 of the ignored list. 20 ignored → no control.
 - `setup.route.test.tsx`: 23 versions → the header reads "23 versions" and 20 rows; "Page 2" → 3 rows; `?page=5` → `?page=2`; while loading, failing or with 0 versions there is no "Pagination" nav.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs setup-script && pnpm --filter @agentdesk/web test -- runs.route setup-script/setup.route`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 - Contracts as in Produces.
 - API: both services run `count(*)` and the page in one `withOrg` and use `toPage`; both controllers take `@Query(new ZodPipe(<route>.query))`. Remove `IGNORED_LIMIT`.
@@ -878,7 +878,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/api test -- runs setup-script && pnpm --filter @agentdesk/web test -- runs setup-script contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup.spec.ts e2e/mock/desk-setup-layout.spec.ts e2e/mock/runs-board.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix

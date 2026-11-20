@@ -1,8 +1,16 @@
 import type { SetupScriptDto } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { createFileRoute } from '@tanstack/react-router';
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query';
+import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
+import {
+  PageSearch,
+  pageOfSearch,
+  pageToSearch,
+  useClampToLastPage,
+  usePageSize,
+  usePaginationProps,
+} from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useDeskFrame } from '@/features/desk/frame';
 import {
@@ -18,6 +26,7 @@ import { useSetupTest } from '@/features/setup-script/useSetupTest';
 import { DeskSetup, type DeskFrameData } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/setup')({
+  validateSearch: (search) => PageSearch.parse(search),
   component: DeskSetupPage,
 });
 
@@ -57,7 +66,22 @@ interface EditorProps {
 
 function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
   const qc = useQueryClient();
-  const versions = useQuery(setupQueries.versions(org, projectId));
+  const navigate = useNavigate({ from: Route.fullPath });
+  const currentPage = pageOfSearch(Route.useSearch());
+  const [pageSize] = usePageSize();
+  const versions = useQuery({
+    ...setupQueries.versions(org, projectId, { page: currentPage, pageSize }),
+    placeholderData: keepPreviousData,
+  });
+  const goToPage = (p: number, replace = false) =>
+    void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
+  useClampToLastPage(currentPage, pageSize, versions.data?.total ?? 0, (p) => goToPage(p, true));
+  const versionsPagination = usePaginationProps({
+    page: currentPage,
+    total: versions.data?.total ?? 0,
+    busy: versions.isPlaceholderData,
+    go: goToPage,
+  });
   const plugins = useQuery(setupQueries.plugins(org, projectId));
   const latest = useQuery(setupQueries.latest(org, projectId));
   const current = latest.data ?? null;
@@ -87,7 +111,7 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
   const view = toDeskSetupProps(
     {
       script,
-      versions: versions.data ?? [],
+      versions: versions.data?.items ?? [],
       plugins: plugins.data ?? { approvedStores: [], plugins: [], settingsError: null },
       latest: current,
       events: stream.events,
@@ -180,6 +204,8 @@ function SetupEditor({ org, projectId, frame, script, now }: EditorProps) {
             ? { plugins: [], error: 'Could not load the plugins. Reload to try again.' }
             : view.plugins
       }
+      versionsTotal={versions.data?.total ?? 0}
+      versionsPagination={versionsPagination}
       versionsLoading={versions.isPending}
       versionsError={versions.isError ? 'Could not load the version history. Reload to try again.' : undefined}
       saving={save.isPending}

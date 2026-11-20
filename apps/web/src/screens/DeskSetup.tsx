@@ -451,6 +451,7 @@ export function DeskSetup({
               >
                 <VersionHistory
                   versions={versions}
+                  currentVersion={script?.version}
                   loading={versionsLoading}
                   error={versionsError}
                   onView={onViewVersion}

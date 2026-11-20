@@ -6,6 +6,7 @@ import { UPDATE } from '@agentdesk/core';
 import { agents, inboundEvents, runEvents, runTranscriptEntries, runs, withOrg } from '@agentdesk/db';
 import type {
   IgnoredEventDto,
+  Page,
   RunDto,
   RunListResponse,
   RunLogResponse,
@@ -913,7 +914,7 @@ describe('transcript', () => {
 });
 
 describe('ignored list', () => {
-  it('returns only ignored_* outcomes for the project, newest first, max 100', async () => {
+  it('returns only ignored_* outcomes for the project, newest first', async () => {
     const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     await withOrg(t.db, orgId, async (tx) => {
       const base = { provider: 'fake', channel: 'webhook', orgId, projectId: pid };
@@ -953,17 +954,82 @@ describe('ignored list', () => {
         { ...base, projectId: projectId, deliveryId: `d-${randomUUID()}`, outcome: 'ignored_no_rule' },
       ]);
     });
-    const items = expectContract('projects.ignored', await get(`/api/projects/${pid}/ignored`)) as IgnoredEventDto[];
+    const items = (
+      expectContract('projects.ignored', await get(`/api/projects/${pid}/ignored`)) as Page<IgnoredEventDto>
+    ).items;
     expect(items.map((i) => i.outcome)).toEqual(['ignored_unauthorized', 'ignored_no_command']);
     expect(items[0]).toMatchObject({ ticketRef: '10', author: 'mallory', command: 'fix', detail: 'not allowed' });
     expect(items[0]?.ticketKind).toBeNull();
+  });
 
-    const many = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+  async function seedIgnored(count: number): Promise<string> {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     await withOrg(t.db, orgId, (tx) =>
-      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome)
-        select 'fake', 'poll', 'bulk-' || g, ${orgId}::uuid, ${many}::uuid, 'ignored_no_command' from generate_series(1, 120) g`),
+      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome, received_at)
+        select 'fake', 'poll', 'bulk-' || ${pid} || '-' || g, ${orgId}::uuid, ${pid}::uuid, 'ignored_no_command',
+          timestamptz '2026-01-01T00:00:00Z' + ((g / 2) || ' seconds')::interval from generate_series(1, ${count}) g`),
     );
-    const capped = expectContract('projects.ignored', await get(`/api/projects/${many}/ignored`)) as IgnoredEventDto[];
-    expect(capped).toHaveLength(100);
+    return pid;
+  }
+  const ignoredPage = (query: string, pid: string, cookie = alice) =>
+    get(`/api/projects/${pid}/ignored${query}`, cookie);
+
+  it('pages the ignored list with a total and no 100 cap', async () => {
+    const pid = await seedIgnored(130);
+    const first = expectContract('projects.ignored', await ignoredPage('', pid)) as Page<IgnoredEventDto>;
+    expect(first).toMatchObject({ page: 1, pageSize: 20, total: 130 });
+    expect(first.items).toHaveLength(20);
+    const seventh = expectContract('projects.ignored', await ignoredPage('?page=7', pid)) as Page<IgnoredEventDto>;
+    expect(seventh.items).toHaveLength(10);
+    const past = await ignoredPage('?page=8', pid);
+    expect(past.statusCode).toBe(200);
+    expect(past.json()).toMatchObject({ items: [], page: 8, total: 130 });
+  });
+
+  it('orders newest received first with id ascending on ties, pages disjoint', async () => {
+    const pid = await seedIgnored(9);
+    const seen: IgnoredEventDto[] = [];
+    for (let page = 1; page <= 5; page += 1) {
+      const res = expectContract(
+        'projects.ignored',
+        await ignoredPage(`?pageSize=2&page=${page}`, pid),
+      ) as Page<IgnoredEventDto>;
+      seen.push(...res.items);
+    }
+    expect(seen).toHaveLength(9);
+    expect(new Set(seen.map((i) => i.id)).size).toBe(9);
+    for (let i = 1; i < seen.length; i += 1) {
+      const a = seen[i - 1];
+      const b = seen[i];
+      if (!a || !b) throw new Error('missing row');
+      expect(a.receivedAt >= b.receivedAt).toBe(true);
+      if (a.receivedAt === b.receivedAt) expect(a.id < b.id).toBe(true);
+    }
+  });
+
+  it('rejects page and pageSize out of bounds on the ignored list', async () => {
+    for (const q of ['?page=0', '?pageSize=101', '?pageSize=0', '?page=2147483648']) {
+      expect((await ignoredPage(q, projectId)).statusCode, q).toBe(400);
+    }
+  });
+
+  it('counts only the project events, not another org or project', async () => {
+    const pid = await seedIgnored(3);
+    expect((await ignoredPage('', pid, bob)).statusCode).toBe(404);
+    const before = (await ignoredPage('', pid)).json();
+    const sibling = await seedIgnored(5);
+    const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
+    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
+      .id;
+    await withOrg(t.db, bobOrg, (tx) =>
+      tx.execute(sql`insert into inbound_events (provider, channel, delivery_id, org_id, project_id, outcome, received_at)
+        select 'fake', 'poll', 'bob-' || g, ${bobOrg}::uuid, ${bobProject}::uuid, 'ignored_no_command',
+          timestamptz '2026-01-01T00:00:00Z' from generate_series(1, 4) g`),
+    );
+    expect((await ignoredPage('', sibling)).json()).toMatchObject({ total: 5 });
+    expect((await ignoredPage('', bobProject, bob)).json()).toMatchObject({ total: 4 });
+    const after = (await ignoredPage('', pid)).json();
+    expect(after).toMatchObject({ total: 3 });
+    expect(after).toEqual(before);
   });
 });

@@ -457,6 +457,54 @@ describe('runs route', () => {
     });
   });
 
+  describe('paged ignored list', () => {
+    const nav = () => screen.getByRole('navigation', { name: 'Pagination' });
+    const ignoredRows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1);
+    /** Ignored events, newest first, as the server holds them. */
+    function seedIgnored(count: number) {
+      mockDb.state.ignored[projectId] = Array.from({ length: count }, (_, i) => ({
+        id: ids.ignored(1000 + i),
+        receivedAt: new Date(Date.UTC(2026, 0, 1, 0, 0, count - i)).toISOString(),
+        ticketRef: String(500 + i),
+        ticketKind: null,
+        command: 'code-build',
+        author: 'mallory',
+        outcome: 'ignored_unauthorized',
+        detail: 'not allowed',
+      }));
+    }
+
+    it('27 ignored: 20 rows; Page 2 shows 7 rows and "Showing 21–27 of 27"; the chip count stays 27', async () => {
+      seedIgnored(27);
+      const { user } = await renderRoute(`${base}/runs?filter=ignored`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(ignoredRows()).toHaveLength(20);
+      expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveTextContent('27');
+      await user.click(screen.getAllByRole('button', { name: 'Page 2' })[0] as HTMLElement);
+      await waitFor(() => expect(ignoredRows()).toHaveLength(7));
+      expect(nav()).toHaveTextContent('Showing 21–27 of 27');
+      expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveTextContent('27');
+    });
+
+    it('from page 3 of All, the Ignored chip lands on page 1 of the ignored list', async () => {
+      seedIgnored(27);
+      const { user, router } = await renderRoute(`${base}/runs?page=3`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      await user.click(screen.getByRole('link', { name: /^Ignored/ }));
+      await screen.findByRole('heading', { level: 2, name: 'Ignored commands' });
+      expect(router.state.location.search).toEqual({ filter: 'ignored' });
+      expect(await screen.findByRole('navigation', { name: 'Pagination' })).toHaveTextContent('Showing 1–20 of 27');
+    });
+
+    it('20 ignored: no pagination control', async () => {
+      seedIgnored(20);
+      await renderRoute(`${base}/runs?filter=ignored`);
+      await screen.findByRole('heading', { level: 2, name: 'Ignored commands' });
+      expect(ignoredRows()).toHaveLength(20);
+      expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows the empty state when no run matches', async () => {
     mockDb.state.runs = mockDb.state.runs.filter((r) => r.projectId !== projectId);
     await renderRoute(`${base}/runs?filter=queued`);

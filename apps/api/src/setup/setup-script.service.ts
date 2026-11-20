@@ -1,7 +1,15 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { projects, setupScriptVersions, user, withOrg, type Db, type Tx } from '@agentdesk/db';
-import type { PutSetupScriptRequest, SetupScriptDto, SetupScriptVersionDto } from '@agentdesk/contracts';
+import {
+  pageWindow,
+  toPage,
+  type Page,
+  type PageQuery,
+  type PutSetupScriptRequest,
+  type SetupScriptDto,
+  type SetupScriptVersionDto,
+} from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
 import { assertCanEditProject, assertProjectVisible } from '../projects/project-access';
@@ -54,16 +62,23 @@ export class SetupScriptService {
     });
   }
 
-  async versions(org: OrgContext, projectId: string): Promise<SetupScriptVersionDto[]> {
+  async versions(org: OrgContext, projectId: string, q: PageQuery): Promise<Page<SetupScriptVersionDto>> {
     return withOrg(this.db, org.orgId, async (tx) => {
       await assertProjectVisible(tx, projectId);
+      const { limit, offset } = pageWindow(q);
+      const [counted] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(setupScriptVersions)
+        .where(eq(setupScriptVersions.projectId, projectId));
       const rows = await tx
         .select(versionColumns)
         .from(setupScriptVersions)
         .leftJoin(user, eq(user.id, setupScriptVersions.createdBy))
         .where(eq(setupScriptVersions.projectId, projectId))
-        .orderBy(desc(setupScriptVersions.version));
-      return rows.map(toVersionDto);
+        .orderBy(desc(setupScriptVersions.version))
+        .limit(limit)
+        .offset(offset);
+      return toPage(rows.map(toVersionDto), counted?.total ?? 0, q);
     });
   }
 

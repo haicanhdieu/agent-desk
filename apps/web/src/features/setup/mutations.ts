@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { api } from '../api';
 import { refreshAfterCredential } from '../desk/agent.form';
 import { projectsListKey, projectsQueries } from '../projects/queries';
-import { setupQueries as scriptQueries } from '../setup-script/queries';
+import { setupQueries as scriptQueries, versionsKey } from '../setup-script/queries';
 import { setupQueries } from './queries';
 import { stepIndex } from './steps';
 import { SKILL_TEMPLATES } from './templates';
@@ -192,7 +192,7 @@ export function useSaveWorkspaceStep(org: string) {
         });
         qc.setQueryData(scriptQueries.script(org, project.id).queryKey, next);
         await Promise.all([
-          qc.invalidateQueries({ queryKey: scriptQueries.versions(org, project.id).queryKey }),
+          qc.invalidateQueries({ queryKey: versionsKey(org, project.id) }),
           qc.invalidateQueries({ queryKey: scriptQueries.latest(org, project.id).queryKey }),
         ]);
       }

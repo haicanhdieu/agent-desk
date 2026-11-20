@@ -1,5 +1,6 @@
 import type {
   Page,
+  PageQuery,
   RunDto,
   RunEventDto,
   RunListFilter,
@@ -129,9 +130,9 @@ export const runsQueries = {
       // instead of a skeleton for the retry delays; the person's Retry is the retry.
       retry: false,
     }),
-  ignored: (org: string, projectId: string) =>
+  ignored: (org: string, projectId: string, q: PageQuery) =>
     queryOptions({
-      queryKey: [...projectKey(org, projectId), 'ignored'] as const,
-      queryFn: () => api.projects.ignored({ params: { projectId } }),
+      queryKey: [...projectKey(org, projectId), 'ignored', q.page, q.pageSize] as const,
+      queryFn: () => api.projects.ignored({ params: { projectId }, query: q }),
     }),
 };

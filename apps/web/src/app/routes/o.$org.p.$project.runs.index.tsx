@@ -56,7 +56,7 @@ export const Route = createFileRoute('/o/$org/p/$project/runs/')({
       queryClient.ensureQueryData(projectsQueries.detail(org, project)),
       queryClient.ensureQueryData(runsQueries.stats(org, project, startOfLocalDay(new Date()))),
       filter === 'ignored'
-        ? queryClient.ensureQueryData(runsQueries.ignored(org, project))
+        ? loadPage(queryClient, runsQueries.ignored(org, project, { page, pageSize: readPageSize() }), cause)
         : loadPage(
             queryClient,
             runsQueries.list(org, project, { filter, ticket, page, pageSize: readPageSize() }),
@@ -117,7 +117,16 @@ function IgnoredView({
 }) {
   const queryClient = useQueryClient();
   const { page, common } = useRunsCommon(org, projectId, ticket, now);
-  const { data: ignoredDtos } = useSuspenseQuery(runsQueries.ignored(org, projectId));
+  const navigate = useNavigate({ from: Route.fullPath });
+  const current = pageOfSearch(Route.useSearch());
+  const [pageSize] = usePageSize();
+  const { data: ignoredPage, busy } = usePagedQuery({ page: current, pageSize }, (q) =>
+    runsQueries.ignored(org, projectId, q),
+  );
+  const go = (p: number, replace = false) =>
+    void navigate({ search: (prev) => ({ ...prev, page: pageToSearch(p) }), replace });
+  useClampToLastPage(current, ignoredPage.pageSize, ignoredPage.total, (p) => go(p, true));
+  const pagination = usePaginationProps({ page: current, total: ignoredPage.total, busy, go });
   const repoUrl = repoUrlOf(page.dto.repoPath);
   const recheck = () => void queryClient.invalidateQueries(projectsQueries.connection(org, projectId));
   const warning = toConnectionWarning(page.connection, page.connectionDto, page.paths.agent, now);
@@ -129,7 +138,8 @@ function IgnoredView({
       {...common}
       filter="ignored"
       warnings={warnings}
-      ignored={ignoredDtos.map((i) => toIgnored(i, repoUrl))}
+      ignored={ignoredPage.items.map((i) => toIgnored(i, repoUrl))}
+      pagination={pagination}
     />
   );
 }

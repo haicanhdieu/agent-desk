@@ -57,6 +57,21 @@ describe('VersionHistory', () => {
   });
 });
 
+describe('VersionHistory on a later page', () => {
+  const page2 = [3, 2, 1].map((version) => ({ version, author: 'kim-hale', ago: 'a day ago' }));
+  it('marks no row current when the current version is not on the page, and offers Restore on all rows', () => {
+    render(<VersionHistory versions={page2} currentVersion={23} />);
+    for (const row of screen.getAllByRole('listitem')) expect(row).not.toHaveAttribute('aria-current');
+    expect(screen.queryByText(/· current/)).toBeNull();
+    expect(screen.getByRole('button', { name: 'Restore version 3' })).toBeInTheDocument();
+  });
+  it('marks the row of the current version', () => {
+    render(<VersionHistory versions={page2} currentVersion={2} />);
+    expect(screen.getAllByRole('listitem')[1]).toHaveAttribute('aria-current', 'true');
+    expect(screen.getAllByRole('listitem')[0]).not.toHaveAttribute('aria-current');
+  });
+});
+
 describe('DeskLayout setup item', () => {
   const repo = { org: 'harbor-labs', name: 'invoicer-api', branch: 'main', connected: true };
   it('shows Workspace setup only when a setup link is given', () => {

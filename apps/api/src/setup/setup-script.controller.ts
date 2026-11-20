@@ -1,6 +1,8 @@
-import { Body, Controller, Get, Inject, Param, Put } from '@nestjs/common';
+import { Body, Controller, Get, Inject, Param, Put, Query } from '@nestjs/common';
 import {
   routes,
+  type Page,
+  type PageQuery,
   type PutSetupScriptRequest,
   type SetupScriptDto,
   type SetupScriptVersionDto,
@@ -12,6 +14,7 @@ import { SetupScriptService } from './setup-script.service';
 
 const ProjectParam = new ZodPipe(routes.setupScript.get.params);
 const VersionParams = new ZodPipe(routes.setupScript.version.params);
+const VersionsQuery = new ZodPipe(routes.setupScript.versions.query);
 const PutBody = new ZodPipe(routes.setupScript.put.body);
 
 @Controller()
@@ -36,8 +39,9 @@ export class SetupScriptController {
   versions(
     @CurrentOrg() org: OrgContext,
     @Param(ProjectParam) p: { projectId: string },
-  ): Promise<SetupScriptVersionDto[]> {
-    return this.service.versions(org, p.projectId);
+    @Query(VersionsQuery) q: PageQuery,
+  ): Promise<Page<SetupScriptVersionDto>> {
+    return this.service.versions(org, p.projectId, q);
   }
 
   @Get(routePath(routes.setupScript.version))

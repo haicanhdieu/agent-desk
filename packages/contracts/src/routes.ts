@@ -114,7 +114,8 @@ export const routes = {
       method: 'GET',
       path: '/api/projects/:projectId/ignored',
       params: projectParams,
-      response: z.array(IgnoredEventDto),
+      query: PageQuery,
+      response: pageOf(IgnoredEventDto),
     },
     /** SSE (text/event-stream): `event: run` frames, each a ProjectRunEvent. */
     events: {
@@ -212,7 +213,8 @@ export const routes = {
       method: 'GET',
       path: '/api/projects/:projectId/setup-script/versions',
       params: projectParams,
-      response: z.array(SetupScriptVersionDto),
+      query: PageQuery,
+      response: pageOf(SetupScriptVersionDto),
     },
     version: {
       method: 'GET',

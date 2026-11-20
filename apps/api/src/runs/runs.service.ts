@@ -32,6 +32,8 @@ import {
   pageWindow,
   toPage,
   type IgnoredEventDto,
+  type Page,
+  type PageQuery,
   type RunDto,
   type RunListItem,
   type RunListQuery,
@@ -49,7 +51,6 @@ import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 
 /** The log endpoint has no pagination in the contract: it returns at most the newest LOG_CAP events, oldest first. */
 export const LOG_CAP = 5000;
-export const IGNORED_LIMIT = 100;
 
 const isFinal = (status: string): boolean => (FINAL_RUN_STATUSES as readonly string[]).includes(status);
 
@@ -498,16 +499,23 @@ export class RunsService {
     }
   }
 
-  async ignored(org: OrgContext, projectId: string): Promise<IgnoredEventDto[]> {
+  async ignored(org: OrgContext, projectId: string, q: PageQuery): Promise<Page<IgnoredEventDto>> {
     return withOrg(this.db, org.orgId, async (tx) => {
       await this.requireProject(tx, projectId);
+      const where = and(eq(inboundEvents.projectId, projectId), sql`starts_with(${inboundEvents.outcome}, 'ignored_')`);
+      const { limit, offset } = pageWindow(q);
+      const [counted] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(inboundEvents)
+        .where(where);
       const rows = await tx
         .select()
         .from(inboundEvents)
-        .where(and(eq(inboundEvents.projectId, projectId), sql`starts_with(${inboundEvents.outcome}, 'ignored_')`))
+        .where(where)
         .orderBy(desc(inboundEvents.receivedAt), asc(inboundEvents.id))
-        .limit(IGNORED_LIMIT);
-      return rows.map((r) => ({
+        .limit(limit)
+        .offset(offset);
+      const items = rows.map((r) => ({
         id: r.id,
         receivedAt: r.receivedAt.toISOString(),
         ticketRef: r.ticketRef,
@@ -518,6 +526,7 @@ export class RunsService {
         outcome: r.outcome,
         detail: r.detail,
       }));
+      return toPage(items, counted?.total ?? 0, q);
     });
   }
 }

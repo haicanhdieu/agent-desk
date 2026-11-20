@@ -117,7 +117,14 @@ describe('MSW handlers cover the contract', () => {
       counts: { needsYou: 2, running: 2, queued: 1 },
     });
     await expect(api.projects.connection({ params: { projectId: P } })).resolves.toMatchObject({ mode: 'webhook' });
-    await expect(api.projects.ignored({ params: { projectId: P } })).resolves.toHaveLength(5);
+    await expect(
+      api.projects.ignored({ params: { projectId: P }, query: { page: 1, pageSize: 20 } }),
+    ).resolves.toMatchObject({
+      page: 1,
+      pageSize: 20,
+      total: 5,
+      items: expect.arrayContaining([expect.objectContaining({ id: expect.any(String) })]),
+    });
     await expect(api.agents.get({ params: { projectId: P } })).resolves.toMatchObject({ name: 'Claude' });
     await expect(api.skills.list({ params: { projectId: P } })).resolves.toHaveLength(4);
     await expect(api.skills.get({ params: { projectId: P, name: 'code-build' } })).resolves.toMatchObject({
@@ -517,9 +524,12 @@ describe('MSW handler semantics', () => {
     it('serves the saved script, its versions (newest first) and the plugins; a project without a script gets null', async () => {
       await expect(api.setupScript.get({ params: { projectId: P } })).resolves.toMatchObject({ version: 1 });
       await expect(api.setupScript.get({ params: { projectId: EMPTY } })).resolves.toBeNull();
-      await expect(api.setupScript.versions({ params: { projectId: P } })).resolves.toEqual([
-        expect.objectContaining({ version: 1, createdBy: 'kim-hale' }),
-      ]);
+      await expect(
+        api.setupScript.versions({ params: { projectId: P }, query: { page: 1, pageSize: 20 } }),
+      ).resolves.toMatchObject({
+        total: 1,
+        items: [expect.objectContaining({ version: 1, createdBy: 'kim-hale' })],
+      });
       await expect(api.setupScript.version({ params: { projectId: P, version: 1 } })).resolves.toMatchObject({
         version: 1,
         body: expect.stringContaining('set -euo pipefail'),
@@ -555,10 +565,19 @@ describe('MSW handler semantics', () => {
         status: 400,
         errors: [{ pointer: '/body', detail: 'Setup script is larger than 64 KiB' }],
       });
-      await expect(api.setupScript.versions({ params: { projectId: EMPTY } })).resolves.toEqual([
-        expect.objectContaining({ version: 2 }),
-        expect.objectContaining({ version: 1 }),
-      ]);
+      await expect(
+        api.setupScript.versions({ params: { projectId: EMPTY }, query: { page: 1, pageSize: 20 } }),
+      ).resolves.toMatchObject({
+        total: 2,
+        items: [expect.objectContaining({ version: 2 }), expect.objectContaining({ version: 1 })],
+      });
+      // Page 2 of size 1 is version 1; past the end is empty with the real total.
+      await expect(
+        api.setupScript.versions({ params: { projectId: EMPTY }, query: { page: 2, pageSize: 1 } }),
+      ).resolves.toMatchObject({ total: 2, items: [expect.objectContaining({ version: 1 })] });
+      await expect(
+        api.setupScript.versions({ params: { projectId: EMPTY }, query: { page: 3, pageSize: 1 } }),
+      ).resolves.toMatchObject({ total: 2, items: [] });
     });
 
     it('state is part of the store: it does not survive a reset (no leak between tests)', async () => {
