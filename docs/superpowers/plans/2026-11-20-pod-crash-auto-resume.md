@@ -576,8 +576,8 @@ More rules:
 - The `resumeRun` handler sets `autoResumeStreak = 0` and `resumeIsAutomatic = false`. The `personInput` handler sets `autoResumeStreak = 0` and nothing else (no epoch bump). Both apply only with the patch.
 - `stop('cancelled')` passes `resumeIsAutomatic` to `cancelEffect`, so Cancel during an automatic try (no session up) cancels the run.
 
-- [ ] **Step 1: Write the failing equality tests** in `gate.workflow.test.ts`: `expect(SIGNAL.personInput).toBe(signals.personInput.name)`, and `UNEXPECTED_END_KINDS` from `park.ts` equals core's `UNEXPECTED_END_KINDS`.
-- [ ] **Step 2: Write the failing in-process tests** in `run.workflow.in-process.test.ts`. Add a `recordAutoResume` stub to `start()` that records its inputs, and let `start()` take `autoResumeMax`.
+- [x] **Step 1: Write the failing equality tests** in `gate.workflow.test.ts`: `expect(SIGNAL.personInput).toBe(signals.personInput.name)`, and `UNEXPECTED_END_KINDS` from `park.ts` equals core's `UNEXPECTED_END_KINDS`.
+- [x] **Step 2: Write the failing in-process tests** in `run.workflow.in-process.test.ts`. Add a `recordAutoResume` stub to `start()` that records its inputs, and let `start()` take `autoResumeMax`.
   - `a pod_lost park with autoResumeMax 5 resumes at once, without the paused comment`. Run to running, then exit `{ exitCode: 137, agentStarted: true, podReason: 'OOMKilled' }`. Expect:
     - `h.parks` to show reason `pod_lost`;
     - the auto-resume inputs to equal `[{ event: 'resume', try: 1, max: 5, end: { kind: 'killed', exitCode: 137, podReason: 'OOMKilled' }, at: expect.any(String) }]`;
@@ -598,15 +598,15 @@ More rules:
   - `Cancel during a person's Resume still only takes it back`: the existing test keeps passing.
   - `a failed automatic try posts the paused comment once and waits`: the resume create throws `NoAgentCredential`, so `restoreParked` runs, one `paused` comment is posted, and the run stays parked.
   - `a run started before the patch keeps today's behaviour`: `runtime.unpatched.add('auto-resume')`, max 5, an end parks with the comment and no auto-resume.
-- [ ] **Step 3: Write the failing Temporal-env tests** in `run.workflow.auto-resume.test.ts`, with the harness (`startHarness`/`stopHarness`):
+- [x] **Step 3: Write the failing Temporal-env tests** in `run.workflow.auto-resume.test.ts`, with the harness (`startHarness`/`stopHarness`):
   - `a pod_lost park resumes by itself and comes back to idle`: capture it as `captured['run-auto-resume']`.
   - `at the limit (max 1) a second loss leaves the run paused with gave_up and the paused comment`.
   - `personInput between losses lets the run resume again`.
   - `replay: histories from this run and the checked-in fixtures replay without nondeterminism`: same shape as the resuming test. It replays `run-auto-resume` and every existing fixture (`run-pod-lost`, `run-park-resume`, `run-stop-session`, …), which proves runs started before the patch replay unchanged.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/worker test run.workflow.in-process gate.workflow` and `pnpm --filter @agentdesk/worker test run.workflow.auto-resume`. Expected: FAIL.
-- [ ] **Step 5: Implement** the signal, the patch, the state, the `run()` decision, the `park()` changes (comment skip, auto start, gave-up event), the note in `resumeAttempt`, the resets and the cancel rule in `run.workflow.ts`. Record the fixture with `UPDATE_REPLAY_FIXTURES=1 pnpm --filter @agentdesk/worker test run.workflow.auto-resume`.
-- [ ] **Step 6: Run** both commands again, plus every existing `run.workflow.*` test file. Expected: PASS.
-- [ ] **Step 7: Typecheck and commit:** `feat(worker): resume a run automatically after an unexpected pod end`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/worker test run.workflow.in-process gate.workflow` and `pnpm --filter @agentdesk/worker test run.workflow.auto-resume`. Expected: FAIL.
+- [x] **Step 5: Implement** the signal, the patch, the state, the `run()` decision, the `park()` changes (comment skip, auto start, gave-up event), the note in `resumeAttempt`, the resets and the cancel rule in `run.workflow.ts`. Record the fixture with `UPDATE_REPLAY_FIXTURES=1 pnpm --filter @agentdesk/worker test run.workflow.auto-resume`.
+- [x] **Step 6: Run** both commands again, plus every existing `run.workflow.*` test file. Expected: PASS.
+- [x] **Step 7: Typecheck and commit:** `feat(worker): resume a run automatically after an unexpected pod end`.
 
 ---
 

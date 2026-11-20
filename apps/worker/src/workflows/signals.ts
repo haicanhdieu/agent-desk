@@ -35,6 +35,8 @@ export const cancel = defineSignal<[]>('cancel');
 export const sessionStarted = defineSignal<[]>('sessionStarted');
 /** Drop the kept session (volume) and close; sent when the project is deleted. */
 export const dropSession = defineSignal<[]>('dropSession');
+/** A person typed in the run's terminal (the API sends it); resets the automatic-resume count. */
+export const personInput = defineSignal<[]>('personInput');
 export interface ResumeRunResult {
   accepted: true;
 }
