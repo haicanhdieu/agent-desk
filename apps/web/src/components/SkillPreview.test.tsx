@@ -113,6 +113,28 @@ describe('SkillPreview diagrams', () => {
     for (const key of ['htmlLabels', 'secure', 'startOnLoad']) expect(config).not.toHaveProperty(key);
   });
 
+  it('forbids img elements in diagram labels, so a label cannot make the browser fetch an image', async () => {
+    createPlugin.mockClear();
+    render(<SkillPreview value={skillPreviewSamples.diagram} />);
+    await screen.findByRole('img', { name: 'diagram' });
+    const config = (createPlugin.mock.calls[0]?.[0] as { config: { dompurifyConfig?: Record<string, unknown> } })
+      .config;
+    expect(config.dompurifyConfig).toEqual(
+      expect.objectContaining({ FORBID_TAGS: expect.arrayContaining(['img', 'style']) }),
+    );
+  });
+
+  it('forbids src and srcset attributes in diagram labels, so no element can make the browser fetch a resource', async () => {
+    createPlugin.mockClear();
+    render(<SkillPreview value={skillPreviewSamples.diagram} />);
+    await screen.findByRole('img', { name: 'diagram' });
+    const config = (createPlugin.mock.calls[0]?.[0] as { config: { dompurifyConfig?: Record<string, unknown> } })
+      .config;
+    expect(config.dompurifyConfig).toEqual(
+      expect.objectContaining({ FORBID_ATTR: expect.arrayContaining(['src', 'srcset']) }),
+    );
+  });
+
   it('does not load the diagram plugin when the text has no mermaid fence', () => {
     const loadMermaid = vi.fn(() => new Promise<never>(() => undefined));
     render(<SkillPreview value={skillPreviewSamples.table} loadMermaid={loadMermaid} />);

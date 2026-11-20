@@ -582,7 +582,7 @@ git commit -m "feat(web): Preview and Diff views in the Skills editor"
 
 - Consumes: `ORG`, `INVOICER_API` from `./mock`; the `qa-e2e` fixture (Task 1), served by MSW at `/o/${ORG}/p/${INVOICER_API}/desk/skills?skill=qa-e2e`; the DOM contracts of Tasks 2, 3 and 6 (region names, `data-kind` rows, the "Editor view" radiogroup, the "SKILL.md source" textbox, the "Discard" and "Commit to main" buttons).
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 Each test starts from one `page.goto` (the store reseeds on every load) and then moves by clicks:
 
@@ -595,17 +595,17 @@ Each test starts from one `page.goto` (the store reseeds on every load) and then
 - `test('wide preview content scrolls inside the editor column')` (Review Focus 4): fill a table with one 400-character cell and a 400-character code line. In Preview, `document.documentElement.scrollWidth` equals `innerWidth`, and the skill heading and "Commit to main" stay in view.
 - `test('Preview and Diff keep the header and commit bar in view')`: at a 1280×300 viewport, for Preview and for Diff, the `h2` and "Commit to main" are inside the viewport and the page does not scroll (`scrollHeight` equals `innerHeight`).
 
-- [ ] **Step 2: Build the mock app and run the spec**
+- [x] **Step 2: Build the mock app and run the spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/skills-preview-diff.spec.ts`
 Expected: 8 passed. Run only this spec, never the full e2e suite. If a test fails because of app code, fix it in the task that owns that code, not here.
 
-- [ ] **Step 3: Typecheck and lint**
+- [x] **Step 3: Typecheck and lint**
 
 Run: `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint`
 Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 devbox run fix

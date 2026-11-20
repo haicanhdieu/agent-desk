@@ -23,6 +23,10 @@ const loadMermaidDefault = () => import('@streamdown/mermaid');
 // A fenced block whose language is mermaid. Only then is the diagram plugin (and Mermaid) fetched.
 const MERMAID_FENCE = /^ {0,3}(`{3,}|~{3,})[ \t]*mermaid\b/m;
 
+// Strict Mermaid keeps an <img> in a node label and only strips its handlers, so the browser would still fetch the
+// image. Forbid it (and `style`, which a custom dompurifyConfig would otherwise stop forbidding). Images are never fetched.
+const DIAGRAM_SANITIZE = { FORBID_TAGS: ['img', 'style'], FORBID_ATTR: ['src', 'srcset'] };
+
 // Design-token colours Mermaid needs as real values: read at runtime, empty values left out (terminalTheme does the same).
 const THEME_TOKENS = {
   background: '--panel',
@@ -179,7 +183,12 @@ export function SkillPreview({ value, loadMermaid = loadMermaidDefault }: SkillP
         if (!live) return;
         setPlugin(
           mod.createMermaidPlugin({
-            config: { securityLevel: 'strict', theme: 'dark', themeVariables: themeVariables() },
+            config: {
+              securityLevel: 'strict',
+              theme: 'dark',
+              themeVariables: themeVariables(),
+              dompurifyConfig: DIAGRAM_SANITIZE,
+            },
           }),
         );
       },
