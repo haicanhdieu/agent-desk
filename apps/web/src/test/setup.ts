@@ -5,6 +5,7 @@ import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { FakeEventSource } from './fakeEventSource';
 import { FakeWebSocket } from './fakeWebSocket';
+import { FakeMermaid } from './fakeMermaid';
 import { FakeFitAddon, FakeWebglAddon, FakeXterm } from './fakeXterm';
 
 // jsdom cannot open xterm (no canvas, matchMedia or layout): every test, the stories smoke test included, gets the
@@ -12,6 +13,32 @@ import { FakeFitAddon, FakeWebglAddon, FakeXterm } from './fakeXterm';
 vi.mock('@xterm/xterm', () => import('./fakeXterm'));
 vi.mock('@xterm/addon-fit', () => import('./fakeXterm'));
 vi.mock('@xterm/addon-webgl', () => import('./fakeXterm'));
+
+// jsdom cannot draw Mermaid diagrams (no SVG layout): the real @streamdown/mermaid plugin runs on the double in
+// fakeMermaid.ts, which draws a stub <svg> for known chart types and rejects the rest.
+vi.mock('mermaid', () => import('./fakeMermaid'));
+
+// jsdom has no IntersectionObserver; Streamdown draws a diagram once it is on screen. The stub reports every
+// observed element as visible at once.
+class VisibleObserver {
+  constructor(private readonly callback: IntersectionObserverCallback) {}
+  observe(target: Element) {
+    this.callback(
+      [{ isIntersecting: true, target } as IntersectionObserverEntry],
+      this as unknown as IntersectionObserver,
+    );
+  }
+  unobserve() {}
+  disconnect() {}
+  takeRecords(): IntersectionObserverEntry[] {
+    return [];
+  }
+}
+Object.defineProperty(globalThis, 'IntersectionObserver', {
+  value: VisibleObserver,
+  configurable: true,
+  writable: true,
+});
 
 // jsdom has no scrolling; the router's scroll handling calls it on every navigation.
 window.scrollTo = () => undefined;
@@ -34,6 +61,7 @@ afterEach(() => {
   FakeEventSource.reset();
   FakeWebSocket.reset();
   FakeXterm.reset();
+  FakeMermaid.reset();
   FakeFitAddon.nextSize = { cols: 80, rows: 24 };
   FakeWebglAddon.failOnActivate = false;
 });

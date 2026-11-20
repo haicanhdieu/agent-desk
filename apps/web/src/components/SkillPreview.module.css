@@ -116,3 +116,49 @@
   color: var(--text);
   font-weight: 600;
 }
+.diagramLoading {
+  margin: 0 0 12px;
+  padding: 16px;
+  color: var(--muted);
+  font-size: var(--fs-13);
+  text-align: center;
+}
+.diagramError {
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--fail);
+  border-radius: var(--radius-6);
+  background: var(--panel);
+}
+.diagramErrorTitle {
+  margin: 0 0 4px;
+  color: var(--fail);
+  font-size: var(--fs-13);
+  font-weight: 600;
+}
+.diagramErrorText {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-family: var(--mono);
+  font-size: var(--fs-12_5);
+}
+.retry {
+  font: inherit;
+  font-size: var(--fs-13);
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-6);
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.diagram {
+  margin: 0 0 12px;
+  overflow: auto;
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.diagram svg {
+  max-width: 100%;
+  height: auto;
+}

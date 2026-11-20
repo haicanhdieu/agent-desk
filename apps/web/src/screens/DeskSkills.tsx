@@ -1,6 +1,16 @@
 import { useState } from 'react';
 import { Button, CommandChip, IconButton, LabelChip, SegmentedControl } from '@/ds';
-import { AppShell, CodeEditor, CommitBar, ConfirmDeleteDialog, EmptyState, SkillList } from '@/components';
+import {
+  AppShell,
+  CodeEditor,
+  CommitBar,
+  ConfirmDeleteDialog,
+  EmptyState,
+  SkillDiff,
+  SkillList,
+  SkillPreviewPane,
+  type SkillPreviewPaneProps,
+} from '@/components';
 import type { Skill } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
@@ -18,6 +28,10 @@ export interface DeskSkillsProps {
   /** 1-based lines marked as changed in the editor. */
   changedLines?: number[];
   view?: View;
+  /** Story-only: the draft starts from this text instead of the skill's body. */
+  initialDraft?: string;
+  /** Story-only: loaders for the Preview view. The defaults load the real modules. */
+  preview?: Pick<SkillPreviewPaneProps, 'load' | 'loadMermaid'>;
   /** Name of the skill whose delete confirmation is open. */
   deleting?: string;
   /** Rule commands (e.g. "/code-e2e") that use the skill being deleted. */
@@ -53,6 +67,8 @@ function SkillEditor({
   dirty: markedDirty,
   changedLines,
   view: initialView,
+  initialDraft,
+  preview,
   commitMessage,
   committing,
   onDelete,
@@ -62,13 +78,15 @@ function SkillEditor({
   dirty: boolean;
   changedLines: number[];
   view: View;
+  initialDraft?: string;
+  preview?: DeskSkillsProps['preview'];
   commitMessage: string;
   committing: boolean;
   onDelete?(name: string): void;
   onCommit?(body: string, message: string): void;
 }) {
   const [view, setView] = useState<View>(initialView);
-  const [value, setValue] = useState(skill.body);
+  const [value, setValue] = useState(initialDraft ?? skill.body);
   const [message, setMessage] = useState(commitMessage);
   // Dirty when marked so (stories) or when the text differs from the skill as last loaded.
   const dirty = markedDirty || value !== skill.body;
@@ -99,13 +117,11 @@ function SkillEditor({
         </Button>
         <IconButton icon="trash" aria-label="Delete skill" onClick={() => onDelete?.(skill.name)} />
       </div>
-      <CodeEditor
-        aria-label="SKILL.md source"
-        value={value}
-        onChange={setValue}
-        readOnly={view !== 'edit'}
-        changedLines={view === 'preview' ? [] : changedLines}
-      />
+      {view === 'edit' && (
+        <CodeEditor aria-label="SKILL.md source" value={value} onChange={setValue} changedLines={changedLines} />
+      )}
+      {view === 'preview' && <SkillPreviewPane value={value} {...preview} />}
+      {view === 'diff' && <SkillDiff base={skill.body} draft={value} />}
       <CommitBar
         message={message}
         onMessageChange={setMessage}
@@ -128,6 +144,8 @@ export function DeskSkills({
   dirty = false,
   changedLines = [],
   view = 'edit',
+  initialDraft,
+  preview,
   deleting,
   rulesUsing = [],
   commitMessage = '',
@@ -165,6 +183,8 @@ export function DeskSkills({
                 dirty={dirty}
                 changedLines={changedLines}
                 view={view}
+                initialDraft={initialDraft}
+                preview={preview}
                 commitMessage={commitMessage}
                 committing={committing}
                 onDelete={onDelete}

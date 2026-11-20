@@ -447,16 +447,16 @@ export const FakeMermaid: {
 // graph or sequenceDiagram, and rejects others with Error('No diagram type detected').
 ```
 
-- [ ] **Step 1: Add the Mermaid packages**
+- [x] **Step 1: Add the Mermaid packages**
 
 Run: `pnpm --filter @agentdesk/web add @streamdown/mermaid@1.0.4 mermaid@11.17.2`
 Expected: both appear in `apps/web/package.json` with `^` ranges, and `pnpm --filter @agentdesk/web list @streamdown/mermaid mermaid` shows 1.0.4 and 11.17.2.
 
-- [ ] **Step 2: Add the jsdom double**
+- [x] **Step 2: Add the jsdom double**
 
 Create `fakeMermaid.ts` per Interfaces. In `setup.ts`, mock `mermaid` next to the xterm mocks with a matching comment, and call `FakeMermaid.reset()` in `afterEach`. If the plugin path needs `IntersectionObserver`, add a minimal stub that reports every element visible at once.
 
-- [ ] **Step 3: Write the failing tests**
+- [x] **Step 3: Write the failing tests**
 
 Add to `SkillPreview.test.tsx`. Wrap `createMermaidPlugin` with `vi.fn` through `vi.mock('@streamdown/mermaid', async (importOriginal) => …)`.
 
@@ -468,25 +468,25 @@ Add to `SkillPreview.test.tsx`. Wrap `createMermaidPlugin` with `vi.fn` through 
 - `it('a diagram that cannot be drawn shows the notice, the error and the source; the rest renders')`: `skillPreviewSamples.rich` → "This diagram could not be drawn" once, the text `No diagram type detected`, `this is not a diagram` in a code block, plus the table and the drawn diagram.
 - `it('Try again redraws a failed diagram')`: clicking "Try again" in the notice calls the plugin's `retry`, so `FakeMermaid` is asked to render again.
 
-- [ ] **Step 4: Run them and see them fail**
+- [x] **Step 4: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreview`
 Expected: FAIL.
 
-- [ ] **Step 5: Implement diagrams in `SkillPreview`**
+- [x] **Step 5: Implement diagrams in `SkillPreview`**
 
 Detect a fence with `/^ {0,3}(`{3,}|~{3,})[ \t]*mermaid\b/m`. Only then call `loadMermaid` (once per mount), build the plugin with the strict config, and pass it to `<Streamdown>`. `themeVariables` come from tokens via `getComputedStyle` (Agent call). Until the plugin is ready, mermaid fences show the "Loading diagram…" placeholder. Restyle Streamdown's own diagram placeholder with tokens in the CSS module, or route mermaid fences through a `components` override that keeps the strict plugin (spec "Left to the builder"). It must never be a blank gap. Streamdown's `mermaid.errorComponent` renders an `err`-tone notice: "This diagram could not be drawn", the error message as text, the fence source as a plain code block, and a "Try again" button that calls `retry`. Check names against the installed types.
 
-- [ ] **Step 6: Write the stories**
+- [x] **Step 6: Write the stories**
 
 Add to `Components/SkillPreview`: `WithDiagram` (`skillPreviewSamples.diagram`), `DiagramLoading` (`loadMermaid={() => new Promise(() => {})}`), `DiagramError` (`skillPreviewSamples.brokenDiagram`).
 
-- [ ] **Step 7: Run the tests, smoke + axe, typecheck, lint and Storybook**
+- [x] **Step 7: Run the tests, smoke + axe, typecheck, lint and Storybook**
 
 Run: `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS (the whole web suite, since `setup.ts` changed). In the built Storybook, `WithDiagram` draws a real diagram and `DiagramError` shows the notice.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 devbox run fix
@@ -525,7 +525,7 @@ initialDraft?: string;
 preview?: Pick<SkillPreviewPaneProps, 'load' | 'loadMermaid'>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `desk.test.tsx`, replace `'view switches Edit/Preview/Diff and read-only outside Edit'` with:
 
@@ -537,16 +537,16 @@ In `desk.test.tsx`, replace `'view switches Edit/Preview/Diff and read-only outs
 - `it('a failed preview leaves Diff, Discard and Commit usable')`: with `preview={{ load: () => Promise.reject(new Error('x')) }}` and an edit, Preview shows "Could not show the preview". Switching to Diff then lists the change, and Commit calls `onCommit` with the draft.
 - `it('initialDraft starts the draft from the given text')`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- desk.test`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add the barrel lines. In `SkillEditor`, `value` starts from `initialDraft ?? skill.body`. Render `CodeEditor` only for Edit, with exactly today's props for Edit (`changedLines={changedLines}`, not read-only). Render `<SkillPreviewPane value={value} {...preview} />` for Preview and `<SkillDiff base={skill.body} draft={value} />` for Diff. The header, chip, Discard and commit bar stay as they are. Import both views from `@/components`.
 
-- [ ] **Step 4: Add the screen stories and register them**
+- [x] **Step 4: Add the screen stories and register them**
 
 In `desk.stories.tsx` (same `artboard(900)` and `viewport(1440, 900)` as `DeskSkills`), add the seven stories from the Agent call. The Preview stories open `qa-e2e` with `view="preview"`: `DeskSkillsPreviewEmpty` with that skill's body set to `skillPreviewSamples.frontMatterOnly`; `Loading` and `Error` through `preview.load` (pending, rejecting); `DiagramLoading` through `preview.loadMermaid` (pending). `DeskSkillsDiff` opens code-build with `view="diff"` and `initialDraft={skillDiffDraft}`; `DeskSkillsDiffEmpty` has no draft. Register all seven in `stateStories` with `title: desk` and `board: 'DeskSkills'`.
 
@@ -560,7 +560,7 @@ Expected: PASS. `coverage.test.ts` sees no orphan story. Parity shows no new dri
 Run: `pnpm --filter @agentdesk/web exec vite build`
 Expected: no "dynamic import will not move module into another chunk" warning. The entry chunk `apps/web/dist/assets/index-*.js` contains neither `data-streamdown` nor `securityLevel` (`grep -c` gives 0). Both strings are found in separate chunks.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix

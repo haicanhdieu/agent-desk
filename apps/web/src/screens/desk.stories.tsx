@@ -14,6 +14,8 @@ import {
   setupScript,
   setupTestTerminal,
   setupVersions,
+  skillDiffDraft,
+  skillPreviewSamples,
   skills,
 } from '@/mocks';
 import { DeskSetup as DeskSetupScreen, type DeskSetupProps } from './DeskSetup';
@@ -77,6 +79,67 @@ export const DeskSkillsSetupWarning: Story = {
       }}
     />
   ),
+};
+
+const pending = () => new Promise<never>(() => undefined);
+const previewProps: DeskSkillsProps = {
+  ...skillsProps,
+  activeName: 'qa-e2e',
+  dirty: false,
+  changedLines: [],
+  view: 'preview',
+};
+const emptyBodySkills = skills.map((s) =>
+  s.name === 'qa-e2e' ? { ...s, body: skillPreviewSamples.frontMatterOnly } : s,
+);
+
+export const DeskSkillsPreview: Story = {
+  name: 'Skills, preview',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...previewProps} />,
+};
+
+export const DeskSkillsPreviewEmpty: Story = {
+  name: 'Skills, preview empty',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...previewProps} skills={emptyBodySkills} />,
+};
+
+export const DeskSkillsPreviewLoading: Story = {
+  name: 'Skills, preview loading',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...previewProps} preview={{ load: pending }} />,
+};
+
+export const DeskSkillsPreviewError: Story = {
+  name: 'Skills, preview error',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...previewProps} preview={{ load: () => Promise.reject(new Error('offline')) }} />,
+};
+
+export const DeskSkillsPreviewDiagramLoading: Story = {
+  name: 'Skills, preview diagram loading',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...previewProps} preview={{ loadMermaid: pending }} />,
+};
+
+export const DeskSkillsDiff: Story = {
+  name: 'Skills, diff',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...skillsProps} changedLines={[]} view="diff" initialDraft={skillDiffDraft} />,
+};
+
+export const DeskSkillsDiffEmpty: Story = {
+  name: 'Skills, diff empty',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskSkillsScreen {...skillsProps} dirty={false} changedLines={[]} view="diff" />,
 };
 
 export const DeskSkillDelete: Story = {

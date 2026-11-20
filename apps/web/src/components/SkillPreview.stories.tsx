@@ -21,3 +21,8 @@ type Story = StoryObj<typeof meta>;
 export const Default: Story = { args: { value: body } };
 export const WithTable: Story = { args: { value: skillPreviewSamples.table } };
 export const Empty: Story = { args: { value: '' } };
+export const WithDiagram: Story = { args: { value: skillPreviewSamples.diagram } };
+export const DiagramLoading: Story = {
+  args: { value: skillPreviewSamples.diagram, loadMermaid: () => new Promise(() => {}) },
+};
+export const DiagramError: Story = { args: { value: skillPreviewSamples.brokenDiagram } };

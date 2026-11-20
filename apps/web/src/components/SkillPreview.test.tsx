@@ -1,7 +1,16 @@
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
+import { FakeMermaid } from '@/test/fakeMermaid';
 import { skillPreviewSamples, skills } from '@/mocks';
 import { SkillPreview } from './SkillPreview';
+
+const createPlugin = vi.hoisted(() => vi.fn());
+vi.mock('@streamdown/mermaid', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@streamdown/mermaid')>();
+  createPlugin.mockImplementation(actual.createMermaidPlugin);
+  return { ...actual, createMermaidPlugin: createPlugin };
+});
 
 const codeBuild = skills.find((s) => s.name === 'code-build');
 
@@ -88,5 +97,102 @@ describe('SkillPreview', () => {
     rerender(<SkillPreview value={skillPreviewSamples.frontMatterOnly} />);
     expect(screen.getByText('qa-e2e')).toBeInTheDocument();
     expect(screen.getByText(msg)).toBeInTheDocument();
+  });
+});
+
+describe('SkillPreview diagrams', () => {
+  it('creates the diagram plugin with securityLevel strict and nothing that loosens it', async () => {
+    createPlugin.mockClear();
+    render(<SkillPreview value={skillPreviewSamples.diagram} />);
+    await screen.findByRole('img', { name: 'diagram' });
+    expect(createPlugin).toHaveBeenCalledTimes(1);
+    expect(createPlugin).toHaveBeenCalledWith({
+      config: expect.objectContaining({ securityLevel: 'strict', theme: 'dark' }),
+    });
+    const config = (createPlugin.mock.calls[0]?.[0] as { config: Record<string, unknown> }).config;
+    for (const key of ['htmlLabels', 'secure', 'startOnLoad']) expect(config).not.toHaveProperty(key);
+  });
+
+  it('does not load the diagram plugin when the text has no mermaid fence', () => {
+    const loadMermaid = vi.fn(() => new Promise<never>(() => undefined));
+    render(<SkillPreview value={skillPreviewSamples.table} loadMermaid={loadMermaid} />);
+    expect(loadMermaid).not.toHaveBeenCalled();
+  });
+
+  it('draws a mermaid fence as a diagram', async () => {
+    render(<SkillPreview value={skillPreviewSamples.diagram} />);
+    expect(await screen.findByRole('img', { name: 'diagram' })).toBeInTheDocument();
+  });
+
+  it('shows "Loading diagram…" while the plugin loads', () => {
+    render(<SkillPreview value={skillPreviewSamples.diagram} loadMermaid={() => new Promise(() => undefined)} />);
+    expect(screen.getByText('Loading diagram…')).toBeInTheDocument();
+    expect(screen.queryByText(/flowchart/)).not.toBeInTheDocument();
+  });
+
+  it('shows "Loading diagram…" while a diagram renders', async () => {
+    FakeMermaid.hang = true;
+    render(<SkillPreview value={skillPreviewSamples.diagram} />);
+    // Wait until the plugin is loaded and the diagram is being drawn: the placeholder is then Streamdown's.
+    await vi.waitFor(() => expect(FakeMermaid.rendered).toHaveLength(1));
+    expect(screen.getByText('Loading diagram…')).toBeInTheDocument();
+  });
+
+  it('a diagram that cannot be drawn shows the notice, the error and the source; the rest renders', async () => {
+    render(<SkillPreview value={skillPreviewSamples.rich} />);
+    expect(await screen.findAllByText('This diagram could not be drawn')).toHaveLength(1);
+    expect(screen.getByText('No diagram type detected')).toBeInTheDocument();
+    expect(screen.getByText('this is not a diagram').closest('pre')).not.toBeNull();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'diagram' })).toBeInTheDocument();
+  });
+
+  it('Try again redraws a failed diagram', async () => {
+    render(<SkillPreview value={skillPreviewSamples.brokenDiagram} />);
+    await screen.findByText('This diagram could not be drawn');
+    const before = FakeMermaid.rendered.length;
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    await vi.waitFor(() => expect(FakeMermaid.rendered.length).toBeGreaterThan(before));
+  });
+
+  it('keeps a drawn diagram mounted when the preview re-renders', async () => {
+    const { rerender } = render(<SkillPreview value={skillPreviewSamples.diagram} />);
+    const drawn = await screen.findByRole('img', { name: 'diagram' });
+    rerender(<SkillPreview value={skillPreviewSamples.diagram} />);
+    expect(screen.getByRole('img', { name: 'diagram' })).toBe(drawn);
+  });
+
+  it('a diagram plugin that fails to load shows the notice, and Try again loads it again', async () => {
+    const loadMermaid = vi
+      .fn<() => Promise<typeof import('@streamdown/mermaid')>>()
+      .mockRejectedValueOnce(new Error('chunk failed'))
+      .mockImplementation(() => import('@streamdown/mermaid'));
+    render(<SkillPreview value={skillPreviewSamples.diagram} loadMermaid={loadMermaid} />);
+    expect(await screen.findByText('This diagram could not be drawn')).toBeInTheDocument();
+    expect(screen.queryByText('Loading diagram…')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByRole('img', { name: 'diagram' })).toBeInTheDocument();
+    expect(loadMermaid).toHaveBeenCalledTimes(2);
+  });
+
+  it('shows the source of a mermaid fence the detector did not see, never an endless loading status', () => {
+    const loadMermaid = vi.fn(() => new Promise<never>(() => undefined));
+    render(<SkillPreview value={'> ```mermaid\n> flowchart LR\n> A-->B\n> ```'} loadMermaid={loadMermaid} />);
+    expect(screen.queryByText('Loading diagram…')).not.toBeInTheDocument();
+    expect(screen.getByText(/flowchart LR/)).toBeInTheDocument();
+  });
+
+  it('clears the load error when a new fence starts a new load', async () => {
+    const loadMermaid = vi
+      .fn<() => Promise<typeof import('@streamdown/mermaid')>>()
+      .mockRejectedValueOnce(new Error('chunk failed'))
+      .mockReturnValue(new Promise<never>(() => undefined));
+    const { rerender } = render(<SkillPreview value={skillPreviewSamples.diagram} loadMermaid={loadMermaid} />);
+    await screen.findByText('This diagram could not be drawn');
+    rerender(<SkillPreview value="plain text" loadMermaid={loadMermaid} />);
+    rerender(<SkillPreview value={skillPreviewSamples.diagram} loadMermaid={loadMermaid} />);
+    await vi.waitFor(() => expect(loadMermaid).toHaveBeenCalledTimes(2));
+    expect(screen.queryByText('This diagram could not be drawn')).not.toBeInTheDocument();
+    expect(screen.getByText('Loading diagram…')).toBeInTheDocument();
   });
 });
