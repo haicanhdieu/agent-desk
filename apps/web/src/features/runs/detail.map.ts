@@ -185,14 +185,35 @@ export function scrollbackText(events: RunEventDto[]): string | undefined {
   return text.split(/\r?\n/).slice(-SCROLLBACK_MAX_LINES).join('\r\n');
 }
 
-/** When each startup step happened, from the status and lifecycle events (and the run itself). */
-function startupMarks(run: RunCore, events: RunEventDto[]) {
-  const statusAt = (s: RunStatus) =>
-    events.find((e) => e.type === 'status' && StatusPayload.safeParse(e.payload).data?.status === s)?.ts;
+const statusOf = (e: RunEventDto | undefined): string | undefined =>
+  e?.type === 'status' ? StatusPayload.safeParse(e.payload).data?.status : undefined;
+
+/**
+ * The events of the current start: a resumed run's log still holds every step of its earlier starts, which must not
+ * count. Scanning back from the newest, a `queued` status opens the current start; a parked status (`paused`, or a
+ * kept `succeeded`) reached first means the resume has not logged anything yet. `resumed` says the run had already
+ * run, so its `started_at` belongs to an earlier start.
+ */
+function currentStart(events: RunEventDto[]): { events: RunEventDto[]; resumed: boolean } {
+  for (let i = events.length - 1; i >= 0; i -= 1) {
+    const status = statusOf(events[i]);
+    if (status === 'queued') {
+      const resumed = events.slice(0, i).some((e) => statusOf(e) === 'running');
+      return { events: events.slice(i), resumed };
+    }
+    if (status === 'paused' || status === 'succeeded') return { events: [], resumed: true };
+  }
+  return { events, resumed: false };
+}
+
+/** When each startup step happened, from the status and lifecycle events of the current start (and the run itself). */
+function startupMarks(run: RunCore, all: RunEventDto[]) {
+  const { events, resumed } = currentStart(all);
+  const statusAt = (s: RunStatus) => events.find((e) => statusOf(e) === s)?.ts;
   const lifecycleAt = (re: RegExp) => events.find((e) => e.type === 'lifecycle' && re.test(textOf(e) ?? ''))?.ts;
   return {
     queued: statusAt('queued') ?? run.queuedAt,
-    slot: statusAt('starting') ?? run.startedAt ?? undefined,
+    slot: statusAt('starting') ?? (resumed ? undefined : (run.startedAt ?? undefined)),
     pod: lifecycleAt(/^pod running/i),
     agent: lifecycleAt(/^(session started|claude code started)/i),
     attached: statusAt('running'),

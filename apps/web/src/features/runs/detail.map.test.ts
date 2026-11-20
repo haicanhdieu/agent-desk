@@ -674,6 +674,62 @@ describe('toRunDetail', () => {
     });
   });
 
+  describe('startup checklist of a resumed run', () => {
+    // The first attempt reached the terminal and parked; the log still holds all of its steps.
+    const firstAttempt = [
+      ev(local(14, 0, 0), 'status', { status: 'queued' }),
+      ev(local(14, 0, 5), 'status', { status: 'starting' }),
+      ev(local(14, 0, 12), 'lifecycle', { text: 'Pod running' }),
+      ev(local(14, 0, 20), 'lifecycle', { text: 'Session started' }),
+      ev(local(14, 0, 25), 'status', { status: 'running' }),
+      ev(local(14, 30, 0), 'status', { status: 'succeeded' }),
+    ];
+    const reopened = (over: Partial<RunDto>) =>
+      run({ queuedAt: local(14, 0, 0), startedAt: local(14, 0, 25), ...over });
+    const stepStates = (d: ReturnType<typeof detail>) => d.startup?.map((s) => s.state);
+
+    it('queued again: only Queued is active, none of the first attempt steps is done', () => {
+      const queued = reopened({ status: 'queued' });
+      const events = [...firstAttempt, ev(local(15, 0, 0), 'status', { status: 'queued' })];
+      const d = detail(queued, events);
+      expect(stepStates(d)).toEqual(['active', 'pending', 'pending', 'pending', 'pending']);
+      expect(d.startup?.[0]).toMatchObject({ at: '15:00:00', detail: 'Waiting for a slot' });
+    });
+
+    it('queued again, its status event not yet in the log: still only Queued is active', () => {
+      expect(stepStates(detail(reopened({ status: 'queued' }), firstAttempt))).toEqual([
+        'active',
+        'pending',
+        'pending',
+        'pending',
+        'pending',
+      ]);
+    });
+
+    it('starting again: the slot is the new one and the pod is awaited', () => {
+      const starting = reopened({ status: 'starting' });
+      const events = [
+        ...firstAttempt,
+        ev(local(15, 0, 0), 'status', { status: 'queued' }),
+        ev(local(15, 0, 8), 'status', { status: 'starting' }),
+      ];
+      const d = detail(starting, events);
+      expect(stepStates(d)).toEqual(['done', 'done', 'active', 'pending', 'pending']);
+      expect(d.startup?.[0]?.detail).toBe('Waited 8s for a free slot');
+    });
+
+    it('steps complete as the new attempt reaches them', () => {
+      const starting = reopened({ status: 'starting' });
+      const events = [
+        ...firstAttempt,
+        ev(local(15, 0, 0), 'status', { status: 'queued' }),
+        ev(local(15, 0, 8), 'status', { status: 'starting' }),
+        ev(local(15, 0, 15), 'lifecycle', { text: 'Pod running' }),
+      ];
+      expect(stepStates(detail(starting, events))).toEqual(['done', 'done', 'done', 'active', 'pending']);
+    });
+  });
+
   it('idle: since idleSince, ends 30 minutes later, slot note', () => {
     const d = detail(run({ status: 'idle', idleSince: local(14, 3, 58) }));
     expect(d.idle).toEqual({

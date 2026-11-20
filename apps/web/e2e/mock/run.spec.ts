@@ -52,6 +52,10 @@ test('a paused run is resumed: Queued, then Running with the terminal', async ({
 
   await page.getByRole('button', { name: 'Resume' }).click();
   await expect(header.getByText('Queued', { exact: true })).toBeVisible();
+  // The earlier start's steps do not show as done: the resumed run is still waiting for a slot.
+  const steps = page.getByRole('list').filter({ hasText: 'Terminal attaches' });
+  await expect(steps.getByText('Waiting for a slot')).toBeVisible();
+  await expect(steps.getByRole('img', { name: 'succeeded' })).toHaveCount(0);
   await expect(header.getByText('Running', { exact: true })).toBeVisible({ timeout: 15_000 });
   const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
   await expect(terminal).toContainText('agent-desk fake terminal');
