@@ -12,6 +12,7 @@ import {
   phaseOfParkKind,
   resumeRejection,
   sessionAllowanceSeconds,
+  shouldRepark,
   statusOfParkKind,
   type EndOutcome,
   type ParkKind,
@@ -295,5 +296,22 @@ describe('cancelEffect for an automatic resume', () => {
     expect(cancelEffect('resuming', 'needs_input', false, true)).toBe('stop_run');
     expect(cancelEffect('resuming', 'needs_input', false, false)).toBe('abort_resume');
     expect(cancelEffect('resuming', 'needs_input', false)).toBe('abort_resume');
+  });
+});
+
+describe('shouldRepark', () => {
+  const now = Date.parse('2026-01-01T00:00:00.000Z');
+  const future = '2026-01-01T00:00:01.000Z';
+  const past = '2025-12-31T23:59:59.000Z';
+  const base = { finishRequested: true, kept: { kind: 'done' as ParkKind, expiresAt: future }, nowMs: now };
+
+  it('re-parks only a Finish on a session re-opened from done whose deadline is still ahead', () => {
+    expect(shouldRepark(base)).toBe(true);
+    expect(shouldRepark({ ...base, finishRequested: false })).toBe(false);
+    expect(shouldRepark({ ...base, kept: undefined })).toBe(false);
+    expect(shouldRepark({ ...base, kept: { kind: 'needs_input', expiresAt: future } })).toBe(false);
+    expect(shouldRepark({ ...base, kept: { kind: 'done', expiresAt: past } })).toBe(false);
+    expect(shouldRepark({ ...base, kept: { kind: 'done', expiresAt: '2026-01-01T00:00:00.000Z' } })).toBe(false);
+    expect(shouldRepark({ ...base, kept: { kind: 'done', expiresAt: 'not a date' } })).toBe(false);
   });
 });

@@ -53,11 +53,11 @@
 - Consumes: `parkRun` `keepUntil` (Task 1).
 - Produces: `shouldRepark(input: { finishRequested: boolean; kept: { kind: ParkKind; expiresAt: string } | undefined; nowMs: number }): boolean` in `park.ts`; patch id `finish-reparks`.
 
-- [ ] **Step 1: Write failing tests:** (a) workflow: parked `done` run, Re-open, `finishRun` update → `parkRun:done` count 2, `deleteRunVolume` 0, `postComment:finish` count 1, second `parkRun` input carries the original `keepUntil`, final status stays `succeeded` and the workflow keeps waiting in `parked`; then a second Re-open works. (b) Finish after the deadline passed → `deleteRunVolume` 1 and result `succeeded`. (c) Finish after a paused/stopped resume still deletes (existing tests at ~234/~248 unchanged and green). (d) `shouldRepark` truth table in the park unit test.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.resuming.test.ts test/park.test.ts`. Expected: new tests FAIL.
-- [ ] **Step 3: Implement:** add `FINISH_REPARKS_PATCH = 'finish-reparks'` read once beside the other patches; store `resumedKeep` when `resumeAttempt` succeeds (cleared at park and end); in the end-outcome branch call `park(c, 'done', <reason>, undefined, 'off', 0, keepUntil)` when `shouldRepark`; extend `park` with an optional `keepUntil` passed to `act.parkRun` and skip the finish comment in that case. Reason value: reuse an existing `PauseReason` unless the `pause_reason` constraint allows a new one without a migration; note the choice in the PR.
-- [ ] **Step 4: Re-run the command.** Expected: PASS; also run `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.leases.test.ts`.
-- [ ] **Step 5: Commit** `feat(worker): finish after re-open keeps the session`.
+- [x] **Step 1: Write failing tests:** (a) workflow: parked `done` run, Re-open, `finishRun` update → `parkRun:done` count 2, `deleteRunVolume` 0, `postComment:finish` count 1, second `parkRun` input carries the original `keepUntil`, final status stays `succeeded` and the workflow keeps waiting in `parked`; then a second Re-open works. (b) Finish after the deadline passed → `deleteRunVolume` 1 and result `succeeded`. (c) Finish after a paused/stopped resume still deletes (existing tests at ~234/~248 unchanged and green). (d) `shouldRepark` truth table in the park unit test.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.resuming.test.ts test/park.test.ts`. Expected: new tests FAIL.
+- [x] **Step 3: Implement:** add `FINISH_REPARKS_PATCH = 'finish-reparks'` read once beside the other patches; store `resumedKeep` when `resumeAttempt` succeeds (cleared at park and end); in the end-outcome branch call `park(c, 'done', <reason>, undefined, 'off', 0, keepUntil)` when `shouldRepark`; extend `park` with an optional `keepUntil` passed to `act.parkRun` and skip the finish comment in that case. Reason value: reuse an existing `PauseReason` unless the `pause_reason` constraint allows a new one without a migration; note the choice in the PR.
+- [x] **Step 4: Re-run the command.** Expected: PASS; also run `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.leases.test.ts`.
+- [x] **Step 5: Commit** `feat(worker): finish after re-open keeps the session`.
 
 ### Task 3: Web mock and e2e
 

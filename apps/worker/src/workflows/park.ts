@@ -53,6 +53,19 @@ export function cancelEffect(
   return 'stop_run';
 }
 
+/**
+ * A Finish on a session re-opened from a kept `done` session re-parks it (same deadline) instead of deleting the volume,
+ * while that deadline is still ahead. Any other Finish ends the run and deletes the volume.
+ */
+export function shouldRepark(input: {
+  finishRequested: boolean;
+  kept: { kind: ParkKind; expiresAt: string } | undefined;
+  nowMs: number;
+}): boolean {
+  if (!input.finishRequested || input.kept === undefined || input.kept.kind !== 'done') return false;
+  return Date.parse(input.kept.expiresAt) > input.nowMs;
+}
+
 /** The park kind of a pod that ended without our asking: what the run was doing (anything but `agent_done` needs a person). */
 const lostKindOf = (phase: RunPhase): ParkKind => parkKindOf(phase) ?? 'needs_input';
 
