@@ -1240,7 +1240,7 @@ git commit -m "test(web): mock e2e for paged Projects, Desk lists and whole-set 
 - Consumes: the paged API routes and screens (Tasks 5–10); `ok`, `signInAndCreateProject`, `commentOnNewTicket` from `./helpers`.
 - Produces: nothing.
 
-- [ ] **Step 1: Write `pagination.spec.ts`**
+- [x] **Step 1: Write `pagination.spec.ts`**
 
 Each test signs in as a fresh dev-login user. Projects keep `maxConcurrentRuns: 1` (`PATCH /api/projects/:id`) so most runs stay queued. Runs come from `commentOnNewTicket` on separate tickets. Rules and cases:
 
@@ -1260,12 +1260,12 @@ Each test signs in as a fresh dev-login user. Projects keep `maxConcurrentRuns: 
 - **BR-37:** TC-37.2 (a second dev-login user, org B, creates 40 runs; org A with 25 sees "of 25" and All 25). TC-37.1 and TC-37.3 are proven in Task 5's API test (Agent call).
 - **BR-38:** TC-38.1–38.3.
 
-- [ ] **Step 2: Run the new spec only, with the stack up**
+- [x] **Step 2: Run the new spec only, with the stack up**
 
 Run: `devbox run dev-bg` (wait until api and web are Ready in `devbox services ls`), then `pnpm --filter @agentdesk/web exec playwright test e2e/local/pagination.spec.ts`
 Expected: PASS. If the stack cannot start (no Docker engine, runner pod), say so in the PR and list this spec as written but not run. Never tick it as passed.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
