@@ -27,6 +27,18 @@ export const clockTime = (iso: string): string => {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Local "13 Nov, 09:05". */
+export const dateTime = (iso: string): string => {
+  const d = new Date(iso);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]}, ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/** Local "HH:mm" for a time on `now`'s calendar day, otherwise "13 Nov, 09:05". */
+const clockOrDateTime = (iso: string, now: Date): string =>
+  new Date(iso).toDateString() === now.toDateString() ? clockTime(iso) : dateTime(iso);
+
 /**
  * Compact largest units: "48s", "37m 48s", "30m", "3h 57m", "2d 3h 5m". Zero units are omitted, and seconds
  * are dropped from one hour on.
@@ -127,7 +139,7 @@ export function toRunSummary(dto: CachedRun, now: Date): RunSummary {
       href: safeHref(dto.ticket.url),
     },
     triggeredBy: { login, bot: login.endsWith('[bot]') },
-    startedAt: clockTime(dto.startedAt ?? dto.queuedAt),
+    startedAt: clockOrDateTime(dto.startedAt ?? dto.queuedAt, now),
     ...(time !== undefined && { duration: time }),
   };
 }

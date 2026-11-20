@@ -33,6 +33,25 @@ describe('toRunSummary, failed in setup', () => {
   });
 });
 
+describe('toRunSummary, started column date', () => {
+  it('shows the time only for a run started today', () => {
+    const s = toRunSummary(run({ status: 'succeeded', startedAt: local(9, 5), finishedAt: local(9, 30) }), now);
+    expect(s.startedAt).toBe('09:05');
+  });
+
+  it('shows the date and time for a run started before today', () => {
+    const earlier = new Date(2026, 10, 11, 23, 58).toISOString();
+    const s = toRunSummary(run({ status: 'succeeded', startedAt: earlier, finishedAt: local(0, 10) }), now);
+    expect(s.startedAt).toBe('11 Nov, 23:58');
+  });
+
+  it('shows the date and time for a queued run whose queue time is before today', () => {
+    const earlier = new Date(2026, 9, 3, 8, 1).toISOString();
+    const s = toRunSummary(run({ status: 'queued', startedAt: null, queuedAt: earlier, finishedAt: null }), now);
+    expect(s.startedAt).toBe('3 Oct, 08:01');
+  });
+});
+
 describe('toRunSummary, paused and expired', () => {
   it('paused: the duration stops at the pause and the note says how long it can be resumed', () => {
     const s = toRunSummary(
