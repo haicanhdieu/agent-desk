@@ -35,6 +35,9 @@ export interface LiveTerminalProps {
 /** Lines kept above the screen (the stored scrollback is capped to the same count). */
 const SCROLLBACK_LINES = 5000;
 
+/** How long after a pointer-up ending a press in the terminal the program may still set the clipboard (OSC 52). */
+const CLIPBOARD_GESTURE_MS = 2000;
+
 /** Ctrl+C or Cmd+C, with no other modifier. */
 function isCopyKey(event: KeyboardEvent): boolean {
   return event.key.toLowerCase() === 'c' && (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
@@ -136,13 +139,34 @@ export default function LiveTerminal({
     // Claude Code turns on mouse reporting and copies a selection itself, by printing OSC 52 (set clipboard). xterm
     // ignores it unless handled, so the copy never reached the clipboard. Only "set" is honoured: the `?` query is never
     // answered (a pod must not read the host clipboard), and a finished run's replayed scrollback never writes it.
-    // The handler runs shortly after the mouse-up, while the browser still counts the user's gesture; where it does not,
-    // the refused write is logged.
+    // Pod output is untrusted (security.md §5), so a set is written only within CLIPBOARD_GESTURE_MS of a pointer-up that
+    // ends a press made inside the terminal (our own window, not the browser's); otherwise it is dropped. The release
+    // counts anywhere on the page, because a selection drag can end outside the terminal. Every press on the page
+    // replaces the last one, and a cancelled press ends it, so a stale press never lets an unrelated click open the
+    // window. A key is never a gesture: Ctrl+C is the interrupt the pod receives. A write the browser refuses is only
+    // logged. The capture-phase listeners see the press and release even while mouse reporting is on.
+    const doc = host.ownerDocument;
+    let lastGesture = -Infinity;
+    let pressed = false;
+    const press = (event: PointerEvent) => {
+      pressed = event.target instanceof Node && host.contains(event.target);
+    };
+    const cancel = () => {
+      pressed = false;
+    };
+    const release = () => {
+      if (!pressed) return;
+      pressed = false;
+      lastGesture = performance.now();
+    };
+    doc.addEventListener('pointerdown', press, { capture: true });
+    doc.addEventListener('pointercancel', cancel, { capture: true });
+    doc.addEventListener('pointerup', release, { capture: true });
     const osc52 = noInput
       ? undefined
       : term.parser.registerOscHandler(52, (data) => {
           const copied = clipboardText(data);
-          if (copied !== undefined && navigator.clipboard) {
+          if (copied !== undefined && navigator.clipboard && performance.now() - lastGesture <= CLIPBOARD_GESTURE_MS) {
             navigator.clipboard.writeText(copied).catch((err: unknown) => {
               console.warn('Could not copy the text the program set', err);
             });
@@ -186,6 +210,9 @@ export default function LiveTerminal({
       cancelAnimationFrame(frame);
       for (const s of subscriptions) s.dispose();
       osc52?.dispose();
+      doc.removeEventListener('pointerdown', press, { capture: true });
+      doc.removeEventListener('pointercancel', cancel, { capture: true });
+      doc.removeEventListener('pointerup', release, { capture: true });
       termRef.current = null;
       term.dispose();
     };

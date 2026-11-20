@@ -303,7 +303,8 @@ async function printInTerminal(page: Page, text: string): Promise<void> {
 }
 
 // Claude Code turns on mouse reporting and copies a mouse selection itself by printing OSC 52 (set clipboard), which
-// xterm ignores unless handled. The sequence is the one tmux forwards: ESC ] 52 ; <selection> ; <base64> BEL.
+// xterm ignores unless handled. The sequence is the one tmux forwards: ESC ] 52 ; <selection> ; <base64> BEL. Pod output is
+// untrusted, so it only writes the clipboard within a moment of a mouse release that ended a press inside the terminal.
 test('in a live run terminal an OSC 52 sequence sets the clipboard, decoded as UTF-8; the read query changes nothing', async ({
   context,
   page,
@@ -325,8 +326,32 @@ test('in a live run terminal an OSC 52 sequence sets the clipboard, decoded as U
   await expect(terminal).toContainText('after the query');
   expect(await readClipboard()).toBe('stale');
 
+  // A real mouse press and release over the terminal (the end of a selection) is the gesture.
+  const box = await terminal.boundingBox();
+  if (!box) throw new Error('terminal has no box');
+  await page.mouse.move(box.x + 30, box.y + 20);
+  await page.mouse.down();
+  await page.mouse.up();
   await printInTerminal(page, osc52('c', base64('copied by claude ✻ héllo')));
   await expect.poll(readClipboard).toBe('copied by claude ✻ héllo');
   // The sequence is consumed: it is not drawn on the screen.
   await expect(terminal).not.toContainText(']52');
+});
+
+test('in a live run terminal an OSC 52 sequence with no user gesture leaves the clipboard unchanged', async ({
+  context,
+  page,
+}) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await recordTerminalFrames(page);
+  await page.goto(runUrl(IDLE_RUN));
+  const terminal = page.getByRole('group', { name: 'Claude Code terminal' });
+  await expect(terminal).toContainText('agent-desk fake terminal');
+  await page.evaluate(() => navigator.clipboard.writeText('stale'));
+
+  const payload = Buffer.from('injected by the pod', 'utf8').toString('base64');
+  await printInTerminal(page, `\x1b]52;c;${payload}\x07`);
+  await printInTerminal(page, 'after the sequence');
+  await expect(terminal).toContainText('after the sequence');
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('stale');
 });
