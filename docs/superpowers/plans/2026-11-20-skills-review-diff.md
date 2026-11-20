@@ -295,12 +295,12 @@ export default SkillPreview; // the React.lazy target of Task 4
 // DOM contract: a <section aria-label="Skill preview"> holding the KeyValue fields, then the Markdown body.
 ```
 
-- [ ] **Step 1: Add the `streamdown` package**
+- [x] **Step 1: Add the `streamdown` package**
 
 Run: `pnpm --filter @agentdesk/web add streamdown@2.8.0`
 Expected: `"streamdown": "^2.8.0"` in `apps/web/package.json`, and `pnpm --filter @agentdesk/web list streamdown` shows 2.8.0.
 
-- [ ] **Step 2: Write the failing tests**
+- [x] **Step 2: Write the failing tests**
 
 `SkillPreview.test.tsx`:
 
@@ -314,25 +314,25 @@ Expected: `"streamdown": "^2.8.0"` in `apps/web/package.json`, and `pnpm --filte
 - `it('renders other code fences as plain mono blocks')`: a ```` ```bash ```` fence's text is inside `pre`/`code`.
 - `it('shows the empty message for empty or whitespace-only text')`: `''` and `'  \n'` → "Nothing to preview yet. Write the skill in Edit.". `skillPreviewSamples.frontMatterOnly` → its fields and the same message.
 
-- [ ] **Step 3: Run them and see them fail**
+- [x] **Step 3: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreview`
 Expected: FAIL.
 
-- [ ] **Step 4: Implement `SkillPreview` and its CSS**
+- [x] **Step 4: Implement `SkillPreview` and its CSS**
 
 Pipeline per the spec's "Preview" section: `splitFrontMatter(value)`, then `KeyValue` for the fields, then the empty message or `<Streamdown …>` on the body with the Global Constraints props. Its `components` prop overrides: `h1`–`h6` (the Agent call levels, styled by Markdown level), `a` (new tab; plain text when the transform removed the href), and `img` (alt text or URL as text). The link-safety modal is turned off. Check every prop name against the installed `streamdown` 2.8.0 types. Style every element Streamdown draws (headings, paragraphs, lists, task-list checkboxes, blockquote, inline code, code blocks, table parts, links, horizontal rule) in the CSS module, scoped to the section. `:global([data-streamdown="…"])` selectors are allowed. Tokens only. The section fills the column's scroll area.
 
-- [ ] **Step 5: Write the stories**
+- [x] **Step 5: Write the stories**
 
 `Components/SkillPreview`: `Default` (code-build's body from `skills`), `WithTable` (`skillPreviewSamples.table`), `Empty` (`''`).
 
-- [ ] **Step 6: Run the tests, smoke + axe, typecheck, lint and Storybook**
+- [x] **Step 6: Run the tests, smoke + axe, typecheck, lint and Storybook**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreview stories.smoke cssModules && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS, with no axe violations.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
@@ -370,7 +370,7 @@ export function SkillPreviewPane(props: SkillPreviewPaneProps): JSX.Element;
 // Forwards every SkillPreviewProps field (Task 5 adds loadMermaid) to the loaded component.
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `SkillPreviewPane.test.tsx`:
 
@@ -380,25 +380,25 @@ export function SkillPreviewPane(props: SkillPreviewPaneProps): JSX.Element;
 - `it('shows the error state when rendering throws')`: `load` resolves to a component that throws → the same banner.
 - `it('Try again loads the preview again after a failed load')` (Review Focus 5): `load` rejects once, then resolves to a stub that renders `value`. Clicking "Try again" calls `load` a second time and shows the text.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreviewPane`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the pane**
+- [x] **Step 3: Implement the pane**
 
 The pane renders an error-boundary class (`getDerivedStateFromError`), then `<Suspense>` with the Skeleton fallback (`variant="text"`, about 8 lines, inside the status element), then the lazy component. Keep an `attempt` number in state and build the lazy component from `load` for each attempt. "Try again" bumps `attempt` and resets the boundary (see the Agent call). The banner is `tone="err"`, `title="Could not show the preview"`, `live="assertive"`, with a small "Try again" `Button`. The root fills the column's scroll area.
 
-- [ ] **Step 4: Write the stories**
+- [x] **Step 4: Write the stories**
 
 `Components/SkillPreviewPane`: `Loading` (`load={() => new Promise(() => {})}`) and `Error` (`load={() => Promise.reject(new Error('chunk failed'))}`), both with `value={skillPreviewSamples.table}`.
 
-- [ ] **Step 5: Run the tests, smoke + axe, typecheck, lint and Storybook**
+- [x] **Step 5: Run the tests, smoke + axe, typecheck, lint and Storybook**
 
 Run: `pnpm --filter @agentdesk/web test -- SkillPreviewPane stories.smoke cssModules && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web lint && pnpm --filter @agentdesk/web build-storybook`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
