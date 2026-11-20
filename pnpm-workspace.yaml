@@ -2,3 +2,10 @@ packages:
   - apps/*
   - packages/*
   - images/*
+
+# Security: force patched versions of transitive dependencies (Dependabot alerts #1, #17, #18).
+# Drop an entry once every dependent resolves a patched version without it.
+overrides:
+  '@esbuild-kit/core-utils>esbuild': 0.25.12
+  'glob@>=9.0.0 <14.0.2': ^14.0.6
+  'minimatch@>=7.0.0 <11.0.1': ^11.0.8
