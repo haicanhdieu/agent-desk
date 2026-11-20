@@ -120,8 +120,8 @@ describe('fix round 1', () => {
     await expect(api.projects.list()).rejects.toBeInstanceOf(ApiError);
   });
   it('parse true passes a valid payload', async () => {
-    const api = createApi({ fetch: mockFetch(json([])), parse: true });
-    expect(await api.projects.list()).toEqual([]);
+    const api = createApi({ fetch: mockFetch(json({ items: [], page: 1, pageSize: 20, total: 0 })), parse: true });
+    expect(await api.projects.list()).toEqual({ items: [], page: 1, pageSize: 20, total: 0 });
   });
 });
 

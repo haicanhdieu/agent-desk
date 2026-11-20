@@ -76,7 +76,27 @@ describe('MSW handlers cover the contract', () => {
   });
 
   it('answers the default client, which calls relative /api paths', async () => {
-    await expect(defaultApi.projects.list()).resolves.toHaveLength(4);
+    await expect(defaultApi.projects.list()).resolves.toMatchObject({ total: 4, page: 1, pageSize: 20 });
+  });
+
+  it('pages projects by creation order, then id, with the real total', async () => {
+    const base = mockDb.state.projects.filter((p) => p.orgId === ids.org.alice);
+    const [seed] = base;
+    if (!seed) throw new Error('seed has no alice project');
+    const extra = Array.from({ length: 22 }, (_, i) => ({
+      ...seed,
+      id: `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`,
+      repoPath: `dev/paged-${i}`,
+      name: `paged-${i}`,
+    }));
+    mockDb.state.projects = [...mockDb.state.projects, ...extra];
+    const first = await api.projects.list({ query: { page: 1, pageSize: 20 } });
+    const second = await api.projects.list({ query: { page: 2, pageSize: 20 } });
+    expect(first).toMatchObject({ total: 26, page: 1, pageSize: 20 });
+    expect(first.items).toHaveLength(20);
+    expect(second.items).toHaveLength(6);
+    expect(new Set([...first.items, ...second.items].map((p) => p.id)).size).toBe(26);
+    await expect(api.projects.list({ query: { page: 3 } })).resolves.toMatchObject({ items: [], total: 26 });
   });
 
   it('serves every GET route through its response schema', async () => {
@@ -86,11 +106,11 @@ describe('MSW handlers cover the contract', () => {
     await expect(api.connections.repos({ params: { connectionId: ids.connection.dev } })).resolves.toContainEqual(
       expect.objectContaining({ repoPath: 'dev/demo' }),
     );
-    expect((await api.projects.list()).map((p) => p.name)).toEqual([
+    expect((await api.projects.list()).items.map((p) => p.name)).toEqual([
       'invoicer-api',
       'invoicer-web',
-      'docs-site',
       'billing-jobs',
+      'docs-site',
     ]);
     await expect(api.projects.get({ params: { projectId: P } })).resolves.toMatchObject({
       // Run 62 is idle and run 64 is paused: both need a person.
@@ -199,7 +219,7 @@ describe('MSW handler semantics', () => {
     const e = await rejection(api.projects.get({ params: { projectId: ids.project.storefront } }));
     expect(e.status).toBe(404);
     mockDb.setActiveOrg(ids.org.acme);
-    expect((await api.projects.list()).map((p) => p.name)).toEqual(['storefront']);
+    expect((await api.projects.list()).items.map((p) => p.name)).toEqual(['storefront']);
   });
 
   it('creates, updates and deletes rules with a 409 on a duplicate command', async () => {
@@ -603,7 +623,7 @@ describe('scenarios', () => {
 
   it('overrides and db changes reset between tests', async () => {
     await expect(api.rules.list({ params: { projectId: P } })).resolves.toHaveLength(6);
-    await expect(api.projects.list()).resolves.toHaveLength(4);
+    await expect(api.projects.list()).resolves.toMatchObject({ total: 4 });
   });
 });
 

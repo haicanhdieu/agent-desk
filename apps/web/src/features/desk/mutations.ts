@@ -4,7 +4,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { useRef } from 'react';
 import { useToast } from '@/ds';
 import { api } from '../api';
-import { projectsQueries } from '../projects/queries';
+import { projectsListKey, projectsQueries } from '../projects/queries';
 import { waitForPoll } from './checkNow';
 import { deskQueries } from './queries';
 
@@ -154,7 +154,7 @@ export function useSaveTrigger(org: string, projectId: string) {
       qc.setQueryData(projectsQueries.detail(org, projectId).queryKey, saved);
       await Promise.all([
         qc.invalidateQueries({ queryKey: projectsQueries.connection(org, projectId).queryKey }),
-        qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true }),
+        qc.invalidateQueries({ queryKey: projectsListKey(org) }),
       ]);
     },
   });
@@ -190,7 +190,7 @@ export function useDeleteProject(org: string, projectId: string) {
     mutationFn: () => api.projects.remove({ params: { projectId } }),
     onSuccess: async () => {
       await qc.cancelQueries({ queryKey: projectsQueries.detail(org, projectId).queryKey });
-      await qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true, refetchType: 'all' });
+      await qc.invalidateQueries({ queryKey: projectsListKey(org), refetchType: 'all' });
     },
   });
 }

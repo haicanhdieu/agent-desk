@@ -16,7 +16,7 @@ export const Route = createFileRoute('/o/$org/p/$project/needs-you')({
   loader: async ({ context: { queryClient }, params: { org, project } }) => {
     await Promise.all([
       queryClient.ensureQueryData(runsQueries.list(org, project, 'needs_you')),
-      queryClient.ensureQueryData(projectsQueries.list(org)),
+      queryClient.ensureQueryData(projectsQueries.all(org)),
     ]);
   },
   component: NeedsYouRoute,
@@ -29,7 +29,8 @@ function NeedsYouRoute() {
   const resume = useResumeRun(org, projectId, { onError: (e) => toast.show(toastFromError(e)) });
   const page = useProjectPage(org, projectId, now);
   const { data: idle } = useSuspenseQuery(runsQueries.list(org, projectId, 'needs_you'));
-  const { data: dtos } = useSuspenseQuery(projectsQueries.list(org));
+  const { data: all } = useSuspenseQuery(projectsQueries.all(org));
+  const dtos = all.items;
   // The switcher shows each project's connection warning: one request per project, in parallel.
   const connections = useSuspenseQueries({ queries: dtos.map((d) => projectsQueries.connection(org, d.id)) });
   const projects = dtos.map((dto, i) => {

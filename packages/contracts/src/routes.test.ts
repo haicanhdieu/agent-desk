@@ -113,4 +113,12 @@ describe('contract boundaries', () => {
     expect(r?.method).toBe('GET');
     expect(r?.path).toBe('/api/projects/:projectId/rules/prompt-preview');
   });
+  it('projects.list takes a page query and answers with a page envelope', () => {
+    const r = flattenRoutes(routes)['projects.list'];
+    expect(r?.query?.parse({})).toEqual({ page: 1, pageSize: 20 });
+    expect(r?.query?.safeParse({ pageSize: 101 }).success).toBe(false);
+    const envelope = { items: [], page: 1, pageSize: 20, total: 0 };
+    expect(r?.response.safeParse(envelope).success).toBe(true);
+    expect(r?.response.safeParse([]).success).toBe(false);
+  });
 });

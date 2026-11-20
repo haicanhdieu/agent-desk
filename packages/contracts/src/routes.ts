@@ -16,6 +16,7 @@ import {
   UpdateProjectRequest,
 } from './schemas/projects';
 import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
+import { PageQuery, pageOf } from './schemas/page';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse } from './schemas/runs';
 import { RunTranscriptQuery, RunTranscriptResponse } from './schemas/transcript';
@@ -82,7 +83,7 @@ export const routes = {
     },
   },
   projects: {
-    list: { method: 'GET', path: '/api/projects', response: z.array(ProjectDto) },
+    list: { method: 'GET', path: '/api/projects', query: PageQuery, response: pageOf(ProjectDto) },
     create: { method: 'POST', path: '/api/projects', body: CreateProjectRequest, response: ProjectDto },
     get: { method: 'GET', path: '/api/projects/:projectId', params: projectParams, response: ProjectDto },
     update: {

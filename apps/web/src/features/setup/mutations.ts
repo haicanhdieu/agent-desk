@@ -13,7 +13,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { useState } from 'react';
 import { api } from '../api';
 import { refreshAfterCredential } from '../desk/agent.form';
-import { projectsQueries } from '../projects/queries';
+import { projectsListKey, projectsQueries } from '../projects/queries';
 import { setupQueries as scriptQueries } from '../setup-script/queries';
 import { setupQueries } from './queries';
 import { stepIndex } from './steps';
@@ -59,7 +59,7 @@ async function finishStep(
   const next =
     Object.keys(body).length > 0 ? await api.projects.update({ params: { projectId: project.id }, body }) : project;
   qc.setQueryData(projectsQueries.detail(org, project.id).queryKey, next);
-  await qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true });
+  await qc.invalidateQueries({ queryKey: projectsListKey(org) });
   return next;
 }
 
@@ -81,7 +81,7 @@ export function useSaveRepoStep(org: string) {
         : api.projects.update({ params: { projectId: input.project.id }, body: input.body }),
     onSuccess: async (project) => {
       qc.setQueryData(projectsQueries.detail(org, project.id).queryKey, project);
-      await qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true });
+      await qc.invalidateQueries({ queryKey: projectsListKey(org) });
     },
   });
 }

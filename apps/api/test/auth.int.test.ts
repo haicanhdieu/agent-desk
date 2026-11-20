@@ -3,6 +3,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withOrg } from '@agentdesk/db';
 import { createTestApp, type TestApp } from './helpers/app';
+import { expectContract } from './helpers/contract';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -76,7 +77,7 @@ describe('auth', () => {
     const cookie = cookieOf(await devLogin('alice'));
     const ok = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } });
     expect(ok.statusCode).toBe(200);
-    expect(ok.json()).toEqual([]);
+    expect(expectContract('projects.list', ok)).toEqual({ items: [], page: 1, pageSize: 20, total: 0 });
   });
 
   it('forwards /auth/* to better-auth (get-session with the dev cookie)', async () => {

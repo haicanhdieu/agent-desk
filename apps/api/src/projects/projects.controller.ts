@@ -1,7 +1,9 @@
-import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Patch, Post, Query } from '@nestjs/common';
 import {
   routes,
   type CreateProjectRequest,
+  type Page,
+  type PageQuery,
   type ProjectConnectionDto,
   type ProjectDto,
   type UpdateProjectRequest,
@@ -11,6 +13,7 @@ import { routePath } from '../common/route-path';
 import { ZodPipe } from '../common/zod-validation';
 import { ProjectsService } from './projects.service';
 
+const ListQuery = new ZodPipe(routes.projects.list.query);
 const IdParam = new ZodPipe(routes.projects.get.params);
 const CreateBody = new ZodPipe(routes.projects.create.body);
 const UpdateBody = new ZodPipe(routes.projects.update.body);
@@ -20,8 +23,8 @@ export class ProjectsController {
   constructor(@Inject(ProjectsService) private readonly service: ProjectsService) {}
 
   @Get(routePath(routes.projects.list))
-  list(@CurrentOrg() org: OrgContext): Promise<ProjectDto[]> {
-    return this.service.list(org);
+  list(@CurrentOrg() org: OrgContext, @Query(ListQuery) q: PageQuery): Promise<Page<ProjectDto>> {
+    return this.service.list(org, q);
   }
 
   @Post(routePath(routes.projects.create))

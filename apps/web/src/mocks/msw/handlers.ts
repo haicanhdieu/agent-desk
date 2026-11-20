@@ -6,6 +6,7 @@ import {
   type RouteDef,
   type RuleDto,
   FINAL_RUN_STATUSES,
+  slicePage,
   type ProjectConnectionDto,
   type ProjectDto,
   type RunDto,
@@ -231,11 +232,14 @@ const impl: Impl = {
     return db().repos[params.connectionId] ?? [];
   },
 
-  'projects.list': () => {
+  'projects.list': ({ query }) => {
     const { orgId } = session();
-    return db()
+    // As the API: creation order, ties broken by id.
+    const rows = db()
       .projects.filter((p) => p.orgId === orgId)
-      .map(toProjectDto);
+      .sort((a, b) => (a.createdAt < b.createdAt ? -1 : a.createdAt > b.createdAt ? 1 : a.id < b.id ? -1 : 1));
+    const page = slicePage(rows, query);
+    return { ...page, items: page.items.map(toProjectDto) };
   },
   'projects.create': ({ body }) => {
     const { orgId } = session();

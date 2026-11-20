@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import type { AgentSettings } from '@/mocks/types';
 import type { AgentLimits, LimitField } from '@/screens';
 import { api } from '../api';
-import { projectsQueries } from '../projects/queries';
+import { projectsListKey, projectsQueries } from '../projects/queries';
 import { relativeTime } from '../relativeTime';
 import { fieldErrorsFromProblem } from './problem';
 import { deskQueries } from './queries';
@@ -161,7 +161,7 @@ export function useSaveLimits(org: string, projectId: string, initial: AgentLimi
         for (const [k, v] of Object.entries(problem.fields)) if (isLimitField(k)) fields[k] ??= v;
         if (problem.form) forms.push(problem.form);
       }
-      if (project) void qc.invalidateQueries({ queryKey: projectsQueries.list(org).queryKey, exact: true });
+      if (project) void qc.invalidateQueries({ queryKey: projectsListKey(org) });
       setErrors(fields);
       setFormError(forms.length > 0 ? forms.join(' ') : undefined);
       if (results.every((r) => r.status === 'fulfilled')) onSaved();

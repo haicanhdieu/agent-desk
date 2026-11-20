@@ -540,7 +540,7 @@ projectsQueries.list(org: string, q: PageQuery)   // key [...projectsListKey(org
 projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
 ```
 
-- [ ] **Step 1: Write the failing helper tests** in `pagination.test.tsx`
+- [x] **Step 1: Write the failing helper tests** in `pagination.test.tsx`
 
 - `PageSearch.parse({ page: '3' })` → `{ page: '3' }`. `PageSearch.parse` maps each of `{ page: '0' }`, `{ page: '-2' }`, `{ page: '1.5' }`, `{ page: 'abc' }` and `{ page: '99999999999' }` to `{ page: undefined }`. `pageOfSearch({})` → 1; `pageToSearch(1)` → `undefined`; `pageToSearch(4)` → `'4'`.
 - `readPageSize()` → 20 when nothing is saved, and also when the saved value is `'33'`, `'abc'` or `'0'`; → 100 when `'100'` is saved.
@@ -549,7 +549,7 @@ projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
 - `usePaginationProps`: `onPageSizeChange(50)` saves 50 and calls `go(1)`. `onPageChange(3)` calls `go(3)`.
 - `usePagedQuery`: rendered with a QueryClient whose fetcher is held open, changing params from page 1 to page 2 keeps page 1's `data` with `busy: true`; releasing the fetch gives page 2's data with `busy: false`.
 
-- [ ] **Step 2: Write the failing API tests** in `projects.int.test.ts`, `describe('projects.list paging')`
+- [x] **Step 2: Write the failing API tests** in `projects.int.test.ts`, `describe('projects.list paging')`
 
 - Create 26 projects in org A, using the existing fixture helpers to insert rows (the HTTP create needs a reachable repo). Without a query, `items.length` is 20, `total` is 26, `page` is 1 and `pageSize` is 20.
 - `?page=2` returns 6 items, oldest created first, and the union of pages 1 and 2 has every id exactly once.
@@ -559,7 +559,7 @@ projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
 - Org B has 30 projects, and org A still sees `total: 26` with none of B's ids. An org with 0 projects gets `total: 0, items: []`. This also covers TC-20.3, TC-37.1 and TC-37.3 (Agent call).
 - Each response parses with the route's schema (`helpers/contract.ts`).
 
-- [ ] **Step 3: Write the failing web route tests**
+- [x] **Step 3: Write the failing web route tests**
 
 - `projects.route.test.tsx`:
   - 26 projects → 20 rows and "Showing 1–20 of 26". Clicking "Page 2" → 6 rows and `?page=2` in the location.
@@ -569,12 +569,12 @@ projectsQueries.all(org: string)                  // list(org, WHOLE_SET)
   - While page 2's response is held, page 1's rows stay with the table `aria-busy="true"`.
 - `switcher.route.test.tsx`: with 26 projects, opening the project menu lists all 26 (a single request with `pageSize=100`). With 101 projects it lists 100.
 
-- [ ] **Step 4: Run them and see them fail**
+- [x] **Step 4: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- pagination projects.route switcher.route && pnpm --filter @agentdesk/api test -- projects`
 Expected: FAIL.
 
-- [ ] **Step 5: Implement**
+- [x] **Step 5: Implement**
 
 - Contracts: `projects.list` gets `query: PageQuery` and `response: pageOf(ProjectDto)`.
 - API: the controller takes `@Query(new ZodPipe(routes.projects.list.query))`. `ProjectsService.list(org, q)` runs, in one `withOrg`, a `count(*)` over `projects` and then the page `orderBy(asc(projects.createdAt), asc(projects.id)).limit(limit).offset(offset)`. `countsFor` runs over the page's ids only. The result goes through `toPage`.
@@ -591,7 +591,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- projects && pnpm --filter @agentdesk/web test -- pagination projects switcher contract && pnpm typecheck && pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/top-bar-sticky.spec.ts e2e/mock/external-links.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 devbox run fix
