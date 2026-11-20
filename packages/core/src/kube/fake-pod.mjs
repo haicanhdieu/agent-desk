@@ -18,7 +18,8 @@
 //   - FAKE_VOLUME_DIR is the run's volume (the gateway sets it from the Job's claim): a fresh start saves a
 //     `session-started` marker there and mirrors the pane to `pane`; RUN_MODE=resume with no marker logs
 //     `agentdesk: resume failed (no saved session)` and exits 79, otherwise logs `agentdesk: session resumed`, replays
-//     the saved pane and waits for input (no checkout, plugins, setup or first turn), like the real runner;
+//     the saved pane, then writes RESUME_NOTE (when set) plus `\r\n` to the pane as the continued session's first message
+//     (never executed), and waits for input (no checkout, plugins, setup or first turn), like the real runner;
 //   - on `stop` (the worker's `agentdesk-end`): log the scrollback, then the runner's end line
 //     `agentdesk: session ended reason=stop_request code=0`, write `exit` 0 and exit;
 //   - on `kill` (the old `tmux kill-session` fallback): log the scrollback (begin marker, pane lines, end marker), write
@@ -212,6 +213,9 @@ if (prompt.includes('--fake-pending')) {
     afterSessionStarted(false);
     // Replay the saved conversation into this pod's pane (not mirrored again: the volume already holds it).
     if (existsSync(volumeFile('pane'))) writeFileSync(file('pane'), readFileSync(volumeFile('pane')));
+    // RESUME_NOTE is the continued session's first message (the runner passes it to `claude --continue`): pane text only.
+    const resumeNote = process.env.RESUME_NOTE ?? '';
+    if (resumeNote !== '') appendFileSync(file('pane'), `${resumeNote}\r\n`);
   } else {
     logIdentity();
     log(`agentdesk: checkout ${'0'.repeat(40)}`);

@@ -196,6 +196,14 @@ describe('buildRunJob', () => {
     expect(env).toContainEqual({ name: 'HOME', value: '/workspace/home' });
   });
 
+  it('adds RESUME_NOTE on a resume only, as a plain env value', () => {
+    const note = 'x "y" $(z)';
+    const envOf = (o: Partial<RunJobInput>) => buildRunJob(input(o)).spec?.template.spec?.containers[0]?.env ?? [];
+    expect(envOf({ resume: true, resumeNote: note })).toContainEqual({ name: 'RESUME_NOTE', value: note });
+    expect(envOf({ resume: true }).map((e) => e.name)).not.toContain('RESUME_NOTE');
+    expect(envOf({ resume: false, resumeNote: note }).map((e) => e.name)).not.toContain('RESUME_NOTE');
+  });
+
   it('passes the run author and authorizer as env values on a fresh run and on a resume', () => {
     for (const resume of [false, true]) {
       const env = buildRunJob(input({ resume })).spec?.template.spec?.containers[0]?.env ?? [];

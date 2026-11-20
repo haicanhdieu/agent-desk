@@ -276,6 +276,39 @@ describe('fake-pod.mjs', () => {
       await expect(boot({ RUN_MODE: 'resume' })).rejects.toMatchObject({ code: 79 });
     });
 
+    describe('RESUME_NOTE', () => {
+      const saveSession = async (): Promise<string> => {
+        await boot({ PROMPT: 'first question', FAKE_VOLUME_DIR: volume });
+        advance(TURN_MS);
+        const saved = readVolume('pane');
+        writeFileSync(join(dir, 'kill'), '');
+        expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
+        rmSync(dir, { recursive: true, force: true });
+        mkdirSync(dir);
+        vi.clearAllTimers();
+        return saved;
+      };
+
+      it('a resume with a note ends the pane with the note after the replayed content', async () => {
+        const saved = await saveSession();
+        await boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume, RESUME_NOTE: 'Agent Desk: note 1' });
+        expect(read('pane')).toBe(`${saved}Agent Desk: note 1\r\n`);
+      });
+
+      it('a resume without a note leaves the pane equal to the saved pane', async () => {
+        const saved = await saveSession();
+        await boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume });
+        expect(read('pane')).toBe(saved);
+      });
+
+      it('a resume with no saved session writes no note', async () => {
+        await expect(
+          boot({ RUN_MODE: 'resume', FAKE_VOLUME_DIR: volume, RESUME_NOTE: 'Agent Desk: note 1' }),
+        ).rejects.toMatchObject({ code: 79 });
+        expect(read('pane')).toBe('');
+      });
+    });
+
     it('resumes the saved conversation: no checkout, no turn, typed input starts one', async () => {
       await boot({ PROMPT: 'first question', FAKE_VOLUME_DIR: volume });
       advance(TURN_MS);

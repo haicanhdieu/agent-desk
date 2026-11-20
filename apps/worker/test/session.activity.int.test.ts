@@ -399,3 +399,69 @@ describe('restoreParked', () => {
     expect(events.some((e) => e.payload.kind === 'resume_failed')).toBe(true);
   });
 });
+
+describe('recordAutoResume', () => {
+  const end = { kind: 'killed', exitCode: 137, podReason: 'OOMKilled' } as const;
+
+  it('appends one auto_resume lifecycle event with the fixed text', async () => {
+    const p = await seedProject();
+    const runId = await seedRun(p, 'running');
+    await acts().recordAutoResume(await ctxFor(runId), { event: 'resume', try: 1, max: 5, end, at: atPlus(7) });
+    const { events } = await load(runId);
+    const evs = events.filter((e) => e.type === 'lifecycle');
+    expect(evs).toHaveLength(1);
+    expect(evs[0]?.payload).toEqual({
+      kind: 'auto_resume',
+      try: 1,
+      max: 5,
+      text: 'The last session was killed (OOMKilled, exit 137, limit 2Gi). Resuming automatically, try 1 of 5.',
+    });
+    expect(evs[0]?.ts.toISOString()).toBe(atPlus(7));
+  });
+
+  it('appends one auto_resume_gave_up lifecycle event', async () => {
+    const p = await seedProject();
+    const runId = await seedRun(p, 'running');
+    await acts().recordAutoResume(await ctxFor(runId), { event: 'gave_up', tries: 5, at: atPlus(8) });
+    const { events } = await load(runId);
+    const evs = events.filter((e) => e.type === 'lifecycle');
+    expect(evs).toHaveLength(1);
+    expect(evs[0]?.payload).toEqual({
+      kind: 'auto_resume_gave_up',
+      tries: 5,
+      text: 'Gave up resuming automatically after 5 tries.',
+    });
+  });
+
+  it.each([
+    ['max above 10', { event: 'resume', try: 1, max: 11, end, at: AT }],
+    ['try 0', { event: 'resume', try: 0, max: 5, end, at: AT }],
+    ['try above max', { event: 'resume', try: 6, max: 5, end, at: AT }],
+    ['tries 0', { event: 'gave_up', tries: 0, at: AT }],
+    ['a bad timestamp', { event: 'gave_up', tries: 1, at: 'nope' }],
+  ] as const)('rejects %s without appending', async (_name, input) => {
+    const p = await seedProject();
+    const runId = await seedRun(p, 'running');
+    const err = await acts()
+      .recordAutoResume(await ctxFor(runId), input)
+      .catch((e: unknown) => e);
+    expect(err).toMatchObject({ nonRetryable: true });
+    expect((await load(runId)).events).toEqual([]);
+  });
+
+  it('rejects a missing run and another org context with run not found', async () => {
+    const p = await seedProject();
+    const runId = await seedRun(p, 'running');
+    const ctx = await ctxFor(runId);
+    const input = { event: 'gave_up', tries: 1, at: AT } as const;
+    const missing = await acts()
+      .recordAutoResume({ ...ctx, runId: '99999999-9999-4999-8999-999999999999' }, input)
+      .catch((e: unknown) => e);
+    expect(missing).toMatchObject({ message: expect.stringContaining('run not found') });
+    const other = await acts()
+      .recordAutoResume({ ...ctx, orgId: '77777777-7777-4777-8777-777777777777' }, input)
+      .catch((e: unknown) => e);
+    expect(other).toMatchObject({ message: expect.stringContaining('run not found') });
+    expect((await load(runId)).events).toEqual([]);
+  });
+});

@@ -327,7 +327,7 @@ recordAutoResume(ctx: RunContext, input: RecordAutoResumeInput): Promise<void>;
 
 - Produces (test harness): `run-workflow-harness.ts` `activities()` implements `recordAutoResume`. It pushes `'recordAutoResume'` to `s.calls` and the input to a new `Script.autoResumes: RecordAutoResumeInput[]`. `Script.createOpts` already records every `createRunSecretAndJob` option, so `note` is visible there.
 
-- [ ] **Step 1: Write the failing core tests** in `resume-note.test.ts`, with memory limit `'3Gi'`:
+- [x] **Step 1: Write the failing core tests** in `resume-note.test.ts`, with memory limit `'3Gi'`:
 
 ```ts
 expect(resumeBracket({ kind: 'killed', exitCode: 137, podReason: 'OOMKilled' }, '3Gi')).toBe('OOMKilled, exit 137, limit 3Gi');
@@ -353,10 +353,10 @@ expect(autoResumeGaveUpText(1)).toBe('Gave up resuming automatically after 1 try
 
   - `usablePodReason drops anything outside ^[A-Za-z]{1,40}$` (Review Focus 2): `'OOMKilled'` and `'A'.repeat(40)` are kept. `'OOM Killed'`, `'OOMKilled;rm'`, `'A'.repeat(41)`, `''`, `null`, `undefined` and `'ÖOMKilled'` all give undefined.
   - In `job-spec.test.ts`: a resume with `resumeNote: 'x "y" $(z)'` has env `{ name: 'RESUME_NOTE', value: 'x "y" $(z)' }`. A resume without a note has no `RESUME_NOTE`. A fresh start given `resumeNote` has no `RESUME_NOTE`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test resume-note job-spec`. Expected: FAIL.
-- [ ] **Step 3: Implement** `resume-note.ts`, export it from `kube/index.ts`, and add `resumeNote` to `buildRunJob`. It is appended to the resume env list only when `input.resume && input.resumeNote`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Write the failing activity tests.**
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test resume-note job-spec`. Expected: FAIL.
+- [x] **Step 3: Implement** `resume-note.ts`, export it from `kube/index.ts`, and add `resumeNote` to `buildRunJob`. It is appended to the resume env list only when `input.resume && input.resumeNote`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Write the failing activity tests.**
   - In `session.activity.int.test.ts`, `describe('recordAutoResume')`:
     - `{ event: 'resume', try: 1, max: 5, end: { kind: 'killed', exitCode: 137, podReason: 'OOMKilled' }, at }` appends one `lifecycle` event with payload exactly `{ kind: 'auto_resume', try: 1, max: 5, text: 'The last session was killed (OOMKilled, exit 137, limit 2Gi). Resuming automatically, try 1 of 5.' }` (test config memory limit) and `ts` = `at`.
     - `{ event: 'gave_up', tries: 5, at }` appends `{ kind: 'auto_resume_gave_up', tries: 5, text: 'Gave up resuming automatically after 5 tries.' }`.
@@ -368,13 +368,13 @@ expect(autoResumeGaveUpText(1)).toBe('Gave up resuming automatically after 1 try
     - A resume without `note` has no `RESUME_NOTE`.
     - A fresh start with `note` has no `RESUME_NOTE`.
   - In `followPodLogs` (`session end marker and a vanished pod`): a pod whose process is killed from outside (the fake gateway reports exit 137, reason `Killed`) returns `podReason: 'Killed'`. A pod that exits 0 has no `podReason`.
-- [ ] **Step 6: Implement.**
+- [x] **Step 6: Implement.**
   - `recordAutoResume` goes in `session.activity.ts` (`withOrg` + `appendRunEvent`, like `recordEndingDeadline`), with `SessionActivityDeps.config` widened to `RUN_POD_MEMORY_LIMIT`. It is listed in `SessionActivityImpls` and wrapped as `recordAutoResume: guarded('record auto resume', session.recordAutoResume)`.
   - `createRunSecretAndJob` passes `resumeNote: resume && opts.note ? resumeNoteText(opts.note, deps.config.RUN_POD_MEMORY_LIMIT) : undefined`.
   - `waitForExit` keeps the `reason` of its last `getRunPod` read beside the code (and beside `gone`). Both `done` results set `podReason` when `usablePodReason(reason)` is defined.
   - Add the `recordAutoResume` stub to `run-workflow-harness.ts`.
-- [ ] **Step 7: Run** `pnpm --filter @agentdesk/worker test:integration session.activity run.activities.int` and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 8: Commit** (one commit per package): `feat(core): resume note text and RESUME_NOTE on the resume Job`, then `feat(worker): recordAutoResume, the pod kill reason, and the note on the resume Job`.
+- [x] **Step 7: Run** `pnpm --filter @agentdesk/worker test:integration session.activity run.activities.int` and `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 8: Commit** (one commit per package): `feat(core): resume note text and RESUME_NOTE on the resume Job`, then `feat(worker): recordAutoResume, the pod kill reason, and the note on the resume Job`.
 
 ---
 
@@ -396,18 +396,18 @@ expect(autoResumeGaveUpText(1)).toBe('Gave up resuming automatically after 1 try
 - Produces: `AGENT_RESUME_CMD='exec claude --permission-mode bypassPermissions ${AGENT_MODEL:+--model "$AGENT_MODEL"} --continue ${RESUME_NOTE:+"$RESUME_NOTE"}'`. On `RUN_MODE=resume` with a non-empty `RESUME_NOTE`, the fake pod writes the note plus `\r\n` to the pane right after it replays the saved pane, so it is the continued session's first message.
 
 - [ ] **Step 1: Spike (spec §5, left to the builder).** On the pinned Claude Code (`CLAUDE_CODE_VERSION=2.1.323` in `images/runner/Dockerfile`), check by hand that an interactive `claude --continue "<text>"` continues the saved conversation and sends the text as the next message. Write what you ran and saw in the PR. If it does not behave so, stop and bring it back for review. If no credential can be used where you work, say so in the PR and leave the PR as draft until a human runs the spike.
-- [ ] **Step 2: Write the failing runner tests** in `entrypoint.test.ts`:
+- [x] **Step 2: Write the failing runner tests** in `entrypoint.test.ts`:
   - The `RESUME_CMD` constant becomes the new command string.
   - `resume with RESUME_NOTE passes it as one argv element after --continue`. Use `RESUME_NOTE: 'Agent Desk: killed (OOMKilled, exit 137). "q" $(touch /tmp/pwn) `back` ; rm -rf /'`, then `argvOf(...)` ends with `['--continue', <that exact string>]` and no `/tmp/pwn` file exists.
   - `resume without RESUME_NOTE ends with --continue` (the existing `--model` case keeps passing).
   - `a fresh start ignores RESUME_NOTE`: argv ends with the prompt only.
   - The header comment of `entrypoint.sh` names `RESUME_NOTE` (a text check, like the other env names).
-- [ ] **Step 3: Run** `pnpm --filter @agentdesk/runner test entrypoint`. Expected: FAIL.
-- [ ] **Step 4: Change** `AGENT_RESUME_CMD`. Add `RESUME_NOTE (optional, resume only: one message sent as the continued session's first prompt)` to the header comment.
-- [ ] **Step 5: Write the failing fake pod tests** in `fake-pod.test.ts`. A resume with `RESUME_NOTE: 'Agent Desk: note 1'` and a saved session has a pane that ends with `Agent Desk: note 1\r\n` after the replayed content. A resume without it has a pane equal to the saved pane. A resume with no saved session (exit 79) writes no note.
-- [ ] **Step 6: Implement** the fake pod line (the note is untrusted-looking env: only written to the pane file, never executed), and update the fake pod's header comment.
-- [ ] **Step 7: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test fake-pod`. Expected: PASS.
-- [ ] **Step 8: Commit:** `feat(runner): pass RESUME_NOTE to claude --continue`, then `test(core): fake pod shows the resume note`.
+- [x] **Step 3: Run** `pnpm --filter @agentdesk/runner test entrypoint`. Expected: FAIL.
+- [x] **Step 4: Change** `AGENT_RESUME_CMD`. Add `RESUME_NOTE (optional, resume only: one message sent as the continued session's first prompt)` to the header comment.
+- [x] **Step 5: Write the failing fake pod tests** in `fake-pod.test.ts`. A resume with `RESUME_NOTE: 'Agent Desk: note 1'` and a saved session has a pane that ends with `Agent Desk: note 1\r\n` after the replayed content. A resume without it has a pane equal to the saved pane. A resume with no saved session (exit 79) writes no note.
+- [x] **Step 6: Implement** the fake pod line (the note is untrusted-looking env: only written to the pane file, never executed), and update the fake pod's header comment.
+- [x] **Step 7: Run** `pnpm --filter @agentdesk/runner test && pnpm --filter @agentdesk/core test fake-pod`. Expected: PASS.
+- [x] **Step 8: Commit:** `feat(runner): pass RESUME_NOTE to claude --continue`, then `test(core): fake pod shows the resume note`.
 
 ---
 

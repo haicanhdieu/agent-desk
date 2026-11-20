@@ -52,7 +52,7 @@ const ctx: RunContext = {
 };
 const acts = createSessionActivities({
   db: {} as Db,
-  config: { RUN_KEPT_DONE_SESSIONS_PER_PROJECT: 10 },
+  config: { RUN_KEPT_DONE_SESSIONS_PER_PROJECT: 10, RUN_POD_MEMORY_LIMIT: '2Gi' },
   signaller: { signalRun: () => Promise.resolve() },
   redactionValues: () => Promise.resolve([]),
 });
