@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button, CommandChip, IconButton, LabelChip, SegmentedControl } from '@/ds';
-import { CodeEditor, CommitBar, ConfirmDeleteDialog, EmptyState, SkillList } from '@/components';
+import { AppShell, CodeEditor, CommitBar, ConfirmDeleteDialog, EmptyState, SkillList } from '@/components';
 import type { Skill } from '@/mocks/types';
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
@@ -10,6 +10,8 @@ type View = 'edit' | 'preview' | 'diff';
 export interface DeskSkillsProps {
   /** Top bar and Desk navigation data. */
   frame: DeskFrameData;
+  /** `'viewport'` fits the page to the window (the app route): the page does not scroll, each of the three columns does. */
+  height?: 'viewport';
   skills: Skill[];
   activeName?: string;
   dirty?: boolean;
@@ -120,6 +122,7 @@ function SkillEditor({
 
 export function DeskSkills({
   frame,
+  height,
   skills,
   activeName,
   dirty = false,
@@ -139,7 +142,7 @@ export function DeskSkills({
 }: DeskSkillsProps) {
   const active = skills.find((s) => s.name === activeName) ?? skills[0];
   const doomed = deleting ? skills.find((s) => s.name === deleting) : undefined;
-  return (
+  const page = (
     <>
       <DeskFrame active="skills" {...frame}>
         <div className={styles.deskRow}>
@@ -215,5 +218,12 @@ export function DeskSkills({
         />
       )}
     </>
+  );
+  return height === 'viewport' ? (
+    <AppShell height="viewport" topBar={null}>
+      {page}
+    </AppShell>
+  ) : (
+    page
   );
 }

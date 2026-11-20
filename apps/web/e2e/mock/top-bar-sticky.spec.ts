@@ -1,13 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
 import { INVOICER_API, ORG } from './mock';
 
-// The run detail and Routing rules pages are not here: they fill the viewport and scroll inside (run-detail-layout.spec.ts,
-// rules-layout.spec.ts).
+// The run detail, Routing rules and Skills pages are not here: they fill the viewport and scroll inside
+// (run-detail-layout.spec.ts, rules-layout.spec.ts, skills-layout.spec.ts).
 const pages: { name: string; path: string }[] = [
   { name: 'Projects', path: `/o/${ORG}/projects` },
   { name: 'Runs', path: `/o/${ORG}/p/${INVOICER_API}/runs` },
   { name: 'Needs you', path: `/o/${ORG}/p/${INVOICER_API}/needs-you` },
-  { name: 'Desk skills', path: `/o/${ORG}/p/${INVOICER_API}/desk/skills` },
 ];
 
 // Short enough that every page needs scrolling; the phone width covers the narrow layouts.

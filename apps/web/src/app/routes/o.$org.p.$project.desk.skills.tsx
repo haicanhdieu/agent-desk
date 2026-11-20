@@ -104,6 +104,7 @@ function DeskSkillsPage() {
 
   return (
     <DeskSkills
+      height="viewport"
       frame={frame}
       skills={skills}
       activeName={activeName}
