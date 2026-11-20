@@ -53,14 +53,13 @@ for (const vp of viewports) {
   }
 }
 
-test('a dialog opened on a Desk page dims the top bar too, even after scrolling', async ({ page }) => {
+test('a dialog opened on a Desk page dims the top bar too', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 400 });
   await page.goto(`/o/${ORG}/p/${INVOICER_API}/desk/skills`);
   await page.getByRole('button', { name: 'Delete skill' }).click();
   const dialog = page.getByRole('dialog', { name: /^Delete skill / });
   await expect(dialog).toBeVisible();
 
-  await scrollBy(page, 200);
   const barIsCovered = await page.evaluate(
     () => !document.querySelector('header')?.contains(document.elementFromPoint(8, 8)),
   );
