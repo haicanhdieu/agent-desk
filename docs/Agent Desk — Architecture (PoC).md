@@ -155,6 +155,8 @@ Use the skill "{skill_name}" on {ticket_kind} #{ticket_number} in {repo}.
 Read the ticket and all its comments with the gh CLI before you start.
 Arguments from the user: {args}
 When done, report on the ticket as the skill instructs.
+RULE: RAM is capped (/sys/fs/cgroup/memory.max); exceeding it kills the pod. You MUST check memory before heavy tasks and order parallel work to fit, and MUST kill unused processes and shells and delete temp files.
+Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.
 ```
 
 Because skills sit in `.claude/skills/` of the cloned repo, Claude Code discovers them without extra configuration. CLI flag names should be checked against the installed CLI version during M1. An interactive session has no turn limit, so the hard timeout and the idle timeout bound a run, and MAX\_TURNS in the Job spec is unused in the PoC.

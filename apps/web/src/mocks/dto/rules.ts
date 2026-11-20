@@ -52,6 +52,7 @@ export const promptPreviewFixture = (repoPath: string): PromptPreviewDto => ({
     `Ticket: <issue or PR #number> in ${repoPath}. Read it and all its comments with the gh CLI before you start.`,
     'Arguments from the user: <text after /command>',
     'When done, report on the ticket.',
+    'RULE: RAM is capped (/sys/fs/cgroup/memory.max); exceeding it kills the pod. You MUST check memory before heavy tasks and order parallel work to fit, and MUST kill unused processes and shells and delete temp files.',
     'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
   ],
 });

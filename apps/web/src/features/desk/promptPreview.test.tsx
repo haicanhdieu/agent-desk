@@ -31,7 +31,7 @@ describe('usePromptPreview', () => {
     await waitFor(() => expect(failing.result.current.state).toBe('ready'));
     const ready = failing.result.current;
     if (ready.state !== 'ready') throw new Error('expected ready');
-    expect(ready.systemLines).toHaveLength(4);
+    expect(ready.systemLines).toHaveLength(5);
     expect(ready.systemLines[0]).toContain('harbor-labs/invoicer-api');
   });
 
