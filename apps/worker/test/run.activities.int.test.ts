@@ -893,8 +893,8 @@ describe('activity errors are redacted', () => {
 const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
 // The pod also logs the launch line, `git identity <name> <email>` and the first transcript line (the prompt): plain text lines, so they count as log lines but store no event.
 const PRELUDE_TEXT_LINES = 3;
-// The fake pod's first turn logs `state working` then `state needs_input`; the first turn's end is the first replayable boundary.
-const FIRST_TURN_LINE = PRELUDE_KINDS.length + PRELUDE_TEXT_LINES + 2;
+// The fake pod's first turn logs `state working`, the reply's transcript line, then `state needs_input`; the `needs_input` line is the first turn's end and the first replayable boundary. (The line before it is only the reply's transcript line: the run is still `running` there.)
+const FIRST_TURN_LINE = PRELUDE_KINDS.length + PRELUDE_TEXT_LINES + 3;
 
 describe('followPodLogs', () => {
   it('redacts the current and an earlier workspace token after a refresh (pattern covers the old one)', async () => {
@@ -987,10 +987,11 @@ describe('followPodLogs', () => {
     // Another turn (the user typed in the terminal).
     const attach = await kube.exec(`run-${runId}`, ['tmux', 'attach', '-t', 'agent'], { tty: true });
     attach.write(new TextEncoder().encode('again\r'));
+    // The prelude, then two agent_state rows per turn.
     await until(
       async () =>
-        (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >=
-          FIRST_TURN_LINE - PRELUDE_TEXT_LINES + 2 && second.beats.length,
+        (await load(runId)).events.filter((e) => e.type === 'lifecycle').length >= PRELUDE_KINDS.length + 4 &&
+        second.beats.length,
     );
     attach.close();
     await acts.endSession(ctx);
