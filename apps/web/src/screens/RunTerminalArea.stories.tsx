@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { runDetails, terminalByRun } from '@/mocks';
+import { runDetails, terminalByRun, transcriptFixtures, transcriptStateFixtures } from '@/mocks';
 import { RunTerminalArea } from './RunTerminalArea';
 
 const meta = {
@@ -139,5 +139,78 @@ export const ResumeFailedNothingKept: Story = {
       session: { state: 'none', resumeFailure: 'Resume failed: nothing was kept to resume from' },
     },
     lines: terminalByRun[60],
+  },
+};
+
+const { RunStopped, RunFailed, RunCancelled } = runDetails;
+const ready = (items: (typeof transcriptFixtures)['default']) => ({ state: 'ready' as const, items });
+
+/** The session is ending: the Transcript is loading under Session ending…. */
+export const TranscriptPausing: Story = {
+  args: {
+    data: { ...RunIdle, pausing: true, connection: { state: 'none', label: 'Ending…' } },
+    transcript: { state: 'loading', items: [] },
+  },
+};
+/** Paused by the idle timer, with the saved Transcript. */
+export const TranscriptPausedIdleTimeout: Story = {
+  args: {
+    data: { ...RunPaused, connection: { state: 'ended', label: 'Paused, read-only' } },
+    transcript: ready(transcriptStateFixtures.pausedIdleTimer),
+    onResume: () => {},
+    onFinish: () => {},
+  },
+};
+/** A person stopped the session: the Stopped notice, Resume and Finish, and the saved Transcript. */
+export const TranscriptStopped: Story = {
+  args: {
+    data: RunStopped,
+    transcript: { ...ready(transcriptFixtures.default), hasEarlier: true },
+    onResume: () => {},
+    onFinish: () => {},
+  },
+};
+export const TranscriptFailed: Story = {
+  args: {
+    data: { ...RunFailed, connection: { state: 'ended', label: 'Ended, read-only' } },
+    transcript: ready(transcriptStateFixtures.failed),
+  },
+};
+/** The Transcript replaces the cancelled run's "No scrollback was saved" placeholder. */
+export const TranscriptCancelled: Story = {
+  args: {
+    data: { ...RunCancelled, connection: { state: 'ended', label: 'Ended, read-only' } },
+    transcript: ready(transcriptStateFixtures.cancelled),
+  },
+};
+export const TranscriptExpired: Story = {
+  args: {
+    data: { ...RunExpired, connection: { state: 'ended', label: 'Ended, read-only' } },
+    transcript: ready(transcriptStateFixtures.expired),
+  },
+};
+/** Error: the Transcript could not be loaded; Retry loads it again and starts no pod. */
+export const TranscriptError: Story = {
+  args: {
+    data: RunPaused,
+    transcript: { state: 'error', items: [], requestId: '01JDK8Q3V2' },
+    onResume: () => {},
+    onFinish: () => {},
+  },
+};
+/** Empty: no conversation was saved for this run. */
+export const TranscriptEmpty: Story = {
+  args: {
+    data: { ...RunFailed, connection: { state: 'ended', label: 'Ended' } },
+    transcript: ready([]),
+  },
+};
+/** No entries (an older run or image): the saved terminal text, as before. */
+export const ScrollbackFallback: Story = {
+  args: {
+    data: { ...RunPaused, connection: { state: 'ended', label: 'Paused, read-only, 412 lines' } },
+    lines: terminalByRun[62],
+    onResume: () => {},
+    onFinish: () => {},
   },
 };

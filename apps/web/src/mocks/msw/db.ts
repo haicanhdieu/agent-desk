@@ -9,6 +9,7 @@ import type {
   RuleDto,
   RunDto,
   RunEventDto,
+  RunTranscriptEntryDto,
   SetupScriptDto,
   SetupTestDto,
   SkillDto,
@@ -80,6 +81,8 @@ export interface MockState {
   rules: RuleDto[];
   runs: RunDto[];
   runEvents: Record<string, RunEventDto[]>;
+  /** Saved transcript entries per run id, oldest first. */
+  runTranscripts: Record<string, RunTranscriptEntryDto[]>;
   /** Saved setup script versions per project, oldest first. */
   setupScripts: Record<string, SetupScriptDto[]>;
   /** Setup tests (oldest first); like the DTO they never carry the script text. */
@@ -154,6 +157,7 @@ export function seedState(): MockState {
     rules: ruleFixtures,
     runs: runFixtures,
     runEvents: runEventFixtures,
+    runTranscripts: {},
     setupScripts: setupScriptFixtures,
     setupTests: [],
     setupTestEvents: {},
@@ -189,6 +193,10 @@ export const mockDb = {
   addRuns(runs: RunDto[], events: Record<string, RunEventDto[]>): void {
     state.runs.push(...structuredClone(runs));
     Object.assign(state.runEvents, structuredClone(events));
+  },
+  /** Adds saved transcripts by run id, for the browser mock's extra fixtures. A reset drops them. */
+  addTranscripts(byRunId: Record<string, RunTranscriptEntryDto[]>): void {
+    Object.assign(state.runTranscripts, structuredClone(byRunId));
   },
   /** Runs `hook` on every reset (live.ts stops scripted runs and drops stream listeners). */
   onReset(hook: () => void): void {

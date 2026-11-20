@@ -13,6 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
+import { transcriptStep } from './transcript.mjs';
 
 // Twice the stored cap (AGENT_NOTE_MAX in contracts): the worker redacts the full text, then cuts to 500.
 // 1000 chars is at most 4000 UTF-8 bytes = 5336 base64 chars, within the parser's 5400 limit.
@@ -133,3 +134,9 @@ switch (input.hook_event_name) {
 // PreToolUse fires on every tool call: leave the disk alone when nothing changed.
 const next = snapshot();
 if (next !== initial) writeState(next);
+// Also send the conversation entries written since the last hook. A failure here never changes the status above.
+try {
+  transcriptStep(input);
+} catch {
+  // transcriptStep does not throw; this guards the hook's exit code all the same.
+}

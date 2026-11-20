@@ -170,7 +170,7 @@ unchanged.
 #### 1.3 Contracts, DB and API
 
 - `PauseReason` (`packages/contracts/src/enums.ts`) gains `'stopped'`.
-- Migration `0017_run_pause_reason_stopped.sql`: drop and re-add `runs_pause_reason_check` with `'stopped'` added.
+- Migration `0018_run_pause_reason_stopped.sql`: drop and re-add `runs_pause_reason_check` with `'stopped'` added.
   Add a new migration; never edit 0013 or 0014.
 - Route `runs.stop`: `POST /api/runs/:runId/stop`, `params: runParams`, `response: empty`.
 - `RunsService.stop` follows `finish`:
@@ -290,7 +290,7 @@ lost. With a hook on every tool call this is at most the step in progress.
 ### 5. Database
 
 New table `run_transcript_entries` (Drizzle schema in `packages/db/src/schema/app.ts`, migration
-`0018_run_transcript_entries.sql`):
+`0019_run_transcript_entries.sql`):
 
 | Column | Type | Notes |
 | --- | --- | --- |
@@ -524,7 +524,7 @@ Every behaviour starts with a failing test. No network.
 | # | PR | `review:sensitive` |
 | --- | --- | --- |
 | 1 | `feat(contracts)`: `PauseReason` `stopped`, `STOPPABLE_RUN_STATUSES`, `runs.stop`, transcript wire and DTO schemas, `runs.transcript` | no |
-| 2 | `feat(db)`: migrations 0017 (pause reason) and 0018 (`run_transcript_entries` with RLS) | yes (migration, RLS) |
+| 2 | `feat(db)`: migrations 0018 (pause reason) and 0019 (`run_transcript_entries` with RLS) | yes (migration, RLS) |
 | 3 | `feat(worker)`: `stopSession` update, park with reason `stopped`, patch `stop-session`, replay fixture | yes (run Job) |
 | 4 | `feat(api)`: `POST /runs/:id/stop` | yes (run lifecycle authz) |
 | 5 | `feat(runner)`: Claude `transcript.mjs`, hook call, entrypoint flushes, fixtures | yes (runner) |

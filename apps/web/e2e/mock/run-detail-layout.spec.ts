@@ -15,7 +15,8 @@ for (const vp of viewports) {
     await page.goto(`/o/${ORG}/p/${INVOICER_API}/runs/${PAUSED_RUN}`);
 
     const header = page.getByRole('banner');
-    const terminal = page.getByRole('region', { name: 'Terminal' });
+    // A paused run with nothing saved shows the Transcript area (BR-49), so the pane is named Transcript.
+    const terminal = page.getByRole('region', { name: /^(Terminal|Transcript)$/ });
     const side = page.getByRole('complementary', { name: 'Run context' });
     await expect(header).toBeVisible();
     await expect(terminal).toBeVisible();

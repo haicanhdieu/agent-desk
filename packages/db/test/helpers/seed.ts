@@ -60,6 +60,11 @@ export async function seedOrg(
       runId,
     ]);
     await client.query(
+      `insert into run_transcript_entries (org_id, run_id, seq, source_id, at, kind, text)
+       values ($1, $2, 1, 'seed-1', now(), 'agent', 'hello')`,
+      [orgId, runId],
+    );
+    await client.query(
       `insert into inbound_events (org_id, project_id, provider, channel, delivery_id, outcome)
        values ($1, $2, 'fake', 'webhook', $3, 'accepted')`,
       [orgId, projectId, `d-${orgId}`],

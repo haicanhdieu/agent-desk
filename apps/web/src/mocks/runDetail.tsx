@@ -42,7 +42,8 @@ const runningChain: RunDetailData['chain'] = [
   },
 ];
 
-export const runDetails: Record<RunDetailKey, RunDetailData> = {
+type BaseKey = Exclude<RunDetailKey, 'RunRunningStop' | 'RunIdleEnding'>;
+const runDetailsBase: Record<BaseKey, RunDetailData> = {
   RunStarting: {
     // The Runs board lists run 63 as queued; the RunStarting board shows it once the slot is claimed.
     run: { ...runsById[63], status: 'starting', statusNote: undefined },
@@ -429,5 +430,85 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
       headline: 'Nobody resumed this run within 7 days. The saved session was deleted.',
     },
     connection: { state: 'ended', label: 'Ended' },
+  },
+
+  // Prototype boards RunStopped and RunSucceededFinished (stopped session resume).
+  RunStopped: {
+    run: { ...runsById[62], status: 'paused', statusNote: 'Stopped by you, can be resumed for 7 days' },
+    elapsed: '4:51',
+    rule: RULE_REVIEW,
+    triggerNote: 'comment by run 60',
+    startedAt: '14:09:07',
+    pausedKeep: '7 days',
+    chain: [
+      {
+        runId: 60,
+        command: '/code-build',
+        ticket: { kind: 'issue', number: 142 },
+        note: 'Succeeded in 6m 12s, opened PR #148',
+        status: 'succeeded',
+        href: '/runs/60',
+      },
+      {
+        runId: 62,
+        command: '/code-review',
+        ticket: { kind: 'pr', number: 148 },
+        note: 'This run',
+        status: 'paused',
+        here: true,
+      },
+    ],
+    session: {
+      state: 'paused',
+      stopped: true,
+      headline: 'Stopped: can be resumed for 7 days.',
+      detail: 'Stopped by you 2 min ago.',
+    },
+    connection: { state: 'ended', label: 'Paused, read-only' },
+  },
+
+  RunSucceededFinished: {
+    run: { ...runsById[62], status: 'succeeded', statusNote: undefined, duration: '9m 03s' },
+    elapsed: '9m 03s',
+    rule: RULE_REVIEW,
+    triggerNote: 'comment by run 60',
+    startedAt: '14:09:07',
+    endedAt: '14:18:10',
+    chain: [
+      {
+        runId: 60,
+        command: '/code-build',
+        ticket: { kind: 'issue', number: 142 },
+        note: 'Succeeded in 6m 12s, opened PR #148',
+        status: 'succeeded',
+        href: '/runs/60',
+      },
+      {
+        runId: 62,
+        command: '/code-review',
+        ticket: { kind: 'pr', number: 148 },
+        note: 'This run',
+        status: 'succeeded',
+        here: true,
+      },
+    ],
+    connection: { state: 'ended', label: 'Ended, read-only' },
+    endNote: {
+      title: 'Succeeded in 9m 03s.',
+      body: 'Finished. The session was deleted and cannot be resumed.',
+      actions: [],
+    },
+  },
+};
+
+// Prototype boards RunRunningStop and RunIdleEnding (Stop session): the running and idle boards with the keep time.
+export const runDetails: Record<RunDetailKey, RunDetailData> = {
+  ...runDetailsBase,
+  RunRunningStop: { ...runDetailsBase.RunRunning, pausedKeep: '7 days' },
+  RunIdleEnding: {
+    ...runDetailsBase.RunIdle,
+    pausedKeep: '7 days',
+    pausing: true,
+    connection: { state: 'none', label: 'Ending…' },
   },
 };

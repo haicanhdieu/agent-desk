@@ -2,6 +2,7 @@ import { setupWorker } from 'msw/browser';
 import { z } from 'zod';
 import { lifecycleEventFixtures, lifecycleRunFixtures } from '../dto/lifecycleRuns';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from './agentModels';
+import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } from '../dto/sessionRuns';
 import { mockDb } from './db';
 import { handlers } from './handlers';
 import { scenarios, setScenarioTarget } from './scenarios';
@@ -74,6 +75,9 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
     loadAgentModels();
     // Runs in the terminal lifecycle states (pausing, crashed, resume failed, resumed), for the mocked e2e specs.
     mockDb.addRuns(lifecycleRunFixtures, lifecycleEventFixtures);
+    // Stopped runs and runs with a saved transcript, for the mocked e2e specs (dto/sessionRuns.ts).
+    mockDb.addRuns(sessionRunFixtures, sessionEventFixtures);
+    mockDb.addTranscripts(sessionTranscriptFixtures);
     // A clean click-through shows a live run: open run 63 and watch it start (stream-handlers.ts).
     scenarios.runScript(DEFAULT_RUN_SCRIPT.runId, DEFAULT_RUN_SCRIPT.steps, { start: 'onStream' });
     worker.events.on('response:mocked', ({ request }) => {

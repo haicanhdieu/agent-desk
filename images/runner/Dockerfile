@@ -43,6 +43,7 @@ COPY bin/agentdesk-end /usr/local/lib/agentdesk/bin/agentdesk-end
 # which a repo's .claude/settings.json cannot override).
 COPY agentdesk-status.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs
 COPY agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/hook.mjs
+COPY agents/claude/transcript.mjs /usr/local/lib/agentdesk/agents/claude/transcript.mjs
 COPY agents/claude/managed-settings.json /etc/claude-code/managed-settings.json
 COPY agents/claude/commands.sh /usr/local/lib/agentdesk/agents/claude/commands.sh
 RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credential-agentdesk \
@@ -52,6 +53,7 @@ RUN chmod 0755 /usr/local/bin/entrypoint.sh /usr/local/lib/agentdesk/git-credent
     /usr/local/lib/agentdesk/bin/agentdesk-end \
  && chmod 0644 /usr/local/lib/agentdesk/select-plugins.mjs /usr/local/lib/agentdesk/agentdesk-status.mjs \
     /usr/local/lib/agentdesk/agents/claude/hook.mjs /usr/local/lib/agentdesk/agents/claude/commands.sh \
+    /usr/local/lib/agentdesk/agents/claude/transcript.mjs \
     /etc/claude-code/managed-settings.json \
  && printf '#!/bin/sh\nexec node /usr/local/lib/agentdesk/agentdesk-status.mjs "$@"\n' > /usr/local/bin/agentdesk-status \
  && chmod 0755 /usr/local/bin/agentdesk-status \

@@ -1,17 +1,30 @@
 import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { ApplicationFailure, WorkflowNotFoundError, WorkflowUpdateFailedError, type Client } from '@temporalio/client';
-import { and, asc, desc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, lt, or, sql, type SQL } from 'drizzle-orm';
 import { z } from 'zod';
-import { agents, inboundEvents, projects, runEvents, runs, withOrg, type Db, type Tx } from '@agentdesk/db';
+import {
+  agents,
+  inboundEvents,
+  projects,
+  runEvents,
+  runTranscriptEntries,
+  runs,
+  withOrg,
+  type Db,
+  type Tx,
+} from '@agentdesk/db';
 import {
   ACTIVE_RUN_STATUSES,
   AGENT_IDLE_END_SECONDS_DEFAULT,
+  AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   FINAL_RUN_STATUSES,
   FINISHABLE_RUN_STATUSES,
   FailureStage,
   RunStatus,
+  STOPPABLE_RUN_STATUSES,
   TicketKind,
+  TranscriptKind,
   TriggerSource,
   PauseReason,
   WaitingOn,
@@ -22,6 +35,8 @@ import {
   type RunListQuery,
   type RunListResponse,
   type RunLogResponse,
+  type RunTranscriptQuery,
+  type RunTranscriptResponse,
 } from '@agentdesk/contracts';
 import { SIGNAL, TASK_QUEUE, UPDATE, WORKFLOW, runWorkflowId } from '@agentdesk/core';
 import type { OrgContext } from '../auth/org-context';
@@ -98,6 +113,7 @@ interface AgentInfo {
   model: string;
   timeoutSeconds: number;
   idleEndSeconds: number;
+  pausedKeepSeconds: number;
 }
 
 @Injectable()
@@ -145,6 +161,7 @@ export class RunsService {
       costUsd: row.costUsd === null ? null : Number(row.costUsd),
       timeoutSeconds: agent?.timeoutSeconds ?? AGENT_TIMEOUT_SECONDS_DEFAULT,
       idleEndSeconds: agent?.idleEndSeconds ?? AGENT_IDLE_END_SECONDS_DEFAULT,
+      pausedKeepSeconds: agent?.pausedKeepSeconds ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
       idleSince: row.idleSince?.toISOString() ?? null,
       waitingOn: row.waitingOn === null ? null : WaitingOn.parse(row.waitingOn),
       agentNote: row.agentNote,
@@ -166,6 +183,7 @@ export class RunsService {
         model: agents.model,
         timeoutSeconds: agents.timeoutSeconds,
         idleEndSeconds: agents.idleEndSeconds,
+        pausedKeepSeconds: agents.pausedKeepSeconds,
       })
       .from(agents)
       .where(inArray(agents.id, ids));
@@ -293,6 +311,38 @@ export class RunsService {
     });
   }
 
+  /** The saved transcript, newest page first by `seq desc` and returned oldest first; `nextBefore` pages further back. */
+  async transcript(org: OrgContext, runId: string, q: RunTranscriptQuery): Promise<RunTranscriptResponse> {
+    return withOrg(this.db, org.orgId, async (tx) => {
+      await this.loadRun(tx, runId);
+      const where =
+        q.before === undefined
+          ? eq(runTranscriptEntries.runId, runId)
+          : and(eq(runTranscriptEntries.runId, runId), lt(runTranscriptEntries.seq, q.before));
+      const rows = await tx
+        .select()
+        .from(runTranscriptEntries)
+        .where(where)
+        .orderBy(desc(runTranscriptEntries.seq))
+        .limit(q.limit + 1);
+      const more = rows.length > q.limit;
+      if (more) rows.pop();
+      const nextBefore = more ? (rows.at(-1)?.seq ?? null) : null;
+      rows.reverse();
+      return {
+        items: rows.map((e) => ({
+          seq: e.seq,
+          at: e.at.toISOString(),
+          kind: TranscriptKind.parse(e.kind),
+          tool: e.tool,
+          text: e.text,
+          truncated: e.truncated,
+        })),
+        nextBefore,
+      };
+    });
+  }
+
   /**
    * Cancel is a signal to the run's workflow; the API never writes runs.status. A queued run whose workflow has not
    * been started yet (outbox not swept) gets signalWithStart, so the workflow itself performs the cancellation.
@@ -312,6 +362,36 @@ export class RunsService {
       return;
     }
     await this.signal(workflowId, SIGNAL.cancel);
+  }
+
+  /**
+   * Stop session is a workflow update too: the workflow's validator decides and its answer is what the caller gets. The
+   * DB status and `sessionEndingAt` are only a cheap pre-check. The run stays live until the workflow parks it.
+   */
+  async stop(org: OrgContext, runId: string): Promise<void> {
+    const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
+    if (run.sessionEndingAt !== null) throw new ConflictException('The session is already ending');
+    if (!(STOPPABLE_RUN_STATUSES as readonly string[]).includes(run.status))
+      throw new ConflictException('Only a live session can be stopped');
+    try {
+      await this.temporal.workflow.getHandle(runWorkflowId(run.id)).executeUpdate(UPDATE.stopSession);
+    } catch (err) {
+      if (err instanceof WorkflowNotFoundError) throw new ConflictException('Run is no longer active');
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'NotStoppable'
+      )
+        throw new ConflictException(err.cause.message);
+      // The server fails an accepted update when the workflow completes before the handler returns.
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'AcceptedUpdateCompletedWorkflow'
+      )
+        throw new ConflictException('Run is no longer active');
+      throw err;
+    }
   }
 
   /**

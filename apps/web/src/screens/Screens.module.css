@@ -523,6 +523,34 @@
   padding: 12px 24px 0;
 }
 
+/* RunTranscriptStates board: the transcript in the other stopped and ended states, side by side */
+.stateGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  flex: 1;
+  min-height: 0;
+  padding: 16px;
+  background: var(--bg);
+}
+.stateCell {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-10);
+  overflow: hidden;
+}
+.stateCaption {
+  padding: 8px 12px;
+  background: var(--panel);
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-12_5);
+  color: var(--muted);
+}
+
 /* The default model id in the rule form help keeps to one line, as on the DeskRules boards. */
 .modelId {
   white-space: nowrap;

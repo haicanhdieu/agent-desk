@@ -22,7 +22,7 @@
 - The stopped run is `status = paused`, `pauseReason = stopped`, park kind `needs_input`, with no ticket comment. `pauseReasonText('stopped')` returns "stopped by you".
 - Adapter flush: the entrypoint runs `timeout 5 node …/transcript.mjs flush`, ignoring errors, right after `agentdesk: session started` and at the start of `end_session` before the scrollback. Both calls are skipped when the agent dir has no `transcript.mjs`.
 - Copy, verbatim: "Stop session"; "Stop the session?"; "The agent is in the middle of a step. Stopping now cuts that step short. Everything up to now is kept, and you can resume for {paused keep time}."; "Keep running"; "The session is already ending" (disabled tooltip); "Stopped" (icon title); "Stopped: can be resumed for {time left}."; "Stopped by you {relative time}."; "Finished. The session was deleted and cannot be resumed."; "Transcript"; "Ending…"; "Paused, read-only"; "Ended, read-only"; "Paused" / "Ended" when nothing is saved; "Transcript of the agent conversation" (`role="log"` label); "You"; "Prompt"; "… (cut)"; "Show earlier messages"; "Loading the transcript"; "Couldn't load the transcript"; "Request ID {id}"; "Retry"; "No conversation was saved for this run."; "Conversation compacted".
-- Migrations: `0017_run_pause_reason_stopped.sql` and `0018_run_transcript_entries.sql`. Never edit 0013, 0014 or any applied migration.
+- Migrations: `0018_run_pause_reason_stopped.sql` and `0019_run_transcript_entries.sql`. Never edit 0013, 0014 or any applied migration.
 - Workflow changes sit behind `patched('stop-session')`. Every existing replay fixture must still replay.
 - **Storybook first (blocker from the spec's "UI and Storybook" section, not an ordering preference):** no task that implements or wires this UI in `apps/web/src/{app,features}` starts before the Storybook task (Task 5) is merged and reviewed. Task 6, the only task that wires this UI, lists Task 5 under **Depends on**.
 - **Build order:** one task at a time, in number order (Task 1 to Task 8). Each task is one branch and one PR, with one commit per part, and starts after the previous task is merged. **Depends on:** lines list only the tasks whose interfaces or files a task really uses, so a few tasks (3, 5) depend on less than the task before them; the build still follows the number order.
@@ -54,12 +54,12 @@ None. No new package, library, service, image, CI action, binary or workspace pa
 - Agent call: the fake pod writes Claude-shaped JSONL on its fake volume and runs the real `images/runner/agents/claude/transcript.mjs` at the hook and flush points. Reason: the local cases about thinking, tool output, the 200-char summary, the 8,000-byte cut and the hard kill test the adapter's mapping, which only the real adapter can show.
 - Agent call: fake-pod controls are `--fake-*` prompt flags plus control files in the pod's state dir, like the existing `stop`/`kill` files (Task 4). Reason: the e2e cases need them and the fake pod already works this way.
 - Agent call: the local e2e helpers move out of `apps/web/e2e/local/run.spec.ts` into `apps/web/e2e/local/helpers.ts` in Task 4 Part B. If that file already exists on main (the agent-model-routing plan makes the same move), Task 4 Part B reuses it and only adds its new helpers. Reason: both local e2e specs (Task 8) need the same helpers, and a spec file should hold only its own tests.
-- Agent call: if `0017`/`0018` are taken on main when Task 1 Part B is built (the agent-model-routing plan also adds a `0017`), use the next free numbers and keep the names. Reason: migration numbers must be unique and applied ones never change.
+- Agent call: the numbers are `0018`/`0019` because main took `0017` for agent model routing (#160) before this feature merged. Reason: migration numbers must be unique and applied ones never change.
 - Agent call: Stop session has no "Stopping…" top-bar note. Its buttons wait on the mutation's pending state, and the page then shows "Session ending…". Reason: a pending note lasts until the run is final, and a stopped run never is.
 - Agent call: the Transcript page size is 200, the route's default (spec "Left to the builder").
 - Agent call: while the session is ending, the area always shows the Transcript, including its empty state. The saved-terminal-text fallback applies only once the run is paused or ended. Reason: the end flush lands with the park, and the page refetches then.
 - Agent call: mocked runs for this feature are seeded into the browser mock only, as `lifecycleRuns.ts` does. Behaviours (slow, failing, fail-once transcript; slow finish and cancel) are keyed by run number. The mock e2e specs install a fixed clock at `SESSION_MOCK_NOW`. Reason: MSW answers inside the service worker, which Playwright routing cannot reach, and relative times need a fixed now.
-- Agent call: the new ADR is `docs/adr/0026-agent-neutral-transcript-protocol.md`, the next free number.
+- Agent call: the new ADR is `docs/adr/0027-agent-neutral-transcript-protocol.md`, the next free number.
 - Agent call: if no real Claude Code 2.1.323 session can be recorded for the adapter fixtures, write them by hand from that version's JSONL format and say so in the PR. Reason: tests run without network or credentials.
 - Agent call: local cases that need short timers (idle timer, ending deadline) run only on a stack started with the env overrides, like the existing pause tests (`E2E_IDLE_END_SECONDS`, and a new `E2E_ENDING_DEADLINE_SECONDS`). Reason: the default timers are 30 and 1.5 minutes.
 - Agent call: TC-14.1 to TC-14.3 and TC-19.2 are not written as e2e specs. The lowest layers that prove them are the Task 2 Part A in-process workflow test (`runtime.unpatched.add('stop-session')`) and the Task 1 Part A / Task 6 Part A unit tests of `pauseReasonText`. Reason: see OPEN in the hand-off. The local stack cannot start a run on the old workflow code, and no screen prints the pause reason of a stopped run.
@@ -134,10 +134,10 @@ graph LR
 - Modify: `apps/web/src/features/runs/detail.map.ts`
 - Modify: `apps/web/src/features/runs/detail.map.test.ts`
 - Modify: `packages/db/src/schema/app.ts`
-- Create: `packages/db/migrations/0017_run_pause_reason_stopped.sql` (generated, then checked)
-- Create: `packages/db/migrations/0018_run_transcript_entries.sql` (generated, plus a hand-written block)
-- Create: `packages/db/migrations/meta/0017_snapshot.json` (generated)
+- Create: `packages/db/migrations/0018_run_pause_reason_stopped.sql` (generated, then checked)
+- Create: `packages/db/migrations/0019_run_transcript_entries.sql` (generated, plus a hand-written block)
 - Create: `packages/db/migrations/meta/0018_snapshot.json` (generated)
+- Create: `packages/db/migrations/meta/0019_snapshot.json` (generated)
 - Modify: `packages/db/migrations/meta/_journal.json` (generated)
 - Modify: `packages/db/test/migrate.int.test.ts`
 - Modify: `packages/db/test/rls.int.test.ts`
@@ -190,7 +190,7 @@ transcript: { method: 'GET', path: '/api/runs/:runId/transcript', params: runPar
 - Produces (core): `UPDATE.stopSession = 'stopSession'`, with doc comment "RunWorkflow: stop a live session (park as paused/stopped); resolves `{ accepted: true }` or fails `NotStoppable`."
 - Produces (web mocks): `MockDb` gains `runTranscripts: Record<string, RunTranscriptEntryDto[]>` (by run id, oldest first, empty in the seed). The `'runs.transcript'` handler pages it exactly as the route does. The `'runs.stop'` handler answers 202 for a run in `STOPPABLE_RUN_STATUSES` with `sessionEndingAt === null`, and otherwise the 409 problem with the pre-check wording (Agent call above).
 
-- [ ] **Step 1: Write the failing contract tests**
+- [x] **Step 1: Write the failing contract tests**
 
 In `transcript.test.ts`:
 - `TranscriptWireEntry` accepts `{ id: 'a1b2:0', kind: 'agent', text: 'hi' }`, and `{ id: 'x', kind: 'tool', tool: 'Bash', text: 'dotnet test', at: '2026-11-19T14:13:00.000Z', truncated: true }`.
@@ -203,21 +203,21 @@ In `runs.test.ts`: the run literal gets `pausedKeepSeconds: 604800`. Add `PauseR
 
 In `routes.test.ts`: the route count goes to `46`. Add `flat['runs.stop']` toMatchObject `{ method: 'POST', path: '/api/runs/:runId/stop' }` and `flat['runs.transcript']` toMatchObject `{ method: 'GET', path: '/api/runs/:runId/transcript' }`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: FAIL. `TranscriptWireEntry` and `STOPPABLE_RUN_STATUSES` are not exported, and the route count is 44.
 
-- [ ] **Step 3: Implement the contracts and the update name**
+- [x] **Step 3: Implement the contracts and the update name**
 
 Add the enums, the new schema file (exported from `index.ts`), `pausedKeepSeconds`, the two routes and `UPDATE.stopSession`. Count text bytes with `new TextEncoder().encode(s).length` in a `refine`. Use one `superRefine` for "tool only with kind tool".
 
-- [ ] **Step 4: Run the contract tests**
+- [x] **Step 4: Run the contract tests**
 
 Run: `pnpm --filter @agentdesk/contracts test`
 Expected: PASS.
 
-- [ ] **Step 5: Write the failing consumer tests**
+- [x] **Step 5: Write the failing consumer tests**
 
 - `apps/api/test/runs.int.test.ts`: next to the `idleEndSeconds` test, add `it('a run carries its agent paused keep time, or the default for a deleted agent')`. Set `agents.pausedKeepSeconds = 7200`, then `runs.get` matches `{ pausedKeepSeconds: 7200 }`, and the orphan run matches `{ pausedKeepSeconds: 604800 }`.
 - `apps/web/src/mocks/msw/contract.test.ts`, `it('runs.transcript pages newest-first windows oldest first and runs.stop answers 202 on a live run')`:
@@ -228,23 +228,23 @@ Expected: PASS.
   - `runs.stop` on the idle run resolves, and on a paused run it rejects with status 409.
 - `apps/web/src/features/runs/detail.map.test.ts`: `pauseReasonText('stopped')` is `'stopped by you'`.
 
-- [ ] **Step 6: Run them and see them fail**
+- [x] **Step 6: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- contract detail.map`
 Expected: FAIL. `pausedKeepSeconds` is missing, there is no handler for the new routes, and `pauseReasonText` has no `'stopped'` case. Typecheck also fails on that switch.
 
-- [ ] **Step 7: Keep every consumer compiling**
+- [x] **Step 7: Keep every consumer compiling**
 
 - `runs.service.ts`: `AgentInfo` and `agentsFor` gain `pausedKeepSeconds`. `toListItem` sets `pausedKeepSeconds: agent?.pausedKeepSeconds ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT`.
 - Web: `pausedKeepSeconds: 604800` in both literals of `mocks/dto/runs.ts` and in the run the handlers build (`handlers.ts` near line 277). The `{ ...run, idleEndSeconds }` merge (near line 133) also copies the agent's `pausedKeepSeconds`. Add `runTranscripts` to `db.ts` (seed `{}`, reset with the store), the two handlers in `routeHandlers`, and `'runs.stop': 202` in the status map.
 - `detail.map.ts`: add `case 'stopped': return 'stopped by you';` to `pauseReasonText`.
 
-- [ ] **Step 8: Typecheck and test the touched packages**
+- [x] **Step 8: Typecheck and test the touched packages**
 
 Run: `pnpm typecheck && pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/api test -- runs && pnpm --filter @agentdesk/web test -- contract detail.map map`
 Expected: typecheck clean everywhere, tests PASS.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 devbox run fix
@@ -275,13 +275,13 @@ export const runTranscriptEntries = pgTable('run_transcript_entries', {
       index run_transcript_entries_org_idx (org_id); orgPolicy() */);
 ```
 
-- [ ] **Step 1: Write the failing db tests**
+- [x] **Step 1: Write the failing db tests**
 
-In `migrate.int.test.ts`, add `it('0017 adds stopped to the pause reason check and writes no rows')`:
+In `migrate.int.test.ts`, add `it('0018 adds stopped to the pause reason check and writes no rows')`:
 - the SQL has no `UPDATE`/`INSERT`/`DELETE`;
 - after migrating, a run accepts `pause_reason = 'stopped'` and still rejects `'nope'`.
 
-Add `it('0018 creates run_transcript_entries with forced RLS and the run_events grants')`:
+Add `it('0019 creates run_transcript_entries with forced RLS and the run_events grants')`:
 - `relforcerowsecurity` is true;
 - `agentdesk_app` has SELECT, INSERT, UPDATE, DELETE;
 - a second row with the same `(run_id, source_id)` violates `run_transcript_entries_source_key`;
@@ -290,14 +290,14 @@ Add `it('0018 creates run_transcript_entries with forced RLS and the run_events 
 
 In `rls.int.test.ts`, add `it('run_transcript_entries rows of another org are invisible and cannot be inserted')`, in the style of the `run_events` case.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/db test`
 Expected: FAIL. The table and the `stopped` value do not exist.
 
-- [ ] **Step 3: Edit the schema and generate both migrations**
+- [x] **Step 3: Edit the schema and generate both migrations**
 
-Change the check literal in `runs` (and its comment). Run `pnpm --filter @agentdesk/db db:generate --name run_pause_reason_stopped`. Add the table, then run `pnpm --filter @agentdesk/db db:generate --name run_transcript_entries`. Append the hand-written block to `0018`, in the style of `0007_setup_tests.sql`:
+Change the check literal in `runs` (and its comment). Run `pnpm --filter @agentdesk/db db:generate --name run_pause_reason_stopped`. Add the table, then run `pnpm --filter @agentdesk/db db:generate --name run_transcript_entries`. Append the hand-written block to `0019`, in the style of `0007_setup_tests.sql`:
 
 ```sql
 -- Hand-written: FORCE RLS binds the owner too; the app role gets the same grants as run_events.
@@ -305,14 +305,14 @@ ALTER TABLE "run_transcript_entries" FORCE ROW LEVEL SECURITY;--> statement-brea
 GRANT SELECT, INSERT, UPDATE, DELETE ON "run_transcript_entries" TO agentdesk_app;
 ```
 
-Check that `0017` only drops and re-adds `runs_pause_reason_check`, like `0014`.
+Check that `0018` only drops and re-adds `runs_pause_reason_check`, like `0014`.
 
-- [ ] **Step 4: Run the db tests**
+- [x] **Step 4: Run the db tests**
 
 Run: `pnpm --filter @agentdesk/db test`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -375,7 +375,7 @@ parkReason?: PauseReason;
 
 - Produces (behaviour the API relies on): `stopSession` fails with `ApplicationFailure` type `NotStoppable` and the messages in Global Constraints. If the run is finalized before the session could end, the message is "The run finished before it could be stopped".
 
-- [ ] **Step 1: Write the failing pure tests**
+- [x] **Step 1: Write the failing pure tests**
 
 `agent-phase.test.ts`, `describe('stopSessionRejection')`, with base `{ phase: 'running', ending: false, finishRequested: false, stopRequested: false, sessionStarted: true, patched: true }`:
 - returns `undefined` for phases `running`, `idle`, `agent_done`;
@@ -392,21 +392,21 @@ parkReason?: PauseReason;
 
 `gate.workflow.test.ts`: `expect(UPDATE.stopSession).toBe(signals.stopSession.name)`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker test -- agent-phase park gate.workflow`
 Expected: FAIL. `stopSessionRejection` and `stopSession` are not defined, and `parkReason` is ignored.
 
-- [ ] **Step 3: Implement the pure parts**
+- [x] **Step 3: Implement the pure parts**
 
 Add `stopSession` to `signals.ts`, `stopSessionRejection` to `agent-phase.ts`, and `parkReason` to `endOutcome`.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/worker test -- agent-phase park gate.workflow`
 Expected: PASS.
 
-- [ ] **Step 5: Write the failing workflow tests**
+- [x] **Step 5: Write the failing workflow tests**
 
 In `run.workflow.in-process.test.ts`, `describe('stop session')`, in the style of the existing park tests:
 - `stop from running, idle and done parks paused with reason stopped and posts no paused comment`, as an `it.each` over the three phases:
@@ -428,12 +428,12 @@ In `run.workflow.in-process.test.ts`, `describe('stop session')`, in the style o
 
 In `run.workflow.test.ts`, add a Temporal test-env scenario that is stopped, resumed and finished, and register the fixture name `run-stop-session` in the replay test's list.
 
-- [ ] **Step 6: Run them and see them fail**
+- [x] **Step 6: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker test -- run.workflow`
 Expected: FAIL. There is no `stopSession` handler.
 
-- [ ] **Step 7: Implement the workflow**
+- [x] **Step 7: Implement the workflow**
 
 In `run.workflow.ts`:
 - Add the state `stopRequested`, `parkReason: PauseReason | undefined`, `stopSessionPatch`, `podSessionStarted`. Read `stopSessionPatch = patched('stop-session')` right after `followerReconnect`.
@@ -446,12 +446,12 @@ In `run.workflow.ts`:
 
 Then run `UPDATE_REPLAY_FIXTURES=1 pnpm --filter @agentdesk/worker test -- run.workflow` once to write `run-stop-session-history.json`.
 
-- [ ] **Step 8: Run all worker tests**
+- [x] **Step 8: Run all worker tests**
 
 Run: `pnpm --filter @agentdesk/worker typecheck && pnpm --filter @agentdesk/worker test`
 Expected: PASS. Every existing replay fixture still replays.
 
-- [ ] **Step 9: Commit**
+- [x] **Step 9: Commit**
 
 ```bash
 devbox run fix
@@ -473,7 +473,7 @@ transcript(org: OrgContext, runId: string, q: RunTranscriptQuery): Promise<RunTr
 // RunsController: @Post(routePath(routes.runs.stop)) @HttpCode(202); @Get(routePath(routes.runs.transcript)) with ZodPipe on params and query
 ```
 
-- [ ] **Step 1: Write the failing integration tests**
+- [x] **Step 1: Write the failing integration tests**
 
 In `runs.int.test.ts`, `describe('stop session')`:
 - `stop on a running, idle or done run is 202 via the stopSession update`. The fake temporal records `[UPDATE.stopSession]`.
@@ -493,23 +493,23 @@ In `runs.int.test.ts`, `describe('stop session')`:
 
 Each response goes through `expectContract('runs.transcript', …)`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/api test -- runs`
 Expected: FAIL with 404 for the unknown routes.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `stop` follows `finish`. The pre-check is the status in `STOPPABLE_RUN_STATUSES` with `sessionEndingAt` null (409 wording per the Agent call). Then `executeUpdate(UPDATE.stopSession)`, mapping `NotStoppable`, `WorkflowNotFoundError` and `AcceptedUpdateCompletedWorkflow` exactly as `finish` maps theirs.
 
 `transcript` follows `log`: `withOrg`, `loadRun`, then select `where run_id = $1 [and seq < before] order by seq desc limit limit + 1`. When there are `limit + 1` rows, drop the extra and set `nextBefore` to the smallest returned `seq`. Reverse the rows. Parse `kind` with `TranscriptKind`.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test -- runs`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -535,9 +535,9 @@ git commit -m "feat(api): stop a live session and read a run's transcript"
 - Modify: `images/runner/test/claude-hook.test.ts`
 - Modify: `images/runner/test/entrypoint.test.ts`
 - Modify: `images/runner/test/dockerfile.test.ts`
-- Create: `docs/adr/0026-agent-neutral-transcript-protocol.md`
+- Create: `docs/adr/0027-agent-neutral-transcript-protocol.md`
 - Modify: `docs/adr/README.md`
-- Modify: `docs/adr/0011-interactive-claude-code-in-tmux.md` (status line "Amended by 0026")
+- Modify: `docs/adr/0011-interactive-claude-code-in-tmux.md` (status line "Amended by 0027")
 - Modify: `packages/core/src/kube/log-parser.ts`
 - Modify: `packages/core/test/kube/log-parser.test.ts`
 - Create: `apps/worker/src/activities/transcript-store.ts`
@@ -581,7 +581,7 @@ export function transcriptStep(input, env = process.env) // → void
   - `thinking`, `system`, `summary`, meta and unknown shapes → skipped.
   - Ids are the entry's `uuid`, plus `:n` for the n-th block.
 
-- [ ] **Step 1: Write the failing adapter tests**
+- [x] **Step 1: Write the failing adapter tests**
 
 In `claude-transcript.test.ts`, run in-process against the fixtures with a temp `HOME`, state dir and out file:
 - `maps the fixture session to the expected wire entries`: a literal array of expected `{ id, kind, text, tool? }`, including `tool: 'Bash', text: 'dotnet test'` and the API error notice "API Error: 401 invalid credential".
@@ -595,21 +595,21 @@ In `claude-transcript.test.ts`, run in-process against the fixtures with a temp 
 - `flush sends recorded paths plus the newest session file and exits 0 within 5 s`: spawn `node transcript.mjs flush` with `cwd` = a temp repo dir and assert the elapsed time is < 5,000 ms.
 - `transcriptStep ignores a transcript_path outside HOME and never throws on bad input`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/runner test -- claude-transcript`
 Expected: FAIL. The module does not exist.
 
-- [ ] **Step 3: Implement `transcript.mjs`**
+- [x] **Step 3: Implement `transcript.mjs`**
 
 Read each file from its saved offset up to the last complete line, `JSON.parse` each line in a try, `mapEntry`, and append `wireLine` output to `out`. Then save the new offset (write a temp file and rename, like `hook.mjs`). No shell, no network. Writes go only under `AGENTDESK_STATE_DIR`.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/runner typecheck && pnpm --filter @agentdesk/runner test -- claude-transcript`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -624,7 +624,7 @@ git commit -m "feat(runner): Claude transcript adapter maps the session log to t
 - Consumes: `transcriptStep(input)` and the `flush` CLI (Task 3 Part A).
 - Produces: the image ships `/usr/local/lib/agentdesk/agents/claude/transcript.mjs`. The entrypoint has a `transcript_flush` function that runs `timeout 5 node "$LIB_DIR/agents/$AGENT_DIR/transcript.mjs" flush </dev/null >/dev/null 2>&1 || true` from the repo dir, and only when that file exists.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 - `claude-hook.test.ts`:
   - `every handled event also sends new transcript entries`: feed `user-prompt-submit.json` with a `transcript_path` to a fixture JSONL under the temp HOME, and the out file holds the status line and then `agentdesk: transcript …` lines.
@@ -635,32 +635,32 @@ git commit -m "feat(runner): Claude transcript adapter maps the session log to t
   - `a flush that hangs is cut off by timeout 5 and the session still ends`.
 - `dockerfile.test.ts`: the Dockerfile has `COPY agents/claude/transcript.mjs /usr/local/lib/agentdesk/agents/claude/transcript.mjs`, and the existing chmod/chown line lists it.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/runner test -- claude-hook entrypoint dockerfile`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 - `hook.mjs`: `import { transcriptStep } from './transcript.mjs'`. After the state write at the end, call `try { transcriptStep(input) } catch {}`.
 - `entrypoint.sh`: add `transcript_flush`. Call it right after `echo 'agentdesk: session started'` and as the first line of `end_session`.
 - `Dockerfile`: add the COPY and the file to the existing chmod/chown list.
 
-- [ ] **Step 4: Write the ADR**
+- [x] **Step 4: Write the ADR**
 
-`0026-agent-neutral-transcript-protocol.md` follows `0000-template.md`. Its content is spec §2 (wire line, `TranscriptWireEntry`), §2.2 (adapter contract, flush), the choice of hooks plus flush over a tail process, Postgres storage with redaction and the 20,000 cap, the read-only view, and alternatives B and C. It amends ADR 0011 ("history is final scrollback only") and extends ADR 0020's adapter model. Add the README row and the amendment line in 0011.
+`0027-agent-neutral-transcript-protocol.md` follows `0000-template.md`. Its content is spec §2 (wire line, `TranscriptWireEntry`), §2.2 (adapter contract, flush), the choice of hooks plus flush over a tail process, Postgres storage with redaction and the 20,000 cap, the read-only view, and alternatives B and C. It amends ADR 0011 ("history is final scrollback only") and extends ADR 0020's adapter model. Add the README row and the amendment line in 0011.
 
-- [ ] **Step 5: Run the runner tests**
+- [x] **Step 5: Run the runner tests**
 
 Run: `pnpm --filter @agentdesk/runner typecheck && pnpm --filter @agentdesk/runner test`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
 git add images/runner docs/adr
-git commit -m "feat(runner): hook and entrypoint flushes send transcript lines; ADR 0026"
+git commit -m "feat(runner): hook and entrypoint flushes send transcript lines; ADR 0027"
 ```
 
 #### Part C: Core parser kind `transcript` and the follower stores entries
@@ -689,24 +689,24 @@ export function createTranscriptSink(deps: { db: Db; orgId: string; runId: strin
   { store(entry: TranscriptWireEntry, secrets: string[]): Promise<void> };
 ```
 
-- [ ] **Step 1: Write the failing parser tests**
+- [x] **Step 1: Write the failing parser tests**
 
 In `log-parser.test.ts`, `describe('transcript lines')`:
 - a valid line built from `Buffer.from(JSON.stringify({ id: 'u1:0', kind: 'agent', text: 'hi' })).toString('base64')` parses to `{ kind: 'transcript', transcript: { id: 'u1:0', kind: 'agent', text: 'hi' } }`;
 - a body of 12,001 chars, `!!!`, a body whose length is not a multiple of 4, base64 of `not json`, and base64 of `{ "id": "a b", "kind": "agent", "text": "x" }` each give `{ kind: 'text' }` with the original line;
 - leading and trailing spaces are accepted, like the other markers.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- log-parser`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the parser branch, then run**
+- [x] **Step 3: Implement the parser branch, then run**
 
 Run: `pnpm --filter @agentdesk/core test -- log-parser`
 Expected: PASS.
 
-- [ ] **Step 4: Write the failing store and follower tests**
+- [x] **Step 4: Write the failing store and follower tests**
 
 `transcript-store.int.test.ts` (real Postgres, as the other `.int` tests):
 - `toTranscriptRow redacts secrets in text, including inside a tool step summary`: a `tool` entry with `text: 'curl -H "Bearer s3cr3t"'` and secrets `['s3cr3t']` gives text `'curl -H "Bearer ***"'`.
@@ -722,21 +722,21 @@ Expected: PASS.
 - `a second pod re-sending the same ids stores nothing new` (Review Focus 4);
 - `a malformed transcript line is an ordinary text line`.
 
-- [ ] **Step 5: Run them and see them fail**
+- [x] **Step 5: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/worker test -- transcript-store run.activities.int`
 Expected: FAIL.
 
-- [ ] **Step 6: Implement**
+- [x] **Step 6: Implement**
 
 Write `transcript-store.ts`. In `followPodLogs`, create one sink per attempt. In `onParsed`, `parsed.kind === 'transcript' && parsed.transcript` calls `await sink.store(parsed.transcript, secrets)`, then returns `undefined`, so the durable line advances as usual. Transcript text never goes into logs, errors, `run_events` or workflow history.
 
-- [ ] **Step 7: Run all touched tests**
+- [x] **Step 7: Run all touched tests**
 
 Run: `pnpm --filter @agentdesk/core test && pnpm --filter @agentdesk/worker typecheck && pnpm --filter @agentdesk/worker test`
 Expected: PASS.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 devbox run fix
@@ -779,7 +779,7 @@ Parts: A (Fake pod writes Claude-shaped logs and runs the transcript adapter); B
     - `--fake-unflushed`: after the first turn's flush, one more agent reply "UNFLUSHED-MARKER" is appended to the file without a flush.
     - `--fake-bad-transcript-lines`: after `session started`, three malformed `agentdesk: transcript` lines go to both `log` and `pane`: a 12,001-char body, `!!!`, and valid base64 of `{"id":"a b","kind":"agent","text":"x"}`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 In `fake-pod.test.ts`, run with `FAKE_TRANSCRIPT_ADAPTER` pointing at the real adapter and a temp volume:
 - `a fresh run sends the prompt and the first reply as transcript lines`: decode the `agentdesk: transcript` log lines and get `[user: PROMPT, agent: 'Fake agent reply 1']`.
@@ -788,21 +788,21 @@ In `fake-pod.test.ts`, run with `FAKE_TRANSCRIPT_ADAPTER` pointing at the real a
 - `no adapter file, or --fake-no-transcript, sends nothing`.
 - One test per flag, asserting the decoded lines. For example, `--fake-thinking` has no line containing `THINKING-MARKER`, `--fake-tools` has no `OUTPUT-MARKER`, and `--fake-unflushed` has `UNFLUSHED-MARKER` in the session file but not in the log.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 `fake-claude-log.mjs` exports pure builders `userEntry(text)`, `replyEntry(text, { thinking?, tools?, apiError? })` and `toolResultEntry(text)`, returning objects in the Task 3 Part A fixture shapes, plus `appendEntry(file, entry)`. `fake-pod.mjs` wires them in and calls the adapter. PROMPT stays untrusted: it is only written to files and searched with `includes`, never executed.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod fake-gateway`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -836,25 +836,25 @@ export async function postedComments(page: Page): Promise<{ ticketNumber: number
 export async function transcriptOf(page: Page, runId: string): Promise<RunTranscriptEntryDto[]>;
 ```
 
-- [ ] **Step 1: Write the failing fake-pod tests**
+- [x] **Step 1: Write the failing fake-pod tests**
 
 One test per control: `hold-start logs session started only after release-start`, `slow-end ends only after release-end`, `hang-on-stop ignores stop and ends on kill`, `exit-ok ends with session ended reason=agent_exit code=0`, and `hardkill exits 137 with no end flush, no scrollback and no end line`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the controls, then run**
+- [x] **Step 3: Implement the controls, then run**
 
 Run: `pnpm --filter @agentdesk/core test -- fake-pod`
 Expected: PASS.
 
-- [ ] **Step 4: Move the helpers**
+- [x] **Step 4: Move the helpers**
 
 Move `API`, `REPO`, `FAKE_STATE_DIR`, `ok`, `signInAndCreateProject` and `commentOnNewTicket` from `run.spec.ts` into `helpers.ts` and import them back. Add the three new helpers. Check: `pnpm --filter @agentdesk/web typecheck`, then, with the stack up, `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "a comment on the fake board becomes a live run"` still passes.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -950,7 +950,7 @@ export function Transcript(props: TranscriptProps): JSX.Element;
   - Empty (`ready` with no items): a centred icon and the heading "No conversation was saved for this run." with no body.
   - Design tokens only.
 
-- [ ] **Step 1: Write the failing component tests**
+- [x] **Step 1: Write the failing component tests**
 
 In `Transcript.test.tsx`:
 - `labels person messages You or Prompt and agent replies with the agent name and time`;
@@ -965,12 +965,12 @@ In `Transcript.test.tsx`:
 
 In `Terminal.test.tsx`, `describe('TerminalBar')`: `it('tools={false} hides Find and Copy all')`. In `Icon.test.tsx`: the icon count becomes `38`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- Transcript Terminal Icon`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the component, the `tools` prop, the icon and the fixtures**
+- [x] **Step 3: Implement the component, the `tools` prop, the icon and the fixtures**
 
 Write the stories, fed from `@/mocks` `transcriptFixtures`: `Default`, `Long` (with "Show earlier messages"), `Truncated`, `ToolSteps`, `Notices`, `Loading`, `Error` (Request ID `01JDK8Q3V2`, as on the board), `ErrorNoRequestId`, and `Empty`. Add a `TerminalBar` story `TranscriptBar` with `tools={false}`.
 
@@ -979,7 +979,7 @@ Write the stories, fed from `@/mocks` `transcriptFixtures`: `Default`, `Long` (w
 Run: `pnpm --filter @agentdesk/web test -- Transcript Terminal Icon && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS. Open the stories in `pnpm --filter @agentdesk/web storybook` and compare them with the boards.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1014,7 +1014,7 @@ transcript?: TranscriptProps;
   - Without `transcript`: exactly today's rendering.
   - Starting and resuming are unchanged.
 
-- [ ] **Step 1: Write the failing screen tests**
+- [x] **Step 1: Write the failing screen tests**
 
 In `runDetail.test.tsx`, `describe('RunDetail transcript and stopped')`:
 - `a live run shows only the Terminal tab and no Transcript tab`;
@@ -1028,16 +1028,16 @@ In `runDetail.test.tsx`, `describe('RunDetail transcript and stopped')`:
 
 Update `coverage.test.ts`: the board count becomes 37.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the screen changes and the fixtures**
+- [x] **Step 3: Implement the screen changes and the fixtures**
 
 `mocks/runDetail.tsx` adds `RunStopped` (run 62 stopped 2 min ago, PR ticket, `transcriptFixtures.default` with a cut entry and "Show earlier messages", "Paused, read-only") and `RunSucceededFinished` (the "Succeeded in 9m 03s." title, the Finished body, "Ended, read-only"). Both are drawn from their boards.
 
-- [ ] **Step 4: Register the boards and write the stories**
+- [x] **Step 4: Register the boards and write the stories**
 
 - Add `RunStopped`, `RunSucceededFinished` and `RunTranscriptStates` to `canvas.json` (`boards` with x, y, w, h, title from each board's `<title>`, and `order` after `RunCancelled`), to `boardStories` in `storyIds.ts` (title `Screens/Run detail`), and to `stories` in `parity.mjs`, all together.
 - `runDetail.stories.tsx` gets `RunStopped`, `RunSucceededFinished` and `RunTranscriptStates`. The last renders the board's states side by side: paused by the idle timer, failed, timed out, cancelled, expired, the saved-scrollback fallback ("Saved scrollback", "Paused, read-only, 412 lines"), the empty state, and the error state.
@@ -1049,7 +1049,7 @@ Expected: FAIL.
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage RunTerminalArea && pnpm --filter @agentdesk/web typecheck`, then `pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: PASS. Compare `apps/web/parity-out/{RunStopped,RunSucceededFinished,RunTranscriptStates}.{story,proto}.png` by eye. `parity-out/` and `storybook-static/` are not committed.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -1082,7 +1082,7 @@ stopping?: boolean;
   - The confirm is a `Popover` under the button: `role="dialog"`, label "Stop the session?", a `PopoverCard` with title "Stop the session?" and the body sentence with `data.pausedKeep`, then "Keep running" (ghost, calls `onStopClose`) and "Stop session" (primary, `pause` icon, calls `onStop`). Escape calls `onStopClose`.
   - The constant `STOPPABLE = ['running', 'idle', 'done']` mirrors the contracts' `STOPPABLE_RUN_STATUSES`, because screens do not import contracts.
 
-- [ ] **Step 1: Write the failing screen tests**
+- [x] **Step 1: Write the failing screen tests**
 
 In `runDetail.test.tsx`, `describe('RunDetail Stop session')`:
 - `Stop session sits between Finish run and Cancel run on running, idle and done`;
@@ -1094,16 +1094,16 @@ In `runDetail.test.tsx`, `describe('RunDetail Stop session')`:
 
 `coverage.test.ts`: the board count becomes 39.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add the button, the confirm and the props.
 
-- [ ] **Step 4: Register the boards and write the stories**
+- [x] **Step 4: Register the boards and write the stories**
 
 - Add `RunRunningStop` and `RunIdleEnding` to `canvas.json`, `boardStories` and `parity.mjs` together.
 - `runDetail.stories.tsx` gets `RunRunningStop` (run 61 running, confirm open, `pausedKeep: '7 days'`) and `RunIdleEnding` (run 62 idle with the session ending, Stop session disabled, Transcript loading). Fixtures go in `mocks/runDetail.tsx`.
@@ -1115,7 +1115,7 @@ Add the button, the confirm and the props.
 Run: `pnpm --filter @agentdesk/web test -- runDetail coverage && pnpm --filter @agentdesk/web typecheck`, then `pnpm --filter @agentdesk/web build-storybook && node apps/web/scripts/parity.mjs`
 Expected: PASS. `RunRunningStop` and `RunIdleEnding` match their boards by eye.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
@@ -1182,7 +1182,7 @@ export function plainText(text: string): string;
 //   body 'Finished. The session was deleted and cannot be resumed.'
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 `detail.map.test.ts`:
 - `a stopped run's session is Stopped: can be resumed for 6 days. and Stopped by you 2 min ago.`, with a clock fixed 2 min after `pausedAt` and `sessionExpiresAt` 6 days 23 h 58 min ahead;
@@ -1202,21 +1202,21 @@ export function plainText(text: string): string;
 - `runsQueries.transcript fetches the newest page, then the older page with before`, using MSW node `server.use` for `runs.transcript`;
 - `useTranscriptReload invalidates when a pausing run becomes paused and not while it stays live`, using `renderHook` with a `QueryClient` spy.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.map transcript`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Export `plainText` from `detail.map.ts`, reusing its `CONTROLS` rule. Write `transcript.ts`, add the query, and add the Stopped and Finished branches.
 
-- [ ] **Step 4: Run them**
+- [x] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.map transcript && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1277,7 +1277,7 @@ export const slowActionRuns: ReadonlySet<number>;                               
   - `failOnce`: the first request per page load fails like `fail`, and later requests succeed.
   - `slowActionRuns`: `runs.finish` / `runs.cancel` answer after 3,000 ms.
 
-- [ ] **Step 1: Write the failing fixture test**
+- [x] **Step 1: Write the failing fixture test**
 
 In `sessionRuns.test.ts`:
 - every run parses with `RunDto` and every entry with `RunTranscriptEntryDto`;
@@ -1286,12 +1286,12 @@ In `sessionRuns.test.ts`:
 - `TRANSCRIPT_LONG_RUN` has 1,000 entries;
 - stopped runs have `pauseReason: 'stopped'` and `sessionExpiresAt = pausedAt + 7 days`.
 
-- [ ] **Step 2: Run it and see it fail**
+- [x] **Step 2: Run it and see it fail**
 
 Run: `pnpm --filter @agentdesk/web test -- sessionRuns`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Add `mockDb.addTranscripts(byRunId)` to `db.ts`. Apply `transcriptBehaviours` in the `runs.transcript` handler and `slowActionRuns` in the finish and cancel handlers. Seed everything in `startMockWorker` next to the lifecycle runs. Add the constants and `SESSION_MOCK_NOW` to `e2e/mock/mock.ts`.
 
@@ -1300,7 +1300,7 @@ Add `mockDb.addTranscripts(byRunId)` to `db.ts`. Apply `transcriptBehaviours` in
 Run: `pnpm --filter @agentdesk/web test -- sessionRuns contract`, then `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/run.spec.ts`
 Expected: PASS. If a count in those specs moved because of the new runs, the specs need a different project or the counts need fixing. Fix the fixtures (another ticket or project), not the specs' intent.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1335,7 +1335,7 @@ export function useStopRun(org: string, projectId: string, opts?: { onError?(e: 
   - The live terminal mounts only for `live`.
   - Stop: `confirmingStop` state. `onStopOpen` opens it. `onStop` closes it and calls `stop.mutate(target)`. `stopping = stop.isPending`. A 409 toasts the server's message through `toastFromError`.
 
-- [ ] **Step 1: Write the failing route tests**
+- [x] **Step 1: Write the failing route tests**
 
 In `detail.route.test.tsx`, seeding with `mockDb.addRuns(sessionRunFixtures, sessionEventFixtures)` and `mockDb.addTranscripts(sessionTranscriptFixtures)`:
 - `a stopped run shows the Stopped notice and its Transcript, and never calls resume or opens a terminal socket`;
@@ -1349,19 +1349,19 @@ In `detail.route.test.tsx`, seeding with `mockDb.addRuns(sessionRunFixtures, ses
 - `Stop session waits while a finish is in flight`;
 - `a pausing run becoming paused refetches the transcript`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.route`
 Expected: FAIL.
 
-- [ ] **Step 3: Implement the mutation and the route wiring**
+- [x] **Step 3: Implement the mutation and the route wiring**
 
 - [ ] **Step 4: Run them**
 
 Run: `pnpm --filter @agentdesk/web test -- detail.route realtime && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 devbox run fix
@@ -1404,16 +1404,16 @@ Covers these rules and cases (spec "E2E requirements"):
 
 Every test calls `page.clock.install({ time: new Date(SESSION_MOCK_NOW) })` before its first `goto`.
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`, using the existing `runUrl` pattern from `e2e/mock/run.spec.ts`.
 
-- [ ] **Step 2: Build and run only this spec**
+- [x] **Step 2: Build and run only this spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/stop-session.spec.ts`
 Expected: PASS for every case.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1450,16 +1450,16 @@ Covers:
 
 Times like "14:13" are asserted with the spec's fixed browser timezone (`test.use({ timezoneId: 'UTC' })`), with the fixtures written to match.
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`.
 
-- [ ] **Step 2: Build and run only this spec**
+- [x] **Step 2: Build and run only this spec**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/transcript.spec.ts`
 Expected: PASS for every case.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1492,7 +1492,7 @@ Covers:
 - BR-7: TC-7.1.
 - BR-8: TC-8.1 (`--fake-tools`, stop during the next turn).
 - BR-9: TC-9.1 and TC-9.2.
-- BR-10: TC-10.1 and TC-10.2 (`--fake-hold-start`, then `touchPodFile(runId, 'release-start')`).
+- BR-10: TC-10.1 and TC-10.2 (`--fake-hold-start`, then `touchPodFile(runId, 'release-start')`). TC-10.1 is handled at the lower layers, not as a local e2e, per the human decision on issue #126 (option 1): Stop is not offered before `running`, so the page cannot reach the Given. Proven in `agent-phase.test.ts`, `run.workflow.in-process.test.ts`, `runs.int.test.ts` and `detail.route.test.tsx`.
 - BR-11: TC-11.1 to TC-11.3 (`--fake-slow-end`, two pages from one context).
 - BR-12: TC-12.1, only with `E2E_IDLE_END_SECONDS`.
 - BR-13: TC-13.1.
@@ -1506,7 +1506,7 @@ Covers:
 
 BR-14 (TC-14.1 to TC-14.3) is not written. The local stack cannot start a run on the workflow code from before `stop-session`. The lowest layer that proves it is Task 2 Part A's `runtime.unpatched.add('stop-session')` test. Say so in the PR.
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`. The idle and deadline cases sit in `test.describe` blocks that `test.skip` with a reason unless `E2E_IDLE_END_SECONDS` / `E2E_ENDING_DEADLINE_SECONDS` is set, as the existing pause tests do. Add the env line to `tests-and-e2e.md` §4: `RUN_ENDING_DEADLINE_SECONDS=10` with `E2E_ENDING_DEADLINE_SECONDS=10`.
 
@@ -1515,7 +1515,7 @@ One `test()` per TC, titled `TC-<n.m> <short name>`. The idle and deadline cases
 Run: `devbox run dev-bg`, then `pnpm --filter @agentdesk/web exec playwright test e2e/local/stop-session.spec.ts`. Then, on a separate stack started with `RUN_IDLE_END_SECONDS=5 RUN_LEASE_TTL_SECONDS=4 TERMINAL_LEASE_INTERVAL_MS=1000 RUN_ENDING_DEADLINE_SECONDS=10 devbox run dev-bg`, run `E2E_IDLE_END_SECONDS=5 E2E_ENDING_DEADLINE_SECONDS=10 pnpm --filter @agentdesk/web exec playwright test e2e/local/stop-session.spec.ts -g "TC-12|TC-15.2|TC-16.1"`.
 Expected: PASS. If the stack cannot start (no Docker engine, runner pod), say so in the PR and list these specs as written but not run.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1543,7 +1543,7 @@ Covers:
 - BR-55: TC-55.1 to TC-55.3 (`--fake-bad-transcript-lines`).
 - BR-56: TC-56.2 (`--fake-api-error`).
 
-- [ ] **Step 1: Write the spec**
+- [x] **Step 1: Write the spec**
 
 One `test()` per TC, titled `TC-<n.m> <short name>`. Use only helpers from `helpers.ts`. Helpers needed by this spec alone stay inside it.
 
@@ -1552,7 +1552,7 @@ One `test()` per TC, titled `TC-<n.m> <short name>`. Use only helpers from `help
 Run: `devbox run dev-bg`, then `pnpm --filter @agentdesk/web exec playwright test e2e/local/transcript.spec.ts`
 Expected: PASS. If the stack cannot start, say so in the PR and list these specs as written but not run.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix

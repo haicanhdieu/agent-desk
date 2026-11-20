@@ -248,6 +248,14 @@ fi
 # gets the wrapper and the fixed command as two separate arguments (run directly, no extra shell).
 tmux start-server \; set-option -g remain-on-exit on \; \
   new-session -d -s agent -x 200 -y 50 -c "$REPO_DIR" "$LIB_DIR/bin/agentdesk-session" "$session_cmd"
+# Sends the agent's saved conversation (agentdesk: transcript lines) that no hook has sent yet. Best effort: a hang,
+# a failure or an agent without a transcript.mjs adapter never blocks the session (docs/adr/0027).
+transcript_flush() {
+  local adapter="$LIB_DIR/agents/$AGENT_DIR/transcript.mjs"
+  [ -f "$adapter" ] || return 0
+  (cd "$REPO_DIR" && timeout 5 node "$adapter" flush </dev/null >/dev/null 2>&1) || true
+}
+
 # bash as PID 1 ignores SIGTERM without a trap; the flag is checked by the loop below.
 end_reason=''
 trap 'end_reason=signal' TERM
@@ -256,6 +264,7 @@ if [ "${RUN_MODE:-}" != resume ] && [ "${RUN_MODE:-}" != setup_test ]; then
   : > "$HOME/.agentdesk/session-started"
 fi
 echo 'agentdesk: session started'
+transcript_flush
 
 # Startup check: Claude can wait on a screen no hook reports (an API-key or login prompt, a trust dialog). If no hook has
 # fired within the wait, tell the control plane a person is needed. It only covers startup: the first hook of any kind
@@ -272,6 +281,7 @@ startup_began=$SECONDS
 # The entrypoint owns the end of the pod: it saves the scrollback, kills the tmux server (so stale attach clients cannot
 # hold it up), prints one end line and exits. end_session REASON CODE
 end_session() {
+  transcript_flush
   echo 'agentdesk: final scrollback begin'
   timeout 5 tmux capture-pane -J -p -S - -t '=agent:' 2>/dev/null || true
   echo 'agentdesk: final scrollback end'

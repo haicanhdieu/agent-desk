@@ -1,10 +1,11 @@
 import { ApiError } from '@agentdesk/contracts/client';
-import { useSuspenseQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
 import { lazy, Suspense, useCallback, useRef, useState, type ReactNode } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
+import type { TranscriptProps } from '@/components';
 import type { LiveTerminalHandle } from '@/components/LiveTerminal';
 import { Banner, Skeleton, useToast } from '@/ds';
 import {
@@ -16,9 +17,10 @@ import {
   toRunDetail,
 } from '@/features/runs/detail.map';
 import { isFinal } from '@/features/runs/map';
-import { useCancelRun, useFinishRun, useResumeRun } from '@/features/runs/mutations';
+import { useCancelRun, useFinishRun, useResumeRun, useStopRun } from '@/features/runs/mutations';
 import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
+import { transcriptConnection, transcriptItems, useTranscriptReload } from '@/features/runs/transcript';
 import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
 import { useTerminal } from '@/features/runs/useTerminal';
 import { TERMINAL_UNUSED_CLOSE_MS } from '@/features/runs/unusedWatch';
@@ -81,13 +83,27 @@ function RunDetailRoute() {
     if (handle) setTermReady(true);
   }, []);
   const term = useTerminal(dto.id, live && termReady, termRef, { org, projectId, number });
+  // The saved Transcript: asked for only once there is no pod to ask (not live, starting or resuming), and reloaded
+  // when the pod goes away.
+  const wantsTranscript = area !== 'live' && area !== 'starting' && area !== 'resuming';
+  const transcriptQuery = useInfiniteQuery({
+    ...runsQueries.transcript(org, projectId, number),
+    enabled: wantsTranscript,
+  });
+  useTranscriptReload(org, projectId, number, area);
   const [confirmingCancel, setConfirmingCancel] = useState(false);
+  const [confirmingStop, setConfirmingStop] = useState(false);
+  // The Stop confirm belongs to the live run: once the run leaves the live terminal (pausing, paused, ended) it closes,
+  // so it does not reopen unprompted when the run is live again.
+  if (confirmingStop && !live) setConfirmingStop(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const onError = (e: unknown) => toast.show(toastFromError(e));
   const cancel = useCancelRun(org, projectId, { onError });
   const finish = useFinishRun(org, projectId, { onError });
   // A 409 (not resumable, already being resumed, no credential) toasts the server's message.
   const resume = useResumeRun(org, projectId, { onError });
+  // A 409 (not started, already ending, not live, started before Stop session existed) toasts the server's message.
+  const stop = useStopRun(org, projectId, { onError });
 
   const { paths } = page;
   const target = { id: dto.id, number };
@@ -96,14 +112,44 @@ function RunDetailRoute() {
     agent: paths.agent,
     setup: paths.setup,
   });
-  // No pod (final, or paused): the terminal bar says so and the stored scrollback shows.
+  // No pod (final, or paused): the terminal bar says so and the saved Transcript, or else the stored scrollback, shows.
   const stored = final || dto.status === 'paused';
-  const data =
-    stored || pausing
+  const scrollbackStored = stored ? scrollbackText(events) : undefined;
+  const firstPage = transcriptQuery.data?.pages[0];
+  // A failed refetch keeps the pages already loaded; only a load that never succeeded shows the error.
+  const transcriptFailed = firstPage === undefined && transcriptQuery.isError;
+  const transcriptLoading = firstPage === undefined && !transcriptFailed;
+  const hasEntries = (firstPage?.items.length ?? 0) > 0;
+  // An empty saved Transcript on a paused or ended run falls back to the stored scrollback when there is one (the
+  // session ending always shows the Transcript: the end flush lands with the park and the page refetches then).
+  const showTranscript =
+    wantsTranscript &&
+    (pausing || hasEntries || transcriptLoading || transcriptFailed || scrollbackStored === undefined);
+  const transcript: TranscriptProps | undefined = !showTranscript
+    ? undefined
+    : transcriptFailed
+      ? {
+          state: 'error',
+          items: [],
+          ...(transcriptQuery.error instanceof ApiError &&
+            transcriptQuery.error.requestId !== undefined && { requestId: transcriptQuery.error.requestId }),
+          onRetry: () => void transcriptQuery.refetch(),
+        }
+      : transcriptLoading
+        ? { state: 'loading', items: [] }
+        : {
+            state: 'ready',
+            items: transcriptItems(transcriptQuery.data?.pages ?? [], dto.agent.name),
+            hasEarlier: transcriptQuery.hasNextPage,
+            loadingEarlier: transcriptQuery.isFetchingNextPage,
+            onShowEarlier: () => void transcriptQuery.fetchNextPage(),
+          };
+  const data = transcript
+    ? { ...mapped, connection: transcriptConnection(area, !transcriptFailed && !transcriptLoading && !hasEntries) }
+    : stored
       ? mapped
       : { ...mapped, connection: live ? terminalConnection(term.state, stream) : streamConnection(stream) };
-  // A finished or paused run's stored scrollback in the same terminal, read-only, written once.
-  const scrollback = stored ? scrollbackText(events) : undefined;
+  const scrollback = transcript ? undefined : scrollbackStored;
   // Keyed by the scrollback event too, so a later (re-stored) scrollback opens a new terminal with it.
   const scrollbackSeq = events.filter((e) => e.type === 'scrollback').at(-1)?.seq;
   let terminal: ReactNode;
@@ -128,8 +174,8 @@ function RunDetailRoute() {
     <RunDetail
       height="viewport"
       data={data}
-      // A pausing run greys the last scrollback it has: the terminal is closed, so the stored one stands in.
-      lines={stored || pausing ? scrollbackLines(events) : undefined}
+      lines={stored && !transcript ? scrollbackLines(events) : undefined}
+      transcript={transcript}
       terminal={terminal}
       // The "terminal lost" overlay belongs to a live terminal that gave up; never to queued, starting or final runs.
       onReconnect={live ? term.reconnect : undefined}
@@ -166,6 +212,14 @@ function RunDetailRoute() {
       onFinish={() => finish(target)}
       onResume={() => resume.mutate(target)}
       resuming={resume.isPending}
+      stopConfirmOpen={confirmingStop && live}
+      onStopOpen={() => setConfirmingStop(true)}
+      onStopClose={() => setConfirmingStop(false)}
+      onStop={() => {
+        setConfirmingStop(false);
+        stop.mutate(target);
+      }}
+      stopping={stop.isPending}
     />
   );
 }

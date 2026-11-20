@@ -1,15 +1,22 @@
 import { randomBytes, randomInt } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { expect, type APIResponse, type Page } from '@playwright/test';
-import { AgentDto, InstallResponse } from '@agentdesk/contracts';
+import {
+  AgentDto,
+  InstallResponse,
+  RunDto,
+  RunTranscriptResponse,
+  type RunTranscriptEntryDto,
+} from '@agentdesk/contracts';
 import { z } from 'zod';
 
-// Shared by the local e2e specs: the stack's addresses, the dev-login project setup and the fake board helpers.
+// Shared by the local e2e specs: the stack's addresses, the dev-login project setup, the fake board and fake pod
+// helpers (the stack from `pnpm dev` with KUBE_MODE=fake).
 
 export const API = 'http://localhost:3000';
 export const REPO = 'dev/demo';
-/** Where the stack keeps the fake cluster's state (E2E_FAKE_STATE_DIR when it is not the default). */
+/** Where the stack keeps the fake cluster's state (E2E_FAKE_STATE_DIR when it is not the default); a run's pod dir is `<dir>/kube/run-<runId>`. */
 export const FAKE_STATE_DIR =
   process.env['E2E_FAKE_STATE_DIR'] ?? fileURLToPath(new URL('../../../../.agentdesk/fake', import.meta.url));
 
@@ -114,6 +121,67 @@ export async function commentOnNewTicket(
   );
   expect(comment.runId, `comment outcome ${comment.outcome}`).toBeTruthy();
   return comment.runId ?? '';
+}
+
+/** Creates `name` in the run's fake pod state dir (`release-start`, `release-end`, `hardkill`). */
+export async function touchPodFile(runId: string, name: string): Promise<void> {
+  const podDir = `${FAKE_STATE_DIR}/kube/run-${runId}`;
+  await mkdir(podDir, { recursive: true });
+  await writeFile(`${podDir}/${name}`, '');
+}
+
+const PostedComments = z.array(z.object({ ticketRef: z.string(), body: z.string() }));
+
+/** Reads `GET /dev/fake/posted` (comments the app posted on the fake board). */
+export async function postedComments(page: Page): Promise<{ ticketNumber: number; body: string }[]> {
+  const res = await page.request.get(`/dev/fake/posted?repoPath=${encodeURIComponent(REPO)}`);
+  return PostedComments.parse(await ok(res, 200, 'posted comments')).map((c) => ({
+    ticketNumber: Number.parseInt(c.ticketRef, 10),
+    body: c.body,
+  }));
+}
+
+/** Fetches every transcript entry of a run through `runs.transcript`, oldest first. */
+export async function transcriptOf(page: Page, runId: string): Promise<RunTranscriptEntryDto[]> {
+  const pages: RunTranscriptEntryDto[][] = [];
+  let before: number | null = null;
+  do {
+    const query = before === null ? '?limit=500' : `?limit=500&before=${before}`;
+    const res = RunTranscriptResponse.parse(
+      await ok(await page.request.get(`/api/runs/${runId}/transcript${query}`), 200, 'run transcript'),
+    );
+    pages.unshift(res.items);
+    before = res.nextBefore;
+  } while (before !== null);
+  return pages.flat();
+}
+
+let shared: { handle: string; projectId: string } | undefined;
+
+/** One dev-login user and project per worker: made on first use, signed in again on the next. */
+export async function projectFor(page: Page): Promise<{ handle: string; projectId: string }> {
+  if (shared === undefined) {
+    shared = await signInAndCreateProject(page);
+  } else {
+    await page.goto(`/auth/dev-login?handle=${shared.handle}&redirect=/`);
+    await expect(page).toHaveURL(new RegExp(`/o/${shared.handle}/projects$`));
+  }
+  return shared;
+}
+
+export async function runOf(page: Page, runId: string): Promise<RunDto> {
+  return RunDto.parse(await ok(await page.request.get(`/api/runs/${runId}`), 200, 'run'));
+}
+
+export async function waitForStatus(
+  page: Page,
+  runId: string,
+  status: RunDto['status'],
+  timeout = 60_000,
+): Promise<void> {
+  await expect
+    .poll(async () => (await runOf(page, runId)).status, { timeout, intervals: [200, 500, 1000] })
+    .toBe(status);
 }
 
 /** Lines of the fake pod's log for a run ([] when none yet). */

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { RunStatusEvent } from './events';
+import { PauseReason, STOPPABLE_RUN_STATUSES } from '../enums';
 import { RunDto } from './runs';
 
 const ID = '11111111-1111-4111-8111-111111111111';
@@ -31,6 +32,7 @@ const run = {
   costUsd: null,
   timeoutSeconds: 3600,
   idleEndSeconds: 1800,
+  pausedKeepSeconds: 604800,
   idleSince: null,
   waitingOn: null,
   agentNote: null,
@@ -110,5 +112,18 @@ describe('RunStatusEvent session ending and pause reason', () => {
 
   it('rejects an unknown pause reason', () => {
     expect(RunStatusEvent.safeParse({ ...event, pauseReason: 'oom' }).success).toBe(false);
+  });
+});
+
+describe('stopped runs', () => {
+  it('knows the stopped pause reason', () => {
+    expect(PauseReason.parse('stopped')).toBe('stopped');
+  });
+  it('lists the stoppable statuses', () => {
+    expect([...STOPPABLE_RUN_STATUSES]).toEqual(['running', 'idle', 'done']);
+  });
+  it('requires pausedKeepSeconds', () => {
+    const { pausedKeepSeconds: _omit, ...rest } = run;
+    expect(RunDto.safeParse(rest).success).toBe(false);
   });
 });

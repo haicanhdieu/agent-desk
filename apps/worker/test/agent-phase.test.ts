@@ -8,6 +8,7 @@ import {
   idleFixStatus,
   idleTimerApplies,
   nextTurnState,
+  stopSessionRejection,
   stoppedStatus,
   type TurnState,
 } from '../src/workflows/agent-phase';
@@ -234,5 +235,45 @@ describe('stoppedStatus', () => {
   it('a Temporal-level cancellation (no stop reason) is cancelled', () => {
     expect(stoppedStatus(undefined, undefined)).toBe('cancelled');
     expect(stoppedStatus(undefined, 'agent_done')).toBe('cancelled');
+  });
+});
+
+describe('stopSessionRejection', () => {
+  type Input = Parameters<typeof stopSessionRejection>[0];
+  const base: Input = {
+    phase: 'running',
+    ending: false,
+    finishRequested: false,
+    stopRequested: false,
+    sessionStarted: true,
+    patched: true,
+  };
+
+  it.each<RunPhase>(['running', 'idle', 'agent_done'])('accepts a stop in phase %s', (phase) => {
+    expect(stopSessionRejection({ ...base, phase })).toBeUndefined();
+  });
+
+  it('refuses a run that started before Stop session was available', () => {
+    expect(stopSessionRejection({ ...base, patched: false })).toBe(
+      'This run started before Stop session was available; Finish or Cancel it',
+    );
+  });
+
+  it.each<Partial<Input>>([{ ending: true, phase: 'ending' }, { finishRequested: true }, { stopRequested: true }])(
+    'says the session is already ending for %j',
+    (over) => {
+      expect(stopSessionRejection({ ...base, ...over })).toBe('The session is already ending');
+    },
+  );
+
+  it.each<RunPhase>(['loading', 'waiting_slot', 'starting', 'parked', 'resuming', 'finalizing'])(
+    'refuses phase %s as not live',
+    (phase) => {
+      expect(stopSessionRejection({ ...base, phase })).toBe('Only a live session can be stopped');
+    },
+  );
+
+  it('refuses before the agent reported session_started', () => {
+    expect(stopSessionRejection({ ...base, sessionStarted: false })).toBe('The agent has not started yet');
   });
 });

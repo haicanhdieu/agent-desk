@@ -36,6 +36,40 @@ export const CRASHED_RUN = 68;
 export const RESUME_FAILED_RUN = 69;
 export const RESUMED_RUN = 70;
 export const KILLED_RUN = 71;
+/**
+ * The runs for stop session and the saved Transcript (src/mocks/dto/sessionRuns.ts, browser mock only). The mocked
+ * specs install a fixed clock at SESSION_MOCK_NOW so their relative times ("Stopped by you 2 min ago.") hold.
+ * Run behaviours there: 72 and 73 answer cancel and finish after 3 s; 75, 76, 90 and 94 answer the transcript after
+ * 3 s; 91 fails it with request id req-123, 92 without an id, 93 only the first time.
+ */
+export const SESSION_MOCK_NOW = '2026-11-19T14:20:00.000Z';
+export const STOP_RUNNING_RUN = 72;
+export const STOP_IDLE_RUN = 73;
+export const STOP_DONE_RUN = 74;
+export const STOP_RUNNING_ENDING_RUN = 75;
+export const STOP_DONE_ENDING_RUN = 76;
+export const STOPPED_RUN = 77;
+export const STOPPED_ISSUE_RUN = 78;
+export const STOPPED_DAY_RUN = 79;
+export const STOPPED_NOW_RUN = 80;
+export const STOPPED_LATE_RUN = 81;
+export const FINISHED_AFTER_PAUSE_RUN = 82;
+export const EXPIRED_STOPPED_RUN = 83;
+export const TRANSCRIPT_RICH_RUN = 84;
+export const TRANSCRIPT_LONG_RUN = 85;
+export const TRANSCRIPT_FAILED_RUN = 86;
+export const TRANSCRIPT_TIMED_OUT_RUN = 87;
+export const TRANSCRIPT_CANCELLED_RUN = 88;
+export const TRANSCRIPT_RESUMING_RUN = 89;
+export const TRANSCRIPT_SLOW_RUN = 90;
+export const TRANSCRIPT_ERROR_RUN = 91;
+export const TRANSCRIPT_ERROR_NO_ID_RUN = 92;
+export const TRANSCRIPT_FLAKY_RUN = 93;
+export const SCROLLBACK_PAUSED_RUN = 94;
+export const SCROLLBACK_ENDED_RUN = 95;
+export const NOTHING_ENDED_RUN = 96;
+export const NOTHING_PAUSED_RUN = 97;
+export const PAUSED_TRANSCRIPT_RUN = 98;
 /** An idle run (Needs you) that has a live terminal. */
 export const IDLE_RUN = 62;
 

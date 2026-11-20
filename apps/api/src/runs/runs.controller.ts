@@ -6,6 +6,8 @@ import {
   type RunListQuery,
   type RunListResponse,
   type RunLogResponse,
+  type RunTranscriptQuery,
+  type RunTranscriptResponse,
 } from '@agentdesk/contracts';
 import { CurrentOrg, type OrgContext } from '../auth/org-context';
 import { routePath } from '../common/route-path';
@@ -16,6 +18,7 @@ const ProjectParam = new ZodPipe(routes.runs.list.params);
 const NumberParam = new ZodPipe(routes.runs.byNumber.params);
 const RunParam = new ZodPipe(routes.runs.get.params);
 const ListQuery = new ZodPipe(routes.runs.list.query);
+const TranscriptQuery = new ZodPipe(routes.runs.transcript.query);
 
 @Controller()
 export class RunsController {
@@ -51,6 +54,22 @@ export class RunsController {
   @Get(routePath(routes.runs.log))
   log(@CurrentOrg() org: OrgContext, @Param(RunParam) p: { runId: string }): Promise<RunLogResponse> {
     return this.service.log(org, p.runId);
+  }
+
+  @Get(routePath(routes.runs.transcript))
+  transcript(
+    @CurrentOrg() org: OrgContext,
+    @Param(RunParam) p: { runId: string },
+    @Query(TranscriptQuery) q: RunTranscriptQuery,
+  ): Promise<RunTranscriptResponse> {
+    return this.service.transcript(org, p.runId, q);
+  }
+
+  @Post(routePath(routes.runs.stop))
+  @HttpCode(202)
+  async stop(@CurrentOrg() org: OrgContext, @Param(RunParam) p: { runId: string }): Promise<null> {
+    await this.service.stop(org, p.runId);
+    return null;
   }
 
   @Post(routePath(routes.runs.cancel))

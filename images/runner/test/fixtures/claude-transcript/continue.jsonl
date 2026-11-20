@@ -1,0 +1,2 @@
+{"type":"user","uuid":"c1","timestamp":"2026-11-19T10:00:20.000Z","message":{"role":"user","content":"Continue please"}}
+{"type":"assistant","uuid":"c2","timestamp":"2026-11-19T10:00:21.000Z","message":{"role":"assistant","content":[{"type":"text","text":"Continuing."}]}}

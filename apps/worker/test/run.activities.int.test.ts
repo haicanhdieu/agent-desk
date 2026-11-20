@@ -18,7 +18,7 @@ import {
   type KubeGateway,
   type RunPod,
 } from '@agentdesk/core';
-import { createDb, runEvents, runs, setupScriptVersions, withOrg, type Db } from '@agentdesk/db';
+import { createDb, runEvents, runs, runTranscriptEntries, setupScriptVersions, withOrg, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { FollowPodLogsResult, RunContext } from '../src/activities/run.activities';
 import { createRunActivities, type RunActivityDeps, type RunSignaller } from '../src/activities/run.activities.impl';
@@ -891,8 +891,8 @@ describe('activity errors are redacted', () => {
 
 // The fake pod's log up to the agent starting, as lifecycle kinds (one log line each); the first turn finishes next.
 const PRELUDE_KINDS = ['checkout', 'plugins_begin', 'plugins_end', 'setup_skipped', 'session_started'];
-// The pod also logs the launch line and `git identity <name> <email>`: plain text lines, so they count as log lines but store no event.
-const PRELUDE_TEXT_LINES = 2;
+// The pod also logs the launch line, `git identity <name> <email>` and the first transcript line (the prompt): plain text lines, so they count as log lines but store no event.
+const PRELUDE_TEXT_LINES = 3;
 // The fake pod's first turn logs `state working` then `state needs_input`; the first turn's end is the first replayable boundary.
 const FIRST_TURN_LINE = PRELUDE_KINDS.length + PRELUDE_TEXT_LINES + 2;
 
@@ -2222,6 +2222,90 @@ describe('resume mode', () => {
     expect((err as ApplicationFailure).type).toBe('NoAgentCredential');
     expect((err as ApplicationFailure).nonRetryable).toBe(true);
     expect(await kube.readSecret(`run-${runId}`)).toBeNull();
+  });
+});
+
+describe('transcript lines', () => {
+  const tline = (entry: Record<string, unknown>) =>
+    `agentdesk: transcript ${Buffer.from(JSON.stringify(entry), 'utf8').toString('base64')}`;
+  /** A pod that already exited with 0 after logging `lines` (a new pod: its log starts at line 1). */
+  const podLogging = (lines: string[]): KubeGateway =>
+    wrapKube({
+      getRunPod: async (name) => ({ name, phase: 'Succeeded', pendingSince: null, reason: null, exitCode: 0 }),
+      streamLogs: async function* () {
+        for (const l of lines) yield l;
+      },
+      readSecret: async () => ({ x: 'y' }),
+    });
+  const stored = (runId: string) =>
+    withOrg(db, ORG, (tx) =>
+      tx
+        .select()
+        .from(runTranscriptEntries)
+        .where(eq(runTranscriptEntries.runId, runId))
+        .orderBy(runTranscriptEntries.seq),
+    );
+
+  it('are redacted and stored, and not written to run_events', async () => {
+    const runId = await seedRun('x', 'starting');
+    const ctx = await ctxFor(runId);
+    const entry = { id: 'u1:0', kind: 'user', text: `use ${CRED} please` };
+    const kube1 = podLogging([
+      'agentdesk: session started',
+      tline(entry),
+      tline({ id: 't1:0', kind: 'tool', tool: 'Bash', text: 'ls' }),
+    ]);
+    await follow(ctx, deps({ kube: kube1 })).promise;
+    const rows = await stored(runId);
+    expect(rows.map((r) => [r.seq, r.sourceId, r.kind, r.tool])).toEqual([
+      [1, 'u1:0', 'user', null],
+      [2, 't1:0', 'tool', 'Bash'],
+    ]);
+    expect(rows[0]?.text).toContain('***');
+    expect(JSON.stringify(rows)).not.toContain(CRED);
+    const { events } = await load(runId);
+    expect(events.filter((e) => e.type === 'lifecycle').map((e) => e.payload.kind)).toEqual(['session_started']);
+    expect(JSON.stringify(events)).not.toContain('transcript');
+    expect(JSON.stringify(events)).not.toContain('use ');
+  });
+
+  it('a follower retry re-reading the log stores each entry once', async () => {
+    const runId = await seedRun('x', 'starting');
+    const ctx = await ctxFor(runId);
+    const k = podLogging([
+      'agentdesk: session started',
+      tline({ id: 'a:0', kind: 'agent', text: 'one' }),
+      tline({ id: 'b:0', kind: 'agent', text: 'two' }),
+    ]);
+    await follow(ctx, deps({ kube: k })).promise;
+    await follow(ctx, deps({ kube: k }), { lastLine: 0 }).promise;
+    expect((await stored(runId)).map((r) => r.sourceId)).toEqual(['a:0', 'b:0']);
+  });
+
+  it('a second pod re-sending the same ids stores nothing new', async () => {
+    const runId = await seedRun('x', 'starting');
+    const ctx = await ctxFor(runId);
+    const a = tline({ id: 'a:0', kind: 'agent', text: 'one' });
+    const b = tline({ id: 'b:0', kind: 'agent', text: 'two' });
+    await follow(ctx, deps({ kube: podLogging(['agentdesk: session started', a, b]) })).promise;
+    // The resumed pod's log restarts at line 1 and re-sends both ids (its start flush), plus one new entry.
+    const c = tline({ id: 'c:0', kind: 'agent', text: 'three' });
+    await follow(ctx, deps({ kube: podLogging(['agentdesk: session started', b, a, c]) }), undefined, { resume: true })
+      .promise;
+    expect((await stored(runId)).map((r) => [r.seq, r.sourceId])).toEqual([
+      [1, 'a:0'],
+      [2, 'b:0'],
+      [3, 'c:0'],
+    ]);
+  });
+
+  it('a malformed transcript line is an ordinary text line', async () => {
+    const runId = await seedRun('x', 'starting');
+    const ctx = await ctxFor(runId);
+    const bad = 'agentdesk: transcript !!!not-base64';
+    const result = await follow(ctx, deps({ kube: podLogging(['agentdesk: session started', bad]) })).promise;
+    expect(await stored(runId)).toHaveLength(0);
+    expect(result.scrollbackTail).toContain(bad);
   });
 });
 

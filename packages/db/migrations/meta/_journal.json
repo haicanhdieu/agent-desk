@@ -127,6 +127,20 @@
       "when": 1795071478152,
       "tag": "0017_agent_model_routing",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1795087679871,
+      "tag": "0018_run_pause_reason_stopped",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1795087680306,
+      "tag": "0019_run_transcript_entries",
+      "breakpoints": true
     }
   ]
 }

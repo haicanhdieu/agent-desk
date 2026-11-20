@@ -2,6 +2,7 @@ import {
   ACTIVE_RUN_STATUSES,
   canResume,
   FINISHABLE_RUN_STATUSES,
+  STOPPABLE_RUN_STATUSES,
   type RouteDef,
   type RuleDto,
   FINAL_RUN_STATUSES,
@@ -18,6 +19,7 @@ import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import { promptPreviewFixture } from '../dto/rules';
+import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
 import { noPlugins } from '../dto/setup';
 import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
 import {
@@ -55,6 +57,12 @@ function session(): { user: MockUser; orgId: string } {
 }
 
 const db = () => mockDb.state;
+
+const SLOW_MS = 3_000;
+const slow = () => new Promise<void>((resolve) => setTimeout(resolve, SLOW_MS));
+/** Transcript requests that already failed once in this page load (failOnce); a reset starts over. */
+const failedOnce = new Set<number>();
+mockDb.onReset(() => failedOnce.clear());
 
 function projectRow(projectId: string): ProjectRow {
   const { orgId } = session();
@@ -131,7 +139,7 @@ function runOf(runId: string): RunDto {
 /** As the API: a run carries its agent's idle end, so an edit on Agent & settings shows on the run screens. */
 const withAgentIdleEnd = (run: RunDto): RunDto => {
   const agent = db().agents.find((a) => a.projectId === run.projectId);
-  return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds } : run;
+  return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds, pausedKeepSeconds: agent.pausedKeepSeconds } : run;
 };
 
 /** Ends the run now; open event streams see the note and the status (live.ts). */
@@ -534,19 +542,46 @@ const impl: Impl = {
   },
   'runs.get': ({ params }) => withAgentIdleEnd(runOf(params.runId)),
   'runs.log': ({ params }) => ({ items: db().runEvents[runOf(params.runId).id] ?? [] }),
-  'runs.cancel': ({ params }) => {
+  'runs.cancel': async ({ params }) => {
     const { user } = session();
     const run = runOf(params.runId);
     if (isFinal(run.status)) throw conflict('Run already ended');
+    if (slowActionRuns.has(run.number)) await slow();
     endRun(run, 'cancelled', `Cancel requested by ${user.handle}`);
     return null;
   },
-  'runs.finish': ({ params }) => {
+  'runs.finish': async ({ params }) => {
     const { user } = session();
     const run = runOf(params.runId);
     if (isFinal(run.status)) throw conflict('Run already ended');
     if (!FINISHABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Run is not waiting for you or done');
+    if (slowActionRuns.has(run.number)) await slow();
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
+    return null;
+  },
+  'runs.transcript': async ({ params, query }) => {
+    const run = runOf(params.runId);
+    const behaviour = transcriptBehaviours[run.number];
+    if (behaviour === 'slow') await slow();
+    const failure = { status: 500, title: 'Internal Server Error', type: 'internal' };
+    if (behaviour === 'fail') throw new Problem({ ...failure, requestId: 'req-123' });
+    if (behaviour === 'failNoRequestId') throw new Problem({ ...failure, requestId: null });
+    if (behaviour === 'failOnce' && !failedOnce.has(run.number)) {
+      failedOnce.add(run.number);
+      throw new Problem({ ...failure, requestId: 'req-123' });
+    }
+    // As the API: the newest window below `before`, oldest first; nextBefore is the window's first seq when older ones remain.
+    const all = db().runTranscripts[run.id] ?? [];
+    const { before } = query;
+    const below = before === undefined ? all : all.filter((e) => e.seq < before);
+    const items = below.slice(Math.max(0, below.length - query.limit));
+    const first = items[0];
+    return { items, nextBefore: items.length < below.length && first ? first.seq : null };
+  },
+  'runs.stop': ({ params }) => {
+    const run = runOf(params.runId);
+    if (run.sessionEndingAt !== null) throw conflict('The session is already ending');
+    if (!STOPPABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Only a live session can be stopped');
     return null;
   },
   'runs.resume': ({ params }) => {
@@ -588,6 +623,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'rules.create': 201,
   'projects.pollNow': 202,
   'runs.cancel': 202,
+  'runs.stop': 202,
   'runs.finish': 202,
   'setupTests.end': 202,
 };

@@ -257,7 +257,7 @@ export const runs = pgTable(
     sessionExpiresAt: ts('session_expires_at'),
     /** When the live session is scheduled to end. Null when none is. */
     sessionEndingAt: ts('session_ending_at'),
-    /** Why the run is paused: 'idle_timeout', 'pod_lost' or 'agent_crashed'. Null otherwise. */
+    /** Why the run is paused: 'idle_timeout', 'pod_lost', 'agent_crashed' or 'stopped'. Null otherwise. */
     pauseReason: text('pause_reason'),
   },
   (t) => [
@@ -277,7 +277,7 @@ export const runs = pgTable(
       sql`${t.status} in ('queued','starting','running','idle','paused','done','succeeded','failed','cancelled','timed_out','expired')`,
     ),
     // Literals mirror PauseReason in @agentdesk/contracts.
-    check('runs_pause_reason_check', sql`${t.pauseReason} in ('idle_timeout','pod_lost','agent_crashed')`),
+    check('runs_pause_reason_check', sql`${t.pauseReason} in ('idle_timeout','pod_lost','agent_crashed','stopped')`),
     check('runs_waiting_on_check', sql`${t.waitingOn} in ('background')`),
     check('runs_ticket_kind_check', sql`${t.ticketKind} in ('issue','pr')`),
     check('runs_trigger_source_check', sql`${t.triggerSource} in ('webhook','polling','manual')`),
@@ -302,6 +302,32 @@ export const runEvents = pgTable(
     primaryKey({ name: 'run_events_pkey', columns: [t.runId, t.seq] }),
     index('run_events_org_idx').on(t.orgId),
     check('run_events_type_check', sql`${t.type} in ('lifecycle','status','scrollback','comment')`),
+    orgPolicy(),
+  ],
+);
+
+/** The agent conversation saved for a run (agent-neutral wire entries). `source_id` dedupes entries a later pod re-sends. */
+export const runTranscriptEntries = pgTable(
+  'run_transcript_entries',
+  {
+    orgId: uuid('org_id').notNull(),
+    runId: uuid('run_id')
+      .notNull()
+      .references(() => runs.id, { onDelete: 'cascade' }),
+    seq: integer('seq').notNull(),
+    sourceId: text('source_id').notNull(),
+    at: ts('at').notNull(),
+    kind: text('kind').notNull(),
+    tool: text('tool'),
+    text: text('text').notNull(),
+    truncated: boolean('truncated').notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ name: 'run_transcript_entries_pkey', columns: [t.runId, t.seq] }),
+    unique('run_transcript_entries_source_key').on(t.runId, t.sourceId),
+    index('run_transcript_entries_org_idx').on(t.orgId),
+    // Literals mirror TranscriptKind in @agentdesk/contracts.
+    check('run_transcript_entries_kind_check', sql`${t.kind} in ('user','agent','tool','notice')`),
     orgPolicy(),
   ],
 );

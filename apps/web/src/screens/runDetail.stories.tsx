@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { runDetails, terminalByRun } from '@/mocks';
+import { runDetails, terminalByRun, transcriptFixtures, transcriptStateFixtures } from '@/mocks';
 import { RunDetail } from './RunDetail';
+import { RunTerminalArea, type RunTerminalAreaProps } from './RunTerminalArea';
+import styles from './Screens.module.css';
 import { viewport } from './viewports';
 
 // Artboards come from canvas.json: 1440x900 for all boards except RunReconnect (1280x800).
@@ -123,4 +125,137 @@ export const RunExpired: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
   args: { data: runDetails.RunExpired, needsYou: 1 },
+};
+
+/** Stopped by you: the Stopped notice with Resume and Finish, and the saved Transcript, read-only. */
+export const RunStopped: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: {
+    data: runDetails.RunStopped,
+    transcript: { state: 'ready', items: transcriptFixtures.default, hasEarlier: true },
+    needsYou: 1,
+    onResume: () => {},
+  },
+};
+/** A stopped run after Finish: succeeded, the session is gone, the Transcript stays. */
+export const RunSucceededFinished: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: {
+    data: runDetails.RunSucceededFinished,
+    transcript: {
+      state: 'ready',
+      items: transcriptFixtures.default.filter((i) => i.kind !== 'notice' && !i.truncated),
+    },
+    needsYou: 1,
+  },
+};
+
+const stateCells: { caption: string; props: RunTerminalAreaProps }[] = [
+  {
+    caption: "Paused by the idle timer: today's notice, the Transcript below.",
+    props: {
+      data: runDetails.RunPaused,
+      transcript: { state: 'ready', items: transcriptStateFixtures.pausedIdleTimer },
+    },
+  },
+  {
+    caption: "Failed: a short transcript starts at the run's prompt.",
+    props: {
+      data: runDetails.RunFailed,
+      transcript: { state: 'ready', items: transcriptStateFixtures.failed },
+    },
+  },
+  {
+    caption: "Timed out: today's notice, the Transcript below.",
+    props: {
+      data: runDetails.RunTimedOut,
+      transcript: { state: 'ready', items: transcriptStateFixtures.timedOut },
+    },
+  },
+  {
+    caption: 'Cancelled: the Transcript replaces \u201cNo scrollback was saved\u201d.',
+    props: {
+      data: runDetails.RunCancelled,
+      transcript: { state: 'ready', items: transcriptStateFixtures.cancelled },
+    },
+  },
+  {
+    caption: 'Expired: the Transcript stays after the session is deleted.',
+    props: {
+      data: { ...runDetails.RunExpired, connection: { state: 'ended', label: 'Ended, read-only' } },
+      transcript: { state: 'ready', items: transcriptStateFixtures.expired },
+    },
+  },
+  {
+    caption: 'Error: Retry loads it again; nothing starts a pod.',
+    props: {
+      data: runDetails.RunPaused,
+      transcript: { state: 'error', items: [], requestId: '01JDK8Q3V2' },
+    },
+  },
+  {
+    caption: 'No entries (older run or image): saved terminal text, as today.',
+    props: {
+      data: { ...runDetails.RunPaused, connection: { state: 'ended', label: 'Paused, read-only, 412 lines' } },
+      lines: terminalByRun[62],
+    },
+  },
+  {
+    caption: 'No entries and no saved text: the new empty state.',
+    props: {
+      data: { ...runDetails.RunFailed, connection: { state: 'ended', label: 'Ended' } },
+      transcript: { state: 'ready', items: [] },
+    },
+  },
+];
+
+/** The Transcript in the other stopped and ended states, side by side. */
+export const RunTranscriptStates: Story = {
+  decorators: [
+    (S) => (
+      <div style={{ width: 1440, height: 740, display: 'flex', flexDirection: 'column' }}>
+        <S />
+      </div>
+    ),
+  ],
+  globals: viewport(1440, 740),
+  args: { data: runDetails.RunPaused, needsYou: 1 },
+  render: () => (
+    <div className={styles.stateGrid}>
+      {stateCells.map((c) => (
+        <div key={c.caption} className={styles.stateCell}>
+          <RunTerminalArea {...c.props} label={c.caption} />
+          <div className={styles.stateCaption}>{c.caption}</div>
+        </div>
+      ))}
+    </div>
+  ),
+};
+
+/** Stop session pressed on a running run: the confirm names the paused keep time. */
+export const RunRunningStop: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: {
+    data: runDetails.RunRunningStop,
+    lines: terminalByRun[61],
+    needsYou: 1,
+    stopConfirmOpen: true,
+    onStopClose: () => {},
+    onStop: () => {},
+  },
+};
+/** The session is ending after Stop session: Stop session is disabled and the Transcript is loading. */
+export const RunIdleEnding: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunIdleEnding, transcript: { state: 'loading', items: [] }, needsYou: 1 },
+};
+/** Finish is in flight on an idle run: Stop session waits with it. */
+export const RunIdleActionPending: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62], needsYou: 1, pendingNote: 'Finishing…' },
 };

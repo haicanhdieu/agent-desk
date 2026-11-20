@@ -12,6 +12,8 @@ export interface TerminalBarProps {
   onCopyAll?(): void;
   /** The result of the last Copy all, shown in the button until it resets. */
   copyStatus?: 'copied' | 'failed';
+  /** Show Find and Copy all (default true); the Transcript bar hides them. */
+  tools?: boolean;
 }
 
 export function TerminalBar({
@@ -23,6 +25,7 @@ export function TerminalBar({
   onFind,
   onCopyAll,
   copyStatus,
+  tools = true,
 }: TerminalBarProps) {
   return (
     <div className={styles.termbar}>
@@ -56,12 +59,16 @@ export function TerminalBar({
       {connection}
       <span className={styles.sep} aria-hidden="true" />
       {size && <span className={styles.size}>{size}</span>}
-      <Button variant="ghost" size="sm" icon="search" aria-label="Find in scrollback" onClick={onFind}>
-        Find
-      </Button>
-      <Button variant="ghost" size="sm" icon={copyStatus === 'copied' ? 'check' : 'copy'} onClick={onCopyAll}>
-        {copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy all'}
-      </Button>
+      {tools && (
+        <>
+          <Button variant="ghost" size="sm" icon="search" aria-label="Find in scrollback" onClick={onFind}>
+            Find
+          </Button>
+          <Button variant="ghost" size="sm" icon={copyStatus === 'copied' ? 'check' : 'copy'} onClick={onCopyAll}>
+            {copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy all'}
+          </Button>
+        </>
+      )}
     </div>
   );
 }

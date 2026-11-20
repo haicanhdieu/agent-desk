@@ -102,3 +102,30 @@ export function stoppedStatus(
   if (stopReason === 'timed_out' && phaseAtTimeout === 'agent_done') return 'succeeded';
   return stopReason ?? 'cancelled';
 }
+
+export interface StopSessionInput {
+  phase: RunPhase;
+  ending: boolean;
+  finishRequested: boolean;
+  stopRequested: boolean;
+  /** The agent's session in the current pod reported `session_started`. */
+  sessionStarted: boolean;
+  /** patched('stop-session') */
+  patched: boolean;
+}
+
+/** Why a `stopSession` update is refused, or undefined when accepted (order: patch, ending, live phase, started). */
+export function stopSessionRejection(input: StopSessionInput): string | undefined {
+  if (!input.patched) return 'This run started before Stop session was available; Finish or Cancel it';
+  if (input.ending || input.finishRequested || input.stopRequested) return 'The session is already ending';
+  if (input.phase !== 'running' && !atTurnBoundary(input.phase)) return 'Only a live session can be stopped';
+  if (!input.sessionStarted) return 'The agent has not started yet';
+  return undefined;
+}
+
+/**
+ * A `stopSession` update waits for the session to end for the stop (`stopSessionEnding`), or for the run to be finalized
+ * or parked by something else (idle timer, lost pod) before the main loop began the stop's own end.
+ */
+export const stopSessionSettled = (stopEnding: boolean, phase: RunPhase): boolean =>
+  finishRunSettled(stopEnding, phase) || phase === 'parked';

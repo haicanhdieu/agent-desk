@@ -13,6 +13,7 @@ const APP_TABLES = [
   'rules',
   'runs',
   'run_events',
+  'run_transcript_entries',
   'inbound_events',
   'poll_cursors',
   'audit_log',
@@ -562,6 +563,62 @@ describe('bootstrap and migrations', () => {
       await inOrg((c) =>
         c.query(`update runs set model = null where trigger_comment_id = 'c-2'`).then(() => undefined),
       );
+    });
+
+    it('0018 adds stopped to the pause reason check and writes no rows', async () => {
+      const sqlText = await readFile(
+        new URL('../migrations/0018_run_pause_reason_stopped.sql', import.meta.url),
+        'utf8',
+      );
+      expect(sqlText).not.toMatch(/\b(update|delete|insert)\b/i);
+      await inOrg((c) =>
+        c.query(`update runs set pause_reason = 'stopped' where trigger_comment_id = 'c-2'`).then(() => undefined),
+      );
+      await expect(
+        inOrg((c) =>
+          c.query(`update runs set pause_reason = 'nope' where trigger_comment_id = 'c-2'`).then(() => undefined),
+        ),
+      ).rejects.toMatchObject({ code: '23514', constraint: 'runs_pause_reason_check' });
+    });
+
+    it('0019 creates run_transcript_entries with forced RLS and the run_events grants', async () => {
+      const force = await query<{ relforcerowsecurity: boolean }>(
+        env.ownerUrl,
+        `select relforcerowsecurity from pg_class where relname = 'run_transcript_entries'`,
+      );
+      expect(force).toEqual([{ relforcerowsecurity: true }]);
+      const grants = await query<{ privilege_type: string }>(
+        env.ownerUrl,
+        `select privilege_type from information_schema.role_table_grants
+         where table_name = 'run_transcript_entries' and grantee = 'agentdesk_app' order by 1`,
+      );
+      expect(grants.map((g) => g.privilege_type)).toEqual(['DELETE', 'INSERT', 'SELECT', 'UPDATE']);
+
+      const entry = (c: pg.Client, runId: string, seq: number, sourceId: string, kind: string) =>
+        c
+          .query(
+            `insert into run_transcript_entries (org_id, run_id, seq, source_id, at, kind, text)
+             values ($1, $2, $3, $4, now(), $5, 'hello')`,
+            [orgId, runId, seq, sourceId, kind],
+          )
+          .then(() => undefined);
+      const runIdOf = async (c: pg.Client, comment: string): Promise<string> => {
+        const r = await c.query<{ id: string }>('select id from runs where trigger_comment_id = $1', [comment]);
+        return r.rows[0]?.id ?? '';
+      };
+      await inOrg(async (c) => entry(c, await runIdOf(c, 'c-2'), 1, 'src-1', 'agent'));
+      await expect(inOrg(async (c) => entry(c, await runIdOf(c, 'c-2'), 2, 'src-1', 'agent'))).rejects.toMatchObject({
+        code: '23505',
+        constraint: 'run_transcript_entries_source_key',
+      });
+      await expect(inOrg(async (c) => entry(c, await runIdOf(c, 'c-2'), 3, 'src-3', 'thinking'))).rejects.toMatchObject(
+        { code: '23514', constraint: 'run_transcript_entries_kind_check' },
+      );
+      await inOrg(async (c) => {
+        await c.query(`delete from runs where trigger_comment_id = 'c-2'`);
+        const left = await c.query('select 1 from run_transcript_entries');
+        expect(left.rowCount).toBe(0);
+      });
     });
 
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {

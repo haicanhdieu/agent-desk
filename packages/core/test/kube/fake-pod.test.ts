@@ -1,4 +1,13 @@
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import {
+  appendFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+  existsSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -452,6 +461,223 @@ describe('fake-pod.mjs', () => {
       writeFileSync(join(dir, 'kill'), '');
       expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
       expect(logLines().slice(-2)).toEqual(['agentdesk: final scrollback begin', 'agentdesk: final scrollback end']);
+    });
+  });
+  describe('transcript through the real adapter', () => {
+    const ADAPTER = fileURLToPath(new URL('../../../../images/runner/agents/claude/transcript.mjs', import.meta.url));
+    const PROMPT = 'Write the report';
+    const vol = (): string => join(dir, 'vol');
+    const tEnv = (extra: Record<string, string> = {}): Record<string, string> => ({
+      FAKE_VOLUME_DIR: vol(),
+      FAKE_TRANSCRIPT_ADAPTER: ADAPTER,
+      PROMPT,
+      ...extra,
+    });
+    type Wire = { id: string; kind: string; text: string; tool?: string; truncated?: boolean };
+    const decode = (l: string): Wire =>
+      JSON.parse(Buffer.from(l.slice('agentdesk: transcript '.length), 'base64').toString('utf8')) as Wire;
+    const wires = (): Wire[] =>
+      logLines()
+        .filter((l) => l.startsWith('agentdesk: transcript '))
+        .map(decode);
+    const pair = (w: Wire): [string, string] => [w.kind, w.text];
+    const sessionFile = (): string => {
+      const proj = join(vol(), 'home', '.claude', 'projects');
+      const sub = readdirSync(proj)[0] ?? '';
+      const f = readdirSync(join(proj, sub)).find((n) => n.endsWith('.jsonl')) ?? '';
+      return join(proj, sub, f);
+    };
+
+    it('a fresh run sends the prompt and the first reply as transcript lines', async () => {
+      await boot(tEnv());
+      advance(TURN_MS);
+      expect(wires().map(pair)).toEqual([
+        ['user', PROMPT],
+        ['agent', 'Fake agent reply 1'],
+      ]);
+    });
+
+    it('a resumed pod continues the same session file and sends only new entries', async () => {
+      await boot(tEnv());
+      advance(TURN_MS);
+      const before = wires().length;
+      const file = sessionFile();
+      vi.clearAllTimers(); // the first pod is gone
+      await boot(tEnv({ RUN_MODE: 'resume' }));
+      expect(wires()).toHaveLength(before);
+      appendFileSync(join(dir, 'input'), 'again\r');
+      advance(TICK_MS);
+      advance(TURN_MS);
+      expect(sessionFile()).toBe(file);
+      expect(wires().slice(before).map(pair)).toEqual([
+        ['user', 'again'],
+        ['agent', 'Fake agent reply 2'],
+      ]);
+    });
+
+    it('stop runs the end flush before the scrollback', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-unflushed` }));
+      advance(TURN_MS);
+      appendFileSync(join(dir, 'input'), 'again\r');
+      advance(TICK_MS);
+      expect(wires().map((w) => w.text)).not.toContain('UNFLUSHED-MARKER');
+      writeFileSync(join(dir, 'stop'), '');
+      expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
+      const lines = logLines();
+      expect(wires().map((w) => w.text)).toContain('UNFLUSHED-MARKER');
+      const lastWire = lines
+        .map((l, i) => (l.startsWith('agentdesk: transcript ') ? i : -1))
+        .reduce((a, b) => Math.max(a, b));
+      expect(lastWire).toBeLessThan(lines.indexOf('agentdesk: final scrollback begin'));
+    });
+
+    it('no adapter file, an empty variable or --fake-no-transcript sends nothing', async () => {
+      await boot(tEnv({ FAKE_TRANSCRIPT_ADAPTER: join(dir, 'missing.mjs') }));
+      advance(TURN_MS);
+      expect(wires()).toEqual([]);
+      expect(existsSync(join(vol(), 'home'))).toBe(false);
+      rmSync(vol(), { recursive: true, force: true });
+      rmSync(join(dir, 'log'), { force: true });
+      await boot(tEnv({ FAKE_TRANSCRIPT_ADAPTER: '' }));
+      advance(TURN_MS);
+      expect(wires()).toEqual([]);
+      expect(existsSync(join(vol(), 'home'))).toBe(false);
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-no-transcript` }));
+      advance(TURN_MS);
+      expect(wires()).toEqual([]);
+    });
+
+    it('--fake-thinking keeps the thinking block out of the transcript', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-thinking` }));
+      advance(TURN_MS);
+      expect(readFileSync(sessionFile(), 'utf8')).toContain('THINKING-MARKER');
+      expect(JSON.stringify(wires())).not.toContain('THINKING-MARKER');
+      expect(wires().map((w) => w.text)).toContain('Fake agent reply 1');
+    });
+
+    it('--fake-tools sends tool steps with their summaries and no tool output', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-tools` }));
+      advance(TURN_MS);
+      const tools = wires().filter((w) => w.kind === 'tool');
+      expect(tools.map((w) => w.tool)).toEqual(['Bash', 'Edit', 'Write', 'Read', 'Grep', 'Grep']);
+      expect(tools[0]?.text).toBe('dotnet test');
+      expect(tools.slice(4).map((w) => w.text.length)).toEqual([200, 200]);
+      expect(readFileSync(sessionFile(), 'utf8')).toContain('OUTPUT-MARKER');
+      expect(JSON.stringify(wires())).not.toContain('OUTPUT-MARKER');
+    });
+
+    it('--fake-long-replies sends an 8,000-byte reply whole and cuts the 8,001-byte one', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-long-replies` }));
+      advance(TURN_MS);
+      const long = wires().filter((w) => w.kind === 'agent' && w.text.length >= 7999);
+      expect(long.map((w) => [Buffer.byteLength(w.text), w.truncated === true])).toEqual([
+        [8000, false],
+        [8000, true],
+      ]);
+    });
+
+    it('--fake-api-error sends the error as a notice and ends like --fake-fail', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-api-error` }));
+      expect(exitCodeOf(() => advance(TURN_MS))).toBe(3);
+      expect(wires().map(pair)).toContainEqual(['notice', 'API Error: 401 invalid credential']);
+      expect(logLines().at(-1)).toBe('agentdesk: session ended reason=agent_exit code=3');
+    });
+
+    it('--fake-transcript-bulk=<n> sends exactly n entries in one flush at the first turn end', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-transcript-bulk=25` }));
+      expect(wires()).toEqual([]);
+      advance(TURN_MS);
+      const all = wires();
+      expect(all).toHaveLength(25);
+      expect(all[0]?.text).toContain(PROMPT);
+      expect(all[24]?.text).toBe('bulk reply 24');
+    });
+
+    it('--fake-unflushed appends its reply after the typed line is sent, unflushed', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-unflushed` }));
+      advance(TURN_MS);
+      expect(readFileSync(sessionFile(), 'utf8')).not.toContain('UNFLUSHED-MARKER');
+      appendFileSync(join(dir, 'input'), 'MID-TURN\r');
+      advance(TICK_MS);
+      expect(readFileSync(sessionFile(), 'utf8')).toContain('UNFLUSHED-MARKER');
+      expect(wires().map((w) => w.text)).toContain('MID-TURN');
+      expect(wires().map((w) => w.text)).not.toContain('UNFLUSHED-MARKER');
+    });
+
+    it('--fake-unflushed holds the turn of the typed line open until release-turn, so no flush sends the marker', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-unflushed` }));
+      advance(TURN_MS);
+      appendFileSync(join(dir, 'input'), 'MID-TURN\r');
+      advance(TICK_MS);
+      advance(TURN_MS * 3);
+      expect(wires().map((w) => w.text)).not.toContain('UNFLUSHED-MARKER');
+      writeFileSync(join(dir, 'release-turn'), '');
+      advance(TURN_MS);
+      expect(wires().map((w) => w.text)).toContain('UNFLUSHED-MARKER');
+    });
+
+    it('--fake-bad-transcript-lines logs three malformed lines to the log and the pane', async () => {
+      await boot(tEnv({ PROMPT: `${PROMPT} --fake-bad-transcript-lines` }));
+      const bodies = logLines()
+        .filter((l) => l.startsWith('agentdesk: transcript '))
+        .map((l) => l.slice('agentdesk: transcript '.length));
+      expect(bodies.map((b) => b.length)).toContain(12001);
+      expect(bodies).toContain('!!!');
+      expect(bodies).toContain(b64('{"id":"a b","kind":"agent","text":"x"}'));
+      expect(read('pane')).toContain('agentdesk: transcript !!!');
+    });
+  });
+
+  describe('lifecycle controls', () => {
+    it('hold-start logs session started only after release-start', async () => {
+      await boot({ PROMPT: 'p --fake-hold-start' });
+      advance(TURN_MS * 3);
+      expect(logLines()).toContain('agentdesk: setup skipped (no script)');
+      expect(logLines()).not.toContain('agentdesk: session started');
+      expect(stateLines()).toEqual([]);
+      writeFileSync(join(dir, 'release-start'), '');
+      advance(TICK_MS);
+      expect(logLines()).toContain('agentdesk: session started');
+      advance(TURN_MS);
+      expect(stateLines()).toContain(NEEDS_INPUT);
+    });
+
+    it('slow-end ends only after release-end', async () => {
+      await boot({ PROMPT: 'p --fake-slow-end' });
+      writeFileSync(join(dir, 'stop'), '');
+      advance(TURN_MS * 3);
+      expect(existsSync(join(dir, 'exit'))).toBe(false);
+      expect(read('log')).not.toContain('final scrollback');
+      writeFileSync(join(dir, 'release-end'), '');
+      expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
+      expect(logLines().at(-1)).toBe('agentdesk: session ended reason=stop_request code=0');
+    });
+
+    it('hang-on-stop ignores stop and ends on kill', async () => {
+      await boot({ PROMPT: 'p --fake-hang-on-stop' });
+      writeFileSync(join(dir, 'stop'), '');
+      advance(TURN_MS * 3);
+      expect(existsSync(join(dir, 'exit'))).toBe(false);
+      writeFileSync(join(dir, 'kill'), '');
+      expect(exitCodeOf(() => advance(TICK_MS))).toBe(0);
+      expect(read('log')).not.toContain('session ended');
+    });
+
+    it('exit-ok ends with session ended reason=agent_exit code=0', async () => {
+      await boot({ PROMPT: 'p --fake-exit-ok' });
+      expect(exitCodeOf(() => advance(TURN_MS))).toBe(0);
+      expect(logLines().at(-1)).toBe('agentdesk: session ended reason=agent_exit code=0');
+      expect(read('exit')).toBe('0');
+    });
+
+    it('hardkill exits 137 with no end flush, no scrollback and no end line', async () => {
+      await boot({ PROMPT: 'p' });
+      writeFileSync(join(dir, 'hardkill'), '');
+      expect(exitCodeOf(() => advance(TICK_MS))).toBe(137);
+      expect(read('exit')).toBe('137');
+      expect(read('log')).not.toContain('final scrollback');
+      expect(read('log')).not.toContain('session ended');
+      expect(read('log')).not.toContain('agentdesk: transcript');
     });
   });
 });

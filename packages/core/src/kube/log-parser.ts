@@ -1,4 +1,10 @@
-import { AgentState, AgentStateSource, toAgentNoteWire } from '@agentdesk/contracts';
+import {
+  AgentState,
+  AgentStateSource,
+  TRANSCRIPT_WIRE_MAX_BASE64,
+  TranscriptWireEntry,
+  toAgentNoteWire,
+} from '@agentdesk/contracts';
 
 /** Why the runner's session ended (the runner prints it in its end line). Mirrored in worker workflow code. */
 export const END_REASONS = ['stop_request', 'agent_exit', 'session_gone', 'signal'] as const;
@@ -23,6 +29,7 @@ export type LogLineKind =
   | 'setup_timed_out'
   | 'setup_output'
   | 'plugin_output'
+  | 'transcript'
   | 'text';
 
 export interface ParsedLogLine {
@@ -32,6 +39,8 @@ export interface ParsedLogLine {
   exitCode?: number;
   sha?: string;
   end?: { reason: EndReason; code: number };
+  /** Only for kind `transcript`; `text` is then empty so the encoded body is never stored or logged by accident. */
+  transcript?: TranscriptWireEntry;
   agent?: { state: AgentState; source?: AgentStateSource; waitingOn?: 'background'; note?: string };
 }
 
@@ -63,6 +72,8 @@ const STATE_WAITING = /^agentdesk: state waiting background$/;
 const STATE_DECIDED =
   /^agentdesk: state (needs_input|done) (declared|question|approval|undeclared|error|startup) ([A-Za-z0-9+/]{1,5400}={0,2}|-)$/;
 
+const TRANSCRIPT = /^agentdesk: transcript ([A-Za-z0-9+/]+={0,2})$/;
+
 const PLUGIN_KINDS = { installed: 'plugin_installed', failed: 'plugin_failed' } as const;
 
 export function parseLogLine(line: string): ParsedLogLine {
@@ -73,6 +84,8 @@ export function parseLogLine(line: string): ParsedLogLine {
   if (kind) return { kind, text: trimmed };
   const agent = parseAgentState(trimmed);
   if (agent) return { kind: 'agent_state', text: trimmed, agent };
+  const transcript = parseTranscript(trimmed);
+  if (transcript) return { kind: 'transcript', text: '', transcript };
   const checkout = CHECKOUT.exec(trimmed);
   if (checkout?.[1]) return { kind: 'checkout', text: trimmed, sha: checkout[1] };
   const plugin = PLUGIN.exec(trimmed);
@@ -89,6 +102,18 @@ export function parseLogLine(line: string): ParsedLogLine {
     return { kind: 'session_ended', text: trimmed, end: { reason, code: Number.parseInt(ended[2], 10) } };
   }
   return { kind: 'text', text: line };
+}
+
+/** The base64 body must be short enough, whole, and decode to JSON that passes the contract; else it is plain text. */
+function parseTranscript(trimmed: string): TranscriptWireEntry | undefined {
+  const body = TRANSCRIPT.exec(trimmed)?.[1];
+  if (body === undefined || body.length > TRANSCRIPT_WIRE_MAX_BASE64 || body.length % 4 !== 0) return undefined;
+  try {
+    const parsed = TranscriptWireEntry.safeParse(JSON.parse(Buffer.from(body, 'base64').toString('utf8')));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 type AgentLine = NonNullable<ParsedLogLine['agent']>;

@@ -44,6 +44,8 @@ export const UPDATE = {
   finishRun: 'finishRun',
   /** RunWorkflow: resume a paused run, or re-open a succeeded run with a kept session. */
   resumeRun: 'resumeRun',
+  /** RunWorkflow: stop a live session (park as paused/stopped); resolves `{ accepted: true }` or fails `NotStoppable`. */
+  stopSession: 'stopSession',
 } as const;
 
 export const QUERY = {

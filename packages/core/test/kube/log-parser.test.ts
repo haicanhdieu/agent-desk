@@ -153,3 +153,30 @@ describe('parseLogLine session end marker', () => {
     expect(parseLogLine(line)).toEqual({ kind: 'text', text: line });
   });
 });
+
+describe('parseLogLine transcript lines', () => {
+  const b64 = (s: string) => Buffer.from(s, 'utf8').toString('base64');
+  const entry = { id: 'u1:0', kind: 'agent', text: 'hi' };
+
+  it('parses a valid line into a transcript entry and keeps the encoded body out of text', () => {
+    const line = `agentdesk: transcript ${b64(JSON.stringify(entry))}`;
+    expect(parseLogLine(line)).toEqual({ kind: 'transcript', text: '', transcript: entry });
+  });
+
+  it('ignores surrounding whitespace like the other markers', () => {
+    const line = `  agentdesk: transcript ${b64(JSON.stringify(entry))} \r`;
+    expect(parseLogLine(line).kind).toBe('transcript');
+  });
+
+  it.each([
+    ['a body of 12,001 chars', `agentdesk: transcript ${'A'.repeat(12001)}`],
+    ['a body with characters outside base64', 'agentdesk: transcript !!!'],
+    ['a body whose length is not a multiple of 4', `agentdesk: transcript ${b64(JSON.stringify(entry)).slice(0, -1)}`],
+    ['base64 of text that is not JSON', `agentdesk: transcript ${b64('not json')}`],
+    ['an entry that fails the schema', `agentdesk: transcript ${b64('{ "id": "a b", "kind": "agent", "text": "x" }')}`],
+    ['a missing body', 'agentdesk: transcript '],
+    ['text before the marker', `x agentdesk: transcript ${b64(JSON.stringify(entry))}`],
+  ])('treats %s as an ordinary text line', (_name, line) => {
+    expect(parseLogLine(line)).toEqual({ kind: 'text', text: line });
+  });
+});

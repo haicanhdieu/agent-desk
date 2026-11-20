@@ -257,3 +257,12 @@ describe('Terminal scrollable', () => {
     expect(log.className).not.toContain(styles.scroll);
   });
 });
+
+describe('TerminalBar tools', () => {
+  it('tools={false} hides Find and Copy all', () => {
+    render(<TerminalBar views={views} activeView="term" connection={<span>c</span>} tools={false} />);
+    expect(screen.queryByRole('button', { name: /Find/ })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Copy all' })).toBeNull();
+    expect(screen.getByRole('tab', { name: 'Terminal' })).toBeInTheDocument();
+  });
+});

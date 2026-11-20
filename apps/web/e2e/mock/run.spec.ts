@@ -174,11 +174,12 @@ test('the run terminal prints Claude Code glyphs and uses a font stack that cove
   expect(stacks.ui).not.toContain('DejaVu Sans Mono');
 });
 
-test('a run whose session is ending says so, greys its last scrollback and opens no socket', async ({ page }) => {
+test('a run whose session is ending says so, shows the loading Transcript and opens no socket', async ({ page }) => {
   const sockets = await countWebSockets(page);
   await page.goto(runUrl(ENDING_RUN));
 
-  const area = page.getByRole('region', { name: 'Terminal' });
+  // BR-30: the ending session shows the Transcript area (the end flush lands with the park), not the greyed scrollback.
+  const area = page.getByRole('region', { name: 'Transcript' });
   await expect(area.getByText('Session ending…')).toBeVisible();
   await expect(
     area.getByText('The session is being saved. This page updates by itself when the session has ended.'),
@@ -187,10 +188,7 @@ test('a run whose session is ending says so, greys its last scrollback and opens
   // The old copy promised a pause, which a Finish never does.
   await expect(page.getByText(/Pausing the run/)).toHaveCount(0);
 
-  // The last scrollback is shown greyed and read-only; there is no live terminal and no live-run actions.
-  const log = area.getByRole('log');
-  await expect(log).toContainText('Wrote 142 rows to export.csv');
-  await expect(log).toHaveClass(/dimmed/);
+  // There is no live terminal and no live-run actions.
   await expect(page.getByRole('group', { name: 'Claude Code terminal' })).toHaveCount(0);
   await expect(area.getByRole('button', { name: 'Resume' })).toHaveCount(0);
   await expect(area.getByRole('button', { name: 'Finish run' })).toHaveCount(0);

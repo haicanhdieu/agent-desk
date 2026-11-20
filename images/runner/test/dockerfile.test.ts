@@ -43,4 +43,16 @@ describe('runner Dockerfile', () => {
     }
     expect(joined).toMatch(/mkdir -p [^\n]*\/run\/agentdesk[^\n]*chown[^\n]*10001:10001[^\n]*\/run\/agentdesk/);
   });
+
+  it('ships the Claude transcript adapter, with the same mode as hook.mjs', async () => {
+    const text = await readFile(dockerfile, 'utf8');
+    const file = '/usr/local/lib/agentdesk/agents/claude/transcript.mjs';
+    expect(text).toContain(`COPY agents/claude/transcript.mjs ${file}`);
+    const chmod =
+      text
+        .replace(/\\\n/g, ' ')
+        .split('\n')
+        .find((l) => l.includes('chmod 0644')) ?? '';
+    expect(chmod).toContain(file);
+  });
 });

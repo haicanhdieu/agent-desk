@@ -27,6 +27,7 @@ export {
   type TerminalPaneProps,
   type TerminalPlaceholderProps,
 } from './Terminal';
+export { Transcript, type TranscriptItem, type TranscriptProps } from './Transcript';
 export { TerminalBar, type TerminalBarProps } from './TerminalBar';
 export { TerminalFindBar, type TerminalFindBarProps } from './TerminalFindBar';
 export { findMatches, logText, type TermMatch } from './terminalFind';

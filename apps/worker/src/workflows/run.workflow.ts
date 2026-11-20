@@ -27,6 +27,7 @@ import {
   resumeRun,
   runState,
   sessionStarted,
+  stopSession,
   terminalAttached,
   terminalDetached,
   terminalLease,
@@ -66,6 +67,8 @@ import {
   idleFixStatus,
   idleTimerApplies,
   nextTurnState,
+  stopSessionRejection,
+  stopSessionSettled,
   stoppedStatus,
   type TurnEvent,
 } from './agent-phase';
@@ -102,6 +105,8 @@ const ATTACH_LEASES_PATCH = 'attach-leases';
 const FOLLOWER_RECONNECT_PATCH = 'follower-reconnect';
 /** Marks runs that park on idle instead of ending; evaluated once, right after `loadRun`. */
 const PAUSE_RESUME_PATCH = 'pause-resume';
+/** Marks runs that accept the `stopSession` update; read once, right after `followerReconnect`. */
+const STOP_SESSION_PATCH = 'stop-session';
 /** Marks runs that tell the ticket when they wait for a slot, so a run already waiting at deploy time replays unchanged. */
 const QUEUED_COMMENT_PATCH = 'queued-comment';
 /** Plain-language reason shown on the run when its history grew too long. */
@@ -222,6 +227,16 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let attachLeases = false;
   /** `patched('follower-reconnect')`, read once right after `attachLeases`; false keeps the capped retries for runs that started before. */
   let followerReconnect = false;
+  /** `patched('stop-session')`, read once right after `followerReconnect`; false refuses `stopSession`. */
+  let stopSessionPatch = false;
+  /** A person's Stop was accepted: the main loop ends the session and parks it as `stopped`. */
+  let stopRequested = false;
+  /** Why the ending session parks; undefined means the idle timer. */
+  let parkReason: PauseReason | undefined;
+  /** The main loop began ending the session for a stop; what a `stopSession` update waits for. */
+  let stopSessionEnding = false;
+  /** The agent's session in the current pod reported `session_started` (only tracked with `stopSessionPatch`). */
+  let podSessionStarted = false;
   const kubeAct = () => (followerReconnect ? clusterAct : act);
   let leaseTtlMs = LEASE_TTL_MS;
   /** Terminals the workflow counts as attached: the id-less counter plus the leases that have not run out. */
@@ -346,8 +361,38 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     },
     {
       validator: () => {
+        // A Stop accepted but not yet begun by the main loop: the session is already ending for it.
+        if (stopRequested) throw ApplicationFailure.nonRetryable('The session is already ending', 'NotFinishable');
         const rejection = finishRunRejection(phase, ending, parkKind);
         if (rejection !== undefined) throw ApplicationFailure.nonRetryable(rejection, 'NotFinishable');
+      },
+    },
+  );
+  // The API's Stop session: ends a live session through the idle timer's park path, with reason `stopped`.
+  setHandler(
+    stopSession,
+    async () => {
+      stopRequested = true;
+      stopSessionEnding = false;
+      // Not `ending`: the session end can be over (parked) before this wait is re-evaluated.
+      await condition(() => stopSessionSettled(stopSessionEnding, phase));
+      // The run was finalized (pod exit, cancel, timeout) before the session could be ended.
+      if (!stopSessionEnding) {
+        throw ApplicationFailure.nonRetryable('The run finished before it could be stopped', 'NotStoppable');
+      }
+      return { accepted: true as const };
+    },
+    {
+      validator: () => {
+        const rejection = stopSessionRejection({
+          phase,
+          ending,
+          finishRequested,
+          stopRequested,
+          sessionStarted: podSessionStarted,
+          patched: stopSessionPatch,
+        });
+        if (rejection !== undefined) throw ApplicationFailure.nonRetryable(rejection, 'NotStoppable');
       },
     },
   );
@@ -379,6 +424,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   // Only matters while a resume waits for its session; the first pod's and repeated signals change nothing.
   let sessionStartedFlag = false;
   setHandler(sessionStarted, () => {
+    if (stopSessionPatch) podSessionStarted = true;
     if (phase !== 'resuming') return;
     sessionStartedFlag = true;
     // From here a cancel ends the run instead of only giving up the resume.
@@ -412,6 +458,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     podLostParks = patched(POD_LOST_PATCH);
     attachLeases = patched(ATTACH_LEASES_PATCH);
     followerReconnect = patched(FOLLOWER_RECONNECT_PATCH);
+    stopSessionPatch = patched(STOP_SESSION_PATCH);
     if (c.leaseTtlSeconds !== undefined) leaseTtlMs = c.leaseTtlSeconds * 1000;
 
     // 1. Acquire a slot.
@@ -463,6 +510,16 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           if (fix !== undefined) await status(fix);
           continue;
         }
+        if (stopRequested && !ending) {
+          parkKind = 'needs_input';
+          parkReason = 'stopped';
+          stopSessionEnding = true;
+          ending = true;
+          endingStartedMs = Date.now();
+          phase = 'ending';
+          await kubeAct().endSession(c);
+          continue;
+        }
         if (!ending && finishRequested) {
           ending = true;
           endingStartedMs = Date.now();
@@ -479,6 +536,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           historyTooLong(workflowInfo().historyLength, c.historyEventLimit) ||
           current.done ||
           (finishRequested && !ending) ||
+          (stopRequested && !ending) ||
           resumePending ||
           idleFixPending;
         // phase is read through a call: signal handlers change it between awaits, which TS narrowing cannot see.
@@ -532,6 +590,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           finishRequested,
           phase: currentPhase(),
           ...(parkKind !== undefined ? { parkKind } : {}),
+          ...(parkReason !== undefined ? { parkReason } : {}),
           ...(endReason !== undefined ? { endReason } : {}),
           podLost: podLost === true,
           exitCode: exitCode ?? -1,
@@ -552,7 +611,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         // `failed` falls through to the failure below.
       }
       if (pauseResume && ending && parkKind !== undefined && !finishRequested) {
-        const parked = await park(c, parkKind, 'idle_timeout');
+        const parked = await park(c, parkKind, parkReason ?? 'idle_timeout');
         if ('pod' in parked) {
           pod = parked.pod;
           continue;
@@ -685,6 +744,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     legacyAttached = 0;
     leases = new Map();
     sessionUp = false;
+    podSessionStarted = false;
     log.info('run parked', { usedSeconds });
     await kubeAct().deleteJob(c);
     slotRequested = false;
@@ -698,10 +758,14 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       ...(reason === 'pod_lost' && podExitCode !== undefined && podExitCode >= 0 ? { podExitCode } : {}),
       ...(resumeAccepted ? { resumeQueued: true } : {}),
     });
-    if (kind === 'needs_input') await act.postComment(c, 'paused');
+    if (reason === 'stopped') {
+      // A person's Stop is not announced on the ticket.
+    } else if (kind === 'needs_input') await act.postComment(c, 'paused');
     else await act.postComment(c, 'finish', { status: 'succeeded' });
     // `ending` described the pod's session end, which is over; a person Finish sets it again.
     ending = false;
+    stopRequested = false;
+    parkReason = undefined;
     phase = 'parked';
     if (parked.sessionExpiresAt === null) {
       await act.deleteRunVolume(c);
@@ -750,6 +814,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
    */
   async function resumeAttempt(c: RunContext, kind: ParkKind, expiresAt: string): Promise<Pod | undefined> {
     sessionStartedFlag = false;
+    podSessionStarted = false;
     let pod: Pod | undefined;
     let reason: string | undefined;
     try {

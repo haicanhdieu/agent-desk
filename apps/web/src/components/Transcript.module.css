@@ -1,0 +1,133 @@
+.log {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 24px;
+  background: var(--term);
+}
+/* Short conversations sit at the bottom, like the terminal. */
+.log > :first-child {
+  margin-top: auto;
+}
+.more {
+  align-self: center;
+  flex: 0 0 auto;
+}
+.msg {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 760px;
+}
+.who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-12_5);
+  color: var(--muted);
+}
+.who b {
+  font-weight: 600;
+  color: var(--text);
+}
+.time {
+  color: var(--faint);
+}
+.text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-family: var(--sans);
+  font-size: var(--fs-14);
+  line-height: 1.5;
+  color: var(--text);
+}
+.you .text {
+  background: var(--raised);
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-8);
+  padding: 8px 12px;
+}
+.tool {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--mono);
+  font-size: var(--fs-12_5);
+  color: var(--muted);
+  min-width: 0;
+  max-width: 760px;
+}
+.tool svg {
+  flex: 0 0 auto;
+}
+.tool b {
+  font-weight: 600;
+  color: var(--text);
+  flex: 0 0 auto;
+}
+.tool span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: var(--fs-12_5);
+  color: var(--faint);
+  max-width: 760px;
+}
+.notice::before,
+.notice::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid var(--line);
+}
+.cut {
+  color: var(--muted);
+}
+.fill {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--term);
+}
+.loading {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px 24px;
+}
+.requestId {
+  font-size: var(--fs-12_5);
+  color: var(--faint);
+}
+.empty {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 72px 40px;
+  background: var(--term);
+}
+.emptyInner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  color: var(--faint);
+}
+.emptyInner h2 {
+  margin: 0;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--text);
+  text-align: center;
+}

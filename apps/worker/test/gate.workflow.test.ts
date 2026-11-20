@@ -89,6 +89,7 @@ describe('constants', () => {
     expect(signals.sessionStarted.name).toBe(SIGNAL.sessionStarted);
     expect(signals.dropSession.name).toBe(SIGNAL.dropSession);
     expect(UPDATE.resumeRun).toBe(signals.resumeRun.name);
+    expect(UPDATE.stopSession).toBe(signals.stopSession.name);
     expect(CONTINUE_AS_NEW_AFTER).toBe(GATE_CONTINUE_AS_NEW_AFTER);
   });
 });

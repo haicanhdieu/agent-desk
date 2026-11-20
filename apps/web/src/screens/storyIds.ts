@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 36 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 41 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -39,6 +39,11 @@ export const boardStories = {
   RunSetupFailed: { title: detail, exportName: 'RunSetupFailed' },
   RunTimedOut: { title: detail, exportName: 'RunTimedOut' },
   RunCancelled: { title: detail, exportName: 'RunCancelled' },
+  RunStopped: { title: detail, exportName: 'RunStopped' },
+  RunSucceededFinished: { title: detail, exportName: 'RunSucceededFinished' },
+  RunTranscriptStates: { title: detail, exportName: 'RunTranscriptStates' },
+  RunRunningStop: { title: detail, exportName: 'RunRunningStop' },
+  RunIdleEnding: { title: detail, exportName: 'RunIdleEnding' },
   DeskSkills: { title: desk, exportName: 'DeskSkills' },
   DeskSkillDelete: { title: desk, exportName: 'DeskSkillDelete' },
   DeskRules: { title: desk, exportName: 'DeskRules' },
@@ -100,6 +105,40 @@ export const stateStories = {
     exportName: 'ResumeFailedNothingKept',
     board: 'RunSucceeded',
   },
+  RunTerminalAreaTranscriptPausing: {
+    title: terminalArea,
+    exportName: 'TranscriptPausing',
+    board: 'RunTranscriptStates',
+  },
+  RunTerminalAreaTranscriptPausedIdleTimeout: {
+    title: terminalArea,
+    exportName: 'TranscriptPausedIdleTimeout',
+    board: 'RunTranscriptStates',
+  },
+  RunTerminalAreaTranscriptStopped: { title: terminalArea, exportName: 'TranscriptStopped', board: 'RunStopped' },
+  RunTerminalAreaTranscriptFailed: {
+    title: terminalArea,
+    exportName: 'TranscriptFailed',
+    board: 'RunTranscriptStates',
+  },
+  RunTerminalAreaTranscriptCancelled: {
+    title: terminalArea,
+    exportName: 'TranscriptCancelled',
+    board: 'RunTranscriptStates',
+  },
+  RunTerminalAreaTranscriptExpired: {
+    title: terminalArea,
+    exportName: 'TranscriptExpired',
+    board: 'RunTranscriptStates',
+  },
+  RunTerminalAreaTranscriptError: { title: terminalArea, exportName: 'TranscriptError', board: 'RunTranscriptStates' },
+  RunTerminalAreaTranscriptEmpty: { title: terminalArea, exportName: 'TranscriptEmpty', board: 'RunTranscriptStates' },
+  RunTerminalAreaScrollbackFallback: {
+    title: terminalArea,
+    exportName: 'ScrollbackFallback',
+    board: 'RunTranscriptStates',
+  },
+  RunIdleActionPending: { title: detail, exportName: 'RunIdleActionPending', board: 'RunIdle' },
   SetupWorkspaceStart: { title: setup, exportName: 'SetupWorkspaceStart', board: 'SetupWorkspace' },
   SetupWorkspaceRunning: { title: setup, exportName: 'SetupWorkspaceRunning', board: 'SetupWorkspace' },
   SetupWorkspaceFailed: { title: setup, exportName: 'SetupWorkspaceFailed', board: 'SetupWorkspace' },

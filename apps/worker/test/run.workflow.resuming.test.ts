@@ -81,6 +81,26 @@ describe('RunWorkflow', () => {
       captured['run-park-resume'] = h;
     });
 
+    it('a stopped run parks as stopped, resumes as Needs you, and Finish then ends it succeeded', async () => {
+      const s = newRun();
+      s.parkKeepSeconds = 3600;
+      const h = await start(s);
+      await s.logsStarted.promise;
+      await h.signal(signals.sessionStarted);
+      expect(await h.executeUpdate(signals.stopSession)).toEqual({ accepted: true });
+      await waitPhase(h, 'parked');
+      expect(count(s, 'parkRun:needs_input')).toBe(1);
+      expect(s.parkReasons).toEqual(['stopped']);
+      expect(count(s, 'postComment:paused')).toBe(0);
+      await resume(s, h);
+      await h.signal(signals.sessionStarted);
+      await waitFor(() => statuses(s).at(-1) === 'idle', 'idle after resume');
+      expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
+      expect((await h.result()).status).toBe('succeeded');
+      expect(count(s, 'deleteRunVolume')).toBe(1);
+      captured['run-stop-session'] = h;
+    });
+
     it('done: the queued write re-opens and the run ends the resume in done, not idle', async () => {
       const { s, h } = await live('done');
       expect(s.statuses.find((x) => x.status === 'queued')).toMatchObject({ reopen: true, keepAgentNote: true });
@@ -292,7 +312,7 @@ describe('RunWorkflow', () => {
   });
 
   it('replay: histories from this run and the checked-in fixtures replay without nondeterminism', async () => {
-    expect(Object.keys(captured).sort()).toEqual(['run-park-resume']);
+    expect(Object.keys(captured).sort()).toEqual(['run-park-resume', 'run-stop-session']);
     for (const [name, h] of Object.entries(captured)) {
       const history = await h.fetchHistory();
       await Worker.runReplayHistory({ workflowsPath }, history, h.workflowId);
