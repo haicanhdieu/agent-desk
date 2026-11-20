@@ -1,0 +1,231 @@
+/* One row at every width: the nav is the size container, so the row inside reacts to it, not to the viewport. */
+.nav {
+  container-type: inline-size;
+  width: 100%;
+}
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+.range {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.value {
+  color: var(--text);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12_5);
+}
+.pages,
+.slots,
+.tools,
+.field {
+  display: flex;
+  align-items: center;
+}
+.pages,
+.slots {
+  gap: 4px;
+}
+.slots {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.slots > li {
+  display: flex;
+}
+.narrow,
+.only {
+  display: none;
+}
+.only {
+  min-width: 32px;
+  justify-content: center;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12_5);
+  color: var(--text);
+  font-weight: 600;
+}
+.gap {
+  width: 32px;
+  text-align: center;
+  color: var(--faint);
+  font-family: var(--mono);
+  font-size: var(--fs-12_5);
+}
+.num {
+  width: 32px;
+  padding: 0;
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-12_5);
+}
+.num[aria-current='page'] {
+  font-weight: 600;
+  border-color: var(--hover-line);
+}
+.tools {
+  gap: 16px;
+}
+.field {
+  gap: 8px;
+  white-space: nowrap;
+}
+.label {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.jump {
+  width: 64px;
+  height: 32px;
+}
+.size {
+  width: 76px;
+  height: 32px;
+}
+.nav :disabled {
+  cursor: not-allowed;
+}
+
+@container (max-width: 1069px) {
+  .label,
+  .stepText {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+    border: 0;
+  }
+  .step {
+    width: 32px;
+    padding: 0;
+  }
+  .field {
+    gap: 6px;
+  }
+}
+@container (max-width: 789px) {
+  .word,
+  .wide {
+    display: none;
+  }
+  .narrow {
+    display: flex;
+  }
+  .row {
+    gap: 8px 12px;
+  }
+  .tools {
+    gap: 8px;
+  }
+  .gap {
+    width: 20px;
+  }
+  .jump {
+    width: 48px;
+  }
+  .size {
+    width: 64px;
+  }
+}
+@container (max-width: 589px) {
+  .range {
+    display: none;
+  }
+  .nav button,
+  .jump,
+  .size {
+    height: 26px;
+    font-size: var(--fs-12_5);
+  }
+  .step,
+  .num,
+  .gap,
+  .only {
+    width: 26px;
+    min-width: 26px;
+  }
+  .go {
+    padding: 0 9px;
+  }
+  .jump {
+    width: 40px;
+  }
+  .size {
+    width: 56px;
+    padding: 0 6px;
+  }
+  .pages,
+  .slots {
+    gap: 2px;
+  }
+  .row,
+  .tools,
+  .field {
+    gap: 6px;
+  }
+}
+@container (max-width: 359px) {
+  .narrow {
+    display: none;
+  }
+  .only {
+    display: inline-flex;
+  }
+}
+/* Wrap only as a last resort. */
+@container (max-width: 240px) {
+  .row {
+    flex-wrap: wrap;
+  }
+}
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.note {
+  margin: 0;
+  color: var(--faint);
+}
+.board {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 1296px;
+}
+.card {
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-10);
+  overflow: hidden;
+}
+.cardBody {
+  padding: 10px 16px;
+  background: var(--bg);
+  min-height: 54px;
+}
+.cardNote {
+  padding: 8px 16px;
+  background: var(--panel);
+  font-size: var(--fs-13);
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+.cardTitle {
+  font-weight: 600;
+  color: var(--text);
+}

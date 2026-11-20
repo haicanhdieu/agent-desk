@@ -258,7 +258,7 @@ export function pageItems(page: number, pageCount: number, set: 'wide' | 'narrow
 export function formatCount(n: number): string;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `Pagination.test.tsx`
+- [x] **Step 1: Write the failing tests** in `Pagination.test.tsx`
 
 - `pageItems(1, 50, 'wide')` → `[1, 2, 'gap', 50]`; `(50, 50, 'wide')` → `[1, 'gap', 49, 50]`; `(25, 50, 'wide')` → `[1, 'gap', 24, 25, 26, 'gap', 50]`; `(3, 5, 'wide')` → `[1, 2, 3, 4, 5]`; `(1, 3, 'wide')` → `[1, 2, 3]`; `(4, 50, 'wide')` → `[1, 'gap', 3, 4, 5, 'gap', 50]`; `(1, 1, 'wide')` → `[1]`.
 - `pageItems(25, 50, 'narrow')` → `[1, 'gap', 25, 'gap', 50]`; `(1, 50, 'narrow')` → `[1, 'gap', 50]`; `(2, 50, 'narrow')` → `[1, 2, 'gap', 50]`.
@@ -271,16 +271,16 @@ export function formatCount(n: number): string;
 - `it('Rows per page offers exactly 20, 50 and 100')`, plus selecting 50 → `onPageSizeChange(50)`.
 - `it('busy marks the nav and disables every control')`: `nav` has `aria-busy="true"`, and every page button, Previous, Next, the "Go to page" box, Go and "Rows per page" are disabled.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/web test -- Pagination`
 Expected: FAIL (module not found).
 
-- [ ] **Step 3: Implement `Pagination.tsx` and `Pagination.module.css`**
+- [x] **Step 3: Implement `Pagination.tsx` and `Pagination.module.css`**
 
 Build it from `ds` `Button`, `TextInput` and `Select` only, styled with design tokens. Structure: `<nav aria-label="Pagination" aria-busy>` containing a range `<p>` (with "Showing " in its own span), an `<ol>` for the wide set and an `<ol>` for the narrow set, a current-only element for under 360px, a `<form>` for "Go to page" (its `onSubmit` is the Go action, so Enter works), and the labelled "Rows per page" `Select`. The labels and the Previous/Next words sit in spans that become visually hidden (sr-only pattern) under 1070px. Container queries go on the nav (`container-type: inline-size`) at `max-width` 1069px, 789px, 589px and 359px, with wrapping only at 240px or below. Copy the sizes from the board.
 
-- [ ] **Step 4: Write `Pagination.stories.tsx`** (title `Components/Pagination`)
+- [x] **Step 4: Write `Pagination.stories.tsx`** (title `Components/Pagination`)
 
 Stories: `MiddlePage` (25 of 50), `FirstPage`, `LastPage`, `FewPages` (3 pages), `ManyPages` (312 of 624, total 12,480), `JumpOutOfRange` (the box holds `80`), `Loading` (`busy`) and `Hidden` (total 20). Add `Compact1069`, `Compact789`, `Compact589` and `Compact359`, each the middle page in a container of that width. Add `Board`, which stacks the states at the board's widths in the board's order (this is the export the `Pagination` board maps to in Task 3). Use `parameters: { layout: 'padded' }`, and use no-op callbacks except in `JumpOutOfRange`.
 
@@ -289,7 +289,7 @@ Stories: `MiddlePage` (25 of 50), `FirstPage`, `LastPage`, `FewPages` (3 pages),
 Run: `pnpm --filter @agentdesk/web test -- Pagination stories.smoke && pnpm --filter @agentdesk/web typecheck`
 Expected: PASS.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix

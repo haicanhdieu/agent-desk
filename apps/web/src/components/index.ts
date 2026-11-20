@@ -97,3 +97,11 @@ export { VersionHistory, type VersionHistoryProps, type ScriptVersion } from './
 export { SkillDiff, type SkillDiffProps } from './SkillDiff';
 export { SkillPreviewPane, type SkillPreviewPaneProps, type SkillPreviewModule } from './SkillPreviewPane';
 export type { SkillPreviewProps } from './SkillPreview';
+export {
+  Pagination,
+  PAGE_SIZE_OPTIONS,
+  pageItems,
+  formatCount,
+  type PaginationProps,
+  type PageSizeOption,
+} from './Pagination';
