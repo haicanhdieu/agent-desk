@@ -491,6 +491,6 @@ test.describe('BR-56: agent-side error notice', () => {
     const prompt = await log(page).locator('p').first().boundingBox();
     const error = await notice.boundingBox();
     expect(error?.y ?? 0).toBeGreaterThan(prompt?.y ?? Infinity);
-    await expect(log(page).locator('p').first()).toContainText('/code-review');
+    await expect(log(page).locator('p').first()).toContainText('Use the skill "code-review"');
   });
 });

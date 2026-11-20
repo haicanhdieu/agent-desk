@@ -179,6 +179,63 @@ describe('applyRunStatus', () => {
     expect(fresh.getQueryData(runsQueries.detail(org, projectId, 55).queryKey)?.status).toBe('succeeded');
   });
 
+  describe('a thin project-stream change and the full run-stream change of the same seq', () => {
+    const thin = (s: RunDto['status'], seq: number) => ({ runId: ids.run(1, 61), number: 61, status: s, seq });
+    const full = (s: RunDto['status'], seq: number, extra: Record<string, unknown> = {}) => ({
+      ...status(61, s, seq),
+      waitingOn: null,
+      agentNote: null,
+      pausedAt: null,
+      sessionExpiresAt: null,
+      sessionEndingAt: null,
+      pauseReason: null,
+      ...extra,
+    });
+    const parked = {
+      pausedAt: '2026-11-20T01:51:51.325Z',
+      sessionExpiresAt: '2026-11-27T01:51:51.325Z',
+      pauseReason: 'stopped',
+    };
+    const detailOf = (qc: QueryClient) => qc.getQueryData(runsQueries.detail(org, projectId, 61).queryKey);
+
+    it('keeps the kept session and the pause reason when the thin change arrives first (a Stop session)', () => {
+      const qc = seeded();
+      applyRunStatus(qc, org, projectId, full('idle', 20));
+      applyRunStatus(qc, org, projectId, thin('paused', 30));
+      applyRunStatus(qc, org, projectId, full('paused', 30, parked));
+      expect(detailOf(qc)).toMatchObject({ status: 'paused', ...parked });
+    });
+
+    it('applies the full change of a seq the run stream already sent, when the session started ending', () => {
+      const qc = seeded();
+      applyRunStatus(qc, org, projectId, full('idle', 20));
+      applyRunStatus(qc, org, projectId, full('idle', 20, { sessionEndingAt: '2026-11-20T01:51:51.243Z' }));
+      expect(detailOf(qc)?.sessionEndingAt).toBe('2026-11-20T01:51:51.243Z');
+    });
+
+    it('does not let a thin change of the same seq clear what the full one set', () => {
+      const qc = seeded();
+      applyRunStatus(qc, org, projectId, full('paused', 30, parked));
+      applyRunStatus(qc, org, projectId, thin('paused', 30));
+      expect(detailOf(qc)).toMatchObject({ status: 'paused', ...parked });
+    });
+
+    it('moves the project counts once, whichever stream is first', () => {
+      const qc = seeded();
+      const counts = () => qc.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts;
+      applyRunStatus(qc, org, projectId, full('idle', 20));
+      const idle = counts();
+      applyRunStatus(qc, org, projectId, thin('paused', 30));
+      applyRunStatus(qc, org, projectId, full('paused', 30, parked));
+      const once = counts();
+      const other = seeded();
+      applyRunStatus(other, org, projectId, full('idle', 20));
+      applyRunStatus(other, org, projectId, full('paused', 30, parked));
+      expect(once).toEqual(other.getQueryData(projectsQueries.detail(org, projectId).queryKey)?.counts);
+      expect(once).not.toEqual(idle);
+    });
+  });
+
   it('a resume takes a succeeded run back to queued: applied, finish time cleared, counts move', () => {
     const qc = seeded();
     qc.setQueryData(runsQueries.detail(org, projectId, 60).queryKey, run(60));
