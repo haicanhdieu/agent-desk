@@ -39,9 +39,18 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
   async function parkRun(
     ctx: RunContext,
     // `reason` is optional: a parkRun scheduled by workflow code from before it existed has none, and idle_timeout was the only reason then.
-    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean; podExitCode?: number },
+    input: {
+      kind: ParkKind;
+      at: string;
+      reason?: PauseReason;
+      resumeQueued?: boolean;
+      podExitCode?: number;
+      /** An earlier session deadline to keep; used only when it is after `at`. */
+      keepUntil?: string;
+    },
   ): Promise<ParkResult> {
     const at = parseAt(input.at);
+    const keepUntil = input.keepUntil === undefined ? undefined : parseAt(input.keepUntil);
     const { result, drop } = await withOrg(db, ctx.orgId, async (tx) => {
       // The agent row may be gone (deleted after the run was queued): the defaults then apply.
       const [agent] = ctx.agentId
@@ -55,7 +64,8 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
           ? (agent?.paused ?? AGENT_PAUSED_KEEP_SECONDS_DEFAULT)
           : (agent?.done ?? AGENT_DONE_KEEP_SECONDS_DEFAULT);
       const keep = keepSeconds > 0;
-      const expiresAt = new Date(at.getTime() + keepSeconds * 1000);
+      const expiresAt =
+        keepUntil && keepUntil.getTime() > at.getTime() ? keepUntil : new Date(at.getTime() + keepSeconds * 1000);
       const status = input.kind === 'needs_input' ? 'paused' : 'succeeded';
       const written = await setRunStatusTx(tx, {
         orgId: ctx.orgId,

@@ -179,7 +179,15 @@ export interface RunActivities {
    */
   parkRun(
     ctx: RunContext,
-    input: { kind: ParkKind; at: string; reason?: PauseReason; resumeQueued?: boolean; podExitCode?: number },
+    input: {
+      kind: ParkKind;
+      at: string;
+      reason?: PauseReason;
+      resumeQueued?: boolean;
+      podExitCode?: number;
+      /** Keep this earlier session deadline instead of at + the keep seconds, when it is after `at`. */
+      keepUntil?: string;
+    },
   ): Promise<ParkResult>;
   /**
    * `expired`: paused → status expired; succeeded → clears session_expires_at and notifies. `dropped`: same for

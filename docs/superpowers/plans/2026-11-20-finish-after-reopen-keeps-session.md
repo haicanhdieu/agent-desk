@@ -37,11 +37,11 @@
 **Interfaces:**
 - Produces: `parkRun(ctx, input: { kind; at; reason?; resumeQueued?; podExitCode?; keepUntil?: string })`; when `keepUntil` parses to a time after `at`, it is the stored `sessionExpiresAt`.
 
-- [ ] **Step 1: Write failing tests** `parkRun with keepUntil in the future stores that deadline, not at + keep seconds` and `parkRun ignores a keepUntil that is not after at`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/session.activity.int.test.ts -t keepUntil` (source `scripts/runner-env.sh` first). Expected: FAIL.
-- [ ] **Step 3: Implement** the optional input and the expiry choice in `parkRun`; the cap logic is untouched.
-- [ ] **Step 4: Run the same command.** Expected: PASS.
-- [ ] **Step 5: Commit** `feat(worker): parkRun can keep an earlier deadline`.
+- [x] **Step 1: Write failing tests** `parkRun with keepUntil in the future stores that deadline, not at + keep seconds` and `parkRun ignores a keepUntil that is not after at`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/session.activity.int.test.ts -t keepUntil` (source `scripts/runner-env.sh` first). Expected: FAIL.
+- [x] **Step 3: Implement** the optional input and the expiry choice in `parkRun`; the cap logic is untouched.
+- [x] **Step 4: Run the same command.** Expected: PASS.
+- [x] **Step 5: Commit** `feat(worker): parkRun can keep an earlier deadline`.
 
 ### Task 2: Workflow re-parks on Finish after a done Re-open
 
