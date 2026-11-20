@@ -4,17 +4,30 @@ Shapes the subagents reply in and write, and the asks you send the human. `<…>
 
 ## Brainstormer reply
 
-Exactly one of the two.
+Exactly one of the three.
 
 ```text
 STATUS: questions
 BATCH: <1 | 2 | 3>
 UNDERSTANDING: <what is wanted, for whom and why, and what it touches today; at most 6 lines>
 Q1: <one question, plain words>
+  KIND: <business | architecture>
   WHY: <what gets built differently depending on the answer, one line>
   OPTIONS: <up to 3, one line each; or "open" when there is nothing to pick from>
   PICK: <the option you would choose and why, one line; or "none">
 Q2: …
+```
+
+```text
+STATUS: design
+UNDERSTANDING: <the business as now agreed; at most 4 lines>
+ARCHITECTURE: <the parts and the flow between them, by layer (contracts, db, core, api, worker, web, runner); at most 8 lines>
+DB SCHEMA: <one line per new or changed table, column, index or RLS policy, and the migration; or "none">
+API: <one line per new or changed endpoint (METHOD /path, who may call it, request → response), WebSocket or webhook; or "none">
+LIBRARIES: <one line per third-party library it uses: name, new or existing, what for; or "none">
+SERVICES: <one line per external service or internal system it integrates with (provider API, Temporal, Kubernetes, SecretStore, …): new or existing, how; or "none">
+OTHER: <events, workflows, config and env, secrets by name, sensitive paths touched; or "none">
+AGENT CALLS: <one line per decision made for the human so far; or "none">
 ```
 
 ```text
@@ -25,6 +38,47 @@ NEEDS APPROVAL: <one line per proposed dependency; or "none">
 SENSITIVE: <yes (which sensitive path) | no>
 UI: <yes (each screen, component or state a person sees that changes) | no>
 ```
+
+## Architecture section
+
+The Brainstormer writes this section into every spec, from the design the human confirmed at gate AR. A part with nothing in it says so in one line ("No schema change.", "No new endpoint."); it is never dropped.
+
+```markdown
+## Architecture
+
+Confirmed by the human at planning time.
+
+### Overview
+
+<the parts and the flow between them, by layer; where each piece lives (packages/contracts, packages/db, packages/core, apps/api, apps/worker, apps/web, runner)>
+
+### Data model
+
+<each new or changed table, column, index and RLS policy, with its type and tenant scope, and the new migration that adds it>
+
+### API
+
+| Method | Path | Who may call it | Request | Response | Contract |
+| ------ | ---- | --------------- | ------- | -------- | -------- |
+
+<WebSocket and webhook changes, with their auth and signature check>
+
+### Third-party libraries
+
+| Library | New or existing | Used for | Approval |
+| ------- | --------------- | -------- | -------- |
+
+### Services and integrations
+
+| Service | New or existing | How it is used |
+| ------- | --------------- | -------------- |
+
+### Other decisions
+
+<events, workflows, config and env, secrets by name, sensitive paths touched>
+```
+
+`Approval` is `existing`, or `approved by the human` / `refused` as recorded in `answers.md`. A new library is also listed under `## Needs approval`.
 
 ## UI and Storybook section
 
@@ -48,7 +102,7 @@ STATES: <loading, empty, error and other states drawn, and the board for each>
 SPEC GAPS: <one line per thing the spec did not say that you had to choose to draw (a label, a layout, an empty state), and what you drew; or "none">
 ```
 
-Order questions by how much the answer changes what gets built, most first. Ask only what the requirement, the repo and the earlier answers do not settle.
+Order questions by how much the answer changes what gets built, most first; a business question an architecture choice depends on comes before it. Ask only what the requirement, the repo and the earlier answers do not settle.
 
 ## Relaying a question
 
@@ -56,7 +110,7 @@ One message per question, built from the Brainstormer's fields and nothing else:
 
 ```text
 <first question of a batch only: the UNDERSTANDING lines, as "What I understood so far", then a blank line>
-Problem: <the question>. <WHY, as a second sentence>
+Problem: (<KIND>) <the question>. <WHY, as a second sentence>
 Solutions:
 1. <OPTIONS line 1>
 2. <OPTIONS line 2>
@@ -69,6 +123,30 @@ For `OPTIONS: open`, `Solutions:` has the single line `1. Answer in your own wor
 ## Gate asks
 
 Send the results first (paths, `rev`, `hash`, agent calls), then the ask, then stop. Keep the wording; fill the slots.
+
+**AR, the design** (before the spec is written)
+
+<a id="design-results"></a>Results, sent before the ask, from the Brainstormer's `STATUS: design` fields, in plain words:
+
+```text
+Design for <topic>:
+- Architecture: <ARCHITECTURE>
+- Database: <DB SCHEMA>
+- API: <API>
+- Libraries: <LIBRARIES>
+- Services: <SERVICES>
+- Other: <OTHER>
+- Decided for you: <AGENT CALLS>
+```
+
+```text
+Problem: The design for <topic> is ready (above). It needs your confirmation before the spec is written from it.
+Solutions:
+1. Confirm it as is.
+2. Change it: tell me which part and what.
+3. Stop here.
+Suggestion: <1, or 2 with the one thing you would change and why>
+```
 
 **P1, review a UI prototype?** (only when the Brainstormer's `UI:` is `yes`)
 
@@ -148,7 +226,7 @@ Suggestion: <…>
 A dependency under `## Needs approval` is asked on its own, before the gate, one per message:
 
 ```text
-Problem: The <spec | plan> wants to add <dependency>, which this repo does not have. I can't keep it without your yes.
+Problem: The <design | spec | plan> wants to add <dependency>, which this repo does not have. I can't keep it without your yes.
 Sample: <what it would be used for, one or two lines>
 Solutions:
 1. Approve <dependency>.

@@ -5,7 +5,7 @@ description: Use when asked to turn a requirement (a GitHub issue URL or number,
 
 # Plan a requirement: spec, e2e requirements, plan, PR
 
-You are the planning orchestrator. You take one requirement to an approved spec (with an approved UI prototype when the change has UI and the human wants one), optionally add its e2e requirements, then an approved implementation plan with a task graph, and open one docs PR holding them. Subagents think and write; you relay their questions to the human, run the scripts, hold the approval gates, and commit.
+You are the planning orchestrator. You take one requirement through business and architecture questions to a design the human confirms, then to an approved spec that records that design (with an approved UI prototype when the change has UI and the human wants one), optionally add its e2e requirements, then an approved implementation plan with a task graph, and open one docs PR holding them. Subagents think and write; you relay their questions to the human, run the scripts, hold the approval gates, and commit.
 
 This is the step before `dev-build`: when the PR merges, CI links the spec and plan on a GitHub issue, and `/dev-build <n>` builds from it.
 
@@ -27,17 +27,17 @@ A tier is `high`, `medium` or `low`; anything else is a usage error. Models come
 | 2 E2E (optional)            | **Rule extractor**, then **Test planner**      | `medium` / high, medium    |
 | 3 Plan                      | **Planner** (one, resumed on graph errors)     | `--plan-tier` / high       |
 | 4 PR                        | You commit; **PR agent** runs `create-pr`      | `low` / low                |
-| Gates P1, P2, A to D        | You, with the human                            |                            |
+| Gates AR, P1, P2, A to D    | You, with the human                            |                            |
 
 You never write the spec, the prototype, the rules, the cases or the plan yourself, and you never answer a subagent's question for the human.
 
 ## Files
 
-| File                                         | Use                                                                    |
-| -------------------------------------------- | ---------------------------------------------------------------------- |
-| [agent-prompts.md](agent-prompts.md)         | Prompt, tier and effort per role                                       |
-| [templates.md](templates.md)                 | Reply shapes, gate asks, the `## E2E requirements` section, task lines |
-| [scripts/dev-plan.mjs](scripts/dev-plan.mjs) | `start`, `issue`, `stamp`, `check`, `graph`, `sync`                    |
+| File                                         | Use                                                                |
+| -------------------------------------------- | ------------------------------------------------------------------ |
+| [agent-prompts.md](agent-prompts.md)         | Prompt, tier and effort per role                                   |
+| [templates.md](templates.md)                 | Reply shapes, gate asks, the spec sections it requires, task lines |
+| [scripts/dev-plan.mjs](scripts/dev-plan.mjs) | `start`, `issue`, `stamp`, `check`, `graph`, `sync`                |
 
 Run the script as `node <main checkout>/.agent/skills/dev-plan/scripts/dev-plan.mjs <command> …`; below, `dev-plan.mjs` means that. It prints `KEY=value` lines; act on them, not on your reading of the files.
 
@@ -112,7 +112,7 @@ Create a todo per step. Do not skip or reorder them.
 
 ### 1. Brainstorm, with batched relay
 
-Spawn the **Brainstormer**. It follows `superpowers:brainstorming`, but its human partner is you, and it asks in batches: it explores first, then replies `STATUS: questions` with everything open, or `STATUS: spec-written` ([templates.md](templates.md#brainstormer-reply)).
+Spawn the **Brainstormer**. It follows `superpowers:brainstorming`, but its human partner is you, and it asks in batches: it explores first, then replies `STATUS: questions` with everything open, `STATUS: design` when nothing is open, or `STATUS: spec-written` once the design is confirmed ([templates.md](templates.md#brainstormer-reply)). Its questions clarify both the business (`KIND: business`) and the architecture (`KIND: architecture`: layers, DB schema, API endpoints, libraries, services it integrates with).
 
 On `STATUS: questions`:
 
@@ -122,10 +122,21 @@ On `STATUS: questions`:
 
 **Cap: 3 batches of questions.** When you return the answers to the third, say that no more questions are possible; what is still open it decides and writes into the spec as `Agent call:` lines.
 
-On `STATUS: spec-written`: confirm the file exists under `docs/superpowers/specs/` in the worktree, has a `## Needs approval` section when it proposes any dependency, and was not committed. When its `UI:` line is `yes`, also confirm the spec has a `## UI and Storybook` section that holds the Storybook-first blocker; missing: resume the Brainstormer once to add it. Then:
+On `STATUS: design`: gate AR. The Brainstormer writes no spec before a yes there.
+
+On `STATUS: spec-written`: confirm the file exists under `docs/superpowers/specs/` in the worktree, has a `## Architecture` section that matches the design confirmed at gate AR (overview, data model, API, libraries, services, other decisions, none left out), has a `## Needs approval` section when it proposes any dependency, and was not committed. A missing or different `## Architecture` section: resume the Brainstormer once to fix it. When its `UI:` line is `yes`, also confirm the spec has a `## UI and Storybook` section that holds the Storybook-first blocker; missing: resume the Brainstormer once to add it. Then:
 
 - `UI: no`: `dev-plan.mjs stamp <spec> --kind spec --id <slug> --source <issue#n | file | text>`, then gate A.
 - `UI: yes`: gate P1. Do not stamp yet: the spec is not final until the prototype question is settled.
+
+### Gate AR: the design
+
+Report the design from the Brainstormer's `STATUS: design` reply in the shape of [templates.md](templates.md#design-results): architecture, database schema, API endpoints, libraries, services and other decisions, plus every `Agent call:` so far. Then ask ([templates.md](templates.md#gate-asks)). Each new library or service it lists is its own ask first, one per message, in the dependency shape; append each answer to `<workdir>/answers.md` as `Dependency <name>: approved | refused`.
+
+- Changes (or a refused dependency): append them to `<workdir>/answers.md` as `Design change: <words>`, resume the Brainstormer with them word for word, and on its next `STATUS: design` report and ask again. A `STATUS: questions` reply in between is relayed as in step 1 and counts toward the cap.
+- Yes: append `Design: confirmed` to `<workdir>/answers.md` and resume the Brainstormer to write the spec.
+
+No written yes, no spec. In update mode, a `STATUS: spec-written` with no change to the file skips this gate.
 
 ### Gate P1: review a UI prototype? (only when `UI: yes`)
 
@@ -147,7 +158,7 @@ On a yes, resume the Brainstormer with the approved board list and every change 
 
 ### Gate A: the spec
 
-Report the spec path, `rev`, `hash`, the approved prototype boards (if any) and every `Agent call:` line, then ask ([templates.md](templates.md#gate-asks)). Changes: resume the Brainstormer with them, `stamp` again, ask again. A change to what a screen shows goes to the Prototyper first and back through gate P2. Each item under `## Needs approval` is its own ask, one per message, before the approval ask ([AGENTS.md › Agent work rules](../../../AGENTS.md#agent-work-rules-spec-plan-implement-modify)). Append each answer to `<workdir>/answers.md` as `Dependency <name>: approved | refused`; a refused one goes back to the Brainstormer as a change. No written yes, no step 2.
+Report the spec path, `rev`, `hash`, the approved prototype boards (if any) and every `Agent call:` line, then ask ([templates.md](templates.md#gate-asks)). When gate AR was not answered in this session (a resumed run), or the spec's `## Architecture` section changed since it was, report that section's decisions in the results too, in the gate AR shape ([templates.md](templates.md#design-results)). Changes: resume the Brainstormer with them, `stamp` again, ask again. A change to what a screen shows goes to the Prototyper first and back through gate P2. Each item under `## Needs approval` not already answered at gate AR is its own ask, one per message, before the approval ask ([AGENTS.md › Agent work rules](../../../AGENTS.md#agent-work-rules-spec-plan-implement-modify)). Append each answer to `<workdir>/answers.md` as `Dependency <name>: approved | refused`; a refused one goes back to the Brainstormer as a change. No written yes, no step 2.
 
 ### Gate B: e2e test plan?
 
@@ -207,6 +218,9 @@ By hand, for a sync CI missed: on an up-to-date `main`, `dev-plan.mjs sync --fil
 | Spawning a new Brainstormer for each batch                         | Resume the same one; a fresh one re-reads the codebase                    |
 | Spawning on the session model, or passing a model name             | `tiers.<tier>` from `models.json`, with the tier the user gave            |
 | Letting the Brainstormer go on to `writing-plans`                  | It stops at `STATUS: spec-written`; the plan is step 3                    |
+| Only business questions, architecture left to the Brainstormer     | It asks `KIND: architecture` questions where the repo leaves a choice     |
+| Letting the Brainstormer write the spec before gate AR             | `STATUS: design` first; the spec only after a written yes                 |
+| A spec whose `## Architecture` differs from the confirmed design   | Resume the Brainstormer once to match the design confirmed at gate AR     |
 | Going to gate A on `UI: yes` without asking gate P1                | Ask P1 first; stamp only after it (and P2, on a yes) is settled           |
 | Drawing the prototype yourself, or registering it in `canvas.json` | The Prototyper draws it; the Storybook task registers the boards          |
 | A UI spec with no Storybook-first blocker, prototype or not        | `## UI and Storybook` always holds it when `UI: yes`                      |
