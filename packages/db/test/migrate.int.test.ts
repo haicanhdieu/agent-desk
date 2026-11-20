@@ -150,6 +150,17 @@ describe('bootstrap and migrations', () => {
     expect(rows[1]?.indexdef).toContain('(rule_id, queued_at)');
   });
 
+  it('ignored-events partial index matches the list order (received_at desc, id) and its predicate', async () => {
+    const rows = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where tablename = 'inbound_events' and indexname = 'inbound_events_project_received_ignored_idx'",
+    );
+    expect(rows).toHaveLength(1);
+    // Plain DESC (NULLS FIRST) is what `ORDER BY received_at DESC` needs; NULLS LAST would not serve it.
+    expect(rows[0]?.indexdef).toContain('(project_id, received_at DESC, id)');
+    expect(rows[0]?.indexdef).toContain("WHERE starts_with(outcome, 'ignored_'::text)");
+  });
+
   it('foreign-key columns used by deletes and joins are indexed', async () => {
     const rows = await query<{ indexname: string; indexdef: string }>(
       env.ownerUrl,

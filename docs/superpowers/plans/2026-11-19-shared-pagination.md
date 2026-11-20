@@ -16,7 +16,7 @@
 ## Global Constraints
 
 - AGENTS.md rules 1–11 apply to every task: contracts first; layering `apps → core → db → contracts` and `web → contracts` only; provider-agnostic names; `withOrg` on every query; no secrets in logs; untrusted text never interpolated; authz on every endpoint; no edits to applied migrations; a bug fix starts with a failing test; no network in tests; design tokens, stories and loading/empty/error states; strict TS with Zod at boundaries.
-- No new dependency, and no migration. Zod, Drizzle, TanStack Router and Query, the existing `ds` components and `localStorage` cover everything.
+- No new dependency, and one index migration. Zod, Drizzle, TanStack Router and Query, the existing `ds` components and `localStorage` cover everything.
 - Query: `page` is an integer ≥ 1, default 1, at most 2147483647. `pageSize` is an integer 1–100, default 20.
 - Response envelope: `{ items: T[], page: number, pageSize: number, total: number }`. `total` counts every row that matches the route's filters. The client derives the page count as `ceil(total / pageSize)`.
 - A `page` past the last page returns 200 with `items: []` and the real `total`, never a 4xx. The client then moves to the last page.
@@ -29,7 +29,7 @@
 - Each screen keeps its current layout, columns and copy. Only the control under the list and the server-fed numbers are new.
 - **Storybook first (a blocker from the spec, not an ordering preference):** Tasks 2–4 add the `Pagination` component, every screen story and the 20 boards before any task that wires the UI in `apps/web/src/{app,features}` (Tasks 5–10). Each of those tasks lists the Storybook tasks it needs under "Depends on".
 - Task 1 changes agent rules (ADR and convention docs), so its PR waits for a human.
-- Not sensitive (the spec says so): no migration, no change to `withOrg`/RLS, auth, webhooks, secrets, the terminal or the run Job. Existing list queries keep their org/project scope and authz.
+- Sensitive only for that migration (the spec says so): one index migration (RLS unchanged), no change to `withOrg`/RLS, auth, webhooks, secrets, the terminal or the run Job. Existing list queries keep their org/project scope and authz.
 - Before every commit, run `devbox run fix` until it prints `fix: clean.`. Use Conventional Commits with the package as scope.
 
 ## Review Focus
@@ -204,7 +204,7 @@ Expected: PASS.
 
 - [x] **Step 5: Write the ADR and convention edits**
 
-- `docs/adr/0026-offset-pagination-for-data-lists.md`, status **Proposed**, date 2026-11-19, source issue #146. Sections: Context (keyset rule today; no total, no jump to page; the 1000-run walk), Decision (offset pages with a total for every data list; the API rule and envelope from Global Constraints; `count(*)` in the same `withOrg` transaction; whole-set readers use page 1 at size 100), Alternatives (keyset with Previous/Next only; load more / infinite scroll, each with its trade-off from the spec's Approaches), Consequences (page drift under concurrent inserts is accepted; deep offsets cost more; no new index because runs and ignored events already have matching ones). Add its row to `docs/adr/README.md`.
+- `docs/adr/0026-offset-pagination-for-data-lists.md`, status **Proposed**, date 2026-11-19, source issue #146. Sections: Context (keyset rule today; no total, no jump to page; the 1000-run walk), Decision (offset pages with a total for every data list; the API rule and envelope from Global Constraints; `count(*)` in the same `withOrg` transaction; whole-set readers use page 1 at size 100), Alternatives (keyset with Previous/Next only; load more / infinite scroll, each with its trade-off from the spec's Approaches), Consequences (page drift under concurrent inserts is accepted; deep offsets cost more; runs already have a matching index, and one partial index on `inbound_events` (`project_id, received_at desc, id` where `outcome` starts with `ignored_`) is added by migration 0020). Add its row to `docs/adr/README.md`.
 - `backend.md` §11: replace the keyset line with: "List endpoints for data lists **MUST** take `page` (integer ≥ 1, default 1, max 2147483647) and `pageSize` (integer 1–100, default 20) through `PageQuery`, and return `pageOf(Item)`: `{ items, page, pageSize, total }`. A page past the end is 200 with `items: []` and the real `total`. _Why: numbered pages and jump to page need a total (ADR 0026)._"
 - `database.md` §8: replace the keyset `MUST` with: "**MUST** paginate data lists with `LIMIT`/`OFFSET` from `pageWindow` and a fixed `ORDER BY` that ends in a unique column (`id` or the natural unique key); `total` comes from a `count(*)` with the same `WHERE` in the same `withOrg` transaction, not a window function. Page drift under concurrent inserts is accepted (ADR 0026)." Change the composite-index `SHOULD` to "…in the same column order as the list's `ORDER BY` (e.g. `runs (project_id, queued_at desc, id)`)." Change the checklist item to "No queries in loops; data lists use offset pages (`PageQuery`, `pageOf`) with a fixed order ending in a unique column and a capped `pageSize`."
 - `frontend.md` §3: add "A data list **MUST** render the shared `Pagination` component under the list, keep its page in the URL as `?page=N` (page 1 leaves it out), and take its page size from the shared browser preference `usePageSize()` (`agentdesk.pageSize`; 20, 50 or 100)."

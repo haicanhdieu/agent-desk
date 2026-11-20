@@ -187,6 +187,10 @@ export const inboundEvents = pgTable(
   (t) => [
     unique('inbound_events_provider_delivery_key').on(t.provider, t.deliveryId),
     index('inbound_events_project_received_idx').on(t.projectId, t.receivedAt),
+    // Serves the ignored-events list and the run stats count, which filter on this exact predicate.
+    index('inbound_events_project_received_ignored_idx')
+      .on(t.projectId, t.receivedAt.desc().nullsFirst(), t.id)
+      .where(sql`starts_with(${t.outcome}, 'ignored_')`),
     check('inbound_events_channel_check', sql`${t.channel} in ('webhook','poll')`),
     orgPolicy(),
     // The intake records deliveries before the project is resolved, so it may insert rows with a null org.

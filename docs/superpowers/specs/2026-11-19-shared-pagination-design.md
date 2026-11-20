@@ -1,7 +1,7 @@
 <!-- dev-plan: kind=spec id=shared-pagination rev=2 hash=78d0477e708c source=issue#146 -->
 # Shared pagination for every data list (API and web): design
 
-Date: 2026-11-19 · Status: draft for approval · Source: issue #146 · Sensitive: no (no migration, no change to
+Date: 2026-11-19 · Status: draft for approval · Source: issue #146 · Sensitive: yes (one index migration; no change to
 `withOrg`/RLS, auth, webhooks, secrets, terminal or the run Job; existing list queries change shape but keep their
 org/project scope and authz)
 
@@ -136,8 +136,9 @@ None stated beyond the human's list of what is not a data list (the repo picker,
   where it has filters).
 - Agent call: skills are paged in memory in the API after the code host lists them, because the code host returns the
   whole skills folder and has no paging of its own.
-- Agent call: none of these orders needs a new index. Runs and ignored events already have matching indexes, and
-  projects, rules and setup versions are small per org or project. So there is no migration.
+- Agent call: one partial index on `inbound_events` (`project_id, received_at desc, id` where `outcome` starts with
+  `ignored_`) serves the Ignored list and the run stats count. Runs already have a matching index, and projects, rules
+  and setup versions are small per org or project. It is a plain `CREATE INDEX` because migrations run in one transaction.
 - These are breaking changes to the response shape, and the web app is the only client. Each list's contract, API and
   screen change must land together, or the web build breaks. The local e2e specs and API integration tests that read
   these routes change with them.
