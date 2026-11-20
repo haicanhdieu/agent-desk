@@ -86,6 +86,27 @@ describe('runs route', () => {
       expect(screen.getByText(/so Run 63 is waiting/)).toBeInTheDocument();
     });
 
+    it('queued runs but no idle run: the banner says the next queued run is waiting and names no idle run', async () => {
+      server.use(
+        http.get(`*${runsApi}/stats`, () => HttpResponse.json({ ...stats, idleRun: null, nextQueuedNumber: 63 })),
+      );
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(await screen.findByText('Run 63 is waiting for a free slot.')).toBeInTheDocument();
+      expect(screen.queryByText(/needs you\./)).not.toBeInTheDocument();
+      expect(screen.queryByRole('link', { name: 'Answer in terminal' })).not.toBeInTheDocument();
+    });
+
+    it('no idle run and no queued run: no banner', async () => {
+      server.use(
+        http.get(`*${runsApi}/stats`, () => HttpResponse.json({ ...stats, idleRun: null, nextQueuedNumber: null })),
+      );
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(screen.queryByText(/is waiting for a free slot/)).not.toBeInTheDocument();
+      expect(screen.queryByText(/needs you\./)).not.toBeInTheDocument();
+    });
+
     it('asks for the stats of the local day and for no unfiltered list or ignored events on another chip', async () => {
       const queries = captureRunListQueries();
       const statsQueries: string[] = [];

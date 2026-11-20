@@ -135,6 +135,20 @@ describe('Runs', () => {
     expect(container.querySelectorAll('tr')).toHaveLength(1 + 6 + 9);
   });
 
+  it('waitingRun shows the waiting note and no idle-run text or actions', () => {
+    render(<Runs {...base} filter="all" waitingRun={63} />);
+    expect(screen.getByText('Run 63 is waiting for a free slot.')).toBeInTheDocument();
+    expect(screen.queryByText(/needs you\./)).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Answer in terminal' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Finish run' })).not.toBeInTheDocument();
+  });
+
+  it('the idle banner wins over waitingRun, which would repeat its slot note', () => {
+    render(<Runs {...base} filter="all" needsYouRun={needsYouRun} waitingRun={63} />);
+    expect(screen.getByText('Run 62 needs you.')).toBeInTheDocument();
+    expect(screen.queryByText('Run 63 is waiting for a free slot.')).not.toBeInTheDocument();
+  });
+
   it('renders the needs-you banner, header, row actions and one main', () => {
     render(<Runs {...base} filter="all" needsYouRun={needsYouRun} />);
     expect(screen.getAllByRole('main')).toHaveLength(1);

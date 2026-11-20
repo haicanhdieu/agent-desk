@@ -69,6 +69,14 @@ export const Runs: Story = {
   ),
 };
 
+/** No run is idle, one is queued: the plain waiting banner, with no idle-run text or actions. */
+export const RunsQueuedOnly: Story = {
+  name: 'Runs, queued run waiting, none idle',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => <RunsScreen {...common} filter="all" counts={counts} groups={ticketGroups} waitingRun={63} />,
+};
+
 const credentialWarning: RunsProblemsWarning = {
   tone: 'warn',
   icon: 'key',

@@ -75,6 +75,15 @@ describe('applyMockLists', () => {
       Array.from({ length: 23 }, (_, i) => i + 1),
     );
   });
+
+  it('skills and rules can be given by name: the lists hold exactly those names in that order', () => {
+    applyMockLists({ skills: ['aa-1', 'code-build'], rules: ['code-task-a', 'code-build'] });
+    expect(mockDb.state.skills[projectId]?.map((s) => s.name)).toEqual(['aa-1', 'code-build']);
+    expect(mockDb.state.rules.filter((r) => r.projectId === projectId).map((r) => r.command)).toEqual([
+      'code-task-a',
+      'code-build',
+    ]);
+  });
 });
 
 describe('mockListHandlers', () => {

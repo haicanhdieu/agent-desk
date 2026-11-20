@@ -85,6 +85,7 @@ export const stateStories = {
   Setup2Fallback: { title: setup, exportName: 'Setup2Fallback', board: 'Setup2' },
   SetupReadyWithWarning: { title: setup, exportName: 'SetupReadyWithWarning', board: 'SetupReady' },
   SetupReadyPolling: { title: setup, exportName: 'SetupReadyPolling', board: 'SetupReady' },
+  RunsQueuedOnly: { title: runs, exportName: 'RunsQueuedOnly', board: 'RunsPaged' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
   NeedsYouPaused: { title: runs, exportName: 'NeedsYouPaused', board: 'NeedsYou' },
   RunPaused: { title: detail, exportName: 'RunPaused', board: 'RunIdle' },

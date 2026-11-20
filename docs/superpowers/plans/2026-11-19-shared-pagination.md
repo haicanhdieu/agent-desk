@@ -1156,7 +1156,7 @@ git commit -m "test(web): mock e2e for the pagination control"
 - Consumes: `seedLists`, `MockLists` (Task 11).
 - Produces: nothing.
 
-- [ ] **Step 1: Write `runs-paging.spec.ts`.** Rules and cases:
+- [x] **Step 1: Write `runs-paging.spec.ts`.** Rules and cases:
 
 - **BR-1:** TC-1.1–1.3.
 - **BR-11:** TC-11.1, TC-11.7.
@@ -1171,12 +1171,12 @@ git commit -m "test(web): mock e2e for the pagination control"
 - **BR-25:** TC-25.1–25.5.
 - **BR-36:** TC-36.3, delivering a status change on page 2 through the mock project event stream's existing scripted-run mechanism (`runScript`) for a run on that page.
 
-- [ ] **Step 2: Run the new spec only**
+- [x] **Step 2: Run the new spec only**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-paging.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix
@@ -1199,7 +1199,7 @@ git commit -m "test(web): mock e2e for paged runs and server-fed numbers"
 - Consumes: `seedLists`, `MockLists` (Task 11).
 - Produces: nothing.
 
-- [ ] **Step 1: Write `lists-paging.spec.ts`**, grouped by screen, covering these rules and cases:
+- [x] **Step 1: Write `lists-paging.spec.ts`**, grouped by screen, covering these rules and cases:
 
 - **Projects:** BR-3 TC-3.1, TC-3.2; BR-5 TC-5.3; BR-9 TC-9.6; BR-28 TC-28.1, TC-28.2; BR-18 TC-18.3.
 - **Across lists:** BR-1 TC-1.4; BR-13 TC-13.2, TC-13.3; BR-17 TC-17.2.
@@ -1210,12 +1210,12 @@ git commit -m "test(web): mock e2e for paged runs and server-fed numbers"
 - **Setup history:** BR-11 TC-11.6; BR-31 TC-31.1–31.5.
 - **Whole-set readers:** BR-32 TC-32.1–32.4; BR-33 TC-33.1–33.4; BR-34 TC-34.4 (step 4 and step 5 skip an existing item beyond the first 20 and finish); BR-35 TC-35.1–35.3.
 
-- [ ] **Step 2: Run the new spec only**
+- [x] **Step 2: Run the new spec only**
 
 Run: `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/lists-paging.spec.ts`
 Expected: PASS.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 devbox run fix

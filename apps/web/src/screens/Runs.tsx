@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from '@/ds';
+import { Banner, Button, StatusIcon } from '@/ds';
 import {
   DataTable,
   EmptyState,
@@ -18,6 +18,8 @@ export type { RunsFilter } from './RunsPage';
 export interface RunsProps extends Omit<RunsPageProps, 'children' | 'banners'> {
   groups: TicketGroup[];
   needsYouRun?: { run: RunSummary; askedAgo: string; slotNote: string; href: string };
+  /** Number of the oldest queued run, shown as a plain "is waiting" banner when no run is idle. Ignored while `needsYouRun` is set (its slot note already names it). */
+  waitingRun?: number;
   /** In-app href of a run; defaults to the prototype's `/runs/<id>`. */
   runHref?(run: RunSummary): string;
   /** Href for the empty state's "Show all runs" (a link instead of the `onFilter('all')` button). */
@@ -81,6 +83,7 @@ function rowActions(run: RunSummary, runHref: (r: RunSummary) => string) {
 export function Runs({
   groups,
   needsYouRun,
+  waitingRun,
   filter,
   runHref = defaultRunHref,
   showAllHref,
@@ -108,6 +111,11 @@ export function Runs({
           slotNote={needsYouRun.slotNote}
           href={needsYouRun.href}
         />
+      )}
+      {!needsYouRun && waitingRun !== undefined && (
+        <Banner tone="idle" icon={<StatusIcon status="queued" size={18} />}>
+          Run {waitingRun} is waiting for a free slot.
+        </Banner>
       )}
       {shown.length === 0 ? (
         <EmptyState

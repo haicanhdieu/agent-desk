@@ -206,6 +206,7 @@ function ListView({
       onGroupedChange={setGrouped}
       groups={groupByTicket(summaries, dto.maxRunsPerTicket, ticketRunCounts(listed.items))}
       needsYouRun={needsYouRun}
+      waitingRun={stats.nextQueuedNumber ?? undefined}
       runHref={(r) => runHref(paths, r.id)}
       showAllHref={paths.runs}
       pagination={pagination}

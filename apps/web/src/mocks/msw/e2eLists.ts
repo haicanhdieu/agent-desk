@@ -37,8 +37,10 @@ export const MockLists = z.object({
   ignored: count.optional(),
   /** Alice's projects in all; invoicer-api always stays the first, so at least 1. */
   projects: z.number().int().min(1).optional(),
-  rules: count.optional(),
-  skills: count.optional(),
+  /** A count (generated commands), or the exact commands in creation order. */
+  rules: z.union([count, z.array(z.string().min(1))]).optional(),
+  /** A count (generated names), or the exact names. */
+  skills: z.union([count, z.array(z.string().min(1))]).optional(),
   versions: count.optional(),
   /** Holds the answer of a route back for `ms` (then the route answers as usual). `page`/`pageSize` narrow it. */
   hold: z
@@ -194,13 +196,14 @@ function generateIgnored(total: number): IgnoredEventDto[] {
 
 const two = (n: number) => String(n).padStart(2, '0');
 
-function generateRules(total: number): RuleDto[] {
+function generateRules(spec: number | string[]): RuleDto[] {
+  const total = typeof spec === 'number' ? spec : spec.length;
   return Array.from({ length: total }, (_, i): RuleDto => {
     const n = i + 1;
     return {
       id: `e1000000-0000-4000-8000-${pad12(n)}`,
       projectId: ids.project.invoicerApi,
-      command: `code-task-${two(n)}`,
+      command: Array.isArray(spec) ? (spec[i] ?? `code-task-${two(n)}`) : `code-task-${two(n)}`,
       labelFilter: [],
       target: n % 2 === 0 ? 'pr' : 'issue',
       agentId: ids.agent.invoicerApi,
@@ -214,9 +217,10 @@ function generateRules(total: number): RuleDto[] {
   });
 }
 
-function generateSkills(total: number): SkillDto[] {
+function generateSkills(spec: number | string[]): SkillDto[] {
+  const total = typeof spec === 'number' ? spec : spec.length;
   return Array.from({ length: total }, (_, i): SkillDto => {
-    const name = `skill-${two(i + 1)}`;
+    const name = (Array.isArray(spec) ? spec[i] : undefined) ?? `skill-${two(i + 1)}`;
     return {
       name,
       description: `Does task ${i + 1} end to end.`,
