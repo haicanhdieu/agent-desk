@@ -58,7 +58,7 @@ export function SkillPreviewPane({ load = defaultLoad, ...props }: SkillPreviewP
       <Suspense
         fallback={
           <div className={styles.pane} role="status">
-            <span className={styles.visuallyHidden}>Loading the preview</span>
+            <span className="sr-only">Loading the preview</span>
             <Skeleton variant="text" lines={8} />
           </div>
         }

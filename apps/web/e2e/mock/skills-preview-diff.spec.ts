@@ -160,6 +160,18 @@ test('wide preview content scrolls inside the editor column', async ({ page }) =
     inner: window.innerWidth,
   }));
   expect(sizes.scroll).toBe(sizes.inner);
+  // The wide content is not clipped: something inside each block scrolls sideways on its own.
+  for (const part of ['table-wrapper', 'code-block']) {
+    const scrolls = await preview(page)
+      .locator(`[data-streamdown='${part}']`)
+      .first()
+      .evaluate((root) =>
+        [root, ...root.querySelectorAll('*')].some(
+          (el) => el.scrollWidth > el.clientWidth && ['auto', 'scroll'].includes(getComputedStyle(el).overflowX),
+        ),
+      );
+    expect(scrolls, `${part} scrolls`).toBe(true);
+  }
   await expect(page.getByRole('main').getByRole('heading', { level: 2 })).toBeInViewport();
   await expect(commit(page)).toBeInViewport();
 });

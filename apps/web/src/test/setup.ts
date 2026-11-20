@@ -24,7 +24,9 @@ class VisibleObserver {
   constructor(private readonly callback: IntersectionObserverCallback) {}
   observe(target: Element) {
     this.callback(
+      // Cast: the stub gives only the two fields Streamdown reads; the rest of the entry is not needed.
       [{ isIntersecting: true, target } as IntersectionObserverEntry],
+      // Cast: the stub is not a full IntersectionObserver (no root or thresholds); callers only use observe/disconnect.
       this as unknown as IntersectionObserver,
     );
   }
