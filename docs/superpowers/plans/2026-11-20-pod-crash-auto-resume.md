@@ -63,7 +63,7 @@ None. No new package, library, service, image, CI action, binary or workspace pa
 - Agent call: the 10 new boards are added to `canvas.json` after the last board of their group (run boards after `RunIdleEnding`, desk boards after `DeskAgentAddressChanged`). They use the boards' own `<title>` and size (run boards 1440×900, desk boards 1440×1480), and `viewports.ts` gains the 1440×1480 artboard. Reason: the boards are drawn at those sizes and no layout was specified.
 - Agent call: the mocked-e2e runs live in a new `apps/web/src/mocks/dto/autoResumeRuns.ts` (run numbers 99 to 104), seeded in `msw/browser.ts` like `lifecycleRuns.ts`. The "without the line" case reuses the existing `KILLED_RUN` (71). Reason: no edits to fixture files that other specs rely on.
 - Agent call: the local e2e kills the pod with the fake pod's existing `hardkill` file. The fake gateway then reports exit 137 with reason `Error`, so the local note reads `(Error, exit 137)`. Reason: it is the existing way to kill a fake pod from outside, and the spec's assertions do not depend on the reason word.
-- Agent call: the new ADR is `docs/adr/0028-unexpected-pod-ends-resume-automatically.md`, the next free number, written in Task 8.
+- Agent call: the new ADR is `docs/adr/0029-unexpected-pod-ends-resume-automatically.md`, the next free number when planned, written in Task 8. Renumbered to 0029 at build time: 0028 was taken on main by the pagination ADR (#181).
 
 ---
 
@@ -620,7 +620,7 @@ More rules:
 - Modify: `apps/worker/test/run.workflow.in-process.test.ts`
 - Modify: `apps/worker/test/run.workflow.auto-resume.test.ts`
 - Modify: `apps/worker/test/helpers/run-workflow-harness.ts`
-- Create: `docs/adr/0028-unexpected-pod-ends-resume-automatically.md`
+- Create: `docs/adr/0029-unexpected-pod-ends-resume-automatically.md`
 - Modify: `docs/adr/README.md`
 - Modify: `docs/runbooks/runner-pod.md`
 
@@ -633,7 +633,7 @@ More rules:
   - `no_session` or `no_credential`: the `paused` comment, no retry.
   - The count of starts that failed in a row is reset when a session comes up or a person's Resume is accepted.
 
-- [ ] **Step 1: Write the failing in-process tests**, using `fireTimer` and `pendingTimers`:
+- [x] **Step 1: Write the failing in-process tests**, using `fireTimer` and `pendingTimers`:
   - `a try whose pod could not start uses a try and is retried after 1 minute`: max 3, the resume create throws a non-retryable start failure. Expect one `restoreParked` with reason `the pod could not start`, no `paused` comment, and `pendingTimers()` contains `60_000`. `fireTimer(60_000)` → inputs `[resume 1, resume 2]`.
   - `the waits grow 1, 2, 4, 8, 10 minutes`: max 10, every start fails. The timers seen in order are `60_000`, `120_000`, `240_000`, `480_000`, `600_000`, `600_000`.
   - `at the limit after failed starts it gives up with gave_up and one paused comment`: max 2 → `[resume 1, resume 2, gave_up 2]`, then one `paused` comment and no timer.
@@ -644,15 +644,15 @@ More rules:
   - `a person's Resume during the retry wait runs at once and resets the count` (Review Focus 5). If that resume then fails, no automatic retry follows.
   - `Cancel during the retry wait cancels the run`.
   - `the kept session's expiry during the wait expires the run as today`.
-- [ ] **Step 2: Add one Temporal-env test** in `run.workflow.auto-resume.test.ts`: `an automatic try that could not start is retried after the wait and comes up`. Add a harness knob, `Script.resumeCreateFailFirst?: number`: the first N resumed `createRunSecretAndJob` calls throw a non-retryable start failure. With N = 1 and max 3, the second automatic try comes up (`auto_resume` tries 1 and 2, back to `idle`). Skip the 1-minute wait with the harness's `skipUntil`. No activity is in flight while the run is parked, so time skipping applies.
-- [ ] **Step 3: Run** `pnpm --filter @agentdesk/worker test run.workflow.in-process run.workflow.auto-resume`. Expected: FAIL.
-- [ ] **Step 4: Implement** the failure kind in `resumeAttempt`, the retry wait in the parked loop and the gave-up path. Remove Task 7's "any failed automatic try posts the comment" branch where `could_not_start` now retries.
-- [ ] **Step 5: Run** the same command and every `run.workflow.*` file. Expected: PASS, including the replay tests.
-- [ ] **Step 6: Write the ADR and runbook.**
-  - `0028-unexpected-pod-ends-resume-automatically.md`, "Unexpected pod ends resume automatically, up to a per-agent limit": Status Accepted, Date 2026-11-20, Source the spec. It amends 0023. It records U1 to U5, approach A and the two rejected ones, the count and its reset (typing or Resume), the note and its fixed wording, the retry wait for a pod that could not start, and that Cancel during an automatic try cancels the run.
+- [x] **Step 2: Add one Temporal-env test** in `run.workflow.auto-resume.test.ts`: `an automatic try that could not start is retried after the wait and comes up`. Add a harness knob, `Script.resumeCreateFailFirst?: number`: the first N resumed `createRunSecretAndJob` calls throw a non-retryable start failure. With N = 1 and max 3, the second automatic try comes up (`auto_resume` tries 1 and 2, back to `idle`). Skip the 1-minute wait with the harness's `skipUntil`. No activity is in flight while the run is parked, so time skipping applies.
+- [x] **Step 3: Run** `pnpm --filter @agentdesk/worker test run.workflow.in-process run.workflow.auto-resume`. Expected: FAIL.
+- [x] **Step 4: Implement** the failure kind in `resumeAttempt`, the retry wait in the parked loop and the gave-up path. Remove Task 7's "any failed automatic try posts the comment" branch where `could_not_start` now retries.
+- [x] **Step 5: Run** the same command and every `run.workflow.*` file. Expected: PASS, including the replay tests.
+- [x] **Step 6: Write the ADR and runbook.**
+  - `0029-unexpected-pod-ends-resume-automatically.md`, "Unexpected pod ends resume automatically, up to a per-agent limit": Status Accepted, Date 2026-11-20, Source the spec. It amends 0023. It records U1 to U5, approach A and the two rejected ones, the count and its reset (typing or Resume), the note and its fixed wording, the retry wait for a pod that could not start, and that Cancel during an automatic try cancels the run.
   - Add a `README.md` row.
   - In `runner-pod.md`, change "the run shows as paused" to: it resumes by itself up to the agent's "Automatic resumes after a crash" (default 5), then shows as paused.
-- [ ] **Step 7: Typecheck and commit:** `feat(worker): retry an automatic resume whose pod could not start`, then `docs(adr): 0028 unexpected pod ends resume automatically`.
+- [x] **Step 7: Typecheck and commit:** `feat(worker): retry an automatic resume whose pod could not start`, then `docs(adr): 0029 unexpected pod ends resume automatically`.
 
 ---
 

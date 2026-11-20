@@ -1717,3 +1717,190 @@ describe('automatic resume after an unexpected pod end', () => {
     expect(h.createOpts).toHaveLength(1);
   });
 });
+
+describe('retrying an automatic try whose pod could not start', () => {
+  const OOM = { exitCode: 137, agentStarted: true, podReason: 'OOMKilled' } as const;
+  const START_FAILS = failedActivity('createRunSecretAndJob', 'quota exceeded');
+  const paused = (h: Harness): number => h.comments.filter((c) => c.kind === 'paused').length;
+  const tries = (h: Harness): number[] => h.autoResumes.map((r) => (r.event === 'resume' ? r.try : -1));
+
+  /** The first pod ends and the first automatic try fails to start; the run waits for the retry timer. */
+  async function toRetryWait(h: Harness, ms = 60_000): Promise<void> {
+    h.resumeCreateError = START_FAILS;
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('first try failed', () => h.restores.length === 1);
+    await waitFor('retry timer', () => pendingTimers().includes(ms));
+  }
+
+  it('a try whose pod could not start uses a try and is retried after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the pod could not start' })]);
+    expect(paused(h)).toBe(0);
+    expect(phase()).toBe('parked');
+    h.resumeCreateError = undefined;
+    fireTimer(60_000);
+    await waitFor('second try', () => h.pods.length === 2);
+
+    expect(tries(h)).toEqual([1, 2]);
+    expect(h.createOpts.at(-1)).toMatchObject({ resume: true, note: { try: 2, max: 3 } });
+    sendSignal(sessionStarted);
+    await waitFor('idle', () => phase() === 'idle');
+  });
+
+  it('the waits grow 1, 2, 4, 8, 10 minutes', async () => {
+    const h = start({ autoResumeMax: 10 });
+    await toRetryWait(h);
+    const waits = [60_000, 120_000, 240_000, 480_000, 600_000, 600_000];
+    for (const [i, ms] of waits.entries()) {
+      await waitFor(`wait ${i + 1}`, () => h.restores.length === i + 1 && pendingTimers().includes(ms));
+      fireTimer(ms);
+    }
+    await waitFor('seventh try failed', () => h.restores.length === waits.length + 1);
+
+    expect(tries(h)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('at the limit after failed starts it gives up with gave_up and one paused comment', async () => {
+    const h = start({ autoResumeMax: 2 });
+    await toRetryWait(h);
+    fireTimer(60_000);
+    await waitFor('gave up', () => h.autoResumes.length === 3);
+    await waitFor('paused comment', () => paused(h) === 1);
+    await settle();
+
+    expect(h.autoResumes).toEqual([
+      expect.objectContaining({ event: 'resume', try: 1 }),
+      expect.objectContaining({ event: 'resume', try: 2 }),
+      { event: 'gave_up', tries: 2, at: expect.any(String) },
+    ]);
+    expect(pendingTimers()).not.toContain(120_000);
+    expect(phase()).toBe('parked');
+  });
+
+  it('a resumed pod that exits 137 before session started uses a try and is retried after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    h.pods[1]?.exit({ exitCode: 137 });
+    await waitFor('retry timer', () => pendingTimers().includes(60_000));
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the pod could not start' })]);
+    expect(paused(h)).toBe(0);
+    fireTimer(60_000);
+    await waitFor('second try', () => h.pods.length === 3);
+    expect(tries(h)).toEqual([1, 2]);
+  });
+
+  it('the hard timer firing before the session came up uses a try and is retried after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    const allowance = h.createOpts.at(-1)?.deadlineSeconds;
+    expect(allowance).toBeGreaterThan(0);
+    fireTimer((allowance ?? 0) * 1000);
+    await waitFor('retry timer', () => pendingTimers().includes(60_000));
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the pod could not start' })]);
+    expect(paused(h)).toBe(0);
+    fireTimer(60_000);
+    await waitFor('second try', () => h.pods.length === 3);
+    expect(tries(h)).toEqual([1, 2]);
+  });
+
+  it('no saved session is not retried and posts the paused comment', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+    h.pods[1]?.exit({ exitCode: 79, resumeFailed: true });
+    await waitFor('paused comment', () => paused(h) === 1);
+    await settle();
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'no saved session was found' })]);
+    expect(pendingTimers()).not.toContain(60_000);
+    expect(tries(h)).toEqual([1]);
+  });
+
+  it('a missing agent or credential is not retried and posts the paused comment', async () => {
+    const h = start({ autoResumeMax: 3 });
+    h.resumeCreateError = failedActivity('createRunSecretAndJob', 'no credential', 'NoAgentCredential');
+    await toRunning(h);
+    h.pods[0]?.exit(OOM);
+    await waitFor('paused comment', () => paused(h) === 1);
+    await settle();
+
+    expect(h.restores).toEqual([expect.objectContaining({ reason: 'the agent or its credential is missing' })]);
+    expect(pendingTimers()).not.toContain(60_000);
+    expect(tries(h)).toEqual([1]);
+  });
+
+  it('Finish during the retry wait succeeds and no try starts after 1 minute', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    await sendUpdate(finishRun);
+
+    await expect(h.done).resolves.toMatchObject({ status: 'succeeded' });
+    if (pendingTimers().includes(60_000)) fireTimer(60_000);
+    await settle();
+    expect(tries(h)).toEqual([1]);
+    expect(h.pods).toHaveLength(1);
+  });
+
+  it("a person's Resume during the retry wait runs at once and resets the count", async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    h.resumeCreateError = undefined;
+    await sendUpdate(resumeRun);
+    await waitFor('resumed pod', () => h.pods.length === 2);
+
+    expect(h.createOpts.at(-1)?.note).toEqual({ end: { kind: 'killed', exitCode: 137, podReason: 'OOMKilled' } });
+    sendSignal(sessionStarted);
+    await waitFor('idle', () => phase() === 'idle');
+    expect(pendingTimers()).not.toContain(60_000);
+    h.pods[1]?.exit(OOM);
+    await waitFor('next automatic try', () => h.pods.length === 3);
+    expect(tries(h)).toEqual([1, 1]);
+  });
+
+  it("a person's Resume that fails during the retry wait is not retried automatically", async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    await sendUpdate(resumeRun);
+    await waitFor('second restore', () => h.restores.length === 2);
+    await settle();
+
+    expect(pendingTimers()).not.toContain(60_000);
+    expect(tries(h)).toEqual([1]);
+    expect(phase()).toBe('parked');
+  });
+
+  it('Cancel during the retry wait cancels the run', async () => {
+    const h = start({ autoResumeMax: 3 });
+    await toRetryWait(h);
+    sendSignal(cancel);
+
+    await expect(h.done).resolves.toEqual({ status: 'cancelled' });
+  });
+
+  it("the kept session's expiry during the wait expires the run as today", async () => {
+    const h = start({ autoResumeMax: 5 }, { keepSeconds: 90 });
+    await toRetryWait(h);
+    vi.setSystemTime(new Date(T0.getTime() + 60_000));
+    fireTimer(60_000);
+    await waitFor('second try failed', () => h.restores.length === 2);
+    await waitFor('expiry timer', () => pendingTimers().includes(30_000));
+    // The next wait would outlast the kept session, so the retry is dropped and the person is told once.
+    expect(paused(h)).toBe(1);
+    expect(tries(h)).toEqual([1, 2]);
+    vi.setSystemTime(new Date(T0.getTime() + 91_000));
+    fireTimer(30_000);
+
+    await expect(h.done).resolves.toMatchObject({ status: 'expired' });
+    expect(h.kept).toEqual(['expired']);
+  });
+});

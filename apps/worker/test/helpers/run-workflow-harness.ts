@@ -110,6 +110,8 @@ export interface Script {
   deleteJobPermanent?: boolean;
   /** The next N endSession attempts throw a retryable cluster error. */
   endSessionFailFirst?: number;
+  /** The first N resumed createRunSecretAndJob calls throw a non-retryable start failure (the pod could not start). */
+  resumeCreateFailFirst?: number;
   /** Every resumed createRunSecretAndJob attempt throws a retryable cluster error. */
   resumeCreateFailsRetryable?: boolean;
   /** What endSession resolves: the current pod's logs. */
@@ -200,6 +202,10 @@ export function activities(): RunActivities {
       s.calls.push('createRunSecretAndJob');
       s.createOpts.push(opts);
       if (opts?.resume && s.resumeCreateFailsRetryable) throw new Error('fetch failed');
+      if (opts?.resume && s.resumeCreateFailFirst !== undefined) {
+        const resumed = s.createOpts.filter((o) => o?.resume).length;
+        if (resumed <= s.resumeCreateFailFirst) throw ApplicationFailure.nonRetryable('quota exceeded', 'StartFailed');
+      }
       if (opts?.resume && s.resumeCreateFailure !== undefined) {
         throw ApplicationFailure.nonRetryable('the agent or its credential is missing', s.resumeCreateFailure);
       }

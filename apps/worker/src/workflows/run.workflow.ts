@@ -47,6 +47,7 @@ import {
 } from './attach-leases';
 import {
   autoResumeDecision,
+  autoResumeWaitSeconds,
   cancelEffect,
   endOutcome,
   parkKindOf,
@@ -92,6 +93,8 @@ const POD_PENDING_TIMEOUT = 'PodPendingTimeout';
 const CLUSTER_PERMANENT_ERROR = 'ClusterPermanentError';
 /** Mirrors the type `createRunSecretAndJob` throws for a resume whose agent or credential is gone. */
 const NO_AGENT_CREDENTIAL = 'NoAgentCredential';
+/** Why a resume is given up when the hard timer ends it before the session came up. */
+const HARD_TIMER_REASON = 'the pod could not start';
 /** followPodLogs may run for the whole run; it gets this much beyond the hard timer before Temporal gives up. */
 const LOGS_TIMEOUT_MARGIN_SECONDS = 300;
 /** Marks runs that refresh their token, so a run started before this existed replays unchanged. */
@@ -244,6 +247,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let lastEnd: UnexpectedEnd | undefined;
   /** The resume under way was started by the workflow, not a person. */
   let resumeIsAutomatic = false;
+  /** Automatic tries in a row whose pod could not start; reset when a session comes up or a person's Resume is accepted. */
+  let failedStarts = 0;
+  /** Milliseconds the parked loop waits before the next automatic try; set after a try whose pod could not start. */
+  let retryWaitMs: number | undefined;
   /** A person's Stop was accepted: the main loop ends the session and parks it as `stopped`. */
   let stopRequested = false;
   /** Why the ending session parks; undefined means the idle timer. */
@@ -317,7 +324,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       }
     }
     if (reason === 'timed_out' && phase === 'resuming' && !sessionUp) {
-      resumeAbortReason ??= 'the pod could not start';
+      resumeAbortReason ??= HARD_TIMER_REASON;
       resumeScope?.cancel();
       return;
     }
@@ -424,6 +431,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       if (autoResume) {
         autoResumeStreak = 0;
         resumeIsAutomatic = false;
+        failedStarts = 0;
+        retryWaitMs = undefined;
       }
       return { accepted: true as const };
     },
@@ -827,24 +836,11 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     if (auto === 'gave_up') {
       await act.recordAutoResume(c, { event: 'gave_up', tries: triesAtDecision, at: new Date().toISOString() });
     } else if (auto === 'resume' && lastEnd !== undefined && !resumeAccepted) {
-      // Accepted before the event is written, with the phase `resuming`: a person's Resume cannot land in between (it
-      // would be refused), so the count and the event always describe an automatic try.
-      autoResumeStreak += 1;
-      resumeAccepted = true;
-      phase = 'resuming';
-      resumeScope = new CancellationScope();
-      resumeAbortReason = undefined;
-      resumeIsAutomatic = true;
-      await act.recordAutoResume(c, {
-        event: 'resume',
-        try: autoResumeStreak,
-        max: c.autoResumeMax ?? 0,
-        end: lastEnd,
-        at: new Date().toISOString(),
-      });
+      await startAutomaticTry(c, lastEnd);
     }
     for (;;) {
       if (resumeAccepted) {
+        retryWaitMs = undefined;
         resumeAccepted = false;
         // A resume queued behind the ending left the phase alone; from here it is under way.
         phase = 'resuming';
@@ -854,6 +850,21 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         continue;
       }
       const left = expiresMs - Date.now();
+      if (retryWaitMs !== undefined && left > retryWaitMs && !finishRequested && !dropRequested) {
+        // A durable timer, woken early by a finish, a drop or a person's Resume.
+        const woken = await condition(() => finishRequested || dropRequested || resumeAccepted, retryWaitMs);
+        if (!woken && lastEnd !== undefined) {
+          retryWaitMs = undefined;
+          await startAutomaticTry(c, lastEnd);
+        }
+        continue;
+      }
+      if (retryWaitMs !== undefined && !finishRequested && !dropRequested) {
+        // The kept session would expire before the next try: no retry. The paused comment was skipped at the park, so
+        // tell the person now, once.
+        retryWaitMs = undefined;
+        await act.postComment(c, 'paused');
+      }
       if (left > 0 && !finishRequested && !dropRequested) {
         await condition(() => finishRequested || dropRequested || resumeAccepted, left);
         continue;
@@ -878,6 +889,26 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   }
 
   /**
+   * Accepts a resume itself and records it. Accepted before the event is written, with the phase `resuming`: a person's
+   * Resume cannot land in between (it would be refused), so the count and the event always describe an automatic try.
+   */
+  async function startAutomaticTry(c: RunContext, end: UnexpectedEnd): Promise<void> {
+    autoResumeStreak += 1;
+    resumeAccepted = true;
+    phase = 'resuming';
+    resumeScope = new CancellationScope();
+    resumeAbortReason = undefined;
+    resumeIsAutomatic = true;
+    await act.recordAutoResume(c, {
+      event: 'resume',
+      try: autoResumeStreak,
+      max: c.autoResumeMax ?? 0,
+      end,
+      at: new Date().toISOString(),
+    });
+  }
+
+  /**
    * Resume: queue through the gate, start a Job on the kept volume and wait for the runner to report the session. Returns
    * the new pod once the session is up (the main loop then supervises it); otherwise puts the run back as it was (the kept session is only given up
    * once the resumed session is really up) and returns `undefined`.
@@ -887,6 +918,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     podSessionStarted = false;
     let pod: Pod | undefined;
     let reason: string | undefined;
+    let failure: 'could_not_start' | 'no_session' | 'no_credential' | 'aborted' = 'could_not_start';
     try {
       pod = await (resumeScope ?? new CancellationScope()).run(async () => {
         await status('queued', { reopen: true, keepAgentNote: true });
@@ -915,23 +947,33 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         await condition(() => sessionStartedFlag || started.done);
         return started;
       });
-      if (!sessionStartedFlag)
-        reason = pod.result?.resumeFailed ? 'no saved session was found' : 'the pod could not start';
+      if (!sessionStartedFlag) {
+        failure = pod.result?.resumeFailed ? 'no_session' : 'could_not_start';
+        reason = failure === 'no_session' ? 'no saved session was found' : 'the pod could not start';
+      }
     } catch (err) {
       // A cancellation that is not the resume's own (a run-level stop) belongs to finalize.
       if (isCancellation(err) && resumeAbortReason === undefined) throw err;
-      reason =
-        resumeAbortReason ??
-        (err instanceof ActivityFailure &&
+      if (
+        resumeAbortReason === undefined &&
+        err instanceof ActivityFailure &&
         err.cause instanceof ApplicationFailure &&
         err.cause.type === NO_AGENT_CREDENTIAL
-          ? 'the agent or its credential is missing'
-          : 'the pod could not start');
+      ) {
+        failure = 'no_credential';
+        reason = 'the agent or its credential is missing';
+      } else {
+        // A person's cancel aborts with its own reason; the hard timer before the session says the pod could not start.
+        failure =
+          resumeAbortReason === undefined || resumeAbortReason === HARD_TIMER_REASON ? 'could_not_start' : 'aborted';
+        reason = resumeAbortReason ?? 'the pod could not start';
+      }
     }
     if (reason === undefined && pod !== undefined) {
       resumeScope = undefined;
       lastEnd = undefined;
       resumeIsAutomatic = false;
+      failedStarts = 0;
       dropRequested = false;
       parkKind = undefined;
       legacyAttached = 0;
@@ -964,9 +1006,21 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     sessionUp = false;
     sessionStartedFlag = false;
     phase = 'parked';
-    // The paused comment was skipped at the park; a failed automatic try hands the run to a person.
+    // The paused comment was skipped at the park. A pod that could not start is tried again after a wait while tries are
+    // left; any other failed automatic try, or the last one, hands the run to a person.
     if (resumeIsAutomatic) {
       resumeIsAutomatic = false;
+      if (failure === 'could_not_start') {
+        failedStarts += 1;
+        const next = autoResumeDecision(autoResumeStreak, c.autoResumeMax ?? 0, kind);
+        if (next === 'resume') {
+          retryWaitMs = autoResumeWaitSeconds(failedStarts) * 1000;
+          return undefined;
+        }
+        if (next === 'gave_up') {
+          await act.recordAutoResume(c, { event: 'gave_up', tries: autoResumeStreak, at: new Date().toISOString() });
+        }
+      }
       await act.postComment(c, 'paused');
     }
     return undefined;
