@@ -354,7 +354,7 @@ describe('prompt preview', () => {
     expect(dto.systemLines).toEqual(
       promptSystemLines({ ticket: PROMPT_PREVIEW_TICKET, repoPath: row?.repoPath ?? '', args: PROMPT_PREVIEW_ARGS }),
     );
-    expect(dto.systemLines).toHaveLength(4);
+    expect(dto.systemLines).toHaveLength(5);
     expect(dto.systemLines.at(-1)).toContain('agentdesk-status');
   });
 

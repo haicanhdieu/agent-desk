@@ -256,9 +256,9 @@ describe('MSW handler semantics', () => {
     expect(switched).toMatchObject({ kind: 'skill', skillName: 'code-build', prompt: null });
     const preview = await api.rules.promptPreview({ params: { projectId: P } });
     expect(() => PromptPreviewDto.parse(preview)).not.toThrow();
-    expect(preview.systemLines).toHaveLength(4);
+    expect(preview.systemLines).toHaveLength(5);
     expect(preview.systemLines[0]).toContain('harbor-labs/invoicer-api');
-    expect(preview.systemLines[3]).toContain('agentdesk-status');
+    expect(preview.systemLines[4]).toContain('agentdesk-status');
   });
 
   it('rejects an invalid body with field pointers', async () => {

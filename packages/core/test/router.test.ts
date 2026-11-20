@@ -319,8 +319,11 @@ describe('routeEvent', () => {
   });
 });
 
+const RESOURCE_RULE_LINE =
+  'RULE: RAM is capped (/sys/fs/cgroup/memory.max); exceeding it kills the pod. You MUST check memory before heavy tasks and order parallel work to fit, and MUST kill unused processes and shells and delete temp files.';
+
 describe('buildPrompt', () => {
-  it('renders the five-line template for an issue', () => {
+  it('renders the six-line template for an issue', () => {
     expect(
       buildPrompt({
         skillName: 'code-review',
@@ -335,12 +338,13 @@ describe('buildPrompt', () => {
         'Read the ticket and all its comments with the gh CLI before you start.',
         'Arguments from the user: fast',
         'When done, report on the ticket as the skill instructs.',
+        RESOURCE_RULE_LINE,
         'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.',
       ].join('\n'),
     );
   });
 
-  it('always yields five lines even with newline-bearing values', () => {
+  it('always yields six lines even with newline-bearing values', () => {
     const out = buildPrompt({
       skillName: 'a\nb\r\nc\u2028d',
       ticketKind: 'issue',
@@ -348,7 +352,7 @@ describe('buildPrompt', () => {
       repoPath: 'x\ny/z',
       args: 'l1\nl2\u2029l3',
     });
-    expect(out.split('\n')).toHaveLength(5);
+    expect(out.split('\n')).toHaveLength(6);
     expect(out).toContain('Use the skill "a b c d" on issue #1 in x y/z.');
     expect(out).toContain('Arguments from the user: l1 l2 l3');
   });
@@ -364,7 +368,7 @@ const STATUS_LINE =
   'Before you end a turn, run `agentdesk-status done "<one-line summary>"` if the task is complete, or `agentdesk-status needs_input "<your question>"` if you need an answer from the human.';
 
 describe('buildPrompt with a custom prompt', () => {
-  it('renders a custom prompt as written, then the four system lines', () => {
+  it('renders a custom prompt as written, then the five system lines', () => {
     expect(
       buildPrompt({
         customPrompt: 'Triage this.\nAdd labels.',
@@ -380,6 +384,7 @@ describe('buildPrompt with a custom prompt', () => {
         'Ticket: issue #7 in acme/app. Read it and all its comments with the gh CLI before you start.',
         'Arguments from the user: fast',
         'When done, report on the ticket.',
+        RESOURCE_RULE_LINE,
         STATUS_LINE,
       ].join('\n'),
     );
@@ -395,7 +400,7 @@ describe('buildPrompt with a custom prompt', () => {
     });
     expect(out.startsWith('a\nb\n')).toBe(true);
     expect(out).toContain('Arguments from the user: l1 l2 l3');
-    expect(out.split('\n').slice(-4)).toEqual(
+    expect(out.split('\n').slice(-5)).toEqual(
       promptSystemLines({ ticket: 'issue #7', repoPath: 'x y/z', args: 'l1\nl2 l3' }),
     );
   });
@@ -418,9 +423,10 @@ describe('promptSystemLines', () => {
       'Ticket: <issue or PR #number> in acme/app. Read it and all its comments with the gh CLI before you start.',
       'Arguments from the user: <text after /command>',
       'When done, report on the ticket.',
+      RESOURCE_RULE_LINE,
       STATUS_LINE,
     ]);
-    expect(lines[3]).toMatch(/^Before you end a turn, run `agentdesk-status done/);
+    expect(lines[4]).toMatch(/^Before you end a turn, run `agentdesk-status done/);
   });
 });
 
