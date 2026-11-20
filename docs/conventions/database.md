@@ -84,7 +84,7 @@ export const rules = pgTable(
 
 - **MUST** index every foreign key column, leading with it, unless a composite index already starts with it. _Why: Postgres doesn't do it for you; deletes and joins scan otherwise._
 - **MUST** back every idempotency rule with a unique constraint, not an application check: `inbound_events (provider, delivery_id)`, `runs (project_id, trigger_comment_id)`, `runs (project_id, number)`, `rules (project_id, command)`, `connections (provider, external_id)`. _Why: two replicas race; only the database is atomic._
-- **SHOULD** match list queries with a composite index in the same column order as the keyset cursor (e.g. `runs (project_id, queued_at desc, id)`).
+- **SHOULD** match list queries with a composite index in the same column order as the list's `ORDER BY` (e.g. `runs (project_id, queued_at desc, id)`).
 - **SHOULD** use partial indexes for hot filtered sets (`runs (project_id) where status in ('starting','running','idle')`).
 
 ## 4a. Deletes and retention
@@ -147,7 +147,7 @@ try {
 
 - **MUST NOT** query inside a loop over rows (`for (const run of runs) await getAgent(run.agentId)`). Join, or load with `inArray` and map in memory. _Why: list pages turn into 50+ round trips._
 - **SHOULD** compute counts/aggregates in one grouped query (project `counts`, rule `stats`) rather than per row.
-- **MUST** paginate lists with keyset cursors and a bounded `limit` (≤ 100). **MUST NOT** use `OFFSET` on growing tables.
+- **MUST** paginate data lists with `LIMIT`/`OFFSET` from `pageWindow` and a fixed `ORDER BY` that ends in a unique column (`id` or the natural unique key); `total` comes from a `count(*)` with the same `WHERE` in the same `withOrg` transaction, not a window function. Page drift under concurrent inserts is accepted (ADR 0028).
 - **MUST** select only needed columns on hot paths and never return internal columns (`credential_secret_name`, `workflow_id`, `outbox`) through DTOs.
 - **MUST** use Drizzle's query builder or `sql` template with bound parameters. **MUST NOT** build SQL by string concatenation. _Why: injection._
 - `jsonb` columns (`outbox`, `payload`, `config`, `ticket_labels`) **MUST** have a Zod schema and be parsed on read (see [typescript.md](typescript.md) §3).
@@ -169,5 +169,5 @@ try {
 - [ ] Migration is new (no edits to merged ones), SQL reviewed, safe against the live previous version, backfill separate.
 - [ ] Multi-row state changes are in one transaction; no network calls inside it; NOTIFY inside it.
 - [ ] Run status written only by `setRunStatus`; no regression out of final or from `idle` to `running` on replay.
-- [ ] No queries in loops; lists use keyset pagination with a capped limit.
+- [ ] No queries in loops; data lists use offset pages (`PageQuery`, `pageOf`) with a fixed order ending in a unique column and a capped `pageSize`.
 - [ ] No secrets in columns; jsonb parsed with Zod.

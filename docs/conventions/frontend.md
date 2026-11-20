@@ -55,6 +55,7 @@ return <Runs groups={runs.data} onFilter={setFilter} />;
 - **MUST** use the global Query defaults (staleTime 30 s, retry twice only for status 0 / 5xx, refetch on focus only for runs + connection); override per query only with a comment saying why.
 - **MUST** patch the cache from SSE with `setQueryData` / `setQueriesData`, deduping by `seq`. **MUST NOT** refetch on every event. Why: realtime without request storms.
 - Mutations: optimistic only where the spec says (rule toggle, cancel/finish note) with rollback + error toast; everything else invalidates affected keys on success.
+- A data list **MUST** render the shared `Pagination` component under the list, keep its page in the URL as `?page=N` (page 1 leaves it out), and take its page size from the shared browser preference `usePageSize()` (`agentdesk.pageSize`; 20, 50 or 100).
 - **MUST NOT** cache secrets: credential replace is write-only, its response is not stored, it only invalidates `desk.agent`. Why: FR-3, see [security.md](security.md).
 
 ```ts

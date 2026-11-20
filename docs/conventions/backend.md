@@ -144,7 +144,7 @@ logger.info({ runId, exitCode: code, failureReason }, 'run finished');
 ## 11. API shape rules
 
 - JSON is camelCase; timestamps are ISO 8601 with offset; ids are UUID strings. Run URLs in the web app use per-project `number`.
-- List endpoints **MUST** paginate with a keyset cursor (`nextCursor`) and a bounded `limit` (max 100). _Why: offset pagination is wrong under concurrent inserts._
+- List endpoints for data lists **MUST** take `page` (integer ≥ 1, default 1, max 2147483647) and `pageSize` (integer 1–100, default 20) through `PageQuery`, and return `pageOf(Item)`: `{ items, page, pageSize, total }`. A page past the end is 200 with `items: []` and the real `total`. _Why: numbered pages and jump to page need a total (ADR 0028)._
 - SSE: `id:` is `seq`, honour `Last-Event-ID`, heartbeat every 15 s, re-read rows under `withOrg` on each notification and never trust the NOTIFY payload.
 - Mutating `/api/*` calls are audited by `AuditInterceptor`; bodies pass through `redactBody` first.
 - Dev-only routes (`/dev/*`, `/auth/dev-login`) are registered only when `NODE_ENV !== 'production'`.

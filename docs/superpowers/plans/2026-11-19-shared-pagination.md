@@ -178,7 +178,7 @@ export function slicePage<T>(all: readonly T[], q: PageQuery): Page<T>;
 export function pageRange(page: number, pageSize: number, total: number): { first: number; last: number; pageCount: number };
 ```
 
-- [ ] **Step 1: Write the failing contract tests** in `page.test.ts`
+- [x] **Step 1: Write the failing contract tests** in `page.test.ts`
 
 - `PageQuery.parse({})` → `{ page: 1, pageSize: 20 }`; `PageQuery.parse({ page: '3', pageSize: '50' })` → `{ page: 3, pageSize: 50 }`.
 - `PageQuery.safeParse` fails for `page: '0'`, `'-1'`, `'1.5'`, `'abc'`, `'2147483648'`, and for `pageSize: '0'`, `'101'`. It passes for `page: '2147483647'` and `pageSize: '1'` and `'100'`.
@@ -188,28 +188,28 @@ export function pageRange(page: number, pageSize: number, total: number): { firs
 - `slicePage` over the letters `a`–`v` (22 items): page 2 size 20 → items `['u', 'v']` and total 22; page 3 → `[]` and total 22; size 100 → all 22.
 - `pageRange(25, 20, 1000)` → `{ first: 481, last: 500, pageCount: 50 }`; `(4, 20, 63)` → `{ 61, 63, 4 }`; `(1, 20, 0)` → `{ 0, 0, 0 }`; `(5, 20, 63)` → `{ 0, 0, 4 }`; `(51, 20, 1004)` → `{ 1001, 1004, 51 }`.
 
-- [ ] **Step 2: Run them and see them fail**
+- [x] **Step 2: Run them and see them fail**
 
 Run: `pnpm --filter @agentdesk/contracts test -- page`
 Expected: FAIL (module `./page` not found).
 
-- [ ] **Step 3: Implement `page.ts` and export it from `index.ts`**
+- [x] **Step 3: Implement `page.ts` and export it from `index.ts`**
 
 `PageQuery` uses `z.coerce.number().int().min(1).max(PAGE_MAX).default(1)` and `z.coerce.number().int().min(1).max(PAGE_SIZE_MAX).default(PAGE_SIZE_DEFAULT)`, matching the other integer params in `routes.ts`. The module has no framework imports.
 
-- [ ] **Step 4: Run the contract tests**
+- [x] **Step 4: Run the contract tests**
 
 Run: `pnpm --filter @agentdesk/contracts test && pnpm --filter @agentdesk/contracts typecheck`
 Expected: PASS.
 
-- [ ] **Step 5: Write the ADR and convention edits**
+- [x] **Step 5: Write the ADR and convention edits**
 
 - `docs/adr/0026-offset-pagination-for-data-lists.md`, status **Proposed**, date 2026-11-19, source issue #146. Sections: Context (keyset rule today; no total, no jump to page; the 1000-run walk), Decision (offset pages with a total for every data list; the API rule and envelope from Global Constraints; `count(*)` in the same `withOrg` transaction; whole-set readers use page 1 at size 100), Alternatives (keyset with Previous/Next only; load more / infinite scroll, each with its trade-off from the spec's Approaches), Consequences (page drift under concurrent inserts is accepted; deep offsets cost more; no new index because runs and ignored events already have matching ones). Add its row to `docs/adr/README.md`.
 - `backend.md` §11: replace the keyset line with: "List endpoints for data lists **MUST** take `page` (integer ≥ 1, default 1, max 2147483647) and `pageSize` (integer 1–100, default 20) through `PageQuery`, and return `pageOf(Item)`: `{ items, page, pageSize, total }`. A page past the end is 200 with `items: []` and the real `total`. _Why: numbered pages and jump to page need a total (ADR 0026)._"
 - `database.md` §8: replace the keyset `MUST` with: "**MUST** paginate data lists with `LIMIT`/`OFFSET` from `pageWindow` and a fixed `ORDER BY` that ends in a unique column (`id` or the natural unique key); `total` comes from a `count(*)` with the same `WHERE` in the same `withOrg` transaction, not a window function. Page drift under concurrent inserts is accepted (ADR 0026)." Change the composite-index `SHOULD` to "…in the same column order as the list's `ORDER BY` (e.g. `runs (project_id, queued_at desc, id)`)." Change the checklist item to "No queries in loops; data lists use offset pages (`PageQuery`, `pageOf`) with a fixed order ending in a unique column and a capped `pageSize`."
 - `frontend.md` §3: add "A data list **MUST** render the shared `Pagination` component under the list, keep its page in the URL as `?page=N` (page 1 leaves it out), and take its page size from the shared browser preference `usePageSize()` (`agentdesk.pageSize`; 20, 50 or 100)."
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 devbox run fix
