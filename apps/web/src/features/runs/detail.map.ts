@@ -301,7 +301,7 @@ function setupEndNote(run: RunCore, took: string, links: RunDetailLinks): EndNot
 }
 
 /** A Finish ended a parked run: it paused before its last `succeeded` status, and no session is kept. */
-function finishedAfterPause(run: RunListItem, events: RunEventDto[]): boolean {
+function finishedAfterPause(run: RunCore, events: RunEventDto[]): boolean {
   if (run.sessionExpiresAt !== null) return false;
   const statuses = events.flatMap((e) => {
     const status = e.type === 'status' ? StatusPayload.safeParse(e.payload).data?.status : undefined;

@@ -125,6 +125,7 @@ function runOf(spec: RunSpec): RunDto {
     costUsd: final ? 1.2 : null,
     timeoutSeconds: 1800,
     idleEndSeconds: 1800,
+    pausedKeepSeconds: 604800,
     idleSince: status === 'idle' ? new Date(spec.queuedAt + 8 * minute).toISOString() : null,
     waitingOn: null,
     agentNote: null,
