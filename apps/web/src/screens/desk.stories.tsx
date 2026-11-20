@@ -394,6 +394,32 @@ export const DeskAgentAddressChanged: Story = {
   ),
 };
 
+const autoResumeStory = (name: string, autoResumeMax: number, limitsErrors?: { autoResumeMax: string }): Story => ({
+  name,
+  decorators: artboard(1480),
+  globals: viewport(1440, 1480),
+  render: () => (
+    <DeskAgentScreen
+      frame={deskFrame}
+      settings={{ ...agentSettings, autoResumeMax }}
+      modelList={liveModels}
+      limitsErrors={limitsErrors}
+      github={agentGithub}
+    />
+  ),
+});
+
+/** Limits: Automatic resumes after a crash, at its default of 5. */
+export const DeskAgentAutoResume: Story = autoResumeStory('Agent & settings, automatic resumes after a crash', 5);
+
+/** The same field changed to 2. */
+export const DeskAgentAutoResumeChanged: Story = autoResumeStory('Agent & settings, automatic resumes changed to 2', 2);
+
+/** A refused save: 12 typed, the field marked invalid with the message under the help text. */
+export const DeskAgentAutoResumeError: Story = autoResumeStory('Agent & settings, automatic resumes out of range', 12, {
+  autoResumeMax: 'Automatic resumes must be between 0 and 10',
+});
+
 export const DeskAgentLoadingModels: Story = {
   name: 'Agent & settings, loading model list',
   decorators: artboard(1320),

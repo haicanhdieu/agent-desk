@@ -102,7 +102,7 @@ describe('mock fixtures', () => {
     ).toEqual([54, 56, 58, 60, 61, 62]);
   });
 
-  it('has sixteen run details whose status matches the board name', () => {
+  it('has twenty-three run details whose status matches the board name', () => {
     const expected = {
       RunStarting: 'starting',
       RunRunning: 'running',
@@ -120,6 +120,13 @@ describe('mock fixtures', () => {
       RunSucceededFinished: 'succeeded',
       RunRunningStop: 'running',
       RunIdleEnding: 'idle',
+      RunStoppedPodLost: 'paused',
+      RunStoppedPodLostGaveUp: 'paused',
+      RunStoppedPodLostGaveUpOnce: 'paused',
+      RunStoppedCrashedGaveUp: 'paused',
+      RunStoppedAutoResumeWaiting: 'paused',
+      RunStoppedAutoResumeFailedGaveUp: 'paused',
+      RunRunningAutoResume: 'running',
     } as const;
     expect(Object.keys(runDetails).sort()).toEqual(Object.keys(expected).sort());
     for (const [k, status] of Object.entries(expected)) {

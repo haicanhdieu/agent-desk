@@ -32,7 +32,7 @@ export { skills, skillTemplates, skillPreviewSamples, skillDiffDraft } from './s
 export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';
 export { agentSettings } from './agent';
 export { transcriptFixtures, transcriptStateFixtures } from './transcript';
-export { terminalByRun } from './terminal';
+export { terminalByRun, autoResumedTerminal } from './terminal';
 export { runDetails } from './runDetail';
 export {
   setupScript,

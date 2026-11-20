@@ -526,16 +526,16 @@ Stories (all fed from `@/mocks`, each matching its board):
 
 Registration (all four together): `canvas.json` boards and `order` (see the Agent call on placement), `storyIds.ts` `boardStories` in canvas order, the `parity.mjs` story lists (`'StoppedPodLost'`, … in the Run list, `'AgentAutoResume'`, … in the Desk list), and `viewports.ts` artboard `[1440, 1480]`. In `coverage.test.ts`, "41 boards" and `toHaveLength(41)` become 51.
 
-- [ ] **Step 1: Write the failing screen tests.**
+- [x] **Step 1: Write the failing screen tests.**
   - In `desk.test.tsx`: the Limits section has a textbox named "Automatic resumes after a crash" with value `'5'`, its help text is the spec's verbatim, and it is the last field of the grid. With `limitsErrors.autoResumeMax` set, the input has `aria-invalid="true"` and the message shows under the help text. Typing 2 and pressing Save limits calls `onSaveLimits` with `autoResumeMax: 2`.
   - In `runDetail.test.tsx`: a paused notice with `autoResumeGaveUp` shows that text after the detail line, beside Resume and Finish. Without it, the notice is unchanged.
   - In `agent.form.test.ts`: `limitsOf({ ...agent, autoResumeMax: 2 }, project).autoResumeMax` is 2.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test desk.test runDetail.test agent.form`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen field, the notice line, the `mocks/types.ts` fields, `agentSettings.autoResumeMax = 5`, and `limitsOf`.
-- [ ] **Step 4: Add the fixtures and the 10 stories, and register the boards.** Fixtures go in `mocks/runDetail.tsx` (new `runDetails` keys with the same names as the boards; extend `mocks.test.ts`'s status map with them) and `mocks/terminal.ts` (the resumed terminal lines).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test desk.test runDetail.test agent.form`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen field, the notice line, the `mocks/types.ts` fields, `agentSettings.autoResumeMax = 5`, and `limitsOf`.
+- [x] **Step 4: Add the fixtures and the 10 stories, and register the boards.** Fixtures go in `mocks/runDetail.tsx` (new `runDetails` keys with the same names as the boards; extend `mocks.test.ts`'s status map with them) and `mocks/terminal.ts` (the resumed terminal lines).
 - [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS, including `coverage.test.ts` with 51 boards.
 - [ ] **Step 6: Visual check:** `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`. Compare the 10 new `parity-out/<board>.{story,proto}.png` pairs and fix any differences in layout or copy. Do not commit `storybook-static/` or `parity-out/`.
-- [ ] **Step 7: Commit:** `feat(web): Storybook boards for automatic resume after a crash`.
+- [x] **Step 7: Commit:** `feat(web): Storybook boards for automatic resume after a crash`.
 
 ---
 

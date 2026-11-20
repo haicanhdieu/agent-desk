@@ -31,6 +31,12 @@ const agent: AgentDto = fixture(agentFixtures);
 const project: ProjectDto = fixture(projectFixtures);
 const base = limitsOf(agent, project);
 
+describe('limitsOf', () => {
+  it('carries the agent automatic resume limit', () => {
+    expect(limitsOf({ ...agent, autoResumeMax: 2 }, project).autoResumeMax).toBe(2);
+  });
+});
+
 describe('toAgentSettings', () => {
   it('maps seconds to minutes and the credential to a relative "set at" and who set it', () => {
     expect(toAgentSettings(agent, project, now)).toEqual({
@@ -44,6 +50,7 @@ describe('toAgentSettings', () => {
       idleEndMinutes: 30,
       maxConcurrent: 2,
       maxRunsPerTicket: 10,
+      autoResumeMax: 5,
     });
   });
 

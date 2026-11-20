@@ -719,3 +719,46 @@ describe('Desk lists with pagination', () => {
     expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
   });
 });
+
+describe('DeskAgent automatic resumes field', () => {
+  const HELP =
+    'How many times in a row a run resumes by itself after its pod is killed or the agent crashes. Typing in the terminal or pressing Resume starts the count again. 0 turns it off.';
+
+  it('is the last Limits field, after Runs per ticket, with the help text', () => {
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} />);
+    const input = screen.getByRole('textbox', { name: 'Automatic resumes after a crash' });
+    expect(input).toHaveValue('5');
+    expect(input).toHaveAccessibleDescription(HELP);
+    const perTicket = screen.getByLabelText('Runs per ticket');
+    expect(perTicket.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const limits = within(screen.getByRole('region', { name: 'Limits' }));
+    expect(limits.getAllByRole('textbox').at(-1)).toBe(input);
+  });
+
+  it('a refused save marks it invalid and shows the message under the help text', () => {
+    render(
+      <DeskAgent
+        frame={deskFrame}
+        settings={{ ...agentSettings, autoResumeMax: 12 }}
+        github={github}
+        limitsErrors={{ autoResumeMax: 'Automatic resumes must be between 0 and 10' }}
+      />,
+    );
+    const input = screen.getByRole('textbox', { name: 'Automatic resumes after a crash' });
+    expect(input).toHaveAttribute('aria-invalid', 'true');
+    const description = input.getAttribute('aria-describedby') ?? '';
+    const ids = description.split(' ');
+    expect(document.getElementById(ids[0] ?? '')).toHaveTextContent(HELP);
+    expect(document.getElementById(ids[1] ?? '')).toHaveTextContent('Automatic resumes must be between 0 and 10');
+  });
+
+  it('typing a number and Save limits sends it as autoResumeMax', async () => {
+    const onSaveLimits = vi.fn();
+    render(<DeskAgent frame={deskFrame} settings={agentSettings} github={github} onSaveLimits={onSaveLimits} />);
+    const input = screen.getByRole('textbox', { name: 'Automatic resumes after a crash' });
+    await userEvent.clear(input);
+    await userEvent.type(input, '2');
+    await userEvent.click(screen.getByRole('button', { name: 'Save limits' }));
+    expect(onSaveLimits).toHaveBeenCalledWith(expect.objectContaining({ autoResumeMax: 2 }));
+  });
+});

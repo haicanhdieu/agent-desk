@@ -36,6 +36,7 @@ export function limitsOf(agent: AgentDto, project: ProjectDto): AgentLimits {
     idleEndMinutes: Math.round(agent.idleEndSeconds / 60),
     maxConcurrent: project.maxConcurrentRuns,
     maxRunsPerTicket: project.maxRunsPerTicket,
+    autoResumeMax: agent.autoResumeMax,
   };
 }
 

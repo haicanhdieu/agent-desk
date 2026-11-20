@@ -266,3 +266,63 @@ export const terminalByRun: Record<number, TermLine[]> = {
   ],
   58: setupFailedRunTerminal,
 };
+
+const rule =
+  '────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────';
+
+// Copied span by span from the `.term` markup of the prototype board RunRunningAutoResume: run 61 after an automatic
+// resume. The first message is the note Agent Desk passes to the resumed session.
+export const autoResumedTerminal: TermLine[] = [
+  [t('● ', 'dot'), t('Update', 'bold'), t('(', 'dim'), t('src/Invoicer.Api/Program.cs'), t(')', 'dim')],
+  [t('  ⎿  ', 'dim'), t('Updated src/Invoicer.Api/Program.cs with 8 additions')],
+  [],
+  [
+    t('● ', 'dot'),
+    t('Write', 'bold'),
+    t('(', 'dim'),
+    t('tests/Invoicer.Api.Tests/WebhookRateLimitTests.cs'),
+    t(')', 'dim'),
+  ],
+  [t('  ⎿  ', 'dim'), t('Wrote 54 lines to tests/Invoicer.Api.Tests/WebhookRateLimitTests.cs', 'dim')],
+  [],
+  [t('● ', 'dot'), t('Bash', 'bold'), t('(', 'dim'), t('dotnet run --project src/Invoicer.Api &'), t(')', 'dim')],
+  [t('  ⎿  ', 'dim'), t('Running in the background', 'dim')],
+  [],
+  [
+    t('● ', 'dot'),
+    t('Bash', 'bold'),
+    t('(', 'dim'),
+    t('dotnet test tests/Invoicer.Api.Tests --filter WebhookRateLimit'),
+    t(')', 'dim'),
+  ],
+  [t('  ⎿  ', 'dim'), t('Running…', 'dim')],
+  [],
+  [
+    t('> ', 'dim'),
+    t(
+      'Agent Desk: your last session was killed (OOMKilled, exit 137, limit 3Gi). Resumed, try 1/5. Background processes and /tmp are gone.',
+    ),
+  ],
+  [],
+  [
+    t('● ', 'dotw'),
+    t('The pod was killed while the API and the tests ran together. I will run the tests alone, without the'),
+  ],
+  [t('  background server.')],
+  [],
+  [
+    t('● ', 'dot'),
+    t('Bash', 'bold'),
+    t('(', 'dim'),
+    t('dotnet test tests/Invoicer.Api.Tests --filter WebhookRateLimit'),
+    t(')', 'dim'),
+  ],
+  [t('  ⎿  ', 'dim'), t('Running…', 'dim')],
+  [],
+  [t('✻ ', 'yellow'), t('Running tests… ', 'yellow'), t('(18s · esc to interrupt)', 'dim')],
+  [],
+  [t(rule, 'dim')],
+  [t('> ', 'dim')],
+  [t(rule, 'dim')],
+  [t('  ⏵⏵ bypass permissions on (shift+tab to cycle)', 'dim')],
+];

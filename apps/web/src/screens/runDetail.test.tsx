@@ -661,3 +661,26 @@ describe('RunDetail Stop session', () => {
     expect(onStop).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('RunDetail paused notice, automatic resume gave up', () => {
+  const GAVE_UP = 'Tried to resume automatically 5 times.';
+  const stopped = runDetails.RunStopped;
+  const gaveUp = {
+    ...stopped,
+    session: { ...stopped.session, state: 'paused', autoResumeGaveUp: GAVE_UP },
+  } as const;
+
+  it('shows the line after the detail line, beside Resume and Finish', () => {
+    render(<RunDetail data={gaveUp} needsYou={1} onResume={() => {}} />);
+    const detail = screen.getByText(stopped.session?.detail ?? 'missing detail');
+    const line = screen.getByText(GAVE_UP);
+    expect(detail.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
+    expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
+  });
+
+  it('without it the notice is unchanged', () => {
+    render(<RunDetail data={stopped} needsYou={1} onResume={() => {}} />);
+    expect(screen.queryByText(/Tried to resume automatically/)).not.toBeInTheDocument();
+  });
+});

@@ -67,6 +67,7 @@ function SessionLines({ data }: { data: RunDetailData }) {
     <>
       {data.agentNote && <div>{data.agentNote}</div>}
       {data.session?.detail && <div>{data.session.detail}</div>}
+      {data.session?.autoResumeGaveUp && <div>{data.session.autoResumeGaveUp}</div>}
     </>
   );
 }

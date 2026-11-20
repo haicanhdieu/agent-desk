@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { runDetails, terminalByRun, transcriptFixtures, transcriptStateFixtures } from '@/mocks';
+import { autoResumedTerminal, runDetails, terminalByRun, transcriptFixtures, transcriptStateFixtures } from '@/mocks';
 import { RunDetail } from './RunDetail';
 import { RunTerminalArea, type RunTerminalAreaProps } from './RunTerminalArea';
 import styles from './Screens.module.css';
@@ -150,6 +150,32 @@ export const RunSucceededFinished: Story = {
     },
     needsYou: 1,
   },
+};
+
+const readOnlyTranscript = { state: 'ready', items: transcriptFixtures.default, hasEarlier: true } as const;
+const pausedAfterCrash = (key: keyof typeof runDetails): Story => ({
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails[key], transcript: readOnlyTranscript, needsYou: 1, onResume: () => {}, onFinish: () => {} },
+});
+
+/** Paused after the pod was killed: automatic resume is off or has not tried yet; no gave-up line. */
+export const RunStoppedPodLost: Story = pausedAfterCrash('RunStoppedPodLost');
+/** Automatic resume ran out of tries: the third line says so. */
+export const RunStoppedPodLostGaveUp: Story = pausedAfterCrash('RunStoppedPodLostGaveUp');
+/** Gave up after a single try ("1 time"). */
+export const RunStoppedPodLostGaveUpOnce: Story = pausedAfterCrash('RunStoppedPodLostGaveUpOnce');
+/** The agent crashed and the tries ran out. */
+export const RunStoppedCrashedGaveUp: Story = pausedAfterCrash('RunStoppedCrashedGaveUp');
+/** An automatic try could not start the pod: the error bar, and the next try is waiting. */
+export const RunStoppedAutoResumeWaiting: Story = pausedAfterCrash('RunStoppedAutoResumeWaiting');
+/** The last automatic try could not start the pod and the tries ran out. */
+export const RunStoppedAutoResumeFailedGaveUp: Story = pausedAfterCrash('RunStoppedAutoResumeFailedGaveUp');
+/** Running again after an automatic resume: the lifecycle lines and the note in the terminal. */
+export const RunRunningAutoResume: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunRunningAutoResume, lines: autoResumedTerminal, needsYou: 1 },
 };
 
 const stateCells: { caption: string; props: RunTerminalAreaProps }[] = [
