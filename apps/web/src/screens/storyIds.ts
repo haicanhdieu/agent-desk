@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 79 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 91 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -93,6 +93,18 @@ export const boardStories = {
   DeskSetupVersionsLoading: { title: desk, exportName: 'DeskSetupVersionsLoading' },
   DeskSetupVersionsError: { title: desk, exportName: 'DeskSetupVersionsError' },
   DeskSetupVersionsEmpty: { title: desk, exportName: 'DeskSetupVersionsEmpty' },
+  ProjectsChecklist: { title: entry, exportName: 'ProjectsChecklist' },
+  ProjectsChecklistDone: { title: entry, exportName: 'ProjectsChecklistDone' },
+  ProjectsChecklistError: { title: entry, exportName: 'ProjectsChecklistError' },
+  ProjectsChecklistLoading: { title: entry, exportName: 'ProjectsChecklistLoading' },
+  ProjectsEmptyChecklist: { title: entry, exportName: 'ProjectsEmptyChecklist' },
+  ProjectsEmptyNoCreate: { title: entry, exportName: 'ProjectsEmptyNoCreate' },
+  ProjectsMember: { title: entry, exportName: 'ProjectsMember' },
+  ProjectsNoAccess: { title: entry, exportName: 'ProjectsNoAccess' },
+  ProjectsOrgSwitchAdmin: { title: entry, exportName: 'ProjectsOrgSwitchAdmin' },
+  ProjectsOrgSwitchOpen: { title: entry, exportName: 'ProjectsOrgSwitchOpen' },
+  ProjectsSwitching: { title: entry, exportName: 'ProjectsSwitching' },
+  SignInNoInvitation: { title: entry, exportName: 'SignInNoInvitation' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

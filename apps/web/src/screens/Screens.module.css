@@ -558,3 +558,32 @@
 .modelId {
   white-space: nowrap;
 }
+
+/* projects list: header buttons and the pending-invitations banner */
+.listActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.emptyNotice {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 96px 40px;
+}
+.emptyNoticeCol {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.emptyNoticeCol h1 {
+  font-size: var(--fs-28);
+}
+.emptyNoticeCol p {
+  font-size: var(--fs-15);
+  max-width: 56ch;
+}

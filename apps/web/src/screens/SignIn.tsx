@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Banner, Button, CommandChip, StatusBadge, TicketRef } from '@/ds';
+import { Banner, Button, CommandChip, Icon, StatusBadge, TicketRef } from '@/ds';
 import { Brand, StepLine, StepList } from '@/components';
 import styles from './Screens.module.css';
 
@@ -7,7 +7,10 @@ export interface SignInProps {
   signInHref: string;
   /** Starts the sign-in in script (the app's GitHub social sign-in); the link stays the no-script fallback. */
   onSignIn?: () => void;
-  /** A failed sign-in (announced); the button stays so the user can try again. */
+  /**
+   * A failed sign-in (announced); the button stays so the user can try again. A string becomes the banner title;
+   * any other node (such as `SignInNoInvitationError`) is rendered as given.
+   */
   error?: ReactNode;
 }
 
@@ -23,7 +26,7 @@ export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
             to the ticket, and lets you step into the terminal when the agent needs you.
           </p>
           <div className={styles.cta}>
-            {error && <Banner tone="err" live="assertive" title={error} />}
+            {error && (typeof error === 'string' ? <Banner tone="err" live="assertive" title={error} /> : error)}
             <Button
               variant="primary"
               size="lg"
@@ -79,5 +82,19 @@ export function SignIn({ signInHref, onSignIn, error }: SignInProps) {
         />
       </section>
     </main>
+  );
+}
+
+/** The refusal after a sign-up without an invitation (`/sign-in?error=no_invitation`). */
+export function SignInNoInvitationError() {
+  return (
+    <Banner
+      tone="err"
+      live="assertive"
+      icon={<Icon name="warning" size={18} />}
+      title="No invitation found for your email"
+    >
+      Ask an owner or admin of your organization to invite you, then sign in again.
+    </Banner>
   );
 }

@@ -18,8 +18,8 @@ describe('Icon', () => {
     expect(screen.getByRole('img', { name: 'Done' })).toBeInTheDocument();
   });
 
-  it('has all 38 glyphs', () => {
-    expect(Object.keys(iconPaths)).toHaveLength(38);
+  it('has all 39 glyphs', () => {
+    expect(Object.keys(iconPaths)).toHaveLength(39);
   });
 });
 
