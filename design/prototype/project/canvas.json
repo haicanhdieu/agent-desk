@@ -1097,6 +1097,94 @@
    "h": 900,
    "title": "Invitations \u2014 revoked (All filter), toast",
    "expand": "fill"
+  },
+  "CreateOrg.dc.html": {
+   "x": 4560,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 empty form",
+   "expand": "fill"
+  },
+  "CreateOrgCreated.dc.html": {
+   "x": 0,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 created, owner link",
+   "expand": "fill"
+  },
+  "CreateOrgError.dc.html": {
+   "x": 1520,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 network or server error on create",
+   "expand": "fill"
+  },
+  "CreateOrgFieldErrors.dc.html": {
+   "x": 3040,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 field errors",
+   "expand": "fill"
+  },
+  "CreateOrgForbidden.dc.html": {
+   "x": 4560,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 not a platform admin",
+   "expand": "fill"
+  },
+  "CreateOrgInvitationFailed.dc.html": {
+   "x": 0,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 org created, owner invitation failed",
+   "expand": "fill"
+  },
+  "CreateOrgRetrying.dc.html": {
+   "x": 1520,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 retrying the owner invitation",
+   "expand": "fill"
+  },
+  "CreateOrgSaving.dc.html": {
+   "x": 3040,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 saving",
+   "expand": "fill"
+  },
+  "CreateOrgSlugAuto.dc.html": {
+   "x": 4560,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 URL filled from the name",
+   "expand": "fill"
+  },
+  "CreateOrgSlugEdited.dc.html": {
+   "x": 0,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 URL edited by hand",
+   "expand": "fill"
+  },
+  "CreateOrgSlugTaken.dc.html": {
+   "x": 1520,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 URL taken",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1235,7 +1323,18 @@
   "OrgInvitationsResendConflict.dc.html",
   "OrgInvitationsResending.dc.html",
   "OrgInvitationsRevokeConfirm.dc.html",
-  "OrgInvitationsRevoked.dc.html"
+  "OrgInvitationsRevoked.dc.html",
+  "CreateOrg.dc.html",
+  "CreateOrgCreated.dc.html",
+  "CreateOrgError.dc.html",
+  "CreateOrgFieldErrors.dc.html",
+  "CreateOrgForbidden.dc.html",
+  "CreateOrgInvitationFailed.dc.html",
+  "CreateOrgRetrying.dc.html",
+  "CreateOrgSaving.dc.html",
+  "CreateOrgSlugAuto.dc.html",
+  "CreateOrgSlugEdited.dc.html",
+  "CreateOrgSlugTaken.dc.html"
  ],
  "notes": {
   "t-intro": {

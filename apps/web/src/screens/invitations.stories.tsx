@@ -32,6 +32,7 @@ import {
   type InvitationFilter,
   type OrgInvitationsProps,
 } from './OrgInvitations';
+import { CreateOrg as CreateOrgScreen, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -418,4 +419,99 @@ export const OrgInvitationsRevoked: Story = {
       ),
       { notice: { tone: 'ok', title: 'Invitation revoked', onDismiss: noop } },
     ),
+};
+
+const northwind: CreateOrgValues = {
+  name: 'Northwind Analytics',
+  slug: 'northwind',
+  email: 'maria.chen@northwind.example',
+};
+const emptyOrgValues: CreateOrgValues = { name: '', slug: '', email: '' };
+const requestId = 'req_01JD8B2W4N7P';
+
+const createOrg = (state: CreateOrgState, user: Actor = opsAdmin) => (
+  <CreateOrgScreen
+    user={user}
+    org={adminOrg}
+    state={state}
+    onChange={noop}
+    onSubmit={noop}
+    onRetry={noop}
+    onCopy={noop}
+    onDone={noop}
+  />
+);
+const createForm = (
+  values: CreateOrgValues,
+  extra: Partial<Extract<CreateOrgState, { kind: 'form' }>> = {},
+): CreateOrgState => ({ kind: 'form', values, errors: {}, saving: false, ...extra });
+const inviteFailed = (retrying: boolean): CreateOrgState => ({
+  kind: 'invitationFailed',
+  values: northwind,
+  errors: {},
+  title: 'Internal server error',
+  retrying,
+});
+
+export const CreateOrg: Story = {
+  name: 'Create organization, empty form',
+  render: () => createOrg(createForm(emptyOrgValues)),
+};
+export const CreateOrgCreated: Story = {
+  name: 'Create organization, created, owner link',
+  render: () =>
+    createOrg({
+      kind: 'created',
+      email: northwind.email,
+      expiresOn: '23 Nov, 14:05',
+      link: 'https://agentdesk.example/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43',
+    }),
+};
+export const CreateOrgError: Story = {
+  name: 'Create organization, network or server error on create',
+  render: () => createOrg(createForm(northwind, { formError: { title: 'Internal server error', requestId } })),
+};
+export const CreateOrgFieldErrors: Story = {
+  name: 'Create organization, field errors',
+  render: () =>
+    createOrg(
+      createForm(
+        { name: '', slug: '-northwind-', email: 'maria.chen@' },
+        {
+          errors: {
+            name: 'Enter a name.',
+            slug: 'Use lowercase letters, numbers and dashes, with no dash at the start or end.',
+            email: 'Enter a valid email address.',
+          },
+        },
+      ),
+    ),
+};
+export const CreateOrgForbidden: Story = {
+  name: 'Create organization, not a platform admin',
+  render: () => createOrg({ kind: 'forbidden' }, dana),
+};
+export const CreateOrgInvitationFailed: Story = {
+  name: 'Create organization, org created, owner invitation failed',
+  render: () => createOrg(inviteFailed(false)),
+};
+export const CreateOrgRetrying: Story = {
+  name: 'Create organization, retrying the owner invitation',
+  render: () => createOrg(inviteFailed(true)),
+};
+export const CreateOrgSaving: Story = {
+  name: 'Create organization, saving',
+  render: () => createOrg(createForm(northwind, { saving: true })),
+};
+export const CreateOrgSlugAuto: Story = {
+  name: 'Create organization, URL filled from the name',
+  render: () => createOrg(createForm({ ...northwind, slug: 'northwind-analytics' })),
+};
+export const CreateOrgSlugEdited: Story = {
+  name: 'Create organization, URL edited by hand',
+  render: () => createOrg(createForm(northwind)),
+};
+export const CreateOrgSlugTaken: Story = {
+  name: 'Create organization, URL taken',
+  render: () => createOrg(createForm(northwind, { errors: { slug: 'This URL is taken. Try another.' } })),
 };

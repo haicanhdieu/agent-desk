@@ -656,3 +656,41 @@
   gap: 14px;
   margin-top: 8px;
 }
+
+/* create-org form */
+.createOrgCol {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.createOrgCol h1 {
+  font-size: var(--fs-28);
+}
+.createOrgFields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.createOrgActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.createOrgCreated {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.createOrgCreated p {
+  font-size: var(--fs-13_5);
+}
+.createOrgDone {
+  display: flex;
+  justify-content: flex-end;
+}
+.requestId {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}

@@ -1280,11 +1280,11 @@ export function CreateOrg(props: { user: Actor; org?: OrgSwitchProps; state: Cre
 
   A 560px centered column: h1 "Create an organization", fields "Name", "URL" (`PrefixInput` `/o/`, accessible description), "First owner email" (hint "They get the owner role. Send them the link that appears next."), submit "Create organization" ("Creating…"); invitation failed: Banner with the problem title, "The organization was created. Retry to create the owner invitation." and "Retry" ("Retrying…"), Create hidden, Name and URL read-only, email editable; created: card h2 "Organization created" (focused), "Send this link to <email>. It works only for that email and expires on <date>.", `InviteLink`, "Done".
 
-- [ ] **Step 1: Write the failing tests** (append): BR-39 the invitation-failed state hides "Create organization", makes Name and URL read-only and keeps the email editable; the created state focuses its heading; field errors render on their fields; forbidden shows "You don't have access".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories CreateOrg, CreateOrgCreated, CreateOrgError, CreateOrgFieldErrors, CreateOrgForbidden, CreateOrgInvitationFailed, CreateOrgRetrying, CreateOrgSaving, CreateOrgSlugAuto, CreateOrgSlugEdited, CreateOrgSlugTaken; register the 11 boards; count 136 → 147.
-- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 11 boards. Expected: PASS, pairs match.
-- [ ] **Step 5: Commit** `feat(web): create-org boards in Storybook`.
+- [x] **Step 1: Write the failing tests** (append): BR-39 the invitation-failed state hides "Create organization", makes Name and URL read-only and keeps the email editable; the created state focuses its heading; field errors render on their fields; forbidden shows "You don't have access".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories CreateOrg, CreateOrgCreated, CreateOrgError, CreateOrgFieldErrors, CreateOrgForbidden, CreateOrgInvitationFailed, CreateOrgRetrying, CreateOrgSaving, CreateOrgSlugAuto, CreateOrgSlugEdited, CreateOrgSlugTaken; register the 11 boards; count 136 → 147.
+- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 11 boards. Expected: PASS, pairs match. Not fully run: the vitest parts (invitations.test.tsx, coverage.test.ts, stories.smoke.test.tsx) were run and pass; `build-storybook` and `pnpm parity` were NOT run (runner pod has no Chromium), so the 11 pixel pairs are unchecked.
+- [x] **Step 5: Commit** `feat(web): create-org boards in Storybook`.
 
 ---
 
