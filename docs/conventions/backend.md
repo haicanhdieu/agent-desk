@@ -62,18 +62,19 @@ create(@Param() p: ProjectParamsDto, @Body() body: CreateRuleDto): Promise<RuleD
 
 All errors are RFC 9457 `application/problem+json` matching `ProblemSchema` (`type, title, status, detail?, instance?, requestId?, errors?`). One global `ProblemFilter` produces them.
 
-| Cause                                                                                           | Status | Notes                                                                               |
-| ----------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------- |
-| Zod validation failure                                                                          | 400    | `errors[]` of `{ pointer, detail }`, JSON Pointer into the body (`/timeoutSeconds`) |
-| No session                                                                                      | 401    | Also bad webhook signature (no row written)                                         |
-| Member but not allowed (e.g. terminal, not owner/creator)                                       | 403    |                                                                                     |
-| Not found **or in another org**                                                                 | 404    | RLS makes other orgs' rows invisible; never 403 for them                            |
-| State conflict: duplicate command, stale skill `sha`, finish when not `idle`, cancel when final | 409    | Pointer when a field is at fault                                                    |
-| Semantically invalid reference (unknown `skillName`)                                            | 422    | Pointer to the field                                                                |
-| Signal accepted (cancel, finish), webhook created a run                                         | 202    |                                                                                     |
-| Empty success (DELETE)                                                                          | 204    | Contract `response: z.null()`                                                       |
-| Dependency down (`/readyz`)                                                                     | 503    |                                                                                     |
-| Unhandled                                                                                       | 500    | Generic `title`; details only in logs                                               |
+| Cause                                                                                                                         | Status | Notes                                                                               |
+| ----------------------------------------------------------------------------------------------------------------------------- | ------ | ----------------------------------------------------------------------------------- |
+| Zod validation failure                                                                                                        | 400    | `errors[]` of `{ pointer, detail }`, JSON Pointer into the body (`/timeoutSeconds`) |
+| No session                                                                                                                    | 401    | Also bad webhook signature (no row written)                                         |
+| Lacks the permission for this action (problem detail "Not allowed for your role here", plus `requestId`; amended by ADR-0031) | 403    |                                                                                     |
+| Not found **or in another org**                                                                                               | 404    | RLS makes other orgs' rows invisible; never 403 for them                            |
+| Project out of the caller's scope (assignment does not cover it)                                                              | 404    | Same as missing; never reveal that it exists                                        |
+| State conflict: duplicate command, stale skill `sha`, finish when not `idle`, cancel when final                               | 409    | Pointer when a field is at fault                                                    |
+| Semantically invalid reference (unknown `skillName`)                                                                          | 422    | Pointer to the field                                                                |
+| Signal accepted (cancel, finish), webhook created a run                                                                       | 202    |                                                                                     |
+| Empty success (DELETE)                                                                                                        | 204    | Contract `response: z.null()`                                                       |
+| Dependency down (`/readyz`)                                                                                                   | 503    |                                                                                     |
+| Unhandled                                                                                                                     | 500    | Generic `title`; details only in logs                                               |
 
 - **MUST** throw typed domain errors (see [typescript.md](typescript.md) §7) from services; the filter maps them. **MUST NOT** throw Nest `HttpException` from services. _Why: services are reused by the worker and tests._
 - **MUST** include `requestId` in every problem body and an `x-request-id` header on every response (echo the incoming one if present).

@@ -74,7 +74,7 @@ None. The spec adds no dependency and this plan adds none.
 - Agent call: `CreateAssignmentRequest.userId` is a string of 1 to 255 chars (better-auth ids are text).
 - Agent call: app privileges: `role_templates`, `role_template_permissions` SELECT; `roles`, `role_permissions` SELECT, INSERT (spec); `role_assignments` SELECT, INSERT, DELETE; `invitations` SELECT, INSERT, UPDATE; a `definer_read` policy on `invitations` for the lookup function, as 0001 does for `resolve_project`.
 - Agent call: `ensurePersonalOrg` is deleted with its calls; `slug.ts` and `unique-slug.ts` stay (still tested, `isUniqueViolation` is used elsewhere).
-- Agent call: the required release note ("every existing user loses access at deploy until granted; grant operators first") goes in ADR-0030 and the Task 31 PR body.
+- Agent call: the required release note ("every existing user loses access at deploy until granted; grant operators first") goes in ADR-0031 and the Task 31 PR body.
 
 ## E2E coverage
 
@@ -112,7 +112,7 @@ Tasks in the same wave touch no common file and can be built in parallel; a task
 | ---- | ---- | ---------- |
 | 1 | Task 1: Contracts: permission model and can() | none |
 | 1 | Task 5: DB: RBAC tables, RLS and the invitation lookup function | none |
-| 1 | Task 9: Docs: ADR-0030 and the doc fixes | none |
+| 1 | Task 9: Docs: ADR-0031 and the doc fixes | none |
 | 2 | Task 2: Contracts: access DTOs, request schemas and org slug | Task 1 |
 | 2 | Task 11: API: grant rules, actor and audit entries | Task 1 |
 | 3 | Task 3: Contracts: tenant access and platform routes, with MSW handlers | Task 2 |
@@ -165,7 +165,7 @@ graph LR
   T6["6: DB: role template seed and run-owner backfill"]
   T7["7: Core: load access, copy roles, find the linked user"]
   T8["8: Core: run owner resolution for trigger comments"]
-  T9["9: Docs: ADR-0030 and the doc fixes"]
+  T9["9: Docs: ADR-0031 and the doc fixes"]
   T10["10: API: guard route kinds, platform admin and the route discovery test"]
   T11["11: API: grant rules, actor and audit entries"]
   T12["12: API: platform org creation, org and project lists, org roles"]
@@ -701,24 +701,24 @@ export interface RunOwnerInput {
 export async function resolveRunOwner(tx: Tx, input: RunOwnerInput): Promise<RunOwner>;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `run-owner.int.test.ts` (one org, roles copied, P1 and P2, users B (member P1), V (viewer org), linked `fake` accounts):
+- [x] **Step 1: Write the failing tests** in `run-owner.int.test.ts` (one org, roles copied, P1 and P2, users B (member P1), V (viewer org), linked `fake` accounts):
   - B's comment on P1 → `{ kind: 'owner', userId: B, originRunId: null }`; V's → `ignored_owner_not_permitted`; B's on P2 → not permitted; unknown author id → `ignored_owner_unlinked`; missing `authorId` → unlinked.
   - bot: one active run of B on the ticket → owner B, `originRunId` that run; none on the ticket and one in the project → that run; two on the ticket → unlinked "bot comment has no single originating run"; none on the ticket and two in the project → unlinked; the only candidate is in P2 while the event is for P1 → unlinked; origin with `owner_user_id` null → unlinked "originating run has no owner"; origin owner B lost his P1 assignment → `ignored_owner_not_permitted`; a run that finished before `createdAt` is not a candidate.
   - Review Focus 5: `a bot comment at the origin's started_at or finished_at still matches it`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/run-owner.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `run-owner.ts` (bound parameters only; author text is never interpolated) and export it.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(core): resolve a trigger comment's run owner, including bot follow-ups`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/run-owner.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `run-owner.ts` (bound parameters only; author text is never interpolated) and export it.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(core): resolve a trigger comment's run owner, including bot follow-ups`.
 
 ---
 
-### Task 9: Docs: ADR-0030 and the doc fixes
+### Task 9: Docs: ADR-0031 and the doc fixes
 
 **Depends on:** none
 
 **Files:**
 
-- Create: `docs/adr/0030-scoped-rbac-roles-assignments.md`
+- Create: `docs/adr/0031-scoped-rbac-roles-assignments.md`
 - Modify: `docs/adr/README.md`
 - Modify: `docs/adr/0014-terminal-over-websocket-exec-relay.md`
 - Modify: `docs/adr/0013-webhook-and-polling-intake.md`
@@ -729,12 +729,12 @@ export async function resolveRunOwner(tx: Tx, input: RunOwnerInput): Promise<Run
 **Interfaces:**
 
 - Consumes: the spec only.
-- Produces: ADR-0030 in the `0000-template.md` shape recording the decisions listed under the spec's "ADR" paragraph, the `role_templates` exception to "every app table has org_id", the departure from epic §9 (own invitations table), and the release note (Agent calls). ADR-0014 and ADR-0013 get an "Amended by ADR-0030" line and the new terminal and trigger rules. `security.md` §5 (trigger: association, then a linked owner with `run:create`) and §6 (terminal: `terminal:attach` with ownership; project scope; 404 out of scope). `backend.md` §4: the 403 row becomes "lacks the permission for this action (problem detail 'Not allowed for your role here')" and a 404 row for out-of-scope projects. Control-plane spec §7.5: attach needs `terminal:attach` on the run's project with ownership for members; 4403 otherwise.
+- Produces: ADR-0031 in the `0000-template.md` shape recording the decisions listed under the spec's "ADR" paragraph, the `role_templates` exception to "every app table has org_id", the departure from epic §9 (own invitations table), and the release note (Agent calls). ADR-0014 and ADR-0013 get an "Amended by ADR-0031" line and the new terminal and trigger rules. `security.md` §5 (trigger: association, then a linked owner with `run:create`) and §6 (terminal: `terminal:attach` with ownership; project scope; 404 out of scope). `backend.md` §4: the 403 row becomes "lacks the permission for this action (problem detail 'Not allowed for your role here')" and a 404 row for out-of-scope projects. Control-plane spec §7.5: attach needs `terminal:attach` on the run's project with ownership for members; 4403 otherwise.
 
-- [ ] **Step 1: Write** ADR-0030 and add its row to `docs/adr/README.md` (status Accepted, 2026-11-21).
-- [ ] **Step 2: Edit** the five other docs as above; keep each change to the paragraph that states the old rule.
-- [ ] **Step 3: Check** `pnpm exec prettier --check` on the changed files. Expected: clean.
-- [ ] **Step 4: Commit** `docs(adr): scoped RBAC with roles, assignments and invitation-only sign-up`.
+- [x] **Step 1: Write** ADR-0031 and add its row to `docs/adr/README.md` (status Accepted, 2026-11-21).
+- [x] **Step 2: Edit** the five other docs as above; keep each change to the paragraph that states the old rule.
+- [x] **Step 3: Check** `pnpm exec prettier --check` on the changed files. Expected: clean.
+- [x] **Step 4: Commit** `docs(adr): scoped RBAC with roles, assignments and invitation-only sign-up`.
 
 ---
 

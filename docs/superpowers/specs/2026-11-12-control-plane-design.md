@@ -205,7 +205,7 @@ Every `/api/*` route requires a session and runs under `withOrg(activeOrganizati
 ### 7.5 Terminal relay
 
 - Frames: binary both ways for terminal bytes; resize from the browser is the text frame `{"type":"resize","cols":c,"rows":r}`. Close codes: 4401 not signed in, 4403 not allowed, 4409 run not `running` or `idle`.
-- Authorization: session, org member, and project creator or org owner (the PoC "project owner" rule mapped to orgs). The run must be `running` or `idle`.
+- Authorization (amended by ADR-0031): session, then `terminal:attach` on the run's project, with ownership for members; 4403 otherwise (including an out-of-scope project). The run must be `running` or `idle`.
 - `@kubernetes/client-node` `Exec` of `tmux attach -t agent` with `tty` and `stdin`; bytes relayed both ways. Resize frames are written to channel 4 as `{"Width":w,"Height":h}`.
 - On connect and disconnect the api signals `terminalAttached` / `terminalDetached`. Terminal input does not signal `resumed`: xterm.js and tmux exchange protocol replies on every attach, so input says nothing about a turn. The agent's own `UserPromptSubmit` hook does (see `followPodLogs`).
 - The control plane holds the Kubernetes credentials; the browser never gets them.

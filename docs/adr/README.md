@@ -112,6 +112,7 @@ The choice and the concrete rules that follow from it.
 | [0028](0028-offset-pagination-for-data-lists.md)                   | Data lists use offset pages with a total                                    | Proposed | 2026-11-19 |
 | [0029](0029-unexpected-pod-ends-resume-automatically.md)           | Unexpected pod ends resume automatically, up to a per-agent limit           | Accepted | 2026-11-20 |
 | [0030](0030-finish-after-reopen-keeps-the-session.md)              | Finish after Re-open keeps the session until its original deadline          | Accepted | 2026-11-20 |
+| [0031](0031-scoped-rbac-roles-assignments.md)                      | Scoped RBAC with roles, assignments and invitation-only sign-up             | Accepted | 2026-11-21 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the
