@@ -2,8 +2,8 @@ import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Query } f
 import {
   routes,
   type CreateInvitationRequest,
+  type InvitationListQuery,
   type Page,
-  type PageQuery,
   type PlatformInvitationDto,
 } from '@agentdesk/contracts';
 import { CurrentPlatformAdmin, type PlatformAdminContext } from '../access/current-access';
@@ -26,7 +26,7 @@ export class PlatformInvitationsController {
   list(
     @CurrentPlatformAdmin() admin: PlatformAdminContext,
     @Param(ListParams) p: { orgId: string },
-    @Query(ListQuery) q: PageQuery,
+    @Query(ListQuery) q: InvitationListQuery,
   ): Promise<Page<PlatformInvitationDto>> {
     return this.invitations.list({ kind: 'platform_admin', userId: admin.userId }, p.orgId, q);
   }

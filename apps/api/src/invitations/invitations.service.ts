@@ -11,8 +11,9 @@ import {
   type Access,
   type CreateInvitationRequest,
   type InvitationDto,
+  type InvitationListQuery,
+  type InviterDto,
   type Page,
-  type PageQuery,
   type RoleRef,
 } from '@agentdesk/contracts';
 import { actorUserId, type Actor } from '../access/actor';
@@ -24,6 +25,7 @@ import { ConflictProblemException, UnprocessableProblemException } from '../comm
 import { DB } from '../db/db.module';
 import { OrgsService } from '../orgs/orgs.service';
 import { loadRole } from '../orgs/roles';
+import { toInviterDto } from './inviter';
 
 /** SQL fragment: an invitation expires this long after creation. Computed in SQL (`now()`), never in JS. */
 export const INVITATION_TTL = "interval '7 days'";
@@ -31,23 +33,28 @@ export const INVITATION_TTL = "interval '7 days'";
 /** A row of `invitations`; `status` is the effective one (a pending row past `expires_at` reads `expired`). */
 export type InvitationRow = typeof invitations.$inferSelect;
 
-interface ProjectRef {
+export interface ProjectRef {
   id: string;
   name: string;
 }
 
 /** Pending rows past their expiry read as `expired`; the stored status is only rewritten when a row is touched. */
-const effectiveStatus = sql<string>`case when ${invitations.status} = 'pending' and ${invitations.expiresAt} <= now() then 'expired' else ${invitations.status} end`;
+export const effectiveStatus = sql<string>`case when ${invitations.status} = 'pending' and ${invitations.expiresAt} <= now() then 'expired' else ${invitations.status} end`;
 const invitationColumns = { ...getTableColumns(invitations), status: effectiveStatus };
 
-export function toInvitationDto(row: InvitationRow, role: RoleRef, projectRefs: ProjectRef[]): InvitationDto {
+export function toInvitationDto(
+  row: InvitationRow,
+  role: RoleRef,
+  projectRefs: ProjectRef[],
+  invitedBy: InviterDto | null,
+): InvitationDto {
   const base = {
     id: row.id,
     email: row.email,
     role,
     status: InvitationStatus.parse(row.status),
     expiresAt: row.expiresAt.toISOString(),
-    invitedBy: row.invitedBy,
+    invitedBy,
     createdAt: row.createdAt.toISOString(),
     acceptedAt: row.acceptedAt === null ? null : row.acceptedAt.toISOString(),
   };
@@ -74,7 +81,7 @@ function auditPayload(row: InvitationRow, role: { id: string; key: string }): Re
   };
 }
 
-async function roleRefs(tx: Tx, ids: string[]): Promise<Map<string, RoleRef>> {
+export async function roleRefs(tx: Tx, ids: string[]): Promise<Map<string, RoleRef>> {
   if (ids.length === 0) return new Map();
   const rows = await tx
     .select({ id: roles.id, key: roles.key, name: roles.name })
@@ -83,7 +90,7 @@ async function roleRefs(tx: Tx, ids: string[]): Promise<Map<string, RoleRef>> {
   return new Map(rows.map((r) => [r.id, r]));
 }
 
-async function projectRefs(tx: Tx, orgId: string, ids: string[]): Promise<ProjectRef[]> {
+export async function projectRefs(tx: Tx, orgId: string, ids: string[]): Promise<ProjectRef[]> {
   if (ids.length === 0) return [];
   return tx
     .select({ id: projects.id, name: projects.name })
@@ -184,7 +191,12 @@ export class InvitationsService {
           targetId: row.id,
           payload: auditPayload(row, role),
         });
-        return toInvitationDto(row, { id: role.id, key: role.key, name: role.name }, found);
+        return toInvitationDto(
+          row,
+          { id: role.id, key: role.key, name: role.name },
+          found,
+          await inviterOf(tx, row.invitedBy),
+        );
       });
     } catch (err) {
       // the partial unique key (org, email) where pending: a concurrent create loses here, not on a prior read
@@ -194,22 +206,24 @@ export class InvitationsService {
   }
 
   /**
-   * Every invitation, createdAt desc; status 'expired' for pending rows with expires_at <= now(). A member actor without
+   * Invitations filtered by `q.status` (default pending; `all` for every status), createdAt desc; effective status is
+   * 'expired' for pending rows with expires_at <= now(). A member actor without
    * `member:read` at org scope sees only project invitations whose every project they can read assignments on.
    */
-  async list(actor: Actor, orgId: string, q: PageQuery): Promise<Page<InvitationDto>> {
+  async list(actor: Actor, orgId: string, q: InvitationListQuery): Promise<Page<InvitationDto>> {
     const visible = visibilityFilter(actor);
     await this.orgs.requireOrg(orgId);
     const { limit, offset } = pageWindow(q);
-    const where = and(eq(invitations.orgId, orgId), visible);
+    const where = and(eq(invitations.orgId, orgId), visible, statusFilter(q.status));
     return withOrg(this.db, orgId, async (tx) => {
       const [counted] = await tx
         .select({ total: sql<number>`count(*)::int` })
         .from(invitations)
         .where(where);
       const rows = await tx
-        .select(invitationColumns)
+        .select({ ...invitationColumns, inviterName: user.name, inviterHandle: user.handle })
         .from(invitations)
+        .leftJoin(user, eq(user.id, invitations.invitedBy))
         .where(where)
         .orderBy(desc(invitations.createdAt), desc(invitations.id))
         .limit(limit)
@@ -218,7 +232,9 @@ export class InvitationsService {
       const projectList = await projectRefs(tx, orgId, [...new Set(rows.flatMap((r) => r.projectIds))]);
       const items = rows.flatMap((r) => {
         const role = roleMap.get(r.roleId);
-        return role ? [toInvitationDto(r, role, projectList)] : [];
+        if (!role) return [];
+        const inviter = r.inviterName === null ? null : { name: r.inviterName, handle: r.inviterHandle };
+        return [toInvitationDto(r, role, projectList, toInviterDto(inviter))];
       });
       return toPage(items, counted?.total ?? 0, q);
     });
@@ -271,6 +287,20 @@ export class InvitationsService {
       });
     });
   }
+}
+
+/** Which rows a list shows: `pending` means stored pending and not yet past expiry; `expired` includes those past it. */
+function statusFilter(status: InvitationListQuery['status']): SQL | undefined {
+  return status === 'all' ? undefined : sql`${effectiveStatus} = ${status}`;
+}
+
+async function inviterOf(tx: Tx, userId: string): Promise<InviterDto | null> {
+  const [row] = await tx
+    .select({ name: user.name, handle: user.handle })
+    .from(user)
+    .where(eq(user.id, userId))
+    .limit(1);
+  return toInviterDto(row);
 }
 
 type InviteScope = { type: 'org' } | { type: 'project'; projectIds: string[] };

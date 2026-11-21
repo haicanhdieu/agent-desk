@@ -83,10 +83,10 @@ function invite(orgId: string, payload: unknown) {
   });
 }
 
-function list(orgId: string) {
+function list(orgId: string, status?: string) {
   return t.app.inject({
     method: 'GET',
-    url: `/api/platform/orgs/${orgId}/invitations`,
+    url: `/api/platform/orgs/${orgId}/invitations${status ? `?status=${status}` : ''}`,
     headers: { cookie: admin },
   });
 }
@@ -130,7 +130,8 @@ describe('platform invitation create', () => {
     const days = (Date.parse(dto.expiresAt) - Date.parse(dto.createdAt)) / 1000;
     expect(Math.abs(days - 7 * 24 * 3600)).toBeLessThan(5);
     const adminId = (await t.db.pool.query('select id from "user" where email = $1', ['admin@dev.local'])).rows[0]?.id;
-    expect(dto.invitedBy).toBe(adminId);
+    expect(adminId).toBeTruthy();
+    expect(dto.invitedBy).toEqual({ name: expect.any(String), handle: expect.any(String) });
   });
 
   it('lists the id and name of each project of a project-scope invitation', async () => {
@@ -294,7 +295,7 @@ describe('platform invitation expiry', () => {
     const created = (await invite(f.orgId, body)).json<InvitationDto>();
     await asOrg(f.orgId, "update invitations set expires_at = now() - interval '1 minute' where id = $1", [created.id]);
 
-    const listed = (await list(f.orgId)).json<Page<InvitationDto>>();
+    const listed = (await list(f.orgId, 'expired')).json<Page<InvitationDto>>();
     expect(listed.items.find((i) => i.id === created.id)?.status).toBe('expired');
 
     const revoked = await revokeInvitation(f.orgId, created.id);
@@ -331,6 +332,19 @@ describe('platform invitation list and revoke', () => {
     expect(page.total).toBe(2);
   });
 
+  it('lists with the status filter, default pending, and invitedBy as the inviter', async () => {
+    const f = await fixture('inv-plat-status');
+    const made = (
+      await invite(f.orgId, { email: 'ps@example.com', roleId: f.roles.viewer, scope: { type: 'org' } })
+    ).json<InvitationDto>();
+    expect(made.invitedBy).toEqual({ name: expect.any(String), handle: expect.any(String) });
+    await revokeInvitation(f.orgId, made.id);
+    expect((await list(f.orgId)).json<Page<InvitationDto>>().items).toHaveLength(0);
+    const revoked = expectContract('platform.listInvitations', await list(f.orgId, 'revoked')) as Page<InvitationDto>;
+    expect(revoked.items.map((i) => i.id)).toEqual([made.id]);
+    expect((await list(f.orgId, 'bogus')).statusCode).toBe(400);
+  });
+
   it('revokes with 204, lists it as revoked and refuses a second revoke with 409', async () => {
     const f = await fixture('inv-revoke');
     const created = (
@@ -338,7 +352,7 @@ describe('platform invitation list and revoke', () => {
     ).json<InvitationDto>();
     const res = await revokeInvitation(f.orgId, created.id);
     expect(res.statusCode).toBe(204);
-    const page = (await list(f.orgId)).json<Page<InvitationDto>>();
+    const page = (await list(f.orgId, 'all')).json<Page<InvitationDto>>();
     expect(page.items.find((i) => i.id === created.id)?.status).toBe('revoked');
     expect((await revokeInvitation(f.orgId, created.id)).statusCode).toBe(409);
     // the address is free again
@@ -465,7 +479,7 @@ describe('accepting invitations at sign-in', () => {
 
     await inviteAndLogin(t, second.orgId, 'acc-h2', 'member', { type: 'org' });
     expect(await memberRows(second.orgId, userId)).toHaveLength(1);
-    const listed = (await list(second.orgId)).json<Page<InvitationDto>>();
+    const listed = (await list(second.orgId, 'all')).json<Page<InvitationDto>>();
     expect(listed.items[0]).toMatchObject({ email: 'acc-h2@dev.local', status: 'accepted' });
     expect(listed.items[0]?.acceptedAt).not.toBeNull();
     // the oldest membership stays the active org
@@ -689,7 +703,7 @@ describe('accepting invitations at sign-in', () => {
     expect((await revokeInvitation(f.orgId, created.id)).statusCode).toBe(204);
     expect((await devLogin('acc-rev')).statusCode).toBe(401);
     expect(await userRowCount('acc-rev@dev.local')).toBe(0);
-    const listed = (await list(f.orgId)).json<Page<InvitationDto>>();
+    const listed = (await list(f.orgId, 'all')).json<Page<InvitationDto>>();
     expect(listed.items.find((i) => i.id === created.id)?.status).toBe('revoked');
     expect((await revokeInvitation(f.orgId, created.id)).statusCode).toBe(409);
   });
@@ -747,8 +761,12 @@ describe('tenant invitations (BR-60)', () => {
       payload: payload as object,
     });
   }
-  function tenantList(cookie: string) {
-    return t.app.inject({ method: 'GET', url: `/api/orgs/${orgId}/invitations`, headers: { cookie } });
+  function tenantList(cookie: string, status = 'all') {
+    return t.app.inject({
+      method: 'GET',
+      url: `/api/orgs/${orgId}/invitations?status=${status}`,
+      headers: { cookie },
+    });
   }
   function tenantRevoke(cookie: string, id: string) {
     return t.app.inject({ method: 'DELETE', url: `/api/orgs/${orgId}/invitations/${id}`, headers: { cookie } });
@@ -1064,5 +1082,143 @@ describe('sign-up needs an invitation (BR-54)', () => {
     expect(await userRowCount('gate-lookup@dev.local')).toBe(0);
     // With the lookup back, the same invited handle signs in: the refusal came from the failed lookup alone.
     expect((await devLogin('gate-lookup')).statusCode).toBe(302);
+  });
+});
+
+describe('invitation list status filter and inviter (BR-30, BR-31, BR-47, BR-48, BR-52)', () => {
+  let orgId: string;
+  let roles: Record<string, string>;
+  let p1: string;
+  let p2: string;
+  let owner: string;
+  let projectAdmin: string;
+  const ids: Record<string, string> = {};
+
+  function getList(cookie: string, status?: string) {
+    return t.app.inject({
+      method: 'GET',
+      url: `/api/orgs/${orgId}/invitations${status === undefined ? '' : `?status=${status}`}`,
+      headers: { cookie },
+    });
+  }
+  function create(email: string, scope: unknown = { type: 'org' }) {
+    return t.app.inject({
+      method: 'POST',
+      url: `/api/orgs/${orgId}/invitations`,
+      headers: { cookie: owner },
+      payload: { email, roleId: roles.member, scope } as object,
+    });
+  }
+  async function emailsOf(status?: string): Promise<{ emails: string[]; total: number; all: number }> {
+    const res = await getList(owner, status);
+    expect(res.statusCode).toBe(200);
+    const page = res.json<Page<InvitationDto>>();
+    // the seeded sign-in invitations (dev.local) are accepted rows too; the filter cases look at this test's rows
+    const emails = page.items.map((i) => i.email).filter((e) => e.endsWith('@example.com'));
+    return { emails: emails.sort(), total: page.total, all: page.items.length };
+  }
+
+  beforeAll(async () => {
+    const f = await fixture('inv-status');
+    orgId = f.orgId;
+    roles = f.roles;
+    p1 = f.projectId;
+    p2 = await seedProject(orgId, 'Second-inv-status');
+    owner = await inviteAndLogin(t, orgId, 'st-o', 'owner', { type: 'org' });
+    projectAdmin = await inviteAndLogin(t, orgId, 'st-a', 'admin', { type: 'project', projectIds: [p1] });
+    for (const key of ['pending', 'accepted', 'declined', 'revoked', 'expired', 'late']) {
+      const res = await create(`st-${key}@example.com`);
+      expect(res.statusCode).toBe(201);
+      ids[key] = res.json<InvitationDto>().id;
+    }
+    await asOrg(orgId, "update invitations set status = 'accepted' where id = $1", [ids.accepted]);
+    await asOrg(orgId, "update invitations set status = 'declined' where id = $1", [ids.declined]);
+    await asOrg(orgId, "update invitations set status = 'revoked' where id = $1", [ids.revoked]);
+    await asOrg(orgId, "update invitations set status = 'expired' where id = $1", [ids.expired]);
+    await asOrg(orgId, "update invitations set expires_at = now() - interval '1 minute' where id = $1", [ids.late]);
+  });
+
+  it('BR-30: the default list holds only stored-pending unexpired rows', async () => {
+    const def = await emailsOf();
+    expect(def.emails).toContain('st-pending@example.com');
+    for (const key of ['accepted', 'declined', 'revoked', 'expired', 'late']) {
+      expect(def.emails).not.toContain(`st-${key}@example.com`);
+    }
+    expect(def.total).toBe(def.emails.length);
+  });
+
+  it.each(['accepted', 'declined', 'revoked'])(
+    'BR-47: status %s returns only its rows and total follows',
+    async (key) => {
+      const got = await emailsOf(key);
+      expect(got.emails).toEqual([`st-${key}@example.com`]);
+      expect(got.total).toBe(got.all);
+    },
+  );
+
+  it('BR-47: pending returns the unexpired pending rows only', async () => {
+    const got = await emailsOf('pending');
+    expect(got.emails).toContain('st-pending@example.com');
+    expect(got.emails).not.toContain('st-late@example.com');
+  });
+
+  it('BR-48: a pending row past its expiry is listed under expired with status expired, not pending', async () => {
+    const res = await getList(owner, 'expired');
+    const page = res.json<Page<InvitationDto>>();
+    expect(page.items.map((i) => i.email).sort()).toEqual(['st-expired@example.com', 'st-late@example.com']);
+    expect(page.items.every((i) => i.status === 'expired')).toBe(true);
+    expect(page.total).toBe(2);
+    expect((await emailsOf('pending')).emails).not.toContain('st-late@example.com');
+  });
+
+  it('BR-47: all returns every status', async () => {
+    const got = await emailsOf('all');
+    for (const key of ['pending', 'accepted', 'declined', 'revoked', 'expired', 'late']) {
+      expect(got.emails).toContain(`st-${key}@example.com`);
+    }
+  });
+
+  it('a bogus status is 400', async () => {
+    expect((await getList(owner, 'bogus')).statusCode).toBe(400);
+  });
+
+  it('BR-31: a project admin of P1 under all sees the P1-only invitation and never the P2, mixed or org ones', async () => {
+    expect((await create('st-p1@example.com', { type: 'project', projectIds: [p1] })).statusCode).toBe(201);
+    expect((await create('st-p2@example.com', { type: 'project', projectIds: [p2] })).statusCode).toBe(201);
+    expect((await create('st-both@example.com', { type: 'project', projectIds: [p1, p2] })).statusCode).toBe(201);
+    const res = await getList(projectAdmin, 'all');
+    expect(res.statusCode).toBe(200);
+    const emails = res.json<Page<InvitationDto>>().items.map((i) => i.email);
+    expect(emails).toContain('st-p1@example.com');
+    expect(emails).not.toContain('st-p2@example.com');
+    expect(emails).not.toContain('st-both@example.com');
+    expect(emails).not.toContain('st-pending@example.com');
+  });
+
+  it("BR-52: invitedBy is the inviter's name and handle, the handle for a blank name, and null once the user is gone", async () => {
+    const email = 'st-inviter@example.com';
+    const made = (await create(email)).json<InvitationDto>();
+    expect(made.invitedBy).toEqual({ name: expect.any(String), handle: 'st-o' });
+    const [ownerRow] = (await t.db.pool.query('select id from "user" where handle = $1', ['st-o'])).rows;
+    const ownerId = (ownerRow as { id: string }).id;
+    const listed = async () =>
+      (await getList(owner, 'all')).json<Page<InvitationDto>>().items.find((i) => i.email === email);
+    await t.db.pool.query('update "user" set name = $1 where id = $2', ['  ', ownerId]);
+    expect((await listed())?.invitedBy).toEqual({ name: 'st-o', handle: 'st-o' });
+    await t.db.pool.query('update "user" set name = $1 where id = $2', [' Ada L ', ownerId]);
+    expect((await listed())?.invitedBy).toEqual({ name: 'Ada L', handle: 'st-o' });
+    // a second invitation by an inviter whose user row is gone
+    const orphan = await asOrg(orgId, 'select id from invitations where email = $1', [email]);
+    const orphanId = (orphan.rows[0] as { id: string }).id;
+    await asOrg(orgId, "update invitations set invited_by = 'no-such-user' where id = $1", [orphanId]);
+    expect((await listed())?.invitedBy).toBeNull();
+  });
+
+  it('BR-52: an email with an apostrophe and dashes round-trips unchanged', async () => {
+    const email = "o'brien+a--b@example.com";
+    const res = await create(email);
+    expect(res.statusCode).toBe(201);
+    const items = (await getList(owner, 'all')).json<Page<InvitationDto>>().items;
+    expect(items.find((i) => i.email === email)).toBeDefined();
   });
 });

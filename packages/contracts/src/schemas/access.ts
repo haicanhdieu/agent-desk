@@ -95,6 +95,9 @@ export const InvitationScopeDto = z.discriminatedUnion('type', [
 ]);
 export type InvitationScopeDto = z.infer<typeof InvitationScopeDto>;
 
+export const InviterDto = z.object({ name: z.string(), handle: z.string() });
+export type InviterDto = z.infer<typeof InviterDto>;
+
 export const InvitationDto = z.object({
   id: Id,
   email: z.string(),
@@ -102,14 +105,11 @@ export const InvitationDto = z.object({
   scope: InvitationScopeDto,
   status: InvitationStatus,
   expiresAt: Timestamp,
-  invitedBy: z.string(),
+  invitedBy: InviterDto.nullable(),
   createdAt: Timestamp,
   acceptedAt: Timestamp.nullable(),
 });
 export type InvitationDto = z.infer<typeof InvitationDto>;
-
-export const InviterDto = z.object({ name: z.string(), handle: z.string() });
-export type InviterDto = z.infer<typeof InviterDto>;
 
 const OrgRef = z.object({ id: Id, name: z.string(), slug: z.string() });
 

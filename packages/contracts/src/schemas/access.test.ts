@@ -87,6 +87,22 @@ describe('DTOs', () => {
       true,
     );
   });
+  it('InvitationDto needs invitedBy to be an InviterDto or null', () => {
+    const base = {
+      id: P1,
+      email: 'a@example.com',
+      role,
+      scope: { type: 'org' },
+      status: 'pending',
+      expiresAt: TS,
+      createdAt: TS,
+      acceptedAt: null,
+    };
+    expect(InvitationDto.safeParse({ ...base, invitedBy: null }).success).toBe(true);
+    expect(InvitationDto.safeParse({ ...base, invitedBy: { name: 'Ada', handle: 'ada' } }).success).toBe(true);
+    expect(InvitationDto.safeParse({ ...base, invitedBy: 'u0' }).success).toBe(false);
+    expect(InvitationDto.safeParse({ ...base, invitedBy: { name: 'Ada' } }).success).toBe(false);
+  });
   it('parses RoleDto, AssignmentDto, InvitationDto and AccessDto', () => {
     expect(
       RoleDto.safeParse({
@@ -105,7 +121,7 @@ describe('DTOs', () => {
         scope: { type: 'project', projects: [{ id: P2, name: 'P' }] },
         status: 'pending',
         expiresAt: TS,
-        invitedBy: 'u0',
+        invitedBy: { name: 'Ada', handle: 'ada' },
         createdAt: TS,
         acceptedAt: null,
       }).success,
