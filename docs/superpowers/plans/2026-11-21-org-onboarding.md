@@ -531,7 +531,7 @@ export async function declineInvite(t: TestApp, cookie: string, invitationId: st
 
   `list`: `pendingInvitationsForEmail(email)` then one `withOrg(orgId)` read per org (org name and slug from `organization`, role, projects, inviter), sorted by `createdAt` desc, sliced by `PageQuery`. `get`, `accept`, `decline`: `invitationOrgForEmail(id, email)` → null or unverified email → 404; then under `withOrg(orgId)`, `pg_advisory_xact_lock(hashtext(userId))` and a `for update` read where id matches and `email = lower(<email>)`; effective status not pending → 409; accept calls `acceptInvitationInTx`; decline sets `declined` and audits `invitation.declined` `{ email }` with `actor_user_id` = the invitee, same transaction. Logs `info` `{requestId, orgId, invitationId}`. Slice 1's `acceptPendingInvitations` keeps working on top of `acceptInvitationInTx` until Task 10.
 
-- [ ] **Step 1: Write the failing tests** in `my-invitations.int.test.ts`. Invitees are existing users signed in before their invitation is created (sign-in still auto-accepts until Task 10):
+- [x] **Step 1: Write the failing tests** in `my-invitations.int.test.ts`. Invitees are existing users signed in before their invitation is created (sign-in still auto-accepts until Task 10):
   - BR-3, BR-41: a user in org A invited by orgs B and C lists both with org name, role, scope and `invitedBy`; accepting B leaves C pending in the list.
   - BR-4, BR-48: a revoked row and a pending row with past `expires_at` are absent from the list; accept on each → 409 (`Invitation is revoked`, `Invitation is expired`) and nothing changes.
   - BR-21: accepting a member invitation on P1 and P2 of an org with P1 to P3 gives one `member` row and exactly two assignments; a deleted listed project is skipped; the response is `{ org: { id, name, slug } }`.
@@ -547,10 +547,10 @@ export async function declineInvite(t: TestApp, cookie: string, invitationId: st
   - Review Focus 5: `an invitee whose stored email has upper case lists and accepts the invitation`.
   - Untrusted text: an org name with `<b>` and `';--` comes back unchanged in `org.name`.
   - `audit-entry.test.ts`: `buildAuditRow` accepts the two new actions.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/my-invitations.int.test.ts src/audit/audit-entry.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service, controller (four routes, `@CurrentSessionUser()`), module registration, `acceptInvitationInTx` extraction, audit actions and helpers; delete the four `me.*` lines from `NOT_REGISTERED_YET`.
-- [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/invitations.int.test.ts` and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): list, read, accept and decline your own invitations`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/my-invitations.int.test.ts src/audit/audit-entry.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service, controller (four routes, `@CurrentSessionUser()`), module registration, `acceptInvitationInTx` extraction, audit actions and helpers; delete the four `me.*` lines from `NOT_REGISTERED_YET`.
+- [x] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/invitations.int.test.ts` and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): list, read, accept and decline your own invitations`.
 
 ---
 

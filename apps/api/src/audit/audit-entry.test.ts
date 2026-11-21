@@ -39,3 +39,10 @@ describe('buildAuditRow', () => {
     expect(buildAuditRow(base).payload).not.toHaveProperty('actorKind');
   });
 });
+
+describe('buildAuditRow for the invitee actions', () => {
+  it.each(['invitation.declined', 'invitation.resent'] as const)('accepts %s', (action) => {
+    const row = buildAuditRow({ ...base, action, targetType: 'invitation', payload: { email: 'a@b.c' } });
+    expect(row.action).toBe(action);
+  });
+});

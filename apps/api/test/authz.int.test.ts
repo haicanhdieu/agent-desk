@@ -30,15 +30,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = [
-  'me.listInvitations',
-  'me.getInvitation',
-  'me.acceptInvitation',
-  'me.declineInvitation',
-  'invitations.resend',
-  'platform.resendInvitation',
-  'orgs.checklist',
-];
+const NOT_REGISTERED_YET: RouteKey[] = ['invitations.resend', 'platform.resendInvitation', 'orgs.checklist'];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -838,6 +830,14 @@ const ALL_KEYS = TABLE_KEYS.filter((k) => !NOT_REGISTERED_YET.includes(k));
 const TENANT_KEYS = ALL_KEYS.filter((k) => !isPlatformKey(k));
 const PLATFORM_KEYS = ALL_KEYS.filter(isPlatformKey);
 
+/** A stray session (active org it is not in) is refused everywhere except on a user route, which ignores orgs. */
+const strayStatus = (k: HttpKey): number => {
+  if (routeAccess[k].scope !== 'user') return 403;
+  const { viewer } = DENIAL_TABLE[k];
+  // a stream the viewer may open answers 200
+  return viewer === 'stream' ? 200 : viewer;
+};
+
 describe('denial table over every route, stream and terminal', () => {
   const ORIGIN = 'http://localhost:5173';
   const NO_ACTIVE_ORG = 'No active organization';
@@ -1138,7 +1138,8 @@ describe('denial table over every route, stream and terminal', () => {
   });
 
   it('a viewer gets 403 on every write and on every read a viewer may not do', async () => {
-    const writes = ALL_KEYS.filter((k) => flat[k]?.method !== 'GET');
+    // a user route (the caller's own invitations) is open to every signed-in user, so it is not a role-gated write
+    const writes = ALL_KEYS.filter((k) => flat[k]?.method !== 'GET' && routeAccess[k].scope !== 'user');
     expect(writes.length).toBeGreaterThan(25);
     expect(writes.filter((k) => DENIAL_TABLE[k].viewer !== 403)).toEqual([]); // no write is open to a viewer
     const refused = ALL_KEYS.filter((k) => DENIAL_TABLE[k].viewer === 403);
@@ -1173,8 +1174,8 @@ describe('denial table over every route, stream and terminal', () => {
   });
 
   it('BR-8: a signed-in user whose active org is not theirs gets 403 on every route and 4403 on both terminals', async () => {
-    expect(await mismatches(ALL_KEYS, strayCookie, () => 403)).toEqual([]);
-    expect(await mismatches(TENANT_KEYS, strayCookie, () => 403, orgB)).toEqual([]);
+    expect(await mismatches(ALL_KEYS, strayCookie, strayStatus)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, strayCookie, strayStatus, orgB)).toEqual([]);
     for (const path of terminalPaths()) expect(await terminal(path, strayCookie)).toEqual({ code: 4403, bytes: 0 });
   });
 
@@ -1194,8 +1195,8 @@ describe('denial table over every route, stream and terminal', () => {
     expect(await mismatches(PLATFORM_KEYS, ownerCookie, () => 403)).toEqual([]);
     expect(await mismatches(TENANT_KEYS, paCookie, (k) => DENIAL_TABLE[k].pa, orgA, NO_ACTIVE_ORG)).toEqual([]);
     // the stray session points at org B: a write that got through would land there
-    expect(await mismatches(ALL_KEYS, strayCookie, () => 403)).toEqual([]);
-    expect(await mismatches(TENANT_KEYS, strayCookie, () => 403, orgB)).toEqual([]);
+    expect(await mismatches(ALL_KEYS, strayCookie, strayStatus)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, strayCookie, strayStatus, orgB)).toEqual([]);
     expect(await snapshot(orgA, orgB)).toEqual(before);
     expect(t.temporal.calls).toEqual([]);
     expect(t.secrets.names()).not.toContain('denial-table-secret');
