@@ -16,6 +16,7 @@ import { Route as InvitationsIndexRouteImport } from './routes/invitations.index
 import { Route as InvitationsInvitationRouteImport } from './routes/invitations.$invitation';
 import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
+import { Route as OOrgInvitationsRouteImport } from './routes/o.$org.invitations';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
 import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
@@ -60,6 +61,11 @@ const OOrgRoute = OOrgRouteImport.update({
 const OOrgIndexRoute = OOrgIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => OOrgRoute,
+} as any);
+const OOrgInvitationsRoute = OOrgInvitationsRouteImport.update({
+  id: '/invitations',
+  path: '/invitations',
   getParentRoute: () => OOrgRoute,
 } as any);
 const OOrgPProjectRoute = OOrgPProjectRouteImport.update({
@@ -120,6 +126,7 @@ export interface FileRoutesByFullPath {
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/invitations/': typeof InvitationsIndexRoute;
+  '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
@@ -138,6 +145,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute;
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/invitations': typeof InvitationsIndexRoute;
+  '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
@@ -158,6 +166,7 @@ export interface FileRoutesById {
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/invitations/': typeof InvitationsIndexRoute;
+  '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
@@ -179,6 +188,7 @@ export interface FileRouteTypes {
     | '/invitations/$invitation'
     | '/o/$org'
     | '/invitations/'
+    | '/o/$org/invitations'
     | '/o/$org/'
     | '/o/$org/p/$project'
     | '/o/$org/projects/'
@@ -197,6 +207,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/invitations/$invitation'
     | '/invitations'
+    | '/o/$org/invitations'
     | '/o/$org'
     | '/o/$org/p/$project'
     | '/o/$org/projects'
@@ -216,6 +227,7 @@ export interface FileRouteTypes {
     | '/invitations/$invitation'
     | '/o/$org'
     | '/invitations/'
+    | '/o/$org/invitations'
     | '/o/$org/'
     | '/o/$org/p/$project'
     | '/o/$org/projects/'
@@ -287,6 +299,13 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/o/$org/';
       preLoaderRoute: typeof OOrgIndexRouteImport;
+      parentRoute: typeof OOrgRoute;
+    };
+    '/o/$org/invitations': {
+      id: '/o/$org/invitations';
+      path: '/invitations';
+      fullPath: '/o/$org/invitations';
+      preLoaderRoute: typeof OOrgInvitationsRouteImport;
       parentRoute: typeof OOrgRoute;
     };
     '/o/$org/p/$project': {
@@ -387,6 +406,7 @@ const OOrgPProjectRouteWithChildren = OOrgPProjectRoute._addFileChildren(
 );
 
 interface OOrgRouteChildren {
+  OOrgInvitationsRoute: typeof OOrgInvitationsRoute;
   OOrgIndexRoute: typeof OOrgIndexRoute;
   OOrgPProjectRoute: typeof OOrgPProjectRouteWithChildren;
   OOrgProjectsIndexRoute: typeof OOrgProjectsIndexRoute;
@@ -394,6 +414,7 @@ interface OOrgRouteChildren {
 }
 
 const OOrgRouteChildren: OOrgRouteChildren = {
+  OOrgInvitationsRoute: OOrgInvitationsRoute,
   OOrgIndexRoute: OOrgIndexRoute,
   OOrgPProjectRoute: OOrgPProjectRouteWithChildren,
   OOrgProjectsIndexRoute: OOrgProjectsIndexRoute,

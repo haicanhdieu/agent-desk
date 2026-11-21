@@ -444,7 +444,7 @@ describe('OrgInvitations actions', () => {
       <OrgInvitations
         {...listProps({
           state: { kind: 'ready', rows: orgInvitationRows, busyRowId: target.id },
-          revokeConfirm: { email: target.email, onConfirm, onCancel },
+          revokeConfirm: { email: target.email, busy: true, onConfirm, onCancel },
         })}
       />,
     );
@@ -505,6 +505,16 @@ describe('OrgInvitations actions', () => {
     expect(screen.getByRole('dialog', { name: 'Invitation link' })).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     expect(screen.queryByRole('dialog', { name: 'Invitation link' })).not.toBeInTheDocument();
+  });
+
+  it('a repeat copy failure re-shows the popover after it was dismissed, once the route cleared copyFailed in between', async () => {
+    const copyFailed = { rowId: target.id, link: 'https://agentdesk.example/i/a' };
+    const { rerender } = render(<OrgInvitations {...listProps({ copyFailed })} />);
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Invitation link' })).not.toBeInTheDocument();
+    rerender(<OrgInvitations {...listProps()} />);
+    rerender(<OrgInvitations {...listProps({ copyFailed })} />);
+    expect(screen.getByRole('dialog', { name: 'Invitation link' })).toBeInTheDocument();
   });
 
   it('a press outside closes the copy-failed popover, a press inside does not', async () => {

@@ -1462,15 +1462,15 @@ export function useRevokeInvitation(org: string): UseMutationResult<null, ApiErr
 
   Search `?status=` (Zod enum, bad value → `pending`, `pending` left out of the URL) and `?page=` (shared pagination, `usePageSize()`); changing the filter resets to page 1; `useClampToLastPage`. Without `canInvite` the page shows the forbidden state and fetches nothing. Copy link → "Link copied" or the failure toast plus popover; Resend → refetch and "Invitation renewed. It now expires on <date>.", 409 → "Invitation is no longer pending" (or the `/email` detail for BR-50) and a refetch; Revoke → confirm → "Invitation revoked", 409 → error toast and a refetch. Mutations invalidate the list key.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `dates.test.ts` (BR-30, BR-51, `it.each` with injected `now` and a pinned zone): in 2 days → "Expires in 2 days"; in 5 hours → "Expires in 5 hours"; expired 1 day → relative; expired exactly 3 days, 2 days 23 hours → relative; 3 days 1 hour and 5 days → exact; relative ones carry the full date in `title`; accepted → none.
   - `map.test.ts`: actions per status (BR-19); `invitedBy` null → null (dash), name as given (BR-52).
   - `link.test.ts`: `invitationUrl` builds `<origin>/invitations/<id>`; `copyText` returns false when `writeText` rejects.
   - `list.route.test.tsx`: BR-30 default Pending, no `status` in the URL, paged; `?status=bogus` → Pending; BR-47 choosing a chip updates `?status=`, the rows and the page count, and resets page 2 to 1; BR-20 `member` and `viewer` see the forbidden state; BR-33 Copy link with a stubbed clipboard copies `<origin>/invitations/<id>` and shows "Link copied", a failing clipboard shows the failure toast and the popover; BR-18 Resend shows the renewed toast and the new expiry; BR-19 `invitationChanged` Resend → "Invitation is no longer pending" and the row's new status after refetch, Revoke → error toast and refetch; BR-32 Revoke → confirm → "Invitation revoked"; BR-50 resend of an expired row with a newer pending one shows the "already invited" error and leaves the list; BR-51 the Expires column under `invitationsExpiry` with the fixed clock; BR-52 the Invited by column shows `name` as given and a dash for null.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations src/features/invitations/dates.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (regenerate `routeTree.gen.ts`), queries, mutations, mapper, link helpers and `expiresView`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): org invitations page with filter, copy, resend and revoke`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations src/features/invitations/dates.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (regenerate `routeTree.gen.ts`), queries, mutations, mapper, link helpers and `expiresView`.
+- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS. Only the Step 2 command was run (the full web suite is the Verifier's).
+- [x] **Step 5: Commit** `feat(web): org invitations page with filter, copy, resend and revoke`.
 
 ---
 
