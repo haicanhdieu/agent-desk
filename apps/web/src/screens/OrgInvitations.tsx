@@ -1,11 +1,12 @@
-import { useEffect, useRef, type ReactNode } from 'react';
-import { Button, Skeleton } from '@/ds';
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
+import { Button, Dialog, Popover, Skeleton, Toast, ToastRegion } from '@/ds';
 import {
   DataTable,
   EmptyState,
   FilterChip,
   FilterChips,
   InvitationRow,
+  InviteLink,
   Pagination,
   RouteLoadError,
   TopBar,
@@ -14,6 +15,8 @@ import {
 } from '@/components';
 import type { Actor, OrgInvitationRowView } from '@/mocks/types';
 import styles from './Screens.module.css';
+
+const noop = () => undefined;
 
 export type InvitationFilter = 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired' | 'all';
 
@@ -33,7 +36,13 @@ export interface OrgInvitationsProps {
   onRevoke: (id: string) => void;
   /** Stories only: render this row's menu open. */
   openMenuRowId?: string;
-  /** The dialog and toasts layer. */
+  /** The revoke confirm dialog. While the row's request is in flight (`busyRowId`) it cannot be closed or repeated. */
+  revokeConfirm?: { email: string; onConfirm: () => void; onCancel: () => void };
+  /** The clipboard refused: a small popover under the row's menu button holds the link to copy by hand. */
+  copyFailed?: { rowId: string; link: string };
+  /** The outcome of the last row action, shown as a dismissible toast. */
+  notice?: { tone: 'ok' | 'error'; title: string; onDismiss: () => void };
+  /** The dialog layer (the invite dialog). */
   children?: ReactNode;
 }
 
@@ -73,6 +82,9 @@ export function OrgInvitations({
   onResend,
   onRevoke,
   openMenuRowId,
+  revokeConfirm,
+  copyFailed,
+  notice,
   children,
 }: OrgInvitationsProps) {
   const tableRef = useRef<HTMLDivElement>(null);
@@ -89,6 +101,85 @@ export function OrgInvitations({
     button.click();
   }, [menuRow, state]);
 
+  const [copyAt, setCopyAt] = useState<{ top: number; right: number } | null>(null);
+  const [dismissedKey, setDismissedKey] = useState<string | null>(null);
+  const copyRow = state.kind === 'ready' ? copyFailed : undefined;
+  const copyKey = copyRow ? `${copyRow.rowId}\n${copyRow.link}` : null;
+  const copyEmail =
+    copyRow && state.kind === 'ready' ? state.rows.find((r) => r.id === copyRow.rowId)?.email : undefined;
+  const copyShown = copyEmail !== undefined && copyKey !== dismissedKey;
+  // The popover is fixed in viewport coordinates: keep it under its row's button through scroll and resize, so the
+  // link stays selectable. Escape (via the Popover) or a press outside closes it.
+  useLayoutEffect(() => {
+    if (!copyShown) return undefined;
+    const place = () => {
+      const button = [...(tableRef.current?.querySelectorAll('button') ?? [])].find(
+        (b) => b.getAttribute('aria-label') === `Actions for ${copyEmail}`,
+      );
+      const r = button?.getBoundingClientRect();
+      setCopyAt(r ? { top: r.bottom + 4, right: window.innerWidth - r.right } : null);
+    };
+    place();
+    const onPointerDown = (e: PointerEvent) => {
+      if (e.target instanceof Element && !e.target.closest('[aria-label="Invitation link"]')) setDismissedKey(copyKey);
+    };
+    document.addEventListener('scroll', place, true);
+    window.addEventListener('resize', place);
+    document.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      document.removeEventListener('scroll', place, true);
+      window.removeEventListener('resize', place);
+      document.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [copyShown, copyEmail, copyKey, copyRow?.link]);
+
+  const busyRow = state.kind === 'ready' && state.busyRowId !== null;
+  const layer = (
+    <>
+      {children}
+      {revokeConfirm && (
+        <Dialog
+          open
+          title={`Revoke invitation for ${revokeConfirm.email}?`}
+          width={440}
+          onClose={busyRow ? noop : revokeConfirm.onCancel}
+          footer={
+            <>
+              <Button variant="ghost" disabled={busyRow} onClick={revokeConfirm.onCancel}>
+                Cancel
+              </Button>
+              <Button variant="solid-danger" disabled={busyRow} aria-busy={busyRow} onClick={revokeConfirm.onConfirm}>
+                {busyRow ? 'Revoking…' : 'Revoke'}
+              </Button>
+            </>
+          }
+        >
+          <p className="muted">The link stops working.</p>
+        </Dialog>
+      )}
+      {copyRow && copyAt && copyShown && (
+        <Popover
+          open
+          label="Invitation link"
+          onClose={() => setDismissedKey(copyKey)}
+          style={{ position: 'fixed', top: copyAt.top, right: copyAt.right }}
+        >
+          <InviteLink link={copyRow.link} onCopy={() => onCopy(copyRow.rowId)} copyFailed />
+        </Popover>
+      )}
+      {notice && (
+        <ToastRegion>
+          <Toast
+            tone={notice.tone === 'ok' ? 'ok' : 'err'}
+            role="status"
+            title={notice.title}
+            onDismiss={notice.onDismiss}
+          />
+        </ToastRegion>
+      )}
+    </>
+  );
+
   if (state.kind === 'forbidden') {
     return (
       <>
@@ -99,7 +190,7 @@ export function OrgInvitations({
             <p className="muted">Ask an owner of this organization to give you access.</p>
           </div>
         </main>
-        {children}
+        {layer}
       </>
     );
   }
@@ -176,7 +267,7 @@ export function OrgInvitations({
           </>
         )}
       </main>
-      {children}
+      {layer}
     </>
   );
 }

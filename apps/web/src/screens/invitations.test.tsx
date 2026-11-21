@@ -1,4 +1,4 @@
-import { render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   invitationCards,
@@ -411,5 +411,177 @@ describe('OrgInvitations', () => {
     );
     expect(container.querySelector('img')).toBeNull();
     expect(screen.getByText('<img src=x>@example.com')).toBeInTheDocument();
+  });
+});
+
+describe('OrgInvitations actions', () => {
+  const target = orgInvitationRows[0];
+
+  it('BR-18: the revoke confirm names the email and its Cancel and Revoke buttons call their handlers', async () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(<OrgInvitations {...listProps({ revokeConfirm: { email: target.email, onConfirm, onCancel } })} />);
+    const dialog = screen.getByRole('dialog', { name: `Revoke invitation for ${target.email}?` });
+    expect(within(dialog).getByText('The link stops working.')).toBeInTheDocument();
+    expect(onConfirm).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Revoke' }));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onCancel).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }));
+    expect(onCancel).toHaveBeenCalledTimes(1);
+  });
+
+  it('no revoke confirm shows unless asked for', () => {
+    render(<OrgInvitations {...listProps()} />);
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('while the revoke is in flight the confirm cannot be closed or repeated', async () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <OrgInvitations
+        {...listProps({
+          state: { kind: 'ready', rows: orgInvitationRows, busyRowId: target.id },
+          revokeConfirm: { email: target.email, onConfirm, onCancel },
+        })}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: `Revoke invitation for ${target.email}?` });
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    expect(within(dialog).getByRole('button', { name: 'Revoking…' })).toBeDisabled();
+    await userEvent.keyboard('{Escape}');
+    expect(onCancel).not.toHaveBeenCalled();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('BR-33: a copy failure shows the "Invitation link" field holding the link, anchored to that row', () => {
+    const link = 'https://agentdesk.example/invitations/abc';
+    render(<OrgInvitations {...listProps({ copyFailed: { rowId: target.id, link } })} />);
+    const pop = screen.getByRole('dialog', { name: 'Invitation link' });
+    expect(within(pop).getByText(link)).toBeInTheDocument();
+    expect(within(pop).getByText('Invitation link')).toBeInTheDocument();
+  });
+
+  it("BR-33: the copy-failed popover sits under that row's Actions button", () => {
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const at = this.getAttribute('aria-label') === `Actions for ${target.email}`;
+      return {
+        top: 0,
+        bottom: at ? 300 : 0,
+        left: 0,
+        right: at ? 900 : 0,
+        width: 0,
+        height: 0,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      } as DOMRect;
+    });
+    try {
+      render(
+        <OrgInvitations {...listProps({ copyFailed: { rowId: target.id, link: 'https://agentdesk.example/i/a' } })} />,
+      );
+      const pop = screen.getByRole('dialog', { name: 'Invitation link' });
+      expect(pop.style.top).toBe('304px');
+      expect(pop.style.right).toBe(`${window.innerWidth - 900}px`);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('no copy-failed popover shows for a row that is not in the list', () => {
+    render(<OrgInvitations {...listProps({ copyFailed: { rowId: 'nope', link: 'https://agentdesk.example/i/a' } })} />);
+    expect(screen.queryByRole('dialog', { name: 'Invitation link' })).not.toBeInTheDocument();
+  });
+
+  it('Escape closes the copy-failed popover', async () => {
+    render(
+      <OrgInvitations {...listProps({ copyFailed: { rowId: target.id, link: 'https://agentdesk.example/i/a' } })} />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Invitation link' })).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog', { name: 'Invitation link' })).not.toBeInTheDocument();
+  });
+
+  it('a press outside closes the copy-failed popover, a press inside does not', async () => {
+    const link = 'https://agentdesk.example/i/a';
+    render(<OrgInvitations {...listProps({ copyFailed: { rowId: target.id, link } })} />);
+    await userEvent.click(within(screen.getByRole('dialog', { name: 'Invitation link' })).getByText(link));
+    expect(screen.getByRole('dialog', { name: 'Invitation link' })).toBeInTheDocument();
+    await userEvent.click(document.body);
+    expect(screen.queryByRole('dialog', { name: 'Invitation link' })).not.toBeInTheDocument();
+  });
+
+  it('a resize or scroll moves the copy-failed popover with its row', () => {
+    let bottom = 300;
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const b = this.getAttribute('aria-label') === `Actions for ${target.email}` ? bottom : 0;
+      return { top: 0, bottom: b, left: 0, right: 900, width: 0, height: 0, x: 0, y: 0, toJSON: () => ({}) } as DOMRect;
+    });
+    try {
+      render(
+        <OrgInvitations {...listProps({ copyFailed: { rowId: target.id, link: 'https://agentdesk.example/i/a' } })} />,
+      );
+      expect(screen.getByRole('dialog', { name: 'Invitation link' }).style.top).toBe('304px');
+      bottom = 200;
+      act(() => {
+        window.dispatchEvent(new Event('resize'));
+      });
+      expect(screen.getByRole('dialog', { name: 'Invitation link' }).style.top).toBe('204px');
+      bottom = 100;
+      act(() => {
+        document.dispatchEvent(new Event('scroll'));
+      });
+      expect(screen.getByRole('dialog', { name: 'Invitation link' }).style.top).toBe('104px');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('no copy-failed popover shows when the copy worked', () => {
+    render(<OrgInvitations {...listProps()} />);
+    expect(screen.queryByText('Invitation link')).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['ok', 'Link copied'],
+    ['error', 'Could not copy. Select the link and copy it.'],
+  ] as const)('a %s notice renders as a status with a Dismiss button', async (tone, title) => {
+    const onDismiss = vi.fn();
+    render(<OrgInvitations {...listProps({ notice: { tone, title, onDismiss } })} />);
+    const status = screen.getByRole('status');
+    expect(within(status).getByText(title)).toBeInTheDocument();
+    expect(onDismiss).not.toHaveBeenCalled();
+    await userEvent.click(within(status).getByRole('button', { name: 'Dismiss notification' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('a notice title with markup renders as text', () => {
+    const { container } = render(
+      <OrgInvitations {...listProps({ notice: { tone: 'ok', title: '<b>x</b>', onDismiss: vi.fn() } })} />,
+    );
+    expect(container.querySelector('b')).toBeNull();
+    expect(screen.getByText('<b>x</b>')).toBeInTheDocument();
+  });
+
+  it('the dialog layer renders over the page', () => {
+    render(<OrgInvitations {...listProps({ children: <p>layer</p> })} />);
+    expect(screen.getByText('layer')).toBeInTheDocument();
+  });
+});
+
+describe('OrgInvitations copy failed', () => {
+  it('Copy link in the popover retries the copy for that row', async () => {
+    const p = listProps({ copyFailed: { rowId: orgInvitationRows[1].id, link: 'https://agentdesk.example/i/1' } });
+    render(<OrgInvitations {...p} />);
+    await userEvent.click(
+      within(screen.getByRole('dialog', { name: 'Invitation link' })).getByRole('button', { name: 'Copy link' }),
+    );
+    expect(p.onCopy).toHaveBeenCalledWith(orgInvitationRows[1].id);
   });
 });

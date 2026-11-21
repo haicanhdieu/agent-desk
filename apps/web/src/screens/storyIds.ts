@@ -136,6 +136,21 @@ export const boardStories = {
   OrgInvitationsPaged: { title: invitations, exportName: 'OrgInvitationsPaged' },
   OrgInvitationsRowMenu: { title: invitations, exportName: 'OrgInvitationsRowMenu' },
   OrgInvitationsRowMenuExpired: { title: invitations, exportName: 'OrgInvitationsRowMenuExpired' },
+  OrgInvitationsCopyFailed: { title: invitations, exportName: 'OrgInvitationsCopyFailed' },
+  OrgInvitationsCreated: { title: invitations, exportName: 'OrgInvitationsCreated' },
+  OrgInvitationsInvite: { title: invitations, exportName: 'OrgInvitationsInvite' },
+  OrgInvitationsInviteFieldError: { title: invitations, exportName: 'OrgInvitationsInviteFieldError' },
+  OrgInvitationsInviteFormError: { title: invitations, exportName: 'OrgInvitationsInviteFormError' },
+  OrgInvitationsInviteProjectAdmin: { title: invitations, exportName: 'OrgInvitationsInviteProjectAdmin' },
+  OrgInvitationsInviteProjects: { title: invitations, exportName: 'OrgInvitationsInviteProjects' },
+  OrgInvitationsInviteSaving: { title: invitations, exportName: 'OrgInvitationsInviteSaving' },
+  OrgInvitationsInviteTabSwitched: { title: invitations, exportName: 'OrgInvitationsInviteTabSwitched' },
+  OrgInvitationsLinkCopied: { title: invitations, exportName: 'OrgInvitationsLinkCopied' },
+  OrgInvitationsRenewed: { title: invitations, exportName: 'OrgInvitationsRenewed' },
+  OrgInvitationsResendConflict: { title: invitations, exportName: 'OrgInvitationsResendConflict' },
+  OrgInvitationsResending: { title: invitations, exportName: 'OrgInvitationsResending' },
+  OrgInvitationsRevokeConfirm: { title: invitations, exportName: 'OrgInvitationsRevokeConfirm' },
+  OrgInvitationsRevoked: { title: invitations, exportName: 'OrgInvitationsRevoked' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

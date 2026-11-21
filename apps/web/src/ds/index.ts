@@ -43,4 +43,4 @@ export { Checkbox, RadioCard, type CheckboxProps, type RadioCardProps } from './
 export { LabelInput, type LabelInputProps } from './LabelInput';
 export { LinkProvider, useLink, AppLink, type LinkComponent } from './Link';
 export { Skeleton, type SkeletonProps } from './Skeleton';
-export { ToastProvider, useToast, type ToastInput } from './Toast';
+export { Toast, ToastProvider, ToastRegion, useToast, type ToastInput, type ToastProps } from './Toast';

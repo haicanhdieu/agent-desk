@@ -977,6 +977,126 @@
    "h": 900,
    "title": "Invitations \u2014 row menu on an expired invitation: Resend only",
    "expand": "fill"
+  },
+  "OrgInvitationsCopyFailed.dc.html": {
+   "x": 0,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 copy failed, link shown to copy by hand",
+   "expand": "fill"
+  },
+  "OrgInvitationsCreated.dc.html": {
+   "x": 1520,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 invitation created, copy link",
+   "expand": "fill"
+  },
+  "OrgInvitationsInvite.dc.html": {
+   "x": 3040,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 default",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteFieldError.dc.html": {
+   "x": 4560,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 email already invited",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteFormError.dc.html": {
+   "x": 0,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 form error",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteProjectAdmin.dc.html": {
+   "x": 1520,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 project admin: projects they administer only, no Owner",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteProjects.dc.html": {
+   "x": 3040,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 some projects",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteSaving.dc.html": {
+   "x": 4560,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 saving",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteTabSwitched.dc.html": {
+   "x": 0,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 refused, org switched in another tab; input kept",
+   "expand": "fill"
+  },
+  "OrgInvitationsLinkCopied.dc.html": {
+   "x": 1520,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 link copied",
+   "expand": "fill"
+  },
+  "OrgInvitationsRenewed.dc.html": {
+   "x": 3040,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 resend done, new expiry",
+   "expand": "fill"
+  },
+  "OrgInvitationsResendConflict.dc.html": {
+   "x": 4560,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 resend refused, invitation changed meanwhile, list refreshed",
+   "expand": "fill"
+  },
+  "OrgInvitationsResending.dc.html": {
+   "x": 0,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 resend in flight, row menu disabled",
+   "expand": "fill"
+  },
+  "OrgInvitationsRevokeConfirm.dc.html": {
+   "x": 1520,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 revoke confirmation",
+   "expand": "fill"
+  },
+  "OrgInvitationsRevoked.dc.html": {
+   "x": 3040,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 revoked (All filter), toast",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1100,7 +1220,22 @@
   "OrgInvitationsLoading.dc.html",
   "OrgInvitationsPaged.dc.html",
   "OrgInvitationsRowMenu.dc.html",
-  "OrgInvitationsRowMenuExpired.dc.html"
+  "OrgInvitationsRowMenuExpired.dc.html",
+  "OrgInvitationsCopyFailed.dc.html",
+  "OrgInvitationsCreated.dc.html",
+  "OrgInvitationsInvite.dc.html",
+  "OrgInvitationsInviteFieldError.dc.html",
+  "OrgInvitationsInviteFormError.dc.html",
+  "OrgInvitationsInviteProjectAdmin.dc.html",
+  "OrgInvitationsInviteProjects.dc.html",
+  "OrgInvitationsInviteSaving.dc.html",
+  "OrgInvitationsInviteTabSwitched.dc.html",
+  "OrgInvitationsLinkCopied.dc.html",
+  "OrgInvitationsRenewed.dc.html",
+  "OrgInvitationsResendConflict.dc.html",
+  "OrgInvitationsResending.dc.html",
+  "OrgInvitationsRevokeConfirm.dc.html",
+  "OrgInvitationsRevoked.dc.html"
  ],
  "notes": {
   "t-intro": {
