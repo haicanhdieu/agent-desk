@@ -102,8 +102,8 @@ const expected: Record<RouteKey, RouteAccess> = {
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 75 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(75);
+  it('matches the approved permission map for all 77 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(77);
     expect(routeAccess).toEqual(expected);
   });
 
