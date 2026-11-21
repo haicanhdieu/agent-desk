@@ -70,6 +70,10 @@ const expected: Record<RouteKey, RouteAccess> = {
   'runs.events': project('run:read', 'runId'),
   'runs.terminal': project('terminal:attach', 'runId'),
   'me.access': { scope: 'self' },
+  'me.listInvitations': { scope: 'user' },
+  'me.getInvitation': { scope: 'user' },
+  'me.acceptInvitation': { scope: 'user' },
+  'me.declineInvitation': { scope: 'user' },
   'roles.list': admin('project:read'),
   'members.list': admin('member:read', 'assignment:create'),
   'assignments.list': admin('assignment:read'),
@@ -78,6 +82,8 @@ const expected: Record<RouteKey, RouteAccess> = {
   'invitations.list': admin('member:read', 'assignment:read'),
   'invitations.create': admin('member:create', 'assignment:create'),
   'invitations.remove': admin('member:create', 'assignment:create'),
+  'invitations.resend': admin('member:create', 'assignment:create'),
+  'orgs.checklist': org('project:create'),
   'platform.createOrg': platform('platform-org:create'),
   'platform.listOrgs': platform('platform-org:read'),
   'platform.listProjects': platform('platform-project:read'),
@@ -89,13 +95,14 @@ const expected: Record<RouteKey, RouteAccess> = {
   'platform.listInvitations': platform('platform-invitation:read'),
   'platform.createInvitation': platform('platform-invitation:create'),
   'platform.removeInvitation': platform('platform-invitation:delete'),
+  'platform.resendInvitation': platform('platform-invitation:update'),
 };
 
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 69 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(69);
+  it('matches the approved permission map for all 76 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(76);
     expect(routeAccess).toEqual(expected);
   });
 
@@ -111,10 +118,11 @@ describe('routeAccess', () => {
     }
   });
 
-  it('uses org-admin only on /api/orgs/ paths and self only on me.access', () => {
+  it('uses org-admin only on /api/orgs/ paths, self only on me.access and user only on the other me.* keys', () => {
     for (const [key, access] of Object.entries(routeAccess)) {
       if (access.scope === 'org-admin') expect(flat[key]?.path.startsWith('/api/orgs/'), key).toBe(true);
       expect(access.scope === 'self', key).toBe(key === 'me.access');
+      expect(access.scope === 'user', key).toBe(key.startsWith('me.') && key !== 'me.access');
     }
   });
 

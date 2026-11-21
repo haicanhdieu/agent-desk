@@ -51,7 +51,7 @@ function stringParams(params: unknown): Record<string, string | undefined> {
 }
 
 function permissionLabel(entry: RouteAccess): string | null {
-  if (entry.scope === 'self') return null;
+  if (entry.scope === 'self' || entry.scope === 'user') return null;
   return entry.scope === 'org-admin' ? entry.anyOf.join(' | ') : entry.permission;
 }
 

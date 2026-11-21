@@ -47,6 +47,7 @@ const PLATFORM_PERMISSIONS = [
   'platform-assignment:delete',
   'platform-invitation:read',
   'platform-invitation:create',
+  'platform-invitation:update',
   'platform-invitation:delete',
 ] as const;
 

@@ -177,8 +177,12 @@ describe('PERMISSION_LEVEL', () => {
       ].sort(),
     );
   });
-  it('has 33 tenant and 11 platform permissions', () => {
+  it('has 33 tenant and 12 platform permissions', () => {
     expect(TENANT).toHaveLength(33);
-    expect(Permission.options).toHaveLength(44);
+    expect(Permission.options).toHaveLength(45);
+  });
+  it('treats platform-invitation:update as a platform permission', () => {
+    expect(Permission.options).toContain('platform-invitation:update');
+    expect(isPlatformPermission('platform-invitation:update')).toBe(true);
   });
 });

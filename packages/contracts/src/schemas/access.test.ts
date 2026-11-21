@@ -5,8 +5,13 @@ import {
   CreateAssignmentRequest,
   CreateInvitationRequest,
   InvitationDto,
+  InvitationListQuery,
   InvitationStatus,
+  INVITATION_EXPIRY_SECONDS,
+  AcceptInvitationResponse,
   MemberDto,
+  MyInvitationDto,
+  OrgChecklistDto,
   RoleDto,
 } from './access';
 
@@ -61,8 +66,8 @@ describe('CreateInvitationRequest', () => {
 });
 
 describe('InvitationStatus', () => {
-  it('lists the four statuses', () => {
-    expect(InvitationStatus.options).toEqual(['pending', 'accepted', 'revoked', 'expired']);
+  it('lists the five statuses', () => {
+    expect(InvitationStatus.options).toEqual(['pending', 'accepted', 'declined', 'revoked', 'expired']);
   });
 });
 
@@ -118,5 +123,46 @@ describe('DTOs', () => {
         ],
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('onboarding schemas', () => {
+  const myBase = {
+    id: P1,
+    org: { id: P2, name: 'Acme', slug: 'acme' },
+    role: { key: 'member', name: 'Member' },
+    scope: { type: 'org' },
+    expiresAt: TS,
+    status: 'pending',
+  };
+  it('expires an invitation after two days', () => {
+    expect(INVITATION_EXPIRY_SECONDS).toBe(172800);
+  });
+  it('knows declined invitations', () => {
+    expect(InvitationStatus.safeParse('declined').success).toBe(true);
+  });
+  it('lists pending by default and accepts the six statuses', () => {
+    expect(InvitationListQuery.parse({}).status).toBe('pending');
+    for (const status of ['pending', 'accepted', 'declined', 'revoked', 'expired', 'all']) {
+      expect(InvitationListQuery.safeParse({ status }).success, status).toBe(true);
+    }
+    expect(InvitationListQuery.safeParse({ status: 'bogus' }).success).toBe(false);
+  });
+  it('parses my invitations with and without an inviter', () => {
+    expect(MyInvitationDto.safeParse({ ...myBase, invitedBy: null }).success).toBe(true);
+    expect(MyInvitationDto.safeParse({ ...myBase, invitedBy: { name: 'Ada', handle: 'ada' } }).success).toBe(true);
+  });
+  it('strips link and token from my invitations', () => {
+    const parsed = MyInvitationDto.parse({ ...myBase, invitedBy: null, link: 'https://x', token: 't' });
+    expect(parsed).not.toHaveProperty('link');
+    expect(parsed).not.toHaveProperty('token');
+  });
+  it('accept answers with the org', () => {
+    expect(AcceptInvitationResponse.safeParse({ org: myBase.org }).success).toBe(true);
+  });
+  it('rejects an unknown checklist step', () => {
+    const ok = { complete: false, projectId: null, steps: [{ key: 'create_project', done: false }] };
+    expect(OrgChecklistDto.safeParse(ok).success).toBe(true);
+    expect(OrgChecklistDto.safeParse({ ...ok, steps: [{ key: 'nope', done: false }] }).success).toBe(false);
   });
 });

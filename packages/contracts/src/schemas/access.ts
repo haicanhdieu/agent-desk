@@ -74,20 +74,32 @@ export const CreateInvitationRequest = z.object({
 });
 export type CreateInvitationRequest = z.infer<typeof CreateInvitationRequest>;
 
-export const InvitationStatus = z.enum(['pending', 'accepted', 'revoked', 'expired']);
+/** The only source of an invitation's lifetime. */
+export const INVITATION_EXPIRY_SECONDS = 172800;
+
+export const InvitationStatus = z.enum(['pending', 'accepted', 'declined', 'revoked', 'expired']);
 export type InvitationStatus = z.infer<typeof InvitationStatus>;
+
+export const InvitationListStatus = z.enum(['pending', 'accepted', 'declined', 'revoked', 'expired', 'all']);
+export type InvitationListStatus = z.infer<typeof InvitationListStatus>;
+
+export const InvitationListQuery = PageQuery.extend({ status: InvitationListStatus.default('pending') });
+export type InvitationListQuery = z.infer<typeof InvitationListQuery>;
+
+export const InvitationScopeDto = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('org') }),
+  z.object({
+    type: z.literal('project'),
+    projects: z.array(z.object({ id: Id, name: z.string() })),
+  }),
+]);
+export type InvitationScopeDto = z.infer<typeof InvitationScopeDto>;
 
 export const InvitationDto = z.object({
   id: Id,
   email: z.string(),
   role: RoleRef,
-  scope: z.discriminatedUnion('type', [
-    z.object({ type: z.literal('org') }),
-    z.object({
-      type: z.literal('project'),
-      projects: z.array(z.object({ id: Id, name: z.string() })),
-    }),
-  ]),
+  scope: InvitationScopeDto,
   status: InvitationStatus,
   expiresAt: Timestamp,
   invitedBy: z.string(),
@@ -95,6 +107,36 @@ export const InvitationDto = z.object({
   acceptedAt: Timestamp.nullable(),
 });
 export type InvitationDto = z.infer<typeof InvitationDto>;
+
+export const InviterDto = z.object({ name: z.string(), handle: z.string() });
+export type InviterDto = z.infer<typeof InviterDto>;
+
+const OrgRef = z.object({ id: Id, name: z.string(), slug: z.string() });
+
+/** An invitation as its invitee sees it. Carries no link or token. */
+export const MyInvitationDto = z.object({
+  id: Id,
+  org: OrgRef,
+  role: z.object({ key: z.string(), name: z.string() }),
+  scope: InvitationScopeDto,
+  invitedBy: InviterDto.nullable(),
+  expiresAt: Timestamp,
+  status: InvitationStatus,
+});
+export type MyInvitationDto = z.infer<typeof MyInvitationDto>;
+
+export const AcceptInvitationResponse = z.object({ org: OrgRef });
+export type AcceptInvitationResponse = z.infer<typeof AcceptInvitationResponse>;
+
+export const ChecklistStepKey = z.enum(['connect_code_host', 'create_project', 'add_agent', 'add_rule']);
+export type ChecklistStepKey = z.infer<typeof ChecklistStepKey>;
+
+export const OrgChecklistDto = z.object({
+  complete: z.boolean(),
+  projectId: Id.nullable(),
+  steps: z.array(z.object({ key: ChecklistStepKey, done: z.boolean() })),
+});
+export type OrgChecklistDto = z.infer<typeof OrgChecklistDto>;
 
 export const MemberDto = z.object({
   userId: z.string(),
