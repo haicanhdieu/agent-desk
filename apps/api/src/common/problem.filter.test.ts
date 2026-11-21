@@ -1,6 +1,8 @@
 import type { ArgumentsHost } from '@nestjs/common';
 import type { Logger } from 'pino';
 import { describe, expect, it } from 'vitest';
+import { ConflictException } from '@nestjs/common';
+import { OrgMismatchException } from './org-mismatch';
 import { ProblemFilter } from './problem.filter';
 
 /** A host whose reply records what was sent. */
@@ -57,5 +59,24 @@ describe('ProblemFilter', () => {
     const { logger, logged } = capturingLogger();
     new ProblemFilter(logger).catch('SECRET_SCRIPT_TEXT', host().host);
     expect(JSON.stringify(logged)).not.toContain('SECRET_SCRIPT_TEXT');
+  });
+
+  it('answers an OrgMismatchException with the org-mismatch problem type', () => {
+    const { host: h, sent } = host();
+    new ProblemFilter(capturingLogger().logger).catch(new OrgMismatchException(), h);
+    expect(sent.status).toBe(409);
+    expect(sent.body).toEqual({
+      type: 'org-mismatch',
+      title: 'Conflict',
+      status: 409,
+      detail: 'The organization in the request is not the active organization',
+      requestId: 'req-1',
+    });
+  });
+
+  it('keeps about:blank for a plain ConflictException', () => {
+    const { host: h, sent } = host();
+    new ProblemFilter(capturingLogger().logger).catch(new ConflictException('taken'), h);
+    expect(sent.body).toMatchObject({ type: 'about:blank', status: 409, detail: 'taken' });
   });
 });
