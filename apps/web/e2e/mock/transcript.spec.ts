@@ -310,7 +310,7 @@ test.describe('BR-38 to BR-41: entries of the Transcript', () => {
     expect(plain.border).toBe('0px');
   });
 
-  test('TC-39.1 an agent reply is plain text labelled Claude with its time and has no box', async ({ page }) => {
+  test('TC-39.1 an agent reply is Markdown text labelled Claude with its time and has no box', async ({ page }) => {
     await open(page, TRANSCRIPT_RICH_RUN);
     const paragraph = log(page).locator('p', { hasText: 'I will start with the report builder.' });
     const text = paragraph.locator(TEXT_BOX);
