@@ -546,7 +546,7 @@ export function assembleLinkedTickets(
 
   Each item's own `ticketRunCount` is unchanged. Both "newest" orders are `queued_at desc, id desc`. `runs.stats` `idleRun` gets the field through `listItems`.
 
-- [ ] **Step 1: Write the failing tests** in `runs.int.test.ts`, in a new `describe('runs list linkedTickets')`. Each test makes its own project and inserts with `insertRun({ ticketRef, ticketKind, ticketNumber, ticketTitle, ticketUrl, ticketLabels, linkedIssueRefs, queuedAt })`, using explicit, distinct `queuedAt`. Every response goes through `expectContract('runs.list' | 'runs.stats', …)`.
+- [x] **Step 1: Write the failing tests** in `runs.int.test.ts`, in a new `describe('runs list linkedTickets')`. Each test makes its own project and inserts with `insertRun({ ticketRef, ticketKind, ticketNumber, ticketTitle, ticketUrl, ticketLabels, linkedIssueRefs, queuedAt })`, using explicit, distinct `queuedAt`. Every response goes through `expectContract('runs.list' | 'runs.stats', …)`.
   - `a PR run linked to an issue with runs lists the lead issue, and the issue run lists the PR` (BR-1):
     - issue 142 has 1 run; PR 148 has 1 run with `['142']`;
     - the PR item's `linkedTickets` is `[{ ref: '142', kind: 'issue', number: 142, title, url, labels, ticketRunCount: 1 }]`;
@@ -579,10 +579,10 @@ export function assembleLinkedTickets(
     - a P2 issue 142 run never lists the P1 PR;
     - bob's request for P1 is 404 (unchanged).
   - `stats.idleRun carries linkedTickets`. An idle linked PR run gives `idleRun.linkedTickets[0].ref === '142'`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test:integration runs.int`. Expected: FAIL (every `linkedTickets` is `[]`).
-- [ ] **Step 3: Implement** `linked-tickets.ts`. Both SQL reads use Drizzle `sql` with bound parameters only (`= any(${refs})`, `&& ${refs}::text[]`). Wire `listItems`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:unit`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(api): runs list items carry their linked tickets`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test:integration runs.int`. Expected: FAIL (every `linkedTickets` is `[]`).
+- [x] **Step 3: Implement** `linked-tickets.ts`. Both SQL reads use Drizzle `sql` with bound parameters only (`= any(${refs})`, `&& ${refs}::text[]`). Wire `listItems`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:unit`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(api): runs list items carry their linked tickets`.
 
 ---
 

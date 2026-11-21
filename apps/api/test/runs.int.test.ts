@@ -1033,3 +1033,227 @@ describe('ignored list', () => {
     expect(after).toEqual(before);
   });
 });
+
+describe('runs list linkedTickets', () => {
+  const T0 = Date.parse('2026-04-01T00:00:00.000Z');
+  const SINCE = '2026-03-10T00:00:00.000Z';
+  const pageOf = async (query: string, pid: string) =>
+    expectContract('runs.list', await listRuns(query, pid)) as RunListResponse;
+  const stats = (query: string, id: string) => get(`/api/projects/${id}/runs/stats${query}`);
+  let tick = 0;
+  /** Distinct, increasing queuedAt values so "newest" is never a tie. */
+  const at = () => new Date(T0 + (tick += 1) * 1000);
+  const newProject = async () => (await makeProject(t, alice, await installFake(t, alice))).projectId;
+  const issue = (pid: string, n: number, over: Partial<typeof runs.$inferInsert> = {}) =>
+    insertRun(
+      {
+        ticketRef: String(n),
+        ticketKind: 'issue',
+        ticketNumber: n,
+        ticketTitle: `Issue ${n}`,
+        ticketUrl: `https://example.test/issues/${n}`,
+        queuedAt: at(),
+        ...over,
+      },
+      pid,
+    );
+  const pr = (pid: string, n: number, linked: string[], over: Partial<typeof runs.$inferInsert> = {}) =>
+    insertRun(
+      {
+        ticketRef: String(n),
+        ticketKind: 'pr',
+        ticketNumber: n,
+        ticketTitle: `PR ${n}`,
+        ticketUrl: `https://example.test/pull/${n}`,
+        linkedIssueRefs: linked,
+        queuedAt: at(),
+        ...over,
+      },
+      pid,
+    );
+  const items = async (pid: string, query = '') => (await pageOf(query, pid)).items;
+  const linkedOf = async (pid: string, id: string, query = '') =>
+    (await items(pid, query)).find((i) => i.id === id)?.linkedTickets;
+  const refs = (l: { ref: string }[] | undefined) => l?.map((x) => x.ref);
+
+  it('a PR run linked to an issue with runs lists the lead issue, and the issue run lists the PR', async () => {
+    const pid = await newProject();
+    const i = await issue(pid, 142);
+    const p = await pr(pid, 148, ['142']);
+    expect(await linkedOf(pid, p.id)).toEqual([
+      {
+        ref: '142',
+        kind: 'issue',
+        number: 142,
+        title: 'Issue 142',
+        url: 'https://example.test/issues/142',
+        labels: [],
+        ticketRunCount: 1,
+      },
+    ]);
+    expect(await linkedOf(pid, i.id)).toEqual([
+      {
+        ref: '148',
+        kind: 'pr',
+        number: 148,
+        title: 'PR 148',
+        url: 'https://example.test/pull/148',
+        labels: [],
+        ticketRunCount: 1,
+      },
+    ]);
+  });
+
+  it('a linked entry takes kind, number, title, url and labels from the newest snapshot and counts every status, whatever the filter', async () => {
+    const pid = await newProject();
+    await issue(pid, 142, { ticketTitle: 'Old' });
+    await issue(pid, 142, {
+      ticketTitle: 'New',
+      status: 'failed',
+      ticketLabels: [{ name: 'bug', color: 'd73a4a' }],
+    });
+    const p = await pr(pid, 148, ['142'], { status: 'idle' });
+    const list = await items(pid, '?filter=needs_you');
+    expect(list.map((x) => x.id)).toEqual([p.id]);
+    expect(list[0]?.linkedTickets).toEqual([
+      {
+        ref: '142',
+        kind: 'issue',
+        number: 142,
+        title: 'New',
+        url: 'https://example.test/issues/142',
+        labels: [{ name: 'bug', color: 'd73a4a' }],
+        ticketRunCount: 2,
+      },
+    ]);
+  });
+
+  it('a page holding only PR runs still lists the issue', async () => {
+    const pid = await newProject();
+    await issue(pid, 142);
+    await pr(pid, 148, ['142']);
+    await pr(pid, 150, ['142']);
+    const list = await items(pid, '?pageSize=2&page=1');
+    expect(list).toHaveLength(2);
+    for (const item of list) {
+      expect(item.ticket.kind).toBe('pr');
+      expect(item.linkedTickets[0]?.ref).toBe('142');
+    }
+  });
+
+  it('an issue with two PRs: each PR run lists the issue then the other PR, and the issue run lists both PRs by number', async () => {
+    const pid = await newProject();
+    const i = await issue(pid, 142);
+    const p150a = await pr(pid, 150, ['142']);
+    const p148 = await pr(pid, 148, ['142']);
+    const p150b = await pr(pid, 150, ['142']);
+    expect(refs(await linkedOf(pid, p150a.id))).toEqual(['142', '148']);
+    expect(refs(await linkedOf(pid, p150b.id))).toEqual(['142', '148']);
+    expect(refs(await linkedOf(pid, p148.id))).toEqual(['142', '150']);
+    expect(refs(await linkedOf(pid, i.id))).toEqual(['148', '150']);
+    const counts = (await linkedOf(pid, i.id))?.map((x) => x.ticketRunCount);
+    expect(counts).toEqual([1, 2]);
+    expect((await linkedOf(pid, p148.id))?.map((x) => x.ticketRunCount)).toEqual([1, 2]);
+  });
+
+  it('a page holding only the issue run lists a PR whose run is on another page', async () => {
+    const pid = await newProject();
+    await pr(pid, 148, ['142']);
+    const i = await issue(pid, 142);
+    const list = await items(pid, '?pageSize=1&page=1');
+    expect(list.map((x) => x.id)).toEqual([i.id]);
+    expect(refs(list[0]?.linkedTickets)).toEqual(['148']);
+  });
+
+  it("a page holding only one PR run lists the lead's other PR from another page", async () => {
+    const pid = await newProject();
+    await issue(pid, 142);
+    await pr(pid, 150, ['142']);
+    const p = await pr(pid, 148, ['142']);
+    const list = await items(pid, '?pageSize=1&page=1');
+    expect(list.map((x) => x.id)).toEqual([p.id]);
+    expect(refs(list[0]?.linkedTickets)).toEqual(['142', '150']);
+  });
+
+  it('a linked issue with no runs in the project is dropped', async () => {
+    const pid = await newProject();
+    const p = await pr(pid, 148, ['142']);
+    expect(await linkedOf(pid, p.id)).toEqual([]);
+  });
+
+  it('a run with an empty snapshot gets [] even when a newer run of the same PR is linked', async () => {
+    const pid = await newProject();
+    await issue(pid, 142);
+    const old = await pr(pid, 148, []);
+    const newer = await pr(pid, 148, ['142']);
+    expect(await linkedOf(pid, old.id)).toEqual([]);
+    expect(refs(await linkedOf(pid, newer.id))).toEqual(['142']);
+  });
+
+  it('the newest linked run decides for all linked runs of the PR', async () => {
+    const pid = await newProject();
+    await issue(pid, 142);
+    await issue(pid, 150);
+    const a = await pr(pid, 148, ['150']);
+    const b = await pr(pid, 148, ['142']);
+    expect(refs(await linkedOf(pid, a.id))).toEqual(['142']);
+    expect(refs(await linkedOf(pid, b.id))).toEqual(['142']);
+    const c = await pr(pid, 148, []);
+    expect(await linkedOf(pid, c.id)).toEqual([]);
+    expect(refs(await linkedOf(pid, a.id))).toEqual(['142']);
+    expect(refs(await linkedOf(pid, b.id))).toEqual(['142']);
+  });
+
+  it('a PR linked to two issues with runs joins the lower-numbered one', async () => {
+    const pid = await newProject();
+    const i142 = await issue(pid, 142);
+    const i150 = await issue(pid, 150);
+    const p = await pr(pid, 148, ['150', '142']);
+    expect(refs(await linkedOf(pid, p.id))).toEqual(['142']);
+    expect(refs(await linkedOf(pid, i142.id))).toEqual(['148']);
+    expect(await linkedOf(pid, i150.id)).toEqual([]);
+  });
+
+  it('a ref that names a PR, or the PR itself, is never a lead', async () => {
+    const pid = await newProject();
+    const self = await pr(pid, 148, ['148']);
+    expect(await linkedOf(pid, self.id)).toEqual([]);
+    const pid2 = await newProject();
+    await pr(pid2, 150, []);
+    const toPr = await pr(pid2, 148, ['150']);
+    expect(await linkedOf(pid2, toPr.id)).toEqual([]);
+    const pid3 = await newProject();
+    await pr(pid3, 150, []);
+    await issue(pid3, 142);
+    const mixed = await pr(pid3, 148, ['150', '142']);
+    expect(refs(await linkedOf(pid3, mixed.id))).toEqual(['142']);
+  });
+
+  it("each item's own ticketRunCount is unchanged", async () => {
+    const pid = await newProject();
+    await issue(pid, 142);
+    await issue(pid, 142);
+    const p = await pr(pid, 148, ['142']);
+    const item = (await items(pid)).find((x) => x.id === p.id);
+    expect(item?.ticketRunCount).toBe(1);
+    expect(item?.linkedTickets[0]?.ticketRunCount).toBe(2);
+  });
+
+  it('links stay inside the project', async () => {
+    const p1 = await newProject();
+    const p2 = await newProject();
+    const prRun = await pr(p1, 148, ['142']);
+    const otherIssue = await issue(p2, 142);
+    expect(await linkedOf(p1, prRun.id)).toEqual([]);
+    expect(await linkedOf(p2, otherIssue.id)).toEqual([]);
+    expect((await listRuns('', p1, bob)).statusCode).toBe(404);
+  });
+
+  it('stats.idleRun carries linkedTickets', async () => {
+    const pid = await newProject();
+    await issue(pid, 142);
+    await pr(pid, 148, ['142'], { status: 'idle' });
+    const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
+    expect(res.idleRun?.linkedTickets[0]?.ref).toBe('142');
+  });
+});
