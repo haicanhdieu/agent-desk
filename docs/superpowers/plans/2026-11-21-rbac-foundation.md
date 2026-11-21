@@ -1705,9 +1705,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-13.1; TC-14.1 to TC-14.4; TC-16.1 to TC-16.3; TC-17.1; TC-18.1, TC-18.2; TC-33.1 to TC-33.9 (P1 rule R and skill S created by O first); TC-48.1; TC-49.1 to TC-49.4; TC-68.1, TC-68.2 (P1 switched to polling by O; B's identity's comment queued with `deliver: 'poll'`; TC-68.1 awaits a run owned by B).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-ownership.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e member ownership and member refusals`.
+- [x] **Step 1: Write the spec:** TC-13.1; TC-14.1 to TC-14.4; TC-16.1 to TC-16.3; TC-17.1; TC-18.1, TC-18.2; TC-33.1 to TC-33.9 (P1 rule R and skill S created by O first); TC-48.1; TC-49.1 to TC-49.4; TC-68.1, TC-68.2 (P1 switched to polling by O; B's identity's comment queued with `deliver: 'poll'`; TC-68.1 awaits a run owned by B).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-ownership.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e member ownership and member refusals`.
 
 ---
 
