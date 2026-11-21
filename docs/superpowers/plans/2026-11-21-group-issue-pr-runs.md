@@ -782,9 +782,9 @@ Seeds (`ticketRuns`, oldest first; `p(n, [issues])` is a PR entry with `linked`)
 | TC-17.2 | `[i142, p(148,[142]), p(148,[142]), p(148)]` | runs 2 and 3 under "Issue #142"; a separate "PR #148" group holds only run 4, with "3 of 10 runs" on the right |
 | TC-18.1 | `[i139, i139, i139]` | "Issue #139" header with "3 of 10 runs" on the right, no chain note |
 
-- [ ] **Step 1: Write the cases** in the table. The existing tests in the file stay unchanged.
+- [x] **Step 1: Write the cases** in the table. The existing tests in the file stay unchanged.
 - [ ] **Step 2: Build and run:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts`. Expected: PASS for every new and existing test.
-- [ ] **Step 3: Commit:** `test(web): mock e2e for issue and PR runs in one group`.
+- [x] **Step 3: Commit:** `test(web): mock e2e for issue and PR runs in one group`.
 
 ---
 
