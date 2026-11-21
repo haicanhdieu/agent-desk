@@ -1,4 +1,4 @@
-import type { InvitationDto } from '@agentdesk/contracts';
+import type { CreateInvitationRequest, InvitationDto } from '@agentdesk/contracts';
 import type { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type QueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { api } from '../api';
@@ -26,5 +26,14 @@ export function useRevokeInvitation(org: string): UseMutationResult<null, ApiErr
   return useMutation<null, ApiError, string>({
     mutationFn: (id) => api.invitations.remove({ params: { orgId: orgIdOf(queryClient, org), invitationId: id } }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orgInvitationsListKey(org) }),
+  });
+}
+
+/** Creates an invitation in the route's org. The list is refetched once it exists; a failure changes nothing. */
+export function useCreateInvitation(org: string): UseMutationResult<InvitationDto, ApiError, CreateInvitationRequest> {
+  const queryClient = useQueryClient();
+  return useMutation<InvitationDto, ApiError, CreateInvitationRequest>({
+    mutationFn: (body) => api.invitations.create({ params: { orgId: orgIdOf(queryClient, org) }, body }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: orgInvitationsListKey(org) }),
   });
 }

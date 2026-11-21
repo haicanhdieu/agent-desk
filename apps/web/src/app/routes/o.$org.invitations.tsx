@@ -3,6 +3,7 @@ import { InvitationListStatus } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { useState } from 'react';
+import { InviteDialog } from '@/components';
 import {
   PageSearch,
   pageOfSearch,
@@ -14,12 +15,14 @@ import {
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
 import { canInvite, orgAccessQuery, toAccess } from '@/features/access/queries';
+import { ORG_SWITCHED_MESSAGE } from '@/features/auth/orgResync';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { toOrgSwitch } from '@/features/orgs/orgSwitch';
 import { copyText, invitationUrl } from '@/features/orgInvitations/link';
 import { failureTitle, toOrgInvitationRow } from '@/features/orgInvitations/map';
 import { useResendInvitation, useRevokeInvitation } from '@/features/orgInvitations/mutations';
-import { orgInvitationsQuery } from '@/features/orgInvitations/queries';
+import { projectOptions, projectsOnly, roleOptions, useInviteForm } from '@/features/orgInvitations/inviteForm';
+import { inviteProjectsQuery, inviteRolesQuery, orgInvitationsQuery } from '@/features/orgInvitations/queries';
 import { formatShortDate } from '@/features/invitations/dates';
 import { OrgInvitations, type InvitationFilter, type OrgInvitationsProps } from '@/screens';
 
@@ -34,7 +37,7 @@ export const Route = createFileRoute('/o/$org/invitations')({
 });
 
 const COPY_FAILED = 'Could not copy. Select the link and copy it.';
-const noop = () => undefined;
+const LOAD_FAILED = 'Could not load the roles and projects. Close the dialog and try again.';
 
 function InvitationsPage() {
   const { org } = Route.useParams();
@@ -59,6 +62,7 @@ function InvitationsPage() {
   const resend = useResendInvitation(org);
   const revoke = useRevokeInvitation(org);
   const [revoking, setRevoking] = useState<string | null>(null);
+  const [inviting, setInviting] = useState(false);
   const [copyFailed, setCopyFailed] = useState<{ rowId: string; link: string } | null>(null);
 
   const go = (p: number, replace = false) =>
@@ -149,8 +153,7 @@ function InvitationsPage() {
         })
       }
       state={state}
-      // The invite dialog arrives with the Invite people task; until then the button has nothing to open.
-      onInvite={noop}
+      onInvite={() => setInviting(true)}
       onCopy={onCopy}
       onResend={onResend}
       onRevoke={setRevoking}
@@ -165,6 +168,73 @@ function InvitationsPage() {
         },
       })}
       {...(copyFailed && { copyFailed })}
+    >
+      {inviting && orgId !== undefined && (
+        <InvitePeople org={org} orgId={orgId} access={toAccess(accessDto)} onClose={() => setInviting(false)} />
+      )}
+    </OrgInvitations>
+  );
+}
+
+// Mounted only while the dialog is open, so each opening starts from an empty form and loads its choices again.
+function InvitePeople({
+  org,
+  orgId,
+  access,
+  onClose,
+}: {
+  org: string;
+  orgId: string;
+  access: ReturnType<typeof toAccess>;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const roles = useQuery(inviteRolesQuery(org, orgId));
+  const projects = useQuery(inviteProjectsQuery(org));
+  const only = projectsOnly(access);
+  const form = useInviteForm({
+    org,
+    projectsOnly: only,
+    onOrgSwitched: () => toast.show({ tone: 'err', title: ORG_SWITCHED_MESSAGE }),
+  });
+  const loadFailed = roles.isError || projects.isError;
+  const created = form.created;
+  return (
+    <InviteDialog
+      open
+      step={
+        created
+          ? {
+              kind: 'created',
+              email: created.email,
+              expiresOn: formatShortDate(created.expiresAt),
+              link: invitationUrl(created.id),
+            }
+          : {
+              kind: 'form',
+              values: form.values,
+              errors: form.errors,
+              ...((form.formError ?? (loadFailed ? LOAD_FAILED : undefined)) !== undefined && {
+                formError: form.formError ?? LOAD_FAILED,
+              }),
+              saving: form.saving,
+            }
+      }
+      roles={roleOptions(roles.data ?? [], access)}
+      projects={projectOptions(projects.data ?? [], access)}
+      projectsOnly={only}
+      onChange={form.change}
+      onSubmit={form.submit}
+      onCancel={() => {
+        if (!form.saving) onClose();
+      }}
+      onCopy={() => {
+        if (!created) return;
+        void copyText(invitationUrl(created.id)).then((ok) =>
+          toast.show(ok ? { tone: 'ok', title: 'Link copied' } : { tone: 'err', title: COPY_FAILED }),
+        );
+      }}
+      onDone={onClose}
     />
   );
 }
