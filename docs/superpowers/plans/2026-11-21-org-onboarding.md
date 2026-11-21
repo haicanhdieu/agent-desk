@@ -1076,11 +1076,11 @@ export function InviteDialog(props: InviteDialogProps): JSX.Element;
 
   Title "Invite people"; fields Email, Role (`Select`), Access (`RadioCard` "Whole organization" / "Some projects" with project `Checkbox`es; `projectsOnly` shows "Some projects" as text); "Cancel" and "Create invitation" ("Creating…" while saving); field errors through `Field error`; `formError` as a form `Banner`; created step "Invitation created", "Send this link to <email>. It works only for that email and expires on <date>.", `InviteLink`, "Done"; `useFocusTrap`, first field focused, focus to "Copy link" on created, back to the opener on close.
 
-- [ ] **Step 1: Write the failing tests** in `InviteDialog.test.tsx`: BR-29 `projectsOnly` hides "Whole organization" and lists only the given projects; the role select offers exactly `roles`; field errors render with `aria-invalid`; the created step focuses "Copy link"; Cancel calls `onCancel`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/InviteDialog.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the component and `Components/InviteDialog` stories (Default, ProjectScope, ProjectAdmin, Saving, FieldError, FormError, Created).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): invite dialog with stories`.
+- [x] **Step 1: Write the failing tests** in `InviteDialog.test.tsx`: BR-29 `projectsOnly` hides "Whole organization" and lists only the given projects; the role select offers exactly `roles`; field errors render with `aria-invalid`; the created step focuses "Copy link"; Cancel calls `onCancel`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/InviteDialog.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the component and `Components/InviteDialog` stories (Default, ProjectScope, ProjectAdmin, Saving, FieldError, FormError, Created).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): invite dialog with stories`.
 
 ---
 

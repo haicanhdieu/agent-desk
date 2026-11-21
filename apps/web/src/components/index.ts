@@ -109,6 +109,7 @@ export {
 } from './Pagination';
 export { RouteSkeleton, RouteLoadError, type RouteLoadErrorProps } from './RouteStates';
 export { ExpiryLabel } from './ExpiryLabel';
+export { InviteDialog, type InviteDialogProps } from './InviteDialog';
 export { InviteLink, type InviteLinkProps } from './InviteLink';
 export { InvitationRow, type InvitationRowProps } from './InvitationRow';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
