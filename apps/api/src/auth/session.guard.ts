@@ -66,13 +66,20 @@ export class SessionGuard implements CanActivate {
   /** Logs the deny and returns the 403 to throw; the response never says which permission is missing. */
   private deny(
     req: FastifyRequest,
-    who: { orgId?: string; userId: string; routeKey: RouteKey | null; permission: string | null },
+    who: {
+      orgId?: string;
+      userId: string;
+      routeKey: RouteKey | null;
+      permission: string | null;
+      projectId?: string;
+    },
   ): ForbiddenException {
     this.logger.info(
       {
         requestId: req.id,
         ...(who.orgId === undefined ? {} : { orgId: who.orgId }),
         userId: who.userId,
+        ...(who.projectId === undefined ? {} : { projectId: who.projectId }),
         routeKey: who.routeKey,
         permission: who.permission,
       },
@@ -116,7 +123,13 @@ export class SessionGuard implements CanActivate {
     const check = await checkTenantAccess(this.db, { userId, orgId }, entry, stringParams(req.params), this.logger);
     if (!check.ok) {
       if (check.status === 404) throw new NotFoundException('Not found');
-      throw this.deny(req, { orgId, userId, routeKey: match.key, permission: permissionLabel(entry) });
+      throw this.deny(req, {
+        orgId,
+        userId,
+        routeKey: match.key,
+        permission: permissionLabel(entry),
+        ...(check.projectId === undefined ? {} : { projectId: check.projectId }),
+      });
     }
     req.orgContext = { userId, orgId };
     req.authz = {

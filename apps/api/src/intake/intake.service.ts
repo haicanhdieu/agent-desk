@@ -28,7 +28,10 @@ export class IntakeService {
     @Inject(TEMPORAL_CLIENT) temporal: Client,
     @Inject(CONFIG) config: Config,
   ) {
-    const log = { warn: (obj: object, msg: string) => this.logger.warn(`${msg} ${JSON.stringify(obj)}`) };
+    const log = {
+      warn: (obj: object, msg: string) => this.logger.warn(`${msg} ${JSON.stringify(obj)}`),
+      info: (obj: object, msg: string) => this.logger.log(`${msg} ${JSON.stringify(obj)}`),
+    };
     this.deps = {
       db,
       registry,

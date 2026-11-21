@@ -16,8 +16,10 @@ import {
 
 /*
  * Real localhost end-to-end: the Vite dev server (proxy to the API on :3000) and the stack from `pnpm dev` at the repo
- * root with KUBE_MODE=fake, ENABLE_FAKE_PROVIDER=true and AUTH_DEV_LOGIN=true. Each run signs in as a new dev-login
- * user (`e2e-<rand>`, a fresh personal org), so it can run against a stack someone is using.
+ * root with KUBE_MODE=fake, ENABLE_FAKE_PROVIDER=true and AUTH_DEV_LOGIN=true. Each flow gets a new owner: the platform admin
+ * (`admin@dev.local`, the PLATFORM_ADMIN_EMAILS default) creates an org whose slug is the handle (`e2e-<rand>`) and invites the
+ * handle as owner, then dev login signs the handle in and accepts the invitation. Nothing is shared with another user's
+ * org, so it can run against a stack someone is using.
  *
  * The fake board (`dev/demo`) is shared by every org on the machine, so the ticket gets a random number.
  */

@@ -15,8 +15,10 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON "role_assignments", "invitations" TO age
 GRANT SELECT ON "role_templates", "role_template_permissions" TO agentdesk_app;--> statement-breakpoint
 
 -- 3. Sign-up gate and acceptance: pending, unexpired invitations for an email across orgs, ids only.
---    FORCE RLS also binds the definer (agentdesk_owner), so it gets a read-only policy on invitations.
-CREATE POLICY "definer_read" ON "invitations" AS PERMISSIVE FOR SELECT TO agentdesk_owner USING (true);--> statement-breakpoint
+--    FORCE RLS also binds the definer (agentdesk_owner), so it gets a read-only policy on invitations,
+--    limited to the rows the function may return (pending and unexpired), not every invitation.
+CREATE POLICY "definer_read" ON "invitations" AS PERMISSIVE FOR SELECT TO agentdesk_owner
+  USING (status = 'pending' AND expires_at > now());--> statement-breakpoint
 
 CREATE FUNCTION pending_invitations_for_email(p_email text)
 RETURNS TABLE (id uuid, org_id uuid)

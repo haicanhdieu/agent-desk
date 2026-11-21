@@ -103,3 +103,23 @@ export async function resolveRunOwner(tx: Tx, input: RunOwnerInput): Promise<Run
   }
   return { kind: 'owner', userId, originRunId };
 }
+
+/**
+ * Fields for the intake log line that records the owner decision: the origin (a human commenter or the desk's own bot),
+ * the outcome and, when decided, the owner and origin run ids. Ids and fixed labels only: no ticket or comment text, no
+ * commenter login, no provider payload.
+ */
+export function runOwnerLogFields(
+  owner: RunOwner,
+  event: Pick<TicketEvent, 'author'>,
+  botLogin: string,
+): { origin: 'human' | 'bot'; outcome: string; ownerUserId?: string; originRunId?: string } {
+  const origin = botLogin !== '' && event.author === botLogin ? 'bot' : 'human';
+  if (owner.kind === 'ignored') return { origin, outcome: owner.outcome };
+  return {
+    origin,
+    outcome: 'owner',
+    ownerUserId: owner.userId,
+    ...(owner.originRunId === null ? {} : { originRunId: owner.originRunId }),
+  };
+}

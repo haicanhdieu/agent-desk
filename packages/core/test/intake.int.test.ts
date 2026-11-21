@@ -439,6 +439,25 @@ describe('processTicketEvent: run owner', () => {
     expect((await runsOf(s))[0]).toMatchObject({ ownerUserId: s.ownerId, originRunId: null });
   });
 
+  it('logs the owner decision at info with ids only', async () => {
+    const s = await seed();
+    const log = { warn: vi.fn(), info: vi.fn() };
+    const h = harness({ log });
+    const e = eventFor(s);
+    await processTicketEvent(h.deps, e, 'webhook');
+    expect(log.info).toHaveBeenCalledWith(
+      {
+        deliveryId: e.deliveryId,
+        projectId: s.projectId,
+        channel: 'webhook',
+        origin: 'human',
+        outcome: 'owner',
+        ownerUserId: s.ownerId,
+      },
+      'intake run owner decided',
+    );
+  });
+
   it('a commenter that is not linked starts no run and the board is not called', async () => {
     const s = await seed();
     const h = harness();

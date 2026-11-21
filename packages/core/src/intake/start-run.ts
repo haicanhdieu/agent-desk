@@ -13,6 +13,7 @@ export interface WorkflowStarter {
 
 export interface IntakeLogger {
   warn(obj: object, msg: string): void;
+  info?(obj: object, msg: string): void;
 }
 
 /**

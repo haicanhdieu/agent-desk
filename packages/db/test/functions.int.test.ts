@@ -260,4 +260,22 @@ describe('pendingInvitationsForEmail', () => {
     );
     expect(grants.rows.map((g: { grantee: string }) => g.grantee)).toEqual(['agentdesk_app', 'agentdesk_owner']);
   });
+
+  it('has no PUBLIC execute and the definer policy only exposes pending, unexpired rows', async () => {
+    const acl = await ownerQuery(
+      `select has_function_privilege('public', 'pending_invitations_for_email(text)', 'EXECUTE') as public_exec,
+              has_function_privilege('agentdesk_app', 'pending_invitations_for_email(text)', 'EXECUTE') as app_exec`,
+    );
+    expect(acl.rows).toEqual([{ public_exec: false, app_exec: true }]);
+    // The owner has no app.org_id here, so only the definer_read policy applies: no expired, accepted or revoked rows.
+    await insertInvitation(a, 'dave@x.io', 'pending', `now() - interval '1 second'`);
+    await insertInvitation(a, 'dave@x.io', 'accepted', `now() + interval '7 days'`);
+    const seen = await ownerQuery(
+      `select count(*)::int as total,
+              count(*) filter (where status <> 'pending' or expires_at <= now())::int as hidden
+       from invitations`,
+    );
+    expect(seen.rows[0].total).toBeGreaterThan(0);
+    expect(seen.rows[0].hidden).toBe(0);
+  });
 });

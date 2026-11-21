@@ -7,7 +7,7 @@ import { resolveTarget, type ResolvedTarget } from './target-resolver';
 
 export type AccessCheck =
   | { ok: true; access: Access; target?: ResolvedTarget }
-  | { ok: false; status: 403 | 404; reason: string; permission?: Permission };
+  | { ok: false; status: 403 | 404; reason: string; permission?: Permission; projectId?: string };
 
 /** True when the user has a `member` row in the org. Every tenant check starts here. */
 export async function isOrgMember(db: Db, who: { userId: string; orgId: string }): Promise<boolean> {
@@ -45,8 +45,13 @@ export async function checkTenantAccess(
   }
   if (entry.scope === 'platform') return { ok: false, status: 403, reason: 'platform-route' };
   const permission = permissionOf(entry);
-  const refused = (status: 403 | 404, reason: string): AccessCheck =>
-    permission === undefined ? { ok: false, status, reason } : { ok: false, status, reason, permission };
+  const refused = (status: 403 | 404, reason: string, projectId?: string): AccessCheck => ({
+    ok: false,
+    status,
+    reason,
+    ...(permission === undefined ? {} : { permission }),
+    ...(projectId === undefined ? {} : { projectId }),
+  });
 
   return withOrg(db, who.orgId, async (tx): Promise<AccessCheck> => {
     const access = await loadAccess(tx, who.userId, log);
@@ -57,7 +62,7 @@ export async function checkTenantAccess(
     const target = await resolveTarget(tx, entry.param, params[entry.param]);
     const decision = targetDecision(entry, access, target);
     if (decision === 'not-found' || target === null) return refused(404, 'target-not-found');
-    if (decision === 'forbidden') return refused(403, 'permission-on-target');
+    if (decision === 'forbidden') return refused(403, 'permission-on-target', target.projectId);
     return { ok: true, access, target };
   });
 }

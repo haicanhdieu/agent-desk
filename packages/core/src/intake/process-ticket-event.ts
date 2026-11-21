@@ -18,7 +18,7 @@ import { isAuthorizedAuthor, routeEvent, type RuleRow } from '../router/route-ev
 import type { AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
 import { toAdapterProject } from '../adapters/project';
 import { normalizeLinkedRefs } from '../adapters/linked-refs';
-import { resolveRunOwner } from '../access/run-owner';
+import { resolveRunOwner, runOwnerLogFields } from '../access/run-owner';
 import { isUniqueViolation } from './pg-errors';
 import type { IntakeLogger } from './start-run';
 
@@ -331,6 +331,10 @@ async function decideInTx(
         event,
         botLogin: deps.botLogin,
       });
+      deps.log?.info?.(
+        { deliveryId: event.deliveryId, projectId, channel, ...runOwnerLogFields(owner, event, deps.botLogin) },
+        'intake run owner decided',
+      );
       return owner.kind === 'owner'
         ? { kind: 'ok', userId: owner.userId, originRunId: owner.originRunId }
         : { kind: 'ignored', outcome: owner.outcome, detail: owner.detail };
