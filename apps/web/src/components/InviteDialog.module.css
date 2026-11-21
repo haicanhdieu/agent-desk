@@ -1,0 +1,35 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.projects {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-left: 16px;
+}
+.project {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-13);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.text {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--text);
+}
+.help {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
