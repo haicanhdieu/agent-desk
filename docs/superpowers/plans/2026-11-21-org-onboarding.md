@@ -1739,9 +1739,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding` (`twoOrgs`, `singleOrg`, `twoOrgsSlowSwitch`, `twoOrgsNoRoleInSecond`) (Task 17).
 
-- [ ] **Step 1: Write the spec**: TC-6.1, TC-6.2 (BR-6, keyboard); TC-9.1 (BR-9); TC-10.1 (BR-10); TC-12.1, TC-12.2 (BR-12); TC-44.1, TC-44.2 (BR-44); TC-46.1 (BR-46).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-switch.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the org switcher`.
+- [x] **Step 1: Write the spec**: TC-6.1, TC-6.2 (BR-6, keyboard); TC-9.1 (BR-9); TC-10.1 (BR-10); TC-12.1, TC-12.2 (BR-12); TC-44.1, TC-44.2 (BR-44); TC-46.1 (BR-46).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-switch.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the org switcher`.
 
 ---
 
