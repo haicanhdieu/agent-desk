@@ -17,7 +17,7 @@ import { AGENT_HTTP } from '../../src/agents/agent-http.provider';
 import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
 import { AppModule } from '../../src/app.module';
 import { configureApp, createAdapter } from '../../src/bootstrap';
-import { createLogger } from '../../src/common/logger';
+import { LOGGER, createLogger } from '../../src/common/logger';
 import { CONFIG } from '../../src/config/config.module';
 import { parseConfig, type Config } from '../../src/config/config.schema';
 import { DB } from '../../src/db/db.module';
@@ -119,6 +119,8 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
           ? options.wrapAdapters(createAdapterRegistry(config, systemClock))
           : createAdapterRegistry(config, systemClock),
       )
+      .overrideProvider(LOGGER)
+      .useValue(options.logger ?? createLogger('silent'))
       .overrideProvider(SECRET_STORE)
       .useValue(secrets)
       .overrideProvider(TEMPORAL_CLIENT)

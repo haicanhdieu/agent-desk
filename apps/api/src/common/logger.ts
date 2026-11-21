@@ -2,6 +2,9 @@ import type { LoggerService } from '@nestjs/common';
 import pino, { type Logger } from 'pino';
 import { requestContext } from './request-context';
 
+/** Injection token for the process-wide pino logger. */
+export const LOGGER = Symbol('LOGGER');
+
 export function createLogger(level = process.env['LOG_LEVEL'] ?? 'info'): Logger {
   return pino({
     level,

@@ -788,16 +788,16 @@ export const CurrentPlatformAdmin: ParameterDecorator;  // → PlatformAdminCont
 
   Guard after this task: public paths as today → no session 401 → `dev` matches keep today's member check → `platform` entry: `isPlatformAdmin` else 403 (`FORBIDDEN_DETAIL`), sets `req.platformAdmin`, needs no org → `unknown` under `/api` → 403 → active org and `member` row else 403 → a `:orgId` path param other than the active org → 404 → `loadAccess` under `withOrg` → `req.orgContext`, `req.authz` → `self` and `org-admin` entries enforce `preTargetDecision` (403 + an `info` deny log `{requestId, orgId, userId, routeKey, permission}`); `org`, `project`, `project-list` pass (Task 25 enforces them).
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `config.test.ts` (Review Focus 4): `config trims, lowercases and drops empty platform admin emails` (`" Admin@Dev.Local , ,ops@x.io"` → `['admin@dev.local','ops@x.io']`); unset → `[]`.
   - `route-entry.test.ts`: `('GET','/api/projects/:projectId')` → `projects.get`; the callback url → `connections.install`; `('POST','/dev/fake/comments')` → `dev`; an unlisted `/api` url → `unknown`.
   - `platform-admin.test.ts`: listed + verified → true; listed + unverified → false; case differs → true; unlisted → false.
   - `authorize.test.ts`: `it.each` over viewer-at-org, member-on-P1, project-admin-on-P1, owner and no-grants against one entry of each kind (expected table in the test), e.g. `projects.list` with no grants → `forbidden`; `connections.list` for project admin → `forbidden`; `runs.cancel` for viewer → `forbidden`, for member → `needs-target`; `assignments.create` for project admin → `allow`; `me.access` with no grants → `allow`.
   - `authz.int.test.ts` (N3 route discovery): list every Nest controller route with `DiscoveryService` + `PATH_METADATA`/`METHOD_METADATA`; each one under `/api` resolves to `kind: 'route'` and each under `/dev` to `dev`; every `routeAccess` key is registered (HTTP) or is `runs.terminal`/`setupTests.terminal`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts`, `pnpm --filter @agentdesk/api exec vitest run src/access test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the config key and `.env.example` line `PLATFORM_ADMIN_EMAILS=admin@dev.local`, the four access files, and the guard flow above.
-- [ ] **Step 4: Run** the same commands, then `pnpm --filter @agentdesk/api test` (every existing int file still passes: old routes keep membership-only behaviour). Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): guard resolves route access, platform admins and org-admin routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts`, `pnpm --filter @agentdesk/api exec vitest run src/access test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the config key and `.env.example` line `PLATFORM_ADMIN_EMAILS=admin@dev.local`, the four access files, and the guard flow above.
+- [x] **Step 4: Run** the same commands, then `pnpm --filter @agentdesk/api test` (every existing int file still passes: old routes keep membership-only behaviour). Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): guard resolves route access, platform admins and org-admin routes`.
 
 ---
 

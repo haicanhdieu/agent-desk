@@ -1,31 +1,15 @@
-import { Controller, Body, Param, Put, Get } from '@nestjs/common';
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withOrg } from '@agentdesk/db';
 import { createTestApp, type TestApp } from './helpers/app';
 import { expectContract } from './helpers/contract';
+import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-@Controller('api/audit-probe')
-class CredentialStubController {
-  @Put(':agentId')
-  put(@Param('agentId') agentId: string, @Body() body: Record<string, unknown>) {
-    return { agentId, name: body['name'] };
-  }
-}
-
-@Controller('api/ctx')
-class CtxController {
-  @Get()
-  get() {
-    return { ok: true };
-  }
-}
-
 let t: TestApp;
 beforeAll(async () => {
-  t = await createTestApp({ controllers: [CredentialStubController, CtxController] });
+  t = await createTestApp({ env: { FAKE_STATE_DIR: freshStateDir() }, wrapAdapters: wideFakeRepos });
 });
 afterAll(async () => {
   await t.close();
@@ -174,32 +158,41 @@ describe('auth', () => {
 
   it('audits mutations with the body redacted (no value/token/secret/password keys)', async () => {
     const cookie = cookieOf(await devLogin('dave'));
-    const agentId = '11111111-1111-4111-8111-111111111111';
+    const { projectId } = await makeProject(t, cookie, await installFake(t, cookie));
+    const agent = await t.app.inject({ method: 'GET', url: `/api/projects/${projectId}/agent`, headers: { cookie } });
+    const agentId = (agent.json() as { id: string }).id;
     const res = await t.app.inject({
       method: 'PUT',
-      url: `/api/audit-probe/${agentId}`,
+      url: `/api/agents/${agentId}/credential`,
       headers: { cookie },
-      payload: { name: 'anthropic', value: 'sk-super-secret', nested: [{ token: 't', keep: 1 }], password: 'p' },
+      payload: {
+        type: 'api_key',
+        value: 'sk-super-secret',
+        nested: [{ token: 't', keep: 1 }],
+        password: 'p',
+      },
     });
     expect(res.statusCode).toBe(200);
     const org = await t.db.pool.query("select id from organization where slug = 'dave'");
     // audit_log is RLS-forced: read it through the org context.
     const found = await withOrg(t.db, org.rows[0].id, (tx) =>
-      tx.execute(sql`select action, target_type, target_id, payload, actor_user_id from audit_log`),
+      tx.execute(
+        sql`select action, target_type, target_id, payload, actor_user_id from audit_log where action like 'PUT %'`,
+      ),
     );
     expect(found.rows).toHaveLength(1);
     const row = found.rows[0] as Record<string, unknown>;
-    expect(row['action']).toBe(`PUT /api/audit-probe/${agentId}`);
-    expect(row['target_type']).toBe('audit-probe');
-    expect(row['target_id']).toBeNull();
+    expect(row['action']).toBe('PUT agents.putCredential');
+    expect(row['target_type']).toBe('agents');
+    expect(row['target_id']).toBe(agentId);
     expect(row['actor_user_id']).toEqual(expect.any(String));
-    expect(row['payload']).toEqual({ name: 'anthropic', nested: [{ keep: 1 }] });
+    expect(row['payload']).toEqual({ type: 'api_key', nested: [{ keep: 1 }] });
     expect(JSON.stringify(row['payload'])).not.toContain('sk-super-secret');
   });
 
-  it('does not audit GETs and falls back to METHOD path for unknown routes', async () => {
+  it('does not audit GETs', async () => {
     const cookie = cookieOf(await devLogin('erin'));
-    await t.app.inject({ method: 'GET', url: '/api/ctx', headers: { cookie } });
+    await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } });
     const org = await t.db.pool.query("select id from organization where slug = 'erin'");
     const found = await withOrg(t.db, org.rows[0].id, (tx) => tx.execute(sql`select 1 from audit_log`));
     expect(found.rows).toHaveLength(0);
