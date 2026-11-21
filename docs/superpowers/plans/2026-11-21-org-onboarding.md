@@ -1649,9 +1649,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: Task 10 helpers; `installFake` and the project setup steps of `signInAndCreateProject` (existing helpers, through the API).
 
-- [ ] **Step 1: Write the spec**: TC-13.1 to TC-13.3 (BR-13, org admin granted with the slice 1 helper); TC-14.1 to TC-14.4 (BR-14: each step through the API, then reload); TC-16.1 to TC-16.3 (BR-16: one project, two projects, split steps).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/checklist.spec.ts` with the stack up. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): e2e for the first-run checklist`.
+- [x] **Step 1: Write the spec**: TC-13.1 to TC-13.3 (BR-13, org admin granted with the slice 1 helper); TC-14.1 to TC-14.4 (BR-14: each step through the API, then reload); TC-16.1 to TC-16.3 (BR-16: one project, two projects, split steps).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/checklist.spec.ts` with the stack up. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): e2e for the first-run checklist`.
 
 ---
 
