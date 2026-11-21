@@ -15,6 +15,7 @@ const ListParams = new ZodPipe(routes.platform.listInvitations.params);
 const ListQuery = new ZodPipe(routes.platform.listInvitations.query);
 const CreateParams = new ZodPipe(routes.platform.createInvitation.params);
 const CreateBody = new ZodPipe(routes.platform.createInvitation.body);
+const ResendParams = new ZodPipe(routes.platform.resendInvitation.params);
 const RemoveParams = new ZodPipe(routes.platform.removeInvitation.params);
 
 /** `/api/platform/orgs/:orgId/invitations`: reachable only by a config-listed platform admin (SessionGuard). */
@@ -47,5 +48,14 @@ export class PlatformInvitationsController {
     @Param(RemoveParams) p: { orgId: string; invitationId: string },
   ): Promise<void> {
     return this.invitations.revoke({ kind: 'platform_admin', userId: admin.userId }, p.orgId, p.invitationId);
+  }
+
+  @Post(routePath(routes.platform.resendInvitation))
+  @HttpCode(200)
+  resend(
+    @CurrentPlatformAdmin() admin: PlatformAdminContext,
+    @Param(ResendParams) p: { orgId: string; invitationId: string },
+  ): Promise<PlatformInvitationDto> {
+    return this.invitations.resend({ kind: 'platform_admin', userId: admin.userId }, p.orgId, p.invitationId);
   }
 }

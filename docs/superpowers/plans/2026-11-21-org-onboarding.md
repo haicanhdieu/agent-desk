@@ -578,7 +578,7 @@ resend(actor: Actor, orgId: string, invitationId: string): Promise<InvitationDto
 
   `resend`: missing or other org → 404; slice 1's revoke rights check (same as create and revoke) → 403; one statement `update invitations set status = 'pending', expires_at = now() + make_interval(secs => $s) where org_id = $o and id = $i and status in ('pending','expired') returning *`; zero rows → `ConflictException('Invitation is no longer pending')`; unique violation on `invitations_org_email_pending_key` → `ConflictProblemException` pointer `/email`, detail "This email already has a pending invitation."; audit `invitation.resent` `{ expiresAt }` (`actorKind` `member` or `platform_admin`) in the same transaction; log `info` `{requestId, orgId, invitationId}`.
 
-- [ ] **Step 1: Write the failing tests** (a local `resend(t, cookie, orgId, id, platform?)` helper in the new file):
+- [x] **Step 1: Write the failing tests** (a local `resend(t, cookie, orgId, id, platform?)` helper in the new file):
   - BR-18: resend of a pending row → `status: 'pending'`, same `id`, `expires_at` within a minute of the database `now()` (read in the test) + 172800 s.
   - BR-49: resend of a pending row with past `expires_at`, and of a stored `expired` row → pending again; the invitee's `GET /api/me/invitations/:id` shows `pending` and accept works.
   - BR-19: resend of accepted, declined and revoked rows → 409, row unchanged; `Promise.all` of resend and revoke on one pending row ends with exactly one of them applied and the other 409 (assert final state, not order).
@@ -586,10 +586,10 @@ resend(actor: Actor, orgId: string, invitationId: string): Promise<InvitationDto
   - Rights: member and viewer → 403; a project admin on a P2 invitation they do not administer → 403; another org's id → 404; the platform mirror works for a platform admin and returns `PlatformInvitationDto`.
   - N-2: one `invitation.resent` row per resend; N-3: the logger line has no email.
   - `invitations.int.test.ts` (N-8): slice 1's 7-day expectations become `now()` + 2 days on create.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitation-resend.int.test.ts test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `resend`, the two controller routes and the create expiry; delete the two resend lines from `NOT_REGISTERED_YET`.
-- [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts` and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): resend pending or expired invitations with a 2-day expiry`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitation-resend.int.test.ts test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `resend`, the two controller routes and the create expiry; delete the two resend lines from `NOT_REGISTERED_YET`.
+- [x] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts` and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): resend pending or expired invitations with a 2-day expiry`.
 
 ---
 

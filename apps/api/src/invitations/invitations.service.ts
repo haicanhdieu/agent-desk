@@ -1,7 +1,9 @@
-import { Inject, Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
+import { ConflictException, Inject, Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
+import type { Logger } from 'pino';
+import { and, desc, eq, ne, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
 import { invitations, member, projects, roles, user, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
+  INVITATION_EXPIRY_SECONDS,
   InvitationStatus,
   can,
   holdsAnywhere,
@@ -22,13 +24,12 @@ import { checkTenantAssign, type RoleForGrant } from '../access/grant-rules';
 import { writeAuditEntry } from '../audit/audit-entry';
 import { isUniqueViolation } from '../common/pg-errors';
 import { ConflictProblemException, UnprocessableProblemException } from '../common/zod-validation';
+import { LOGGER } from '../common/logger';
+import { requestContext } from '../common/request-context';
 import { DB } from '../db/db.module';
 import { OrgsService } from '../orgs/orgs.service';
 import { loadRole } from '../orgs/roles';
 import { toInviterDto } from './inviter';
-
-/** SQL fragment: an invitation expires this long after creation. Computed in SQL (`now()`), never in JS. */
-export const INVITATION_TTL = "interval '7 days'";
 
 /** A row of `invitations`; `status` is the effective one (a pending row past `expires_at` reads `expired`). */
 export type InvitationRow = typeof invitations.$inferSelect;
@@ -81,6 +82,45 @@ function auditPayload(row: InvitationRow, role: { id: string; key: string }): Re
   };
 }
 
+/**
+ * Pending rows of (org, email) past their expiry are set 'expired' (audit invitation.expired) so the pending-email
+ * unique key only counts live ones; `exceptId` leaves one row alone (the one being resent).
+ */
+async function expireStalePending(
+  tx: Tx,
+  orgId: string,
+  email: string,
+  actor: Actor,
+  exceptId?: string,
+): Promise<void> {
+  const stale = await tx
+    .update(invitations)
+    .set({ status: 'expired' })
+    .where(
+      and(
+        eq(invitations.orgId, orgId),
+        eq(invitations.email, email),
+        eq(invitations.status, 'pending'),
+        sql`${invitations.expiresAt} <= now()`,
+        exceptId === undefined ? undefined : ne(invitations.id, exceptId),
+      ),
+    )
+    .returning();
+  const staleRoles = await roleRefs(tx, [...new Set(stale.map((s) => s.roleId))]);
+  for (const row of stale) {
+    const staleRole = staleRoles.get(row.roleId);
+    await writeAuditEntry(tx, {
+      orgId,
+      actorUserId: actorUserId(actor),
+      actorKind: actor.kind,
+      action: 'invitation.expired',
+      targetType: 'invitation',
+      targetId: row.id,
+      payload: auditPayload(row, { id: row.roleId, key: staleRole?.key ?? '' }),
+    });
+  }
+}
+
 export async function roleRefs(tx: Tx, ids: string[]): Promise<Map<string, RoleRef>> {
   if (ids.length === 0) return new Map();
   const rows = await tx
@@ -103,6 +143,7 @@ export class InvitationsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(OrgsService) private readonly orgs: OrgsService,
+    @Inject(LOGGER) private readonly logger: Logger,
   ) {}
 
   /**
@@ -142,31 +183,7 @@ export class InvitationsService {
         if (existing[0]) throw alreadyMember();
 
         const actorId = actorUserId(actor);
-        const stale = await tx
-          .update(invitations)
-          .set({ status: 'expired' })
-          .where(
-            and(
-              eq(invitations.orgId, orgId),
-              eq(invitations.email, req.email),
-              eq(invitations.status, 'pending'),
-              sql`${invitations.expiresAt} <= now()`,
-            ),
-          )
-          .returning();
-        const staleRoles = await roleRefs(tx, [...new Set(stale.map((s) => s.roleId))]);
-        for (const row of stale) {
-          const staleRole = staleRoles.get(row.roleId);
-          await writeAuditEntry(tx, {
-            orgId,
-            actorUserId: actorId,
-            actorKind: actor.kind,
-            action: 'invitation.expired',
-            targetType: 'invitation',
-            targetId: row.id,
-            payload: auditPayload(row, { id: row.roleId, key: staleRole?.key ?? '' }),
-          });
-        }
+        await expireStalePending(tx, orgId, req.email, actor);
 
         const [row] = await tx
           .insert(invitations)
@@ -177,7 +194,7 @@ export class InvitationsService {
             scopeType: req.scope.type,
             projectIds,
             status: 'pending',
-            expiresAt: sql`now() + ${sql.raw(INVITATION_TTL)}`,
+            expiresAt: sql`now() + make_interval(secs => ${INVITATION_EXPIRY_SECONDS})`,
             invitedBy: actorId,
           })
           .returning();
@@ -238,6 +255,70 @@ export class InvitationsService {
       });
       return toPage(items, counted?.total ?? 0, q);
     });
+  }
+
+  /**
+   * Missing or another org's → 404; the revoke rights check → 403; then one statement sets a pending or expired row
+   * to pending with a fresh expiry (zero rows → 409; the pending-email unique key → 409 /email). Audit
+   * invitation.resent in the same transaction.
+   */
+  async resend(actor: Actor, orgId: string, invitationId: string): Promise<InvitationDto> {
+    if (actor.kind === 'member' && !holdsInviteRight(actor.access)) throw forbidden();
+    await this.orgs.requireOrg(orgId);
+    try {
+      const dto = await withOrg(this.db, orgId, async (tx) => {
+        const [current] = await tx
+          .select(invitationColumns)
+          .from(invitations)
+          .where(and(eq(invitations.orgId, orgId), eq(invitations.id, invitationId)))
+          .limit(1);
+        if (!current) throw new NotFoundException('Invitation not found');
+        // the role FK is ON DELETE restrict, so a missing role is an invariant break: fail closed
+        const role = await loadRole(tx, current.roleId);
+        if (!role) throw new NotFoundException('Invitation not found');
+        if (actor.kind === 'member') {
+          const scope =
+            current.scopeType === 'project'
+              ? { type: 'project' as const, projectIds: current.projectIds }
+              : { type: 'org' as const };
+          if (!mayInvite(actor.access, role, scope)) throw forbidden();
+        }
+        await expireStalePending(tx, orgId, current.email, actor, invitationId);
+        const [row] = await tx
+          .update(invitations)
+          .set({ status: 'pending', expiresAt: sql`now() + make_interval(secs => ${INVITATION_EXPIRY_SECONDS})` })
+          .where(
+            and(
+              eq(invitations.orgId, orgId),
+              eq(invitations.id, invitationId),
+              inArray(invitations.status, ['pending', 'expired']),
+            ),
+          )
+          .returning();
+        if (!row) throw new ConflictException('Invitation is no longer pending');
+        await writeAuditEntry(tx, {
+          orgId,
+          actorUserId: actorUserId(actor),
+          actorKind: actor.kind,
+          action: 'invitation.resent',
+          targetType: 'invitation',
+          targetId: row.id,
+          payload: { expiresAt: row.expiresAt.toISOString() },
+        });
+        const projectList = await projectRefs(tx, orgId, row.projectIds);
+        return toInvitationDto(
+          row,
+          { id: role.id, key: role.key, name: role.name },
+          projectList,
+          await inviterOf(tx, row.invitedBy),
+        );
+      });
+      this.logger.info({ requestId: requestContext.get()?.requestId, orgId, invitationId }, 'invitation resent');
+      return dto;
+    } catch (err) {
+      if (isUniqueViolation(err)) throw alreadyPending();
+      throw err;
+    }
   }
 
   /** Missing → 404; computed status not pending → 409; else 'revoked' + audit invitation.revoked. */
@@ -373,6 +454,12 @@ function alreadyMember(): ConflictProblemException {
 function alreadyInvited(): ConflictProblemException {
   return new ConflictProblemException('Already invited', [
     { pointer: '/email', detail: 'this address already has a pending invitation; revoke it first' },
+  ]);
+}
+
+function alreadyPending(): ConflictProblemException {
+  return new ConflictProblemException('Already invited', [
+    { pointer: '/email', detail: 'This email already has a pending invitation.' },
   ]);
 }
 

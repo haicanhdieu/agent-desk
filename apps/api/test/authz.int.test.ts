@@ -30,7 +30,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = ['invitations.resend', 'platform.resendInvitation', 'orgs.checklist'];
+const NOT_REGISTERED_YET: RouteKey[] = ['orgs.checklist'];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];

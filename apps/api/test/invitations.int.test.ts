@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import pg, { type QueryResultRow } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
-import type { InvitationDto, Page, RoleDto } from '@agentdesk/contracts';
+import { INVITATION_EXPIRY_SECONDS, type InvitationDto, type Page, type RoleDto } from '@agentdesk/contracts';
 import { connections, projects, withOrg } from '@agentdesk/db';
 import { createTestApp, type TestApp } from './helpers/app';
 import { acceptPendingInvitations } from '../src/auth/accept-invitations';
@@ -115,7 +115,7 @@ async function fixture(slug: string): Promise<Fixture> {
 }
 
 describe('platform invitation create', () => {
-  it('creates a pending org-scope invitation that expires 7 days after it was created', async () => {
+  it('creates a pending org-scope invitation that expires 2 days after it was created', async () => {
     const f = await fixture('inv-create');
     const res = await invite(f.orgId, { email: 'first@example.com', roleId: f.roles.owner, scope: { type: 'org' } });
     expect(res.statusCode).toBe(201);
@@ -128,7 +128,7 @@ describe('platform invitation create', () => {
       acceptedAt: null,
     });
     const days = (Date.parse(dto.expiresAt) - Date.parse(dto.createdAt)) / 1000;
-    expect(Math.abs(days - 7 * 24 * 3600)).toBeLessThan(5);
+    expect(Math.abs(days - INVITATION_EXPIRY_SECONDS)).toBeLessThan(5);
     const adminId = (await t.db.pool.query('select id from "user" where email = $1', ['admin@dev.local'])).rows[0]?.id;
     expect(adminId).toBeTruthy();
     expect(dto.invitedBy).toEqual({ name: expect.any(String), handle: expect.any(String) });
