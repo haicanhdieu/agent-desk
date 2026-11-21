@@ -1,4 +1,4 @@
-<!-- dev-plan: kind=spec id=show-pr-status-colors rev=1 hash=b266fc599be9 source=issue#202 -->
+<!-- dev-plan: kind=spec id=show-pr-status-colors rev=2 hash=7687d9a6df33 source=issue#202 -->
 # Show PR status colors design
 
 Status: draft. Sensitive paths: a new GitHub API call with the installation token in the board adapter, behind a new

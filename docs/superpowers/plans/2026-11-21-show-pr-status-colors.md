@@ -1,4 +1,4 @@
-<!-- dev-plan: kind=plan id=show-pr-status-colors rev=1 hash=3af79a98ffb1 spec=docs/superpowers/specs/2026-11-21-show-pr-status-colors-design.md spec-hash=b266fc599be9 -->
+<!-- dev-plan: kind=plan id=show-pr-status-colors rev=2 hash=6ec092337399 spec=docs/superpowers/specs/2026-11-21-show-pr-status-colors-design.md spec-hash=7687d9a6df33 -->
 # Show PR status colors Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
