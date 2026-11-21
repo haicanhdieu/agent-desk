@@ -2,6 +2,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import {
   createDb,
+  invitationOrgForEmail,
   listenRunStatus,
   notifyRunStatus,
   pendingInvitationsForEmail,
@@ -277,5 +278,95 @@ describe('pendingInvitationsForEmail', () => {
     );
     expect(seen.rows[0].total).toBeGreaterThan(0);
     expect(seen.rows[0].hidden).toBe(0);
+  });
+});
+
+describe('invitationOrgForEmail', () => {
+  const STATUSES = ['pending', 'accepted', 'declined', 'revoked', 'expired'] as const;
+  const ids = new Map<string, string>();
+
+  async function ownerQuery(stmt: string, params: unknown[] = [], org?: string): Promise<pg.QueryResult> {
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      if (org) await client.query(`select set_config('app.org_id', $1, true)`, [org]);
+      const r = await client.query(stmt, params);
+      await client.query('commit');
+      return r;
+    } finally {
+      await client.end();
+    }
+  }
+
+  beforeAll(async () => {
+    for (const status of STATUSES) {
+      // Each status has its own email so the one-pending-per-email key never collides.
+      const r = await ownerQuery(
+        `insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+         values ($1, $2, $3, 'org', $4, now() + interval '2 days', $5) returning id`,
+        [a.orgId, `lookup-${status}@x.io`, a.memberRoleId, status, a.userId],
+        a.orgId,
+      );
+      ids.set(status, (r.rows[0] as { id: string }).id);
+    }
+  });
+
+  it.each(STATUSES)('returns the org id for the matching email on a %s invitation', async (status) => {
+    expect(await invitationOrgForEmail(db, ids.get(status) ?? '', `lookup-${status}@x.io`)).toBe(ORG_A);
+  });
+
+  it('matches an upper-case email argument', async () => {
+    expect(await invitationOrgForEmail(db, ids.get('pending') ?? '', 'Lookup-Pending@X.io')).toBe(ORG_A);
+  });
+
+  it("returns null for another email, a random uuid, and another org's invitation id with the wrong email", async () => {
+    const pendingId = ids.get('pending') ?? '';
+    expect(await invitationOrgForEmail(db, pendingId, 'someone-else@x.io')).toBeNull();
+    expect(await invitationOrgForEmail(db, '8f1f2d54-0000-4000-8000-000000000000', 'lookup-pending@x.io')).toBeNull();
+    expect(await invitationOrgForEmail(db, b.invitationId, 'lookup-pending@x.io')).toBeNull();
+  });
+
+  it('is security definer with a pinned search_path and executable only by the app role', async () => {
+    const fn = await ownerQuery(
+      `select prosecdef, proconfig, pg_get_userbyid(proowner) as owner from pg_proc where proname = 'invitation_org_for_email'`,
+    );
+    expect(fn.rows).toEqual([
+      { prosecdef: true, proconfig: ['search_path=public, pg_temp'], owner: 'agentdesk_owner' },
+    ]);
+    const acl = await ownerQuery(
+      `select has_function_privilege('public', 'invitation_org_for_email(uuid, text)', 'EXECUTE') as public_exec,
+              has_function_privilege('agentdesk_app', 'invitation_org_for_email(uuid, text)', 'EXECUTE') as app_exec`,
+    );
+    expect(acl.rows).toEqual([{ public_exec: false, app_exec: true }]);
+    const grants = await ownerQuery(
+      `select grantee from information_schema.routine_privileges
+       where routine_name = 'invitation_org_for_email' and privilege_type = 'EXECUTE' order by 1`,
+    );
+    expect(grants.rows.map((g: { grantee: string }) => g.grantee)).toEqual(['agentdesk_app', 'agentdesk_owner']);
+  });
+
+  it('clears the lookup setting after a call and a plain select still sees no invitation', async () => {
+    const client = await db.pool.connect();
+    try {
+      await client.query('begin');
+      await client.query('select invitation_org_for_email($1, $2)', [ids.get('declined'), 'lookup-declined@x.io']);
+      const setting = await client.query(`select current_setting('agentdesk.invitation_lookup', true) as v`);
+      expect(setting.rows[0].v ?? '').toBe('');
+      const plain = await client.query('select 1 from invitations');
+      expect(plain.rowCount).toBe(0);
+      await client.query('commit');
+    } finally {
+      client.release();
+    }
+    // The owner without an org sees only what the definer policies allow: no declined, accepted or revoked row.
+    const seen = await ownerQuery(
+      `select count(*)::int as n from invitations where status in ('declined','revoked','accepted')`,
+    );
+    expect(seen.rows[0].n).toBe(0);
+  });
+
+  it('pendingInvitationsForEmail omits declined rows', async () => {
+    expect(await pendingInvitationsForEmail(db, 'lookup-declined@x.io')).toEqual([]);
   });
 });

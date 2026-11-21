@@ -165,7 +165,7 @@ export const invitations = pgTable(
     // Matches the invitations list ORDER BY (created_at desc, id desc).
     index('invitations_org_created_idx').on(t.orgId, t.createdAt.desc().nullsFirst(), t.id.desc().nullsFirst()),
     check('invitations_scope_type_check', sql`${t.scopeType} in ('org','project')`),
-    check('invitations_status_check', sql`${t.status} in ('pending','accepted','revoked','expired')`),
+    check('invitations_status_check', sql`${t.status} in ('pending','accepted','declined','revoked','expired')`),
     check(
       'invitations_scope_check',
       sql`(${t.scopeType} = 'org' and ${t.projectIds} = '{}') or (${t.scopeType} = 'project' and cardinality(${t.projectIds}) >= 1)`,

@@ -38,3 +38,12 @@ export async function pendingInvitationsForEmail(db: Db, email: string): Promise
   );
   return r.rows.map((x) => ({ id: x.id, orgId: x.org_id }));
 }
+
+/** The org id of the invitation when its email equals lower(email), in any status; null otherwise (SECURITY DEFINER). */
+export async function invitationOrgForEmail(db: Db, invitationId: string, email: string): Promise<string | null> {
+  const r = await db.pool.query<{ org_id: string | null }>('select invitation_org_for_email($1, $2) as org_id', [
+    invitationId,
+    email,
+  ]);
+  return r.rows[0]?.org_id ?? null;
+}

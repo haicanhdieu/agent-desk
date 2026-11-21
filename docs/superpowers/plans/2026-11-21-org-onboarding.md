@@ -15,7 +15,7 @@
 
 - AGENTS.md rules 1 to 11 bind every task. Layering `apps → core → db → contracts`; `web → contracts` only; db cannot import contracts. Names stay generic: invitation, organization, connection, code host, checklist, `x-org-id`. No provider name in tables, types, routes, modules or new copy (existing copy such as the Projects "GitHub" column stays).
 - No new dependency of any kind. Copy-link uses `navigator.clipboard.writeText`.
-- Never edit migrations 0000 to 0027. New: `0028_invitations_declined` (generated), `0029_invitation_org_for_email` (hand-written).
+- Never edit migrations 0000 to 0029. New: `0030_invitations_declined` (generated), `0031_invitation_org_for_email` (hand-written).
 - `INVITATION_EXPIRY_SECONDS = 172800` (2 days) in contracts is the only expiry source; SQL `now() + make_interval(secs => $1)`; never `Date.now()` or `new Date()` in api invitation logic. Stored rows keep their `expires_at` (no backfill).
 - `ORG_HEADER = 'x-org-id'` (org id, not slug); `ORG_QUERY_PARAM = 'orgId'` on SSE and terminal URLs; mismatch → 409 problem with `type: 'org-mismatch'`, WS close `4412`; `NO_INVITATION_CODE = 'no_invitation'`.
 - `/auth/*` allow-list, exactly: `/get-session`, `/sign-in/social`, `/callback/*`, `/sign-out`, `/organization/list`, `/organization/set-active`, `/ok`, `/error`. Everything else under `/auth` answers 404 (dev-login is its own controller).
@@ -376,8 +376,8 @@ export const OrgChecklistDto = z.object({ complete: z.boolean(), projectId: Id.n
 **Files:**
 
 - Modify: `packages/db/src/schema/access.ts`
-- Create: `packages/db/migrations/0028_invitations_declined.sql`, `packages/db/migrations/0029_invitation_org_for_email.sql`
-- Create: `packages/db/migrations/meta/0028_snapshot.json`, `packages/db/migrations/meta/0029_snapshot.json`
+- Create: `packages/db/migrations/0030_invitations_declined.sql`, `packages/db/migrations/0031_invitation_org_for_email.sql`
+- Create: `packages/db/migrations/meta/0030_snapshot.json`, `packages/db/migrations/meta/0031_snapshot.json`
 - Modify: `packages/db/migrations/meta/_journal.json`
 - Modify: `packages/db/src/functions.ts`
 - Test: `packages/db/test/functions.int.test.ts`, `packages/db/test/migrate.int.test.ts`, `packages/db/test/rls.int.test.ts`
@@ -391,16 +391,16 @@ export const OrgChecklistDto = z.object({ complete: z.boolean(), projectId: Id.n
 export async function invitationOrgForEmail(db: Db, invitationId: string, email: string): Promise<string | null>;
 ```
 
-  SQL: `invitations_status_check` becomes `status in ('pending','accepted','declined','revoked','expired')` (generated `0028`). `0029` (hand-written, runs as `agentdesk_owner`): policy `definer_read_lookup` on `invitations` `FOR SELECT TO agentdesk_owner USING (id = nullif(current_setting('agentdesk.invitation_lookup', true), '')::uuid)`; `invitation_org_for_email(p_invitation_id uuid, p_email text) RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp` that sets `agentdesk.invitation_lookup` (transaction-local) to the id, selects `org_id` where `id = p_invitation_id and email = lower(p_email)`, clears the setting and returns the id or null; `REVOKE ALL … FROM PUBLIC`; `GRANT EXECUTE … TO agentdesk_app`.
+  SQL: `invitations_status_check` becomes `status in ('pending','accepted','declined','revoked','expired')` (generated `0030`). `0031` (hand-written, runs as `agentdesk_owner`): policy `definer_read_lookup` on `invitations` `FOR SELECT TO agentdesk_owner USING (id = nullif(current_setting('agentdesk.invitation_lookup', true), '')::uuid)`; `invitation_org_for_email(p_invitation_id uuid, p_email text) RETURNS uuid LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = public, pg_temp` that sets `agentdesk.invitation_lookup` (transaction-local) to the id, selects `org_id` where `id = p_invitation_id and email = lower(p_email)`, clears the setting and returns the id or null; `REVOKE ALL … FROM PUBLIC`; `GRANT EXECUTE … TO agentdesk_app`.
 
-- [ ] **Step 1: Write the failing tests**
-  - `migrate.int.test.ts` (N-7): on a database at 0027 holding pending (including a 7-day `expires_at`), accepted, revoked and expired rows, applying 0028 and 0029 leaves every row and its `expires_at` unchanged; afterwards a `declined` row inserts and `status = 'bogus'` still fails the check.
+- [x] **Step 1: Write the failing tests**
+  - `migrate.int.test.ts` (N-7): on a database at 0029 holding pending (including a 7-day `expires_at`), accepted, revoked and expired rows, applying 0030 and 0031 leaves every row and its `expires_at` unchanged; afterwards a `declined` row inserts and `status = 'bogus'` still fails the check.
   - `functions.int.test.ts`: `invitationOrgForEmail` returns the org id for the matching email in each of the five statuses and for an upper-case email argument; returns null for another email, a random uuid, and another org's invitation id with the wrong email; it is `SECURITY DEFINER` with a pinned `search_path`, executable by `agentdesk_app` only (no PUBLIC); after a call in a transaction, `current_setting('agentdesk.invitation_lookup', true)` is empty; a plain `select` by the app role still sees no other org's invitation; the existing `pendingInvitationsForEmail` still omits declined rows.
   - `rls.int.test.ts`: the invitations leak test seeds a `declined` row in org B and org A's session reads none of B's rows.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/functions.int.test.ts test/migrate.int.test.ts test/rls.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the schema check, `pnpm --filter @agentdesk/db db:generate` for 0028 (read the SQL: only the check changes), the hand-written 0029 with its journal entry and snapshot, and `invitationOrgForEmail`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/db test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(db): declined invitations and the invitation org lookup function`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/functions.int.test.ts test/migrate.int.test.ts test/rls.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the schema check, `pnpm --filter @agentdesk/db db:generate` for 0030 (read the SQL: only the check changes), the hand-written 0031 with its journal entry and snapshot, and `invitationOrgForEmail`.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/db test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(db): declined invitations and the invitation org lookup function`.
 
 ---
 
