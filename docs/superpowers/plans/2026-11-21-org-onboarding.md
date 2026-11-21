@@ -1380,15 +1380,15 @@ export function useDeclineInvitation(): UseMutationResult<null, ApiError, string
 
   `/` and `/projects` with no org → `/invitations`. `/invitations` renders `MyInvitations` (list, empty with the session email and `platformAdmin`, loading, error) under the global top bar (with the switcher for a platform admin). Sign-in: `error` search param → `'no_invitation'` for that exact value, `'other'` for any other value, absent otherwise; `no_invitation` shows `SignInNoInvitationError`, `'other'` "Sign-in failed"; `signIn.social` gets `errorCallbackURL` `/sign-in` keeping `redirect`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `dates.test.ts`: both formats at a pinned time zone; midnight and year boundaries.
   - `map.test.ts`: `accessLine` for org and project scope; `toInvitationCard` keeps `invitedBy.name` as given and null as null (BR-52).
   - `welcome.route.test.tsx`: BR-2 `noOrgInvited` at `/` lands on `/invitations` with one card per pending invitation and Accept and Decline; BR-37 `noOrgUninvited` shows the exact heading and body with the session email, "Sign out" signs out to `/sign-in`, no "Create organization"; BR-34 `platformAdminNoOrg` shows "Create organization" and a switcher reading "No organization"; Accept invalidates and navigates to `/o/<slug>/projects`; Decline asks for confirmation then removes the card; BR-41 after accepting one, the others stay listed.
   - `auth.test.tsx`: BR-1 `/sign-in?error=no_invitation` shows the no-invitation Banner; `?error=other` and `?error=<b>x</b>` show "Sign-in failed" and never render the value; the social sign-in passes `errorCallbackURL: '/sign-in?redirect=…'`; the slice 1 test for `/` with no org now expects `/invitations`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/invitations src/features/auth/auth.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the routes (regenerate `routeTree.gen.ts` with the Vite plugin), mappers, dates and mutations.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): welcome page with invitations and the no-invitation sign-in message`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/invitations src/features/auth/auth.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the routes (regenerate `routeTree.gen.ts` with the Vite plugin), mappers, dates and mutations.
+- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS. Only the Step 2 command was run (the full web suite is the Verifier's).
+- [x] **Step 5: Commit** `feat(web): welcome page with invitations and the no-invitation sign-in message`.
 
 ---
 

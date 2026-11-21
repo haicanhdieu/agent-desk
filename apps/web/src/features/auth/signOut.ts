@@ -26,13 +26,13 @@ export function resetSignOutGuard(): void {
 
 /**
  * Signs out (best effort: the session may already be gone), clears every cached query and navigates to
- * `/sign-in?redirect=<current location>`. Calls after the first are ignored until `resetSignOutGuard()`.
+ * `/sign-in?redirect=<current location>` (`null` goes to plain `/sign-in`). Calls after the first are ignored until `resetSignOutGuard()`.
  */
-export async function signOutAndRedirect(redirect?: string): Promise<void> {
+export async function signOutAndRedirect(redirect?: string | null): Promise<void> {
   if (signingOut || !target) return;
   signingOut = true;
   const { router, queryClient } = target;
-  const current = redirect ?? router.state.location.href;
+  const current = redirect === undefined ? router.state.location.href : redirect;
   const back = router.state.location.pathname === '/sign-in' ? undefined : safeRedirect(current);
   try {
     await authClient.signOut();
