@@ -1685,9 +1685,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding` (Task 17); clipboard stubbed with `addInitScript`.
 
-- [ ] **Step 1: Write the spec**: TC-19.1 to TC-19.4 (BR-19, `owner` and `invitationChanged`); TC-20.3, TC-20.4 (BR-20, `member`, `viewer`); TC-30.2 to TC-30.4 (BR-30, `invitationsPaged`); TC-33.1, TC-33.2 (BR-33); TC-51.1 to TC-51.5 (BR-51, `invitationsExpiry` with `page.clock`); TC-52.2 (BR-52).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/invitations.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the invitations list and row actions`.
+- [x] **Step 1: Write the spec**: TC-19.1 to TC-19.4 (BR-19, `owner` and `invitationChanged`); TC-20.3, TC-20.4 (BR-20, `member`, `viewer`); TC-30.2 to TC-30.4 (BR-30, `invitationsPaged`); TC-33.1, TC-33.2 (BR-33); TC-51.1 to TC-51.5 (BR-51, `invitationsExpiry` with `page.clock`); TC-52.2 (BR-52).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/invitations.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the invitations list and row actions`.
 
 ---
 
