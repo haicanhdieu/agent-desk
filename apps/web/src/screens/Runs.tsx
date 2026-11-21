@@ -139,7 +139,7 @@ export function Runs({
           <DataTable columns={columns} busy={pagination?.busy}>
             {grouped
               ? shown.flatMap((g) => [
-                  <TicketGroupRow key={`g${g.ticket.number}`} group={g} colSpan={columns.length} />,
+                  <TicketGroupRow key={`g${g.ticket.kind}:${g.ticket.number}`} group={g} colSpan={columns.length} />,
                   ...g.runs.map((r, i) => (
                     <RunRow
                       key={r.id}

@@ -1,0 +1,15 @@
+{
+  "data": {
+    "repository": {
+      "pullRequest": {
+        "closingIssuesReferences": {
+          "nodes": [
+            { "number": 5, "repository": { "nameWithOwner": "acme/widgets" } },
+            { "number": 21, "repository": { "nameWithOwner": "Acme/Widgets" } },
+            { "number": 8, "repository": { "nameWithOwner": "acme/other" } }
+          ]
+        }
+      }
+    }
+  }
+}

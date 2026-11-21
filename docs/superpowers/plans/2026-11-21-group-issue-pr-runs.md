@@ -15,7 +15,7 @@
 
 - AGENTS.md rules 1 to 11 bind every task. Layering is `apps → core → db → contracts`, and `web → contracts` only. Names stay generic (`linkedTickets`, `linked_issue_refs`, `linkedRefs`, `linked`). GitHub code stays in `packages/core/src/adapters/github/`.
 - No new dependency: no package, library, service, image, CI action, binary or workspace package. `octokit.graphql` comes with the existing `@octokit/rest`.
-- Migration `packages/db/migrations/0022_runs_add_linked_issue_refs.sql` adds `runs.linked_issue_refs text[] not null default '{}'`. No backfill, no index, no RLS change. Never edit 0000 to 0021.
+- Migration `packages/db/migrations/0022_runs_add_linked_issue_refs.sql` adds `runs.linked_issue_refs text[] not null default '{}'`. No backfill, no RLS change. Migration `0023_runs_add_linked_issue_refs_idx.sql` adds the partial GIN index `runs_linked_issue_refs_idx`. Never edit 0000 to 0021.
 - Link data is untrusted. Only same-repo positive integer refs (1 to 2147483647) are kept, as strings, deduplicated, lowest first, at most 10 per PR run. They are written on PR runs only. Issue runs always store `'{}'`. Ticket text is never stored in this column and never interpolated (Drizzle parameters, GraphQL `variables`).
 - A failed or slow link lookup never blocks a run. The run is stored with `'{}'` and shows in the PR's own group.
 - Counting and the run limit stay per `ticketRef` (`ticketRunCount`, `runsForTicket`, `ignored_max_runs`).
@@ -202,21 +202,21 @@ export function normalizeLinkedRefs(refs: readonly (string | number)[]): string[
 - Produces (api): `RunsService.toListItem(row, agent, ticketRunCount, linkedTickets: LinkedTicketDto[] = [])`. `toBase` returns `Omit<RunListItem, 'ticketRunCount' | 'linkedTickets'>`.
 - Produces (web): `RunCore = Omit<RunListItem, 'ticketRunCount' | 'linkedTickets'>` in `features/runs/queries.ts`.
 
-- [ ] **Step 1: Write the failing contract tests** in `runs.test.ts`, in a new `describe('LinkedTicketDto and RunListItem.linkedTickets')`:
+- [x] **Step 1: Write the failing contract tests** in `runs.test.ts`, in a new `describe('LinkedTicketDto and RunListItem.linkedTickets')`:
   - A full `LinkedTicketDto` parses. Leaving out any one of `ref`, `kind`, `number`, `title`, `url`, `labels` or `ticketRunCount` fails. `ticketRunCount: 0` fails.
   - A `RunListItem` with `linkedTickets: []` parses, and one without `linkedTickets` fails. One entry round-trips unchanged.
   - `RunStatsDto` parses with `idleRun` carrying `linkedTickets: [entry]`.
   - Update the existing `RunListItem ticketRunCount` fixtures with `linkedTickets: []`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test runs`. Expected: FAIL (`LinkedTicketDto` is not exported).
-- [ ] **Step 3: Add `LinkedTicketDto` and `linkedTickets`** in `packages/contracts/src/schemas/runs.ts`. Run the same command. Expected: PASS.
-- [ ] **Step 4: Write the failing migration test** in `migrate.int.test.ts`, named `runs.linked_issue_refs is text[] not null default '{}', existing rows read '{}', and the app role writes it`:
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test runs`. Expected: FAIL (`LinkedTicketDto` is not exported).
+- [x] **Step 3: Add `LinkedTicketDto` and `linkedTickets`** in `packages/contracts/src/schemas/runs.ts`. Run the same command. Expected: PASS.
+- [x] **Step 4: Write the failing migration test** in `migrate.int.test.ts`, named `runs.linked_issue_refs is text[] not null default '{}', existing rows read '{}', and the app role writes it`:
   - `information_schema.columns` gives `data_type 'ARRAY'`, `udt_name '_text'`, `is_nullable 'NO'` and a default containing `'{}'`.
   - A runs row inserted without the column reads `[]`.
   - An insert and an update of `linked_issue_refs = '{142}'` through the app role (`env.appUrl`, inside the test org's settings like the other app-role tests) succeed.
   - The SQL file holds only `ALTER TABLE "runs" ADD COLUMN "linked_issue_refs" text[] DEFAULT '{}'::text[] NOT NULL;`. It matches no `update|delete|insert … runs`, the same regex as "the pause and resume migration changes no runs rows".
-- [ ] **Step 5: Add the column** in `packages/db/src/schema/app.ts` after `pauseReason`. Then run `pnpm --filter @agentdesk/db db:generate -- --name runs_add_linked_issue_refs`. Check that the file is named `0022_runs_add_linked_issue_refs.sql` and holds only that one statement.
-- [ ] **Step 6: Run** `pnpm --filter @agentdesk/db test:integration migrate`. Expected: PASS.
-- [ ] **Step 7: Write the failing unit test** `packages/core/test/adapters/linked-refs.test.ts`, named `normalizeLinkedRefs keeps only 1..2147483647 written as plain digits` (Review Focus 2):
+- [x] **Step 5: Add the column** in `packages/db/src/schema/app.ts` after `pauseReason`. Then run `pnpm --filter @agentdesk/db db:generate -- --name runs_add_linked_issue_refs`. Check that the file is named `0022_runs_add_linked_issue_refs.sql` and holds only that one statement.
+- [x] **Step 6: Run** `pnpm --filter @agentdesk/db test:integration migrate`. Expected: PASS.
+- [x] **Step 7: Write the failing unit test** `packages/core/test/adapters/linked-refs.test.ts`, named `normalizeLinkedRefs keeps only 1..2147483647 written as plain digits` (Review Focus 2):
 
 ```ts
 expect(normalizeLinkedRefs(['150', 142, '142', '9'])).toEqual(['9', '142', '150']);
@@ -228,16 +228,16 @@ expect(normalizeLinkedRefs(Array.from({ length: 14 }, (_, i) => String(20 - i)))
 expect(MAX_LINKED_REFS).toBe(10);
 ```
 
-- [ ] **Step 8: Run** `pnpm --filter @agentdesk/core test linked-refs`. Expected: FAIL. **Implement** `linked-refs.ts` (string refs must match `/^[1-9]\d{0,9}$/` and be ≤ 2147483647). **Add** `linkedRefs` to `Ticket`.
-- [ ] **Step 9: Keep core compiling.** Both `getTicket` implementations return `linkedRefs: []`. The issue expectation in `github.test.ts` "getTicket maps issues and PRs" and the stored-ticket expectation in `fake.test.ts` gain `linkedRefs: []`. `router.test.ts` `ticketOf` and `intake.int.test.ts` `ticket()` gain `linkedRefs: []`. Run `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/core test linked-refs github fake router`. Expected: PASS.
-- [ ] **Step 10: Keep the API compiling.** `toListItem` gains `linkedTickets` (default `[]`), and `toBase`'s return type omits it. Run `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:integration runs.int`. Expected: PASS: every `expectContract('runs.list' | 'runs.stats')` parses with `linkedTickets: []`.
-- [ ] **Step 11: Keep the web compiling.**
+- [x] **Step 8: Run** `pnpm --filter @agentdesk/core test linked-refs`. Expected: FAIL. **Implement** `linked-refs.ts` (string refs must match `/^[1-9]\d{0,9}$/` and be ≤ 2147483647). **Add** `linkedRefs` to `Ticket`.
+- [x] **Step 9: Keep core compiling.** Both `getTicket` implementations return `linkedRefs: []`. The issue expectation in `github.test.ts` "getTicket maps issues and PRs" and the stored-ticket expectation in `fake.test.ts` gain `linkedRefs: []`. `router.test.ts` `ticketOf` and `intake.int.test.ts` `ticket()` gain `linkedRefs: []`. Run `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/core test linked-refs github fake router`. Expected: PASS.
+- [x] **Step 10: Keep the API compiling.** `toListItem` gains `linkedTickets` (default `[]`), and `toBase`'s return type omits it. Run `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:integration runs.int`. Expected: PASS: every `expectContract('runs.list' | 'runs.stats')` parses with `linkedTickets: []`.
+- [x] **Step 11: Keep the web compiling.**
   - `RunCore` omits `linkedTickets`.
   - `handlers.ts` `withTicketRunCount` adds `linkedTickets: []`.
   - Every `RunListItem` or `CachedRun` literal in `map.test.ts`, `runs.route.test.tsx`, `realtime.test.tsx` and `applyEvents.test.ts` gains `linkedTickets: []`.
 
   Run `pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 12: Commit** (one commit per package): `feat(contracts): LinkedTicketDto and RunListItem.linkedTickets`, `feat(db): runs.linked_issue_refs column`, `feat(core): Ticket.linkedRefs and normalizeLinkedRefs`, `chore(api): send linkedTickets []`, `chore(web): type list items with linkedTickets`.
+- [x] **Step 12: Commit** (one commit per package): `feat(contracts): LinkedTicketDto and RunListItem.linkedTickets`, `feat(db): runs.linked_issue_refs column`, `feat(core): Ticket.linkedRefs and normalizeLinkedRefs`, `chore(api): send linkedTickets []`, `chore(web): type list items with linkedTickets`.
 
 ---
 
@@ -289,16 +289,16 @@ export type TicketGroup = {
   - The #131 group has `linked` PR #133 `runsUsed: 2`, `runsUsed: 1`, `chainNote: 'Issue #131 (1 of 10 runs) → PR #133 (2 of 10 runs)'`.
   - These are the counts on `RunsLinked.dc.html`.
 
-- [ ] **Step 1: Write the failing component tests** in `RunList.test.tsx` `describe('TicketGroupRow')`:
+- [x] **Step 1: Write the failing component tests** in `RunList.test.tsx` `describe('TicketGroupRow')`:
   - `a merged header shows the chain note with its full text as title, and no count on the right`. A group with `linked` PR #148 `runsUsed: 1` and chain note `'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)'` gives:
     - the chain note text, with the `title` attribute equal to it;
     - `queryByText(/^\d+ of 10 runs$/)` null;
     - the link "Issue #142" and the link "Open #142 in GitHub" still there.
   - `a single-ticket header keeps N of max runs on the right`. With no `linked` (and with `linked: []`), "2 of 10 runs" shows. This keeps the existing test.
   - The existing fixture's `chainNote` becomes the new copy. Its assertions are updated, never deleted.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test RunList`. Expected: FAIL.
-- [ ] **Step 3: Implement** the type, `TicketGroupRow`, the CSS and the `Runs.tsx` key. Run the same command. Expected: PASS.
-- [ ] **Step 4: Update the stories.**
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test RunList`. Expected: FAIL.
+- [x] **Step 3: Implement** the type, `TicketGroupRow`, the CSS and the `Runs.tsx` key. Run the same command. Expected: PASS.
+- [x] **Step 4: Update the stories.**
   - `RunRow.stories.tsx`: the `group()` helper builds a linked PR #148 and the new chain note. Add these stories:
     - `GroupHeaderIssueAndPr`;
     - `GroupHeaderSeveralPrs` (PR #148 1, PR #150 2);
@@ -309,13 +309,13 @@ export type TicketGroup = {
     `Connectors` mixes `#142` and `PR #148` rows.
   - `runs.stories.tsx` `lastPageGroups` becomes "Issue #139 (2 of 10 runs) → PR #140 (2 of 10 runs)" with `linked` PR #140 `runsUsed: 2` (see Agent calls).
   - `mocks/runs.ts` `ticketGroups` becomes as in Interfaces.
-- [ ] **Step 5: Extend `mocks.test.ts`.** Every `ticketGroups` entry with `linked` has `runsUsed <= runsMax` for itself and for each linked entry. Its `chainNote` contains `(${l.runsUsed} of ${g.runsMax} runs)` for each linked entry, and `(${g.runsUsed} of ${g.runsMax} runs)` for the lead.
-- [ ] **Step 6: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS, including the axe smoke test over the new stories.
+- [x] **Step 5: Extend `mocks.test.ts`.** Every `ticketGroups` entry with `linked` has `runsUsed <= runsMax` for itself and for each linked entry. Its `chainNote` contains `(${l.runsUsed} of ${g.runsMax} runs)` for each linked entry, and `(${g.runsUsed} of ${g.runsMax} runs)` for the lead.
+- [x] **Step 6: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS, including the axe smoke test over the new stories.
 - [ ] **Step 7: Visual check.** Run `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`.
   - The `Runs` pair should match `RunsLinked.dc.html`'s headers. Its own `Runs.dc.html` draws the old summed note, which is superseded.
   - Check `GroupHeaderLongChain` by eye against `RunsLinkedLongChain.dc.html`.
   - Do not commit `storybook-static/` or `parity-out/`.
-- [ ] **Step 8: Commit:** `feat(web): merged ticket group header with per-ticket counts in Storybook`.
+- [x] **Step 8: Commit:** `feat(web): merged ticket group header with per-ticket counts in Storybook`.
 
 ---
 
@@ -358,12 +358,12 @@ Registration (all together, in canvas order):
 - `parity.mjs` `stories` gets eight `['Screens/Runs', '<name>']` entries.
 - In `coverage.test.ts`, "71 boards" and `toHaveLength(71)` become 79.
 
-- [ ] **Step 1: Write the failing coverage check.** Change 71 to 79 in `coverage.test.ts`. Run `pnpm --filter @agentdesk/web test coverage`. Expected: FAIL (71 boards in canvas).
-- [ ] **Step 2: Register the eight boards** in `canvas.json`, `storyIds.ts` and `parity.mjs`. Run the same command. Expected: FAIL, now only on `board RunsLinked… has a story`.
-- [ ] **Step 3: Add the fixtures and the eight stories.** Use the existing `artboard(1000)`, `pagination()` and `pagedCommon` helpers of `runs.stories.tsx`. In `mocks.test.ts`, extend the Task 2 `runsUsed <= runsMax` and chain-note checks to every list in `linkedGroups`.
+- [x] **Step 1: Write the failing coverage check.** Change 71 to 79 in `coverage.test.ts`. Run `pnpm --filter @agentdesk/web test coverage`. Expected: FAIL (71 boards in canvas).
+- [x] **Step 2: Register the eight boards** in `canvas.json`, `storyIds.ts` and `parity.mjs`. Run the same command. Expected: FAIL, now only on `board RunsLinked… has a story`.
+- [x] **Step 3: Add the fixtures and the eight stories.** Use the existing `artboard(1000)`, `pagination()` and `pagedCommon` helpers of `runs.stories.tsx`. In `mocks.test.ts`, extend the Task 2 `runsUsed <= runsMax` and chain-note checks to every list in `linkedGroups`.
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS (79 boards, axe smoke test included).
 - [ ] **Step 5: Visual check:** `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`. Compare the eight new `parity-out/<board>.{story,proto}.png` pairs, and fix any difference in layout or copy. Do not commit `storybook-static/` or `parity-out/`.
-- [ ] **Step 6: Commit:** `feat(web): Storybook boards for issue and PR runs in one group`.
+- [x] **Step 6: Commit:** `feat(web): Storybook boards for issue and PR runs in one group`.
 
 ---
 
@@ -406,11 +406,11 @@ export const CLOSING_ISSUES_QUERY: string; // repository(owner,name){ pullReques
 - `getTicket` for an issue makes no GraphQL call and returns `linkedRefs: []`.
 - `IssueBody` gains `body: z.string().nullable().optional()`.
 
-- [ ] **Step 1: Add the fixtures.**
+- [x] **Step 1: Add the fixtures.**
   - `pull.closes.json` is `pull.json` (PR #7, `acme/widgets`) with `"body": "Fixes the flaky test.\n\nCloses #5\nfixes: #12\nSee also #99 and other/repo#3"`.
   - `graphql.pr-closing-issues.json` is `{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":5,"repository":{"nameWithOwner":"acme/widgets"}},{"number":21,"repository":{"nameWithOwner":"Acme/Widgets"}},{"number":8,"repository":{"nameWithOwner":"acme/other"}}]}}}}}`.
   - Both are scrubbed, with no real tokens or users.
-- [ ] **Step 2: Write the failing tests** in `github.test.ts`. Intercept `POST /graphql` on `gh()` and capture the request body.
+- [x] **Step 2: Write the failing tests** in `github.test.ts`. Intercept `POST /graphql` on `gh()` and capture the request body.
   - "getTicket maps issues and PRs" gains a GraphQL intercept for PR #7 (empty nodes). The issue #5 fetch makes no GraphQL call: `vi.spyOn(clients.installation('4242'), 'graphql')` (the client is cached) is not called for #5, and is called once for #7. The adapter swallows GraphQL errors, so a missing intercept alone would not show a call.
   - `a PR's linkedRefs is the union of description keywords and closingIssuesReferences, same repo only`. `pull.closes.json` plus the GraphQL fixture gives `['5', '12', '21']`.
   - `the GraphQL request carries the PR number only in variables`. Parsed body `{ query: CLOSING_ISSUES_QUERY, variables: { owner: 'acme', repo: 'widgets', number: 7 } }`.
@@ -430,11 +430,11 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
 ```
 
   - `more than ten refs are capped at ten, lowest first`. A body naming #1 to #12 gives `['1', … '10']`.
-- [ ] **Step 3: Run** `pnpm --filter @agentdesk/core test github`. Expected: FAIL.
-- [ ] **Step 4: Implement** `closingRefsInBody`, `CLOSING_ISSUES_QUERY`, the private `closingIssueRefs(octokit, owner, repo, number): Promise<string[]>` (parsed with a Zod schema), the `log` constructor argument and `RegistryOptions.log`.
-- [ ] **Step 5: Pass a logger.** The API's `createAdapterRegistry(config, systemClock, { log })` passes `{ warn: (f, m) => logger.warn(\`${m} ${JSON.stringify(f)}\`) }` from a `new Logger('BoardAdapter')`. The worker's factory passes the same shape.
-- [ ] **Step 6: Run** `pnpm --filter @agentdesk/core test github && pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 7: Commit:** `feat(core): read a PR's linked issues from its description and closingIssuesReferences`.
+- [x] **Step 3: Run** `pnpm --filter @agentdesk/core test github`. Expected: FAIL.
+- [x] **Step 4: Implement** `closingRefsInBody`, `CLOSING_ISSUES_QUERY`, the private `closingIssueRefs(octokit, owner, repo, number): Promise<string[]>` (parsed with a Zod schema), the `log` constructor argument and `RegistryOptions.log`.
+- [x] **Step 5: Pass a logger.** The API's `createAdapterRegistry(config, systemClock, { log })` passes `{ warn: (f, m) => logger.warn(\`${m} ${JSON.stringify(f)}\`) }` from a `new Logger('BoardAdapter')`. The worker's factory passes the same shape.
+- [x] **Step 6: Run** `pnpm --filter @agentdesk/core test github && pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 7: Commit:** `feat(core): read a PR's linked issues from its description and closingIssuesReferences`.
 
 ---
 
@@ -458,7 +458,7 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
   - Fake `getTicket`: for a PR, `linkedRefs = normalizeLinkedRefs([...(t.linked ?? []), ...issues in the same repo whose linked includes t.number])`. For an issue, `[]`.
   - `DevTicketBody` gains `linked: z.array(z.number().int().positive().max(1_000_000_000)).max(10).optional()`, which `addTicket` stores. Re-posting a ticket replaces it, so a link can be added later (BR-20).
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `fake.test.ts`:
     - `a fake PR's linkedRefs is its own linked ∪ the issues whose linked lists it`. PR 10 `linked: [3]`, issue 4 `linked: [10]`, issue 5 `linked: [99]` give `['3', '4']`.
     - `a fake issue's linkedRefs is [] even with linked`.
@@ -467,10 +467,10 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
   - `webhooks.int.test.ts` `describe('dev fake routes')`:
     - `POST /dev/fake/tickets accepts linked on PRs and issues`: 201, and `new FakeStore(dir).getTicket(...)` has `linked`.
     - `rejects linked with 0, -1, 1.5, a string or 11 numbers`: 400 problem.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test fake && pnpm --filter @agentdesk/api test:integration webhooks`. Expected: FAIL.
-- [ ] **Step 3: Implement** the store field, the fake `getTicket` union and `DevTicketBody.linked`.
-- [ ] **Step 4: Run** the same commands and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(core): fake tickets carry links on either side`, then `feat(api): dev fake tickets accept linked`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test fake && pnpm --filter @agentdesk/api test:integration webhooks`. Expected: FAIL.
+- [x] **Step 3: Implement** the store field, the fake `getTicket` union and `DevTicketBody.linked`.
+- [x] **Step 4: Run** the same commands and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(core): fake tickets carry links on either side`, then `feat(api): dev fake tickets accept linked`.
 
 ---
 
@@ -488,7 +488,7 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
 - Consumes: `runs.linkedIssueRefs`, `Ticket.linkedRefs`, `normalizeLinkedRefs` (Task 1).
 - Produces: the run insert sets `linkedIssueRefs: kind === 'pr' ? normalizeLinkedRefs(ticket?.linkedRefs ?? []) : []`. Nothing else in intake changes. `runsForTicket` still counts `ticketRef` only. The existing `'ticket snapshot unavailable'` warn (error name only) covers a failed lookup.
 
-- [ ] **Step 1: Write the failing tests** in `intake.int.test.ts` (`harness(over, getTicketImpl)`). The two lookup-failure cases use an event with `ticketKind: 'pr'` and a PR rule without a label filter (like `/code-review`), so the router does not need the ticket. A router that needs it still fails as today.
+- [x] **Step 1: Write the failing tests** in `intake.int.test.ts` (`harness(over, getTicketImpl)`). The two lookup-failure cases use an event with `ticketKind: 'pr'` and a PR rule without a label filter (like `/code-review`), so the router does not need the ticket. A router that needs it still fails as today.
   - `a PR run stores linked_issue_refs from the prefetched ticket`. A PR ticket with `linkedRefs: ['150', '142']` stores `{142,150}`.
   - `an issue run stores '{}' even when its ticket has linkedRefs`.
   - `stored refs are positive integers only, deduplicated and capped at 10` (BR-10, rule 6). `linkedRefs: ['acme/other#5', '0', '-1', 'x', '142', '142', ...12 more numbers]` stores the ten lowest valid ones, and `'acme/other#5'` never appears.
@@ -498,10 +498,10 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
     - PR 148, linked to `142`, has 2 runs. A third PR comment gives `ignored_max_runs`, while issue 142 has 1 run.
     - An issue 142 comment gives `run_created`.
     - The reverse: issue at 2, PR at 1, gives an issue comment `ignored_max_runs` and a PR comment `run_created`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test:integration intake`. Expected: FAIL (column not written).
-- [ ] **Step 3: Implement** the one insert field.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(core): intake stores a PR run's linked issue refs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test:integration intake`. Expected: FAIL (column not written).
+- [x] **Step 3: Implement** the one insert field.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(core): intake stores a PR run's linked issue refs`.
 
 ---
 
@@ -546,7 +546,7 @@ export function assembleLinkedTickets(
 
   Each item's own `ticketRunCount` is unchanged. Both "newest" orders are `queued_at desc, id desc`. `runs.stats` `idleRun` gets the field through `listItems`.
 
-- [ ] **Step 1: Write the failing tests** in `runs.int.test.ts`, in a new `describe('runs list linkedTickets')`. Each test makes its own project and inserts with `insertRun({ ticketRef, ticketKind, ticketNumber, ticketTitle, ticketUrl, ticketLabels, linkedIssueRefs, queuedAt })`, using explicit, distinct `queuedAt`. Every response goes through `expectContract('runs.list' | 'runs.stats', …)`.
+- [x] **Step 1: Write the failing tests** in `runs.int.test.ts`, in a new `describe('runs list linkedTickets')`. Each test makes its own project and inserts with `insertRun({ ticketRef, ticketKind, ticketNumber, ticketTitle, ticketUrl, ticketLabels, linkedIssueRefs, queuedAt })`, using explicit, distinct `queuedAt`. Every response goes through `expectContract('runs.list' | 'runs.stats', …)`.
   - `a PR run linked to an issue with runs lists the lead issue, and the issue run lists the PR` (BR-1):
     - issue 142 has 1 run; PR 148 has 1 run with `['142']`;
     - the PR item's `linkedTickets` is `[{ ref: '142', kind: 'issue', number: 142, title, url, labels, ticketRunCount: 1 }]`;
@@ -579,10 +579,10 @@ export function assembleLinkedTickets(
     - a P2 issue 142 run never lists the P1 PR;
     - bob's request for P1 is 404 (unchanged).
   - `stats.idleRun carries linkedTickets`. An idle linked PR run gives `idleRun.linkedTickets[0].ref === '142'`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test:integration runs.int`. Expected: FAIL (every `linkedTickets` is `[]`).
-- [ ] **Step 3: Implement** `linked-tickets.ts`. Both SQL reads use Drizzle `sql` with bound parameters only (`= any(${refs})`, `&& ${refs}::text[]`). Wire `listItems`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:unit`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(api): runs list items carry their linked tickets`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test:integration runs.int`. Expected: FAIL (every `linkedTickets` is `[]`).
+- [x] **Step 3: Implement** `linked-tickets.ts`. Both SQL reads use Drizzle `sql` with bound parameters only (`= any(${refs})`, `&& ${refs}::text[]`). Wire `listItems`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:unit`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(api): runs list items carry their linked tickets`.
 
 ---
 
@@ -632,7 +632,7 @@ ticketRuns: z.array(z.object({
   - Every runs response goes through `toDto`.
   - `applyMockLists` replaces the project's runs when `runs`, `needsYou` or `ticketRuns` is set.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `contract.test.ts`, `describe('runs.list linkedTickets follow the API rules')`:
     - with the default fixtures, run 62 (PR #148) lists `[issue 142, ticketRunCount 1]`, and run 60 (#142) lists `[PR 148, ticketRunCount 1]`;
     - over `linkedTicketsFor` directly:
@@ -650,10 +650,10 @@ ticketRuns: z.array(z.object({
     - `issue entries carry the user-story label and PR entries use ref pr-<n> and a pull url`;
     - `ticketRuns alone replace the project's runs`;
     - one seed for each scenario the e2e uses parses and gives the expected `linkedTicketsFor` result: a pair, an issue with two PRs (one page and split), a PR with two issues, a PR linked to a zero-run issue, a split pair across pages, and a PR with an old unlinked and a new linked run.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test contract e2eLists`. Expected: FAIL.
-- [ ] **Step 3: Implement** `MockRun`, `linkedTicketsFor`, `toDto`, the handler changes, the fixture links and `ticketRuns`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS. The route tests are unchanged, because the web still ignores `linkedTickets`.
-- [ ] **Step 5: Commit:** `feat(web): mock API serves linkedTickets and seeds linked runs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test contract e2eLists`. Expected: FAIL.
+- [x] **Step 3: Implement** `MockRun`, `linkedTicketsFor`, `toDto`, the handler changes, the fixture links and `ticketRuns`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS. The route tests are unchanged, because the web still ignores `linkedTickets`.
+- [x] **Step 5: Commit:** `feat(web): mock API serves linkedTickets and seeds linked runs`.
 
 ---
 
@@ -702,14 +702,14 @@ export function groupByTicket(runs: RunSummary[], maxRunsPerTicket: number,
   - Calls without `linked` behave as today.
 - The route passes `linkedTicketsByRun(listed.items)` as the fourth argument.
 
-- [ ] **Step 1: Write the first failing test** (spec "Test order"): `map.test.ts` › `groupByTicket` › `puts runs of an issue and its linked PR under one group, each with its own run count`. Issue 142 run 60 with `[pr 148 (1)]`, and PR 148 run 62 with `[issue 142 (1)]`, give one group:
+- [x] **Step 1: Write the first failing test** (spec "Test order"): `map.test.ts` › `groupByTicket` › `puts runs of an issue and its linked PR under one group, each with its own run count`. Issue 142 run 60 with `[pr 148 (1)]`, and PR 148 run 62 with `[issue 142 (1)]`, give one group:
   - `ticket.number` 142 and `runsUsed` 1;
   - `linked` `[{ ticket: { kind: 'pr', number: 148 }, runsUsed: 1 }]`;
   - `chainNote` `'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)'`;
   - runs `[60, 62]`.
 
   Run `pnpm --filter @agentdesk/web test map`. Expected: FAIL (two groups).
-- [ ] **Step 2: Write the other failing mapper tests** in `map.test.ts`:
+- [x] **Step 2: Write the other failing mapper tests** in `map.test.ts`:
   - `a page with only the PR's linked runs is led by the issue, with title, labels and url from linkedTickets` (BR-3).
   - `a page with only the issue's runs shows the merged header with the PR counts` (BR-21).
   - `an issue with two PRs lists both in number order, even when only one PR's runs are on the page` (BR-4).
@@ -723,8 +723,8 @@ export function groupByTicket(runs: RunSummary[], maxRunsPerTicket: number,
   - `a lead taken from linked tickets goes through safeHref and labelColor` (Review Focus 5). Url `'javascript:alert(1)'` gives href `''`, and colour `'red'` gives `''`.
   - `chainNoteOf writes "runs" for one and lists PRs in the given order`.
   - The existing `groupByTicket` and `ticketRunCounts` tests stay as they are.
-- [ ] **Step 3: Implement** the four functions in `map.ts` and wire the route. Run `pnpm --filter @agentdesk/web test map`. Expected: PASS.
-- [ ] **Step 4: Write the failing route tests** in `runs.route.test.tsx` (MSW default fixtures):
+- [x] **Step 3: Implement** the four functions in `map.ts` and wire the route. Run `pnpm --filter @agentdesk/web test map`. Expected: PASS.
+- [x] **Step 4: Write the failing route tests** in `runs.route.test.tsx` (MSW default fixtures):
   - `shows issue #142 and PR #148 under one ticket header`:
     - one row header with the link "Issue #142" and the text "Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)";
     - no header link "PR #148";
@@ -734,10 +734,10 @@ export function groupByTicket(runs: RunSummary[], maxRunsPerTicket: number,
   - Update, never delete:
     - the group-order assertion in "lists every run grouped by ticket" (run 62 now follows run 60 in the #142 group);
     - the "#131 … 2 of 10 runs" assertion in "runs used per ticket count every run of the ticket" (the #131 group is now merged, so assert its chain note "Issue #131 (2 of 10 runs) → PR #133 (2 of 10 runs)").
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test runs.route`. Expected: PASS after the wiring.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/web test runs.route`. Expected: PASS after the wiring.
 - [ ] **Step 6: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
 - [ ] **Step 7: Check the existing mock specs that read the default grouped list still pass.** Build once with `pnpm --filter @agentdesk/web exec vite build --mode mock`. Then run `pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/runs-paging.spec.ts e2e/mock/external-links.spec.ts`. Expected: PASS. If one breaks because the PR #148 or PR #133 header is gone, fix only that assertion and say so in the PR.
-- [ ] **Step 8: Commit:** `feat(web): group a PR's linked runs under its issue with per-ticket counts`.
+- [x] **Step 8: Commit:** `feat(web): group a PR's linked runs under its issue with per-ticket counts`.
 
 ---
 
@@ -782,9 +782,9 @@ Seeds (`ticketRuns`, oldest first; `p(n, [issues])` is a PR entry with `linked`)
 | TC-17.2 | `[i142, p(148,[142]), p(148,[142]), p(148)]` | runs 2 and 3 under "Issue #142"; a separate "PR #148" group holds only run 4, with "3 of 10 runs" on the right |
 | TC-18.1 | `[i139, i139, i139]` | "Issue #139" header with "3 of 10 runs" on the right, no chain note |
 
-- [ ] **Step 1: Write the cases** in the table. The existing tests in the file stay unchanged.
+- [x] **Step 1: Write the cases** in the table. The existing tests in the file stay unchanged.
 - [ ] **Step 2: Build and run:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts`. Expected: PASS for every new and existing test.
-- [ ] **Step 3: Commit:** `test(web): mock e2e for issue and PR runs in one group`.
+- [x] **Step 3: Commit:** `test(web): mock e2e for issue and PR runs in one group`.
 
 ---
 
@@ -812,9 +812,9 @@ Locators: a merged header row is a row with a link `Issue #N` and the text `→`
 | TC-4.2 | `{ runs: { total: 17 }, ticketRuns: [p(148,[142]), i142, p(150,[142]), p(150,[142])] }` (21 runs) | page 2 holds only run 1 (`PR #148`) under "Issue #142" with the full two-PR note |
 | TC-21.1 | `{ runs: { total: 59 }, ticketRuns: [i12, i12, p(13,[12])] }` (62 runs) | page 4: header "Issue #12", note "Issue #12 (2 of 10 runs) → PR #13 (1 of 10 runs)", only `#12` rows, nothing on the right |
 
-- [ ] **Step 1: Write the four cases.**
+- [x] **Step 1: Write the four cases.**
 - [ ] **Step 2: Build and run:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-paging.spec.ts`. Expected: PASS for every new and existing test.
-- [ ] **Step 3: Commit:** `test(web): mock e2e for a merged group across a page break`.
+- [x] **Step 3: Commit:** `test(web): mock e2e for a merged group across a page break`.
 
 ---
 
@@ -865,7 +865,7 @@ Every test uses its own `signInAndCreateProject` project and random ticket numbe
 | TC-16.2 | issue commented; PR with no link commented once; cancel; PR re-added with `linked: [issue]`; comment again | two groups: the PR's own group ("2 of 10 runs" on the right) with run 1, and the issue's group with run 2 and "PR #M (2 of 10 runs)" |
 | TC-20.1 | as TC-16.2, and before the link the page shows the PR's own group with "1 of 10 runs" | before: "1 of 10 runs" on the PR header; after: PR header "2 of 10 runs" over run 1, issue group over run 2 with "PR #M (2 of 10 runs)" |
 
-- [ ] **Step 1: Add the three helpers** to `helpers.ts`.
-- [ ] **Step 2: Write the spec.** At the top, put the same `readyz` `beforeAll` and file comment style as `pagination.spec.ts`, naming the spec and the "Not e2e" rules.
+- [x] **Step 1: Add the three helpers** to `helpers.ts`.
+- [x] **Step 2: Write the spec.** At the top, put the same `readyz` `beforeAll` and file comment style as `pagination.spec.ts`, naming the spec and the "Not e2e" rules.
 - [ ] **Step 3: Run with the stack up** (tests-and-e2e.md §3a): `pnpm --filter @agentdesk/web exec playwright test e2e/local/ticket-groups.spec.ts`. Expected: PASS. If the stack cannot start, say so in the PR and list the cases as written but not run.
-- [ ] **Step 4: Commit:** `test(web): local e2e for runs grouped by linked issue`.
+- [x] **Step 4: Commit:** `test(web): local e2e for runs grouped by linked issue`.

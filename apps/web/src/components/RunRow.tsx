@@ -13,6 +13,7 @@ const initialsOf = (login: string) =>
 
 export function TicketGroupRow({ group, colSpan }: { group: TicketGroup; colSpan: number }) {
   const { ticket } = group;
+  const merged = (group.linked?.length ?? 0) > 0;
   return (
     <tr className={styles.grp}>
       <td colSpan={colSpan}>
@@ -24,11 +25,17 @@ export function TicketGroupRow({ group, colSpan }: { group: TicketGroup; colSpan
           {ticket.labels.map((l) => (
             <LabelChip key={l.name} name={l.name} color={l.color} />
           ))}
-          {group.chainNote && <span className={styles.chain}>{group.chainNote}</span>}
+          {group.chainNote && (
+            <span className={styles.chain} title={merged ? group.chainNote : undefined}>
+              {group.chainNote}
+            </span>
+          )}
           <span className={styles.grow} />
-          <span className={`${styles.faint} ${styles.num}`}>
-            {group.runsUsed} of {group.runsMax} runs
-          </span>
+          {!merged && (
+            <span className={`${styles.faint} ${styles.num}`}>
+              {group.runsUsed} of {group.runsMax} runs
+            </span>
+          )}
           {ticket.href && (
             <a href={ticket.href} className={styles.faint} aria-label={`Open #${ticket.number} in GitHub`}>
               <Icon name="external" size={13} />

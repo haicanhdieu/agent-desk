@@ -12,7 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 
-/** The 71 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 79 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -72,6 +72,14 @@ export const boardStories = {
   RunsEmpty: { title: runs, exportName: 'RunsEmpty' },
   RunsProblemsPaged: { title: runs, exportName: 'RunsProblemsPaged' },
   RunsProblemsEmpty: { title: runs, exportName: 'RunsProblemsEmpty' },
+  RunsLinked: { title: runs, exportName: 'RunsLinked' },
+  RunsLinkedSeveralPrs: { title: runs, exportName: 'RunsLinkedSeveralPrs' },
+  RunsLinkedSplitPr: { title: runs, exportName: 'RunsLinkedSplitPr' },
+  RunsLinkedFiltered: { title: runs, exportName: 'RunsLinkedFiltered' },
+  RunsLinkedLongChain: { title: runs, exportName: 'RunsLinkedLongChain' },
+  RunsPagedLinkedPrOnly: { title: runs, exportName: 'RunsPagedLinkedPrOnly' },
+  RunsPagedLinkedIssueOnly: { title: runs, exportName: 'RunsPagedLinkedIssueOnly' },
+  RunsPageLoadingLinked: { title: runs, exportName: 'RunsPageLoadingLinked' },
   NeedsYouPaged: { title: runs, exportName: 'NeedsYouPaged' },
   NeedsYouEmpty: { title: runs, exportName: 'NeedsYouNone' },
   RouteLoading: { title: runs, exportName: 'RouteLoading' },

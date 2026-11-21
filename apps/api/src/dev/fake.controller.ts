@@ -49,6 +49,7 @@ export const DevTicketBody = z.object({
   kind: z.enum(['issue', 'pr']),
   title: z.string().min(1).max(500),
   labels: z.array(Label).max(50).default([]),
+  linked: z.array(z.number().int().positive().max(1_000_000_000)).max(10).optional(),
 });
 
 export const DevCommentBody = z.object({
@@ -106,6 +107,7 @@ export class FakeController {
       kind: body.kind,
       title: body.title,
       labels: body.labels,
+      ...(body.linked ? { linked: body.linked } : {}),
     });
     return { ok: true };
   }

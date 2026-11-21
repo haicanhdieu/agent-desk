@@ -17,6 +17,7 @@ import { useNow } from '@/app/useNow';
 import { projectsQueries } from '@/features/projects/queries';
 import {
   groupByTicket,
+  linkedTicketsByRun,
   idleSlotNote,
   repoUrlOf,
   startOfLocalDay,
@@ -204,7 +205,12 @@ function ListView({
       filter={filter}
       grouped={grouped}
       onGroupedChange={setGrouped}
-      groups={groupByTicket(summaries, dto.maxRunsPerTicket, ticketRunCounts(listed.items))}
+      groups={groupByTicket(
+        summaries,
+        dto.maxRunsPerTicket,
+        ticketRunCounts(listed.items),
+        linkedTicketsByRun(listed.items),
+      )}
       needsYouRun={needsYouRun}
       waitingRun={stats.nextQueuedNumber ?? undefined}
       runHref={(r) => runHref(paths, r.id)}

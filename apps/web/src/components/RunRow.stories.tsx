@@ -48,11 +48,13 @@ const columns = [
     ),
   },
 ];
+const pr148: Ticket = { ...ticket, kind: 'pr', number: 148, title: 'Add CSV export to billing', labels: [] };
 const group = (t: Ticket = ticket): TicketGroup => ({
   ticket: t,
-  chainNote: 'Issue #142 → PR #148',
-  runsUsed: 2,
+  chainNote: 'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)',
+  runsUsed: 1,
   runsMax: 10,
+  linked: [{ ticket: { kind: 'pr', number: 148 }, runsUsed: 1 }],
   runs: [],
 });
 
@@ -147,7 +149,7 @@ export const Connectors: Story = {
       <TicketGroupRow group={group()} colSpan={8} />
       <RunRow run={base} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 61, status: 'failed', statusNote: notes.failed }} tree="mid" href="#" />
-      <RunRow run={{ ...base, id: 62 }} tree="last" href="#" />
+      <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="last" href="#" />
     </>
   ),
 };
@@ -213,6 +215,96 @@ export const TicketLinks: Story = {
       <RunRow run={{ ...base, id: 61, ticket: { ...ticket, kind: 'pr', number: 148 } }} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 62, ticket: { ...ticket, href: '' } }} tree="last" href="#" />
       <TicketGroupRow group={group({ ...ticket, href: '' })} colSpan={8} />
+    </>
+  ),
+};
+
+const prGroup = (t: Ticket, runsUsed: number): TicketGroup => ({ ticket: t, runsUsed, runsMax: 10, runs: [] });
+
+/** Issue-led header: the chain note carries each ticket's own count and nothing sits on the right. */
+export const GroupHeaderIssueAndPr: Story = {
+  args: { run: base, tree: 'last', href: '#' },
+  render: () => (
+    <>
+      <TicketGroupRow group={group()} colSpan={8} />
+      <RunRow run={base} tree="mid" href="#" />
+      <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="last" href="#" />
+    </>
+  ),
+};
+
+export const GroupHeaderSeveralPrs: Story = {
+  args: { run: base, tree: 'last', href: '#' },
+  render: () => (
+    <>
+      <TicketGroupRow
+        group={{
+          ...group(),
+          chainNote: 'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)',
+          linked: [
+            { ticket: { kind: 'pr', number: 148 }, runsUsed: 1 },
+            { ticket: { kind: 'pr', number: 150 }, runsUsed: 2 },
+          ],
+        }}
+        colSpan={8}
+      />
+      <RunRow run={base} tree="mid" href="#" />
+      <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="mid" href="#" />
+      <RunRow run={{ ...base, id: 63, ticket: { ...pr148, number: 150 } }} tree="last" href="#" />
+    </>
+  ),
+};
+
+/** A narrow artboard: the title ellipsises first, then the chain note. The full note is its tooltip. */
+export const GroupHeaderLongChain: Story = {
+  args: { run: base, tree: 'last', href: '#' },
+  decorators: [
+    (Story) => (
+      <div style={{ width: 720 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  render: () => (
+    <TicketGroupRow
+      group={{
+        ...group({
+          ...ticket,
+          title: 'Export invoices as CSV from the billing page including every historical adjustment and credit note',
+        }),
+        chainNote:
+          'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs), PR #153 (1 of 10 runs), PR #157 (3 of 10 runs), PR #160 (1 of 10 runs), PR #164 (2 of 10 runs)',
+        linked: [148, 150, 153, 157, 160, 164].map((number) => ({
+          ticket: { kind: 'pr' as const, number },
+          runsUsed: 1,
+        })),
+      }}
+      colSpan={8}
+    />
+  ),
+};
+
+/** A PR run that arrived after the link was lost sits in the merged group; PR #148's own group keeps the older run. */
+export const GroupHeaderSplitPr: Story = {
+  args: { run: base, tree: 'last', href: '#' },
+  render: () => (
+    <>
+      <TicketGroupRow group={group()} colSpan={8} />
+      <RunRow run={{ ...base, id: 64, ticket: pr148 }} tree="last" href="#" />
+      <TicketGroupRow group={prGroup(pr148, 2)} colSpan={8} />
+      <RunRow run={{ ...base, id: 50, ticket: pr148 }} tree="last" href="#" />
+    </>
+  ),
+};
+
+/** The issue leads the header although only PR runs are on this page. */
+export const GroupHeaderPrRunsOnly: Story = {
+  args: { run: base, tree: 'last', href: '#' },
+  render: () => (
+    <>
+      <TicketGroupRow group={group()} colSpan={8} />
+      <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="mid" href="#" />
+      <RunRow run={{ ...base, id: 63, ticket: pr148 }} tree="last" href="#" />
     </>
   ),
 };

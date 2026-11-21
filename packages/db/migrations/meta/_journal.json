@@ -155,6 +155,20 @@
       "when": 1795181889478,
       "tag": "0021_agent_auto_resume_max",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1795236636626,
+      "tag": "0022_runs_add_linked_issue_refs",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1795243328365,
+      "tag": "0023_runs_add_linked_issue_refs_idx",
+      "breakpoints": true
     }
   ]
 }

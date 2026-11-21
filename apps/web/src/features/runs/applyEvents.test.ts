@@ -32,7 +32,7 @@ const project = (): ProjectDto => {
   };
 };
 const listOf = (...runs: RunDto[]): RunList => ({
-  items: runs.map((r): CachedRun => ({ ...r, ticketRunCount: 1 })),
+  items: runs.map((r): CachedRun => ({ ...r, ticketRunCount: 1, linkedTickets: [] })),
   page: 1,
   pageSize: 20,
   total: runs.length,

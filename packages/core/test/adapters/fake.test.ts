@@ -1,5 +1,5 @@
 import { createHmac } from 'node:crypto';
-import { mkdtemp, readFile } from 'node:fs/promises';
+import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { beforeEach, describe, expect, it } from 'vitest';
@@ -66,7 +66,50 @@ describe('fake board', () => {
       labels: [{ name: 'x', color: 'fff' }],
     });
     const tk = await new FakeBoardAdapter(new FakeStore(dir, clock), clock).getTicket(project, '2');
-    expect(tk).toMatchObject({ ref: '2', kind: 'pr', number: 2, title: 'P', labels: [{ name: 'x', color: 'fff' }] });
+    expect(tk).toMatchObject({
+      ref: '2',
+      kind: 'pr',
+      number: 2,
+      title: 'P',
+      labels: [{ name: 'x', color: 'fff' }],
+      linkedRefs: [],
+    });
+  });
+
+  describe('linkedRefs', () => {
+    const base = { repoPath: 'dev/demo', title: 'T', labels: [] };
+    const board = () => new FakeBoardAdapter(new FakeStore(dir, clock), clock);
+
+    it("a fake PR's linkedRefs is its own linked ∪ the issues whose linked lists it", async () => {
+      const store = new FakeStore(dir, clock);
+      await store.addTicket({ ...base, number: 10, kind: 'pr', linked: [3] });
+      await store.addTicket({ ...base, number: 4, kind: 'issue', linked: [10] });
+      await store.addTicket({ ...base, number: 5, kind: 'issue', linked: [99] });
+      expect((await board().getTicket(project, '10')).linkedRefs).toEqual(['3', '4']);
+    });
+
+    it("a fake issue's linkedRefs is [] even with linked", async () => {
+      const store = new FakeStore(dir, clock);
+      await store.addTicket({ ...base, number: 4, kind: 'issue', linked: [10] });
+      await store.addTicket({ ...base, number: 10, kind: 'pr', linked: [4] });
+      expect((await board().getTicket(project, '4')).linkedRefs).toEqual([]);
+    });
+
+    it('an issue in another repo never links', async () => {
+      const store = new FakeStore(dir, clock);
+      await store.addTicket({ ...base, number: 10, kind: 'pr' });
+      await store.addTicket({ ...base, repoPath: 'other/repo', number: 4, kind: 'issue', linked: [10] });
+      expect((await board().getTicket(project, '10')).linkedRefs).toEqual([]);
+    });
+
+    it('a tickets.json without linked still parses', async () => {
+      await writeFile(
+        join(dir, 'tickets.json'),
+        JSON.stringify({ tickets: [{ ...base, number: 2, kind: 'pr' }] }),
+        'utf8',
+      );
+      expect((await board().getTicket(project, '2')).linkedRefs).toEqual([]);
+    });
   });
 
   it('webhook: valid HMAC parses, bad HMAC is rejected before parsing', async () => {

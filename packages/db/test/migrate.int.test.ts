@@ -161,6 +161,16 @@ describe('bootstrap and migrations', () => {
     expect(rows[0]?.indexdef).toContain("WHERE starts_with(outcome, 'ignored_'::text)");
   });
 
+  it('linked issue refs have a partial GIN index over PR runs for the reverse lookup', async () => {
+    const rows = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where tablename = 'runs' and indexname = 'runs_linked_issue_refs_idx'",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.indexdef).toContain('USING gin (linked_issue_refs)');
+    expect(rows[0]?.indexdef).toContain("WHERE (ticket_kind = 'pr'::text)");
+  });
+
   it('foreign-key columns used by deletes and joins are indexed', async () => {
     const rows = await query<{ indexname: string; indexdef: string }>(
       env.ownerUrl,
@@ -678,6 +688,48 @@ describe('bootstrap and migrations', () => {
         const left = await c.query('select 1 from run_transcript_entries');
         expect(left.rowCount).toBe(0);
       });
+    });
+
+    it("runs.linked_issue_refs is text[] not null default '{}', existing rows read '{}', and the app role writes it", async () => {
+      const cols = await query<{ data_type: string; udt_name: string; is_nullable: string; column_default: string }>(
+        env.ownerUrl,
+        `select data_type, udt_name, is_nullable, column_default from information_schema.columns
+         where table_name = 'runs' and column_name = 'linked_issue_refs'`,
+      );
+      expect(cols).toHaveLength(1);
+      expect(cols[0]).toMatchObject({ data_type: 'ARRAY', udt_name: '_text', is_nullable: 'NO' });
+      expect(cols[0]?.column_default).toContain("'{}'");
+
+      await inOrg((c) => insertRun(c, 'c-linked'));
+      await inOrg(async (c) => {
+        const r = await c.query<{ linked_issue_refs: string[] }>(
+          "select linked_issue_refs from runs where trigger_comment_id = 'c-linked'",
+        );
+        expect(r.rows[0]?.linked_issue_refs).toEqual([]);
+        await c.query("update runs set linked_issue_refs = '{142}' where trigger_comment_id = 'c-linked'");
+        const w = await c.query<{ linked_issue_refs: string[] }>(
+          "select linked_issue_refs from runs where trigger_comment_id = 'c-linked'",
+        );
+        expect(w.rows[0]?.linked_issue_refs).toEqual(['142']);
+        await c.query(
+          `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                             trigger_source, trigger_comment_id, command, linked_issue_refs)
+           values ($1, $2, 'fix', 'dev/demo#2', 'pr', 'main', 'queued', 'webhook', 'c-linked-2', '/fix', '{142}')`,
+          [orgId, projectId],
+        );
+      });
+      await inOrg(async (c) => {
+        await c.query("delete from runs where trigger_comment_id in ('c-linked','c-linked-2')");
+      });
+
+      const sqlText = await readFile(
+        new URL('../migrations/0022_runs_add_linked_issue_refs.sql', import.meta.url),
+        'utf8',
+      );
+      expect(sqlText).not.toMatch(/\b(update|delete|insert)\s+(from\s+|into\s+)?"?runs"?/i);
+      expect(sqlText.replace(/-->.*\n?/g, '').trim()).toBe(
+        'ALTER TABLE "runs" ADD COLUMN "linked_issue_refs" text[] DEFAULT \'{}\'::text[] NOT NULL;',
+      );
     });
 
     it('resolve_project (security definer) finds the project across tenants as the app role', async () => {

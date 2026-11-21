@@ -32,6 +32,7 @@ import {
   pageWindow,
   toPage,
   type IgnoredEventDto,
+  type LinkedTicketDto,
   type Page,
   type PageQuery,
   type RunDto,
@@ -48,6 +49,7 @@ import { SIGNAL, TASK_QUEUE, UPDATE, WORKFLOW, runWorkflowId } from '@agentdesk/
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
+import { assembleLinkedTickets, newestLinks, newestSnapshots } from './linked-tickets';
 
 /** The log endpoint has no pagination in the contract: it returns at most the newest LOG_CAP events, oldest first. */
 export const LOG_CAP = 5000;
@@ -74,12 +76,17 @@ export class RunsService {
     return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
   }
 
-  /** The run without its prompt texts, and without the list-only ticket count. */
-  private toListItem(row: RunRow, agent: AgentInfo | undefined, ticketRunCount: number): RunListItem {
-    return { ...this.toBase(row, agent), ticketRunCount };
+  /** The run without its prompt texts, and with the list-only ticket count and linked tickets. */
+  private toListItem(
+    row: RunRow,
+    agent: AgentInfo | undefined,
+    ticketRunCount: number,
+    linkedTickets: LinkedTicketDto[] = [],
+  ): RunListItem {
+    return { ...this.toBase(row, agent), ticketRunCount, linkedTickets };
   }
 
-  private toBase(row: RunRow, agent: AgentInfo | undefined): Omit<RunListItem, 'ticketRunCount'> {
+  private toBase(row: RunRow, agent: AgentInfo | undefined): Omit<RunListItem, 'ticketRunCount' | 'linkedTickets'> {
     return {
       id: row.id,
       number: row.number,
@@ -162,13 +169,23 @@ export class RunsService {
 
   private async listItems(tx: Tx, projectId: string, rows: RunRow[]): Promise<RunListItem[]> {
     const ag = await this.agentsFor(tx, rows);
-    const counts = await this.ticketRunCountsFor(
+    const links = await newestLinks(
       tx,
       projectId,
-      rows.map((r) => r.ticketRef),
+      rows.filter((r) => r.ticketKind === 'pr').map((r) => r.ticketRef),
+      rows.filter((r) => r.ticketKind !== 'pr').map((r) => r.ticketRef),
     );
+    const linkedRefs = links.flatMap((l) => [l.ref, ...l.refs]);
+    const counts = await this.ticketRunCountsFor(tx, projectId, [...rows.map((r) => r.ticketRef), ...linkedRefs]);
+    const snapshots = await newestSnapshots(tx, projectId, linkedRefs);
+    const linked = assembleLinkedTickets(rows, links, counts, snapshots);
     return rows.map((r) =>
-      this.toListItem(r, r.agentId === null ? undefined : ag.get(r.agentId), counts.get(r.ticketRef) ?? 1),
+      this.toListItem(
+        r,
+        r.agentId === null ? undefined : ag.get(r.agentId),
+        counts.get(r.ticketRef) ?? 1,
+        linked.get(r.id) ?? [],
+      ),
     );
   }
 

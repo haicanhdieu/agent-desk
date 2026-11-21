@@ -1,4 +1,4 @@
-import { Inject, Module, type OnApplicationShutdown } from '@nestjs/common';
+import { Inject, Logger, Module, type OnApplicationShutdown } from '@nestjs/common';
 import {
   createAdapterRegistry,
   createKubeGateway,
@@ -18,6 +18,11 @@ export const ADAPTERS = Symbol('ADAPTERS');
 export const SECRET_STORE = Symbol('SECRET_STORE');
 export const KUBE = Symbol('KUBE');
 
+function boardLog(): { warn(fields: { err: string }, msg: string): void } {
+  const logger = new Logger('BoardAdapter');
+  return { warn: (f, m) => logger.warn(`${m} ${JSON.stringify(f)}`) };
+}
+
 /** Providers the activities need. Explicit tokens and factories: tsx emits no decorator metadata. */
 @Module({
   providers: [
@@ -26,7 +31,7 @@ export const KUBE = Symbol('KUBE');
     {
       provide: ADAPTERS,
       inject: [CONFIG],
-      useFactory: (c: Config): AdapterRegistry => createAdapterRegistry(c, systemClock),
+      useFactory: (c: Config): AdapterRegistry => createAdapterRegistry(c, systemClock, { log: boardLog() }),
     },
     { provide: SECRET_STORE, inject: [CONFIG], useFactory: (c: Config): SecretStore => createSecretStore(c) },
     { provide: KUBE, inject: [CONFIG], useFactory: (c: Config): KubeGateway => createKubeGateway(c) },

@@ -7,6 +7,7 @@ import {
   connectionWarnings,
   DEFAULT_POLL_INTERVAL,
   ignored,
+  linkedGroups,
   menuWarning,
   pollIntervals,
   projects,
@@ -46,8 +47,31 @@ describe('mock fixtures', () => {
     }
   });
 
+  const everyList = [ticketGroups, ...Object.values(linkedGroups)];
+
   it('keeps every group within its run limit', () => {
-    for (const g of ticketGroups) expect(g.runsUsed).toBeLessThanOrEqual(g.runsMax);
+    for (const g of everyList.flat()) {
+      expect(g.runsUsed).toBeLessThanOrEqual(g.runsMax);
+      for (const l of g.linked ?? []) expect(l.runsUsed).toBeLessThanOrEqual(g.runsMax);
+    }
+  });
+
+  it('writes each merged group chain note from its per-ticket counts', () => {
+    const merged = everyList.flat().filter((g) => g.linked?.length);
+    expect(merged.length).toBeGreaterThan(0);
+    for (const g of merged) {
+      expect(g.chainNote).toContain(`(${g.runsUsed} of ${g.runsMax} runs)`);
+      for (const l of g.linked ?? []) expect(g.chainNote).toContain(`(${l.runsUsed} of ${g.runsMax} runs)`);
+    }
+  });
+
+  it('leads every merged group with its issue and lists its PRs by number', () => {
+    for (const g of everyList.flat().filter((x) => x.linked?.length)) {
+      expect(g.ticket.kind).toBe('issue');
+      const prs = (g.linked ?? []).map((l) => l.ticket.number);
+      expect(prs).toEqual([...prs].sort((a, b) => a - b));
+      expect(g.chainNote?.startsWith(`Issue #${g.ticket.number} (`)).toBe(true);
+    }
   });
 
   it('matches PRD defaults', () => {

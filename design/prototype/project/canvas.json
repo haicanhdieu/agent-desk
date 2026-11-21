@@ -577,6 +577,70 @@
    "h": 1480,
    "title": "Desk \u2014 agent and settings, automatic resumes out of range",
    "expand": "fill"
+  },
+  "RunsLinked.dc.html": {
+   "x": 0,
+   "y": 12120,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, issue and PR runs in one group",
+   "expand": "fill"
+  },
+  "RunsLinkedSeveralPrs.dc.html": {
+   "x": 1520,
+   "y": 12120,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, issue with several PRs",
+   "expand": "fill"
+  },
+  "RunsLinkedSplitPr.dc.html": {
+   "x": 3040,
+   "y": 12120,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, one PR in two groups (older runs unlinked)",
+   "expand": "fill"
+  },
+  "RunsLinkedFiltered.dc.html": {
+   "x": 4560,
+   "y": 12120,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, Needs you filter on a merged group",
+   "expand": "fill"
+  },
+  "RunsLinkedLongChain.dc.html": {
+   "x": 0,
+   "y": 13360,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, long chain note cut off",
+   "expand": "fill"
+  },
+  "RunsPagedLinkedPrOnly.dc.html": {
+   "x": 1520,
+   "y": 13360,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, page 4 of 4, only the PR runs of a merged group",
+   "expand": "fill"
+  },
+  "RunsPagedLinkedIssueOnly.dc.html": {
+   "x": 3040,
+   "y": 13360,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, page 4 of 4, only the issue runs of a merged group",
+   "expand": "fill"
+  },
+  "RunsPageLoadingLinked.dc.html": {
+   "x": 4560,
+   "y": 13360,
+   "w": 1440,
+   "h": 1000,
+   "title": "Runs \u2014 grouped, loading page 3 from page 4, merged group",
+   "expand": "fill"
   }
  },
  "order": [
@@ -638,6 +702,14 @@
   "RunsEmpty.dc.html",
   "RunsProblemsPaged.dc.html",
   "RunsProblemsEmpty.dc.html",
+  "RunsLinked.dc.html",
+  "RunsLinkedSeveralPrs.dc.html",
+  "RunsLinkedSplitPr.dc.html",
+  "RunsLinkedFiltered.dc.html",
+  "RunsLinkedLongChain.dc.html",
+  "RunsPagedLinkedPrOnly.dc.html",
+  "RunsPagedLinkedIssueOnly.dc.html",
+  "RunsPageLoadingLinked.dc.html",
   "NeedsYouPaged.dc.html",
   "NeedsYouEmpty.dc.html",
   "RouteLoading.dc.html",

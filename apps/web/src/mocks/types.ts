@@ -24,11 +24,16 @@ export type RunSummary = {
   duration?: string;
 };
 export type TicketGroup = {
+  /** The lead ticket: the issue of a merged group, else the group's own ticket. */
   ticket: Ticket;
+  /** Display-ready, built by features/runs/map.ts; on a merged group it carries every ticket's count. */
   chainNote?: string;
+  /** The lead ticket's runs, all statuses. */
   runsUsed: number;
   runsMax: number;
   runs: RunSummary[];
+  /** The group's other tickets (PRs by number) with their own counts; non-empty only on a merged group. */
+  linked?: { ticket: { kind: TicketKind; number: number }; runsUsed: number }[];
 };
 
 /** How a project hears about new comments. Webhook is the default; polling works with no public URL. */

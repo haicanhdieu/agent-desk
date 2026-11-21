@@ -1,10 +1,12 @@
 import {
   FINAL_RUN_STATUSES,
   type IgnoredEventDto,
+  type LinkedTicketDto,
   type ProjectConnectionDto,
   type RunListItem,
   type RunStatsDto,
 } from '@agentdesk/contracts';
+import type { TicketKind } from '@/ds/TicketRef';
 import { connectionCopy } from '@/mocks/connection';
 import type {
   ConnectionStatus,
@@ -12,6 +14,7 @@ import type {
   IgnoredCommand,
   Label,
   RunSummary,
+  Ticket,
   TicketGroup,
 } from '@/mocks/types';
 import { relativeTime, timeLeft } from '../relativeTime';
@@ -154,30 +157,99 @@ export function ticketRunCounts(items: RunListItem[]): Map<string, number> {
   return used;
 }
 
+/** Each listed run's linked tickets, by run number. */
+export function linkedTicketsByRun(items: RunListItem[]): Map<number, LinkedTicketDto[]> {
+  return new Map(items.map((r) => [r.number, r.linkedTickets]));
+}
+
 /**
- * One group per ticket, newest run's group first; runs inside a group oldest first. `runsUsed` comes from `used`
- * (`ticketRunCounts`: the server's count of every run the ticket has had) when given, else the group's own run count.
+ * Group identity: for a PR run, `issue:<n>` of the lowest-numbered issue in its own linked tickets; otherwise the
+ * run's own ticket key. Entries of kind pr never decide a group.
+ */
+export function groupKeyOf(run: Pick<RunSummary, 'ticket'>, linked: readonly LinkedTicketDto[]): string {
+  if (run.ticket.kind !== 'pr') return ticketKey(run.ticket);
+  const issues = linked.filter((t) => t.kind === 'issue').map((t) => t.number);
+  return issues.length > 0 ? ticketKey({ kind: 'issue', number: Math.min(...issues) }) : ticketKey(run.ticket);
+}
+
+const kindLabel = (kind: TicketKind) => (kind === 'pr' ? 'PR' : 'Issue');
+
+/** "Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)" (linked already in number order). */
+export function chainNoteOf(
+  lead: { kind: TicketKind; number: number },
+  leadUsed: number,
+  linked: NonNullable<TicketGroup['linked']>,
+  runsMax: number,
+): string {
+  const part = (t: { kind: TicketKind; number: number }, used: number) =>
+    `${kindLabel(t.kind)} #${t.number} (${used} of ${runsMax} runs)`;
+  return `${part(lead, leadUsed)} → ${linked.map((l) => part(l.ticket, l.runsUsed)).join(', ')}`;
+}
+
+/**
+ * One group per ticket, or per issue with its linked PRs; newest run's group first, runs inside a group oldest first.
+ * `runsUsed` comes from `used` (`ticketRunCounts`: the server's count of every run the ticket has had) when given,
+ * else from the lead's linked entry, else the group's own run count. Counts are per ticket and never summed.
  */
 export function groupByTicket(
   runs: RunSummary[],
   maxRunsPerTicket: number,
   used?: ReadonlyMap<string, number>,
+  linked?: ReadonlyMap<number, readonly LinkedTicketDto[]>,
 ): TicketGroup[] {
-  const groups = new Map<string, TicketGroup>();
+  const buckets = new Map<string, RunSummary[]>();
   for (const run of runs) {
-    const key = ticketKey(run.ticket);
-    const group = groups.get(key);
-    if (group) group.runs.push(run);
-    else groups.set(key, { ticket: run.ticket, runsUsed: 0, runsMax: maxRunsPerTicket, runs: [run] });
+    const key = groupKeyOf(run, linked?.get(run.id) ?? []);
+    const bucket = buckets.get(key);
+    if (bucket) bucket.push(run);
+    else buckets.set(key, [run]);
   }
+  const groups = [...buckets].map(([key, bucket]): TicketGroup => {
+    const sorted = [...bucket].sort((a, b) => a.id - b.id);
+    const entries = sorted.flatMap((r) => linked?.get(r.id) ?? []);
+    const leadRun = sorted.find((r) => ticketKey(r.ticket) === key);
+    const leadEntry = entries.find((e) => ticketKey(e) === key);
+    const ticket: Ticket | undefined =
+      leadRun?.ticket ??
+      (leadEntry && {
+        kind: leadEntry.kind,
+        number: leadEntry.number,
+        title: leadEntry.title,
+        labels: leadEntry.labels.map((l) => ({ name: l.name, color: labelColor(l.color) })),
+        href: safeHref(leadEntry.url),
+      });
+    // A group is keyed by its lead: a run's own ticket or the lead entry its snapshot carries.
+    if (!ticket) throw new Error(`group ${key} has no lead ticket`);
+    const leadRows = sorted.filter((r) => ticketKey(r.ticket) === key).length;
+    const runsUsed = Math.max(used?.get(key) ?? leadEntry?.ticketRunCount ?? 0, leadRows);
+    const prs = new Map<string, { kind: TicketKind; number: number; count: number | undefined }>();
+    for (const r of sorted) {
+      const k = ticketKey(r.ticket);
+      if (k !== key) prs.set(k, { kind: r.ticket.kind, number: r.ticket.number, count: undefined });
+    }
+    for (const e of entries) {
+      const k = ticketKey(e);
+      if (e.kind === 'pr' && k !== key) prs.set(k, { kind: 'pr', number: e.number, count: e.ticketRunCount });
+    }
+    const linkedPrs = [...prs]
+      .map(([k, p]) => ({
+        ticket: { kind: p.kind, number: p.number },
+        runsUsed: Math.max(used?.get(k) ?? p.count ?? 0, sorted.filter((r) => ticketKey(r.ticket) === k).length),
+      }))
+      .sort((a, b) => a.ticket.number - b.ticket.number);
+    return {
+      ticket,
+      runsUsed,
+      runsMax: maxRunsPerTicket,
+      runs: sorted,
+      ...(linkedPrs.length > 0 && {
+        linked: linkedPrs,
+        chainNote: chainNoteOf(ticket, runsUsed, linkedPrs, maxRunsPerTicket),
+      }),
+    };
+  });
   const newest = (g: TicketGroup) => Math.max(...g.runs.map((r) => r.id));
-  return [...groups.values()]
-    .map((g) => ({
-      ...g,
-      runs: [...g.runs].sort((a, b) => a.id - b.id),
-      runsUsed: Math.max(used?.get(ticketKey(g.ticket)) ?? 0, g.runs.length),
-    }))
-    .sort((a, b) => newest(b) - newest(a));
+  return groups.sort((a, b) => newest(b) - newest(a));
 }
 
 const sameLocalDay = (a: Date, b: Date) =>

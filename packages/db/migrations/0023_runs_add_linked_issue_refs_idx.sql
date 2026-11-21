@@ -1,0 +1,1 @@
+CREATE INDEX "runs_linked_issue_refs_idx" ON "runs" USING gin ("linked_issue_refs") WHERE "runs"."ticket_kind" = 'pr';

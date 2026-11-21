@@ -152,7 +152,7 @@ describe('TicketGroupRow', () => {
   const long = 'A'.repeat(200);
   const group: TicketGroup = {
     ticket: { ...ticket, title: long, labels: [{ name: 'user-story', color: '#7C8FD8' }] },
-    chainNote: 'Issue #142 → PR #148',
+    chainNote: 'Issue #142 (2 of 10 runs)',
     runsUsed: 2,
     runsMax: 10,
     runs: [],
@@ -164,9 +164,36 @@ describe('TicketGroupRow', () => {
     expect(t).toHaveAttribute('title', long);
     expect(t.className).toMatch(/grpTitle/);
     expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
-    expect(screen.getByText('Issue #142 → PR #148')).toBeInTheDocument();
+    expect(screen.getByText('Issue #142 (2 of 10 runs)')).toBeInTheDocument();
     expect(screen.getByText('user-story')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Open #142 in GitHub' })).toHaveAttribute('href', ticket.href);
+  });
+
+  it('a merged header shows the chain note with its full text as title, and no count on the right', () => {
+    const note = 'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)';
+    inTable(
+      <TicketGroupRow
+        group={{
+          ...group,
+          chainNote: note,
+          runsUsed: 1,
+          linked: [{ ticket: { kind: 'pr', number: 148 }, runsUsed: 1 }],
+        }}
+        colSpan={8}
+      />,
+    );
+    expect(screen.getByText(note)).toHaveAttribute('title', note);
+    expect(screen.queryByText(/^\d+ of 10 runs$/)).toBeNull();
+    expect(screen.getByRole('link', { name: 'Issue #142' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open #142 in GitHub' })).toBeInTheDocument();
+  });
+
+  it('a single-ticket header keeps N of max runs on the right', () => {
+    const { unmount } = inTable(<TicketGroupRow group={group} colSpan={8} />);
+    expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+    unmount();
+    inTable(<TicketGroupRow group={{ ...group, linked: [] }} colSpan={8} />);
+    expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
   });
 
   it('links the ticket number to GitHub in a new window', () => {

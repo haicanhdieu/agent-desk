@@ -22,7 +22,7 @@ export const TRANSCRIPT_PAGE_SIZE = 200;
  */
 export type CachedRun = RunListItem & { statusNote?: string };
 /** A run without the list-only `ticketRunCount`: what the list rows and the detail have in common. */
-export type RunCore = Omit<RunListItem, 'ticketRunCount'>;
+export type RunCore = Omit<RunListItem, 'ticketRunCount' | 'linkedTickets'>;
 /** A run as cached by the detail query: the full DTO (with the prompt texts) plus `statusNote`. */
 export type CachedRunDetail = RunDto & { statusNote?: string };
 

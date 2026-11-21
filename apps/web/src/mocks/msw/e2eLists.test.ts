@@ -2,6 +2,7 @@ import type { RunStatsDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { ids } from '../dto/ids';
 import { mockDb } from './db';
+import { linkedTicketsFor } from './linkedTickets';
 import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists, type MockLists } from './e2eLists';
 import { server } from './node';
 
@@ -83,6 +84,144 @@ describe('applyMockLists', () => {
       'code-task-a',
       'code-build',
     ]);
+  });
+});
+
+describe('ticketRuns', () => {
+  const byNumber = () => [...invoicerRuns()].sort((a, b) => a.number - b.number);
+  const lead = (n: number) => {
+    const run = byNumber().find((r) => r.ticket.kind === 'issue' && r.ticket.number === n);
+    if (!run) throw new Error(`no issue ${n}`);
+    return run;
+  };
+  const linksOf = (kind: 'issue' | 'pr', n: number) => {
+    const run = [...byNumber()].reverse().find((r) => r.ticket.kind === kind && r.ticket.number === n);
+    if (!run) throw new Error(`no ${kind} ${n}`);
+    return linkedTicketsFor(run, invoicerRuns()).map((t) => `${t.kind}:${t.number}`);
+  };
+
+  it('ticketRuns are the oldest runs, numbered 1..n in order, and generated runs follow', () => {
+    applyMockLists({
+      runs: { total: 3 },
+      ticketRuns: [
+        { kind: 'issue', number: 7 },
+        { kind: 'pr', number: 8, linked: [7] },
+      ],
+    });
+    const runs = byNumber();
+    expect(runs.map((r) => r.number)).toEqual([1, 2, 3, 4, 5]);
+    expect(runs.slice(0, 2).map((r) => `${r.ticket.kind}:${r.ticket.number}`)).toEqual(['issue:7', 'pr:8']);
+    const oldestGenerated = Math.min(...runs.slice(2).map((r) => Date.parse(r.queuedAt)));
+    const newestTicketRun = Math.max(...runs.slice(0, 2).map((r) => Date.parse(r.queuedAt)));
+    expect(newestTicketRun).toBeLessThan(oldestGenerated);
+    expect(Date.parse(runs[0]?.queuedAt ?? '')).toBeLessThan(Date.parse(runs[1]?.queuedAt ?? ''));
+  });
+
+  it("a PR entry's linked becomes linkedIssueRefs; an issue entry never carries one", () => {
+    applyMockLists({
+      ticketRuns: [
+        { kind: 'issue', number: 7 },
+        { kind: 'pr', number: 8, linked: [7, 3] },
+        { kind: 'pr', number: 9 },
+      ],
+    });
+    const [issue, linked, plain] = byNumber();
+    expect(issue).not.toHaveProperty('linkedIssueRefs');
+    expect(linked?.linkedIssueRefs).toEqual(['7', '3']);
+    expect(plain?.linkedIssueRefs ?? []).toEqual([]);
+  });
+
+  it('issue entries carry the user-story label and PR entries use ref pr-<n> and a pull url', () => {
+    applyMockLists({
+      ticketRuns: [
+        { kind: 'issue', number: 7 },
+        { kind: 'pr', number: 7, linked: [7] },
+      ],
+    });
+    const [issue, pr] = byNumber();
+    expect(issue?.ticket).toMatchObject({
+      ref: '7',
+      kind: 'issue',
+      labels: [{ name: 'user-story', color: '0e8a16' }],
+      url: expect.stringContaining('/issues/7'),
+    });
+    expect(pr?.ticket).toMatchObject({ ref: 'pr-7', kind: 'pr', number: 7, url: expect.stringContaining('/pull/7') });
+  });
+
+  it('ticketRuns alone replace the project runs, and a status can be set', () => {
+    applyMockLists({ ticketRuns: [{ kind: 'issue', number: 7, status: 'failed' }] });
+    expect(invoicerRuns()).toHaveLength(1);
+    expect(invoicerRuns()[0]?.status).toBe('failed');
+  });
+
+  it('seeds the scenarios the e2e uses and they group as the API does', () => {
+    const seed = (ticketRuns: NonNullable<MockLists['ticketRuns']>) => {
+      const lists = { ticketRuns };
+      expect(parseMockLists(JSON.stringify(lists))).toEqual(lists);
+      applyMockLists(lists);
+    };
+    // A pair.
+    seed([
+      { kind: 'issue', number: 7 },
+      { kind: 'pr', number: 8, linked: [7] },
+    ]);
+    expect(linksOf('issue', 7)).toEqual(['pr:8']);
+    expect(linksOf('pr', 8)).toEqual(['issue:7']);
+    // An issue with two PRs.
+    seed([
+      { kind: 'issue', number: 7 },
+      { kind: 'pr', number: 9, linked: [7] },
+      { kind: 'pr', number: 8, linked: [7] },
+    ]);
+    expect(linksOf('issue', 7)).toEqual(['pr:8', 'pr:9']);
+    expect(linksOf('pr', 9)).toEqual(['issue:7', 'pr:8']);
+    // A PR with two issues joins the lower one.
+    seed([
+      { kind: 'issue', number: 7 },
+      { kind: 'issue', number: 3 },
+      { kind: 'pr', number: 8, linked: [7, 3] },
+    ]);
+    expect(linksOf('pr', 8)).toEqual(['issue:3']);
+    expect(linksOf('issue', 7)).toEqual([]);
+    // A PR linked to an issue without runs.
+    seed([{ kind: 'pr', number: 8, linked: [7] }]);
+    expect(linksOf('pr', 8)).toEqual([]);
+    // An issue with two PRs split across pages: 19 filler runs sit between PR 8 and PR 9 (20 runs per page).
+    seed([
+      { kind: 'issue', number: 7 },
+      { kind: 'pr', number: 8, linked: [7] },
+      ...Array.from({ length: 19 }, (_, i): { kind: 'issue'; number: number } => ({ kind: 'issue', number: 100 + i })),
+      { kind: 'pr', number: 9, linked: [7] },
+    ]);
+    const pageOf = (kind: 'issue' | 'pr', n: number) => {
+      const newestFirst = [...byNumber()].reverse();
+      const at = newestFirst.findIndex((r) => r.ticket.kind === kind && r.ticket.number === n);
+      return Math.floor(at / 20) + 1;
+    };
+    expect([pageOf('pr', 9), pageOf('pr', 8), pageOf('issue', 7)]).toEqual([1, 2, 2]);
+    expect(linksOf('issue', 7)).toEqual(['pr:8', 'pr:9']);
+    expect(linksOf('pr', 9)).toEqual(['issue:7', 'pr:8']);
+    // A pair split across pages: the pair is the oldest, generated runs are newer.
+    applyMockLists({
+      runs: { total: 25 },
+      ticketRuns: [
+        { kind: 'issue', number: 7 },
+        { kind: 'pr', number: 8, linked: [7] },
+      ],
+    });
+    expect(lead(7).number).toBe(1);
+    expect(linksOf('issue', 7)).toEqual(['pr:8']);
+    // A PR with an old unlinked run and a new linked one.
+    seed([
+      { kind: 'issue', number: 7 },
+      { kind: 'pr', number: 8 },
+      { kind: 'pr', number: 8, linked: [7] },
+    ]);
+    const oldUnlinked = byNumber()[1];
+    if (!oldUnlinked) throw new Error('no second run');
+    expect(linkedTicketsFor(oldUnlinked, invoicerRuns())).toEqual([]);
+    expect(linksOf('pr', 8)).toEqual(['issue:7']);
+    expect(linksOf('issue', 7)).toEqual(['pr:8']);
   });
 });
 
