@@ -1468,11 +1468,11 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: the guard (Task 25); tenant revoke (Task 19).
 - Produces: tests only (behaviour delivered by Task 25).
 
-- [ ] **Step 1: Write the tests** (runs inserted by SQL with `owner_user_id`, as the files do today):
+- [x] **Step 1: Write the tests** (runs inserted by SQL with `owner_user_id`, as the files do today):
   - `runs.int.test.ts`: BR-9 on a finished run V `cancel` → 403 and A `cancel`, `stop`, `finish` → 409; on an active run A `resume` → 409, V `resume` → 403. BR-14 B cancels, stops, finishes and resumes B's own run → accepted. BR-49 B on C's run → 403 each, run unchanged. BR-66 ownerless run: B → 403, A → accepted. BR-68 B `POST …/connection/poll` on a polling P1 → 202 and the schedule trigger is recorded; V → 403.
   - `sse.int.test.ts`: BR-3 V connects to `runs.events` of a P1 run and `projects.events` of P2 → 200, and a status change commits a frame V reads; BR-28 A connects to P2's streams → 404; BR-35 (stream part) A's open P1 stream keeps receiving a frame committed after O revokes A's P1 assignment, then a new connect → 404.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts`. Expected: PASS (a failure here is a Task 25 bug: fix it with this failing test first).
-- [ ] **Step 3: Commit** `test(api): run controls and streams follow role, scope and ownership`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts`. Expected: PASS (a failure here is a Task 25 bug: fix it with this failing test first).
+- [x] **Step 3: Commit** `test(api): run controls and streams follow role, scope and ownership`.
 
 ---
 
