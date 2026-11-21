@@ -7,7 +7,14 @@ import { loadAccess } from '@agentdesk/core';
 import { connections, projects, roleAssignments, withOrg } from '@agentdesk/db';
 import { AssignmentsService } from '../src/assignments/assignments.service';
 import { createTestApp, type TestApp } from './helpers/app';
-import { asPlatformAdmin, createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
+import {
+  asPlatformAdmin,
+  createOrg,
+  grant as grantRole,
+  inviteAndLogin,
+  revoke as revokeRole,
+  userIdOf,
+} from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
 let t: TestApp;
@@ -746,5 +753,163 @@ describe('the service revoke with other actors', () => {
     await expect(service.revoke(nobody, f.orgId, id)).rejects.toThrow('Not allowed for your role here');
     await expect(service.revoke(nobody, f.orgId, randomUUID())).rejects.toThrow('Not allowed for your role here');
     expect(await assignmentRows(f.orgId, id)).toBe(1);
+  });
+});
+
+describe('platform assignment routes', () => {
+  const platformGrant = (orgId: string, payload: unknown) =>
+    t.app.inject({
+      method: 'POST',
+      url: `/api/platform/orgs/${orgId}/assignments`,
+      headers: { cookie: admin },
+      payload: payload as object,
+    });
+  const platformList = (orgId: string, query = '') =>
+    t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${orgId}/assignments${query}`,
+      headers: { cookie: admin },
+    });
+  const platformRemove = (orgId: string, id: string, cookie = admin) =>
+    t.app.inject({ method: 'DELETE', url: `/api/platform/orgs/${orgId}/assignments/${id}`, headers: { cookie } });
+
+  async function ownerAssignmentId(f: Cast): Promise<string> {
+    const res = await platformList(f.orgId, '?pageSize=100');
+    const page = expectContract('platform.listAssignments', res) as Page<AssignmentDto>;
+    const found = page.items.find((i) => i.userId === f.ids.o && i.role.key === 'owner');
+    if (!found) throw new Error('no owner assignment');
+    return found.id;
+  }
+
+  it('BR-34: a grant through the helper shows in the grantee next GET /api/me/access', async () => {
+    const f = await buildCast('as-pl-br34');
+    const onP2 = (a: AccessDto['assignments'][number]) => a.scope.type === 'project' && a.scope.projectId === f.p2;
+    const before = await t.app.inject({ method: 'GET', url: '/api/me/access', headers: { cookie: f.c } });
+    expect((before.json() as AccessDto).assignments.some(onP2)).toBe(false);
+    const dto = await grantRole(t, f.orgId, f.ids.c, 'member', { type: 'project', projectId: f.p2 });
+    expect(dto).toMatchObject({
+      userId: f.ids.c,
+      role: { key: 'member' },
+      scope: { type: 'project', projectId: f.p2 },
+    });
+    const after = await t.app.inject({ method: 'GET', url: '/api/me/access', headers: { cookie: f.c } });
+    expect((after.json() as AccessDto).assignments.filter(onP2)).toMatchObject([{ roleKey: 'member' }]);
+  });
+
+  it('BR-41: the same platform grant twice answers 201 then 200, keeps one row and lists it once', async () => {
+    const f = await buildCast('as-pl-br41');
+    const body = { userId: f.ids.c, roleId: f.roles.member, scope: { type: 'project', projectId: f.p2 } };
+    const first = await platformGrant(f.orgId, body);
+    expect(first.statusCode).toBe(201);
+    expectContract('platform.createAssignment', first);
+    const second = await platformGrant(f.orgId, body);
+    expect(second.statusCode).toBe(200);
+    expect(expectContract('platform.createAssignment', second)).toMatchObject({
+      id: (first.json() as AssignmentDto).id,
+    });
+    expect(await rowCount(f.orgId, f.ids.c, f.roles.member)).toBe(2); // P1 from the cast, P2 here
+    const listed = expectContract(
+      'platform.listAssignments',
+      await platformList(f.orgId, `?projectId=${f.p2}`),
+    ) as Page<AssignmentDto>;
+    expect(listed.items.filter((i) => i.userId === f.ids.c)).toHaveLength(1);
+    expect(await grantedAuditCount(f.orgId, f.ids.c, f.roles.member)).toBe(2); // invitation accept + this grant
+  });
+
+  it('BR-45: the platform admin grants owner at the org', async () => {
+    const f = await buildCast('as-pl-br45');
+    const res = await platformGrant(f.orgId, { userId: f.ids.c, roleId: f.roles.owner, scope: { type: 'org' } });
+    expect(res.statusCode).toBe(201);
+    expect(expectContract('platform.createAssignment', res)).toMatchObject({ role: { key: 'owner' } });
+  });
+
+  it('BR-46: the platform admin removes the last owner assignment that the tenant route keeps', async () => {
+    const f = await buildCast('as-pl-br46');
+    const id = await ownerAssignmentId(f);
+    const own = await t.app.inject({
+      method: 'DELETE',
+      url: `/api/orgs/${f.orgId}/assignments/${id}`,
+      headers: { cookie: f.o },
+    });
+    expect(own.statusCode).toBe(409);
+    const res = await platformRemove(f.orgId, id);
+    expect(res.statusCode).toBe(204);
+    expectContract('platform.removeAssignment', res);
+    expect(await assignmentRows(f.orgId, id)).toBe(0);
+  });
+
+  it('BR-37: answers the Task 18 pointers, 404 for an unknown org and for another org assignment', async () => {
+    const f = await buildCast('as-pl-br37');
+    const other = await buildCast('as-pl-br37-other');
+    const org = { type: 'org' };
+    const bad = async (payload: unknown, pointer: string) => {
+      const res = await platformGrant(f.orgId, payload);
+      expect(res.statusCode).toBe(422);
+      expect(pointerOf(res)).toBe(pointer);
+    };
+    await bad({ userId: f.ids.c, roleId: randomUUID(), scope: org }, '/roleId');
+    await bad({ userId: f.ids.c, roleId: other.roles.member, scope: org }, '/roleId');
+    await bad({ userId: f.ids.c, roleId: f.roles.owner, scope: { type: 'project', projectId: f.p1 } }, '/roleId');
+    await bad(
+      { userId: f.ids.c, roleId: f.roles.member, scope: { type: 'project', projectId: other.p1 } },
+      '/scope/projectId',
+    );
+    await bad({ userId: other.ids.c, roleId: f.roles.member, scope: org }, '/userId');
+    await bad({ userId: randomUUID(), roleId: f.roles.member, scope: org }, '/userId');
+    expect((await platformGrant(f.orgId, { userId: f.ids.c, roleId: 'nope', scope: org })).statusCode).toBe(400);
+
+    const ghost = randomUUID();
+    expect((await platformGrant(ghost, { userId: f.ids.c, roleId: f.roles.member, scope: org })).statusCode).toBe(404);
+    expect((await platformList(ghost)).statusCode).toBe(404);
+    expect((await platformRemove(ghost, randomUUID())).statusCode).toBe(404);
+    expect((await platformList(f.orgId, `?projectId=${randomUUID()}`)).statusCode).toBe(404);
+
+    const foreign = await ownerAssignmentId(other);
+    expect((await platformRemove(f.orgId, foreign)).statusCode).toBe(404);
+    expect(await assignmentRows(other.orgId, foreign)).toBe(1);
+    expect((await platformRemove(f.orgId, randomUUID())).statusCode).toBe(404);
+  });
+
+  it('refuses every tenant role, owner included, on the three routes', async () => {
+    const f = await buildCast('as-pl-deny');
+    const id = await ownerAssignmentId(f);
+    const body = { userId: f.ids.c, roleId: f.roles.member, scope: { type: 'org' } };
+    const base = `/api/platform/orgs/${f.orgId}/assignments`;
+    for (const cookie of [f.o, f.d, f.b]) {
+      const headers = { cookie };
+      expect((await t.app.inject({ method: 'GET', url: base, headers })).statusCode).toBe(403);
+      expect((await t.app.inject({ method: 'POST', url: base, headers, payload: body })).statusCode).toBe(403);
+      expect((await platformRemove(f.orgId, id, cookie)).statusCode).toBe(403);
+    }
+    expect(await assignmentRows(f.orgId, id)).toBe(1);
+  });
+
+  it('N5: audit rows carry actorKind platform_admin with the admin as actor, for grant and revoke', async () => {
+    const f = await buildCast('as-pl-n5');
+    const adminId = await userIdOf(t, 'admin');
+    const dto = await grantRole(t, f.orgId, f.ids.c, 'viewer', { type: 'org' });
+    const granted = await asOrg(
+      f.orgId,
+      "select actor_user_id, payload from audit_log where action = 'assignment.granted' and target_id = $1 and payload->'to'->>'roleKey' = 'viewer'",
+      [f.ids.c],
+    );
+    expect(granted.rows).toHaveLength(1);
+    expect(granted.rows[0]?.actor_user_id).toBe(adminId);
+    expect(granted.rows[0]?.payload).toEqual({
+      to: { roleId: f.roles.viewer, roleKey: 'viewer', scope: { type: 'org' } },
+      actorKind: 'platform_admin',
+    });
+    await revokeRole(t, f.orgId, dto.id);
+    const revoked = await asOrg(
+      f.orgId,
+      "select actor_user_id, payload from audit_log where action = 'assignment.revoked' and target_id = $1 and payload->'from'->>'roleKey' = 'viewer'",
+      [f.ids.c],
+    );
+    expect(revoked.rows).toHaveLength(1);
+    expect(revoked.rows[0]?.actor_user_id).toBe(adminId);
+    expect(revoked.rows[0]?.payload).toEqual({
+      from: { roleId: f.roles.viewer, roleKey: 'viewer', scope: { type: 'org' } },
+      actorKind: 'platform_admin',
+    });
   });
 });

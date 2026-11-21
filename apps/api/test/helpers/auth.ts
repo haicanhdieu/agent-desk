@@ -1,4 +1,4 @@
-import type { CreateOrgResponse, RoleDto } from '@agentdesk/contracts';
+import type { AssignmentDto, CreateOrgResponse, RoleDto } from '@agentdesk/contracts';
 import type { TestApp } from './app';
 
 export function cookieOf(res: { headers: Record<string, unknown> }): string {
@@ -68,4 +68,46 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string> {
   const id = res.rows[0]?.id;
   if (id === undefined) throw new Error(`userIdOf: no user for handle ${handle}`);
   return id;
+}
+
+/**
+ * Grants a built-in role to a member of the org through the platform route (any role, owner included) and returns
+ * the assignment. A repeat of an existing grant answers 200 and returns the same row. Throws unless 200 or 201.
+ */
+export async function grant(
+  t: TestApp,
+  orgId: string,
+  userId: string,
+  roleKey: 'owner' | 'admin' | 'member' | 'viewer',
+  scope: { type: 'org' } | { type: 'project'; projectId: string },
+): Promise<AssignmentDto> {
+  const admin = await asPlatformAdmin(t);
+  const rolesRes = await t.app.inject({
+    method: 'GET',
+    url: `/api/platform/orgs/${orgId}/roles`,
+    headers: { cookie: admin },
+  });
+  const role = rolesRes.json<RoleDto[]>().find((r) => r.key === roleKey);
+  if (!role) throw new Error(`grant: org ${orgId} has no role ${roleKey}`);
+  const res = await t.app.inject({
+    method: 'POST',
+    url: `/api/platform/orgs/${orgId}/assignments`,
+    headers: { cookie: admin },
+    payload: { userId, roleId: role.id, scope },
+  });
+  if (res.statusCode !== 200 && res.statusCode !== 201) {
+    throw new Error(`grant ${roleKey} answered ${res.statusCode}: ${res.body}`);
+  }
+  return res.json<AssignmentDto>();
+}
+
+/** Removes an assignment through the platform route (the last owner too); throws unless it answers 204. */
+export async function revoke(t: TestApp, orgId: string, assignmentId: string): Promise<void> {
+  const admin = await asPlatformAdmin(t);
+  const res = await t.app.inject({
+    method: 'DELETE',
+    url: `/api/platform/orgs/${orgId}/assignments/${assignmentId}`,
+    headers: { cookie: admin },
+  });
+  if (res.statusCode !== 204) throw new Error(`revoke ${assignmentId} answered ${res.statusCode}: ${res.body}`);
 }

@@ -28,13 +28,7 @@ import { loginAs } from './helpers/auth';
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = [
-  'members.list',
-  'platform.listMembers',
-  'platform.listAssignments',
-  'platform.createAssignment',
-  'platform.removeAssignment',
-];
+const NOT_REGISTERED_YET: RouteKey[] = ['members.list', 'platform.listMembers'];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];

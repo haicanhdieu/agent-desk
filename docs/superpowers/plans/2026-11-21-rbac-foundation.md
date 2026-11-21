@@ -1217,17 +1217,17 @@ export async function grant(t: TestApp, orgId: string, userId: string, roleKey: 
 export async function revoke(t: TestApp, orgId: string, assignmentId: string): Promise<void>;  // DELETE …/assignments/:id
 ```
 
-- [ ] **Step 1: Write the failing tests** (append):
+- [x] **Step 1: Write the failing tests** (append):
   - BR-34: `grant(…, C, 'member', P2)` → C's next `GET /api/me/access` lists it.
   - BR-41: the same platform grant twice → 201 then 200, one row; listed once by `GET /api/platform/orgs/:orgId/assignments?projectId=P2`.
   - BR-45: the platform admin grants C `owner` at org → 201.
   - BR-46: the platform admin removes the org's last `owner` assignment → 204.
   - BR-37 on platform routes: the same 422 pointers as Task 18; unknown org 404; an assignment id of another org via this org's path → 404.
   - audit rows carry `actorKind 'platform_admin'`; responses parse as `PlatformAssignmentDto`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the controller and the helpers; register the controller.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): platform admins grant and revoke roles in any org`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the controller and the helpers; register the controller.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): platform admins grant and revoke roles in any org`.
 
 ---
 
