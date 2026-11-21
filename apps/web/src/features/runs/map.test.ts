@@ -225,7 +225,7 @@ describe('groupByTicket', () => {
   it('takes runsUsed from the server ticket counts, even when fewer runs are on the list', () => {
     const t12 = { ...base.ticket, number: 12, ref: '12' };
     const queued = run({ number: 9, ticket: t12, status: 'queued', startedAt: null, finishedAt: null });
-    const used = ticketRunCounts([{ ...queued, ticketRunCount: 9 }]);
+    const used = ticketRunCounts([{ ...queued, ticketRunCount: 9, linkedTickets: [] }]);
     const groups = groupByTicket([toRunSummary(queued, now)], 10, used);
     expect(groups[0]?.runs.map((r) => r.id)).toEqual([9]);
     expect(groups[0]?.runsUsed).toBe(9);
@@ -243,6 +243,7 @@ describe('ticketRunCounts', () => {
     const item = (number: number, ticketNumber: number, ticketRunCount: number): RunListItem => ({
       ...run({ number, ticket: { ...base.ticket, number: ticketNumber, ref: String(ticketNumber) } }),
       ticketRunCount,
+      linkedTickets: [],
     });
     const counts = ticketRunCounts([item(1, 5, 3), item(2, 5, 3), item(3, 6, 1)]);
     expect(counts.get(`${base.ticket.kind}:5`)).toBe(3);

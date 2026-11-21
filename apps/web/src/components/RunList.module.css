@@ -52,7 +52,7 @@
 }
 .grpTitle {
   font-weight: 600;
-  flex: 0 1 auto;
+  flex: 0 100 auto; /* shrinks far faster than .chain, so the title gives way first */
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -62,6 +62,12 @@
   font-size: var(--fs-12_5);
   color: var(--faint);
   white-space: nowrap;
+}
+.grpRow > .chain {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .grpRow > .grow {
   flex: 1 1 0;

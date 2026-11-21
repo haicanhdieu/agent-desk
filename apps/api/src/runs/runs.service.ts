@@ -32,6 +32,7 @@ import {
   pageWindow,
   toPage,
   type IgnoredEventDto,
+  type LinkedTicketDto,
   type Page,
   type PageQuery,
   type RunDto,
@@ -74,12 +75,17 @@ export class RunsService {
     return { ...this.toBase(row, agent), prompt: row.prompt, finalPrompt: row.finalPrompt };
   }
 
-  /** The run without its prompt texts, and without the list-only ticket count. */
-  private toListItem(row: RunRow, agent: AgentInfo | undefined, ticketRunCount: number): RunListItem {
-    return { ...this.toBase(row, agent), ticketRunCount };
+  /** The run without its prompt texts, and with the list-only ticket count and linked tickets. */
+  private toListItem(
+    row: RunRow,
+    agent: AgentInfo | undefined,
+    ticketRunCount: number,
+    linkedTickets: LinkedTicketDto[] = [],
+  ): RunListItem {
+    return { ...this.toBase(row, agent), ticketRunCount, linkedTickets };
   }
 
-  private toBase(row: RunRow, agent: AgentInfo | undefined): Omit<RunListItem, 'ticketRunCount'> {
+  private toBase(row: RunRow, agent: AgentInfo | undefined): Omit<RunListItem, 'ticketRunCount' | 'linkedTickets'> {
     return {
       id: row.id,
       number: row.number,

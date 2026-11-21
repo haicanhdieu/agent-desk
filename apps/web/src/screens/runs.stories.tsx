@@ -172,9 +172,10 @@ const lastPageRuns = pagedRuns(63).slice(60);
 const lastPageGroups: TicketGroup[] = [
   {
     ticket: tickets.issue139,
-    chainNote: 'Issue #139 → PR #140',
-    runsUsed: 4,
+    chainNote: 'Issue #139 (2 of 10 runs) → PR #140 (2 of 10 runs)',
+    runsUsed: 2,
     runsMax: 10,
+    linked: [{ ticket: { kind: 'pr', number: 140 }, runsUsed: 2 }],
     runs: lastPageRuns.slice(0, 2).map((r) => ({ ...r, ticket: tickets.issue139 })),
   },
   {
@@ -194,7 +195,7 @@ const pagedNeedsYouRun = {
   href: '/runs/62',
 };
 
-/** The last of four pages, grouped: a continued ticket header shows its full "4 of 10 runs". */
+/** The last of four pages, grouped: a merged header shows each ticket's own count in its chain note. */
 export const RunsPaged: Story = {
   name: 'Runs, grouped, page 4 of 4',
   decorators: artboard(1000),

@@ -154,6 +154,7 @@ export class GithubBoardAdapter implements BoardAdapter {
       labels: t.labels.flatMap((l) =>
         typeof l === 'string' ? [{ name: l, color: '' }] : l.name ? [{ name: l.name, color: l.color ?? '' }] : [],
       ),
+      linkedRefs: [],
     };
   }
 

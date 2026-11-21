@@ -64,7 +64,7 @@ describe('runs route', () => {
     const stats: RunStatsDto = {
       counts: { needs_you: 1, active: 2, queued: 1, ended: 59, all: 63, ignored: 3 },
       today: { total: 9, failed: 1 },
-      idleRun: { ...idle62, number: 70, ticketRunCount: 1 },
+      idleRun: { ...idle62, number: 70, ticketRunCount: 1, linkedTickets: [] },
       nextQueuedNumber: 63,
     };
 

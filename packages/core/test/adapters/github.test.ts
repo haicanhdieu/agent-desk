@@ -301,6 +301,7 @@ describe('github board tickets', () => {
         { name: 'bug', color: 'd73a4a' },
         { name: 'ci', color: '0e8a16' },
       ],
+      linkedRefs: [],
     });
     expect((await board.getTicket(project, '7')).kind).toBe('pr');
   });

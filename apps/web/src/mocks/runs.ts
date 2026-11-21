@@ -195,14 +195,22 @@ export const runsById = {
 
 // Board order of the grouped table.
 export const ticketGroups: TicketGroup[] = [
-  { ticket: tickets.issue142, chainNote: 'Issue #142 → PR #148', runsUsed: 2, runsMax: 10, runs: [run60, run62] },
+  {
+    ticket: tickets.issue142,
+    chainNote: 'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)',
+    runsUsed: 1,
+    runsMax: 10,
+    linked: [{ ticket: { kind: 'pr', number: 148 }, runsUsed: 1 }],
+    runs: [run60, run62],
+  },
   { ticket: tickets.issue139, runsUsed: 1, runsMax: 10, runs: [run61] },
   { ticket: tickets.issue151, runsUsed: 1, runsMax: 10, runs: [run63] },
   {
     ticket: tickets.issue131,
-    chainNote: 'Issue #131 → PR #133',
-    runsUsed: 3,
+    chainNote: 'Issue #131 (1 of 10 runs) → PR #133 (2 of 10 runs)',
+    runsUsed: 1,
     runsMax: 10,
+    linked: [{ ticket: { kind: 'pr', number: 133 }, runsUsed: 2 }],
     runs: [run55, run56, run57],
   },
   { ticket: tickets.issue127, runsUsed: 1, runsMax: 10, runs: [run54] },

@@ -125,6 +125,7 @@ export class FakeBoardAdapter implements BoardAdapter {
       title: t.title,
       url: `http://fake.invalid/${t.repoPath}/${t.kind === 'pr' ? 'pull' : 'issues'}/${t.number}`,
       labels: t.labels,
+      linkedRefs: [],
     };
   }
 

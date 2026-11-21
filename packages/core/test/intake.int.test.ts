@@ -101,6 +101,7 @@ const ticket = (n: number): Ticket => ({
   title: `Ticket ${n}`,
   url: `http://fake.invalid/issues/${n}`,
   labels: [{ name: 'bug', color: 'ff0000' }],
+  linkedRefs: [],
 });
 
 function harness(over: Partial<IntakeDeps> = {}, getTicketImpl?: (ref: string) => Promise<Ticket>) {

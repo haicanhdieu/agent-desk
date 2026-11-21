@@ -64,10 +64,25 @@ export const RunDto = z.object({
 });
 export type RunDto = z.infer<typeof RunDto>;
 
+/** Another ticket of a run's merged group (spec 2026-11-21): the lead issue, or a PR led by that issue. */
+export const LinkedTicketDto = z.object({
+  ref: z.string(),
+  kind: TicketKind,
+  number: z.number().int(),
+  title: z.string(),
+  url: z.string(),
+  labels: TicketDto.shape.labels,
+  /** Runs this ticket has had in the project, all statuses. */
+  ticketRunCount: z.number().int().min(1),
+});
+export type LinkedTicketDto = z.infer<typeof LinkedTicketDto>;
+
 /** A run in a list: the detail shape without the prompt texts (up to ~4 KB each), which only run detail needs. */
 export const RunListItem = RunDto.omit({ prompt: true, finalPrompt: true }).extend({
   /** Runs this ticket has had in the project, all statuses. */
   ticketRunCount: z.number().int().min(1),
+  /** The other tickets of this run's merged group: the lead issue first, then PRs by number; [] when none. */
+  linkedTickets: z.array(LinkedTicketDto),
 });
 export type RunListItem = z.infer<typeof RunListItem>;
 

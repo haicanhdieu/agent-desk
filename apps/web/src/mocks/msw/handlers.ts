@@ -7,6 +7,7 @@ import {
   type RuleDto,
   FINAL_RUN_STATUSES,
   slicePage,
+  type LinkedTicketDto,
   type ProjectConnectionDto,
   type ProjectDto,
   type RunDto,
@@ -131,8 +132,9 @@ function assertUniqueCommand(projectId: string, command: string, exceptId?: stri
 }
 
 /** As the API: a list item carries how many runs its ticket has had in the project, all statuses. */
-const withTicketRunCount = (run: RunDto): RunDto & { ticketRunCount: number } => ({
+const withTicketRunCount = (run: RunDto): RunDto & { ticketRunCount: number; linkedTickets: LinkedTicketDto[] } => ({
   ...run,
+  linkedTickets: [],
   ticketRunCount: db().runs.filter((r) => r.projectId === run.projectId && r.ticket.ref === run.ticket.ref).length,
 });
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { RunStatusEvent } from './events';
 import { PauseReason, STOPPABLE_RUN_STATUSES } from '../enums';
-import { RunDto, RunListItem, RunStatsDto, RunStatsQuery } from './runs';
+import { LinkedTicketDto, RunDto, RunListItem, RunStatsDto, RunStatsQuery } from './runs';
 
 const ID = '11111111-1111-4111-8111-111111111111';
 const NOW = '2026-11-16T10:00:00.000Z';
@@ -132,9 +132,9 @@ describe('RunListItem ticketRunCount', () => {
   const { prompt: _p, finalPrompt: _f, ...item } = run;
 
   it('requires the count of runs the ticket has had', () => {
-    expect(RunListItem.safeParse(item).success).toBe(false);
-    expect(RunListItem.safeParse({ ...item, ticketRunCount: 0 }).success).toBe(false);
-    const ok = RunListItem.safeParse({ ...item, ticketRunCount: 3 });
+    expect(RunListItem.safeParse({ ...item, linkedTickets: [] }).success).toBe(false);
+    expect(RunListItem.safeParse({ ...item, ticketRunCount: 0, linkedTickets: [] }).success).toBe(false);
+    const ok = RunListItem.safeParse({ ...item, ticketRunCount: 3, linkedTickets: [] });
     expect(ok.success && ok.data.ticketRunCount).toBe(3);
   });
 
@@ -142,7 +142,7 @@ describe('RunListItem ticketRunCount', () => {
     const stats = {
       counts: { needs_you: 2, active: 4, queued: 1, ended: 6, all: 12, ignored: 3 },
       today: { total: 2, failed: 1 },
-      idleRun: { ...item, ticketRunCount: 1 },
+      idleRun: { ...item, ticketRunCount: 1, linkedTickets: [] },
       nextQueuedNumber: 7,
     };
 
@@ -160,5 +160,49 @@ describe('RunListItem ticketRunCount', () => {
       expect(RunStatsQuery.safeParse({ since: 'yesterday' }).success).toBe(false);
       expect(RunStatsQuery.safeParse({ since: NOW }).success).toBe(true);
     });
+  });
+});
+
+describe('LinkedTicketDto and RunListItem.linkedTickets', () => {
+  const { prompt: _p, finalPrompt: _f, ...item } = run;
+  const entry = {
+    ref: 'r#142',
+    kind: 'issue',
+    number: 142,
+    title: 'Group runs',
+    url: 'https://example.test/142',
+    labels: [{ name: 'user-story', color: '0e8a16' }],
+    ticketRunCount: 2,
+  };
+
+  it('parses a full entry', () => {
+    expect(LinkedTicketDto.safeParse(entry).success).toBe(true);
+  });
+
+  it.each(['ref', 'kind', 'number', 'title', 'url', 'labels', 'ticketRunCount'])('rejects an entry without %s', (key) => {
+    const { [key]: _omit, ...rest } = entry as Record<string, unknown>;
+    expect(LinkedTicketDto.safeParse(rest).success).toBe(false);
+  });
+
+  it('rejects a ticketRunCount of 0', () => {
+    expect(LinkedTicketDto.safeParse({ ...entry, ticketRunCount: 0 }).success).toBe(false);
+  });
+
+  it('requires linkedTickets on a list item and round-trips an entry', () => {
+    const base = { ...item, ticketRunCount: 1 };
+    expect(RunListItem.safeParse(base).success).toBe(false);
+    expect(RunListItem.safeParse({ ...base, linkedTickets: [] }).success).toBe(true);
+    const ok = RunListItem.safeParse({ ...base, linkedTickets: [entry] });
+    expect(ok.success && ok.data.linkedTickets).toEqual([entry]);
+  });
+
+  it('parses RunStatsDto with an idleRun that carries linked tickets', () => {
+    const r = RunStatsDto.safeParse({
+      counts: { needs_you: 0, active: 0, queued: 0, ended: 0, all: 0, ignored: 0 },
+      today: { total: 0, failed: 0 },
+      idleRun: { ...item, ticketRunCount: 1, linkedTickets: [entry] },
+      nextQueuedNumber: null,
+    });
+    expect(r.success).toBe(true);
   });
 });

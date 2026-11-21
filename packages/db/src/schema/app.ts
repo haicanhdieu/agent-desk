@@ -266,6 +266,11 @@ export const runs = pgTable(
     sessionEndingAt: ts('session_ending_at'),
     /** Why the run is paused: 'idle_timeout', 'pod_lost', 'agent_crashed' or 'stopped'. Null otherwise. */
     pauseReason: text('pause_reason'),
+    /** Issue refs a PR run was linked to when it was created (same repo, positive integers, at most 10); '{}' for issue runs and runs from before links. */
+    linkedIssueRefs: text('linked_issue_refs')
+      .array()
+      .notNull()
+      .default(sql`'{}'::text[]`),
   },
   (t) => [
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),

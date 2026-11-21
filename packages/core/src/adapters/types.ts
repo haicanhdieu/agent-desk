@@ -26,6 +26,8 @@ export interface Ticket {
   title: string;
   url: string;
   labels: { name: string; color: string }[];
+  /** Same-repo issue refs this PR is linked to (closing references); [] for issues. Untrusted: normalised by normalizeLinkedRefs. */
+  linkedRefs: string[];
 }
 
 export interface PollCursor {

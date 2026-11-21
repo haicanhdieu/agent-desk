@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "linked_issue_refs" text[] DEFAULT '{}'::text[] NOT NULL;

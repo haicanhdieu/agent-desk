@@ -66,7 +66,14 @@ describe('fake board', () => {
       labels: [{ name: 'x', color: 'fff' }],
     });
     const tk = await new FakeBoardAdapter(new FakeStore(dir, clock), clock).getTicket(project, '2');
-    expect(tk).toMatchObject({ ref: '2', kind: 'pr', number: 2, title: 'P', labels: [{ name: 'x', color: 'fff' }] });
+    expect(tk).toMatchObject({
+      ref: '2',
+      kind: 'pr',
+      number: 2,
+      title: 'P',
+      labels: [{ name: 'x', color: 'fff' }],
+      linkedRefs: [],
+    });
   });
 
   it('webhook: valid HMAC parses, bad HMAC is rejected before parsing', async () => {

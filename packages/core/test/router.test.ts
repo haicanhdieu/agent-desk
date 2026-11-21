@@ -45,6 +45,7 @@ const ticketOf = (over: Partial<Ticket> = {}): Ticket => ({
   title: 't',
   url: 'u',
   labels: [],
+  linkedRefs: [],
   ...over,
 });
 

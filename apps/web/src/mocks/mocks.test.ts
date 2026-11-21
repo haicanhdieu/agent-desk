@@ -47,7 +47,19 @@ describe('mock fixtures', () => {
   });
 
   it('keeps every group within its run limit', () => {
-    for (const g of ticketGroups) expect(g.runsUsed).toBeLessThanOrEqual(g.runsMax);
+    for (const g of ticketGroups) {
+      expect(g.runsUsed).toBeLessThanOrEqual(g.runsMax);
+      for (const l of g.linked ?? []) expect(l.runsUsed).toBeLessThanOrEqual(g.runsMax);
+    }
+  });
+
+  it('writes each merged group chain note from its per-ticket counts', () => {
+    const merged = ticketGroups.filter((g) => g.linked?.length);
+    expect(merged.length).toBeGreaterThan(0);
+    for (const g of merged) {
+      expect(g.chainNote).toContain(`(${g.runsUsed} of ${g.runsMax} runs)`);
+      for (const l of g.linked ?? []) expect(g.chainNote).toContain(`(${l.runsUsed} of ${g.runsMax} runs)`);
+    }
   });
 
   it('matches PRD defaults', () => {
