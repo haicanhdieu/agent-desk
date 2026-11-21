@@ -497,11 +497,11 @@ Every schema has its `export type X = z.infer<typeof X>`.
 
   Params: `orgId`, `assignmentId`, `invitationId` are `z.uuid()`. Web fixtures in `apps/web/src/mocks/dto/access.ts`: `roleFixtures`, `assignmentFixtures`, `invitationFixtures`, `memberFixtures`, `accessFixture`, `platformOrgFixtures`, `platformProjectFixtures`, `platformMemberFixtures`.
 
-- [ ] **Step 1: Write the failing tests.** `routes.test.ts`: the key count becomes 68; `flat['assignments.remove']` matches `{ method: 'DELETE', path: '/api/orgs/:orgId/assignments/:assignmentId' }`; every `platform.*` path starts with `/api/platform/orgs`; `routes.assignments.list.query.parse({ projectId: P })` keeps `projectId`. `contract.test.ts`: add each new fixture list to "every DTO fixture parses with its contracts schema".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/routes.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the routes; in `handlers.ts` add one `impl` entry per new JSON route answering from the fixtures (create routes echo a fixture; `STATUS` gets 201 for the four create routes and 204 for the three removes).
-- [ ] **Step 4: Run** both commands plus `pnpm --filter @agentdesk/web typecheck`. Expected: PASS ("has a handler for every route key" included).
-- [ ] **Step 5: Commit** `feat(contracts): routes for access, assignments, invitations and the platform`.
+- [x] **Step 1: Write the failing tests.** `routes.test.ts`: the key count becomes 68; `flat['assignments.remove']` matches `{ method: 'DELETE', path: '/api/orgs/:orgId/assignments/:assignmentId' }`; every `platform.*` path starts with `/api/platform/orgs`; `routes.assignments.list.query.parse({ projectId: P })` keeps `projectId`. `contract.test.ts`: add each new fixture list to "every DTO fixture parses with its contracts schema".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/routes.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the routes; in `handlers.ts` add one `impl` entry per new JSON route answering from the fixtures (create routes echo a fixture; `STATUS` gets 201 for the four create routes and 204 for the three removes).
+- [x] **Step 4: Run** both commands plus `pnpm --filter @agentdesk/web typecheck`. Expected: PASS ("has a handler for every route key" included).
+- [x] **Step 5: Commit** `feat(contracts): routes for access, assignments, invitations and the platform`.
 
 ---
 
