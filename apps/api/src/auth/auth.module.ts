@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import type { Db } from '@agentdesk/db';
 import { AuditInterceptor } from '../audit/audit.interceptor';
+import { LOGGER, createLogger } from '../common/logger';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { AUTH, createAuth } from './auth';
@@ -14,6 +15,7 @@ import { SessionGuard } from './session.guard';
   controllers: [DevLoginController, AuthController],
   providers: [
     { provide: AUTH, inject: [CONFIG, DB], useFactory: (config: Config, db: Db) => createAuth(config, db) },
+    { provide: LOGGER, useFactory: () => createLogger() },
     { provide: APP_GUARD, useClass: SessionGuard },
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     OrgDb,

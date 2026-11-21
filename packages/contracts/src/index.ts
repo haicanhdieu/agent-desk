@@ -1,8 +1,12 @@
+export * from './access';
 export * from './enums';
 export * from './net';
 export * from './problem';
 export * from './routes';
+export * from './slug';
 export * from './schemas/common';
+export * from './schemas/access';
+export * from './schemas/platform';
 export * from './schemas/page';
 export * from './schemas/connections';
 export * from './schemas/projects';
@@ -15,3 +19,4 @@ export * from './schemas/events';
 export * from './schemas/session';
 export * from './schemas/setup';
 export * from './schemas/transcript';
+export * from './route-access';

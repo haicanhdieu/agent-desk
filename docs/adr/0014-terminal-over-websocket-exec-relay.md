@@ -2,6 +2,7 @@
 
 - Status: Accepted
 - Amended by [0023](0023-runner-entrypoint-owns-the-end-of-a-run-pod.md) (the entrypoint owns the end of the pod)
+- Amended by [0031](0031-scoped-rbac-roles-assignments.md) (terminal authorization: `terminal:attach` on the run's project, with ownership for members)
 - Date: 2026-11-11
 - Source: Architecture (PoC) §6 (approach A, Transport, comparison table), §7 threat model, §9 (Streaming); control plane design §7.5; frontend design §2 (Terminal), §5.3; infra design §6.4, §9.3
 
@@ -25,7 +26,7 @@ crosses Cloudflare, whose idle timeout is about 100 s.
   `{"type":"resize","cols","rows"}`. Close codes 4401 (not signed in), 4403 (not
   allowed), 4409 (run not `running`/`idle`). Control actions (finish, cancel) are
   REST, never on the socket.
-- Authorization: session, org member, and project creator or org owner.
+- Authorization: session, then `terminal:attach` on the run's project (members only on their own runs); a missing permission or an out-of-scope project closes 4403 (amended by [0031](0031-scoped-rbac-roles-assignments.md)).
 - Keepalive: WebSocket ping every 30 s; Traefik `readTimeout: 0`.
 - Attach/detach are signalled to the run workflow. Input is not: attaching makes xterm.js reply to tmux's queries, so a turn start comes from the runner's `UserPromptSubmit` hook instead.
 

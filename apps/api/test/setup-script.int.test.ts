@@ -4,13 +4,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withOrg } from '@agentdesk/db';
 import type { Page, SetupScriptDto, SetupScriptVersionDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
 let alice: string;
 let bob: string;
+let bobOrg: string;
 let carol: string;
 let aliceOrg: string;
 let connectionId: string;
@@ -18,21 +19,13 @@ let projectId: string;
 
 beforeAll(async () => {
   t = await createTestApp({ env: { FAKE_STATE_DIR: freshStateDir() }, wrapAdapters: wideFakeRepos });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
-  carol = await loginAs(t, 'carol');
+  aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
+  // carol is a plain member of alice's org (not the project's creator, not the owner).
+  carol = await inviteAndLogin(t, aliceOrg, 'carol', 'member', { type: 'org' });
   connectionId = await installFake(t, alice);
-  aliceOrg = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
-  // carol is a plain member of alice's org (not the project's creator, not the owner), with it as her active org.
-  await t.db.pool.query(
-    `insert into member (id, organization_id, user_id, role, created_at)
-     select $2, $1, id, 'member', now() from "user" where handle = 'carol'`,
-    [aliceOrg, randomUUID()],
-  );
-  await t.db.pool.query(
-    `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'carol')`,
-    [aliceOrg],
-  );
 });
 afterAll(async () => {
   await t.close();
@@ -177,14 +170,8 @@ describe('setup script API', () => {
 
   it('versions stay readable, with the user id as createdBy, after the creator user row is deleted', async () => {
     await freshProject();
-    const dave = await loginAs(t, 'dave');
-    const daveId = ((await t.db.pool.query(`select id from "user" where handle = 'dave'`)).rows[0] as { id: string })
-      .id;
-    await t.db.pool.query(
-      `insert into member (id, organization_id, user_id, role, created_at) values ($1, $2, $3, 'owner', now())`,
-      [randomUUID(), aliceOrg, daveId],
-    );
-    await t.db.pool.query(`update session set active_organization_id = $1 where user_id = $2`, [aliceOrg, daveId]);
+    const dave = await inviteAndLogin(t, aliceOrg, 'dave', 'owner', { type: 'org' });
+    const daveId = await userIdOf(t, 'dave');
     await put({ body: 'one', baseVersion: null });
     expect((await put({ body: 'two', baseVersion: 1 }, dave)).statusCode).toBe(200);
     await t.db.pool.query(`delete from "user" where id = $1`, [daveId]);
@@ -223,5 +210,31 @@ describe('setup script API', () => {
       baseVersion: null,
     });
     expect(JSON.stringify(rows.rows)).not.toContain('SECRET_VALUE_DO_NOT_LOG');
+  });
+});
+
+describe('setup script API: permission (BR-33, BR-29)', () => {
+  it('TC-33.7: a member cannot put the setup script; it is unchanged on reread', async () => {
+    await freshProject();
+    expect((await put({ body: 'echo keep', baseVersion: null })).statusCode).toBe(200);
+    const member = await inviteAndLogin(t, aliceOrg, 'script-member', 'member', { type: 'org' });
+    const res = await put({ body: 'echo evil', baseVersion: 1 }, member);
+    expect(res.statusCode).toBe(403);
+    expect((await get().then((r) => r.json())) as SetupScriptDto).toMatchObject({ version: 1, body: 'echo keep' });
+    const versions = expectContract('setupScript.versions', await get('/versions')) as Page<SetupScriptVersionDto>;
+    expect(versions.total).toBe(1);
+  });
+
+  it('TC-29.2: an admin on P1 only can put the setup script on P1 and gets 404 on another project', async () => {
+    await freshProject();
+    const other = (await makeProject(t, alice, connectionId)).projectId;
+    const admin = await inviteAndLogin(t, aliceOrg, 'script-admin', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    const res = await put({ body: 'echo admin', baseVersion: null }, admin);
+    expect(res.statusCode).toBe(200);
+    expect(expectContract('setupScript.put', res)).toMatchObject({ version: 1, body: 'echo admin' });
+    expect((await put({ body: 'echo admin', baseVersion: null }, admin, other)).statusCode).toBe(404);
   });
 });

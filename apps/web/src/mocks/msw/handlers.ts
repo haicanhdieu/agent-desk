@@ -21,6 +21,17 @@ import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import type { MockRun } from '../dto/runs';
+import {
+  accessFixture,
+  assignmentFixtures,
+  invitationFixtures,
+  memberFixtures,
+  platformMemberFixtures,
+  platformOrgFixtures,
+  platformProjectFixtures,
+  roleFixtures,
+} from '../dto/access';
+import { ids } from '../dto/ids';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
 import { noPlugins } from '../dto/setup';
@@ -61,6 +72,10 @@ function session(): { user: MockUser; orgId: string } {
 }
 
 const db = () => mockDb.state;
+
+const never = (what: string): never => {
+  throw new Error(`${what} fixture missing`);
+};
 
 const SLOW_MS = 3_000;
 const slow = () => new Promise<void>((resolve) => setTimeout(resolve, SLOW_MS));
@@ -685,6 +700,28 @@ const impl: Impl = {
     ]);
     return null;
   },
+
+  'me.access': () => accessFixture,
+  'roles.list': () => roleFixtures,
+  'members.list': ({ query }) => slicePage(memberFixtures, query),
+  'assignments.list': ({ query }) => slicePage(assignmentFixtures, query),
+  'assignments.create': () => assignmentFixtures[0] ?? never('assignment'),
+  'assignments.remove': () => null,
+  'invitations.list': ({ query }) => slicePage(invitationFixtures, query),
+  'invitations.create': () => invitationFixtures[0] ?? never('invitation'),
+  'invitations.remove': () => null,
+
+  'platform.createOrg': ({ body }) => ({ id: ids.created(900), name: body.name, slug: body.slug }),
+  'platform.listOrgs': ({ query }) => slicePage(platformOrgFixtures, query),
+  'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
+  'platform.listRoles': () => roleFixtures,
+  'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),
+  'platform.listAssignments': ({ query }) => slicePage(assignmentFixtures, query),
+  'platform.createAssignment': () => assignmentFixtures[0] ?? never('assignment'),
+  'platform.removeAssignment': () => null,
+  'platform.listInvitations': ({ query }) => slicePage(invitationFixtures, query),
+  'platform.createInvitation': () => invitationFixtures[0] ?? never('invitation'),
+  'platform.removeInvitation': () => null,
 };
 
 // As the API answers (Nest: 201 for a POST without @HttpCode).
@@ -698,6 +735,15 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'runs.stop': 202,
   'runs.finish': 202,
   'setupTests.end': 202,
+  'assignments.create': 201,
+  'invitations.create': 201,
+  'platform.createOrg': 201,
+  'platform.createAssignment': 201,
+  'platform.createInvitation': 201,
+  'assignments.remove': 204,
+  'invitations.remove': 204,
+  'platform.removeAssignment': 204,
+  'platform.removeInvitation': 204,
 };
 
 async function readBody(request: Request): Promise<unknown> {

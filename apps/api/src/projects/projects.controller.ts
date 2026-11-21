@@ -8,6 +8,7 @@ import {
   type ProjectDto,
   type UpdateProjectRequest,
 } from '@agentdesk/contracts';
+import { CurrentAccess, type RequestAuthz } from '../access/current-access';
 import { CurrentOrg, type OrgContext } from '../auth/org-context';
 import { routePath } from '../common/route-path';
 import { ZodPipe } from '../common/zod-validation';
@@ -23,8 +24,12 @@ export class ProjectsController {
   constructor(@Inject(ProjectsService) private readonly service: ProjectsService) {}
 
   @Get(routePath(routes.projects.list))
-  list(@CurrentOrg() org: OrgContext, @Query(ListQuery) q: PageQuery): Promise<Page<ProjectDto>> {
-    return this.service.list(org, q);
+  list(
+    @CurrentOrg() org: OrgContext,
+    @CurrentAccess() authz: RequestAuthz,
+    @Query(ListQuery) q: PageQuery,
+  ): Promise<Page<ProjectDto>> {
+    return this.service.list(org, authz, q);
   }
 
   @Post(routePath(routes.projects.create))

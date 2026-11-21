@@ -20,6 +20,7 @@ import {
   pageWindow,
   toPage,
   TriggerMode,
+  visibleProjects,
   type CreateProjectRequest,
   type Page,
   type PageQuery,
@@ -35,7 +36,8 @@ import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { SECRET_STORE } from '../secrets/secret-store.module';
-import { assertCanEditProject } from './project-access';
+import type { RequestAuthz } from '../access/current-access';
+import { assertProjectVisible } from './project-access';
 import { ProjectSchedules } from './project-schedules';
 
 type ProjectRow = typeof projects.$inferSelect;
@@ -183,14 +185,25 @@ export class ProjectsService {
     }
   }
 
-  async list(org: OrgContext, q: PageQuery): Promise<Page<ProjectDto>> {
+  /**
+   * One page of the projects the caller may read. An org-scope `project:read` grant sees all; otherwise only the
+   * projects named by a project-scope grant, and none when there is no such grant (an empty list filters to `false`: fail closed). The page and `total`
+   * use the same filter.
+   */
+  async list(org: OrgContext, authz: Pick<RequestAuthz, 'access'>, q: PageQuery): Promise<Page<ProjectDto>> {
     const { limit, offset } = pageWindow(q);
+    const visible = visibleProjects(authz.access, 'project:read');
+    const scope = visible === 'all' ? undefined : inArray(projects.id, visible);
     return withOrg(this.db, org.orgId, async (tx) => {
-      const [counted] = await tx.select({ total: sql<number>`count(*)::int` }).from(projects);
+      const [counted] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(scope);
       const total = counted?.total ?? 0;
       const rows = await tx
         .select()
         .from(projects)
+        .where(scope)
         .orderBy(asc(projects.createdAt), asc(projects.id))
         .limit(limit)
         .offset(offset);
@@ -409,11 +422,11 @@ export class ProjectsService {
   /**
    * Check now: runs the project's poll schedule right away. Refused (409, with the reason) when the project is not
    * polling, polling is paused (revoked token, rate limit) or a back-off window is open: a poll would only skip it.
-   * The poll itself runs on the worker; its result shows up in `connection`. Same access as editing the project.
+   * The poll itself runs on the worker; its result shows up in `connection`. The guard has already checked `run:create` on the project.
    */
   async pollNow(org: OrgContext, projectId: string): Promise<void> {
     const refusal = await withOrg(this.db, org.orgId, async (tx) => {
-      await assertCanEditProject(tx, org, projectId);
+      await assertProjectVisible(tx, projectId);
       const row = await this.load(tx, projectId);
       const cursor = (await tx.select().from(pollCursors).where(eq(pollCursors.projectId, projectId)).limit(1))[0];
       return pollRefusal(row.triggerMode, cursor, new Date());

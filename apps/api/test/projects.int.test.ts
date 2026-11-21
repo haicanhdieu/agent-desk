@@ -5,13 +5,14 @@ import { ScheduleNotFoundError, WorkflowNotFoundError } from '@temporalio/client
 import type { Page, ProjectDto } from '@agentdesk/contracts';
 import { SIGNAL, credentialSecretName } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
 let t: TestApp;
 let alice: string;
 let bob: string;
 let connectionId: string;
+let aliceOrg: string;
 
 beforeAll(async () => {
   t = await createTestApp({
@@ -27,8 +28,10 @@ beforeAll(async () => {
       },
     }),
   });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
   const inst = await t.app.inject({ method: 'POST', url: '/api/connections/fake/install', headers: { cookie: alice } });
   const u = new URL((inst.json() as { url: string }).url);
   const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie: alice } });
@@ -58,8 +61,7 @@ async function asOrg(orgId: string, text: string, params: unknown[] = []): Promi
   }
 }
 async function aliceOrgId(): Promise<string> {
-  const org = await t.db.pool.query("select id from organization where slug = 'alice'");
-  return org.rows[0].id;
+  return aliceOrg;
 }
 
 let seq = 0;
@@ -462,8 +464,10 @@ describe('projects', () => {
     expect(bad.statusCode).toBe(400);
     const p = (await createProject({})).json() as ProjectDto;
     expect((await patch(p.id, { maxConcurrentRuns: 0 })).statusCode).toBe(400);
+    // The caller may read projects, so a malformed id is a target that does not exist (the guard looks the target up
+    // before the pipe parses the param).
     const badId = await t.app.inject({ method: 'GET', url: '/api/projects/not-a-uuid', headers: { cookie: alice } });
-    expect(badId.statusCode).toBe(400);
+    expect(badId.statusCode).toBe(404);
   });
 
   it('rejects malformed or inaccessible repoPath with a /repoPath problem pointer', async () => {
@@ -560,21 +564,18 @@ describe('POST /api/projects/:projectId/connection/poll (Check now)', () => {
     expect((await t.app.inject({ method: 'POST', url: `/api/projects/${id}/connection/poll` })).statusCode).toBe(401);
   });
 
-  it('is 403 for an org member who is neither the owner nor the project creator', async () => {
-    const carol = await loginAs(t, 'carol');
-    const orgId = await aliceOrgId();
-    await t.db.pool.query(
-      `insert into member (id, organization_id, user_id, role, created_at)
-       select $2, $1, id, 'member', now() from "user" where handle = 'carol'`,
-      [orgId, randomUUID()],
-    );
-    await t.db.pool.query(
-      `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'carol')`,
-      [orgId],
-    );
+  it('is 403 for a viewer, who lacks run:create on the project', async () => {
     const id = await pollingProject();
+    const carol = await inviteAndLogin(t, aliceOrg, 'carol', 'viewer', { type: 'project', projectIds: [id] });
     expect((await checkNow(id, carol)).statusCode).toBe(403);
     expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
+  });
+
+  it('runs for a member of the project who did not create it (BR-68)', async () => {
+    const id = await pollingProject();
+    const dave = await inviteAndLogin(t, aliceOrg, 'dave', 'member', { type: 'project', projectIds: [id] });
+    expect((await checkNow(id, dave)).statusCode).toBe(202);
+    expect(t.temporal.callsOfKind('scheduleTrigger').map((c) => c.scheduleId)).toEqual([`poll-${id}`]);
   });
 });
 
@@ -588,9 +589,6 @@ describe('projects.list paging', () => {
   let empty: string;
   const aIds: string[] = [];
   const bIds: string[] = [];
-
-  const orgIdOf = async (slug: string): Promise<string> =>
-    (await t.db.pool.query('select id from organization where slug = $1', [slug])).rows[0].id;
 
   /** Inserts `count` projects straight into the org (the HTTP create needs a reachable repo), oldest first. */
   async function seed(orgId: string, conn: string, prefix: string, count: number, createdAt?: Date): Promise<string[]> {
@@ -607,13 +605,14 @@ describe('projects.list paging', () => {
     t.app.inject({ method: 'GET', url: `/api/projects${qs}`, headers: { cookie } });
 
   beforeAll(async () => {
-    a = await loginAs(t, 'paging-a');
-    b = await loginAs(t, 'paging-b');
-    empty = await loginAs(t, 'paging-empty');
+    aOrg = (await createOrg(t, 'Paging A', 'paging-a')).id;
+    bOrg = (await createOrg(t, 'Paging B', 'paging-b')).id;
+    const emptyOrg = (await createOrg(t, 'Paging Empty', 'paging-empty')).id;
+    a = await inviteAndLogin(t, aOrg, 'paging-a', 'owner', { type: 'org' });
+    b = await inviteAndLogin(t, bOrg, 'paging-b', 'owner', { type: 'org' });
+    empty = await inviteAndLogin(t, emptyOrg, 'paging-empty', 'owner', { type: 'org' });
     aConn = await installFakeConnection(a);
     bConn = await installFakeConnection(b);
-    aOrg = await orgIdOf('paging-a');
-    bOrg = await orgIdOf('paging-b');
     aIds.push(...(await seed(aOrg, aConn, 'paging-a/p', 26)));
     bIds.push(...(await seed(bOrg, bConn, 'paging-b/p', 30)));
   });
@@ -643,10 +642,10 @@ describe('projects.list paging', () => {
   });
 
   it('orders rows with equal created_at by id, the same on every request', async () => {
-    const conn = await installFakeConnection(await loginAs(t, 'paging-ties'));
-    const orgId = await orgIdOf('paging-ties');
+    const orgId = (await createOrg(t, 'Paging Ties', 'paging-ties')).id;
+    const cookie = await inviteAndLogin(t, orgId, 'paging-ties', 'owner', { type: 'org' });
+    const conn = await installFakeConnection(cookie);
     const ids = await seed(orgId, conn, 'paging-ties/p', 22, new Date('2026-01-01T00:00:00Z'));
-    const cookie = await loginAs(t, 'paging-ties');
     const first = (expectContract('projects.list', await list(cookie)) as Page<ProjectDto>).items.map((p) => p.id);
     const second = (expectContract('projects.list', await list(cookie)) as Page<ProjectDto>).items.map((p) => p.id);
     expect(first).toEqual(second);
@@ -671,5 +670,52 @@ describe('projects.list paging', () => {
     expect(theirs.total).toBe(30);
     expect(theirs.items.some((p) => aIds.includes(p.id))).toBe(false);
     expect(expectContract('projects.list', await list(empty))).toMatchObject({ items: [], total: 0 });
+  });
+});
+
+describe('projects: permission (BR-18, BR-33, BR-29)', () => {
+  const list = async (cookie: string) =>
+    expectContract(
+      'projects.list',
+      await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } }),
+    ) as Page<ProjectDto>;
+  const get = (id: string, cookie = alice) =>
+    t.app.inject({ method: 'GET', url: `/api/projects/${id}`, headers: { cookie } });
+  const remove = (id: string, cookie: string) =>
+    t.app.inject({ method: 'DELETE', url: `/api/projects/${id}`, headers: { cookie } });
+
+  it('TC-18.1, TC-18.2, TC-33.1: a member cannot create, delete or edit a project and nothing changes', async () => {
+    const p1 = (await createProject({})).json() as ProjectDto;
+    const member = await inviteAndLogin(t, aliceOrg, 'proj-member', 'member', { type: 'org' });
+    const before = await list(member);
+    expect((await get(p1.id, member)).statusCode).toBe(200);
+    t.temporal.reset();
+
+    expect((await createProject({}, member)).statusCode).toBe(403);
+    expect((await remove(p1.id, member)).statusCode).toBe(403);
+    expect((await patch(p1.id, { name: 'Renamed by a member' }, member)).statusCode).toBe(403);
+
+    const after = await list(member);
+    expect(after.total).toBe(before.total);
+    expect(after.items.map((x) => x.id)).toEqual(before.items.map((x) => x.id));
+    expect((await get(p1.id, member)).statusCode).toBe(200);
+    const reread = expectContract('projects.get', await get(p1.id)) as ProjectDto;
+    expect(reread.name).toBe(p1.name);
+    expect(t.temporal.calls).toEqual([]);
+  });
+
+  it('TC-29.1, TC-29.5, TC-29.6: an admin on P1 edits P1 but cannot create or delete projects', async () => {
+    const p1 = (await createProject({})).json() as ProjectDto;
+    const admin = await inviteAndLogin(t, aliceOrg, 'proj-admin', 'admin', { type: 'project', projectIds: [p1.id] });
+    const before = await list(admin);
+
+    const edited = await patch(p1.id, { name: 'Renamed by P1 admin' }, admin);
+    expect(edited.statusCode).toBe(200);
+    expect((expectContract('projects.update', edited) as ProjectDto).name).toBe('Renamed by P1 admin');
+    expect((await createProject({}, admin)).statusCode).toBe(403);
+    expect((await remove(p1.id, admin)).statusCode).toBe(403);
+
+    expect((await list(admin)).items.map((x) => x.id)).toEqual(before.items.map((x) => x.id));
+    expect((await get(p1.id)).statusCode).toBe(200);
   });
 });

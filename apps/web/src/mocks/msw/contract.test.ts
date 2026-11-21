@@ -1,7 +1,15 @@
 import {
+  AccessDto,
   AgentDto,
   AgentModelsDto,
+  AssignmentDto,
   ConnectionDto,
+  InvitationDto,
+  MemberDto,
+  PlatformMemberDto,
+  PlatformOrgDto,
+  PlatformProjectDto,
+  RoleDto,
   IgnoredEventDto,
   PluginsDto,
   PromptPreviewDto,
@@ -23,6 +31,16 @@ import {
 import { ApiError, api as defaultApi, createApi } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import {
+  accessFixture,
+  assignmentFixtures,
+  invitationFixtures,
+  memberFixtures,
+  platformMemberFixtures,
+  platformOrgFixtures,
+  platformProjectFixtures,
+  roleFixtures,
+} from '../dto/access';
 import { agentFixtures } from '../dto/agents';
 import { agentModelsFixtures } from '../dto/agentModels';
 import { connectionFixtures, repoFixtures } from '../dto/connections';
@@ -71,6 +89,14 @@ describe('MSW handlers cover the contract', () => {
       [RunEventDto, Object.values(runEventFixtures).flat()],
       [SetupScriptDto, Object.values(setupScriptFixtures).flat()],
       [PluginsDto, Object.values(pluginFixtures)],
+      [RoleDto, roleFixtures],
+      [AssignmentDto, assignmentFixtures],
+      [InvitationDto, invitationFixtures],
+      [MemberDto, memberFixtures],
+      [AccessDto, [accessFixture]],
+      [PlatformOrgDto, platformOrgFixtures],
+      [PlatformProjectDto, platformProjectFixtures],
+      [PlatformMemberDto, platformMemberFixtures],
     ];
     for (const [schema, items] of lists) {
       expect(items.length).toBeGreaterThan(0);
@@ -429,6 +455,16 @@ describe('MSW handler semantics', () => {
       // Run 64 is still paused, so it still needs a person.
       counts: { needsYou: 1, running: 0, queued: 1 },
     });
+  });
+
+  it('answers 201 with the new org when a platform admin creates one', async () => {
+    const res = await fetch('http://localhost:3000/api/platform/orgs', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Globex', slug: 'globex' }),
+    });
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ name: 'Globex', slug: 'globex' });
   });
 
   it('finishes a done run, and answers 409 for a run that is only running', async () => {

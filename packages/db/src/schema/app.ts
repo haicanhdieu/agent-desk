@@ -1,5 +1,6 @@
 import { sql } from 'drizzle-orm';
 import {
+  type AnyPgColumn,
   boolean,
   check,
   index,
@@ -14,6 +15,7 @@ import {
   unique,
   uuid,
 } from 'drizzle-orm/pg-core';
+import { user } from './auth';
 
 /**
  * Tenant predicate. `current_setting(..., true)` yields NULL when `app.org_id` was never set and ''
@@ -271,6 +273,10 @@ export const runs = pgTable(
       .array()
       .notNull()
       .default(sql`'{}'::text[]`),
+    /** The user a run belongs to, resolved at intake. Null for older or ownerless runs. */
+    ownerUserId: text('owner_user_id').references(() => user.id, { onDelete: 'set null' }),
+    /** For a run started by a bot-authored comment: the run that comment came from. Null otherwise. */
+    originRunId: uuid('origin_run_id').references((): AnyPgColumn => runs.id, { onDelete: 'set null' }),
   },
   (t) => [
     unique('runs_project_trigger_comment_key').on(t.projectId, t.triggerCommentId),
@@ -287,6 +293,10 @@ export const runs = pgTable(
     index('runs_agent_idx').on(t.agentId),
     index('runs_inbound_event_idx').on(t.inboundEventId),
     index('runs_project_session_idx').on(t.projectId, t.sessionExpiresAt),
+    // Bot-origin lookup: project runs still active (finished_at null) or finished at/after a comment time.
+    index('runs_project_finished_idx').on(t.projectId, t.finishedAt),
+    index('runs_owner_user_idx').on(t.ownerUserId),
+    index('runs_origin_run_id_idx').on(t.originRunId),
     // Status literals mirror RUN_STATUSES in @agentdesk/contracts (db cannot import contracts).
     check(
       'runs_status_check',

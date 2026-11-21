@@ -130,6 +130,7 @@ function runOf(spec: RunSpec): RunDto {
     status,
     triggerSource: 'webhook',
     triggeredBy: 'kim-hale',
+    ownerUserId: null,
     queuedAt,
     startedAt: queued ? null : queuedAt,
     finishedAt: final ? new Date(spec.queuedAt + 6 * minute).toISOString() : null,

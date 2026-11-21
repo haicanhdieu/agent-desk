@@ -3,10 +3,23 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { WorkflowExecutionAlreadyStartedError } from '@temporalio/client';
 import { eq, sql } from 'drizzle-orm';
-import { agents, connections, createDb, inboundEvents, projects, rules, runs, withOrg, type Db } from '@agentdesk/db';
+import {
+  agents,
+  connections,
+  createDb,
+  inboundEvents,
+  projects,
+  roleAssignments,
+  roles,
+  rules,
+  runs,
+  withOrg,
+  type Db,
+} from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import type { AdapterRegistry, BoardAdapter, CodeHostAdapter, Ticket, TicketEvent } from '../src';
 import {
+  copyRoleTemplates,
   isUniqueViolation,
   processTicketEvent,
   startRunWorkflow,
@@ -14,6 +27,7 @@ import {
   type IntakeDeps,
   type WorkflowStarter,
 } from '../src';
+import { botTriggerEvent } from './fixtures/bot-comment';
 
 let pgServer: TestPg;
 let db: Db;
@@ -37,6 +51,26 @@ interface Seed {
   projectId: string;
   externalId: string;
   repoPath: string;
+  /** Login of the linked commenter (account ('fake', author)); unique per seed, so the link is never ambiguous. */
+  author: string;
+  /** The Agent Desk user linked to `author`. */
+  ownerId: string;
+  /** Role ids of the org's built-in roles. */
+  roleIds: Record<string, string>;
+}
+
+async function makeLinkedUser(handle: string, accountId: string): Promise<string> {
+  const id = randomUUID();
+  await admin.query(`insert into "user" (id, name, email, handle) values ($1, $2, $3, $2)`, [
+    id,
+    handle,
+    `${handle}-${id}@example.test`,
+  ]);
+  await admin.query(
+    `insert into account (id, account_id, provider_id, user_id, updated_at) values ($1, $2, 'fake', $3, now())`,
+    [randomUUID(), accountId, id],
+  );
+  return id;
 }
 
 let seq = 0;
@@ -47,13 +81,28 @@ async function seed(
     prompt?: string;
     model?: string | null;
     agentModel?: string;
+    /** Role the linked commenter holds on the project; `none` links the account but grants nothing. */
+    role?: 'member' | 'viewer' | 'none';
+    /** Extra provider user ids that also link to the commenter (account ids). */
+    extraAccountIds?: string[];
   } = {},
 ): Promise<Seed> {
   seq += 1;
+  const author = `alice-${seq}-${randomUUID().slice(0, 8)}`;
+  const ownerId = await makeLinkedUser(author, author);
+  for (const extra of over.extraAccountIds ?? []) {
+    await admin.query(
+      `insert into account (id, account_id, provider_id, user_id, updated_at) values ($1, $2, 'fake', $3, now())`,
+      [randomUUID(), extra, ownerId],
+    );
+  }
   const orgId = randomUUID();
   const externalId = `fake-${orgId}`;
   const repoPath = `acme/app-${seq}`;
+  const roleIds: Record<string, string> = {};
   const projectId = await withOrg(db, orgId, async (tx) => {
+    await copyRoleTemplates(tx, orgId);
+    for (const r of await tx.select({ id: roles.id, key: roles.key }).from(roles)) roleIds[r.key] = r.id;
     const [conn] = await tx
       .insert(connections)
       .values({
@@ -89,9 +138,19 @@ async function seed(
       labelFilter: over.labelFilter ?? [],
       model: over.model ?? null,
     });
+    const role = over.role ?? 'member';
+    if (role !== 'none') {
+      await tx.insert(roleAssignments).values({
+        orgId,
+        userId: ownerId,
+        roleId: roleIds[role]!,
+        scopeType: 'project',
+        projectId: p!.id,
+      });
+    }
     return p!.id;
   });
-  return { orgId, projectId, externalId, repoPath };
+  return { orgId, projectId, externalId, repoPath, author, ownerId, roleIds };
 }
 
 const ticket = (n: number): Ticket => ({
@@ -134,7 +193,8 @@ const eventFor = (s: Seed, over: Partial<TicketEvent> = {}): TicketEvent => {
     ticketRef: '7',
     ticketKind: 'issue',
     body: '/code-review fast',
-    author: 'alice',
+    author: s.author,
+    authorId: s.author,
     authorAssociation: 'MEMBER',
     createdAt: '2026-11-12T00:00:00Z',
     ...over,
@@ -167,8 +227,8 @@ describe('processTicketEvent', () => {
       ticketLabels: [{ name: 'bug', color: 'ff0000' }],
       checkoutRef: 'main',
       triggerSource: 'webhook',
-      triggeredBy: 'alice',
-      triggeredByExternalId: null,
+      triggeredBy: s.author,
+      triggeredByExternalId: s.author,
       workflowId: null,
     });
     expect(h.getTicket).toHaveBeenCalledTimes(1); // router had no need for it, the snapshot did
@@ -177,10 +237,11 @@ describe('processTicketEvent', () => {
   });
 
   it('stores the provider user id of the person who triggered the run', async () => {
-    const s = await seed();
+    const providerUserId = `ext-${randomUUID()}`;
+    const s = await seed({ extraAccountIds: [providerUserId] });
     const h = harness();
-    await processTicketEvent(h.deps, eventFor(s, { authorId: '42' }), 'webhook');
-    expect((await runsOf(s))[0]).toMatchObject({ triggeredBy: 'alice', triggeredByExternalId: '42' });
+    await processTicketEvent(h.deps, eventFor(s, { authorId: providerUserId }), 'webhook');
+    expect((await runsOf(s))[0]).toMatchObject({ triggeredBy: s.author, triggeredByExternalId: providerUserId });
   });
 
   it('the same delivery twice is a duplicate with one run', async () => {
@@ -215,7 +276,7 @@ describe('processTicketEvent', () => {
     expect((await processTicketEvent(h.deps, contrib, 'webhook')).outcome).toBe('ignored_unauthorized');
     const rows = await inboundOf(s);
     const byOutcome = (o: string) => rows.find((r) => r.outcome === o);
-    expect(byOutcome('ignored_no_command')).toMatchObject({ author: 'alice', ticketRef: '7', command: 'hi' });
+    expect(byOutcome('ignored_no_command')).toMatchObject({ author: s.author, ticketRef: '7', command: 'hi' });
     expect(byOutcome('ignored_unauthorized')).toMatchObject({
       author: 'mallory',
       ticketRef: '7',
@@ -345,6 +406,195 @@ describe('processTicketEvent', () => {
   });
 });
 
+describe('processTicketEvent: run owner', () => {
+  const ORIGIN_START = '2026-11-11T23:00:00Z';
+  const BOT_AT = '2026-11-12T00:00:00Z';
+
+  /** A running run of the commenter on ticket 7 with no skill, so it does not trip the active-run guard. */
+  const originRun = (s: Seed, over: { ownerUserId?: string | null; ticketRef?: string } = {}) =>
+    withOrg(db, s.orgId, async (tx) => {
+      const [r] = await tx
+        .insert(runs)
+        .values({
+          orgId: s.orgId,
+          projectId: s.projectId,
+          command: 'origin',
+          ticketRef: over.ticketRef ?? '7',
+          ticketKind: 'issue',
+          checkoutRef: 'main',
+          triggerSource: 'webhook',
+          status: 'running',
+          ownerUserId: over.ownerUserId === undefined ? s.ownerId : over.ownerUserId,
+          startedAt: new Date(ORIGIN_START),
+        })
+        .returning({ id: runs.id });
+      return r!.id;
+    });
+  const outcomes = async (s: Seed) => (await inboundOf(s)).map((r) => r.outcome);
+
+  it('the run belongs to the linked commenter and has no origin run', async () => {
+    const s = await seed();
+    const h = harness();
+    expect((await processTicketEvent(h.deps, eventFor(s), 'webhook')).outcome).toBe('run_created');
+    expect((await runsOf(s))[0]).toMatchObject({ ownerUserId: s.ownerId, originRunId: null });
+  });
+
+  it('logs the owner decision at info with ids only', async () => {
+    const s = await seed();
+    const log = { warn: vi.fn(), info: vi.fn() };
+    const h = harness({ log });
+    const e = eventFor(s);
+    await processTicketEvent(h.deps, e, 'webhook');
+    expect(log.info).toHaveBeenCalledWith(
+      {
+        deliveryId: e.deliveryId,
+        projectId: s.projectId,
+        channel: 'webhook',
+        origin: 'human',
+        outcome: 'owner',
+        ownerUserId: s.ownerId,
+      },
+      'intake run owner decided',
+    );
+  });
+
+  it('a commenter that is not linked starts no run and the board is not called', async () => {
+    const s = await seed();
+    const h = harness();
+    const e = eventFor(s, { author: 'stranger', authorId: `stranger-${randomUUID()}` });
+    expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'ignored_owner_unlinked' });
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(h.startRun).not.toHaveBeenCalled();
+    expect(h.getTicket).not.toHaveBeenCalled();
+    expect(await inboundOf(s)).toMatchObject([
+      { outcome: 'ignored_owner_unlinked', author: 'stranger', command: 'code-review' },
+    ]);
+  });
+
+  it('a commenter without a provider user id is unlinked', async () => {
+    const s = await seed();
+    const h = harness();
+    const e = { ...eventFor(s), authorId: undefined };
+    expect((await processTicketEvent(h.deps, e, 'webhook')).outcome).toBe('ignored_owner_unlinked');
+    expect(await runsOf(s)).toHaveLength(0);
+  });
+
+  it.each(['viewer', 'none'] as const)('a linked commenter with role %s lacks run:create', async (role) => {
+    const s = await seed({ role });
+    const h = harness();
+    expect(await processTicketEvent(h.deps, eventFor(s), 'webhook')).toEqual({
+      outcome: 'ignored_owner_not_permitted',
+    });
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(h.startRun).not.toHaveBeenCalled();
+    expect(h.getTicket).not.toHaveBeenCalled();
+  });
+
+  it('the owner check comes before rule matching: an unlinked commenter on an unknown command is unlinked', async () => {
+    const s = await seed();
+    const h = harness();
+    const e = eventFor(s, { body: '/no-such-rule', authorId: `nobody-${randomUUID()}` });
+    expect((await processTicketEvent(h.deps, e, 'webhook')).outcome).toBe('ignored_owner_unlinked');
+  });
+
+  it('a grant on another project of the org does not allow a run here', async () => {
+    const s = await seed({ role: 'none' });
+    await withOrg(db, s.orgId, async (tx) => {
+      const [conn] = await tx.select({ id: connections.id }).from(connections);
+      const [other] = await tx
+        .insert(projects)
+        .values({
+          orgId: s.orgId,
+          name: 'elsewhere',
+          repoPath: `acme/elsewhere-${randomUUID()}`,
+          codeConnectionId: conn!.id,
+          boardConnectionId: conn!.id,
+        })
+        .returning({ id: projects.id });
+      await tx.insert(roleAssignments).values({
+        orgId: s.orgId,
+        userId: s.ownerId,
+        roleId: s.roleIds.member!,
+        scopeType: 'project',
+        projectId: other!.id,
+      });
+    });
+    const h = harness();
+    expect((await processTicketEvent(h.deps, eventFor(s), 'webhook')).outcome).toBe('ignored_owner_not_permitted');
+    expect(await runsOf(s)).toHaveLength(0);
+  });
+
+  it("a bot comment during the owner's active run starts a run owned by that owner, with origin_run_id set", async () => {
+    const s = await seed();
+    const originId = await originRun(s);
+    const h = harness();
+    const e = botTriggerEvent(eventFor(s), BOT_AT);
+    expect((await processTicketEvent(h.deps, e, 'webhook')).outcome).toBe('run_created');
+    const chained = (await runsOf(s)).find((r) => r.id !== originId);
+    expect(chained).toMatchObject({ ownerUserId: s.ownerId, originRunId: originId, triggeredBy: 'agentdesk[bot]' });
+  });
+
+  it('a bot comment with no originating run is unlinked and starts nothing', async () => {
+    const s = await seed();
+    const h = harness();
+    const e = botTriggerEvent(eventFor(s), BOT_AT);
+    expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'ignored_owner_unlinked' });
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(h.startRun).not.toHaveBeenCalled();
+  });
+
+  it('a bot comment whose originating run has no owner is unlinked', async () => {
+    const s = await seed();
+    await originRun(s, { ownerUserId: null });
+    const h = harness();
+    const e = botTriggerEvent(eventFor(s), BOT_AT);
+    expect((await processTicketEvent(h.deps, e, 'webhook')).outcome).toBe('ignored_owner_unlinked');
+    expect(await runsOf(s)).toHaveLength(1);
+  });
+
+  it('a bot comment whose origin owner lost run:create is not permitted', async () => {
+    const s = await seed({ role: 'viewer' });
+    await originRun(s);
+    const h = harness();
+    const e = botTriggerEvent(eventFor(s), BOT_AT);
+    expect((await processTicketEvent(h.deps, e, 'webhook')).outcome).toBe('ignored_owner_not_permitted');
+    expect(await runsOf(s)).toHaveLength(1);
+  });
+
+  it('a bot comment is matched by the comment time: a run that ended before it is not its origin', async () => {
+    const s = await seed();
+    await withOrg(db, s.orgId, async (tx) => {
+      await tx.insert(runs).values({
+        orgId: s.orgId,
+        projectId: s.projectId,
+        command: 'origin',
+        ticketRef: '7',
+        ticketKind: 'issue',
+        checkoutRef: 'main',
+        triggerSource: 'webhook',
+        status: 'succeeded',
+        ownerUserId: s.ownerId,
+        startedAt: new Date(ORIGIN_START),
+        finishedAt: new Date('2026-11-11T23:30:00Z'),
+      });
+    });
+    const h = harness();
+    const e = botTriggerEvent(eventFor(s), BOT_AT);
+    expect((await processTicketEvent(h.deps, e, 'poll')).outcome).toBe('ignored_owner_unlinked');
+  });
+
+  it('a refused comment replayed (webhook, then poll) stays refused and is not retried into a run', async () => {
+    const s = await seed({ role: 'viewer' });
+    const h = harness();
+    const first = eventFor(s);
+    await processTicketEvent(h.deps, first, 'webhook');
+    await processTicketEvent(h.deps, eventFor(s, { commentId: first.commentId }), 'poll');
+    expect(await processTicketEvent(h.deps, first, 'webhook')).toEqual({ outcome: 'duplicate' });
+    expect(await outcomes(s)).toEqual(['ignored_owner_not_permitted', 'ignored_owner_not_permitted']);
+    expect(await runsOf(s)).toHaveLength(0);
+  });
+});
+
 describe('processTicketEvent races and errors', () => {
   it('same comment, different deliveries, concurrently: exactly one run (20 rounds, both channel mixes)', async () => {
     const s = await seed();
@@ -383,7 +633,7 @@ describe('processTicketEvent races and errors', () => {
     expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'error' });
     const rows = await inboundOf(s);
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ outcome: 'error', detail: 'TypeError', author: 'alice', ticketRef: '7' });
+    expect(rows[0]).toMatchObject({ outcome: 'error', detail: 'TypeError', author: s.author, ticketRef: '7' });
     expect(JSON.stringify(rows[0])).not.toContain('secret detail');
     expect(await runsOf(s)).toHaveLength(0);
     expect(h.startRun).not.toHaveBeenCalled();

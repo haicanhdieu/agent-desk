@@ -4,7 +4,7 @@ import pg from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { bootstrapDatabase } from '../src/bootstrap';
 import { runMigrations } from '../src/migrate';
-import { startPg, TEST_PASSWORDS, type TestPg } from './helpers/pg';
+import { startPg, startPgAt, TEST_PASSWORDS, type TestPg } from './helpers/pg';
 
 const APP_TABLES = [
   'connections',
@@ -20,6 +20,10 @@ const APP_TABLES = [
   'setup_script_versions',
   'setup_tests',
   'setup_test_events',
+  'roles',
+  'role_permissions',
+  'role_assignments',
+  'invitations',
 ];
 
 let env: TestPg;
@@ -118,6 +122,92 @@ describe('bootstrap and migrations', () => {
       "select indexdef from pg_indexes where indexname = 'runs_project_session_idx'",
     );
     expect(idx?.indexdef).toContain('(project_id, session_expires_at)');
+  });
+
+  it('runs.owner_user_id and runs.origin_run_id are nullable, and their indexes exist', async () => {
+    const cols = await query<{ column_name: string; is_nullable: string; data_type: string }>(
+      env.ownerUrl,
+      `select column_name, is_nullable, data_type from information_schema.columns
+       where table_name = 'runs' and column_name in ('owner_user_id','origin_run_id') order by 1`,
+    );
+    expect(cols).toEqual([
+      { column_name: 'origin_run_id', is_nullable: 'YES', data_type: 'uuid' },
+      { column_name: 'owner_user_id', is_nullable: 'YES', data_type: 'text' },
+    ]);
+    const idx = await query<{ indexname: string }>(
+      env.ownerUrl,
+      "select indexname from pg_indexes where indexname in ('runs_origin_run_id_idx','runs_owner_user_idx') order by 1",
+    );
+    expect(idx.map((i) => i.indexname)).toEqual(['runs_origin_run_id_idx', 'runs_owner_user_idx']);
+  });
+
+  it('role_assignments.user_id has an index that leads with it (FK index rule)', async () => {
+    const [idx] = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where indexname = 'role_assignments_user_id_idx'",
+    );
+    expect(idx?.indexdef).toContain('(user_id)');
+  });
+
+  it('the RBAC indexes match their lookups and list orders', async () => {
+    const rows = await query<{ indexname: string; indexdef: string }>(
+      env.ownerUrl,
+      `select indexname, indexdef from pg_indexes
+       where indexname in ('account_provider_account_idx','runs_project_finished_idx','invitations_org_created_idx','role_assignments_org_granted_idx')
+       order by 1`,
+    );
+    const defs = Object.fromEntries(rows.map((r) => [r.indexname, r.indexdef]));
+    expect(defs.account_provider_account_idx).toContain('(provider_id, account_id)');
+    expect(defs.runs_project_finished_idx).toContain('(project_id, finished_at)');
+    expect(defs.invitations_org_created_idx).toContain('(org_id, created_at DESC, id DESC)');
+    expect(defs.role_assignments_org_granted_idx).toContain('(org_id, granted_at DESC, id)');
+    expect(rows).toHaveLength(4);
+  });
+
+  it('the two runs foreign keys from the RBAC migration are added NOT VALID (validated in a later release)', async () => {
+    const rows = await query<{ conname: string; convalidated: boolean }>(
+      env.ownerUrl,
+      "select conname, convalidated from pg_constraint where conname in ('runs_owner_user_id_user_id_fk','runs_origin_run_id_runs_id_fk') order by 1",
+    );
+    expect(rows).toEqual([
+      { conname: 'runs_origin_run_id_runs_id_fk', convalidated: false },
+      { conname: 'runs_owner_user_id_user_id_fk', convalidated: false },
+    ]);
+  });
+
+  it('a run inserted without owner or origin reads back a null owner and origin', async () => {
+    const orgId = randomUUID();
+    const client = new pg.Client({ connectionString: env.appUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const conn = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'acct-owner-null', 'demo') returning id`,
+        [orgId],
+      );
+      const proj = await client.query<{ id: string }>(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'demo', 'dev/owner-null', $2, $2) returning id`,
+        [orgId, conn.rows[0]?.id],
+      );
+      await client.query(
+        `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                           trigger_source, trigger_comment_id, command)
+         values ($1, $2, 'fix', 'dev/owner-null#1', 'issue', 'main', 'queued', 'webhook', 'c-null', '/fix')`,
+        [orgId, proj.rows[0]?.id],
+      );
+      const rows = (
+        await client.query<{ owner_user_id: string | null; origin_run_id: string | null }>(
+          'select owner_user_id, origin_run_id from runs',
+        )
+      ).rows;
+      expect(rows).toEqual([{ owner_user_id: null, origin_run_id: null }]);
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      await client.end();
+    }
   });
 
   it('all app tables have org_id not null (except inbound_events)', async () => {
@@ -739,5 +829,271 @@ describe('bootstrap and migrations', () => {
       );
       expect(rows).toEqual([{ org_id: orgId, project_id: projectId }]);
     });
+  });
+});
+
+describe('role templates and run owner backfill on an upgraded database', () => {
+  const orgA = randomUUID();
+  const orgB = randomUUID();
+  const userA = `user-a-${randomUUID()}`;
+  const userB = `user-b-${randomUUID()}`;
+  const FILES = ['0026_seed_role_templates.sql', '0027_backfill_run_owner.sql'];
+  const BULK_RUNS = 1001;
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+  let adminDbUrl: string;
+  let before: Record<'member' | 'projects' | 'connections', unknown[]>;
+
+  async function snapshot(): Promise<Record<'member' | 'projects' | 'connections', unknown[]>> {
+    return {
+      member: await query(adminDbUrl, 'select * from member order by id'),
+      projects: await query(adminDbUrl, 'select * from projects order by id'),
+      connections: await query(adminDbUrl, 'select * from connections order by id'),
+    };
+  }
+
+  async function counts(): Promise<Record<string, number>> {
+    const out: Record<string, number> = {};
+    for (const t of ['role_templates', 'role_template_permissions', 'roles', 'role_permissions', 'role_assignments']) {
+      const [row] = await query<{ n: string }>(adminDbUrl, `select count(*)::text as n from ${t}`);
+      out[t] = Number(row?.n);
+    }
+    return out;
+  }
+
+  async function owners(): Promise<Record<string, string | null>> {
+    const rows = await query<{ trigger_comment_id: string; owner_user_id: string | null }>(
+      adminDbUrl,
+      "select trigger_comment_id, owner_user_id from runs where trigger_comment_id not like 'b-bulk-%' and trigger_comment_id not like 'b-skip-%'",
+    );
+    return Object.fromEntries(rows.map((r) => [r.trigger_comment_id, r.owner_user_id]));
+  }
+
+  async function seedOldOrg(orgId: string, userId: string, externalAccount: string, slug: string): Promise<void> {
+    await query(old.ownerUrl, `insert into "user" (id, name, email, handle) values ($1, $1, $2, $1)`, [
+      userId,
+      `${userId}@example.test`,
+    ]);
+    await query(
+      old.ownerUrl,
+      `insert into account (id, account_id, provider_id, user_id, updated_at) values ($1, $2, 'fake', $3, now())`,
+      [`acc-${userId}`, externalAccount, userId],
+    );
+    await query(old.ownerUrl, `insert into organization (id, name, slug, created_at) values ($1, $2, $2, now())`, [
+      orgId,
+      slug,
+    ]);
+    await query(
+      old.ownerUrl,
+      `insert into member (id, organization_id, user_id, role, created_at) values ($1, $2, $3, 'owner', now())`,
+      [`mem-${userId}`, orgId, userId],
+    );
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const conn = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', $2, 'demo') returning id`,
+        [orgId, `ext-${slug}`],
+      );
+      const proj = await client.query<{ id: string }>(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'demo', $2, $3, $3) returning id`,
+        [orgId, `dev/${slug}`, conn.rows[0]?.id],
+      );
+      const runs: [string, string | null][] =
+        slug === 'org-a'
+          ? [
+              ['a-linked', externalAccount],
+              ['a-unlinked', 'nobody-linked'],
+              ['a-other-provider', 'ext-other-provider'],
+              ['a-ambiguous', 'ext-shared'],
+            ]
+          : [
+              ['b-linked', externalAccount],
+              ['b-no-external-id', null],
+            ];
+      for (const [comment, external] of runs) {
+        await client.query(
+          `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                             trigger_source, trigger_comment_id, command, triggered_by_external_id)
+           values ($1, $2, 'fix', $3, 'issue', 'main', 'queued', 'webhook', $4, '/fix', $5)`,
+          [orgId, proj.rows[0]?.id, `dev/${slug}#1`, comment, external],
+        );
+      }
+      if (slug === 'org-b') {
+        // More matching runs than one backfill batch (1000), so the loop must go round again.
+        await client.query(
+          `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                             trigger_source, trigger_comment_id, command, triggered_by_external_id)
+           select $1, $2, 'fix', $3, 'issue', 'main', 'queued', 'webhook', 'b-bulk-' || n, '/fix', $4
+           from generate_series(1, ${BULK_RUNS}) as n`,
+          [orgId, proj.rows[0]?.id, `dev/${slug}#1`, externalAccount],
+        );
+        // Owner-less runs with no linked account, as many as one batch, mixed by random id with the matching ones.
+        // They never enter the backfill's candidates, so they must stay owner-less. The keyset itself only avoids
+        // re-reading rows and cannot be told apart from the old loop by a result check; the bulk test below is what
+        // fails if `last_id` skips a matching run or the loop stops early.
+        await client.query(
+          `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                             trigger_source, trigger_comment_id, command, triggered_by_external_id)
+           select $1, $2, 'fix', $3, 'issue', 'main', 'queued', 'webhook', 'b-skip-' || n, '/fix', 'nobody-linked'
+           from generate_series(1, ${BULK_RUNS}) as n`,
+          [orgId, proj.rows[0]?.id, `dev/${slug}#1`],
+        );
+      }
+      await client.query('commit');
+    } finally {
+      await client.end();
+    }
+  }
+
+  beforeAll(async () => {
+    old = await startPgAt('0021_agent_auto_resume_max');
+    const u = new URL(old.adminUrl);
+    u.pathname = '/agentdesk';
+    adminDbUrl = u.toString();
+    await seedOldOrg(orgA, userA, 'ext-user-a', 'org-a');
+    await seedOldOrg(orgB, userB, 'ext-user-b', 'org-b');
+    // A linked account of another provider must not own a run whose board is a different provider.
+    await query(
+      old.ownerUrl,
+      `insert into account (id, account_id, provider_id, user_id, updated_at)
+       values ('acc-other', 'ext-other-provider', 'other', $1, now())`,
+      [userA],
+    );
+    // One external commenter linked to two users is ambiguous: nobody owns that run.
+    for (const userId of [userA, userB]) {
+      await query(
+        old.ownerUrl,
+        `insert into account (id, account_id, provider_id, user_id, updated_at)
+         values ($1, 'ext-shared', 'fake', $2, now())`,
+        [`acc-shared-${userId}`, userId],
+      );
+    }
+    before = await snapshot();
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('startPgAt stops before the new migrations until migrateRest runs', async () => {
+    const stopped = await startPgAt('0021_agent_auto_resume_max');
+    try {
+      const rows = await query<{ n: string }>(
+        stopped.ownerUrl,
+        "select count(*)::text as n from information_schema.tables where table_name in ('roles','role_templates')",
+      );
+      expect(rows).toEqual([{ n: '0' }]);
+      await stopped.migrateRest();
+      const after = await query<{ n: string }>(stopped.ownerUrl, 'select count(*)::text as n from role_templates');
+      expect(after).toEqual([{ n: '4' }]);
+    } finally {
+      await stopped.stop();
+    }
+  }, 180_000);
+
+  it('every existing org gets exactly the four built-in roles once, copied from the templates', async () => {
+    for (const orgId of [orgA, orgB]) {
+      const rows = await query<{ key: string; built_in: boolean; has_template: boolean; n: string }>(
+        adminDbUrl,
+        `select r.key, r.built_in, r.template_id is not null as has_template,
+                (select count(*) from role_permissions rp where rp.role_id = r.id)::text as n
+         from roles r where r.org_id = $1 order by r.key`,
+        [orgId],
+      );
+      expect(rows).toEqual([
+        { key: 'admin', built_in: true, has_template: true, n: '32' },
+        { key: 'member', built_in: true, has_template: true, n: '10' },
+        { key: 'owner', built_in: true, has_template: true, n: '33' },
+        { key: 'viewer', built_in: true, has_template: true, n: '6' },
+      ]);
+    }
+    const [total] = await query<{ n: string }>(adminDbUrl, 'select count(*)::text as n from roles');
+    expect(total).toEqual({ n: '8' });
+  });
+
+  it('copied roles keep the template scopes and permission conditions', async () => {
+    const rows = await query<{ key: string; assignable_scopes: string[]; own: string[] }>(
+      adminDbUrl,
+      `select r.key, r.assignable_scopes,
+              coalesce(array_agg(rp.permission order by rp.permission) filter (where rp.condition = 'own'), '{}') as own
+       from roles r left join role_permissions rp on rp.role_id = r.id
+       where r.org_id = $1 group by r.id order by r.key`,
+      [orgA],
+    );
+    expect(rows).toEqual([
+      { key: 'admin', assignable_scopes: ['org', 'project'], own: [] },
+      { key: 'member', assignable_scopes: ['org', 'project'], own: ['run:cancel', 'run:update', 'terminal:attach'] },
+      { key: 'owner', assignable_scopes: ['org'], own: [] },
+      { key: 'viewer', assignable_scopes: ['org', 'project'], own: [] },
+    ]);
+  });
+
+  it('no assignment is created and member, projects and connections rows are unchanged', async () => {
+    expect((await counts()).role_assignments).toBe(0);
+    expect(await snapshot()).toEqual(before);
+  });
+
+  it('the backfill sets owner_user_id only where a linked account of the board provider matches', async () => {
+    expect(await owners()).toEqual({
+      'a-linked': userA,
+      'a-unlinked': null,
+      'a-other-provider': null,
+      'a-ambiguous': null,
+      'b-linked': userB,
+      'b-no-external-id': null,
+    });
+  });
+
+  it('the backfill keeps going past the first batch of 1000 runs', async () => {
+    const rows = await query<{ owned: string; total: string }>(
+      adminDbUrl,
+      `select count(*) filter (where owner_user_id = $1)::text as owned, count(*)::text as total
+       from runs where trigger_comment_id like 'b-bulk-%'`,
+      [userB],
+    );
+    expect(rows).toEqual([{ owned: String(BULK_RUNS), total: String(BULK_RUNS) }]);
+  });
+
+  it('the backfill leaves runs with no linked account owner-less', async () => {
+    const rows = await query<{ owned: string; total: string }>(
+      adminDbUrl,
+      `select count(owner_user_id)::text as owned, count(*)::text as total
+       from runs where trigger_comment_id like 'b-skip-%'`,
+    );
+    expect(rows).toEqual([{ owned: '0', total: String(BULK_RUNS) }]);
+  });
+
+  it('running both data migrations again changes nothing', async () => {
+    const countsBefore = await counts();
+    const ownersBefore = await owners();
+    for (const file of FILES) {
+      const text = await readFile(new URL(`../migrations/${file}`, import.meta.url), 'utf8');
+      const client = new pg.Client({ connectionString: old.ownerUrl });
+      await client.connect();
+      try {
+        await client.query('begin');
+        for (const statement of text.split('--> statement-breakpoint')) await client.query(statement);
+        await client.query('commit');
+      } finally {
+        await client.end();
+      }
+    }
+    expect(await counts()).toEqual(countsBefore);
+    expect(await owners()).toEqual(ownersBefore);
+  });
+
+  it('no tenant role or template line holds a platform permission', async () => {
+    for (const t of ['role_permissions', 'role_template_permissions']) {
+      const [row] = await query<{ n: string }>(
+        adminDbUrl,
+        `select count(*)::text as n from ${t} where permission like 'platform-%'`,
+      );
+      expect(row, t).toEqual({ n: '0' });
+    }
   });
 });

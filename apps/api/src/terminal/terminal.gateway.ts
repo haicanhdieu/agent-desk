@@ -4,11 +4,10 @@ import { HttpAdapterHost } from '@nestjs/core';
 import websocket from '@fastify/websocket';
 import type { Client } from '@temporalio/client';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
-import { and, eq } from 'drizzle-orm';
 import type { RawData, WebSocket } from 'ws';
 import { z } from 'zod';
-import { member, withOrg, type Db } from '@agentdesk/db';
-import { routes } from '@agentdesk/contracts';
+import { withOrg, type Db } from '@agentdesk/db';
+import { routeAccess, routes } from '@agentdesk/contracts';
 import {
   EXEC_NOT_FOUND,
   TMUX_ATTACH,
@@ -18,6 +17,7 @@ import {
   type ExecSession,
   type KubeGateway,
 } from '@agentdesk/core';
+import { checkTenantAccess } from '../access/check-access';
 import { AUTH, type Auth } from '../auth/auth';
 import { toHeaders } from '../auth/session.guard';
 import { CONFIG, type Config } from '../config/config.module';
@@ -115,8 +115,9 @@ const toBuffer = (data: RawData): Buffer =>
  *
  *  - `Origin`, when present, must equal PUBLIC_ORIGIN (cross-site WebSocket hijacking: the cookie rides along on a
  *    cross-site upgrade). A missing Origin is allowed: only non-browser clients omit it, and they still need a session.
- *  - session (better-auth cookie) -> 4401; active org membership, then (project creator or org owner) -> 4403;
- *  - a run that is missing or in another org is 4403 too (RLS hides it; 4404 would leak existence across orgs);
+ *  - session (better-auth cookie) -> 4401; then `terminal:attach` on the target's project from the caller's role
+ *    assignments (ownership for a member's `own` grant) -> 4403 (ADR-0031, amending ADR-0014);
+ *  - a run that is missing, out of scope or in another org is 4403 too (4404 would leak existence);
  *  - run whose session is ending or that is paused -> 4410 (the browser shows "Pausing" or "Paused", no retry);
  *  - run not running/idle, or its pod not Running -> 4409.
  *
@@ -354,8 +355,11 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   /**
-   * Session + membership + (project creator or org owner) + run status. A thrown error (auth or DB outage) propagates:
-   * only a null session is 4401.
+   * Session (4401), then the same tenant decision as every HTTP route (`checkTenantAccess` with the target's
+   * `routeAccess` entry: membership of the active org, `terminal:attach` on the run's or setup test's project, and
+   * ownership for a grant that is `own`). Any refusal, whatever its reason (not a member, no permission, out of scope,
+   * not yours, missing or other-org target, malformed id), is 4403 and never says which. Only then the target's state
+   * (4410 / 4409). A thrown error (auth or DB outage) propagates: only a null session is 4401.
    */
   private async check(headers: Headers, target: TerminalTarget, runId: string): Promise<AuthzResult> {
     const deny = (code: number, why: string): AuthzResult => ({ ok: false, code, why });
@@ -364,18 +368,14 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     const orgId = session.session.activeOrganizationId;
     const userId = session.user.id;
     if (!orgId) return deny(CLOSE.forbidden, 'no-org');
-    const rows = await this.db.orm
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)))
-      .limit(1);
-    const role = rows[0]?.role;
-    if (role === undefined) return deny(CLOSE.forbidden, 'not-member');
-    if (!z.uuid().safeParse(runId).success) return deny(CLOSE.forbidden, 'bad-run-id');
+
+    const access = await checkTenantAccess(this.db, { userId, orgId }, routeAccess[target.routeKey], {
+      [target.param]: runId,
+    });
+    if (!access.ok) return deny(CLOSE.forbidden, access.reason);
 
     const run = await withOrg(this.db, orgId, (tx) => target.lookup(tx, runId));
     if (!run) return deny(CLOSE.forbidden, 'run-not-visible');
-    if (role !== 'owner' && run.createdBy !== userId) return deny(CLOSE.forbidden, 'not-owner-or-creator');
     // After authz, so the state of a run is never told to someone who may not see it.
     if (run.sessionEnded) return deny(CLOSE.sessionEnded, 'session-ended');
     if (!run.active) return deny(CLOSE.notActive, 'run-not-active');

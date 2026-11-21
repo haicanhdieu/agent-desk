@@ -40,7 +40,7 @@ describe('fake board', () => {
       body: '/fix',
       ticketRef: '1',
       repoPath: 'dev/demo',
-      authorId: '1',
+      authorId: 'me',
     });
     const again = await b.pollEvents(project, res.cursor);
     expect(again.kind).toBe('events');
@@ -125,7 +125,7 @@ describe('fake board', () => {
     });
     const sig = createHmac('sha256', 'dev').update(body).digest('hex');
     const ok = await board.verifyAndParseWebhook({ 'x-fake-signature': sig }, body, async () => undefined);
-    expect(ok).toMatchObject({ provider: 'fake', deliveryId: 'd1', commentId: 'c1', authorId: '1' });
+    expect(ok).toMatchObject({ provider: 'fake', deliveryId: 'd1', commentId: 'c1', authorId: 'me' });
     expect(await board.verifyAndParseWebhook({ 'x-fake-signature': 'zz' }, body, async () => undefined)).toBe(
       'bad_signature',
     );
@@ -192,10 +192,12 @@ describe('fake code host', () => {
     await expect(host.writeSkill(project, '../evil', 'x', 'm')).rejects.toThrow();
   });
 
-  it('lists the default demo repo and mints a short-lived token', async () => {
+  it('lists the demo repos and mints a short-lived token', async () => {
     const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
     expect(await host.listRepos({ externalId: 'fake' })).toEqual([
       { repoPath: 'dev/demo', private: false, defaultBranch: 'main' },
+      { repoPath: 'dev/demo-2', private: false, defaultBranch: 'main' },
+      { repoPath: 'dev/demo-3', private: false, defaultBranch: 'main' },
     ]);
     const tok = await host.mintWorkspaceToken(project);
     expect(tok.expiresAt.getTime()).toBeGreaterThan(clock.now().getTime());

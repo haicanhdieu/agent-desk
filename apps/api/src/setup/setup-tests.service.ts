@@ -7,7 +7,7 @@ import { SIGNAL, TASK_QUEUE, WORKFLOW, setupTestWorkflowId } from '@agentdesk/co
 import { SetupTestDto, type CreateSetupTestRequest } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
-import { assertCanEditProject, assertProjectVisible } from '../projects/project-access';
+import { assertProjectVisible } from '../projects/project-access';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { SetupScriptService } from './setup-script.service';
 
@@ -96,7 +96,7 @@ export class SetupTestsService {
    */
   async create(org: OrgContext, projectId: string, req: CreateSetupTestRequest): Promise<SetupTestDto> {
     const { dto, previous } = await withOrg(this.db, org.orgId, async (tx) => {
-      await assertCanEditProject(tx, org, projectId);
+      await assertProjectVisible(tx, projectId);
       await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('update');
       const prev = await tx
         .select({ id: setupTests.id })
@@ -209,7 +209,7 @@ export class SetupTestsService {
         .limit(1);
       const test = rows[0];
       if (!test) throw new NotFoundException('Setup test not found');
-      await assertCanEditProject(tx, org, test.projectId);
+      await assertProjectVisible(tx, test.projectId);
     });
     try {
       await this.temporal.workflow.getHandle(setupTestWorkflowId(setupTestId)).signal(SIGNAL.endSetupTest);

@@ -15,7 +15,7 @@
 
 - AGENTS.md rules 1 to 11 bind every task. Layering `apps → core → db → contracts`; `web → contracts` only; db cannot import contracts. Names stay generic: permission, role, scope, assignment, invitation, platform admin, run owner, linked account; ignored outcomes `ignored_owner_unlinked` and `ignored_owner_not_permitted`. No provider name in tables, types, modules or routes.
 - No new dependency of any kind (package, library, service, image, CI action, binary, workspace package).
-- Never edit migrations 0000 to 0021. New migrations: `0022_rbac_tables` (generated), `0023_rbac_rls_functions` (custom), `0024_seed_role_templates` (custom), `0025_backfill_run_owner` (custom).
+- Never edit migrations 0000 to 0023. New migrations: `0024_rbac_tables` (generated), `0025_rbac_rls_functions` (custom), `0026_seed_role_templates` (custom), `0027_backfill_run_owner` (custom).
 - Permission names (shape D), exactly: `project:create|read|update|delete`, `connection:create|read`, `agent:read|update`, `secret:update`, `skill:read|update|delete`, `rule:create|read|update|delete`, `setup:read|update`, `setup:test`, `run:read|create|update`, `run:cancel`, `terminal:attach`, `member:read|create|update|delete`, `assignment:read|create|delete`, `org:update|delete`; platform: `platform-org:create|read`, `platform-project:read`, `platform-role:read`, `platform-member:read`, `platform-assignment:read|create|delete`, `platform-invitation:read|create|delete`. `OWNABLE_PERMISSIONS` = `run:update`, `run:cancel`, `terminal:attach`.
 - Org-level permissions (count only from an org-scope grant): `project:create`, `project:delete`, `connection:*`, `member:*`, `org:*`. Every other tenant permission is project-level.
 - Built-in roles (seeded templates, copied per org): `owner` (scopes `{org}`; all 33 tenant permissions, `any`); `admin` (`{org,project}`; all but `org:delete`, `any`); `member` (`{org,project}`; `project:read`, `agent:read`, `skill:read`, `rule:read`, `setup:read`, `run:read`, `run:create` with `any`; `run:update`, `run:cancel`, `terminal:attach` with `own`); `viewer` (`{org,project}`; the six `*:read` with `any`). No tenant role row ever holds a `platform-*` permission.
@@ -74,7 +74,7 @@ None. The spec adds no dependency and this plan adds none.
 - Agent call: `CreateAssignmentRequest.userId` is a string of 1 to 255 chars (better-auth ids are text).
 - Agent call: app privileges: `role_templates`, `role_template_permissions` SELECT; `roles`, `role_permissions` SELECT, INSERT (spec); `role_assignments` SELECT, INSERT, DELETE; `invitations` SELECT, INSERT, UPDATE; a `definer_read` policy on `invitations` for the lookup function, as 0001 does for `resolve_project`.
 - Agent call: `ensurePersonalOrg` is deleted with its calls; `slug.ts` and `unique-slug.ts` stay (still tested, `isUniqueViolation` is used elsewhere).
-- Agent call: the required release note ("every existing user loses access at deploy until granted; grant operators first") goes in ADR-0030 and the Task 31 PR body.
+- Agent call: the required release note ("every existing user loses access at deploy until granted; grant operators first") goes in ADR-0031 and the Task 31 PR body.
 
 ## E2E coverage
 
@@ -112,7 +112,7 @@ Tasks in the same wave touch no common file and can be built in parallel; a task
 | ---- | ---- | ---------- |
 | 1 | Task 1: Contracts: permission model and can() | none |
 | 1 | Task 5: DB: RBAC tables, RLS and the invitation lookup function | none |
-| 1 | Task 9: Docs: ADR-0030 and the doc fixes | none |
+| 1 | Task 9: Docs: ADR-0031 and the doc fixes | none |
 | 2 | Task 2: Contracts: access DTOs, request schemas and org slug | Task 1 |
 | 2 | Task 11: API: grant rules, actor and audit entries | Task 1 |
 | 3 | Task 3: Contracts: tenant access and platform routes, with MSW handlers | Task 2 |
@@ -165,7 +165,7 @@ graph LR
   T6["6: DB: role template seed and run-owner backfill"]
   T7["7: Core: load access, copy roles, find the linked user"]
   T8["8: Core: run owner resolution for trigger comments"]
-  T9["9: Docs: ADR-0030 and the doc fixes"]
+  T9["9: Docs: ADR-0031 and the doc fixes"]
   T10["10: API: guard route kinds, platform admin and the route discovery test"]
   T11["11: API: grant rules, actor and audit entries"]
   T12["12: API: platform org creation, org and project lists, org roles"]
@@ -377,7 +377,7 @@ export function inScope(access: Access, projectId: string): boolean;
 export function visibleProjects(access: Access, permission: Permission): 'all' | string[];
 ```
 
-- [ ] **Step 1: Write the failing tests** in `access.test.ts`. Role fixtures are written in the test (never read from the seed): `OWNER`, `ADMIN`, `MEMBER`, `VIEWER` as in Global Constraints, plus made-up `READ_RUNS_ONLY = [{run:read, any}]` and `PROJECT_DELETER = [{project:delete, any}]`. `it.each` rows `[name, grants, permission, target, expected]`, at least:
+- [x] **Step 1: Write the failing tests** in `access.test.ts`. Role fixtures are written in the test (never read from the seed): `OWNER`, `ADMIN`, `MEMBER`, `VIEWER` as in Global Constraints, plus made-up `READ_RUNS_ONLY = [{run:read, any}]` and `PROJECT_DELETER = [{project:delete, any}]`. `it.each` rows `[name, grants, permission, target, expected]`, at least:
   - union: member on P1 + viewer on P2 → `run:create` P1 `true`, P2 `false`, P3 `false`.
   - org vs project: viewer at org → `project:read` on a random new project id `true`; viewer on P1 → P2 `false`.
   - org-level at project scope: `PROJECT_DELETER` on P1 → `can(project:delete, {projectId:P1})` `false`, `holdsAnywhere(project:delete)` `false`; same role at org → `true`.
@@ -387,10 +387,10 @@ export function visibleProjects(access: Access, permission: Permission): 'all' |
   - `visibleProjects`: viewer at org → `'all'`; member on P2 and P1 → `[P1, P2]` sorted; no grants → `[]`.
   - `inScope`: org grant → any id `true`; project grant P1 → P1 `true`, P2 `false`.
   - `Object.keys(PERMISSION_LEVEL).sort()` equals `Permission.options.slice().sort()`; every `platform-*` has level `platform`; `project:create`, `project:delete`, `connection:*`, `member:*`, `org:*` are `org`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts`. Expected: FAIL (module not found).
-- [ ] **Step 3: Implement** `access.ts` with the exports above and add `export * from './access';` to `index.ts`.
-- [ ] **Step 4: Run** the same command. Expected: PASS. Then `pnpm --filter @agentdesk/contracts typecheck`.
-- [ ] **Step 5: Commit** `feat(contracts): permission model with scope and ownership conditions`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts`. Expected: FAIL (module not found).
+- [x] **Step 3: Implement** `access.ts` with the exports above and add `export * from './access';` to `index.ts`.
+- [x] **Step 4: Run** the same command. Expected: PASS. Then `pnpm --filter @agentdesk/contracts typecheck`.
+- [x] **Step 5: Commit** `feat(contracts): permission model with scope and ownership conditions`.
 
 ---
 
@@ -444,14 +444,14 @@ export const PlatformRoleDto, PlatformAssignmentDto, PlatformInvitationDto; // o
 
 Every schema has its `export type X = z.infer<typeof X>`.
 
-- [ ] **Step 1: Write the failing tests** (contract unit for BR-37, BR-59, BR-73):
+- [x] **Step 1: Write the failing tests** (contract unit for BR-37, BR-59, BR-73):
   - `slug.test.ts`: `slugFromName('Acme Corp')` is `'acme-corp'`; `'  Hello__World!! '` → `'hello-world'`; `''` and `'ÄÖ'` → `'org'`; a 200-char name gives ≤ 63 chars, no trailing `-`; for 50 random strings the result parses with `OrgSlug`. `OrgSlug` rejects `''`, `'-a'`, `'a-'`, `'A'`, `'a_b'`, 64 chars; accepts `'acme-eu-1'` and 63 chars.
   - `schemas/access.test.ts`: `CreateAssignmentRequest` rejects a missing `roleId`, `{type:'project'}` without `projectId`, `{type:'team'}`, `userId: ''`; accepts org and project scopes. `CreateInvitationRequest` rejects `'not-an-email'`, a 255-char email (accepts 254), `projectIds: []`, 101 ids (accepts 100); `'Mixed@Example.COM'` parses to `'mixed@example.com'`; `[P1, P1, P2]` parses to `[P1, P2]`. `MemberDto.shape` has no `email` key. `InvitationStatus.options` equals the four statuses.
   - `schemas/platform.test.ts`: `CreateOrgRequest` rejects missing name, missing slug, 101-char name (accepts 100), slug `'-x'`, with the issue path `['slug']`; `PlatformMemberDto` rejects a member without `email`; `PlatformRoleDto` parses a `RoleDto` fixture.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/slug.test.ts src/schemas/access.test.ts src/schemas/platform.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three files and export them from `index.ts`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): access, invitation and platform DTOs and the org slug helper`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/slug.test.ts src/schemas/access.test.ts src/schemas/platform.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the three files and export them from `index.ts`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(contracts): access, invitation and platform DTOs and the org slug helper`.
 
 ---
 
@@ -497,11 +497,11 @@ Every schema has its `export type X = z.infer<typeof X>`.
 
   Params: `orgId`, `assignmentId`, `invitationId` are `z.uuid()`. Web fixtures in `apps/web/src/mocks/dto/access.ts`: `roleFixtures`, `assignmentFixtures`, `invitationFixtures`, `memberFixtures`, `accessFixture`, `platformOrgFixtures`, `platformProjectFixtures`, `platformMemberFixtures`.
 
-- [ ] **Step 1: Write the failing tests.** `routes.test.ts`: the key count becomes 68; `flat['assignments.remove']` matches `{ method: 'DELETE', path: '/api/orgs/:orgId/assignments/:assignmentId' }`; every `platform.*` path starts with `/api/platform/orgs`; `routes.assignments.list.query.parse({ projectId: P })` keeps `projectId`. `contract.test.ts`: add each new fixture list to "every DTO fixture parses with its contracts schema".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/routes.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the routes; in `handlers.ts` add one `impl` entry per new JSON route answering from the fixtures (create routes echo a fixture; `STATUS` gets 201 for the four create routes and 204 for the three removes).
-- [ ] **Step 4: Run** both commands plus `pnpm --filter @agentdesk/web typecheck`. Expected: PASS ("has a handler for every route key" included).
-- [ ] **Step 5: Commit** `feat(contracts): routes for access, assignments, invitations and the platform`.
+- [x] **Step 1: Write the failing tests.** `routes.test.ts`: the key count becomes 68; `flat['assignments.remove']` matches `{ method: 'DELETE', path: '/api/orgs/:orgId/assignments/:assignmentId' }`; every `platform.*` path starts with `/api/platform/orgs`; `routes.assignments.list.query.parse({ projectId: P })` keeps `projectId`. `contract.test.ts`: add each new fixture list to "every DTO fixture parses with its contracts schema".
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/routes.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the routes; in `handlers.ts` add one `impl` entry per new JSON route answering from the fixtures (create routes echo a fixture; `STATUS` gets 201 for the four create routes and 204 for the three removes).
+- [x] **Step 4: Run** both commands plus `pnpm --filter @agentdesk/web typecheck`. Expected: PASS ("has a handler for every route key" included).
+- [x] **Step 5: Commit** `feat(contracts): routes for access, assignments, invitations and the platform`.
 
 ---
 
@@ -535,11 +535,11 @@ export const routeAccess: Record<RouteKey, RouteAccess>;   // a missing key fail
 
   Entries: the spec's "Route to permission map" for the 48 existing keys, with `projects.list` = `project-list` `project:read`; `connections.*` and `projects.create` = `org`; every other existing key = `project` with the param its path carries (`agents.putCredential`/`agents.models` → `agentId`, `rules.update`/`rules.remove` → `ruleId`, `setupTests.end|events|terminal` → `setupTestId`, `runs.get|log|transcript|events|cancel|stop|finish|resume|terminal` → `runId`, others → `projectId`). New keys: `me.access` → `self`; `roles.list` → `org-admin ['project:read']`; `members.list` → `['member:read','assignment:create']`; `assignments.list` → `['assignment:read']`; `assignments.create` → `['assignment:create']`; `assignments.remove` → `['assignment:delete']`; `invitations.create` and `invitations.remove` → `['member:create','assignment:create']`; `invitations.list` → `['member:read','assignment:read']`; `platform.createOrg` → `platform-org:create`, `listOrgs` → `platform-org:read`, `listProjects` → `platform-project:read`, `listRoles` → `platform-role:read`, `listMembers` → `platform-member:read`, `listAssignments|createAssignment|removeAssignment` → `platform-assignment:read|create|delete`, `listInvitations|createInvitation|removeInvitation` → `platform-invitation:read|create|delete`.
 
-- [ ] **Step 1: Write the failing tests** in `route-access.test.ts`: the expected map for all 68 keys written out in the test and compared with `toEqual`; keys equal `Object.keys(flattenRoutes(routes))`; an entry is `platform` exactly when its path starts with `/api/platform/` and then `isPlatformPermission(permission)`; `org-admin` only on `/api/orgs/` paths; `self` only on `me.access`; every `project` entry's `param` appears as `:<param>` in its path.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/route-access.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `route-access.ts`; export it from `index.ts`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/contracts typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): route access map for every route`.
+- [x] **Step 1: Write the failing tests** in `route-access.test.ts`: the expected map for all 68 keys written out in the test and compared with `toEqual`; keys equal `Object.keys(flattenRoutes(routes))`; an entry is `platform` exactly when its path starts with `/api/platform/` and then `isPlatformPermission(permission)`; `org-admin` only on `/api/orgs/` paths; `self` only on `me.access`; every `project` entry's `param` appears as `:<param>` in its path.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/route-access.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `route-access.ts`; export it from `index.ts`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/contracts typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(contracts): route access map for every route`.
 
 ---
 
@@ -552,9 +552,9 @@ export const routeAccess: Record<RouteKey, RouteAccess>;   // a missing key fail
 - Create: `packages/db/src/schema/access.ts`
 - Modify: `packages/db/src/schema/index.ts`
 - Modify: `packages/db/src/schema/app.ts`
-- Create: `packages/db/migrations/0022_rbac_tables.sql`
+- Create: `packages/db/migrations/0024_rbac_tables.sql`
 - Create: `packages/db/migrations/meta/0022_snapshot.json`
-- Create: `packages/db/migrations/0023_rbac_rls_functions.sql`
+- Create: `packages/db/migrations/0025_rbac_rls_functions.sql`
 - Create: `packages/db/migrations/meta/0023_snapshot.json`
 - Modify: `packages/db/migrations/meta/_journal.json`
 - Modify: `packages/db/src/functions.ts`
@@ -574,17 +574,17 @@ export const routeAccess: Record<RouteKey, RouteAccess>;   // a missing key fail
 export async function pendingInvitationsForEmail(db: Db, email: string): Promise<{ id: string; orgId: string }[]>;
 ```
 
-  `0023_rbac_rls_functions.sql` (custom, `drizzle-kit generate --custom`): `FORCE ROW LEVEL SECURITY` on the four org tables; grants per Agent calls; `CREATE POLICY "definer_read" ON "invitations" FOR SELECT TO agentdesk_owner USING (true)`; `pending_invitations_for_email(p_email text) RETURNS TABLE (id uuid, org_id uuid) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp` selecting `status = 'pending' AND expires_at > now() AND email = lower(p_email)`; `REVOKE ALL … FROM PUBLIC`; `GRANT EXECUTE … TO agentdesk_app`.
+  `0025_rbac_rls_functions.sql` (custom, `drizzle-kit generate --custom`): `FORCE ROW LEVEL SECURITY` on the four org tables; grants per Agent calls; `CREATE POLICY "definer_read" ON "invitations" FOR SELECT TO agentdesk_owner USING (true)`; `pending_invitations_for_email(p_email text) RETURNS TABLE (id uuid, org_id uuid) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp` selecting `status = 'pending' AND expires_at > now() AND email = lower(p_email)`; `REVOKE ALL … FROM PUBLIC`; `GRANT EXECUTE … TO agentdesk_app`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `seed.ts`: `seedOrg` also inserts, per org, two roles (`owner`, `member`) with one permission line each, a second project, one org assignment and one project assignment for a seeded user, and one pending invitation; returns their ids.
   - `rls.int.test.ts`: add `roles`, `role_permissions`, `role_assignments`, `invitations` to `inserts`, so the existing `describe.each` leak tests (select only own org, cannot insert for org B with 42501, raw query sees 0 rows) run on them. New cases: as `agentdesk_app`, `update roles` and `delete from roles` fail with 42501; `select` on `role_templates` works and `insert` fails with 42501; a second identical org assignment fails with 23505; scope check rejects `scope_type='org'` with a project id (23514); a second pending invitation for one org and email fails with 23505 while a revoked one does not.
   - `functions.int.test.ts` (N8): `pendingInvitationsForEmail(db, 'Bob@X.io')` returns `{id, orgId}` for pending unexpired rows of both orgs; the raw function's result columns are exactly `['id','org_id']`; an expired (`expires_at = now() - interval '1 second'`), an accepted and a revoked row are absent; it is `prosecdef`, has a pinned `search_path`, and only `agentdesk_app` may execute it.
   - `migrate.int.test.ts`: `APP_TABLES` gains the four org tables (so "org_id not null" and "rls is forced" cover them); `runs.owner_user_id` and `runs.origin_run_id` are nullable and existing rows read back null; `runs_origin_run_id_idx` exists.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts test/functions.int.test.ts test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the schema; `pnpm --filter @agentdesk/db db:generate --name rbac_tables`; read the SQL (no drops); `pnpm --filter @agentdesk/db exec drizzle-kit generate --custom --name rbac_rls_functions` and write it; add `pendingInvitationsForEmail` and export it.
+- [x] **Step 3: Implement** the schema; `pnpm --filter @agentdesk/db db:generate --name rbac_tables`; read the SQL (no drops); `pnpm --filter @agentdesk/db exec drizzle-kit generate --custom --name rbac_rls_functions` and write it; add `pendingInvitationsForEmail` and export it.
 - [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(db): role, assignment and invitation tables with RLS and the invitation lookup`.
+- [x] **Step 5: Commit** `feat(db): role, assignment and invitation tables with RLS and the invitation lookup`.
 
 ---
 
@@ -594,9 +594,9 @@ export async function pendingInvitationsForEmail(db: Db, email: string): Promise
 
 **Files:**
 
-- Create: `packages/db/migrations/0024_seed_role_templates.sql`
+- Create: `packages/db/migrations/0026_seed_role_templates.sql`
 - Create: `packages/db/migrations/meta/0024_snapshot.json`
-- Create: `packages/db/migrations/0025_backfill_run_owner.sql`
+- Create: `packages/db/migrations/0027_backfill_run_owner.sql`
 - Create: `packages/db/migrations/meta/0025_snapshot.json`
 - Modify: `packages/db/migrations/meta/_journal.json`
 - Modify: `packages/db/src/testing.ts`
@@ -616,13 +616,13 @@ export async function startPgAt(tag: string): Promise<TestPg & { migrateRest: ()
 
   `0024`: insert templates and lines `on conflict do nothing`; then a `DO` loop over `organization.id` that runs `set_config('app.org_id', id, true)` and copies templates into `roles` (`built_in = true`, `template_id`) and `role_permissions`, `on conflict do nothing`. `0025`: a `DO` loop per org (set `app.org_id`) updating `runs.owner_user_id` from `account.user_id` where `account.provider_id` = the project's board connection provider and `account.account_id = runs.triggered_by_external_id`, `owner_user_id is null`, in batches of 1000 until none change.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `migrate.int.test.ts` (new `describe` using `startPgAt('0021_agent_auto_resume_max')`): seed two orgs with users, `member` rows, connections, projects and runs (one run whose `triggered_by_external_id` matches a linked `account`, one that matches none); snapshot `member`, `projects`, `connections`; `migrateRest()`; then each org has exactly the roles `admin, member, owner, viewer` once; `role_assignments` is empty; the snapshots are unchanged; the matched run's `owner_user_id` is the linked user and the other is null; running the `0024` and `0025` SQL files again changes no counts; no `roles`/`role_permissions`/`role_template_permissions` row has `permission like 'platform-%'`.
   - `role-templates.int.test.ts` (core, `startPg()`): every template line parses with `Permission`; `own` appears only on `OWNABLE_PERMISSIONS`; every non-`self` tenant permission used in `routeAccess` is granted by at least one template; the template matrix equals the expected matrix written in the test (owner 33 lines, admin 32 without `org:delete`, member 10 with the three `own` lines, viewer 6).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts` and `pnpm --filter @agentdesk/core exec vitest run test/access/role-templates.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** both custom migrations (`drizzle-kit generate --custom --name seed_role_templates`, then `backfill_run_owner`) and `startPgAt`.
-- [ ] **Step 4: Run** the same commands. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(db): seed built-in roles into every org and backfill run owners`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts` and `pnpm --filter @agentdesk/core exec vitest run test/access/role-templates.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** both custom migrations (`drizzle-kit generate --custom --name seed_role_templates`, then `backfill_run_owner`) and `startPgAt`.
+- [x] **Step 4: Run** the same commands. Expected: PASS.
+- [x] **Step 5: Commit** `feat(db): seed built-in roles into every org and backfill run owners`.
 
 ---
 
@@ -659,13 +659,13 @@ export async function copyRoleTemplates(tx: Tx, orgId: string): Promise<void>;
 export async function findLinkedUser(tx: Tx, provider: string, externalId: string): Promise<string | null>;
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `to-access.test.ts`: two rows of one role and scope become one grant with two lines; an org row and a project row become two grants; `permission: 'project:explode'` is skipped and `warn` is called once with `{ permission: 'project:explode' }`; `condition: 'sometimes'` is skipped; no rows → `{ userId, grants: [] }`.
   - `access.int.test.ts`: `copyRoleTemplates` into a new org gives four roles whose lines equal the templates; a second call adds nothing; `loadAccess` returns the user's org and project grants in that org and nothing from another org's assignment of the same user; `findLinkedUser(tx, 'fake', 'alice')` returns alice's id, `'bob'` returns null, `('github', 'alice')` returns null; a template line `platform-org:read` inserted as the owner makes `copyRoleTemplates` throw and writes no role.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/to-access.test.ts test/access/access.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the four files and `export * from './access';` in `src/index.ts`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(core): load a user's access, copy built-in roles and find a linked user`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/to-access.test.ts test/access/access.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the four files and `export * from './access';` in `src/index.ts`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(core): load a user's access, copy built-in roles and find a linked user`.
 
 ---
 
@@ -701,24 +701,24 @@ export interface RunOwnerInput {
 export async function resolveRunOwner(tx: Tx, input: RunOwnerInput): Promise<RunOwner>;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `run-owner.int.test.ts` (one org, roles copied, P1 and P2, users B (member P1), V (viewer org), linked `fake` accounts):
+- [x] **Step 1: Write the failing tests** in `run-owner.int.test.ts` (one org, roles copied, P1 and P2, users B (member P1), V (viewer org), linked `fake` accounts):
   - B's comment on P1 → `{ kind: 'owner', userId: B, originRunId: null }`; V's → `ignored_owner_not_permitted`; B's on P2 → not permitted; unknown author id → `ignored_owner_unlinked`; missing `authorId` → unlinked.
   - bot: one active run of B on the ticket → owner B, `originRunId` that run; none on the ticket and one in the project → that run; two on the ticket → unlinked "bot comment has no single originating run"; none on the ticket and two in the project → unlinked; the only candidate is in P2 while the event is for P1 → unlinked; origin with `owner_user_id` null → unlinked "originating run has no owner"; origin owner B lost his P1 assignment → `ignored_owner_not_permitted`; a run that finished before `createdAt` is not a candidate.
   - Review Focus 5: `a bot comment at the origin's started_at or finished_at still matches it`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/run-owner.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `run-owner.ts` (bound parameters only; author text is never interpolated) and export it.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(core): resolve a trigger comment's run owner, including bot follow-ups`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/run-owner.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `run-owner.ts` (bound parameters only; author text is never interpolated) and export it.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(core): resolve a trigger comment's run owner, including bot follow-ups`.
 
 ---
 
-### Task 9: Docs: ADR-0030 and the doc fixes
+### Task 9: Docs: ADR-0031 and the doc fixes
 
 **Depends on:** none
 
 **Files:**
 
-- Create: `docs/adr/0030-scoped-rbac-roles-assignments.md`
+- Create: `docs/adr/0031-scoped-rbac-roles-assignments.md`
 - Modify: `docs/adr/README.md`
 - Modify: `docs/adr/0014-terminal-over-websocket-exec-relay.md`
 - Modify: `docs/adr/0013-webhook-and-polling-intake.md`
@@ -729,12 +729,12 @@ export async function resolveRunOwner(tx: Tx, input: RunOwnerInput): Promise<Run
 **Interfaces:**
 
 - Consumes: the spec only.
-- Produces: ADR-0030 in the `0000-template.md` shape recording the decisions listed under the spec's "ADR" paragraph, the `role_templates` exception to "every app table has org_id", the departure from epic §9 (own invitations table), and the release note (Agent calls). ADR-0014 and ADR-0013 get an "Amended by ADR-0030" line and the new terminal and trigger rules. `security.md` §5 (trigger: association, then a linked owner with `run:create`) and §6 (terminal: `terminal:attach` with ownership; project scope; 404 out of scope). `backend.md` §4: the 403 row becomes "lacks the permission for this action (problem detail 'Not allowed for your role here')" and a 404 row for out-of-scope projects. Control-plane spec §7.5: attach needs `terminal:attach` on the run's project with ownership for members; 4403 otherwise.
+- Produces: ADR-0031 in the `0000-template.md` shape recording the decisions listed under the spec's "ADR" paragraph, the `role_templates` exception to "every app table has org_id", the departure from epic §9 (own invitations table), and the release note (Agent calls). ADR-0014 and ADR-0013 get an "Amended by ADR-0031" line and the new terminal and trigger rules. `security.md` §5 (trigger: association, then a linked owner with `run:create`) and §6 (terminal: `terminal:attach` with ownership; project scope; 404 out of scope). `backend.md` §4: the 403 row becomes "lacks the permission for this action (problem detail 'Not allowed for your role here')" and a 404 row for out-of-scope projects. Control-plane spec §7.5: attach needs `terminal:attach` on the run's project with ownership for members; 4403 otherwise.
 
-- [ ] **Step 1: Write** ADR-0030 and add its row to `docs/adr/README.md` (status Accepted, 2026-11-21).
-- [ ] **Step 2: Edit** the five other docs as above; keep each change to the paragraph that states the old rule.
-- [ ] **Step 3: Check** `pnpm exec prettier --check` on the changed files. Expected: clean.
-- [ ] **Step 4: Commit** `docs(adr): scoped RBAC with roles, assignments and invitation-only sign-up`.
+- [x] **Step 1: Write** ADR-0031 and add its row to `docs/adr/README.md` (status Accepted, 2026-11-21).
+- [x] **Step 2: Edit** the five other docs as above; keep each change to the paragraph that states the old rule.
+- [x] **Step 3: Check** `pnpm exec prettier --check` on the changed files. Expected: clean.
+- [x] **Step 4: Commit** `docs(adr): scoped RBAC with roles, assignments and invitation-only sign-up`.
 
 ---
 
@@ -788,16 +788,16 @@ export const CurrentPlatformAdmin: ParameterDecorator;  // → PlatformAdminCont
 
   Guard after this task: public paths as today → no session 401 → `dev` matches keep today's member check → `platform` entry: `isPlatformAdmin` else 403 (`FORBIDDEN_DETAIL`), sets `req.platformAdmin`, needs no org → `unknown` under `/api` → 403 → active org and `member` row else 403 → a `:orgId` path param other than the active org → 404 → `loadAccess` under `withOrg` → `req.orgContext`, `req.authz` → `self` and `org-admin` entries enforce `preTargetDecision` (403 + an `info` deny log `{requestId, orgId, userId, routeKey, permission}`); `org`, `project`, `project-list` pass (Task 25 enforces them).
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `config.test.ts` (Review Focus 4): `config trims, lowercases and drops empty platform admin emails` (`" Admin@Dev.Local , ,ops@x.io"` → `['admin@dev.local','ops@x.io']`); unset → `[]`.
   - `route-entry.test.ts`: `('GET','/api/projects/:projectId')` → `projects.get`; the callback url → `connections.install`; `('POST','/dev/fake/comments')` → `dev`; an unlisted `/api` url → `unknown`.
   - `platform-admin.test.ts`: listed + verified → true; listed + unverified → false; case differs → true; unlisted → false.
   - `authorize.test.ts`: `it.each` over viewer-at-org, member-on-P1, project-admin-on-P1, owner and no-grants against one entry of each kind (expected table in the test), e.g. `projects.list` with no grants → `forbidden`; `connections.list` for project admin → `forbidden`; `runs.cancel` for viewer → `forbidden`, for member → `needs-target`; `assignments.create` for project admin → `allow`; `me.access` with no grants → `allow`.
   - `authz.int.test.ts` (N3 route discovery): list every Nest controller route with `DiscoveryService` + `PATH_METADATA`/`METHOD_METADATA`; each one under `/api` resolves to `kind: 'route'` and each under `/dev` to `dev`; every `routeAccess` key is registered (HTTP) or is `runs.terminal`/`setupTests.terminal`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts`, `pnpm --filter @agentdesk/api exec vitest run src/access test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the config key and `.env.example` line `PLATFORM_ADMIN_EMAILS=admin@dev.local`, the four access files, and the guard flow above.
-- [ ] **Step 4: Run** the same commands, then `pnpm --filter @agentdesk/api test` (every existing int file still passes: old routes keep membership-only behaviour). Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): guard resolves route access, platform admins and org-admin routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts`, `pnpm --filter @agentdesk/api exec vitest run src/access test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the config key and `.env.example` line `PLATFORM_ADMIN_EMAILS=admin@dev.local`, the four access files, and the guard flow above.
+- [x] **Step 4: Run** the same commands, then `pnpm --filter @agentdesk/api test` (every existing int file still passes: old routes keep membership-only behaviour). Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): guard resolves route access, platform admins and org-admin routes`.
 
 ---
 
@@ -839,13 +839,13 @@ export function buildAuditRow(entry: AuditEntry): typeof auditLog.$inferInsert;
 export async function writeAuditEntry(tx: Tx, entry: AuditEntry): Promise<void>;
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `grant-rules.test.ts` (`it.each`, expected table in the test): org owner grants `owner` at org → ok; org admin grants `owner` → `owner-only`; org admin grants `admin` at org → ok; project admin on P1 grants `admin`/`member`/`viewer` on P1 → ok; on P2 → `no-right`; at org → `no-right`; member grants anything → `no-right`; a made-up role holding `setup:test` granted by an actor whose P1 role lacks it → `escalation`; `own` member lines covered by the admin's `any` lines; revoke rules with `assignment:delete` mirror these.
   - `audit-entry.test.ts`: `buildAuditRow` keeps `{to: {roleId, roleKey, scope}}`, adds `actorKind: 'platform_admin'`, drops a `token` and a `password` key at any depth, and omits `actorKind` when undefined.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/grant-rules.test.ts src/audit/audit-entry.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three source files.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): tenant grant rules, the request actor and typed audit entries`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/grant-rules.test.ts src/audit/audit-entry.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the three source files.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): tenant grant rules, the request actor and typed audit entries`.
 
 ---
 
@@ -896,7 +896,7 @@ export async function createOrg(t: TestApp, name: string, slug: string): Promise
 
   `validEnv` gains `PLATFORM_ADMIN_EMAILS: 'admin@dev.local'`. Dev-login wraps `signUpEmail` in `devSignUp.run(true, …)` and, after a successful sign-in, sets `email_verified = true` for that dev user.
 
-- [ ] **Step 1: Write the failing tests** in `platform.int.test.ts`:
+- [x] **Step 1: Write the failing tests** in `platform.int.test.ts`:
   - BR-69 / N1: `POST /api/platform/orgs {name:'Acme', slug:'acme'}` → 201 `{id, name, slug:'acme'}`; `GET …/roles` → the four built-in roles with their lines; `GET …/members` is not yet routed, so assert `select count(*) from member where organization_id = id` is 0; `audit_log` of the new org holds `org.created` with `actor_user_id` = admin, `payload {name, slug, actorKind:'platform_admin'}`.
   - same slug again → 409 with `errors[0].pointer === '/slug'`; Review Focus 3: `concurrent creates with one slug give 201 and 409`; an edited slug (`'acme-eu-7'` for name `'Acme Corp'`) is stored as sent.
   - BR-73: missing name, missing slug, 101-char name, slug `'Bad_Slug'` → 400 with pointers `/name` or `/slug`.
@@ -904,10 +904,10 @@ export async function createOrg(t: TestApp, name: string, slug: string): Promise
   - unknown `:orgId` on projects and roles → 404.
   - BR-39: a second `createTestApp({ env: { PLATFORM_ADMIN_EMAILS: '' } })` → the same admin cookie gets 403 with detail "Not allowed for your role here".
   - dev-login of `admin` leaves `user.email_verified` true.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module, service, `roles.ts`, the controller (four routes, `@CurrentPlatformAdmin()`), `dev-signup.ts`, the hook and dev-login changes, and the helpers; register `OrgsModule` in `AppModule`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): platform admins create orgs with built-in roles and list orgs and projects`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module, service, `roles.ts`, the controller (four routes, `@CurrentPlatformAdmin()`), `dev-signup.ts`, the hook and dev-login changes, and the helpers; register `OrgsModule` in `AppModule`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): platform admins create orgs with built-in roles and list orgs and projects`.
 
 ---
 
@@ -944,17 +944,17 @@ export class InvitationsService {
 export function toInvitationDto(row: InvitationRow, role: RoleRef, projects: { id: string; name: string }[]): InvitationDto;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `invitations.int.test.ts` (platform routes; org and projects created through `createOrg` plus direct project rows where a project is needed):
+- [x] **Step 1: Write the failing tests** in `invitations.int.test.ts` (platform routes; org and projects created through `createOrg` plus direct project rows where a project is needed):
   - create → 201 `pending`, `expiresAt` 7 days after `createdAt` (± 5 s); project scope lists `{id, name}`.
   - BR-59: bad email 400 `/email`; `projectIds: []` 400; another org's role id 422 `/roleId`; `owner` with project scope 422 `/roleId`; another org's project 422 `/scope/projectIds/0`; a second pending invite for the email 409 `/email`; Review Focus 1: `a second invitation differing only in case is 409`.
   - BR-57: with `expires_at` moved into the past, the list shows `expired`, revoke gives 409, and a new invitation for that email succeeds while the old row becomes `expired` with an `invitation.expired` audit row.
   - BR-58: revoke → 204 and list shows `revoked`; revoke again → 409.
   - N5: `invitation.created` and `invitation.revoked` rows have `target_type 'invitation'`, `payload {email, to: {roleId, roleKey, scope}, actorKind: 'platform_admin'}` and no key matching `/token|secret|password/`.
   - unknown `:orgId` → 404; an invitation id of another org → 404.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service, the platform controller (three routes, `{ kind: 'platform_admin', userId }` actor, `requireOrg` first) and the module; register it in `AppModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): platform admins invite, list and revoke invitations`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service, the platform controller (three routes, `{ kind: 'platform_admin', userId }` actor, `requireOrg` first) and the module; register it in `AppModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): platform admins invite, list and revoke invitations`.
 
 ---
 
@@ -990,7 +990,7 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 
   Hooks: `user.create.after` and `session.create.before` call `acceptPendingInvitations` first; `session.create.before` then sets `activeOrganizationId` to the oldest membership (today's `ensurePersonalOrg` still runs for users with none, until Task 31). Dev-login inserts an `account` row `(provider_id 'fake', account_id = handle)` for the user when absent.
 
-- [ ] **Step 1: Write the failing tests** (append to `invitations.int.test.ts`):
+- [x] **Step 1: Write the failing tests** (append to `invitations.int.test.ts`):
   - BR-55: `inviteAndLogin(t, org, 'h1', 'viewer', {type:'org'})` → `get-session` shows `activeOrganizationId === org`; one `member` row; one org assignment `viewer`; no personal org created for `h1`. An owner (via `inviteAndLogin` owner) creates P1 and P2; a `member` invitation listing P1 and P2 gives two project assignments.
   - BR-56: an existing user invited to a second org joins it on the next dev-login; the invitation lists as `accepted`.
   - BR-57: an invitation whose `expires_at` is in the past is not applied and stays non-accepted.
@@ -1001,10 +1001,10 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
   - "already a member" (deferred from Task 13): inviting `h1`'s email again → 409 `/email`.
   - `acceptPendingInvitations(db, { …, emailVerified: false })` changes nothing.
   - dev-login of `h1` leaves an `account` row `('fake', 'h1')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `accept-invitations.ts`, the hook calls, the dev-login link and the two helpers.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `accept-invitations.ts`, the hook calls, the dev-login link and the two helpers.
 - [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): accept pending invitations at sign-in`.
+- [x] **Step 5: Commit** `feat(api): accept pending invitations at sign-in`.
 
 ---
 
@@ -1025,9 +1025,9 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 - Consumes: `createOrg`, `inviteAndLogin`, `userIdOf` (Tasks 12, 14).
 - Produces: no new interface. Each file's `beforeAll` builds users as `createOrg(t, '<name>', '<slug>')` then `inviteAndLogin(…, 'owner', {type:'org'})`; the "carol" users become `inviteAndLogin(…, 'member', {type:'project', projectIds:[projectId]})` after the project exists; raw `insert into member` / `update session set active_organization_id` SQL is removed. Personal-org assertions (`auth.int` slug tests; `connections.int` "two orgs can both install" `organization where slug in (…)`) keep using a bare dev-login until Task 31 replaces them; every other test in these files uses the helpers.
 
-- [ ] **Step 1: Change** each file's setup as above, assertions untouched.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/projects.int.test.ts test/connections.int.test.ts test/agents.int.test.ts test/plugins.int.test.ts test/auth.int.test.ts`. Expected: PASS, with the same test count as before the change.
-- [ ] **Step 3: Commit** `test(api): build projects, connections, agents, plugins and auth test users through invitations`.
+- [x] **Step 1: Change** each file's setup as above, assertions untouched.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/projects.int.test.ts test/connections.int.test.ts test/agents.int.test.ts test/plugins.int.test.ts test/auth.int.test.ts`. Expected: PASS, with the same test count as before the change.
+- [x] **Step 3: Commit** `test(api): build projects, connections, agents, plugins and auth test users through invitations`.
 
 ---
 
@@ -1047,9 +1047,9 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 - Consumes: as Task 15.
 - Produces: as Task 15, for these four files.
 
-- [ ] **Step 1: Change** each file's setup as in Task 15.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS, same test count.
-- [ ] **Step 3: Commit** `test(api): build rules, skills and setup test users through invitations`.
+- [x] **Step 1: Change** each file's setup as in Task 15.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS, same test count.
+- [x] **Step 3: Commit** `test(api): build rules, skills and setup test users through invitations`.
 
 ---
 
@@ -1069,9 +1069,9 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 - Consumes: as Task 15.
 - Produces: as Task 15, for these four files.
 
-- [ ] **Step 1: Change** each file's setup as in Task 15.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts test/terminal.int.test.ts test/webhooks.int.test.ts`. Expected: PASS, same test count.
-- [ ] **Step 3: Commit** `test(api): build runs, SSE, terminal and webhook test users through invitations`.
+- [x] **Step 1: Change** each file's setup as in Task 15.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts test/terminal.int.test.ts test/webhooks.int.test.ts`. Expected: PASS, same test count.
+- [x] **Step 3: Commit** `test(api): build runs, SSE, terminal and webhook test users through invitations`.
 
 ---
 
@@ -1107,7 +1107,7 @@ export function toAssignmentDto(row: AssignmentRow): AssignmentDto;
 
   Controller: `POST /api/orgs/:orgId/assignments` answers 201 when created, 200 for a repeat (`@Res({ passthrough: true })` status); `GET` lists.
 
-- [ ] **Step 1: Write the failing tests** in `assignments.int.test.ts` (cast via `createOrg` + `inviteAndLogin`: owner O, org admin D, A admin on P1, B member on P1 and P2, V viewer on org, C member with project scope). "Next request" is proven through an `org-admin` route (`GET …/assignments`), already enforced since Task 10:
+- [x] **Step 1: Write the failing tests** in `assignments.int.test.ts` (cast via `createOrg` + `inviteAndLogin`: owner O, org admin D, A admin on P1, B member on P1 and P2, V viewer on org, C member with project scope). "Next request" is proven through an `org-admin` route (`GET …/assignments`), already enforced since Task 10:
   - BR-36 (grant): B and V granting → 403; A granting C `member` on P2 → 403.
   - BR-37: unknown role 422 `/roleId`; another org's role id 422 `/roleId` (N2 second half); `owner` on a project 422 `/roleId`; another org's project 422 `/scope/projectId`; unknown user and a non-member user both 422 `/userId`; malformed body 400; another org id in the path → 404.
   - BR-41: the same grant twice → 201 then 200 with the same `id`; one row. Review Focus 2: `two concurrent identical grants give 201 and 200 and one row`.
@@ -1115,10 +1115,10 @@ export function toAssignmentDto(row: AssignmentRow): AssignmentDto;
   - BR-61 (grant): A grants V `member`, `admin`, `viewer` on P1 → 201 each; on P2 → 403; at org → 403.
   - BR-64: O and D list all; A lists only P1's with and without `projectId`; A with `projectId` = P2 → 404; B and V → 403.
   - N5: `assignment.granted` has `target_type 'user'`, `target_id` = user, `payload.to {roleId, roleKey, scope}`, no `from`, `actorKind 'member'`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service, controller (`{ kind: 'member', access }` actor) and module; register it in `AppModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): grant roles and list assignments on tenant routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service, controller (`{ kind: 'member', access }` actor) and module; register it in `AppModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): grant roles and list assignments on tenant routes`.
 
 ---
 
@@ -1151,7 +1151,7 @@ accessOf(access: Access, platformAdmin: boolean): AccessDto;
 
   `GET /api/me/access` (`me.access`), `GET /api/orgs/:orgId/roles` (`roles.list`), `DELETE /api/orgs/:orgId/assignments/:assignmentId` → 204.
 
-- [ ] **Step 1: Write the failing tests** (append):
+- [x] **Step 1: Write the failing tests** (append):
   - BR-36 (revoke): B revoking C's P1 assignment → 403, row kept; A revoking B's P2 assignment → 403.
   - BR-45 (revoke): O revokes V's org `viewer` → 204 and V's next `GET /api/me/access` lists none; D revoking A's `owner` → 403.
   - BR-46: O revoking O's own only `owner` assignment → 409 and it stays; with a second owner O2, O revokes O2's → 204.
@@ -1159,10 +1159,10 @@ accessOf(access: Access, platformAdmin: boolean): AccessDto;
   - BR-63: a member whose only assignment was revoked gets `GET /api/me/access` 200 `{userId, platformAdmin:false, assignments:[]}`; after O grants `member` on P2 it lists one assignment `member` / project P2 with its lines; O's shows `owner` at org.
   - roles: any assignment holder gets the four roles; the member with none → 403.
   - N5: `assignment.revoked` has `payload.from {roleId, roleKey, scope}` and no `to`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `revoke`, `accessOf`, the DELETE handler and the two controllers; register them.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): revoke assignments, read own access and list org roles`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `revoke`, `accessOf`, the DELETE handler and the two controllers; register them.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): revoke assignments, read own access and list org roles`.
 
 ---
 
@@ -1182,16 +1182,16 @@ accessOf(access: Access, platformAdmin: boolean): AccessDto;
 - Consumes: `CurrentAccess` (Task 10); `checkTenantAssign`, `isOrgOwner` (Task 11); Task 13's service.
 - Produces: member-actor rules in `InvitationsService` (spec "Tenant invitation create"): org scope needs `member:create` at org scope plus the grant rules (`owner` only by an org owner); project scope needs `member:create` at org scope, or `checkTenantAssign(access, 'assignment:create', role, {type:'project', projectId})` ok on every listed project, else 403. `list` for a member actor without `member:read` at org scope returns only invitations whose every project the caller administers. `revoke` uses the create rules on the stored invitation. Controller for the three tenant routes.
 
-- [ ] **Step 1: Write the failing tests** (append; cast as in Task 18), BR-60:
+- [x] **Step 1: Write the failing tests** (append; cast as in Task 18), BR-60:
   - A invites a new email as `member` on [P1] → 201 `pending`; at org scope → 403; on [P1, P2] → 403; B and V invite → 403.
   - O invites a new email as `owner` at org → 201; D does the same → 403.
   - A's list shows the P1 invitation and not O's P2 one; B's list → 403; O's list shows every invitation.
   - A revokes the P1 invitation → 204, then lists `revoked`; A revoking O's P2 invitation → 403 and it stays `pending`.
   - audit rows carry `actorKind 'member'`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the rules and the controller; register it in `InvitationsModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): owners, org admins and project admins invite on tenant routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the rules and the controller; register it in `InvitationsModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): owners, org admins and project admins invite on tenant routes`.
 
 ---
 
@@ -1217,17 +1217,17 @@ export async function grant(t: TestApp, orgId: string, userId: string, roleKey: 
 export async function revoke(t: TestApp, orgId: string, assignmentId: string): Promise<void>;  // DELETE …/assignments/:id
 ```
 
-- [ ] **Step 1: Write the failing tests** (append):
+- [x] **Step 1: Write the failing tests** (append):
   - BR-34: `grant(…, C, 'member', P2)` → C's next `GET /api/me/access` lists it.
   - BR-41: the same platform grant twice → 201 then 200, one row; listed once by `GET /api/platform/orgs/:orgId/assignments?projectId=P2`.
   - BR-45: the platform admin grants C `owner` at org → 201.
   - BR-46: the platform admin removes the org's last `owner` assignment → 204.
   - BR-37 on platform routes: the same 422 pointers as Task 18; unknown org 404; an assignment id of another org via this org's path → 404.
   - audit rows carry `actorKind 'platform_admin'`; responses parse as `PlatformAssignmentDto`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the controller and the helpers; register the controller.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): platform admins grant and revoke roles in any org`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the controller and the helpers; register the controller.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): platform admins grant and revoke roles in any org`.
 
 ---
 
@@ -1260,13 +1260,13 @@ export class MembersService {
 }
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `members.int.test.ts`: O lists every member with all assignments and no `email` key (parses `MemberDto`); A (project admin on P1) lists every member but sees only P1 assignments; B → 403.
   - `platform.int.test.ts`: BR-40 `GET /api/platform/orgs/:orgId/members` items have `userId, handle, name, email, assignments` and parse as `PlatformMemberDto`; BR-38 (positive part) the platform admin gets 200 on platform projects and members while `GET /api/orgs/:orgId/members` and `GET /api/orgs/:orgId/invitations` with the same cookie are refused (403 or 404) with no data.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts test/platform.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module, service and both controllers; register the module in `AppModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): list org members with their assignments`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts test/platform.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module, service and both controllers; register the module in `AppModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): list org members with their assignments`.
 
 ---
 
@@ -1304,15 +1304,15 @@ export function botTriggerEvent(base: TicketEvent, createdAt: string, botLogin?:
 
   Order: command → association → owner → rule matching (spec). `decideInTx` passes `owner: () => resolveRunOwner(tx, …)` mapped to `OwnerCheck` and writes `ownerUserId` and `originRunId` on the run insert. The fake board sets `authorId` to the comment's `author`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `router.test.ts`: association `NONE` → `ignored_unauthorized` and `owner` is never called; unlinked → `ignored_owner_unlinked` even when no rule exists (owner before rule); not permitted → `ignored_owner_not_permitted`; ok → the decision carries `owner`.
   - `intake.int.test.ts`: seed helper links the comment author (`account ('fake', author)`) and grants it `member` on the project (`copyRoleTemplates` + `role_assignments`); the existing cases keep their expectations with that seed. New: the run row has `owner_user_id` = the author and `origin_run_id` null; an unlinked author → inbound outcome `ignored_owner_unlinked`, no run, `startRun` not called; `botTriggerEvent` during the author's active run on the ticket → `origin_run_id` = that run and the same owner.
   - `fake.test.ts`: webhook and polled events carry `authorId === author`.
   - `poll.int.test.ts` and `webhooks.int.test.ts`: existing run-creating cases comment as the linked owner (poll: seeded as in intake; webhooks: the owner handle from `inviteAndLogin`, GitHub-fixture cases get an `account ('github', <fixture user id>)` row and an owner assignment by SQL).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts test/intake.int.test.ts test/adapters/fake.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the router input, the intake wiring, the fake author id and the fixture.
-- [ ] **Step 4: Run** the core command, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts` and `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`. Expected: PASS. E2E for this behaviour: Task 40.
-- [ ] **Step 5: Commit** `feat(core): trigger comments start runs only for a linked owner with run:create`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts test/intake.int.test.ts test/adapters/fake.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the router input, the intake wiring, the fake author id and the fixture.
+- [x] **Step 4: Run** the core command, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts` and `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`. Expected: PASS. E2E for this behaviour: Task 40.
+- [x] **Step 5: Commit** `feat(core): trigger comments start runs only for a linked owner with run:create`.
 
 ---
 
@@ -1336,14 +1336,14 @@ export function botTriggerEvent(base: TicketEvent, createdAt: string, botLogin?:
 - Consumes: `runs.ownerUserId` (Task 5); intake owner (Task 23); tenant `revoke` route (Task 19).
 - Produces: `RunDto.ownerUserId: z.string().nullable()`, mapped from `runs.owner_user_id` in every `RunDto` the api returns. Any other web `RunDto` literal that `pnpm --filter @agentdesk/web typecheck` flags gets `ownerUserId: null` (list the file in the PR).
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `runs.test.ts`: `RunDto` rejects a run without `ownerUserId` and accepts `null`.
   - `webhooks.int.test.ts` (cast via helpers: O, B member P1+P2, V viewer, A admin P1, an unlinked author): BR-26 association `NONE` → no run; BR-50 B's trigger → `runs.get` shows `ownerUserId` = B; BR-51 V on P1 and A on P2 → `ignored_owner_not_permitted` in `projects.ignored`, no Temporal start (`t.temporal` has no start call); BR-52 unlinked → `ignored_owner_unlinked`; BR-53 a bot comment during B's active run on the ticket → follow-up run owned by B; BR-71 bot comment with no active run, with the only active run in P1 while commenting on P2, and with an origin whose `owner_user_id` was set null by SQL → no run, `ignored_owner_unlinked`; BR-72 after O revokes B's P1 assignment, a bot comment from B's earlier P1 run → `ignored_owner_not_permitted`; N6 a human unlinked comment whose body names an active run's id → still `ignored_owner_unlinked`.
   - `poll.int.test.ts`: BR-50, BR-51, BR-52 and BR-53 through `pollOnce`; a refused comment still advances the cursor; running the same tick twice adds no run and no second ignored row.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/runs.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the field, the api mapping and the web fixture updates.
-- [ ] **Step 4: Run** the same commands plus `pnpm --filter @agentdesk/web typecheck` and `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): runs show their owner`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/runs.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the field, the api mapping and the web fixture updates.
+- [x] **Step 4: Run** the same commands plus `pnpm --filter @agentdesk/web typecheck` and `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(contracts): runs show their owner`.
 
 ---
 
@@ -1388,13 +1388,13 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 
   The guard now enforces every tenant kind through `checkTenantAccess` and puts `projectId`/`ownerUserId` on `req.authz`. `OrgContext` loses `role`. `assertCanEditProject` is deleted; its callers (`projects.service` `pollNow`, `setup-tests.service` create and end, `setup-script.service` put) use `assertProjectVisible`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `authorize.test.ts`: `targetDecision` → `not-found` for `null` and for a project outside every grant; `forbidden` for a visible project without the permission (org viewer + admin on P1, `rule:update` on P2) and for a member on someone else's run (`ownerUserId` other) and on an ownerless run; `allow` for the owner's own run and for a project admin on any run in P1.
   - `authz.int.test.ts` (cast via helpers): BR-6 a viewer `PATCH /api/rules/<random uuid>`, `/api/rules/not-a-uuid` and a real rule with an invalid body → 403 each; a member `PUT /api/agents/<other org agent>/credential` → 403; BR-7 A `GET /api/projects/<other org project>` → 404, A `PATCH /api/rules/<random uuid>` → 404; BR-12 the 403 body has `detail` "Not allowed for your role here" and a `requestId`, and names no other-org id; A gets 403 on `GET /api/connections`; legacy removal: A (project admin, not the creator) `PATCH /api/projects/P1`, `PUT …/setup-script`, `POST …/setup-tests` → 2xx, and B (member) `POST …/connection/poll` passes the permission (202 or the state 409); N4 one refused write leaves no row, no audit row and no Temporal call.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/authorize.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the resolver, `targetDecision`, `checkTenantAccess`, the guard switch, the `OrgContext` change and the legacy removal.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Tasks 35 to 39.
-- [ ] **Step 5: Commit** `feat(api): every endpoint checks the caller's permission and project scope`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/authorize.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the resolver, `targetDecision`, `checkTenantAccess`, the guard switch, the `OrgContext` change and the legacy removal.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Tasks 35 to 39.
+- [x] **Step 5: Commit** `feat(api): every endpoint checks the caller's permission and project scope`.
 
 ---
 
@@ -1412,15 +1412,15 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `visibleProjects` (Task 1); `req.authz.access` (Task 10).
 - Produces: `ProjectsService.list(org, access, q)` filters page and `count(*)` by `visibleProjects(access, 'project:read')` (`'all'` = no filter); the controller passes `@CurrentAccess()`.
 
-- [ ] **Step 1: Write the failing tests** in `scope.int.test.ts` (cast: O, A admin P1, B member P1+P2, V viewer org; projects P1, P2, P3):
+- [x] **Step 1: Write the failing tests** in `scope.int.test.ts` (cast: O, A admin P1, B member P1+P2, V viewer org; projects P1, P2, P3):
   - BR-27: A's list is P1 with `total` 1; B's is P1, P2 with `total` 2, and `pageSize=1` gives one item per page with `total` 2 on both; V's has `total` 3.
   - BR-28: for A, every `project`-scoped route key with a P2 id (project, runs list, run by number, run get/log/transcript, rules, skills, setup script, setup test latest, agent, agent put, both SSE routes) → 404; the expected table is written in the test.
   - BR-42: A's `GET /api/connections` and `…/repos` → 403.
   - BR-44: O deletes P2 → B's list is P1 with `total` 1; B's `GET /api/me/access` still lists the P1 assignment and nothing for P2; B's `runs.list` on P1 is 200.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/scope.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the filter.
-- [ ] **Step 4: Run** the same command and `test/projects.int.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): the project list shows only projects in the caller's scope`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/scope.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the filter.
+- [x] **Step 4: Run** the same command and `test/projects.int.test.ts`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): the project list shows only projects in the caller's scope`.
 
 ---
 
@@ -1439,7 +1439,7 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `checkTenantAccess` (Task 25); `routeAccess['runs.terminal']`, `routeAccess['setupTests.terminal']` (Task 4).
 - Produces: `TerminalTarget.lookup` returns `{ active, sessionEnded, jobName }` (no `createdBy`); `check()` = session (4401) → `checkTenantAccess(db, who, entry, { runId | setupTestId: id })` → any refusal 4403 → state checks as today. `reauth` runs the same `check()` on its timer.
 
-- [ ] **Step 1: Write the failing tests** (terminal.int; the old carol cases become these):
+- [x] **Step 1: Write the failing tests** (terminal.int; the old carol cases become these):
   - BR-5: a viewer on an active run and on an active setup test → close 4403 with no bytes received.
   - BR-13: B attaches to B's own active run → stays open.
   - BR-48: B on C's run → 4403.
@@ -1447,10 +1447,10 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
   - BR-7: the owner on another org's run and on a random run id → 4403.
   - BR-35: with `TERMINAL_REAUTH_MS` small (test env), A attached to C's run, O revokes A's P1 assignment (A keeps another) → the socket closes 4403 on the re-check (await the close, no sleep).
   - BR-8: no session → 4401; a user whose active org is not theirs → 4403.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/terminal.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the gateway and target changes.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): terminal attach checks terminal:attach and run ownership`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/terminal.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the gateway and target changes.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): terminal attach checks terminal:attach and run ownership`.
 
 ---
 
@@ -1468,11 +1468,11 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: the guard (Task 25); tenant revoke (Task 19).
 - Produces: tests only (behaviour delivered by Task 25).
 
-- [ ] **Step 1: Write the tests** (runs inserted by SQL with `owner_user_id`, as the files do today):
+- [x] **Step 1: Write the tests** (runs inserted by SQL with `owner_user_id`, as the files do today):
   - `runs.int.test.ts`: BR-9 on a finished run V `cancel` → 403 and A `cancel`, `stop`, `finish` → 409; on an active run A `resume` → 409, V `resume` → 403. BR-14 B cancels, stops, finishes and resumes B's own run → accepted. BR-49 B on C's run → 403 each, run unchanged. BR-66 ownerless run: B → 403, A → accepted. BR-68 B `POST …/connection/poll` on a polling P1 → 202 and the schedule trigger is recorded; V → 403.
   - `sse.int.test.ts`: BR-3 V connects to `runs.events` of a P1 run and `projects.events` of P2 → 200, and a status change commits a frame V reads; BR-28 A connects to P2's streams → 404; BR-35 (stream part) A's open P1 stream keeps receiving a frame committed after O revokes A's P1 assignment, then a new connect → 404.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts`. Expected: PASS (a failure here is a Task 25 bug: fix it with this failing test first).
-- [ ] **Step 3: Commit** `test(api): run controls and streams follow role, scope and ownership`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts`. Expected: PASS (a failure here is a Task 25 bug: fix it with this failing test first).
+- [x] **Step 3: Commit** `test(api): run controls and streams follow role, scope and ownership`.
 
 ---
 
@@ -1492,14 +1492,14 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `loadAccess`, `can` (Tasks 1, 7).
 - Produces: `ConnectionsService.complete` loads the state user's access under `withOrg(state.orgId)` and refuses with 403 unless `can(access, 'connection:create')` (org scope).
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `connections.int.test.ts`: BR-16 B's `GET /api/connections`, `POST …/fake/install`, `POST …/fake/sync` → 403; install callback: an install state minted for O, redeemed after O's org `owner` assignment is replaced by `member` on P1 → 403 and no connection row.
   - `projects.int.test.ts`: BR-18 B's `POST /api/projects` and `DELETE /api/projects/P1` → 403, list unchanged; BR-33 B's `PATCH /api/projects/P1` → 403, reread unchanged; BR-29 A's `PATCH` P1 → 200, A's create and delete → 403.
   - `agents.int.test.ts`: BR-17 B's `PUT /api/agents/:agentId/credential` → 403, body has no value, `MemorySecretStore` unchanged; BR-33 B's `PUT …/agent` → 403; BR-29 A's agent put and credential put on P1 → 2xx.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/connections.int.test.ts test/projects.int.test.ts test/agents.int.test.ts`. Expected: FAIL (the callback case).
-- [ ] **Step 3: Implement** the re-check.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): the install callback re-checks connection:create`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/connections.int.test.ts test/projects.int.test.ts test/agents.int.test.ts`. Expected: FAIL (the callback case).
+- [x] **Step 3: Implement** the re-check.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): the install callback re-checks connection:create`.
 
 ---
 
@@ -1519,9 +1519,9 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: the guard (Task 25).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the tests:** BR-33 B's `rules.create|update|remove`, `skills.put|remove`, `setupScript.put`, `setupTests.create` → 403 with rereads unchanged, and B's `rules.list` → 200 with the rule; BR-29 A's rule create, skill put, setup script put and setup test create on P1 → 2xx.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS (a failure is a Task 25 bug).
-- [ ] **Step 3: Commit** `test(api): rules, skills and setup follow role and scope`.
+- [x] **Step 1: Write the tests:** BR-33 B's `rules.create|update|remove`, `skills.put|remove`, `setupScript.put`, `setupTests.create` → 403 with rereads unchanged, and B's `rules.list` → 200 with the rule; BR-29 A's rule create, skill put, setup script put and setup test create on P1 → 2xx.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS (a failure is a Task 25 bug).
+- [x] **Step 3: Commit** `test(api): rules, skills and setup follow role and scope`.
 
 ---
 
@@ -1542,15 +1542,15 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `pendingInvitationsForEmail` (Task 5); `isPlatformAdmin` (Task 10); `devSignUp` (Task 12); acceptance (Task 14).
 - Produces: `user.create.before` throws (no user row) unless the email is verified and (`pendingInvitationsForEmail` returns a row or `isPlatformAdmin`); `ensurePersonalOrg` and its calls are removed; `session.create.before` sets `activeOrganizationId` to the oldest membership or `null`. The PR body carries the release note.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `invitations.int.test.ts`: BR-54 dev-login of an uninvited handle → 401, no `user` row, a second try → 401; BR-57 a handle whose only invitation is expired → refused, no user; BR-58 a revoked invitation's handle → refused, no user.
   - `platform.int.test.ts`: BR-62 on a fresh app the config email signs up with no invitation → 302, the user exists with no membership, `GET /api/platform/orgs` → 200, `get-session` shows `activeOrganizationId` null; N9 with `NODE_ENV=production` config, `/auth/dev-login` → 404.
   - `auth.int.test.ts`: the personal-org cases are replaced by "an invited handle's first dev-login creates no personal org and lands in the invited org" and "an uninvited handle is refused"; the slug-collision and concurrent-colliding-slug cases are removed with the behaviour.
   - `connections.int.test.ts`: "two orgs can both install" builds its two orgs with `createOrg` + `inviteAndLogin` and asserts both connections.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/auth.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/connections.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the gate and the session change; delete `ensurePersonalOrg`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Task 44.
-- [ ] **Step 5: Commit** `feat(api): sign-up needs an invitation or a platform admin email`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/auth.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/connections.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the gate and the session change; delete `ensurePersonalOrg`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Task 44.
+- [x] **Step 5: Commit** `feat(api): sign-up needs an invitation or a platform admin email`.
 
 ---
 
@@ -1567,14 +1567,14 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: every route (Tasks 3, 12 to 22); the guard (Task 25); the terminal check (Task 27).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the tests** (one org with the cast, plus a user with no assignment, a platform admin with no membership, and the org owner as a non-platform caller):
+- [x] **Step 1: Write the tests** (one org with the cast, plus a user with no assignment, a platform admin with no membership, and the org owner as a non-platform caller):
   - for every key of `flattenRoutes(routes)`, a request with valid ids from the cast and the expected status per caller written in the test: the no-assignment member gets 403 everywhere except `me.access` (200); the viewer gets 403 on every write; the platform admin with no membership gets 403 on every tenant route and on `/api/orgs/<other>/…` (no active org) and 2xx on every platform route; the org owner and A get 403 on every `/api/platform/*` route, `platform.createOrg` included (BR-70); BR-38 the platform admin's tenant project list is refused with no data; both terminals for the viewer close 4403; `/dev/fake/posted` answers with a session and 401 without.
   - N3: the table's keys equal every `routeAccess` key (a new route without a row fails the test).
   - N2: an owner-role SQL update removing `project:create` from org A's `admin` role makes A's org admin get 403 on `projects.create` while org B's admin still gets 201.
   - N4: after the refused writes of the table, no new rows in `projects`, `rules`, `role_assignments`, `invitations`, `audit_log`, no `MemorySecretStore` write and no Temporal start or signal.
   - BR-8: a signed-in user whose active org is not theirs → 403; no session → 401.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`. Expected: PASS (a failure is a bug in the route's task: fix it test-first).
-- [ ] **Step 3: Commit** `test(api): denial table over every route, stream and terminal`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`. Expected: PASS (a failure is a bug in the route's task: fix it test-first).
+- [x] **Step 3: Commit** `test(api): denial table over every route, stream and terminal`.
 
 ---
 
@@ -1592,12 +1592,12 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `startPgAt` (Task 6); `grant` helper (Task 21); the guard and terminal checks.
 - Produces: `TestAppOptions.pg?: TestPg` (use this database instead of the shared one).
 
-- [ ] **Step 1: Write the test:** `startPgAt('0021_agent_auto_resume_max')`; as the owner seed user alice (credential account for dev-login plus `account ('fake', '777')`), a personal org with alice as `owner` member, a fake connection, a project, a run with `triggered_by_external_id = '777'` and an active run with none; `migrateRest()`; `createTestApp({ pg })`; dev-login alice (existing user):
+- [x] **Step 1: Write the test:** `startPgAt('0021_agent_auto_resume_max')`; as the owner seed user alice (credential account for dev-login plus `account ('fake', '777')`), a personal org with alice as `owner` member, a fake connection, a project, a run with `triggered_by_external_id = '777'` and an active run with none; `migrateRest()`; `createTestApp({ pg })`; dev-login alice (existing user):
   - BR-32: `projects.list`, `runs.list`, `rules.list` → 403; the terminal of the active run → 4403.
   - `grant(…, alice, 'member', {type:'project', projectId})` → the project and both runs read back unchanged; the backfilled run's `ownerUserId` is alice.
   - BR-66: alice cancelling the ownerless run → 403 and its terminal → 4403; a second user granted `admin` on the project cancels it → accepted.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/upgrade.int.test.ts`. Expected: PASS after adding the `pg` option.
-- [ ] **Step 3: Commit** `test(api): upgrade from 0021 keeps data and denies until granted`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/upgrade.int.test.ts`. Expected: PASS after adding the `pg` option.
+- [x] **Step 3: Commit** `test(api): upgrade from 0021 keeps data and denies until granted`.
 
 ---
 
@@ -1628,9 +1628,9 @@ export async function revoke(pa: APIRequestContext, orgId: string, assignmentId:
 
   `signInAndCreateProject` and `signInAndStartProject` create the org with slug = the new handle and invite that handle as `owner` before the dev-login, so their URLs stay `/o/<handle>/…`. `commentOnNewTicket` comments as `author ?? handle` (the signed-in user's linked identity). `scripts/e2e-local.ts` `setup` does the same over `fetch`.
 
-- [ ] **Step 1: Change** the helpers and the script as above.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "comment"` and `pnpm exec tsx scripts/e2e-local.ts`. Expected: PASS. If the stack cannot start, say so in the PR and list these as not run.
-- [ ] **Step 3: Commit** `test(web): local e2e users come from a platform-created org and an owner invitation`.
+- [x] **Step 1: Change** the helpers and the script as above.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "comment"` and `pnpm exec tsx scripts/e2e-local.ts`. Expected: PASS. If the stack cannot start, say so in the PR and list these as not run.
+- [x] **Step 3: Commit** `test(web): local e2e users come from a platform-created org and an owner invitation`.
 
 ---
 
@@ -1666,10 +1666,10 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 
   `FAKE_REPOS` becomes `['dev/demo', 'dev/demo-2', 'dev/demo-3']`.
 
-- [ ] **Step 1: Write the spec** `rbac-roles.spec.ts`, one `test('TC-x.y: …')` per case: BR-1 TC-1.1 to TC-1.4; BR-2 TC-2.1 to TC-2.4; BR-3 TC-3.1 to TC-3.3; BR-4 TC-4.1 to TC-4.4; BR-5 TC-5.1, TC-5.2 (O starts setup test T on P1 first). Assertions as the spec's Expected column; 403 cases also check the reread.
-- [ ] **Step 2: Update** `FAKE_REPOS` and the `listRepos` expectation in `fake.test.ts`; run `pnpm --filter @agentdesk/core exec vitest run test/adapters/fake.test.ts`. Expected: PASS.
-- [ ] **Step 3: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-roles.spec.ts`. Expected: PASS (or report not run, as in Task 34).
-- [ ] **Step 4: Commit** `test(web): e2e cast and owner, org admin and viewer cases`.
+- [x] **Step 1: Write the spec** `rbac-roles.spec.ts`, one `test('TC-x.y: …')` per case: BR-1 TC-1.1 to TC-1.4; BR-2 TC-2.1 to TC-2.4; BR-3 TC-3.1 to TC-3.3; BR-4 TC-4.1 to TC-4.4; BR-5 TC-5.1, TC-5.2 (O starts setup test T on P1 first). Assertions as the spec's Expected column; 403 cases also check the reread.
+- [x] **Step 2: Update** `FAKE_REPOS` and the `listRepos` expectation in `fake.test.ts`; run `pnpm --filter @agentdesk/core exec vitest run test/adapters/fake.test.ts`. Expected: PASS.
+- [x] **Step 3: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-roles.spec.ts`. Expected: PASS (or report not run, as in Task 34).
+- [x] **Step 4: Commit** `test(web): e2e cast and owner, org admin and viewer cases`.
 
 ---
 
@@ -1686,9 +1686,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: `buildCast`, `secondOrg`, `openTerminal` (Task 35).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** BR-6 TC-6.1 to TC-6.4; BR-7 TC-7.1 to TC-7.5; BR-9 TC-9.1 to TC-9.6 (RC finished by O first where the Given says so); BR-12 TC-12.1 to TC-12.3 (assert `/not allowed for your role here/i` in the body, a `requestId`, and for TC-12.2 that the body contains neither Y's ids nor the credential value).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-denials.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e refusals, missing targets and wrong-state controls`.
+- [x] **Step 1: Write the spec:** BR-6 TC-6.1 to TC-6.4; BR-7 TC-7.1 to TC-7.5; BR-9 TC-9.1 to TC-9.6 (RC finished by O first where the Given says so); BR-12 TC-12.1 to TC-12.3 (assert `/not allowed for your role here/i` in the body, a `requestId`, and for TC-12.2 that the body contains neither Y's ids nor the credential value).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-denials.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e refusals, missing targets and wrong-state controls`.
 
 ---
 
@@ -1705,9 +1705,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-13.1; TC-14.1 to TC-14.4; TC-16.1 to TC-16.3; TC-17.1; TC-18.1, TC-18.2; TC-33.1 to TC-33.9 (P1 rule R and skill S created by O first); TC-48.1; TC-49.1 to TC-49.4; TC-68.1, TC-68.2 (P1 switched to polling by O; B's identity's comment queued with `deliver: 'poll'`; TC-68.1 awaits a run owned by B).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-ownership.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e member ownership and member refusals`.
+- [x] **Step 1: Write the spec:** TC-13.1; TC-14.1 to TC-14.4; TC-16.1 to TC-16.3; TC-17.1; TC-18.1, TC-18.2; TC-33.1 to TC-33.9 (P1 rule R and skill S created by O first); TC-48.1; TC-49.1 to TC-49.4; TC-68.1, TC-68.2 (P1 switched to polling by O; B's identity's comment queued with `deliver: 'poll'`; TC-68.1 awaits a run owned by B).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-ownership.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e member ownership and member refusals`.
 
 ---
 
@@ -1724,9 +1724,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-27.1 to TC-27.4; TC-28.1 to TC-28.7; TC-42.1, TC-42.2; TC-44.1 to TC-44.3.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-scope.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e project scope in lists and lookups`.
+- [x] **Step 1: Write the spec:** TC-27.1 to TC-27.4; TC-28.1 to TC-28.7; TC-42.1, TC-42.2; TC-44.1 to TC-44.3.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-scope.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e project scope in lists and lookups`.
 
 ---
 
@@ -1743,9 +1743,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; Task 34 `grant`, `revoke`.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-29.1 to TC-29.7; TC-30.1 to TC-30.3 (O creates P3 on `dev/demo-3`); TC-31.1 to TC-31.3 (O grants V `admin` on P1); TC-32.1 to TC-32.4 (O revokes C's P1 assignment; PA grants C `member` on P2).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-project-admin.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e project admin, mixed roles and locked-out member`.
+- [x] **Step 1: Write the spec:** TC-29.1 to TC-29.7; TC-30.1 to TC-30.3 (O creates P3 on `dev/demo-3`); TC-31.1 to TC-31.3 (O grants V `admin` on P1); TC-32.1 to TC-32.4 (O revokes C's P1 assignment; PA grants C `member` on P2).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-project-admin.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e project admin, mixed roles and locked-out member`.
 
 ---
 
@@ -1762,9 +1762,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; `RunDto.ownerUserId` (Task 24).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-50.1, TC-50.2 (poll path triggered through Temporal as `scripts/e2e-local.ts` does); TC-51.1 to TC-51.4; TC-52.1, TC-52.2; TC-53.1, TC-53.2 (bot comment through `/dev/fake/comments` with `author: 'agentdesk[bot]'` from O's session); TC-71.1, TC-71.2 (RP2 finished first, Agent calls); TC-72.1. Ownership is asserted as `run.ownerUserId === b.userId`; outcomes as `ignored_owner_not_permitted` / `ignored_owner_unlinked` in `projects.ignored`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-triggers.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e trigger comments start runs only for permitted linked owners`.
+- [x] **Step 1: Write the spec:** TC-50.1, TC-50.2 (poll path triggered through Temporal as `scripts/e2e-local.ts` does); TC-51.1 to TC-51.4; TC-52.1, TC-52.2; TC-53.1, TC-53.2 (bot comment through `/dev/fake/comments` with `author: 'agentdesk[bot]'` from O's session); TC-71.1, TC-71.2 (RP2 finished first, Agent calls); TC-72.1. Ownership is asserted as `run.ownerUserId === b.userId`; outcomes as `ignored_owner_not_permitted` / `ignored_owner_unlinked` in `projects.ignored`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-triggers.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e trigger comments start runs only for permitted linked owners`.
 
 ---
 
@@ -1781,9 +1781,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; Task 34 `grant`, `revoke`.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-34.1, TC-34.2; TC-35.1 (`test.skip` unless `E2E_TERMINAL_REAUTH_MS` is set; await the 4403 close), TC-35.2 (A also granted `member` on P2); TC-36.1 to TC-36.5; TC-41.1, TC-41.2; TC-63.1 to TC-63.3.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-grants.spec.ts` (TC-35.1 with the stack started as `TERMINAL_REAUTH_MS=1000` and `E2E_TERMINAL_REAUTH_MS=1000`). Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e grants, revokes and own access`.
+- [x] **Step 1: Write the spec:** TC-34.1, TC-34.2; TC-35.1 (`test.skip` unless `E2E_TERMINAL_REAUTH_MS` is set; await the 4403 close), TC-35.2 (A also granted `member` on P2); TC-36.1 to TC-36.5; TC-41.1, TC-41.2; TC-63.1 to TC-63.3.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-grants.spec.ts` (TC-35.1 with the stack started as `TERMINAL_REAUTH_MS=1000` and `E2E_TERMINAL_REAUTH_MS=1000`). Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e grants, revokes and own access`.
 
 ---
 
@@ -1800,9 +1800,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-45.1 to TC-45.7; TC-46.1 to TC-46.3 (O2 invited and granted `owner` for TC-46.3); TC-61.1 to TC-61.6; TC-64.1 to TC-64.6.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-owner-grants.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e owner rules, last owner and assignment lists`.
+- [x] **Step 1: Write the spec:** TC-45.1 to TC-45.7; TC-46.1 to TC-46.3 (O2 invited and granted `owner` for TC-46.3); TC-61.1 to TC-61.6; TC-64.1 to TC-64.6.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-owner-grants.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e owner rules, last owner and assignment lists`.
 
 ---
 
@@ -1819,9 +1819,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; Task 34 platform helpers.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-38.1 to TC-38.4; TC-40.1 to TC-40.4 (assert the exact key sets); TC-69.1 to TC-69.5 (slugs `e2e-<rand>`, `acme-eu-<rand>`); TC-70.1 to TC-70.4.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-platform.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e platform admin org creation and lists`.
+- [x] **Step 1: Write the spec:** TC-38.1 to TC-38.4; TC-40.1 to TC-40.4 (assert the exact key sets); TC-69.1 to TC-69.5 (slugs `e2e-<rand>`, `acme-eu-<rand>`); TC-70.1 to TC-70.4.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-platform.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e platform admin org creation and lists`.
 
 ---
 
@@ -1838,6 +1838,6 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast and `secondOrg`; Task 34 helpers.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-54.1, TC-54.2 (fresh handle; the refused dev-login leaves no session cookie); TC-55.1 to TC-55.4; TC-56.1 to TC-56.3 (second org Y via `secondOrg`); TC-58.1 to TC-58.3; TC-60.1 to TC-60.12.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-invitations.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e invitation-only sign-in and invitation rights`.
+- [x] **Step 1: Write the spec:** TC-54.1, TC-54.2 (fresh handle; the refused dev-login leaves no session cookie); TC-55.1 to TC-55.4; TC-56.1 to TC-56.3 (second org Y via `secondOrg`); TC-58.1 to TC-58.3; TC-60.1 to TC-60.12.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-invitations.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e invitation-only sign-in and invitation rights`.

@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Page, SkillDto, SkillSummaryDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -9,11 +9,15 @@ let t: TestApp;
 let alice: string;
 let bob: string;
 let projectId: string;
+let aliceOrgId: string;
 
 beforeAll(async () => {
   t = await createTestApp({ env: { FAKE_STATE_DIR: freshStateDir() }, wrapAdapters: wideFakeRepos });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  const aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  aliceOrgId = aliceOrg;
+  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
   projectId = (await makeProject(t, alice, await installFake(t, alice))).projectId;
 });
 afterAll(async () => {
@@ -136,5 +140,53 @@ describe('skills', () => {
     expect((await put('fix', { body: 'x', message: 'm' }, bob)).statusCode).toBe(404);
     expect((await t.app.inject({ method: 'GET', url: url(), headers: { cookie: bob } })).statusCode).toBe(404);
     expect((await t.app.inject({ method: 'DELETE', url: url('fix'), headers: { cookie: bob } })).statusCode).toBe(404);
+  });
+});
+
+describe('skills: permission (BR-33, BR-29)', () => {
+  const del = (name: string, cookie: string) => t.app.inject({ method: 'DELETE', url: url(name), headers: { cookie } });
+
+  it('TC-33.6: a member cannot put or remove a skill; it is unchanged on reread', async () => {
+    expect((await put('guarded', { body: 'original', message: 'seed' })).statusCode).toBe(200);
+    const before = (await get('guarded').then((r) => r.json())) as SkillDto;
+    const member = await inviteAndLogin(t, aliceOrgId, 'skills-member', 'member', { type: 'org' });
+
+    expect((await put('guarded', { body: 'changed', message: 'm', sha: before.sha }, member)).statusCode).toBe(403);
+    expect((await put('member-made', { body: 'x', message: 'm' }, member)).statusCode).toBe(403);
+    expect((await del('guarded', member)).statusCode).toBe(403);
+
+    expect((await get('guarded').then((r) => r.json())) as SkillDto).toEqual(before);
+    expect((await get('member-made')).statusCode).toBe(404);
+    // Reading stays allowed for the member.
+    expect((await get('guarded', member)).statusCode).toBe(200);
+  });
+
+  it('TC-29.2: an admin on P1 only can put a skill on P1', async () => {
+    const admin = await inviteAndLogin(t, aliceOrgId, 'skills-admin', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    const res = await put('admin-made', { body: 'by admin', message: 'm' }, admin);
+    expect(res.statusCode).toBe(200);
+    expectContract('skills.put', res);
+    expect(((await get('admin-made').then((r) => r.json())) as SkillDto).body).toBe('by admin');
+  });
+
+  it('TC-29.2: an admin on P1 only gets 404 putting a skill on another project and nothing is created', async () => {
+    const other = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const admin = await inviteAndLogin(t, aliceOrgId, 'skills-admin-out', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    const otherUrl = `/api/projects/${other}/skills/admin-out`;
+    const res = await t.app.inject({
+      method: 'PUT',
+      url: otherUrl,
+      headers: { cookie: admin },
+      payload: { body: 'x', message: 'm' },
+    });
+    expect(res.statusCode).toBe(404);
+    const reread = await t.app.inject({ method: 'GET', url: otherUrl, headers: { cookie: alice } });
+    expect(reread.statusCode).toBe(404);
   });
 });

@@ -14,7 +14,7 @@ import type {
   RunTranscriptResponse,
 } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -23,13 +23,15 @@ let alice: string;
 let bob: string;
 let projectId: string;
 let orgId: string;
+let bobOrgId: string;
 
 beforeAll(async () => {
   t = await createTestApp({ env: { FAKE_STATE_DIR: freshStateDir() }, wrapAdapters: wideFakeRepos });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  orgId = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrgId = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, orgId, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrgId, 'bob', 'owner', { type: 'org' });
   projectId = (await makeProject(t, alice, await installFake(t, alice))).projectId;
-  orgId = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
 });
 afterAll(async () => {
   await t.close();
@@ -423,7 +425,8 @@ describe('run reads', () => {
     expect((await get(`/api/projects/${projectId}/ignored`, bob)).statusCode).toBe(404);
     expect((await post(`/api/runs/${run.id}/cancel`, bob)).statusCode).toBe(404);
     expect((await get(`/api/runs/${randomUUID()}`)).statusCode).toBe(404);
-    expect((await get('/api/runs/not-a-uuid')).statusCode).toBe(400);
+    // A caller who holds run:read gets 404 for a malformed id: the guard resolves the target before the param pipe runs.
+    expect((await get('/api/runs/not-a-uuid')).statusCode).toBe(404);
     expect((await get(`/api/runs/${run.id}`, '')).statusCode).toBe(401);
   });
 
@@ -1255,5 +1258,142 @@ describe('runs list linkedTickets', () => {
     await pr(pid, 148, ['142'], { status: 'idle' });
     const res = expectContract('runs.stats', await stats(`?since=${SINCE}`, pid)) as RunStatsDto;
     expect(res.idleRun?.linkedTickets[0]?.ref).toBe('142');
+  });
+});
+
+describe('run controls by role, scope and ownership', () => {
+  const CONTROLS = ['cancel', 'stop', 'finish', 'resume'] as const;
+  const later = () => new Date(Date.now() + 3_600_000);
+  let pid: string;
+  let agentId: string;
+  let viewer: string;
+  let admin: string;
+  let memberB: string;
+  let memberC: string;
+  let idB: string;
+  let idC: string;
+
+  beforeAll(async () => {
+    pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const scope = { type: 'project' as const, projectIds: [pid] };
+    viewer = await inviteAndLogin(t, orgId, 'rbac-viewer', 'viewer', scope);
+    admin = await inviteAndLogin(t, orgId, 'rbac-admin', 'admin', scope);
+    memberB = await inviteAndLogin(t, orgId, 'rbac-b', 'member', scope);
+    memberC = await inviteAndLogin(t, orgId, 'rbac-c', 'member', scope);
+    idB = await userIdOf(t, 'rbac-b');
+    idC = await userIdOf(t, 'rbac-c');
+    const [row] = await withOrg(t.db, orgId, (tx) =>
+      tx.select({ id: agents.id }).from(agents).where(eq(agents.projectId, pid)).limit(1),
+    );
+    if (!row) throw new Error('no agent');
+    agentId = row.id;
+    await withOrg(t.db, orgId, (tx) =>
+      tx
+        .update(agents)
+        .set({ credentialSecretName: 'org-x-agent-y', credentialType: 'api_key' })
+        .where(eq(agents.id, agentId)),
+    );
+  });
+
+  const statusOf = async (id: string): Promise<string> => ((await get(`/api/runs/${id}`)).json() as RunDto).status;
+
+  /** A run in the state each control accepts: cancel and stop on running, finish on idle, resume on paused. */
+  const runFor = (control: (typeof CONTROLS)[number], ownerUserId: string | null) => {
+    const base = { ownerUserId, workflowId: 'run-x', agentId };
+    switch (control) {
+      case 'cancel':
+      case 'stop':
+        return insertRun({ ...base, status: 'running' }, pid);
+      case 'finish':
+        return insertRun({ ...base, status: 'idle' }, pid);
+      case 'resume':
+        return insertRun({ ...base, status: 'paused', sessionExpiresAt: later() }, pid);
+    }
+  };
+  const ACCEPTED = { cancel: 202, stop: 202, finish: 202, resume: 204 } as const;
+
+  it.each(['cancel', 'stop', 'finish'] as const)(
+    'BR-9: a viewer gets 403 and an admin 409 on %s of a finished run, and nothing is sent',
+    async (control) => {
+      const run = await insertRun({ status: 'succeeded', workflowId: 'run-x', ownerUserId: idB }, pid);
+      t.temporal.reset();
+      expect((await post(`/api/runs/${run.id}/${control}`, viewer)).statusCode).toBe(403);
+      expect((await post(`/api/runs/${run.id}/${control}`, admin)).statusCode).toBe(409);
+      expect(t.temporal.calls).toHaveLength(0);
+      expect(await statusOf(run.id)).toBe('succeeded');
+    },
+  );
+
+  it('BR-9: on an active run a viewer resume is 403 and an admin resume is 409', async () => {
+    const run = await insertRun({ status: 'running', workflowId: 'run-x', agentId, ownerUserId: idB }, pid);
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/resume`, viewer)).statusCode).toBe(403);
+    expect((await post(`/api/runs/${run.id}/resume`, admin)).statusCode).toBe(409);
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+
+  it.each(CONTROLS)('BR-14: member B is accepted on %s of their own run', async (control) => {
+    const run = await runFor(control, idB);
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/${control}`, memberB)).statusCode).toBe(ACCEPTED[control]);
+    expect(t.temporal.calls.length).toBeGreaterThan(0);
+  });
+
+  it.each(CONTROLS)("BR-49: member B gets 403 on %s of member C's run and the run is unchanged", async (control) => {
+    const run = await runFor(control, idC);
+    const before = await statusOf(run.id);
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/${control}`, memberB)).statusCode).toBe(403);
+    expect(t.temporal.calls).toHaveLength(0);
+    expect(await statusOf(run.id)).toBe(before);
+    // the owner is accepted, so the 403 above is the ownership rule and not the run state
+    expect((await post(`/api/runs/${run.id}/${control}`, memberC)).statusCode).toBe(ACCEPTED[control]);
+  });
+
+  it.each(CONTROLS)('BR-66: on an ownerless run member B gets 403 and an admin is accepted on %s', async (control) => {
+    const run = await runFor(control, null);
+    const before = await statusOf(run.id);
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/${control}`, memberB)).statusCode).toBe(403);
+    expect(t.temporal.calls).toHaveLength(0);
+    expect(await statusOf(run.id)).toBe(before);
+    expect((await post(`/api/runs/${run.id}/${control}`, admin)).statusCode).toBe(ACCEPTED[control]);
+    expect(t.temporal.calls.length).toBeGreaterThan(0);
+  });
+
+  it.each(CONTROLS)('a viewer gets 403 on %s of any run, whoever owns it', async (control) => {
+    const run = await runFor(control, idB);
+    t.temporal.reset();
+    expect((await post(`/api/runs/${run.id}/${control}`, viewer)).statusCode).toBe(403);
+    expect(t.temporal.calls).toHaveLength(0);
+  });
+
+  describe('poll now (BR-68)', () => {
+    let pollingId: string;
+    let pollMember: string;
+    let pollViewer: string;
+
+    beforeAll(async () => {
+      const res = await t.app.inject({
+        method: 'POST',
+        url: '/api/projects',
+        headers: { cookie: alice },
+        payload: { connectionId: await installFake(t, alice), repoPath: 'dev/p-0', triggerMode: 'polling' },
+      });
+      if (res.statusCode !== 201) throw new Error(`polling project create failed: ${res.body}`);
+      pollingId = (res.json() as { id: string }).id;
+      const scope = { type: 'project' as const, projectIds: [pollingId] };
+      pollMember = await inviteAndLogin(t, orgId, 'rbac-poll-b', 'member', scope);
+      pollViewer = await inviteAndLogin(t, orgId, 'rbac-poll-v', 'viewer', scope);
+    });
+
+    it('lets a member poll now (202, the schedule trigger is recorded) and refuses a viewer with 403', async () => {
+      t.temporal.reset();
+      expect((await post(`/api/projects/${pollingId}/connection/poll`, pollViewer)).statusCode).toBe(403);
+      expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
+      const res = await post(`/api/projects/${pollingId}/connection/poll`, pollMember);
+      expect(res.statusCode).toBe(202);
+      expect(t.temporal.callsOfKind('scheduleTrigger').map((c) => c.scheduleId)).toEqual([`poll-${pollingId}`]);
+    });
   });
 });

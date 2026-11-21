@@ -219,3 +219,15 @@ describe('AGENT_MODELS_SOURCE', () => {
     expect(() => parseConfig({ ...base, AGENT_MODELS_SOURCE: 'other' })).toThrow();
   });
 });
+
+describe('PLATFORM_ADMIN_EMAILS', () => {
+  it('config trims, lowercases and drops empty platform admin emails', () => {
+    const c = parseConfig({ ...base, PLATFORM_ADMIN_EMAILS: ' Admin@Dev.Local , ,ops@x.io' });
+    expect(c.PLATFORM_ADMIN_EMAILS).toEqual(['admin@dev.local', 'ops@x.io']);
+  });
+  it('is empty when unset or blank', () => {
+    expect(parseConfig(base).PLATFORM_ADMIN_EMAILS).toEqual([]);
+    expect(parseConfig({ ...base, PLATFORM_ADMIN_EMAILS: '' }).PLATFORM_ADMIN_EMAILS).toEqual([]);
+    expect(parseConfig({ ...base, PLATFORM_ADMIN_EMAILS: ' , ' }).PLATFORM_ADMIN_EMAILS).toEqual([]);
+  });
+});

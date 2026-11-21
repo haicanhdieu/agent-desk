@@ -1,5 +1,6 @@
 import { eq } from 'drizzle-orm';
-import { projects, runs, setupTests, type Tx } from '@agentdesk/db';
+import { runs, setupTests, type Tx } from '@agentdesk/db';
+import type { RouteKey } from '@agentdesk/contracts';
 import { SIGNAL, runJobName, setupTestJobName } from '@agentdesk/core';
 
 /**
@@ -10,11 +11,15 @@ export interface TerminalTarget {
   kind: 'run' | 'setup-test';
   /** Route path with exactly one `:param`, the target id. */
   path: string;
-  /** Org-scoped (the caller passes a `withOrg` tx). `createdBy` is the owning project's creator. */
-  lookup(
-    tx: Tx,
-    id: string,
-  ): Promise<{ createdBy: string | null; active: boolean; sessionEnded: boolean; jobName: string } | null>;
+  /** The `routeAccess` entry that says which permission the attach needs (`terminal:attach`) and how the id resolves. */
+  routeKey: Extract<RouteKey, 'runs.terminal' | 'setupTests.terminal'>;
+  /** The route param the id binds to in that entry. */
+  param: 'runId' | 'setupTestId';
+  /**
+   * Org-scoped (the caller passes a `withOrg` tx). State only: who may attach is decided before this runs, by
+   * `checkTenantAccess`.
+   */
+  lookup(tx: Tx, id: string): Promise<{ active: boolean; sessionEnded: boolean; jobName: string } | null>;
   /**
    * `connectionId` is the id the API made for this socket (a UUID, never client text). Rejects when the signal could not
    * be delivered; the gateway then sends no matching detach and no lease.
@@ -40,18 +45,18 @@ export function runTarget(signalWithRetry: RunSignaller, path: string): Terminal
   return {
     kind: 'run',
     path,
+    routeKey: 'runs.terminal',
+    param: 'runId',
     lookup: async (tx, id) => {
       const row = (
         await tx
-          .select({ status: runs.status, sessionEndingAt: runs.sessionEndingAt, createdBy: projects.createdBy })
+          .select({ status: runs.status, sessionEndingAt: runs.sessionEndingAt })
           .from(runs)
-          .innerJoin(projects, eq(projects.id, runs.projectId))
           .where(eq(runs.id, id))
           .limit(1)
       )[0];
       if (!row) return null;
       return {
-        createdBy: row.createdBy,
         active: row.status === 'running' || row.status === 'idle' || row.status === 'done',
         // The session is ending (the idle timer or Finish) or already parked: nothing to attach to (4410, no retry).
         sessionEnded: row.sessionEndingAt !== null || row.status === 'paused',
@@ -69,18 +74,18 @@ export function setupTestTarget(path: string): TerminalTarget {
   return {
     kind: 'setup-test',
     path,
+    routeKey: 'setupTests.terminal',
+    param: 'setupTestId',
     lookup: async (tx, id) => {
       const row = (
         await tx
-          .select({ createdBy: projects.createdBy, status: setupTests.status, endedAt: setupTests.endedAt })
+          .select({ status: setupTests.status, endedAt: setupTests.endedAt })
           .from(setupTests)
-          .innerJoin(projects, eq(projects.id, setupTests.projectId))
           .where(eq(setupTests.id, id))
           .limit(1)
       )[0];
       if (!row) return null;
       return {
-        createdBy: row.createdBy,
         active: row.endedAt === null && row.status !== 'queued',
         sessionEnded: false,
         jobName: setupTestJobName(id),

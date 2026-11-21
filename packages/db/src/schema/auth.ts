@@ -56,7 +56,11 @@ export const account = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index('account_userId_idx').on(table.userId)],
+  (table) => [
+    index('account_userId_idx').on(table.userId),
+    // Linked-user lookup on intake and the run-owner backfill: account (provider_id, account_id).
+    index('account_provider_account_idx').on(table.providerId, table.accountId),
+  ],
 );
 
 export const verification = pgTable(

@@ -1,6 +1,26 @@
 import { z } from 'zod';
 import { Provider } from './enums';
 import {
+  AccessDto,
+  AssignmentDto,
+  AssignmentListQuery,
+  CreateAssignmentRequest,
+  CreateInvitationRequest,
+  InvitationDto,
+  MemberDto,
+  RoleDto,
+} from './schemas/access';
+import {
+  CreateOrgRequest,
+  CreateOrgResponse,
+  PlatformAssignmentDto,
+  PlatformInvitationDto,
+  PlatformMemberDto,
+  PlatformOrgDto,
+  PlatformProjectDto,
+  PlatformRoleDto,
+} from './schemas/platform';
+import {
   AgentDto,
   AgentModelsDto,
   PutAgentRequest,
@@ -54,6 +74,9 @@ const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
 const setupTestParams = z.object({ setupTestId: z.uuid() });
 const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1).max(2147483647) });
+const orgParams = z.object({ orgId: z.uuid() });
+const orgAssignmentParams = z.object({ orgId: z.uuid(), assignmentId: z.uuid() });
+const orgInvitationParams = z.object({ orgId: z.uuid(), invitationId: z.uuid() });
 const empty = z.null();
 
 export const routes = {
@@ -314,6 +337,129 @@ export const routes = {
     },
     /** WebSocket upgrade: binary terminal bytes both ways; text `{"type":"resize","cols","rows"}`; close 4401/4403/4409/4410. */
     terminal: { method: 'GET', path: '/api/runs/:runId/terminal', params: runParams, response: empty },
+  },
+  me: {
+    access: { method: 'GET', path: '/api/me/access', response: AccessDto },
+  },
+  roles: {
+    list: { method: 'GET', path: '/api/orgs/:orgId/roles', params: orgParams, response: z.array(RoleDto) },
+  },
+  members: {
+    list: {
+      method: 'GET',
+      path: '/api/orgs/:orgId/members',
+      params: orgParams,
+      query: PageQuery,
+      response: pageOf(MemberDto),
+    },
+  },
+  assignments: {
+    list: {
+      method: 'GET',
+      path: '/api/orgs/:orgId/assignments',
+      params: orgParams,
+      query: AssignmentListQuery,
+      response: pageOf(AssignmentDto),
+    },
+    create: {
+      method: 'POST',
+      path: '/api/orgs/:orgId/assignments',
+      params: orgParams,
+      body: CreateAssignmentRequest,
+      response: AssignmentDto,
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/orgs/:orgId/assignments/:assignmentId',
+      params: orgAssignmentParams,
+      response: empty,
+    },
+  },
+  invitations: {
+    list: {
+      method: 'GET',
+      path: '/api/orgs/:orgId/invitations',
+      params: orgParams,
+      query: PageQuery,
+      response: pageOf(InvitationDto),
+    },
+    create: {
+      method: 'POST',
+      path: '/api/orgs/:orgId/invitations',
+      params: orgParams,
+      body: CreateInvitationRequest,
+      response: InvitationDto,
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/orgs/:orgId/invitations/:invitationId',
+      params: orgInvitationParams,
+      response: empty,
+    },
+  },
+  platform: {
+    createOrg: { method: 'POST', path: '/api/platform/orgs', body: CreateOrgRequest, response: CreateOrgResponse },
+    listOrgs: { method: 'GET', path: '/api/platform/orgs', query: PageQuery, response: pageOf(PlatformOrgDto) },
+    listProjects: {
+      method: 'GET',
+      path: '/api/platform/orgs/:orgId/projects',
+      params: orgParams,
+      query: PageQuery,
+      response: pageOf(PlatformProjectDto),
+    },
+    listRoles: {
+      method: 'GET',
+      path: '/api/platform/orgs/:orgId/roles',
+      params: orgParams,
+      response: z.array(PlatformRoleDto),
+    },
+    listMembers: {
+      method: 'GET',
+      path: '/api/platform/orgs/:orgId/members',
+      params: orgParams,
+      query: PageQuery,
+      response: pageOf(PlatformMemberDto),
+    },
+    listAssignments: {
+      method: 'GET',
+      path: '/api/platform/orgs/:orgId/assignments',
+      params: orgParams,
+      query: AssignmentListQuery,
+      response: pageOf(PlatformAssignmentDto),
+    },
+    createAssignment: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/assignments',
+      params: orgParams,
+      body: CreateAssignmentRequest,
+      response: PlatformAssignmentDto,
+    },
+    removeAssignment: {
+      method: 'DELETE',
+      path: '/api/platform/orgs/:orgId/assignments/:assignmentId',
+      params: orgAssignmentParams,
+      response: empty,
+    },
+    listInvitations: {
+      method: 'GET',
+      path: '/api/platform/orgs/:orgId/invitations',
+      params: orgParams,
+      query: PageQuery,
+      response: pageOf(PlatformInvitationDto),
+    },
+    createInvitation: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/invitations',
+      params: orgParams,
+      body: CreateInvitationRequest,
+      response: PlatformInvitationDto,
+    },
+    removeInvitation: {
+      method: 'DELETE',
+      path: '/api/platform/orgs/:orgId/invitations/:invitationId',
+      params: orgInvitationParams,
+      response: empty,
+    },
   },
 } as const satisfies Record<string, Record<string, RouteDef>>;
 

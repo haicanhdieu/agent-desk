@@ -1,0 +1,150 @@
+import { randomUUID } from 'node:crypto';
+import { and, eq, inArray, sql } from 'drizzle-orm';
+import {
+  auditLog,
+  invitations,
+  member,
+  pendingInvitationsForEmail,
+  projects,
+  roleAssignments,
+  roles,
+  withOrg,
+  type Db,
+} from '@agentdesk/db';
+import { buildAuditRow, writeAuditEntry } from '../audit/audit-entry';
+
+/**
+ * Applies every pending, unexpired invitation addressed to the user's verified email. Each invitation runs in its own
+ * `withOrg` transaction, after the per-user advisory lock and a `for update`
+ * re-read, so a concurrent or repeated call finds it already accepted and does nothing. Expiry and the email match are
+ * decided in SQL (`now()`, `lower()`), never from a JS clock. An unverified email applies nothing: the address is only
+ * a proof of identity once the provider vouched for it.
+ */
+export async function acceptPendingInvitations(
+  db: Db,
+  user: { id: string; email: string; emailVerified: boolean },
+): Promise<void> {
+  if (!user.emailVerified) return;
+  const pending = await pendingInvitationsForEmail(db, user.email);
+  for (const candidate of pending) {
+    await withOrg(db, candidate.orgId, async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`);
+      const [invitation] = await tx
+        .select()
+        .from(invitations)
+        .where(
+          and(
+            eq(invitations.id, candidate.id),
+            eq(invitations.orgId, candidate.orgId),
+            eq(invitations.status, 'pending'),
+            sql`${invitations.expiresAt} > now()`,
+            sql`${invitations.email} = lower(${user.email})`,
+          ),
+        )
+        .for('update')
+        .limit(1);
+      if (!invitation) return;
+
+      const [role] = await tx
+        .select({ id: roles.id, key: roles.key })
+        .from(roles)
+        .where(and(eq(roles.orgId, invitation.orgId), eq(roles.id, invitation.roleId)))
+        .limit(1);
+      if (!role) throw new Error('invitation role is missing');
+
+      const [existingMember] = await tx
+        .select({ id: member.id })
+        .from(member)
+        .where(and(eq(member.organizationId, invitation.orgId), eq(member.userId, user.id)))
+        .limit(1);
+      if (!existingMember) {
+        await tx.insert(member).values({
+          id: randomUUID(),
+          organizationId: invitation.orgId,
+          userId: user.id,
+          role: invitation.scopeType === 'org' && role.key === 'owner' ? 'owner' : 'member',
+          createdAt: sql`now()`,
+        });
+      }
+
+      const isProjectScope = invitation.scopeType === 'project';
+      const existingProjects = isProjectScope
+        ? await tx
+            .select({ id: projects.id })
+            .from(projects)
+            .where(and(eq(projects.orgId, invitation.orgId), inArray(projects.id, invitation.projectIds)))
+        : [];
+      const existingIds = new Set(existingProjects.map((p) => p.id));
+      const skippedProjectIds = invitation.projectIds.filter((id) => !existingIds.has(id));
+      const targets: (string | null)[] = isProjectScope
+        ? invitation.projectIds.filter((id) => existingIds.has(id))
+        : [null];
+
+      // One statement for all targets. The unique key (org, user, role, project) is NULLS NOT DISTINCT, so an
+      // org-scope row (project_id null) dedupes like a project row; a bare ON CONFLICT DO NOTHING covers both.
+      const inserted =
+        targets.length === 0
+          ? []
+          : await tx
+              .insert(roleAssignments)
+              .values(
+                targets.map((projectId) => ({
+                  orgId: invitation.orgId,
+                  userId: user.id,
+                  roleId: invitation.roleId,
+                  scopeType: invitation.scopeType,
+                  projectId,
+                  grantedBy: invitation.invitedBy,
+                })),
+              )
+              .onConflictDoNothing()
+              .returning({ projectId: roleAssignments.projectId });
+      const insertedIds = new Set(inserted.map((r) => r.projectId));
+      const created = targets.filter((projectId) => insertedIds.has(projectId));
+
+      await tx
+        .update(invitations)
+        .set({ status: 'accepted', acceptedBy: user.id, acceptedAt: sql`now()` })
+        .where(and(eq(invitations.orgId, invitation.orgId), eq(invitations.id, invitation.id)));
+
+      await writeAuditEntry(tx, {
+        orgId: invitation.orgId,
+        actorUserId: invitation.invitedBy,
+        action: 'invitation.accepted',
+        targetType: 'invitation',
+        targetId: invitation.id,
+        payload: {
+          email: invitation.email,
+          to: {
+            roleId: role.id,
+            roleKey: role.key,
+            scope: isProjectScope ? { type: 'project', projectIds: invitation.projectIds } : { type: 'org' },
+          },
+          ...(skippedProjectIds.length > 0 ? { skippedProjectIds } : {}),
+          acceptedBy: user.id,
+        },
+      });
+      if (created.length > 0) {
+        await tx.insert(auditLog).values(
+          created.map((projectId) =>
+            buildAuditRow({
+              orgId: invitation.orgId,
+              actorUserId: invitation.invitedBy,
+              action: 'assignment.granted',
+              targetType: 'user',
+              targetId: user.id,
+              payload: {
+                to: {
+                  roleId: role.id,
+                  roleKey: role.key,
+                  scope: projectId === null ? { type: 'org' } : { type: 'project', projectId },
+                },
+                via: { invitationId: invitation.id },
+              },
+            }),
+          ),
+        );
+      }
+    });
+  }
+}

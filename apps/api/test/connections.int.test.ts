@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { eq } from 'drizzle-orm';
+import { connections, withOrg } from '@agentdesk/db';
+import { signState } from '../src/connections/install-state';
 import { ProjectSchedules } from '../src/projects/project-schedules';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, grant, inviteAndLogin, revoke, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
 let t: TestApp;
@@ -21,8 +24,10 @@ beforeAll(async () => {
       },
     }),
   });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  const aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
 });
 afterAll(async () => {
   await t.close();
@@ -86,7 +91,8 @@ describe('connections', () => {
         }),
       });
       try {
-        const cookieFor = await loginAs(synced, cookie);
+        const syncOrg = (await createOrg(synced, cookie, cookie)).id;
+        const cookieFor = await inviteAndLogin(synced, syncOrg, cookie, 'owner', { type: 'org' });
         const call = () =>
           synced.app.inject({ method: 'POST', url: '/api/connections/fake/sync', headers: { cookie: cookieFor } });
         const first = await call();
@@ -231,8 +237,10 @@ describe('connections', () => {
   });
 
   it('two orgs can both install the fake provider (org-specific external id)', async () => {
-    const carol = await loginAs(t, 'carol');
-    const dave = await loginAs(t, 'dave');
+    const carolOrg = (await createOrg(t, 'Carol', 'carol')).id;
+    const daveOrg = (await createOrg(t, 'Dave', 'dave')).id;
+    const carol = await inviteAndLogin(t, carolOrg, 'carol', 'owner', { type: 'org' });
+    const dave = await inviteAndLogin(t, daveOrg, 'dave', 'owner', { type: 'org' });
     for (const cookie of [carol, dave]) {
       const u = new URL(((await install(cookie)).json() as { url: string }).url);
       const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie } });
@@ -245,7 +253,8 @@ describe('connections', () => {
   });
 
   it('a successful callback resumes revoked polling projects; a failed unpause keeps token_revoked for retry', async () => {
-    const erin = await loginAs(t, 'erin');
+    const erinOrg = (await createOrg(t, 'Erin', 'erin')).id;
+    const erin = await inviteAndLogin(t, erinOrg, 'erin', 'owner', { type: 'org' });
     const complete = async () => {
       const u = new URL(((await install(erin)).json() as { url: string }).url);
       const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie: erin } });
@@ -267,7 +276,7 @@ describe('connections', () => {
     const revoked = await mk('dev/demo-2', 'polling');
     const healthy = await mk('dev/demo-3', 'polling');
     const webhook = await mk('dev/demo-4', 'webhook');
-    const orgId = String((await t.db.pool.query("select id from organization where slug = 'erin'")).rows[0].id);
+    const orgId = erinOrg;
     const sql = async (text: string, params: unknown[] = []) => {
       const c = await t.db.pool.connect();
       try {
@@ -315,5 +324,73 @@ describe('connections', () => {
     await complete();
     expect(await reasonOf(failing)).toBeNull();
     expect(t.temporal.callsOfKind('scheduleUnpause').map((c) => c.scheduleId)).toEqual([`poll-${failing}`]);
+  });
+});
+
+describe('connections: permission (BR-16, connection:create re-check on the callback)', () => {
+  const connectionRows = (orgId: string) =>
+    withOrg(t.db, orgId, (tx) =>
+      tx
+        .select({ id: connections.id, linkedByUserId: connections.linkedByUserId })
+        .from(connections)
+        .where(eq(connections.orgId, orgId)),
+    );
+
+  it('TC-16.1 to TC-16.3: a member gets 403 on list, install and sync and no connection is created', async () => {
+    const orgId = (await createOrg(t, 'Perm One', 'perm-one')).id;
+    const member = await inviteAndLogin(t, orgId, 'perm-member', 'member', { type: 'org' });
+    const list = await t.app.inject({ method: 'GET', url: '/api/connections', headers: { cookie: member } });
+    const inst = await install(member);
+    const sync = await t.app.inject({ method: 'POST', url: '/api/connections/fake/sync', headers: { cookie: member } });
+    expect([list.statusCode, inst.statusCode, sync.statusCode]).toEqual([403, 403, 403]);
+    expect(await connectionRows(orgId)).toEqual([]);
+  });
+
+  it('the callback refuses a state minted for an org owner once the owner role is replaced by a project member role', async () => {
+    const orgId = (await createOrg(t, 'Perm Two', 'perm-two')).id;
+    const owner = await inviteAndLogin(t, orgId, 'perm-owner', 'owner', { type: 'org' });
+    const first = new URL(((await install(owner)).json() as { url: string }).url);
+    const done = await t.app.inject({
+      method: 'GET',
+      url: `${first.pathname}${first.search}`,
+      headers: { cookie: owner },
+    });
+    const connectionId = new URL(String(done.headers['location'])).searchParams.get('connection') ?? '';
+    const project = await t.app.inject({
+      method: 'POST',
+      url: '/api/projects',
+      headers: { cookie: owner },
+      payload: { connectionId, repoPath: 'dev/demo-3', triggerMode: 'webhook' },
+    });
+    expect(project.statusCode).toBe(201);
+    const p1 = (project.json() as { id: string }).id;
+    const before = await connectionRows(orgId);
+    expect(before).toHaveLength(1);
+
+    const dan = await inviteAndLogin(t, orgId, 'perm-dan', 'owner', { type: 'org' });
+    const u = new URL(((await install(dan)).json() as { url: string }).url);
+    const danId = await userIdOf(t, 'perm-dan');
+    const ownerGrant = await grant(t, orgId, danId, 'owner', { type: 'org' });
+    await revoke(t, orgId, ownerGrant.id);
+    await grant(t, orgId, danId, 'member', { type: 'project', projectId: p1 });
+
+    const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie: dan } });
+    expect(cb.statusCode).toBe(403);
+    expect(await connectionRows(orgId)).toEqual(before);
+  });
+
+  it('the callback refuses a state for an org where the user cannot create connections, even if the active org allows it', async () => {
+    const activeOrg = (await createOrg(t, 'Perm Active', 'perm-active')).id;
+    const stateOrg = (await createOrg(t, 'Perm State', 'perm-state')).id;
+    await inviteAndLogin(t, activeOrg, 'perm-two', 'owner', { type: 'org' });
+    const cookie = await inviteAndLogin(t, stateOrg, 'perm-two', 'member', { type: 'org' });
+    const state = signState(t.config.BETTER_AUTH_SECRET, { orgId: stateOrg, userId: await userIdOf(t, 'perm-two') });
+    const cb = await t.app.inject({
+      method: 'GET',
+      url: `/api/connections/fake/callback?state=${encodeURIComponent(state)}`,
+      headers: { cookie },
+    });
+    expect(cb.statusCode).toBe(403);
+    expect(await connectionRows(stateOrg)).toEqual([]);
   });
 });

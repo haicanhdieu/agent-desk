@@ -31,6 +31,15 @@ describe('contracts', () => {
       expect(r.response).toBeDefined();
     }
   });
+  it('every platform route lives under /api/platform/orgs', () => {
+    const platform = Object.entries(flattenRoutes(routes)).filter(([k]) => k.startsWith('platform.'));
+    expect(platform).toHaveLength(11);
+    for (const [, r] of platform) expect(r.path.startsWith('/api/platform/orgs')).toBe(true);
+  });
+  it('assignments.list query keeps projectId', () => {
+    const P = '00000000-0000-4000-8000-000000000001';
+    expect(routes.assignments.list.query.parse({ projectId: P })).toMatchObject({ projectId: P });
+  });
   it('flattenRoutes uses dotted keys', () => {
     const flat = flattenRoutes(routes);
     expect(Object.keys(flat)).toContain('runs.list');
@@ -42,7 +51,11 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(48);
+    expect(Object.keys(flat)).toHaveLength(68);
+    expect(flat['assignments.remove']).toMatchObject({
+      method: 'DELETE',
+      path: '/api/orgs/:orgId/assignments/:assignmentId',
+    });
     expect(flat['runs.stats']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/runs/stats' });
     expect(flat['agents.models']).toMatchObject({ method: 'GET', path: '/api/agents/:agentId/models' });
   });

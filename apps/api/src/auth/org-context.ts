@@ -7,7 +7,6 @@ import { DB } from '../db/db.module';
 export interface OrgContext {
   userId: string;
   orgId: string;
-  role: string;
 }
 
 declare module 'fastify' {
@@ -17,7 +16,7 @@ declare module 'fastify' {
   }
 }
 
-/** The caller's `{ userId, orgId, role }`, resolved and membership-checked by SessionGuard. */
+/** The caller's `{ userId, orgId }`, resolved and membership-checked by SessionGuard. */
 export const CurrentOrg = createParamDecorator((_data: unknown, ctx: ExecutionContext): OrgContext => {
   const ctxValue = ctx.switchToHttp().getRequest<FastifyRequest>().orgContext;
   if (!ctxValue) throw new Error('CurrentOrg used on a route without SessionGuard');

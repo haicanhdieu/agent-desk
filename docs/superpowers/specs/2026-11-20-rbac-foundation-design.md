@@ -396,7 +396,7 @@ Audit: grant, revoke, invitation create, revoke and accept, and org creation wri
 
 Sensitive paths: auth (guard, sign-up gate, platform admin and the `/api/platform/*` set, session hook), terminal authz, RLS (the new org tables), the new `SECURITY DEFINER` function, migrations with seed and backfill, intake router authorization, audit. The PR gets `review:sensitive` and a high-effort security review.
 
-ADR: `docs/adr/0030-scoped-rbac-roles-assignments.md` records permission names in contracts (shape D with the `own` condition), per-org seeded roles copied from global templates, assignments (user, role, scope), project scope in the api guard (RLS org-only), run owner = linked commenter or, for bot comments, the origin run's owner, platform-admin org creation, invitation-gated sign-up with its own invitations table and one definer lookup, and better-auth access control and invitations not used. It amends ADR-0014 (terminal rule) and ADR-0013 (who may trigger), and records the departure from epic §9's "build on plugin invitations".
+ADR: `docs/adr/0031-scoped-rbac-roles-assignments.md` records permission names in contracts (shape D with the `own` condition), per-org seeded roles copied from global templates, assignments (user, role, scope), project scope in the api guard (RLS org-only), run owner = linked commenter or, for bot comments, the origin run's owner, platform-admin org creation, invitation-gated sign-up with its own invitations table and one definer lookup, and better-auth access control and invitations not used. It amends ADR-0014 (terminal rule) and ADR-0013 (who may trigger), and records the departure from epic §9's "build on plugin invitations".
 
 Docs fixed in the same PR: `security.md` §5 (trigger rule) and §6 (terminal, project access), `backend.md` §4, ADR-0014, control-plane spec §7.5.
 
@@ -621,7 +621,7 @@ The access unit tests use `it.each` over made-up and built-in role fixtures, wit
 - Agent call: router order command → association → owner linked → owner holds `run:create` → rule matching (architecture: removing the existing association control needs its own review).
 - Agent call: the bot comment's origin run is matched on the desk side by project, ticket and comment time, with no runner or prompt change (architecture: a signed marker depends on the model complying, needs a runner change and can be copied).
 - Agent call: better-auth access-control and invitation plugins are not used; the plugin stays for orgs and membership (architecture: no project scope, single org role string).
-- Agent call: ADR `docs/adr/0030-scoped-rbac-roles-assignments.md`, amending ADR-0014 and ADR-0013 (architecture: an architectural choice needs an ADR).
+- Agent call: ADR `docs/adr/0031-scoped-rbac-roles-assignments.md`, amending ADR-0014 and ADR-0013 (architecture: an architectural choice needs an ADR).
 - Agent call: access unit tests use `it.each` over made-up and built-in role fixtures with the expected table written in the test (testing: never read back from the seed).
 - Agent call: one local e2e spec, `apps/web/e2e/local/rbac.spec.ts`, set up through real APIs with the cast A, B, C, V (testing: every rule crosses API, intake, worker, SSE and terminal).
 - Agent call: dev-login is kept (dev-only), obeys the sign-up gate, creates no personal org, marks the email verified and links a `fake` identity (testing and architecture: local platform-admin and invitation flows need it).

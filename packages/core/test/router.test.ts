@@ -8,7 +8,7 @@ import {
   promptSystemLines,
 } from '../src/router/prompt';
 import { parseCommand } from '../src/router/parse-command';
-import { routeEvent, type RouteInput, type RuleRow } from '../src/router/route-event';
+import { routeEvent, type OwnerCheck, type RouteInput, type RuleRow } from '../src/router/route-event';
 
 const rule = (over: Partial<RuleRow> = {}): RuleRow => ({
   id: 'r1',
@@ -49,6 +49,8 @@ const ticketOf = (over: Partial<Ticket> = {}): Ticket => ({
   ...over,
 });
 
+const OWNER_OK: OwnerCheck = { kind: 'ok', userId: 'u1', originRunId: null };
+
 function input(over: Partial<RouteInput> = {}) {
   const ticket = vi.fn(async () => ticketOf());
   const base: RouteInput = {
@@ -58,6 +60,7 @@ function input(over: Partial<RouteInput> = {}) {
     ticket,
     counts: { runsForTicket: 0, activeSkillsOnTicket: [], activeRuleIdsOnTicket: [] },
     botLogin: 'agentdesk[bot]',
+    owner: async () => OWNER_OK,
     ...over,
   };
   return { base, ticket: base.ticket as unknown as ReturnType<typeof vi.fn> };
@@ -312,6 +315,48 @@ describe('routeEvent', () => {
     });
     await routeEvent(base);
     expect(ticket).not.toHaveBeenCalled();
+  });
+
+  it('association NONE is ignored_unauthorized and the owner lookup never runs', async () => {
+    const owner = vi.fn(async () => OWNER_OK);
+    const d = await routeEvent(input({ event: event({ authorAssociation: 'NONE' }), owner }).base);
+    expect(d).toMatchObject({ kind: 'ignored', outcome: 'ignored_unauthorized' });
+    expect(owner).not.toHaveBeenCalled();
+  });
+
+  it('a comment without a command never runs the owner lookup', async () => {
+    const owner = vi.fn(async () => OWNER_OK);
+    await routeEvent(input({ event: event({ body: 'hello' }), owner }).base);
+    expect(owner).not.toHaveBeenCalled();
+  });
+
+  it('an unlinked owner is ignored_owner_unlinked even when no rule exists (owner before rule)', async () => {
+    const owner = vi.fn(async (): Promise<OwnerCheck> => ({
+      kind: 'ignored',
+      outcome: 'ignored_owner_unlinked',
+      detail: 'not linked',
+    }));
+    const d = await routeEvent(input({ rules: [], owner }).base);
+    expect(d).toEqual({ kind: 'ignored', outcome: 'ignored_owner_unlinked', detail: 'not linked' });
+    expect(owner).toHaveBeenCalledTimes(1);
+  });
+
+  it('an owner without run:create is ignored_owner_not_permitted and the ticket is not fetched', async () => {
+    const owner = async (): Promise<OwnerCheck> => ({
+      kind: 'ignored',
+      outcome: 'ignored_owner_not_permitted',
+      detail: 'no permission',
+    });
+    const { base, ticket } = input({ event: event({ ticketKind: undefined }), owner });
+    const d = await routeEvent(base);
+    expect(d).toMatchObject({ kind: 'ignored', outcome: 'ignored_owner_not_permitted' });
+    expect(ticket).not.toHaveBeenCalled();
+  });
+
+  it('a permitted owner is carried on the run decision, with its origin run', async () => {
+    const owner = async (): Promise<OwnerCheck> => ({ kind: 'ok', userId: 'u9', originRunId: 'run-1' });
+    const d = await routeEvent(input({ owner }).base);
+    expect(d).toMatchObject({ kind: 'run', owner: { userId: 'u9', originRunId: 'run-1' } });
   });
 
   it('keeps args as untrusted text', async () => {

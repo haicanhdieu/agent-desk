@@ -33,6 +33,8 @@ export const RunDto = z.object({
   status: RunStatus,
   triggerSource: TriggerSource,
   triggeredBy: z.string().nullable(),
+  /** Agent Desk user who owns the run (an id only, never an email); null for runs from before ownership. */
+  ownerUserId: z.string().nullable(),
   queuedAt: Timestamp,
   startedAt: Timestamp.nullable(),
   finishedAt: Timestamp.nullable(),

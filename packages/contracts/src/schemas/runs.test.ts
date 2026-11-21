@@ -22,6 +22,7 @@ const run = {
   status: 'paused',
   triggerSource: 'manual',
   triggeredBy: null,
+  ownerUserId: null,
   queuedAt: NOW,
   startedAt: null,
   finishedAt: null,
@@ -207,5 +208,18 @@ describe('LinkedTicketDto and RunListItem.linkedTickets', () => {
       nextQueuedNumber: null,
     });
     expect(r.success).toBe(true);
+  });
+});
+
+describe('RunDto owner', () => {
+  it('accepts a null owner and an owner id', () => {
+    expect(RunDto.safeParse(run).success).toBe(true);
+    expect(RunDto.parse({ ...run, ownerUserId: 'user_1' }).ownerUserId).toBe('user_1');
+  });
+
+  it('rejects a run without an ownerUserId', () => {
+    const withoutOwner: Record<string, unknown> = { ...run };
+    delete withoutOwner['ownerUserId'];
+    expect(RunDto.safeParse(withoutOwner).success).toBe(false);
   });
 });

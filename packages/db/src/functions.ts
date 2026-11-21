@@ -29,3 +29,12 @@ export async function queuedRunsWithoutWorkflow(
   );
   return r.rows.map((x) => ({ orgId: x.org_id, runId: x.run_id }));
 }
+
+/** Sign-up gate and acceptance: pending, unexpired invitations for an email across orgs (SECURITY DEFINER). Ids only. */
+export async function pendingInvitationsForEmail(db: Db, email: string): Promise<{ id: string; orgId: string }[]> {
+  const r = await db.pool.query<{ id: string; org_id: string }>(
+    'select id, org_id from pending_invitations_for_email($1)',
+    [email],
+  );
+  return r.rows.map((x) => ({ id: x.id, orgId: x.org_id }));
+}

@@ -18,6 +18,7 @@ import { isAuthorizedAuthor, routeEvent, type RuleRow } from '../router/route-ev
 import type { AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
 import { toAdapterProject } from '../adapters/project';
 import { normalizeLinkedRefs } from '../adapters/linked-refs';
+import { resolveRunOwner, runOwnerLogFields } from '../access/run-owner';
 import { isUniqueViolation } from './pg-errors';
 import type { IntakeLogger } from './start-run';
 
@@ -104,7 +105,7 @@ export async function processTicketEvent(
 /**
  * Fetches the ticket before the routing transaction opens, so the provider call never holds a pool connection or the
  * per-comment advisory lock. Only for events that look runnable (a command from an authorized author, an enabled rule
- * for it, a new delivery and no run for the comment yet), read in a short transaction of their own; anything else
+ * for it, a new delivery, an owner who may start it and no run for the comment yet), read in a short transaction of their own; anything else
  * returns undefined and is decided in the routing transaction as before, which then fetches lazily (still bounded) in
  * the rare case a concurrent change made it runnable. The fetch is bounded by `ticketTimeoutMs`.
  */
@@ -146,7 +147,15 @@ async function prefetchTicket(
       .innerJoin(connections, eq(connections.id, projects.boardConnectionId))
       .where(eq(projects.id, projectId))
       .limit(1);
-    return proj;
+    if (!proj) return undefined;
+    // A comment whose owner would be refused is never fetched for: an untrusted commenter cannot make the desk call the board.
+    const owner = await resolveRunOwner(tx, {
+      projectId,
+      boardProvider: proj.boardProvider,
+      event,
+      botLogin: deps.botLogin,
+    });
+    return owner.kind === 'owner' ? proj : undefined;
   });
   if (!pre) return undefined;
   const provider = Provider.safeParse(pre.boardProvider);
@@ -314,6 +323,22 @@ async function decideInTx(
       activeRuleIdsOnTicket: [...new Set(active.flatMap((a) => (a.ruleId === null ? [] : [a.ruleId])))],
     },
     botLogin: deps.botLogin,
+    // The owner is the linked commenter (or, for the bot, the origin run's owner) and must hold run:create here.
+    owner: async () => {
+      const owner = await resolveRunOwner(tx, {
+        projectId,
+        boardProvider: proj.boardProvider,
+        event,
+        botLogin: deps.botLogin,
+      });
+      deps.log?.info?.(
+        { deliveryId: event.deliveryId, projectId, channel, ...runOwnerLogFields(owner, event, deps.botLogin) },
+        'intake run owner decided',
+      );
+      return owner.kind === 'owner'
+        ? { kind: 'ok', userId: owner.userId, originRunId: owner.originRunId }
+        : { kind: 'ignored', outcome: owner.outcome, detail: owner.detail };
+    },
   });
   if (decision.kind === 'ignored') return finish(decision.outcome, decision.detail);
 
@@ -377,6 +402,8 @@ async function decideInTx(
           inboundEventId: inboundId,
           triggeredBy: event.author,
           triggeredByExternalId: event.authorId ?? null,
+          ownerUserId: decision.owner.userId,
+          originRunId: decision.owner.originRunId,
         })
         .returning({ id: runs.id });
       return row;

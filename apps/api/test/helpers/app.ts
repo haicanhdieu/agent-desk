@@ -17,7 +17,7 @@ import { AGENT_HTTP } from '../../src/agents/agent-http.provider';
 import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
 import { AppModule } from '../../src/app.module';
 import { configureApp, createAdapter } from '../../src/bootstrap';
-import { createLogger } from '../../src/common/logger';
+import { LOGGER, createLogger } from '../../src/common/logger';
 import { CONFIG } from '../../src/config/config.module';
 import { parseConfig, type Config } from '../../src/config/config.schema';
 import { DB } from '../../src/db/db.module';
@@ -43,6 +43,7 @@ export function validEnv(overrides: Record<string, string> = {}): Record<string,
     RUNNER_IMAGE: 'agentdesk-runner:test',
     ENABLE_FAKE_PROVIDER: 'true',
     AUTH_DEV_LOGIN: 'true',
+    PLATFORM_ADMIN_EMAILS: 'admin@dev.local',
     ...overrides,
   };
 }
@@ -58,6 +59,8 @@ export interface TestAppOptions {
   kube?: KubeGateway;
   /** Replaces the HTTP GET the agent model list uses (default: the guarded transport). */
   agentHttp?: AgentHttpGet;
+  /** Uses this database instead of the shared one (e.g. one migrated up from an older schema); the caller stops it. */
+  pg?: TestPg;
   /** Logger for request/problem logging (default: silent); tests capture output through it. */
   logger?: Logger;
 }
@@ -92,7 +95,8 @@ async function releasePg(): Promise<void> {
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
-  const pg = await acquirePg();
+  const own = options.pg === undefined;
+  const pg = options.pg ?? (await acquirePg());
   try {
     const config = parseConfig(
       validEnv({
@@ -119,6 +123,8 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
           ? options.wrapAdapters(createAdapterRegistry(config, systemClock))
           : createAdapterRegistry(config, systemClock),
       )
+      .overrideProvider(LOGGER)
+      .useValue(options.logger ?? createLogger('silent'))
       .overrideProvider(SECRET_STORE)
       .useValue(secrets)
       .overrideProvider(TEMPORAL_CLIENT)
@@ -140,11 +146,11 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
         if (closed) return;
         closed = true;
         await app.close();
-        await releasePg();
+        if (own) await releasePg();
       },
     };
   } catch (err) {
-    await releasePg();
+    if (own) await releasePg();
     throw err;
   }
 }

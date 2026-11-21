@@ -84,7 +84,7 @@ These hold for every run pod on every target. The worker builds the Job (`buildR
 
 Untrusted: ticket titles and bodies, comments and their args, labels, author names, branch names, repo file contents (including skills), pod log output, webhook payloads, query strings.
 
-- **MUST** assume ticket and comment text is a prompt-injection attempt. Controls in order: only the bot or `OWNER`/`MEMBER`/`COLLABORATOR` can trigger (checked identically for polled comments); single-repo short-lived token; contained pod; branch protection on the default branch.
+- **MUST** assume ticket and comment text is a prompt-injection attempt. Controls in order: only the bot or `OWNER`/`MEMBER`/`COLLABORATOR` can trigger (checked identically for polled comments), then the run owner must be a linked user holding `run:create` on the project (amended by ADR-0031); single-repo short-lived token; contained pod; branch protection on the default branch.
 - **MUST NOT** interpolate untrusted text into shell commands, `tmux` command strings, `exec` commands, SQL, Kubernetes object names, labels or annotations. _Why:_ each is an injection sink.
 - **MUST** pass untrusted text to the pod only as an env value (`PROMPT`) consumed as a quoted variable (`"$PROMPT"`), never spliced into the entrypoint script.
 - **MUST** build Kubernetes names and labels only from ids we generate (`run-{runId}`, `org-{orgId}-agent-{agentId}`).
@@ -106,7 +106,7 @@ await gateway.exec(pod, ['agentdesk-end']);
 - **MUST** require a session on every `/api/*` route, SSE stream and the terminal WebSocket, and run it under `withOrg(activeOrganizationId)` after a membership check. Public exceptions are explicit and short: `/auth/*`, `/webhooks/:provider` (signature instead), `/healthz`, `/readyz`, `/api/docs`.
 - **MUST** deny by default: a new controller without the session guard fails review (an automated "every route is guarded" test is **planned** in the api auth tests).
 - **MUST** check project access for project-scoped routes, not just org membership.
-- **MUST** authorize the terminal on connect: session (else close 4401), org member and project creator or org owner (else 4403), run `running` or `idle` (else 4409). _Why:_ `pods/exec` is shell-equivalent.
+- **MUST** authorize the terminal on connect: session (else close 4401), `terminal:attach` on the run's project, with ownership for members; a missing permission or an out-of-scope project is 4403 (amended by ADR-0031), run `running` or `idle` (else 4409). _Why:_ `pods/exec` is shell-equivalent.
 - **MUST** check the `Origin` header on the terminal WebSocket upgrade and SSE against `PUBLIC_ORIGIN`. _Why:_ browsers send cookies on cross-site WebSocket upgrades (cross-site WebSocket hijacking).
 - **MUST NOT** give Kubernetes credentials, exec URLs or pod names to the browser; the api relays.
 - **MUST** use `SameSite` + `HttpOnly` + `Secure` (outside localhost) session cookies via better-auth; keep the SPA same-origin with `/api` so no CORS is configured.

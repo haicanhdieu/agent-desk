@@ -4,6 +4,7 @@ import {
   createDb,
   listenRunStatus,
   notifyRunStatus,
+  pendingInvitationsForEmail,
   queuedRunsWithoutWorkflow,
   resolveProject,
   withOrg,
@@ -187,5 +188,94 @@ describe('listenRunStatus lifecycle', () => {
       expect(r.rowCount).toBe(0);
       await admin.end();
     }
+  });
+});
+
+describe('pendingInvitationsForEmail', () => {
+  async function ownerQuery(stmt: string): Promise<pg.QueryResult> {
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    try {
+      return await client.query(stmt);
+    } finally {
+      await client.end();
+    }
+  }
+
+  /** Inserts an invitation as the owner (FORCE RLS: the org is set transaction-locally). `expires` is a SQL literal. */
+  async function insertInvitation(o: SeededOrg, email: string, status: string, expires: string): Promise<void> {
+    const client = new pg.Client({ connectionString: pgx.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query(`select set_config('app.org_id', $1, true)`, [o.orgId]);
+      await client.query(
+        `insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+         values ($1, $2, $3, 'org', $4, ${expires}, $5)`,
+        [o.orgId, email, o.memberRoleId, status, o.userId],
+      );
+      await client.query('commit');
+    } finally {
+      await client.end();
+    }
+  }
+
+  it('returns id and org for pending unexpired rows of both orgs, case-insensitively', async () => {
+    const got = await pendingInvitationsForEmail(db, 'Bob@X.io');
+    expect(got).toHaveLength(2);
+    expect(got).toEqual(
+      expect.arrayContaining([
+        { id: a.invitationId, orgId: ORG_A },
+        { id: b.invitationId, orgId: ORG_B },
+      ]),
+    );
+  });
+
+  it('returns an empty list for an unknown email', async () => {
+    expect(await pendingInvitationsForEmail(db, 'nobody@x.io')).toEqual([]);
+  });
+
+  it('exposes exactly the columns id and org_id', async () => {
+    const r = await db.pool.query(`select * from pending_invitations_for_email('bob@x.io')`);
+    expect(r.fields.map((f) => f.name)).toEqual(['id', 'org_id']);
+  });
+
+  it('omits expired, accepted and revoked rows', async () => {
+    await insertInvitation(a, 'carol@x.io', 'pending', `now() - interval '1 second'`);
+    await insertInvitation(a, 'carol@x.io', 'accepted', `now() + interval '7 days'`);
+    await insertInvitation(b, 'carol@x.io', 'revoked', `now() + interval '7 days'`);
+    expect(await pendingInvitationsForEmail(db, 'carol@x.io')).toEqual([]);
+  });
+
+  it('is security definer with a pinned search_path and executable only by the app role', async () => {
+    const fn = await ownerQuery(
+      `select prosecdef, proconfig, pg_get_userbyid(proowner) as owner from pg_proc where proname = 'pending_invitations_for_email'`,
+    );
+    expect(fn.rows).toEqual([
+      { prosecdef: true, proconfig: ['search_path=public, pg_temp'], owner: 'agentdesk_owner' },
+    ]);
+    const grants = await ownerQuery(
+      `select grantee from information_schema.routine_privileges
+       where routine_name = 'pending_invitations_for_email' and privilege_type = 'EXECUTE' order by 1`,
+    );
+    expect(grants.rows.map((g: { grantee: string }) => g.grantee)).toEqual(['agentdesk_app', 'agentdesk_owner']);
+  });
+
+  it('has no PUBLIC execute and the definer policy only exposes pending, unexpired rows', async () => {
+    const acl = await ownerQuery(
+      `select has_function_privilege('public', 'pending_invitations_for_email(text)', 'EXECUTE') as public_exec,
+              has_function_privilege('agentdesk_app', 'pending_invitations_for_email(text)', 'EXECUTE') as app_exec`,
+    );
+    expect(acl.rows).toEqual([{ public_exec: false, app_exec: true }]);
+    // The owner has no app.org_id here, so only the definer_read policy applies: no expired, accepted or revoked rows.
+    await insertInvitation(a, 'dave@x.io', 'pending', `now() - interval '1 second'`);
+    await insertInvitation(a, 'dave@x.io', 'accepted', `now() + interval '7 days'`);
+    const seen = await ownerQuery(
+      `select count(*)::int as total,
+              count(*) filter (where status <> 'pending' or expires_at <= now())::int as hidden
+       from invitations`,
+    );
+    expect(seen.rows[0].total).toBeGreaterThan(0);
+    expect(seen.rows[0].hidden).toBe(0);
   });
 });

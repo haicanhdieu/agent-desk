@@ -8,7 +8,7 @@ import { ProjectRunEvent, RunEventMessage, RunStatusEvent } from '@agentdesk/con
 import { RunStatusListener } from '../src/sse/run-status-listener';
 import { SseService } from '../src/sse/sse.service';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, grant, inviteAndLogin, revoke, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
@@ -20,9 +20,6 @@ let bobOrg: string;
 let aliceProject: string;
 let bobProject: string;
 
-const orgIdOf = async (slug: string): Promise<string> =>
-  ((await t.db.pool.query('select id from organization where slug = $1', [slug])).rows[0] as { id: string }).id;
-
 beforeAll(async () => {
   t = await createTestApp({
     env: { FAKE_STATE_DIR: freshStateDir(), SSE_HEARTBEAT_MS: '100' },
@@ -30,12 +27,12 @@ beforeAll(async () => {
   });
   await t.app.listen({ port: 0, host: '127.0.0.1' });
   base = `http://127.0.0.1:${(t.app.getHttpServer().address() as AddressInfo).port}`;
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
   aliceProject = (await makeProject(t, alice, await installFake(t, alice))).projectId;
   bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
-  aliceOrg = await orgIdOf('alice');
-  bobOrg = await orgIdOf('bob');
 });
 afterAll(async () => {
   await t.close();
@@ -585,4 +582,79 @@ describe('fix round 2', () => {
       s.abort();
     }
   }, 20000);
+});
+
+describe('event streams by role and scope', () => {
+  let p1: string;
+  let p2: string;
+  let p3: string;
+  let viewer: string;
+  let admin: string;
+
+  beforeAll(async () => {
+    const conn = await installFake(t, alice);
+    p1 = (await makeProject(t, alice, conn)).projectId;
+    p2 = (await makeProject(t, alice, conn)).projectId;
+    p3 = (await makeProject(t, alice, conn)).projectId;
+    viewer = await inviteAndLogin(t, aliceOrg, 'sse-viewer', 'viewer', { type: 'org' });
+    admin = await inviteAndLogin(t, aliceOrg, 'sse-admin', 'admin', { type: 'project', projectIds: [p1, p3] });
+  });
+
+  it('BR-3: an org viewer opens a P1 run stream and the P2 project stream and reads a committed status change', async () => {
+    const runP1 = await insertRun(aliceOrg, p1);
+    const runP2 = await insertRun(aliceOrg, p2);
+    const runStream = await open(`/api/runs/${runP1}/events`, viewer);
+    const projectStream = await open(`/api/projects/${p2}/events`, viewer);
+    try {
+      expect(runStream.status).toBe(200);
+      expect(projectStream.status).toBe(200);
+      await runStream.waitFor((m) => ofType(m, 'status').length >= 1);
+      await sleep(100);
+      const seq = await commit(aliceOrg, runP1, 'idle');
+      await commit(aliceOrg, runP2, 'idle');
+      await runStream.waitFor((m) => ofType(m, 'status').some((x) => x.data.includes('"idle"')));
+      await projectStream.waitFor((m) => ofType(m, 'run').some((x) => x.data.includes(runP2)));
+      const live = RunStatusEvent.parse(JSON.parse(ofType(runStream.messages, 'status').at(-1)?.data ?? ''));
+      expect(live).toMatchObject({ runId: runP1, status: 'idle', seq });
+      const frames = ofType(projectStream.messages, 'run').map((m) => ProjectRunEvent.parse(JSON.parse(m.data)));
+      expect(frames.map((f) => [f.runId, f.status])).toEqual([[runP2, 'idle']]);
+    } finally {
+      runStream.abort();
+      projectStream.abort();
+    }
+  });
+
+  it('BR-28: a project admin scoped to P1 and P3 gets 404 on the streams of P2 and its run, and 200 on P1', async () => {
+    const runP2 = await insertRun(aliceOrg, p2);
+    const runP1 = await insertRun(aliceOrg, p1);
+    const get = (path: string) => fetch(`${base}${path}`, { headers: { cookie: admin } });
+    const runRes = await get(`/api/runs/${runP2}/events`);
+    expect(runRes.status).toBe(404);
+    expect(runRes.headers.get('content-type')).toContain('application/problem+json');
+    expect((await get(`/api/projects/${p2}/events`)).status).toBe(404);
+    const inScope = await open(`/api/runs/${runP1}/events`, admin);
+    inScope.abort();
+    expect(inScope.status).toBe(200);
+  });
+
+  it('BR-35: an open P1 stream keeps receiving after P1 is revoked, and a new connect is 404', async () => {
+    const handle = 'sse-revoked';
+    const cookie = await inviteAndLogin(t, aliceOrg, handle, 'admin', { type: 'project', projectIds: [p1, p3] });
+    const userId = await userIdOf(t, handle);
+    const assignmentP1 = await grant(t, aliceOrg, userId, 'admin', { type: 'project', projectId: p1 });
+    const runId = await insertRun(aliceOrg, p1);
+    const stream = await open(`/api/runs/${runId}/events`, cookie);
+    try {
+      expect(stream.status).toBe(200);
+      await stream.waitFor((m) => ofType(m, 'status').length >= 1);
+      await revoke(t, aliceOrg, assignmentP1.id);
+      await commit(aliceOrg, runId, 'idle');
+      await stream.waitFor((m) => ofType(m, 'status').some((x) => x.data.includes('"idle"')));
+      // the user still holds P3, so the revoked project is not found on reconnect
+      expect((await fetch(`${base}/api/runs/${runId}/events`, { headers: { cookie } })).status).toBe(404);
+      expect((await fetch(`${base}/api/projects/${p1}/events`, { headers: { cookie } })).status).toBe(404);
+    } finally {
+      stream.abort();
+    }
+  });
 });

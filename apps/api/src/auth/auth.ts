@@ -1,11 +1,24 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { betterAuth } from 'better-auth';
+import { APIError } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization as organizationPlugin } from 'better-auth/plugins';
-import { asc, eq, sql } from 'drizzle-orm';
-import { account, invitation, member, organization, session, user, verification, type Db } from '@agentdesk/db';
+import { asc, eq } from 'drizzle-orm';
+import {
+  account,
+  invitation,
+  member,
+  organization,
+  pendingInvitationsForEmail,
+  session,
+  user,
+  verification,
+  type Db,
+} from '@agentdesk/db';
+import { isPlatformAdmin } from '../access/platform-admin';
 import type { Config } from '../config/config.schema';
-import { createWithUniqueSlug } from './unique-slug';
+import { acceptPendingInvitations } from './accept-invitations';
+import { devSignUp } from './dev-signup';
 
 export const AUTH = Symbol('AUTH');
 
@@ -26,6 +39,22 @@ export const DISABLED_PATHS = [
   '/organization/accept-invitation',
   '/organization/reject-invitation',
 ];
+
+/**
+ * Deny by default: the only organization plugin endpoints answered over HTTP, the two the web uses. The plugin's
+ * other endpoints (list-members, get-full-organization, ...) check only that a membership row exists and return
+ * member emails, bypassing the RBAC routes' permission checks. A new plugin endpoint stays unreachable until it is
+ * added here.
+ */
+export const ALLOWED_ORGANIZATION_PATHS = ['/organization/list', '/organization/set-active'];
+
+/** True when `pathname` (lowercased, trailing slashes removed, dot segments resolved) must answer 404 before better-auth sees it. */
+export function isDisabledPath(pathname: string): boolean {
+  if (DISABLED_PATHS.some((p) => pathname === `/auth${p}` || pathname.startsWith(`/auth${p}/`))) return true;
+  if (pathname === '/auth/organization' || pathname.startsWith('/auth/organization/'))
+    return !ALLOWED_ORGANIZATION_PATHS.some((p) => pathname === `/auth${p}`);
+  return false;
+}
 
 /** Dev-login accounts are not guessable from outside: the password is an HMAC of the email under the server secret. */
 export function devPassword(config: Pick<Config, 'BETTER_AUTH_SECRET'>, email: string): string {
@@ -49,42 +78,41 @@ export function createAuth(config: Config, db: Db) {
         }
       : {};
 
+  /** Reads the stored email and verified flag (never the hook's copy), then applies the user's pending invitations. */
+  async function acceptInvitationsFor(userId: string): Promise<void> {
+    const [row] = await orm
+      .select({ email: user.email, emailVerified: user.emailVerified })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    if (row) await acceptPendingInvitations(db, { id: userId, email: row.email, emailVerified: row.emailVerified });
+  }
+
+  /** The oldest membership: the org a session starts in. */
+  async function oldestMembership(userId: string): Promise<string | null> {
+    const rows = await orm
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+      .orderBy(asc(member.createdAt), asc(member.organizationId))
+      .limit(1);
+    return rows[0]?.organizationId ?? null;
+  }
+
   /**
-   * Idempotent: creates the personal org and owner membership unless the user already belongs to an org. Called from
-   * user.create.after and, because better-auth may run `after` hooks once the first session is already being
-   * created, also from session.create.before. A per-user advisory lock serialises the two.
+   * The sign-up gate. An account is created only for a verified email that either has a pending, unexpired invitation
+   * or is a configured platform admin address. Anything else (including a failed lookup) throws, so no user row is
+   * written. The refusal never says which of the two checks failed.
    */
-  async function ensurePersonalOrg(userId: string, handle: string): Promise<string> {
-    return createWithUniqueSlug({
-      handle,
-      isTaken: async (slug) => {
-        const rows = await orm
-          .select({ id: organization.id })
-          .from(organization)
-          .where(eq(organization.slug, slug))
-          .limit(1);
-        return rows.length > 0;
-      },
-      insert: (slug) =>
-        orm.transaction(async (tx) => {
-          await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${userId}))`);
-          const existing = await tx
-            .select({ organizationId: member.organizationId })
-            .from(member)
-            .where(eq(member.userId, userId))
-            .orderBy(asc(member.createdAt))
-            .limit(1);
-          if (existing[0]) return existing[0].organizationId;
-          // organization.id doubles as app tables' org_id (uuid, no FK), hence randomUUID.
-          const orgId = randomUUID();
-          const now = new Date();
-          await tx.insert(organization).values({ id: orgId, name: handle, slug, createdAt: now });
-          await tx
-            .insert(member)
-            .values({ id: randomUUID(), organizationId: orgId, userId, role: 'owner', createdAt: now });
-          return orgId;
-        }),
-    });
+  async function assertMaySignUp(candidate: { email: string; emailVerified?: boolean | null }): Promise<void> {
+    const refuse = () => new APIError('FORBIDDEN', { message: 'Sign-up needs an invitation' });
+    const verified = devSignUp.getStore() === true || candidate.emailVerified === true;
+    if (!verified) throw refuse();
+    const email = candidate.email.trim().toLowerCase();
+    if (email === '') throw refuse();
+    if (isPlatformAdmin(config, { email, emailVerified: true })) return;
+    const pending = await pendingInvitationsForEmail(db, email);
+    if (pending.length === 0) throw refuse();
   }
 
   return betterAuth({
@@ -104,21 +132,22 @@ export function createAuth(config: Config, db: Db) {
       user: {
         create: {
           before: async (u) => {
+            await assertMaySignUp(u);
             const handle =
               'handle' in u && typeof u.handle === 'string' && u.handle !== '' ? u.handle : handleFromEmail(u.email);
-            return { data: { ...u, handle } };
+            return { data: devSignUp.getStore() === true ? { ...u, handle, emailVerified: true } : { ...u, handle } };
           },
           after: async (u) => {
-            const row = await orm.select({ handle: user.handle }).from(user).where(eq(user.id, u.id)).limit(1);
-            await ensurePersonalOrg(u.id, row[0]?.handle ?? handleFromEmail(u.email));
+            await acceptInvitationsFor(u.id);
           },
         },
       },
       session: {
         create: {
           before: async (s) => {
-            const rows = await orm.select({ handle: user.handle }).from(user).where(eq(user.id, s.userId)).limit(1);
-            const activeOrganizationId = await ensurePersonalOrg(s.userId, rows[0]?.handle ?? 'user');
+            await acceptInvitationsFor(s.userId);
+            // The oldest membership, or none: a platform admin with no org, or a user nobody has granted yet.
+            const activeOrganizationId = await oldestMembership(s.userId);
             return { data: { ...s, activeOrganizationId } };
           },
         },

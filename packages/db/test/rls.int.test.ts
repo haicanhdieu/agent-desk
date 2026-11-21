@@ -63,6 +63,18 @@ const inserts: Record<string, (tx: Tx, orgId: string) => Promise<unknown>> = {
       values (${o}, ${a.setupTestId}, 99, 'status')`),
   poll_cursors: (tx, o) => tx.execute(sql`insert into poll_cursors (org_id, project_id) values (${o}, ${b.projectId})`),
   audit_log: (tx, o) => tx.execute(sql`insert into audit_log (org_id, action) values (${o}, 'x')`),
+  roles: (tx, o) =>
+    tx.execute(sql`insert into roles (org_id, key, name, assignable_scopes)
+      values (${o}, ${`k-${Math.random()}`}, 'R', '{org}')`),
+  role_permissions: (tx, o) =>
+    tx.execute(sql`insert into role_permissions (org_id, role_id, permission)
+      values (${o}, ${a.memberRoleId}, ${`run:read-${Math.random()}`})`),
+  role_assignments: (tx, o) =>
+    tx.execute(sql`insert into role_assignments (org_id, user_id, role_id, scope_type, project_id, granted_by)
+      values (${o}, ${a.userId}, ${a.ownerRoleId}, 'project', ${a.secondProjectId}, ${a.userId})`),
+  invitations: (tx, o) =>
+    tx.execute(sql`insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+      values (${o}, ${`e-${Math.random()}@x.io`}, ${a.memberRoleId}, 'org', 'pending', now() + interval '7 days', ${a.userId})`),
 };
 
 function pgCode(e: unknown): unknown {
@@ -228,6 +240,87 @@ describe('inbound_events null-org intake', () => {
       (e: unknown) => e,
     );
     expect(pgCode(err)).toBe('42501');
+  });
+});
+
+describe('RBAC tables', () => {
+  const attempt = (stmt: (tx: Tx) => Promise<unknown>) =>
+    withOrg(db, ORG_A, stmt).then(
+      () => undefined,
+      (e: unknown) => e,
+    );
+
+  it('roles are insert-only for the app role: update and delete fail with 42501', async () => {
+    expect(pgCode(await attempt((tx) => tx.execute(sql`update roles set name = 'x'`)))).toBe('42501');
+    expect(pgCode(await attempt((tx) => tx.execute(sql`delete from roles`)))).toBe('42501');
+  });
+
+  it('role_permissions are insert-only for the app role', async () => {
+    expect(pgCode(await attempt((tx) => tx.execute(sql`update role_permissions set condition = 'any'`)))).toBe('42501');
+    expect(pgCode(await attempt((tx) => tx.execute(sql`delete from role_permissions`)))).toBe('42501');
+  });
+
+  it('role_templates are readable but not writable by the app role', async () => {
+    const r = await db.pool.query('select 1 from role_templates');
+    expect(r.rowCount).not.toBeNull();
+    const err = await db.pool
+      .query(`insert into role_templates (key, name, assignable_scopes) values ('x', 'X', '{org}')`)
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    expect(pgCode(err)).toBe('42501');
+    const err2 = await db.pool
+      .query(
+        `insert into role_template_permissions (template_id, permission, condition) values (gen_random_uuid(), 'x', 'any')`,
+      )
+      .then(
+        () => undefined,
+        (e: unknown) => e,
+      );
+    expect(pgCode(err2)).toBe('42501');
+  });
+
+  it('a second identical org assignment fails with 23505', async () => {
+    const err = await attempt((tx) =>
+      tx.execute(sql`insert into role_assignments (org_id, user_id, role_id, scope_type, granted_by)
+        values (${ORG_A}, ${a.userId}, ${a.ownerRoleId}, 'org', ${a.userId})`),
+    );
+    expect(pgCode(err)).toBe('23505');
+  });
+
+  it('the assignment scope check rejects an org scope with a project id (23514)', async () => {
+    const err = await attempt((tx) =>
+      tx.execute(sql`insert into role_assignments (org_id, user_id, role_id, scope_type, project_id, granted_by)
+        values (${ORG_A}, ${a.userId}, ${a.memberRoleId}, 'org', ${a.projectId}, ${a.userId})`),
+    );
+    expect(pgCode(err)).toBe('23514');
+  });
+
+  it('a second pending invitation for one org and email fails with 23505, a revoked one does not', async () => {
+    const insert = (status: string) =>
+      attempt((tx) =>
+        tx.execute(sql`insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+          values (${ORG_A}, 'bob@x.io', ${a.memberRoleId}, 'org', ${status}, now() + interval '7 days', ${a.userId})`),
+      );
+    expect(pgCode(await insert('pending'))).toBe('23505');
+    expect(await insert('revoked')).toBeUndefined();
+  });
+
+  it("the composite (org_id, role_id) foreign keys refuse another org's role (23503)", async () => {
+    const roleAssignment = await attempt((tx) =>
+      tx.execute(sql`insert into role_assignments (org_id, user_id, role_id, scope_type, granted_by)
+        values (${ORG_A}, ${a.userId}, ${b.memberRoleId}, 'org', ${a.userId})`),
+    );
+    const invitation = await attempt((tx) =>
+      tx.execute(sql`insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+        values (${ORG_A}, 'carol@x.io', ${b.memberRoleId}, 'org', 'pending', now() + interval '7 days', ${a.userId})`),
+    );
+    const rolePermission = await attempt((tx) =>
+      tx.execute(sql`insert into role_permissions (org_id, role_id, permission)
+        values (${ORG_A}, ${b.memberRoleId}, 'run:cross-org')`),
+    );
+    expect([pgCode(roleAssignment), pgCode(invitation), pgCode(rolePermission)]).toEqual(['23503', '23503', '23503']);
   });
 });
 

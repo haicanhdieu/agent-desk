@@ -9,7 +9,7 @@ import { SIGNAL, TASK_QUEUE, WORKFLOW, setupTestWorkflowId } from '@agentdesk/co
 import { RunEventDto, SetupTestDto } from '@agentdesk/contracts';
 import { SetupTestStream } from '../src/setup/setup-test-stream';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -17,6 +17,7 @@ let t: TestApp;
 let base: string;
 let alice: string;
 let bob: string;
+let bobOrg: string;
 let carol: string;
 let aliceOrg: string;
 let connectionId: string;
@@ -35,21 +36,13 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(t.app.getHttpServer().address() as AddressInfo).port}`;
   stream = t.app.get(SetupTestStream);
   stream.pollMs = 50;
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
-  carol = await loginAs(t, 'carol');
+  aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
+  // carol is a plain member of alice's org (neither its owner nor the project's creator).
+  carol = await inviteAndLogin(t, aliceOrg, 'carol', 'member', { type: 'org' });
   connectionId = await installFake(t, alice);
-  aliceOrg = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
-  // carol is a plain member of alice's org (neither its owner nor the project's creator), with it as her active org.
-  await t.db.pool.query(
-    `insert into member (id, organization_id, user_id, role, created_at)
-     select $2, $1, id, 'member', now() from "user" where handle = 'carol'`,
-    [aliceOrg, randomUUID()],
-  );
-  await t.db.pool.query(
-    `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'carol')`,
-    [aliceOrg],
-  );
 });
 afterAll(async () => {
   await t.close();
@@ -476,11 +469,12 @@ describe('setup test events stream', () => {
     expect(ofType(s.messages, 'status')).toHaveLength(1);
   });
 
-  it('is 404 for another org, 400 for a bad id, and never starts a stream', async () => {
+  it('is 404 for another org and for a malformed id, and never starts a stream', async () => {
     const dto = await created();
     expect((await open(`/api/setup-tests/${dto.id}/events`, bob)).status).toBe(404);
     expect((await open(`/api/setup-tests/${randomUUID()}/events`, alice)).status).toBe(404);
-    expect((await open(`/api/setup-tests/nope/events`, alice)).status).toBe(400);
+    // The guard resolves the target before the param pipe runs, so a malformed id is a target that does not exist.
+    expect((await open(`/api/setup-tests/nope/events`, alice)).status).toBe(404);
   });
 
   it('stops polling and releases the stream when the client disconnects', async () => {
@@ -509,8 +503,6 @@ describe('setup test events stream', () => {
 describe('setup test rows are scoped by org (RLS)', () => {
   it('hides another org’s tests from a direct query under withOrg', async () => {
     const dto = await created();
-    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
-      .id;
     const seen = await withOrg(t.db, bobOrg, (tx) =>
       tx
         .select({ id: setupTests.id })
@@ -518,5 +510,29 @@ describe('setup test rows are scoped by org (RLS)', () => {
         .where(and(eq(setupTests.id, dto.id), sql`true`)),
     );
     expect(seen).toHaveLength(0);
+  });
+});
+
+describe('setup test create: permission (BR-33, BR-29)', () => {
+  it('TC-33.8: a member cannot start a setup test; no test row and no workflow', async () => {
+    const member = await inviteAndLogin(t, aliceOrg, 'setup-test-member', 'member', { type: 'org' });
+    const res = await create('echo nope', member);
+    expect(res.statusCode).toBe(403);
+    expect(await rowsOf()).toHaveLength(0);
+    expect(t.temporal.callsOfKind('start')).toHaveLength(0);
+  });
+
+  it('TC-29.2: an admin on P1 only can start a setup test on P1 and gets 404 on another project', async () => {
+    const other = (await makeProject(t, alice, connectionId)).projectId;
+    const admin = await inviteAndLogin(t, aliceOrg, 'setup-test-admin', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    const res = await create('echo admin', admin);
+    expect(res.statusCode).toBe(200);
+    expectContract('setupTests.create', res);
+    expect(await activeIds()).toHaveLength(1);
+    expect(t.temporal.callsOfKind('start')).toHaveLength(1);
+    expect((await create('echo admin', admin, other)).statusCode).toBe(404);
   });
 });
