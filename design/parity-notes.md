@@ -188,3 +188,17 @@ InvitationAcceptExpiredInviterDeleted, InvitationAcceptLoading, InvitationAccept
 - InvitationAcceptLoading and InvitationAcceptError: neither the boards nor the screen draw an h1 in these states.
 - InvitationAcceptAccepted: the top bar shows the org name as plain text (one org), as the board.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: org Invitations page list boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Twelve boards added, so `parity.mjs`
+finds 121: OrgInvitations, OrgInvitationsAll, OrgInvitationsEmpty, OrgInvitationsEmptyAll, OrgInvitationsEmptyFiltered,
+OrgInvitationsError, OrgInvitationsFiltered, OrgInvitationsForbidden, OrgInvitationsLoading, OrgInvitationsPaged,
+OrgInvitationsRowMenu, OrgInvitationsRowMenuExpired.
+
+- Table: the stories use the shared `DataTable` and `InvitationRow`; column widths follow the shared table layout, not the boards' fixed percentages.
+- Empty states: the shared `EmptyState` under the table, drawn as an h2 (the boards draw an h3; axe heading-order requires h2 right under the h1); the Pending one carries a second "Invite people" button.
+- Forbidden: the screen draws the same notice as the Projects no-access story (h1, one line), not the `Forbidden` route component, which sits in `app/` and adds a "Go to projects" button the board does not draw.
+- Loading and error: the loading block is a labelled busy status of `Skeleton` blocks; the error is the shared `RouteLoadError` banner. Neither draws an h1.
+- Row menus: the story-only `openMenuRowId` opens the menu by pressing that row's Actions button once after mount; the menu is placed under the button by `useRowMenu`, where the boards use fixed offsets.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.

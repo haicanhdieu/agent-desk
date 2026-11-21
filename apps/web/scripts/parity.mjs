@@ -95,6 +95,18 @@ const stories = {
   InvitationAcceptLoading: ['Screens/Invitations', 'InvitationAcceptLoading'],
   InvitationAcceptNotAvailable: ['Screens/Invitations', 'InvitationAcceptNotAvailable'],
   InvitationAcceptRevoked: ['Screens/Invitations', 'InvitationAcceptRevoked'],
+  OrgInvitations: ['Screens/Invitations', 'OrgInvitations'],
+  OrgInvitationsAll: ['Screens/Invitations', 'OrgInvitationsAll'],
+  OrgInvitationsEmpty: ['Screens/Invitations', 'OrgInvitationsEmpty'],
+  OrgInvitationsEmptyAll: ['Screens/Invitations', 'OrgInvitationsEmptyAll'],
+  OrgInvitationsEmptyFiltered: ['Screens/Invitations', 'OrgInvitationsEmptyFiltered'],
+  OrgInvitationsError: ['Screens/Invitations', 'OrgInvitationsError'],
+  OrgInvitationsFiltered: ['Screens/Invitations', 'OrgInvitationsFiltered'],
+  OrgInvitationsForbidden: ['Screens/Invitations', 'OrgInvitationsForbidden'],
+  OrgInvitationsLoading: ['Screens/Invitations', 'OrgInvitationsLoading'],
+  OrgInvitationsPaged: ['Screens/Invitations', 'OrgInvitationsPaged'],
+  OrgInvitationsRowMenu: ['Screens/Invitations', 'OrgInvitationsRowMenu'],
+  OrgInvitationsRowMenuExpired: ['Screens/Invitations', 'OrgInvitationsRowMenuExpired'],
   ...Object.fromEntries(
     [
       'Starting',
