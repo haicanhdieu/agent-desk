@@ -148,7 +148,7 @@ describe('desk agent route', () => {
     expect(field("Keep a finished run's session for")).toHaveValue('24');
     expect(screen.getByLabelText("Keep a finished run's session for unit")).toHaveValue('hours');
     expect(screen.getByText('After this, a paused run expires and its saved session is deleted.')).toBeInTheDocument();
-    expect(screen.getByText('How long a finished run can be re-opened. 0 turns this off.')).toBeInTheDocument();
+    expect(screen.getByText('How long a finished run can be reopened. 0 turns this off.')).toBeInTheDocument();
   });
 
   it('saving 3 days for a paused run sends pausedKeepSeconds 259200', async () => {

@@ -309,7 +309,7 @@ describe('run detail route, paused runs and kept sessions', () => {
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
     expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
-    expect(screen.queryByText('Re-open session')).not.toBeInTheDocument();
+    expect(screen.queryByText('Reopen session')).not.toBeInTheDocument();
   });
 
   it('Resume posts once and the page then shows Queued', async () => {
@@ -350,35 +350,67 @@ describe('run detail route, paused runs and kept sessions', () => {
     await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${runId(PAUSED)}/finish`)).toBe(1));
   });
 
-  it('a succeeded run with a kept session shows when it is kept until and Re-open session', async () => {
+  it('a succeeded run with a kept session shows when it is kept until and Reopen session', async () => {
     const { user } = await renderRoute(`${base}/runs/${KEPT}`);
     expect(await screen.findByText(/^Session kept until /)).toBeInTheDocument();
     expect(screen.getByText('Opened PR #148 with the CSV export and tests.')).toBeInTheDocument();
     expect(within(banner()).getByText('Succeeded')).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Re-open session' }));
-    expect(await within(banner()).findByText('Queued')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Reopen session' }));
+    // The result stays: the pill says Succeeded with the session open, and the only action is Close session.
+    expect(await within(banner()).findByText('Succeeded · Session open')).toBeInTheDocument();
     expect(resumePosts(KEPT)).toBe(1);
-    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Reopen session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Close session' })).toBeInTheDocument();
+    for (const name of ['Finish run', 'Stop session', 'Cancel run']) {
+      expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
+    }
   });
 
-  it('a succeeded run whose kept time has passed has no Re-open session', async () => {
+  /** The kept run as the worker leaves it after a Reopen: live (done), with the reopen flag set. */
+  function reopenKept() {
+    const run = dbRun(KEPT);
+    run.status = 'done';
+    run.reopenedAt = new Date(Date.now() - 5_000).toISOString();
+    run.sessionExpiresAt = null;
+    run.finishedAt = null;
+  }
+
+  it('Close session on a reopened run posts to close-session and the run returns to Succeeded', async () => {
+    reopenKept();
+    const { user } = await renderRoute(`${base}/runs/${KEPT}`);
+    const close = await screen.findByRole('button', { name: 'Close session' });
+    await user.click(close);
+    await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${runId(KEPT)}/close-session`)).toBe(1));
+    await waitFor(() => expect(within(banner()).queryByText('Succeeded · Session open')).not.toBeInTheDocument());
+  });
+
+  it('a 409 on Close session shows the server message in a toast', async () => {
+    reopenKept();
+    const { user } = await renderRoute(`${base}/runs/${KEPT}`, {
+      scenario: () => scenarios.problem('runs.closeSession', { status: 409, title: 'Run is no longer active' }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Close session' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Run is no longer active');
+  });
+
+  it('a succeeded run whose kept time has passed has a disabled Reopen session', async () => {
     dbRun(KEPT).sessionExpiresAt = new Date(Date.now() - 60_000).toISOString();
     await renderRoute(`${base}/runs/${KEPT}`);
     expect(await screen.findByText(/^Succeeded in /)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
     expect(screen.queryByText(/^Session kept until /)).not.toBeInTheDocument();
   });
 
-  it('the Re-open session button goes away when the kept time passes while the page is open', async () => {
+  it('the Reopen session button is disabled when the kept time passes while the page is open', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true, toFake: ['Date', 'setInterval', 'clearInterval'] });
     dbRun(KEPT).sessionExpiresAt = new Date(Date.now() + 10 * 60_000).toISOString();
     await renderRoute(`${base}/runs/${KEPT}`);
-    expect(await screen.findByRole('button', { name: 'Re-open session' })).toBeInTheDocument();
+    expect(await screen.findByRole('button', { name: 'Reopen session' })).toBeInTheDocument();
     await act(async () => {
       vi.setSystemTime(Date.now() + 11 * 60_000);
       await vi.advanceTimersByTimeAsync(30_000);
     });
-    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
     expect(screen.queryByText(/^Session kept until /)).not.toBeInTheDocument();
   });
 
@@ -388,7 +420,7 @@ describe('run detail route, paused runs and kept sessions', () => {
     expect(
       screen.getByText('Nobody resumed this run within 7 days. The saved session was deleted.'),
     ).toBeInTheDocument();
-    for (const name of ['Resume', 'Re-open session', 'Finish', 'Finish run', 'Cancel run']) {
+    for (const name of ['Resume', 'Reopen session', 'Finish', 'Finish run', 'Cancel run']) {
       expect(screen.queryByRole('button', { name })).not.toBeInTheDocument();
     }
   });
@@ -495,6 +527,7 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
           sessionExpiresAt: iso(6 * 24 * 3_600_000 + 3_600_000),
           sessionEndingAt: null,
           pauseReason: 'pod_lost',
+          reopenedAt: null,
         },
         900,
       ),
@@ -597,7 +630,7 @@ describe('run detail route, pausing, pause reasons and resumed runs', () => {
     pushEvent(SUCCEEDED, 'comment', { kind: 'finish', commentId: 'c1' });
     await renderRoute(`${base}/runs/${SUCCEEDED}`);
     expect(await screen.findByText('Resume failed: nothing was kept to resume from')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
   });
 });
 
@@ -728,6 +761,7 @@ describe('run detail route, stop session and the saved Transcript', () => {
               sessionExpiresAt: status === 'paused' ? new Date(Date.now() + 6 * 24 * 3_600_000).toISOString() : null,
               sessionEndingAt: null,
               pauseReason: status === 'paused' ? 'pod_lost' : null,
+              reopenedAt: null,
             },
             seq,
           ),
@@ -780,6 +814,7 @@ describe('run detail route, stop session and the saved Transcript', () => {
           sessionExpiresAt: new Date(Date.now() + 7 * 86_400_000).toISOString(),
           sessionEndingAt: null,
           pauseReason: 'stopped',
+          reopenedAt: null,
         },
         900,
       ),

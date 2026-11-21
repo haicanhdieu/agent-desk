@@ -24,6 +24,11 @@ export interface SetRunStatusInput {
   keepAgentNote?: boolean;
   /** Allow leaving `succeeded` when the row has session_expires_at in the future at `at` (re-open). */
   reopen?: boolean;
+  /**
+   * `true` with `reopen`: the reopen sets `reopened_at` (the run stays a succeeded run with its session open, ADR 0032).
+   * `false`: clears it (the run was saved again). Absent leaves it alone.
+   */
+  reopened?: boolean;
   /** ISO timestamp of the transition. */
   at: string;
 }
@@ -81,6 +86,7 @@ export async function setRunStatusTx(
       agentNote: runs.agentNote,
       pausedAt: runs.pausedAt,
       sessionExpiresAt: runs.sessionExpiresAt,
+      reopenedAt: runs.reopenedAt,
     })
     .from(runs)
     .where(eq(runs.id, runId))
@@ -96,6 +102,13 @@ export async function setRunStatusTx(
   if ((isFinal(previous) && !reopening) || (opts.onlyFrom && !opts.onlyFrom.includes(previous))) {
     return { seq: await currentSeq(tx, runId), changed: false, previous };
   }
+  // Once a run succeeds its result is fixed: while its session is reopened only `succeeded` may be written as a final status.
+  if (run.reopenedAt !== null && isFinal(status) && status !== 'succeeded') {
+    return { seq: await currentSeq(tx, runId), changed: false, previous };
+  }
+  const setReopened = reopening && input.reopened === true;
+  const clearReopened = input.reopened === false;
+  const reopenedNow = setReopened ? at : clearReopened ? null : run.reopenedAt;
 
   const parked = status === 'idle' || status === 'done';
   const waitingOn = status === 'running' ? (input.waitingOn ?? null) : null;
@@ -119,6 +132,8 @@ export async function setRunStatusTx(
       ...(status === 'running' && run.startedAt === null ? { startedAt: at } : {}),
       ...(isFinal(status) ? { finishedAt: at } : {}),
       ...(reopening ? { finishedAt: null, exitCode: null } : {}),
+      ...(setReopened ? { reopenedAt: at } : {}),
+      ...(clearReopened ? { reopenedAt: null } : {}),
       pausedAt,
       ...(endsSession || sessionExpiresAt !== undefined ? { sessionExpiresAt: newExpiry } : {}),
       // The session end is over once the run is parked or final; `endSession` sets it again for the next one.
@@ -145,10 +160,22 @@ export async function setRunStatusTx(
       agentNote,
       pausedAt: pausedAt?.toISOString() ?? null,
       sessionExpiresAt: newExpiry?.toISOString() ?? null,
+      // Only while the session is reopened (absent means not reopened), so the payload of every other run is unchanged.
+      ...(reopenedNow !== null ? { reopenedAt: reopenedNow.toISOString() } : {}),
     },
     ts: at,
   });
   if (!ev) throw ApplicationFailure.nonRetryable('setRunStatus: run not found');
-  await notifyRunStatus(tx, { orgId, runId, seq: ev.seq });
-  return { seq: ev.seq, changed: true, previous };
+  let notifySeq = ev.seq;
+  if (setReopened) {
+    const reopenedEv = await appendRunEvent(tx, orgId, {
+      runId,
+      type: 'lifecycle',
+      payload: { kind: 'session_reopened' },
+      ts: at,
+    });
+    if (reopenedEv) notifySeq = reopenedEv.seq;
+  }
+  await notifyRunStatus(tx, { orgId, runId, seq: notifySeq });
+  return { seq: notifySeq, changed: true, previous };
 }

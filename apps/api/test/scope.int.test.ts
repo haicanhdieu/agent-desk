@@ -193,6 +193,7 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     ['runs.finish', 'POST', `/api/runs/${runP2}/finish`, undefined],
     ['runs.resume', 'POST', `/api/runs/${runP2}/resume`, undefined],
     ['runs.stop', 'POST', `/api/runs/${runP2}/stop`, undefined],
+    ['runs.closeSession', 'POST', `/api/runs/${runP2}/close-session`, undefined],
     ['runs.transcript', 'GET', `/api/runs/${runP2}/transcript`, undefined],
     ['runs.events', 'GET', `/api/runs/${runP2}/events`, undefined],
   ];

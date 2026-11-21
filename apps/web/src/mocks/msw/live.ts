@@ -55,6 +55,7 @@ export function statusMessage(run: RunDto, seq: number): RunStatusEvent {
     sessionExpiresAt: run.sessionExpiresAt,
     sessionEndingAt: run.sessionEndingAt,
     pauseReason: run.pauseReason,
+    reopenedAt: run.reopenedAt,
   };
 }
 

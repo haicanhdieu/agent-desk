@@ -293,6 +293,7 @@ describe('setRunStatus kept sessions', () => {
   const T1 = '2026-11-12T10:10:00.000Z';
   const T2 = '2026-11-12T11:00:00.000Z';
   const EXP = '2026-11-19T10:10:00.000Z';
+  const T3 = '2026-11-12T11:30:00.000Z';
 
   it('idle to paused with a session keeps the note and idle_since, sets paused_at and the expiry', async () => {
     const runId = await seedRun();
@@ -364,6 +365,55 @@ describe('setRunStatus kept sessions', () => {
     const none = await seedRun();
     await setRunStatus(db, { orgId: ORG, runId: none, status: 'succeeded', at: T0 });
     expect((await setRunStatusTxForTest(none, { status: 'queued', reopen: true, at: T1 })).changed).toBe(false);
+  });
+
+  describe('a reopened session of a succeeded run keeps its result (ADR 0032)', () => {
+    async function reopenedRun(): Promise<string> {
+      const runId = await seedRun();
+      await setRunStatus(db, { orgId: ORG, runId, status: 'succeeded', session: { expiresAt: EXP }, at: T0 });
+      const res = await setRunStatusTxForTest(runId, { status: 'queued', reopen: true, reopened: true, at: T1 });
+      expect(res.changed).toBe(true);
+      await setRunStatus(db, { orgId: ORG, runId, status: 'done', keepAgentNote: true, session: null, at: T2 });
+      return runId;
+    }
+
+    it('the reopen sets reopened_at and records session_reopened', async () => {
+      const runId = await reopenedRun();
+      const { run, events } = await load(runId);
+      expect(run?.reopenedAt?.toISOString()).toBe(T1);
+      expect(events.filter((e) => e.type === 'lifecycle').map((e) => e.payload)).toEqual([
+        { kind: 'session_reopened' },
+      ]);
+    });
+
+    it.each(['cancelled', 'timed_out', 'failed', 'expired'] as const)(
+      'refuses %s as a final status',
+      async (status) => {
+        const runId = await reopenedRun();
+        const before = (await load(runId)).events.length;
+        const res = await setRunStatusTxForTest(runId, { status, at: T3 });
+        expect(res.changed).toBe(false);
+        const { run, events } = await load(runId);
+        expect(run?.status).toBe('done');
+        expect(run?.reopenedAt).not.toBeNull();
+        expect(events).toHaveLength(before);
+      },
+    );
+
+    it('succeeded is allowed and reopened: false clears the flag', async () => {
+      const runId = await reopenedRun();
+      const res = await setRunStatusTxForTest(runId, {
+        status: 'succeeded',
+        reopened: false,
+        session: { expiresAt: EXP },
+        at: T3,
+      });
+      expect(res.changed).toBe(true);
+      const run = (await load(runId)).run;
+      expect(run?.status).toBe('succeeded');
+      expect(run?.reopenedAt).toBeNull();
+      expect(run?.sessionExpiresAt?.toISOString()).toBe(EXP);
+    });
   });
 
   it('reopen does not leave failed', async () => {

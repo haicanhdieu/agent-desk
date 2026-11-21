@@ -162,6 +162,8 @@ export type RunDetailData = {
    * that had nothing kept to resume from).
    */
   pausing?: true;
+  /** The session of a succeeded run is reopened (`reopenedAt` set): the result stays succeeded, the only action is Close session. */
+  reopened?: true;
   /** A queued or starting run that already ran once: the Resume is in progress. */
   resuming?: true;
   /** The banner of a resumed run that has not started a new turn yet; the agent's note is untrusted text inside it. */

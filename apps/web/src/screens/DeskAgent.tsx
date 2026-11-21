@@ -335,7 +335,7 @@ export function DeskAgent({
             </Field>
             <Field
               label="Keep a finished run's session for"
-              help="How long a finished run can be re-opened. 0 turns this off."
+              help="How long a finished run can be reopened. 0 turns this off."
               error={limitsErrors.doneKeepMinutes}
             >
               {({ id, describedBy, invalid }) => (

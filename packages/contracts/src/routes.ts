@@ -320,6 +320,8 @@ export const routes = {
     finish: { method: 'POST', path: '/api/runs/:runId/finish', params: runParams, response: empty },
     resume: { method: 'POST', path: '/api/runs/:runId/resume', params: runParams, response: empty },
     stop: { method: 'POST', path: '/api/runs/:runId/stop', params: runParams, response: empty },
+    /** Ends a reopened session: the run returns to succeeded with its disk kept for a fresh keep time. */
+    closeSession: { method: 'POST', path: '/api/runs/:runId/close-session', params: runParams, response: empty },
     transcript: {
       method: 'GET',
       path: '/api/runs/:runId/transcript',

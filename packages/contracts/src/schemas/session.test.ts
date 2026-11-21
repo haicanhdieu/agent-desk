@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { PutAgentRequest, canResume, hasKeptSession, isSettled } from '../index';
+import { PutAgentRequest, canResume, hasKeptSession, isReopened, isSettled } from '../index';
 
 const now = new Date('2026-11-15T12:00:00Z');
 const later = '2026-11-16T12:00:00.000Z';
@@ -45,6 +45,23 @@ describe('canResume', () => {
     ['expired without a session', { status: 'expired', ...base }, false],
   ] as const)('%s', (_name, run, expected) => {
     expect(canResume(run, now)).toBe(expected);
+  });
+});
+
+describe('a reopened session of a succeeded run', () => {
+  it('cannot be resumed again, whatever else is set', () => {
+    const reopenedAt = '2026-11-15T11:00:00.000Z';
+    expect(canResume({ status: 'done', sessionExpiresAt: null, sessionEndingAt: later, reopenedAt }, now)).toBe(false);
+    expect(canResume({ status: 'succeeded', sessionExpiresAt: later, sessionEndingAt: null, reopenedAt }, now)).toBe(
+      false,
+    );
+    expect(
+      canResume({ status: 'succeeded', sessionExpiresAt: later, sessionEndingAt: null, reopenedAt: null }, now),
+    ).toBe(true);
+  });
+  it('isReopened follows reopenedAt', () => {
+    expect(isReopened({ reopenedAt: '2026-11-15T11:00:00.000Z' })).toBe(true);
+    expect(isReopened({ reopenedAt: null })).toBe(false);
   });
 });
 

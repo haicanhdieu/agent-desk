@@ -18,7 +18,7 @@ import {
   toRunDetail,
 } from '@/features/runs/detail.map';
 import { isFinal } from '@/features/runs/map';
-import { useCancelRun, useFinishRun, useResumeRun, useStopRun } from '@/features/runs/mutations';
+import { useCancelRun, useCloseSession, useFinishRun, useResumeRun, useStopRun } from '@/features/runs/mutations';
 import { useProjectPage } from '@/features/runs/page';
 import { runsQueries } from '@/features/runs/queries';
 import { transcriptConnection, transcriptItems, useTranscriptReload } from '@/features/runs/transcript';
@@ -109,6 +109,8 @@ function RunDetailRoute() {
   const resume = useResumeRun(org, projectId, { onError });
   // A 409 (not started, already ending, not live, started before Stop session existed) toasts the server's message.
   const stop = useStopRun(org, projectId, { onError });
+  // A 409 (not reopened any more, no longer active) toasts the server's message.
+  const closeSession = useCloseSession(org, projectId, { onError });
 
   const { paths } = page;
   const target = { id: dto.id, number };
@@ -225,6 +227,8 @@ function RunDetailRoute() {
         stop.mutate(target);
       }}
       stopping={stop.isPending}
+      onCloseSession={() => closeSession.mutate(target)}
+      closing={closeSession.isPending}
     />
   );
 }

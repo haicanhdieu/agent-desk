@@ -103,11 +103,22 @@ describe('RunWorkflow', () => {
 
     it('done: the queued write re-opens and the run ends the resume in done, not idle', async () => {
       const { s, h } = await live('done');
-      expect(s.statuses.find((x) => x.status === 'queued')).toMatchObject({ reopen: true, keepAgentNote: true });
+      expect(s.statuses.find((x) => x.status === 'queued')).toMatchObject({
+        reopen: true,
+        keepAgentNote: true,
+        reopened: true,
+      });
       expect(statuses(s).at(-1)).toBe('done');
       expect((await state(h)).phase).toBe('agent_done');
+      // The result is fixed: a cancel in the reopened session changes nothing (reopened session spec).
       await h.signal(signals.cancel);
-      expect((await h.result()).status).toBe('cancelled');
+      await sleepReal(300);
+      expect((await state(h)).phase).toBe('agent_done');
+      expect(statuses(s)).not.toContain('cancelled');
+      expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
+      await waitPhase(h, 'parked');
+      await h.signal(signals.dropSession);
+      expect((await h.result()).status).toBe('succeeded');
     });
 
     it('a resumed run left unattended parks again with a fresh keep time', async () => {
@@ -272,8 +283,8 @@ describe('RunWorkflow', () => {
       await small.h.result();
     });
 
-    describe('Finish after a done Re-open', () => {
-      it('re-parks with the original deadline, keeps the volume, posts no second finish comment, and can re-open again', async () => {
+    describe('Close session after a done Reopen', () => {
+      it('re-parks with a fresh keep time, keeps the volume, posts no second finish comment, and can reopen again', async () => {
         const { s, h } = await live('done');
         expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
         s.resumeLogs.resolve({ exitCode: 0, agentStarted: true });
@@ -281,16 +292,22 @@ describe('RunWorkflow', () => {
         await waitPhase(h, 'parked');
         expect(count(s, 'deleteRunVolume')).toBe(0);
         expect(count(s, 'postComment:finish')).toBe(1);
-        expect(s.parkKeepUntils[1]).toBe(s.parkExpiries[0]);
-        expect(s.parkExpiries[1]).toBe(s.parkExpiries[0]);
+        expect(s.parkKeepUntils[1]).toBeUndefined();
+        expect(s.parkClosed[1]).toBe('person');
         await sleepReal(200);
         expect((await state(h)).phase).toBe('parked');
         expect(await h.executeUpdate(signals.resumeRun)).toEqual({ accepted: true });
         await waitFor(() => count(s, 'createRunSecretAndJob') >= 3, 'second resume Job');
         await h.signal(signals.sessionStarted);
         await waitFor(() => statuses(s).at(-1) === 'done', 'done after second resume');
+        // Cancel does not end a reopened session; closing it again parks the run once more.
         await h.signal(signals.cancel);
-        expect((await h.result()).status).toBe('cancelled');
+        expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
+        s.resumeLogs.resolve({ exitCode: 0, agentStarted: true });
+        await waitFor(() => count(s, 'parkRun:done') === 3, 'third park');
+        await waitPhase(h, 'parked');
+        await h.signal(signals.dropSession);
+        expect((await h.result()).status).toBe('succeeded');
       });
 
       it('a dropSession after the re-park gives the kept session up like any parked done run', async () => {
@@ -305,7 +322,7 @@ describe('RunWorkflow', () => {
         expect(count(s, 'deleteRunVolume')).toBe(1);
       });
 
-      it('after the kept deadline has passed, Finish deletes the volume and succeeds', async () => {
+      it('after the original keep time has passed, Close session still keeps the run reopenable for a fresh keep time', async () => {
         const { s, h } = await parked('done', {}, 2);
         await resume(s, h);
         await h.signal(signals.sessionStarted);
@@ -314,13 +331,16 @@ describe('RunWorkflow', () => {
         await sleepReal(2500);
         expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
         s.resumeLogs.resolve({ exitCode: 0, agentStarted: true });
+        await waitFor(() => count(s, 'parkRun:done') === 2, 'second park');
+        await waitPhase(h, 'parked');
+        expect(count(s, 'deleteRunVolume')).toBe(0);
+        expect(s.parkKeepUntils[1]).toBeUndefined();
+        await h.signal(signals.dropSession);
         expect((await h.result()).status).toBe('succeeded');
-        expect(count(s, 'deleteRunVolume')).toBe(1);
-        expect(count(s, 'parkRun:done')).toBe(1);
       });
     });
 
-    it('the hard timer fires in a resumed pod: timed_out, volume deleted (succeeded when it had declared done)', async () => {
+    it('the hard timer fires in a resumed pod: timed_out, volume deleted (a reopened done run is parked as succeeded instead)', async () => {
       // `resumeMinSeconds` is the test seam for the one-hour floor, so the allowance (limit 5 s, ~1 s used) is real seconds.
       const over = { timeoutSeconds: 5, resumeMinSeconds: 1 };
       const a = await live('needs_input', over);
@@ -331,8 +351,12 @@ describe('RunWorkflow', () => {
       expect(a.s.statuses.at(-1)).toMatchObject({ status: 'timed_out', session: null });
 
       const b = await live('done', over);
+      await waitFor(() => count(b.s, 'parkRun:done') === 2, 'park after the time limit');
+      await waitPhase(b.h, 'parked');
+      expect(count(b.s, 'deleteRunVolume')).toBe(0);
+      expect(b.s.parkClosed[1]).toBe('time_limit');
+      await b.h.signal(signals.dropSession);
       expect((await b.h.result()).status).toBe('succeeded');
-      expect(count(b.s, 'deleteRunVolume')).toBe(1);
     });
   });
 

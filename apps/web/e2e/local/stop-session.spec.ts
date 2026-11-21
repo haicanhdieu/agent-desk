@@ -476,7 +476,7 @@ test.describe('BR-24: Finish on a stopped run', () => {
     await expect(page.getByText(/^Succeeded in .+\.$/)).toBeVisible();
     await expect(page.getByText('Finished. The session was deleted and cannot be resumed.')).toBeVisible();
     await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Re-open session' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
   });
 
   test('TC-24.2 the finished run still shows the Transcript, Ended, read-only', async ({ page }) => {

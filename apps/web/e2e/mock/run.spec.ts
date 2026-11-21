@@ -236,8 +236,8 @@ test('a Resume that found nothing kept shows why and leaves the run succeeded', 
   await page.goto(runUrl(RESUME_FAILED_RUN));
   await expect(page.getByRole('banner').getByText('Succeeded', { exact: true })).toBeVisible();
   await expect(page.getByText('Resume failed: nothing was kept to resume from')).toBeVisible();
-  // Nothing is kept, so there is nothing to re-open.
-  await expect(page.getByRole('button', { name: 'Re-open session' })).toHaveCount(0);
+  // Nothing is kept, so Reopen session is disabled.
+  await expect(page.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
   await expect(page.getByRole('button', { name: 'Resume' })).toHaveCount(0);
 });
 

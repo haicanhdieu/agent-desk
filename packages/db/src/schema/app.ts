@@ -266,6 +266,8 @@ export const runs = pgTable(
     sessionExpiresAt: ts('session_expires_at'),
     /** When the live session is scheduled to end. Null when none is. */
     sessionEndingAt: ts('session_ending_at'),
+    /** When a person reopened this succeeded run's kept session; null while it is not reopened. The result stays `succeeded`. */
+    reopenedAt: ts('reopened_at'),
     /** Why the run is paused: 'idle_timeout', 'pod_lost', 'agent_crashed' or 'stopped'. Null otherwise. */
     pauseReason: text('pause_reason'),
     /** Issue refs a PR run was linked to when it was created (same repo, positive integers, at most 10); '{}' for issue runs and runs from before links. */

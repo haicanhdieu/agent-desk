@@ -495,6 +495,44 @@ describe('resume, paused and kept sessions', () => {
     expect(t.temporal.callsOfKind('update')).toHaveLength(1);
   });
 
+  describe('a reopened session of a succeeded run (ADR 0032)', () => {
+    const reopened = (over: Partial<typeof runs.$inferInsert> = {}) =>
+      insertRun({ status: 'done', workflowId: 'run-x', reopenedAt: new Date(), ...over });
+
+    it.each(['cancel', 'stop', 'finish', 'resume'] as const)('%s is 409 and sends nothing', async (control) => {
+      const agentId = await agentWithCredential(true);
+      const run = await reopened({ agentId, sessionEndingAt: new Date(), sessionExpiresAt: later() });
+      t.temporal.reset();
+      expect((await post(`/api/runs/${run.id}/${control}`)).statusCode).toBe(409);
+      expect(t.temporal.calls).toHaveLength(0);
+      expect(((await get(`/api/runs/${run.id}`)).json() as RunDto).status).toBe('done');
+    });
+
+    it('close-session sends the close update and is 202', async () => {
+      const run = await reopened();
+      t.temporal.reset();
+      const res = await post(`/api/runs/${run.id}/close-session`);
+      expect(res.statusCode).toBe(202);
+      expectContract('runs.closeSession', res);
+      expect(t.temporal.callsOfKind('update')).toMatchObject([
+        { workflowId: `run-${run.id}`, args: [UPDATE.finishRun] },
+      ]);
+    });
+
+    it('close-session on a run that is not reopened is 409 and sends nothing', async () => {
+      const run = await insertRun({ status: 'running', workflowId: 'run-x' });
+      t.temporal.reset();
+      expect((await post(`/api/runs/${run.id}/close-session`)).statusCode).toBe(409);
+      expect(t.temporal.calls).toHaveLength(0);
+    });
+
+    it('the run dto says the session is reopened', async () => {
+      const run = await reopened();
+      const dto = expectContract('runs.get', await get(`/api/runs/${run.id}`)) as RunDto;
+      expect(dto.reopenedAt).not.toBeNull();
+    });
+  });
+
   it.each([
     ['an idle run whose session is ending', { status: 'idle' }],
     ['a running run whose session is ending', { status: 'running' }],

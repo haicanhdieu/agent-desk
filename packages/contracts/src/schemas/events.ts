@@ -18,6 +18,7 @@ export const RunStatusEvent = z.object({
   sessionExpiresAt: Timestamp.nullable(),
   sessionEndingAt: Timestamp.nullable(),
   pauseReason: PauseReason.nullable(),
+  reopenedAt: Timestamp.nullable(),
 });
 export type RunStatusEvent = z.infer<typeof RunStatusEvent>;
 

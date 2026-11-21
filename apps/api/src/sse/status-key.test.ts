@@ -15,6 +15,7 @@ const base: RunStatusEvent = {
   sessionExpiresAt: null,
   sessionEndingAt: null,
   pauseReason: null,
+  reopenedAt: null,
 };
 
 describe('statusFrameKey', () => {
@@ -25,6 +26,7 @@ describe('statusFrameKey', () => {
   it.each([
     ['sessionEndingAt (the pausing state starts)', { sessionEndingAt: '2026-11-16T10:00:00.000Z' }],
     ['pauseReason', { pauseReason: 'idle_timeout' }],
+    ['reopenedAt', { reopenedAt: '2026-11-21T09:00:00.000Z' }],
     ['status', { status: 'paused' }],
     ['seq', { seq: 6 }],
     ['exitCode', { exitCode: 1 }],

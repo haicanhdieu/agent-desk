@@ -99,6 +99,7 @@ function fromSummary(r: RunSummary): MockRun {
     sessionExpiresAt: null,
     sessionEndingAt: null,
     pauseReason: null,
+    reopenedAt: null,
   };
 }
 
@@ -144,6 +145,7 @@ const ended = (
   sessionExpiresAt: null,
   sessionEndingAt: null,
   pauseReason: null,
+  reopenedAt: null,
 });
 
 /** Run 52 ran the custom prompt rule /triage: no skill, the prompt and the final prompt as recorded. */

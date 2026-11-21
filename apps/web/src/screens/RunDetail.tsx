@@ -23,7 +23,7 @@ export interface RunDetailProps {
   onFinish?(): void;
   /** Resume a paused run, or re-open a succeeded run whose session is kept. */
   onResume?(): void;
-  /** A resume request is in flight: Resume, Re-open session and Finish wait. */
+  /** A resume request is in flight: Resume, Reopen session and Finish wait. */
   resuming?: boolean;
   onReconnect?(): void;
   onTogglePanel?(): void;
@@ -55,6 +55,10 @@ export interface RunDetailProps {
   onStop?(): void;
   /** A stop request is in flight: the action buttons wait. */
   stopping?: boolean;
+  /** Closes a reopened session (the only action while `data.reopened`). */
+  onCloseSession?(): void;
+  /** A close request is in flight: the action buttons wait. */
+  closing?: boolean;
 }
 
 export interface RunDetailLinks {
@@ -72,6 +76,8 @@ const FINISHABLE = ['idle', 'done'];
 /** Mirrors the contracts' STOPPABLE_RUN_STATUSES (screens do not import contracts). */
 const STOPPABLE = ['running', 'idle', 'done'];
 const STOP_ENDING_HINT = 'The session is already ending';
+const CLOSE_ENDING_HINT = 'The session is already ending';
+const CLOSE_STARTING_HINT = 'The session is still starting';
 const FINISH_HINT = 'Finish is available when the agent is waiting for you';
 
 export function RunDetail({
@@ -105,6 +111,8 @@ export function RunDetail({
   onStopClose,
   onStop,
   stopping,
+  onCloseSession,
+  closing,
 }: RunDetailProps) {
   const { run } = data;
   const t = run.ticket;
@@ -113,11 +121,23 @@ export function RunDetail({
   // A paused run's buttons (Resume, Finish) are in the notice above the terminal, so the top bar only links out.
   const parked = run.status === 'paused';
   const stoppable = STOPPABLE.includes(run.status);
-  const busy = pendingNote !== undefined || resuming === true || stopping === true;
+  const busy = pendingNote !== undefined || resuming === true || stopping === true || closing === true;
+  // A reopened session of a succeeded run: its result is fixed, so Finish, Stop and Cancel are gone (ADR 0032).
+  const reopened = data.reopened === true;
+  const starting = run.status === 'queued' || run.status === 'starting';
 
   const actions = (
     <>
-      {ended || parked ? (
+      {reopened ? (
+        <Button
+          icon="check"
+          disabled={data.pausing === true || starting || busy}
+          title={data.pausing ? CLOSE_ENDING_HINT : starting ? CLOSE_STARTING_HINT : undefined}
+          onClick={onCloseSession}
+        >
+          Close session
+        </Button>
+      ) : ended || parked ? (
         <Button icon="external" href={t.href} target="_blank" rel="noopener noreferrer">
           {t.kind === 'pr' ? 'View PR' : 'View issue'}
         </Button>
@@ -180,9 +200,15 @@ export function RunDetail({
           ]}
           actions={actions}
         >
-          <StatusBadge status={run.status} variant="pill">
-            {data.failureStage === 'setup' ? 'Setup failed' : undefined}
-          </StatusBadge>
+          {reopened ? (
+            <StatusBadge status="succeeded" variant="pill">
+              Succeeded · Session open
+            </StatusBadge>
+          ) : (
+            <StatusBadge status={run.status} variant="pill">
+              {data.failureStage === 'setup' ? 'Setup failed' : undefined}
+            </StatusBadge>
+          )}
           <span>
             <CommandChip>{run.command}</CommandChip> on <TicketRef kind={t.kind} number={t.number} />
           </span>

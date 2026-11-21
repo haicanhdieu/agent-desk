@@ -17,13 +17,21 @@ const ENDING_RUN_STATUSES = ['idle', 'running', 'done'] as const satisfies reado
  * idle timer is ending the session (`sessionEndingAt` set): the workflow runs it right after the park.
  */
 export function canResume(
-  run: KeptSessionFields & { status: RunStatus; sessionEndingAt: string | null },
+  run: KeptSessionFields & { status: RunStatus; sessionEndingAt: string | null; reopenedAt?: string | null },
   now: Date,
 ): boolean {
+  // A session that is already reopened is live (or coming up): it is closed, not resumed.
+  if (run.reopenedAt !== undefined && run.reopenedAt !== null) return false;
   if (run.status === 'paused') return true;
   if (run.status === 'succeeded') return hasKeptSession(run, now);
   return run.sessionEndingAt !== null && (ENDING_RUN_STATUSES as readonly RunStatus[]).includes(run.status);
 }
+
+/**
+ * Once a run succeeds its result is fixed (ADR 0032). While a person has its session reopened, the only action is
+ * Close session: Finish, Stop and Cancel are refused.
+ */
+export const isReopened = (run: { reopenedAt: string | null }): boolean => run.reopenedAt !== null;
 
 /** Final and no kept session: the run can never change again. */
 export function isSettled(run: KeptSessionFields & { status: RunStatus }, now: Date): boolean {
