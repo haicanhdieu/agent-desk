@@ -1,8 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withOrg } from '@agentdesk/db';
+import { AUTH } from '../src/auth/auth';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, inviteAndLogin } from './helpers/auth';
+import { createOrg, grant, inviteAndLogin, revoke, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -137,6 +138,13 @@ describe('auth', () => {
     '/auth/sign-in/email/',
     '/auth/organization/create/',
     '/auth/Organization/Delete',
+    '/auth/organization/List-Members',
+    '/auth/organization/list-members/',
+    '/auth/organization/./get-full-organization',
+    '/auth/organization/%2e/get-full-organization',
+    '/auth//organization/list-members',
+    '/auth/organization//list-members',
+    '/auth/organization',
   ])('blocks %s after path normalization', async (url) => {
     const res = await t.app.inject({
       method: 'POST',
@@ -156,6 +164,56 @@ describe('auth', () => {
     });
     expect(res.statusCode).toBe(404);
     expect((await devLogin('auth-block')).statusCode).toBe(302);
+  });
+
+  it('a member with no assignment gets no member emails from the organization plugin read endpoints', async () => {
+    const { cookie: ownerCookie, orgId } = await ownerOfNewOrg('leak-owner');
+    const cookie = await inviteAndLogin(t, orgId, 'leak-locked', 'viewer', { type: 'org' });
+    const userId = await userIdOf(t, 'leak-locked');
+    await revoke(t, orgId, (await grant(t, orgId, userId, 'viewer', { type: 'org' })).id);
+    // The RBAC route refuses this user, so the plugin must not hand out what that route withholds.
+    expect(
+      (await t.app.inject({ method: 'GET', url: `/api/orgs/${orgId}/members`, headers: { cookie } })).statusCode,
+    ).toBe(403);
+    for (const url of [
+      `/auth/organization/list-members?organizationId=${orgId}`,
+      `/auth/organization/get-full-organization?organizationId=${orgId}`,
+    ]) {
+      const res = await t.app.inject({ method: 'GET', url, headers: { cookie } });
+      expect(res.body, url).not.toContain('@dev.local');
+      expect(res.statusCode, url).toBe(404);
+    }
+    // The owner is a member too, and the plugin answers it nothing either: the surface is closed for everyone.
+    const asOwner = await t.app.inject({
+      method: 'GET',
+      url: `/auth/organization/list-members?organizationId=${orgId}`,
+      headers: { cookie: ownerCookie },
+    });
+    expect(asOwner.statusCode).toBe(404);
+  });
+
+  it('answers only the organization plugin endpoints the web uses and 404 for every other one', async () => {
+    const { cookie } = await ownerOfNewOrg('plugin-surface');
+    const auth = t.app.get(AUTH, { strict: false });
+    const paths = Object.values(auth.api as Record<string, { path?: unknown }>)
+      .map((endpoint) => endpoint.path)
+      .filter((p): p is string => typeof p === 'string' && p.startsWith('/organization/'));
+    // Guards the enumeration itself: the plugin exposes dozens of endpoints, not zero.
+    expect(paths.length).toBeGreaterThan(20);
+    const answered: string[] = [];
+    for (const path of paths) {
+      for (const method of ['GET', 'POST'] as const) {
+        const res = await t.app.inject({
+          method,
+          url: `/auth${path}`,
+          headers: { cookie },
+          ...(method === 'POST' ? { payload: {} } : {}),
+        });
+        if (res.statusCode !== 404) answered.push(`${method} ${path}`);
+      }
+    }
+    // Deny by default: a new plugin endpoint is unreachable until it is added to the allow list in auth.ts.
+    expect(answered.sort()).toEqual(['GET /organization/list', 'POST /organization/set-active'].sort());
   });
 
   it('returns 403 when the active organization is not one the user belongs to', async () => {

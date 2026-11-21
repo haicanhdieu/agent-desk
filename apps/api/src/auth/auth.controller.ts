@@ -1,7 +1,7 @@
 import { All, Controller, Inject, NotFoundException, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CONFIG, type Config } from '../config/config.module';
-import { AUTH, DISABLED_PATHS, type Auth } from './auth';
+import { AUTH, isDisabledPath, type Auth } from './auth';
 
 const SKIPPED_RESPONSE_HEADERS = new Set(['set-cookie', 'content-length', 'content-encoding', 'transfer-encoding']);
 
@@ -17,9 +17,11 @@ export class AuthController {
   async handle(@Req() req: FastifyRequest, @Res() reply: FastifyReply): Promise<void> {
     // Check the normalized pathname (dot segments resolved), the same one better-auth routes on.
     const url = new URL(req.url, this.config.PUBLIC_ORIGIN);
-    const path = url.pathname.toLowerCase().replace(/\/+$/, '');
-    if (DISABLED_PATHS.some((p) => path === `/auth${p}` || path.startsWith(`/auth${p}/`)))
-      throw new NotFoundException('Not found');
+    const path = url.pathname
+      .toLowerCase()
+      .replace(/\/{2,}/g, '/')
+      .replace(/\/+$/, '');
+    if (isDisabledPath(path)) throw new NotFoundException('Not found');
 
     const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers)) {

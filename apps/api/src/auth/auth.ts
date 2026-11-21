@@ -40,6 +40,22 @@ export const DISABLED_PATHS = [
   '/organization/reject-invitation',
 ];
 
+/**
+ * Deny by default: the only organization plugin endpoints answered over HTTP, the two the web uses. The plugin's
+ * other endpoints (list-members, get-full-organization, ...) check only that a membership row exists and return
+ * member emails, bypassing the RBAC routes' permission checks. A new plugin endpoint stays unreachable until it is
+ * added here.
+ */
+export const ALLOWED_ORGANIZATION_PATHS = ['/organization/list', '/organization/set-active'];
+
+/** True when `pathname` (lowercased, trailing slashes removed, dot segments resolved) must answer 404 before better-auth sees it. */
+export function isDisabledPath(pathname: string): boolean {
+  if (DISABLED_PATHS.some((p) => pathname === `/auth${p}` || pathname.startsWith(`/auth${p}/`))) return true;
+  if (pathname === '/auth/organization' || pathname.startsWith('/auth/organization/'))
+    return !ALLOWED_ORGANIZATION_PATHS.some((p) => pathname === `/auth${p}`);
+  return false;
+}
+
 /** Dev-login accounts are not guessable from outside: the password is an HMAC of the email under the server secret. */
 export function devPassword(config: Pick<Config, 'BETTER_AUTH_SECRET'>, email: string): string {
   return createHmac('sha256', config.BETTER_AUTH_SECRET).update(`dev-login:${email}`).digest('hex');
