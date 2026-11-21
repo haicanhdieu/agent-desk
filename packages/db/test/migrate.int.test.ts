@@ -931,8 +931,10 @@ describe('role templates and run owner backfill on an upgraded database', () => 
            from generate_series(1, ${BULK_RUNS}) as n`,
           [orgId, proj.rows[0]?.id, `dev/${slug}#1`, externalAccount],
         );
-        // Owner-less runs with no linked account, as many as one batch, mixed by random id with the matching ones:
-        // the keyset must walk past them without skipping a matching run or stopping early.
+        // Owner-less runs with no linked account, as many as one batch, mixed by random id with the matching ones.
+        // They never enter the backfill's candidates, so they must stay owner-less. The keyset itself only avoids
+        // re-reading rows and cannot be told apart from the old loop by a result check; the bulk test below is what
+        // fails if `last_id` skips a matching run or the loop stops early.
         await client.query(
           `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
                              trigger_source, trigger_comment_id, command, triggered_by_external_id)
@@ -1057,7 +1059,7 @@ describe('role templates and run owner backfill on an upgraded database', () => 
     expect(rows).toEqual([{ owned: String(BULK_RUNS), total: String(BULK_RUNS) }]);
   });
 
-  it('the backfill leaves unmatched runs owner-less while it walks past them in id order', async () => {
+  it('the backfill leaves runs with no linked account owner-less', async () => {
     const rows = await query<{ owned: string; total: string }>(
       adminDbUrl,
       `select count(owner_user_id)::text as owned, count(*)::text as total
