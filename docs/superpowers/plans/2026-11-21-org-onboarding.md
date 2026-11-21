@@ -1775,6 +1775,6 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding` (`platformAdminNoOrg`, `ownerInvitationFailsOnce`, `noOrgUninvited`, `singleOrg`) (Task 17); the mock request log.
 
-- [ ] **Step 1: Write the spec**: TC-36.1 to TC-36.10 (BR-36); TC-39.1, TC-39.2 (BR-39: exactly one org create and two invitation creates in the request log); TC-37.3 (BR-37); TC-46.3 (BR-46).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/create-org.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the create-org form`.
+- [x] **Step 1: Write the spec**: TC-36.1 to TC-36.10 (BR-36); TC-39.1, TC-39.2 (BR-39: exactly one org create and two invitation creates in the request log); TC-37.3 (BR-37); TC-46.3 (BR-46).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/create-org.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the create-org form`.
