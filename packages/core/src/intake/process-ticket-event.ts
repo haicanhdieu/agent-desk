@@ -397,6 +397,10 @@ async function decideInTx(
       .where(
         and(
           eq(inboundEvents.projectId, projectId),
+          // A comment belongs to one ticket; these two predicates let the planner use the partial
+          // inbound_events_project_ticket_ref_ignored_idx instead of scanning the project's events.
+          eq(inboundEvents.ticketRef, event.ticketRef),
+          sql`starts_with(${inboundEvents.outcome}, 'ignored_')`,
           eq(inboundEvents.commentId, event.commentId),
           eq(inboundEvents.outcome, 'ignored_owner_unlinked'),
           ne(inboundEvents.id, inboundId),
