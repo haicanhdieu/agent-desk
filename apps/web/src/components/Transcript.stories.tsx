@@ -22,6 +22,7 @@ export const Long: Story = { args: { state: 'ready', items: transcriptFixtures.l
 export const Truncated: Story = { args: { state: 'ready', items: transcriptFixtures.truncated } };
 export const ToolSteps: Story = { args: { state: 'ready', items: transcriptFixtures.toolSteps } };
 export const Notices: Story = { args: { state: 'ready', items: transcriptFixtures.notices } };
+export const Markdown: Story = { args: { state: 'ready', items: transcriptFixtures.markdown } };
 export const Loading: Story = { args: { state: 'loading', items: [] } };
 export const Error: Story = { args: { state: 'error', items: [], requestId: '01JDK8Q3V2' } };
 export const ErrorNoRequestId: Story = { args: { state: 'error', items: [] } };

@@ -57,16 +57,69 @@ describe('Transcript', () => {
     expect(texts[2]).toBe('Transcript limit reached; later messages were not saved');
   });
 
-  it('markup and markdown render literally and whitespace is kept', () => {
-    const text = '<b>bold</b> <script>alert(1)</script>\n  # Heading\n\n- item';
+  it('renders Markdown in user and agent text: headings, emphasis, lists, links, tables, inline and fenced code', () => {
+    const md = [
+      '# Plan',
+      '',
+      'Some **bold** and `inline` text with a [link](https://example.com/x).',
+      '',
+      '- first',
+      '- second',
+      '',
+      '| a | b |',
+      '| - | - |',
+      '| 1 | 2 |',
+      '',
+      '```ts',
+      'const x = 1;',
+      '```',
+    ].join('\n');
+    const { container } = render(
+      <Transcript
+        state="ready"
+        items={[
+          item({ key: 'a', kind: 'agent', label: 'Claude', text: md }),
+          item({ key: 'b', kind: 'user', label: 'You', text: '## Ask\n\n1. one\n2. two' }),
+        ]}
+      />,
+    );
+    expect(screen.getByRole('heading', { name: 'Plan' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Ask' })).toBeInTheDocument();
+    expect(container.querySelector('strong')?.textContent).toBe('bold');
+    expect(container.querySelector('p code')?.textContent).toBe('inline');
+    const link = screen.getByRole('link', { name: 'link' });
+    expect(link).toHaveAttribute('href', 'https://example.com/x');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', expect.stringContaining('noopener'));
+    expect(container.querySelectorAll('ul li')).toHaveLength(2);
+    expect(container.querySelectorAll('ol li')).toHaveLength(2);
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'a' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '2' })).toBeInTheDocument();
+    expect(container.querySelector('pre')?.textContent).toContain('const x = 1;');
+    expect(container.textContent).not.toContain('**bold**');
+    expect(container.textContent).not.toContain('# Plan');
+  });
+
+  it('raw HTML in transcript text never becomes elements, and images are never fetched', () => {
+    const text = [
+      '<script>alert(1)</script>',
+      '<img src="https://evil.example/x.png" onerror="alert(1)">',
+      '<a href="javascript:alert(1)" onclick="alert(1)">raw</a>',
+      '',
+      '![pic](https://evil.example/y.png)',
+      '',
+      '[bad](javascript:alert(1))',
+    ].join('\n');
     const { container } = render(
       <Transcript state="ready" items={[item({ key: 'a', kind: 'agent', label: 'Claude', text })]} />,
     );
-    expect(container.querySelector('p b')).toBeNull();
     expect(container.querySelector('script')).toBeNull();
-    expect(screen.queryByRole('heading')).toBeNull();
-    const p = container.querySelector('p');
-    expect(p?.textContent).toBe(text);
+    expect(container.querySelector('img')).toBeNull();
+    expect(container.querySelector('[onerror], [onclick]')).toBeNull();
+    for (const a of Array.from(container.querySelectorAll('a'))) {
+      expect(a.getAttribute('href') ?? '').not.toMatch(/^\s*javascript:/i);
+    }
   });
 
   it('a truncated entry ends with … (cut)', () => {

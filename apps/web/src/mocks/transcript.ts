@@ -69,6 +69,30 @@ const defaultItems: TranscriptItem[] = [
   ...truncated,
 ];
 
+const markdownReply = [
+  '## Review summary',
+  '',
+  'The exporter now writes a **UTF-8 BOM**; see [the PR](https://example.com/pr/148) and `CsvInvoiceExporter`.',
+  '',
+  '- Excel opens the file cleanly',
+  '- Parsers that dislike a BOM must strip it',
+  '',
+  '| Check | Result |',
+  '| ----- | ------ |',
+  '| dotnet test | 133 passed |',
+  '| BOM bytes | EF BB BF |',
+  '',
+  '```csharp',
+  'using var writer = new StreamWriter(stream, new UTF8Encoding(true));',
+  '```',
+].join('\n');
+
+const markdown: TranscriptItem[] = [
+  msg('m0', 'user', 'Prompt', '14:01', 'Write the BOM and **list the checks** you ran.'),
+  msg('m1', 'agent', 'Claude', '14:13', markdownReply),
+  msg('m2', 'agent', 'Claude', '14:14', '<script>alert(1)</script> Raw HTML is dropped, not run.'),
+];
+
 const long: TranscriptItem[] = [
   ...Array.from({ length: 12 }, (_, i): TranscriptItem[] => [
     msg(`l${i}u`, 'user', 'You', '13:4' + (i % 10), `Question ${i + 1}: what does the exporter do with empty rows?`),
@@ -83,7 +107,8 @@ export const transcriptFixtures: {
   truncated: TranscriptItem[];
   toolSteps: TranscriptItem[];
   notices: TranscriptItem[];
-} = { default: defaultItems, long, truncated, toolSteps, notices };
+  markdown: TranscriptItem[];
+} = { default: defaultItems, long, truncated, toolSteps, notices, markdown };
 
 const row = (key: string, kind: TranscriptItem['kind'], over: Partial<TranscriptItem>): TranscriptItem => ({
   key,
