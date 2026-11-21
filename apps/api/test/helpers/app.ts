@@ -59,6 +59,8 @@ export interface TestAppOptions {
   kube?: KubeGateway;
   /** Replaces the HTTP GET the agent model list uses (default: the guarded transport). */
   agentHttp?: AgentHttpGet;
+  /** Uses this database instead of the shared one (e.g. one migrated up from an older schema); the caller stops it. */
+  pg?: TestPg;
   /** Logger for request/problem logging (default: silent); tests capture output through it. */
   logger?: Logger;
 }
@@ -93,7 +95,8 @@ async function releasePg(): Promise<void> {
 }
 
 export async function createTestApp(options: TestAppOptions = {}): Promise<TestApp> {
-  const pg = await acquirePg();
+  const own = options.pg === undefined;
+  const pg = options.pg ?? (await acquirePg());
   try {
     const config = parseConfig(
       validEnv({
@@ -143,11 +146,11 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
         if (closed) return;
         closed = true;
         await app.close();
-        await releasePg();
+        if (own) await releasePg();
       },
     };
   } catch (err) {
-    await releasePg();
+    if (own) await releasePg();
     throw err;
   }
 }

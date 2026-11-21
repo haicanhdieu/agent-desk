@@ -1592,12 +1592,12 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `startPgAt` (Task 6); `grant` helper (Task 21); the guard and terminal checks.
 - Produces: `TestAppOptions.pg?: TestPg` (use this database instead of the shared one).
 
-- [ ] **Step 1: Write the test:** `startPgAt('0021_agent_auto_resume_max')`; as the owner seed user alice (credential account for dev-login plus `account ('fake', '777')`), a personal org with alice as `owner` member, a fake connection, a project, a run with `triggered_by_external_id = '777'` and an active run with none; `migrateRest()`; `createTestApp({ pg })`; dev-login alice (existing user):
+- [x] **Step 1: Write the test:** `startPgAt('0021_agent_auto_resume_max')`; as the owner seed user alice (credential account for dev-login plus `account ('fake', '777')`), a personal org with alice as `owner` member, a fake connection, a project, a run with `triggered_by_external_id = '777'` and an active run with none; `migrateRest()`; `createTestApp({ pg })`; dev-login alice (existing user):
   - BR-32: `projects.list`, `runs.list`, `rules.list` → 403; the terminal of the active run → 4403.
   - `grant(…, alice, 'member', {type:'project', projectId})` → the project and both runs read back unchanged; the backfilled run's `ownerUserId` is alice.
   - BR-66: alice cancelling the ownerless run → 403 and its terminal → 4403; a second user granted `admin` on the project cancels it → accepted.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/upgrade.int.test.ts`. Expected: PASS after adding the `pg` option.
-- [ ] **Step 3: Commit** `test(api): upgrade from 0021 keeps data and denies until granted`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/upgrade.int.test.ts`. Expected: PASS after adding the `pg` option.
+- [x] **Step 3: Commit** `test(api): upgrade from 0021 keeps data and denies until granted`.
 
 ---
 
