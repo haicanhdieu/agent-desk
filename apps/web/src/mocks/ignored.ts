@@ -1,3 +1,4 @@
+import { PR_STATES } from '@/ds/tokens';
 import type { IgnoredCommand } from './types';
 
 // Prototype board: RunsProblems ("Ignored commands").
@@ -47,6 +48,28 @@ export const ignored: IgnoredCommand[] = [
     author: 'kim-hale',
     reason: 'No rule for command',
     detail: 'No enabled rule uses /deploy.',
+    href,
+  },
+];
+
+/** Ignored rows on PRs: one per live state, plus PR #174 whose state is unknown. */
+export const ignoredPrStates: IgnoredCommand[] = [
+  ...PR_STATES.map((prState, i): IgnoredCommand => ({
+    at: `10:0${i}`,
+    ticket: { kind: 'pr', number: 170 + i, prState },
+    command: '/code-review',
+    author: 'kim-hale',
+    reason: 'Already running',
+    detail: `Run 62 (code-review) is still active on PR #${170 + i}.`,
+    href,
+  })),
+  {
+    at: '10:04',
+    ticket: { kind: 'pr', number: 174 },
+    command: '/code-review',
+    author: 'kim-hale',
+    reason: 'Already running',
+    detail: 'Run 62 (code-review) is still active on PR #174.',
     href,
   },
 ];

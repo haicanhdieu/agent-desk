@@ -210,7 +210,8 @@ export function RunDetail({
             </StatusBadge>
           )}
           <span>
-            <CommandChip>{run.command}</CommandChip> on <TicketRef kind={t.kind} number={t.number} />
+            <CommandChip>{run.command}</CommandChip> on{' '}
+            <TicketRef kind={t.kind} number={t.number} prState={t.prState} />
           </span>
           <span className="num muted">{ended ? (run.duration ?? data.elapsed) : data.elapsed}</span>
           {busy && (

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { ignored } from '@/mocks';
+import { ignored, ignoredPrStates } from '@/mocks';
 import { DataTable } from './DataTable';
 import { IgnoredRow } from './IgnoredRow';
 
@@ -24,3 +24,15 @@ type Story = StoryObj<typeof meta>;
 
 export const NoAccess: Story = { args: { item: ignored[0] } };
 export const OnPullRequest: Story = { args: { item: ignored[1] } };
+
+/** Ignored rows on a PR: every live state, then an unknown one (neutral). */
+export const OnPullRequestStates: Story = {
+  args: { item: ignoredPrStates[0] },
+  render: () => (
+    <>
+      {ignoredPrStates.map((item) => (
+        <IgnoredRow key={item.ticket.number} item={item} />
+      ))}
+    </>
+  ),
+};

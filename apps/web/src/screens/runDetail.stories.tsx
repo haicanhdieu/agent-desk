@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { autoResumedTerminal, runDetails, terminalByRun, transcriptFixtures, transcriptStateFixtures } from '@/mocks';
+import {
+  autoResumedTerminal,
+  runDetailPrMerged,
+  runDetails,
+  terminalByRun,
+  transcriptFixtures,
+  transcriptStateFixtures,
+} from '@/mocks';
 import { RunDetail } from './RunDetail';
 import { RunTerminalArea, type RunTerminalAreaProps } from './RunTerminalArea';
 import styles from './Screens.module.css';
@@ -301,4 +308,16 @@ export const RunIdleActionPending: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
   args: { data: runDetails.RunIdle, lines: terminalByRun[62], needsYou: 1, pendingNote: 'Finishing…' },
+};
+
+/** RunIdle on a merged PR: top bar, Ticket card, chain step and Pull request section are purple. */
+export const RunPrMerged: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetailPrMerged, lines: terminalByRun[62], needsYou: 1 },
+};
+export const RunPrMergedCollapsed: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetailPrMerged, lines: terminalByRun[62], needsYou: 1, panelCollapsed: true },
 };

@@ -18,7 +18,7 @@ export function TicketGroupRow({ group, colSpan }: { group: TicketGroup; colSpan
     <tr className={styles.grp}>
       <td colSpan={colSpan}>
         <div className={styles.grpRow}>
-          <TicketRef kind={ticket.kind} number={ticket.number} href={ticket.href} />
+          <TicketRef kind={ticket.kind} number={ticket.number} href={ticket.href} prState={ticket.prState} />
           <b className={styles.grpTitle} title={ticket.title}>
             {ticket.title}
           </b>
@@ -73,7 +73,13 @@ export function RunRow({ run, tree, href, actions }: RunRowProps) {
         {run.statusNote && <div className={styles.note}>{run.statusNote}</div>}
       </td>
       <td>
-        <TicketRef kind={ticket.kind} number={ticket.number} short={ticket.kind === 'issue'} href={ticket.href} />
+        <TicketRef
+          kind={ticket.kind}
+          number={ticket.number}
+          short={ticket.kind === 'issue'}
+          href={ticket.href}
+          prState={ticket.prState}
+        />
         {/* Grouped runs already sit under a header that shows the title. */}
         {tree === 'none' && (
           <div className={styles.ticketTitle} title={ticket.title}>

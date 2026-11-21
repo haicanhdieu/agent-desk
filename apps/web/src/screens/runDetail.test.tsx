@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { runDetails, terminalByRun, transcriptFixtures } from '@/mocks';
+import { runDetailPrMerged, runDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
 import { RunDetail } from './RunDetail';
 
@@ -723,5 +723,29 @@ describe('RunDetail paused notice, automatic resume gave up', () => {
   it('without it the notice is unchanged', () => {
     render(<RunDetail data={stopped} needsYou={1} onResume={() => {}} />);
     expect(screen.queryByText(/Tried to resume automatically/)).not.toBeInTheDocument();
+  });
+});
+
+describe('PR state colours on Run detail', () => {
+  it('the top bar, Ticket card, chain step and Pull request section of a merged PR read "Merged"', () => {
+    render(<RunDetail data={runDetailPrMerged} lines={terminalByRun[62]} needsYou={1} />);
+    expect(screen.getAllByRole('img', { name: 'Merged' })).toHaveLength(4);
+  });
+
+  it('the collapsed rail names the state', () => {
+    render(<RunDetail data={runDetailPrMerged} lines={terminalByRun[62]} needsYou={1} panelCollapsed />);
+    const item = screen.getByRole('img', { name: 'Merged PR #148' });
+    expect(item.querySelector('svg')?.parentElement).toHaveClass('prMerged');
+  });
+
+  it('an issue run keeps the issue icon everywhere', () => {
+    show('RunRunning');
+    expect(screen.queryByRole('img', { name: /^(Open|Draft|Merged|Closed)$/ })).not.toBeInTheDocument();
+  });
+
+  it('an unknown PR keeps "PR #148" on the rail', () => {
+    render(<RunDetail data={runDetails.RunIdle} lines={terminalByRun[62]} needsYou={1} panelCollapsed />);
+    expect(screen.getByRole('img', { name: 'PR #148' })).toBeInTheDocument();
+    expect(screen.queryByRole('img', { name: 'Merged PR #148' })).not.toBeInTheDocument();
   });
 });

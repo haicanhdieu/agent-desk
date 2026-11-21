@@ -76,3 +76,26 @@ export const FailedWithReissue: Story = {
   },
 };
 export const Empty: Story = { args: { steps: [] } };
+
+export const OnPullRequest: Story = {
+  args: {
+    steps: [
+      {
+        runId: 60,
+        command: '/code-build',
+        ticket: issue,
+        note: 'Succeeded in 6m 12s, opened PR #148',
+        status: 'succeeded',
+        href: '#run-60',
+      },
+      {
+        runId: 62,
+        command: '/code-review',
+        ticket: { kind: 'pr', number: 148, prState: 'merged' },
+        note: 'This run, waiting for you',
+        status: 'idle',
+        here: true,
+      },
+    ],
+  },
+};

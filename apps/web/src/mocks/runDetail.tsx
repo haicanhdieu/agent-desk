@@ -1,4 +1,4 @@
-import { runsById } from './runs';
+import { runsById, tickets } from './runs';
 import type { RunDetailData, RunDetailKey } from './types';
 
 // Prototype boards: RunStarting, RunRunning, RunIdle, RunReconnect, RunSucceeded, RunFailed, RunTimedOut, RunCancelled.
@@ -567,5 +567,19 @@ export const runDetails: Record<RunDetailKey, RunDetailData> = {
       { at: '14:18:58', text: 'Session resumed' },
     ],
     time: { elapsed: '16:05', limit: '30 min', percent: 54 },
+  },
+};
+
+// RunIdle on a merged PR: the run ticket, the PR chain step and the Pull request section all carry the live state.
+const mergedPr = { ...tickets.pr148, prState: 'merged' } as const;
+export const runDetailPrMerged: RunDetailData = {
+  ...runDetailsBase.RunIdle,
+  run: { ...runsById[62], ticket: mergedPr },
+  chain: runDetailsBase.RunIdle.chain.map((c) =>
+    c.ticket?.kind === 'pr' ? { ...c, ticket: { ...c.ticket, prState: 'merged' as const } } : c,
+  ),
+  pullRequest: {
+    ticket: { kind: 'pr', number: 148, title: 'Export invoices as CSV', labels: [], href: GH, prState: 'merged' },
+    diffstat: '+214 −12',
   },
 };

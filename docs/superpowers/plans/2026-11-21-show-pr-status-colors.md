@@ -402,7 +402,7 @@ export type Ticket = { kind: TicketKind; number: number; title: string; labels: 
 
 - `storyIds.ts` `stateStories` gains `RunsPrStates` → board `Runs`, `RunsProblemsPrStates` → `RunsProblems`, and `RunPrMerged` and `RunPrMergedCollapsed` → `RunIdle` (see Agent calls).
 
-- [ ] **Step 1: Write the failing screen tests.**
+- [x] **Step 1: Write the failing screen tests.**
   - `runs.test.tsx`:
     - `every PR icon on the Runs screen shows its state`. With `prStateRuns` grouped, each row and each PR-led header has `img` "Open" / "Draft" / "Merged" / "Closed", and PR #174 has none.
     - `the banner's PR icon shows its state`: `OnMergedPr` data gives "Merged".
@@ -413,12 +413,12 @@ export type Ticket = { kind: TicketKind; number: number; title: string; labels: 
     - `the collapsed rail names the state`: `getByRole('img', { name: 'Merged PR #148' })`, and that item's svg has the `prMerged` wrapper;
     - `an issue run keeps the issue icon everywhere`;
     - `an unknown PR keeps "PR #148" on the rail`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test runs.test runDetail.test`. Expected: FAIL.
-- [ ] **Step 3: Implement** the view model fields, the pass-through, the rail and the fixtures. Run the same command. Expected: PASS.
-- [ ] **Step 4: Add the stories** in the table, and the four `stateStories` entries.
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS, including `coverage.test.ts` (no orphan screen story) and the smoke and axe test over every new story.
-- [ ] **Step 6: Visual check.** Run `pnpm --filter @agentdesk/web build-storybook`. Check by eye that each state has its colour and that the four tokens stand out on `--bg`, `--panel`, `--row-group` and the banner background. Do not commit `storybook-static/`.
-- [ ] **Step 7: Commit:** `feat(web): PR state colours on every PR icon in Storybook`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test runs.test runDetail.test`. Expected: FAIL.
+- [x] **Step 3: Implement** the view model fields, the pass-through, the rail and the fixtures. Run the same command. Expected: PASS.
+- [x] **Step 4: Add the stories** in the table, and the four `stateStories` entries.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS, including `coverage.test.ts` (no orphan screen story) and the smoke and axe test over every new story.
+- [x] **Step 6: Visual check.** Run `pnpm --filter @agentdesk/web build-storybook`. Check by eye that each state has its colour and that the four tokens stand out on `--bg`, `--panel`, `--row-group` and the banner background. Do not commit `storybook-static/`.
+- [x] **Step 7: Commit:** `feat(web): PR state colours on every PR icon in Storybook`.
 
 ---
 

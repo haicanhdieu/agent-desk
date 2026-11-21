@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { runs } from '@/mocks';
+import { prStateTickets, runs } from '@/mocks';
 import { NeedsYouBanner } from './NeedsYouBanner';
 
 const run62 = runs.find((r) => r.id === 62);
@@ -34,5 +34,13 @@ export const NoTicketLink: Story = {
   args: {
     ...Default.args,
     run: { ...run62, ticket: { ...run62.ticket, href: '' } },
+  },
+};
+
+/** The ticket is a merged PR: the PR glyph is purple, the text stays plain. */
+export const OnMergedPr: Story = {
+  args: {
+    ...Default.args,
+    run: { ...run62, ticket: prStateTickets.merged },
   },
 };
