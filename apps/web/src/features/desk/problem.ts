@@ -1,4 +1,5 @@
 import { ApiError } from '@agentdesk/contracts/client';
+import { ORG_SWITCHED_MESSAGE, isOrgMismatch } from '../auth/orgResync';
 
 export interface ProblemErrors {
   fields: Record<string, string>;
@@ -18,6 +19,7 @@ function fieldOf(pointer: string, map: Record<string, string>): string | undefin
  * not an ApiError become the form-level message.
  */
 export function fieldErrorsFromProblem(e: unknown, map: Record<string, string>): ProblemErrors {
+  if (isOrgMismatch(e)) return { fields: {}, form: ORG_SWITCHED_MESSAGE };
   if (!(e instanceof ApiError)) return { fields: {}, form: GENERIC_FORM_ERROR };
   const fields: Record<string, string> = {};
   const unmapped: string[] = [];

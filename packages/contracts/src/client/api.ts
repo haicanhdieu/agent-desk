@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ORG_HEADER, ORG_MISMATCH_PROBLEM_TYPE, ORG_QUERY_PARAM } from '../org-context';
 import { flattenRoutes, routes, type RouteDef, type Routes } from '../routes';
 import { ApiError, apiErrorFromResponse } from './error';
 
@@ -30,6 +31,19 @@ export interface ApiOptions {
   fetch?: typeof fetch;
   parse?: boolean;
   onUnauthorized?: () => void;
+  /** The org id every request is pinned to (sent as ORG_HEADER); none when it returns undefined. */
+  orgId?: () => string | undefined;
+  /** Awaited on a 409 org-mismatch before the ApiError is thrown. The request is never re-sent. */
+  onOrgMismatch?: () => Promise<void>;
+}
+
+/** True for the 409 problem the API answers when the request's org is not the session's active org. */
+export function isOrgMismatchError(e: unknown): boolean {
+  return (
+    e instanceof ApiError &&
+    e.status === 409 &&
+    (e.type === ORG_MISMATCH_PROBLEM_TYPE || e.type.endsWith(`:${ORG_MISMATCH_PROBLEM_TYPE}`))
+  );
 }
 
 type RouteKey = {
@@ -65,10 +79,12 @@ export function apiPath(routeKey: RouteKey, params?: Record<string, string | num
   return substitute(def.path, params);
 }
 
-export const sseRunPath = (runId: string, after?: string | number): string =>
-  `/api/runs/${encodeURIComponent(runId)}/events${after === undefined ? '' : serializeQuery({ after })}`;
-export const sseProjectPath = (projectId: string): string => `/api/projects/${encodeURIComponent(projectId)}/events`;
-export const terminalPath = (runId: string): string => `/api/runs/${encodeURIComponent(runId)}/terminal`;
+export const sseRunPath = (runId: string, after?: string | number, orgId?: string): string =>
+  `/api/runs/${encodeURIComponent(runId)}/events${serializeQuery({ after, [ORG_QUERY_PARAM]: orgId })}`;
+export const sseProjectPath = (projectId: string, orgId?: string): string =>
+  `/api/projects/${encodeURIComponent(projectId)}/events${serializeQuery({ [ORG_QUERY_PARAM]: orgId })}`;
+export const terminalPath = (runId: string, orgId?: string): string =>
+  `/api/runs/${encodeURIComponent(runId)}/terminal${serializeQuery({ [ORG_QUERY_PARAM]: orgId })}`;
 
 const InputShape = z
   .object({ params: z.record(z.string(), z.unknown()), query: z.unknown(), body: z.unknown() })
@@ -81,6 +97,8 @@ async function call(def: RouteDef, rawInput: unknown, opts: ApiOptions, doParse:
     input.query !== null && typeof input.query === 'object' ? input.query : undefined,
   )}`;
   const headers = new Headers({ Accept: 'application/json' });
+  const orgId = opts.orgId?.();
+  if (orgId !== undefined) headers.set(ORG_HEADER, orgId);
   const init: RequestInit = { method: def.method, credentials: 'same-origin', headers };
   if (input.body !== undefined) {
     headers.set('Content-Type', 'application/json');
@@ -102,6 +120,7 @@ async function call(def: RouteDef, rawInput: unknown, opts: ApiOptions, doParse:
   if (!res.ok) {
     const err = await apiErrorFromResponse(res);
     if (res.status === 401) opts.onUnauthorized?.();
+    if (isOrgMismatchError(err)) await opts.onOrgMismatch?.();
     throw err;
   }
   if (res.status === 204) return null;

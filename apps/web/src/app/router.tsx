@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query';
 import { createRouter, type AnyRoute, type RouterHistory } from '@tanstack/react-router';
+import { registerOrgResyncTarget } from '@/features/auth/orgResync';
 import { registerSignOutTarget } from '@/features/auth/signOut';
 import { NotFound, RouteError, RoutePending } from './boundaries';
 import { routeTree } from './routeTree.gen';
@@ -34,6 +35,7 @@ export function createAppRouter(opts: CreateAppRouterOptions) {
   const router = createRouter({ routeTree, ...routerDefaults(opts), scrollRestoration: true });
   // A 401 anywhere signs out through this router and clears this QueryClient.
   registerSignOutTarget({ router, queryClient: opts.queryClient });
+  registerOrgResyncTarget({ router, queryClient: opts.queryClient });
   return router;
 }
 
@@ -43,6 +45,7 @@ export type AppRouter = ReturnType<typeof createAppRouter>;
 export function createRouterForTree(opts: CreateAppRouterOptions & { routeTree: AnyRoute }) {
   const router = createRouter({ routeTree: opts.routeTree, ...routerDefaults(opts) });
   registerSignOutTarget({ router, queryClient: opts.queryClient });
+  registerOrgResyncTarget({ router, queryClient: opts.queryClient });
   return router;
 }
 

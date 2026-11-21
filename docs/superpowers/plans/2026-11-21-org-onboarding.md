@@ -818,15 +818,15 @@ export function isOrgMismatch(e: unknown): boolean;
 
   `fieldErrorsFromProblem` and `toastFromError` return `ORG_SWITCHED_MESSAGE` for an org-mismatch error. EventSource and WebSocket URLs carry `orgId=urlOrgId()`; an SSE error and a WS close 4412 call `resyncOrg()` before the existing reconnect.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `api.test.ts` (contracts client): the header is sent when `orgId()` returns an id and absent when it returns undefined; a 409 `org-mismatch` calls `onOrgMismatch` once then rejects; any other 409 does not call it; the three path helpers append `orgId` (and keep `after`).
   - `orgResync.test.ts` (MSW answers 409 `org-mismatch` once, then normally; spec Testing BR-11): a read hits the handler twice and renders the data with `set-active` called once for the URL org; a write (rule update) hits it once, is not re-sent, and the form shows `ORG_SWITCHED_MESSAGE` with the input kept; a second 409 after the resync shows the normal error; Review Focus 2: `four reads failing with org-mismatch together send one set-active`.
   - `problem.test.ts`: an org-mismatch `ApiError` maps to `{ fields: {}, form: ORG_SWITCHED_MESSAGE }`.
   - `useTerminal.test.tsx`: a close 4412 calls `resyncOrg` and reconnects with the URL org's `orgId`; the connect URL carries `orgId`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/client/api.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/features/auth/orgResync.test.ts src/features/desk/problem.test.ts src/features/runs/useTerminal.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the client options and paths, `orgResync.ts` (single in-flight promise, next to the 401 handler pattern in `signOut.ts`), registration in `createAppRouter` and `createRouterForTree`, the app client wiring in `features/api.ts`, the two error mappers and the stream URLs.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/client/api.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/features/auth/orgResync.test.ts src/features/desk/problem.test.ts src/features/runs/useTerminal.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the client options and paths, `orgResync.ts` (single in-flight promise, next to the 401 handler pattern in `signOut.ts`), registration in `createAppRouter` and `createRouterForTree`, the app client wiring in `features/api.ts`, the two error mappers and the stream URLs.
 - [ ] **Step 4: Run** the Step 2 commands and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): send the URL org on every request and resync when it changed`.
+- [x] **Step 5: Commit** `feat(web): send the URL org on every request and resync when it changed`.
 
 ---
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { ApiError, apiPath, createApi, sseProjectPath, sseRunPath, terminalPath } from './index';
+import { ORG_HEADER } from '../org-context';
+import { ApiError, apiPath, createApi, isOrgMismatchError, sseProjectPath, sseRunPath, terminalPath } from './index';
 
 const P = '11111111-1111-4111-8111-111111111111';
 const R = '22222222-2222-4222-8222-222222222222';
@@ -141,5 +142,72 @@ describe('paths', () => {
     expect(sseRunPath(R, 12)).toBe(`/api/runs/${R}/events?after=12`);
     expect(sseProjectPath(P)).toBe(`/api/projects/${P}/events`);
     expect(terminalPath(R)).toBe(`/api/runs/${R}/terminal`);
+  });
+});
+
+describe('org pinning', () => {
+  const mismatch = () =>
+    new Response(JSON.stringify({ type: 'org-mismatch', title: 'Conflict', status: 409 }), {
+      status: 409,
+      headers: { 'content-type': 'application/problem+json' },
+    });
+
+  it('sends the org header when orgId() returns an id', async () => {
+    const f = mockFetch(json({ items: [], page: 1, pageSize: 20, total: 0 }));
+    const api = createApi({ fetch: f, orgId: () => 'org-1' });
+    await api.projects.list();
+    expect(new Headers(f.mock.calls[0]?.[1]?.headers).get(ORG_HEADER)).toBe('org-1');
+  });
+
+  it('sends no org header when orgId() returns undefined', async () => {
+    const f = mockFetch(json({ items: [], page: 1, pageSize: 20, total: 0 }));
+    const api = createApi({ fetch: f, orgId: () => undefined });
+    await api.projects.list();
+    expect(new Headers(f.mock.calls[0]?.[1]?.headers).has(ORG_HEADER)).toBe(false);
+  });
+
+  it('a 409 org-mismatch awaits onOrgMismatch once, then rejects with the ApiError', async () => {
+    const order: string[] = [];
+    const onOrgMismatch = vi.fn(async () => {
+      await Promise.resolve();
+      order.push('resync');
+    });
+    const api = createApi({ fetch: mockFetch(mismatch()), onOrgMismatch });
+    await api.projects.list().catch((e: unknown) => {
+      order.push('rejected');
+      expect(e).toBeInstanceOf(ApiError);
+      expect(isOrgMismatchError(e)).toBe(true);
+    });
+    expect(onOrgMismatch).toHaveBeenCalledTimes(1);
+    expect(order).toEqual(['resync', 'rejected']);
+  });
+
+  it('also recognises the urn-prefixed problem type', async () => {
+    const res = new Response(
+      JSON.stringify({ type: 'urn:agentdesk:problem:org-mismatch', title: 'Conflict', status: 409 }),
+      { status: 409, headers: { 'content-type': 'application/problem+json' } },
+    );
+    const onOrgMismatch = vi.fn(async () => {});
+    const api = createApi({ fetch: mockFetch(res), onOrgMismatch });
+    await expect(api.projects.list()).rejects.toBeInstanceOf(ApiError);
+    expect(onOrgMismatch).toHaveBeenCalledTimes(1);
+  });
+
+  it('any other 409 does not call onOrgMismatch', async () => {
+    const res = new Response(JSON.stringify({ type: 'about:blank', title: 'Conflict', status: 409 }), {
+      status: 409,
+      headers: { 'content-type': 'application/problem+json' },
+    });
+    const onOrgMismatch = vi.fn(async () => {});
+    const api = createApi({ fetch: mockFetch(res), onOrgMismatch });
+    await expect(api.projects.list()).rejects.toBeInstanceOf(ApiError);
+    expect(onOrgMismatch).not.toHaveBeenCalled();
+  });
+
+  it('stream paths append orgId and keep after', () => {
+    expect(sseRunPath(R, 12, 'o1')).toBe(`/api/runs/${R}/events?after=12&orgId=o1`);
+    expect(sseRunPath(R, undefined, 'o1')).toBe(`/api/runs/${R}/events?orgId=o1`);
+    expect(sseProjectPath(P, 'o1')).toBe(`/api/projects/${P}/events?orgId=o1`);
+    expect(terminalPath(R, 'o1')).toBe(`/api/runs/${R}/terminal?orgId=o1`);
   });
 });
