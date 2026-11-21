@@ -10,14 +10,20 @@ import { resetSignOutGuard } from './signOut';
 const GetSessionResponse = z
   .object({
     session: z.object({ activeOrganizationId: z.string().nullish() }),
-    user: z.object({ id: z.string(), name: z.string(), handle: z.string(), image: z.string().nullish() }),
+    user: z.object({
+      id: z.string(),
+      name: z.string(),
+      email: z.string(),
+      handle: z.string(),
+      image: z.string().nullish(),
+    }),
   })
   .nullable();
 
 const OrganizationList = z.array(z.object({ id: z.string(), slug: z.string(), name: z.string() }));
 
 export interface Session {
-  user: { id: string; name: string; handle: string; image: string | null };
+  user: { id: string; name: string; email: string; handle: string; image: string | null };
   activeOrganizationId: string | null;
 }
 
@@ -29,7 +35,7 @@ async function fetchSession(): Promise<Session | null> {
   resetSignOutGuard();
   const { user, session } = data;
   return {
-    user: { id: user.id, name: user.name, handle: user.handle, image: user.image ?? null },
+    user: { id: user.id, name: user.name, email: user.email, handle: user.handle, image: user.image ?? null },
     activeOrganizationId: session.activeOrganizationId ?? null,
   };
 }

@@ -96,9 +96,9 @@ describe('app shell', () => {
     spy.mockRestore();
   });
 
-  it('renders the index route for a user without an organization', async () => {
+  it('sends a user without an organization to the welcome page', async () => {
     await renderRoute('/', { scenario: () => (mockDb.state.memberships = []) });
-    expect(await screen.findByRole('heading', { name: 'Agent Desk' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: "You're not a member of any organization" })).toBeInTheDocument();
   });
 });
 
