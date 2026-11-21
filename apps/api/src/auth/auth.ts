@@ -5,6 +5,7 @@ import { organization as organizationPlugin } from 'better-auth/plugins';
 import { asc, eq, sql } from 'drizzle-orm';
 import { account, invitation, member, organization, session, user, verification, type Db } from '@agentdesk/db';
 import type { Config } from '../config/config.schema';
+import { devSignUp } from './dev-signup';
 import { createWithUniqueSlug } from './unique-slug';
 
 export const AUTH = Symbol('AUTH');
@@ -106,7 +107,7 @@ export function createAuth(config: Config, db: Db) {
           before: async (u) => {
             const handle =
               'handle' in u && typeof u.handle === 'string' && u.handle !== '' ? u.handle : handleFromEmail(u.email);
-            return { data: { ...u, handle } };
+            return { data: devSignUp.getStore() === true ? { ...u, handle, emailVerified: true } : { ...u, handle } };
           },
           after: async (u) => {
             const row = await orm.select({ handle: user.handle }).from(user).where(eq(user.id, u.id)).limit(1);

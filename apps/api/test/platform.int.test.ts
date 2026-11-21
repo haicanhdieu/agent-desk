@@ -1,0 +1,260 @@
+import { randomUUID } from 'node:crypto';
+import type { QueryResultRow } from 'pg';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { CreateOrgResponse, Page, PlatformOrgDto, PlatformProjectDto, RoleDto } from '@agentdesk/contracts';
+import { connections, projects, withOrg } from '@agentdesk/db';
+import { FORBIDDEN_DETAIL } from '../src/access/authorize';
+import { createTestApp, type TestApp } from './helpers/app';
+import { asPlatformAdmin, createOrg, loginAs } from './helpers/auth';
+import { expectContract } from './helpers/contract';
+
+let t: TestApp;
+let admin: string;
+
+beforeAll(async () => {
+  t = await createTestApp();
+  admin = await asPlatformAdmin(t);
+});
+afterAll(async () => {
+  await t.close();
+});
+
+/** One statement as the app role inside the org's RLS scope. */
+async function asOrg(orgId: string, text: string, params: unknown[] = []): Promise<{ rows: QueryResultRow[] }> {
+  const client = await t.db.pool.connect();
+  try {
+    await client.query('begin');
+    await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+    const res = await client.query(text, params);
+    await client.query('commit');
+    return res;
+  } catch (err) {
+    await client.query('rollback');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function post(payload: unknown, cookie: string = admin) {
+  return t.app.inject({ method: 'POST', url: '/api/platform/orgs', headers: { cookie }, payload: payload as object });
+}
+
+async function seedProject(orgId: string, name: string): Promise<string> {
+  return withOrg(t.db, orgId, async (tx) => {
+    const [conn] = await tx
+      .insert(connections)
+      .values({
+        orgId,
+        provider: 'fake',
+        capabilities: { code: true, board: true },
+        externalId: randomUUID(),
+        accountName: 'dev',
+      })
+      .returning({ id: connections.id });
+    const [project] = await tx
+      .insert(projects)
+      .values({
+        orgId,
+        name,
+        repoPath: `dev/${name.toLowerCase()}`,
+        codeConnectionId: conn?.id ?? '',
+        boardConnectionId: conn?.id ?? '',
+      })
+      .returning({ id: projects.id });
+    return project?.id ?? '';
+  });
+}
+
+describe('platform org creation', () => {
+  it('creates the org with its built-in roles, no members and an audit entry', async () => {
+    const res = await post({ name: 'Acme', slug: 'acme' });
+    expect(res.statusCode).toBe(201);
+    const created = expectContract('platform.createOrg', res) as CreateOrgResponse;
+    expect(created).toEqual({ id: created.id, name: 'Acme', slug: 'acme' });
+
+    const rolesRes = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${created.id}/roles`,
+      headers: { cookie: admin },
+    });
+    const roles = expectContract('platform.listRoles', rolesRes) as RoleDto[];
+    expect(roles.map((r) => r.key).sort()).toEqual(['admin', 'member', 'owner', 'viewer']);
+    expect(roles.every((r) => r.builtIn)).toBe(true);
+    const owner = roles.find((r) => r.key === 'owner');
+    expect(owner?.assignableScopes).toEqual(['org']);
+    expect(owner?.permissions).toHaveLength(33);
+    const member = roles.find((r) => r.key === 'member');
+    expect(member?.permissions).toContainEqual({ permission: 'run:cancel', condition: 'own' });
+    expect(member?.permissions).toContainEqual({ permission: 'run:read', condition: 'any' });
+    for (const r of roles) expect(r.permissions.some((p) => p.permission.startsWith('platform-'))).toBe(false);
+
+    const members = await t.db.pool.query('select count(*)::int as n from member where organization_id = $1', [
+      created.id,
+    ]);
+    expect(members.rows[0]?.n).toBe(0);
+
+    const adminId = (await t.db.pool.query('select id from "user" where email = $1', ['admin@dev.local'])).rows[0]?.id;
+    const audit = await asOrg(created.id, "select * from audit_log where action = 'org.created'");
+    expect(audit.rows).toHaveLength(1);
+    expect(audit.rows[0]).toMatchObject({
+      actor_user_id: adminId,
+      target_type: 'org',
+      target_id: created.id,
+      payload: { name: 'Acme', slug: 'acme', actorKind: 'platform_admin' },
+    });
+  });
+
+  it('a taken slug is 409 with a /slug pointer', async () => {
+    await createOrg(t, 'Taken', 'taken-slug');
+    const res = await post({ name: 'Other', slug: 'taken-slug' });
+    expect(res.statusCode).toBe(409);
+    expect((res.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/slug');
+  });
+
+  it('concurrent creates with one slug give 201 and 409', async () => {
+    const results = await Promise.all([
+      post({ name: 'Race A', slug: 'race-slug' }),
+      post({ name: 'Race B', slug: 'race-slug' }),
+    ]);
+    expect(results.map((r) => r.statusCode).sort()).toEqual([201, 409]);
+    const loser = results.find((r) => r.statusCode === 409);
+    expect((loser?.json() as { errors: { pointer: string }[] }).errors[0]?.pointer).toBe('/slug');
+    const count = await t.db.pool.query("select count(*)::int as n from organization where slug = 'race-slug'");
+    expect(count.rows[0]?.n).toBe(1);
+  });
+
+  it('stores an edited slug as sent', async () => {
+    const created = await createOrg(t, 'Acme Corp', 'acme-eu-7');
+    expect(created.slug).toBe('acme-eu-7');
+    expect(created.name).toBe('Acme Corp');
+  });
+
+  it.each([
+    ['a missing name', { slug: 'ok-slug' }, '/name'],
+    ['a missing slug', { name: 'Ok' }, '/slug'],
+    ['a 101-character name', { name: 'n'.repeat(101), slug: 'ok-slug' }, '/name'],
+    ['a slug with capitals and an underscore', { name: 'Ok', slug: 'Bad_Slug' }, '/slug'],
+  ])('rejects %s with a 400 and a pointer', async (_label, payload, pointer) => {
+    const res = await post(payload);
+    expect(res.statusCode).toBe(400);
+    const pointers = (res.json() as { errors: { pointer: string }[] }).errors.map((e) => e.pointer);
+    expect(pointers).toContain(pointer);
+  });
+
+  it('refuses a caller who is not a platform admin, creating nothing', async () => {
+    const alice = await loginAs(t, 'alice');
+    const res = await post({ name: 'Nope', slug: 'nope-org' }, alice);
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as { detail: string }).detail).toBe(FORBIDDEN_DETAIL);
+    const count = await t.db.pool.query("select count(*)::int as n from organization where slug = 'nope-org'");
+    expect(count.rows[0]?.n).toBe(0);
+  });
+
+  it('answers 401 without a session', async () => {
+    const res = await t.app.inject({ method: 'POST', url: '/api/platform/orgs', payload: { name: 'x', slug: 'x' } });
+    expect(res.statusCode).toBe(401);
+  });
+});
+
+describe('platform org and project lists', () => {
+  it('lists orgs with exactly the documented keys, newest first', async () => {
+    const first = await createOrg(t, 'List One', 'list-one');
+    const second = await createOrg(t, 'List Two', 'list-two');
+    const res = await t.app.inject({
+      method: 'GET',
+      url: '/api/platform/orgs?pageSize=100',
+      headers: { cookie: admin },
+    });
+    const page = expectContract('platform.listOrgs', res) as Page<PlatformOrgDto>;
+    for (const item of page.items) {
+      expect(Object.keys(item).sort()).toEqual(['createdAt', 'id', 'memberCount', 'name', 'slug']);
+    }
+    const ids = page.items.map((i) => i.id);
+    expect(ids.indexOf(second.id)).toBeLessThan(ids.indexOf(first.id));
+    expect(page.items.find((i) => i.id === first.id)?.memberCount).toBe(0);
+    expect(page.total).toBe(ids.length);
+  });
+
+  it('counts an org member', async () => {
+    const org = await createOrg(t, 'Counted', 'counted-org');
+    const userId = (await t.db.pool.query('select id from "user" where email = $1', ['admin@dev.local'])).rows[0]?.id;
+    await t.db.pool.query(
+      'insert into member (id, organization_id, user_id, role, created_at) values ($1,$2,$3,$4,now())',
+      [randomUUID(), org.id, userId, 'member'],
+    );
+    const res = await t.app.inject({
+      method: 'GET',
+      url: '/api/platform/orgs?pageSize=100',
+      headers: { cookie: admin },
+    });
+    const page = expectContract('platform.listOrgs', res) as Page<PlatformOrgDto>;
+    expect(page.items.find((i) => i.id === org.id)?.memberCount).toBe(1);
+  });
+
+  it('lists only the target org projects as ids and names', async () => {
+    const a = await createOrg(t, 'Proj A', 'proj-a');
+    const b = await createOrg(t, 'Proj B', 'proj-b');
+    const pa = await seedProject(a.id, 'Alpha');
+    await seedProject(b.id, 'Beta');
+    const res = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${a.id}/projects`,
+      headers: { cookie: admin },
+    });
+    const page = expectContract('platform.listProjects', res) as Page<PlatformProjectDto>;
+    expect(page.items).toEqual([{ id: pa, name: 'Alpha' }]);
+    expect(page.total).toBe(1);
+  });
+
+  it('answers 404 for an unknown org on projects and roles', async () => {
+    const unknown = randomUUID();
+    for (const leaf of ['projects', 'roles']) {
+      const res = await t.app.inject({
+        method: 'GET',
+        url: `/api/platform/orgs/${unknown}/${leaf}`,
+        headers: { cookie: admin },
+      });
+      expect(res.statusCode, leaf).toBe(404);
+    }
+  });
+
+  it('refuses a non-platform user on the lists', async () => {
+    const alice = await loginAs(t, 'alice');
+    const org = await createOrg(t, 'Guarded', 'guarded-org');
+    for (const url of [
+      '/api/platform/orgs',
+      `/api/platform/orgs/${org.id}/projects`,
+      `/api/platform/orgs/${org.id}/roles`,
+    ]) {
+      const res = await t.app.inject({ method: 'GET', url, headers: { cookie: alice } });
+      expect(res.statusCode, url).toBe(403);
+    }
+  });
+});
+
+describe('platform admin from config', () => {
+  it('removing the email from config makes the same session a 403 on the next call', async () => {
+    const strict = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: '' } });
+    try {
+      const res = await strict.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie: admin } });
+      expect(res.statusCode).toBe(403);
+      expect((res.json() as { detail: string }).detail).toBe(FORBIDDEN_DETAIL);
+    } finally {
+      await strict.close();
+    }
+  });
+
+  it('dev-login of admin leaves the user email verified', async () => {
+    const rows = await t.db.pool.query('select email_verified from "user" where email = $1', ['admin@dev.local']);
+    expect(rows.rows[0]?.email_verified).toBe(true);
+  });
+
+  it('dev-login marks a user that was created unverified as verified on its next login', async () => {
+    await loginAs(t, 'carol');
+    await t.db.pool.query('update "user" set email_verified = false where email = \'carol@dev.local\'');
+    await loginAs(t, 'carol');
+    const rows = await t.db.pool.query('select email_verified from "user" where email = \'carol@dev.local\'');
+    expect(rows.rows[0]?.email_verified).toBe(true);
+  });
+});

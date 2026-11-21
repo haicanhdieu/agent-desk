@@ -10,6 +10,7 @@ import { ConnectionsService } from './connections/connections.service';
 import { DbModule } from './db/db.module';
 import { IntakeModule } from './intake/intake.module';
 import { KubeGatewayModule } from './kube/kube-gateway.module';
+import { OrgsModule } from './orgs/orgs.module';
 import { TerminalModule } from './terminal/terminal.module';
 import { HealthController } from './health/health.controller';
 import { ProjectSchedules } from './projects/project-schedules';
@@ -40,6 +41,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     KubeGatewayModule,
     TerminalModule,
     SetupModule,
+    OrgsModule,
   ],
   controllers: [
     HealthController,

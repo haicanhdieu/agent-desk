@@ -43,6 +43,7 @@ export function validEnv(overrides: Record<string, string> = {}): Record<string,
     RUNNER_IMAGE: 'agentdesk-runner:test',
     ENABLE_FAKE_PROVIDER: 'true',
     AUTH_DEV_LOGIN: 'true',
+    PLATFORM_ADMIN_EMAILS: 'admin@dev.local',
     ...overrides,
   };
 }

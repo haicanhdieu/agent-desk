@@ -896,7 +896,7 @@ export async function createOrg(t: TestApp, name: string, slug: string): Promise
 
   `validEnv` gains `PLATFORM_ADMIN_EMAILS: 'admin@dev.local'`. Dev-login wraps `signUpEmail` in `devSignUp.run(true, …)` and, after a successful sign-in, sets `email_verified = true` for that dev user.
 
-- [ ] **Step 1: Write the failing tests** in `platform.int.test.ts`:
+- [x] **Step 1: Write the failing tests** in `platform.int.test.ts`:
   - BR-69 / N1: `POST /api/platform/orgs {name:'Acme', slug:'acme'}` → 201 `{id, name, slug:'acme'}`; `GET …/roles` → the four built-in roles with their lines; `GET …/members` is not yet routed, so assert `select count(*) from member where organization_id = id` is 0; `audit_log` of the new org holds `org.created` with `actor_user_id` = admin, `payload {name, slug, actorKind:'platform_admin'}`.
   - same slug again → 409 with `errors[0].pointer === '/slug'`; Review Focus 3: `concurrent creates with one slug give 201 and 409`; an edited slug (`'acme-eu-7'` for name `'Acme Corp'`) is stored as sent.
   - BR-73: missing name, missing slug, 101-char name, slug `'Bad_Slug'` → 400 with pointers `/name` or `/slug`.
@@ -904,10 +904,10 @@ export async function createOrg(t: TestApp, name: string, slug: string): Promise
   - unknown `:orgId` on projects and roles → 404.
   - BR-39: a second `createTestApp({ env: { PLATFORM_ADMIN_EMAILS: '' } })` → the same admin cookie gets 403 with detail "Not allowed for your role here".
   - dev-login of `admin` leaves `user.email_verified` true.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module, service, `roles.ts`, the controller (four routes, `@CurrentPlatformAdmin()`), `dev-signup.ts`, the hook and dev-login changes, and the helpers; register `OrgsModule` in `AppModule`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): platform admins create orgs with built-in roles and list orgs and projects`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module, service, `roles.ts`, the controller (four routes, `@CurrentPlatformAdmin()`), `dev-signup.ts`, the hook and dev-login changes, and the helpers; register `OrgsModule` in `AppModule`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): platform admins create orgs with built-in roles and list orgs and projects`.
 
 ---
 

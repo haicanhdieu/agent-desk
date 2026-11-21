@@ -1,9 +1,13 @@
 import { Controller, Get, Inject, NotFoundException, Query, Res, UnauthorizedException } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
+import { eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { user, type Db } from '@agentdesk/db';
 import { ZodPipe } from '../common/zod-validation';
 import { CONFIG, type Config } from '../config/config.module';
+import { DB } from '../db/db.module';
 import { AUTH, devPassword, type Auth } from './auth';
+import { devSignUp } from './dev-signup';
 
 /** A same-site relative path only: one leading '/', no '//', no backslash, no control characters. */
 const RelativePath = z
@@ -26,6 +30,7 @@ export class DevLoginController {
   constructor(
     @Inject(AUTH) private readonly auth: Auth,
     @Inject(CONFIG) private readonly config: Config,
+    @Inject(DB) private readonly db: Db,
   ) {}
 
   @Get('dev-login')
@@ -39,9 +44,13 @@ export class DevLoginController {
 
     let response = await this.auth.api.signInEmail({ body: { email, password }, asResponse: true });
     if (!response.ok) {
-      response = await this.auth.api.signUpEmail({ body: { email, password, name: handle }, asResponse: true });
+      response = await devSignUp.run(true, () =>
+        this.auth.api.signUpEmail({ body: { email, password, name: handle }, asResponse: true }),
+      );
     }
     if (!response.ok) throw new UnauthorizedException('Dev login failed');
+    // Dev accounts have no mailbox: mark them verified (also accounts created before this was done).
+    await this.db.orm.update(user).set({ emailVerified: true }).where(eq(user.email, email));
     const cookies = response.headers.getSetCookie();
     if (cookies.length > 0) void reply.header('set-cookie', cookies);
     void reply.redirect(query.redirect, 302);
