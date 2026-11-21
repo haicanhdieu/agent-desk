@@ -4,6 +4,7 @@ import {
   ORG_HEADER,
   ORG_MISMATCH_PROBLEM_TYPE,
   routeAccess,
+  type AccessDto,
   type CreateInvitationRequest,
   type InvitationDto,
   type InvitationListStatus,
@@ -30,7 +31,6 @@ import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
 import type { MockRun } from '../dto/runs';
 import {
-  accessFixture,
   assignmentFixtures,
   memberFixtures,
   platformMemberFixtures,
@@ -42,7 +42,7 @@ import { checklistFixtures } from '../dto/invitations';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
 import { noPlugins } from '../dto/setup';
-import { defaultTriggerState, mockDb, type InvitationRow, type MockUser, type ProjectRow } from './db';
+import { NO_ROLE, defaultTriggerState, mockDb, type InvitationRow, type MockUser, type ProjectRow } from './db';
 import {
   Problem,
   conflict,
@@ -83,14 +83,32 @@ function sessionUser(): MockUser {
   return user;
 }
 
+const db = () => mockDb.state;
+
 function session(): { user: MockUser; orgId: string } {
   const user = sessionUser();
   const orgId = mockDb.auth.activeOrganizationId;
   if (!orgId) throw new Problem({ status: 403, title: 'No active organization', type: 'forbidden' });
+  const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
+  if (seat?.roleKey === NO_ROLE) throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
   return { user, orgId };
 }
 
-const db = () => mockDb.state;
+/** `me.access`: the user's seat in the active org as grants (one per project for a project seat), none without a seat. */
+function accessOf(user: MockUser): AccessDto {
+  const orgId = mockDb.auth.activeOrganizationId;
+  const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
+  const role = roleFixtures.find((r) => r.key === seat?.roleKey);
+  const assignments =
+    !seat || !role
+      ? []
+      : (seat.projectIds ?? [undefined]).map((projectId) => ({
+          roleKey: role.key,
+          scope: projectId === undefined ? ({ type: 'org' } as const) : ({ type: 'project', projectId } as const),
+          permissions: role.permissions,
+        }));
+  return { userId: user.id, platformAdmin: user.platformAdmin, assignments };
+}
 
 const never = (what: string): never => {
   throw new Error(`${what} fixture missing`);
@@ -905,7 +923,7 @@ const impl: Impl = {
     return null;
   },
 
-  'me.access': () => ({ ...accessFixture, platformAdmin: sessionUser().platformAdmin }),
+  'me.access': () => accessOf(sessionUser()),
   'roles.list': () => roleFixtures,
   'members.list': ({ query }) => slicePage(memberFixtures, query),
   'assignments.list': ({ query }) => slicePage(assignmentFixtures, query),

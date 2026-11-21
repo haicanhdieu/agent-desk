@@ -949,7 +949,7 @@ export function toOrgSwitch(orgs: Organization[], currentSlug: string | null, pl
 
 ```ts
 export type OnboardingScenario =
-  | 'noOrgInvited' | 'noOrgUninvited' | 'platformAdminNoOrg' | 'platformAdminOneOrg'
+  | 'noOrgInvited' | 'noOrgInvitedStates' | 'noOrgUninvited' | 'platformAdminNoOrg' | 'platformAdminOneOrg'
   | 'singleOrg' | 'twoOrgs' | 'twoOrgsSlowSwitch' | 'twoOrgsNoRoleInSecond'
   | 'owner' | 'orgAdmin' | 'projectAdmin' | 'member' | 'viewer'
   | 'invitationsPaged' | 'invitationsExpiry' | 'invitationChanged'
@@ -962,13 +962,17 @@ export function applyOnboardingScenario(name: OnboardingScenario): void; // rese
 export async function seedOnboarding(page: Page, name: OnboardingScenario): Promise<void>; // addInitScript before navigation
 ```
 
-  Seeds: `noOrgInvited` has the invitee's pending (inviter "Ada Lovelace"/`ada`, one with name `ada`, one inviter deleted), expired, revoked, declined and accepted invitations; `owner` is an Acme owner with org invitations in every status, `member@x.dev` a member and `p@x.dev` pending; `projectAdmin` administers P1 not P2; `invitationsExpiry` holds rows relative to `INVITATIONS_MOCK_NOW` (created 2 days 1 minute before; expiring 1 minute after; expiring in 2 days and in 5 hours; expired 1 day, 2 days 23 hours, exactly 3 days, 3 days 1 hour and 5 days ago; an expired row plus a newer pending one for the same email; an expired row with the inviter deleted); `invitationChanged` answers 409 to resend and revoke of its first pending row and flips it to accepted; `checklistTwoProjects` has P1 with a credential and P2 empty; `ownerInvitationFailsOnce` fails the next `platform.createInvitation` with 500 once; `twoOrgsSlowSwitch` sets `setActiveDelayMs` to 1500.
+  Seeds: `noOrgInvited` has the invitee's pending (inviter "Ada Lovelace"/`ada`, one with name `ada`, one inviter deleted), expired, revoked, declined and accepted invitations; `owner` is an Acme owner with org invitations in every status, `member@x.dev` a member and `p@x.dev` pending; `projectAdmin` administers P1 not P2; `invitationsExpiry` holds rows relative to `INVITATIONS_MOCK_NOW` (created 2 days 1 minute before; expiring 1 minute after; expiring in 2 days and in 5 hours; expired 1 day, 2 days 23 hours, exactly 3 days, 3 days 1 hour and 5 days ago; an expired row plus a newer pending one for the same email; an expired row with the inviter deleted); `invitationChanged` answers 409 to resend and revoke of its first pending row and flips it to accepted; `checklistTwoProjects` has P1 with a credential and P2 empty; `ownerInvitationFailsOnce` fails the next `platform.createInvitation` with 500 once; `twoOrgsSlowSwitch` sets `setActiveDelayMs` to 1500. `noOrgInvitedStates` has exactly one pending, one expired and one revoked invitation for the same invitee.
 
-- [ ] **Step 1: Write the failing test** `onboardingScenarios.test.ts`: each scenario seeds what its name says (spot checks: `member` has no `assignment:create`; `platformAdminNoOrg` lists no org and `me.access` says `platformAdmin: true`; `invitationsExpiry` lists 5 expired rows under `expired` at `INVITATIONS_MOCK_NOW`).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/onboardingScenarios.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module, the `scenarios.onboarding` entry, the browser read and `seedOnboarding`.
+- [x] **Step 1: Write the failing test** `onboardingScenarios.test.ts`: each scenario seeds what its name says (spot checks: `member` has no `assignment:create`; `platformAdminNoOrg` lists no org and `me.access` says `platformAdmin: true`; `invitationsExpiry` lists 5 expired rows under `expired` at `INVITATIONS_MOCK_NOW`).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/onboardingScenarios.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module, the `scenarios.onboarding` entry, the browser read and `seedOnboarding`.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): onboarding mock scenarios`.
+- [x] **Step 5: Commit** `feat(web): onboarding mock scenarios`.
+
+Agent call: `invitationsExpiry` lists 8 expired rows, not the 5 of the spot check: the five named ages, `again@x.dev`'s expired row, the deleted-inviter row and the lapsed stored-pending row of TC-48.1 that the cases (TC-48, TC-49, TC-52) need.
+
+Agent call: add a 22nd scenario `noOrgInvitedStates` (exactly one pending, one expired, one revoked invitation for the invitee) for TC-4.1 to TC-4.3, because TC-4.1's Given is exactly those three while other cases need several pending cards from `noOrgInvited`.
 
 ---
 
@@ -1663,7 +1667,7 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding` (Task 17); `page.clock` at `INVITATIONS_MOCK_NOW`.
 
-- [ ] **Step 1: Write the spec**: TC-1.3 to TC-1.5 (BR-1); TC-4.1 to TC-4.3 (BR-4, `noOrgInvited`); TC-25.3, TC-25.4 (BR-25); TC-26.4, TC-26.5 (BR-26); TC-37.1, TC-37.2 (BR-37, `noOrgUninvited`); TC-46.2 (BR-46); TC-52.3, TC-52.5 (BR-52).
+- [ ] **Step 1: Write the spec**: TC-1.3 to TC-1.5 (BR-1); TC-4.1 to TC-4.3 (BR-4, `noOrgInvitedStates`); TC-25.3, TC-25.4 (BR-25); TC-26.4, TC-26.5 (BR-26); TC-37.1, TC-37.2 (BR-37, `noOrgUninvited`); TC-46.2 (BR-46); TC-52.3, TC-52.5 (BR-52).
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/onboarding.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit** `test(web): mock e2e for the welcome page and invitee states`.
 

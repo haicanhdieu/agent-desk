@@ -1,6 +1,7 @@
 import type { RequestHandler } from 'msw';
 import type { AgentModelsScenario } from './agentModels';
 import { mockDb } from './db';
+import { applyOnboardingScenario, onboardingOverrides, type OnboardingScenario } from './onboardingScenarios';
 import { problemResponse, routeHandler, type ProblemInit, type RouteKey } from './http';
 import { scriptRun, type ScriptStep } from './live';
 
@@ -24,6 +25,11 @@ function override(handler: RequestHandler) {
 }
 
 export const scenarios = {
+  /** Resets the store and seeds an onboarding scenario (onboardingScenarios.ts), with its handler overrides. */
+  onboarding(name: OnboardingScenario): void {
+    applyOnboardingScenario(name);
+    for (const handler of onboardingOverrides(name)) override(handler);
+  },
   /** What `agents.models` answers for the agent until the store resets. */
   agentModels(agentId: string, scenario: AgentModelsScenario): void {
     mockDb.state.agentModelScenarios[agentId] = scenario;

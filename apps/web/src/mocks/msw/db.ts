@@ -47,6 +47,9 @@ export interface MockUser {
   updatedAt: string;
 }
 
+/** The role key of a membership that holds no role: the org lists it, and its routes answer 403. */
+export const NO_ROLE = 'none';
+
 /** A user's seat in an org: the built-in role key, and the projects it is limited to (none means the whole org). */
 export interface MockMembership {
   userId: string;

@@ -7,6 +7,7 @@ import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } f
 import { mockDb } from './db';
 import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from './e2eLists';
 import { handlers } from './handlers';
+import { ONBOARDING_SCENARIO_KEY, parseOnboardingScenario } from './onboardingScenarios';
 import { scenarios, setScenarioTarget } from './scenarios';
 import { DEFAULT_RUN_SCRIPT, streamHandlers } from './stream-handlers';
 
@@ -76,6 +77,19 @@ function loadLists(): void {
   worker.use(...mockListHandlers(lists));
 }
 
+// The mocked e2e specs pick an onboarding scenario here before the first load (e2e/mock/mock.ts `seedOnboarding`,
+// onboardingScenarios.ts). It resets the store, so it runs before everything else that seeds. An unknown name is ignored.
+function loadOnboarding(): void {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(ONBOARDING_SCENARIO_KEY);
+  } catch {
+    // Storage blocked: the seed stays.
+  }
+  const name = parseOnboardingScenario(raw);
+  if (name !== undefined) scenarios.onboarding(name);
+}
+
 function saveAuth(): void {
   try {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify(mockDb.auth));
@@ -89,6 +103,7 @@ let started: Promise<unknown> | undefined;
 /** Starts the worker once; later calls reuse the first start. */
 export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown> {
   started ??= (async () => {
+    loadOnboarding();
     loadAuth();
     loadAgentModels();
     // Runs in the terminal lifecycle states (pausing, crashed, resume failed, resumed), for the mocked e2e specs.
