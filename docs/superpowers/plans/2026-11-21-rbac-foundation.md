@@ -1260,13 +1260,13 @@ export class MembersService {
 }
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `members.int.test.ts`: O lists every member with all assignments and no `email` key (parses `MemberDto`); A (project admin on P1) lists every member but sees only P1 assignments; B → 403.
   - `platform.int.test.ts`: BR-40 `GET /api/platform/orgs/:orgId/members` items have `userId, handle, name, email, assignments` and parse as `PlatformMemberDto`; BR-38 (positive part) the platform admin gets 200 on platform projects and members while `GET /api/orgs/:orgId/members` and `GET /api/orgs/:orgId/invitations` with the same cookie are refused (403 or 404) with no data.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts test/platform.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module, service and both controllers; register the module in `AppModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): list org members with their assignments`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts test/platform.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module, service and both controllers; register the module in `AppModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): list org members with their assignments`.
 
 ---
 

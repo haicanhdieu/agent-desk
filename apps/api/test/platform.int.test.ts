@@ -1,11 +1,18 @@
 import { randomUUID } from 'node:crypto';
 import type { QueryResultRow } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { CreateOrgResponse, Page, PlatformOrgDto, PlatformProjectDto, RoleDto } from '@agentdesk/contracts';
+import type {
+  CreateOrgResponse,
+  Page,
+  PlatformMemberDto,
+  PlatformOrgDto,
+  PlatformProjectDto,
+  RoleDto,
+} from '@agentdesk/contracts';
 import { connections, projects, withOrg } from '@agentdesk/db';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
 import { createTestApp, type TestApp } from './helpers/app';
-import { asPlatformAdmin, createOrg, loginAs } from './helpers/auth';
+import { asPlatformAdmin, createOrg, grant, inviteAndLogin, loginAs, revoke, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
 let t: TestApp;
@@ -229,6 +236,89 @@ describe('platform org and project lists', () => {
     ]) {
       const res = await t.app.inject({ method: 'GET', url, headers: { cookie: alice } });
       expect(res.statusCode, url).toBe(403);
+    }
+  });
+});
+
+describe('platform member list', () => {
+  it('BR-40: lists members with email and every assignment', async () => {
+    const org = await createOrg(t, 'Members Org', 'members-org');
+    const p1 = await seedProject(org.id, 'M1');
+    const p2 = await seedProject(org.id, 'M2');
+    await inviteAndLogin(t, org.id, 'plat-mem-o', 'owner', { type: 'org' });
+    await inviteAndLogin(t, org.id, 'plat-mem-b', 'member', { type: 'project', projectIds: [p1, p2] });
+    const res = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${org.id}/members`,
+      headers: { cookie: admin },
+    });
+    const page = expectContract('platform.listMembers', res) as Page<PlatformMemberDto>;
+    expect(page.total).toBe(2);
+    expect(page.items.map((i) => i.handle)).toEqual(['plat-mem-b', 'plat-mem-o']);
+    const [b, o] = page.items;
+    expect(Object.keys(b ?? {}).sort()).toEqual(['assignments', 'email', 'handle', 'name', 'userId']);
+    expect(b?.email).toBe('plat-mem-b@dev.local');
+    expect(b?.userId).toBe(await userIdOf(t, 'plat-mem-b'));
+    expect(b?.assignments).toHaveLength(2);
+    expect(o?.assignments).toHaveLength(1);
+  });
+
+  it('shows a member who holds no assignment, with an empty list', async () => {
+    const org = await createOrg(t, 'Bare Org', 'bare-org');
+    await inviteAndLogin(t, org.id, 'plat-bare', 'viewer', { type: 'org' });
+    const id = await userIdOf(t, 'plat-bare');
+    const granted = await grant(t, org.id, id, 'viewer', { type: 'org' });
+    await revoke(t, org.id, granted.id);
+    const res = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${org.id}/members`,
+      headers: { cookie: admin },
+    });
+    const page = expectContract('platform.listMembers', res) as Page<PlatformMemberDto>;
+    expect(page.items.map((i) => [i.userId, i.assignments])).toEqual([[id, []]]);
+  });
+
+  it('answers 404 for an unknown org and 403 for a non-platform user, including an org owner', async () => {
+    const org = await createOrg(t, 'Guard Members', 'guard-members');
+    const owner = await inviteAndLogin(t, org.id, 'plat-guard-o', 'owner', { type: 'org' });
+    const unknown = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${randomUUID()}/members`,
+      headers: { cookie: admin },
+    });
+    expect(unknown.statusCode).toBe(404);
+    const denied = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${org.id}/members`,
+      headers: { cookie: owner },
+    });
+    expect(denied.statusCode).toBe(403);
+    expect(denied.body).not.toContain('@dev.local');
+    const anon = await t.app.inject({ method: 'GET', url: `/api/platform/orgs/${org.id}/members` });
+    expect(anon.statusCode).toBe(401);
+  });
+
+  it('BR-38: the platform admin reads projects and members through /api/platform but is refused on the tenant routes', async () => {
+    const org = await createOrg(t, 'Split Org', 'split-org');
+    await seedProject(org.id, 'S1');
+    await inviteAndLogin(t, org.id, 'plat-split-o', 'owner', { type: 'org' });
+    for (const leaf of ['projects', 'members']) {
+      const res = await t.app.inject({
+        method: 'GET',
+        url: `/api/platform/orgs/${org.id}/${leaf}`,
+        headers: { cookie: admin },
+      });
+      expect(res.statusCode, leaf).toBe(200);
+      expect(res.json<Page<unknown>>().total, leaf).toBeGreaterThan(0);
+    }
+    for (const leaf of ['members', 'invitations']) {
+      const res = await t.app.inject({
+        method: 'GET',
+        url: `/api/orgs/${org.id}/${leaf}`,
+        headers: { cookie: admin },
+      });
+      expect([403, 404], leaf).toContain(res.statusCode);
+      expect(res.body, leaf).not.toContain('plat-split-o');
     }
   });
 });
