@@ -83,6 +83,18 @@ const stories = {
   MyInvitationsEmptyPlatformAdmin: ['Screens/Invitations', 'MyInvitationsEmptyPlatformAdmin'],
   MyInvitationsError: ['Screens/Invitations', 'MyInvitationsError'],
   MyInvitationsLoading: ['Screens/Invitations', 'MyInvitationsLoading'],
+  InvitationAccept: ['Screens/Invitations', 'InvitationAccept'],
+  InvitationAcceptAccepted: ['Screens/Invitations', 'InvitationAcceptAccepted'],
+  InvitationAcceptAccepting: ['Screens/Invitations', 'InvitationAcceptAccepting'],
+  InvitationAcceptDeclineConfirm: ['Screens/Invitations', 'InvitationAcceptDeclineConfirm'],
+  InvitationAcceptDeclined: ['Screens/Invitations', 'InvitationAcceptDeclined'],
+  InvitationAcceptDeclining: ['Screens/Invitations', 'InvitationAcceptDeclining'],
+  InvitationAcceptError: ['Screens/Invitations', 'InvitationAcceptError'],
+  InvitationAcceptExpired: ['Screens/Invitations', 'InvitationAcceptExpired'],
+  InvitationAcceptExpiredInviterDeleted: ['Screens/Invitations', 'InvitationAcceptExpiredInviterDeleted'],
+  InvitationAcceptLoading: ['Screens/Invitations', 'InvitationAcceptLoading'],
+  InvitationAcceptNotAvailable: ['Screens/Invitations', 'InvitationAcceptNotAvailable'],
+  InvitationAcceptRevoked: ['Screens/Invitations', 'InvitationAcceptRevoked'],
   ...Object.fromEntries(
     [
       'Starting',

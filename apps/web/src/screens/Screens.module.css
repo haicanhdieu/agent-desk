@@ -624,3 +624,14 @@
   gap: 12px;
   margin-top: 10px;
 }
+
+/* invitation link page */
+.acceptActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.signedIn {
+  color: var(--faint);
+  font-size: var(--fs-13);
+}

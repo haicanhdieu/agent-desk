@@ -173,3 +173,18 @@ MyInvitationsLoading.
 - MyInvitationsLoading: the story uses `Skeleton` blocks sized as the board (32px heading, two 98px cards).
 - MyInvitationsLoading and MyInvitationsError: neither the boards nor the screen draw an h1 in these states. The error banner is an alert and the loading block is a labelled busy status.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: invitation link page boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Twelve boards added, so `parity.mjs`
+finds 109: InvitationAccept, InvitationAcceptAccepted, InvitationAcceptAccepting, InvitationAcceptDeclineConfirm,
+InvitationAcceptDeclined, InvitationAcceptDeclining, InvitationAcceptError, InvitationAcceptExpired,
+InvitationAcceptExpiredInviterDeleted, InvitationAcceptLoading, InvitationAcceptNotAvailable, InvitationAcceptRevoked.
+
+- Details card: the stories use the shared `SurfaceCard` and `KeyValue` (120px term column), where the boards draw an inline-styled card.
+- Decline dialog: the stories use the design-system `Dialog` (440px) with a ghost Cancel and a solid-danger Decline, as the boards.
+- Resolved and not-available states: the screen draws an h1 in the centred notice column (as the welcome empty state), since the boards draw an h1 of 28px; it does not use `EmptyState`, which only offers h2 or h3.
+- InvitationAcceptError: the story uses the shared `RouteLoadError` banner, so the Request ID sits in the banner body.
+- InvitationAcceptLoading and InvitationAcceptError: neither the boards nor the screen draw an h1 in these states.
+- InvitationAcceptAccepted: the top bar shows the org name as plain text (one org), as the board.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.

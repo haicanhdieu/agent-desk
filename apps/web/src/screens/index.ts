@@ -26,3 +26,4 @@ export {
 } from './DeskSetup';
 export { SetupWorkspace, type SetupStepTest, type SetupWorkspaceProps } from './SetupWorkspace';
 export { MyInvitations, type MyInvitationsProps, type MyInvitationsState } from './MyInvitations';
+export { InvitationAccept, type InvitationAcceptProps, type InvitationAcceptState } from './InvitationAccept';

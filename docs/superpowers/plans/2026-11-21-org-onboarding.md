@@ -1184,11 +1184,11 @@ export function InvitationAccept(props: { user: Actor; state: InvitationAcceptSt
 
   Copy from the spec: h1 "Join <Org>", details labelled Role, Access, Invited by (dropped when null), Expires, Accept first then Decline; decline confirm "Decline invitation to <Org>?" / "You will need a new invitation to join later." / "Decline" / "Cancel"; resolved and not-available states in the `RouteError` centered `EmptyState`, with no Accept or Decline.
 
-- [ ] **Step 1: Write the failing tests** (append to `invitations.test.tsx`): BR-26 accepted, declined, revoked and expired states show their copy and no Accept or Decline; BR-5 not available shows no org name, role or email, only "Signed in as <email>" and "Sign out"; BR-52 expired with a null inviter reads "Ask an owner or admin of <Org> to resend it."; an org name with `<img src=x>` renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories InvitationAccept, InvitationAcceptAccepted, InvitationAcceptAccepting, InvitationAcceptDeclineConfirm, InvitationAcceptDeclined, InvitationAcceptDeclining, InvitationAcceptError, InvitationAcceptExpired, InvitationAcceptExpiredInviterDeleted, InvitationAcceptLoading, InvitationAcceptNotAvailable, InvitationAcceptRevoked; register the 12 boards; count 97 → 109.
-- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 12 boards. Expected: PASS, pairs match.
-- [ ] **Step 5: Commit** `feat(web): invitation link page boards in Storybook`.
+- [x] **Step 1: Write the failing tests** (append to `invitations.test.tsx`): BR-26 accepted, declined, revoked and expired states show their copy and no Accept or Decline; BR-5 not available shows no org name, role or email, only "Signed in as <email>" and "Sign out"; BR-52 expired with a null inviter reads "Ask an owner or admin of <Org> to resend it."; an org name with `<img src=x>` renders as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories InvitationAccept, InvitationAcceptAccepted, InvitationAcceptAccepting, InvitationAcceptDeclineConfirm, InvitationAcceptDeclined, InvitationAcceptDeclining, InvitationAcceptError, InvitationAcceptExpired, InvitationAcceptExpiredInviterDeleted, InvitationAcceptLoading, InvitationAcceptNotAvailable, InvitationAcceptRevoked; register the 12 boards; count 97 → 109.
+- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 12 boards. Expected: PASS, pairs match. Not fully run: the vitest parts (invitations.test.tsx, coverage.test.ts, stories.smoke.test.tsx) were run and pass; `build-storybook` and `pnpm parity` were NOT run (runner pod has no Chromium), so the 12 pixel pairs are unchecked.
+- [x] **Step 5: Commit** `feat(web): invitation link page boards in Storybook`.
 
 ---
 
