@@ -535,11 +535,11 @@ export const routeAccess: Record<RouteKey, RouteAccess>;   // a missing key fail
 
   Entries: the spec's "Route to permission map" for the 48 existing keys, with `projects.list` = `project-list` `project:read`; `connections.*` and `projects.create` = `org`; every other existing key = `project` with the param its path carries (`agents.putCredential`/`agents.models` → `agentId`, `rules.update`/`rules.remove` → `ruleId`, `setupTests.end|events|terminal` → `setupTestId`, `runs.get|log|transcript|events|cancel|stop|finish|resume|terminal` → `runId`, others → `projectId`). New keys: `me.access` → `self`; `roles.list` → `org-admin ['project:read']`; `members.list` → `['member:read','assignment:create']`; `assignments.list` → `['assignment:read']`; `assignments.create` → `['assignment:create']`; `assignments.remove` → `['assignment:delete']`; `invitations.create` and `invitations.remove` → `['member:create','assignment:create']`; `invitations.list` → `['member:read','assignment:read']`; `platform.createOrg` → `platform-org:create`, `listOrgs` → `platform-org:read`, `listProjects` → `platform-project:read`, `listRoles` → `platform-role:read`, `listMembers` → `platform-member:read`, `listAssignments|createAssignment|removeAssignment` → `platform-assignment:read|create|delete`, `listInvitations|createInvitation|removeInvitation` → `platform-invitation:read|create|delete`.
 
-- [ ] **Step 1: Write the failing tests** in `route-access.test.ts`: the expected map for all 68 keys written out in the test and compared with `toEqual`; keys equal `Object.keys(flattenRoutes(routes))`; an entry is `platform` exactly when its path starts with `/api/platform/` and then `isPlatformPermission(permission)`; `org-admin` only on `/api/orgs/` paths; `self` only on `me.access`; every `project` entry's `param` appears as `:<param>` in its path.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/route-access.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `route-access.ts`; export it from `index.ts`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/contracts typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): route access map for every route`.
+- [x] **Step 1: Write the failing tests** in `route-access.test.ts`: the expected map for all 68 keys written out in the test and compared with `toEqual`; keys equal `Object.keys(flattenRoutes(routes))`; an entry is `platform` exactly when its path starts with `/api/platform/` and then `isPlatformPermission(permission)`; `org-admin` only on `/api/orgs/` paths; `self` only on `me.access`; every `project` entry's `param` appears as `:<param>` in its path.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/route-access.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `route-access.ts`; export it from `index.ts`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/contracts typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(contracts): route access map for every route`.
 
 ---
 
