@@ -358,12 +358,12 @@ Registration (all together, in canvas order):
 - `parity.mjs` `stories` gets eight `['Screens/Runs', '<name>']` entries.
 - In `coverage.test.ts`, "71 boards" and `toHaveLength(71)` become 79.
 
-- [ ] **Step 1: Write the failing coverage check.** Change 71 to 79 in `coverage.test.ts`. Run `pnpm --filter @agentdesk/web test coverage`. Expected: FAIL (71 boards in canvas).
-- [ ] **Step 2: Register the eight boards** in `canvas.json`, `storyIds.ts` and `parity.mjs`. Run the same command. Expected: FAIL, now only on `board RunsLinked… has a story`.
-- [ ] **Step 3: Add the fixtures and the eight stories.** Use the existing `artboard(1000)`, `pagination()` and `pagedCommon` helpers of `runs.stories.tsx`. In `mocks.test.ts`, extend the Task 2 `runsUsed <= runsMax` and chain-note checks to every list in `linkedGroups`.
+- [x] **Step 1: Write the failing coverage check.** Change 71 to 79 in `coverage.test.ts`. Run `pnpm --filter @agentdesk/web test coverage`. Expected: FAIL (71 boards in canvas).
+- [x] **Step 2: Register the eight boards** in `canvas.json`, `storyIds.ts` and `parity.mjs`. Run the same command. Expected: FAIL, now only on `board RunsLinked… has a story`.
+- [x] **Step 3: Add the fixtures and the eight stories.** Use the existing `artboard(1000)`, `pagination()` and `pagedCommon` helpers of `runs.stories.tsx`. In `mocks.test.ts`, extend the Task 2 `runsUsed <= runsMax` and chain-note checks to every list in `linkedGroups`.
 - [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS (79 boards, axe smoke test included).
 - [ ] **Step 5: Visual check:** `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`. Compare the eight new `parity-out/<board>.{story,proto}.png` pairs, and fix any difference in layout or copy. Do not commit `storybook-static/` or `parity-out/`.
-- [ ] **Step 6: Commit:** `feat(web): Storybook boards for issue and PR runs in one group`.
+- [x] **Step 6: Commit:** `feat(web): Storybook boards for issue and PR runs in one group`.
 
 ---
 

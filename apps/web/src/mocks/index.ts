@@ -27,6 +27,7 @@ export {
   DEFAULT_POLL_INTERVAL,
 } from './connection';
 export { ticketGroups, runs, tickets } from './runs';
+export { linkedGroups } from './runsLinked';
 export { ignored } from './ignored';
 export { skills, skillTemplates, skillPreviewSamples, skillDiffDraft } from './skills';
 export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';

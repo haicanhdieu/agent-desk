@@ -3,6 +3,7 @@ import { AppShell, RouteLoadError, RouteSkeleton, type PaginationProps } from '@
 import {
   connectionWarnings,
   ignored,
+  linkedGroups,
   pagedIgnored,
   pagedNeedsYou,
   pagedRuns,
@@ -246,6 +247,104 @@ export const RunsPageLoading: Story = {
       needsYouRun={pagedNeedsYouRun}
       pagination={pagination(4, 63, true)}
     />
+  ),
+};
+
+const linkedRun62Note = 'Waiting 3m. Auto-finish after 10m unattended';
+// The linked boards say the idle run ends after 10 minutes, as their prototype boards do.
+const linkedNeedsYouRun = {
+  ...pagedNeedsYouRun,
+  run: { ...pagedNeedsYouRun.run, statusNote: linkedRun62Note },
+  slotNote:
+    'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 10 minutes with nobody attached.',
+};
+// Run 62's own row says 10m as well, as in RunsLinked.dc.html; the shared ticketGroups keep 30m for Runs.
+const linkedTicketGroups: TicketGroup[] = ticketGroups.map((g) => ({
+  ...g,
+  runs: g.runs.map((r) => (r.id === 62 ? { ...r, statusNote: linkedRun62Note } : r)),
+}));
+const linkedCounts: Record<RunsFilter, number> = { ...counts };
+const linkedCommon = { ...common, filter: 'all' as RunsFilter, counts: linkedCounts, needsYouRun: linkedNeedsYouRun };
+
+/** An issue and the PR linked to it in one group, each ticket's own run count in the chain note. */
+export const RunsLinked: Story = {
+  name: 'Runs, grouped, issue with its PR',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => <RunsScreen {...linkedCommon} groups={linkedTicketGroups} />,
+};
+
+/** One issue with two PRs: PRs in number order, run limit counted per ticket. */
+export const RunsLinkedSeveralPrs: Story = {
+  name: 'Runs, grouped, issue with several PRs',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...linkedCommon}
+      today="Today: 10 runs, 1 failed"
+      counts={{ ...linkedCounts, ended: 7, all: 10 }}
+      groups={linkedGroups.severalPrs}
+    />
+  ),
+};
+
+/** Older runs of PR #148 predate the link: they stay in the PR's own group below. */
+export const RunsLinkedSplitPr: Story = {
+  name: 'Runs, grouped, one PR in two groups (older runs unlinked)',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => <RunsScreen {...linkedCommon} groups={linkedGroups.splitPr} />,
+};
+
+/** The Needs you filter keeps run 62 under the merged header with its full chain note. */
+export const RunsLinkedFiltered: Story = {
+  name: 'Runs, grouped, Needs you filter on a merged group',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => <RunsScreen {...linkedCommon} filter="needs_you" groups={linkedGroups.filtered} />,
+};
+
+/** Six PRs: the title and then the chain note are cut off with an ellipsis; both carry a title tooltip. */
+export const RunsLinkedLongChain: Story = {
+  name: 'Runs, grouped, long chain note cut off',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => <RunsScreen {...linkedCommon} groups={linkedGroups.longChain} />,
+};
+
+const linkedPagedCommon = {
+  ...pagedCommon,
+  filter: 'all' as RunsFilter,
+  counts: pagedCounts,
+  needsYouRun: linkedNeedsYouRun,
+};
+
+/** Page 4 of 4: only the PR's runs of a merged group are on this page. */
+export const RunsPagedLinkedPrOnly: Story = {
+  name: 'Runs, grouped, page 4 of 4, only the PR runs of a merged group',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => <RunsScreen {...linkedPagedCommon} groups={linkedGroups.pagedPrOnly} pagination={pagination(4, 63)} />,
+};
+
+/** Page 4 of 4: only the issue's runs of a merged group are on this page. */
+export const RunsPagedLinkedIssueOnly: Story = {
+  name: 'Runs, grouped, page 4 of 4, only the issue runs of a merged group',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen {...linkedPagedCommon} groups={linkedGroups.pagedIssueOnly} pagination={pagination(4, 63)} />
+  ),
+};
+
+/** Page 3 is on its way: the merged page 4 stays on screen, busy, with the control disabled. */
+export const RunsPageLoadingLinked: Story = {
+  name: 'Runs, grouped, loading page 3 from a merged page 4',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen {...linkedPagedCommon} groups={linkedGroups.pageLoading} pagination={pagination(4, 63, true)} />
   ),
 };
 
