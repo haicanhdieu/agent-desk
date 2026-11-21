@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
 import {
+  auditLog,
   invitations,
   member,
   pendingInvitationsForEmail,
@@ -10,7 +11,7 @@ import {
   withOrg,
   type Db,
 } from '@agentdesk/db';
-import { writeAuditEntry } from '../audit/audit-entry';
+import { buildAuditRow, writeAuditEntry } from '../audit/audit-entry';
 
 /**
  * Applies every pending, unexpired invitation addressed to the user's verified email. Each invitation runs in its own
@@ -79,22 +80,27 @@ export async function acceptPendingInvitations(
         ? invitation.projectIds.filter((id) => existingIds.has(id))
         : [null];
 
-      const created: (string | null)[] = [];
-      for (const projectId of targets) {
-        const inserted = await tx
-          .insert(roleAssignments)
-          .values({
-            orgId: invitation.orgId,
-            userId: user.id,
-            roleId: invitation.roleId,
-            scopeType: invitation.scopeType,
-            projectId,
-            grantedBy: invitation.invitedBy,
-          })
-          .onConflictDoNothing()
-          .returning({ id: roleAssignments.id });
-        if (inserted.length > 0) created.push(projectId);
-      }
+      // One statement for all targets. The unique key (org, user, role, project) is NULLS NOT DISTINCT, so an
+      // org-scope row (project_id null) dedupes like a project row; a bare ON CONFLICT DO NOTHING covers both.
+      const inserted =
+        targets.length === 0
+          ? []
+          : await tx
+              .insert(roleAssignments)
+              .values(
+                targets.map((projectId) => ({
+                  orgId: invitation.orgId,
+                  userId: user.id,
+                  roleId: invitation.roleId,
+                  scopeType: invitation.scopeType,
+                  projectId,
+                  grantedBy: invitation.invitedBy,
+                })),
+              )
+              .onConflictDoNothing()
+              .returning({ projectId: roleAssignments.projectId });
+      const insertedIds = new Set(inserted.map((r) => r.projectId));
+      const created = targets.filter((projectId) => insertedIds.has(projectId));
 
       await tx
         .update(invitations)
@@ -118,22 +124,26 @@ export async function acceptPendingInvitations(
           acceptedBy: user.id,
         },
       });
-      for (const projectId of created) {
-        await writeAuditEntry(tx, {
-          orgId: invitation.orgId,
-          actorUserId: invitation.invitedBy,
-          action: 'assignment.granted',
-          targetType: 'user',
-          targetId: user.id,
-          payload: {
-            to: {
-              roleId: role.id,
-              roleKey: role.key,
-              scope: projectId === null ? { type: 'org' } : { type: 'project', projectId },
-            },
-            via: { invitationId: invitation.id },
-          },
-        });
+      if (created.length > 0) {
+        await tx.insert(auditLog).values(
+          created.map((projectId) =>
+            buildAuditRow({
+              orgId: invitation.orgId,
+              actorUserId: invitation.invitedBy,
+              action: 'assignment.granted',
+              targetType: 'user',
+              targetId: user.id,
+              payload: {
+                to: {
+                  roleId: role.id,
+                  roleKey: role.key,
+                  scope: projectId === null ? { type: 'org' } : { type: 'project', projectId },
+                },
+                via: { invitationId: invitation.id },
+              },
+            }),
+          ),
+        );
       }
     });
   }

@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { QueryResultRow } from 'pg';
+import pg, { type QueryResultRow } from 'pg';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { InvitationDto, Page, RoleDto } from '@agentdesk/contracts';
 import { connections, projects, withOrg } from '@agentdesk/db';
@@ -552,6 +552,55 @@ describe('accepting invitations at sign-in', () => {
     await Promise.all([acceptPendingInvitations(t.db, who), acceptPendingInvitations(t.db, who)]);
     expect(await memberRows(f.orgId, userId)).toHaveLength(1);
     expect(await assignmentRows(f.orgId, userId)).toHaveLength(1);
+  });
+
+  it('a many-project invitation grants and audits every project in a constant number of statements', async () => {
+    const f = await fixture('acc-bulk');
+    const extra = [await seedProject(f.orgId, 'P2-acc-bulk'), await seedProject(f.orgId, 'P3-acc-bulk')];
+    const projectIds = [f.projectId, ...extra];
+    const created = (
+      await invite(f.orgId, {
+        email: 'acc-bulk@dev.local',
+        roleId: f.roles.member,
+        scope: { type: 'project', projectIds },
+      })
+    ).json<InvitationDto>();
+    const userId = randomUUID();
+    await t.db.pool.query(
+      `insert into "user" (id, name, email, email_verified, handle) values ($1, 'bulk', 'acc-bulk@dev.local', true, 'acc-bulk')`,
+      [userId],
+    );
+    const original = pg.Client.prototype.query;
+    const texts: string[] = [];
+    const spy = vi.spyOn(pg.Client.prototype, 'query').mockImplementation(function (
+      this: pg.Client,
+      ...args: unknown[]
+    ) {
+      const first = args[0];
+      texts.push(typeof first === 'string' ? first : ((first as { text?: string } | null)?.text ?? ''));
+      return (original as (...a: unknown[]) => unknown).apply(this, args);
+    } as typeof pg.Client.prototype.query);
+    try {
+      await acceptPendingInvitations(t.db, { id: userId, email: 'acc-bulk@dev.local', emailVerified: true });
+    } finally {
+      spy.mockRestore();
+    }
+    const count = (needle: string): number => texts.filter((s) => s.includes(needle)).length;
+    expect(count('insert into "role_assignments"')).toBe(1);
+    expect(count('insert into "audit_log"')).toBe(2);
+
+    const rows = await assignmentRows(f.orgId, userId);
+    expect(rows.map((r) => r.project_id).sort()).toEqual([...projectIds].sort());
+    const granted = await asOrg(
+      f.orgId,
+      "select target_id, payload from audit_log where action = 'assignment.granted' order by id",
+    );
+    expect(granted.rows).toHaveLength(3);
+    expect(granted.rows.every((r) => r.target_id === userId)).toBe(true);
+    expect(
+      granted.rows.map((r) => (r.payload as { to: { scope: { projectId: string } } }).to.scope.projectId).sort(),
+    ).toEqual([...projectIds].sort());
+    expect(granted.rows[0]?.payload).toMatchObject({ via: { invitationId: created.id } });
   });
 
   it('N5: the audit rows name the inviter as the actor and link each grant to the invitation', async () => {
