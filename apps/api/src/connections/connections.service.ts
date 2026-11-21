@@ -9,8 +9,8 @@ import {
 } from '@nestjs/common';
 import { and, eq, inArray } from 'drizzle-orm';
 import { account, connections, member, organization, pollCursors, projects, withOrg, type Db } from '@agentdesk/db';
-import { Provider, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
-import type { AdapterRegistry, NewConnection } from '@agentdesk/core';
+import { Provider, can, type ConnectionDto, type InstallResponse, type RepoDto } from '@agentdesk/contracts';
+import { loadAccess, type AdapterRegistry, type NewConnection } from '@agentdesk/core';
 import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import { isUniqueViolation } from '../common/pg-errors';
 import { CONFIG, type Config } from '../config/config.module';
@@ -62,7 +62,7 @@ export class ConnectionsService {
   /**
    * Verifies the signed state, completes the install at the provider and upserts the connection. Returns the redirect
    * target. The state binds {orgId, userId}: only that user (session) may redeem it, and must still be a member of the
-   * org. Replay by the same user is harmless: the upsert is idempotent (same provider account, same org).
+   * org and still hold connection:create at org scope. Replay by the same user is harmless: the upsert is idempotent (same provider account, same org).
    */
   async complete(provider: Provider, params: Record<string, string>, sessionUserId: string): Promise<string> {
     const identity = verifyState(this.config.BETTER_AUTH_SECRET, params['state'] ?? '');
@@ -75,6 +75,10 @@ export class ConnectionsService {
       .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)))
       .limit(1);
     if (!membership[0]) throw new ForbiddenException('Not a member of the organization');
+    // The state was minted earlier, possibly for another org than the session's active one, and the user's grants may
+    // have changed since: re-check connection:create at org scope now, under the state's org. Fails closed.
+    const access = await withOrg(this.db, orgId, (tx) => loadAccess(tx, userId));
+    if (!can(access, 'connection:create')) throw new ForbiddenException('Not allowed for your role here');
     this.requireProvider(provider);
 
     const linked = await this.db.orm

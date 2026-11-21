@@ -696,3 +696,38 @@ describe('credential with an address', () => {
     expect(((await agentOf()) as AgentDto).baseUrl).toBeNull();
   });
 });
+
+describe('agents: permission (BR-17, BR-33, BR-29)', () => {
+  it('TC-17.1, TC-33.2: a member cannot put the agent or its credential; nothing is stored or leaked', async () => {
+    const orgId = await orgIdOf('alice');
+    const member = await inviteAndLogin(t, orgId, 'agent-member', 'member', { type: 'org' });
+    const agent = await agentOf();
+    const namesBefore = t.secrets.names();
+
+    const cred = await putCred(agent.id, { type: 'api_key', value: SECRET }, member);
+    expect(cred.statusCode).toBe(403);
+    expect(cred.body).not.toContain(SECRET);
+    expect(t.secrets.names()).toEqual(namesBefore);
+
+    const put = await putAgent({ model: 'haiku', maxTurns: 3, timeoutSeconds: 120 }, projectId, member);
+    expect(put.statusCode).toBe(403);
+    expect(await agentOf()).toEqual(agent);
+    expect(logged.join('')).not.toContain(SECRET);
+  });
+
+  it('TC-29.1: an admin on P1 can put the agent and its credential', async () => {
+    const orgId = await orgIdOf('alice');
+    const admin = await inviteAndLogin(t, orgId, 'agent-admin', 'admin', { type: 'project', projectIds: [projectId] });
+    const agent = await agentOf();
+
+    const put = await putAgent({ model: 'opus', timeoutSeconds: 3600 }, projectId, admin);
+    expect(expectContract('agents.put', put)).toMatchObject({ model: 'opus', timeoutSeconds: 3600 });
+    const cred = await putCred(agent.id, { type: 'api_key', value: 'sk-ant-admin-value-1' }, admin);
+    expect(cred.statusCode).toBe(200);
+    expectContract('agents.putCredential', cred);
+    expect(await t.secrets.get(credentialSecretName(orgId, agent.id))).toEqual({
+      type: 'api_key',
+      value: 'sk-ant-admin-value-1',
+    });
+  });
+});

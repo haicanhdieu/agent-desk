@@ -1492,14 +1492,14 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `loadAccess`, `can` (Tasks 1, 7).
 - Produces: `ConnectionsService.complete` loads the state user's access under `withOrg(state.orgId)` and refuses with 403 unless `can(access, 'connection:create')` (org scope).
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `connections.int.test.ts`: BR-16 B's `GET /api/connections`, `POST …/fake/install`, `POST …/fake/sync` → 403; install callback: an install state minted for O, redeemed after O's org `owner` assignment is replaced by `member` on P1 → 403 and no connection row.
   - `projects.int.test.ts`: BR-18 B's `POST /api/projects` and `DELETE /api/projects/P1` → 403, list unchanged; BR-33 B's `PATCH /api/projects/P1` → 403, reread unchanged; BR-29 A's `PATCH` P1 → 200, A's create and delete → 403.
   - `agents.int.test.ts`: BR-17 B's `PUT /api/agents/:agentId/credential` → 403, body has no value, `MemorySecretStore` unchanged; BR-33 B's `PUT …/agent` → 403; BR-29 A's agent put and credential put on P1 → 2xx.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/connections.int.test.ts test/projects.int.test.ts test/agents.int.test.ts`. Expected: FAIL (the callback case).
-- [ ] **Step 3: Implement** the re-check.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): the install callback re-checks connection:create`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/connections.int.test.ts test/projects.int.test.ts test/agents.int.test.ts`. Expected: FAIL (the callback case).
+- [x] **Step 3: Implement** the re-check.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): the install callback re-checks connection:create`.
 
 ---
 

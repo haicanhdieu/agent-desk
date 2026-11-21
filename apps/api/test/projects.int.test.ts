@@ -672,3 +672,50 @@ describe('projects.list paging', () => {
     expect(expectContract('projects.list', await list(empty))).toMatchObject({ items: [], total: 0 });
   });
 });
+
+describe('projects: permission (BR-18, BR-33, BR-29)', () => {
+  const list = async (cookie: string) =>
+    expectContract(
+      'projects.list',
+      await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } }),
+    ) as Page<ProjectDto>;
+  const get = (id: string, cookie = alice) =>
+    t.app.inject({ method: 'GET', url: `/api/projects/${id}`, headers: { cookie } });
+  const remove = (id: string, cookie: string) =>
+    t.app.inject({ method: 'DELETE', url: `/api/projects/${id}`, headers: { cookie } });
+
+  it('TC-18.1, TC-18.2, TC-33.1: a member cannot create, delete or edit a project and nothing changes', async () => {
+    const p1 = (await createProject({})).json() as ProjectDto;
+    const member = await inviteAndLogin(t, aliceOrg, 'proj-member', 'member', { type: 'org' });
+    const before = await list(member);
+    expect((await get(p1.id, member)).statusCode).toBe(200);
+    t.temporal.reset();
+
+    expect((await createProject({}, member)).statusCode).toBe(403);
+    expect((await remove(p1.id, member)).statusCode).toBe(403);
+    expect((await patch(p1.id, { name: 'Renamed by a member' }, member)).statusCode).toBe(403);
+
+    const after = await list(member);
+    expect(after.total).toBe(before.total);
+    expect(after.items.map((x) => x.id)).toEqual(before.items.map((x) => x.id));
+    expect((await get(p1.id, member)).statusCode).toBe(200);
+    const reread = expectContract('projects.get', await get(p1.id)) as ProjectDto;
+    expect(reread.name).toBe(p1.name);
+    expect(t.temporal.calls).toEqual([]);
+  });
+
+  it('TC-29.1, TC-29.5, TC-29.6: an admin on P1 edits P1 but cannot create or delete projects', async () => {
+    const p1 = (await createProject({})).json() as ProjectDto;
+    const admin = await inviteAndLogin(t, aliceOrg, 'proj-admin', 'admin', { type: 'project', projectIds: [p1.id] });
+    const before = await list(admin);
+
+    const edited = await patch(p1.id, { name: 'Renamed by P1 admin' }, admin);
+    expect(edited.statusCode).toBe(200);
+    expect((expectContract('projects.update', edited) as ProjectDto).name).toBe('Renamed by P1 admin');
+    expect((await createProject({}, admin)).statusCode).toBe(403);
+    expect((await remove(p1.id, admin)).statusCode).toBe(403);
+
+    expect((await list(admin)).items.map((x) => x.id)).toEqual(before.items.map((x) => x.id));
+    expect((await get(p1.id)).statusCode).toBe(200);
+  });
+});
