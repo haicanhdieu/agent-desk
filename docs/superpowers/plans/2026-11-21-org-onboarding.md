@@ -859,11 +859,11 @@ export interface InviteOption { id: string; label: string }
 
   Fixtures: `orgs.ts` `orgOptions` (Acme, Beta, a 60-character name), `orgSwitchFixtures: Record<'oneOrg' | 'severalOrgs' | 'platformAdmin' | 'platformAdminNoOrg' | 'longName', OrgSwitchData>`; `onboarding.ts` `checklistSteps: Record<'none' | 'partial' | 'complete', ChecklistStep[]>` (labels from the spec copy), `pendingInvitationsCount = 2`; `invitations.ts` `invitationCards` (default, project scope, inviter deleted), `invitationDetails` per status (including expired with inviter deleted), `orgInvitationRows` (pending, expiring soon, expired recently, expired long ago with the exact date, accepted, declined, revoked, project scope, long email, inviter deleted), `pagedInvitationRows(n: number): OrgInvitationRowView[]`, `inviteRoleOptions: Record<'owner' | 'orgAdmin' | 'projectAdmin', InviteOption[]>`, `inviteProjectOptions`, `invitationLink = 'https://agentdesk.example/invitations/…'`. Dates in fixtures use the spec format ("23 Nov, 14:05", title "23 Nov 2026, 14:05").
 
-- [ ] **Step 1: Write the failing test** in `mocks.test.ts`: every fixture is exported from `@/mocks`; `orgInvitationRows` covers all five statuses; rows with status accepted, declined or revoked have `actions` without `resend` and `revoke` and `expires.kind === 'none'`; the expired row offers `resend` and not `revoke` (BR-19 shape).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/mocks.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the types and fixtures.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): view fixtures for the org onboarding stories`.
+- [x] **Step 1: Write the failing test** in `mocks.test.ts`: every fixture is exported from `@/mocks`; `orgInvitationRows` covers all five statuses; rows with status accepted, declined or revoked have `actions` without `resend` and `revoke` and `expires.kind === 'none'`; the expired row offers `resend` and not `revoke` (BR-19 shape).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/mocks.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the types and fixtures.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): view fixtures for the org onboarding stories`.
 
 ---
 

@@ -1,14 +1,26 @@
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { RUN_STATUSES } from '@/ds';
 import {
   agentSettings,
+  checklistSteps,
   connectionCopy,
   connections,
   connectionWarnings,
   DEFAULT_POLL_INTERVAL,
   ignored,
+  invitationCards,
+  invitationDetails,
+  invitationLink,
+  inviteProjectOptions,
+  inviteRoleOptions,
   linkedGroups,
   menuWarning,
+  orgInvitationRows,
+  orgOptions,
+  orgSwitchFixtures,
+  pagedInvitationRows,
+  pendingInvitationsCount,
   pollIntervals,
   projects,
   rules,
@@ -243,5 +255,76 @@ describe('polling copy', () => {
     expect(menuWarning(connections.pollingOk)).toBeUndefined();
     expect(menuWarning(connections.webhookSilent)).toBe('webhooks');
     expect(menuWarning(connections.pollingRevoked)).toBe('polling');
+  });
+});
+
+describe('onboarding fixtures', () => {
+  it('exports every onboarding fixture', () => {
+    expect(orgOptions.length).toBeGreaterThanOrEqual(3);
+    expect(orgOptions.some((o) => o.name.length === 60)).toBe(true);
+    expect(Object.keys(orgSwitchFixtures).sort()).toEqual(
+      ['longName', 'oneOrg', 'platformAdmin', 'platformAdminNoOrg', 'severalOrgs'].sort(),
+    );
+    expect(orgSwitchFixtures.platformAdminNoOrg.current).toBeNull();
+    expect(Object.keys(checklistSteps)).toEqual(['none', 'partial', 'complete']);
+    expect(checklistSteps.none.every((s) => !s.done)).toBe(true);
+    expect(checklistSteps.complete.every((s) => s.done)).toBe(true);
+    expect(checklistSteps.none.map((s) => s.label)).toEqual([
+      'Connect a code host',
+      'Create a project',
+      'Add an agent',
+      'Add a rule',
+    ]);
+    expect(pendingInvitationsCount).toBe(2);
+    expect(invitationCards.length).toBeGreaterThanOrEqual(3);
+    expect(invitationCards.some((c) => c.inviter === null)).toBe(true);
+    expect(Object.keys(inviteRoleOptions).sort()).toEqual(['orgAdmin', 'owner', 'projectAdmin']);
+    expect(inviteProjectOptions.length).toBeGreaterThan(0);
+    expect(invitationLink.startsWith('https://agentdesk.example/invitations/')).toBe(true);
+    expect(pagedInvitationRows(7)).toHaveLength(7);
+  });
+
+  it('uses valid uuids for every fixture id', () => {
+    const ids = [
+      ...inviteProjectOptions.map((o) => o.id),
+      ...orgOptions.map((o) => o.id),
+      ...invitationCards.map((c) => c.id),
+      ...orgInvitationRows.map((r) => r.id),
+      ...pagedInvitationRows(3).map((r) => r.id),
+    ];
+    for (const id of ids) expect(z.uuid().safeParse(id).success, id).toBe(true);
+  });
+
+  it('has a details fixture per status, expired with the inviter deleted', () => {
+    expect(Object.keys(invitationDetails).sort()).toEqual(['accepted', 'declined', 'expired', 'pending', 'revoked']);
+    expect(invitationDetails.expired.inviter).toBeNull();
+    expect(invitationDetails.pending.expires.text).toMatch(/^\d{1,2} [A-Z][a-z]{2}, \d{2}:\d{2}$/);
+    expect(invitationDetails.pending.expires.title).toMatch(/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}$/);
+  });
+
+  it('covers all five statuses in orgInvitationRows', () => {
+    expect(new Set(orgInvitationRows.map((r) => r.status))).toEqual(
+      new Set(['pending', 'accepted', 'declined', 'revoked', 'expired']),
+    );
+  });
+
+  it('offers no Resend or Revoke on resolved rows and Resend only on expired rows (BR-19)', () => {
+    for (const r of orgInvitationRows.filter((r) => ['accepted', 'declined', 'revoked'].includes(r.status))) {
+      expect(r.actions).not.toContain('resend');
+      expect(r.actions).not.toContain('revoke');
+      expect(r.expires.kind).toBe('none');
+    }
+    for (const r of orgInvitationRows.filter((r) => r.status === 'expired')) {
+      expect(r.actions).toContain('resend');
+      expect(r.actions).not.toContain('revoke');
+    }
+    for (const r of orgInvitationRows.filter((r) => r.status === 'pending')) {
+      expect(r.actions).toEqual(['copy', 'resend', 'revoke']);
+    }
+  });
+
+  it('shows the exact date directly for an invitation expired long ago (BR-51)', () => {
+    expect(orgInvitationRows.some((r) => r.status === 'expired' && r.expires.kind === 'exact')).toBe(true);
+    expect(orgInvitationRows.some((r) => r.status === 'expired' && r.expires.kind === 'relative')).toBe(true);
   });
 });

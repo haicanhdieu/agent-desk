@@ -194,3 +194,55 @@ export type RunDetailKey =
   | 'RunStoppedAutoResumeWaiting'
   | 'RunStoppedAutoResumeFailedGaveUp'
   | 'RunRunningAutoResume';
+
+// Org onboarding view types (switcher, checklist, invitations). Plain view data: dates are already formatted.
+export interface OrgOption {
+  id: string;
+  slug: string;
+  name: string;
+}
+export interface OrgSwitchData {
+  current: OrgOption | null;
+  orgs: OrgOption[];
+  platformAdmin: boolean;
+}
+export type ChecklistStepKey = 'connect_code_host' | 'create_project' | 'add_agent' | 'add_rule';
+export interface ChecklistStep {
+  key: ChecklistStepKey;
+  label: string;
+  done: boolean;
+  href: string;
+}
+export type InvitationStatusView = 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired';
+export interface ExpiryView {
+  kind: 'relative' | 'exact' | 'none';
+  text: string;
+  title?: string;
+  dateTime?: string;
+}
+export interface OrgInvitationRowView {
+  id: string;
+  email: string;
+  role: string;
+  access: string;
+  status: InvitationStatusView;
+  expires: ExpiryView;
+  invitedBy: string | null;
+  actions: ('copy' | 'resend' | 'revoke')[];
+}
+export interface InvitationCardView {
+  id: string;
+  orgName: string;
+  roleName: string;
+  access: string;
+  inviter: string | null;
+  expires: { text: string; title: string; dateTime: string };
+}
+export interface InvitationDetailsView extends InvitationCardView {
+  orgSlug: string;
+  status: InvitationStatusView;
+}
+export interface InviteOption {
+  id: string;
+  label: string;
+}
