@@ -1,9 +1,12 @@
-import type { IgnoredEventDto, RunDto, RunListItem } from '@agentdesk/contracts';
+import type { IgnoredEventDto, LinkedTicketDto, RunDto, RunListItem } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
 import { runFixtures } from '@/mocks/dto/runs';
 import {
+  chainNoteOf,
   formatDuration,
   groupByTicket,
+  groupKeyOf,
+  linkedTicketsByRun,
   safeHref,
   startOfLocalDay,
   ticketRunCounts,
@@ -235,6 +238,169 @@ describe('groupByTicket', () => {
   it('orders groups by their newest run', () => {
     const groups = groupByTicket([summary(3, 5), summary(8, 6), summary(10, 5)], 10);
     expect(groups.map((g) => g.ticket.number)).toEqual([5, 6]);
+  });
+});
+
+describe('groupByTicket, linked tickets', () => {
+  const entry = (kind: 'issue' | 'pr', number: number, ticketRunCount = 1, over: Partial<LinkedTicketDto> = {}) => ({
+    ref: String(number),
+    kind,
+    number,
+    title: `${kind} ${number} title`,
+    url: `https://github.com/acme/invoicer-api/${kind === 'pr' ? 'pull' : 'issues'}/${number}`,
+    labels: [{ name: 'user-story', color: '0e8a16' }],
+    ticketRunCount,
+    ...over,
+  });
+  const sum = (number: number, kind: 'issue' | 'pr', ticketNumber: number) =>
+    toRunSummary(
+      run({ number, ticket: { ...base.ticket, kind, number: ticketNumber, ref: String(ticketNumber) } }),
+      now,
+    );
+  const links = (...pairs: [number, LinkedTicketDto[]][]) => new Map(pairs);
+
+  it('puts runs of an issue and its linked PR under one group, each with its own run count', () => {
+    const groups = groupByTicket(
+      [sum(62, 'pr', 148), sum(60, 'issue', 142)],
+      10,
+      undefined,
+      links([60, [entry('pr', 148)]], [62, [entry('issue', 142)]]),
+    );
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.ticket.number).toBe(142);
+    expect(groups[0]?.runsUsed).toBe(1);
+    expect(groups[0]?.linked).toEqual([{ ticket: { kind: 'pr', number: 148 }, runsUsed: 1 }]);
+    expect(groups[0]?.chainNote).toBe('Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)');
+    expect(groups[0]?.runs.map((r) => r.id)).toEqual([60, 62]);
+  });
+
+  it("a page with only the PR's linked runs is led by the issue, with title, labels and url from linkedTickets", () => {
+    const groups = groupByTicket([sum(62, 'pr', 148)], 10, undefined, links([62, [entry('issue', 142, 3)]]));
+    expect(groups).toHaveLength(1);
+    expect(groups[0]?.ticket).toEqual({
+      kind: 'issue',
+      number: 142,
+      title: 'issue 142 title',
+      labels: [{ name: 'user-story', color: '#0e8a16' }],
+      href: 'https://github.com/acme/invoicer-api/issues/142',
+    });
+    expect(groups[0]?.runsUsed).toBe(3);
+    expect(groups[0]?.chainNote).toBe('Issue #142 (3 of 10 runs) → PR #148 (1 of 10 runs)');
+  });
+
+  it("a page with only the issue's runs shows the merged header with the PR counts", () => {
+    const groups = groupByTicket([sum(60, 'issue', 142)], 10, undefined, links([60, [entry('pr', 148, 4)]]));
+    expect(groups[0]?.ticket.number).toBe(142);
+    expect(groups[0]?.linked).toEqual([{ ticket: { kind: 'pr', number: 148 }, runsUsed: 4 }]);
+    expect(groups[0]?.chainNote).toBe('Issue #142 (1 of 10 runs) → PR #148 (4 of 10 runs)');
+  });
+
+  it("an issue with two PRs lists both in number order, even when only one PR's runs are on the page", () => {
+    const groups = groupByTicket(
+      [sum(70, 'pr', 150)],
+      10,
+      undefined,
+      links([70, [entry('issue', 142), entry('pr', 150, 2), entry('pr', 148)]]),
+    );
+    expect(groups[0]?.linked?.map((l) => l.ticket.number)).toEqual([148, 150]);
+    expect(groups[0]?.chainNote).toBe('Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)');
+  });
+
+  it('runs are oldest first across tickets and the group sits by its newest run', () => {
+    const groups = groupByTicket(
+      [sum(80, 'issue', 5), sum(62, 'pr', 148), sum(60, 'issue', 142), sum(50, 'issue', 5)],
+      10,
+      undefined,
+      links([60, [entry('pr', 148)]], [62, [entry('issue', 142)]]),
+    );
+    expect(groups.map((g) => g.ticket.number)).toEqual([5, 142]);
+    expect(groups[1]?.runs.map((r) => r.id)).toEqual([60, 62]);
+  });
+
+  it('an unlinked PR keeps its own group with no chain note', () => {
+    const groups = groupByTicket([sum(62, 'pr', 148)], 10, undefined, links([62, []]));
+    expect(groups[0]?.ticket.kind).toBe('pr');
+    expect(groups[0]?.chainNote).toBeUndefined();
+    expect(groups[0]?.linked ?? []).toEqual([]);
+  });
+
+  it('an issue and a PR with the same number and no link stay apart', () => {
+    const groups = groupByTicket([sum(2, 'pr', 7), sum(1, 'issue', 7)], 10);
+    expect(groups).toHaveLength(2);
+  });
+
+  it('a PR whose linked tickets name two issues joins the lowest-numbered one', () => {
+    const groups = groupByTicket(
+      [sum(62, 'pr', 148)],
+      10,
+      undefined,
+      links([62, [entry('issue', 150), entry('issue', 142)]]),
+    );
+    expect(groups[0]?.ticket.number).toBe(142);
+  });
+
+  it('a PR run with [] keeps its own group, even when another run of the PR is merged; the two group keys differ', () => {
+    const merged = [entry('issue', 142)];
+    const groups = groupByTicket(
+      [sum(62, 'pr', 148), sum(40, 'pr', 148)],
+      10,
+      undefined,
+      links([62, merged], [40, []]),
+    );
+    expect(groups.map((g) => `${g.ticket.kind}:${g.ticket.number}`).sort()).toEqual(['issue:142', 'pr:148']);
+    expect(groupKeyOf(sum(62, 'pr', 148), merged)).not.toBe(groupKeyOf(sum(40, 'pr', 148), []));
+  });
+
+  it('counts are per ticket and never summed', () => {
+    const groups = groupByTicket(
+      [sum(60, 'issue', 142), sum(62, 'pr', 148)],
+      10,
+      undefined,
+      links([60, [entry('pr', 148, 2)]], [62, [entry('issue', 142, 3)]]),
+    );
+    const g = groups[0];
+    expect(g?.runsUsed).toBe(3);
+    expect(g?.linked?.[0]?.runsUsed).toBe(2);
+    expect([g?.runsUsed, g?.linked?.[0]?.runsUsed]).not.toContain(5);
+  });
+
+  it("groupKeyOf ignores pr entries in a PR run's linked tickets", () => {
+    expect(groupKeyOf(sum(62, 'pr', 148), [entry('pr', 140), entry('pr', 150)])).toBe('pr:148');
+    expect(groupKeyOf(sum(62, 'pr', 148), [entry('pr', 140), entry('issue', 142)])).toBe('issue:142');
+    expect(groupKeyOf(sum(60, 'issue', 142), [entry('issue', 5)])).toBe('issue:142');
+  });
+
+  it('a lead taken from linked tickets goes through safeHref and labelColor', () => {
+    const bad = entry('issue', 142, 1, { url: 'javascript:alert(1)', labels: [{ name: 'x', color: 'red' }] });
+    const groups = groupByTicket([sum(62, 'pr', 148)], 10, undefined, links([62, [bad]]));
+    expect(groups[0]?.ticket.href).toBe('');
+    expect(groups[0]?.ticket.labels).toEqual([{ name: 'x', color: '' }]);
+  });
+});
+
+describe('linkedTicketsByRun', () => {
+  it('maps each run number to its linked tickets', () => {
+    const e = { ref: '1', kind: 'issue' as const, number: 1, title: 't', url: '', labels: [], ticketRunCount: 1 };
+    const item = (number: number, linkedTickets: LinkedTicketDto[]): RunListItem => ({
+      ...run({ number }),
+      ticketRunCount: 1,
+      linkedTickets,
+    });
+    const m = linkedTicketsByRun([item(1, [e]), item(2, [])]);
+    expect(m.get(1)).toEqual([e]);
+    expect(m.get(2)).toEqual([]);
+  });
+});
+
+describe('chainNoteOf', () => {
+  it('writes "runs" for one and lists PRs in the given order', () => {
+    const pr = (number: number, runsUsed: number) => ({ ticket: { kind: 'pr' as const, number }, runsUsed });
+    expect(chainNoteOf({ kind: 'issue', number: 142 }, 1, [pr(148, 1)], 10)).toBe(
+      'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)',
+    );
+    expect(chainNoteOf({ kind: 'issue', number: 142 }, 1, [pr(148, 1), pr(150, 2)], 10)).toBe(
+      'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)',
+    );
   });
 });
 

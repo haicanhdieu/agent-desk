@@ -702,14 +702,14 @@ export function groupByTicket(runs: RunSummary[], maxRunsPerTicket: number,
   - Calls without `linked` behave as today.
 - The route passes `linkedTicketsByRun(listed.items)` as the fourth argument.
 
-- [ ] **Step 1: Write the first failing test** (spec "Test order"): `map.test.ts` › `groupByTicket` › `puts runs of an issue and its linked PR under one group, each with its own run count`. Issue 142 run 60 with `[pr 148 (1)]`, and PR 148 run 62 with `[issue 142 (1)]`, give one group:
+- [x] **Step 1: Write the first failing test** (spec "Test order"): `map.test.ts` › `groupByTicket` › `puts runs of an issue and its linked PR under one group, each with its own run count`. Issue 142 run 60 with `[pr 148 (1)]`, and PR 148 run 62 with `[issue 142 (1)]`, give one group:
   - `ticket.number` 142 and `runsUsed` 1;
   - `linked` `[{ ticket: { kind: 'pr', number: 148 }, runsUsed: 1 }]`;
   - `chainNote` `'Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)'`;
   - runs `[60, 62]`.
 
   Run `pnpm --filter @agentdesk/web test map`. Expected: FAIL (two groups).
-- [ ] **Step 2: Write the other failing mapper tests** in `map.test.ts`:
+- [x] **Step 2: Write the other failing mapper tests** in `map.test.ts`:
   - `a page with only the PR's linked runs is led by the issue, with title, labels and url from linkedTickets` (BR-3).
   - `a page with only the issue's runs shows the merged header with the PR counts` (BR-21).
   - `an issue with two PRs lists both in number order, even when only one PR's runs are on the page` (BR-4).
@@ -723,8 +723,8 @@ export function groupByTicket(runs: RunSummary[], maxRunsPerTicket: number,
   - `a lead taken from linked tickets goes through safeHref and labelColor` (Review Focus 5). Url `'javascript:alert(1)'` gives href `''`, and colour `'red'` gives `''`.
   - `chainNoteOf writes "runs" for one and lists PRs in the given order`.
   - The existing `groupByTicket` and `ticketRunCounts` tests stay as they are.
-- [ ] **Step 3: Implement** the four functions in `map.ts` and wire the route. Run `pnpm --filter @agentdesk/web test map`. Expected: PASS.
-- [ ] **Step 4: Write the failing route tests** in `runs.route.test.tsx` (MSW default fixtures):
+- [x] **Step 3: Implement** the four functions in `map.ts` and wire the route. Run `pnpm --filter @agentdesk/web test map`. Expected: PASS.
+- [x] **Step 4: Write the failing route tests** in `runs.route.test.tsx` (MSW default fixtures):
   - `shows issue #142 and PR #148 under one ticket header`:
     - one row header with the link "Issue #142" and the text "Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)";
     - no header link "PR #148";
@@ -734,10 +734,10 @@ export function groupByTicket(runs: RunSummary[], maxRunsPerTicket: number,
   - Update, never delete:
     - the group-order assertion in "lists every run grouped by ticket" (run 62 now follows run 60 in the #142 group);
     - the "#131 … 2 of 10 runs" assertion in "runs used per ticket count every run of the ticket" (the #131 group is now merged, so assert its chain note "Issue #131 (2 of 10 runs) → PR #133 (2 of 10 runs)").
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test runs.route`. Expected: PASS after the wiring.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/web test runs.route`. Expected: PASS after the wiring.
 - [ ] **Step 6: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
 - [ ] **Step 7: Check the existing mock specs that read the default grouped list still pass.** Build once with `pnpm --filter @agentdesk/web exec vite build --mode mock`. Then run `pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-board.spec.ts e2e/mock/runs-paging.spec.ts e2e/mock/external-links.spec.ts`. Expected: PASS. If one breaks because the PR #148 or PR #133 header is gone, fix only that assertion and say so in the PR.
-- [ ] **Step 8: Commit:** `feat(web): group a PR's linked runs under its issue with per-ticket counts`.
+- [x] **Step 8: Commit:** `feat(web): group a PR's linked runs under its issue with per-ticket counts`.
 
 ---
 

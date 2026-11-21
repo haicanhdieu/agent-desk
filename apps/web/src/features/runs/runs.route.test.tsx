@@ -4,6 +4,7 @@ import { act, cleanup, screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
+import { applyMockLists } from '@/mocks/msw/e2eLists';
 import { runFixtures } from '@/mocks/dto/runs';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
@@ -42,8 +43,8 @@ describe('runs route', () => {
     await renderRoute(`${base}/runs`);
     expect(await screen.findByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
     expect(runNumbers().sort((a, b) => a - b)).toEqual([52, 54, 55, 56, 57, 60, 61, 62, 63, 64, 65, 66]);
-    // Groups by newest run: #152 (66), #151 (65), #150 (64), #151 (63), PR #148 (62), #139 (61), ...
-    expect(runNumbers().slice(0, 6)).toEqual([66, 65, 64, 63, 62, 61]);
+    // Groups by newest run: #152 (66), #151 (65), #150 (64), #151 (63), #142 with its PR #148 (60, 62), #139 (61), ...
+    expect(runNumbers().slice(0, 6)).toEqual([66, 65, 64, 63, 60, 62]);
     expect(screen.getByRole('link', { name: 'Run 62' })).toHaveAttribute('href', `${base}/runs/62`);
     expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveTextContent('12');
     expect(within(chips()).getByRole('link', { name: /^All/ })).toHaveAttribute('aria-current', 'page');
@@ -265,7 +266,7 @@ describe('runs route', () => {
     await renderRoute(`${base}/runs?filter=queued`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
     expect(runNumbers()).toEqual([63]);
-    expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+    expect(screen.getByText('Issue #131 (2 of 10 runs) → PR #133 (2 of 10 runs)')).toBeInTheDocument();
   });
 
   it('refetches the rows and the chip counts together on window focus', async () => {
@@ -293,6 +294,73 @@ describe('runs route', () => {
       focusManager.setFocused(undefined);
       vi.useRealTimers();
     }
+  });
+
+  describe('issue and linked PR runs', () => {
+    /** Ticket header rows: the table rows with no Run link. */
+    const headers = () =>
+      screen.getAllByRole('row').filter((r) => within(r).queryByRole('link', { name: /^Run \d+$/ }) === null);
+    const headerOf = (name: string) => {
+      const row = headers().find((r) => within(r).queryByRole('link', { name }) !== null);
+      if (!row) throw new Error('no header row for ' + name);
+      return row;
+    };
+
+    it('shows issue #142 and PR #148 under one ticket header', async () => {
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      const header = headerOf('Issue #142');
+      expect(header).toHaveTextContent('Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)');
+      expect(headers().some((r) => within(r).queryByRole('link', { name: 'PR #148' }))).toBe(false);
+      const rows: HTMLElement[] = [];
+      for (
+        let el = header.nextElementSibling;
+        el && el.querySelector('a[href*="/runs/"]');
+        el = el.nextElementSibling
+      ) {
+        rows.push(el as HTMLElement);
+      }
+      expect(rows.map((r) => within(r).getByRole('link', { name: /^Run \d+$/ }).textContent)).toEqual([
+        'Run 60',
+        'Run 62',
+      ]);
+    });
+
+    it("a PR's old unlinked run and its new linked run show two headers", async () => {
+      const template = mockDb.state.runs.find((r) => r.number === 62);
+      if (!template) throw new Error('run 62 fixture missing');
+      mockDb.state.runs = [
+        ...mockDb.state.runs,
+        {
+          ...template,
+          id: ids.run(1, 40),
+          number: 40,
+          queuedAt: '2026-01-01T00:00:00.000Z',
+          linkedIssueRefs: undefined,
+        },
+      ];
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(screen.getByRole('link', { name: 'Issue #142' })).toBeInTheDocument();
+      const pr = headerOf('PR #148');
+      expect(pr).toHaveTextContent('2 of 10 runs');
+    });
+
+    it("grouped, a page holding only the PR's linked runs is led by the issue", async () => {
+      applyMockLists({
+        runs: { total: 19 },
+        ticketRuns: [
+          { kind: 'issue', number: 12 },
+          { kind: 'pr', number: 13, linked: [12] },
+        ],
+      });
+      await renderRoute(`${base}/runs`);
+      await screen.findByRole('navigation', { name: 'Pagination' });
+      expect(runNumbers()).toContain(2);
+      expect(runNumbers()).not.toContain(1);
+      expect(screen.getByRole('link', { name: 'Issue #12' })).toBeInTheDocument();
+      expect(screen.getByText('Issue #12 (1 of 10 runs) → PR #13 (1 of 10 runs)')).toBeInTheDocument();
+    });
   });
 
   describe('with more runs than one API page', () => {
