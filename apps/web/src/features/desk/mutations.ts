@@ -4,6 +4,7 @@ import { useMutation, useQueryClient, type QueryClient } from '@tanstack/react-q
 import { useRef } from 'react';
 import { useToast } from '@/ds';
 import { api } from '../api';
+import { checklistKey } from '../onboarding/checklist';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { waitForPoll } from './checkNow';
 import { deskQueries, rulesKey, skillsKey } from './queries';
@@ -134,7 +135,13 @@ export function useSaveRule(org: string, projectId: string) {
       input.id === undefined
         ? api.rules.create({ params: { projectId }, body: input.body })
         : api.rules.update({ params: { ruleId: input.id }, body: input.body }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: rulesKey(org, projectId) }),
+    onSuccess: async (_saved, input) => {
+      // A created rule can complete the checklist's "Add a rule" step; an update keeps the rule.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: rulesKey(org, projectId) }),
+        ...(input.id === undefined ? [qc.invalidateQueries({ queryKey: checklistKey(org) })] : []),
+      ]);
+    },
   });
 }
 

@@ -1,13 +1,23 @@
-import { act, screen, waitFor, within } from '@testing-library/react';
+import type { CreateRuleRequest, RuleDto } from '@agentdesk/contracts';
+import { QueryClientProvider } from '@tanstack/react-query';
+import { act, renderHook, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http } from 'msw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
+import { checklistKey } from '@/features/onboarding/checklist';
+import { checklistFixtures } from '@/mocks/dto/invitations';
+import { projectFixtures } from '@/mocks/dto/projects';
+import { ruleFixtures } from '@/mocks/dto/rules';
 import { mockDb } from '@/mocks/msw/db';
-import { jsonResponse } from '@/mocks/msw/http';
+import { jsonResponse, problemResponse } from '@/mocks/msw/http';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
+import { createElement, type ReactNode } from 'react';
+import { useReplaceCredential } from '../desk/agent.form';
+import { useSaveRule } from '../desk/mutations';
+import { useInstallConnection, useSaveAgentStep, useSaveRepoStep, useSaveRulesStep } from '../setup/mutations';
 
 describe('projects route', () => {
   it('lists the org projects linking to their runs, with connection status', async () => {
@@ -289,5 +299,364 @@ describe('projects route controls by role', () => {
     await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('owner') });
     expect(await screen.findByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
     expect(screen.getByRole('link', { name: /New project/ })).toHaveAttribute('href', '/o/acme/projects/new/repo');
+  });
+});
+
+const checklistPath = `/api/orgs/${ids.org.acme}/checklist`;
+const checklistCard = () => screen.queryByRole('heading', { name: 'Get started' });
+/** The card's row of one step: its label's list item. */
+const row = (label: string): HTMLElement => {
+  const item = screen.getByText(label).closest('li');
+  if (!item) throw new Error(`no row ${label}`);
+  return item;
+};
+
+describe('projects route first-run checklist', () => {
+  it('BR-13: an owner with no project sees Get started with four Not done rows in place of the step cards', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistNoProject') });
+    expect(await screen.findByRole('heading', { name: 'Get started' })).toBeInTheDocument();
+    for (const label of ['Connect a code host', 'Create a project', 'Add an agent', 'Add a rule']) {
+      const item = row(label);
+      expect(within(item).getByRole('img', { name: 'Not done' })).toBeInTheDocument();
+      expect(within(item).getByRole('link', { name: 'Start' })).toBeInTheDocument();
+    }
+    expect(screen.getAllByRole('img', { name: 'Not done' })).toHaveLength(4);
+    // The static step cards give way to the checklist: each label shows once.
+    expect(screen.getAllByText('Connect a code host')).toHaveLength(1);
+    expect(screen.getAllByText('Add a rule')).toHaveLength(1);
+  });
+
+  it('BR-13 BR-14: a partial checklist shows above the project table, with done and not done rows', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistPartial') });
+    const heading = await screen.findByRole('heading', { name: 'Get started' });
+    const table = await screen.findByRole('table');
+    expect(heading.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(row('Connect a code host')).getByRole('img', { name: 'Done' })).toBeInTheDocument();
+    expect(within(row('Create a project')).getByRole('img', { name: 'Done' })).toBeInTheDocument();
+    expect(within(row('Add an agent')).getByRole('img', { name: 'Not done' })).toBeInTheDocument();
+    expect(within(row('Add a rule')).getByRole('img', { name: 'Not done' })).toBeInTheDocument();
+    expect(within(row('Connect a code host')).queryByRole('link', { name: 'Start' })).toBeNull();
+  });
+
+  it('TC-15.1 TC-15.2 BR-15: with no project every Start opens the new-project wizard', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistNoProject') });
+    await screen.findByRole('heading', { name: 'Get started' });
+    for (const label of ['Connect a code host', 'Create a project']) {
+      expect(within(row(label)).getByRole('link', { name: 'Start' })).toHaveAttribute(
+        'href',
+        '/o/acme/projects/new/repo',
+      );
+    }
+  });
+
+  it('TC-15.3 TC-15.4 BR-15: Start on a partial checklist opens the agent and rule setup of its project', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistPartial') });
+    await screen.findByRole('heading', { name: 'Get started' });
+    expect(within(row('Add an agent')).getByRole('link', { name: 'Start' })).toHaveAttribute(
+      'href',
+      `/o/acme/p/${ids.project.invoicerApi}/desk/agent`,
+    );
+    expect(within(row('Add a rule')).getByRole('link', { name: 'Start' })).toHaveAttribute(
+      'href',
+      `/o/acme/p/${ids.project.invoicerApi}/desk/rules`,
+    );
+  });
+
+  it('TC-15.5 BR-15: with two projects Start on "Add a rule" opens the rules of P1, the furthest along', async () => {
+    const { user, router } = await renderRoute('/o/acme/projects', {
+      scenario: () => scenarios.onboarding('checklistTwoProjects'),
+    });
+    await screen.findByRole('heading', { name: 'Get started' });
+    const start = within(row('Add a rule')).getByRole('link', { name: 'Start' });
+    expect(start).toHaveAttribute('href', `/o/acme/p/${ids.project.invoicerApi}/desk/rules`);
+    await user.click(start);
+    await waitFor(() => expect(router.state.location.pathname).toBe(`/o/acme/p/${ids.project.invoicerApi}/desk/rules`));
+  });
+
+  it('TC-16.1 BR-16: a complete checklist shows no card', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistComplete') });
+    await screen.findByRole('table');
+    await waitFor(() => expect(mockDb.requests('GET', checklistPath)).toBeGreaterThan(0));
+    expect(checklistCard()).toBeNull();
+  });
+
+  it.each(['projectAdmin', 'member', 'viewer'] as const)(
+    'BR-17: a %s sees no checklist card and the checklist is never requested',
+    async (name) => {
+      await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
+      await screen.findByRole('link', { name: 'invoicer-api' });
+      expect(checklistCard()).toBeNull();
+      expect(mockDb.requests('GET', checklistPath)).toBe(0);
+    },
+  );
+
+  it('a failing checklist shows the error card with Retry while the project list still renders', async () => {
+    const { user } = await renderRoute('/o/acme/projects', {
+      scenario: () => {
+        scenarios.onboarding('checklistPartial');
+        scenarios.serverError('orgs.checklist');
+      },
+    });
+    expect(await screen.findByRole('link', { name: 'invoicer-api' })).toBeInTheDocument();
+    expect(await screen.findByText('Internal server error')).toBeInTheDocument();
+    expect(screen.queryByText('Add an agent')).toBeNull();
+    const before = mockDb.requests('GET', checklistPath);
+    // The next answer succeeds.
+    server.resetHandlers();
+    await user.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(await screen.findByText('Add an agent')).toBeInTheDocument();
+    expect(mockDb.requests('GET', checklistPath)).toBeGreaterThan(before);
+  });
+
+  it('shows the loading state while the checklist is pending', async () => {
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await renderRoute('/o/acme/projects', {
+      scenario: () => {
+        scenarios.onboarding('checklistPartial');
+        server.use(
+          http.get('*/api/orgs/*/checklist', async () => {
+            await held;
+            return jsonResponse(checklistFixtures.partial);
+          }),
+        );
+      },
+    });
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.getByText('Loading checklist')).toBeInTheDocument();
+    release();
+    expect(await screen.findByText('Add an agent')).toBeInTheDocument();
+  });
+
+  it('BR-16: an invalidated checklist does not show its stale incomplete card while it refetches', async () => {
+    const { queryClient } = await renderRoute('/o/acme/projects', {
+      scenario: () => scenarios.onboarding('checklistPartial'),
+    });
+    expect(await screen.findByText('Add a rule')).toBeInTheDocument();
+    let release: () => void = () => undefined;
+    const held = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      http.get('*/api/orgs/*/checklist', async () => {
+        await held;
+        return jsonResponse(checklistFixtures.complete);
+      }),
+    );
+    // The last step was completed elsewhere, so the cached card is known to be out of date.
+    void queryClient.invalidateQueries({ queryKey: checklistKey('acme') });
+    expect(await screen.findByText('Loading checklist')).toBeInTheDocument();
+    expect(screen.queryByText('Add a rule')).toBeNull();
+    release();
+    await waitFor(() => expect(checklistCard()).toBeNull());
+    expect(screen.queryByText('Loading checklist')).toBeNull();
+  });
+});
+
+describe('checklist refresh after a step completes', () => {
+  async function setup() {
+    const { queryClient } = await renderRoute('/o/acme/projects', {
+      scenario: () => scenarios.onboarding('checklistPartial'),
+    });
+    await screen.findByText('Add an agent');
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    return { wrapper, count: () => mockDb.requests('GET', checklistPath) };
+  }
+  const P1 = ids.project.invoicerApi;
+  const refetchedPast = (count: () => number, before: number) => waitFor(() => expect(count()).toBeGreaterThan(before));
+
+  it('BR-14: creating a rule refetches the checklist', async () => {
+    const { wrapper, count } = await setup();
+    const { result } = renderHook(() => useSaveRule('acme', P1), { wrapper });
+    const before = count();
+    await act(() =>
+      result.current.mutateAsync({
+        body: {
+          kind: 'prompt',
+          command: 'triage',
+          labelFilter: [],
+          target: 'issue',
+          enabled: true,
+          prompt: 'Triage it',
+        },
+      }),
+    );
+    await refetchedPast(count, before);
+  });
+
+  it('BR-14: a rule saved in the setup wizard refetches the checklist', async () => {
+    const { wrapper, count } = await setup();
+    const { result } = renderHook(() => useSaveRulesStep('acme'), { wrapper });
+    const project = projectFixtures.find((p) => p.id === P1);
+    if (!project) throw new Error('no project');
+    const before = count();
+    await act(() =>
+      result.current.mutateAsync({
+        project,
+        rules: [{ kind: 'prompt', command: 'wizard', labelFilter: [], target: 'any', enabled: true, prompt: 'Do it' }],
+      }),
+    );
+    await refetchedPast(count, before);
+  });
+
+  it('BR-14: a project created refetches the checklist', async () => {
+    const { wrapper, count } = await setup();
+    const { result } = renderHook(() => useSaveRepoStep('acme'), { wrapper });
+    const connection = mockDb.state.connections.find((c) => c.orgId === ids.org.acme);
+    if (!connection) throw new Error('no connection');
+    const repo = (mockDb.state.repos[connection.id] ?? []).find(
+      (r) => !mockDb.state.projects.some((p) => p.repoPath === r.repoPath),
+    );
+    if (!repo) throw new Error('no free repo');
+    const before = count();
+    await act(() =>
+      result.current.mutateAsync({
+        kind: 'create',
+        body: { connectionId: connection.id, repoPath: repo.repoPath, triggerMode: 'polling' },
+      }),
+    );
+    await refetchedPast(count, before);
+  });
+
+  it('BR-14: setting the agent credential refetches the checklist', async () => {
+    const { wrapper, count } = await setup();
+    const agent = mockDb.state.agents.find((a) => a.projectId === P1);
+    if (!agent) throw new Error('no agent');
+    const { result } = renderHook(() => useReplaceCredential('acme', P1, agent.id), { wrapper });
+    const before = count();
+    await act(() => result.current.replace('oauth_token', 'sk-ant-oat-123'));
+    await refetchedPast(count, before);
+  });
+
+  it('BR-14: linking a code host connection refetches the checklist', async () => {
+    const { wrapper, count } = await setup();
+    const { result } = renderHook(() => useInstallConnection('acme'), { wrapper });
+    const connection = mockDb.state.connections.find((c) => c.orgId === ids.org.acme);
+    if (!connection) throw new Error('no connection');
+    mockDb.state.connections = mockDb.state.connections.filter((c) => c.id !== connection.id);
+    server.use(http.post(`*/api/connections/${connection.provider}/sync`, () => jsonResponse([connection])));
+    const before = count();
+    await act(() => result.current.mutateAsync(connection.provider));
+    await refetchedPast(count, before);
+  });
+});
+
+describe('checklist is not refetched when a write does not complete a step', () => {
+  async function setup() {
+    const { queryClient } = await renderRoute('/o/acme/projects', {
+      scenario: () => scenarios.onboarding('checklistPartial'),
+    });
+    await screen.findByText('Add an agent');
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(QueryClientProvider, { client: queryClient }, children);
+    const count = () => mockDb.requests('GET', checklistPath);
+    // The hooks await their invalidations, so a refetch has finished by the time a write resolves.
+    const expectUntouched = (before: number) => {
+      expect(count()).toBe(before);
+      expect(queryClient.getQueryState(checklistKey('acme'))?.isInvalidated).toBe(false);
+    };
+    return { wrapper, count, expectUntouched };
+  }
+  const P1 = ids.project.invoicerApi;
+  const promptRule = (command: string): CreateRuleRequest => ({
+    kind: 'prompt',
+    command,
+    labelFilter: [],
+    target: 'any',
+    enabled: true,
+    prompt: 'Do it',
+  });
+
+  it('BR-14: updating an existing rule does not refetch the checklist', async () => {
+    const { wrapper, count, expectUntouched } = await setup();
+    const { result } = renderHook(() => useSaveRule('acme', P1), { wrapper });
+    let rule: RuleDto | undefined;
+    await act(async () => {
+      rule = await result.current.mutateAsync({ body: promptRule('to-update') });
+    });
+    if (!rule) throw new Error('no rule');
+    const before = count();
+    await act(() => result.current.mutateAsync({ id: rule?.id ?? '', body: { enabled: false } }));
+    expectUntouched(before);
+  });
+
+  it('BR-14: updating a project in the setup wizard does not refetch the checklist', async () => {
+    const { wrapper, count, expectUntouched } = await setup();
+    const project = projectFixtures.find((p) => p.id === P1);
+    if (!project) throw new Error('no project');
+    const { result } = renderHook(() => useSaveRepoStep('acme'), { wrapper });
+    const before = count();
+    await act(() =>
+      result.current.mutateAsync({
+        kind: 'update',
+        project,
+        body: { name: 'renamed', triggerMode: project.triggerMode, pollIntervalSeconds: project.pollIntervalSeconds },
+      }),
+    );
+    expectUntouched(before);
+  });
+
+  it('BR-14: a failed credential save in the desk does not refetch the checklist', async () => {
+    const { wrapper, count, expectUntouched } = await setup();
+    const agent = mockDb.state.agents.find((a) => a.projectId === P1);
+    if (!agent) throw new Error('no agent');
+    scenarios.serverError('agents.putCredential');
+    const { result } = renderHook(() => useReplaceCredential('acme', P1, agent.id), { wrapper });
+    const before = count();
+    let saved: boolean | undefined;
+    await act(async () => {
+      saved = await result.current.replace('oauth_token', 'sk-ant-oat-123');
+    });
+    expect(saved).toBe(false);
+    expectUntouched(before);
+  });
+
+  it('BR-14: a failed credential save in the setup wizard does not refetch the checklist', async () => {
+    const { wrapper, count, expectUntouched } = await setup();
+    const project = projectFixtures.find((p) => p.id === P1);
+    const agent = mockDb.state.agents.find((a) => a.projectId === P1);
+    if (!project || !agent) throw new Error('no project or agent');
+    scenarios.serverError('agents.putCredential');
+    const { result } = renderHook(() => useSaveAgentStep('acme'), { wrapper });
+    const before = count();
+    await act(async () => {
+      await expect(
+        result.current.save(project, agent, {
+          model: agent.model,
+          maxConcurrentRuns: 1,
+          credentialType: 'oauth_token',
+          credential: 'sk-ant-oat-123',
+        }),
+      ).rejects.toBeDefined();
+    });
+    expectUntouched(before);
+  });
+
+  it('BR-14: a rule save that fails partway does not refetch the checklist', async () => {
+    const { wrapper, count, expectUntouched } = await setup();
+    const project = projectFixtures.find((p) => p.id === P1);
+    const template = ruleFixtures[0];
+    if (!project || !template) throw new Error('no project or rule');
+    let calls = 0;
+    server.use(
+      http.post('*/api/projects/*/rules', () => {
+        calls += 1;
+        return calls === 1
+          ? jsonResponse({ ...template, command: 'first-new' })
+          : problemResponse({ status: 500, title: 'Internal server error', type: 'internal' });
+      }),
+    );
+    const { result } = renderHook(() => useSaveRulesStep('acme'), { wrapper });
+    const before = count();
+    await act(async () => {
+      await expect(
+        result.current.mutateAsync({ project, rules: [promptRule('first-new'), promptRule('second-new')] }),
+      ).rejects.toBeDefined();
+    });
+    expect(calls).toBe(2);
+    expectUntouched(before);
   });
 });
