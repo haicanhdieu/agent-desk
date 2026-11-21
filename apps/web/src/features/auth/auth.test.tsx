@@ -21,6 +21,15 @@ describe('root session guard', () => {
     expect(await screen.findByRole('link', { name: 'Sign in with GitHub' })).toBeInTheDocument();
   });
 
+  it('BR-24 sends a signed-out visitor at an invitation link to sign-in with the link as a safe redirect', async () => {
+    const link = `/invitations/${ids.created(7)}`;
+    const { router } = await renderRoute(link, { scenario: scenarios.signedOut });
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'));
+    expect(router.state.location.href).toBe(`/sign-in?redirect=${encodeURIComponent(link)}`);
+    expect(safeRedirect(link)).toBe(link);
+    expect(router.state.matches.at(-1)?.search).toEqual(expect.objectContaining({ redirect: link }));
+  });
+
   it('sends a signed-in user at / to the active org projects', async () => {
     const { router } = await renderRoute('/');
     await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));

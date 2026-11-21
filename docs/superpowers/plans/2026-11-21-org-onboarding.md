@@ -1409,7 +1409,7 @@ export function useDeclineInvitation(): UseMutationResult<null, ApiError, string
 - Consumes: `myInvitationQuery` (Task 15); `useAcceptInvitation`, `useDeclineInvitation`, `formatShortDate`, `formatFullDate`, `accessLine` (Task 29); `InvitationAccept` (Task 23).
 - Produces: `toAcceptState(dto: MyInvitationDto): InvitationAcceptState` in `map.ts`; the route validates `$invitation` as a uuid (anything else → `notAvailable` without a request), reads `myInvitationQuery`, maps 404 to `notAvailable`, and on a 409 from Accept or Decline refetches the invitation and shows its new state (a second 409 after that falls to the error state).
 
-- [ ] **Step 1: Write the failing tests** in `accept.route.test.tsx`
+- [x] **Step 1: Write the failing tests** in `accept.route.test.tsx`
   - BR-25 a pending own invitation shows "Join <Org>", Role, Access, Invited by (`name` as given), Expires ("23 Nov, 14:05", title the full date), Accept then Decline.
   - BR-26 accepted, declined, revoked and expired show their states with no buttons; BR-48 expired reads "Ask <inviter> to resend it.", or the org-wide line with a null inviter.
   - BR-5 a 404 shows "This invitation is not available" with "Signed in as <email>" and "Sign out", and no org, role or email.
@@ -1419,10 +1419,10 @@ export function useDeclineInvitation(): UseMutationResult<null, ApiError, string
   - network error → Banner with Retry.
   - Review Focus 4: `a link with a malformed id shows not available without calling the API`.
   - `auth.test.tsx`: BR-24 signed out at `/invitations/<id>` goes to `/sign-in?redirect=/invitations/<id>`, and that redirect passes `safeRedirect` (one case added to the existing table).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/invitations src/features/auth/auth.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (regenerate `routeTree.gen.ts`) and the state mapper.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): accept or decline from the invitation link`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/invitations src/features/auth/auth.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (regenerate `routeTree.gen.ts`) and the state mapper.
+- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS. Only the Step 2 command was run (the full web suite is the Verifier's).
+- [x] **Step 5: Commit** `feat(web): accept or decline from the invitation link`.
 
 ---
 
