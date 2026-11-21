@@ -517,6 +517,8 @@ test.describe('BR-3 (group issue and PR runs): a page with only the PR runs show
   test('TC-3.2: pages 3 and 4 show the same merged header', async ({ page }) => {
     await seedLists(page, lists);
     await openRuns(page);
+    await pageButton(page, 2).click();
+    await expect(rangeOf(page)).toHaveText('Showing 21–40 of 62');
     await pageButton(page, 3).click();
     await expect(rangeOf(page)).toHaveText('Showing 41–60 of 62');
     const onPage3 = mergedHeader(page, 12);

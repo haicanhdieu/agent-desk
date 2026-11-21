@@ -187,18 +187,18 @@ const CHAIN_ARROW = '→';
 
 test.describe('BR-1 one group for an issue and its PR runs', () => {
   test('TC-1.1: the issue and its linked PR run share one Issue #142 group', async ({ page }) => {
-    await openRuns(page);
+    await openRuns(page, [i(142), p(148, [142])]);
     await expect(header(page, 'Issue #142')).toHaveCount(1);
-    await expect(header(page, 'Issue #142')).toContainText('Export invoices as CSV from the billing page');
+    await expect(header(page, 'Issue #142')).toContainText('Issue 142: add a health check endpoint');
     await expect(header(page, 'Issue #142')).toContainText('user-story');
-    await expect.poll(() => rowsOf(page, 'Issue #142')).toEqual(['60:#142', '62:PR #148']);
+    await expect.poll(() => rowsOf(page, 'Issue #142')).toEqual(['1:#142', '2:PR #148']);
     await expect(header(page, 'PR #148')).toHaveCount(0);
   });
 });
 
 test.describe('BR-2 each ticket keeps its own count in the chain note', () => {
   test('TC-2.1: the chain note shows both counts and nothing is on the right', async ({ page }) => {
-    await openRuns(page);
+    await openRuns(page, [i(142), p(148, [142])]);
     const head = header(page, 'Issue #142');
     await expect(head.getByText('Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)', { exact: true })).toBeVisible();
     await expect(head).not.toContainText(OWN_COUNT);
@@ -268,11 +268,11 @@ test.describe('BR-7 unlinked tickets stay apart', () => {
 
 test.describe('BR-8 grouping off is the flat list', () => {
   test('TC-8.1: turning Grouped by ticket off shows every run as a row with its own ticket', async ({ page }) => {
-    await openRuns(page);
+    await openRuns(page, [i(142), p(148, [142])]);
     await expect(header(page, 'Issue #142')).toBeVisible();
     // The rows of the grouped list, before the toggle: the same runs must be in the flat list.
     const grouped = (await board(page)).flatMap((g) => g.rows);
-    expect(grouped).toEqual(expect.arrayContaining(['60:#142', '62:PR #148']));
+    expect(grouped).toEqual(expect.arrayContaining(['1:#142', '2:PR #148']));
     await page.getByRole('button', { name: 'Grouped by ticket' }).click();
     await expect(page.getByRole('button', { name: 'Grouped by ticket' })).toHaveAttribute('aria-pressed', 'false');
     // No group header of any kind: every table row in the body holds a Run link.
