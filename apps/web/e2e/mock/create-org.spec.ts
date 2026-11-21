@@ -101,6 +101,8 @@ const FORMAT = 'Use lowercase letters, numbers and dashes, with no dash at the s
 /** Only this field is marked invalid: a field error shows on it and on no other. */
 async function expectOnlyInvalid(page: Page, field: Locator): Promise<void> {
   await expect(field).toHaveAttribute('aria-invalid', 'true');
+  // A field error shows: the field is described by a visible, non-empty message.
+  await expect(field).not.toHaveAccessibleDescription('');
   for (const other of [nameInput(page), slugInput(page), emailInput(page)]) {
     if ((await other.getAttribute('id')) !== (await field.getAttribute('id'))) {
       await expect(other).not.toHaveAttribute('aria-invalid', 'true');

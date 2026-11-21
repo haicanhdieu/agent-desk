@@ -84,8 +84,12 @@ test.describe('BR-19: row actions follow the status', () => {
       ['r@x.dev', 'Revoked'],
     ] as const) {
       await expect(rowOf(page, email)).toContainText(status);
-      // The row menu is disabled: there is nothing to open.
+      // The row menu is disabled: there is nothing to open. Try to open it anyway: no menu appears.
       await expect(menuButton(page, email)).toBeDisabled();
+      await menuButton(page, email).click({ force: true });
+      await expect(page.getByRole('dialog', { name: `Actions for ${email}` })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Resend', exact: true })).toHaveCount(0);
+      await expect(page.getByRole('button', { name: 'Revoke', exact: true })).toHaveCount(0);
     }
   });
 
