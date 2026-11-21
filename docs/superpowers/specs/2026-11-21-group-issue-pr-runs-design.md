@@ -149,8 +149,10 @@ and builds the chain note.
 - Tenant scope: `runs` already has `orgPolicy()`; reads stay inside the existing `withOrg` in `RunsService`. No new
   table, RLS policy or foreign key.
 - No backfill (T3): existing rows keep `'{}'` and group as today.
-- No new index. The reverse lookup (issue → PRs) filters `project_id` (the existing `runs_project_ticket_idx`
-  prefix) + `ticket_kind = 'pr'` + `linked_issue_refs && $refs`. A GIN index is recorded as a scale follow-up.
+- Migration `0023_runs_add_linked_issue_refs_idx.sql` adds a partial GIN index `runs_linked_issue_refs_idx` on
+  `runs (linked_issue_refs) where ticket_kind = 'pr'`. The reverse lookup (issue → PRs) filters `project_id` +
+  `ticket_kind = 'pr'` + `linked_issue_refs && $refs`, so it finds candidate PRs through the index before it picks
+  each PR's newest link.
 
 ### API
 
@@ -235,7 +237,7 @@ Refs with count 0 are dropped (T2). Counts and the run limit stay per `ticketRef
 - Secrets: none touched. The token stays inside the adapter client. PR description and link fields are untrusted: only
   parsed integers are stored, never text, and they are never interpolated (Drizzle parameters, GraphQL variables).
 - Observability and scale: one warn on a link lookup failure (error name only); three extra queries per list page; the
-  reverse lookup scans the project's runs without a dedicated index; one extra GitHub request per PR command comment.
+  reverse lookup uses the partial GIN index `runs_linked_issue_refs_idx`; one extra GitHub request per PR command comment.
 - Sensitive paths: a migration on `runs`, the intake pipeline, and a new GitHub API call in the board adapter
   (security.md §8), so the PR gets `review:sensitive` and a security review. No RLS policy, auth, webhook
   verification, terminal or secrets change.
@@ -495,9 +497,9 @@ local when it crosses API, intake and the fake board.
   newest linked run lists, picked by the API (architecture: every page agrees).
 - Agent call: migration `0022_runs_add_linked_issue_refs.sql` adds the per-run `runs.linked_issue_refs` column
   (architecture: a per-run snapshot keeps runs from before the change ungrouped, T3).
-- Agent call: no new index for the reverse lookup (architecture: PoC scale; a GIN index would need
-  `CREATE INDEX CONCURRENTLY` in its own migration, which the repo has no precedent for; recorded as a scale
-  follow-up).
+- Agent call: migration `0023_runs_add_linked_issue_refs_idx.sql` adds a partial GIN index for the reverse lookup
+  (review finding: without it the lookup scans every linked PR run in the project; plain `CREATE INDEX`, as in
+  `0020_inbound_events_ignored_idx.sql`).
 - Agent call: `RunsService.listItems` adds 3 constant queries inside the existing `withOrg` transaction, bounded by
   page size (architecture: database.md §8).
 - Agent call: `Ticket` gains `linkedRefs`, filled by `getTicket` so it rides the existing prefetch under

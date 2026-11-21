@@ -49,22 +49,36 @@ export async function newestLinks(
   if (pagePrRefs.length === 0 && pageIssueRefs.length === 0) return [];
   const prs = textArray(pagePrRefs);
   const result = await tx.execute(sql`
-    with newest as (
+    with page_prs as (
+      select distinct on (ticket_ref) ticket_ref, linked_issue_refs
+      from runs
+      where project_id = ${projectId} and ticket_kind = 'pr' and cardinality(linked_issue_refs) > 0
+        and ticket_ref = any(${prs})
+      order by ticket_ref, queued_at desc, id desc
+    ),
+    wanted as (
+      select coalesce(array_agg(distinct r), '{}'::text[]) as refs
+      from (
+        select unnest(linked_issue_refs) as r from page_prs
+        union
+        select unnest(${textArray(pageIssueRefs)}) as r
+      ) u
+    ),
+    candidates as (
+      select distinct ticket_ref
+      from runs
+      where project_id = ${projectId} and ticket_kind = 'pr' and linked_issue_refs && (select refs from wanted)
+    ),
+    newest as (
       select distinct on (ticket_ref) ticket_ref, ticket_number, linked_issue_refs
       from runs
       where project_id = ${projectId} and ticket_kind = 'pr' and cardinality(linked_issue_refs) > 0
+        and ticket_ref in (select ticket_ref from candidates)
       order by ticket_ref, queued_at desc, id desc
-    ),
-    page_refs as (
-      select coalesce(array_agg(distinct r), '{}'::text[]) as refs
-      from newest, unnest(linked_issue_refs) as r
-      where ticket_ref = any(${prs})
     )
     select ticket_ref, ticket_number, linked_issue_refs
     from newest
-    where ticket_ref = any(${prs})
-      or linked_issue_refs && ${textArray(pageIssueRefs)}
-      or linked_issue_refs && (select refs from page_refs)
+    where ticket_ref = any(${prs}) or linked_issue_refs && (select refs from wanted)
   `);
   return LinkRows.parse(result.rows).map((r) => ({
     ref: r.ticket_ref,

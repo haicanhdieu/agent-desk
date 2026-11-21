@@ -161,6 +161,16 @@ describe('bootstrap and migrations', () => {
     expect(rows[0]?.indexdef).toContain("WHERE starts_with(outcome, 'ignored_'::text)");
   });
 
+  it('linked issue refs have a partial GIN index over PR runs for the reverse lookup', async () => {
+    const rows = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where tablename = 'runs' and indexname = 'runs_linked_issue_refs_idx'",
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.indexdef).toContain('USING gin (linked_issue_refs)');
+    expect(rows[0]?.indexdef).toContain("WHERE (ticket_kind = 'pr'::text)");
+  });
+
   it('foreign-key columns used by deletes and joins are indexed', async () => {
     const rows = await query<{ indexname: string; indexdef: string }>(
       env.ownerUrl,

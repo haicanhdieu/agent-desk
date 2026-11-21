@@ -278,6 +278,10 @@ export const runs = pgTable(
     index('runs_org_idx').on(t.orgId),
     index('runs_project_status_idx').on(t.projectId, t.status),
     index('runs_project_ticket_idx').on(t.projectId, t.ticketRef),
+    // Reverse lookup (issue -> PR runs linked to it): `linked_issue_refs && $refs` over PR runs only.
+    index('runs_linked_issue_refs_idx')
+      .using('gin', t.linkedIssueRefs)
+      .where(sql`${t.ticketKind} = 'pr'`),
     index('runs_rule_queued_idx').on(t.ruleId, t.queuedAt),
     index('runs_project_queued_idx').on(t.projectId, t.queuedAt.desc().nullsFirst(), t.id),
     index('runs_agent_idx').on(t.agentId),

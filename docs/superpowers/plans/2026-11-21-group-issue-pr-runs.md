@@ -15,7 +15,7 @@
 
 - AGENTS.md rules 1 to 11 bind every task. Layering is `apps → core → db → contracts`, and `web → contracts` only. Names stay generic (`linkedTickets`, `linked_issue_refs`, `linkedRefs`, `linked`). GitHub code stays in `packages/core/src/adapters/github/`.
 - No new dependency: no package, library, service, image, CI action, binary or workspace package. `octokit.graphql` comes with the existing `@octokit/rest`.
-- Migration `packages/db/migrations/0022_runs_add_linked_issue_refs.sql` adds `runs.linked_issue_refs text[] not null default '{}'`. No backfill, no index, no RLS change. Never edit 0000 to 0021.
+- Migration `packages/db/migrations/0022_runs_add_linked_issue_refs.sql` adds `runs.linked_issue_refs text[] not null default '{}'`. No backfill, no RLS change. Migration `0023_runs_add_linked_issue_refs_idx.sql` adds the partial GIN index `runs_linked_issue_refs_idx`. Never edit 0000 to 0021.
 - Link data is untrusted. Only same-repo positive integer refs (1 to 2147483647) are kept, as strings, deduplicated, lowest first, at most 10 per PR run. They are written on PR runs only. Issue runs always store `'{}'`. Ticket text is never stored in this column and never interpolated (Drizzle parameters, GraphQL `variables`).
 - A failed or slow link lookup never blocks a run. The run is stored with `'{}'` and shows in the PR's own group.
 - Counting and the run limit stay per `ticketRef` (`ticketRunCount`, `runsForTicket`, `ignored_max_runs`).
