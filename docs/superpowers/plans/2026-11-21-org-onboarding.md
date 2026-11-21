@@ -1040,11 +1040,11 @@ export function InvitationCard(props: { card: InvitationCardView; pending: 'acce
 
   InvitationRow: email (ellipsis + `title`), role, access, `StatusIcon` glyph plus text with the spec tones (pending `off` empty circle, accepted `ok` check, declined `off` slashed circle, revoked `off` crossed circle, expired `late` clock), `ExpiryLabel`, "Invited by" (`invitedBy` or a plain dash), and a `useRowMenu` menu "Actions for <email>" offering only the row's `actions` ("Copy link", "Resend", "Revoke" in red); `busy` disables the menu. InvitationCard: "<Org> invited you as <Role>", the access line, "Invited by <inviter>, expires <date>" or "Expires <date>" when the inviter is null, Decline left and Accept (primary) right; the pressed one reads "Accepting…"/"Declining…" disabled and the other disabled.
 
-- [ ] **Step 1: Write the failing tests** in `Invitations.test.tsx`: BR-19 an accepted, declined or revoked row's menu has no Resend or Revoke, an expired row's has Resend only; menu items call their handlers; BR-52 a null inviter shows a dash in the row and "Expires <date>" with no "Invited by" on the card; BR-51 a relative ExpiryLabel has the exact date in `title` and an sr-only span, an exact one shows the date; InviteLink's button calls `onCopy`; the card disables both buttons while one is pending.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/Invitations.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the components and stories: `Components/InvitationRow` (Pending, ExpiringSoon, ExpiredRecently, ExpiredLongAgo, Accepted, Declined, Revoked, ProjectScope, LongEmail, InviterDeleted), `Components/InvitationCard` (Default, ProjectScope, Accepting, InviterDeleted), `Components/InviteLink` (Default, CopyFailed), `Components/ExpiryLabel` (Relative, Exact, None).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): invitation row, card, link and expiry label with stories`.
+- [x] **Step 1: Write the failing tests** in `Invitations.test.tsx`: BR-19 an accepted, declined or revoked row's menu has no Resend or Revoke, an expired row's has Resend only; menu items call their handlers; BR-52 a null inviter shows a dash in the row and "Expires <date>" with no "Invited by" on the card; BR-51 a relative ExpiryLabel has the exact date in `title` and an sr-only span, an exact one shows the date; InviteLink's button calls `onCopy`; the card disables both buttons while one is pending.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/Invitations.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the components and stories: `Components/InvitationRow` (Pending, ExpiringSoon, ExpiredRecently, ExpiredLongAgo, Accepted, Declined, Revoked, ProjectScope, LongEmail, InviterDeleted), `Components/InvitationCard` (Default, ProjectScope, Accepting, InviterDeleted), `Components/InviteLink` (Default, CopyFailed), `Components/ExpiryLabel` (Relative, Exact, None).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): invitation row, card, link and expiry label with stories`.
 
 ---
 
