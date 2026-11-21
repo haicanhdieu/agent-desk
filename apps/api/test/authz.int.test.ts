@@ -13,15 +13,17 @@ import { DiscoveryService, ModulesContainer } from '@nestjs/core';
 import type { Logger } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { flattenRoutes, routeAccess, routes, type RouteKey } from '@agentdesk/contracts';
-import { roleAssignments, rules as rulesTable, runs, setupTests, withOrg } from '@agentdesk/db';
-import { eq } from 'drizzle-orm';
+import { roleAssignments, roles, rules as rulesTable, runs, setupTests, withOrg } from '@agentdesk/db';
+import { and, eq } from 'drizzle-orm';
+import pg from 'pg';
+import { WebSocket } from 'ws';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
 import { routeEntryFor } from '../src/access/route-entry';
 import type { Auth } from '../src/auth/auth';
 import { SessionGuard } from '../src/auth/session.guard';
 import type { Config } from '../src/config/config.module';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
+import { asPlatformAdmin, createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 /**
@@ -702,5 +704,527 @@ describe('permission and project scope', () => {
       expect(await count('select count(*)::int as n from audit_log')).toBe(auditBefore);
       expect(t.temporal.calls).toEqual([]);
     });
+  });
+});
+
+// ---- the denial table: every route, every kind of caller, the expected status written out here ----
+
+/** The two WebSocket routes; they are checked by close code, not by an HTTP status. */
+type TerminalKey = 'runs.terminal' | 'setupTests.terminal';
+type HttpKey = Exclude<RouteKey, TerminalKey>;
+const TERMINAL_ROWS: TerminalKey[] = ['runs.terminal', 'setupTests.terminal'];
+
+/**
+ * What each caller must get from a route, written from the spec's route table (never read back from `routeAccess`).
+ * `none` is a member of the org with no assignment, `viewer` an org-wide viewer, `pa` a platform admin with no
+ * membership anywhere. `'stream'` is a Server-Sent-Events route the viewer may open: it answers 200 and stays open.
+ */
+interface Expected {
+  none: number;
+  viewer: number | 'stream';
+  pa: number;
+}
+const tenant = (viewer: Expected['viewer']): Expected => ({ none: 403, viewer, pa: 403 });
+const platformRoute = (pa: number): Expected => ({ none: 403, viewer: 403, pa });
+
+/** The viewer's six `*:read` permissions (project, agent, skill, rule, setup, run) are 200, everything else 403. */
+const DENIAL_TABLE: Record<HttpKey, Expected> = {
+  'connections.list': tenant(403),
+  'connections.install': tenant(403),
+  'connections.sync': tenant(403),
+  'connections.repos': tenant(403),
+  'projects.list': tenant(200),
+  'projects.create': tenant(403),
+  'projects.get': tenant(200),
+  'projects.update': tenant(403),
+  'projects.remove': tenant(403),
+  'projects.connection': tenant(200),
+  'projects.pollNow': tenant(403),
+  'projects.ignored': tenant(200),
+  'projects.events': tenant('stream'),
+  'agents.get': tenant(200),
+  'agents.put': tenant(403),
+  'agents.putCredential': tenant(403),
+  'agents.models': tenant(200),
+  'skills.list': tenant(200),
+  'skills.get': tenant(200),
+  'skills.put': tenant(403),
+  'skills.remove': tenant(403),
+  'rules.list': tenant(200),
+  'rules.create': tenant(403),
+  'rules.update': tenant(403),
+  'rules.promptPreview': tenant(200),
+  'rules.remove': tenant(403),
+  'setupScript.get': tenant(200),
+  'setupScript.put': tenant(403),
+  'setupScript.versions': tenant(200),
+  'setupScript.version': tenant(200),
+  'setup.plugins': tenant(200),
+  'setupTests.create': tenant(403),
+  'setupTests.latest': tenant(200),
+  'setupTests.end': tenant(403),
+  'setupTests.events': tenant('stream'),
+  'runs.list': tenant(200),
+  'runs.stats': tenant(200),
+  'runs.byNumber': tenant(200),
+  'runs.get': tenant(200),
+  'runs.log': tenant(200),
+  'runs.cancel': tenant(403),
+  'runs.finish': tenant(403),
+  'runs.resume': tenant(403),
+  'runs.stop': tenant(403),
+  'runs.transcript': tenant(200),
+  'runs.events': tenant('stream'),
+  // a member with no assignment may still read their own (empty) access; a platform admin has no active org
+  'me.access': { none: 200, viewer: 200, pa: 403 },
+  'roles.list': tenant(200),
+  'members.list': tenant(403),
+  'assignments.list': tenant(403),
+  'assignments.create': tenant(403),
+  'assignments.remove': tenant(403),
+  'invitations.list': tenant(403),
+  'invitations.create': tenant(403),
+  'invitations.remove': tenant(403),
+  'platform.createOrg': platformRoute(201),
+  'platform.listOrgs': platformRoute(200),
+  'platform.listProjects': platformRoute(200),
+  'platform.listRoles': platformRoute(200),
+  'platform.listMembers': platformRoute(200),
+  'platform.listAssignments': platformRoute(200),
+  'platform.createAssignment': platformRoute(201),
+  'platform.removeAssignment': platformRoute(204),
+  'platform.listInvitations': platformRoute(200),
+  'platform.createInvitation': platformRoute(201),
+  'platform.removeInvitation': platformRoute(204),
+};
+
+const isPlatformKey = (key: string): boolean => key.startsWith('platform.');
+// Object.keys widens the key type to string; DENIAL_TABLE is complete by type, so its keys are exactly HttpKey
+const ALL_KEYS = Object.keys(DENIAL_TABLE) as HttpKey[];
+const TENANT_KEYS = ALL_KEYS.filter((k) => !isPlatformKey(k));
+const PLATFORM_KEYS = ALL_KEYS.filter(isPlatformKey);
+
+describe('denial table over every route, stream and terminal', () => {
+  const ORIGIN = 'http://localhost:5173';
+  const NO_ACTIVE_ORG = 'No active organization';
+  const flat = flattenRoutes(routes);
+  let t: TestApp;
+  let base: string;
+  let wsBase: string;
+  let orgA: string;
+  let orgB: string;
+  let p1: string;
+  let p2: string;
+  let ownerCookie: string;
+  let adminOnP1: string; // "A": admin on P1 only
+  let viewerCookie: string;
+  let noneCookie: string;
+  let strayCookie: string; // a viewer of org A whose session points at org B
+  let paCookie: string;
+  let bodies: Partial<Record<RouteKey, object>>;
+  /** Query strings a route needs to be valid (a fixed instant, never the clock). */
+  const queries: Partial<Record<RouteKey, string>> = { 'runs.stats': '?since=2020-01-01T00:00:00.000Z' };
+  let ids: Record<string, string>;
+  let runTerminalId: string;
+  let setupTerminalId: string;
+
+  async function seedRun(ref: string): Promise<string> {
+    return withOrg(t.db, orgA, async (tx) => {
+      const [row] = await tx
+        .insert(runs)
+        .values({
+          orgId: orgA,
+          projectId: p1,
+          command: 'fix',
+          skillName: 'fix',
+          ticketRef: ref,
+          ticketKind: 'issue',
+          checkoutRef: 'refs/heads/main',
+          triggerSource: 'webhook',
+          status: 'running',
+        })
+        .returning({ id: runs.id });
+      if (!row) throw new Error('no run');
+      return row.id;
+    });
+  }
+
+  async function roleIdOf(orgId: string, key: string): Promise<string> {
+    return withOrg(t.db, orgId, async (tx) => {
+      const [row] = await tx
+        .select({ id: roles.id })
+        .from(roles)
+        .where(and(eq(roles.orgId, orgId), eq(roles.key, key)));
+      if (!row) throw new Error(`no role ${key}`);
+      return row.id;
+    });
+  }
+
+  /** What the refused writes must not change: each org's own tables, the organization table and the secret store. */
+  async function snapshot(...orgIds: string[]): Promise<Record<string, number | string[]>> {
+    const out: Record<string, number | string[]> = {};
+    const client = await t.db.pool.connect();
+    try {
+      for (const orgId of orgIds) {
+        await client.query('begin');
+        await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+        for (const table of ['projects', 'rules', 'role_assignments', 'invitations', 'audit_log']) {
+          const res = await client.query<{ n: number }>(`select count(*)::int as n from ${table}`);
+          out[`${orgId}:${table}`] = Number(res.rows[0]?.n);
+        }
+        await client.query('commit');
+      }
+    } finally {
+      client.release();
+    }
+    const orgs = await t.db.pool.query<{ n: number }>('select count(*)::int as n from organization');
+    out['organization'] = Number(orgs.rows[0]?.n);
+    out['secrets'] = t.secrets.names().sort();
+    return out;
+  }
+
+  function urlOf(key: RouteKey, orgId = orgA): string {
+    const def = flat[key];
+    if (!def) throw new Error(`no route ${key}`);
+    return def.path.replace(/:([A-Za-z]+)/g, (_m, name: string) => {
+      if (name === 'orgId') return orgId;
+      const v = ids[name];
+      if (v === undefined) throw new Error(`no cast id for :${name} of ${key}`);
+      return v;
+    });
+  }
+
+  function call(key: HttpKey, cookie?: string, orgId = orgA) {
+    const def = flat[key];
+    if (!def) throw new Error(`no route ${key}`);
+    const payload = bodies[key];
+    return t.app.inject({
+      method: def.method,
+      url: `${urlOf(key, orgId)}${queries[key] ?? ''}`,
+      headers: cookie === undefined ? {} : { cookie },
+      ...(payload === undefined ? {} : { payload }),
+    });
+  }
+
+  /** Calls every route in `keys` as `cookie` and lists each one that did not answer the expected status. */
+  async function mismatches(
+    keys: HttpKey[],
+    cookie: string | undefined,
+    want: (key: HttpKey) => number,
+    orgId = orgA,
+    detail = FORBIDDEN_DETAIL,
+  ): Promise<string[]> {
+    const bad: string[] = [];
+    for (const key of keys) {
+      const res = await call(key, cookie, orgId);
+      const expected = want(key);
+      if (res.statusCode !== expected) {
+        bad.push(`${key}: wanted ${expected}, got ${res.statusCode} ${res.body.slice(0, 200)}`);
+      } else if (expected === 403 && res.json<{ detail?: string }>().detail !== detail) {
+        bad.push(`${key}: 403 without the detail ${detail}: ${res.body.slice(0, 200)}`);
+      }
+    }
+    return bad;
+  }
+
+  /** Opens a stream the caller may see, reads the status line and hangs up. */
+  async function streamStatus(key: HttpKey, cookie: string): Promise<number> {
+    const ac = new AbortController();
+    try {
+      const res = await fetch(`${base}${urlOf(key)}`, { headers: { cookie }, signal: ac.signal });
+      await res.body?.cancel();
+      return res.status;
+    } finally {
+      ac.abort();
+    }
+  }
+
+  /** Connects a terminal socket and returns its close code and how many terminal bytes arrived before it. */
+  async function terminal(path: string, cookie?: string): Promise<{ code: number; bytes: number }> {
+    const ws = new WebSocket(`${wsBase}${path}`, {
+      headers: { origin: ORIGIN, ...(cookie === undefined ? {} : { cookie }) },
+    });
+    let bytes = 0;
+    ws.on('message', (d: Buffer, isBinary: boolean) => {
+      if (isBinary) bytes += d.length;
+    });
+    ws.on('error', () => undefined);
+    const code = await new Promise<number>((resolve) => ws.on('close', (c) => resolve(c)));
+    return { code, bytes };
+  }
+  const terminalPaths = (): string[] => [
+    `/api/runs/${runTerminalId}/terminal`,
+    `/api/setup-tests/${setupTerminalId}/terminal`,
+  ];
+
+  beforeAll(async () => {
+    t = await createTestApp({
+      env: { FAKE_STATE_DIR: freshStateDir(), AGENT_MODELS_SOURCE: 'builtin' },
+      wrapAdapters: wideFakeRepos,
+    });
+    await t.app.listen({ port: 0, host: '127.0.0.1' });
+    const addr = t.app.getHttpServer().address();
+    if (typeof addr !== 'object' || addr === null) throw new Error('the test app is not listening on a TCP port');
+    const port = addr.port;
+    base = `http://127.0.0.1:${port}`;
+    wsBase = `ws://127.0.0.1:${port}`;
+    orgA = (await createOrg(t, 'Denial A', 'denial-a')).id;
+    orgB = (await createOrg(t, 'Denial B', 'denial-b')).id;
+    ownerCookie = await inviteAndLogin(t, orgA, 'dt-owner', 'owner', { type: 'org' });
+    const connA = await installFake(t, ownerCookie);
+    p1 = (await makeProject(t, ownerCookie, connA)).projectId;
+    p2 = (await makeProject(t, ownerCookie, connA)).projectId;
+    adminOnP1 = await inviteAndLogin(t, orgA, 'dt-a', 'admin', { type: 'project', projectIds: [p1] });
+    viewerCookie = await inviteAndLogin(t, orgA, 'dt-viewer', 'viewer', { type: 'org' });
+    strayCookie = await inviteAndLogin(t, orgA, 'dt-stray', 'viewer', { type: 'org' });
+    noneCookie = await inviteAndLogin(t, orgA, 'dt-none', 'viewer', { type: 'org' });
+    await inviteAndLogin(t, orgA, 'dt-spare', 'member', { type: 'project', projectIds: [p2] });
+    paCookie = await asPlatformAdmin(t);
+
+    // Off-list data: a member with no assignment cannot be made through the invitation flow.
+    const noneId = await userIdOf(t, 'dt-none');
+    await withOrg(t.db, orgA, (tx) => tx.delete(roleAssignments).where(eq(roleAssignments.userId, noneId)));
+    // "dt-stray" is a member of org A whose session points at org B, which they do not belong to (BR-8).
+    await t.db.pool.query(
+      `update session set active_organization_id = $1 where user_id = (select id from "user" where email = 'dt-stray@dev.local')`,
+      [orgB],
+    );
+
+    const send = (method: 'GET' | 'POST' | 'PUT', url: string, payload?: object) =>
+      t.app.inject({ method, url, headers: { cookie: ownerCookie }, ...(payload === undefined ? {} : { payload }) });
+    const agentId = (await send('GET', `/api/projects/${p1}/agent`)).json<{ id: string }>().id;
+    const rule = await send('POST', `/api/projects/${p1}/rules`, {
+      kind: 'prompt',
+      command: 'seeded',
+      labelFilter: [],
+      target: 'issue',
+      prompt: 'p',
+      enabled: true,
+    });
+    expect(rule.statusCode).toBe(201);
+    const skill = await send('PUT', `/api/projects/${p1}/skills/fix`, {
+      body: '---\ndescription: Fix\n---\nDo it.\n',
+      message: 'seed',
+    });
+    expect(skill.statusCode).toBe(200);
+    const script = await send('PUT', `/api/projects/${p1}/setup-script`, { body: 'echo hi', baseVersion: null });
+    expect(script.statusCode).toBeLessThan(300);
+    const runId = await seedRun('dt-run');
+    runTerminalId = runId;
+    setupTerminalId = await withOrg(t.db, orgA, async (tx) => {
+      const [row] = await tx
+        .insert(setupTests)
+        .values({ orgId: orgA, projectId: p1, status: 'running', scriptSha256: 'x', startedBy: noneId })
+        .returning({ id: setupTests.id });
+      if (!row) throw new Error('no setup test');
+      return row.id;
+    });
+
+    // A grant and an invitation the remove routes can point at; both are real rows of org A.
+    const memberRole = await roleIdOf(orgA, 'member');
+    const viewerRole = await roleIdOf(orgA, 'viewer');
+    const spareId = await userIdOf(t, 'dt-spare');
+    const assignments = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${orgA}/assignments`,
+      headers: { cookie: paCookie },
+    });
+    const spareAssignment = assignments
+      .json<{ items: { id: string; userId: string }[] }>()
+      .items.find((a) => a.userId === spareId);
+    if (!spareAssignment) throw new Error('no assignment for the spare member');
+    const invite = await t.app.inject({
+      method: 'POST',
+      url: `/api/platform/orgs/${orgA}/invitations`,
+      headers: { cookie: paCookie },
+      payload: { email: 'dt-pending@dev.local', roleId: viewerRole, scope: { type: 'org' } },
+    });
+    expect(invite.statusCode).toBe(201);
+
+    ids = {
+      projectId: p1,
+      runId,
+      ruleId: rule.json<{ id: string }>().id,
+      agentId,
+      setupTestId: setupTerminalId,
+      assignmentId: spareAssignment.id,
+      invitationId: invite.json<{ id: string }>().id,
+      connectionId: connA,
+      provider: 'fake',
+      name: 'fix',
+      version: '1',
+      number: '1',
+    };
+    bodies = {
+      'projects.create': { connectionId: connA, repoPath: 'dev/p-denied', triggerMode: 'webhook' },
+      'projects.update': { pollIntervalSeconds: 600 },
+      'agents.put': { model: 'claude-opus-4-1', timeoutSeconds: 3600 },
+      'agents.putCredential': { type: 'api_key', value: 'denial-table-secret' },
+      'skills.put': { body: '---\ndescription: Denied\n---\nDenied.\n', message: 'denied' },
+      'rules.create': {
+        kind: 'prompt',
+        command: 'denied-rule',
+        labelFilter: [],
+        target: 'issue',
+        prompt: 'denied',
+        enabled: true,
+      },
+      'rules.update': { enabled: false },
+      'setupScript.put': { body: 'echo denied', baseVersion: null },
+      'setupTests.create': { script: 'echo denied' },
+      'assignments.create': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },
+      'invitations.create': { email: 'dt-denied@dev.local', roleId: viewerRole, scope: { type: 'org' } },
+      'platform.createOrg': { name: 'Denial New', slug: 'denial-new' },
+      'platform.createAssignment': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },
+      'platform.createInvitation': { email: 'dt-denied@dev.local', roleId: viewerRole, scope: { type: 'org' } },
+    };
+    t.temporal.reset();
+  });
+  afterAll(async () => {
+    await t.close();
+  });
+
+  it('N3: the table has a row for every route key and no other, and every key is in routeAccess', () => {
+    const table = [...ALL_KEYS, ...TERMINAL_ROWS].sort();
+    expect(table).toEqual(Object.keys(flat).sort());
+    expect(table).toEqual(Object.keys(routeAccess).sort());
+  });
+
+  it('no session gets 401 on every route and 4401 on both terminals', async () => {
+    expect(await mismatches(ALL_KEYS, undefined, () => 401)).toEqual([]);
+    for (const path of terminalPaths()) expect(await terminal(path)).toEqual({ code: 4401, bytes: 0 });
+  });
+
+  it('a member with no assignment gets 403 everywhere except their own access (200)', async () => {
+    expect(await mismatches(ALL_KEYS, noneCookie, (k) => DENIAL_TABLE[k].none)).toEqual([]);
+    expect((await call('me.access', noneCookie)).json()).toMatchObject({ assignments: [] });
+  });
+
+  it('a viewer gets 403 on every write and on every read a viewer may not do', async () => {
+    const writes = ALL_KEYS.filter((k) => flat[k]?.method !== 'GET');
+    expect(writes.length).toBeGreaterThan(25);
+    expect(writes.filter((k) => DENIAL_TABLE[k].viewer !== 403)).toEqual([]); // no write is open to a viewer
+    const refused = ALL_KEYS.filter((k) => DENIAL_TABLE[k].viewer === 403);
+    expect(await mismatches(refused, viewerCookie, () => 403)).toEqual([]);
+  });
+
+  it('both terminals close 4403 for the viewer and the member with no assignment, before any terminal byte', async () => {
+    for (const cookie of [viewerCookie, noneCookie]) {
+      for (const path of terminalPaths()) expect(await terminal(path, cookie)).toEqual({ code: 4403, bytes: 0 });
+    }
+  });
+
+  it('the org owner and A get 403 on every platform route, createOrg included (BR-70)', async () => {
+    for (const cookie of [ownerCookie, adminOnP1]) {
+      expect(await mismatches(PLATFORM_KEYS, cookie, () => 403)).toEqual([]);
+    }
+  });
+
+  it('a platform admin with no membership gets 403 on every tenant route and on both terminals, under either org', async () => {
+    // no membership means no active org: the guard says so (session.guard.ts) rather than the role message
+    expect(await mismatches(TENANT_KEYS, paCookie, (k) => DENIAL_TABLE[k].pa, orgA, NO_ACTIVE_ORG)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, paCookie, (k) => DENIAL_TABLE[k].pa, orgB, NO_ACTIVE_ORG)).toEqual([]);
+    for (const path of terminalPaths()) expect(await terminal(path, paCookie)).toEqual({ code: 4403, bytes: 0 });
+  });
+
+  it('BR-38: the platform admin gets no data from the tenant project, member, invitation and assignment lists', async () => {
+    for (const key of ['projects.list', 'members.list', 'invitations.list', 'assignments.list'] as const) {
+      const res = await call(key, paCookie);
+      expect(res.statusCode, key).toBe(403);
+      for (const leak of [p1, p2, 'dt-owner', 'dt-pending', 'items']) expect(res.body, key).not.toContain(leak);
+    }
+  });
+
+  it('BR-8: a signed-in user whose active org is not theirs gets 403 on every route and 4403 on both terminals', async () => {
+    expect(await mismatches(ALL_KEYS, strayCookie, () => 403)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, strayCookie, () => 403, orgB)).toEqual([]);
+    for (const path of terminalPaths()) expect(await terminal(path, strayCookie)).toEqual({ code: 4403, bytes: 0 });
+  });
+
+  it('N4: after every refused request there is no new row, no secret written and no Temporal call', async () => {
+    // runs the refused requests itself, so it does not depend on the order of the other tests
+    t.temporal.reset();
+    const before = await snapshot(orgA, orgB);
+    expect(await mismatches(ALL_KEYS, undefined, () => 401)).toEqual([]);
+    expect(await mismatches(ALL_KEYS, noneCookie, (k) => DENIAL_TABLE[k].none)).toEqual([]);
+    expect(
+      await mismatches(
+        ALL_KEYS.filter((k) => DENIAL_TABLE[k].viewer === 403),
+        viewerCookie,
+        () => 403,
+      ),
+    ).toEqual([]);
+    expect(await mismatches(PLATFORM_KEYS, ownerCookie, () => 403)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, paCookie, (k) => DENIAL_TABLE[k].pa, orgA, NO_ACTIVE_ORG)).toEqual([]);
+    // the stray session points at org B: a write that got through would land there
+    expect(await mismatches(ALL_KEYS, strayCookie, () => 403)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, strayCookie, () => 403, orgB)).toEqual([]);
+    expect(await snapshot(orgA, orgB)).toEqual(before);
+    expect(t.temporal.calls).toEqual([]);
+    expect(t.secrets.names()).not.toContain('denial-table-secret');
+  });
+
+  it('the viewer reads what a viewer may (200) and opens the streams it may', async () => {
+    const reads = ALL_KEYS.filter((k) => typeof DENIAL_TABLE[k].viewer === 'number' && DENIAL_TABLE[k].viewer !== 403);
+    expect(reads.length).toBeGreaterThan(20);
+    expect(await mismatches(reads, viewerCookie, (k) => Number(DENIAL_TABLE[k].viewer))).toEqual([]);
+    for (const key of ALL_KEYS.filter((k) => DENIAL_TABLE[k].viewer === 'stream')) {
+      expect(await streamStatus(key, viewerCookie), key).toBe(200);
+    }
+  });
+
+  it('/dev/fake/posted answers with a session and 401 without', async () => {
+    const url = '/dev/fake/posted?repoPath=dev%2Fp-1';
+    expect((await t.app.inject({ method: 'GET', url, headers: { cookie: viewerCookie } })).statusCode).toBe(200);
+    expect((await t.app.inject({ method: 'GET', url })).statusCode).toBe(401);
+  });
+
+  it('the platform admin gets the written 2xx on every platform route', async () => {
+    // the remove routes run last: they take the rows the earlier list and create routes read
+    const order = [
+      ...PLATFORM_KEYS.filter((k) => !k.startsWith('platform.remove')),
+      ...PLATFORM_KEYS.filter((k) => k.startsWith('platform.remove')),
+    ];
+    expect(await mismatches(order, paCookie, (k) => DENIAL_TABLE[k].pa)).toEqual([]);
+  });
+
+  it('N2: removing project:create from org A’s admin role changes org A admins only', async () => {
+    const a = await createOrg(t, 'Role Edit A', 'role-edit-a');
+    const b = await createOrg(t, 'Role Edit B', 'role-edit-b');
+    const adminA = await inviteAndLogin(t, a.id, 'n2-admin-a', 'admin', { type: 'org' });
+    const adminB = await inviteAndLogin(t, b.id, 'n2-admin-b', 'admin', { type: 'org' });
+    const connA = await installFake(t, adminA);
+    const connB = await installFake(t, adminB);
+    const create = (cookie: string, connectionId: string, repoPath: string) =>
+      t.app.inject({
+        method: 'POST',
+        url: '/api/projects',
+        headers: { cookie },
+        payload: { connectionId, repoPath, triggerMode: 'webhook' },
+      });
+    expect((await create(adminA, connA, 'dev/p-10')).statusCode).toBe(201);
+
+    const adminRole = await roleIdOf(a.id, 'admin');
+    // The owner of the schema edits the role data (no API edits roles in this slice).
+    const owner = new pg.Pool({ connectionString: t.pg.ownerUrl, max: 1 });
+    try {
+      // role_permissions is row-level secured even for its owner, so the edit runs in the org's own scope
+      await owner.query('begin');
+      await owner.query("select set_config('app.org_id', $1, true)", [a.id]);
+      const del = await owner.query(
+        "delete from role_permissions where role_id = $1 and permission = 'project:create'",
+        [adminRole],
+      );
+      await owner.query('commit');
+      expect(del.rowCount).toBe(1);
+    } finally {
+      await owner.end();
+    }
+
+    expect((await create(adminA, connA, 'dev/p-11')).statusCode).toBe(403);
+    expect((await create(adminB, connB, 'dev/p-10')).statusCode).toBe(201);
+    // org A's admin keeps every other permission
+    const list = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie: adminA } });
+    expect(list.statusCode).toBe(200);
   });
 });

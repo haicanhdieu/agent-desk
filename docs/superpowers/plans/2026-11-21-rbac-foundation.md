@@ -1567,14 +1567,14 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: every route (Tasks 3, 12 to 22); the guard (Task 25); the terminal check (Task 27).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the tests** (one org with the cast, plus a user with no assignment, a platform admin with no membership, and the org owner as a non-platform caller):
+- [x] **Step 1: Write the tests** (one org with the cast, plus a user with no assignment, a platform admin with no membership, and the org owner as a non-platform caller):
   - for every key of `flattenRoutes(routes)`, a request with valid ids from the cast and the expected status per caller written in the test: the no-assignment member gets 403 everywhere except `me.access` (200); the viewer gets 403 on every write; the platform admin with no membership gets 403 on every tenant route and on `/api/orgs/<other>/…` (no active org) and 2xx on every platform route; the org owner and A get 403 on every `/api/platform/*` route, `platform.createOrg` included (BR-70); BR-38 the platform admin's tenant project list is refused with no data; both terminals for the viewer close 4403; `/dev/fake/posted` answers with a session and 401 without.
   - N3: the table's keys equal every `routeAccess` key (a new route without a row fails the test).
   - N2: an owner-role SQL update removing `project:create` from org A's `admin` role makes A's org admin get 403 on `projects.create` while org B's admin still gets 201.
   - N4: after the refused writes of the table, no new rows in `projects`, `rules`, `role_assignments`, `invitations`, `audit_log`, no `MemorySecretStore` write and no Temporal start or signal.
   - BR-8: a signed-in user whose active org is not theirs → 403; no session → 401.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`. Expected: PASS (a failure is a bug in the route's task: fix it test-first).
-- [ ] **Step 3: Commit** `test(api): denial table over every route, stream and terminal`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`. Expected: PASS (a failure is a bug in the route's task: fix it test-first).
+- [x] **Step 3: Commit** `test(api): denial table over every route, stream and terminal`.
 
 ---
 
