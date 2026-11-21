@@ -614,7 +614,7 @@ export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[])
 
   `connect_code_host`: an `active` connection with `capabilities.code = true`; `create_project`: `visibleProjectIds.length > 0`; focus project: the visible project with the most of {agent `credential_secret_name is not null`, at least one rule}, ties to the newest `created_at` (then id desc); `add_agent`, `add_rule`: the focus project's; `complete`: the focus project has both; `projectId`: the focus id or null.
 
-- [ ] **Step 1: Write the failing tests** (real database, org under `withOrg`):
+- [x] **Step 1: Write the failing tests** (real database, org under `withOrg`):
   - nothing → all four not done, `complete: false`, `projectId: null`.
   - an active code connection only → `connect_code_host` done; an inactive one or a board-only one → not done.
   - one project with no credential and no rule → `create_project` done, focus is it, the other two not done.
@@ -622,10 +622,10 @@ export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[])
   - BR-16 and the split case: P1 with only a credential and P2 with only a rule → not complete; P1 complete and P2 empty → complete with `projectId` P1.
   - ties: two empty projects → the newer one is the focus.
   - only ids in `visibleProjectIds` count (a project outside the list with both steps does not complete it).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/checklist.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `orgChecklist` and export it.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/core test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(core): compute the onboarding checklist from an org's projects`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/checklist.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `orgChecklist` and export it.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/core test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(core): compute the onboarding checklist from an org's projects`.
 
 ---
 
