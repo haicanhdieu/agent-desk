@@ -169,6 +169,20 @@
       "when": 1795243328365,
       "tag": "0023_runs_add_linked_issue_refs_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795243330365,
+      "tag": "0024_rbac_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795243331365,
+      "tag": "0025_rbac_rls_functions",
+      "breakpoints": true
     }
   ]
 }

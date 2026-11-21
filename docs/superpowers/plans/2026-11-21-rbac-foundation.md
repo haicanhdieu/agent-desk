@@ -576,15 +576,15 @@ export async function pendingInvitationsForEmail(db: Db, email: string): Promise
 
   `0023_rbac_rls_functions.sql` (custom, `drizzle-kit generate --custom`): `FORCE ROW LEVEL SECURITY` on the four org tables; grants per Agent calls; `CREATE POLICY "definer_read" ON "invitations" FOR SELECT TO agentdesk_owner USING (true)`; `pending_invitations_for_email(p_email text) RETURNS TABLE (id uuid, org_id uuid) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp` selecting `status = 'pending' AND expires_at > now() AND email = lower(p_email)`; `REVOKE ALL … FROM PUBLIC`; `GRANT EXECUTE … TO agentdesk_app`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `seed.ts`: `seedOrg` also inserts, per org, two roles (`owner`, `member`) with one permission line each, a second project, one org assignment and one project assignment for a seeded user, and one pending invitation; returns their ids.
   - `rls.int.test.ts`: add `roles`, `role_permissions`, `role_assignments`, `invitations` to `inserts`, so the existing `describe.each` leak tests (select only own org, cannot insert for org B with 42501, raw query sees 0 rows) run on them. New cases: as `agentdesk_app`, `update roles` and `delete from roles` fail with 42501; `select` on `role_templates` works and `insert` fails with 42501; a second identical org assignment fails with 23505; scope check rejects `scope_type='org'` with a project id (23514); a second pending invitation for one org and email fails with 23505 while a revoked one does not.
   - `functions.int.test.ts` (N8): `pendingInvitationsForEmail(db, 'Bob@X.io')` returns `{id, orgId}` for pending unexpired rows of both orgs; the raw function's result columns are exactly `['id','org_id']`; an expired (`expires_at = now() - interval '1 second'`), an accepted and a revoked row are absent; it is `prosecdef`, has a pinned `search_path`, and only `agentdesk_app` may execute it.
   - `migrate.int.test.ts`: `APP_TABLES` gains the four org tables (so "org_id not null" and "rls is forced" cover them); `runs.owner_user_id` and `runs.origin_run_id` are nullable and existing rows read back null; `runs_origin_run_id_idx` exists.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts test/functions.int.test.ts test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the schema; `pnpm --filter @agentdesk/db db:generate --name rbac_tables`; read the SQL (no drops); `pnpm --filter @agentdesk/db exec drizzle-kit generate --custom --name rbac_rls_functions` and write it; add `pendingInvitationsForEmail` and export it.
+- [x] **Step 3: Implement** the schema; `pnpm --filter @agentdesk/db db:generate --name rbac_tables`; read the SQL (no drops); `pnpm --filter @agentdesk/db exec drizzle-kit generate --custom --name rbac_rls_functions` and write it; add `pendingInvitationsForEmail` and export it.
 - [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(db): role, assignment and invitation tables with RLS and the invitation lookup`.
+- [x] **Step 5: Commit** `feat(db): role, assignment and invitation tables with RLS and the invitation lookup`.
 
 ---
 

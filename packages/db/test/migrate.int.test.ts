@@ -20,6 +20,10 @@ const APP_TABLES = [
   'setup_script_versions',
   'setup_tests',
   'setup_test_events',
+  'roles',
+  'role_permissions',
+  'role_assignments',
+  'invitations',
 ];
 
 let env: TestPg;
@@ -118,6 +122,66 @@ describe('bootstrap and migrations', () => {
       "select indexdef from pg_indexes where indexname = 'runs_project_session_idx'",
     );
     expect(idx?.indexdef).toContain('(project_id, session_expires_at)');
+  });
+
+  it('runs.owner_user_id and runs.origin_run_id are nullable, and their indexes exist', async () => {
+    const cols = await query<{ column_name: string; is_nullable: string; data_type: string }>(
+      env.ownerUrl,
+      `select column_name, is_nullable, data_type from information_schema.columns
+       where table_name = 'runs' and column_name in ('owner_user_id','origin_run_id') order by 1`,
+    );
+    expect(cols).toEqual([
+      { column_name: 'origin_run_id', is_nullable: 'YES', data_type: 'uuid' },
+      { column_name: 'owner_user_id', is_nullable: 'YES', data_type: 'text' },
+    ]);
+    const idx = await query<{ indexname: string }>(
+      env.ownerUrl,
+      "select indexname from pg_indexes where indexname in ('runs_origin_run_id_idx','runs_owner_user_idx') order by 1",
+    );
+    expect(idx.map((i) => i.indexname)).toEqual(['runs_origin_run_id_idx', 'runs_owner_user_idx']);
+  });
+
+  it('role_assignments.user_id has an index that leads with it (FK index rule)', async () => {
+    const [idx] = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where indexname = 'role_assignments_user_id_idx'",
+    );
+    expect(idx?.indexdef).toContain('(user_id)');
+  });
+
+  it('a run inserted without owner or origin reads back a null owner and origin', async () => {
+    const orgId = randomUUID();
+    const client = new pg.Client({ connectionString: env.appUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const conn = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'acct-owner-null', 'demo') returning id`,
+        [orgId],
+      );
+      const proj = await client.query<{ id: string }>(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'demo', 'dev/owner-null', $2, $2) returning id`,
+        [orgId, conn.rows[0]?.id],
+      );
+      await client.query(
+        `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                           trigger_source, trigger_comment_id, command)
+         values ($1, $2, 'fix', 'dev/owner-null#1', 'issue', 'main', 'queued', 'webhook', 'c-null', '/fix')`,
+        [orgId, proj.rows[0]?.id],
+      );
+      const rows = (
+        await client.query<{ owner_user_id: string | null; origin_run_id: string | null }>(
+          'select owner_user_id, origin_run_id from runs',
+        )
+      ).rows;
+      expect(rows).toEqual([{ owner_user_id: null, origin_run_id: null }]);
+    } finally {
+      await client.query('rollback').catch(() => undefined);
+      await client.end();
+    }
   });
 
   it('all app tables have org_id not null (except inbound_events)', async () => {

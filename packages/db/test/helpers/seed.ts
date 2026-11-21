@@ -11,6 +11,13 @@ export interface SeededOrg {
   ruleId: string;
   runId: string;
   setupTestId: string;
+  userId: string;
+  secondProjectId: string;
+  ownerRoleId: string;
+  memberRoleId: string;
+  orgAssignmentId: string;
+  projectAssignmentId: string;
+  invitationId: string;
 }
 
 /** Seeds one row in every app table for an org. Runs as the owner, which is bound by FORCE RLS, so the
@@ -84,8 +91,67 @@ export async function seedOrg(
     );
     await client.query(`insert into poll_cursors (org_id, project_id) values ($1, $2)`, [orgId, projectId]);
     await client.query(`insert into audit_log (org_id, action) values ($1, 'seed')`, [orgId]);
+    const secondProjectId = await one(
+      `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+       values ($1, 'demo-2', $2, $3, $3) returning id`,
+      [orgId, `${o.repoPath}-2`, connectionId],
+    );
+    // A user and the RBAC rows. The user table has no org_id, so the user id is derived from the org id.
+    const userId = `u-${orgId}`;
+    await client.query(
+      `insert into "user" (id, name, email, handle) values ($1, 'seed user', $2, $1) on conflict do nothing`,
+      [userId, `${userId}@x.io`],
+    );
+    const ownerRoleId = await one(
+      `insert into roles (org_id, key, name, built_in, assignable_scopes)
+       values ($1, 'owner', 'Owner', true, '{org}') returning id`,
+      [orgId],
+    );
+    const memberRoleId = await one(
+      `insert into roles (org_id, key, name, built_in, assignable_scopes)
+       values ($1, 'member', 'Member', true, '{org,project}') returning id`,
+      [orgId],
+    );
+    await client.query(
+      `insert into role_permissions (org_id, role_id, permission, condition) values ($1, $2, 'org:delete', 'any')`,
+      [orgId, ownerRoleId],
+    );
+    await client.query(
+      `insert into role_permissions (org_id, role_id, permission, condition) values ($1, $2, 'run:cancel', 'own')`,
+      [orgId, memberRoleId],
+    );
+    const orgAssignmentId = await one(
+      `insert into role_assignments (org_id, user_id, role_id, scope_type, granted_by)
+       values ($1, $2, $3, 'org', $2) returning id`,
+      [orgId, userId, ownerRoleId],
+    );
+    const projectAssignmentId = await one(
+      `insert into role_assignments (org_id, user_id, role_id, scope_type, project_id, granted_by)
+       values ($1, $2, $3, 'project', $4, $2) returning id`,
+      [orgId, userId, memberRoleId, secondProjectId],
+    );
+    const invitationId = await one(
+      `insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+       values ($1, 'bob@x.io', $2, 'org', 'pending', now() + interval '7 days', $3) returning id`,
+      [orgId, memberRoleId, userId],
+    );
     await client.query('commit');
-    return { orgId, connectionId, projectId, agentId, ruleId, runId, setupTestId };
+    return {
+      orgId,
+      connectionId,
+      projectId,
+      agentId,
+      ruleId,
+      runId,
+      setupTestId,
+      userId,
+      secondProjectId,
+      ownerRoleId,
+      memberRoleId,
+      orgAssignmentId,
+      projectAssignmentId,
+      invitationId,
+    };
   } catch (e) {
     await client.query('rollback').catch(() => undefined);
     throw e;
