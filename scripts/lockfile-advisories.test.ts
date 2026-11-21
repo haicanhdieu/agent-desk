@@ -35,6 +35,13 @@ function resolvedVersions(lockfile: string): Map<string, string[]> {
 }
 
 const ADVISORIES = [
+  {
+    alert: 20,
+    name: 'katex',
+    from: '0.11.0',
+    before: '0.18.2',
+    summary: 'prototype pollution bypasses trust restrictions',
+  },
   { alert: 18, name: 'minimatch', from: '7.0.0', before: '11.0.1', summary: 'DoS via globparts amplification' },
   { alert: 17, name: 'glob', from: '9.0.0', before: '14.0.2', summary: 'AbortSignal cancellation bypass' },
   { alert: 1, name: 'esbuild', from: '0.0.0', before: '0.25.0', summary: 'dev server readable by any website' },
