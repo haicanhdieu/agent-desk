@@ -120,7 +120,14 @@ test.describe('BR-20: paging through a list while no rows change', () => {
       const comment = CommentResult.parse(
         await ok(
           await page.request.post('/dev/fake/comments', {
-            data: { repoPath: REPO, ticketNumber: number, body: '/no-such-rule', deliver: 'webhook', projectId },
+            data: {
+              repoPath: REPO,
+              ticketNumber: number,
+              body: '/no-such-rule',
+              deliver: 'webhook',
+              projectId,
+              author: handle,
+            },
           }),
           201,
           'fake comment',

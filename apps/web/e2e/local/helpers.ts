@@ -1,18 +1,23 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { expect, type APIResponse, type Page } from '@playwright/test';
+import { expect, request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
 import {
   AgentDto,
+  AssignmentDto,
+  CreateOrgResponse,
   InstallResponse,
+  PlatformMemberDto,
+  PlatformRoleDto,
   RunDto,
   RunLogResponse,
   RunTranscriptResponse,
+  pageOf,
   type RunTranscriptEntryDto,
 } from '@agentdesk/contracts';
 import { z } from 'zod';
 
-// Shared by the local e2e specs: the stack's addresses, the dev-login project setup, the fake board and fake pod
+// Shared by the local e2e specs: the stack's addresses, the platform-admin org and invitation setup, the project setup, the fake board and fake pod
 // helpers (the stack from `pnpm dev` with KUBE_MODE=fake).
 
 export const API = 'http://localhost:3000';
@@ -30,12 +35,123 @@ export async function ok(res: APIResponse, status: number, what: string): Promis
   return text === '' ? null : (JSON.parse(text) as unknown);
 }
 
-/** Dev login, then the five setup steps against the fake board; ends on the project's Runs page. */
-export async function signInAndCreateProject(page: Page): Promise<{ handle: string; projectId: string }> {
-  // Sign in: dev login creates the user and a personal org, sets the session cookie and sends us to the projects.
-  const handle = `e2e-${randomBytes(4).toString('hex')}`;
+/** The built-in role keys every org starts with. */
+export type RoleKey = 'owner' | 'admin' | 'member' | 'viewer';
+export type InviteScope = { type: 'org' } | { type: 'project'; projectIds: string[] };
+export type GrantScope = { type: 'org' } | { type: 'project'; projectId: string };
+
+/** The platform admin's dev-login handle: `admin@dev.local`, the `PLATFORM_ADMIN_EMAILS` default in `.env.example`. */
+export const PLATFORM_ADMIN_HANDLE = 'admin';
+
+/**
+ * A request context (own cookie jar, straight to the api) signed in as the platform admin; callers `dispose()` it.
+ * On a fresh database parallel workers all try the first sign-up: one wins and the others answer 401 (duplicate
+ * email), so a 401 is retried a few times (the user exists by then) and the last failure is thrown.
+ */
+export async function asPlatformAdmin(): Promise<APIRequestContext> {
+  const pa = await request.newContext({ baseURL: API });
+  const attempts = 4;
+  for (let attempt = 1; ; attempt++) {
+    const res = await pa.get(`/auth/dev-login?handle=${PLATFORM_ADMIN_HANDLE}&redirect=/`, { maxRedirects: 0 });
+    if (res.status() === 302) return pa;
+    if (res.status() === 401 && attempt < attempts) {
+      await new Promise((resolve) => setTimeout(resolve, 200));
+      continue;
+    }
+    const text = await res.text();
+    await pa.dispose();
+    throw new Error(`platform admin dev-login answered ${res.status()}: ${text}`);
+  }
+}
+
+/** Creates an org through `POST /api/platform/orgs` (its built-in roles are copied in). */
+export async function createOrg(pa: APIRequestContext, name: string, slug: string): Promise<CreateOrgResponse> {
+  return CreateOrgResponse.parse(
+    await ok(await pa.post('/api/platform/orgs', { data: { name, slug } }), 201, `create org ${slug}`),
+  );
+}
+
+async function roleIdOf(pa: APIRequestContext, orgId: string, roleKey: RoleKey): Promise<string> {
+  const roles = z
+    .array(PlatformRoleDto)
+    .parse(await ok(await pa.get(`/api/platform/orgs/${orgId}/roles`), 200, 'platform roles'));
+  const role = roles.find((r) => r.key === roleKey);
+  expect(role, `org ${orgId} has no role ${roleKey}`).toBeTruthy();
+  return role?.id ?? '';
+}
+
+/**
+ * Platform-invites `<handle>@dev.local` with a built-in role and scope, then dev-logs `page` in as that handle (which
+ * accepts the invitation); returns the new user's id. Ends on the dev-login redirect target (`/`).
+ */
+export async function inviteAndSignIn(
+  page: Page,
+  pa: APIRequestContext,
+  orgId: string,
+  handle: string,
+  roleKey: RoleKey,
+  scope: InviteScope,
+): Promise<{ userId: string }> {
+  const email = `${handle.toLowerCase()}@dev.local`;
+  await ok(
+    await pa.post(`/api/platform/orgs/${orgId}/invitations`, {
+      data: { email, roleId: await roleIdOf(pa, orgId, roleKey), scope },
+    }),
+    201,
+    `invite ${handle}`,
+  );
   await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
+  const members = pageOf(PlatformMemberDto).parse(
+    await ok(await pa.get(`/api/platform/orgs/${orgId}/members?pageSize=100`), 200, 'platform members'),
+  );
+  const member = members.items.find((m) => m.email === email);
+  expect(member, `${email} is not a member of org ${orgId} after sign-in`).toBeTruthy();
+  return { userId: member?.userId ?? '' };
+}
+
+/** Grants a built-in role to a member of the org through the platform route; returns the assignment (200 for a repeat). */
+export async function grant(
+  pa: APIRequestContext,
+  orgId: string,
+  userId: string,
+  roleKey: RoleKey,
+  scope: GrantScope,
+): Promise<AssignmentDto> {
+  const res = await pa.post(`/api/platform/orgs/${orgId}/assignments`, {
+    data: { userId, roleId: await roleIdOf(pa, orgId, roleKey), scope },
+  });
+  const text = await res.text();
+  expect([200, 201], `grant ${roleKey}: ${res.status()} ${text}`).toContain(res.status());
+  return AssignmentDto.parse(JSON.parse(text));
+}
+
+/** Removes an assignment through the platform route. */
+export async function revoke(pa: APIRequestContext, orgId: string, assignmentId: string): Promise<void> {
+  await ok(await pa.delete(`/api/platform/orgs/${orgId}/assignments/${assignmentId}`), 204, 'revoke assignment');
+}
+
+/**
+ * A fresh user for one flow: a platform admin creates an org whose slug is the handle and invites the handle as
+ * `owner` over the whole org, then `page` signs in as that handle, so the URLs stay `/o/<handle>/...`.
+ */
+async function newOwner(page: Page): Promise<string> {
+  const handle = `e2e-${randomBytes(4).toString('hex')}`;
+  const pa = await asPlatformAdmin();
+  try {
+    const org = await createOrg(pa, `E2E ${handle}`, handle);
+    await inviteAndSignIn(page, pa, org.id, handle, 'owner', { type: 'org' });
+  } finally {
+    await pa.dispose();
+  }
+  await page.goto('/');
   await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
+  return handle;
+}
+
+/** A new owner (org created by the platform admin, owner invitation), then the five setup steps against the fake board; ends on the project's Runs page. */
+export async function signInAndCreateProject(page: Page): Promise<{ handle: string; projectId: string }> {
+  // Sign in: a platform-created org with the handle as its slug, an owner invitation, then dev login accepts it.
+  const handle = await newOwner(page);
 
   // The fake connection: the app's Connect button installs GitHub only, so the install starts over the API. Its URL is
   // the fake callback, which records the connection and lands on the setup's repository step.
@@ -77,11 +193,9 @@ export async function signInAndCreateProject(page: Page): Promise<{ handle: stri
   return { handle, projectId: projectId ?? '' };
 }
 
-/** The wizard's first step only: a project whose agent has no credential and no address. */
+/** A new owner (as above), then the wizard's first step only: a project whose agent has no credential and no address. */
 export async function signInAndStartProject(page: Page): Promise<{ handle: string; projectId: string }> {
-  const handle = `e2e-${randomBytes(4).toString('hex')}`;
-  await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
-  await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects$`));
+  const handle = await newOwner(page);
   const install = InstallResponse.parse(
     await ok(await page.request.post('/api/connections/fake/install'), 201, 'install'),
   );
@@ -95,7 +209,7 @@ export async function signInAndStartProject(page: Page): Promise<{ handle: strin
   return { handle, projectId: projectId ?? '' };
 }
 
-/** A pull request on the fake board with a webhook comment; returns the run it created. */
+/** A pull request on the fake board with a webhook comment; returns the run it created. The comment's author is `author`, else the signed-in handle (its linked identity). */
 export async function commentOnNewTicket(
   page: Page,
   handle: string,
@@ -114,7 +228,7 @@ export async function commentOnNewTicket(
   const comment = CommentResult.parse(
     await ok(
       await page.request.post('/dev/fake/comments', {
-        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId, ...(author ? { author } : {}) },
+        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId, author: author ?? handle },
       }),
       201,
       'fake comment',

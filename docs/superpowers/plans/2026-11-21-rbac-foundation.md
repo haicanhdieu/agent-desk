@@ -1628,9 +1628,9 @@ export async function revoke(pa: APIRequestContext, orgId: string, assignmentId:
 
   `signInAndCreateProject` and `signInAndStartProject` create the org with slug = the new handle and invite that handle as `owner` before the dev-login, so their URLs stay `/o/<handle>/…`. `commentOnNewTicket` comments as `author ?? handle` (the signed-in user's linked identity). `scripts/e2e-local.ts` `setup` does the same over `fetch`.
 
-- [ ] **Step 1: Change** the helpers and the script as above.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "comment"` and `pnpm exec tsx scripts/e2e-local.ts`. Expected: PASS. If the stack cannot start, say so in the PR and list these as not run.
-- [ ] **Step 3: Commit** `test(web): local e2e users come from a platform-created org and an owner invitation`.
+- [x] **Step 1: Change** the helpers and the script as above.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/run.spec.ts -g "comment"` and `pnpm exec tsx scripts/e2e-local.ts`. Expected: PASS. If the stack cannot start, say so in the PR and list these as not run.
+- [x] **Step 3: Commit** `test(web): local e2e users come from a platform-created org and an owner invitation`.
 
 ---
 

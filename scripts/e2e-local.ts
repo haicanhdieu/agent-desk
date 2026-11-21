@@ -1,6 +1,6 @@
 /**
  * Localhost end-to-end check against a stack started by `pnpm dev` (KUBE_MODE=fake, ENABLE_FAKE_PROVIDER=true,
- * AUTH_DEV_LOGIN=true). Three independent scenarios, each in a fresh org (new dev-login handle):
+ * AUTH_DEV_LOGIN=true). Three independent scenarios, each in a fresh org (created by the platform admin, its owner invited by a new dev-login handle):
  *   1. webhook: comment delivered as a webhook -> run idle -> terminal echo -> finish -> succeeded + start/finish comments
  *   2. polling: comment picked up by the poll Schedule (triggered via the Temporal client) -> same assertions
  *   3. crash: comment with `--fake-fail` -> agent exits 3 -> run paused (agent_crashed), volume kept, start + paused comments
@@ -19,8 +19,11 @@ import { z } from 'zod';
 import {
   AgentDto,
   ConnectionDto,
+  CreateOrgResponse,
   FINAL_RUN_STATUSES,
   InstallResponse,
+  PlatformInvitationDto,
+  PlatformRoleDto,
   ProjectDto,
   PutSkillResponse,
   RuleDto,
@@ -43,6 +46,8 @@ const ORIGIN = new URL(process.env['PUBLIC_ORIGIN'] ?? 'http://localhost:5173').
 const TEMPORAL_ADDRESS = process.env['TEMPORAL_ADDRESS'] ?? 'localhost:7233';
 const TEMPORAL_NAMESPACE = process.env['TEMPORAL_NAMESPACE'] ?? 'agentdesk';
 const REPO = 'dev/demo';
+/** admin@dev.local: the `PLATFORM_ADMIN_EMAILS` default in `.env.example`. */
+const PLATFORM_ADMIN_HANDLE = 'admin';
 const OVERALL_TIMEOUT_MS = 240_000;
 const IDLE_TIMEOUT_MS = 30_000;
 const FINAL_TIMEOUT_MS = 30_000;
@@ -132,8 +137,29 @@ interface Setup {
 
 /** Steps shared by every scenario: login, fake install, project, credential, skill, rule, ticket. */
 async function setup(name: string, mode: 'webhook' | 'polling'): Promise<Setup> {
-  const session = await Session.login(`e2e-${rand()}`);
-  logStep(name, `dev-login as ${session.handle}`);
+  // A platform admin creates the org (slug = the handle) and invites the handle as its owner; the handle's dev-login
+  // accepts the invitation and links the fake identity that the comments below are written as.
+  const handle = `e2e-${rand()}`;
+  const admin = await Session.login(PLATFORM_ADMIN_HANDLE);
+  const org = await admin.json(
+    'POST',
+    '/api/platform/orgs',
+    CreateOrgResponse,
+    { name: `E2E ${handle}`, slug: handle },
+    [201],
+  );
+  const roles = await admin.json('GET', `/api/platform/orgs/${org.id}/roles`, z.array(PlatformRoleDto));
+  const owner = roles.find((r) => r.key === 'owner');
+  assert(owner, `org ${org.id} has no owner role`);
+  await admin.json(
+    'POST',
+    `/api/platform/orgs/${org.id}/invitations`,
+    PlatformInvitationDto,
+    { email: `${handle}@dev.local`, roleId: owner.id, scope: { type: 'org' } },
+    [201],
+  );
+  const session = await Session.login(handle);
+  logStep(name, `org ${org.slug}, owner invited, dev-login as ${session.handle}`);
 
   const install = await session.json('POST', '/api/connections/fake/install', InstallResponse, undefined, [200, 201]);
   const callback = new URL(install.url);
@@ -208,7 +234,7 @@ async function comment(s: Setup, body: string, deliver: 'webhook' | 'poll'): Pro
     'POST',
     '/dev/fake/comments',
     CommentResult,
-    { repoPath: REPO, ticketNumber: s.ticketNumber, body, deliver, projectId: s.project.id },
+    { repoPath: REPO, ticketNumber: s.ticketNumber, body, deliver, projectId: s.project.id, author: s.session.handle },
     [201],
   );
 }

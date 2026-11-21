@@ -53,7 +53,7 @@ test('a comment on the fake board becomes a live run: idle, terminal echo, finis
   const comment = CommentResult.parse(
     await ok(
       await page.request.post('/dev/fake/comments', {
-        data: { repoPath: REPO, ticketNumber, body: '/code-review', deliver: 'webhook', projectId },
+        data: { repoPath: REPO, ticketNumber, body: '/code-review', deliver: 'webhook', projectId, author: handle },
       }),
       201,
       'fake comment',
@@ -312,15 +312,16 @@ test.describe('run identity', () => {
       .poll(async () => identityLine(await podLog(personRun)), { timeout: 60_000 })
       .toBe(`agentdesk: git identity ${handle} ${handle}@users.noreply.fake.invalid`);
     expect(await podLog(personRun)).not.toContain('agentdesk[bot]');
-    await ok(await page.request.post(`/api/runs/${personRun}/cancel`), 202, 'cancel').catch(() => null);
 
-    // The bot's own comment: nobody is credited who did not authorize the run, so the identity stays the bot.
+    // The bot's own comment: nobody is credited who did not authorize the run, so the identity stays the bot. A bot
+    // comment is tied to the run that wrote it (the one active run here), so the person's run stays up until it is read.
     const botRun = await commentOnNewTicket(page, handle, projectId, '/code-review', 'agentdesk[bot]');
     await expect
       .poll(async () => identityLine(await podLog(botRun)), { timeout: 60_000 })
       .toMatch(/^agentdesk: git identity agentdesk\[bot\] \S+$/);
     expect(await podLog(botRun)).not.toContain(handle);
     await ok(await page.request.post(`/api/runs/${botRun}/cancel`), 202, 'cancel').catch(() => null);
+    await ok(await page.request.post(`/api/runs/${personRun}/cancel`), 202, 'cancel').catch(() => null);
   });
 });
 
