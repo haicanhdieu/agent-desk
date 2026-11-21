@@ -811,7 +811,7 @@ describe('role templates and run owner backfill on an upgraded database', () => 
   const orgB = randomUUID();
   const userA = `user-a-${randomUUID()}`;
   const userB = `user-b-${randomUUID()}`;
-  const FILES = ['0024_seed_role_templates.sql', '0025_backfill_run_owner.sql'];
+  const FILES = ['0026_seed_role_templates.sql', '0027_backfill_run_owner.sql'];
   const BULK_RUNS = 1001;
   let old: Awaited<ReturnType<typeof startPgAt>>;
   let adminDbUrl: string;

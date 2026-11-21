@@ -15,7 +15,7 @@
 
 - AGENTS.md rules 1 to 11 bind every task. Layering `apps → core → db → contracts`; `web → contracts` only; db cannot import contracts. Names stay generic: permission, role, scope, assignment, invitation, platform admin, run owner, linked account; ignored outcomes `ignored_owner_unlinked` and `ignored_owner_not_permitted`. No provider name in tables, types, modules or routes.
 - No new dependency of any kind (package, library, service, image, CI action, binary, workspace package).
-- Never edit migrations 0000 to 0021. New migrations: `0022_rbac_tables` (generated), `0023_rbac_rls_functions` (custom), `0024_seed_role_templates` (custom), `0025_backfill_run_owner` (custom).
+- Never edit migrations 0000 to 0023. New migrations: `0024_rbac_tables` (generated), `0025_rbac_rls_functions` (custom), `0026_seed_role_templates` (custom), `0027_backfill_run_owner` (custom).
 - Permission names (shape D), exactly: `project:create|read|update|delete`, `connection:create|read`, `agent:read|update`, `secret:update`, `skill:read|update|delete`, `rule:create|read|update|delete`, `setup:read|update`, `setup:test`, `run:read|create|update`, `run:cancel`, `terminal:attach`, `member:read|create|update|delete`, `assignment:read|create|delete`, `org:update|delete`; platform: `platform-org:create|read`, `platform-project:read`, `platform-role:read`, `platform-member:read`, `platform-assignment:read|create|delete`, `platform-invitation:read|create|delete`. `OWNABLE_PERMISSIONS` = `run:update`, `run:cancel`, `terminal:attach`.
 - Org-level permissions (count only from an org-scope grant): `project:create`, `project:delete`, `connection:*`, `member:*`, `org:*`. Every other tenant permission is project-level.
 - Built-in roles (seeded templates, copied per org): `owner` (scopes `{org}`; all 33 tenant permissions, `any`); `admin` (`{org,project}`; all but `org:delete`, `any`); `member` (`{org,project}`; `project:read`, `agent:read`, `skill:read`, `rule:read`, `setup:read`, `run:read`, `run:create` with `any`; `run:update`, `run:cancel`, `terminal:attach` with `own`); `viewer` (`{org,project}`; the six `*:read` with `any`). No tenant role row ever holds a `platform-*` permission.
@@ -552,9 +552,9 @@ export const routeAccess: Record<RouteKey, RouteAccess>;   // a missing key fail
 - Create: `packages/db/src/schema/access.ts`
 - Modify: `packages/db/src/schema/index.ts`
 - Modify: `packages/db/src/schema/app.ts`
-- Create: `packages/db/migrations/0022_rbac_tables.sql`
+- Create: `packages/db/migrations/0024_rbac_tables.sql`
 - Create: `packages/db/migrations/meta/0022_snapshot.json`
-- Create: `packages/db/migrations/0023_rbac_rls_functions.sql`
+- Create: `packages/db/migrations/0025_rbac_rls_functions.sql`
 - Create: `packages/db/migrations/meta/0023_snapshot.json`
 - Modify: `packages/db/migrations/meta/_journal.json`
 - Modify: `packages/db/src/functions.ts`
@@ -574,7 +574,7 @@ export const routeAccess: Record<RouteKey, RouteAccess>;   // a missing key fail
 export async function pendingInvitationsForEmail(db: Db, email: string): Promise<{ id: string; orgId: string }[]>;
 ```
 
-  `0023_rbac_rls_functions.sql` (custom, `drizzle-kit generate --custom`): `FORCE ROW LEVEL SECURITY` on the four org tables; grants per Agent calls; `CREATE POLICY "definer_read" ON "invitations" FOR SELECT TO agentdesk_owner USING (true)`; `pending_invitations_for_email(p_email text) RETURNS TABLE (id uuid, org_id uuid) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp` selecting `status = 'pending' AND expires_at > now() AND email = lower(p_email)`; `REVOKE ALL … FROM PUBLIC`; `GRANT EXECUTE … TO agentdesk_app`.
+  `0025_rbac_rls_functions.sql` (custom, `drizzle-kit generate --custom`): `FORCE ROW LEVEL SECURITY` on the four org tables; grants per Agent calls; `CREATE POLICY "definer_read" ON "invitations" FOR SELECT TO agentdesk_owner USING (true)`; `pending_invitations_for_email(p_email text) RETURNS TABLE (id uuid, org_id uuid) LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public, pg_temp` selecting `status = 'pending' AND expires_at > now() AND email = lower(p_email)`; `REVOKE ALL … FROM PUBLIC`; `GRANT EXECUTE … TO agentdesk_app`.
 
 - [x] **Step 1: Write the failing tests.**
   - `seed.ts`: `seedOrg` also inserts, per org, two roles (`owner`, `member`) with one permission line each, a second project, one org assignment and one project assignment for a seeded user, and one pending invitation; returns their ids.
@@ -594,9 +594,9 @@ export async function pendingInvitationsForEmail(db: Db, email: string): Promise
 
 **Files:**
 
-- Create: `packages/db/migrations/0024_seed_role_templates.sql`
+- Create: `packages/db/migrations/0026_seed_role_templates.sql`
 - Create: `packages/db/migrations/meta/0024_snapshot.json`
-- Create: `packages/db/migrations/0025_backfill_run_owner.sql`
+- Create: `packages/db/migrations/0027_backfill_run_owner.sql`
 - Create: `packages/db/migrations/meta/0025_snapshot.json`
 - Modify: `packages/db/migrations/meta/_journal.json`
 - Modify: `packages/db/src/testing.ts`

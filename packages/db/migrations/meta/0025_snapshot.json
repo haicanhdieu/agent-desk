@@ -1,6 +1,6 @@
 {
-  "id": "0390101f-2e99-4e76-9626-fa60e167a95a",
-  "prevId": "e4211764-7789-4c4d-a5a1-f033c1d9cfbb",
+  "id": "5a425a54-e0a2-4353-ab52-ad0b4cddc71d",
+  "prevId": "14cce4ba-4b0f-40c9-bbec-c333b19f610a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2272,6 +2272,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "linked_issue_refs": {
+          "name": "linked_issue_refs",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
         "owner_user_id": {
           "name": "owner_user_id",
           "type": "text",
@@ -2342,6 +2349,22 @@
           "with": {},
           "method": "btree",
           "concurrently": false
+        },
+        "runs_linked_issue_refs_idx": {
+          "name": "runs_linked_issue_refs_idx",
+          "columns": [
+            {
+              "expression": "linked_issue_refs",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"runs\".\"ticket_kind\" = 'pr'",
+          "concurrently": false,
+          "method": "gin",
+          "with": {}
         },
         "runs_rule_queued_idx": {
           "name": "runs_rule_queued_idx",
