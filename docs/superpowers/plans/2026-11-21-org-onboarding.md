@@ -1757,9 +1757,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding` (`checklistNoProject`, `checklistPartial`, `checklistTwoProjects`, `projectAdmin`, `member`, `viewer`) (Task 17).
 
-- [ ] **Step 1: Write the spec**: TC-15.1 to TC-15.5 (BR-15: the wizard, the agent and rule steps of the focus project); TC-17.1 to TC-17.3 (BR-17); TC-20.1, TC-20.2 (BR-20).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/checklist.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the Projects controls and checklist`.
+- [x] **Step 1: Write the spec**: TC-15.1 to TC-15.5 (BR-15: the wizard, the agent and rule steps of the focus project); TC-17.1 to TC-17.3 (BR-17); TC-20.1, TC-20.2 (BR-20).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/checklist.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the Projects controls and checklist`.
 
 ---
 
