@@ -556,7 +556,7 @@ export function withDetailPrStates(data: RunDetailData, states: ReadonlyMap<stri
 
 - Route wiring: `const prStates = usePrStates(org, projectId, prRefsOf([dto.ticket]))`, read in the route component (not the loader), then `withDetailPrStates(mapped, prStates)` before `data` is built. The contracts and ds `PrState` are the same union, so the map passes as is.
 
-- [ ] **Step 1: Write the failing unit tests.**
+- [x] **Step 1: Write the failing unit tests.**
   - `queries.test.ts`, `prStateChunks sorts by number, drops duplicates and splits at 100` (Review Focus 2):
     - `['10','9','148','9']` gives `[['9','10','148']]`;
     - 101 refs give groups of 100 and 1;
@@ -570,14 +570,14 @@ export function withDetailPrStates(data: RunDetailData, states: ReadonlyMap<stri
     - `prRefsOf` keeps PRs only, as numbers;
     - `withPrState` sets a known PR, leaves an unknown PR without the key, and leaves an issue unchanged even when its number is in the map.
   - `detail.map.test.ts`: `withDetailPrStates` sets the run ticket, the PR chain steps and `pullRequest.ticket`. The issue chain step (#142) and an issue run stay unchanged.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test queries.test map.test detail.map`. Expected: FAIL. **Implement** them. Run again. Expected: PASS.
-- [ ] **Step 3: Write the failing route tests** in `detail.route.test.tsx`:
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test queries.test map.test detail.map`. Expected: FAIL. **Implement** them. Run again. Expected: PASS.
+- [x] **Step 3: Write the failing route tests** in `detail.route.test.tsx`:
   - `run 62 on PR #148 shows "Merged" on the top bar, Ticket card and chain after the states load`. It uses `findBy`, and `ref=148` is the only ref asked.
   - `an issue run sends no PR-state request` (`mockDb.requests('GET', …/tickets/pr-states)` is 0).
   - `error and pending leave the icons neutral with no banner or toast` (`scenarios.prStates('error' | 'pending')`).
   - `the colour fills in without a reload` (BR-6). `server.use` holds the pr-states answer until the test releases it. The page and a neutral top-bar glyph show first, then "Merged" appears after the release.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test detail.route`. Expected: FAIL. **Wire the route.** Run again. Expected: PASS.
-- [ ] **Step 5: Write the mock e2e** `e2e/mock/pr-state.spec.ts`. The header comment lists the BRs covered and the spec's "Not provable by e2e" reasons.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test detail.route`. Expected: FAIL. **Wire the route.** Run again. Expected: PASS.
+- [x] **Step 5: Write the mock e2e** `e2e/mock/pr-state.spec.ts`. The header comment lists the BRs covered and the spec's "Not provable by e2e" reasons.
   - Helper `expectPrColour(icon: Locator, state: PrState | 'neutral')`:
     - it compares the icon's computed `color` with the token's computed colour, read at test time from a probe element styled `color: var(--pr-<state>)` (or `var(--muted)` for neutral);
     - it checks the `pr<State>` class on the wrapper for a state.
@@ -587,8 +587,8 @@ export function withDetailPrStates(data: RunDetailData, states: ReadonlyMap<stri
     - `Run detail on an issue run keeps the issue icon and sends no PR-state request` (BR-5; count with `page.on('request')`);
     - `slow: Run detail shows neutral first, then purple without a reload` (BR-6, `setPrStates(page, 'slow')`);
     - `error and pending: Run detail stays neutral with no banner or toast, and the page works` (BR-7).
-- [ ] **Step 6: Run the new spec:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/pr-state.spec.ts`. Expected: PASS. Then run `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 7: Commit:** `feat(web): read live PR states and colour them on Run detail`.
+- [x] **Step 6: Run the new spec:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/pr-state.spec.ts`. Expected: PASS. Then run `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 7: Commit:** `feat(web): read live PR states and colour them on Run detail`.
 
 ---
 

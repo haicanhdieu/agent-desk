@@ -16,11 +16,12 @@ import {
   terminalArea,
   terminalConnection,
   toRunDetail,
+  withDetailPrStates,
 } from '@/features/runs/detail.map';
-import { isFinal } from '@/features/runs/map';
+import { isFinal, prRefsOf } from '@/features/runs/map';
 import { useCancelRun, useCloseSession, useFinishRun, useResumeRun, useStopRun } from '@/features/runs/mutations';
 import { useProjectPage } from '@/features/runs/page';
-import { runsQueries } from '@/features/runs/queries';
+import { runsQueries, usePrStates } from '@/features/runs/queries';
 import { transcriptConnection, transcriptItems, useTranscriptReload } from '@/features/runs/transcript';
 import { useFinalLogReload, useRunEvents } from '@/features/runs/useRunEvents';
 import { useTerminal } from '@/features/runs/useTerminal';
@@ -71,6 +72,8 @@ function RunDetailRoute() {
   const { data: ticketRuns } = useSuspenseQuery(
     runsQueries.list(org, projectId, { filter: 'all', ticket: dto.ticket.ref, ...WHOLE_SET }),
   );
+  // The PR's live state: a separate, non-blocking request in the component (never the loader); neutral until it lands.
+  const prStates = usePrStates(org, projectId, prRefsOf([dto.ticket]));
   // Live status and log while the run is not final (spec §5.1).
   const stream = useRunEvents(org, projectId, number, dto.id, !final);
   // Turned final while open: the run and its log (the final scrollback) reload.
@@ -114,11 +117,14 @@ function RunDetailRoute() {
 
   const { paths } = page;
   const target = { id: dto.id, number };
-  const mapped = toRunDetail(dto, events, page.dto, ticketRuns.items, now, {
-    runs: paths.runs,
-    agent: paths.agent,
-    setup: paths.setup,
-  });
+  const mapped = withDetailPrStates(
+    toRunDetail(dto, events, page.dto, ticketRuns.items, now, {
+      runs: paths.runs,
+      agent: paths.agent,
+      setup: paths.setup,
+    }),
+    prStates,
+  );
   // No pod (final, or paused): the terminal bar says so and the saved Transcript, or else the stored scrollback, shows.
   const stored = final || dto.status === 'paused';
   const scrollbackStored = stored ? scrollbackText(events) : undefined;

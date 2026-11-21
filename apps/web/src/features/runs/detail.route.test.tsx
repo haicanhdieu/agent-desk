@@ -871,3 +871,59 @@ describe('run detail, runs of the same ticket', () => {
     expect(q.get('ticket')).toBe(dbRun(61).ticket.ref);
   });
 });
+
+describe('run detail route, PR states', () => {
+  const prStatesPath = `/api/projects/${projectId}/tickets/pr-states`;
+
+  it('run 62 on PR #148 shows "Merged" on the top bar, Ticket card and chain after the states load', async () => {
+    const asked: string[][] = [];
+    const listener = ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (url.pathname === prStatesPath) asked.push(url.searchParams.getAll('ref'));
+    };
+    server.events.on('request:start', listener);
+    try {
+      await renderRoute(`${base}/runs/62`);
+      await screen.findByText('The agent is waiting for your answer');
+      await waitFor(() => expect(screen.getAllByLabelText('Merged').length).toBeGreaterThanOrEqual(3));
+    } finally {
+      server.events.removeListener('request:start', listener);
+    }
+    expect(asked).toEqual([['148']]);
+  });
+
+  it('an issue run sends no PR-state request', async () => {
+    await renderRoute(`${base}/runs/61`);
+    await screen.findByText('Chain on this ticket');
+    expect(mockDb.requests('GET', prStatesPath)).toBe(0);
+  });
+
+  it.each(['error', 'pending'] as const)('%s leaves the icons neutral with no banner or toast', async (scenario) => {
+    scenarios.prStates(scenario);
+    await renderRoute(`${base}/runs/62`);
+    await screen.findByText('The agent is waiting for your answer');
+    await waitFor(() => expect(mockDb.requests('GET', prStatesPath)).toBeGreaterThanOrEqual(1));
+    expect(screen.queryByLabelText('Merged')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
+  });
+
+  it('the colour fills in without a reload', async () => {
+    let release = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    server.use(
+      routeHandler('tickets.prStates', async () => {
+        await gate;
+        return jsonResponse({ items: [{ ref: '148', prState: 'merged' }] });
+      }),
+    );
+    await renderRoute(`${base}/runs/62`);
+    await screen.findByText('The agent is waiting for your answer');
+    expect(screen.queryByLabelText('Merged')).not.toBeInTheDocument();
+    expect(within(banner()).getAllByText('PR #148').length).toBeGreaterThan(0);
+    release();
+    await waitFor(() => expect(within(banner()).getByLabelText('Merged')).toBeInTheDocument());
+  });
+});

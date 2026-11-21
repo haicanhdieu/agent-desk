@@ -13,6 +13,7 @@ import {
   terminalArea,
   terminalConnection,
   toRunDetail,
+  withDetailPrStates,
   type TerminalArea,
 } from './detail.map';
 
@@ -1031,5 +1032,39 @@ describe('toRunDetail, reopened session', () => {
   it('flags a run whose session is reopened, and no other', () => {
     expect(detail(run({ status: 'done', reopenedAt: now.toISOString() })).reopened).toBe(true);
     expect(detail(run({ status: 'done', reopenedAt: null })).reopened).toBeUndefined();
+  });
+});
+
+describe('withDetailPrStates', () => {
+  const states = new Map<string, 'merged'>([
+    ['148', 'merged'],
+    ['142', 'merged'],
+  ]);
+  const data = (ticket: { kind: 'pr' | 'issue'; number: number }) => {
+    const d = detail(run({ status: 'running' }));
+    return {
+      ...d,
+      run: { ...d.run, ticket: { ...d.run.ticket, ...ticket } },
+      chain: [
+        { command: '/a', note: '', status: 'done' as const, ticket: { kind: 'issue' as const, number: 142 } },
+        { command: '/b', note: '', status: 'done' as const, ticket: { kind: 'pr' as const, number: 148 } },
+        { command: '/c', note: '', status: 'future' as const },
+      ],
+      pullRequest: { ticket: { ...d.run.ticket, kind: 'pr' as const, number: 148 }, diffstat: '+1 -1' },
+    };
+  };
+
+  it('sets the run ticket, the PR chain steps and the Pull request ticket; issues stay unchanged', () => {
+    const out = withDetailPrStates(data({ kind: 'pr', number: 148 }), states);
+    expect(out.run.ticket.prState).toBe('merged');
+    expect(out.chain[1]?.ticket?.prState).toBe('merged');
+    expect(out.chain[0]?.ticket).toEqual({ kind: 'issue', number: 142 });
+    expect(out.chain[2]?.ticket).toBeUndefined();
+    expect(out.pullRequest?.ticket.prState).toBe('merged');
+  });
+
+  it('an issue run stays unchanged', () => {
+    const out = withDetailPrStates(data({ kind: 'issue', number: 142 }), states);
+    expect(out.run.ticket.prState).toBeUndefined();
   });
 });
