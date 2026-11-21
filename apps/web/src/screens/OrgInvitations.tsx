@@ -36,8 +36,8 @@ export interface OrgInvitationsProps {
   onRevoke: (id: string) => void;
   /** Stories only: render this row's menu open. */
   openMenuRowId?: string;
-  /** The revoke confirm dialog. While the row's request is in flight (`busyRowId`) it cannot be closed or repeated. */
-  revokeConfirm?: { email: string; onConfirm: () => void; onCancel: () => void };
+  /** The revoke confirm dialog. While its own request is in flight (`busy`) it cannot be closed or repeated. */
+  revokeConfirm?: { email: string; busy?: boolean; onConfirm: () => void; onCancel: () => void };
   /** The clipboard refused: a small popover under the row's menu button holds the link to copy by hand. */
   copyFailed?: { rowId: string; link: string };
   /** The outcome of the last row action, shown as a dismissible toast. */
@@ -108,6 +108,8 @@ export function OrgInvitations({
   const copyEmail =
     copyRow && state.kind === 'ready' ? state.rows.find((r) => r.id === copyRow.rowId)?.email : undefined;
   const copyShown = copyEmail !== undefined && copyKey !== dismissedKey;
+  // The route clears `copyFailed` before each attempt: a dismissal then belongs to the attempt that is over.
+  if (copyKey === null && dismissedKey !== null) setDismissedKey(null);
   // The popover is fixed in viewport coordinates: keep it under its row's button through scroll and resize, so the
   // link stays selectable. Escape (via the Popover) or a press outside closes it.
   useLayoutEffect(() => {
@@ -133,7 +135,7 @@ export function OrgInvitations({
     };
   }, [copyShown, copyEmail, copyKey, copyRow?.link]);
 
-  const busyRow = state.kind === 'ready' && state.busyRowId !== null;
+  const busyRow = revokeConfirm?.busy === true;
   const layer = (
     <>
       {children}
