@@ -294,6 +294,33 @@ describe('dev fake routes', () => {
     expect(t.temporal.callsOfKind('start')).toHaveLength(1);
   });
 
+  it('POST /dev/fake/tickets accepts linked on PRs and issues', async () => {
+    const pr = await post('/dev/fake/tickets', { repoPath, number: 31, kind: 'pr', title: 'PR', linked: [30] });
+    const issue = await post('/dev/fake/tickets', {
+      repoPath,
+      number: 30,
+      kind: 'issue',
+      title: 'Issue',
+      linked: [31],
+    });
+    expect(pr.statusCode).toBe(201);
+    expect(issue.statusCode).toBe(201);
+    const store = new FakeStore(stateDir);
+    expect((await store.getTicket(repoPath, 31))?.linked).toEqual([30]);
+    expect((await store.getTicket(repoPath, 30))?.linked).toEqual([31]);
+  });
+
+  it('rejects linked with 0, -1, 1.5, a string, a number above 1e9 or 11 numbers', async () => {
+    const bad: unknown[] = [[0], [-1], [1.5], ['3'], [1_000_000_001], Array.from({ length: 11 }, (_, i) => i + 1)];
+    for (const linked of bad) {
+      const res = await post('/dev/fake/tickets', { repoPath, number: 32, kind: 'pr', title: 'PR', linked });
+      expect(res.statusCode).toBe(400);
+      expect(res.headers['content-type']).toContain('application/problem+json');
+      const { errors } = res.json<{ errors: { pointer: string }[] }>();
+      expect(errors.some((e) => e.pointer.startsWith('/linked'))).toBe(true);
+    }
+  });
+
   it('lists the bot comments of a repo', async () => {
     await new FakeStore(stateDir).postBotComment(repoPath, '21', 'Run finished');
     await new FakeStore(stateDir).postBotComment('other/repo', '1', 'not mine');

@@ -458,7 +458,7 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
   - Fake `getTicket`: for a PR, `linkedRefs = normalizeLinkedRefs([...(t.linked ?? []), ...issues in the same repo whose linked includes t.number])`. For an issue, `[]`.
   - `DevTicketBody` gains `linked: z.array(z.number().int().positive().max(1_000_000_000)).max(10).optional()`, which `addTicket` stores. Re-posting a ticket replaces it, so a link can be added later (BR-20).
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `fake.test.ts`:
     - `a fake PR's linkedRefs is its own linked ∪ the issues whose linked lists it`. PR 10 `linked: [3]`, issue 4 `linked: [10]`, issue 5 `linked: [99]` give `['3', '4']`.
     - `a fake issue's linkedRefs is [] even with linked`.
@@ -467,10 +467,10 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
   - `webhooks.int.test.ts` `describe('dev fake routes')`:
     - `POST /dev/fake/tickets accepts linked on PRs and issues`: 201, and `new FakeStore(dir).getTicket(...)` has `linked`.
     - `rejects linked with 0, -1, 1.5, a string or 11 numbers`: 400 problem.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test fake && pnpm --filter @agentdesk/api test:integration webhooks`. Expected: FAIL.
-- [ ] **Step 3: Implement** the store field, the fake `getTicket` union and `DevTicketBody.linked`.
-- [ ] **Step 4: Run** the same commands and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(core): fake tickets carry links on either side`, then `feat(api): dev fake tickets accept linked`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test fake && pnpm --filter @agentdesk/api test:integration webhooks`. Expected: FAIL.
+- [x] **Step 3: Implement** the store field, the fake `getTicket` union and `DevTicketBody.linked`.
+- [x] **Step 4: Run** the same commands and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(core): fake tickets carry links on either side`, then `feat(api): dev fake tickets accept linked`.
 
 ---
 

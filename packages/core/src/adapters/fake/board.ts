@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
+import { normalizeLinkedRefs } from '../linked-refs';
 import type {
   AdapterProject,
   BoardAdapter,
@@ -118,6 +119,15 @@ export class FakeBoardAdapter implements BoardAdapter {
     const n = Number(ref);
     const t = Number.isInteger(n) ? await this.store.getTicket(project.repoPath, n) : undefined;
     if (!t) throw new Error(`ticket ${ref} not found in ${project.repoPath}`);
+    const linkedRefs =
+      t.kind === 'pr'
+        ? normalizeLinkedRefs([
+            ...(t.linked ?? []),
+            ...(await this.store.listTickets())
+              .filter((o) => o.kind === 'issue' && o.repoPath === t.repoPath && o.linked?.includes(t.number))
+              .map((o) => o.number),
+          ])
+        : [];
     return {
       ref: String(t.number),
       kind: t.kind,
@@ -125,7 +135,7 @@ export class FakeBoardAdapter implements BoardAdapter {
       title: t.title,
       url: `http://fake.invalid/${t.repoPath}/${t.kind === 'pr' ? 'pull' : 'issues'}/${t.number}`,
       labels: t.labels,
-      linkedRefs: [],
+      linkedRefs,
     };
   }
 

@@ -15,6 +15,8 @@ const StoredTicket = z.object({
   kind: z.enum(['issue', 'pr']),
   title: z.string(),
   labels: z.array(z.object({ name: z.string(), color: z.string() })),
+  /** On a PR: the issues it closes. On an issue: the PRs linked to it. */
+  linked: z.array(z.number().int()).optional(),
 });
 export type StoredTicket = z.infer<typeof StoredTicket>;
 const TicketsFile = z.object({ tickets: z.array(StoredTicket) });
