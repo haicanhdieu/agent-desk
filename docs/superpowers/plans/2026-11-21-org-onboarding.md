@@ -1303,13 +1303,13 @@ export function CreateOrg(props: { user: Actor; org?: OrgSwitchProps; state: Cre
 - Consumes: `orgAccessQuery`, `toAccess`, `canInvite`, `myInvitationsQuery`, `toOrgSwitch` (Task 15); onboarding scenarios (Task 17); the Projects screen props (Task 21).
 - Produces: the Projects route passes `org` (from `['session','orgs']`, the URL slug and `platformAdmin`; org items link to `/o/<slug>/projects`, "Create organization" to `/orgs/new`), `invitationsBanner` (count from `myInvitationsQuery`, hidden at 0 and when the query fails, "View" → `/invitations`), `invitationsHref` (`/o/<org>/invitations` when `canInvite`), `canCreate` (`can(access, 'project:create')`); a route `errorComponent` that renders the global top bar with the switcher over `Forbidden` for a 403.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `orgSwitch.route.test.tsx`: BR-6 `twoOrgs` lists both orgs, current marked; BR-7 picking Beta goes to `/o/beta/projects` and shows Beta's projects; BR-9 `singleOrg` shows plain text; BR-10 `twoOrgsSlowSwitch` shows the pending skeleton and none of Acme's project names under Beta's URL until `set-active` answers; BR-12 `/o/unknown/projects` shows not found; BR-40 `platformAdminOneOrg` offers "Create organization"; BR-44 `twoOrgsNoRoleInSecond` shows `Forbidden` with the switcher still switching back; BR-46 an owner who is not a platform admin sees no "Create organization".
   - `projects.route.test.tsx`: BR-3 the banner shows the pending count and "View" goes to `/invitations`; it is hidden at 0 and when `me.listInvitations` fails; BR-20 `member` and `viewer` see no "Invitations" and no "New project"; an owner sees both.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/orgSwitch.route.test.tsx src/features/projects/projects.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route wiring.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): org switcher, invitations banner and button on the Projects page`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/orgSwitch.route.test.tsx src/features/projects/projects.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the route wiring.
+- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS. Only the Step 2 command was run (the full web suite is the Verifier's).
+- [x] **Step 5: Commit** `feat(web): org switcher, invitations banner and button on the Projects page`.
 
 ---
 
