@@ -938,7 +938,7 @@ export function Transcript(props: TranscriptProps): JSX.Element;
 - Rendering rules (spec §7.3, boards `RunStopped`, `RunTranscriptStates`, `RunIdleEnding`):
   - `role="log"`, labelled "Transcript of the agent conversation".
   - Person messages sit in a raised bordered box, labelled with `label` and the time.
-  - Agent replies are plain text with `label` and the time.
+  - Agent replies are Markdown text with `label` and the time.
   - A tool step is one muted line: the `terminal` icon, the tool in bold, the text in mono.
   - Notices are centred muted lines between rules.
   - Text is rendered with `white-space: pre-wrap` as React text only.

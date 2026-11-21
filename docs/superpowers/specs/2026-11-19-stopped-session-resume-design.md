@@ -76,7 +76,7 @@ The human wants:
   `redact()` and secret list as scrollback and agent notes) before it is stored. The raw text never reaches logs or
   workflow history.
 - Rule 6: transcript text is untrusted (it holds ticket text, repo content and model output). It is parsed with Zod,
-  stored as data, and rendered as plain text. It is never put into a shell, a k8s spec or SQL text.
+  stored as data, and rendered as sanitized Markdown (unsafe HTML never runs). It is never put into a shell, a k8s spec or SQL text.
 - Rule 7: the new routes use the same org/project authorization as `runs.log`, `runs.finish` and `runs.resume`.
 - Workflow changes are guarded with `patched()` so runs already in flight replay unchanged.
 - The runner image must be live before worker code that expects transcript lines. Older pods just send none, and the
@@ -395,14 +395,14 @@ in `RunStopped`, `RunSucceededFinished` and `RunTranscriptStates`:
 
 - **Person messages** sit in a raised, bordered box. The label is "You", and the first entry (the run's prompt) is
   labelled "Prompt".
-- **Agent replies** are plain text with no box, labelled with the agent's name (`run.agent.name`, for example
+- **Agent replies** are Markdown text with no box, labelled with the agent's name (`run.agent.name`, for example
   "Claude").
 - Each message label has the entry's local time next to it (for example "14:13"), in the faint numeric style.
 - **Tool steps** are one muted line: the terminal icon, the tool name in bold, then the summary in mono (for example
   **Bash** `dotnet test`).
 - **Notices** are a centred muted line between rules (for example "Conversation compacted", "Transcript limit reached;
   later messages were not saved", "API Error: 401 invalid credential").
-- Text is rendered as plain text with whitespace and line breaks kept (React text nodes, no HTML, no markdown). A
+- Text is rendered as sanitized Markdown with line breaks kept (unsafe HTML never rendered, images shown as text). A
   `truncated` entry ends with a muted "… (cut)".
 - It opens scrolled to the newest entry. When `nextBefore` is set, a ghost "Show earlier messages" button with a
   chevron-up icon sits at the top. It loads the next page above and keeps the scroll position.
@@ -467,7 +467,7 @@ in `RunStopped`, `RunSucceededFinished` and `RunTranscriptStates`:
 - The transcript route and the stop route are authorized like `runs.log` and `runs.finish`. RLS is forced on the new
   table.
 - The stop path runs only the existing fixed `agentdesk-end`. No new exec command and no user text reach the pod.
-- Rendering is plain text only. Bidi and control characters are stripped before rendering, using the same rule as the
+- Rendering is sanitized Markdown: unsafe HTML never runs, images are never fetched. Bidi and control characters are stripped before rendering, using the same rule as the
   scrollback mapper.
 
 ### 9. Failure cases
@@ -698,7 +698,7 @@ Notes for all cases: "mock" cases use a mocked run in the stated state; "local" 
 | BR-36 | feedback-state      | When the Transcript is loading, failed to load, or being checked for entries, the person sees the tab "Transcript"; only after an empty first page does the tab change to the fallback label (BR-48, BR-49).                                                                         | spec §7.1 Agent call                                     |
 | BR-37 | state-transition    | When a person opens a stopped, paused or ended run, or presses Retry on the Transcript error, no pod or agent starts: the run keeps its status (no Queued, Starting or Resuming appears) and the Transcript loads.                                                                    | spec Goals 4, Anti-goals, §7.3                           |
 | BR-38 | conditional-display | When the Transcript has a message the person sent, the person sees it in a raised bordered box labelled "You" with its local time (for example "14:16"), and the first entry (the run's prompt) is labelled "Prompt".                                                                | spec §7.3, board RunSucceededFinished                    |
-| BR-39 | conditional-display | When the Transcript has an agent reply, the person sees it as plain text without a box, labelled with the agent's name (for example "Claude") and its local time (for example "14:13").                                                                                              | spec §7.3, board RunStopped                              |
+| BR-39 | conditional-display | When the Transcript has an agent reply, the person sees it as Markdown text without a box, labelled with the agent's name (for example "Claude") and its local time (for example "14:13").                                                                                              | spec §7.3, board RunStopped                              |
 | BR-40 | conditional-display | When the Transcript has a tool step, the person sees one muted line with a terminal icon, the tool name in bold and a mono summary: the command for Bash, the file path for Edit, Write and Read, the first 200 characters of the input for other tools; the tool's output is not shown. | spec §3.2, §7.3, board RunStopped                        |
 | BR-41 | conditional-display | When the Transcript has a notice (for example "Conversation compacted", "API Error: 401 invalid credential", or "Transcript limit reached; later messages were not saved"), the person sees it as a centred muted line between rules.                                                | spec §3.2, §4, §7.3, board RunTranscriptStates           |
 | BR-42 | conditional-display | When the agent thought before replying, the person sees no hidden reasoning in the Transcript, only the messages, tool steps and notices.                                                                                                                                             | spec §3.2 Agent call                                     |
@@ -1001,7 +1001,7 @@ Notes for all cases: "mock" cases use a mocked run in the stated state; "local" 
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-39.1 | positive | mock | A mocked run whose agent is named "Claude" with an agent reply at 14:13 | 1. Open the run page | The reply is plain text with no box, labelled "Claude" with "14:13" next to it |
+| TC-39.1 | positive | mock | A mocked run whose agent is named "Claude" with an agent reply at 14:13 | 1. Open the run page | The reply is Markdown text with no box, labelled "Claude" with "14:13" next to it |
 
 #### BR-40: Tool steps
 
