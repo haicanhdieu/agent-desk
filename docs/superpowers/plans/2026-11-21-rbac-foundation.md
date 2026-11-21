@@ -1743,9 +1743,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; Task 34 `grant`, `revoke`.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-29.1 to TC-29.7; TC-30.1 to TC-30.3 (O creates P3 on `dev/demo-3`); TC-31.1 to TC-31.3 (O grants V `admin` on P1); TC-32.1 to TC-32.4 (O revokes C's P1 assignment; PA grants C `member` on P2).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-project-admin.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e project admin, mixed roles and locked-out member`.
+- [x] **Step 1: Write the spec:** TC-29.1 to TC-29.7; TC-30.1 to TC-30.3 (O creates P3 on `dev/demo-3`); TC-31.1 to TC-31.3 (O grants V `admin` on P1); TC-32.1 to TC-32.4 (O revokes C's P1 assignment; PA grants C `member` on P2).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-project-admin.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e project admin, mixed roles and locked-out member`.
 
 ---
 
