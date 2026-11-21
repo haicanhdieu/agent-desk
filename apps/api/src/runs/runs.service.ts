@@ -109,6 +109,7 @@ export class RunsService {
       status: RunStatus.parse(row.status),
       triggerSource: TriggerSource.parse(row.triggerSource),
       triggeredBy: row.triggeredBy,
+      ownerUserId: row.ownerUserId,
       queuedAt: row.queuedAt.toISOString(),
       startedAt: row.startedAt?.toISOString() ?? null,
       finishedAt: row.finishedAt?.toISOString() ?? null,

@@ -536,3 +536,10 @@ describe('toRunSummary durations', () => {
     expect(toRunSummary(started, new Date(now.getTime() + 61_000)).duration).toBe('4h 1m');
   });
 });
+
+describe('toRunSummary, run owner', () => {
+  it('does not carry the owner id into the row the list shows', () => {
+    const s = toRunSummary(run({ ownerUserId: 'user-owner-id-1' }), now);
+    expect(JSON.stringify(s)).not.toContain('user-owner-id-1');
+  });
+});

@@ -276,6 +276,36 @@ describe('pollOnce', () => {
     expect(inbound.map((e) => e.outcome)).toEqual(['ignored_owner_not_permitted']);
   });
 
+  it("a bot trigger written during the owner's live run starts a follow-up owned by the same user", async () => {
+    reset();
+    const s = await seed();
+    await withOrg(db, s.orgId, async (tx) => {
+      const [first] = await tx.select({ agentId: rules.agentId }).from(rules).where(eq(rules.projectId, s.projectId));
+      await tx.insert(rules).values({
+        orgId: s.orgId,
+        projectId: s.projectId,
+        command: 'second',
+        skillName: 'second',
+        agentId: first!.agentId,
+        target: 'any',
+        labelFilter: [],
+      });
+    });
+    await comment(s);
+    await pollOnce(deps(), s);
+    const [origin] = await runsOf(s);
+    // The first run is live now: started an hour ago, not finished.
+    await admin.query(`update runs set status = 'running', started_at = now() - interval '1 hour' where id = $1`, [
+      origin!.id,
+    ]);
+    const bot = await comment(s, '/second', config.BOT_NAME);
+    expect(await pollOnce(deps(), s)).toBe('ok');
+    const followUp = (await runsOf(s)).find((r) => r.id !== origin!.id);
+    expect(followUp).toMatchObject({ ownerUserId: s.ownerId, originRunId: origin!.id, triggerSource: 'polling' });
+    expect((await cursorOf(s)).since?.toISOString()).toBe(bot.createdAt);
+    expect(started).toHaveLength(2);
+  });
+
   it('re-reading a refused comment after a crash stays refused without a second row or a run', async () => {
     reset();
     const s = await seed({ role: 'none' });

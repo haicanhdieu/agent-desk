@@ -1336,14 +1336,14 @@ export function botTriggerEvent(base: TicketEvent, createdAt: string, botLogin?:
 - Consumes: `runs.ownerUserId` (Task 5); intake owner (Task 23); tenant `revoke` route (Task 19).
 - Produces: `RunDto.ownerUserId: z.string().nullable()`, mapped from `runs.owner_user_id` in every `RunDto` the api returns. Any other web `RunDto` literal that `pnpm --filter @agentdesk/web typecheck` flags gets `ownerUserId: null` (list the file in the PR).
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `runs.test.ts`: `RunDto` rejects a run without `ownerUserId` and accepts `null`.
   - `webhooks.int.test.ts` (cast via helpers: O, B member P1+P2, V viewer, A admin P1, an unlinked author): BR-26 association `NONE` → no run; BR-50 B's trigger → `runs.get` shows `ownerUserId` = B; BR-51 V on P1 and A on P2 → `ignored_owner_not_permitted` in `projects.ignored`, no Temporal start (`t.temporal` has no start call); BR-52 unlinked → `ignored_owner_unlinked`; BR-53 a bot comment during B's active run on the ticket → follow-up run owned by B; BR-71 bot comment with no active run, with the only active run in P1 while commenting on P2, and with an origin whose `owner_user_id` was set null by SQL → no run, `ignored_owner_unlinked`; BR-72 after O revokes B's P1 assignment, a bot comment from B's earlier P1 run → `ignored_owner_not_permitted`; N6 a human unlinked comment whose body names an active run's id → still `ignored_owner_unlinked`.
   - `poll.int.test.ts`: BR-50, BR-51, BR-52 and BR-53 through `pollOnce`; a refused comment still advances the cursor; running the same tick twice adds no run and no second ignored row.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/runs.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the field, the api mapping and the web fixture updates.
-- [ ] **Step 4: Run** the same commands plus `pnpm --filter @agentdesk/web typecheck` and `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): runs show their owner`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/runs.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the field, the api mapping and the web fixture updates.
+- [x] **Step 4: Run** the same commands plus `pnpm --filter @agentdesk/web typecheck` and `pnpm --filter @agentdesk/web exec vitest run src/mocks`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(contracts): runs show their owner`.
 
 ---
 
