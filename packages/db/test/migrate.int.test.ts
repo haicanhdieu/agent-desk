@@ -1097,3 +1097,75 @@ describe('role templates and run owner backfill on an upgraded database', () => 
     }
   });
 });
+
+describe('declined invitations migration is additive (N-7)', () => {
+  const orgId = randomUUID();
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+  let roleId: string;
+  let before: unknown[];
+
+  async function ownerTx<T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> {
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const r = await client.query<T>(sql, params);
+      await client.query('commit');
+      return r.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  const readAll = () => ownerTx('select * from invitations order by email');
+
+  beforeAll(async () => {
+    old = await startPgAt('0027_backfill_run_owner');
+    const [role] = await ownerTx<{ id: string }>(
+      `insert into roles (org_id, key, name, assignable_scopes) values ($1, 'member', 'Member', '{org}') returning id`,
+      [orgId],
+    );
+    roleId = role?.id ?? '';
+    const rows: [string, string, string][] = [
+      ['pending-7d@x.io', 'pending', "now() + interval '7 days'"],
+      ['pending-1d@x.io', 'pending', "now() + interval '1 day'"],
+      ['accepted@x.io', 'accepted', "now() + interval '7 days'"],
+      ['revoked@x.io', 'revoked', "now() + interval '7 days'"],
+      ['expired@x.io', 'expired', "now() - interval '1 day'"],
+    ];
+    for (const [email, status, expires] of rows) {
+      await ownerTx(
+        `insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+         values ($1, $2, $3, 'org', $4, ${expires}, 'u1')`,
+        [orgId, email, roleId, status],
+      );
+    }
+    before = await readAll();
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('leaves every existing row and its expires_at unchanged', async () => {
+    expect(before).toHaveLength(5);
+    expect(await readAll()).toEqual(before);
+  });
+
+  it('accepts a declined row and still rejects an unknown status', async () => {
+    await ownerTx(
+      `insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+       values ($1, 'declined@x.io', $2, 'org', 'declined', now() + interval '2 days', 'u1')`,
+      [orgId, roleId],
+    );
+    await expect(
+      ownerTx(
+        `insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+         values ($1, 'bogus@x.io', $2, 'org', 'bogus', now() + interval '2 days', 'u1')`,
+        [orgId, roleId],
+      ),
+    ).rejects.toMatchObject({ code: '23514' });
+  });
+});
