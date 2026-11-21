@@ -22,6 +22,7 @@ import { CONFIG } from '../../src/config/config.module';
 import { parseConfig, type Config } from '../../src/config/config.schema';
 import { DB } from '../../src/db/db.module';
 import { KUBE_GATEWAY } from '../../src/kube/kube-gateway.module';
+import { PR_STATE_LOOKUP, PR_STATE_LOOKUP_DEFAULTS, type PrStateLookupOptions } from '../../src/tickets/pr-state-cache';
 import { SECRET_STORE } from '../../src/secrets/secret-store.module';
 import { TEMPORAL_CLIENT } from '../../src/temporal/temporal-client.module';
 import { FakeTemporalClient } from './fake-temporal';
@@ -61,6 +62,8 @@ export interface TestAppOptions {
   agentHttp?: AgentHttpGet;
   /** Uses this database instead of the shared one (e.g. one migrated up from an older schema); the caller stops it. */
   pg?: TestPg;
+  /** Overrides the PR state lookup options (clock, ttlMs, timeoutMs, maxEntries). */
+  prStateLookup?: Partial<PrStateLookupOptions>;
   /** Logger for request/problem logging (default: silent); tests capture output through it. */
   logger?: Logger;
 }
@@ -112,6 +115,10 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     const builder = Test.createTestingModule({ imports: [AppModule], controllers: options.controllers ?? [] });
     if (options.kube) builder.overrideProvider(KUBE_GATEWAY).useValue(options.kube);
     if (options.agentHttp) builder.overrideProvider(AGENT_HTTP).useValue(options.agentHttp);
+    if (options.prStateLookup)
+      builder
+        .overrideProvider(PR_STATE_LOOKUP)
+        .useValue({ clock: systemClock, ...PR_STATE_LOOKUP_DEFAULTS, ...options.prStateLookup });
     const moduleRef = await builder
       .overrideProvider(CONFIG)
       .useValue(config)

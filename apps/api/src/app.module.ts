@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { systemClock } from '@agentdesk/core';
 import { AdapterRegistryModule } from './adapters/adapter-registry.module';
 import { AgentsController } from './agents/agents.controller';
 import { agentHttpProvider } from './agents/agent-http.provider';
@@ -30,6 +31,9 @@ import { SkillsService } from './skills/skills.service';
 import { RunStatusListener } from './sse/run-status-listener';
 import { SseController } from './sse/sse.controller';
 import { SseService } from './sse/sse.service';
+import { PR_STATE_LOOKUP, PR_STATE_LOOKUP_DEFAULTS } from './tickets/pr-state-cache';
+import { TicketsController } from './tickets/tickets.controller';
+import { TicketsService } from './tickets/tickets.service';
 import { TemporalClientModule } from './temporal/temporal-client.module';
 
 @Module({
@@ -57,6 +61,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     RulesController,
     SkillsController,
     RunsController,
+    TicketsController,
     SseController,
   ],
   providers: [
@@ -68,6 +73,8 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     RulesService,
     SkillsService,
     RunsService,
+    TicketsService,
+    { provide: PR_STATE_LOOKUP, useValue: { clock: systemClock, ...PR_STATE_LOOKUP_DEFAULTS } },
     RunStatusListener,
     SseService,
   ],

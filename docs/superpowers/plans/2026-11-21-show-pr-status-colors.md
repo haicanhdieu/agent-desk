@@ -472,13 +472,13 @@ export class PrStateCache {
      - Any failure or timeout logs `pr states unavailable {"projectId","refs":<n>,"err":<name>}` once and adds nothing.
   4. The answer is `{ items }` for the known refs that have a state, in request order.
 
-- [ ] **Step 1: Write the failing cache tests** in `pr-state-cache.test.ts`, with a mutable test `Clock`:
+- [x] **Step 1: Write the failing cache tests** in `pr-state-cache.test.ts`, with a mutable test `Clock`:
   - `a hit at 60 s − 1 ms, a miss at 60 s + 1 ms`;
   - `entry 10,001 evicts the oldest and keeps the newest`;
   - `project A's entry is never served to project B`;
   - `re-setting refreshes the time and the age order`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test:unit pr-state-cache`. Expected: FAIL. **Implement** `PrStateCache` (a `Map` in insertion order). Run again. Expected: PASS.
-- [ ] **Step 3: Write the failing int tests** in `tickets.int.test.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test:unit pr-state-cache`. Expected: FAIL. **Implement** `PrStateCache` (a `Map` in insertion order). Run again. Expected: PASS.
+- [x] **Step 3: Write the failing int tests** in `tickets.int.test.ts`.
 
   Setup:
   - One app with `prStateLookup: { clock: testClock, timeoutMs: 50 }` and `wrapAdapters: (r) => spyBoard(wideFakeRepos(r))`. `spyBoard` wraps `board('fake')`, records each `prStates(project, refs)` call, and switches on a mutable `mode`: `real`, `throw` (an `Error` named `HttpError` with message `provider-text-xyz`), `hang`, `lateReject` (rejects 100 ms after the call), or `unregistered` (`board()` itself throws).
@@ -504,9 +504,9 @@ export class PrStateCache {
   - `a cache hit skips the adapter until the TTL passes`.
   - `a request with cached and new refs sends only the new refs to the adapter and answers both` (Review Focus 3).
   - `a lookup that rejects after the timeout causes no unhandled rejection` (Review Focus 4). A `process.on('unhandledRejection')` spy is not called within 300 ms, and the next request answers 200.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/api test:integration tickets.int`. Expected: FAIL (404 route).
-- [ ] **Step 5: Implement** the service, the controller, the module wiring and the test-app option. Run `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:integration tickets.int && pnpm --filter @agentdesk/api test:unit pr-state-cache`. Expected: PASS.
-- [ ] **Step 6: Commit:** `feat(api): tickets.prStates reads live PR states through a per-project cache`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/api test:integration tickets.int`. Expected: FAIL (404 route).
+- [x] **Step 5: Implement** the service, the controller, the module wiring and the test-app option. Run `pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/api test:integration tickets.int && pnpm --filter @agentdesk/api test:unit pr-state-cache`. Expected: PASS.
+- [x] **Step 6: Commit:** `feat(api): tickets.prStates reads live PR states through a per-project cache`.
 
 ---
 
