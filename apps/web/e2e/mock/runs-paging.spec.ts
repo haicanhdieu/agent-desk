@@ -66,6 +66,17 @@ async function headers(page: Page): Promise<[number, number][]> {
 
 const groupHeaderRows = (page: Page): Locator => page.getByRole('row').filter({ hasText: / of \d+ runs$/ });
 
+/** A merged group's header row: a link "Issue #N" and the chain arrow "→". */
+const mergedHeader = (page: Page, issue: number): Locator =>
+  page
+    .getByRole('row')
+    .filter({ has: page.getByRole('link', { name: `Issue #${issue}`, exact: true }) })
+    .filter({ hasText: '→' });
+
+/** Seed entries of `ticketRuns`: an issue run, and a PR run linked to the given issues. */
+const issueRun = (number: number) => ({ kind: 'issue', number }) as const;
+const prRun = (number: number, linked: number[]) => ({ kind: 'pr', number, linked }) as const;
+
 async function openRuns(page: Page, query = ''): Promise<void> {
   await page.goto(`${RUNS}${query}`);
   await expect(runLinks(page).first()).toBeVisible();
@@ -474,5 +485,88 @@ test.describe('BR-36: a live status change', () => {
     await expect(row).toContainText('Failed');
     await expect(rangeOf(page)).toHaveText('Showing 21–40 of 63');
     expect(await page.evaluate(() => Reflect.get(window, '__keptAlive'))).toBe(true);
+  });
+});
+
+const ISSUE_12_TITLE = 'Issue 12: add a health check endpoint';
+const NOTE_PR_ONLY = 'Issue #12 (1 of 10 runs) → PR #13 (2 of 10 runs)';
+
+test.describe('BR-3 (group issue and PR runs): a page with only the PR runs shows the merged header', () => {
+  // 62 runs: run 3 (issue #12) is on page 3, runs 2 and 1 (PR #13) alone on page 4.
+  const lists = { runs: { total: 59 }, ticketRuns: [prRun(13, [12]), prRun(13, [12]), issueRun(12)] };
+
+  test('TC-3.1: page 4 holds only PR #13 rows under the header led by Issue #12', async ({ page }) => {
+    await seedLists(page, lists);
+    await openRuns(page);
+    await pageButton(page, 4).click();
+    await expect(rangeOf(page)).toHaveText('Showing 61–62 of 62');
+    const header = mergedHeader(page, 12);
+    await expect(header).toHaveCount(1);
+    await expect(header).toContainText(ISSUE_12_TITLE);
+    await expect(header).toContainText('user-story');
+    await expect(header).toContainText(NOTE_PR_ONLY);
+    await expect(header).toHaveText(/runs\)$/);
+    await expect(runLinks(page)).toHaveCount(2);
+    const rows = page.getByRole('row').filter({ has: page.getByRole('link', { name: /^Run \d+$/ }) });
+    await expect(rows).toHaveCount(2);
+    for (const row of await rows.all()) {
+      await expect(row.getByRole('link', { name: 'PR #13', exact: true })).toBeVisible();
+    }
+  });
+
+  test('TC-3.2: pages 3 and 4 show the same merged header', async ({ page }) => {
+    await seedLists(page, lists);
+    await openRuns(page);
+    await pageButton(page, 3).click();
+    await expect(rangeOf(page)).toHaveText('Showing 41–60 of 62');
+    const onPage3 = mergedHeader(page, 12);
+    await expect(onPage3).toHaveCount(1);
+    await expect(onPage3).toContainText(ISSUE_12_TITLE);
+    await expect(onPage3).toContainText('user-story');
+    await expect(onPage3).toContainText(NOTE_PR_ONLY);
+    await pageButton(page, 4).click();
+    await expect(rangeOf(page)).toHaveText('Showing 61–62 of 62');
+    const onPage4 = mergedHeader(page, 12);
+    await expect(onPage4).toHaveCount(1);
+    await expect(onPage4).toContainText(ISSUE_12_TITLE);
+    await expect(onPage4).toContainText('user-story');
+    await expect(onPage4).toContainText(NOTE_PR_ONLY);
+  });
+});
+
+test.describe('BR-4 (group issue and PR runs): several PRs of one issue', () => {
+  test('TC-4.2: a page with only PR #148 shows the full chain note, PR #150 included', async ({ page }) => {
+    // 21 runs: run 1 (PR #148) is alone on page 2.
+    await seedLists(page, {
+      runs: { total: 17 },
+      ticketRuns: [prRun(148, [142]), issueRun(142), prRun(150, [142]), prRun(150, [142])],
+    });
+    await openRuns(page);
+    await pageButton(page, 2).click();
+    await expect(rangeOf(page)).toHaveText('Showing 21–21 of 21');
+    const header = mergedHeader(page, 142);
+    await expect(header).toHaveCount(1);
+    await expect(header).toContainText('Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs), PR #150 (2 of 10 runs)');
+    await expect(runLinks(page)).toHaveCount(1);
+    await expect(page.getByRole('link', { name: 'PR #148', exact: true })).toHaveCount(1);
+  });
+});
+
+test.describe('BR-21 (group issue and PR runs): a page with only the issue runs shows the merged header', () => {
+  test('TC-21.1: page 4 holds only #12 rows under the header with both counts', async ({ page }) => {
+    // 62 runs: run 3 (PR #13) is on page 3, runs 2 and 1 (issue #12) alone on page 4.
+    await seedLists(page, { runs: { total: 59 }, ticketRuns: [issueRun(12), issueRun(12), prRun(13, [12])] });
+    await openRuns(page);
+    await pageButton(page, 4).click();
+    await expect(rangeOf(page)).toHaveText('Showing 61–62 of 62');
+    const header = mergedHeader(page, 12);
+    await expect(header).toHaveCount(1);
+    await expect(header).toContainText(ISSUE_12_TITLE);
+    await expect(header).toContainText('user-story');
+    await expect(header).toContainText('Issue #12 (2 of 10 runs) → PR #13 (1 of 10 runs)');
+    await expect(header).toHaveText(/runs\)$/);
+    await expect(runLinks(page)).toHaveCount(2);
+    await expect(page.getByRole('link', { name: '#12', exact: true })).toHaveCount(2);
+    await expect(page.getByRole('link', { name: /^PR #13$/ })).toHaveCount(0);
   });
 });

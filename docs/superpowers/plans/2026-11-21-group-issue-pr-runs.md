@@ -812,9 +812,9 @@ Locators: a merged header row is a row with a link `Issue #N` and the text `→`
 | TC-4.2 | `{ runs: { total: 17 }, ticketRuns: [p(148,[142]), i142, p(150,[142]), p(150,[142])] }` (21 runs) | page 2 holds only run 1 (`PR #148`) under "Issue #142" with the full two-PR note |
 | TC-21.1 | `{ runs: { total: 59 }, ticketRuns: [i12, i12, p(13,[12])] }` (62 runs) | page 4: header "Issue #12", note "Issue #12 (2 of 10 runs) → PR #13 (1 of 10 runs)", only `#12` rows, nothing on the right |
 
-- [ ] **Step 1: Write the four cases.**
+- [x] **Step 1: Write the four cases.**
 - [ ] **Step 2: Build and run:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/runs-paging.spec.ts`. Expected: PASS for every new and existing test.
-- [ ] **Step 3: Commit:** `test(web): mock e2e for a merged group across a page break`.
+- [x] **Step 3: Commit:** `test(web): mock e2e for a merged group across a page break`.
 
 ---
 
