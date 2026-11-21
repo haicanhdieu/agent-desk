@@ -914,7 +914,7 @@ export interface TranscriptItem {
   time: string;
   /** Tool name; kind 'tool' only. */
   tool?: string;
-  /** Plain text (already stripped of control and bidi characters by the caller). */
+  /** Text, rendered as Markdown (already stripped of control and bidi characters by the caller). */
   text: string;
   truncated: boolean;
 }
@@ -941,7 +941,7 @@ export function Transcript(props: TranscriptProps): JSX.Element;
   - Agent replies are Markdown text with `label` and the time.
   - A tool step is one muted line: the `terminal` icon, the tool in bold, the text in mono.
   - Notices are centred muted lines between rules.
-  - Text is rendered with `white-space: pre-wrap` as React text only.
+  - Text is rendered as sanitized Markdown through Streamdown; paragraphs use `white-space: pre-line`.
   - A truncated entry ends with a muted "… (cut)".
   - With `hasEarlier`, a ghost "Show earlier messages" button with `chevron-up` sits at the top.
   - The log opens scrolled to the bottom. After `onShowEarlier` adds items above, the first visible item stays in place: restore `scrollTop` by the `scrollHeight` delta in a layout effect.
