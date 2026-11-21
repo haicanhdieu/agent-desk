@@ -25,14 +25,18 @@ export function TextArea({ mono, className, rows = 6, ...rest }: TextAreaProps) 
   );
 }
 
+/** `prefixId` lets the input's aria-describedby point at the prefix, which is hidden from the tree. */
 export function PrefixInput({
   prefix,
+  prefixId,
   className,
   ...rest
-}: { prefix: string } & InputHTMLAttributes<HTMLInputElement>) {
+}: { prefix: string; prefixId?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className={cx(styles.wrap, styles.prefix, className)} aria-invalid={rest['aria-invalid']}>
-      <span aria-hidden="true">{prefix}</span>
+      <span id={prefixId} aria-hidden="true">
+        {prefix}
+      </span>
       <input type="text" {...rest} />
     </div>
   );

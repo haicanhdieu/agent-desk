@@ -217,3 +217,16 @@ OrgInvitationsResending, OrgInvitationsRevokeConfirm, OrgInvitationsRevoked.
 - Invite dialog boards: the shared `InviteDialog` over the page; the tab-switched board shows the red Toast over the dialog with the input kept.
 - Resending: the in-flight row's Actions button is disabled; no spinner is drawn (as the board).
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 15 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: create-org form boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Eleven boards added, so `parity.mjs`
+finds 147: CreateOrg, CreateOrgCreated, CreateOrgError, CreateOrgFieldErrors, CreateOrgForbidden, CreateOrgInvitationFailed,
+CreateOrgRetrying, CreateOrgSaving, CreateOrgSlugAuto, CreateOrgSlugEdited, CreateOrgSlugTaken.
+
+- Fields: the shared `Field` with `TextInput` and `PrefixInput`; the "URL" input's description is the `/o/` prefix (via the new optional `prefixId` of `PrefixInput`) plus any error. Field errors are shared `Field` errors (no `role="alert"`, the boards draw one).
+- Saving and retrying: the fields are read-only while the request is in flight (the boards leave them editable); in the retrying state the email is read-only too.
+- Errors: the form and invitation-failed notices are the shared `Banner` (`role="alert"`, with "Retry" as a Button with the refresh icon); the request ID is plain muted text.
+- Created: the shared `SurfaceCard` holding the h2, the text, the shared `InviteLink` (the "Invitation link" box with "Copy link") and "Done"; the board draws the link in an input.
+- Forbidden: the same notice as the other screens (h1, one line), with no "Go to projects" button.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 11 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.

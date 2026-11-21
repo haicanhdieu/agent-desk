@@ -122,6 +122,17 @@ const stories = {
   OrgInvitationsResending: ['Screens/Invitations', 'OrgInvitationsResending'],
   OrgInvitationsRevokeConfirm: ['Screens/Invitations', 'OrgInvitationsRevokeConfirm'],
   OrgInvitationsRevoked: ['Screens/Invitations', 'OrgInvitationsRevoked'],
+  CreateOrg: ['Screens/Invitations', 'CreateOrg'],
+  CreateOrgCreated: ['Screens/Invitations', 'CreateOrgCreated'],
+  CreateOrgError: ['Screens/Invitations', 'CreateOrgError'],
+  CreateOrgFieldErrors: ['Screens/Invitations', 'CreateOrgFieldErrors'],
+  CreateOrgForbidden: ['Screens/Invitations', 'CreateOrgForbidden'],
+  CreateOrgInvitationFailed: ['Screens/Invitations', 'CreateOrgInvitationFailed'],
+  CreateOrgRetrying: ['Screens/Invitations', 'CreateOrgRetrying'],
+  CreateOrgSaving: ['Screens/Invitations', 'CreateOrgSaving'],
+  CreateOrgSlugAuto: ['Screens/Invitations', 'CreateOrgSlugAuto'],
+  CreateOrgSlugEdited: ['Screens/Invitations', 'CreateOrgSlugEdited'],
+  CreateOrgSlugTaken: ['Screens/Invitations', 'CreateOrgSlugTaken'],
   ...Object.fromEntries(
     [
       'Starting',

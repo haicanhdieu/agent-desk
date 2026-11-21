@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import {
   invitationCards,
@@ -11,6 +11,7 @@ import {
 import { InvitationAccept, type InvitationAcceptState } from './InvitationAccept';
 import { OrgInvitations, type OrgInvitationsProps } from './OrgInvitations';
 import { MyInvitations, type MyInvitationsState } from './MyInvitations';
+import { CreateOrg, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
 
 const props = (state: MyInvitationsState) => ({
   user,
@@ -583,5 +584,214 @@ describe('OrgInvitations copy failed', () => {
       within(screen.getByRole('dialog', { name: 'Invitation link' })).getByRole('button', { name: 'Copy link' }),
     );
     expect(p.onCopy).toHaveBeenCalledWith(orgInvitationRows[1].id);
+  });
+});
+
+describe('CreateOrg', () => {
+  const values: CreateOrgValues = {
+    name: 'Northwind Analytics',
+    slug: 'northwind',
+    email: 'maria.chen@northwind.example',
+  };
+  const createProps = (state: CreateOrgState) => ({
+    user,
+    state,
+    onChange: vi.fn(),
+    onSubmit: vi.fn(),
+    onRetry: vi.fn(),
+    onCopy: vi.fn(),
+    onDone: vi.fn(),
+  });
+  const form = (over: Partial<Extract<CreateOrgState, { kind: 'form' }>> = {}): CreateOrgState => ({
+    kind: 'form',
+    values,
+    errors: {},
+    saving: false,
+    ...over,
+  });
+  const failed = (over: Partial<Extract<CreateOrgState, { kind: 'invitationFailed' }>> = {}): CreateOrgState => ({
+    kind: 'invitationFailed',
+    values,
+    errors: {},
+    title: 'Internal server error',
+    retrying: false,
+    ...over,
+  });
+
+  it('BR-35: shows the h1, the labelled fields with the /o/ prefix described, the hint and Create organization', async () => {
+    const p = createProps(form());
+    render(<CreateOrg {...p} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Create an organization' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Northwind Analytics');
+    expect(screen.getByLabelText('URL')).toHaveValue('northwind');
+    expect(screen.getByLabelText('URL')).toHaveAccessibleDescription('/o/');
+    expect(screen.getByLabelText('First owner email')).toHaveAccessibleDescription(
+      'They get the owner role. Send them the link that appears next.',
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Create organization' }));
+    expect(p.onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('reports each edit through onChange with the other values kept', async () => {
+    const p = createProps(form());
+    render(<CreateOrg {...p} />);
+    await userEvent.type(screen.getByLabelText('URL'), 'x');
+    expect(p.onChange).toHaveBeenLastCalledWith({ ...values, slug: 'northwindx' });
+    await userEvent.type(screen.getByLabelText('Name'), 'y');
+    expect(p.onChange).toHaveBeenLastCalledWith({ ...values, name: 'Northwind Analyticsy' });
+    await userEvent.type(screen.getByLabelText('First owner email'), 'z');
+    expect(p.onChange).toHaveBeenLastCalledWith({ ...values, email: 'maria.chen@northwind.examplez' });
+  });
+
+  it('BR-36: field errors render on their own fields and mark them invalid', () => {
+    render(
+      <CreateOrg
+        {...createProps(
+          form({
+            errors: {
+              name: 'Enter a name.',
+              slug: 'Use lowercase letters, numbers and dashes, with no dash at the start or end.',
+              email: 'Enter a valid email address.',
+            },
+          }),
+        )}
+      />,
+    );
+    const name = screen.getByLabelText('Name');
+    expect(name).toBeInvalid();
+    expect(name).toHaveAccessibleDescription('Enter a name.');
+    const slug = screen.getByLabelText('URL');
+    expect(slug).toBeInvalid();
+    expect(slug).toHaveAccessibleDescription(
+      '/o/ Use lowercase letters, numbers and dashes, with no dash at the start or end.',
+    );
+    const email = screen.getByLabelText('First owner email');
+    expect(email).toBeInvalid();
+    expect(email).toHaveAccessibleDescription(
+      'They get the owner role. Send them the link that appears next. Enter a valid email address.',
+    );
+  });
+
+  it('BR-36: a taken URL error shows on the URL field only', () => {
+    render(<CreateOrg {...createProps(form({ errors: { slug: 'This URL is taken. Try another.' } }))} />);
+    expect(screen.getByLabelText('URL')).toBeInvalid();
+    expect(screen.getByText('This URL is taken. Try another.')).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toBeValid();
+    expect(screen.getByLabelText('First owner email')).toBeValid();
+  });
+
+  it('saving disables Create, labels it Creating… and makes the fields read-only', async () => {
+    const p = createProps(form({ saving: true }));
+    render(<CreateOrg {...p} />);
+    const button = screen.getByRole('button', { name: 'Creating…' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('button', { name: 'Create organization' })).not.toBeInTheDocument();
+    for (const label of ['Name', 'URL', 'First owner email'])
+      expect(screen.getByLabelText(label)).toHaveAttribute('readonly');
+    await userEvent.click(button);
+    expect(p.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('pressing Enter in a field submits the form once', async () => {
+    const p = createProps(form());
+    render(<CreateOrg {...p} />);
+    await userEvent.type(screen.getByLabelText('First owner email'), '{Enter}');
+    expect(p.onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('while saving, Enter and a submit event do not submit', async () => {
+    const p = createProps(form({ saving: true }));
+    render(<CreateOrg {...p} />);
+    await userEvent.type(screen.getByLabelText('URL'), '{Enter}');
+    const formEl = screen.getByLabelText('URL').closest('form');
+    if (!formEl) throw new Error('form not rendered');
+    fireEvent.submit(formEl);
+    expect(p.onSubmit).not.toHaveBeenCalled();
+  });
+
+  it('a create failure shows the problem title and request ID in an alert above the form, Create stays', () => {
+    render(
+      <CreateOrg
+        {...createProps(form({ formError: { title: 'Internal server error', requestId: 'req_01JD8B2W4N7P' } }))}
+      />,
+    );
+    const alert = screen.getByRole('alert');
+    expect(within(alert).getByText('Internal server error')).toBeInTheDocument();
+    expect(alert).toHaveTextContent('Request ID: req_01JD8B2W4N7P');
+    expect(screen.getByRole('button', { name: 'Create organization' })).toBeEnabled();
+  });
+
+  it('BR-39: the invitation-failed state hides Create, makes Name and URL read-only and keeps the email editable', async () => {
+    const p = createProps(failed());
+    render(<CreateOrg {...p} />);
+    expect(screen.queryByRole('button', { name: 'Create organization' })).not.toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveAttribute('readonly');
+    expect(screen.getByLabelText('URL')).toHaveAttribute('readonly');
+    const email = screen.getByLabelText('First owner email');
+    expect(email).not.toHaveAttribute('readonly');
+    await userEvent.type(email, 'm');
+    expect(p.onChange).toHaveBeenLastCalledWith({ ...values, email: 'maria.chen@northwind.examplem' });
+    const alert = screen.getByRole('alert');
+    expect(within(alert).getByText('Internal server error')).toBeInTheDocument();
+    expect(
+      within(alert).getByText('The organization was created. Retry to create the owner invitation.'),
+    ).toBeInTheDocument();
+    await userEvent.click(within(alert).getByRole('button', { name: 'Retry' }));
+    expect(p.onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('BR-39: an email error shows on the email field while retrying is possible', () => {
+    render(<CreateOrg {...createProps(failed({ errors: { email: 'Enter a valid email address.' } }))} />);
+    expect(screen.getByLabelText('First owner email')).toBeInvalid();
+    expect(screen.getByText('Enter a valid email address.')).toBeInTheDocument();
+  });
+
+  it('retrying disables the Retry button, labels it Retrying… and makes the email read-only', async () => {
+    const p = createProps(failed({ retrying: true }));
+    render(<CreateOrg {...p} />);
+    const button = screen.getByRole('button', { name: 'Retrying…' });
+    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute('aria-busy', 'true');
+    expect(screen.getByLabelText('First owner email')).toHaveAttribute('readonly');
+    await userEvent.click(button);
+    expect(p.onRetry).not.toHaveBeenCalled();
+  });
+
+  it('BR-35: the created state focuses its heading and shows the owner link, Copy link and Done', async () => {
+    const p = createProps({
+      kind: 'created',
+      email: 'maria.chen@northwind.example',
+      expiresOn: '23 Nov, 14:05',
+      link: 'https://agentdesk.example/invitations/7f3c',
+    });
+    render(<CreateOrg {...p} />);
+    const heading = screen.getByRole('heading', { level: 2, name: 'Organization created' });
+    expect(heading).toHaveFocus();
+    expect(
+      screen.getByText(
+        'Send this link to maria.chen@northwind.example. It works only for that email and expires on 23 Nov, 14:05.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText('https://agentdesk.example/invitations/7f3c')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Copy link' }));
+    expect(p.onCopy).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: 'Done' }));
+    expect(p.onDone).toHaveBeenCalledTimes(1);
+  });
+
+  it('BR-46: forbidden shows "You don\'t have access" and no form', () => {
+    render(<CreateOrg {...createProps({ kind: 'forbidden' })} />);
+    expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
+    expect(screen.getByText('Ask an owner of this organization to give you access.')).toBeInTheDocument();
+    expect(screen.queryByLabelText('Name')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Create organization' })).not.toBeInTheDocument();
+  });
+
+  it('renders names as text, never as markup', () => {
+    render(<CreateOrg {...createProps(form({ values: { ...values, name: '<b>x</b>' } }))} />);
+    expect(screen.getByLabelText('Name')).toHaveValue('<b>x</b>');
+    expect(document.querySelector('b')).toBeNull();
   });
 });

@@ -151,6 +151,17 @@ export const boardStories = {
   OrgInvitationsResending: { title: invitations, exportName: 'OrgInvitationsResending' },
   OrgInvitationsRevokeConfirm: { title: invitations, exportName: 'OrgInvitationsRevokeConfirm' },
   OrgInvitationsRevoked: { title: invitations, exportName: 'OrgInvitationsRevoked' },
+  CreateOrg: { title: invitations, exportName: 'CreateOrg' },
+  CreateOrgCreated: { title: invitations, exportName: 'CreateOrgCreated' },
+  CreateOrgError: { title: invitations, exportName: 'CreateOrgError' },
+  CreateOrgFieldErrors: { title: invitations, exportName: 'CreateOrgFieldErrors' },
+  CreateOrgForbidden: { title: invitations, exportName: 'CreateOrgForbidden' },
+  CreateOrgInvitationFailed: { title: invitations, exportName: 'CreateOrgInvitationFailed' },
+  CreateOrgRetrying: { title: invitations, exportName: 'CreateOrgRetrying' },
+  CreateOrgSaving: { title: invitations, exportName: 'CreateOrgSaving' },
+  CreateOrgSlugAuto: { title: invitations, exportName: 'CreateOrgSlugAuto' },
+  CreateOrgSlugEdited: { title: invitations, exportName: 'CreateOrgSlugEdited' },
+  CreateOrgSlugTaken: { title: invitations, exportName: 'CreateOrgSlugTaken' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

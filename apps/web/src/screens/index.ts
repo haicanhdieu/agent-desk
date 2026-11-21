@@ -28,3 +28,4 @@ export { SetupWorkspace, type SetupStepTest, type SetupWorkspaceProps } from './
 export { MyInvitations, type MyInvitationsProps, type MyInvitationsState } from './MyInvitations';
 export { InvitationAccept, type InvitationAcceptProps, type InvitationAcceptState } from './InvitationAccept';
 export { OrgInvitations, type InvitationFilter, type OrgInvitationsProps } from './OrgInvitations';
+export { CreateOrg, type CreateOrgProps, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
