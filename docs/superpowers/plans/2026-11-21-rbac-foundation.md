@@ -659,13 +659,13 @@ export async function copyRoleTemplates(tx: Tx, orgId: string): Promise<void>;
 export async function findLinkedUser(tx: Tx, provider: string, externalId: string): Promise<string | null>;
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `to-access.test.ts`: two rows of one role and scope become one grant with two lines; an org row and a project row become two grants; `permission: 'project:explode'` is skipped and `warn` is called once with `{ permission: 'project:explode' }`; `condition: 'sometimes'` is skipped; no rows → `{ userId, grants: [] }`.
   - `access.int.test.ts`: `copyRoleTemplates` into a new org gives four roles whose lines equal the templates; a second call adds nothing; `loadAccess` returns the user's org and project grants in that org and nothing from another org's assignment of the same user; `findLinkedUser(tx, 'fake', 'alice')` returns alice's id, `'bob'` returns null, `('github', 'alice')` returns null; a template line `platform-org:read` inserted as the owner makes `copyRoleTemplates` throw and writes no role.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/to-access.test.ts test/access/access.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the four files and `export * from './access';` in `src/index.ts`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(core): load a user's access, copy built-in roles and find a linked user`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/access/to-access.test.ts test/access/access.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the four files and `export * from './access';` in `src/index.ts`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(core): load a user's access, copy built-in roles and find a linked user`.
 
 ---
 
