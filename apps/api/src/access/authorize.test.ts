@@ -48,10 +48,10 @@ const cast: Record<string, Access> = {
   'no grants': access(),
 };
 
-type Entry = Exclude<RouteAccess, { scope: 'platform' }>;
+type Entry = Exclude<RouteAccess, { scope: 'platform' | 'user' }>;
 const entryOf = (key: RouteKey): Entry => {
   const e = routeAccess[key];
-  if (e.scope === 'platform') throw new Error(`${key} is a platform route`);
+  if (e.scope === 'platform' || e.scope === 'user') throw new Error(`${key} is not a tenant route`);
   return e;
 };
 

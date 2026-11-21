@@ -6,6 +6,8 @@ import {
   ConnectionDto,
   InvitationDto,
   MemberDto,
+  MyInvitationDto,
+  OrgChecklistDto,
   PlatformMemberDto,
   PlatformOrgDto,
   PlatformProjectDto,
@@ -42,6 +44,7 @@ import {
   platformProjectFixtures,
   roleFixtures,
 } from '../dto/access';
+import { checklistFixtures, myInvitationFixtures } from '../dto/invitations';
 import { agentFixtures } from '../dto/agents';
 import { agentModelsFixtures } from '../dto/agentModels';
 import { connectionFixtures, repoFixtures } from '../dto/connections';
@@ -105,6 +108,8 @@ describe('MSW handlers cover the contract', () => {
           items: Object.entries(m).map(([ref, prState]) => ({ ref, prState })),
         })),
       ],
+      [MyInvitationDto, Object.values(myInvitationFixtures)],
+      [OrgChecklistDto, Object.values(checklistFixtures)],
     ];
     for (const [schema, items] of lists) {
       expect(items.length).toBeGreaterThan(0);

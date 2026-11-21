@@ -44,6 +44,7 @@ export async function checkTenantAccess(
     return { ok: false, status: 404, reason: 'org-not-active' };
   }
   if (entry.scope === 'platform') return { ok: false, status: 403, reason: 'platform-route' };
+  if (entry.scope === 'user') return { ok: false, status: 403, reason: 'user-route' };
   const permission = permissionOf(entry);
   const refused = (status: 403 | 404, reason: string, projectId?: string): AccessCheck => ({
     ok: false,

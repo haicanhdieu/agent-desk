@@ -32,6 +32,7 @@ import {
   platformProjectFixtures,
   roleFixtures,
 } from '../dto/access';
+import { checklistFixtures, myInvitationFixtures } from '../dto/invitations';
 import { ids } from '../dto/ids';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
@@ -741,6 +742,12 @@ const impl: Impl = {
   'invitations.list': ({ query }) => slicePage(invitationFixtures, query),
   'invitations.create': () => invitationFixtures[0] ?? never('invitation'),
   'invitations.remove': () => null,
+  'invitations.resend': () => invitationFixtures[0] ?? never('invitation'),
+  'orgs.checklist': () => checklistFixtures.none,
+  'me.listInvitations': ({ query }) => slicePage(Object.values(myInvitationFixtures), query),
+  'me.getInvitation': () => myInvitationFixtures.pending,
+  'me.acceptInvitation': () => ({ org: myInvitationFixtures.pending.org }),
+  'me.declineInvitation': () => null,
 
   'platform.createOrg': ({ body }) => ({ id: ids.created(900), name: body.name, slug: body.slug }),
   'platform.listOrgs': ({ query }) => slicePage(platformOrgFixtures, query),
@@ -753,6 +760,7 @@ const impl: Impl = {
   'platform.listInvitations': ({ query }) => slicePage(invitationFixtures, query),
   'platform.createInvitation': () => invitationFixtures[0] ?? never('invitation'),
   'platform.removeInvitation': () => null,
+  'platform.resendInvitation': () => invitationFixtures[0] ?? never('invitation'),
 };
 
 // As the API answers (Nest: 201 for a POST without @HttpCode).
@@ -774,6 +782,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'platform.createInvitation': 201,
   'assignments.remove': 204,
   'invitations.remove': 204,
+  'me.declineInvitation': 204,
   'platform.removeAssignment': 204,
   'platform.removeInvitation': 204,
 };

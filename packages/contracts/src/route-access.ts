@@ -11,6 +11,7 @@ export type RouteAccess =
   | { scope: 'project'; permission: Permission; param: ProjectParam }
   | { scope: 'project-list'; permission: Permission }
   | { scope: 'self' }
+  | { scope: 'user' }
   | { scope: 'org-admin'; anyOf: readonly Permission[] }
   | { scope: 'platform'; permission: PlatformPermission };
 
@@ -75,6 +76,10 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'runs.events': project('run:read', 'runId'),
   'runs.terminal': project('terminal:attach', 'runId'),
   'me.access': { scope: 'self' },
+  'me.listInvitations': { scope: 'user' },
+  'me.getInvitation': { scope: 'user' },
+  'me.acceptInvitation': { scope: 'user' },
+  'me.declineInvitation': { scope: 'user' },
   'roles.list': orgAdmin('project:read'),
   'members.list': orgAdmin('member:read', 'assignment:create'),
   'assignments.list': orgAdmin('assignment:read'),
@@ -83,6 +88,8 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'invitations.list': orgAdmin('member:read', 'assignment:read'),
   'invitations.create': orgAdmin('member:create', 'assignment:create'),
   'invitations.remove': orgAdmin('member:create', 'assignment:create'),
+  'invitations.resend': orgAdmin('member:create', 'assignment:create'),
+  'orgs.checklist': org('project:create'),
   'platform.createOrg': platform('platform-org:create'),
   'platform.listOrgs': platform('platform-org:read'),
   'platform.listProjects': platform('platform-project:read'),
@@ -94,4 +101,5 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'platform.listInvitations': platform('platform-invitation:read'),
   'platform.createInvitation': platform('platform-invitation:create'),
   'platform.removeInvitation': platform('platform-invitation:delete'),
+  'platform.resendInvitation': platform('platform-invitation:update'),
 };

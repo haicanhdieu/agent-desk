@@ -30,7 +30,15 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = [];
+const NOT_REGISTERED_YET: RouteKey[] = [
+  'me.listInvitations',
+  'me.getInvitation',
+  'me.acceptInvitation',
+  'me.declineInvitation',
+  'invitations.resend',
+  'platform.resendInvitation',
+  'orgs.checklist',
+];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -787,6 +795,13 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'invitations.list': tenant(403),
   'invitations.create': tenant(403),
   'invitations.remove': tenant(403),
+  'invitations.resend': tenant(403),
+  'orgs.checklist': tenant(403),
+  // the seeded invitation belongs to another email, so a signed-in user finds none of them
+  'me.listInvitations': { none: 200, viewer: 200, pa: 200 },
+  'me.getInvitation': { none: 404, viewer: 404, pa: 404 },
+  'me.acceptInvitation': { none: 404, viewer: 404, pa: 404 },
+  'me.declineInvitation': { none: 404, viewer: 404, pa: 404 },
   'platform.createOrg': platformRoute(201),
   'platform.listOrgs': platformRoute(200),
   'platform.listProjects': platformRoute(200),
@@ -797,12 +812,16 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'platform.removeAssignment': platformRoute(204),
   'platform.listInvitations': platformRoute(200),
   'platform.createInvitation': platformRoute(201),
+  // before removeInvitation in the run order, so it sees the seeded pending invitation
+  'platform.resendInvitation': platformRoute(200),
   'platform.removeInvitation': platformRoute(204),
 };
 
 const isPlatformKey = (key: string): boolean => key.startsWith('platform.');
 // Object.keys widens the key type to string; DENIAL_TABLE is complete by type, so its keys are exactly HttpKey
-const ALL_KEYS = Object.keys(DENIAL_TABLE) as HttpKey[];
+const TABLE_KEYS = Object.keys(DENIAL_TABLE) as HttpKey[];
+// keys whose controller a later task adds are in the table but not exercised until that task deletes its NOT_REGISTERED_YET line
+const ALL_KEYS = TABLE_KEYS.filter((k) => !NOT_REGISTERED_YET.includes(k));
 const TENANT_KEYS = ALL_KEYS.filter((k) => !isPlatformKey(k));
 const PLATFORM_KEYS = ALL_KEYS.filter(isPlatformKey);
 
@@ -1090,7 +1109,7 @@ describe('denial table over every route, stream and terminal', () => {
   });
 
   it('N3: the table has a row for every route key and no other, and every key is in routeAccess', () => {
-    const table = [...ALL_KEYS, ...TERMINAL_ROWS].sort();
+    const table = [...TABLE_KEYS, ...TERMINAL_ROWS].sort();
     expect(table).toEqual(Object.keys(flat).sort());
     expect(table).toEqual(Object.keys(routeAccess).sort());
   });
