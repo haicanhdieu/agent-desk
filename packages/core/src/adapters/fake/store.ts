@@ -6,7 +6,7 @@ import type { Clock } from '../../clock';
 import { systemClock } from '../../clock';
 import { RepoFileError } from '../types';
 
-export const FAKE_REPOS = ['dev/demo'];
+export const FAKE_REPOS = ['dev/demo', 'dev/demo-2', 'dev/demo-3'];
 export const FAKE_BOT = 'agentdesk[bot]';
 
 const StoredTicket = z.object({

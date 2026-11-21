@@ -1666,10 +1666,10 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 
   `FAKE_REPOS` becomes `['dev/demo', 'dev/demo-2', 'dev/demo-3']`.
 
-- [ ] **Step 1: Write the spec** `rbac-roles.spec.ts`, one `test('TC-x.y: …')` per case: BR-1 TC-1.1 to TC-1.4; BR-2 TC-2.1 to TC-2.4; BR-3 TC-3.1 to TC-3.3; BR-4 TC-4.1 to TC-4.4; BR-5 TC-5.1, TC-5.2 (O starts setup test T on P1 first). Assertions as the spec's Expected column; 403 cases also check the reread.
-- [ ] **Step 2: Update** `FAKE_REPOS` and the `listRepos` expectation in `fake.test.ts`; run `pnpm --filter @agentdesk/core exec vitest run test/adapters/fake.test.ts`. Expected: PASS.
-- [ ] **Step 3: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-roles.spec.ts`. Expected: PASS (or report not run, as in Task 34).
-- [ ] **Step 4: Commit** `test(web): e2e cast and owner, org admin and viewer cases`.
+- [x] **Step 1: Write the spec** `rbac-roles.spec.ts`, one `test('TC-x.y: …')` per case: BR-1 TC-1.1 to TC-1.4; BR-2 TC-2.1 to TC-2.4; BR-3 TC-3.1 to TC-3.3; BR-4 TC-4.1 to TC-4.4; BR-5 TC-5.1, TC-5.2 (O starts setup test T on P1 first). Assertions as the spec's Expected column; 403 cases also check the reread.
+- [x] **Step 2: Update** `FAKE_REPOS` and the `listRepos` expectation in `fake.test.ts`; run `pnpm --filter @agentdesk/core exec vitest run test/adapters/fake.test.ts`. Expected: PASS.
+- [x] **Step 3: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-roles.spec.ts`. Expected: PASS (or report not run, as in Task 34).
+- [x] **Step 4: Commit** `test(web): e2e cast and owner, org admin and viewer cases`.
 
 ---
 

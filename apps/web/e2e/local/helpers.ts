@@ -22,6 +22,8 @@ import { z } from 'zod';
 
 export const API = 'http://localhost:3000';
 export const REPO = 'dev/demo';
+/** The repository radio of the setup: its name starts with the path, and the fake board also lists dev/demo-2 and dev/demo-3. */
+const REPO_RADIO = new RegExp(`^${REPO}(?![\\w-])`);
 /** Where the stack keeps the fake cluster's state (E2E_FAKE_STATE_DIR when it is not the default); a run's pod dir is `<dir>/kube/run-<runId>`. */
 export const FAKE_STATE_DIR =
   process.env['E2E_FAKE_STATE_DIR'] ?? fileURLToPath(new URL('../../../../.agentdesk/fake', import.meta.url));
@@ -163,7 +165,7 @@ export async function signInAndCreateProject(page: Page): Promise<{ handle: stri
 
   // Step 1: repository dev/demo, webhook trigger (the default).
   await expect(page.getByRole('heading', { name: 'Connect a repository', level: 1 })).toBeVisible();
-  await page.getByRole('radio', { name: REPO }).check();
+  await page.getByRole('radio', { name: REPO_RADIO }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
 
   // Step 2: any string as the credential.
@@ -201,7 +203,7 @@ export async function signInAndStartProject(page: Page): Promise<{ handle: strin
   );
   await page.goto(install.url);
   await expect(page).toHaveURL(new RegExp(`/o/${handle}/projects/new/repo\\?connection=`));
-  await page.getByRole('radio', { name: REPO }).check();
+  await page.getByRole('radio', { name: REPO_RADIO }).check();
   await page.getByRole('button', { name: 'Continue' }).click();
   await expect(page.getByRole('heading', { name: 'Add the Claude credential', level: 1 })).toBeVisible();
   const projectId = /[?&]project=([0-9a-f-]+)/.exec(page.url())?.[1];

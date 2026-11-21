@@ -192,10 +192,12 @@ describe('fake code host', () => {
     await expect(host.writeSkill(project, '../evil', 'x', 'm')).rejects.toThrow();
   });
 
-  it('lists the default demo repo and mints a short-lived token', async () => {
+  it('lists the demo repos and mints a short-lived token', async () => {
     const host = new FakeCodeHostAdapter(new FakeStore(dir, clock), clock, 'http://localhost:3000');
     expect(await host.listRepos({ externalId: 'fake' })).toEqual([
       { repoPath: 'dev/demo', private: false, defaultBranch: 'main' },
+      { repoPath: 'dev/demo-2', private: false, defaultBranch: 'main' },
+      { repoPath: 'dev/demo-3', private: false, defaultBranch: 'main' },
     ]);
     const tok = await host.mintWorkspaceToken(project);
     expect(tok.expiresAt.getTime()).toBeGreaterThan(clock.now().getTime());
