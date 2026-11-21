@@ -5,6 +5,7 @@ import {
   AGENT_PAUSED_KEEP_SECONDS_DEFAULT,
   RunStatus,
   type PauseReason,
+  type SessionClosedHow,
 } from '@agentdesk/contracts';
 import { SIGNAL, autoResumeEventText, autoResumeGaveUpText, redact, type Config } from '@agentdesk/core';
 import { agents, notifyRunStatus, runs, withOrg, type Db } from '@agentdesk/db';
@@ -47,6 +48,8 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
       podExitCode?: number;
       /** An earlier session deadline to keep, never extended: when it is not after `at`, nothing is kept. */
       keepUntil?: string;
+      /** The park closes a reopened session (ADR 0032): the run stays succeeded, the flag is cleared, the event says how. */
+      closed?: SessionClosedHow;
     },
   ): Promise<ParkResult> {
     const at = parseAt(input.at);
@@ -72,6 +75,8 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
         runId: ctx.runId,
         status,
         at: input.at,
+        // The park is the end of any reopened session: the flag goes whether or not a session is kept.
+        reopened: false,
         // Nothing kept: clear any earlier session (a re-opened run) and let the note go like any final status.
         ...(keep ? { session: { expiresAt: expiresAt.toISOString() }, keepAgentNote: true } : { session: null }),
       });
@@ -82,6 +87,14 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
           .update(runs)
           .set({ pauseReason: input.reason ?? 'idle_timeout' })
           .where(eq(runs.id, ctx.runId));
+        if (input.closed !== undefined) {
+          await appendRunEvent(tx, ctx.orgId, {
+            runId: ctx.runId,
+            type: 'lifecycle',
+            payload: { kind: 'session_closed', how: input.closed },
+            ts: at,
+          });
+        }
         // The pod's own exit code, as the cluster reported it (not the agent's end line, which the agent could forge).
         // Every pod_lost park writes one, with code null when there is no usable code (a vanished pod), so the page
         // never reads the code of an earlier pause's pod_exit for this one.
@@ -236,6 +249,8 @@ export function createSessionActivities(deps: SessionActivityDeps): SessionActiv
         runId: ctx.runId,
         status: input.kind === 'needs_input' ? 'paused' : 'succeeded',
         keepAgentNote: true,
+        // A failed reopen leaves the run as it was: succeeded, not reopened.
+        reopened: false,
         ...(keptAsIs ? {} : { session: { expiresAt: input.sessionExpiresAt } }),
         at: input.at,
       });

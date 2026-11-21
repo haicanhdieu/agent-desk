@@ -149,6 +149,7 @@ function runOf(spec: RunSpec): RunDto {
     sessionExpiresAt: null,
     sessionEndingAt: null,
     pauseReason: null,
+    reopenedAt: null,
   };
 }
 

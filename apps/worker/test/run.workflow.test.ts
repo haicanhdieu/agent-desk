@@ -273,8 +273,8 @@ describe('RunWorkflow', () => {
   });
 
   it('a history near the limit ends the run as failed with a plain reason, and cleanup runs', async () => {
-    // 57: the startup history grew by the `finish-reparks` patch marker; the limit must stay just above it.
-    const s = newRun({ historyEventLimit: 57 });
+    // 59: the startup history grew by the `reopen-keeps-result` patch marker; the limit must stay just above it.
+    const s = newRun({ historyEventLimit: 59 });
     const h = await start(s);
     await s.logsStarted.promise;
     await waitPhase(h, 'running');

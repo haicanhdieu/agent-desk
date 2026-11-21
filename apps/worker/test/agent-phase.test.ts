@@ -277,3 +277,32 @@ describe('stopSessionRejection', () => {
     expect(stopSessionRejection({ ...base, sessionStarted: false })).toBe('The agent has not started yet');
   });
 });
+
+describe('a reopened session of a succeeded run', () => {
+  it.each(['running', 'idle', 'agent_done'] as const)('Close session is accepted in phase %s', (phase) => {
+    expect(finishRunRejection(phase, false, undefined, true)).toBeUndefined();
+  });
+
+  it('Close session is refused while the session is already ending, or while not live', () => {
+    expect(finishRunRejection('running', true, undefined, true)).toContain('can be finished');
+    expect(finishRunRejection('resuming', false, undefined, true)).toContain('can be finished');
+    expect(finishRunRejection('parked', false, 'done', true)).toBe('This run already finished');
+  });
+
+  it('a Finish while the agent works is still refused when the session is not reopened', () => {
+    expect(finishRunRejection('running', false)).toContain('can be finished');
+  });
+
+  it('Stop session is refused with a plain reason', () => {
+    const base = {
+      phase: 'agent_done',
+      ending: false,
+      finishRequested: false,
+      stopRequested: false,
+      sessionStarted: true,
+      patched: true,
+    } as const;
+    expect(stopSessionRejection({ ...base, reopened: true })).toBe('A reopened session can only be closed');
+    expect(stopSessionRejection({ ...base, reopened: false })).toBeUndefined();
+  });
+});

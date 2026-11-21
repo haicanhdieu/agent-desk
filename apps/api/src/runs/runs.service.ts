@@ -56,6 +56,9 @@ export const LOG_CAP = 5000;
 
 const isFinal = (status: string): boolean => (FINAL_RUN_STATUSES as readonly string[]).includes(status);
 
+/** Why Cancel, Stop and Finish are refused while a succeeded run's session is reopened (its result is fixed, ADR 0032). */
+const REOPENED_ONLY_CLOSE = 'This session is reopened; the run has already succeeded. Close the session instead';
+
 type RunRow = typeof runs.$inferSelect;
 interface AgentInfo {
   name: string;
@@ -128,6 +131,7 @@ export class RunsService {
       sessionExpiresAt: row.sessionExpiresAt?.toISOString() ?? null,
       sessionEndingAt: row.sessionEndingAt?.toISOString() ?? null,
       pauseReason: row.pauseReason === null ? null : PauseReason.parse(row.pauseReason),
+      reopenedAt: row.reopenedAt?.toISOString() ?? null,
     };
   }
 
@@ -381,6 +385,7 @@ export class RunsService {
    */
   async cancel(org: OrgContext, runId: string): Promise<void> {
     const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
+    if (run.reopenedAt !== null) throw new ConflictException(REOPENED_ONLY_CLOSE);
     if (isFinal(run.status)) throw new ConflictException(`Run already ${run.status}`);
     const workflowId = runWorkflowId(run.id);
     if (run.status === 'queued' && run.workflowId === null) {
@@ -402,6 +407,7 @@ export class RunsService {
    */
   async stop(org: OrgContext, runId: string): Promise<void> {
     const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
+    if (run.reopenedAt !== null) throw new ConflictException(REOPENED_ONLY_CLOSE);
     if (run.sessionEndingAt !== null) throw new ConflictException('The session is already ending');
     if (!(STOPPABLE_RUN_STATUSES as readonly string[]).includes(run.status))
       throw new ConflictException('Only a live session can be stopped');
@@ -432,6 +438,7 @@ export class RunsService {
    */
   async finish(org: OrgContext, runId: string): Promise<void> {
     const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
+    if (run.reopenedAt !== null) throw new ConflictException(REOPENED_ONLY_CLOSE);
     if (!(FINISHABLE_RUN_STATUSES as readonly string[]).includes(run.status))
       throw new ConflictException(`Only a run that needs you or is done can be finished (status is ${run.status})`);
     try {
@@ -456,6 +463,34 @@ export class RunsService {
   }
 
   /**
+   * Close session ends a reopened session: the workflow ends the pod and the run returns to succeeded with its disk kept
+   * for a fresh keep time (ADR 0032). It is the same workflow update as Finish; the run row says which one applies, so
+   * only a reopened run can be closed and a reopened run cannot be finished.
+   */
+  async closeSession(org: OrgContext, runId: string): Promise<void> {
+    const run = await withOrg(this.db, org.orgId, (tx) => this.loadRun(tx, runId));
+    if (run.reopenedAt === null) throw new ConflictException('Only a reopened session can be closed');
+    try {
+      await this.temporal.workflow.getHandle(runWorkflowId(run.id)).executeUpdate(UPDATE.finishRun);
+    } catch (err) {
+      if (err instanceof WorkflowNotFoundError) throw new ConflictException('Run is no longer active');
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'NotFinishable'
+      )
+        throw new ConflictException(err.cause.message);
+      if (
+        err instanceof WorkflowUpdateFailedError &&
+        err.cause instanceof ApplicationFailure &&
+        err.cause.type === 'AcceptedUpdateCompletedWorkflow'
+      )
+        throw new ConflictException('Run is no longer active');
+      throw err;
+    }
+  }
+
+  /**
    * Resume is a workflow update that is accepted at once (the pod starts afterwards). The DB status and the agent row
    * are cheap pre-checks; the workflow's own validator decides, so a second press while resuming is a 409.
    */
@@ -467,6 +502,7 @@ export class RunsService {
           status: RunStatus.parse(run.status),
           sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null,
           sessionEndingAt: run.sessionEndingAt?.toISOString() ?? null,
+          reopenedAt: run.reopenedAt?.toISOString() ?? null,
         },
         new Date(),
       )

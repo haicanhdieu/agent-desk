@@ -124,6 +124,8 @@ export interface Script {
   lastExpiry?: string;
   /** The pause reason of every parkRun call, in order. */
   parkReasons: string[];
+  /** The `closed` of every parkRun call (undefined when absent), in order. */
+  parkClosed: (string | undefined)[];
   /** The `keepUntil` of every parkRun call (undefined when absent), in order. */
   parkKeepUntils: (string | undefined)[];
   /** The expiry every parkRun call reported, in order. */
@@ -296,6 +298,7 @@ export function activities(): RunActivities {
       s.calls.push(`parkRun:${input.kind}`);
       s.parkReasons.push(input.reason ?? 'idle_timeout');
       s.parkKeepUntils.push(input.keepUntil);
+      s.parkClosed.push(input.closed);
       // Like the real activity, the expiry counts from the workflow's own `at`, so time skipping cannot make it stale.
       const fresh =
         s.parkKeepSeconds === undefined
@@ -362,6 +365,7 @@ export function newRun(
     endingDeadlines: [],
     parkReasons: [],
     parkKeepUntils: [],
+    parkClosed: [],
     parkExpiries: [],
   };
   scripts.set(runId, s);

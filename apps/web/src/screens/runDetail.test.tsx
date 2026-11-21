@@ -178,20 +178,60 @@ describe('RunDetail paused, kept and expired sessions', () => {
     );
   });
 
-  it('succeeded with a kept session: the note, the kept-until line and Re-open session', async () => {
+  it('succeeded with a kept session: the note, the kept-until line and Reopen session', async () => {
     const onResume = vi.fn();
     render(<RunDetail data={kept} lines={linesFor('RunSucceeded')} needsYou={1} onResume={onResume} />);
     expect(screen.getByText('Opened PR #148.')).toBeInTheDocument();
     expect(screen.getByText('Session kept until 13 Nov, 09:05')).toBeInTheDocument();
-    await userEvent.click(screen.getByRole('button', { name: 'Re-open session' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Reopen session' }));
     expect(onResume).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
   });
 
-  it('succeeded without a kept session has no Re-open session', () => {
+  it('succeeded without a kept session: Reopen session is disabled and says the disk is gone', () => {
     show('RunSucceeded');
-    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    const reopen = screen.getByRole('button', { name: 'Reopen session' });
+    expect(reopen).toBeDisabled();
+    expect(reopen).toHaveAttribute('title', expect.stringContaining('Reopen unavailable'));
+  });
+
+  describe('a reopened session of a succeeded run', () => {
+    const reopened = { ...runDetails.RunDone, reopened: true } as const;
+
+    it('shows the Succeeded · Session open pill and Close session as the only action', async () => {
+      const onCloseSession = vi.fn();
+      render(<RunDetail data={reopened} needsYou={1} onCloseSession={onCloseSession} />);
+      expect(screen.getByText('Succeeded · Session open')).toBeInTheDocument();
+      await userEvent.click(screen.getByRole('button', { name: 'Close session' }));
+      expect(onCloseSession).toHaveBeenCalledTimes(1);
+      expect(screen.queryByRole('button', { name: /^(Finish|Stop session|Cancel run)/ })).not.toBeInTheDocument();
+    });
+
+    it('replaces the stale "task is done" banner, which had a Finish run button', () => {
+      render(<RunDetail data={reopened} needsYou={1} />);
+      expect(screen.queryByText('The agent says the task is done')).not.toBeInTheDocument();
+      expect(screen.getByText('Session open: this run already succeeded')).toBeInTheDocument();
+    });
+
+    it('also replaces the waiting-for-your-answer banner while the agent asks a question', () => {
+      render(<RunDetail data={{ ...runDetails.RunIdle, reopened: true }} needsYou={1} />);
+      expect(screen.queryByText('The agent is waiting for your answer')).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
+      expect(screen.getByRole('button', { name: 'Close session' })).toBeInTheDocument();
+    });
+
+    it('Close session waits while a close is in flight and while the session is ending', () => {
+      const { rerender } = render(<RunDetail data={reopened} needsYou={1} closing />);
+      expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
+      rerender(<RunDetail data={{ ...reopened, pausing: true }} needsYou={1} />);
+      expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
+    });
+
+    it('Close session waits while the reopen is still starting', () => {
+      render(<RunDetail data={{ ...runDetails.RunStarting, reopened: true }} needsYou={1} />);
+      expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
+    });
   });
 
   it('expired: the expired line and no action buttons', () => {
@@ -199,7 +239,7 @@ describe('RunDetail paused, kept and expired sessions', () => {
     expect(
       screen.getByText('Nobody resumed this run within 7 days. The saved session was deleted.'),
     ).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /^(Resume|Finish|Cancel|Re-open)/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^(Resume|Finish|Cancel|Reopen)/ })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /^View (PR|issue)$/ })).toBeInTheDocument();
   });
 });
@@ -452,14 +492,14 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
     expect(screen.getByText('Starting the agent')).toBeInTheDocument();
   });
 
-  it('a succeeded run with a failed queued resume shows the message and no Re-open session', () => {
+  it('a succeeded run with a failed queued resume shows the message and a disabled Reopen session', () => {
     const data = {
       ...runDetails.RunSucceeded,
       session: { state: 'none', resumeFailure: 'Resume failed: nothing was kept to resume from' },
     } as const;
     render(<RunDetail data={data} lines={linesFor('RunSucceeded')} needsYou={1} />);
     expect(screen.getByText('Resume failed: nothing was kept to resume from')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
   });
 
   it('paused by a crashed agent: the headline with the exit code, and Resume and Finish', () => {
@@ -535,11 +575,12 @@ describe('RunDetail transcript and stopped', () => {
     expect(screen.getByRole('log')).toBeInTheDocument();
   });
 
-  it('a succeeded run after Finish shows Finished. The session was deleted and cannot be resumed. and no Re-open session', () => {
+  it('a succeeded run after Finish shows Finished. The session was deleted and cannot be resumed. and a disabled Reopen session', () => {
     render(<RunDetail data={runDetails.RunSucceededFinished} transcript={ready} needsYou={1} />);
     expect(screen.getByText('Succeeded in 9m 03s.')).toBeInTheDocument();
     expect(screen.getByText('Finished. The session was deleted and cannot be resumed.')).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Re-open session' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
+    expect(screen.getByRole('tab', { name: 'Transcript (read-only)' })).toBeInTheDocument();
     expect(screen.getByText('Ended, read-only')).toBeInTheDocument();
   });
 

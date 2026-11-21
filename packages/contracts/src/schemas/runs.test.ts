@@ -41,6 +41,7 @@ const run = {
   sessionExpiresAt: NOW,
   sessionEndingAt: null,
   pauseReason: null,
+  reopenedAt: null,
 };
 
 const event = {
@@ -56,6 +57,7 @@ const event = {
   sessionExpiresAt: NOW,
   sessionEndingAt: null,
   pauseReason: null,
+  reopenedAt: null,
 };
 
 describe('RunDto idle end', () => {
@@ -90,11 +92,19 @@ describe('RunDto session ending and pause reason', () => {
     expect(RunDto.safeParse({ ...run, pauseReason: 'oom' }).success).toBe(false);
   });
 
-  it('requires both fields to be present', () => {
+  it('requires all three fields to be present', () => {
     const { sessionEndingAt: _a, ...noEnding } = run;
     const { pauseReason: _b, ...noReason } = run;
+    const { reopenedAt: _c, ...noReopened } = run;
     expect(RunDto.safeParse(noEnding).success).toBe(false);
     expect(RunDto.safeParse(noReason).success).toBe(false);
+    expect(RunDto.safeParse(noReopened).success).toBe(false);
+  });
+
+  it("carries when a succeeded run's session was reopened", () => {
+    const r = RunDto.safeParse({ ...run, status: 'done', reopenedAt: NOW });
+    expect(r.success && r.data.reopenedAt).toBe(NOW);
+    expect(RunStatusEvent.safeParse({ ...event, status: 'done', reopenedAt: NOW }).success).toBe(true);
   });
 });
 

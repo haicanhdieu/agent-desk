@@ -510,16 +510,41 @@ describe('MSW handler semantics', () => {
       await expect(runOf(65)).resolves.toMatchObject({ status: 'queued', finishedAt: null });
     });
 
-    it('finishing a run re-opened from a kept succeeded session keeps the session and its original expiry', async () => {
+    it('a reopened session is a flag on a succeeded run: Cancel, Stop and Finish are 409, Close session saves it with a fresh keep time', async () => {
       const before = await runOf(65);
       await resume(65);
       const row = mockDb.state.runs.find((r) => r.id === before.id);
       if (!row) throw new Error('run 65 missing');
       row.status = 'done';
-      await expect(api.runs.finish({ params: { runId: before.id } })).resolves.toBeNull();
+      await expect(api.runs.get({ params: { runId: before.id } })).resolves.toMatchObject({
+        status: 'done',
+        reopenedAt: expect.any(String),
+      });
+      for (const call of [api.runs.cancel, api.runs.stop, api.runs.finish]) {
+        expect(await rejection(call({ params: { runId: before.id } }))).toMatchObject({ status: 409 });
+      }
+      await expect(api.runs.closeSession({ params: { runId: before.id } })).resolves.toBeNull();
       const after = await api.runs.get({ params: { runId: before.id } });
       expect(before.sessionExpiresAt).not.toBeNull();
-      expect(after).toMatchObject({ status: 'succeeded', sessionExpiresAt: before.sessionExpiresAt });
+      expect(after).toMatchObject({ status: 'succeeded', reopenedAt: null });
+      expect(Date.parse(after.sessionExpiresAt ?? '')).toBeGreaterThan(Date.parse(before.sessionExpiresAt ?? ''));
+      expect(canResume(after, new Date())).toBe(true);
+      // And it can be reopened and closed again.
+      await expect(resume(65)).resolves.toBeNull();
+    });
+
+    it('Close session is a 409 on a run that is not reopened', async () => {
+      const run = await runOf(65);
+      expect(await rejection(api.runs.closeSession({ params: { runId: run.id } }))).toMatchObject({ status: 409 });
+    });
+
+    it('Finish on a fresh Done run keeps the disk for the normal keep time', async () => {
+      const row = mockDb.state.runs.find((r) => r.number === 61);
+      if (!row) throw new Error('run 61 missing');
+      row.status = 'done';
+      await expect(api.runs.finish({ params: { runId: row.id } })).resolves.toBeNull();
+      const after = await api.runs.get({ params: { runId: row.id } });
+      expect(after.status).toBe('succeeded');
       expect(canResume(after, new Date())).toBe(true);
     });
 

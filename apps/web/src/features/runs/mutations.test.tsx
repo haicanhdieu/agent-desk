@@ -4,7 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
-import { useCancelRun, useFinishRun, useResumeRun } from './mutations';
+import { useCancelRun, useCloseSession, useFinishRun, useResumeRun } from './mutations';
 import { runsQueries } from './queries';
 
 vi.mock('../api', () => ({
@@ -13,6 +13,7 @@ vi.mock('../api', () => ({
       cancel: vi.fn(async () => undefined),
       finish: vi.fn(async () => undefined),
       resume: vi.fn(async () => undefined),
+      closeSession: vi.fn(async () => undefined),
     },
   },
 }));
@@ -57,6 +58,13 @@ describe('run mutations refresh the Run list numbers', () => {
   it('resume invalidates the cached run stats', async () => {
     const { qc, stats, wrapper } = setup();
     const { result } = renderHook(() => useResumeRun(org, projectId), { wrapper });
+    await act(() => result.current.mutateAsync(ref));
+    await waitFor(() => expect(qc.getQueryState(stats)?.isInvalidated).toBe(true));
+  });
+
+  it('close session invalidates the cached run stats', async () => {
+    const { qc, stats, wrapper } = setup();
+    const { result } = renderHook(() => useCloseSession(org, projectId), { wrapper });
     await act(() => result.current.mutateAsync(ref));
     await waitFor(() => expect(qc.getQueryState(stats)?.isInvalidated).toBe(true));
   });

@@ -1,4 +1,4 @@
-import type { PauseReason, RunStatus } from '@agentdesk/contracts';
+import type { PauseReason, RunStatus, SessionClosedHow } from '@agentdesk/contracts';
 import type { EndReason, ResumeNoteInput, UnexpectedEnd } from '@agentdesk/core';
 import type { TokenRefreshPlan } from '../workflows/token-refresh';
 import type { SetRunStatusInput, SetRunStatusResult } from './run-status.activity';
@@ -187,6 +187,8 @@ export interface RunActivities {
       podExitCode?: number;
       /** Keep this earlier session deadline instead of at + the keep seconds, when it is after `at`. */
       keepUntil?: string;
+      /** The park closes a reopened session: clears `reopened_at` and records `session_closed` with how. */
+      closed?: SessionClosedHow;
     },
   ): Promise<ParkResult>;
   /**

@@ -32,6 +32,10 @@ export const STOPPABLE_RUN_STATUSES = ['running', 'idle', 'done'] as const satis
 export const PauseReason = z.enum(['idle_timeout', 'pod_lost', 'agent_crashed', 'stopped']);
 export type PauseReason = z.infer<typeof PauseReason>;
 
+/** How a reopened session was closed: a person, the idle timer, a crashed pod or agent, or the time limit (ADR 0032). */
+export const SessionClosedHow = z.enum(['person', 'idle', 'crash', 'time_limit']);
+export type SessionClosedHow = z.infer<typeof SessionClosedHow>;
+
 export const TriggerMode = z.enum(['webhook', 'polling']);
 export type TriggerMode = z.infer<typeof TriggerMode>;
 

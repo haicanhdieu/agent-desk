@@ -92,6 +92,13 @@ export class RunsController {
     return null;
   }
 
+  @Post(routePath(routes.runs.closeSession))
+  @HttpCode(202)
+  async closeSession(@CurrentOrg() org: OrgContext, @Param(RunParam) p: { runId: string }): Promise<null> {
+    await this.service.closeSession(org, p.runId);
+    return null;
+  }
+
   @Post(routePath(routes.runs.cancel))
   @HttpCode(202)
   async cancel(@CurrentOrg() org: OrgContext, @Param(RunParam) p: { runId: string }): Promise<null> {

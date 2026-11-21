@@ -13,7 +13,7 @@ import {
   sleep,
   workflowInfo,
 } from '@temporalio/workflow';
-import type { RunStatus } from '@agentdesk/contracts';
+import type { RunStatus, SessionClosedHow } from '@agentdesk/contracts';
 import type { FinishDetails, FollowPodLogsResult, RunActivities, RunContext } from '../activities/run.activities';
 import {
   agentState,
@@ -122,6 +122,12 @@ const AUTO_RESUME_PATCH = 'auto-resume';
 const QUEUED_COMMENT_PATCH = 'queued-comment';
 /** Marks runs where a Finish after a done Re-open re-parks the kept session; read once, right after `autoResume`. */
 const FINISH_REPARKS_PATCH = 'finish-reparks';
+/**
+ * Marks runs where a reopened session of a succeeded run never changes the result (ADR 0032): Close session, idle timeout,
+ * pod crash and time limit re-park it as succeeded with a fresh keep time; Cancel and Stop are refused; a Finish on a
+ * fresh Done run keeps the disk. Read once, right after `finishReparks`.
+ */
+const REOPEN_KEEPS_RESULT_PATCH = 'reopen-keeps-result';
 /** Plain-language reason shown on the run when its history grew too long. */
 export const HISTORY_TOO_LONG_REASON =
   'The run was stopped because its activity log grew too long for the scheduler to keep tracking. Start a new run to continue.';
@@ -246,6 +252,14 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let autoResume = false;
   /** `patched('finish-reparks')`, read once right after `autoResume`; false keeps deleting the volume on Finish. */
   let finishReparks = false;
+  /** `patched('reopen-keeps-result')`, read once right after `finishReparks`; false keeps today's behaviour for runs that started before. */
+  let reopenKeeps = false;
+  /** The pod is a reopened session of a succeeded run (set when the reopen starts, cleared when the run is saved again). */
+  let reopened = false;
+  /** Why the reopened session is closing: a person's Close, the idle timer or the time limit; none means the pod ended by itself. */
+  let closeHow: SessionClosedHow | undefined;
+  /** A Finish was accepted on a fresh live Done run: with `reopenKeeps` the run parks as succeeded and keeps its disk. */
+  let finishKeeps = false;
   /** The kept session the current pod was resumed from; cleared at the next park and when the run ends. */
   let resumedKeep: { kind: ParkKind; expiresAt: string } | undefined;
   /** Automatic resumes in a row since a person last interacted (Resume or typing). */
@@ -319,6 +333,16 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   let sessionUp = false;
   const stop = (reason: 'cancelled' | 'timed_out'): void => {
     if (stopReason !== undefined || phase === 'finalizing' || phase === 'done') return;
+    // The result of a succeeded run is fixed: in its reopened session a cancel does nothing, and the time limit closes
+    // the session (the run returns to succeeded). A resume that is not up yet is still cancelled or timed out below.
+    if (reopenKeeps && reopened && !(phase === 'resuming' && !sessionUp)) {
+      if (reason === 'timed_out' && !ending) {
+        closeHow ??= 'time_limit';
+        finishRequested = true;
+        epoch += 1;
+      }
+      return;
+    }
     if (reason === 'cancelled') {
       const effect = cancelEffect(phase, parkKind, sessionUp, resumeIsAutomatic);
       // A parked done run is a finished run: cancel does nothing to it.
@@ -381,6 +405,10 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     finishRun,
     async () => {
       finishRequested = true;
+      if (reopenKeeps) {
+        if (reopened) closeHow ??= 'person';
+        else if (phase === 'agent_done' && resumedKeep === undefined) finishKeeps = true;
+      }
       await condition(() => finishRunSettled(ending, phase));
       // The run was finalized (pod exit, cancel, timeout) before the session could be ended.
       if (!ending) {
@@ -392,7 +420,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       validator: () => {
         // A Stop accepted but not yet begun by the main loop: the session is already ending for it.
         if (stopRequested) throw ApplicationFailure.nonRetryable('The session is already ending', 'NotFinishable');
-        const rejection = finishRunRejection(phase, ending, parkKind);
+        const rejection = finishRunRejection(phase, ending, parkKind, reopenKeeps && reopened);
         if (rejection !== undefined) throw ApplicationFailure.nonRetryable(rejection, 'NotFinishable');
       },
     },
@@ -420,6 +448,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           stopRequested,
           sessionStarted: podSessionStarted,
           patched: stopSessionPatch,
+          reopened: reopenKeeps && reopened,
         });
         if (rejection !== undefined) throw ApplicationFailure.nonRetryable(rejection, 'NotStoppable');
       },
@@ -484,6 +513,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       session?: null;
       keepAgentNote?: boolean;
       reopen?: boolean;
+      reopened?: boolean;
     } = {},
   ) => act.setRunStatus({ orgId, runId, status: s, ...extra, at: new Date().toISOString() });
 
@@ -500,6 +530,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     stopSessionPatch = patched(STOP_SESSION_PATCH);
     autoResume = patched(AUTO_RESUME_PATCH);
     finishReparks = patched(FINISH_REPARKS_PATCH);
+    reopenKeeps = patched(REOPEN_KEEPS_RESULT_PATCH);
     if (c.leaseTtlSeconds !== undefined) leaseTtlMs = c.leaseTtlSeconds * 1000;
 
     // 1. Acquire a slot.
@@ -586,6 +617,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           if (!(await condition(wake, idleMs))) {
             // Recorded before `ending`: once the session end has begun nothing may bring the run back to `running`.
             if (pauseResume) parkKind = parkKindOf(currentPhase());
+            if (reopenKeeps && reopened) closeHow ??= 'idle';
             ending = true;
             endingStartedMs = Date.now();
             phase = 'ending';
@@ -621,6 +653,20 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
         lostText,
         podReason,
       } = current.result ?? {};
+      // A reopened session never changes the result: whatever ended the pod (Close session, the idle timer, a crash, the
+      // time limit), the run returns to succeeded and keeps its disk for a fresh keep time, with no ticket comment.
+      if (reopenKeeps && reopened) {
+        const how = closeHow ?? 'crash';
+        finishRequested = false;
+        // Recorded so a `dropSession` and the cancel rules treat the re-parked run like any other done run.
+        parkKind = 'done';
+        const parked = await park(c, 'done', 'idle_timeout', undefined, 'off', 0, undefined, how);
+        if ('pod' in parked) {
+          pod = parked.pod;
+          continue;
+        }
+        return parked;
+      }
       // The runner stopped the run before the agent started: report the setup failure. The run's exit code is the setup
       // script's (the runner's own 78 only when setup timed out or the script's code is unknown).
       if (failureStage === 'setup') {
@@ -683,6 +729,18 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
           // Recorded so a `dropSession` and the cancel rules treat the re-parked run like any other done run.
           parkKind = 'done';
           const parked = await park(c, 'done', 'idle_timeout', undefined, 'off', 0, keepUntil);
+          if ('pod' in parked) {
+            pod = parked.pod;
+            continue;
+          }
+          return parked;
+        }
+        if (decision.kind === 'succeeded' && reopenKeeps && finishKeeps && ending && finishRequested) {
+          // A Finish on a fresh live Done run keeps its disk for the agent's keep time (a keep time of 0 keeps nothing).
+          finishRequested = false;
+          finishKeeps = false;
+          parkKind = 'done';
+          const parked = await park(c, 'done', 'idle_timeout');
           if ('pod' in parked) {
             pod = parked.pod;
             continue;
@@ -825,6 +883,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     auto: AutoResumeDecision = 'off',
     triesAtDecision = 0,
     keepUntil?: string,
+    closed?: SessionClosedHow,
   ): Promise<Outcome | { pod: Pod }> {
     hardTimer.cancel();
     usedSeconds += Math.max(0, Math.floor((Date.now() - podStartedMs) / 1000));
@@ -841,18 +900,21 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     const parked = await act.parkRun(c, {
       kind,
       ...(keepUntil !== undefined ? { keepUntil } : {}),
+      ...(closed !== undefined ? { closed } : {}),
       at: new Date().toISOString(),
       reason,
       // -1 is the placeholder for a pod that vanished: there is no exit code to report.
       ...(reason === 'pod_lost' && podExitCode !== undefined && podExitCode >= 0 ? { podExitCode } : {}),
       ...(resumeAccepted ? { resumeQueued: true } : {}),
     });
-    if (reason === 'stopped' || auto === 'resume' || keepUntil !== undefined) {
+    if (reason === 'stopped' || auto === 'resume' || keepUntil !== undefined || closed !== undefined) {
       // A person's Stop is not announced on the ticket, nor is a pause the workflow resumes from by itself, nor a
-      // re-park after Finish (the finish comment was posted at the first park).
+      // re-park after Finish or a closed reopened session (the finish comment was posted at the first park).
     } else if (kind === 'needs_input') await act.postComment(c, 'paused');
     else await act.postComment(c, 'finish', { status: 'succeeded' });
     // `ending` described the pod's session end, which is over; a person Finish sets it again.
+    reopened = false;
+    closeHow = undefined;
     ending = false;
     stopRequested = false;
     parkReason = undefined;
@@ -951,7 +1013,9 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
     let failure: 'could_not_start' | 'no_session' | 'no_credential' | 'aborted' = 'could_not_start';
     try {
       pod = await (resumeScope ?? new CancellationScope()).run(async () => {
-        await status('queued', { reopen: true, keepAgentNote: true });
+        // A reopened succeeded run keeps its result: the flag is set with the reopen and cleared when it is saved again.
+        if (reopenKeeps && kind === 'done') reopened = true;
+        await status('queued', { reopen: true, keepAgentNote: true, ...(reopened ? { reopened: true } : {}) });
         slotRequested = true;
         isGranted = false;
         await settled.requestSlot({ projectId: c.projectId, runId, limit: c.maxConcurrentRuns });
@@ -1018,6 +1082,7 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       return pod;
     }
     // Back to the kept state: no Job, no slot, no time counted for the failed pod.
+    reopened = false;
     hardTimer.cancel();
     await CancellationScope.nonCancellable(async () => {
       await kubeAct().deleteJob(c);
@@ -1076,7 +1141,11 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
   }
   return finalize(outcome);
 
-  async function finalize(o: Outcome): Promise<RunOutcome> {
+  async function finalize(ended: Outcome): Promise<RunOutcome> {
+    // The result of a reopened succeeded run is fixed: if the run ends here (an error, a long history), it is still
+    // succeeded, with no ticket comment and no disk kept (the workflow is over, so it could not be reopened).
+    const keepsResult = reopenKeeps && reopened;
+    const o: Outcome = keepsResult ? { status: 'succeeded', podExited: ended.podExited } : ended;
     phase = 'finalizing';
     hardTimer.cancel();
     if (ctx === undefined) {
@@ -1110,12 +1179,13 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       statusError = await attempt('setRunStatus', () =>
         status(o.status, {
           ...(pauseResume ? { session: null } : {}),
+          ...(keepsResult ? { reopened: false } : {}),
           ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),
           ...(o.failureReason !== undefined ? { failureReason: o.failureReason } : {}),
           ...(o.failureStage !== undefined ? { failureStage: o.failureStage } : {}),
         }),
       );
-      if (c) {
+      if (c && !keepsResult) {
         const details: FinishDetails = {
           status: o.status,
           ...(o.exitCode !== undefined ? { exitCode: o.exitCode } : {}),

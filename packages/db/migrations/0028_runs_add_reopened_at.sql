@@ -1,0 +1,1 @@
+ALTER TABLE "runs" ADD COLUMN "reopened_at" timestamp with time zone;

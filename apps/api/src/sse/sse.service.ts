@@ -121,6 +121,7 @@ export class SseService implements OnModuleDestroy {
           sessionExpiresAt: run.sessionExpiresAt?.toISOString() ?? null,
           sessionEndingAt: run.sessionEndingAt?.toISOString() ?? null,
           pauseReason: run.pauseReason === null ? null : PauseReason.parse(run.pauseReason),
+          reopenedAt: run.reopenedAt?.toISOString() ?? null,
         },
         events: rows.map((e) =>
           RunEventMessage.parse({ seq: e.seq, ts: e.ts.toISOString(), type: e.type, payload: e.payload }),

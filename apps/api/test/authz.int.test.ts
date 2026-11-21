@@ -773,6 +773,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'runs.finish': tenant(403),
   'runs.resume': tenant(403),
   'runs.stop': tenant(403),
+  'runs.closeSession': tenant(403),
   'runs.transcript': tenant(200),
   'runs.events': tenant('stream'),
   // a member with no assignment may still read their own (empty) access; a platform admin has no active org

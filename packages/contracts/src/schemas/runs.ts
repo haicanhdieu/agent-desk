@@ -63,6 +63,8 @@ export const RunDto = z.object({
   sessionEndingAt: Timestamp.nullable(),
   /** Why the run is paused; null when it is not paused (or paused before this was recorded). */
   pauseReason: PauseReason.nullable(),
+  /** While a person has the session of a succeeded run reopened; null otherwise. The result stays succeeded (ADR 0032). */
+  reopenedAt: Timestamp.nullable(),
 });
 export type RunDto = z.infer<typeof RunDto>;
 

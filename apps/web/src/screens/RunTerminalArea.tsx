@@ -21,7 +21,7 @@ export interface RunTerminalAreaProps {
   lines?: TermLine[];
   /** Replaces the static terminal (the live terminal, Task 14). */
   terminal?: ReactNode;
-  /** A cancel, finish or resume is in flight: Finish, Resume and Re-open session wait. */
+  /** A cancel, finish or resume is in flight: Finish, Resume and Reopen session wait. */
   busy?: boolean;
   onFinish?(): void;
   /** Resume a paused run, or re-open a succeeded run whose session is kept. */
@@ -48,7 +48,10 @@ export interface RunTerminalAreaProps {
 /** One view tab: the "Transcript, coming in MVP" tab is removed. */
 const views = (label: string) => [{ id: 'term', label, icon: 'terminal' as IconName }];
 
-const transcriptViews = [{ id: 'transcript', label: 'Transcript', icon: 'transcript' as IconName }];
+const transcriptViews = (label: string) => [{ id: 'transcript', label, icon: 'transcript' as IconName }];
+
+/** Why a succeeded run cannot be reopened (its disk is gone). */
+const REOPEN_UNAVAILABLE_HINT = 'Reopen unavailable: the disk was removed, so the session cannot be reopened';
 
 /** "Copy /cmd" renders the command in mono, like the boards. */
 function ActionLabel({ label }: { label: string }) {
@@ -202,9 +205,16 @@ function EndNotice({ data, busy, onResume }: { data: RunDetailData; busy?: boole
                 {a.label}
               </Button>
             ))}
-            {kept && (
-              <Button variant="go" size="sm" icon="play" disabled={busy} onClick={onResume}>
-                Re-open session
+            {succeeded && (
+              <Button
+                variant="go"
+                size="sm"
+                icon="play"
+                disabled={busy || !kept}
+                title={kept ? undefined : REOPEN_UNAVAILABLE_HINT}
+                onClick={onResume}
+              >
+                Reopen session
               </Button>
             )}
           </>
@@ -296,7 +306,9 @@ export function RunTerminalArea({
         notice={transcriptNotice}
         bar={
           <TerminalBar
-            views={transcriptViews}
+            views={transcriptViews(
+              status === 'succeeded' && data.session?.state !== 'kept' ? 'Transcript (read-only)' : 'Transcript',
+            )}
             activeView="transcript"
             tools={false}
             connection={<ConnectionIndicator state={connection.state} label={connection.label} />}
@@ -339,43 +351,56 @@ export function RunTerminalArea({
 
   const note = data.agentNote;
   const resumed = data.resumed === undefined ? null : <ResumedBanner text={data.resumed} />;
-  const liveNotice =
-    status === 'done' ? (
-      <Banner
-        tone="ok"
-        flush
-        centered
-        icon={<StatusIcon status="done" size={20} title="Done" />}
-        title="The agent says the task is done"
-        actions={
-          <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
-            Finish run
-          </Button>
-        }
-      >
-        {note && <div>{note}</div>}
-        <div>Review the work, type in the terminal to ask for changes, or Finish to end the run as succeeded.</div>
-      </Banner>
-    ) : status === 'idle' ? (
-      <Banner
-        tone="idle"
-        flush
-        centered
-        icon={<StatusIcon status="idle" size={20} title="Needs you" />}
-        title="The agent is waiting for your answer"
-        actions={
-          <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
-            Finish run
-          </Button>
-        }
-      >
-        {note && <div>{note}</div>}
-        <div>
-          Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while
-          this page is attached. Pauses after 30 min with nobody attached.
-        </div>
-      </Banner>
-    ) : undefined;
+  const liveNotice = data.reopened ? (
+    <Banner
+      tone="ok"
+      flush
+      centered
+      icon={<StatusIcon status="succeeded" size={20} title="Succeeded" />}
+      title="Session open: this run already succeeded"
+    >
+      {note && <div>{note}</div>}
+      <div>
+        The result stays as it is. Type in the terminal to keep working, then Close session to save it again. Closing
+        keeps the disk for a fresh keep time.
+      </div>
+    </Banner>
+  ) : status === 'done' ? (
+    <Banner
+      tone="ok"
+      flush
+      centered
+      icon={<StatusIcon status="done" size={20} title="Done" />}
+      title="The agent says the task is done"
+      actions={
+        <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
+          Finish run
+        </Button>
+      }
+    >
+      {note && <div>{note}</div>}
+      <div>Review the work, type in the terminal to ask for changes, or Finish to end the run as succeeded.</div>
+    </Banner>
+  ) : status === 'idle' ? (
+    <Banner
+      tone="idle"
+      flush
+      centered
+      icon={<StatusIcon status="idle" size={20} title="Needs you" />}
+      title="The agent is waiting for your answer"
+      actions={
+        <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
+          Finish run
+        </Button>
+      }
+    >
+      {note && <div>{note}</div>}
+      <div>
+        Type your answer in the terminal below, or Finish to end the run as succeeded. The idle timer is paused while
+        this page is attached. Pauses after 30 min with nobody attached.
+      </div>
+    </Banner>
+  ) : undefined;
   const notice = liveNotice ? (
     <>
       {resumed}

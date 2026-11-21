@@ -280,6 +280,26 @@ describe('parkRun', () => {
     expect(signals).toEqual([{ runId: kept[0], signal: 'dropSession' }]);
   });
 
+  it('parkRun that closes a reopened session clears the flag, keeps a fresh deadline and records session_closed', async () => {
+    const p = await seedProject({ done: 3600 });
+    const runId = await seedRun(p, 'done');
+    await asOwner((c) => c.query(`update runs set reopened_at = $1 where id = $2`, [AT, runId]));
+    const result = await acts().parkRun(await ctxFor(runId), {
+      kind: 'done',
+      at: AT,
+      reason: 'idle_timeout',
+      closed: 'idle',
+    });
+    expect(result).toEqual({ status: 'succeeded', sessionExpiresAt: atPlus(3600) });
+    const { run, events } = await load(runId);
+    expect(run).toMatchObject({ status: 'succeeded', reopenedAt: null });
+    expect(run?.sessionExpiresAt?.toISOString()).toBe(atPlus(3600));
+    expect(events.filter((e) => e.type === 'lifecycle').map((e) => e.payload)).toContainEqual({
+      kind: 'session_closed',
+      how: 'idle',
+    });
+  });
+
   it('parkRun rejects an unparseable keepUntil as non-retryable', async () => {
     const p = await seedProject({ done: 3600 });
     const runId = await seedRun(p, 'done');

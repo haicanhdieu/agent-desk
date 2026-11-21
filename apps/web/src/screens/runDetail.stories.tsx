@@ -105,7 +105,7 @@ export const RunResumeFailed: Story = {
     needsYou: 1,
   },
 };
-/** Succeeded with its session kept: Re-open session until the kept time passes. */
+/** Succeeded with its session kept: Reopen session until the kept time passes. */
 export const RunSucceededKept: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
@@ -119,6 +119,23 @@ export const RunSucceededKept: Story = {
     needsYou: 1,
     onResume: () => {},
   },
+};
+/** A reopened session of a succeeded run: the pill says so and Close session is the only action. */
+export const RunReopened: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: {
+    data: { ...runDetails.RunDone, reopened: true },
+    lines: terminalByRun[62],
+    needsYou: 1,
+    onCloseSession: () => {},
+  },
+};
+/** The disk is gone: Reopen session is disabled with a tooltip and the tab reads Transcript (read-only). */
+export const RunSucceededReopenUnavailable: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: { data: runDetails.RunSucceeded, lines: terminalByRun[60], needsYou: 1 },
 };
 /** Nobody resumed it in time: the saved session was deleted, no actions. */
 export const RunExpired: Story = {

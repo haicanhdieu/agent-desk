@@ -65,6 +65,7 @@ const expected: Record<RouteKey, RouteAccess> = {
   'runs.finish': project('run:update', 'runId'),
   'runs.resume': project('run:update', 'runId'),
   'runs.stop': project('run:update', 'runId'),
+  'runs.closeSession': project('run:update', 'runId'),
   'runs.transcript': project('run:read', 'runId'),
   'runs.events': project('run:read', 'runId'),
   'runs.terminal': project('terminal:attach', 'runId'),
@@ -93,8 +94,8 @@ const expected: Record<RouteKey, RouteAccess> = {
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 68 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(68);
+  it('matches the approved permission map for all 69 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(69);
     expect(routeAccess).toEqual(expected);
   });
 

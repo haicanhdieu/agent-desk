@@ -172,7 +172,12 @@ const withAgentIdleEnd = (run: MockRun): MockRun => {
 };
 
 /** The kept-session deadline of a run re-opened from a kept succeeded session, by run object (reset with the store). */
-const reopenedKeepUntil = new WeakMap<RunDto, string>();
+/** How long the mock keeps a succeeded run's session after a close: the agent's default done keep time (1 day). */
+const DONE_KEEP_MS = 86_400_000;
+/** Runs resumed from a paused session: a Finish on them ends the run for good (the worker's rule, ADR 0030). */
+const resumedFromPause = new WeakSet<RunDto>();
+/** The API's answer to Cancel, Stop and Finish while a succeeded run's session is reopened. */
+const REOPENED_ONLY_CLOSE = 'This session is reopened; the run has already succeeded. Close the session instead';
 
 /** Ends the run now; open event streams see the note and the status (live.ts). */
 function endRun(run: RunDto, status: 'succeeded' | 'cancelled', note: string) {
@@ -615,6 +620,7 @@ const impl: Impl = {
   'runs.cancel': async ({ params }) => {
     const { user } = session();
     const run = runOf(params.runId);
+    if (run.reopenedAt !== null) throw conflict(REOPENED_ONLY_CLOSE);
     if (isFinal(run.status)) throw conflict('Run already ended');
     if (slowActionRuns.has(run.number)) await slow();
     endRun(run, 'cancelled', `Cancel requested by ${user.handle}`);
@@ -623,22 +629,37 @@ const impl: Impl = {
   'runs.finish': async ({ params }) => {
     const { user } = session();
     const run = runOf(params.runId);
+    if (run.reopenedAt !== null) throw conflict(REOPENED_ONLY_CLOSE);
     if (isFinal(run.status)) throw conflict('Run already ended');
     if (!FINISHABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Run is not waiting for you or done');
     if (slowActionRuns.has(run.number)) await slow();
-    const keptUntil = reopenedKeepUntil.get(run);
-    if (keptUntil !== undefined) {
-      // As the worker (ADR 0030): Finish on a re-opened kept session parks the run again, succeeded, with the
-      // original deadline (retention is not extended).
-      reopenedKeepUntil.delete(run);
+    // As the worker (ADR 0032): Finish on a fresh Done run keeps its disk for the normal keep time.
+    if (run.status === 'done' && !resumedFromPause.has(run)) {
       run.finishedAt = now();
       run.exitCode = 0;
-      run.sessionExpiresAt = keptUntil;
+      run.sessionExpiresAt = new Date(Date.now() + DONE_KEEP_MS).toISOString();
       appendRunEvent(run, 'lifecycle', { text: `Finish clicked by ${user.handle}` });
       setRunStatus(run, 'succeeded');
       return null;
     }
     endRun(run, 'succeeded', `Finish clicked by ${user.handle}`);
+    return null;
+  },
+  'runs.closeSession': ({ params }) => {
+    const { user } = session();
+    const run = runOf(params.runId);
+    if (run.reopenedAt === null) throw conflict('Only a reopened session can be closed');
+    // As the worker (ADR 0032): the run returns to succeeded with its disk kept for a fresh keep time, and no comment.
+    run.reopenedAt = null;
+    run.finishedAt = now();
+    run.exitCode = 0;
+    run.sessionExpiresAt = new Date(Date.now() + DONE_KEEP_MS).toISOString();
+    appendRunEvent(run, 'lifecycle', {
+      kind: 'session_closed',
+      how: 'person',
+      text: `Session closed by ${user.handle}`,
+    });
+    setRunStatus(run, 'succeeded');
     return null;
   },
   'runs.transcript': async ({ params, query }) => {
@@ -662,6 +683,7 @@ const impl: Impl = {
   },
   'runs.stop': ({ params }) => {
     const run = runOf(params.runId);
+    if (run.reopenedAt !== null) throw conflict(REOPENED_ONLY_CLOSE);
     if (run.sessionEndingAt !== null) throw conflict('The session is already ending');
     if (!STOPPABLE_RUN_STATUSES.some((s) => s === run.status)) throw conflict('Only a live session can be stopped');
     return null;
@@ -678,9 +700,9 @@ const impl: Impl = {
     if (!agentOf(run.projectId).credential.set) {
       throw conflict('This project has no agent credential, so the run cannot be resumed');
     }
-    // A re-open of a kept succeeded session remembers its deadline, so Finish can park it again.
-    if (run.status === 'succeeded' && run.sessionExpiresAt !== null) reopenedKeepUntil.set(run, run.sessionExpiresAt);
-    else reopenedKeepUntil.delete(run);
+    // A reopened succeeded run keeps its result (ADR 0032): the flag marks it until Close session.
+    run.reopenedAt = run.status === 'succeeded' ? now() : null;
+    if (run.status === 'paused') resumedFromPause.add(run);
     run.pausedAt = null;
     run.sessionExpiresAt = null;
     run.sessionEndingAt = null;
@@ -734,6 +756,7 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'runs.cancel': 202,
   'runs.stop': 202,
   'runs.finish': 202,
+  'runs.closeSession': 202,
   'setupTests.end': 202,
   'assignments.create': 201,
   'invitations.create': 201,

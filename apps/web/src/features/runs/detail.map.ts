@@ -661,6 +661,7 @@ export function toRunDetail(
     ...((run.status === 'idle' || run.status === 'done' || run.status === 'paused' || session?.state === 'kept') &&
       run.agentNote !== null && { agentNote: run.agentNote }),
     ...(session && { session }),
+    ...(run.reopenedAt !== null && { reopened: true as const }),
     ...(terminalArea(run) === 'pausing' && { pausing: true as const }),
     ...(terminalArea(run, events) === 'resuming' && { resuming: true as const }),
     ...(resumed !== undefined && { resumed }),

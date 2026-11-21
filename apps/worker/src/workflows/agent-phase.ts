@@ -66,7 +66,14 @@ function resumed(s: TurnState, writeRunning: boolean): TurnState | undefined {
 export const acceptsLegacyFinish = (phase: RunPhase): boolean => atTurnBoundary(phase);
 
 /** Why a `finishRun` update is refused (a message for the caller), or `undefined` when it is accepted. */
-export function finishRunRejection(phase: RunPhase, ending: boolean, parkKind?: ParkKind): string | undefined {
+export function finishRunRejection(
+  phase: RunPhase,
+  ending: boolean,
+  parkKind?: ParkKind,
+  /** A reopened session of a succeeded run: Close session is allowed in any live phase, also while the agent works. */
+  reopened = false,
+): string | undefined {
+  if (reopened && !ending && (phase === 'running' || atTurnBoundary(phase))) return undefined;
   if (phase === 'parked' && !ending) {
     return parkKind === 'done' ? 'This run already finished' : parkKind === 'needs_input' ? undefined : generic(phase);
   }
@@ -112,11 +119,14 @@ export interface StopSessionInput {
   sessionStarted: boolean;
   /** patched('stop-session') */
   patched: boolean;
+  /** The session is a reopened succeeded run: it is closed, never stopped. */
+  reopened?: boolean;
 }
 
 /** Why a `stopSession` update is refused, or undefined when accepted (order: patch, ending, live phase, started). */
 export function stopSessionRejection(input: StopSessionInput): string | undefined {
   if (!input.patched) return 'This run started before Stop session was available; Finish or Cancel it';
+  if (input.reopened === true) return 'A reopened session can only be closed';
   if (input.ending || input.finishRequested || input.stopRequested) return 'The session is already ending';
   if (input.phase !== 'running' && !atTurnBoundary(input.phase)) return 'Only a live session can be stopped';
   if (!input.sessionStarted) return 'The agent has not started yet';

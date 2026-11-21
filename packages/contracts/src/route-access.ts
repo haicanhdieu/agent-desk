@@ -69,6 +69,7 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'runs.finish': project('run:update', 'runId'),
   'runs.resume': project('run:update', 'runId'),
   'runs.stop': project('run:update', 'runId'),
+  'runs.closeSession': project('run:update', 'runId'),
   'runs.transcript': project('run:read', 'runId'),
   'runs.events': project('run:read', 'runId'),
   'runs.terminal': project('terminal:attach', 'runId'),

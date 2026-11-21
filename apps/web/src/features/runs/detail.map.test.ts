@@ -1026,3 +1026,10 @@ describe('plainText', () => {
     expect(plainText('a‮visible\u0007  b\n\tc     d')).toBe('avisible  b\n\tc     d');
   });
 });
+
+describe('toRunDetail, reopened session', () => {
+  it('flags a run whose session is reopened, and no other', () => {
+    expect(detail(run({ status: 'done', reopenedAt: now.toISOString() })).reopened).toBe(true);
+    expect(detail(run({ status: 'done', reopenedAt: null })).reopened).toBeUndefined();
+  });
+});

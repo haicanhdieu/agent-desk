@@ -64,7 +64,7 @@ interface Harness {
   createOpts: ({ resume?: boolean; deadlineSeconds?: number; note?: ResumeNoteInput } | undefined)[];
   /** The input of every recordAutoResume call, in order. */
   autoResumes: RecordAutoResumeInput[];
-  parks: { kind: string; reason?: string; resumeQueued?: boolean; keepUntil?: string }[];
+  parks: { kind: string; reason?: string; resumeQueued?: boolean; keepUntil?: string; closed?: string }[];
   restores: { kind: string; sessionExpiresAt: string; reason: string }[];
   kept: string[];
   /** `parkRun` keeps the session this many seconds; undefined keeps nothing. */
@@ -500,6 +500,7 @@ describe('resume', () => {
 
   it('a run that started before finish-reparks existed still deletes the volume on Finish after a done Re-open', async () => {
     runtime.unpatched.add('finish-reparks');
+    runtime.unpatched.add('reopen-keeps-result');
     const h = start();
     await toParked(h, 'done');
     await resumeToSessionUp(h);
@@ -511,7 +512,23 @@ describe('resume', () => {
     expect(h.calls.filter((c) => c.startsWith('parkRun'))).toHaveLength(1);
   });
 
-  it('a Finish after a done Re-open re-parks with the original deadline: the volume stays and no second finish comment', async () => {
+  it('a Close session after a done Reopen re-parks with a fresh keep time: the volume stays and no second finish comment', async () => {
+    const h = start();
+    await toParked(h, 'done');
+    await resumeToSessionUp(h);
+    await finishWithoutPodExit(h);
+    h.pods[1]?.exit({ exitCode: 0, agentStarted: true });
+    await waitFor('re-parked', () => h.parks.length === 2);
+
+    expect(h.parks[1]).toMatchObject({ kind: 'done', reason: 'idle_timeout', closed: 'person' });
+    expect(h.parks[1]?.keepUntil).toBeUndefined();
+    expect(h.calls).not.toContain('deleteRunVolume');
+    expect(h.comments.filter((c) => c.kind === 'finish')).toHaveLength(1);
+    expect(h.outcome).toBeUndefined();
+  });
+
+  it('a run that started before reopen-keeps-result existed keeps the original deadline on Finish after a done Reopen (ADR 0030)', async () => {
+    runtime.unpatched.add('reopen-keeps-result');
     const h = start();
     await toParked(h, 'done');
     const expiry = new Date(T0.getTime() + (900 + KEEP) * 1000).toISOString();
@@ -554,7 +571,8 @@ describe('resume', () => {
     expect(h.calls).toContain('deleteRunVolume');
   });
 
-  it('a Finish after a done Re-open whose pod result lacks agentStarted is not re-parked: the volume is deleted', async () => {
+  it('a Finish after a done Re-open whose pod result lacks agentStarted is not re-parked: the volume is deleted (before reopen-keeps-result)', async () => {
+    runtime.unpatched.add('reopen-keeps-result');
     const h = start();
     await toParked(h, 'done');
     await resumeToSessionUp(h);
@@ -627,9 +645,22 @@ describe('resume', () => {
     h.pods[1]?.exit({ exitCode: 1, endReason: 'agent_exit', agentStarted: true });
 
     await waitFor('parked again', () => phase() === 'parked');
-    expect(h.parks.at(-1)).toMatchObject({ kind: 'done', reason: 'agent_crashed' });
+    // A reopened session never changes the result: the crash closes it (no pause reason, no auto resume).
+    expect(h.parks.at(-1)).toMatchObject({ kind: 'done', closed: 'crash' });
     expect(h.calls).not.toContain('deleteRunVolume');
     expect(h.outcome).toBeUndefined();
+  });
+
+  it('a run that started before reopen-keeps-result existed parks a crashed reopened session with the crash reason', async () => {
+    runtime.unpatched.add('reopen-keeps-result');
+    const h = start();
+    await toParked(h, 'done');
+    await resumeToSessionUp(h);
+    h.pods[1]?.exit({ exitCode: 1, endReason: 'agent_exit', agentStarted: true });
+
+    await waitFor('parked again', () => phase() === 'parked');
+    expect(h.parks.at(-1)).toMatchObject({ kind: 'done', reason: 'agent_crashed' });
+    expect(h.parks.at(-1)?.closed).toBeUndefined();
   });
 
   it('a resumed run can park again from the new pod, counting the time of both pods', async () => {
