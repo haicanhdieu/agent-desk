@@ -20,8 +20,8 @@ const boardModules = [
 ];
 
 describe('storybook coverage of prototype boards', () => {
-  it('lists exactly the 79 boards of canvas.json, in order', () => {
-    expect(order).toHaveLength(79);
+  it('lists exactly the 147 boards of canvas.json, in order', () => {
+    expect(order).toHaveLength(147);
     expect(Object.keys(boardStories)).toEqual(order);
   });
 
@@ -58,7 +58,7 @@ describe('storybook coverage of prototype boards', () => {
 
 describe('screens layout', () => {
   it('every Screens stories file sets parameters.layout to fullscreen', () => {
-    expect(modules).toHaveLength(7);
+    expect(modules).toHaveLength(8);
     for (const m of modules) {
       const meta = m.default as { title: string; parameters?: { layout?: string } };
       expect(meta.parameters?.layout, meta.title).toBe('fullscreen');

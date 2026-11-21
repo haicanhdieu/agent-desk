@@ -12,6 +12,8 @@ export {
   type ProjectSwitchMenu,
   type ProjectMenuProps,
 } from './ProjectSwitch';
+export { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
+export { OnboardingChecklist, type OnboardingChecklistState } from './OnboardingChecklist';
 export { TopBar, TopBarSeparator, type TopBarProps } from './TopBar';
 export { SubNav, type SubNavProps } from './SubNav';
 export { AppShell, type AppShellProps } from './AppShell';
@@ -106,3 +108,8 @@ export {
   type PageSizeOption,
 } from './Pagination';
 export { RouteSkeleton, RouteLoadError, type RouteLoadErrorProps } from './RouteStates';
+export { ExpiryLabel } from './ExpiryLabel';
+export { InviteDialog, type InviteDialogProps, type InviteDialogStep, type InviteDialogValues } from './InviteDialog';
+export { InviteLink, type InviteLinkProps } from './InviteLink';
+export { InvitationRow, type InvitationRowProps } from './InvitationRow';
+export { InvitationCard, type InvitationCardProps } from './InvitationCard';

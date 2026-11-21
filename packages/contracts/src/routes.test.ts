@@ -33,7 +33,7 @@ describe('contracts', () => {
   });
   it('every platform route lives under /api/platform/orgs', () => {
     const platform = Object.entries(flattenRoutes(routes)).filter(([k]) => k.startsWith('platform.'));
-    expect(platform).toHaveLength(11);
+    expect(platform).toHaveLength(12);
     for (const [, r] of platform) expect(r.path.startsWith('/api/platform/orgs')).toBe(true);
   });
   it('assignments.list query keeps projectId', () => {
@@ -52,7 +52,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(70);
+    expect(Object.keys(flat)).toHaveLength(77);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
@@ -151,5 +151,39 @@ describe('contract boundaries', () => {
     const envelope = { items: [], page: 1, pageSize: 20, total: 0 };
     expect(r?.response.safeParse(envelope).success).toBe(true);
     expect(r?.response.safeParse([]).success).toBe(false);
+  });
+  it('registers the onboarding routes with their methods and paths', () => {
+    const flat = flattenRoutes(routes);
+    expect(flat['me.listInvitations']).toMatchObject({ method: 'GET', path: '/api/me/invitations' });
+    expect(flat['me.getInvitation']).toMatchObject({ method: 'GET', path: '/api/me/invitations/:invitationId' });
+    expect(flat['me.acceptInvitation']).toMatchObject({
+      method: 'POST',
+      path: '/api/me/invitations/:invitationId/accept',
+    });
+    expect(flat['me.declineInvitation']).toMatchObject({
+      method: 'POST',
+      path: '/api/me/invitations/:invitationId/decline',
+    });
+    expect(flat['invitations.resend']).toMatchObject({
+      method: 'POST',
+      path: '/api/orgs/:orgId/invitations/:invitationId/resend',
+    });
+    expect(flat['platform.resendInvitation']).toMatchObject({
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/invitations/:invitationId/resend',
+    });
+    expect(flat['orgs.checklist']).toMatchObject({ method: 'GET', path: '/api/orgs/:orgId/checklist' });
+  });
+  it('invitation lists default to pending', () => {
+    expect(routes.invitations.list.query.parse({}).status).toBe('pending');
+    expect(routes.platform.listInvitations.query.parse({}).status).toBe('pending');
+  });
+  it('event and terminal routes keep an optional orgId query', () => {
+    const P = '00000000-0000-4000-8000-000000000001';
+    expect(routes.runs.events.query.parse({ orgId: P })).toMatchObject({ orgId: P });
+    expect(routes.projects.events.query.parse({ orgId: P })).toMatchObject({ orgId: P });
+    expect(routes.setupTests.events.query.parse({ orgId: P })).toMatchObject({ orgId: P });
+    expect(routes.runs.terminal.query.parse({ orgId: P })).toMatchObject({ orgId: P });
+    expect(routes.setupTests.terminal.query.parse({})).toEqual({});
   });
 });

@@ -1,0 +1,78 @@
+.wrap {
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.switch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px;
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-6);
+  background: var(--raised);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  max-width: 240px;
+  min-width: 0;
+}
+.switch svg {
+  flex: 0 0 auto;
+}
+.plain {
+  display: flex;
+  align-items: center;
+  max-width: 240px;
+  min-width: 0;
+  color: var(--muted);
+}
+.name {
+  font-weight: 600;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.menu {
+  padding: 10px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 260px;
+  max-width: 340px;
+}
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-8);
+  font-size: var(--fs-13);
+  color: var(--text);
+}
+.item:hover {
+  text-decoration: none;
+  background: var(--raised);
+}
+.item.current {
+  border-color: var(--line2);
+  background: var(--raised);
+}
+.itemName {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.check {
+  flex: 0 0 auto;
+  color: var(--ok);
+}
+.divider {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
+}

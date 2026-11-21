@@ -143,3 +143,90 @@ Copy must match exactly.
 - Runs, RunsProblems: the run table shows a "Routing rule" column (the run's command, for example `/code-build`; `—` when none was recorded; one line with an ellipsis and the full command in a tooltip) where the prototype has "Skill". Intended drift, not fixed. Storybook and the parity script were not run in the runner pod (no browser build), so the pixel check of these two boards is still to do.
 - DeskAgent, DeskAgentCustomModel, DeskAgentAddressChanged (model list and API address): the Agent field is disabled so it renders dimmed (as DeskAgent above). The credential panel sits 6px lower than the board (the shared 12px gap between the credential row and its panel), and the New token input has no "Paste the token" placeholder; both are the existing SecretField, left as is. The Limits section keeps the current layout (six limit fields), not the older board's four. Treated as intentional state differences.
 - Setup2 (API address and Default model picker): Storybook was built and `pnpm parity` run; `Setup2.story.png` was compared with `Setup2.proto.png`. The new API address and Default model rows match the board. Remaining differences are older and intentional: the story says "Step 2 of 5" and lists the Prepare workspace step (the board predates it, as on SetupWorkspace), the Token input is empty (the board shows a prefilled token), and the reveal button sits inside the input. Setup2Fallback has no board and is not in the parity script, so it was not compared; it differs from Setup2 only by the standard names and the reason note under Default model.
+
+## Org onboarding: Projects and sign-in boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Twelve boards added, so `parity.mjs`
+finds 91: ProjectsChecklist, ProjectsChecklistDone, ProjectsChecklistError, ProjectsChecklistLoading, ProjectsEmptyChecklist,
+ProjectsEmptyNoCreate, ProjectsMember, ProjectsNoAccess, ProjectsOrgSwitchAdmin, ProjectsOrgSwitchOpen, ProjectsSwitching,
+SignInNoInvitation.
+
+- Projects, ProjectsEmpty, ProjectsPaged: the boards are unchanged (no org name, no "Invitations" button). Their stories now
+  draw a one-org owner, so they show the org name after the brand and an "Invitations" button beside "New project" (beside
+  "Create project" on the empty page). Intended drift, not fixed.
+- ProjectsNoAccess: the story draws the "You don't have access" copy with the screens' centered notice markup, not the
+  router-bound `Forbidden` (screens cannot import the app layer).
+- ProjectsEmptyNoCreate: drawn as the board does (h1 "No projects yet" in the centered notice) rather than the `EmptyState`
+  component, which has no h1 and a smaller title.
+- ProjectsSwitching: the story uses the shared `RouteSkeleton`; the board's skeleton lines differ in width and count.
+- Invitations banner: the story uses the shared `Banner` (title weight and size), the board draws plain body text.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: welcome page boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Six boards added, so `parity.mjs`
+finds 97: MyInvitations, MyInvitationsAccepting, MyInvitationsEmpty, MyInvitationsEmptyPlatformAdmin, MyInvitationsError,
+MyInvitationsLoading.
+
+- Cards: the stories use the shared `InvitationCard` (surface card, title weight and size), where the boards draw inline-styled cards.
+- MyInvitationsError: the story uses the shared `RouteLoadError` banner, so the Request ID sits in the banner body as in other route errors.
+- MyInvitationsLoading: the story uses `Skeleton` blocks sized as the board (32px heading, two 98px cards).
+- MyInvitationsLoading and MyInvitationsError: neither the boards nor the screen draw an h1 in these states. The error banner is an alert and the loading block is a labelled busy status.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: invitation link page boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Twelve boards added, so `parity.mjs`
+finds 109: InvitationAccept, InvitationAcceptAccepted, InvitationAcceptAccepting, InvitationAcceptDeclineConfirm,
+InvitationAcceptDeclined, InvitationAcceptDeclining, InvitationAcceptError, InvitationAcceptExpired,
+InvitationAcceptExpiredInviterDeleted, InvitationAcceptLoading, InvitationAcceptNotAvailable, InvitationAcceptRevoked.
+
+- Details card: the stories use the shared `SurfaceCard` and `KeyValue` (120px term column), where the boards draw an inline-styled card.
+- Decline dialog: the stories use the design-system `Dialog` (440px) with a ghost Cancel and a solid-danger Decline, as the boards.
+- Resolved and not-available states: the screen draws an h1 in the centred notice column (as the welcome empty state), since the boards draw an h1 of 28px; it does not use `EmptyState`, which only offers h2 or h3.
+- InvitationAcceptError: the story uses the shared `RouteLoadError` banner, so the Request ID sits in the banner body.
+- InvitationAcceptLoading and InvitationAcceptError: neither the boards nor the screen draw an h1 in these states.
+- InvitationAcceptAccepted: the top bar shows the org name as plain text (one org), as the board.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: org Invitations page list boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Twelve boards added, so `parity.mjs`
+finds 121: OrgInvitations, OrgInvitationsAll, OrgInvitationsEmpty, OrgInvitationsEmptyAll, OrgInvitationsEmptyFiltered,
+OrgInvitationsError, OrgInvitationsFiltered, OrgInvitationsForbidden, OrgInvitationsLoading, OrgInvitationsPaged,
+OrgInvitationsRowMenu, OrgInvitationsRowMenuExpired.
+
+- Table: the stories use the shared `DataTable` and `InvitationRow`; column widths follow the shared table layout, not the boards' fixed percentages.
+- Empty states: the shared `EmptyState` under the table, drawn as an h2 (the boards draw an h3; axe heading-order requires h2 right under the h1); the Pending one carries a second "Invite people" button.
+- Forbidden: the screen draws the same notice as the Projects no-access story (h1, one line), not the `Forbidden` route component, which sits in `app/` and adds a "Go to projects" button the board does not draw.
+- Loading and error: the loading block is a labelled busy status of `Skeleton` blocks; the error is the shared `RouteLoadError` banner. Neither draws an h1.
+- Row menus: the story-only `openMenuRowId` opens the menu by pressing that row's Actions button once after mount; the menu is placed under the button by `useRowMenu`, where the boards use fixed offsets.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: org Invitations page action boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Fifteen boards added, so `parity.mjs`
+finds 136: OrgInvitationsCopyFailed, OrgInvitationsCreated, OrgInvitationsInvite, OrgInvitationsInviteFieldError,
+OrgInvitationsInviteFormError, OrgInvitationsInviteProjectAdmin, OrgInvitationsInviteProjects, OrgInvitationsInviteSaving,
+OrgInvitationsInviteTabSwitched, OrgInvitationsLinkCopied, OrgInvitationsRenewed, OrgInvitationsResendConflict,
+OrgInvitationsResending, OrgInvitationsRevokeConfirm, OrgInvitationsRevoked.
+
+- Toasts: drawn by the shared `Toast` in the shared `ToastRegion` (fixed bottom right) with a Dismiss button; the notice carries `role="status"` for both tones, as the spec says, where the live provider uses `alert` for errors.
+- Copy failed: the popover sits under the row's Actions button (placed from its measured position) and holds the shared `InviteLink` (the "Invitation link" field with "Copy link", which retries the copy); the board draws a fixed offset.
+- Revoke confirm: the shared `Dialog`, 440px like the decline confirm; while the row's request is in flight the buttons disable and the confirm button reads "Revoking…" (the boards draw only the idle confirm).
+- Invite dialog boards: the shared `InviteDialog` over the page; the tab-switched board shows the red Toast over the dialog with the input kept.
+- Resending: the in-flight row's Actions button is disabled; no spinner is drawn (as the board).
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 15 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: create-org form boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Eleven boards added, so `parity.mjs`
+finds 147: CreateOrg, CreateOrgCreated, CreateOrgError, CreateOrgFieldErrors, CreateOrgForbidden, CreateOrgInvitationFailed,
+CreateOrgRetrying, CreateOrgSaving, CreateOrgSlugAuto, CreateOrgSlugEdited, CreateOrgSlugTaken.
+
+- Fields: the shared `Field` with `TextInput` and `PrefixInput`; the "URL" input's description is the `/o/` prefix (via the new optional `prefixId` of `PrefixInput`) plus any error. Field errors are shared `Field` errors (no `role="alert"`, the boards draw one).
+- Saving and retrying: the fields are read-only while the request is in flight (the boards leave them editable); in the retrying state the email is read-only too.
+- Errors: the form and invitation-failed notices are the shared `Banner` (`role="alert"`, with "Retry" as a Button with the refresh icon); the request ID is plain muted text.
+- Created: the shared `SurfaceCard` holding the h2, the text, the shared `InviteLink` (the "Invitation link" box with "Copy link") and "Done"; the board draws the link in an input.
+- Forbidden: the same notice as the other screens (h1, one line), with no "Go to projects" button.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 11 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.

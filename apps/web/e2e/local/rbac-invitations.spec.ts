@@ -8,6 +8,7 @@ import {
   type BrowserContext,
 } from '@playwright/test';
 import {
+  NO_INVITATION_CODE,
   AccessDto,
   InvitationDto,
   PlatformMemberDto,
@@ -15,7 +16,7 @@ import {
   pageOf,
   type InvitationScopeRequest,
 } from '@agentdesk/contracts';
-import { API, ok } from './helpers';
+import { API, acceptViaApi, ok, signInAs } from './helpers';
 import {
   REPO_P2,
   buildCast,
@@ -159,7 +160,7 @@ async function listInvitations(api: APIRequestContext, path: string): Promise<In
   const items: InvitationDto[] = [];
   for (let page = 1; ; page++) {
     const body = InvitationPage.parse(
-      await ok(await api.get(`${path}?pageSize=100&page=${page}`), 200, 'invitation list'),
+      await ok(await api.get(`${path}?status=all&pageSize=100&page=${page}`), 200, 'invitation list'),
     );
     items.push(...body.items);
     if (body.items.length === 0 || items.length >= body.total) return items;
@@ -222,17 +223,29 @@ async function signIn(ctx: BrowserContext, handle: string): Promise<void> {
   expect(setCookies(res).length, `${handle} signed in with a session cookie`).toBeGreaterThan(0);
 }
 
-/** Dev-login as `handle` in `ctx`, which must be refused: an error, no cookie set, and no session afterwards. */
+/** Dev-login as `handle` in `ctx`, which must be refused: a redirect to the sign-in page with the no-invitation code, no cookie set, and no session afterwards. */
 async function expectSignInRefused(ctx: BrowserContext, handle: string, what: string): Promise<void> {
   const res = await ctx.request.get(`/auth/dev-login?handle=${handle}&redirect=/`, { maxRedirects: 0 });
-  const status = res.status();
-  expect(status, `${what}: the sign-in is refused with an error: ${status} ${await res.text()}`).toBeGreaterThanOrEqual(
-    400,
+  expect(res.status(), `${what}: the sign-in is refused with a redirect: ${res.status()} ${await res.text()}`).toBe(
+    302,
   );
-  expect(status, `${what}: a client error`).toBeLessThan(500);
+  expect(res.headers()['location'], `${what}: the redirect names the no-invitation error`).toBe(
+    `/sign-in?error=${NO_INVITATION_CODE}`,
+  );
   expect(setCookies(res), `${what}: the refusal sets no cookie`).toEqual([]);
   expect(await ctx.cookies(), `${what}: no session cookie in the browser`).toEqual([]);
   await expectStatus(await ctx.request.get('/api/me/access'), 401, `${what}: the context has no session`);
+}
+
+/**
+ * Dev-login as `handle` in `ctx`, accept the invitation through the invitee route, then sign in again: a new session
+ * starts in the oldest membership, so the context's cookie is pinned to the org the person just joined.
+ */
+async function signInAndAccept(ctx: BrowserContext, handle: string, invitationId: string): Promise<void> {
+  const page = await signInAs(ctx, handle);
+  await acceptViaApi(page, invitationId);
+  await page.close();
+  await signIn(ctx, handle);
 }
 
 /** Every member PA lists for the org. */
@@ -339,10 +352,10 @@ test.describe('BR-55: an invited person signs in with the invited scope', () => 
   }) => {
     const handle = `e2e-h1-${tagOf()}`;
     const email = emailOfHandle(handle);
-    await paInvite(cast.orgId, email, cast.roleIds.viewer, { type: 'org' });
+    const invitation = await paInvite(cast.orgId, email, cast.roleIds.viewer, { type: 'org' });
 
     const ctx = await newContext(browser);
-    await signIn(ctx, handle);
+    await signInAndAccept(ctx, handle, invitation.id);
 
     expect(await projectsOf(ctx), 'the list shows P1 and P2 and nothing else').toEqual(byId(p1, p2));
     const access = await accessOf(ctx);
@@ -354,20 +367,25 @@ test.describe('BR-55: an invited person signs in with the invited scope', () => 
 
   test('TC-55.2: a person invited as member on P1 only signs in and sees P1 only', async ({ browser }) => {
     const handle = `e2e-h2-${tagOf()}`;
-    await paInvite(cast.orgId, emailOfHandle(handle), cast.roleIds.member, projectScope(cast.p1));
+    const invitation = await paInvite(cast.orgId, emailOfHandle(handle), cast.roleIds.member, projectScope(cast.p1));
 
     const ctx = await newContext(browser);
-    await signIn(ctx, handle);
+    await signInAndAccept(ctx, handle, invitation.id);
 
     expect(await projectsOf(ctx), 'the list shows P1 only').toEqual(byId(p1));
   });
 
   test('TC-55.3: one invitation for P1 and P2 gives member on each, and the list shows both', async ({ browser }) => {
     const handle = `e2e-h3-${tagOf()}`;
-    await paInvite(cast.orgId, emailOfHandle(handle), cast.roleIds.member, projectScope(cast.p1, cast.p2));
+    const invitation = await paInvite(
+      cast.orgId,
+      emailOfHandle(handle),
+      cast.roleIds.member,
+      projectScope(cast.p1, cast.p2),
+    );
 
     const ctx = await newContext(browser);
-    await signIn(ctx, handle);
+    await signInAndAccept(ctx, handle, invitation.id);
 
     const access = await accessOf(ctx);
     expect(accessTexts(access), 'two assignments: member on P1 and member on P2').toEqual(
@@ -376,7 +394,7 @@ test.describe('BR-55: an invited person signs in with the invited scope', () => 
     expect(await projectsOf(ctx), 'the list shows P1 and P2').toEqual(byId(p1, p2));
   });
 
-  test('TC-55.4: after the invited person signs in, the platform list shows their invitation as accepted', async ({
+  test('TC-55.4: after the invited person signs in and accepts, the platform list shows their invitation as accepted', async ({
     browser,
   }) => {
     const handle = `e2e-h2-${tagOf()}`;
@@ -386,6 +404,11 @@ test.describe('BR-55: an invited person signs in with the invited scope', () => 
 
     const ctx = await newContext(browser);
     await signIn(ctx, handle);
+    expect((await invitationById(cast.orgId, invitation.id))?.status, 'still pending after the sign-in alone').toBe(
+      'pending',
+    );
+    const page = await signInAs(ctx, handle);
+    await acceptViaApi(page, invitation.id);
 
     const forEmail = await invitationsFor(cast.orgId, email);
     expect(
@@ -405,22 +428,25 @@ async function makeSecondOrg(browser: Browser): Promise<Awaited<ReturnType<typeo
 }
 
 /** B signs in again in a new browser context (B already has an account in X). */
-async function signInAgain(browser: Browser, who: Actor): Promise<BrowserContext> {
+async function signInAgain(browser: Browser, who: Actor, acceptId?: string): Promise<BrowserContext> {
   const ctx = await newContext(browser);
-  await signIn(ctx, who.handle);
+  if (acceptId === undefined) await signIn(ctx, who.handle);
+  else await signInAndAccept(ctx, who.handle, acceptId);
   return ctx;
 }
 
-test.describe('BR-56: an existing user joins a second org on the next sign-in', () => {
-  test("TC-56.1: B invited to org Y as viewer on the org signs in again and Y's member list shows B as viewer on the org", async ({
+test.describe('BR-56: an existing user joins a second org by accepting after sign-in', () => {
+  test("TC-56.1: B invited to org Y as viewer on the org signs in again, accepts, and Y's member list shows B as viewer on the org", async ({
     browser,
   }) => {
     const y = await makeSecondOrg(browser);
     const yRoles = await roleIdsOf(cast.pa, y.orgId);
     expect(await memberByEmail(y.orgId, emailOf(cast.b)), 'Given: B is not a member of Y').toBeUndefined();
-    await paInvite(y.orgId, emailOf(cast.b), yRoles.viewer, { type: 'org' });
+    const invitation = await paInvite(y.orgId, emailOf(cast.b), yRoles.viewer, { type: 'org' });
 
     await signInAgain(browser, cast.b);
+    expect(await memberByEmail(y.orgId, emailOf(cast.b)), 'B is not a member of Y before accepting').toBeUndefined();
+    await signInAgain(browser, cast.b, invitation.id);
 
     const member = await requireMember(y.orgId, emailOf(cast.b));
     expect(member.userId, 'the member is B').toBe(cast.b.userId);
@@ -439,20 +465,22 @@ test.describe('BR-56: an existing user joins a second org on the next sign-in', 
     extraProjects.push({ owner: y.owner, id: py2.id });
     const py1 = y.project;
     expect(py2.id, 'PY2 is another project than PY1').not.toBe(py1);
-    await paInvite(y.orgId, emailOf(cast.b), yRoles.member, projectScope(py1));
+    const invitation = await paInvite(y.orgId, emailOf(cast.b), yRoles.member, projectScope(py1));
 
-    await signInAgain(browser, cast.b);
+    await signInAgain(browser, cast.b, invitation.id);
 
     const member = await requireMember(y.orgId, emailOf(cast.b));
     expect(assignmentTexts(member), 'one assignment, member on PY1 (not on PY2)').toEqual([`member:project:${py1}`]);
   });
 
-  test("TC-56.3: after B signs in again, Y's invitation for B shows status accepted", async ({ browser }) => {
+  test("TC-56.3: after B signs in again and accepts, Y's invitation for B shows status accepted", async ({
+    browser,
+  }) => {
     const y = await makeSecondOrg(browser);
     const yRoles = await roleIdsOf(cast.pa, y.orgId);
     const invitation = await paInvite(y.orgId, emailOf(cast.b), yRoles.viewer, { type: 'org' });
 
-    await signInAgain(browser, cast.b);
+    await signInAgain(browser, cast.b, invitation.id);
 
     expect(
       (await invitationsFor(y.orgId, emailOf(cast.b))).map((i) => ({ id: i.id, status: i.status })),

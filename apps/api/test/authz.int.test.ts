@@ -314,7 +314,11 @@ describe('SessionGuard route kinds', () => {
 
   describe('org routes', () => {
     it('refuse a caller with no active organization', async () => {
-      await expect(run(ME, { who: owner, activeOrgId: null }).result).rejects.toBeInstanceOf(ForbiddenException);
+      const list: Call = { method: 'GET', routeUrl: '/api/projects' };
+      await expect(run(list, { who: owner, activeOrgId: null }).result).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(run(ASSIGNMENTS, { who: owner, activeOrgId: null }).result).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
     it('refuse a caller who is not a member of the active organization', async () => {
       await expect(run(ME, { who: nobody, activeOrgId: owner.orgId }).result).rejects.toBeInstanceOf(
@@ -337,6 +341,15 @@ describe('SessionGuard route kinds', () => {
       await expect(r.result).resolves.toBe(true);
       expect(r.req['authz']).toMatchObject({ routeKey: 'me.access', access: { userId: nobody.userId, grants: [] } });
       expect(r.req['orgContext']).toMatchObject({ userId: nobody.userId, orgId: nobody.orgId });
+    });
+  });
+
+  describe('self routes with no active organization', () => {
+    it('admit the caller with empty grants and no org context', async () => {
+      const r = run(ME, { who: owner, activeOrgId: null });
+      await expect(r.result).resolves.toBe(true);
+      expect(r.req['authz']).toEqual({ access: { userId: owner.userId, grants: [] }, routeKey: 'me.access' });
+      expect(r.req['orgContext']).toBeUndefined();
     });
   });
 
@@ -777,8 +790,8 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'runs.closeSession': tenant(403),
   'runs.transcript': tenant(200),
   'runs.events': tenant('stream'),
-  // a member with no assignment may still read their own (empty) access; a platform admin has no active org
-  'me.access': { none: 200, viewer: 200, pa: 403 },
+  // anyone signed in reads their own access: empty for a member with no assignment, platformAdmin only with no active org
+  'me.access': { none: 200, viewer: 200, pa: 200 },
   'roles.list': tenant(200),
   'members.list': tenant(403),
   'assignments.list': tenant(403),
@@ -787,6 +800,13 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'invitations.list': tenant(403),
   'invitations.create': tenant(403),
   'invitations.remove': tenant(403),
+  'invitations.resend': tenant(403),
+  'orgs.checklist': tenant(403),
+  // the seeded invitation belongs to another email, so a signed-in user finds none of them
+  'me.listInvitations': { none: 200, viewer: 200, pa: 200 },
+  'me.getInvitation': { none: 404, viewer: 404, pa: 404 },
+  'me.acceptInvitation': { none: 404, viewer: 404, pa: 404 },
+  'me.declineInvitation': { none: 404, viewer: 404, pa: 404 },
   'platform.createOrg': platformRoute(201),
   'platform.listOrgs': platformRoute(200),
   'platform.listProjects': platformRoute(200),
@@ -797,14 +817,26 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'platform.removeAssignment': platformRoute(204),
   'platform.listInvitations': platformRoute(200),
   'platform.createInvitation': platformRoute(201),
+  // before removeInvitation in the run order, so it sees the seeded pending invitation
+  'platform.resendInvitation': platformRoute(200),
   'platform.removeInvitation': platformRoute(204),
 };
 
 const isPlatformKey = (key: string): boolean => key.startsWith('platform.');
 // Object.keys widens the key type to string; DENIAL_TABLE is complete by type, so its keys are exactly HttpKey
-const ALL_KEYS = Object.keys(DENIAL_TABLE) as HttpKey[];
+const TABLE_KEYS = Object.keys(DENIAL_TABLE) as HttpKey[];
+// keys whose controller a later task adds are in the table but not exercised until that task deletes its NOT_REGISTERED_YET line
+const ALL_KEYS = TABLE_KEYS.filter((k) => !NOT_REGISTERED_YET.includes(k));
 const TENANT_KEYS = ALL_KEYS.filter((k) => !isPlatformKey(k));
 const PLATFORM_KEYS = ALL_KEYS.filter(isPlatformKey);
+
+/** A stray session (active org it is not in) is refused everywhere except on a user route, which ignores orgs. */
+const strayStatus = (k: HttpKey): number => {
+  if (routeAccess[k].scope !== 'user') return 403;
+  const { viewer } = DENIAL_TABLE[k];
+  // a stream the viewer may open answers 200
+  return viewer === 'stream' ? 200 : viewer;
+};
 
 describe('denial table over every route, stream and terminal', () => {
   const ORIGIN = 'http://localhost:5173';
@@ -1090,7 +1122,7 @@ describe('denial table over every route, stream and terminal', () => {
   });
 
   it('N3: the table has a row for every route key and no other, and every key is in routeAccess', () => {
-    const table = [...ALL_KEYS, ...TERMINAL_ROWS].sort();
+    const table = [...TABLE_KEYS, ...TERMINAL_ROWS].sort();
     expect(table).toEqual(Object.keys(flat).sort());
     expect(table).toEqual(Object.keys(routeAccess).sort());
   });
@@ -1106,7 +1138,8 @@ describe('denial table over every route, stream and terminal', () => {
   });
 
   it('a viewer gets 403 on every write and on every read a viewer may not do', async () => {
-    const writes = ALL_KEYS.filter((k) => flat[k]?.method !== 'GET');
+    // a user route (the caller's own invitations) is open to every signed-in user, so it is not a role-gated write
+    const writes = ALL_KEYS.filter((k) => flat[k]?.method !== 'GET' && routeAccess[k].scope !== 'user');
     expect(writes.length).toBeGreaterThan(25);
     expect(writes.filter((k) => DENIAL_TABLE[k].viewer !== 403)).toEqual([]); // no write is open to a viewer
     const refused = ALL_KEYS.filter((k) => DENIAL_TABLE[k].viewer === 403);
@@ -1141,8 +1174,8 @@ describe('denial table over every route, stream and terminal', () => {
   });
 
   it('BR-8: a signed-in user whose active org is not theirs gets 403 on every route and 4403 on both terminals', async () => {
-    expect(await mismatches(ALL_KEYS, strayCookie, () => 403)).toEqual([]);
-    expect(await mismatches(TENANT_KEYS, strayCookie, () => 403, orgB)).toEqual([]);
+    expect(await mismatches(ALL_KEYS, strayCookie, strayStatus)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, strayCookie, strayStatus, orgB)).toEqual([]);
     for (const path of terminalPaths()) expect(await terminal(path, strayCookie)).toEqual({ code: 4403, bytes: 0 });
   });
 
@@ -1162,8 +1195,8 @@ describe('denial table over every route, stream and terminal', () => {
     expect(await mismatches(PLATFORM_KEYS, ownerCookie, () => 403)).toEqual([]);
     expect(await mismatches(TENANT_KEYS, paCookie, (k) => DENIAL_TABLE[k].pa, orgA, NO_ACTIVE_ORG)).toEqual([]);
     // the stray session points at org B: a write that got through would land there
-    expect(await mismatches(ALL_KEYS, strayCookie, () => 403)).toEqual([]);
-    expect(await mismatches(TENANT_KEYS, strayCookie, () => 403, orgB)).toEqual([]);
+    expect(await mismatches(ALL_KEYS, strayCookie, strayStatus)).toEqual([]);
+    expect(await mismatches(TENANT_KEYS, strayCookie, strayStatus, orgB)).toEqual([]);
     expect(await snapshot(orgA, orgB)).toEqual(before);
     expect(t.temporal.calls).toEqual([]);
     expect(t.secrets.names()).not.toContain('denial-table-secret');

@@ -11,7 +11,10 @@ export const FORBIDDEN_DETAIL = 'Not allowed for your role here';
  * `project-list` needs it held somewhere; `org` needs it held somewhere and granted at org scope; `project` needs it
  * held somewhere and then a target lookup. Platform routes are decided before access loads and never reach this.
  */
-export function preTargetDecision(entry: Exclude<RouteAccess, { scope: 'platform' }>, access: Access): PreTarget {
+export function preTargetDecision(
+  entry: Exclude<RouteAccess, { scope: 'platform' | 'user' }>,
+  access: Access,
+): PreTarget {
   switch (entry.scope) {
     case 'self':
       return 'allow';

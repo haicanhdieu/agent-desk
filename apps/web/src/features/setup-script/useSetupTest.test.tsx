@@ -1,8 +1,17 @@
 import type { SetupTestDto } from '@agentdesk/contracts';
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { FakeEventSource } from '@/test/fakeEventSource';
 import { useSetupTest } from './useSetupTest';
+
+const orgResync = vi.hoisted(() => ({
+  urlOrgId: vi.fn((): string | undefined => undefined),
+  resyncOrgAfterStreamError: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('@/features/auth/orgResync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/auth/orgResync')>()),
+  ...orgResync,
+}));
 
 const ID = 'b0000000-0000-4000-8000-000000000001';
 const ended: SetupTestDto = {
@@ -53,5 +62,26 @@ describe('useSetupTest', () => {
     });
     expect(source.closed).toBe(true);
     expect(FakeEventSource.instances).toHaveLength(1);
+  });
+
+  it('the stream URL carries the URL org', () => {
+    orgResync.urlOrgId.mockReturnValue('c0000000-0000-4000-8000-000000000001');
+    renderHook(() => useSetupTest(ID));
+    expect(new URL(FakeEventSource.latest().url, 'http://x').searchParams.get('orgId')).toBe(
+      'c0000000-0000-4000-8000-000000000001',
+    );
+  });
+
+  it('a closed stream resyncs the org, then re-opens', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    orgResync.resyncOrgAfterStreamError.mockClear();
+    renderHook(() => useSetupTest(ID));
+    await act(async () => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+    expect(orgResync.resyncOrgAfterStreamError).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(1_200));
+    expect(FakeEventSource.instances).toHaveLength(2);
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 });

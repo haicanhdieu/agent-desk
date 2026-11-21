@@ -14,6 +14,12 @@ import { runsQueries } from './queries';
 import { PROJECT_STREAM_HIDDEN_MS, useProjectEvents } from './useProjectEvents';
 import { FINAL_LOG_RECHECK_MS, useFinalLogReload, useRunEvents } from './useRunEvents';
 
+const orgResync = vi.hoisted(() => ({ resyncOrgAfterStreamError: vi.fn(() => Promise.resolve()) }));
+vi.mock('@/features/auth/orgResync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/auth/orgResync')>()),
+  ...orgResync,
+}));
+
 const org = 'alice';
 const projectId = ids.project.invoicerApi;
 const base = `/o/${org}/p/${projectId}`;
@@ -82,6 +88,8 @@ const setHidden = (h: boolean) => {
 };
 
 afterEach(() => {
+  orgResync.resyncOrgAfterStreamError.mockReset();
+  orgResync.resyncOrgAfterStreamError.mockImplementation(() => Promise.resolve());
   hidden = false;
   vi.useRealTimers();
   vi.restoreAllMocks();
@@ -139,14 +147,14 @@ describe('useRunEvents', () => {
     expect(source.closed).toBe(false);
   });
 
-  it('opens a new stream after the last seen seq when the browser gives up', () => {
+  it('opens a new stream after the last seen seq when the browser gives up', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     const qc = new QueryClient();
     qc.setQueryData(runsQueries.detail(org, projectId, 61).queryKey, fixture(61));
     qc.setQueryData(runsQueries.events(org, projectId, 61).queryKey, [ev(1)]);
     const { result } = renderHook(() => useRunEvents(org, projectId, 61, runId(61)), { wrapper: wrapperFor(qc) });
     const first = FakeEventSource.latest();
-    act(() => {
+    await act(async () => {
       first.open();
       first.emit('event', ev(2), 2);
       first.fail(FakeEventSource.CLOSED);
@@ -157,28 +165,43 @@ describe('useRunEvents', () => {
     expect(FakeEventSource.latest().url).toBe(`${runPrefix(61)}?after=2`);
   });
 
-  it('backs off 1, 2, 4 … 30 s, gives up after 8 failed re-opens and stays reconnecting; an open resets it', () => {
+  it('backs off 1, 2, 4 … 30 s, gives up after 8 failed re-opens and stays reconnecting; an open resets it', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     vi.spyOn(Math, 'random').mockReturnValue(1);
     const qc = new QueryClient();
     const { result } = renderHook(() => useRunEvents(org, projectId, 61, runId(61)), { wrapper: wrapperFor(qc) });
     // With full jitter (+20 %).
-    act(() => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+    await act(async () => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
     act(() => vi.advanceTimersByTime(1_200));
     act(() => FakeEventSource.latest().open());
     expect(result.current).toBe('live');
     const delays = [1_200, 2_400, 4_800, 9_600, 19_200, 36_000, 36_000, 36_000];
     for (const [i, delay] of delays.entries()) {
-      act(() => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+      await act(async () => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
       act(() => vi.advanceTimersByTime(delay - 1));
       expect(FakeEventSource.instances).toHaveLength(i + 2);
       act(() => vi.advanceTimersByTime(1));
       expect(FakeEventSource.instances).toHaveLength(i + 3);
     }
-    act(() => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+    await act(async () => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
     act(() => vi.advanceTimersByTime(10 * 60_000));
     expect(FakeEventSource.instances).toHaveLength(delays.length + 2);
     expect(result.current).toBe('reconnecting');
+  });
+
+  it('a closed stream resyncs the org and re-opens only after the resync settled', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let settle: () => void = () => undefined;
+    orgResync.resyncOrgAfterStreamError.mockImplementation(() => new Promise<void>((r) => (settle = r)));
+    renderHook(() => useRunEvents(org, projectId, 61, runId(61)), { wrapper: wrapperFor(new QueryClient()) });
+    await act(async () => FakeEventSource.latest().fail(FakeEventSource.CLOSED));
+    expect(orgResync.resyncOrgAfterStreamError).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeEventSource.instances).toHaveLength(1);
+    await act(async () => settle());
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(FakeEventSource.instances).toHaveLength(2);
   });
 
   it('status succeeded → ended and the source is closed', () => {
@@ -249,7 +272,7 @@ describe('run detail route, live', () => {
     act(() => FakeWebSocket.latest().open());
     expect(indicator()).toHaveTextContent('Reconnecting…');
     const source = runSource(61);
-    expect(source.url).toMatch(/\?after=\d+$/);
+    expect(source.url).toMatch(/\?after=\d+&orgId=[0-9a-f-]+$/);
 
     act(() => source.open());
     expect(indicator()).toHaveTextContent('Live');
@@ -424,7 +447,7 @@ describe('project events', () => {
     expect(FakeEventSource.instances).toHaveLength(1);
   });
 
-  it('a stream the browser gives up on re-opens with growing delays, then stops; catch-up only on open', () => {
+  it('a stream the browser gives up on re-opens with growing delays, then stops; catch-up only on open', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     vi.spyOn(Math, 'random').mockReturnValue(0);
     // Unobserved, the list would be garbage-collected during the minutes this test skips.
@@ -440,20 +463,41 @@ describe('project events', () => {
 
     const delays = [1_000, 2_000, 4_000, 8_000, 16_000, 30_000, 30_000, 30_000];
     for (const [i, delay] of delays.entries()) {
-      act(() => projectSource().fail(FakeEventSource.CLOSED));
+      await act(async () => projectSource().fail(FakeEventSource.CLOSED));
       act(() => vi.advanceTimersByTime(delay - 1));
       expect(FakeEventSource.instances).toHaveLength(i + 1);
       act(() => vi.advanceTimersByTime(1));
       expect(FakeEventSource.instances).toHaveLength(i + 2);
     }
     expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
-    act(() => projectSource().fail(FakeEventSource.CLOSED));
+    await act(async () => projectSource().fail(FakeEventSource.CLOSED));
     act(() => vi.advanceTimersByTime(10 * 60_000));
     expect(FakeEventSource.instances).toHaveLength(delays.length + 1);
     expect(qc.getQueryState(listKey)?.isInvalidated).toBe(false);
   });
 
-  it('an open resets the back-off and catches up', () => {
+  it('a closed stream resyncs the org and re-opens only after the resync settled; the URL carries the org', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    vi.spyOn(Math, 'random').mockReturnValue(0);
+    let settle: () => void = () => undefined;
+    orgResync.resyncOrgAfterStreamError.mockImplementation(() => new Promise<void>((r) => (settle = r)));
+    renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(new QueryClient()) });
+    await act(async () => projectSource().fail(FakeEventSource.CLOSED));
+    expect(orgResync.resyncOrgAfterStreamError).toHaveBeenCalledTimes(1);
+    act(() => vi.advanceTimersByTime(60_000));
+    expect(FakeEventSource.instances).toHaveLength(1);
+    await act(async () => settle());
+    act(() => vi.advanceTimersByTime(1_000));
+    expect(FakeEventSource.instances).toHaveLength(2);
+  });
+
+  it('a stream opened on the route carries the URL org', async () => {
+    await renderRoute(`${base}/runs`);
+    await waitFor(() => expect(FakeEventSource.matching(projectStream).length).toBeGreaterThan(0));
+    expect(projectSource().url).toMatch(/\?orgId=[0-9a-f-]+$/);
+  });
+
+  it('an open resets the back-off and catches up', async () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
     vi.spyOn(Math, 'random').mockReturnValue(0);
     const qc = new QueryClient();
@@ -466,12 +510,12 @@ describe('project events', () => {
     });
     renderHook(() => useProjectEvents(org, projectId), { wrapper: wrapperFor(qc) });
     for (const delay of [1_000, 2_000, 4_000]) {
-      act(() => projectSource().fail(FakeEventSource.CLOSED));
+      await act(async () => projectSource().fail(FakeEventSource.CLOSED));
       act(() => vi.advanceTimersByTime(delay));
     }
     act(() => projectSource().open());
     expect(qc.getQueryState(listKey)?.isInvalidated).toBe(true);
-    act(() => projectSource().fail(FakeEventSource.CLOSED));
+    await act(async () => projectSource().fail(FakeEventSource.CLOSED));
     act(() => vi.advanceTimersByTime(1_000));
     expect(FakeEventSource.instances).toHaveLength(5);
   });

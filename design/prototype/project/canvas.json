@@ -641,6 +641,550 @@
    "h": 1000,
    "title": "Runs \u2014 grouped, loading page 3 from page 4, merged group",
    "expand": "fill"
+  },
+  "ProjectsChecklist.dc.html": {
+   "x": 0,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 first-run checklist, partial",
+   "expand": "fill"
+  },
+  "ProjectsChecklistDone.dc.html": {
+   "x": 1520,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 one project set up, checklist gone; pending invitations banner",
+   "expand": "fill"
+  },
+  "ProjectsChecklistError.dc.html": {
+   "x": 3040,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 checklist failed to load",
+   "expand": "fill"
+  },
+  "ProjectsChecklistLoading.dc.html": {
+   "x": 4560,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 checklist loading",
+   "expand": "fill"
+  },
+  "ProjectsEmptyChecklist.dc.html": {
+   "x": 0,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 empty, owner: live checklist, nothing done",
+   "expand": "fill"
+  },
+  "ProjectsEmptyNoCreate.dc.html": {
+   "x": 1520,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 empty, no create rights",
+   "expand": "fill"
+  },
+  "ProjectsMember.dc.html": {
+   "x": 3040,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 member, one org: no switcher, no Invitations, no New project",
+   "expand": "fill"
+  },
+  "ProjectsNoAccess.dc.html": {
+   "x": 4560,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 member with no role in this org, switcher still usable",
+   "expand": "fill"
+  },
+  "ProjectsOrgSwitchAdmin.dc.html": {
+   "x": 0,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 platform admin with one org, switcher open with Create organization",
+   "expand": "fill"
+  },
+  "ProjectsOrgSwitchOpen.dc.html": {
+   "x": 1520,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 org switcher open, several orgs, long name",
+   "expand": "fill"
+  },
+  "ProjectsSwitching.dc.html": {
+   "x": 3040,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 switching org, loading",
+   "expand": "fill"
+  },
+  "SignInNoInvitation.dc.html": {
+   "x": 4560,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Sign in \u2014 refused, no invitation",
+   "expand": "fill"
+  },
+  "MyInvitations.dc.html": {
+   "x": 0,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 pending invitations",
+   "expand": "fill"
+  },
+  "MyInvitationsAccepting.dc.html": {
+   "x": 1520,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 accepting one invitation",
+   "expand": "fill"
+  },
+  "MyInvitationsEmpty.dc.html": {
+   "x": 3040,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 no org, no invitations",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptyPlatformAdmin.dc.html": {
+   "x": 4560,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 platform admin, no org",
+   "expand": "fill"
+  },
+  "MyInvitationsError.dc.html": {
+   "x": 0,
+   "y": 19760,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 failed to load",
+   "expand": "fill"
+  },
+  "MyInvitationsLoading.dc.html": {
+   "x": 1520,
+   "y": 19760,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 loading",
+   "expand": "fill"
+  },
+  "InvitationAccept.dc.html": {
+   "x": 0,
+   "y": 21040,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 pending, Accept or Decline",
+   "expand": "fill"
+  },
+  "InvitationAcceptAccepted.dc.html": {
+   "x": 1520,
+   "y": 21040,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 already joined",
+   "expand": "fill"
+  },
+  "InvitationAcceptAccepting.dc.html": {
+   "x": 3040,
+   "y": 21040,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 accepting",
+   "expand": "fill"
+  },
+  "InvitationAcceptDeclineConfirm.dc.html": {
+   "x": 4560,
+   "y": 21040,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 decline confirm",
+   "expand": "fill"
+  },
+  "InvitationAcceptDeclined.dc.html": {
+   "x": 0,
+   "y": 22320,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 declined",
+   "expand": "fill"
+  },
+  "InvitationAcceptDeclining.dc.html": {
+   "x": 1520,
+   "y": 22320,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 declining",
+   "expand": "fill"
+  },
+  "InvitationAcceptError.dc.html": {
+   "x": 3040,
+   "y": 22320,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 failed to load",
+   "expand": "fill"
+  },
+  "InvitationAcceptExpired.dc.html": {
+   "x": 4560,
+   "y": 22320,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 expired",
+   "expand": "fill"
+  },
+  "InvitationAcceptExpiredInviterDeleted.dc.html": {
+   "x": 0,
+   "y": 23600,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 expired, inviter deleted",
+   "expand": "fill"
+  },
+  "InvitationAcceptLoading.dc.html": {
+   "x": 1520,
+   "y": 23600,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 loading",
+   "expand": "fill"
+  },
+  "InvitationAcceptNotAvailable.dc.html": {
+   "x": 3040,
+   "y": 23600,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 not available",
+   "expand": "fill"
+  },
+  "InvitationAcceptRevoked.dc.html": {
+   "x": 4560,
+   "y": 23600,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitation \u2014 revoked",
+   "expand": "fill"
+  },
+  "OrgInvitations.dc.html": {
+   "x": 0,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 pending (default filter)",
+   "expand": "fill"
+  },
+  "OrgInvitationsAll.dc.html": {
+   "x": 1520,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 All, every status and expiry form",
+   "expand": "fill"
+  },
+  "OrgInvitationsEmpty.dc.html": {
+   "x": 3040,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 no pending invitations",
+   "expand": "fill"
+  },
+  "OrgInvitationsEmptyAll.dc.html": {
+   "x": 4560,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 none yet",
+   "expand": "fill"
+  },
+  "OrgInvitationsEmptyFiltered.dc.html": {
+   "x": 0,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 no declined invitations",
+   "expand": "fill"
+  },
+  "OrgInvitationsError.dc.html": {
+   "x": 1520,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 failed to load",
+   "expand": "fill"
+  },
+  "OrgInvitationsFiltered.dc.html": {
+   "x": 3040,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 Expired filter",
+   "expand": "fill"
+  },
+  "OrgInvitationsForbidden.dc.html": {
+   "x": 4560,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 no access (member or viewer)",
+   "expand": "fill"
+  },
+  "OrgInvitationsLoading.dc.html": {
+   "x": 0,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 loading",
+   "expand": "fill"
+  },
+  "OrgInvitationsPaged.dc.html": {
+   "x": 1520,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 page 2 of 2",
+   "expand": "fill"
+  },
+  "OrgInvitationsRowMenu.dc.html": {
+   "x": 3040,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 row menu on a pending invitation",
+   "expand": "fill"
+  },
+  "OrgInvitationsRowMenuExpired.dc.html": {
+   "x": 4560,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 row menu on an expired invitation: Resend only",
+   "expand": "fill"
+  },
+  "OrgInvitationsCopyFailed.dc.html": {
+   "x": 0,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 copy failed, link shown to copy by hand",
+   "expand": "fill"
+  },
+  "OrgInvitationsCreated.dc.html": {
+   "x": 1520,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 invitation created, copy link",
+   "expand": "fill"
+  },
+  "OrgInvitationsInvite.dc.html": {
+   "x": 3040,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 default",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteFieldError.dc.html": {
+   "x": 4560,
+   "y": 28720,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 email already invited",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteFormError.dc.html": {
+   "x": 0,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 form error",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteProjectAdmin.dc.html": {
+   "x": 1520,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 project admin: projects they administer only, no Owner",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteProjects.dc.html": {
+   "x": 3040,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 some projects",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteSaving.dc.html": {
+   "x": 4560,
+   "y": 30000,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 saving",
+   "expand": "fill"
+  },
+  "OrgInvitationsInviteTabSwitched.dc.html": {
+   "x": 0,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invite dialog \u2014 refused, org switched in another tab; input kept",
+   "expand": "fill"
+  },
+  "OrgInvitationsLinkCopied.dc.html": {
+   "x": 1520,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 link copied",
+   "expand": "fill"
+  },
+  "OrgInvitationsRenewed.dc.html": {
+   "x": 3040,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 resend done, new expiry",
+   "expand": "fill"
+  },
+  "OrgInvitationsResendConflict.dc.html": {
+   "x": 4560,
+   "y": 31280,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 resend refused, invitation changed meanwhile, list refreshed",
+   "expand": "fill"
+  },
+  "OrgInvitationsResending.dc.html": {
+   "x": 0,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 resend in flight, row menu disabled",
+   "expand": "fill"
+  },
+  "OrgInvitationsRevokeConfirm.dc.html": {
+   "x": 1520,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 revoke confirmation",
+   "expand": "fill"
+  },
+  "OrgInvitationsRevoked.dc.html": {
+   "x": 3040,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 revoked (All filter), toast",
+   "expand": "fill"
+  },
+  "CreateOrg.dc.html": {
+   "x": 4560,
+   "y": 32560,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 empty form",
+   "expand": "fill"
+  },
+  "CreateOrgCreated.dc.html": {
+   "x": 0,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 created, owner link",
+   "expand": "fill"
+  },
+  "CreateOrgError.dc.html": {
+   "x": 1520,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 network or server error on create",
+   "expand": "fill"
+  },
+  "CreateOrgFieldErrors.dc.html": {
+   "x": 3040,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 field errors",
+   "expand": "fill"
+  },
+  "CreateOrgForbidden.dc.html": {
+   "x": 4560,
+   "y": 33840,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 not a platform admin",
+   "expand": "fill"
+  },
+  "CreateOrgInvitationFailed.dc.html": {
+   "x": 0,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 org created, owner invitation failed",
+   "expand": "fill"
+  },
+  "CreateOrgRetrying.dc.html": {
+   "x": 1520,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 retrying the owner invitation",
+   "expand": "fill"
+  },
+  "CreateOrgSaving.dc.html": {
+   "x": 3040,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 saving",
+   "expand": "fill"
+  },
+  "CreateOrgSlugAuto.dc.html": {
+   "x": 4560,
+   "y": 35120,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 URL filled from the name",
+   "expand": "fill"
+  },
+  "CreateOrgSlugEdited.dc.html": {
+   "x": 0,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 URL edited by hand",
+   "expand": "fill"
+  },
+  "CreateOrgSlugTaken.dc.html": {
+   "x": 1520,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Create organization \u2014 URL taken",
+   "expand": "fill"
   }
  },
  "order": [
@@ -722,7 +1266,75 @@
   "DeskSetupPaged.dc.html",
   "DeskSetupVersionsLoading.dc.html",
   "DeskSetupVersionsError.dc.html",
-  "DeskSetupVersionsEmpty.dc.html"
+  "DeskSetupVersionsEmpty.dc.html",
+  "ProjectsChecklist.dc.html",
+  "ProjectsChecklistDone.dc.html",
+  "ProjectsChecklistError.dc.html",
+  "ProjectsChecklistLoading.dc.html",
+  "ProjectsEmptyChecklist.dc.html",
+  "ProjectsEmptyNoCreate.dc.html",
+  "ProjectsMember.dc.html",
+  "ProjectsNoAccess.dc.html",
+  "ProjectsOrgSwitchAdmin.dc.html",
+  "ProjectsOrgSwitchOpen.dc.html",
+  "ProjectsSwitching.dc.html",
+  "SignInNoInvitation.dc.html",
+  "MyInvitations.dc.html",
+  "MyInvitationsAccepting.dc.html",
+  "MyInvitationsEmpty.dc.html",
+  "MyInvitationsEmptyPlatformAdmin.dc.html",
+  "MyInvitationsError.dc.html",
+  "MyInvitationsLoading.dc.html",
+  "InvitationAccept.dc.html",
+  "InvitationAcceptAccepted.dc.html",
+  "InvitationAcceptAccepting.dc.html",
+  "InvitationAcceptDeclineConfirm.dc.html",
+  "InvitationAcceptDeclined.dc.html",
+  "InvitationAcceptDeclining.dc.html",
+  "InvitationAcceptError.dc.html",
+  "InvitationAcceptExpired.dc.html",
+  "InvitationAcceptExpiredInviterDeleted.dc.html",
+  "InvitationAcceptLoading.dc.html",
+  "InvitationAcceptNotAvailable.dc.html",
+  "InvitationAcceptRevoked.dc.html",
+  "OrgInvitations.dc.html",
+  "OrgInvitationsAll.dc.html",
+  "OrgInvitationsEmpty.dc.html",
+  "OrgInvitationsEmptyAll.dc.html",
+  "OrgInvitationsEmptyFiltered.dc.html",
+  "OrgInvitationsError.dc.html",
+  "OrgInvitationsFiltered.dc.html",
+  "OrgInvitationsForbidden.dc.html",
+  "OrgInvitationsLoading.dc.html",
+  "OrgInvitationsPaged.dc.html",
+  "OrgInvitationsRowMenu.dc.html",
+  "OrgInvitationsRowMenuExpired.dc.html",
+  "OrgInvitationsCopyFailed.dc.html",
+  "OrgInvitationsCreated.dc.html",
+  "OrgInvitationsInvite.dc.html",
+  "OrgInvitationsInviteFieldError.dc.html",
+  "OrgInvitationsInviteFormError.dc.html",
+  "OrgInvitationsInviteProjectAdmin.dc.html",
+  "OrgInvitationsInviteProjects.dc.html",
+  "OrgInvitationsInviteSaving.dc.html",
+  "OrgInvitationsInviteTabSwitched.dc.html",
+  "OrgInvitationsLinkCopied.dc.html",
+  "OrgInvitationsRenewed.dc.html",
+  "OrgInvitationsResendConflict.dc.html",
+  "OrgInvitationsResending.dc.html",
+  "OrgInvitationsRevokeConfirm.dc.html",
+  "OrgInvitationsRevoked.dc.html",
+  "CreateOrg.dc.html",
+  "CreateOrgCreated.dc.html",
+  "CreateOrgError.dc.html",
+  "CreateOrgFieldErrors.dc.html",
+  "CreateOrgForbidden.dc.html",
+  "CreateOrgInvitationFailed.dc.html",
+  "CreateOrgRetrying.dc.html",
+  "CreateOrgSaving.dc.html",
+  "CreateOrgSlugAuto.dc.html",
+  "CreateOrgSlugEdited.dc.html",
+  "CreateOrgSlugTaken.dc.html"
  ],
  "notes": {
   "t-intro": {

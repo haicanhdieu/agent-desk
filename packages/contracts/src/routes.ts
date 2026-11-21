@@ -5,8 +5,12 @@ import {
   AssignmentDto,
   AssignmentListQuery,
   CreateAssignmentRequest,
+  AcceptInvitationResponse,
   CreateInvitationRequest,
   InvitationDto,
+  InvitationListQuery,
+  MyInvitationDto,
+  OrgChecklistDto,
   MemberDto,
   RoleDto,
 } from './schemas/access';
@@ -78,6 +82,8 @@ const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.num
 const orgParams = z.object({ orgId: z.uuid() });
 const orgAssignmentParams = z.object({ orgId: z.uuid(), assignmentId: z.uuid() });
 const orgInvitationParams = z.object({ orgId: z.uuid(), invitationId: z.uuid() });
+const invitationParams = z.object({ invitationId: z.uuid() });
+const orgQuery = { orgId: z.uuid().optional() };
 const empty = z.null();
 
 export const routes = {
@@ -146,6 +152,7 @@ export const routes = {
       method: 'GET',
       path: '/api/projects/:projectId/events',
       params: projectParams,
+      query: z.object(orgQuery),
       response: ProjectRunEvent,
     },
   },
@@ -292,7 +299,7 @@ export const routes = {
       method: 'GET',
       path: '/api/setup-tests/:setupTestId/events',
       params: setupTestParams,
-      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional() }),
+      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional(), ...orgQuery }),
       response: SetupTestDto,
     },
     /** WebSocket upgrade, framed like runs.terminal; the gateway lands separately from the HTTP controllers. */
@@ -300,6 +307,7 @@ export const routes = {
       method: 'GET',
       path: '/api/setup-tests/:setupTestId/terminal',
       params: setupTestParams,
+      query: z.object(orgQuery),
       response: empty,
     },
   },
@@ -344,14 +352,47 @@ export const routes = {
       method: 'GET',
       path: '/api/runs/:runId/events',
       params: runParams,
-      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional() }),
+      query: z.object({ after: z.coerce.number().int().min(0).max(2147483647).optional(), ...orgQuery }),
       response: RunStatusEvent,
     },
-    /** WebSocket upgrade: binary terminal bytes both ways; text `{"type":"resize","cols","rows"}`; close 4401/4403/4409/4410. */
-    terminal: { method: 'GET', path: '/api/runs/:runId/terminal', params: runParams, response: empty },
+    /** WebSocket upgrade: binary terminal bytes both ways; text `{"type":"resize","cols","rows"}`; close 4401/4403/4409/4410/4412. */
+    terminal: {
+      method: 'GET',
+      path: '/api/runs/:runId/terminal',
+      params: runParams,
+      query: z.object(orgQuery),
+      response: empty,
+    },
   },
   me: {
     access: { method: 'GET', path: '/api/me/access', response: AccessDto },
+    listInvitations: {
+      method: 'GET',
+      path: '/api/me/invitations',
+      query: PageQuery,
+      response: pageOf(MyInvitationDto),
+    },
+    getInvitation: {
+      method: 'GET',
+      path: '/api/me/invitations/:invitationId',
+      params: invitationParams,
+      response: MyInvitationDto,
+    },
+    acceptInvitation: {
+      method: 'POST',
+      path: '/api/me/invitations/:invitationId/accept',
+      params: invitationParams,
+      response: AcceptInvitationResponse,
+    },
+    declineInvitation: {
+      method: 'POST',
+      path: '/api/me/invitations/:invitationId/decline',
+      params: invitationParams,
+      response: empty,
+    },
+  },
+  orgs: {
+    checklist: { method: 'GET', path: '/api/orgs/:orgId/checklist', params: orgParams, response: OrgChecklistDto },
   },
   roles: {
     list: { method: 'GET', path: '/api/orgs/:orgId/roles', params: orgParams, response: z.array(RoleDto) },
@@ -392,7 +433,7 @@ export const routes = {
       method: 'GET',
       path: '/api/orgs/:orgId/invitations',
       params: orgParams,
-      query: PageQuery,
+      query: InvitationListQuery,
       response: pageOf(InvitationDto),
     },
     create: {
@@ -407,6 +448,12 @@ export const routes = {
       path: '/api/orgs/:orgId/invitations/:invitationId',
       params: orgInvitationParams,
       response: empty,
+    },
+    resend: {
+      method: 'POST',
+      path: '/api/orgs/:orgId/invitations/:invitationId/resend',
+      params: orgInvitationParams,
+      response: InvitationDto,
     },
   },
   platform: {
@@ -456,7 +503,7 @@ export const routes = {
       method: 'GET',
       path: '/api/platform/orgs/:orgId/invitations',
       params: orgParams,
-      query: PageQuery,
+      query: InvitationListQuery,
       response: pageOf(PlatformInvitationDto),
     },
     createInvitation: {
@@ -471,6 +518,12 @@ export const routes = {
       path: '/api/platform/orgs/:orgId/invitations/:invitationId',
       params: orgInvitationParams,
       response: empty,
+    },
+    resendInvitation: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/invitations/:invitationId/resend',
+      params: orgInvitationParams,
+      response: PlatformInvitationDto,
     },
   },
 } as const satisfies Record<string, Record<string, RouteDef>>;

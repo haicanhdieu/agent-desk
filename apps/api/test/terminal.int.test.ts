@@ -1245,3 +1245,123 @@ describe('terminal attach by permission and ownership', () => {
     await d.closed;
   });
 });
+
+describe('terminal pinned to the org it connected to (N-6)', () => {
+  let zed: string; // owner of alice's org and of bob's org; the session's active org is alice's
+  const setActive = (cookie: string, organizationId: string) =>
+    t.app.inject({
+      method: 'POST',
+      url: '/auth/organization/set-active',
+      headers: { cookie },
+      payload: { organizationId },
+    });
+
+  beforeAll(async () => {
+    await inviteAndLogin(t, aliceOrg, 'zed', 'owner', { type: 'org' });
+    await inviteAndLogin(t, bobOrg, 'zed', 'owner', { type: 'org' });
+    zed = await loginAs(t, 'zed'); // oldest membership (alice's org) is the active org
+  });
+
+  beforeEach(async () => {
+    await previousSocketsCleanedUp();
+    execCalls = 0;
+    execLog.length = 0;
+    execOverride = undefined;
+    t.temporal.reset();
+    t.app.get(TerminalGateway).leaseIntervalMs = 120_000;
+  });
+
+  const pathWith = (runId: string, orgId: string) => `/api/runs/${runId}/terminal?orgId=${orgId}`;
+
+  it('closes 4412 before any byte or exec when orgId is not the session active org', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: zed, path: pathWith(runId, bobOrg) });
+    expect(await c.closed).toBe(4412);
+    expect(c.bytes()).toBe('');
+    expectNoExec();
+  });
+
+  it('closes the same 4412 for an org the user is not a member of, with no byte and no exec (no existence oracle)', async () => {
+    const strangerOrg = (await createOrg(t, 'Stranger', 'stranger')).id;
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: zed, path: pathWith(runId, strangerOrg) });
+    expect(await c.closed).toBe(4412);
+    expect(c.bytes()).toBe('');
+    expectNoExec();
+  });
+
+  it('attaches when orgId is the active org', async () => {
+    const runId = await makeRun('running');
+    const c = connect(runId, { cookie: zed, path: pathWith(runId, aliceOrg) });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('keeps the socket open on reauth after the session switches to another org', async () => {
+    const runId = await makeRun('running');
+    const cookie = await loginAs(t, 'zed');
+    const c = connect(runId, { cookie, path: pathWith(runId, aliceOrg) });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    expect((await setActive(cookie, bobOrg)).statusCode).toBe(200);
+    await sleep(700); // several reauth ticks
+    expect(c.ws.readyState).toBe(WebSocket.OPEN);
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('closes 4403 on reauth when membership in the connect org is gone, even after switching orgs', async () => {
+    const runId = await makeRun('running');
+    const yan = await inviteAndLogin(t, aliceOrg, 'yan', 'owner', { type: 'org' });
+    await inviteAndLogin(t, bobOrg, 'yan', 'owner', { type: 'org' });
+    const c = connect(runId, { cookie: yan, path: pathWith(runId, aliceOrg) });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    expect((await setActive(yan, bobOrg)).statusCode).toBe(200);
+    await t.db.pool.query(
+      `delete from member where user_id = (select id from "user" where handle = 'yan') and organization_id = $1`,
+      [aliceOrg],
+    );
+    expect(await c.closed).toBe(4403);
+  });
+
+  it('closes 4403 on reauth when the assignment in the connect org is revoked but membership stays, after switching orgs', async () => {
+    const runId = await makeRun('running');
+    const xia = await inviteAndLogin(t, aliceOrg, 'xia', 'owner', { type: 'org' });
+    await inviteAndLogin(t, bobOrg, 'xia', 'owner', { type: 'org' });
+    const c = connect(runId, { cookie: xia, path: pathWith(runId, aliceOrg) });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    expect((await setActive(xia, bobOrg)).statusCode).toBe(200);
+    const xiaId = await userIdOf(t, 'xia');
+    // role_assignments is under RLS: read the ids inside the org's scope, then revoke through the platform route.
+    const client = await t.db.pool.connect();
+    let ids: { id: string }[];
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [aliceOrg]);
+      ids = (
+        await client.query<{ id: string }>('select id from role_assignments where org_id = $1 and user_id = $2', [
+          aliceOrg,
+          xiaId,
+        ])
+      ).rows;
+      await client.query('commit');
+    } catch (err) {
+      await client.query('rollback');
+      throw err;
+    } finally {
+      client.release();
+    }
+    expect(ids.length).toBeGreaterThan(0);
+    for (const row of ids) await revoke(t, aliceOrg, row.id);
+    const member = await t.db.pool.query('select 1 from member where user_id = $1 and organization_id = $2', [
+      xiaId,
+      aliceOrg,
+    ]);
+    expect(member.rowCount).toBe(1); // membership kept, only the permission is gone
+    expect(await c.closed).toBe(4403);
+  });
+});

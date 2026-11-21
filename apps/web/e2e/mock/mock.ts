@@ -3,6 +3,7 @@ import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/m
 import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/msw/prStates';
 import { ids } from '../../src/mocks/dto/ids';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
+import { ONBOARDING_SCENARIO_KEY, type OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
 
 /*
  * Mock-mode controls for the e2e specs. There is no test hook in the app: these use what `vite --mode mock` already
@@ -144,5 +145,19 @@ export async function seedLists(page: Page, lists: MockLists): Promise<void> {
       sessionStorage.setItem(key, value);
     },
     [MOCK_LISTS_KEY, JSON.stringify(lists)] as const,
+  );
+}
+
+/**
+ * Starts this test in an onboarding scenario (src/mocks/msw/onboardingScenarios.ts): who is signed in, their orgs and
+ * role, and the invitations and checklist they see. Call before the first `page.goto`: browser.ts reads the key once
+ * when the mock worker starts. It lives in sessionStorage, so a reload in the same tab keeps it.
+ */
+export async function seedOnboarding(page: Page, name: OnboardingScenario): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [ONBOARDING_SCENARIO_KEY, name] as const,
   );
 }

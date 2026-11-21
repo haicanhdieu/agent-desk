@@ -658,3 +658,37 @@ describe('event streams by role and scope', () => {
     }
   });
 });
+
+describe('org query param on the streams (N-6)', () => {
+  it('refuses a run stream whose orgId is not the session org with 409 before any frame', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject);
+    const res = await fetch(`${base}/api/runs/${runId}/events?orgId=${bobOrg}`, { headers: { cookie: alice } });
+    expect(res.status).toBe(409);
+    expect(res.headers.get('content-type')).toContain('application/problem+json');
+    const body = await res.text();
+    expect(JSON.parse(body)).toMatchObject({ type: 'org-mismatch', status: 409 });
+    expect(body).not.toContain('event:');
+  });
+
+  it('refuses a project stream whose orgId is not the session org with 409 before any frame', async () => {
+    const res = await fetch(`${base}/api/projects/${aliceProject}/events?orgId=${bobOrg}`, {
+      headers: { cookie: alice },
+    });
+    expect(res.status).toBe(409);
+    expect(JSON.parse(await res.text())).toMatchObject({ type: 'org-mismatch' });
+  });
+
+  it('streams as before when orgId is the session org', async () => {
+    const runId = await insertRun(aliceOrg, aliceProject);
+    const run = await open(`/api/runs/${runId}/events?orgId=${aliceOrg}`, alice);
+    const project = await open(`/api/projects/${aliceProject}/events?orgId=${aliceOrg}`, alice);
+    try {
+      expect(run.status).toBe(200);
+      expect(project.status).toBe(200);
+      await run.waitFor((m) => ofType(m, 'status').length >= 1);
+    } finally {
+      run.abort();
+      project.abort();
+    }
+  });
+});

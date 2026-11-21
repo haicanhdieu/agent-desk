@@ -6,6 +6,8 @@ import {
   ConnectionDto,
   InvitationDto,
   MemberDto,
+  MyInvitationDto,
+  OrgChecklistDto,
   PlatformMemberDto,
   PlatformOrgDto,
   PlatformProjectDto,
@@ -42,6 +44,7 @@ import {
   platformProjectFixtures,
   roleFixtures,
 } from '../dto/access';
+import { checklistFixtures, myInvitationFixtures, orgInvitationFixtures } from '../dto/invitations';
 import { agentFixtures } from '../dto/agents';
 import { agentModelsFixtures } from '../dto/agentModels';
 import { connectionFixtures, repoFixtures } from '../dto/connections';
@@ -105,6 +108,9 @@ describe('MSW handlers cover the contract', () => {
           items: Object.entries(m).map(([ref, prState]) => ({ ref, prState })),
         })),
       ],
+      [MyInvitationDto, Object.values(myInvitationFixtures)],
+      [InvitationDto, orgInvitationFixtures],
+      [OrgChecklistDto, Object.values(checklistFixtures)],
     ];
     for (const [schema, items] of lists) {
       expect(items.length).toBeGreaterThan(0);
@@ -480,6 +486,8 @@ describe('MSW handler semantics', () => {
   });
 
   it('answers 201 with the new org when a platform admin creates one', async () => {
+    const admin = mockDb.state.users[0];
+    if (admin) admin.platformAdmin = true;
     const res = await fetch('http://localhost:3000/api/platform/orgs', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },

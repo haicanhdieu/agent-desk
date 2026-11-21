@@ -4,6 +4,7 @@ import { act, renderHook, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { mockDb } from '@/mocks/msw/db';
 import { createTestRootRoute, renderRoute } from '@/test/renderRoute';
+import { ORG_SWITCHED_MESSAGE } from '@/features/auth/orgResync';
 import { toastFromError } from './boundaries';
 import { useNow } from './useNow';
 
@@ -95,9 +96,9 @@ describe('app shell', () => {
     spy.mockRestore();
   });
 
-  it('renders the index route for a user without an organization', async () => {
-    await renderRoute('/', { scenario: () => (mockDb.state.members = []) });
-    expect(await screen.findByRole('heading', { name: 'Agent Desk' })).toBeInTheDocument();
+  it('sends a user without an organization to the welcome page', async () => {
+    await renderRoute('/', { scenario: () => (mockDb.state.memberships = []) });
+    expect(await screen.findByRole('heading', { name: "You're not a member of any organization" })).toBeInTheDocument();
   });
 });
 
@@ -105,6 +106,10 @@ describe('toastFromError', () => {
   it('uses the problem title and detail of an ApiError', () => {
     const e = new ApiError({ status: 409, type: 'conflict', title: 'Run already ended', detail: 'Run 62 ended' });
     expect(toastFromError(e)).toEqual({ tone: 'err', title: 'Run already ended', detail: 'Run 62 ended' });
+  });
+  it('shows the switched-in-another-tab text for an org-mismatch error', () => {
+    const e = new ApiError({ status: 409, type: 'org-mismatch', title: 'Conflict' });
+    expect(toastFromError(e)).toEqual({ tone: 'err', title: ORG_SWITCHED_MESSAGE });
   });
   it('falls back for unknown errors', () => {
     expect(toastFromError('boom')).toEqual({ tone: 'err', title: 'Something went wrong' });

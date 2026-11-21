@@ -1,0 +1,83 @@
+.muted {
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.ellipsisCell {
+  max-width: 0;
+  width: 24%;
+}
+.ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-13);
+}
+.cell {
+  font-size: var(--fs-13);
+}
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--fs-13);
+  color: var(--text);
+}
+.status svg {
+  flex: 0 0 auto;
+}
+.off {
+  color: var(--off);
+  display: inline-flex;
+}
+.actionsCell {
+  text-align: right;
+}
+.menuAction {
+  width: 100%;
+  min-width: 120px;
+  justify-content: flex-start;
+}
+.link {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.linkLabel {
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.linkField {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.linkField > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.linkText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  user-select: all;
+}
+.card {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cardTitle {
+  margin: 0;
+  font-size: var(--fs-15);
+  font-weight: 600;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.cardActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}

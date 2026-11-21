@@ -1,0 +1,2 @@
+ALTER TABLE "invitations" DROP CONSTRAINT "invitations_status_check";--> statement-breakpoint
+ALTER TABLE "invitations" ADD CONSTRAINT "invitations_status_check" CHECK ("invitations"."status" in ('pending','accepted','declined','revoked','expired'));

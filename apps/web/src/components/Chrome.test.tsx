@@ -5,6 +5,7 @@ import { Breadcrumb } from './Breadcrumb';
 import { ProjectMenu } from './ProjectSwitch';
 import { SubNav } from './SubNav';
 import { TopBar } from './TopBar';
+import { orgSwitchFixtures } from '@/mocks';
 
 const user = { login: 'kim-hale', initials: 'KH' };
 const project = { org: 'harbor-labs', name: 'invoicer-api', repoUrl: 'https://github.com/harbor-labs/invoicer-api' };
@@ -69,6 +70,37 @@ describe('TopBar global', () => {
     expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
     expect(screen.getByText('Agent Desk')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+  });
+});
+
+describe('TopBar org switch', () => {
+  const org = {
+    ...orgSwitchFixtures.severalOrgs,
+    orgHref: (o: { slug: string }) => `/o/${o.slug}`,
+    createHref: '/orgs/new',
+  };
+  it('renders the switcher on the global variant when org is given', () => {
+    render(<TopBar variant="global" user={user} org={org} />);
+    expect(screen.getByRole('button', { name: /^Switch organization/ })).toBeInTheDocument();
+  });
+  it('draws no separator when the switcher renders nothing (non-admin with no org)', () => {
+    const { container } = render(
+      <TopBar variant="global" user={user} org={{ ...org, current: null, orgs: [], platformAdmin: false }} />,
+    );
+    expect(screen.queryByRole('button', { name: /^Switch organization/ })).toBeNull();
+    expect(container.querySelector('header [class*="sep"]')).toBeNull();
+  });
+  it('draws the separator before a visible switcher', () => {
+    const { container } = render(<TopBar variant="global" user={user} org={org} />);
+    expect(container.querySelector('header [class*="sep"]')).not.toBeNull();
+  });
+  it('renders no switcher on the global variant without org', () => {
+    render(<TopBar variant="global" user={user} />);
+    expect(screen.queryByRole('button', { name: /^Switch organization/ })).toBeNull();
+  });
+  it('renders no switcher on the project variant', () => {
+    render(<TopBar variant="project" user={user} project={project} active="runs" org={org} />);
+    expect(screen.queryByRole('button', { name: /^Switch organization/ })).toBeNull();
   });
 });
 

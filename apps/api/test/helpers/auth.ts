@@ -1,4 +1,4 @@
-import type { AssignmentDto, CreateOrgResponse, RoleDto } from '@agentdesk/contracts';
+import type { AssignmentDto, CreateOrgResponse, MyInvitationDto, Page, RoleDto } from '@agentdesk/contracts';
 import type { TestApp } from './app';
 
 export function cookieOf(res: { headers: Record<string, unknown> }): string {
@@ -32,8 +32,10 @@ export async function createOrg(t: TestApp, name: string, slug: string): Promise
 }
 
 /**
- * Platform-invites `${handle}@dev.local` into the org with a built-in role and scope, then dev-logs the handle in
- * (which accepts the invitation) and returns the session cookie. Throws unless the invitation answers 201.
+ * Platform-invites `${handle}@dev.local` into the org with a built-in role and scope, dev-logs the handle in and
+ * accepts the invitation through the invitee route, then signs in again and returns that session cookie (its active
+ * org is the oldest membership). Throws unless the
+ * invitation answers 201 and the accept answers 200.
  */
 export async function inviteAndLogin(
   t: TestApp,
@@ -57,6 +59,12 @@ export async function inviteAndLogin(
     payload: { email: `${handle}@dev.local`, roleId: role.id, scope },
   });
   if (res.statusCode !== 201) throw new Error(`inviteAndLogin ${handle} answered ${res.statusCode}: ${res.body}`);
+  const first = await loginAs(t, handle);
+  if (first === '') throw new Error(`inviteAndLogin ${handle}: dev-login was refused`);
+  const accepted = await acceptInvite(t, first, res.json<{ id: string }>().id);
+  if (accepted.statusCode !== 200)
+    throw new Error(`inviteAndLogin ${handle} accept answered ${accepted.statusCode}: ${accepted.body}`);
+  // A new session starts in the oldest membership, so the returned cookie is pinned like a returning person's.
   return loginAs(t, handle);
 }
 
@@ -110,4 +118,47 @@ export async function revoke(t: TestApp, orgId: string, assignmentId: string): P
     headers: { cookie: admin },
   });
   if (res.statusCode !== 204) throw new Error(`revoke ${assignmentId} answered ${res.statusCode}: ${res.body}`);
+}
+
+/** Platform-invites `email` into the org with a built-in role and scope; throws unless it answers 201. Logs nobody in. */
+export async function invite(
+  t: TestApp,
+  orgId: string,
+  email: string,
+  roleKey: 'owner' | 'admin' | 'member' | 'viewer',
+  scope: { type: 'org' } | { type: 'project'; projectIds: string[] },
+): Promise<{ id: string }> {
+  const admin = await asPlatformAdmin(t);
+  const rolesRes = await t.app.inject({
+    method: 'GET',
+    url: `/api/platform/orgs/${orgId}/roles`,
+    headers: { cookie: admin },
+  });
+  const role = rolesRes.json<RoleDto[]>().find((r) => r.key === roleKey);
+  if (!role) throw new Error(`invite: org ${orgId} has no role ${roleKey}`);
+  const res = await t.app.inject({
+    method: 'POST',
+    url: `/api/platform/orgs/${orgId}/invitations`,
+    headers: { cookie: admin },
+    payload: { email, roleId: role.id, scope },
+  });
+  if (res.statusCode !== 201) throw new Error(`invite ${email} answered ${res.statusCode}: ${res.body}`);
+  return { id: res.json<{ id: string }>().id };
+}
+
+/** `GET /api/me/invitations` as the cookie's user; throws unless it answers 200. */
+export async function myInvitations(t: TestApp, cookie: string): Promise<Page<MyInvitationDto>> {
+  const res = await t.app.inject({ method: 'GET', url: '/api/me/invitations', headers: { cookie } });
+  if (res.statusCode !== 200) throw new Error(`myInvitations answered ${res.statusCode}: ${res.body}`);
+  return res.json<Page<MyInvitationDto>>();
+}
+
+/** `POST /api/me/invitations/:id/accept` as the cookie's user; returns the raw response. */
+export function acceptInvite(t: TestApp, cookie: string, invitationId: string): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({ method: 'POST', url: `/api/me/invitations/${invitationId}/accept`, headers: { cookie } });
+}
+
+/** `POST /api/me/invitations/:id/decline` as the cookie's user; returns the raw response. */
+export function declineInvite(t: TestApp, cookie: string, invitationId: string): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({ method: 'POST', url: `/api/me/invitations/${invitationId}/decline`, headers: { cookie } });
 }

@@ -558,3 +558,139 @@
 .modelId {
   white-space: nowrap;
 }
+
+/* projects list: header buttons and the pending-invitations banner */
+.listActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.emptyNotice {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  padding: 96px 40px;
+}
+.emptyNoticeCol {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+.emptyNoticeCol h1 {
+  font-size: var(--fs-28);
+}
+.emptyNoticeCol p {
+  font-size: var(--fs-15);
+  max-width: 56ch;
+}
+
+/* welcome page (my invitations) */
+.welcomeCol {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.welcomeCol h1 {
+  font-size: var(--fs-28);
+}
+.welcomeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.welcomeLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.welcomeLoadingList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.welcomeActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+/* invitation link page */
+.acceptActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.signedIn {
+  color: var(--faint);
+  font-size: var(--fs-13);
+}
+
+/* org invitations page, loading */
+.invitationsLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.invitationsLoadingHead {
+  display: flex;
+  justify-content: space-between;
+}
+.invitationsLoadingChips {
+  display: flex;
+  gap: 6px;
+}
+.invitationsLoadingRows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+/* create-org form */
+.createOrgCol {
+  width: 100%;
+  max-width: 560px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+.createOrgCol h1 {
+  font-size: var(--fs-28);
+}
+.createOrgFields {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+.createOrgActions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.createOrgCreated {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.createOrgCreated p {
+  font-size: var(--fs-13_5);
+}
+.createOrgDone {
+  display: flex;
+  justify-content: flex-end;
+}
+.requestId {
+  font-size: var(--fs-12);
+  color: var(--muted);
+}

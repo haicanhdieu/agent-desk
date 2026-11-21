@@ -1,11 +1,12 @@
 import { All, Controller, Inject, NotFoundException, Req, Res } from '@nestjs/common';
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { CONFIG, type Config } from '../config/config.module';
-import { AUTH, isDisabledPath, type Auth } from './auth';
+import { isBlockedAuthPath } from './allowed-paths';
+import { AUTH, type Auth } from './auth';
 
 const SKIPPED_RESPONSE_HEADERS = new Set(['set-cookie', 'content-length', 'content-encoding', 'transfer-encoding']);
 
-/** Forwards `/auth/*` to the better-auth handler (Fetch API Request/Response). */
+/** Forwards the allow-listed `/auth/*` paths to the better-auth handler (Fetch API Request/Response); every other path is 404. */
 @Controller('auth')
 export class AuthController {
   constructor(
@@ -21,7 +22,7 @@ export class AuthController {
       .toLowerCase()
       .replace(/\/{2,}/g, '/')
       .replace(/\/+$/, '');
-    if (isDisabledPath(path)) throw new NotFoundException('Not found');
+    if (isBlockedAuthPath(path)) throw new NotFoundException('Not found');
 
     const headers = new Headers();
     for (const [k, v] of Object.entries(req.headers)) {

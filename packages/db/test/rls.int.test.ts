@@ -111,6 +111,25 @@ describe.each(Object.keys(inserts))('RLS on %s', (table) => {
   });
 });
 
+describe('invitations with a declined row', () => {
+  it("org A's session reads none of org B's rows, declined included", async () => {
+    await withOrg(db, ORG_B, (tx) =>
+      tx.execute(sql`insert into invitations (org_id, email, role_id, scope_type, status, expires_at, invited_by)
+        values (${ORG_B}, 'declined-b@x.io', ${b.memberRoleId}, 'org', 'declined', now() + interval '2 days', ${b.userId})`),
+    );
+    const asB = await withOrg(db, ORG_B, (tx) =>
+      tx.execute<{ status: string }>(sql`select status from invitations where email = 'declined-b@x.io'`),
+    );
+    expect(asB.rows.map((r) => r.status)).toEqual(['declined']);
+    const asA = await withOrg(db, ORG_A, (tx) =>
+      tx.execute<{ org_id: string; status: string }>(sql`select org_id, status from invitations`),
+    );
+    expect(asA.rows.length).toBeGreaterThan(0);
+    expect(new Set(asA.rows.map((r) => r.org_id))).toEqual(new Set([ORG_A]));
+    expect(asA.rows.some((r) => r.status === 'declined')).toBe(false);
+  });
+});
+
 describe('setup_script_versions is append-only for the app role', () => {
   it.each(['update setup_script_versions set note = $1', 'delete from setup_script_versions'])(
     '%s is denied (42501)',

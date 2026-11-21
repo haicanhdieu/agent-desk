@@ -3,6 +3,7 @@ import { sseRunPath } from '@agentdesk/contracts/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, useState } from 'react';
 import type { ConnectionState } from '@/components';
+import { resyncOrgAfterStreamError, urlOrgId } from '../auth/orgResync';
 import { applyRunEvent, applyRunStatus, lastSeqOf, markStreaming } from './applyEvents';
 import { isFinal } from './map';
 import { runsQueries } from './queries';
@@ -48,7 +49,7 @@ export function useRunEvents(
     };
 
     const connect = () => {
-      const es = new EventSource(sseRunPath(runId, lastSeq > 0 ? lastSeq : undefined));
+      const es = new EventSource(sseRunPath(runId, lastSeq > 0 ? lastSeq : undefined, urlOrgId()));
       source = es;
       es.addEventListener('open', () => {
         attempts = 0;
@@ -60,8 +61,12 @@ export function useRunEvents(
         if (es.readyState !== EventSource.CLOSED) return;
         es.close();
         if (attempts >= STREAM_MAX_ATTEMPTS) return;
-        retry = setTimeout(connect, streamRetryDelay(attempts));
+        // The stream may have been refused because another tab switched the org: resync, which the back-off covers.
+        const delay = streamRetryDelay(attempts);
         attempts += 1;
+        void resyncOrgAfterStreamError().then(() => {
+          if (!done) retry = setTimeout(connect, delay);
+        });
       });
       es.addEventListener('event', (ev) => {
         const e = parseMessage(RunEventMessage, ev);

@@ -85,7 +85,7 @@ async function assignmentsOf(who: Actor, orgId: string): Promise<AssignmentDto[]
 
 async function invitationsOf(who: Actor, orgId: string): Promise<InvitationDto[]> {
   return pageOf(InvitationDto).parse(
-    await ok(await who.api.get(`/api/orgs/${orgId}/invitations?pageSize=100`), 200, 'invitation list'),
+    await ok(await who.api.get(`/api/orgs/${orgId}/invitations?status=all&pageSize=100`), 200, 'invitation list'),
   ).items;
 }
 

@@ -6,9 +6,10 @@ const uuid = (prefix: string, n: number) => `${prefix}-0000-4000-8000-${String(n
 export const MOCK_NOW = '2026-11-12T14:14:00.000Z';
 
 export const ids = {
-  // better-auth ids are opaque strings, not UUIDs.
+  // better-auth user ids are opaque strings, not UUIDs.
   user: { alice: 'user-alice' },
-  org: { alice: 'org-alice', acme: 'org-acme' },
+  // Org ids are UUIDs: the invitation routes and DTOs (and the org header) carry them.
+  org: { alice: uuid('b6000000', 1), acme: uuid('b6000000', 2) },
   connection: {
     harbor: uuid('c0000000', 1),
     kim: uuid('c0000000', 2),

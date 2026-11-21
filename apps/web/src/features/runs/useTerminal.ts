@@ -1,7 +1,9 @@
+import { ORG_QUERY_PARAM, TERMINAL_CLOSE_ORG_CHANGED } from '@agentdesk/contracts';
 import { terminalPath } from '@agentdesk/contracts/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import type { LiveTerminalHandle, TerminalSize } from '@/components/LiveTerminal';
+import { resyncOrg, urlOrgId } from '../auth/orgResync';
 import { signOutAndRedirect } from '../auth/signOut';
 import { terminalArea } from './detail.map';
 import { runsQueries } from './queries';
@@ -49,10 +51,13 @@ export interface UseTerminal {
   onResize(size: TerminalSize): void;
 }
 
-/** `ws(s)://<this host><path>`; the scheme follows the page. */
+/** `ws(s)://<this host><path>?orgId=<URL org>`; the scheme follows the page, the org is read at each connect. */
 function terminalUrl(path: string): string {
   const scheme = window.location.protocol === 'https:' ? 'wss' : 'ws';
-  return `${scheme}://${window.location.host}${path}`;
+  const orgId = urlOrgId();
+  const url = new URL(`${scheme}://${window.location.host}${path}`);
+  if (orgId !== undefined) url.searchParams.set(ORG_QUERY_PARAM, orgId);
+  return url.toString();
 }
 
 const resizeFrame = ({ cols, rows }: TerminalSize) => JSON.stringify({ type: 'resize', cols, rows });
@@ -68,7 +73,8 @@ export type OnSessionEnd = () => void | Promise<boolean>;
 /**
  * A terminal socket at `path` (spec §5.3) while `enabled` (the owner is active and the terminal is mounted). Binary
  * frames both ways: output is written to `term`, keystrokes are sent as UTF-8. Text frames from the server are
- * ignored (never acted on). Close codes: 4401 → the sign-out path; 4403 → `forbidden`, no retry; 4409 → the owner is
+ * ignored (never acted on). Close codes: 4401 → the sign-out path; 4412 (the org changed in another tab) → resync the
+ * org, then reconnect with the back-off; 4403 → `forbidden`, no retry; 4409 → the owner is
  * no longer active: `connecting` while `onSessionEnd` runs (the page then shows the end state), no retry; 4410 (the
  * session is ending or over) → `ended`, `onSessionEnd` runs, never a retry; 1000 (the session ended) → `onSessionEnd`
  * too, and only an owner still live then retries. Only the network-level closes (1006, 1011, 1013, anything else
@@ -147,6 +153,14 @@ export function useTerminalSocket(
         case CLOSE_UNAUTHORIZED:
           watch.stop?.();
           void signOutAndRedirect();
+          return;
+        case TERMINAL_CLOSE_ORG_CHANGED:
+          // Another tab switched the org: make the URL org active again, then reconnect (with the usual back-off,
+          // so a socket that keeps being refused gives up).
+          set('connecting');
+          void resyncOrg().then(() => {
+            if (!disposed && !closedUnused) retryLater();
+          });
           return;
         case CLOSE_FORBIDDEN:
           watch.stop?.();
