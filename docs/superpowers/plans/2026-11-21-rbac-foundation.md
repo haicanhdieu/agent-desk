@@ -1762,9 +1762,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; `RunDto.ownerUserId` (Task 24).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-50.1, TC-50.2 (poll path triggered through Temporal as `scripts/e2e-local.ts` does); TC-51.1 to TC-51.4; TC-52.1, TC-52.2; TC-53.1, TC-53.2 (bot comment through `/dev/fake/comments` with `author: 'agentdesk[bot]'` from O's session); TC-71.1, TC-71.2 (RP2 finished first, Agent calls); TC-72.1. Ownership is asserted as `run.ownerUserId === b.userId`; outcomes as `ignored_owner_not_permitted` / `ignored_owner_unlinked` in `projects.ignored`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-triggers.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e trigger comments start runs only for permitted linked owners`.
+- [x] **Step 1: Write the spec:** TC-50.1, TC-50.2 (poll path triggered through Temporal as `scripts/e2e-local.ts` does); TC-51.1 to TC-51.4; TC-52.1, TC-52.2; TC-53.1, TC-53.2 (bot comment through `/dev/fake/comments` with `author: 'agentdesk[bot]'` from O's session); TC-71.1, TC-71.2 (RP2 finished first, Agent calls); TC-72.1. Ownership is asserted as `run.ownerUserId === b.userId`; outcomes as `ignored_owner_not_permitted` / `ignored_owner_unlinked` in `projects.ignored`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-triggers.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e trigger comments start runs only for permitted linked owners`.
 
 ---
 
