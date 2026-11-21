@@ -19,6 +19,17 @@ beforeEach(async () => {
 });
 
 describe('fake board', () => {
+  it('prStates returns the stored state for PR tickets; unset, issues and unknown refs are left out', async () => {
+    const store = new FakeStore(dir, clock);
+    const board = new FakeBoardAdapter(store, clock);
+    await store.addTicket({ repoPath: 'dev/demo', number: 1, kind: 'pr', title: 'A', labels: [], prState: 'merged' });
+    await store.addTicket({ repoPath: 'dev/demo', number: 2, kind: 'pr', title: 'B', labels: [] });
+    await store.addTicket({ repoPath: 'dev/demo', number: 3, kind: 'issue', title: 'C', labels: [], prState: 'open' });
+    await store.addTicket({ repoPath: 'other/repo', number: 4, kind: 'pr', title: 'D', labels: [], prState: 'open' });
+    const out = await board.prStates(project, ['1', '2', '3', '4', '99']);
+    expect(Object.fromEntries(out)).toEqual({ 1: 'merged' });
+  });
+
   it('a comment appended by one store is polled through a second store on the same dir', async () => {
     const a = new FakeStore(dir, clock);
     const b = new FakeBoardAdapter(new FakeStore(dir, clock), clock);

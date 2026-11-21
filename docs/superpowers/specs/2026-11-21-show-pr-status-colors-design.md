@@ -167,7 +167,7 @@ only feeds them). BR-10 is stated at the API because AGENTS.md rule 7 needs an a
     and the human decided failures stay neutral. No conflict.
   - `docs/conventions/frontend.md` §10 ("MUST NOT convey status by color alone"): a coloured icon names its state in
     words (BR-9).
-  - ADR 0005: the new ADR 0031 covers the seam. ADR 0015 (SSE) is not used for PR state.
+  - ADR 0005: the new ADR 0033 covers the seam. ADR 0015 (SSE) is not used for PR state.
 
 ### Out of scope
 
@@ -337,7 +337,7 @@ No new dependency.
 - Sensitive path: a new GitHub API call with the installation token in the board adapter, behind a new authenticated
   read endpoint, so the PR gets `review:sensitive` (security.md §8; precedent spec 2026-11-21-group-issue-pr-runs). No
   RLS, auth, webhook, terminal, secrets or migration change.
-- ADR: needed (human decision). New `docs/adr/0031-live-pr-state-through-the-board-adapter.md` plus a row in
+- ADR: needed (human decision). New `docs/adr/0033-live-pr-state-through-the-board-adapter.md` plus a row in
   `docs/adr/README.md`. It covers: a live provider read at request time instead of a stored column; a separate
   non-blocking endpoint; the `BoardAdapter.prStates` seam method; the per-project/PR TTL cache in the API; failure
   means unknown.

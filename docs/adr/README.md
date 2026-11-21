@@ -113,7 +113,11 @@ The choice and the concrete rules that follow from it.
 | [0029](0029-unexpected-pod-ends-resume-automatically.md)           | Unexpected pod ends resume automatically, up to a per-agent limit           | Accepted | 2026-11-20 |
 | [0030](0030-finish-after-reopen-keeps-the-session.md)              | Finish after Re-open keeps the session until its original deadline          | Accepted | 2026-11-20 |
 | [0031](0031-scoped-rbac-roles-assignments.md)                      | Scoped RBAC with roles, assignments and invitation-only sign-up             | Accepted | 2026-11-21 |
+<<<<<<< HEAD
 | [0032](0032-reopened-session-keeps-the-result.md)                  | A reopened session keeps the run's result                                   | Accepted | 2026-11-21 |
+=======
+| [0032](0032-live-pr-state-through-the-board-adapter.md)            | Live PR state through the board adapter                                     | Accepted | 2026-11-21 |
+>>>>>>> cb96d47 (feat(core): live PR state through the board adapter)
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the

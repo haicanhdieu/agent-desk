@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
+import type { PrState } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
 import { normalizeLinkedRefs } from '../linked-refs';
@@ -139,5 +140,15 @@ export class FakeBoardAdapter implements BoardAdapter {
 
   comment(project: AdapterProject, ref: string, text: string): Promise<string> {
     return this.store.postBotComment(project.repoPath, ref, text);
+  }
+
+  async prStates(project: AdapterProject, refs: string[]): Promise<Map<string, PrState>> {
+    const wanted = new Set(refs);
+    const out = new Map<string, PrState>();
+    for (const t of await this.store.listTickets()) {
+      if (t.repoPath === project.repoPath && t.kind === 'pr' && t.prState && wanted.has(String(t.number)))
+        out.set(String(t.number), t.prState);
+    }
+    return out;
   }
 }

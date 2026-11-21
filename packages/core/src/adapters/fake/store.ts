@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { appendFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { PrState } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
 import { systemClock } from '../../clock';
@@ -17,6 +18,8 @@ const StoredTicket = z.object({
   labels: z.array(z.object({ name: z.string(), color: z.string() })),
   /** On a PR: the issues it closes. On an issue: the PRs linked to it. */
   linked: z.array(z.number().int()).optional(),
+  /** Live state of a PR; unset = unknown. */
+  prState: z.enum(PrState.options).optional(),
 });
 export type StoredTicket = z.infer<typeof StoredTicket>;
 const TicketsFile = z.object({ tickets: z.array(StoredTicket) });

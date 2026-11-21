@@ -3,7 +3,13 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MockAgent, fetch as undiciFetch } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { CLOSING_ISSUES_QUERY, GithubBoardAdapter, closingRefsInBody } from '../../src/adapters/github/board';
+import {
+  CLOSING_ISSUES_QUERY,
+  GithubBoardAdapter,
+  closingRefsInBody,
+  prStateOf,
+  prStatesQuery,
+} from '../../src/adapters/github/board';
 import { normalizeLinkedRefs } from '../../src/adapters/linked-refs';
 import { GithubCodeHostAdapter } from '../../src/adapters/github/codehost';
 import { GithubClients, assertSafeRef } from '../../src/adapters/github/app';
@@ -415,6 +421,118 @@ describe('github board tickets', () => {
       })
       .reply(201, '{"id": 555}', { headers: JSON_HEADERS });
     expect(await new GithubBoardAdapter(clients, clock).comment(project, '5', 'hello')).toBe('555');
+  });
+});
+
+describe('github prStates', () => {
+  const fixtures = JSON.parse(fixture('graphql.pr-states.json')) as { full: unknown; partial: unknown };
+  const refs7 = ['1', '2', '3', '4', '5', '6', '7'];
+
+  /** Intercepts one GraphQL call and captures its JSON body. */
+  function mockGraphql(reply: unknown, status = 200, headers: Record<string, string> = {}) {
+    const captured: { query?: string; variables?: Record<string, unknown> }[] = [];
+    mockInstallationToken();
+    gh()
+      .intercept({ path: '/graphql', method: 'POST' })
+      .reply(
+        status,
+        (opts) => {
+          captured.push(JSON.parse(String(opts.body)));
+          return JSON.stringify(reply);
+        },
+        { headers: { ...JSON_HEADERS, ...headers } },
+      );
+    return captured;
+  }
+
+  it('maps a merged PR to merged', async () => {
+    mockGraphql({ data: { repository: { p0: { number: 148, state: 'MERGED', isDraft: false, merged: true } } } });
+    const board = new GithubBoardAdapter(clients, clock);
+    expect(await board.prStates(project, ['148'])).toEqual(new Map([['148', 'merged']]));
+  });
+
+  it.each([
+    ['OPEN', false, false, 'open'],
+    ['OPEN', true, false, 'draft'],
+    ['MERGED', false, true, 'merged'],
+    ['CLOSED', false, true, 'merged'],
+    ['CLOSED', false, false, 'closed'],
+    ['CLOSED', true, false, 'closed'],
+    ['LOCKED', false, false, undefined],
+  ])('prStateOf %s draft=%s merged=%s is %s', (state, isDraft, merged, expected) => {
+    expect(prStateOf({ state, isDraft, merged })).toBe(expected);
+  });
+
+  it('one batched call maps the answer by number, whatever its order', async () => {
+    const sent = mockGraphql(fixtures.full);
+    const board = new GithubBoardAdapter(clients, clock);
+    const out = await board.prStates(project, refs7);
+    expect(Object.fromEntries(out)).toEqual({ 1: 'open', 2: 'draft', 3: 'merged', 4: 'closed', 5: 'closed' });
+    expect(sent).toHaveLength(1);
+  });
+
+  it('the query text is the same for any numbers; owner, repo and numbers are variables only', async () => {
+    const sentA = mockGraphql({ data: { repository: {} } });
+    const board = new GithubBoardAdapter(clients, clock);
+    await board.prStates(project, ['12', '15']);
+    const sentB = mockGraphql({ data: { repository: {} } });
+    await board.prStates(project, ['99', '100']);
+    expect(sentA[0]?.query).toBe(sentB[0]?.query);
+    expect(sentA[0]?.query).toBe(prStatesQuery(2));
+    expect(sentA[0]?.variables).toEqual({ owner: 'acme', repo: 'widgets', n0: 12, n1: 15 });
+    expect(sentB[0]?.variables).toEqual({ owner: 'acme', repo: 'widgets', n0: 99, n1: 100 });
+    expect(sentA[0]?.query).not.toContain('acme');
+    expect(sentA[0]?.query).not.toContain('12');
+  });
+
+  it('drops refs above the GraphQL Int max before building the query', async () => {
+    const sent = mockGraphql({
+      data: { repository: { p0: { number: 148, state: 'OPEN', isDraft: false, merged: false } } },
+    });
+    const board = new GithubBoardAdapter(clients, clock);
+    const out = await board.prStates(project, ['148', '3000000000', '2147483647']);
+    expect(Object.fromEntries(out)).toEqual({ 148: 'open' });
+    expect(sent[0]?.variables).toEqual({ owner: 'acme', repo: 'widgets', n0: 148, n1: 2147483647 });
+  });
+
+  it('GraphQL errors with partial data colour what came back and warn with the error name only', async () => {
+    mockGraphql(fixtures.partial);
+    const warn = vi.fn();
+    const board = new GithubBoardAdapter(clients, clock, undefined, { warn });
+    const out = await board.prStates(project, ['1', '2']);
+    expect(Object.fromEntries(out)).toEqual({ 1: 'open' });
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn).toHaveBeenCalledWith({ err: expect.any(String) }, 'pr states partial');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('Could not resolve');
+  });
+
+  it('GraphQL errors without usable data reject', async () => {
+    mockGraphql({ data: null, errors: [{ message: 'boom' }] });
+    const board = new GithubBoardAdapter(clients, clock);
+    await expect(board.prStates(project, ['1'])).rejects.toThrow();
+  });
+
+  it('an HTTP failure, a rate limit and a network error reject', async () => {
+    const board = new GithubBoardAdapter(clients, clock);
+    mockGraphql({ message: 'bad gateway' }, 502);
+    await expect(board.prStates(project, ['1'])).rejects.toThrow();
+    mockGraphql({ message: 'rate limited' }, 403, { 'x-ratelimit-remaining': '0', 'x-ratelimit-reset': '1' });
+    await expect(board.prStates(project, ['1'])).rejects.toThrow();
+    gh().intercept({ path: '/graphql', method: 'POST' }).replyWithError(new Error('socket hang up'));
+    await expect(board.prStates(project, ['1'])).rejects.toThrow();
+  });
+
+  it('no refs means no request', async () => {
+    const board = new GithubBoardAdapter(clients, clock);
+    // disableNetConnect makes any request throw, so an empty map proves none was made.
+    expect(await board.prStates(project, [])).toEqual(new Map());
+    expect(await board.prStates(project, ['0', '-1', '1.5', 'abc', '12345678901', '07'])).toEqual(new Map());
+  });
+
+  it('a node whose number was not asked is left out', async () => {
+    mockGraphql({ data: { repository: { p0: { number: 9, state: 'OPEN', isDraft: false, merged: false } } } });
+    const board = new GithubBoardAdapter(clients, clock);
+    expect(await board.prStates(project, ['1'])).toEqual(new Map());
   });
 });
 

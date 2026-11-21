@@ -1,3 +1,4 @@
+import type { PrState } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
 import type {
@@ -52,6 +53,36 @@ const ClosingIssuesResponse = z.object({
       }),
     }),
   }),
+});
+
+const PR_REF = /^[1-9]\d{0,9}$/;
+const GRAPHQL_INT_MAX = 2147483647;
+
+/** `query PrStates($owner, $repo, $n0 … ) { repository(...) { p0: pullRequest(number: $n0) { number state isDraft merged } … } }`.
+ *  Owner, repo and numbers are variables only: nothing from a ticket is interpolated (rule 6). */
+export function prStatesQuery(count: number): string {
+  const vars = Array.from({ length: count }, (_, i) => `$n${i}: Int!`).join(', ');
+  const nodes = Array.from(
+    { length: count },
+    (_, i) => `p${i}: pullRequest(number: $n${i}) { number state isDraft merged }`,
+  ).join(' ');
+  return `query PrStates($owner: String!, $repo: String!${count ? ', ' : ''}${vars}) { repository(owner: $owner, name: $repo) { ${nodes} } }`;
+}
+
+/** Display precedence: merged > closed (draft or not) > open draft > open. Anything else is unknown. */
+export function prStateOf(node: { state: string; isDraft: boolean; merged: boolean }): PrState | undefined {
+  if (node.merged || node.state === 'MERGED') return 'merged';
+  if (node.state === 'CLOSED') return 'closed';
+  if (node.state === 'OPEN') return node.isDraft ? 'draft' : 'open';
+  return undefined;
+}
+
+const PrStatesResponse = z.object({ repository: z.record(z.string(), z.unknown()) });
+const PrStateNode = z.object({
+  number: z.number().int(),
+  state: z.string(),
+  isDraft: z.boolean(),
+  merged: z.boolean(),
 });
 
 const CommentList = z.array(
@@ -221,6 +252,38 @@ export class GithubBoardAdapter implements BoardAdapter {
       this.log?.warn({ err: e instanceof Error ? e.name : 'UnknownError' }, 'ticket links unavailable');
       return [];
     }
+  }
+
+  async prStates(project: AdapterProject, refs: string[]): Promise<Map<string, PrState>> {
+    const asked = [...new Set(refs.filter((r) => PR_REF.test(r) && Number(r) <= GRAPHQL_INT_MAX))];
+    const out = new Map<string, PrState>();
+    if (asked.length === 0) return out;
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    const variables: Record<string, string | number> = { owner, repo };
+    asked.forEach((r, i) => (variables[`n${i}`] = Number(r)));
+    let raw: unknown;
+    try {
+      raw = await this.clients
+        .installation(project.connectionExternalId)
+        .graphql(prStatesQuery(asked.length), variables);
+    } catch (e) {
+      // GraphQL errors can carry partial data: use it. Anything else (HTTP, network, no usable data) rejects.
+      const partial = PrStatesResponse.safeParse(
+        typeof e === 'object' && e !== null && 'data' in e ? e.data : undefined,
+      );
+      if (!partial.success) throw e;
+      this.log?.warn({ err: e instanceof Error ? e.name : 'UnknownError' }, 'pr states partial');
+      raw = partial.data;
+    }
+    const { repository } = PrStatesResponse.parse(raw);
+    const askedSet = new Set(asked);
+    for (const value of Object.values(repository)) {
+      const node = PrStateNode.safeParse(value);
+      if (!node.success || !askedSet.has(String(node.data.number))) continue;
+      const state = prStateOf(node.data);
+      if (state) out.set(String(node.data.number), state);
+    }
+    return out;
   }
 
   async comment(project: AdapterProject, ref: string, text: string): Promise<string> {

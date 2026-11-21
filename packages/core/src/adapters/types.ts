@@ -1,4 +1,4 @@
-import type { Provider, RepoDto, SkillDto, SkillSummaryDto, TicketKind } from '@agentdesk/contracts';
+import type { PrState, Provider, RepoDto, SkillDto, SkillSummaryDto, TicketKind } from '@agentdesk/contracts';
 
 export type { Provider };
 
@@ -88,6 +88,9 @@ export interface BoardAdapter {
   getTicket(project: AdapterProject, ref: string): Promise<Ticket>;
   /** Returns the new comment's id. */
   comment(project: AdapterProject, ref: string, text: string): Promise<string>;
+  /** Live state of each PR among `refs` (ticket numbers) in the project's repo. Refs that are not PRs, are not found or
+   *  have an unknown state are left out. Rejects when the provider cannot be asked. Stores nothing. */
+  prStates(project: AdapterProject, refs: string[]): Promise<Map<string, PrState>>;
 }
 
 export interface CodeHostAdapter {

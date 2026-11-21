@@ -66,7 +66,7 @@ None. No new package, library, service, image, CI action, binary or workspace pa
 - Agent call: the four new screen stories are registered in `stateStories` (`screens/storyIds.ts`) against the closest boards: `RunsPrStates` → `Runs`, `RunsProblemsPrStates` → `RunsProblems`, `RunPrMerged` and `RunPrMergedCollapsed` → `RunIdle`. Reason: no board was drawn, so `canvas.json` and `parity.mjs` stay unchanged. `coverage.test.ts` rejects screen stories that map to no board or state.
 - Agent call: `mocks/runsLinked.ts` stays unchanged. Reason: `RunsPrStates` builds its merged group from `ticketGroups`.
 - Agent call: `DevTicketBody.prState` on an issue is a 400. Reason: the spec says "PRs only", and dev input stays strict.
-- Agent call: ADR 0031 lands with the adapter seam (Task 3). Reason: that task introduces the seam it records.
+- Agent call: ADR 0033 lands with the adapter seam (Task 3). Reason: that task introduces the seam it records.
 
 ---
 
@@ -283,7 +283,7 @@ export function TicketIcon(props: TicketIconProps): JSX.Element;
 - Create: `packages/core/test/fixtures/github/graphql.pr-states.json`
 - Modify: `packages/core/test/adapters/github.test.ts`
 - Modify: `packages/core/test/adapters/fake.test.ts`
-- Create: `docs/adr/0031-live-pr-state-through-the-board-adapter.md`
+- Create: `docs/adr/0033-live-pr-state-through-the-board-adapter.md`
 - Modify: `docs/adr/README.md`
 
 **Interfaces:**
@@ -310,10 +310,10 @@ export function prStateOf(node: { state: string; isDraft: boolean; merged: boole
   - On a thrown error whose `data` parses as the same response shape (GraphQL errors with partial data), it uses that data and calls `log?.warn({ err: <error name> }, 'pr states partial')`. Any other error rethrows.
 - Fake `prStates`: for each ref, the stored ticket of `project.repoPath` with `kind === 'pr'` and a `prState`.
 
-- [ ] **Step 1: Add the fixture** `graphql.pr-states.json`. It is `{ "full": …, "partial": … }`, scrubbed, with no real users or tokens.
+- [x] **Step 1: Add the fixture** `graphql.pr-states.json`. It is `{ "full": …, "partial": … }`, scrubbed, with no real users or tokens.
   - `full.data.repository` has aliases in shuffled order: p0 #1 OPEN; p1 #2 OPEN draft; p2 #3 MERGED `merged: true`; p3 #4 CLOSED; p4 #5 CLOSED draft; p5 `null`; p6 #7 `"LOCKED"`.
   - `partial` is `data.repository` `{ p0: #1 OPEN, p1: null }` plus `errors: [{ "type": "NOT_FOUND", "path": ["repository","p1"], "message": "Could not resolve to a PullRequest with the number of 2." }]`.
-- [ ] **Step 2: Write the failing tests** in `github.test.ts`, in a new `describe('github prStates')`. Use the existing `mockInstallationToken`, `gh()` and the captured request body.
+- [x] **Step 2: Write the failing tests** in `github.test.ts`, in a new `describe('github prStates')`. Use the existing `mockInstallationToken`, `gh()` and the captured request body.
   - `maps a merged PR to merged` (the spec's first red test).
   - `prStateOf` in `it.each`:
     - `OPEN/false/false` gives `open`; `OPEN/true/false` gives `draft`; `MERGED/false/true` gives `merged`;
@@ -327,9 +327,9 @@ export function prStateOf(node: { state: string; isDraft: boolean; merged: boole
   - `a node whose number was not asked is left out` (Review Focus 5). Refs `['1']` answered with p0 `#9 OPEN` give an empty map.
 
   In `fake.test.ts`, `prStates returns the stored state for PR tickets; unset, issues and unknown refs are left out`.
-- [ ] **Step 3: Run** `pnpm --filter @agentdesk/core test github fake`. Expected: FAIL.
-- [ ] **Step 4: Implement** the interface method, the GitHub and fake implementations and `StoredTicket.prState`. Run `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/core test github fake`. Expected: PASS.
-- [ ] **Step 5: Write ADR 0031.** Status Accepted, dated 2026-11-21, in the format of 0030. It covers:
+- [x] **Step 3: Run** `pnpm --filter @agentdesk/core test github fake`. Expected: FAIL.
+- [x] **Step 4: Implement** the interface method, the GitHub and fake implementations and `StoredTicket.prState`. Run `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/core test github fake`. Expected: PASS.
+- [x] **Step 5: Write ADR 0033.** Status Accepted, dated 2026-11-21, in the format of 0030. It covers:
   - a live provider read at request time instead of a stored column;
   - a separate, non-blocking endpoint;
   - the `BoardAdapter.prStates` seam;
@@ -337,7 +337,7 @@ export function prStateOf(node: { state: string; isDraft: boolean; merged: boole
   - failure means unknown.
 
   Add its row to `docs/adr/README.md`.
-- [ ] **Step 6: Commit:** `feat(core): BoardAdapter.prStates with a batched GitHub lookup and the fake`, then `docs(adr): 0031 live PR state through the board adapter`.
+- [x] **Step 6: Commit:** `feat(core): BoardAdapter.prStates with a batched GitHub lookup and the fake`, then `docs(adr): 0033 live PR state through the board adapter`.
 
 ---
 
