@@ -270,12 +270,18 @@ describe('invitation lists', () => {
     const dup = mockDb.state.invitations.filter((i) => i.email === 'again@x.dev');
     expect(dup.map((i) => i.status).sort()).toEqual(['expired', 'pending']);
     expect(expired.some((i) => i.invitedBy === null)).toBe(true);
-    // The invitee's own list holds a pending card whose inviter is gone (TC-52.4), from another org.
+    // One pending row for the owner's own email, with its inviter gone, expiring 3 hours out, in the other org the owner
+    // administers: the owner sees it on that org's Invitations page and as the invitee (TC-52.4).
     const own = mockDb.state.invitations.filter(
       (i) => i.email === mockDb.currentUser()?.email && i.status === 'pending' && i.invitedBy === null,
     );
     expect(own).toHaveLength(1);
-    expect(own[0]?.orgId).not.toBe(ids.org.acme);
+    expect(own[0]?.orgId).toBe(ids.org.alice);
+    expect(
+      mockDb.state.memberships.find((m) => m.orgId === ids.org.alice && m.userId === mockDb.currentUser()?.id)?.roleKey,
+    ).toBe('owner');
+    expect(own[0]?.createdAt).toBe(ago(2 * DAY - 3 * HOUR));
+    expect(Date.parse(own[0]?.expiresAt ?? '') - Date.parse(INVITATIONS_MOCK_NOW)).toBe(3 * HOUR);
     const mine = await api.me.listInvitations({ query: { page: 1, pageSize: 20 } });
     expect(mine.items.filter((i) => i.invitedBy === null)).toHaveLength(1);
   });

@@ -232,9 +232,17 @@ function expiryInvitations(ownEmail: string): InvitationRow[] {
     expired('again@x.dev', 2 * DAY + 12 * HOUR),
     orgRow({ email: 'again@x.dev', expiresAt: at(DAY), createdAt: at(-DAY) }),
     expired('gone@x.dev', 4 * DAY + 12 * HOUR, { invitedBy: null }),
-    // The owner's own email, pending in another org with its inviter deleted: the invitee card of TC-52.4. Resend is
-    // checked per org, so it does not touch the Acme rows of TC-49 and TC-50.
-    orgRow({ email: ownEmail, orgId: ids.org.alice, invitedBy: null }),
+    // The owner's own email, pending with its inviter deleted and its own expiry (3 hours out, so no other row shares
+    // its label), in the other org the owner administers: TC-52.4 reads it as a row of that org's Invitations page and
+    // as the invitee card. Not in Acme: resend refuses an email with another pending invitation in the same org
+    // (BR-50), which would break the Acme rows of TC-49.
+    orgRow({
+      email: ownEmail,
+      orgId: ids.org.alice,
+      expiresAt: at(3 * HOUR),
+      createdAt: at(-2 * DAY + 3 * HOUR),
+      invitedBy: null,
+    }),
   ];
 }
 
@@ -339,6 +347,8 @@ const seeders: Record<OnboardingScenario, () => void> = {
   invitationsExpiry() {
     acmeProjects([P1, P2]);
     inAcme('owner');
+    // Also an owner of the first org, whose Invitations page holds the row of TC-52.4.
+    state().memberships.push({ userId: me().id, orgId: ids.org.alice, roleKey: 'owner' });
     state().invitations = expiryInvitations(me().email.toLowerCase());
   },
   invitationChanged() {

@@ -1703,9 +1703,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding('invitationsExpiry')` (Task 17); `page.clock` at `INVITATIONS_MOCK_NOW`.
 
-- [ ] **Step 1: Write the spec**: TC-48.1 to TC-48.4 (BR-48, the 2-minute clock advance and reload); TC-49.1, TC-49.2 (BR-49, the same page's store across inviter and invitee steps by switching the mock session user); TC-50.1 (BR-50); TC-52.4 (BR-52: the dash in the column, "Expires <date>" on the invitee card).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/invitations-expiry.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for invitation expiry and resend`.
+- [x] **Step 1: Write the spec**: TC-48.1 to TC-48.4 (BR-48, the 2-minute clock advance and reload); TC-49.1, TC-49.2 (BR-49, the same page's store across inviter and invitee steps by switching the mock session user); TC-50.1 (BR-50); TC-52.4 (BR-52: the dash in the column, "Expires <date>" on the invitee card).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/invitations-expiry.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for invitation expiry and resend`.
 
 ---
 
