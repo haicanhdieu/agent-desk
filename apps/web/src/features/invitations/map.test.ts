@@ -1,6 +1,6 @@
 import type { MyInvitationDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { accessLine, toInvitationCard } from './map';
+import { accessLine, toAcceptState, toInvitationCard } from './map';
 
 const dto: MyInvitationDto = {
   id: 'c1000000-0000-4000-8000-000000000001',
@@ -51,5 +51,56 @@ describe('toInvitationCard', () => {
 
   it('keeps a deleted inviter as null (BR-52)', () => {
     expect(toInvitationCard({ ...dto, invitedBy: null }).inviter).toBeNull();
+  });
+});
+
+describe('toAcceptState', () => {
+  it('maps a pending invitation to the details with nothing busy and no dialog', () => {
+    expect(toAcceptState(dto)).toEqual({
+      kind: 'pending',
+      busy: null,
+      confirmDecline: false,
+      details: expect.objectContaining({
+        id: dto.id,
+        orgName: 'Acme Robotics',
+        orgSlug: 'acme-robotics',
+        roleName: 'Member',
+        access: 'Whole organization',
+        inviter: 'Ada Lovelace',
+        status: 'pending',
+      }),
+    });
+  });
+
+  it('maps accepted to a link to the org projects with the slug encoded', () => {
+    expect(toAcceptState({ ...dto, status: 'accepted', org: { ...dto.org, slug: 'a b' } })).toEqual({
+      kind: 'accepted',
+      orgName: 'Acme Robotics',
+      orgHref: '/o/a%20b/projects',
+    });
+  });
+
+  it('maps declined to a link to the invitations list', () => {
+    expect(toAcceptState({ ...dto, status: 'declined' })).toEqual({
+      kind: 'declined',
+      invitationsHref: '/invitations',
+    });
+  });
+
+  it('maps revoked to the revoked state', () => {
+    expect(toAcceptState({ ...dto, status: 'revoked' })).toEqual({ kind: 'revoked' });
+  });
+
+  it('maps expired to the org and the inviter name, or a null inviter (BR-48)', () => {
+    expect(toAcceptState({ ...dto, status: 'expired' })).toEqual({
+      kind: 'expired',
+      orgName: 'Acme Robotics',
+      inviter: 'Ada Lovelace',
+    });
+    expect(toAcceptState({ ...dto, status: 'expired', invitedBy: null })).toEqual({
+      kind: 'expired',
+      orgName: 'Acme Robotics',
+      inviter: null,
+    });
   });
 });
