@@ -20,6 +20,7 @@ import {
   pageWindow,
   toPage,
   TriggerMode,
+  visibleProjects,
   type CreateProjectRequest,
   type Page,
   type PageQuery,
@@ -35,6 +36,7 @@ import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { SECRET_STORE } from '../secrets/secret-store.module';
+import type { RequestAuthz } from '../access/current-access';
 import { assertProjectVisible } from './project-access';
 import { ProjectSchedules } from './project-schedules';
 
@@ -183,14 +185,25 @@ export class ProjectsService {
     }
   }
 
-  async list(org: OrgContext, q: PageQuery): Promise<Page<ProjectDto>> {
+  /**
+   * One page of the projects the caller may read. An org-scope `project:read` grant sees all; otherwise only the
+   * projects named by a project-scope grant, and none when there is no such grant (an empty list filters to `false`: fail closed). The page and `total`
+   * use the same filter.
+   */
+  async list(org: OrgContext, authz: Pick<RequestAuthz, 'access'>, q: PageQuery): Promise<Page<ProjectDto>> {
     const { limit, offset } = pageWindow(q);
+    const visible = visibleProjects(authz.access, 'project:read');
+    const scope = visible === 'all' ? undefined : inArray(projects.id, visible);
     return withOrg(this.db, org.orgId, async (tx) => {
-      const [counted] = await tx.select({ total: sql<number>`count(*)::int` }).from(projects);
+      const [counted] = await tx
+        .select({ total: sql<number>`count(*)::int` })
+        .from(projects)
+        .where(scope);
       const total = counted?.total ?? 0;
       const rows = await tx
         .select()
         .from(projects)
+        .where(scope)
         .orderBy(asc(projects.createdAt), asc(projects.id))
         .limit(limit)
         .offset(offset);

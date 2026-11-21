@@ -1412,15 +1412,15 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `visibleProjects` (Task 1); `req.authz.access` (Task 10).
 - Produces: `ProjectsService.list(org, access, q)` filters page and `count(*)` by `visibleProjects(access, 'project:read')` (`'all'` = no filter); the controller passes `@CurrentAccess()`.
 
-- [ ] **Step 1: Write the failing tests** in `scope.int.test.ts` (cast: O, A admin P1, B member P1+P2, V viewer org; projects P1, P2, P3):
+- [x] **Step 1: Write the failing tests** in `scope.int.test.ts` (cast: O, A admin P1, B member P1+P2, V viewer org; projects P1, P2, P3):
   - BR-27: A's list is P1 with `total` 1; B's is P1, P2 with `total` 2, and `pageSize=1` gives one item per page with `total` 2 on both; V's has `total` 3.
   - BR-28: for A, every `project`-scoped route key with a P2 id (project, runs list, run by number, run get/log/transcript, rules, skills, setup script, setup test latest, agent, agent put, both SSE routes) → 404; the expected table is written in the test.
   - BR-42: A's `GET /api/connections` and `…/repos` → 403.
   - BR-44: O deletes P2 → B's list is P1 with `total` 1; B's `GET /api/me/access` still lists the P1 assignment and nothing for P2; B's `runs.list` on P1 is 200.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/scope.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the filter.
-- [ ] **Step 4: Run** the same command and `test/projects.int.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): the project list shows only projects in the caller's scope`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/scope.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the filter.
+- [x] **Step 4: Run** the same command and `test/projects.int.test.ts`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): the project list shows only projects in the caller's scope`.
 
 ---
 
