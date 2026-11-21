@@ -54,7 +54,8 @@ export interface Cast {
 
 const uniq = (): string => randomBytes(3).toString('hex');
 
-async function roleIdsOf(pa: APIRequestContext, orgId: string): Promise<Record<RoleKey, string>> {
+/** The org's built-in role ids by key (the platform route). */
+export async function roleIdsOf(pa: APIRequestContext, orgId: string): Promise<Record<RoleKey, string>> {
   const roles = z
     .array(PlatformRoleDto)
     .parse(await ok(await pa.get(`/api/platform/orgs/${orgId}/roles`), 200, 'platform roles'));

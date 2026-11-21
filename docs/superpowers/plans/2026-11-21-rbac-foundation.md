@@ -1838,6 +1838,6 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast and `secondOrg`; Task 34 helpers.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-54.1, TC-54.2 (fresh handle; the refused dev-login leaves no session cookie); TC-55.1 to TC-55.4; TC-56.1 to TC-56.3 (second org Y via `secondOrg`); TC-58.1 to TC-58.3; TC-60.1 to TC-60.12.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-invitations.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e invitation-only sign-in and invitation rights`.
+- [x] **Step 1: Write the spec:** TC-54.1, TC-54.2 (fresh handle; the refused dev-login leaves no session cookie); TC-55.1 to TC-55.4; TC-56.1 to TC-56.3 (second org Y via `secondOrg`); TC-58.1 to TC-58.3; TC-60.1 to TC-60.12.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-invitations.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e invitation-only sign-in and invitation rights`.
