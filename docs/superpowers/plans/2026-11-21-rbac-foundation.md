@@ -616,13 +616,13 @@ export async function startPgAt(tag: string): Promise<TestPg & { migrateRest: ()
 
   `0024`: insert templates and lines `on conflict do nothing`; then a `DO` loop over `organization.id` that runs `set_config('app.org_id', id, true)` and copies templates into `roles` (`built_in = true`, `template_id`) and `role_permissions`, `on conflict do nothing`. `0025`: a `DO` loop per org (set `app.org_id`) updating `runs.owner_user_id` from `account.user_id` where `account.provider_id` = the project's board connection provider and `account.account_id = runs.triggered_by_external_id`, `owner_user_id is null`, in batches of 1000 until none change.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `migrate.int.test.ts` (new `describe` using `startPgAt('0021_agent_auto_resume_max')`): seed two orgs with users, `member` rows, connections, projects and runs (one run whose `triggered_by_external_id` matches a linked `account`, one that matches none); snapshot `member`, `projects`, `connections`; `migrateRest()`; then each org has exactly the roles `admin, member, owner, viewer` once; `role_assignments` is empty; the snapshots are unchanged; the matched run's `owner_user_id` is the linked user and the other is null; running the `0024` and `0025` SQL files again changes no counts; no `roles`/`role_permissions`/`role_template_permissions` row has `permission like 'platform-%'`.
   - `role-templates.int.test.ts` (core, `startPg()`): every template line parses with `Permission`; `own` appears only on `OWNABLE_PERMISSIONS`; every non-`self` tenant permission used in `routeAccess` is granted by at least one template; the template matrix equals the expected matrix written in the test (owner 33 lines, admin 32 without `org:delete`, member 10 with the three `own` lines, viewer 6).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts` and `pnpm --filter @agentdesk/core exec vitest run test/access/role-templates.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** both custom migrations (`drizzle-kit generate --custom --name seed_role_templates`, then `backfill_run_owner`) and `startPgAt`.
-- [ ] **Step 4: Run** the same commands. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(db): seed built-in roles into every org and backfill run owners`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts` and `pnpm --filter @agentdesk/core exec vitest run test/access/role-templates.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** both custom migrations (`drizzle-kit generate --custom --name seed_role_templates`, then `backfill_run_owner`) and `startPgAt`.
+- [x] **Step 4: Run** the same commands. Expected: PASS.
+- [x] **Step 5: Commit** `feat(db): seed built-in roles into every org and backfill run owners`.
 
 ---
 

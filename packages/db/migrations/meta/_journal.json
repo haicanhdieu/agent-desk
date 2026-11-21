@@ -183,6 +183,20 @@
       "when": 1795243331365,
       "tag": "0025_rbac_rls_functions",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795222706608,
+      "tag": "0024_seed_role_templates",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1795222707066,
+      "tag": "0025_backfill_run_owner",
+      "breakpoints": true
     }
   ]
 }
