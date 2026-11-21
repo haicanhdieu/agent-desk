@@ -104,7 +104,7 @@ describe('seeded role templates', () => {
   it('every tenant permission a route needs is granted by at least one template', () => {
     const granted = new Set(lines.map((l) => l.permission));
     const needed = Object.values(routeAccess).flatMap((a) => {
-      if (a.scope === 'self' || a.scope === 'platform') return [];
+      if (a.scope === 'self' || a.scope === 'platform' || a.scope === 'user') return [];
       return a.scope === 'org-admin' ? [...a.anyOf] : [a.permission];
     });
     expect(needed.length).toBeGreaterThan(0);
