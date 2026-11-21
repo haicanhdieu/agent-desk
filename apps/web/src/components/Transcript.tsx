@@ -100,11 +100,10 @@ function Entry({ item }: { item: TranscriptItem }) {
         <span className={`num ${styles.time}`}>{item.time}</span>
       </div>
       <div className={styles.text}>
-        {/* Untrusted text: raw HTML is skipped, images show as text, links open in a new tab. */}
+        {/* Untrusted text: Streamdown sanitizes raw HTML (script, handlers and javascript: links are never rendered); images show as text, links open in a new tab. */}
         <Streamdown
           mode="static"
           parseIncompleteMarkdown={false}
-          skipHtml
           controls={false}
           linkSafety={{ enabled: false }}
           components={markdownComponents}
@@ -117,7 +116,7 @@ function Entry({ item }: { item: TranscriptItem }) {
   );
 }
 
-/** A saved agent conversation: read-only, opens at the bottom, message text is rendered as safe Markdown (no raw HTML, no images). */
+/** A saved agent conversation: read-only, opens at the bottom, message text is rendered as sanitized Markdown (unsafe HTML never runs, images are never fetched). */
 export function Transcript({
   state,
   items,

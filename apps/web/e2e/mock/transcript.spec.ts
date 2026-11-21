@@ -387,14 +387,14 @@ function unwanted(text: string): string[] {
 }
 
 test.describe('BR-43: messages are rendered as safe Markdown', () => {
-  test('TC-43.1 raw HTML is dropped and nothing runs', async ({ page }) => {
+  test('TC-43.1 unsafe raw HTML is never rendered and nothing runs', async ({ page }) => {
     const dialogs: string[] = [];
     page.on('dialog', (d) => {
       dialogs.push(d.message());
       void d.dismiss();
     });
     await open(page, TRANSCRIPT_RICH_RUN);
-    // The message that carries <b>bold</b> and a <script>: the script is gone and nothing runs.
+    // The message that carries <b>bold</b> and a <script>: the script is never rendered and nothing runs.
     await expect(log(page).locator('p', { hasText: 'bold' }).first()).toBeVisible();
     await expect(log(page).getByText('alert(1)')).toHaveCount(0);
     await expect(log(page).locator('script, img, [onerror], [onclick]')).toHaveCount(0);

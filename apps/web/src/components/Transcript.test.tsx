@@ -101,7 +101,7 @@ describe('Transcript', () => {
     expect(container.textContent).not.toContain('# Plan');
   });
 
-  it('raw HTML in transcript text never becomes elements, and images are never fetched', () => {
+  it('unsafe raw HTML in transcript text is never rendered, and images are never fetched', () => {
     const text = [
       '<script>alert(1)</script>',
       '<img src="https://evil.example/x.png" onerror="alert(1)">',

@@ -90,7 +90,7 @@ const markdownReply = [
 const markdown: TranscriptItem[] = [
   msg('m0', 'user', 'Prompt', '14:01', 'Write the BOM and **list the checks** you ran.'),
   msg('m1', 'agent', 'Claude', '14:13', markdownReply),
-  msg('m2', 'agent', 'Claude', '14:14', '<script>alert(1)</script> Raw HTML is dropped, not run.'),
+  msg('m2', 'agent', 'Claude', '14:14', '<script>alert(1)</script> Unsafe raw HTML is not rendered or run.'),
 ];
 
 const long: TranscriptItem[] = [
