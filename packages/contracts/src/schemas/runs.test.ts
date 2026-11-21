@@ -179,10 +179,13 @@ describe('LinkedTicketDto and RunListItem.linkedTickets', () => {
     expect(LinkedTicketDto.safeParse(entry).success).toBe(true);
   });
 
-  it.each(['ref', 'kind', 'number', 'title', 'url', 'labels', 'ticketRunCount'])('rejects an entry without %s', (key) => {
-    const { [key]: _omit, ...rest } = entry as Record<string, unknown>;
-    expect(LinkedTicketDto.safeParse(rest).success).toBe(false);
-  });
+  it.each(['ref', 'kind', 'number', 'title', 'url', 'labels', 'ticketRunCount'])(
+    'rejects an entry without %s',
+    (key) => {
+      const { [key]: _omit, ...rest } = entry as Record<string, unknown>;
+      expect(LinkedTicketDto.safeParse(rest).success).toBe(false);
+    },
+  );
 
   it('rejects a ticketRunCount of 0', () => {
     expect(LinkedTicketDto.safeParse({ ...entry, ticketRunCount: 0 }).success).toBe(false);
