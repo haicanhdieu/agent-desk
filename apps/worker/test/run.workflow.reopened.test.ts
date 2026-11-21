@@ -171,6 +171,21 @@ describe('RunWorkflow reopened session', () => {
     expect((await h.result()).status).toBe('succeeded');
   });
 
+  it('Finish on a fresh run that is waiting for an answer still ends it and deletes the disk', async () => {
+    const s = newRun({}, { endSessionExits: false });
+    s.parkKeepSeconds = 3600;
+    const h = await start(s);
+    await s.logsStarted.promise;
+    await h.signal(signals.agentState, 'needs_input');
+    await h.signal(signals.terminalAttached);
+    await waitPhase(h, 'idle');
+    expect(await h.executeUpdate(signals.finishRun)).toEqual({ accepted: true });
+    s.logs.resolve({ exitCode: 0, agentStarted: true });
+    expect((await h.result()).status).toBe('succeeded');
+    expect(count(s, 'parkRun:done')).toBe(0);
+    expect(count(s, 'deleteRunVolume')).toBe(1);
+  });
+
   it('Finish on a fresh live Done run deletes the disk when the agent keeps nothing', async () => {
     const s = newRun({}, { endSessionExits: false });
     const h = await start(s);

@@ -171,7 +171,6 @@ const withAgentIdleEnd = (run: MockRun): MockRun => {
   return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds, pausedKeepSeconds: agent.pausedKeepSeconds } : run;
 };
 
-/** The kept-session deadline of a run re-opened from a kept succeeded session, by run object (reset with the store). */
 /** How long the mock keeps a succeeded run's session after a close: the agent's default done keep time (1 day). */
 const DONE_KEEP_MS = 86_400_000;
 /** Runs resumed from a paused session: a Finish on them ends the run for good (the worker's rule, ADR 0030). */

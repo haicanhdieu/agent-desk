@@ -4,6 +4,7 @@
 - Date: 2026-11-20
 - Source: [Finish after Re-open design](../superpowers/specs/2026-11-20-finish-after-reopen-keeps-session-design.md) (issue #194)
 - Amends: [0022](0022-pause-and-resume-runs-on-a-per-run-volume.md), [0024](0024-transient-cluster-errors-never-end-a-run.md)
+- Amended by [0032](0032-reopened-session-keeps-the-result.md) (issue #203): a close now keeps a fresh keep time, not the original deadline; this rule stays only for runs started before that change
 
 ## Context
 

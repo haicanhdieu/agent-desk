@@ -110,6 +110,8 @@ export const stateStories = {
   RunPausedResuming: { title: detail, exportName: 'RunPausedResuming', board: 'RunIdle' },
   RunResumeFailed: { title: detail, exportName: 'RunResumeFailed', board: 'RunIdle' },
   RunSucceededKept: { title: detail, exportName: 'RunSucceededKept', board: 'RunSucceeded' },
+  RunReopened: { title: detail, exportName: 'RunReopened', board: 'RunIdle' },
+  RunSucceededReopenUnavailable: { title: detail, exportName: 'RunSucceededReopenUnavailable', board: 'RunSucceeded' },
   RunExpired: { title: detail, exportName: 'RunExpired', board: 'RunCancelled' },
   DeskAgentPolling: { title: desk, exportName: 'DeskAgentPolling', board: 'DeskAgent' },
   DeskAgentCheckingNow: { title: desk, exportName: 'DeskAgentCheckingNow', board: 'DeskAgent' },

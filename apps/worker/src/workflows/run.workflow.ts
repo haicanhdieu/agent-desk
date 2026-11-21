@@ -407,6 +407,8 @@ export async function RunWorkflow(input: RunWorkflowInput): Promise<RunOutcome> 
       finishRequested = true;
       if (reopenKeeps) {
         if (reopened) closeHow ??= 'person';
+        // Only a fresh run the agent declared done keeps its disk (ticket #203 "Done" decision). A Finish on a run that
+        // needs an answer (`idle`), or on one resumed from a pause, still ends it for good (ADR 0030 BR-2, unchanged).
         else if (phase === 'agent_done' && resumedKeep === undefined) finishKeeps = true;
       }
       await condition(() => finishRunSettled(ending, phase));
