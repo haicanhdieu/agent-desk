@@ -479,15 +479,15 @@ export async function projectRefs(tx: Tx, orgId: string, ids: string[]): Promise
 
   `list` adds the status condition (Global Constraints semantics) to both the page query and the count, keeps slice 1's project-admin rule (only invitations whose every project they administer), and left-joins better-auth `user` on `invited_by` for `name` and `handle`. `create` and `revoke` return the same `InviterDto | null`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `inviter.test.ts` (`it.each`): `{name:'Ada Lovelace', handle:'ada'}` → name `Ada Lovelace`; `'  '` → `ada`; `''` → `ada`; ` Bob ` → `Bob`; handle null with empty name → `{name:'', handle:''}`; null → null.
   - `invitations.int.test.ts`: BR-30 the default list holds only stored-pending unexpired rows; BR-47 each of `pending`, `accepted`, `declined`, `revoked`, `expired`, `all` returns only its rows and `total` follows; BR-48 a pending row with `expires_at` in the past is listed under `expired`, not `pending`, with `status: 'expired'`; BR-31 a project admin of P1 sees, under `all`, the P1-only invitation and not the P2, P1-and-P2 or org-scope ones (the filter never widens it); BR-52 `invitedBy` is `{name, handle}` from the inviter's row, falls back to the handle for a blank name (direct `update "user" set name = ' '`), and is null after the inviter's user row is deleted; HTML and SQL metacharacters in the invitee email round-trip unchanged; `?status=bogus` → 400.
   - `platform.int.test.ts`: `platform.listInvitations` takes the same `status` filter (default pending) and returns `invitedBy` as `InviterDto | null`.
   - `schemas/access.test.ts`: `InvitationDto` requires `invitedBy` to be an `InviterDto` or null.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/invitations/inviter.test.ts test/invitations.int.test.ts test/platform.int.test.ts` and `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/access.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contract change, `inviter.ts`, the service and controller query types (`InvitationListQuery`), and the web DTO fixtures (`invitationFixtures`, platform ones) with `InviterDto` values.
-- [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/api test` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): filter invitation lists by status and show the inviter's name`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/invitations/inviter.test.ts test/invitations.int.test.ts test/platform.int.test.ts` and `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/access.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the contract change, `inviter.ts`, the service and controller query types (`InvitationListQuery`), and the web DTO fixtures (`invitationFixtures`, platform ones) with `InviterDto` values.
+- [x] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/api test` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): filter invitation lists by status and show the inviter's name`.
 
 ---
 

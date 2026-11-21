@@ -3,8 +3,8 @@ import {
   routes,
   type CreateInvitationRequest,
   type InvitationDto,
+  type InvitationListQuery,
   type Page,
-  type PageQuery,
 } from '@agentdesk/contracts';
 import { CurrentAccess, type RequestAuthz } from '../access/current-access';
 import { routePath } from '../common/route-path';
@@ -29,7 +29,7 @@ export class InvitationsController {
   list(
     @CurrentAccess() authz: RequestAuthz,
     @Param(ListParams) p: { orgId: string },
-    @Query(ListQuery) q: PageQuery,
+    @Query(ListQuery) q: InvitationListQuery,
   ): Promise<Page<InvitationDto>> {
     return this.invitations.list({ kind: 'member', access: authz.access }, p.orgId, q);
   }
