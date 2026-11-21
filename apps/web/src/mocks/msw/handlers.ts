@@ -1,5 +1,13 @@
 import {
   ACTIVE_RUN_STATUSES,
+  INVITATION_EXPIRY_SECONDS,
+  ORG_HEADER,
+  ORG_MISMATCH_PROBLEM_TYPE,
+  routeAccess,
+  type CreateInvitationRequest,
+  type InvitationDto,
+  type InvitationListStatus,
+  type MyInvitationDto,
   canResume,
   FINISHABLE_RUN_STATUSES,
   STOPPABLE_RUN_STATUSES,
@@ -25,19 +33,17 @@ import type { MockRun } from '../dto/runs';
 import {
   accessFixture,
   assignmentFixtures,
-  invitationFixtures,
   memberFixtures,
   platformMemberFixtures,
   platformOrgFixtures,
   platformProjectFixtures,
   roleFixtures,
 } from '../dto/access';
-import { checklistFixtures, myInvitationFixtures } from '../dto/invitations';
-import { ids } from '../dto/ids';
+import { checklistFixtures } from '../dto/invitations';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
 import { noPlugins } from '../dto/setup';
-import { defaultTriggerState, mockDb, type MockUser, type ProjectRow } from './db';
+import { defaultTriggerState, mockDb, type InvitationRow, type MockUser, type ProjectRow } from './db';
 import {
   Problem,
   conflict,
@@ -65,9 +71,21 @@ const now = () => new Date().toISOString();
 const isFinal = (s: RunStatus) => FINAL_RUN_STATUSES.some((f) => f === s);
 const isActive = (s: RunStatus) => ACTIVE_RUN_STATUSES.some((a) => a === s);
 
-function session(): { user: MockUser; orgId: string } {
+/** The routes whose access kind pins them to the session's org (`user` and `platform` routes ignore the header). */
+const isOrgPinned = (key: RouteKey): boolean => {
+  const scope = routeAccess[key].scope;
+  return scope !== 'user' && scope !== 'platform';
+};
+
+/** The signed-in user (401 otherwise); `user` and `platform` routes need no active org. */
+function sessionUser(): MockUser {
   const user = mockDb.currentUser();
   if (!user) throw new Problem({ status: 401, title: 'Unauthorized', type: 'unauthorized' });
+  return user;
+}
+
+function session(): { user: MockUser; orgId: string } {
+  const user = sessionUser();
   const orgId = mockDb.auth.activeOrganizationId;
   if (!orgId) throw new Problem({ status: 403, title: 'No active organization', type: 'forbidden' });
   return { user, orgId };
@@ -78,6 +96,170 @@ const db = () => mockDb.state;
 const never = (what: string): never => {
   throw new Error(`${what} fixture missing`);
 };
+
+// Invitations follow the API rules: lists by effective status, one pending row per (org, email), a 2 day lifetime, and
+// an invitee who is not the invited email sees a 404.
+
+const effectiveStatus = (row: InvitationRow): InvitationDto['status'] =>
+  row.status === 'pending' && Date.parse(row.expiresAt) <= Date.now() ? 'expired' : row.status;
+
+const toInvitationDto = (row: InvitationRow): InvitationDto => ({
+  id: row.id,
+  email: row.email,
+  role: row.role,
+  scope: row.scope,
+  status: effectiveStatus(row),
+  expiresAt: row.expiresAt,
+  invitedBy: row.invitedBy,
+  createdAt: row.createdAt,
+  acceptedAt: row.acceptedAt,
+});
+
+const expiryFromNow = () => new Date(Date.now() + INVITATION_EXPIRY_SECONDS * 1000).toISOString();
+
+function listInvitations(orgId: string, query: { status: InvitationListStatus; page: number; pageSize: number }) {
+  const rows = db()
+    .invitations.filter((i) => i.orgId === orgId && (query.status === 'all' || effectiveStatus(i) === query.status))
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
+  return slicePage(rows.map(toInvitationDto), query);
+}
+
+const invitationOf = (orgId: string, id: string): InvitationRow => {
+  const row = db().invitations.find((i) => i.orgId === orgId && i.id === id);
+  if (!row) throw notFound('Invitation');
+  return row;
+};
+
+const hasPendingFor = (orgId: string, email: string, except?: string): boolean =>
+  db().invitations.some(
+    (i) => i.orgId === orgId && i.email === email && i.id !== except && effectiveStatus(i) === 'pending',
+  );
+
+const alreadyInvited = () =>
+  conflict('Email already invited', [{ pointer: '/email', detail: 'This email already has a pending invitation.' }]);
+
+// As the API: a role or project the org cannot use is 422 with the JSON Pointer of the offending field.
+const badRole = () =>
+  new Problem({
+    status: 422,
+    title: 'Role not allowed here',
+    type: 'validation',
+    errors: [
+      { pointer: '/roleId', detail: 'this role does not exist in the organization or cannot be given at this scope' },
+    ],
+  });
+const unknownProject = (index: number) =>
+  new Problem({
+    status: 422,
+    title: 'Project not found',
+    type: 'validation',
+    errors: [{ pointer: `/scope/projectIds/${index}`, detail: 'this project does not exist in the organization' }],
+  });
+
+function createInvitation(orgId: string, body: CreateInvitationRequest): InvitationDto {
+  // The platform route has no active org (BR-34/35); the org is the one in the path.
+  const user = sessionUser();
+  if (db().failNextOrgInvitationCreate) {
+    db().failNextOrgInvitationCreate = false;
+    throw new Problem({ status: 500, title: 'Internal server error', type: 'internal' });
+  }
+  const role = roleFixtures.find((r) => r.id === body.roleId);
+  if (!role || !role.assignableScopes.some((s) => s === body.scope.type)) throw badRole();
+  const projects =
+    body.scope.type === 'project'
+      ? body.scope.projectIds.map((id, index) => {
+          const project = db().projects.find((p) => p.id === id);
+          if (!project) throw unknownProject(index);
+          return { id, name: project.name };
+        })
+      : [];
+  const isMember = db().memberships.some(
+    (m) => m.orgId === orgId && db().users.some((u) => u.id === m.userId && u.email.toLowerCase() === body.email),
+  );
+  if (isMember) {
+    throw conflict('Already a member', [{ pointer: '/email', detail: 'This email is already a member.' }]);
+  }
+  if (hasPendingFor(orgId, body.email)) throw alreadyInvited();
+  const row: InvitationRow = {
+    id: mockDb.nextId(),
+    orgId,
+    email: body.email,
+    role: { id: role.id, key: role.key, name: role.name },
+    scope: body.scope.type === 'org' ? { type: 'org' } : { type: 'project', projects },
+    status: 'pending',
+    expiresAt: expiryFromNow(),
+    invitedBy: { name: user.name, handle: user.handle },
+    createdAt: now(),
+    acceptedAt: null,
+  };
+  db().invitations.push(row);
+  return toInvitationDto(row);
+}
+
+// The API's revoke says "not pending"; resend keeps the spec's "no longer pending".
+const notPending = () => conflict('Invitation is no longer pending');
+// Accept and decline as the API: the 409 detail carries the effective status (accepted, declined, revoked, expired).
+const notPendingStatus = (status: InvitationDto['status']) =>
+  conflict('Conflict', undefined, `Invitation is ${status}`);
+
+// The platform routes name the org in the path; as the API, an org that does not exist is a 404.
+const requireOrg = (orgId: string): string => {
+  if (!db().orgs.some((o) => o.id === orgId)) throw notFound('Organization');
+  return orgId;
+};
+const revokeNotPending = () => conflict('Invitation is not pending', []);
+
+function revokeInvitation(orgId: string, id: string): null {
+  const row = invitationOf(orgId, id);
+  if (effectiveStatus(row) !== 'pending') throw revokeNotPending();
+  row.status = 'revoked';
+  return null;
+}
+
+function resendInvitation(orgId: string, id: string): InvitationDto {
+  const row = invitationOf(orgId, id);
+  const status = effectiveStatus(row);
+  if (status !== 'pending' && status !== 'expired') throw notPending();
+  if (hasPendingFor(orgId, row.email, row.id)) throw alreadyInvited();
+  row.status = 'pending';
+  row.expiresAt = expiryFromNow();
+  return toInvitationDto(row);
+}
+
+/** The signed-in user's invitations: only rows for their own email, whatever the org. */
+function myInvitationRows(): InvitationRow[] {
+  const user = sessionUser();
+  // An unverified email owns no invitation: the list is empty and any id is a 404.
+  if (!user.emailVerified) return [];
+  return db().invitations.filter((i) => i.email === user.email.toLowerCase());
+}
+
+function myInvitationRow(id: string): InvitationRow {
+  const row = myInvitationRows().find((i) => i.id === id);
+  if (!row) throw notFound('Invitation');
+  return row;
+}
+
+function pendingOfMine(id: string): InvitationRow {
+  const row = myInvitationRow(id);
+  const status = effectiveStatus(row);
+  if (status !== 'pending') throw notPendingStatus(status);
+  return row;
+}
+
+function toMyInvitation(row: InvitationRow): MyInvitationDto {
+  const org = db().orgs.find((o) => o.id === row.orgId);
+  if (!org) throw notFound('Invitation');
+  return {
+    id: row.id,
+    org: { id: org.id, name: org.name, slug: org.slug },
+    role: { key: row.role.key, name: row.role.name },
+    scope: row.scope,
+    invitedBy: row.invitedBy,
+    expiresAt: row.expiresAt,
+    status: effectiveStatus(row),
+  };
+}
 
 const SLOW_MS = 3_000;
 const slow = () => new Promise<void>((resolve) => setTimeout(resolve, SLOW_MS));
@@ -733,23 +915,63 @@ const impl: Impl = {
     return null;
   },
 
-  'me.access': () => accessFixture,
+  'me.access': () => ({ ...accessFixture, platformAdmin: sessionUser().platformAdmin }),
   'roles.list': () => roleFixtures,
   'members.list': ({ query }) => slicePage(memberFixtures, query),
   'assignments.list': ({ query }) => slicePage(assignmentFixtures, query),
   'assignments.create': () => assignmentFixtures[0] ?? never('assignment'),
   'assignments.remove': () => null,
-  'invitations.list': ({ query }) => slicePage(invitationFixtures, query),
-  'invitations.create': () => invitationFixtures[0] ?? never('invitation'),
-  'invitations.remove': () => null,
-  'invitations.resend': () => invitationFixtures[0] ?? never('invitation'),
-  'orgs.checklist': () => checklistFixtures.none,
-  'me.listInvitations': ({ query }) => slicePage(Object.values(myInvitationFixtures), query),
-  'me.getInvitation': () => myInvitationFixtures.pending,
-  'me.acceptInvitation': () => ({ org: myInvitationFixtures.pending.org }),
-  'me.declineInvitation': () => null,
+  'invitations.list': ({ query }) => listInvitations(session().orgId, query),
+  'invitations.create': ({ body }) => createInvitation(session().orgId, body),
+  'invitations.remove': ({ params }) => revokeInvitation(session().orgId, params.invitationId),
+  'invitations.resend': ({ params }) => resendInvitation(session().orgId, params.invitationId),
+  'orgs.checklist': () => {
+    const { user, orgId } = session();
+    const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
+    // Owners and org-wide admins hold project:create at org scope; nobody else sees the checklist.
+    const allowed = seat !== undefined && (seat.roleKey === 'owner' || (seat.roleKey === 'admin' && !seat.projectIds));
+    if (!allowed) throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
+    return db().checklists[orgId] ?? checklistFixtures.none;
+  },
+  'me.listInvitations': ({ query }) => {
+    const mine = myInvitationRows().filter((i) => effectiveStatus(i) === 'pending');
+    return slicePage(mine.map(toMyInvitation), query);
+  },
+  'me.getInvitation': ({ params }) => toMyInvitation(myInvitationRow(params.invitationId)),
+  'me.acceptInvitation': ({ params }) => {
+    const user = sessionUser();
+    const row = pendingOfMine(params.invitationId);
+    const org = db().orgs.find((o) => o.id === row.orgId);
+    if (!org) throw notFound('Invitation');
+    const projectIds = row.scope.type === 'project' ? row.scope.projects.map((p) => p.id) : undefined;
+    const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === row.orgId);
+    // Already a member: the mock keeps one seat (one role per org), so the existing seat stays as it is.
+    if (!seat) {
+      db().memberships.push({
+        userId: user.id,
+        orgId: row.orgId,
+        roleKey: row.role.key,
+        ...(projectIds && { projectIds }),
+      });
+    }
+    row.status = 'accepted';
+    row.acceptedAt = now();
+    return { org: { id: org.id, name: org.name, slug: org.slug } };
+  },
+  'me.declineInvitation': ({ params }) => {
+    pendingOfMine(params.invitationId).status = 'declined';
+    return null;
+  },
 
-  'platform.createOrg': ({ body }) => ({ id: ids.created(900), name: body.name, slug: body.slug }),
+  'platform.createOrg': ({ body }) => {
+    if (db().orgs.some((o) => o.slug === body.slug)) {
+      throw conflict('Slug already taken', [{ pointer: '/slug', detail: 'This URL is taken.' }]);
+    }
+    const org = { id: mockDb.nextId(), name: body.name, slug: body.slug, logo: null, metadata: null, createdAt: now() };
+    db().orgs.push(org);
+    db().checklists[org.id] = checklistFixtures.none;
+    return { id: org.id, name: org.name, slug: org.slug };
+  },
   'platform.listOrgs': ({ query }) => slicePage(platformOrgFixtures, query),
   'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
   'platform.listRoles': () => roleFixtures,
@@ -757,10 +979,10 @@ const impl: Impl = {
   'platform.listAssignments': ({ query }) => slicePage(assignmentFixtures, query),
   'platform.createAssignment': () => assignmentFixtures[0] ?? never('assignment'),
   'platform.removeAssignment': () => null,
-  'platform.listInvitations': ({ query }) => slicePage(invitationFixtures, query),
-  'platform.createInvitation': () => invitationFixtures[0] ?? never('invitation'),
-  'platform.removeInvitation': () => null,
-  'platform.resendInvitation': () => invitationFixtures[0] ?? never('invitation'),
+  'platform.listInvitations': ({ params, query }) => listInvitations(requireOrg(params.orgId), query),
+  'platform.createInvitation': ({ params, body }) => createInvitation(requireOrg(params.orgId), body),
+  'platform.removeInvitation': ({ params }) => revokeInvitation(requireOrg(params.orgId), params.invitationId),
+  'platform.resendInvitation': ({ params }) => resendInvitation(requireOrg(params.orgId), params.invitationId),
 };
 
 // As the API answers (Nest: 201 for a POST without @HttpCode).
@@ -824,7 +1046,21 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
   const def = routeDef(key);
   return routeHandler(key, async (request, rawParams) => {
     try {
-      session();
+      const caller = sessionUser();
+      // A platform route is for a platform admin with a verified email, as the API's guard checks; no org is made otherwise.
+      if (routeAccess[key].scope === 'platform' && !(caller.platformAdmin && caller.emailVerified)) {
+        throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
+      }
+      // A request pinned to an org the session no longer has active is refused before anything else.
+      const pinned = request.headers.get(ORG_HEADER);
+      if (pinned !== null && isOrgPinned(key) && pinned !== mockDb.auth.activeOrganizationId) {
+        throw new Problem({
+          status: 409,
+          title: 'This organization was switched in another tab',
+          type: ORG_MISMATCH_PROBLEM_TYPE,
+        });
+      }
+      if (isOrgPinned(key) && key !== 'me.access') session();
       const url = new URL(request.url);
       const parts = {
         params: parsePart(def.params, rawParams, 'path parameters'),

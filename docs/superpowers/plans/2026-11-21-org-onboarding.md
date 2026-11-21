@@ -924,11 +924,11 @@ export function toOrgSwitch(orgs: Organization[], currentSlug: string | null, pl
 - Consumes: every new route and DTO (Task 1); `InvitationDto.invitedBy: InviterDto | null` (Task 4).
 - Produces: `mockDb.state` gains `users` (email, verified, `platformAdmin`), `memberships` (userId, orgId, role key, optional projectIds), `invitations` (org, email, role, scope, stored status, `expiresAt`, `createdAt`, `invitedBy`), `checklists` (per org), `setActiveDelayMs`, `failNextOrgInvitationCreate`; `orgInvitationFixtures` (every status) and `INVITATIONS_MOCK_NOW = '2026-11-23T14:05:00.000Z'` in `dto/invitations.ts`. Handlers follow the API rules: status filter and paging, lowercased email, 409 `/email` for already member and already invited, resend (pending or expired → pending at now + 172800 s; else 409 "Invitation is no longer pending"; slot taken → 409 `/email`), revoke (pending only), accept and decline (own email only, else 404; not pending → 409), `platform.createOrg` (409 `/slug` when taken), `orgs.checklist` (403 unless owner or org admin), `me.access` (`platformAdmin`), and the org check (a request whose `x-org-id` is not the session's active org → 409 `org-mismatch`). Auth handlers list only the session user's orgs and honour `setActiveDelayMs`.
 
-- [ ] **Step 1: Write the failing tests** in `onboarding.test.ts` (MSW node server and the contracts client): each list status returns only its rows; resend of an expired row becomes pending, of an accepted row 409, of an expired row with a newer pending one 409 `/email`; create with `P@X.dev` when `p@x.dev` is pending → 409 `/email`; accept twice → second 409; a header naming another org → 409 `org-mismatch`; checklist as a member → 403; `contract.test.ts` parses `orgInvitationFixtures`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/onboarding.test.ts src/mocks/msw/contract.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the store and handlers (replacing Task 1's fixture stubs).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): mock invitations, checklist and the org check`.
+- [x] **Step 1: Write the failing tests** in `onboarding.test.ts` (MSW node server and the contracts client): each list status returns only its rows; resend of an expired row becomes pending, of an accepted row 409, of an expired row with a newer pending one 409 `/email`; create with `P@X.dev` when `p@x.dev` is pending → 409 `/email`; accept twice → second 409; a header naming another org → 409 `org-mismatch`; checklist as a member → 403; `contract.test.ts` parses `orgInvitationFixtures`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/onboarding.test.ts src/mocks/msw/contract.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the store and handlers (replacing Task 1's fixture stubs).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): mock invitations, checklist and the org check`.
 
 ---
 

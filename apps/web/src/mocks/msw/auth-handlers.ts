@@ -123,6 +123,8 @@ export const authHandlers: HttpHandler[] = [
     if (!org || !mockDb.orgsOf(user.id).some((o) => o.id === org.id)) {
       return authError(403, 'USER_IS_NOT_A_MEMBER_OF_THE_ORGANIZATION', 'You are not a member of this organization');
     }
+    // The slow org switch (setActiveDelayMs): the answer, and the change, come late.
+    if (mockDb.state.setActiveDelayMs > 0) await new Promise((r) => setTimeout(r, mockDb.state.setActiveDelayMs));
     mockDb.setActiveOrg(org.id);
     return HttpResponse.json(AuthOrganization.parse(org));
   }),
