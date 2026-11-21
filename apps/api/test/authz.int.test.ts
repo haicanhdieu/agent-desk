@@ -42,9 +42,6 @@ const NOT_REGISTERED_YET: RouteKey[] = [
   'platform.listAssignments',
   'platform.createAssignment',
   'platform.removeAssignment',
-  'platform.listInvitations',
-  'platform.createInvitation',
-  'platform.removeInvitation',
 ];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */

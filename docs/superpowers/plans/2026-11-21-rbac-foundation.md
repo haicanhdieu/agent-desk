@@ -944,17 +944,17 @@ export class InvitationsService {
 export function toInvitationDto(row: InvitationRow, role: RoleRef, projects: { id: string; name: string }[]): InvitationDto;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `invitations.int.test.ts` (platform routes; org and projects created through `createOrg` plus direct project rows where a project is needed):
+- [x] **Step 1: Write the failing tests** in `invitations.int.test.ts` (platform routes; org and projects created through `createOrg` plus direct project rows where a project is needed):
   - create → 201 `pending`, `expiresAt` 7 days after `createdAt` (± 5 s); project scope lists `{id, name}`.
   - BR-59: bad email 400 `/email`; `projectIds: []` 400; another org's role id 422 `/roleId`; `owner` with project scope 422 `/roleId`; another org's project 422 `/scope/projectIds/0`; a second pending invite for the email 409 `/email`; Review Focus 1: `a second invitation differing only in case is 409`.
   - BR-57: with `expires_at` moved into the past, the list shows `expired`, revoke gives 409, and a new invitation for that email succeeds while the old row becomes `expired` with an `invitation.expired` audit row.
   - BR-58: revoke → 204 and list shows `revoked`; revoke again → 409.
   - N5: `invitation.created` and `invitation.revoked` rows have `target_type 'invitation'`, `payload {email, to: {roleId, roleKey, scope}, actorKind: 'platform_admin'}` and no key matching `/token|secret|password/`.
   - unknown `:orgId` → 404; an invitation id of another org → 404.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service, the platform controller (three routes, `{ kind: 'platform_admin', userId }` actor, `requireOrg` first) and the module; register it in `AppModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): platform admins invite, list and revoke invitations`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service, the platform controller (three routes, `{ kind: 'platform_admin', userId }` actor, `requireOrg` first) and the module; register it in `AppModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): platform admins invite, list and revoke invitations`.
 
 ---
 
