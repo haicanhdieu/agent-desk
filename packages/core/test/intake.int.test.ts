@@ -409,6 +409,93 @@ describe('processTicketEvent races and errors', () => {
   });
 });
 
+describe('processTicketEvent: linked issue refs', () => {
+  const prTicket = (n: number, linkedRefs: string[]): Ticket => ({
+    ...ticket(n),
+    ref: String(n),
+    kind: 'pr',
+    linkedRefs,
+  });
+  const prEvent = (s: Seed, n: number): TicketEvent => eventFor(s, { ticketRef: String(n), ticketKind: 'pr' });
+  const issueEvent = (s: Seed, n: number): TicketEvent => eventFor(s, { ticketRef: String(n), ticketKind: 'issue' });
+  const finishRuns = (s: Seed) =>
+    withOrg(db, s.orgId, (tx) => tx.update(runs).set({ status: 'succeeded' }).where(eq(runs.projectId, s.projectId)));
+
+  it('a PR run stores linked_issue_refs from the prefetched ticket', async () => {
+    const s = await seed();
+    const h = harness({}, async (ref) => prTicket(Number(ref), ['150', '142']));
+    expect((await processTicketEvent(h.deps, prEvent(s, 148), 'webhook')).outcome).toBe('run_created');
+    const [run] = await runsOf(s);
+    expect(run?.linkedIssueRefs).toEqual(['142', '150']);
+  });
+
+  it("an issue run stores '{}' even when its ticket has linkedRefs", async () => {
+    const s = await seed();
+    const h = harness({}, async (ref) => ({ ...ticket(Number(ref)), linkedRefs: ['5', '6'] }));
+    expect((await processTicketEvent(h.deps, eventFor(s), 'webhook')).outcome).toBe('run_created');
+    const [run] = await runsOf(s);
+    expect(run?.linkedIssueRefs).toEqual([]);
+  });
+
+  it('stored refs are positive integers only, deduplicated and capped at 10', async () => {
+    const s = await seed();
+    const more = Array.from({ length: 12 }, (_, i) => String(200 + i));
+    const h = harness({}, async (ref) =>
+      prTicket(Number(ref), ['acme/other#5', '0', '-1', 'x', '142', '142', ...more]),
+    );
+    expect((await processTicketEvent(h.deps, prEvent(s, 148), 'webhook')).outcome).toBe('run_created');
+    const [run] = await runsOf(s);
+    expect(run?.linkedIssueRefs).toEqual(['142', ...more.slice(0, 9)]);
+    expect(JSON.stringify(run?.linkedIssueRefs)).not.toContain('acme/other#5');
+  });
+
+  it("a failed lookup still starts the PR run, with '{}'", async () => {
+    const s = await seed();
+    const log = { warn: vi.fn() };
+    const h = harness({ log }, async () => {
+      throw new Error('secret ticket text');
+    });
+    expect((await processTicketEvent(h.deps, prEvent(s, 148), 'webhook')).outcome).toBe('run_created');
+    const [run] = await runsOf(s);
+    expect(run?.linkedIssueRefs).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith({ err: 'Error' }, expect.any(String));
+    expect(JSON.stringify(log.warn.mock.calls)).not.toContain('secret ticket text');
+  });
+
+  it("a lookup slower than ticketTimeoutMs still starts the PR run, with '{}'", async () => {
+    const s = await seed();
+    const log = { warn: vi.fn() };
+    const h = harness({ log, ticketTimeoutMs: 50 }, () => new Promise<Ticket>(() => undefined));
+    expect((await processTicketEvent(h.deps, prEvent(s, 148), 'webhook')).outcome).toBe('run_created');
+    const [run] = await runsOf(s);
+    expect(run?.linkedIssueRefs).toEqual([]);
+    expect(log.warn).toHaveBeenCalledWith({ err: 'TicketFetchTimeoutError' }, expect.any(String));
+  });
+
+  it('the run limit stays per ref', async () => {
+    const s = await seed({ maxRunsPerTicket: 2 });
+    const h = harness({}, async (ref) => (ref === '148' ? prTicket(148, ['142']) : ticket(Number(ref))));
+    // issue 142 has 1 run while PR 148, linked to it, reaches its own limit
+    expect((await processTicketEvent(h.deps, issueEvent(s, 142), 'webhook')).outcome).toBe('run_created');
+    for (let i = 0; i < 2; i++) {
+      expect((await processTicketEvent(h.deps, prEvent(s, 148), 'webhook')).outcome).toBe('run_created');
+      await finishRuns(s);
+    }
+    expect((await processTicketEvent(h.deps, prEvent(s, 148), 'webhook')).outcome).toBe('ignored_max_runs');
+    expect((await processTicketEvent(h.deps, issueEvent(s, 142), 'webhook')).outcome).toBe('run_created');
+
+    // the reverse: issue 142 at its limit, PR 148 at 1 run
+    const t = await seed({ maxRunsPerTicket: 2 });
+    expect((await processTicketEvent(h.deps, prEvent(t, 148), 'webhook')).outcome).toBe('run_created');
+    for (let i = 0; i < 2; i++) {
+      expect((await processTicketEvent(h.deps, issueEvent(t, 142), 'webhook')).outcome).toBe('run_created');
+      await finishRuns(t);
+    }
+    expect((await processTicketEvent(h.deps, issueEvent(t, 142), 'webhook')).outcome).toBe('ignored_max_runs');
+    expect((await processTicketEvent(h.deps, prEvent(t, 148), 'webhook')).outcome).toBe('run_created');
+  });
+});
+
 describe('processTicketEvent: the ticket fetch holds no database connection', () => {
   /** Connections checked out of the app pool right now (the intake runs alone in these tests). */
   const busy = (): number => db.pool.totalCount - db.pool.idleCount;

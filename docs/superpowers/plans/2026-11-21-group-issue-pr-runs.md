@@ -488,7 +488,7 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
 - Consumes: `runs.linkedIssueRefs`, `Ticket.linkedRefs`, `normalizeLinkedRefs` (Task 1).
 - Produces: the run insert sets `linkedIssueRefs: kind === 'pr' ? normalizeLinkedRefs(ticket?.linkedRefs ?? []) : []`. Nothing else in intake changes. `runsForTicket` still counts `ticketRef` only. The existing `'ticket snapshot unavailable'` warn (error name only) covers a failed lookup.
 
-- [ ] **Step 1: Write the failing tests** in `intake.int.test.ts` (`harness(over, getTicketImpl)`). The two lookup-failure cases use an event with `ticketKind: 'pr'` and a PR rule without a label filter (like `/code-review`), so the router does not need the ticket. A router that needs it still fails as today.
+- [x] **Step 1: Write the failing tests** in `intake.int.test.ts` (`harness(over, getTicketImpl)`). The two lookup-failure cases use an event with `ticketKind: 'pr'` and a PR rule without a label filter (like `/code-review`), so the router does not need the ticket. A router that needs it still fails as today.
   - `a PR run stores linked_issue_refs from the prefetched ticket`. A PR ticket with `linkedRefs: ['150', '142']` stores `{142,150}`.
   - `an issue run stores '{}' even when its ticket has linkedRefs`.
   - `stored refs are positive integers only, deduplicated and capped at 10` (BR-10, rule 6). `linkedRefs: ['acme/other#5', '0', '-1', 'x', '142', '142', ...12 more numbers]` stores the ten lowest valid ones, and `'acme/other#5'` never appears.
@@ -498,10 +498,10 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
     - PR 148, linked to `142`, has 2 runs. A third PR comment gives `ignored_max_runs`, while issue 142 has 1 run.
     - An issue 142 comment gives `run_created`.
     - The reverse: issue at 2, PR at 1, gives an issue comment `ignored_max_runs` and a PR comment `run_created`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core test:integration intake`. Expected: FAIL (column not written).
-- [ ] **Step 3: Implement** the one insert field.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(core): intake stores a PR run's linked issue refs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core test:integration intake`. Expected: FAIL (column not written).
+- [x] **Step 3: Implement** the one insert field.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(core): intake stores a PR run's linked issue refs`.
 
 ---
 

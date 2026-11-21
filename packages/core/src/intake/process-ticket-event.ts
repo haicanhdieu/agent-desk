@@ -17,6 +17,7 @@ import { parseCommand } from '../router/parse-command';
 import { isAuthorizedAuthor, routeEvent, type RuleRow } from '../router/route-event';
 import type { AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
 import { toAdapterProject } from '../adapters/project';
+import { normalizeLinkedRefs } from '../adapters/linked-refs';
 import { isUniqueViolation } from './pg-errors';
 import type { IntakeLogger } from './start-run';
 
@@ -367,6 +368,7 @@ async function decideInTx(
           ticketTitle: ticket?.title ?? null,
           ticketUrl: ticket?.url ?? null,
           ticketLabels: ticket?.labels ?? [],
+          linkedIssueRefs: kind === 'pr' ? normalizeLinkedRefs(ticket?.linkedRefs ?? []) : [],
           checkoutRef,
           args: decision.args === '' ? null : decision.args,
           status: 'queued',
