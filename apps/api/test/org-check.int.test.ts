@@ -146,6 +146,13 @@ describe('the org header must be the active org', () => {
     expect(plain.statusCode).toBe(403);
   });
 
+  it('user routes ignore the org header: GET /api/me/invitations is never 409', async () => {
+    for (const orgId of [orgA, orgB, orgC]) {
+      const res = await send('me.listInvitations', withOrgHeader({ cookie: owner }, orgId));
+      expect(res.statusCode).toBe(200);
+    }
+  });
+
   it('an empty header is ignored', async () => {
     const res = await send('projects.list', withOrgHeader({ cookie: owner }, ''));
     expect(res.statusCode).toBe(200);

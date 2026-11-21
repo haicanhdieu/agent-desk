@@ -8,6 +8,8 @@ export type AuditAction =
   | 'invitation.revoked'
   | 'invitation.expired'
   | 'invitation.accepted'
+  | 'invitation.declined'
+  | 'invitation.resent'
   | 'org.created';
 
 export interface AuditEntry {
