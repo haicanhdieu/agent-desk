@@ -1439,7 +1439,7 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `checkTenantAccess` (Task 25); `routeAccess['runs.terminal']`, `routeAccess['setupTests.terminal']` (Task 4).
 - Produces: `TerminalTarget.lookup` returns `{ active, sessionEnded, jobName }` (no `createdBy`); `check()` = session (4401) → `checkTenantAccess(db, who, entry, { runId | setupTestId: id })` → any refusal 4403 → state checks as today. `reauth` runs the same `check()` on its timer.
 
-- [ ] **Step 1: Write the failing tests** (terminal.int; the old carol cases become these):
+- [x] **Step 1: Write the failing tests** (terminal.int; the old carol cases become these):
   - BR-5: a viewer on an active run and on an active setup test → close 4403 with no bytes received.
   - BR-13: B attaches to B's own active run → stays open.
   - BR-48: B on C's run → 4403.
@@ -1447,10 +1447,10 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
   - BR-7: the owner on another org's run and on a random run id → 4403.
   - BR-35: with `TERMINAL_REAUTH_MS` small (test env), A attached to C's run, O revokes A's P1 assignment (A keeps another) → the socket closes 4403 on the re-check (await the close, no sleep).
   - BR-8: no session → 4401; a user whose active org is not theirs → 4403.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/terminal.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the gateway and target changes.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): terminal attach checks terminal:attach and run ownership`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/terminal.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the gateway and target changes.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): terminal attach checks terminal:attach and run ownership`.
 
 ---
 

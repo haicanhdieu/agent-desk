@@ -19,7 +19,7 @@ import {
 import { AUTH } from '../src/auth/auth';
 import { TerminalGateway } from '../src/terminal/terminal.gateway';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, inviteAndLogin, loginAs, userIdOf } from './helpers/auth';
+import { createOrg, grant, inviteAndLogin, loginAs, revoke, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 const ORIGIN = 'http://localhost:5173';
@@ -53,6 +53,7 @@ let alice: string;
 let bob: string;
 let carol: string;
 let aliceOrg: string;
+let bobOrg: string;
 let aliceProject: string;
 let aliceConn: string;
 let carolId: string;
@@ -114,7 +115,7 @@ beforeAll(async () => {
   await t.app.listen({ port: 0, host: '127.0.0.1' });
   wsBase = `ws://127.0.0.1:${(t.app.getHttpServer().address() as AddressInfo).port}`;
   aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
-  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
   alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
   bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
   // carol is a plain member of alice's org (not the project's creator, not the owner).
@@ -254,35 +255,26 @@ describe('terminal relay', () => {
     expectNoExec();
   });
 
-  it('closes 4403 for an org member who is neither the project creator nor the org owner', async () => {
+  it('closes 4403 for a member who does not own the run', async () => {
     const runId = await makeRun('running');
     expect(await connect(runId, { cookie: carol }).closed).toBe(4403);
     expectNoExec();
   });
 
-  it('authorizes project creator and org owner individually', async () => {
-    // A second project in alice's org whose creator is carol (a plain member); alice is the org owner, not its creator.
+  it('being the project creator grants nothing: a plain member who created the project is refused, an org owner attaches', async () => {
+    // A second project in alice's org whose creator is carol (a plain member with only own-run attach).
     const p2 = (await makeProject(t, alice, aliceConn)).projectId;
     await withOrg(t.db, aliceOrg, (tx) => tx.update(projects).set({ createdBy: carolId }).where(eq(projects.id, p2)));
     const run = await makeRun('running', true, p2);
 
-    const creator = connect(run, { cookie: carol });
-    await creator.opened;
-    await until(() => creator.bytes().length > 0); // member who IS the creator: allowed
-    creator.ws.close();
-    await creator.closed;
+    expect(await connect(run, { cookie: carol }).closed).toBe(4403);
+    expectNoExec();
 
     const owner = connect(run, { cookie: alice });
     await owner.opened;
-    await until(() => owner.bytes().length > 0); // owner who is NOT the creator: allowed
+    await until(() => owner.bytes().length > 0);
     owner.ws.close();
     await owner.closed;
-
-    // plain member, not creator (aliceProject was created by alice): denied
-    const denied = await makeRun('running');
-    const before = execCalls;
-    expect(await connect(denied, { cookie: carol }).closed).toBe(4403);
-    expect(execCalls).toBe(before);
   });
 
   it('a thrown session lookup closes 1011 (only a null session is 4401) and never reaches exec', async () => {
@@ -1025,7 +1017,7 @@ describe('terminal relay: setup tests', () => {
     expectNoExec();
   });
 
-  it('closes 4403 for a member who is not the project creator, and for another org, alike', async () => {
+  it('closes 4403 for a member who did not start the test, and for another org, alike', async () => {
     const id = await makeSetupTest('running');
     expect(await connectSetup(id, { cookie: carol }).closed).toBe(4403);
     expect(await connectSetup(id, { cookie: bob }).closed).toBe(4403);
@@ -1092,5 +1084,164 @@ describe('terminal relay: setup tests', () => {
       c.ws.close();
       await c.closed;
     }
+  });
+});
+
+describe('terminal attach by permission and ownership', () => {
+  let ada: string; // admin on P1 and P2 (project scope)
+  let adaId: string;
+  let mia: string; // member (org scope), "B"
+  let miaId: string;
+  let cydId: string; // member (org scope), "C"
+  let vera: string; // viewer (org scope)
+  let p1: string;
+  let p2: string;
+  let adaP1Assignment: string;
+
+  beforeAll(async () => {
+    p1 = aliceProject;
+    p2 = (await makeProject(t, alice, aliceConn)).projectId;
+    ada = await inviteAndLogin(t, aliceOrg, 'ada', 'admin', { type: 'project', projectIds: [p1, p2] });
+    mia = await inviteAndLogin(t, aliceOrg, 'mia', 'member', { type: 'org' });
+    await inviteAndLogin(t, aliceOrg, 'cyd', 'member', { type: 'org' });
+    vera = await inviteAndLogin(t, aliceOrg, 'vera', 'viewer', { type: 'org' });
+    adaId = await userIdOf(t, 'ada');
+    miaId = await userIdOf(t, 'mia');
+    cydId = await userIdOf(t, 'cyd');
+    // A repeat grant answers with the existing assignment, which gives its id.
+    adaP1Assignment = (await grant(t, aliceOrg, adaId, 'admin', { type: 'project', projectId: p1 })).id;
+  });
+
+  beforeEach(async () => {
+    await previousSocketsCleanedUp();
+    execCalls = 0;
+    execLog.length = 0;
+    execOverride = undefined;
+    stalePodRunning = false;
+    fallbackGate = undefined;
+    resizes.length = 0;
+    t.temporal.reset();
+    t.app.get(TerminalGateway).leaseIntervalMs = 120_000;
+  });
+
+  const setOwner = (runId: string, ownerUserId: string | null) =>
+    withOrg(t.db, aliceOrg, (tx) => tx.update(runs).set({ ownerUserId }).where(eq(runs.id, runId)));
+
+  it('BR-5: a viewer is refused 4403 on an active run and on an active setup test, with no bytes', async () => {
+    const runId = await makeRun('running');
+    const setupId = await makeSetupTest('running');
+    const onRun = connect(runId, { cookie: vera });
+    expect(await onRun.closed).toBe(4403);
+    expect(onRun.bytes()).toBe('');
+    const onSetup = connectSetup(setupId, { cookie: vera });
+    expect(await onSetup.closed).toBe(4403);
+    expect(onSetup.bytes()).toBe('');
+    expectNoExec();
+  });
+
+  it('BR-13: a member attaches to the active run they own', async () => {
+    const runId = await makeRun('running');
+    await setOwner(runId, miaId);
+    const c = connect(runId, { cookie: mia });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    expect(c.ws.readyState).toBe(WebSocket.OPEN);
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('BR-48: a member is refused 4403 on a run someone else owns and on a setup test someone else started', async () => {
+    const runId = await makeRun('running');
+    await setOwner(runId, cydId);
+    const c = connect(runId, { cookie: mia });
+    expect(await c.closed).toBe(4403);
+    expect(c.bytes()).toBe('');
+    const setupId = await makeSetupTest('running');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx.update(setupTests).set({ startedBy: cydId }).where(eq(setupTests.id, setupId)),
+    );
+    expect(await connectSetup(setupId, { cookie: mia }).closed).toBe(4403);
+    expectNoExec();
+  });
+
+  it('BR-48: a member attaches to a setup test they started', async () => {
+    const setupId = await makeSetupTest('running');
+    await withOrg(t.db, aliceOrg, (tx) =>
+      tx.update(setupTests).set({ startedBy: miaId }).where(eq(setupTests.id, setupId)),
+    );
+    const c = connectSetup(setupId, { cookie: mia });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    expect(c.ws.readyState).toBe(WebSocket.OPEN);
+    c.ws.close();
+    await c.closed;
+  });
+
+  it('BR-66: an ownerless run refuses a member with 4403 and admits a project admin', async () => {
+    const runId = await makeRun('running');
+    await setOwner(runId, null);
+    expect(await connect(runId, { cookie: mia }).closed).toBe(4403);
+    expectNoExec();
+    const c = connect(runId, { cookie: ada });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    c.ws.close();
+    await c.closed;
+  });
+
+  it("BR-7: an org owner is refused 4403 on another org's run and on a random run id, alike", async () => {
+    const bobConn = await installFake(t, bob);
+    const bobProject = (await makeProject(t, bob, bobConn)).projectId;
+    const foreign = await withOrg(t.db, bobOrg, async (tx) => {
+      const [row] = await tx
+        .insert(runs)
+        .values({
+          orgId: bobOrg,
+          projectId: bobProject,
+          command: 'fix',
+          skillName: 'fix',
+          ticketRef: `term-${randomUUID()}`,
+          ticketKind: 'issue',
+          checkoutRef: 'refs/heads/main',
+          triggerSource: 'webhook',
+          status: 'running',
+        })
+        .returning({ id: runs.id });
+      if (!row) throw new Error('no row');
+      return row.id;
+    });
+    expect(await connect(foreign, { cookie: alice }).closed).toBe(4403);
+    expect(await connect(randomUUID(), { cookie: alice }).closed).toBe(4403);
+    expectNoExec();
+  });
+
+  it('BR-8: no session is 4401, and a user whose active org is not theirs is 4403', async () => {
+    const runId = await makeRun('running');
+    expect(await connect(runId).closed).toBe(4401);
+    // A second session of cyd, switched to bob's org, where cyd has no membership.
+    const cookie = await loginAs(t, 'cyd');
+    await t.db.pool.query(
+      `update session set active_organization_id = $1 where id = (select id from session where user_id = $2 order by created_at desc limit 1)`,
+      [bobOrg, cydId],
+    );
+    expect(await connect(runId, { cookie }).closed).toBe(4403);
+    expectNoExec();
+  });
+
+  it('BR-35: revoking the assignment that covered the run closes the open socket 4403 on the re-check', async () => {
+    const runId = await makeRun('running', true, p1);
+    await setOwner(runId, cydId);
+    const c = connect(runId, { cookie: ada });
+    await c.opened;
+    await until(() => c.bytes().length > 0);
+    await revoke(t, aliceOrg, adaP1Assignment);
+    expect(await c.closed).toBe(4403);
+    // ada still holds P2, so a run there stays attachable.
+    const other = await makeRun('running', true, p2);
+    const d = connect(other, { cookie: ada });
+    await d.opened;
+    await until(() => d.bytes().length > 0);
+    d.ws.close();
+    await d.closed;
   });
 });
