@@ -12,7 +12,7 @@ import {
 } from '@agentdesk/contracts';
 import type { OrgContext } from '../auth/org-context';
 import { DB } from '../db/db.module';
-import { assertCanEditProject, assertProjectVisible } from '../projects/project-access';
+import { assertProjectVisible } from '../projects/project-access';
 
 const versionColumns = {
   version: setupScriptVersions.version,
@@ -103,7 +103,7 @@ export class SetupScriptService {
    */
   async put(org: OrgContext, projectId: string, req: PutSetupScriptRequest): Promise<SetupScriptDto> {
     return withOrg(this.db, org.orgId, async (tx) => {
-      await assertCanEditProject(tx, org, projectId);
+      await assertProjectVisible(tx, projectId);
       await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('update');
       const maxRows = await tx
         .select({ max: sql<number | null>`max(${setupScriptVersions.version})` })

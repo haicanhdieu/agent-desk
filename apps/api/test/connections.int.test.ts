@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ProjectSchedules } from '../src/projects/project-schedules';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, inviteAndLogin, loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
 let t: TestApp;
@@ -234,8 +234,10 @@ describe('connections', () => {
   });
 
   it('two orgs can both install the fake provider (org-specific external id)', async () => {
-    const carol = await loginAs(t, 'carol');
-    const dave = await loginAs(t, 'dave');
+    const carolOrg = (await createOrg(t, 'Carol', 'carol')).id;
+    const daveOrg = (await createOrg(t, 'Dave', 'dave')).id;
+    const carol = await inviteAndLogin(t, carolOrg, 'carol', 'owner', { type: 'org' });
+    const dave = await inviteAndLogin(t, daveOrg, 'dave', 'owner', { type: 'org' });
     for (const cookie of [carol, dave]) {
       const u = new URL(((await install(cookie)).json() as { url: string }).url);
       const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie } });

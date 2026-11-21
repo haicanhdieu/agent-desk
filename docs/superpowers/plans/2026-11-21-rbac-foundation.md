@@ -1388,13 +1388,13 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 
   The guard now enforces every tenant kind through `checkTenantAccess` and puts `projectId`/`ownerUserId` on `req.authz`. `OrgContext` loses `role`. `assertCanEditProject` is deleted; its callers (`projects.service` `pollNow`, `setup-tests.service` create and end, `setup-script.service` put) use `assertProjectVisible`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `authorize.test.ts`: `targetDecision` → `not-found` for `null` and for a project outside every grant; `forbidden` for a visible project without the permission (org viewer + admin on P1, `rule:update` on P2) and for a member on someone else's run (`ownerUserId` other) and on an ownerless run; `allow` for the owner's own run and for a project admin on any run in P1.
   - `authz.int.test.ts` (cast via helpers): BR-6 a viewer `PATCH /api/rules/<random uuid>`, `/api/rules/not-a-uuid` and a real rule with an invalid body → 403 each; a member `PUT /api/agents/<other org agent>/credential` → 403; BR-7 A `GET /api/projects/<other org project>` → 404, A `PATCH /api/rules/<random uuid>` → 404; BR-12 the 403 body has `detail` "Not allowed for your role here" and a `requestId`, and names no other-org id; A gets 403 on `GET /api/connections`; legacy removal: A (project admin, not the creator) `PATCH /api/projects/P1`, `PUT …/setup-script`, `POST …/setup-tests` → 2xx, and B (member) `POST …/connection/poll` passes the permission (202 or the state 409); N4 one refused write leaves no row, no audit row and no Temporal call.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/authorize.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the resolver, `targetDecision`, `checkTenantAccess`, the guard switch, the `OrgContext` change and the legacy removal.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Tasks 35 to 39.
-- [ ] **Step 5: Commit** `feat(api): every endpoint checks the caller's permission and project scope`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/authorize.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the resolver, `targetDecision`, `checkTenantAccess`, the guard switch, the `OrgContext` change and the legacy removal.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Tasks 35 to 39.
+- [x] **Step 5: Commit** `feat(api): every endpoint checks the caller's permission and project scope`.
 
 ---
 

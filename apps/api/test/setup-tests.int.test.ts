@@ -469,11 +469,12 @@ describe('setup test events stream', () => {
     expect(ofType(s.messages, 'status')).toHaveLength(1);
   });
 
-  it('is 404 for another org, 400 for a bad id, and never starts a stream', async () => {
+  it('is 404 for another org and for a malformed id, and never starts a stream', async () => {
     const dto = await created();
     expect((await open(`/api/setup-tests/${dto.id}/events`, bob)).status).toBe(404);
     expect((await open(`/api/setup-tests/${randomUUID()}/events`, alice)).status).toBe(404);
-    expect((await open(`/api/setup-tests/nope/events`, alice)).status).toBe(400);
+    // The guard resolves the target before the param pipe runs, so a malformed id is a target that does not exist.
+    expect((await open(`/api/setup-tests/nope/events`, alice)).status).toBe(404);
   });
 
   it('stops polling and releases the stream when the client disconnects', async () => {

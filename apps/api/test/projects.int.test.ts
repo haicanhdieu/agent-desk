@@ -464,8 +464,10 @@ describe('projects', () => {
     expect(bad.statusCode).toBe(400);
     const p = (await createProject({})).json() as ProjectDto;
     expect((await patch(p.id, { maxConcurrentRuns: 0 })).statusCode).toBe(400);
+    // The caller may read projects, so a malformed id is a target that does not exist (the guard looks the target up
+    // before the pipe parses the param).
     const badId = await t.app.inject({ method: 'GET', url: '/api/projects/not-a-uuid', headers: { cookie: alice } });
-    expect(badId.statusCode).toBe(400);
+    expect(badId.statusCode).toBe(404);
   });
 
   it('rejects malformed or inaccessible repoPath with a /repoPath problem pointer', async () => {
@@ -562,11 +564,18 @@ describe('POST /api/projects/:projectId/connection/poll (Check now)', () => {
     expect((await t.app.inject({ method: 'POST', url: `/api/projects/${id}/connection/poll` })).statusCode).toBe(401);
   });
 
-  it('is 403 for an org member who is neither the owner nor the project creator', async () => {
+  it('is 403 for a viewer, who lacks run:create on the project', async () => {
     const id = await pollingProject();
-    const carol = await inviteAndLogin(t, aliceOrg, 'carol', 'member', { type: 'project', projectIds: [id] });
+    const carol = await inviteAndLogin(t, aliceOrg, 'carol', 'viewer', { type: 'project', projectIds: [id] });
     expect((await checkNow(id, carol)).statusCode).toBe(403);
     expect(t.temporal.callsOfKind('scheduleTrigger')).toHaveLength(0);
+  });
+
+  it('runs for a member of the project who did not create it (BR-68)', async () => {
+    const id = await pollingProject();
+    const dave = await inviteAndLogin(t, aliceOrg, 'dave', 'member', { type: 'project', projectIds: [id] });
+    expect((await checkNow(id, dave)).statusCode).toBe(202);
+    expect(t.temporal.callsOfKind('scheduleTrigger').map((c) => c.scheduleId)).toEqual([`poll-${id}`]);
   });
 });
 

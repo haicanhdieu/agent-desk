@@ -1,4 +1,5 @@
-import { can, holdsAnywhere, type Access, type RouteAccess } from '@agentdesk/contracts';
+import { can, holdsAnywhere, inScope, type Access, type Permission, type RouteAccess } from '@agentdesk/contracts';
+import type { ResolvedTarget } from './target-resolver';
 
 export type PreTarget = 'allow' | 'forbidden' | 'needs-target';
 
@@ -23,4 +24,19 @@ export function preTargetDecision(entry: Exclude<RouteAccess, { scope: 'platform
     case 'project':
       return holdsAnywhere(access, entry.permission) ? 'needs-target' : 'forbidden';
   }
+}
+
+/**
+ * The decision once the target is resolved (the caller already holds the permission somewhere). A target that did not
+ * resolve, or whose project no grant of the caller covers, is `not-found`: other orgs and out-of-scope projects look
+ * the same as missing ones. A visible project where `can` is false (including someone else's run, or an ownerless one,
+ * for an `own` line) is `forbidden`.
+ */
+export function targetDecision(
+  entry: { permission: Permission },
+  access: Access,
+  target: ResolvedTarget | null,
+): 'allow' | 'forbidden' | 'not-found' {
+  if (target === null || !inScope(access, target.projectId)) return 'not-found';
+  return can(access, entry.permission, target) ? 'allow' : 'forbidden';
 }

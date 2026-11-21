@@ -9,11 +9,10 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import type { Logger } from 'pino';
-import { and, eq } from 'drizzle-orm';
 import type { RouteAccess, RouteKey } from '@agentdesk/contracts';
-import { loadAccess } from '@agentdesk/core';
-import { member, withOrg, type Db } from '@agentdesk/db';
-import { FORBIDDEN_DETAIL, preTargetDecision } from '../access/authorize';
+import type { Db } from '@agentdesk/db';
+import { FORBIDDEN_DETAIL } from '../access/authorize';
+import { checkTenantAccess, isOrgMember } from '../access/check-access';
 import { isPlatformAdmin } from '../access/platform-admin';
 import { routeEntryFor } from '../access/route-entry';
 import { LOGGER } from '../common/logger';
@@ -41,14 +40,17 @@ export function toHeaders(req: FastifyRequest): Headers {
   return headers;
 }
 
-/** The `:orgId` path param when the route has one; `undefined` when it has none (any other value is returned as-is). */
-function orgIdParam(req: FastifyRequest): unknown {
-  const params: unknown = req.params;
-  if (typeof params !== 'object' || params === null || !('orgId' in params)) return undefined;
-  return params.orgId;
+/**
+ * The path params as strings. A value that is not a string (never the case for Fastify, which parses paths to strings)
+ * becomes `''`, which matches no org or uuid, so it is refused or not found rather than skipped.
+ */
+function stringParams(params: unknown): Record<string, string | undefined> {
+  if (typeof params !== 'object' || params === null) return {};
+  return Object.fromEntries(Object.entries(params).map(([k, v]) => [k, typeof v === 'string' ? v : '']));
 }
 
-function permissionLabel(entry: Exclude<RouteAccess, { scope: 'self' }>): string {
+function permissionLabel(entry: RouteAccess): string | null {
+  if (entry.scope === 'self') return null;
   return entry.scope === 'org-admin' ? entry.anyOf.join(' | ') : entry.permission;
 }
 
@@ -98,35 +100,32 @@ export class SessionGuard implements CanActivate {
 
     const orgId = session.session.activeOrganizationId;
     if (!orgId) throw new ForbiddenException('No active organization');
-    const rows = await this.db.orm
-      .select({ role: member.role })
-      .from(member)
-      .where(and(eq(member.organizationId, orgId), eq(member.userId, userId)))
-      .limit(1);
-    const role = rows[0]?.role;
-    if (role === undefined) throw new ForbiddenException('Not a member of the active organization');
 
     if (match.kind === 'dev') {
-      req.orgContext = { userId, orgId, role };
+      if (!(await isOrgMember(this.db, { userId, orgId }))) {
+        throw new ForbiddenException('Not a member of the active organization');
+      }
+      req.orgContext = { userId, orgId };
       requestContext.set({ orgId });
       return true;
     }
 
-    const pathOrg = orgIdParam(req);
-    if (pathOrg !== undefined && pathOrg !== orgId) throw new NotFoundException('Not found');
-
-    const access = await withOrg(this.db, orgId, (tx) => loadAccess(tx, userId, this.logger));
-    req.orgContext = { userId, orgId, role };
-    req.authz = { access, routeKey: match.key };
-    requestContext.set({ orgId });
-
-    // Only `self` and `org-admin` are enforced here. `org`, `project` and `project-list` keep membership-only behaviour
-    // until the guard learns to enforce them (a later task of the RBAC plan).
+    // Membership, the path :orgId, the permission (before any id is looked up) and the project scope are decided here,
+    // so a refusal never depends on what the target is. Any outcome but ok fails closed.
     const { entry } = match;
-    if (entry.scope === 'self') return true;
-    if (entry.scope === 'org-admin' && preTargetDecision(entry, access) !== 'allow') {
+    const check = await checkTenantAccess(this.db, { userId, orgId }, entry, stringParams(req.params), this.logger);
+    if (!check.ok) {
+      if (check.status === 404) throw new NotFoundException('Not found');
       throw this.deny(req, { orgId, userId, routeKey: match.key, permission: permissionLabel(entry) });
     }
+    req.orgContext = { userId, orgId };
+    req.authz = {
+      access: check.access,
+      routeKey: match.key,
+      ...(check.target === undefined ? {} : { projectId: check.target.projectId }),
+      ...(check.target?.ownerUserId === undefined ? {} : { ownerUserId: check.target.ownerUserId }),
+    };
+    requestContext.set({ orgId });
     return true;
   }
 }

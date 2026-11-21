@@ -425,7 +425,8 @@ describe('run reads', () => {
     expect((await get(`/api/projects/${projectId}/ignored`, bob)).statusCode).toBe(404);
     expect((await post(`/api/runs/${run.id}/cancel`, bob)).statusCode).toBe(404);
     expect((await get(`/api/runs/${randomUUID()}`)).statusCode).toBe(404);
-    expect((await get('/api/runs/not-a-uuid')).statusCode).toBe(400);
+    // A caller who holds run:read gets 404 for a malformed id: the guard resolves the target before the param pipe runs.
+    expect((await get('/api/runs/not-a-uuid')).statusCode).toBe(404);
     expect((await get(`/api/runs/${run.id}`, '')).statusCode).toBe(401);
   });
 

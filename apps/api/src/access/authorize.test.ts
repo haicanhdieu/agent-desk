@@ -10,7 +10,7 @@ import {
   type RouteKey,
   type Scope,
 } from '@agentdesk/contracts';
-import { FORBIDDEN_DETAIL, preTargetDecision, type PreTarget } from './authorize';
+import { FORBIDDEN_DETAIL, preTargetDecision, targetDecision, type PreTarget } from './authorize';
 
 const P1 = '11111111-1111-4111-8111-111111111111';
 const ORG: Scope = { type: 'org' };
@@ -102,6 +102,57 @@ describe('preTargetDecision', () => {
     for (const key of ['projects.list', 'connections.list', 'runs.get', 'assignments.create'] as const) {
       expect(preTargetDecision(entryOf(key), empty)).toBe('forbidden');
     }
+  });
+});
+
+const P2 = '22222222-2222-4222-8222-222222222222';
+const OTHER = 'someone-else';
+
+describe('targetDecision', () => {
+  const entry = (permission: GrantLine['permission']) => ({ permission });
+  const viewerAdminOnP1 = access(grant('viewer', ORG, viewerLines), grant('admin', AT_P1, adminLines));
+
+  it('is not-found when the target did not resolve', () => {
+    expect(targetDecision(entry('run:read'), cast['org owner']!, null)).toBe('not-found');
+  });
+
+  it('is not-found for a project outside every grant of the caller', () => {
+    expect(targetDecision(entry('run:read'), cast['member on P1']!, { projectId: P2 })).toBe('not-found');
+  });
+
+  it('is forbidden for a visible project where the caller lacks the permission', () => {
+    expect(targetDecision(entry('rule:update'), viewerAdminOnP1, { projectId: P2 })).toBe('forbidden');
+    expect(targetDecision(entry('rule:update'), viewerAdminOnP1, { projectId: P1 })).toBe('allow');
+  });
+
+  it('is forbidden for a member on a run someone else owns', () => {
+    expect(targetDecision(entry('run:cancel'), cast['member on P1']!, { projectId: P1, ownerUserId: OTHER })).toBe(
+      'forbidden',
+    );
+  });
+
+  it('is forbidden for a member on an ownerless run', () => {
+    expect(targetDecision(entry('run:cancel'), cast['member on P1']!, { projectId: P1, ownerUserId: null })).toBe(
+      'forbidden',
+    );
+    expect(targetDecision(entry('run:cancel'), cast['member on P1']!, { projectId: P1 })).toBe('forbidden');
+  });
+
+  it('allows a member on their own run', () => {
+    expect(targetDecision(entry('run:cancel'), cast['member on P1']!, { projectId: P1, ownerUserId: 'u' })).toBe(
+      'allow',
+    );
+  });
+
+  it('allows a project admin on any run in their project, owned, someone else, or ownerless', () => {
+    const admin = cast['project admin on P1']!;
+    for (const ownerUserId of ['u', OTHER, null]) {
+      expect(targetDecision(entry('run:cancel'), admin, { projectId: P1, ownerUserId })).toBe('allow');
+    }
+  });
+
+  it('is not-found for a caller with no grants', () => {
+    expect(targetDecision(entry('run:read'), cast['no grants']!, { projectId: P1 })).toBe('not-found');
   });
 });
 

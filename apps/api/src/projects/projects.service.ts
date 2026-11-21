@@ -35,7 +35,7 @@ import { ValidationProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { TEMPORAL_CLIENT } from '../temporal/temporal-client.module';
 import { SECRET_STORE } from '../secrets/secret-store.module';
-import { assertCanEditProject } from './project-access';
+import { assertProjectVisible } from './project-access';
 import { ProjectSchedules } from './project-schedules';
 
 type ProjectRow = typeof projects.$inferSelect;
@@ -409,11 +409,11 @@ export class ProjectsService {
   /**
    * Check now: runs the project's poll schedule right away. Refused (409, with the reason) when the project is not
    * polling, polling is paused (revoked token, rate limit) or a back-off window is open: a poll would only skip it.
-   * The poll itself runs on the worker; its result shows up in `connection`. Same access as editing the project.
+   * The poll itself runs on the worker; its result shows up in `connection`. The guard has already checked `run:create` on the project.
    */
   async pollNow(org: OrgContext, projectId: string): Promise<void> {
     const refusal = await withOrg(this.db, org.orgId, async (tx) => {
-      await assertCanEditProject(tx, org, projectId);
+      await assertProjectVisible(tx, projectId);
       const row = await this.load(tx, projectId);
       const cursor = (await tx.select().from(pollCursors).where(eq(pollCursors.projectId, projectId)).limit(1))[0];
       return pollRefusal(row.triggerMode, cursor, new Date());
