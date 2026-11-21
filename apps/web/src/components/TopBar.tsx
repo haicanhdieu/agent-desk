@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { Avatar, Button, IconButton } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import { Brand } from './Brand';
+import { OrgSwitch, orgSwitchVisible, type OrgSwitchProps } from './OrgSwitch';
 import { ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
 import { Breadcrumb } from './Breadcrumb';
 import { ProjectNav } from './ProjectNav';
@@ -13,6 +14,8 @@ export interface TopBarProps {
   project?: { org: string; name: string; repoUrl: string };
   /** The project menu behind the switcher button; without it the button does nothing. */
   projectMenu?: ProjectSwitchMenu;
+  /** The org switcher, after the brand on the global variant only. */
+  org?: OrgSwitchProps;
   active?: 'runs' | 'desk';
   needsYou?: number;
   breadcrumb?: { label: ReactNode; href?: string }[];
@@ -32,6 +35,7 @@ export function TopBar({
   user,
   project,
   projectMenu,
+  org,
   active,
   needsYou,
   breadcrumb,
@@ -61,6 +65,12 @@ export function TopBar({
     return (
       <header className={styles.top}>
         <Brand href={projectsHref} />
+        {org && orgSwitchVisible(org) && (
+          <>
+            <span className={styles.sep} />
+            <OrgSwitch {...org} />
+          </>
+        )}
         <span className={styles.grow} />
         {bell}
         {avatar}

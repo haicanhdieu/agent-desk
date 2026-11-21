@@ -389,6 +389,15 @@ describe('SettingsSection / DangerZone / SidePane / SurfaceCard / SetupLayout', 
     expect(screen.getByText('mock')).toBeInTheDocument();
     expect(screen.getByText('Browser tab: title prefix.')).toBeInTheDocument();
   });
+  it('SurfaceCard without a caption renders the children and no figcaption', () => {
+    const { container } = render(
+      <SurfaceCard>
+        <span>mock</span>
+      </SurfaceCard>,
+    );
+    expect(screen.getByText('mock')).toBeInTheDocument();
+    expect(container.querySelector('figcaption')).toBeNull();
+  });
   it('SetupLayout composes the chrome, stepper, heading and footer', () => {
     render(
       <SetupLayout

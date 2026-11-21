@@ -12,6 +12,8 @@ export {
   type ProjectSwitchMenu,
   type ProjectMenuProps,
 } from './ProjectSwitch';
+export { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
+export { OnboardingChecklist, type OnboardingChecklistState } from './OnboardingChecklist';
 export { TopBar, TopBarSeparator, type TopBarProps } from './TopBar';
 export { SubNav, type SubNavProps } from './SubNav';
 export { AppShell, type AppShellProps } from './AppShell';
