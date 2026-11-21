@@ -32,8 +32,10 @@ export async function createOrg(t: TestApp, name: string, slug: string): Promise
 }
 
 /**
- * Platform-invites `${handle}@dev.local` into the org with a built-in role and scope, then dev-logs the handle in
- * (which accepts the invitation) and returns the session cookie. Throws unless the invitation answers 201.
+ * Platform-invites `${handle}@dev.local` into the org with a built-in role and scope, dev-logs the handle in and
+ * accepts the invitation through the invitee route, then signs in again and returns that session cookie (its active
+ * org is the oldest membership). Throws unless the
+ * invitation answers 201 and the accept answers 200.
  */
 export async function inviteAndLogin(
   t: TestApp,
@@ -57,6 +59,12 @@ export async function inviteAndLogin(
     payload: { email: `${handle}@dev.local`, roleId: role.id, scope },
   });
   if (res.statusCode !== 201) throw new Error(`inviteAndLogin ${handle} answered ${res.statusCode}: ${res.body}`);
+  const first = await loginAs(t, handle);
+  if (first === '') throw new Error(`inviteAndLogin ${handle}: dev-login was refused`);
+  const accepted = await acceptInvite(t, first, res.json<{ id: string }>().id);
+  if (accepted.statusCode !== 200)
+    throw new Error(`inviteAndLogin ${handle} accept answered ${accepted.statusCode}: ${accepted.body}`);
+  // A new session starts in the oldest membership, so the returned cookie is pinned like a returning person's.
   return loginAs(t, handle);
 }
 

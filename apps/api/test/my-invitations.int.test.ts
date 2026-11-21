@@ -308,12 +308,13 @@ describe('my invitations', () => {
 
   it('BR-45: a person with no org who declines their only invitation keeps an account with no org and the next session has none', async () => {
     const org = await newOrg('Solo Org');
-    // the platform admin account can exist without an invitation, so it is the one account here with no membership
-    const cookie = await asPlatformAdmin(t);
-    const userId = await userIdOf(t, 'admin');
+    // sign-in accepts nothing, so an invited new person has an account and no membership until they accept
+    const inv = await invite(t, org, 'br45-solo@dev.local', 'viewer', { type: 'org' });
+    const cookie = await loginAs(t, 'br45-solo');
+    expect(cookie).not.toBe('');
+    const userId = await userIdOf(t, 'br45-solo');
     const memberRows = () => t.db.pool.query('select 1 from member where user_id = $1', [userId]);
     expect((await memberRows()).rowCount).toBe(0);
-    const inv = await invite(t, org, 'admin@dev.local', 'viewer', { type: 'org' });
     expect((await myInvitations(t, cookie)).items.map((i) => i.id)).toEqual([inv.id]);
 
     expect((await declineInvite(t, cookie, inv.id)).statusCode).toBe(204);
@@ -321,7 +322,7 @@ describe('my invitations', () => {
     expect((await memberRows()).rowCount).toBe(0);
 
     // the next sign-in must not pick the declined invitation up
-    expect(await loginAs(t, 'admin')).not.toBe('');
+    expect(await loginAs(t, 'br45-solo')).not.toBe('');
     const rows = await t.db.pool.query<{ active: string | null }>(
       'select active_organization_id as active from session where user_id = $1 order by created_at desc limit 1',
       [userId],

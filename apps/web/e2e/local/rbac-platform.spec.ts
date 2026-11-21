@@ -3,6 +3,7 @@ import { expect, test, type APIRequestContext, type APIResponse } from '@playwri
 import {
   AccessDto,
   CreateOrgResponse,
+  InvitationDto,
   PlatformMemberDto,
   PlatformOrgDto,
   PlatformProjectDto,
@@ -11,7 +12,7 @@ import {
   pageOf,
 } from '@agentdesk/contracts';
 import { z } from 'zod';
-import { API, asPlatformAdmin, createOrg, ok } from './helpers';
+import { API, acceptViaApi, asPlatformAdmin, createOrg, ok } from './helpers';
 import { REPO_P1, REPO_P2, buildCast, disposeCast, installFake, type Actor, type Cast } from './rbac-cast';
 
 /*
@@ -453,6 +454,8 @@ test.describe('BR-69: platform admin creates an org and invites its owner', () =
     let projectId: string | undefined;
     try {
       const page = await ctx.newPage();
+      await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
+      await acceptViaApi(page, InvitationDto.parse(await invite.json()).id);
       await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
       const members = await platformMembers(pa, org.id);
       const member = members.page.items.find((m) => m.email === email);

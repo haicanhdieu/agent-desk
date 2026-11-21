@@ -1,9 +1,19 @@
 import { sql } from 'drizzle-orm';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { NO_INVITATION_CODE } from '@agentdesk/contracts';
 import { withOrg } from '@agentdesk/db';
-import { AUTH } from '../src/auth/auth';
+import { AUTH, createAuth } from '../src/auth/auth';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, grant, inviteAndLogin, revoke, userIdOf } from './helpers/auth';
+import {
+  acceptInvite,
+  createOrg,
+  grant,
+  invite,
+  inviteAndLogin,
+  myInvitations,
+  revoke,
+  userIdOf,
+} from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -36,40 +46,200 @@ function cookieOf(res: { headers: Record<string, unknown> }): string {
 }
 
 describe('auth', () => {
-  it("an invited handle's first dev-login creates no personal org and lands in the invited org", async () => {
+  it("an invited handle's first dev-login creates the account but no membership and no active org until accept", async () => {
     const orgId = (await createOrg(t, 'Invited Org', 'invited-org')).id;
     const orgsBefore = (await t.db.pool.query('select count(*)::int as n from organization')).rows[0]?.n;
-    const cookie = await inviteAndLogin(t, orgId, 'alice', 'viewer', { type: 'org' });
-    expect(cookie).not.toBe('');
+    const inv = await invite(t, orgId, 'alice@dev.local', 'viewer', { type: 'org' });
     const res = await devLogin('alice', '/projects');
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toBe('/projects');
-    expect(cookieOf(res)).not.toBe('');
+    const cookie = cookieOf(res);
+    expect(cookie).not.toBe('');
     const orgsAfter = (await t.db.pool.query('select count(*)::int as n from organization')).rows[0]?.n;
     expect(orgsAfter).toBe(orgsBefore);
-    const m = await t.db.pool.query(
-      'select m.organization_id, u.handle, u.email from member m join "user" u on u.id = m.user_id where u.email = $1',
-      ['alice@dev.local'],
-    );
-    expect(m.rows).toHaveLength(1);
-    expect(m.rows[0]).toMatchObject({ organization_id: orgId, handle: 'alice', email: 'alice@dev.local' });
-    expect(orgId).toMatch(UUID);
-    const s = await t.db.pool.query(
-      'select active_organization_id from session where user_id = (select id from "user" where email = $1)',
-      ['alice@dev.local'],
-    );
+    const u = await t.db.pool.query('select id, handle from "user" where email = $1', ['alice@dev.local']);
+    expect(u.rows).toHaveLength(1);
+    expect(u.rows[0]?.handle).toBe('alice');
+    // BR-2: the account exists but the person is not a member and the invitation is still pending
+    expect((await t.db.pool.query('select 1 from member where user_id = $1', [u.rows[0]?.id])).rows).toHaveLength(0);
+    const mine = await myInvitations(t, cookie);
+    expect(mine.items.map((i) => i.id)).toEqual([inv.id]);
+    const s = await t.db.pool.query('select active_organization_id from session where user_id = $1', [u.rows[0]?.id]);
     expect(s.rows.length).toBeGreaterThan(0);
-    expect(s.rows.map((r) => r.active_organization_id)).toEqual(s.rows.map(() => orgId));
+    expect(s.rows.map((r) => r.active_organization_id)).toEqual(s.rows.map(() => null));
+    expect(orgId).toMatch(UUID);
+    // after an explicit accept the next session lands in the invited org
+    expect((await acceptInvite(t, cookie, inv.id)).statusCode).toBe(200);
+    expect((await devLogin('alice')).statusCode).toBe(302);
+    const s2 = await t.db.pool.query(
+      'select active_organization_id from session where user_id = $1 order by created_at desc limit 1',
+      [u.rows[0]?.id],
+    );
+    expect(s2.rows[0]?.active_organization_id).toBe(orgId);
   });
 
-  it('an uninvited handle is refused with 401, no cookie and no user', async () => {
-    const res = await devLogin('uninvited');
-    expect(res.statusCode).toBe(401);
-    expect(res.headers['set-cookie']).toBeUndefined();
-    const users = await t.db.pool.query('select 1 from "user" where email = \'uninvited@dev.local\'');
-    expect(users.rows).toHaveLength(0);
+  it('BR-1: an uninvited handle is refused to /sign-in?error=no_invitation, with no cookie and no user, every time', async () => {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const res = await devLogin('uninvited');
+      expect(res.statusCode).toBe(302);
+      expect(res.headers['location']).toBe(`/sign-in?error=${NO_INVITATION_CODE}`);
+      expect(res.headers['set-cookie']).toBeUndefined();
+      const users = await t.db.pool.query('select 1 from "user" where email = \'uninvited@dev.local\'');
+      expect(users.rows).toHaveLength(0);
+      const accounts = await t.db.pool.query("select 1 from account where account_id = 'uninvited'");
+      expect(accounts.rows).toHaveLength(0);
+    }
     const orgs = await t.db.pool.query("select 1 from organization where slug like 'uninvited%'");
     expect(orgs.rows).toHaveLength(0);
+  });
+
+  it('BR-1: a platform admin with no invitation signs in', async () => {
+    const res = await devLogin('admin');
+    expect(res.statusCode).toBe(302);
+    expect(res.headers['location']).toBe('/');
+    expect(cookieOf(res)).not.toBe('');
+  });
+
+  it('BR-3: an existing user invited to a second org is not a member of it after a new sign-in', async () => {
+    const a = (await createOrg(t, 'Br3 A', 'br3-a')).id;
+    const b = (await createOrg(t, 'Br3 B', 'br3-b')).id;
+    await inviteAndLogin(t, a, 'br3-user', 'viewer', { type: 'org' });
+    const inv = await invite(t, b, 'br3-user@dev.local', 'member', { type: 'org' });
+    const res = await devLogin('br3-user');
+    expect(res.statusCode).toBe(302);
+    const userId = await userIdOf(t, 'br3-user');
+    const orgs = await t.db.pool.query('select organization_id from member where user_id = $1', [userId]);
+    expect(orgs.rows.map((r) => r.organization_id)).toEqual([a]);
+    const mine = await myInvitations(t, cookieOf(res));
+    expect(mine.items.map((i) => i.id)).toEqual([inv.id]);
+  });
+
+  it('BR-43: a user in orgs A (joined first) and B gets A as the active org in a new session', async () => {
+    const a = (await createOrg(t, 'Br43 A', 'br43-a')).id;
+    const b = (await createOrg(t, 'Br43 B', 'br43-b')).id;
+    const cookie = await inviteAndLogin(t, a, 'br43-user', 'viewer', { type: 'org' });
+    const inv = await invite(t, b, 'br43-user@dev.local', 'member', { type: 'org' });
+    expect((await acceptInvite(t, cookie, inv.id)).statusCode).toBe(200);
+    const res = await devLogin('br43-user');
+    const sess = await t.app.inject({ method: 'GET', url: '/auth/get-session', headers: { cookie: cookieOf(res) } });
+    expect(sess.json().session.activeOrganizationId).toBe(a);
+  });
+
+  /** Runs the GitHub callback against stubbed GitHub endpoints (no network) and returns where the browser is sent. */
+  async function githubCallback(
+    profile: { id: number; login: string; email: string; verified: boolean },
+    config: Partial<typeof t.config> = {},
+  ): Promise<URL> {
+    const social = createAuth(
+      { ...t.config, ...config, GITHUB_CLIENT_ID: 'cid', GITHUB_CLIENT_SECRET: 'csecret' },
+      t.db,
+    );
+    const realFetch = globalThis.fetch;
+    const stub = vi.fn((input: unknown, init?: unknown) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+      const json = (body: unknown) =>
+        Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
+      if (url.includes('/login/oauth/access_token')) {
+        return json({ access_token: 'tok', token_type: 'bearer', scope: 'read:user,user:email' });
+      }
+      if (url.endsWith('/user/emails')) {
+        return json([{ email: profile.email, primary: true, verified: profile.verified, visibility: 'public' }]);
+      }
+      if (url.endsWith('/user')) {
+        return json({
+          id: profile.id,
+          login: profile.login,
+          name: profile.login,
+          email: profile.email,
+          avatar_url: '',
+        });
+      }
+      return realFetch(input as Request, init as RequestInit);
+    });
+    vi.stubGlobal('fetch', stub);
+    try {
+      const base = 'http://localhost:5173/auth';
+      const start = await social.handler(
+        new Request(`${base}/sign-in/social`, {
+          method: 'POST',
+          headers: { origin: 'http://localhost:5173', 'content-type': 'application/json' },
+          body: JSON.stringify({ provider: 'github', callbackURL: '/', errorCallbackURL: '/sign-in' }),
+        }),
+      );
+      expect(start.status).toBe(200);
+      const state = new URL(((await start.json()) as { url: string }).url).searchParams.get('state');
+      expect(state).not.toBeNull();
+      const cookie = start.headers
+        .getSetCookie()
+        .map((c) => c.split(';')[0])
+        .join('; ');
+      const done = await social.handler(
+        new Request(`${base}/callback/github?code=x&state=${state}`, { headers: { cookie } }),
+      );
+      expect(done.status).toBe(302);
+      expect(stub).toHaveBeenCalled();
+      return new URL(done.headers.get('location') ?? '', 'http://localhost:5173');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  }
+
+  const usersWithEmail = async (email: string) =>
+    (await t.db.pool.query('select id from "user" where email = $1', [email])).rows;
+
+  it('BR-1: an uninvited GitHub account is sent back to /sign-in?error=no_invitation and no user row is made', async () => {
+    const location = await githubCallback({
+      id: 424242,
+      login: 'stranger',
+      email: 'stranger@example.com',
+      verified: true,
+    });
+    expect(location.pathname).toBe('/sign-in');
+    expect(location.searchParams.get('error')).toBe(NO_INVITATION_CODE);
+    expect(await usersWithEmail('stranger@example.com')).toHaveLength(0);
+  });
+
+  it('BR-1/BR-2: an invited GitHub account with a verified email signs up with no membership and the invitation still pending', async () => {
+    const orgId = (await createOrg(t, 'Gh Invited', 'gh-invited')).id;
+    const inv = await invite(t, orgId, 'ghinvited@example.com', 'viewer', { type: 'org' });
+    const location = await githubCallback({
+      id: 424243,
+      login: 'ghinvited',
+      email: 'ghinvited@example.com',
+      verified: true,
+    });
+    expect(location.searchParams.get('error')).toBeNull();
+    expect(location.pathname).toBe('/');
+    const users = await usersWithEmail('ghinvited@example.com');
+    expect(users).toHaveLength(1);
+    expect((await t.db.pool.query('select 1 from member where user_id = $1', [users[0]?.id])).rows).toHaveLength(0);
+    const pending = await withOrg(t.db, orgId, (tx) =>
+      tx.execute(sql`select status from invitations where id = ${inv.id}`),
+    );
+    expect(pending.rows.map((r) => r.status)).toEqual(['pending']);
+  });
+
+  it('BR-1: an invited GitHub account whose email is unverified is refused with no_invitation and no user row', async () => {
+    const orgId = (await createOrg(t, 'Gh Unverified', 'gh-unverified')).id;
+    await invite(t, orgId, 'ghunverified@example.com', 'viewer', { type: 'org' });
+    const location = await githubCallback({
+      id: 424244,
+      login: 'ghunverified',
+      email: 'ghunverified@example.com',
+      verified: false,
+    });
+    expect(location.pathname).toBe('/sign-in');
+    expect(location.searchParams.get('error')).toBe(NO_INVITATION_CODE);
+    expect(await usersWithEmail('ghunverified@example.com')).toHaveLength(0);
+  });
+
+  it('BR-1: a configured platform admin GitHub account with no invitation signs up', async () => {
+    const location = await githubCallback(
+      { id: 424245, login: 'ghadmin', email: 'ghadmin@example.com', verified: true },
+      { PLATFORM_ADMIN_EMAILS: ['ghadmin@example.com'] },
+    );
+    expect(location.searchParams.get('error')).toBeNull();
+    expect(await usersWithEmail('ghadmin@example.com')).toHaveLength(1);
   });
 
   it('a second dev-login for the same handle creates no second user or org', async () => {
