@@ -1577,9 +1577,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: Task 10 helpers.
 
-- [ ] **Step 1: Write the spec**: TC-5.1 to TC-5.3 (BR-5); TC-21.1, TC-21.2 (BR-21: exactly P1 and P2, switcher lists A and O); TC-22.1 to TC-22.3 (BR-22: decline, the inviter's Declined chip, Cancel keeps pending); TC-23.1 to TC-23.4 (BR-23: revoked after open, declined and accepted in another page); TC-24.1 (BR-24); TC-25.1, TC-25.2 (BR-25); TC-26.1 to TC-26.3 (BR-26); TC-42.1, TC-42.2 (BR-42: two pages and a double click, one membership checked through the members API); TC-52.1 (BR-52: handle in the Invited by column and on the accept page).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-link.spec.ts` with the stack up. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): e2e for the invitation link page`.
+- [x] **Step 1: Write the spec**: TC-5.1 to TC-5.3 (BR-5); TC-21.1, TC-21.2 (BR-21: exactly P1 and P2, switcher lists A and O); TC-22.1 to TC-22.3 (BR-22: decline, the inviter's Declined chip, Cancel keeps pending); TC-23.1 to TC-23.4 (BR-23: revoked after open, declined and accepted in another page); TC-24.1 (BR-24); TC-25.1, TC-25.2 (BR-25); TC-26.1 to TC-26.3 (BR-26); TC-42.1, TC-42.2 (BR-42: two pages and a double click, one membership checked through the members API); TC-52.1 (BR-52: handle in the Invited by column and on the accept page).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-link.spec.ts` with the stack up. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): e2e for the invitation link page`.
 
 ---
 
