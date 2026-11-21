@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Writable } from 'node:stream';
+import pg from 'pg';
 import pino from 'pino';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { connections, inboundEvents, projects, runs, withOrg } from '@agentdesk/db';
@@ -187,6 +188,48 @@ describe('tickets.prStates', () => {
     await ignoredFor(projectId, '23', 'received');
     expect(statesOf(await prStates(projectId, '?ref=22&ref=23'))).toEqual([]);
     expect(calls).toEqual([]);
+  });
+
+  describe('ignored-event read', () => {
+    /** Runs `fn` while the app role cannot read inbound_events, so any read of it fails the request. */
+    async function withoutEventReads(fn: () => Promise<void>): Promise<void> {
+      const owner = new pg.Pool({ connectionString: t.pg.ownerUrl, max: 1 });
+      await owner.query('revoke select on inbound_events from agentdesk_app');
+      try {
+        await fn();
+      } finally {
+        await owner.query('grant select on inbound_events to agentdesk_app');
+        await owner.end();
+      }
+    }
+
+    it('does not read inbound_events when every ref has a PR run', async () => {
+      const { projectId, repoPath } = await newProject();
+      await addPr(repoPath, 121, 'open');
+      await addPr(repoPath, 122, 'merged');
+      await runFor(projectId, '121', 'pr');
+      await runFor(projectId, '122', 'pr');
+      await withoutEventReads(async () => {
+        const res = await prStates(projectId, '?ref=121&ref=122');
+        expect(res.statusCode).toBe(200);
+        expect(statesOf(res)).toEqual([
+          ['121', 'open'],
+          ['122', 'merged'],
+        ]);
+      });
+    });
+
+    it('still looks up a ref known only from an ignored event next to a ref known from a run', async () => {
+      const { projectId, repoPath } = await newProject();
+      await addPr(repoPath, 123, 'open');
+      await addPr(repoPath, 124, 'closed');
+      await runFor(projectId, '123', 'pr');
+      await ignoredFor(projectId, '124');
+      expect(statesOf(await prStates(projectId, '?ref=123&ref=124'))).toEqual([
+        ['123', 'open'],
+        ['124', 'closed'],
+      ]);
+    });
   });
 
   it("another project's PR refs never reach the adapter", async () => {

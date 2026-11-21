@@ -59,18 +59,23 @@ export class TicketsService {
         .select({ ref: runs.ticketRef })
         .from(runs)
         .where(and(eq(runs.projectId, projectId), eq(runs.ticketKind, 'pr'), inArray(runs.ticketRef, refs)));
-      const fromEvents = await tx
-        .select({ ref: inboundEvents.ticketRef })
-        .from(inboundEvents)
-        .where(
-          and(
-            eq(inboundEvents.projectId, projectId),
-            sql`starts_with(${inboundEvents.outcome}, 'ignored_')`,
-            inArray(inboundEvents.ticketRef, refs),
-          ),
-        );
       const set = new Set<string>();
-      for (const r of [...fromRuns, ...fromEvents]) if (r.ref !== null) set.add(r.ref);
+      for (const r of fromRuns) if (r.ref !== null) set.add(r.ref);
+      // The ignored-event lookup has no (project_id, ticket_ref) index, so only run it for refs the runs did not match.
+      const unmatched = refs.filter((r) => !set.has(r));
+      if (unmatched.length > 0) {
+        const fromEvents = await tx
+          .select({ ref: inboundEvents.ticketRef })
+          .from(inboundEvents)
+          .where(
+            and(
+              eq(inboundEvents.projectId, projectId),
+              sql`starts_with(${inboundEvents.outcome}, 'ignored_')`,
+              inArray(inboundEvents.ticketRef, unmatched),
+            ),
+          );
+        for (const r of fromEvents) if (r.ref !== null) set.add(r.ref);
+      }
       return { row: project, known: refs.filter((r) => set.has(r)) };
     });
 
