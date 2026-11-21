@@ -7,7 +7,7 @@ import type { FastifyInstance, FastifyRequest } from 'fastify';
 import type { RawData, WebSocket } from 'ws';
 import { z } from 'zod';
 import { withOrg, type Db } from '@agentdesk/db';
-import { routeAccess, routes } from '@agentdesk/contracts';
+import { TERMINAL_CLOSE_ORG_CHANGED, routeAccess, routes } from '@agentdesk/contracts';
 import {
   EXEC_NOT_FOUND,
   TMUX_ATTACH,
@@ -20,6 +20,7 @@ import {
 import { checkTenantAccess } from '../access/check-access';
 import { AUTH, type Auth } from '../auth/auth';
 import { toHeaders } from '../auth/session.guard';
+import { requestedOrgId } from '../common/org-mismatch';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { KUBE_GATEWAY } from '../kube/kube-gateway.module';
@@ -40,6 +41,8 @@ export const CLOSE = {
   notActive: 4409,
   /** The pod's tmux session is gone (attach exit 3): the run ended while the socket was opening or open. */
   sessionEnded: 4410,
+  /** The `orgId` the browser connected for is not the session's active org (nothing was sent or exec'd). */
+  orgChanged: TERMINAL_CLOSE_ORG_CHANGED,
 } as const;
 
 /** Largest frame the browser may send (a keystroke burst or paste chunk); ws closes the socket with 1009 above it. */
@@ -251,7 +254,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
   }
 
   private async start(conn: Conn, req: FastifyRequest): Promise<void> {
-    const authz = await this.authorize(req, conn.target, conn.runId);
+    const authz = await this.authorize(req, conn.target, conn.runId, requestedOrgId(req));
     if (conn.authTimer) clearTimeout(conn.authTimer);
     if (conn.closed) return;
     if (!authz.ok) {
@@ -346,12 +349,17 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     }
   }
 
-  private async authorize(req: FastifyRequest, target: TerminalTarget, runId: string): Promise<AuthzResult> {
+  private async authorize(
+    req: FastifyRequest,
+    target: TerminalTarget,
+    runId: string,
+    requestedOrg: string | undefined,
+  ): Promise<AuthzResult> {
     const deny = (code: number, why: string): AuthzResult => ({ ok: false, code, why });
     const origin = req.headers.origin;
     if (origin !== undefined && origin !== new URL(this.config.PUBLIC_ORIGIN).origin)
       return deny(CLOSE.forbidden, 'origin');
-    return this.check(toHeaders(req), target, runId);
+    return this.check(toHeaders(req), target, runId, { requestedOrg });
   }
 
   /**
@@ -360,14 +368,31 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
    * ownership for a grant that is `own`). Any refusal, whatever its reason (not a member, no permission, out of scope,
    * not yours, missing or other-org target, malformed id), is 4403 and never says which. Only then the target's state
    * (4410 / 4409). A thrown error (auth or DB outage) propagates: only a null session is 4401.
+   *
+   * At connect (`requestedOrg`) the org is the session's active one, and a named org that differs is 4412 before
+   * anything else. On reauth (`pinnedOrg`) the org is the one fixed at connect, never the session's current one: a
+   * later org switch of the session neither closes the socket nor lets it check another org.
    */
-  private async check(headers: Headers, target: TerminalTarget, runId: string): Promise<AuthzResult> {
+  private async check(
+    headers: Headers,
+    target: TerminalTarget,
+    runId: string,
+    which: { requestedOrg: string | undefined } | { pinnedOrg: string },
+  ): Promise<AuthzResult> {
     const deny = (code: number, why: string): AuthzResult => ({ ok: false, code, why });
     const session = await this.auth.api.getSession({ headers });
     if (!session) return deny(CLOSE.unauthorized, 'no-session');
-    const orgId = session.session.activeOrganizationId;
     const userId = session.user.id;
-    if (!orgId) return deny(CLOSE.forbidden, 'no-org');
+    let orgId: string;
+    if ('pinnedOrg' in which) {
+      orgId = which.pinnedOrg;
+    } else {
+      const active = session.session.activeOrganizationId;
+      if (which.requestedOrg !== undefined && which.requestedOrg !== active)
+        return deny(CLOSE.orgChanged, 'org-changed');
+      if (!active) return deny(CLOSE.forbidden, 'no-org');
+      orgId = active;
+    }
 
     const access = await checkTenantAccess(this.db, { userId, orgId }, routeAccess[target.routeKey], {
       [target.param]: runId,
@@ -510,7 +535,7 @@ export class TerminalGateway implements OnApplicationBootstrap, OnModuleDestroy 
     if (conn.closed || conn.reauthBusy) return;
     conn.reauthBusy = true;
     try {
-      const res = await this.check(conn.headers, conn.target, conn.runId);
+      const res = await this.check(conn.headers, conn.target, conn.runId, { pinnedOrg: conn.orgId });
       if (!res.ok && (res.code === CLOSE.unauthorized || res.code === CLOSE.forbidden) && !conn.closed) {
         this.log.log(
           `terminal reauth denied ${conn.target.kind}=${conn.runId} user=${conn.userId} code=${res.code} why=${res.why}`,

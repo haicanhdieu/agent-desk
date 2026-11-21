@@ -3,6 +3,7 @@
 - Status: Accepted
 - Amended by [0023](0023-runner-entrypoint-owns-the-end-of-a-run-pod.md) (the entrypoint owns the end of the pod)
 - Amended by [0031](0031-scoped-rbac-roles-assignments.md) (terminal authorization: `terminal:attach` on the run's project, with ownership for members)
+- Amended by [0035](0035-per-request-org-check-and-auth-allow-list.md) (close 4412 on an org mismatch; reauth pinned to the connect org)
 - Date: 2026-11-11
 - Source: Architecture (PoC) §6 (approach A, Transport, comparison table), §7 threat model, §9 (Streaming); control plane design §7.5; frontend design §2 (Terminal), §5.3; infra design §6.4, §9.3
 

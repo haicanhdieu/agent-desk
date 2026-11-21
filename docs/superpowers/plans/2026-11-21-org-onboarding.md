@@ -747,15 +747,15 @@ export async function acceptViaApi(page: Page, invitationId: string): Promise<vo
 - Consumes: `ORG_QUERY_PARAM`, `TERMINAL_CLOSE_ORG_CHANGED` (Task 1).
 - Produces: `CLOSE.orgChanged = TERMINAL_CLOSE_ORG_CHANGED`; at connect, an `orgId` query param that is not the session's active org closes 4412 "org changed" before any byte; `reauth` re-checks session, membership and permission in `conn.orgId` (fixed at connect), never the session's current org.
 
-- [ ] **Step 1: Write the failing tests** (N-6):
+- [x] **Step 1: Write the failing tests** (N-6):
   - connect with `?orgId=<other org>` → close 4412, no bytes; `?orgId=<active org>` and no param → attaches as today.
   - after connect, the user switches the session's active org (`set-active` to their other org); the next reauth keeps the socket open.
   - after connect, the user's assignment in the connect org is revoked; the next reauth closes 4403.
   - an existing test that expects 4403 after an org switch (if any) changes to "stays open".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/terminal.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the connect check and the pinned reauth.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/terminal.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the connect check and the pinned reauth.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): pin a terminal to the org it connected to`.
+- [x] **Step 5: Commit** `feat(api): pin a terminal to the org it connected to`.
 
 ---
 
@@ -775,11 +775,11 @@ export async function acceptViaApi(page: Page, invitationId: string): Promise<vo
 
 - Produces: ADR-0032 "Per-request org check and the /auth allow-list" (Accepted, 2026-11-21): the `x-org-id` header and `orgId` param, 409 `org-mismatch` and close 4412 before any side effect, terminal reauth pinned to the connect org, the `/auth` allow-list, and the `setActive` latency check closed by reasoning (one POST only when the URL org differs from the session org; same-org navigation sends none); it amends ADR-0003, ADR-0008 and ADR-0014.
 
-- [ ] **Step 1: Write** ADR-0032 in the house ADR shape (context, decision, alternatives table, consequences) and its README row.
-- [ ] **Step 2: Add** an "Amended by [0032](…)" line to the status of ADR-0003 (the URL org wins per request), ADR-0008 (allow-list, `setActive` latency closed) and ADR-0014 (4412, reauth pinned).
-- [ ] **Step 3: Fix** the slice 1 spec and ADR-0031: BR-55 and BR-56 (explicit accept and decline, no auto-accept), BR-57 and §Limits (2 days, resend revives an expired invitation, `declined` final), §States, the API table (lists return every status with a `status` filter, default pending), `invitedBy: InviterDto | null` on `InvitationDto` and `PlatformInvitationDto`, the 7-day line in the tenant invitation create rule, and the fourth cross-org function. Leave the slice 1 spec's line 1 as is.
-- [ ] **Step 4: Fix** `database.md`: four cross-tenant functions, adding `invitation_org_for_email(invitation_id, email)` (org id only, any status, one id per call).
-- [ ] **Step 5: Commit** `docs(adr): ADR-0032 per-request org check and auth allow-list; slice 1 doc fixes`. PR body flags, unfixed: ADR-0006, ADR-0008 and the control-plane spec still say "personal org per user"; the frontend design spec lists the org switcher and invitations UI as out of scope; the slice 1 spec changed after its plan was built.
+- [x] **Step 1: Write** ADR-0032 in the house ADR shape (context, decision, alternatives table, consequences) and its README row.
+- [x] **Step 2: Add** an "Amended by [0032](…)" line to the status of ADR-0003 (the URL org wins per request), ADR-0008 (allow-list, `setActive` latency closed) and ADR-0014 (4412, reauth pinned).
+- [x] **Step 3: Fix** the slice 1 spec and ADR-0031: BR-55 and BR-56 (explicit accept and decline, no auto-accept), BR-57 and §Limits (2 days, resend revives an expired invitation, `declined` final), §States, the API table (lists return every status with a `status` filter, default pending), `invitedBy: InviterDto | null` on `InvitationDto` and `PlatformInvitationDto`, the 7-day line in the tenant invitation create rule, and the fourth cross-org function. Leave the slice 1 spec's line 1 as is.
+- [x] **Step 4: Fix** `database.md`: four cross-tenant functions, adding `invitation_org_for_email(invitation_id, email)` (org id only, any status, one id per call).
+- [x] **Step 5: Commit** `docs(adr): ADR-0032 per-request org check and auth allow-list; slice 1 doc fixes`. PR body flags, unfixed: ADR-0006, ADR-0008 and the control-plane spec still say "personal org per user"; the frontend design spec lists the org switcher and invitations UI as out of scope; the slice 1 spec changed after its plan was built.
 
 ---
 
