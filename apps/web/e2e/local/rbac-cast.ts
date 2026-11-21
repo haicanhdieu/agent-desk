@@ -89,7 +89,7 @@ async function signIn(
 }
 
 /** The org's fake connection (the install callback records it), made as `who`. */
-async function installFake(who: Actor): Promise<string> {
+export async function installFake(who: Pick<Actor, 'api'>): Promise<string> {
   const install = InstallResponse.parse(
     await ok(await who.api.post('/api/connections/fake/install'), 201, 'install fake connection'),
   );

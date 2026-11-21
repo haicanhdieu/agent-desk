@@ -1819,9 +1819,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; Task 34 platform helpers.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-38.1 to TC-38.4; TC-40.1 to TC-40.4 (assert the exact key sets); TC-69.1 to TC-69.5 (slugs `e2e-<rand>`, `acme-eu-<rand>`); TC-70.1 to TC-70.4.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-platform.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e platform admin org creation and lists`.
+- [x] **Step 1: Write the spec:** TC-38.1 to TC-38.4; TC-40.1 to TC-40.4 (assert the exact key sets); TC-69.1 to TC-69.5 (slugs `e2e-<rand>`, `acme-eu-<rand>`); TC-70.1 to TC-70.4.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-platform.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e platform admin org creation and lists`.
 
 ---
 
