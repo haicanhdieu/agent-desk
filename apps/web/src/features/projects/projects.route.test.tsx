@@ -212,3 +212,82 @@ describe('projects route paging', () => {
     expect(screen.getByRole('table')).not.toHaveAttribute('aria-busy');
   });
 });
+
+/** The first user (the signed-in one) is invited by n pending invitations, as a user in an org gets them. */
+function inviteMe(n: number): void {
+  const user = mockDb.state.users[0];
+  const template = mockDb.state.invitations.find((i) => i.status === 'pending');
+  if (!user || !template) throw new Error('scenario has no user or pending invitation');
+  mockDb.state.invitations = Array.from({ length: n }, (_, i) => ({
+    ...template,
+    id: `b7000000-0000-4000-8000-${String(i + 1).padStart(12, '0')}`,
+    email: user.email.toLowerCase(),
+    expiresAt: '2099-01-01T00:00:00.000Z',
+  }));
+}
+
+describe('projects route invitations banner', () => {
+  it('BR-3: shows the pending count and View goes to /invitations', async () => {
+    const { router, user } = await renderRoute('/o/acme/projects', {
+      scenario: () => {
+        scenarios.onboarding('owner');
+        inviteMe(2);
+      },
+    });
+    expect(await screen.findByText('You have 2 pending invitations.')).toBeInTheDocument();
+    const view = screen.getByRole('link', { name: 'View' });
+    expect(view).toHaveAttribute('href', '/invitations');
+    await user.click(view);
+    expect(router.state.location.pathname).toBe('/invitations');
+  });
+
+  it('BR-3: says "1 pending invitation" (singular) for exactly one', async () => {
+    await renderRoute('/o/acme/projects', {
+      scenario: () => {
+        scenarios.onboarding('owner');
+        inviteMe(1);
+      },
+    });
+    expect(await screen.findByText('You have 1 pending invitation.')).toBeInTheDocument();
+  });
+
+  it('BR-3: is hidden at 0 pending invitations', async () => {
+    await renderRoute('/o/acme/projects', {
+      scenario: () => {
+        scenarios.onboarding('owner');
+        inviteMe(0);
+      },
+    });
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryByText(/pending invitation/)).toBeNull();
+    expect(screen.queryByRole('link', { name: 'View' })).toBeNull();
+  });
+
+  it('BR-3: is hidden when the invitations list fails, and the page still renders', async () => {
+    await renderRoute('/o/acme/projects', {
+      scenario: () => {
+        scenarios.onboarding('owner');
+        inviteMe(2);
+        scenarios.serverError('me.listInvitations');
+      },
+    });
+    expect(await screen.findByRole('link', { name: 'invoicer-api' })).toBeInTheDocument();
+    await waitFor(() => expect(mockDb.requests('GET', '/api/me/invitations')).toBeGreaterThan(0));
+    expect(screen.queryByText(/pending invitation/)).toBeNull();
+  });
+});
+
+describe('projects route controls by role', () => {
+  it.each(['member', 'viewer'] as const)('BR-20: a %s sees no Invitations and no New project', async (name) => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    expect(screen.queryByRole('link', { name: 'Invitations' })).toBeNull();
+    expect(screen.queryByRole('link', { name: /New project/ })).toBeNull();
+  });
+
+  it('BR-20: an owner sees Invitations (to the org Invitations page) and New project', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('owner') });
+    expect(await screen.findByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
+    expect(screen.getByRole('link', { name: /New project/ })).toHaveAttribute('href', '/o/acme/projects/new/repo');
+  });
+});
