@@ -956,7 +956,7 @@ In `Transcript.test.tsx`:
 - `labels person messages You or Prompt and agent replies with the agent name and time`;
 - `a tool step shows the tool name in bold and its summary in mono`;
 - `notices render as centred rule lines in order`;
-- `markup and markdown render literally and whitespace is kept`: `<b>bold</b> <script>…</script>` gives no `b` or `script` element and the literal text; `# Heading` gives no heading;
+- `renders Markdown in user and agent text …`: `# Heading` gives a heading and `**strong**` a `strong` element; `unsafe raw HTML … is never rendered`: `<script>…</script>` gives no `script` element;
 - `a truncated entry ends with … (cut)`;
 - `Show earlier messages calls onShowEarlier and is absent without hasEarlier`;
 - `loading is busy and labelled Loading the transcript`;

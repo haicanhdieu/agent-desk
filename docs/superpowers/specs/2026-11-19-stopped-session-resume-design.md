@@ -1029,7 +1029,7 @@ Notes for all cases: "mock" cases use a mocked run in the stated state; "local" 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-43.1 | validation | mock | A mocked message containing `<b>bold</b> <script>alert(1)</script>` | 1. Open the run page | The markup is shown literally as text; no bold text is rendered; no script runs |
-| TC-43.2 | validation | mock | A mocked message containing markdown `# Heading` and `**strong**` | 1. Open the run page | The characters are shown literally; no heading or strong text is rendered |
+| TC-43.2 | validation | mock | A mocked message containing markdown `# Heading` and `**strong**` | 1. Open the run page | The markdown is rendered: a heading and strong text appear and the `#` and `**` characters are not shown |
 | TC-43.3 | validation | mock | A mocked message with three lines and a run of 5 spaces inside a line | 1. Open the run page | The three lines are kept as lines; the run of spaces is kept |
 | TC-43.4 | validation | mock | A mocked message containing a right-to-left override character and a control character (for example U+202E and U+0007) around the word "visible" | 1. Open the run page | "visible" is shown in normal order; the bidi and control characters are not present in the page text |
 
