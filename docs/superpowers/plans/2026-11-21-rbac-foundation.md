@@ -1304,15 +1304,15 @@ export function botTriggerEvent(base: TicketEvent, createdAt: string, botLogin?:
 
   Order: command → association → owner → rule matching (spec). `decideInTx` passes `owner: () => resolveRunOwner(tx, …)` mapped to `OwnerCheck` and writes `ownerUserId` and `originRunId` on the run insert. The fake board sets `authorId` to the comment's `author`.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `router.test.ts`: association `NONE` → `ignored_unauthorized` and `owner` is never called; unlinked → `ignored_owner_unlinked` even when no rule exists (owner before rule); not permitted → `ignored_owner_not_permitted`; ok → the decision carries `owner`.
   - `intake.int.test.ts`: seed helper links the comment author (`account ('fake', author)`) and grants it `member` on the project (`copyRoleTemplates` + `role_assignments`); the existing cases keep their expectations with that seed. New: the run row has `owner_user_id` = the author and `origin_run_id` null; an unlinked author → inbound outcome `ignored_owner_unlinked`, no run, `startRun` not called; `botTriggerEvent` during the author's active run on the ticket → `origin_run_id` = that run and the same owner.
   - `fake.test.ts`: webhook and polled events carry `authorId === author`.
   - `poll.int.test.ts` and `webhooks.int.test.ts`: existing run-creating cases comment as the linked owner (poll: seeded as in intake; webhooks: the owner handle from `inviteAndLogin`, GitHub-fixture cases get an `account ('github', <fixture user id>)` row and an owner assignment by SQL).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts test/intake.int.test.ts test/adapters/fake.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the router input, the intake wiring, the fake author id and the fixture.
-- [ ] **Step 4: Run** the core command, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts` and `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`. Expected: PASS. E2E for this behaviour: Task 40.
-- [ ] **Step 5: Commit** `feat(core): trigger comments start runs only for a linked owner with run:create`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/router.test.ts test/intake.int.test.ts test/adapters/fake.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the router input, the intake wiring, the fake author id and the fixture.
+- [x] **Step 4: Run** the core command, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts` and `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`. Expected: PASS. E2E for this behaviour: Task 40.
+- [x] **Step 5: Commit** `feat(core): trigger comments start runs only for a linked owner with run:create`.
 
 ---
 

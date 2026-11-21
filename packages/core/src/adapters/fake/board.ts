@@ -16,8 +16,6 @@ import type { FakeStore, StoredComment } from './store';
 
 export const FAKE_SIGNATURE_HEADER = 'x-fake-signature';
 export const FAKE_EXTERNAL_ID = 'fake';
-/** The fake provider gives every author the same deterministic user id. */
-const FAKE_AUTHOR_ID = '1';
 
 const FakeWebhookBody = z.object({
   deliveryId: z.string().min(1),
@@ -83,7 +81,7 @@ export class FakeBoardAdapter implements BoardAdapter {
       ...(b.ticketKind ? { ticketKind: b.ticketKind } : {}),
       body: b.body,
       author: b.author,
-      authorId: FAKE_AUTHOR_ID,
+      authorId: b.author,
       authorAssociation: b.authorAssociation,
       createdAt: b.createdAt ?? this.clock.now().toISOString(),
     };
@@ -107,7 +105,7 @@ export class FakeBoardAdapter implements BoardAdapter {
         ...(t ? { ticketKind: t.kind } : {}),
         body: c.body,
         author: c.author,
-        authorId: FAKE_AUTHOR_ID,
+        authorId: c.author,
         authorAssociation: c.authorAssociation,
         createdAt: c.createdAt,
       };

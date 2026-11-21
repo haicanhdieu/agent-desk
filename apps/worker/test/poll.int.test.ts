@@ -3,6 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import pg from 'pg';
 import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { TestWorkflowEnvironment } from '@temporalio/testing';
@@ -11,6 +12,7 @@ import { Worker } from '@temporalio/worker';
 import {
   FakeStore,
   TASK_QUEUE,
+  copyRoleTemplates,
   WORKFLOW,
   createAdapterRegistry,
   parseConfig,
@@ -29,6 +31,8 @@ import {
   inboundEvents,
   pollCursors,
   projects,
+  roleAssignments,
+  roles,
   rules,
   runs,
   withOrg,
@@ -47,6 +51,7 @@ import {
 
 let pgx: TestPg;
 let db: Db;
+let admin: pg.Pool;
 let dir: string;
 let config: Config;
 let store: FakeStore;
@@ -89,11 +94,32 @@ const deps = (over: Partial<PollDeps> = {}): PollDeps => ({
 
 interface Seed extends PollInput {
   repoPath: string;
+  /** Login of the commenter, linked as account ('fake', author) to `ownerId`; unique per seed. */
+  author: string;
+  ownerId: string;
+}
+
+async function makeLinkedUser(login: string): Promise<string> {
+  const id = randomUUID();
+  await admin.query(`insert into "user" (id, name, email, handle) values ($1, $2, $3, $2)`, [
+    id,
+    login,
+    `${login}-${id}@example.test`,
+  ]);
+  await admin.query(
+    `insert into account (id, account_id, provider_id, user_id, updated_at) values ($1, $2, 'fake', $3, now())`,
+    [randomUUID(), login, id],
+  );
+  return id;
 }
 
 let seq = 0;
-async function seed(over: { interval?: number; mode?: string } = {}): Promise<Seed> {
+async function seed(
+  over: { interval?: number; mode?: string; role?: 'member' | 'viewer' | 'none' } = {},
+): Promise<Seed> {
   seq += 1;
+  const author = `alice-${seq}-${randomUUID().slice(0, 8)}`;
+  const ownerId = await makeLinkedUser(author);
   const orgId = randomUUID();
   const repoPath = `acme/poll-${seq}`;
   const projectId = await withOrg(db, orgId, async (tx) => {
@@ -133,14 +159,22 @@ async function seed(over: { interval?: number; mode?: string } = {}): Promise<Se
       labelFilter: [],
     });
     await tx.insert(pollCursors).values({ projectId: p!.id, orgId, since: new Date(nowMs - 1000) });
+    await copyRoleTemplates(tx, orgId);
+    const role = over.role ?? 'member';
+    if (role !== 'none') {
+      const [r] = await tx.select({ id: roles.id }).from(roles).where(eq(roles.key, role));
+      await tx
+        .insert(roleAssignments)
+        .values({ orgId, userId: ownerId, roleId: r!.id, scopeType: 'project', projectId: p!.id });
+    }
     return p!.id;
   });
   await store.addTicket({ repoPath, number: 7, kind: 'issue', title: 'T', labels: [] });
-  return { orgId, projectId, repoPath };
+  return { orgId, projectId, repoPath, author, ownerId };
 }
 
-const comment = (s: Seed, body = '/code-review') =>
-  store.addComment({ repoPath: s.repoPath, ticketRef: '7', body, author: 'alice', authorAssociation: 'MEMBER' });
+const comment = (s: Seed, body = '/code-review', author = s.author) =>
+  store.addComment({ repoPath: s.repoPath, ticketRef: '7', body, author, authorAssociation: 'MEMBER' });
 const cursorOf = async (s: Seed) =>
   (await withOrg(db, s.orgId, (tx) => tx.select().from(pollCursors).where(eq(pollCursors.projectId, s.projectId))))[0]!;
 const runsOf = (s: Seed) => withOrg(db, s.orgId, (tx) => tx.select().from(runs).where(eq(runs.projectId, s.projectId)));
@@ -148,6 +182,9 @@ const runsOf = (s: Seed) => withOrg(db, s.orgId, (tx) => tx.select().from(runs).
 beforeAll(async () => {
   pgx = await startPg();
   db = createDb(pgx.appUrl);
+  const adminUrl = new URL(pgx.adminUrl);
+  adminUrl.pathname = '/agentdesk';
+  admin = new pg.Pool({ connectionString: adminUrl.toString() });
   dir = await mkdtemp(join(tmpdir(), 'poll-'));
   config = parseConfig({
     NODE_ENV: 'test',
@@ -178,6 +215,7 @@ beforeAll(async () => {
   };
 }, 180_000);
 afterAll(async () => {
+  await admin?.end();
   await db?.close();
   await pgx?.stop();
   if (dir) await rm(dir, { recursive: true, force: true });
@@ -204,6 +242,55 @@ describe('pollOnce', () => {
     expect(cur.lastPolledAt?.getTime()).toBe(nowMs);
     const inbound = await withOrg(db, s.orgId, (tx) => tx.select().from(inboundEvents));
     expect(inbound.map((e) => [e.channel, e.deliveryId])).toEqual([['poll', `poll-${c.id}`]]);
+  });
+
+  it('the run belongs to the linked commenter', async () => {
+    reset();
+    const s = await seed();
+    await comment(s);
+    await pollOnce(deps(), s);
+    expect((await runsOf(s))[0]).toMatchObject({ ownerUserId: s.ownerId, originRunId: null, triggerSource: 'polling' });
+  });
+
+  it('a comment by someone who is not linked is ignored, starts nothing and the cursor moves past it', async () => {
+    reset();
+    const s = await seed();
+    const c = await comment(s, '/code-review', `stranger-${randomUUID()}`);
+    expect(await pollOnce(deps(), s)).toBe('ok');
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(started).toHaveLength(0);
+    expect((await cursorOf(s)).since?.toISOString()).toBe(c.createdAt);
+    const inbound = await withOrg(db, s.orgId, (tx) => tx.select().from(inboundEvents));
+    expect(inbound.map((e) => e.outcome)).toEqual(['ignored_owner_unlinked']);
+  });
+
+  it('a linked commenter without run:create is ignored and the cursor moves past the comment', async () => {
+    reset();
+    const s = await seed({ role: 'viewer' });
+    const c = await comment(s);
+    expect(await pollOnce(deps(), s)).toBe('ok');
+    expect(await runsOf(s)).toHaveLength(0);
+    expect(started).toHaveLength(0);
+    expect((await cursorOf(s)).since?.toISOString()).toBe(c.createdAt);
+    const inbound = await withOrg(db, s.orgId, (tx) => tx.select().from(inboundEvents));
+    expect(inbound.map((e) => e.outcome)).toEqual(['ignored_owner_not_permitted']);
+  });
+
+  it('re-reading a refused comment after a crash stays refused without a second row or a run', async () => {
+    reset();
+    const s = await seed({ role: 'none' });
+    await comment(s);
+    await pollOnce(deps(), s);
+    await withOrg(db, s.orgId, (tx) =>
+      tx
+        .update(pollCursors)
+        .set({ since: new Date(nowMs - 1000) })
+        .where(eq(pollCursors.projectId, s.projectId)),
+    );
+    expect(await pollOnce(deps(), s)).toBe('ok');
+    expect(await runsOf(s)).toHaveLength(0);
+    const inbound = await withOrg(db, s.orgId, (tx) => tx.select().from(inboundEvents));
+    expect(inbound.map((e) => e.outcome)).toEqual(['ignored_owner_not_permitted']);
   });
 
   it('the same tick twice still creates one run', async () => {

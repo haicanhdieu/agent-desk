@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { runs, withOrg } from '@agentdesk/db';
 import { FAKE_SIGNATURE_HEADER, FakeStore, fakeSignature } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, inviteAndLogin } from './helpers/auth';
+import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { DEVELOP_REPO, freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
@@ -124,10 +124,33 @@ describe('POST /webhooks/:provider', () => {
     expect(starts[0]?.args[0]).toBe('RunWorkflow');
     expect(starts[0]?.args[1]).toMatchObject({ taskQueue: 'agentdesk', args: [{ orgId, runId: run?.id }] });
 
+    expect(run?.ownerUserId).toBe(await userIdOf(t, 'alice'));
+
     const again = await w.send();
     expect(again.statusCode).toBe(200);
     expect(again.json()).toEqual({ outcome: 'duplicate' });
     expect(t.temporal.callsOfKind('start')).toHaveLength(1);
+  });
+
+  it('a commenter who is not linked to a user is 200 ignored_owner_unlinked and starts nothing', async () => {
+    t.temporal.reset();
+    const res = await webhook({ author: 'nobody-linked', ticketRef: '31' }).send();
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ outcome: 'ignored_owner_unlinked' });
+    const rows = await withOrg(t.db, orgId, (tx) => tx.select().from(runs).where(eq(runs.ticketRef, '31')));
+    expect(rows).toHaveLength(0);
+    expect(t.temporal.callsOfKind('start')).toHaveLength(0);
+  });
+
+  it('a linked viewer is 200 ignored_owner_not_permitted and starts nothing', async () => {
+    t.temporal.reset();
+    await inviteAndLogin(t, orgId, 'vera', 'viewer', { type: 'org' });
+    const res = await webhook({ author: 'vera', authorAssociation: 'MEMBER', ticketRef: '32' }).send();
+    expect(res.statusCode).toBe(200);
+    expect(res.json()).toEqual({ outcome: 'ignored_owner_not_permitted' });
+    const rows = await withOrg(t.db, orgId, (tx) => tx.select().from(runs).where(eq(runs.ticketRef, '32')));
+    expect(rows).toHaveLength(0);
+    expect(t.temporal.callsOfKind('start')).toHaveLength(0);
   });
 
   it("an issue run checks out the repository's default branch recorded at project creation", async () => {
@@ -267,6 +290,7 @@ describe('dev fake routes', () => {
       repoPath,
       ticketNumber: 21,
       body: '/fix please',
+      author: 'alice',
       deliver: 'webhook',
       projectId,
     });
@@ -276,6 +300,7 @@ describe('dev fake routes', () => {
     const [row] = await withOrg(t.db, orgId, (tx) => tx.select().from(runs).where(eq(runs.id, body.runId)));
     expect(row).toMatchObject({
       ticketTitle: 'Dev ticket',
+      ownerUserId: await userIdOf(t, 'alice'),
       ticketLabels: [
         { name: 'bug', color: '888888' },
         { name: 'p1', color: 'ff0000' },

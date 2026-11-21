@@ -16,7 +16,14 @@ export type IgnoredOutcome =
   | 'ignored_target'
   | 'ignored_labels'
   | 'ignored_max_runs'
-  | 'ignored_active_run';
+  | 'ignored_active_run'
+  | 'ignored_owner_unlinked'
+  | 'ignored_owner_not_permitted';
+
+/** Who a run started by this comment would belong to, or why nobody may start it (see resolveRunOwner). */
+export type OwnerCheck =
+  | { kind: 'ok'; userId: string; originRunId: string | null }
+  | { kind: 'ignored'; outcome: 'ignored_owner_unlinked' | 'ignored_owner_not_permitted'; detail: string };
 
 export interface RouteInput {
   event: TicketEvent;
@@ -26,10 +33,19 @@ export interface RouteInput {
   ticket: () => Promise<Ticket>;
   counts: { runsForTicket: number; activeSkillsOnTicket: string[]; activeRuleIdsOnTicket: string[] };
   botLogin: string;
+  /** Resolves the run owner and checks run:create; called once, after the association check and before rule matching. */
+  owner: () => Promise<OwnerCheck>;
 }
 
 export type RouteDecision =
-  | { kind: 'run'; rule: RuleRow; ticket: Ticket | null; command: string; args: string }
+  | {
+      kind: 'run';
+      rule: RuleRow;
+      ticket: Ticket | null;
+      command: string;
+      args: string;
+      owner: { userId: string; originRunId: string | null };
+    }
   | { kind: 'ignored'; outcome: IgnoredOutcome; detail: string };
 
 const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
@@ -55,6 +71,9 @@ export async function routeEvent(input: RouteInput): Promise<RouteDecision> {
   if (!isAuthorizedAuthor(event, botLogin)) {
     return ignored('ignored_unauthorized', `author association ${event.authorAssociation || 'unknown'} is not allowed`);
   }
+
+  const owner = await input.owner();
+  if (owner.kind === 'ignored') return ignored(owner.outcome, owner.detail);
 
   const rule = rules.find((r) => r.command === parsed.command);
   if (!rule) return ignored('ignored_no_rule', `no rule for /${parsed.command}`);
@@ -91,5 +110,12 @@ export async function routeEvent(input: RouteInput): Promise<RouteDecision> {
     return ignored('ignored_active_run', `skill ${rule.skillName} already has an active run on this ticket`);
   }
 
-  return { kind: 'run', rule, ticket, command: parsed.command, args: parsed.args };
+  return {
+    kind: 'run',
+    rule,
+    ticket,
+    command: parsed.command,
+    args: parsed.args,
+    owner: { userId: owner.userId, originRunId: owner.originRunId },
+  };
 }
