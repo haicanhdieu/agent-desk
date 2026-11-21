@@ -15,6 +15,7 @@ const ListParams = new ZodPipe(routes.invitations.list.params);
 const ListQuery = new ZodPipe(routes.invitations.list.query);
 const CreateParams = new ZodPipe(routes.invitations.create.params);
 const CreateBody = new ZodPipe(routes.invitations.create.body);
+const ResendParams = new ZodPipe(routes.invitations.resend.params);
 const RemoveParams = new ZodPipe(routes.invitations.remove.params);
 
 /**
@@ -50,5 +51,14 @@ export class InvitationsController {
     @Param(RemoveParams) p: { orgId: string; invitationId: string },
   ): Promise<void> {
     return this.invitations.revoke({ kind: 'member', access: authz.access }, p.orgId, p.invitationId);
+  }
+
+  @Post(routePath(routes.invitations.resend))
+  @HttpCode(200)
+  resend(
+    @CurrentAccess() authz: RequestAuthz,
+    @Param(ResendParams) p: { orgId: string; invitationId: string },
+  ): Promise<InvitationDto> {
+    return this.invitations.resend({ kind: 'member', access: authz.access }, p.orgId, p.invitationId);
   }
 }
