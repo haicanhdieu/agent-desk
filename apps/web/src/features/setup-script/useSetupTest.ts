@@ -1,6 +1,7 @@
-import { RunEventDto, SetupTestDto } from '@agentdesk/contracts';
+import { ORG_QUERY_PARAM, RunEventDto, SetupTestDto } from '@agentdesk/contracts';
 import { apiPath } from '@agentdesk/contracts/client';
 import { useEffect, useState } from 'react';
+import { resyncOrgAfterStreamError, urlOrgId } from '../auth/orgResync';
 import { applyRunEvent } from '../runs/applyEvents';
 import { parseMessage, STREAM_MAX_ATTEMPTS, streamRetryDelay } from '../runs/sse';
 
@@ -38,7 +39,11 @@ export function useSetupTest(testId: string | undefined): SetupTestStream {
 
     const connect = () => {
       const base = apiPath('setupTests.events', { setupTestId: testId });
-      const es = new EventSource(lastSeq > 0 ? `${base}?after=${lastSeq}` : base);
+      const query = new URLSearchParams();
+      if (lastSeq > 0) query.set('after', String(lastSeq));
+      const orgId = urlOrgId();
+      if (orgId !== undefined) query.set(ORG_QUERY_PARAM, orgId);
+      const es = new EventSource(query.size > 0 ? `${base}?${query.toString()}` : base);
       source = es;
       es.addEventListener('open', () => {
         attempts = 0;
@@ -52,8 +57,11 @@ export function useSetupTest(testId: string | undefined): SetupTestStream {
         if (es.readyState !== EventSource.CLOSED) return;
         es.close();
         if (attempts >= STREAM_MAX_ATTEMPTS) return;
-        retry = setTimeout(connect, streamRetryDelay(attempts));
+        const delay = streamRetryDelay(attempts);
         attempts += 1;
+        void resyncOrgAfterStreamError().then(() => {
+          if (!done) retry = setTimeout(connect, delay);
+        });
       });
       es.addEventListener('event', (ev) => {
         const e = parseMessage(RunEventDto, ev);

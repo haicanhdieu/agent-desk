@@ -264,7 +264,7 @@ describe('desk setup route', () => {
       expect(posts).toEqual([{ script: setupScript }]);
       const id = dbTest().id;
       const source = FakeEventSource.latest();
-      expect(source.url).toBe(`/api/setup-tests/${id}/events`);
+      expect(source.url).toBe(`/api/setup-tests/${id}/events?orgId=${ids.org.alice}`);
       expect(screen.getByRole('list', { name: 'Setup phases' })).toHaveTextContent('Clone');
       // The sha-256 is real and the test matches the saved script.
       expect(dbTest().scriptSha256).toMatch(/^[0-9a-f]{64}$/);

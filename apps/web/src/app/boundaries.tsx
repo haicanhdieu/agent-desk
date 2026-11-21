@@ -4,6 +4,7 @@ import { useRouter, useRouterState, type ErrorComponentProps } from '@tanstack/r
 import { useEffect } from 'react';
 import { EmptyState, RouteLoadError, RouteSkeleton } from '@/components';
 import { Button, type ToastInput } from '@/ds';
+import { ORG_SWITCHED_MESSAGE, isOrgMismatch } from '@/features/auth/orgResync';
 import { signOutAndRedirect } from '@/features/auth/signOut';
 import styles from './boundaries.module.css';
 
@@ -112,6 +113,7 @@ export function RoutePending() {
 
 /** Toast for an inline mutation error: the problem title (and detail) for API errors. */
 export function toastFromError(e: unknown): ToastInput {
+  if (isOrgMismatch(e)) return { tone: 'err', title: ORG_SWITCHED_MESSAGE };
   if (e instanceof ApiError)
     return { tone: 'err', title: e.title, ...(e.detail !== undefined && { detail: e.detail }) };
   if (e instanceof Error && e.message) return { tone: 'err', title: 'Something went wrong', detail: e.message };

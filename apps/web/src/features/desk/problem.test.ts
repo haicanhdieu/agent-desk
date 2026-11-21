@@ -1,5 +1,6 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { describe, expect, it } from 'vitest';
+import { ORG_SWITCHED_MESSAGE } from '../auth/orgResync';
 import { fieldErrorsFromProblem } from './problem';
 
 const MAP = { '/command': 'command', '/labelFilter': 'labels' };
@@ -81,5 +82,12 @@ describe('fieldErrorsFromProblem', () => {
     expect(fieldErrorsFromProblem(e, MAP).fields).toEqual({
       command: 'First.',
     });
+  });
+});
+
+describe('org mismatch', () => {
+  it('maps an org-mismatch error to the switched-in-another-tab message', () => {
+    const e = new ApiError({ status: 409, type: 'org-mismatch', title: 'Conflict' });
+    expect(fieldErrorsFromProblem(e, MAP)).toEqual({ fields: {}, form: ORG_SWITCHED_MESSAGE });
   });
 });

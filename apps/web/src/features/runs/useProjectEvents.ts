@@ -2,6 +2,7 @@ import { ProjectRunEvent } from '@agentdesk/contracts';
 import { sseProjectPath } from '@agentdesk/contracts/client';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import { useEffect } from 'react';
+import { resyncOrgAfterStreamError, urlOrgId } from '../auth/orgResync';
 import { projectsQueries } from '../projects/queries';
 import { applyRunStatus, isStreaming } from './applyEvents';
 import { runsKey, runsQueries } from './queries';
@@ -38,7 +39,11 @@ export function useProjectEvents(org: string, projectId: string): void {
     /** The next `open` follows a gap: catch up then. */
     let gap = false;
 
+    /** Bumped by `close`: a re-open still waiting for its resync is dropped. */
+    let generation = 0;
+
     const close = () => {
+      generation += 1;
       clearTimeout(retry);
       retry = undefined;
       source?.close();
@@ -46,7 +51,7 @@ export function useProjectEvents(org: string, projectId: string): void {
     };
 
     const connect = () => {
-      const es = new EventSource(sseProjectPath(projectId));
+      const es = new EventSource(sseProjectPath(projectId, urlOrgId()));
       source = es;
       es.addEventListener('open', () => {
         attempts = 0;
@@ -61,8 +66,13 @@ export function useProjectEvents(org: string, projectId: string): void {
         if (es.readyState !== EventSource.CLOSED) return; // the browser reconnects by itself
         close();
         if (attempts >= STREAM_MAX_ATTEMPTS) return;
-        retry = setTimeout(connect, streamRetryDelay(attempts));
+        // The stream may have been refused because another tab switched the org: resync, which the back-off covers.
+        const delay = streamRetryDelay(attempts);
         attempts += 1;
+        const token = generation;
+        void resyncOrgAfterStreamError().then(() => {
+          if (token === generation) retry = setTimeout(connect, delay);
+        });
       });
       es.addEventListener('run', (ev) => {
         const e = parseMessage(ProjectRunEvent, ev);

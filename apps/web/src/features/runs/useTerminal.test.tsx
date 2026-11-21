@@ -27,6 +27,15 @@ vi.mock('@/features/auth/signOut', async (importOriginal) => ({
   signOutAndRedirect: signOut,
 }));
 
+const orgResync = vi.hoisted(() => ({
+  urlOrgId: vi.fn<() => string | undefined>(() => undefined),
+  resyncOrg: vi.fn(() => Promise.resolve()),
+}));
+vi.mock('@/features/auth/orgResync', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/features/auth/orgResync')>()),
+  ...orgResync,
+}));
+
 const org = 'alice';
 const projectId = ids.project.invoicerApi;
 const base = `/o/${org}/p/${projectId}`;
@@ -69,6 +78,9 @@ const latest = () => FakeWebSocket.latest();
 
 beforeEach(() => {
   signOut.mockClear();
+  orgResync.urlOrgId.mockReset();
+  orgResync.urlOrgId.mockReturnValue(undefined);
+  orgResync.resyncOrg.mockClear();
 });
 
 afterEach(() => {
@@ -230,6 +242,26 @@ describe('useTerminal', () => {
     act(() => latest().serverClose(1006));
     act(() => vi.advanceTimersByTime(1000));
     expect(FakeWebSocket.instances).toHaveLength(8);
+  });
+
+  it('the connect URL carries the URL org as orgId', () => {
+    orgResync.urlOrgId.mockReturnValue(ids.org.alice);
+    setup();
+    expect(latest().url).toBe(`ws://${window.location.host}${terminalPathOf(62)}?orgId=${ids.org.alice}`);
+  });
+
+  it('4412 → resyncs the org, then reconnects with the URL org of that moment', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+    orgResync.urlOrgId.mockReturnValue(ids.org.alice);
+    const { state } = setup();
+    act(() => latest().open());
+    await act(async () => latest().serverClose(4412));
+    expect(orgResync.resyncOrg).toHaveBeenCalledTimes(1);
+    expect(state()).toBe('retrying');
+    orgResync.urlOrgId.mockReturnValue(ids.org.acme);
+    await act(async () => void vi.advanceTimersByTime(TERMINAL_BACKOFF_MS[0] ?? 0));
+    expect(FakeWebSocket.instances).toHaveLength(2);
+    expect(latest().url).toBe(`ws://${window.location.host}${terminalPathOf(62)}?orgId=${ids.org.acme}`);
   });
 
   it('4403 → forbidden, no retry', () => {
