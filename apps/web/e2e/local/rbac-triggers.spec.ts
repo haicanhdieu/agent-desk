@@ -81,12 +81,22 @@ async function ignoredOf(who: Actor, projectId: string): Promise<IgnoredEventDto
   ).items;
 }
 
-/** A pull request on the fake board, made as `who`; returns its number. */
-async function newTicket(who: Actor, repoPath: string): Promise<number> {
+/** A ticket on the fake board (a pull request unless `kind` says issue), made as `who`; returns its number. `linked`: the issues a PR closes. */
+async function newTicket(
+  who: Actor,
+  repoPath: string,
+  opts: { kind?: 'issue' | 'pr'; linked?: number[] } = {},
+): Promise<number> {
   const number = randomInt(100_000, 1_000_000_000);
   await ok(
     await who.api.post('/dev/fake/tickets', {
-      data: { repoPath, number, kind: 'pr', title: `rbac trigger ${randomBytes(3).toString('hex')}` },
+      data: {
+        repoPath,
+        number,
+        kind: opts.kind ?? 'pr',
+        title: `rbac trigger ${randomBytes(3).toString('hex')}`,
+        ...(opts.linked ? { linked: opts.linked } : {}),
+      },
     }),
     201,
     'fake ticket',
@@ -404,6 +414,57 @@ test.describe('BR-71: a bot-written trigger without a single same-project origin
     await expectIgnored(o, p2, ticket, BOT, UNLINKED);
     await expectRuns(o, p2, [rp2], ticket);
     expect(idsOf(await runsOf(o, p1)), 'P1 got no run either').toEqual([rb, rc].sort());
+  });
+});
+
+test.describe('BO-1, BO-4: a bot-written trigger on a PR takes the owner from the PR linked issue run', () => {
+  /** The comments the desk posted on the ticket (the fake board's posted list for the repo). */
+  async function postedOn(who: Actor, repoPath: string, ticket: number): Promise<string[]> {
+    const res = await ok(await who.api.get(`/dev/fake/posted?repoPath=${encodeURIComponent(repoPath)}`), 200, 'posted');
+    return z
+      .array(z.object({ ticketRef: z.string(), body: z.string() }))
+      .parse(res)
+      .filter((c) => c.ticketRef === String(ticket))
+      .map((c) => c.body);
+  }
+
+  test('TC-BO-1.1: the bot trigger on a PR linked to the issue B started, while RB and RC are active, starts a run that shows B as its owner', async () => {
+    const { o, b, p1, rb, rc } = cast;
+    const issue = await newTicket(o, REPO_P1, { kind: 'issue' });
+    await commentAs(o, b.handle, p1, REPO_P1, issue, 'webhook');
+    const issueRun = await awaitRunOn(b, p1, issue);
+    await waitForStatus(b.page, issueRun.id, 'idle', 90_000); // active, so its started_at is set
+    expect(issueRun.ownerUserId, 'B owns the issue run').toBe(b.userId);
+    expect(idsOf(await runsOf(b, p1)), 'two other runs are active in P1 besides it').toEqual(
+      [rb, rc, issueRun.id].sort(),
+    );
+
+    const pr = await newTicket(o, REPO_P1, { linked: [issue] });
+    const comment = await commentAs(o, BOT, p1, REPO_P1, pr, 'webhook');
+    expect(comment.runId, `comment outcome ${comment.outcome}`).toBeTruthy();
+    if (comment.runId) started.push(comment.runId);
+    await expect
+      .poll(async () => idsOf(await runsOf(b, p1)).includes(comment.runId ?? ''), {
+        timeout: 60_000,
+        intervals: [500, 1000],
+      })
+      .toBe(true);
+    expect((await runOf(b.page, comment.runId ?? '')).ownerUserId, 'the PR run shows B as its owner').toBe(b.userId);
+  });
+
+  test('TC-BO-2.1: the bot trigger on a PR with no link and two active runs starts no run, the ignored list shows not linked, and the PR shows the notice once', async () => {
+    const { o, p1, rb, rc } = cast;
+    const pr = await newTicket(o, REPO_P1);
+    const comment = await commentAs(o, BOT, p1, REPO_P1, pr, 'webhook');
+    expect(comment.runId, `comment outcome ${comment.outcome}`).toBeUndefined();
+    await expectIgnored(o, p1, pr, BOT, UNLINKED);
+    await expectRuns(o, p1, [rb, rc], pr);
+    await expect
+      .poll(async () => (await postedOn(o, REPO_P1, pr)).length, { timeout: 60_000, intervals: [500, 1000] })
+      .toBe(1);
+    const [notice] = await postedOn(o, REPO_P1, pr);
+    expect(notice, 'the notice says no owner could be detected').toContain('could not work out which person');
+    expect(notice?.startsWith('/'), 'the notice is not a command').toBe(false);
   });
 });
 

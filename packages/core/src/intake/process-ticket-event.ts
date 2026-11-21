@@ -1,4 +1,4 @@
-import { and, eq, notInArray, sql } from 'drizzle-orm';
+import { and, eq, ne, notInArray, sql } from 'drizzle-orm';
 import {
   agents,
   connections,
@@ -15,7 +15,7 @@ import { Provider, RuleTarget } from '@agentdesk/contracts';
 import type { Clock } from '../clock';
 import { parseCommand } from '../router/parse-command';
 import { isAuthorizedAuthor, routeEvent, type RuleRow } from '../router/route-event';
-import type { AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
+import type { AdapterProject, AdapterRegistry, Ticket, TicketEvent } from '../adapters/types';
 import { toAdapterProject } from '../adapters/project';
 import { normalizeLinkedRefs } from '../adapters/linked-refs';
 import { resolveRunOwner, runOwnerLogFields } from '../access/run-owner';
@@ -36,6 +36,22 @@ export interface IntakeDeps {
   /** Bound on one board ticket fetch (default 5 s); a timeout counts as "ticket unavailable". */
   ticketTimeoutMs?: number;
 }
+
+/**
+ * Posted on the ticket when a bot-authored trigger cannot be given an owner. Fixed text: no ticket, comment, command or
+ * author text, and its first line is not a command, so it can never start a run when it comes back as a comment.
+ */
+export const OWNER_UNDETECTED_NOTICE =
+  "Agent Desk did not start this command: it could not work out which person's run posted the comment, so there is no owner to start it as. Post the command again yourself to start it.";
+
+/** Where to post `OWNER_UNDETECTED_NOTICE`, decided inside the intake transaction and posted after it commits. */
+interface OwnerNotice {
+  provider: Provider;
+  project: AdapterProject;
+  ticketRef: string;
+}
+
+type Routed = IntakeResult & { notice?: OwnerNotice };
 
 export interface IntakeResult {
   /** `run_created`, `duplicate`, `duplicate_comment`, `ignored_*`. */
@@ -95,11 +111,28 @@ export async function processTicketEvent(
   if (!target) return recordUnknownProject(deps, event, channel);
 
   const prefetched = await prefetchTicket(deps, event, target);
-  const result = await withOrg(deps.db, target.orgId, (tx) => routeInTx(deps, tx, event, channel, target, prefetched));
+  const routed = await withOrg(deps.db, target.orgId, (tx) => routeInTx(deps, tx, event, channel, target, prefetched));
+  if (routed.notice) await postOwnerNotice(deps, routed.notice);
+  const result: IntakeResult = {
+    outcome: routed.outcome,
+    ...(routed.runId !== undefined ? { runId: routed.runId } : {}),
+  };
   if (result.outcome === 'run_created' && result.runId !== undefined) {
     await deps.startRun(target.orgId, result.runId);
   }
   return result;
+}
+
+/** Best effort: a failed or slow post is logged by error name and never changes the intake outcome. */
+async function postOwnerNotice(deps: IntakeDeps, notice: OwnerNotice): Promise<void> {
+  try {
+    await withTimeout(
+      deps.registry.board(notice.provider).comment(notice.project, notice.ticketRef, OWNER_UNDETECTED_NOTICE),
+      deps.ticketTimeoutMs ?? TICKET_TIMEOUT_MS,
+    );
+  } catch (err) {
+    deps.log?.warn({ err: err instanceof Error ? err.name : 'unknown' }, 'owner notice not posted');
+  }
 }
 
 /**
@@ -148,6 +181,8 @@ async function prefetchTicket(
       .where(eq(projects.id, projectId))
       .limit(1);
     if (!proj) return undefined;
+    // The desk's own bot is trusted to cause a fetch: its owner comes from the PR's links, which need the ticket.
+    if (event.author === deps.botLogin) return proj;
     // A comment whose owner would be refused is never fetched for: an untrusted commenter cannot make the desk call the board.
     const owner = await resolveRunOwner(tx, {
       projectId,
@@ -169,6 +204,17 @@ async function prefetchTicket(
     return { ok: true, ticket };
   } catch (err) {
     return { ok: false, err };
+  }
+}
+
+/** The issue refs a PR links to, for a bot comment's owner lookup; [] for an issue, or when the ticket is unavailable. */
+async function linkedIssueRefsOf(fetchTicket: () => Promise<Ticket>, log: IntakeLogger | undefined): Promise<string[]> {
+  try {
+    const ticket = await fetchTicket();
+    return ticket.kind === 'pr' ? normalizeLinkedRefs(ticket.linkedRefs) : [];
+  } catch (err) {
+    log?.warn({ err: err instanceof Error ? err.name : 'unknown' }, 'ticket unavailable for owner lookup');
+    return [];
   }
 }
 
@@ -203,7 +249,7 @@ async function routeInTx(
   channel: IntakeChannel,
   target: { orgId: string; projectId: string },
   prefetched: Prefetched | undefined,
-): Promise<IntakeResult> {
+): Promise<Routed> {
   const { orgId, projectId } = target;
   const [inserted] = await tx
     .insert(inboundEvents)
@@ -244,7 +290,7 @@ async function decideInTx(
   target: { orgId: string; projectId: string },
   inboundId: string,
   prefetched: Prefetched | undefined,
-): Promise<IntakeResult> {
+): Promise<Routed> {
   const { orgId, projectId } = target;
   const finish = async (outcome: string, detail: string | null = null): Promise<IntakeResult> => {
     await tx.update(inboundEvents).set({ outcome, detail }).where(eq(inboundEvents.id, inboundId));
@@ -330,6 +376,7 @@ async function decideInTx(
         boardProvider: proj.boardProvider,
         event,
         botLogin: deps.botLogin,
+        ...(event.author === deps.botLogin ? { linkedIssueRefs: await linkedIssueRefsOf(fetchTicket, deps.log) } : {}),
       });
       deps.log?.info?.(
         { deliveryId: event.deliveryId, projectId, channel, ...runOwnerLogFields(owner, event, deps.botLogin) },
@@ -340,7 +387,29 @@ async function decideInTx(
         : { kind: 'ignored', outcome: owner.outcome, detail: owner.detail };
     },
   });
-  if (decision.kind === 'ignored') return finish(decision.outcome, decision.detail);
+  if (decision.kind === 'ignored') {
+    const result = await finish(decision.outcome, decision.detail);
+    if (decision.outcome !== 'ignored_owner_unlinked' || event.author !== deps.botLogin) return result;
+    // Once per trigger comment: the same comment can come through both channels, and each delivery is routed.
+    const [earlier] = await tx
+      .select({ id: inboundEvents.id })
+      .from(inboundEvents)
+      .where(
+        and(
+          eq(inboundEvents.projectId, projectId),
+          // A comment belongs to one ticket; these two predicates let the planner use the partial
+          // inbound_events_project_ticket_ref_ignored_idx instead of scanning the project's events.
+          eq(inboundEvents.ticketRef, event.ticketRef),
+          sql`starts_with(${inboundEvents.outcome}, 'ignored_')`,
+          eq(inboundEvents.commentId, event.commentId),
+          eq(inboundEvents.outcome, 'ignored_owner_unlinked'),
+          ne(inboundEvents.id, inboundId),
+        ),
+      )
+      .limit(1);
+    if (earlier) return result;
+    return { ...result, notice: { provider, project: adapterProject, ticketRef: event.ticketRef } };
+  }
 
   // The router fetches the ticket only when it needs it; the run's snapshot columns always want it.
   let ticket: Ticket | null = decision.ticket;
