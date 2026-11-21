@@ -20,11 +20,12 @@ the PR says why.
 
 For a bot-authored trigger on a PR, the owner comes first from the PR's linked issue, then from the existing time match.
 
-1. A single active run on the comment's own ticket still wins (unchanged).
-2. Otherwise, when the PR links to issues (`Ticket.linkedRefs`, normalised by `normalizeLinkedRefs`), the candidates are
-   the runs of this project on those issues that started at or before the comment's time and have an owner. The nearest
-   one wins: the candidate that started last is the origin run and its owner owns the new run, however many issues or
-   runs are linked. Only the PR's direct links are followed, not a longer chain of issues behind them.
+1. When the PR links to issues (`Ticket.linkedRefs`, normalised by `normalizeLinkedRefs`), the candidates are the runs
+   of this project on those issues that started at or before the comment's time and have an owner, finished or not. The
+   nearest one wins: the candidate that started last is the origin run and its owner owns the new run, however many
+   issues or runs are linked and whatever other runs are active. Only the PR's direct links are followed, not a longer
+   chain of issues behind them.
+2. Otherwise a single active run on the comment's own ticket wins (unchanged; two or more there is no origin).
 3. Otherwise the existing project-wide single-active-run match applies, unchanged.
 
 When a bot-authored trigger ends as `ignored_owner_unlinked`, the desk posts one fixed-text comment on that ticket:
@@ -39,7 +40,11 @@ the owner first, so an untrusted commenter cannot make the desk call the board.
 
 - Overlapping builds no longer break the build-to-review hand-off. The owner is the person who triggered the issue's run.
 - The time match stays as a fallback and keeps its residual risk (a pod can time a comment so another active run is the
-  only match). The linked-issue step adds no new reach: a pod of the project can already comment on any ticket of it.
+  only match).
+- The linked-issue step adds reach. A pod can name an issue in its PR body, so the owner of the latest run on that issue,
+  even a finished one, can become the owner of a bot-triggered run. The owner must still hold `run:create` on the
+  project (unchanged check). Human decision: accepted, because it is what makes the build-to-review hand-off work when
+  the build has already finished.
 - When a PR's linked issues have runs of different owners, the owner of the latest run wins. That is a judgment call:
   the latest run is the nearest to the comment, not proof it wrote it.
 - Comments on refusal are a new board write on the intake path; a failed or slow post is logged by error name and never

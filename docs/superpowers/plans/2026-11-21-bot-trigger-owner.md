@@ -6,7 +6,7 @@
 
 **Order (ATDD):** Task 0 writes the acceptance specs and watches them fail; Tasks 1 to 3 each start with their own failing test and stop when it passes; Task 4 turns Task 0 green.
 
-**Architecture:** `resolveRunOwner` gets one more origin source (runs on the PR's linked issues) between the same-ticket match and the project-wide match. Intake fetches the ticket first for bot comments to supply the links, and posts a fixed notice after the transaction commits when a bot trigger ends `ignored_owner_unlinked`.
+**Architecture:** `resolveRunOwner` gets one more origin source (runs on the PR's linked issues) ahead of the same-ticket match and the project-wide match. Intake fetches the ticket first for bot comments to supply the links, and posts a fixed notice after the transaction commits when a bot trigger ends `ignored_owner_unlinked`.
 
 **Tech Stack:** TypeScript, Drizzle, Vitest (`*.int.test.ts` with `startPg`), Playwright local e2e.
 
@@ -25,7 +25,7 @@
 
 ## Review Focus
 
-1. A PR whose linked issues have runs of different owners: the nearest (latest started) run's owner wins, no refusal (Task 1). A PR with no link and no active run: no run, notice posted once, outcome `ignored_owner_unlinked` (Task 3).
+1. A PR whose linked issues have runs of different owners: the nearest (latest started) run's owner wins, no refusal, and it outranks a single active run on the PR itself (Task 1). A PR with no link and no active run: no run, notice posted once, outcome `ignored_owner_unlinked` (Task 3).
 2. The same bot comment arriving by webhook and by poll under two delivery ids: one notice only (Task 3).
 3. The ticket fetch fails or times out for a bot comment: falls back to today's time match, no throw (Task 2).
 4. The notice comment comes back as a bot comment: it is `ignored_no_command`, so no loop and no second notice (Task 3).
@@ -66,7 +66,8 @@
   - `does not take a linked-issue run of another project` — run on `'208'` in `w.p2`, comment in `w.p1`; expect `ignored_owner_unlinked` (no other candidates).
   - `does not take a linked-issue run that started after the comment`; expect `ignored_owner_unlinked`.
   - `ignores non-number linked refs` — `linkedIssueRefs: ['208 OR 1=1', '-1', '']` with a run on `'208'`; expect `ignored_owner_unlinked`.
-  - `a single active run on the ticket still wins over the linked issue` — an active run on `'209'` owned by `w.v` and a run on `'208'` owned by `w.b`; expect owner `w.v`.
+  - `the linked issue wins over a single active run on the ticket` — an active run on `'209'` owned by `w.v` and a run on `'208'` owned by `w.b`; expect owner `w.b` with the 208 run as `originRunId`.
+  - `with no linked issue match, the single active run on the ticket applies` — an active run on `'209'` owned by `w.b`, another active run elsewhere, `linkedIssueRefs: ['208']` with no run; expect owner `w.b`.
   - `falls back to the project-wide match when the linked issue has no run` — `linkedIssueRefs: ['300']`, one active run elsewhere in the project; expect that run's owner (BO-3).
 
 - [ ] **Step 2: Run to verify they fail**
@@ -74,7 +75,7 @@
 Run: `pnpm --filter @agentdesk/core exec vitest run test/access/run-owner.int.test.ts -t "linked"`
 Expected: FAIL (the first and second tests return `ignored_owner_unlinked` or the wrong run).
 
-- [ ] **Step 3: Implement** `linkedIssueOrigin(tx, projectId, createdAt, refs): Promise<Candidate | null>` in `run-owner.ts`: select `runs.id, runs.ownerUserId` where `projectId` matches, `ticketKind = 'issue'`, `ticketRef` in the normalised refs, `startedAt` not null and `<= createdAt` (same `::timestamptz` bound-parameter style as `activeRuns`), `ownerUserId` not null, ordered by `startedAt desc`, limit 50. Return the first row (the nearest: the run that started last), or null when none. Skip the query when the normalised refs are empty. In `findOrigin` (add a `linkedIssueRefs` parameter): same-ticket single run first (unchanged; two on the ticket still returns null), then `linkedIssueOrigin`, then the project-wide match. Return type `Promise<Candidate | null>` is unchanged, so `resolveRunOwner`'s details are unchanged.
+- [ ] **Step 3: Implement** `linkedIssueOrigin(tx, projectId, createdAt, refs): Promise<Candidate | null>` in `run-owner.ts`: select `runs.id, runs.ownerUserId` where `projectId` matches, `ticketKind = 'issue'`, `ticketRef` in the normalised refs, `startedAt` not null and `<= createdAt` (same `::timestamptz` bound-parameter style as `activeRuns`), `ownerUserId` not null, ordered by `startedAt desc`, limit 50. Return the first row (the nearest: the run that started last), or null when none. Skip the query when the normalised refs are empty. In `findOrigin` (add a `linkedIssueRefs` parameter): `linkedIssueOrigin` first, then the same-ticket single run (unchanged; two on the ticket still returns null), then the project-wide match. Return type `Promise<Candidate | null>` is unchanged, so `resolveRunOwner`'s details are unchanged.
 
 - [ ] **Step 4: Run to verify they pass**, plus the whole file: `pnpm --filter @agentdesk/core exec vitest run test/access/run-owner.int.test.ts` → PASS (existing bot tests unchanged).
 

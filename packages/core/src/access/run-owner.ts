@@ -94,7 +94,7 @@ async function linkedIssueOrigin(
 }
 
 /**
- * Origin of a bot comment: the single active run on the ticket, else the nearest run on the issues the PR links to,
+ * Origin of a bot comment: the nearest run on the issues the PR links to, else the single active run on the ticket,
  * else the single active run in the project; null when none or several.
  */
 async function findOrigin(
@@ -104,21 +104,21 @@ async function findOrigin(
   linkedIssueRefs: readonly string[],
 ): Promise<Candidate | null> {
   if (!isRealInstant(event.createdAt)) return null;
+  const linked = await linkedIssueOrigin(tx, projectId, event.createdAt, linkedIssueRefs);
+  if (linked) return linked;
   const onTicket = await activeRuns(tx, projectId, event.createdAt, event.ticketRef);
   if (onTicket.length > 1) return null;
   if (onTicket.length === 1) return onTicket[0] ?? null;
-  const linked = await linkedIssueOrigin(tx, projectId, event.createdAt, linkedIssueRefs);
-  if (linked) return linked;
   const inProject = await activeRuns(tx, projectId, event.createdAt);
   return inProject.length === 1 ? (inProject[0] ?? null) : null;
 }
 
 /**
  * Who a run started by this trigger comment belongs to, and whether they may start it.
- * Human: findLinkedUser(boardProvider, authorId). Bot (author === botLogin): the owner of the single originating run of
- * this project (see findOrigin); zero or several, or an origin without an owner, is unlinked. Then the owner must hold
- * run:create at projectId, else not permitted. Every failure is an ignored outcome (fail closed). Runs inside the
- * caller's withOrg tx; all values are bound parameters.
+ * Human: findLinkedUser(boardProvider, authorId). Bot (author === botLogin): the owner of the originating run of
+ * this project (see findOrigin: the linked issue's run first, then the time match); zero or several, or an origin
+ * without an owner, is unlinked. Then the owner must hold run:create at projectId, else not permitted. Every failure
+ * is an ignored outcome (fail closed). Runs inside the caller's withOrg tx; all values are bound parameters.
  */
 export async function resolveRunOwner(tx: Tx, input: RunOwnerInput): Promise<RunOwner> {
   const { projectId, boardProvider, event, botLogin } = input;

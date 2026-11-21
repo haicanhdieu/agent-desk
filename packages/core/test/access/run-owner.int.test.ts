@@ -416,10 +416,17 @@ describe('resolveRunOwner: bot comment on a PR with linked issues', () => {
     });
   });
 
-  it('a single active run on the ticket still wins over the linked issue', async () => {
+  it('the linked issue wins over a single active run on the ticket', async () => {
+    const w = await makeWorld();
+    await addRun(w, { projectId: w.p1, ticketRef: '209', ownerUserId: w.v, startedAt: T1 });
+    const linked = await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.b, startedAt: T0 });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toEqual({ kind: 'owner', userId: w.b, originRunId: linked });
+  });
+
+  it('with no linked issue match, the single active run on the ticket applies', async () => {
     const w = await makeWorld();
     const onTicket = await addRun(w, { projectId: w.p1, ticketRef: '209', ownerUserId: w.b, startedAt: T1 });
-    await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.v, startedAt: T0 });
+    await addRun(w, { projectId: w.p1, ticketRef: '300', ownerUserId: w.v, startedAt: T1 });
     expect(await resolve(w, onPr(w.p1, ['208']))).toEqual({ kind: 'owner', userId: w.b, originRunId: onTicket });
   });
 
