@@ -1800,9 +1800,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-45.1 to TC-45.7; TC-46.1 to TC-46.3 (O2 invited and granted `owner` for TC-46.3); TC-61.1 to TC-61.6; TC-64.1 to TC-64.6.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-owner-grants.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e owner rules, last owner and assignment lists`.
+- [x] **Step 1: Write the spec:** TC-45.1 to TC-45.7; TC-46.1 to TC-46.3 (O2 invited and granted `owner` for TC-46.3); TC-61.1 to TC-61.6; TC-64.1 to TC-64.6.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-owner-grants.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e owner rules, last owner and assignment lists`.
 
 ---
 
