@@ -881,6 +881,102 @@
    "h": 900,
    "title": "Invitation \u2014 revoked",
    "expand": "fill"
+  },
+  "OrgInvitations.dc.html": {
+   "x": 0,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 pending (default filter)",
+   "expand": "fill"
+  },
+  "OrgInvitationsAll.dc.html": {
+   "x": 1520,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 All, every status and expiry form",
+   "expand": "fill"
+  },
+  "OrgInvitationsEmpty.dc.html": {
+   "x": 3040,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 no pending invitations",
+   "expand": "fill"
+  },
+  "OrgInvitationsEmptyAll.dc.html": {
+   "x": 4560,
+   "y": 24880,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 none yet",
+   "expand": "fill"
+  },
+  "OrgInvitationsEmptyFiltered.dc.html": {
+   "x": 0,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 no declined invitations",
+   "expand": "fill"
+  },
+  "OrgInvitationsError.dc.html": {
+   "x": 1520,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 failed to load",
+   "expand": "fill"
+  },
+  "OrgInvitationsFiltered.dc.html": {
+   "x": 3040,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 Expired filter",
+   "expand": "fill"
+  },
+  "OrgInvitationsForbidden.dc.html": {
+   "x": 4560,
+   "y": 26160,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 no access (member or viewer)",
+   "expand": "fill"
+  },
+  "OrgInvitationsLoading.dc.html": {
+   "x": 0,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 loading",
+   "expand": "fill"
+  },
+  "OrgInvitationsPaged.dc.html": {
+   "x": 1520,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 page 2 of 2",
+   "expand": "fill"
+  },
+  "OrgInvitationsRowMenu.dc.html": {
+   "x": 3040,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 row menu on a pending invitation",
+   "expand": "fill"
+  },
+  "OrgInvitationsRowMenuExpired.dc.html": {
+   "x": 4560,
+   "y": 27440,
+   "w": 1440,
+   "h": 900,
+   "title": "Invitations \u2014 row menu on an expired invitation: Resend only",
+   "expand": "fill"
   }
  },
  "order": [
@@ -992,7 +1088,19 @@
   "InvitationAcceptExpiredInviterDeleted.dc.html",
   "InvitationAcceptLoading.dc.html",
   "InvitationAcceptNotAvailable.dc.html",
-  "InvitationAcceptRevoked.dc.html"
+  "InvitationAcceptRevoked.dc.html",
+  "OrgInvitations.dc.html",
+  "OrgInvitationsAll.dc.html",
+  "OrgInvitationsEmpty.dc.html",
+  "OrgInvitationsEmptyAll.dc.html",
+  "OrgInvitationsEmptyFiltered.dc.html",
+  "OrgInvitationsError.dc.html",
+  "OrgInvitationsFiltered.dc.html",
+  "OrgInvitationsForbidden.dc.html",
+  "OrgInvitationsLoading.dc.html",
+  "OrgInvitationsPaged.dc.html",
+  "OrgInvitationsRowMenu.dc.html",
+  "OrgInvitationsRowMenuExpired.dc.html"
  ],
  "notes": {
   "t-intro": {

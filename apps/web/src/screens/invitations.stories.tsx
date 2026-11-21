@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, type OrgSwitchProps } from '@/components';
-import { orgSwitchFixtures } from '@/mocks';
+import { AppShell, type OrgSwitchProps, type PaginationProps } from '@/components';
+import { orgInvitationRows, orgSwitchFixtures, pagedInvitationRows } from '@/mocks';
 import type { Actor, InvitationCardView, InvitationDetailsView } from '@/mocks/types';
 import {
   MyInvitations as MyInvitationsScreen,
@@ -12,6 +12,11 @@ import {
   type InvitationAcceptProps,
   type InvitationAcceptState,
 } from './InvitationAccept';
+import {
+  OrgInvitations as OrgInvitationsScreen,
+  type InvitationFilter,
+  type OrgInvitationsProps,
+} from './OrgInvitations';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -175,4 +180,95 @@ export const InvitationAcceptNotAvailable: Story = {
 export const InvitationAcceptRevoked: Story = {
   name: 'Invitation, revoked',
   render: () => accept({ kind: 'revoked' }),
+};
+
+const kim: Actor = { login: 'kim-hale', initials: 'KH' };
+const sam: Actor = { login: 'sam-reyes', initials: 'SR' };
+const byStatus = (status: InvitationFilter) => orgInvitationRows.filter((r) => status === 'all' || r.status === status);
+const pendingRows = byStatus('pending');
+const expiredRows = byStatus('expired');
+
+const list = (
+  filter: InvitationFilter,
+  state: OrgInvitationsProps['state'],
+  extra: Partial<OrgInvitationsProps> = {},
+  user: Actor = kim,
+) => (
+  <OrgInvitationsScreen
+    user={user}
+    org={harborOrg}
+    filter={filter}
+    onFilterChange={noop}
+    state={state}
+    onInvite={noop}
+    onCopy={noop}
+    onResend={noop}
+    onRevoke={noop}
+    {...extra}
+  />
+);
+const ready = (rows: typeof orgInvitationRows, pagination?: PaginationProps): OrgInvitationsProps['state'] => ({
+  kind: 'ready',
+  rows,
+  busyRowId: null,
+  ...(pagination && { pagination }),
+});
+
+export const OrgInvitations: Story = {
+  name: 'Invitations, pending (default filter)',
+  render: () => list('pending', ready(pendingRows)),
+};
+export const OrgInvitationsAll: Story = {
+  name: 'Invitations, All',
+  render: () => list('all', ready(orgInvitationRows)),
+};
+export const OrgInvitationsEmpty: Story = {
+  name: 'Invitations, no pending invitations',
+  render: () => list('pending', ready([])),
+};
+export const OrgInvitationsEmptyAll: Story = {
+  name: 'Invitations, none yet',
+  render: () => list('all', ready([])),
+};
+export const OrgInvitationsEmptyFiltered: Story = {
+  name: 'Invitations, no declined invitations',
+  render: () => list('declined', ready([])),
+};
+export const OrgInvitationsError: Story = {
+  name: 'Invitations, failed to load',
+  render: () => list('pending', { kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
+};
+export const OrgInvitationsFiltered: Story = {
+  name: 'Invitations, Expired filter',
+  render: () => list('expired', ready(expiredRows)),
+};
+export const OrgInvitationsForbidden: Story = {
+  name: 'Invitations, no access',
+  render: () => list('pending', { kind: 'forbidden' }, {}, sam),
+};
+export const OrgInvitationsLoading: Story = {
+  name: 'Invitations, loading',
+  render: () => list('pending', { kind: 'loading' }),
+};
+export const OrgInvitationsPaged: Story = {
+  name: 'Invitations, page 2 of 2',
+  render: () =>
+    list(
+      'pending',
+      ready(pagedInvitationRows(5), {
+        page: 2,
+        pageSize: 20,
+        total: 25,
+        onPageChange: noop,
+        onPageSizeChange: noop,
+      }),
+    ),
+};
+export const OrgInvitationsRowMenu: Story = {
+  name: 'Invitations, row menu on a pending invitation',
+  render: () => list('pending', ready(pendingRows), { openMenuRowId: pendingRows[0].id }),
+};
+export const OrgInvitationsRowMenuExpired: Story = {
+  name: 'Invitations, row menu on an expired invitation: Resend only',
+  render: () => list('expired', ready(expiredRows), { openMenuRowId: expiredRows[0].id }),
 };

@@ -1222,11 +1222,11 @@ export function OrgInvitations(props: OrgInvitationsProps): JSX.Element;
 
   `listMain`/`listHead` with h1 "Invitations" and "Invite people"; filter group "Filter by status" with chips Pending, Accepted, Declined, Revoked, Expired, All (no counts); columns Email, Role, Access, Status, Expires, Invited by, Actions; empty copy per filter: Pending "No pending invitations" plus "Invite people", others "No <status> invitations", All "No invitations yet"; forbidden reuses `Forbidden`.
 
-- [ ] **Step 1: Write the failing tests** (append): BR-30 the Pending chip is pressed for `filter: 'pending'`; each empty copy per filter; the forbidden state shows "You don't have access" and no rows; a busy row's menu button is disabled.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories OrgInvitations, OrgInvitationsAll, OrgInvitationsEmpty, OrgInvitationsEmptyAll, OrgInvitationsEmptyFiltered, OrgInvitationsError, OrgInvitationsFiltered, OrgInvitationsForbidden, OrgInvitationsLoading, OrgInvitationsPaged, OrgInvitationsRowMenu, OrgInvitationsRowMenuExpired; register the 12 boards; count 109 → 121.
-- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 12 boards. Expected: PASS, pairs match.
-- [ ] **Step 5: Commit** `feat(web): org invitations list boards in Storybook`.
+- [x] **Step 1: Write the failing tests** (append): BR-30 the Pending chip is pressed for `filter: 'pending'`; each empty copy per filter; the forbidden state shows "You don't have access" and no rows; a busy row's menu button is disabled.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories OrgInvitations, OrgInvitationsAll, OrgInvitationsEmpty, OrgInvitationsEmptyAll, OrgInvitationsEmptyFiltered, OrgInvitationsError, OrgInvitationsFiltered, OrgInvitationsForbidden, OrgInvitationsLoading, OrgInvitationsPaged, OrgInvitationsRowMenu, OrgInvitationsRowMenuExpired; register the 12 boards; count 109 → 121.
+- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 12 boards. Expected: PASS, pairs match. Not fully run: the vitest parts (invitations.test.tsx, coverage.test.ts, stories.smoke.test.tsx) were run and pass; `build-storybook` and `pnpm parity` were NOT run (runner pod has no Chromium), so the 12 pixel pairs are unchecked.
+- [x] **Step 5: Commit** `feat(web): org invitations list boards in Storybook`.
 
 ---
 

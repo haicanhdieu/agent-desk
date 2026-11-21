@@ -1,7 +1,15 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { invitationCards, invitationDetails, orgSwitchFixtures, user } from '@/mocks';
+import {
+  invitationCards,
+  invitationDetails,
+  orgInvitationRows,
+  orgSwitchFixtures,
+  pagedInvitationRows,
+  user,
+} from '@/mocks';
 import { InvitationAccept, type InvitationAcceptState } from './InvitationAccept';
+import { OrgInvitations, type OrgInvitationsProps } from './OrgInvitations';
 import { MyInvitations, type MyInvitationsState } from './MyInvitations';
 
 const props = (state: MyInvitationsState) => ({
@@ -243,5 +251,165 @@ describe('InvitationAccept', () => {
     render(<InvitationAccept {...accept(pending({ details: evil }))} />);
     expect(screen.getByRole('heading', { level: 1, name: 'Join <img src=x>' })).toBeInTheDocument();
     expect(document.querySelector('img')).toBeNull();
+  });
+});
+
+const orgProps = {
+  ...orgSwitchFixtures.oneOrg,
+  orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+  createHref: '/orgs/new',
+};
+
+const listProps = (over: Partial<OrgInvitationsProps> = {}): OrgInvitationsProps => ({
+  user,
+  org: orgProps,
+  filter: 'pending',
+  onFilterChange: vi.fn(),
+  state: { kind: 'ready', rows: orgInvitationRows, busyRowId: null },
+  onInvite: vi.fn(),
+  onCopy: vi.fn(),
+  onResend: vi.fn(),
+  onRevoke: vi.fn(),
+  ...over,
+});
+
+describe('OrgInvitations', () => {
+  it('openMenuRowId opens a pending row menu with Copy link, Resend and Revoke', async () => {
+    const pending = orgInvitationRows.find((r) => r.status === 'pending');
+    if (!pending) throw new Error('fixture has no pending row');
+    render(<OrgInvitations {...listProps({ openMenuRowId: pending.id })} />);
+    expect(await screen.findByRole('button', { name: 'Copy link' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Resend' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Revoke' })).toBeInTheDocument();
+  });
+
+  it('openMenuRowId opens an expired row menu with Resend only', async () => {
+    const expired = orgInvitationRows.find((r) => r.status === 'expired');
+    if (!expired) throw new Error('fixture has no expired row');
+    render(<OrgInvitations {...listProps({ openMenuRowId: expired.id })} />);
+    expect(await screen.findByRole('button', { name: 'Resend' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Copy link' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Revoke' })).not.toBeInTheDocument();
+  });
+
+  it('BR-30: the Pending chip is pressed for the pending filter, with no counts, under Filter by status', () => {
+    render(<OrgInvitations {...listProps()} />);
+    const group = screen.getByRole('group', { name: 'Filter by status' });
+    const names = within(group)
+      .getAllByRole('button')
+      .map((b) => b.textContent);
+    expect(names).toEqual(['Pending', 'Accepted', 'Declined', 'Revoked', 'Expired', 'All']);
+    expect(within(group).getByRole('button', { name: 'Pending' })).toHaveAttribute('aria-pressed', 'true');
+    expect(within(group).getByRole('button', { name: 'All' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('BR-47: picking a chip reports that filter', async () => {
+    const p = listProps();
+    render(<OrgInvitations {...p} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Expired' }));
+    expect(p.onFilterChange).toHaveBeenCalledWith('expired');
+  });
+
+  it('shows the h1, Invite people and the seven columns', async () => {
+    const p = listProps();
+    render(<OrgInvitations {...p} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Invitations' })).toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Email',
+      'Role',
+      'Access',
+      'Status',
+      'Expires',
+      'Invited by',
+      'Actions',
+    ]);
+    await userEvent.click(screen.getByRole('button', { name: 'Invite people' }));
+    expect(p.onInvite).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ['pending', 'No pending invitations'],
+    ['accepted', 'No accepted invitations'],
+    ['declined', 'No declined invitations'],
+    ['revoked', 'No revoked invitations'],
+    ['expired', 'No expired invitations'],
+    ['all', 'No invitations yet'],
+  ] as const)('the %s filter with no rows reads "%s"', (filter, copy) => {
+    render(<OrgInvitations {...listProps({ filter, state: { kind: 'ready', rows: [], busyRowId: null } })} />);
+    expect(screen.getByRole('heading', { name: copy })).toBeInTheDocument();
+    expect(screen.queryAllByRole('row')).toHaveLength(1);
+  });
+
+  it('the pending empty state offers Invite people, the others do not', async () => {
+    const p = listProps({ state: { kind: 'ready', rows: [], busyRowId: null } });
+    const { rerender } = render(<OrgInvitations {...p} />);
+    expect(screen.getAllByRole('button', { name: 'Invite people' })).toHaveLength(2);
+    rerender(<OrgInvitations {...p} filter="declined" />);
+    expect(screen.getAllByRole('button', { name: 'Invite people' })).toHaveLength(1);
+  });
+
+  it('the forbidden state shows "You don\'t have access" and no rows', () => {
+    render(<OrgInvitations {...listProps({ state: { kind: 'forbidden' } })} />);
+    expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
+    expect(screen.getByText('Ask an owner of this organization to give you access.')).toBeInTheDocument();
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Invite people' })).not.toBeInTheDocument();
+  });
+
+  it('the loading state is a busy status with no table', () => {
+    render(<OrgInvitations {...listProps({ state: { kind: 'loading' } })} />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('the error state shows the request ID and Retry', async () => {
+    const onRetry = vi.fn();
+    render(<OrgInvitations {...listProps({ state: { kind: 'error', requestId: 'req_1', onRetry } })} />);
+    expect(screen.getByText(/Request ID: req_1/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('a busy row has a disabled menu button, the others do not', () => {
+    const busy = orgInvitationRows[0];
+    render(
+      <OrgInvitations {...listProps({ state: { kind: 'ready', rows: orgInvitationRows, busyRowId: busy.id } })} />,
+    );
+    expect(screen.getByRole('button', { name: `Actions for ${busy.email}` })).toBeDisabled();
+    expect(screen.getByRole('button', { name: `Actions for ${orgInvitationRows[1].email}` })).toBeEnabled();
+  });
+
+  it('a row menu action reports the row id', async () => {
+    const p = listProps();
+    render(<OrgInvitations {...p} />);
+    await userEvent.click(screen.getByRole('button', { name: `Actions for ${orgInvitationRows[0].email}` }));
+    await userEvent.click(screen.getByRole('button', { name: 'Revoke' }));
+    expect(p.onRevoke).toHaveBeenCalledWith(orgInvitationRows[0].id);
+  });
+
+  it('renders the pager under the table when given', () => {
+    const rows = pagedInvitationRows(5);
+    render(
+      <OrgInvitations
+        {...listProps({
+          state: {
+            kind: 'ready',
+            rows,
+            busyRowId: null,
+            pagination: { page: 2, pageSize: 20, total: 25, onPageChange: vi.fn(), onPageSizeChange: vi.fn() },
+          },
+        })}
+      />,
+    );
+    expect(screen.getByRole('navigation')).toBeInTheDocument();
+  });
+
+  it('an email with markup renders as text', () => {
+    const rows = [{ ...orgInvitationRows[0], email: '<img src=x>@example.com' }];
+    const { container } = render(
+      <OrgInvitations {...listProps({ state: { kind: 'ready', rows, busyRowId: null } })} />,
+    );
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText('<img src=x>@example.com')).toBeInTheDocument();
   });
 });

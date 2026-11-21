@@ -124,6 +124,18 @@ export const boardStories = {
   InvitationAcceptLoading: { title: invitations, exportName: 'InvitationAcceptLoading' },
   InvitationAcceptNotAvailable: { title: invitations, exportName: 'InvitationAcceptNotAvailable' },
   InvitationAcceptRevoked: { title: invitations, exportName: 'InvitationAcceptRevoked' },
+  OrgInvitations: { title: invitations, exportName: 'OrgInvitations' },
+  OrgInvitationsAll: { title: invitations, exportName: 'OrgInvitationsAll' },
+  OrgInvitationsEmpty: { title: invitations, exportName: 'OrgInvitationsEmpty' },
+  OrgInvitationsEmptyAll: { title: invitations, exportName: 'OrgInvitationsEmptyAll' },
+  OrgInvitationsEmptyFiltered: { title: invitations, exportName: 'OrgInvitationsEmptyFiltered' },
+  OrgInvitationsError: { title: invitations, exportName: 'OrgInvitationsError' },
+  OrgInvitationsFiltered: { title: invitations, exportName: 'OrgInvitationsFiltered' },
+  OrgInvitationsForbidden: { title: invitations, exportName: 'OrgInvitationsForbidden' },
+  OrgInvitationsLoading: { title: invitations, exportName: 'OrgInvitationsLoading' },
+  OrgInvitationsPaged: { title: invitations, exportName: 'OrgInvitationsPaged' },
+  OrgInvitationsRowMenu: { title: invitations, exportName: 'OrgInvitationsRowMenu' },
+  OrgInvitationsRowMenuExpired: { title: invitations, exportName: 'OrgInvitationsRowMenuExpired' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

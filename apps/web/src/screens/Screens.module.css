@@ -635,3 +635,24 @@
   color: var(--faint);
   font-size: var(--fs-13);
 }
+
+/* org invitations page, loading */
+.invitationsLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.invitationsLoadingHead {
+  display: flex;
+  justify-content: space-between;
+}
+.invitationsLoadingChips {
+  display: flex;
+  gap: 6px;
+}
+.invitationsLoadingRows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
