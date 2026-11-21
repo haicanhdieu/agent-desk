@@ -347,3 +347,64 @@ export async function streamStatus(who: Actor, path: string): Promise<number> {
   await watch.close();
   return watch.status;
 }
+
+export interface TerminalWatch {
+  /** Resolves once the server has sent terminal output (the attach is bound, so its re-check timer runs). */
+  attached(timeoutMs: number): Promise<void>;
+  /** Resolves with the close code once the server closes the socket, failing the test after `timeoutMs`. */
+  closeCode(timeoutMs: number): Promise<number>;
+  /** Closes the socket from the browser's side (no-op when it is already closed). */
+  close(): Promise<void>;
+}
+
+/**
+ * Opens the terminal WebSocket at `path` from the actor's browser and keeps it open, for the cases that change access
+ * while a terminal is attached; unlike `openTerminal` it does not close the socket after a hold.
+ */
+export async function watchTerminal(who: Actor, path: string): Promise<TerminalWatch> {
+  const key = `__terminal_${randomUUID()}`;
+  await who.page.evaluate(
+    ({ path: target, key: slot }) => {
+      const scheme = location.protocol === 'https:' ? 'wss' : 'ws';
+      const ws = new WebSocket(`${scheme}://${location.host}${target}`);
+      ws.binaryType = 'arraybuffer';
+      const state = { bytes: 0, code: -1, ws };
+      Reflect.set(window, slot, state);
+      ws.onmessage = (e: MessageEvent<string | ArrayBuffer>) => {
+        state.bytes += typeof e.data === 'string' ? e.data.length : e.data.byteLength;
+      };
+      ws.onclose = (e) => {
+        state.code = e.code;
+      };
+    },
+    { path, key },
+  );
+  const read = (): Promise<{ bytes: number; code: number }> =>
+    who.page.evaluate((slot) => {
+      const state: unknown = Reflect.get(window, slot);
+      if (typeof state === 'object' && state !== null && 'bytes' in state && 'code' in state) {
+        return { bytes: Number(state.bytes), code: Number(state.code) };
+      }
+      return { bytes: 0, code: -1 };
+    }, key);
+  return {
+    attached: async (timeoutMs) => {
+      await expect
+        .poll(async () => (await read()).bytes > 0, { message: 'terminal output arrives', timeout: timeoutMs })
+        .toBe(true);
+    },
+    closeCode: async (timeoutMs) => {
+      await expect
+        .poll(async () => (await read()).code, { message: 'the server closes the socket', timeout: timeoutMs })
+        .not.toBe(-1);
+      return (await read()).code;
+    },
+    close: () =>
+      who.page.evaluate((slot) => {
+        const state: unknown = Reflect.get(window, slot);
+        if (typeof state === 'object' && state !== null && 'ws' in state && state.ws instanceof WebSocket) {
+          state.ws.close();
+        }
+      }, key),
+  };
+}

@@ -1781,9 +1781,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast; Task 34 `grant`, `revoke`.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-34.1, TC-34.2; TC-35.1 (`test.skip` unless `E2E_TERMINAL_REAUTH_MS` is set; await the 4403 close), TC-35.2 (A also granted `member` on P2); TC-36.1 to TC-36.5; TC-41.1, TC-41.2; TC-63.1 to TC-63.3.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-grants.spec.ts` (TC-35.1 with the stack started as `TERMINAL_REAUTH_MS=1000` and `E2E_TERMINAL_REAUTH_MS=1000`). Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e grants, revokes and own access`.
+- [x] **Step 1: Write the spec:** TC-34.1, TC-34.2; TC-35.1 (`test.skip` unless `E2E_TERMINAL_REAUTH_MS` is set; await the 4403 close), TC-35.2 (A also granted `member` on P2); TC-36.1 to TC-36.5; TC-41.1, TC-41.2; TC-63.1 to TC-63.3.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-grants.spec.ts` (TC-35.1 with the stack started as `TERMINAL_REAUTH_MS=1000` and `E2E_TERMINAL_REAUTH_MS=1000`). Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e grants, revokes and own access`.
 
 ---
 
