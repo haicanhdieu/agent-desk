@@ -990,7 +990,7 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 
   Hooks: `user.create.after` and `session.create.before` call `acceptPendingInvitations` first; `session.create.before` then sets `activeOrganizationId` to the oldest membership (today's `ensurePersonalOrg` still runs for users with none, until Task 31). Dev-login inserts an `account` row `(provider_id 'fake', account_id = handle)` for the user when absent.
 
-- [ ] **Step 1: Write the failing tests** (append to `invitations.int.test.ts`):
+- [x] **Step 1: Write the failing tests** (append to `invitations.int.test.ts`):
   - BR-55: `inviteAndLogin(t, org, 'h1', 'viewer', {type:'org'})` → `get-session` shows `activeOrganizationId === org`; one `member` row; one org assignment `viewer`; no personal org created for `h1`. An owner (via `inviteAndLogin` owner) creates P1 and P2; a `member` invitation listing P1 and P2 gives two project assignments.
   - BR-56: an existing user invited to a second org joins it on the next dev-login; the invitation lists as `accepted`.
   - BR-57: an invitation whose `expires_at` is in the past is not applied and stays non-accepted.
@@ -1001,10 +1001,10 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
   - "already a member" (deferred from Task 13): inviting `h1`'s email again → 409 `/email`.
   - `acceptPendingInvitations(db, { …, emailVerified: false })` changes nothing.
   - dev-login of `h1` leaves an `account` row `('fake', 'h1')`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `accept-invitations.ts`, the hook calls, the dev-login link and the two helpers.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `accept-invitations.ts`, the hook calls, the dev-login link and the two helpers.
 - [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): accept pending invitations at sign-in`.
+- [x] **Step 5: Commit** `feat(api): accept pending invitations at sign-in`.
 
 ---
 
@@ -1025,9 +1025,9 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 - Consumes: `createOrg`, `inviteAndLogin`, `userIdOf` (Tasks 12, 14).
 - Produces: no new interface. Each file's `beforeAll` builds users as `createOrg(t, '<name>', '<slug>')` then `inviteAndLogin(…, 'owner', {type:'org'})`; the "carol" users become `inviteAndLogin(…, 'member', {type:'project', projectIds:[projectId]})` after the project exists; raw `insert into member` / `update session set active_organization_id` SQL is removed. Personal-org assertions (`auth.int` slug tests; `connections.int` "two orgs can both install" `organization where slug in (…)`) keep using a bare dev-login until Task 31 replaces them; every other test in these files uses the helpers.
 
-- [ ] **Step 1: Change** each file's setup as above, assertions untouched.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/projects.int.test.ts test/connections.int.test.ts test/agents.int.test.ts test/plugins.int.test.ts test/auth.int.test.ts`. Expected: PASS, with the same test count as before the change.
-- [ ] **Step 3: Commit** `test(api): build projects, connections, agents, plugins and auth test users through invitations`.
+- [x] **Step 1: Change** each file's setup as above, assertions untouched.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/projects.int.test.ts test/connections.int.test.ts test/agents.int.test.ts test/plugins.int.test.ts test/auth.int.test.ts`. Expected: PASS, with the same test count as before the change.
+- [x] **Step 3: Commit** `test(api): build projects, connections, agents, plugins and auth test users through invitations`.
 
 ---
 
@@ -1047,9 +1047,9 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 - Consumes: as Task 15.
 - Produces: as Task 15, for these four files.
 
-- [ ] **Step 1: Change** each file's setup as in Task 15.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS, same test count.
-- [ ] **Step 3: Commit** `test(api): build rules, skills and setup test users through invitations`.
+- [x] **Step 1: Change** each file's setup as in Task 15.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS, same test count.
+- [x] **Step 3: Commit** `test(api): build rules, skills and setup test users through invitations`.
 
 ---
 
@@ -1069,9 +1069,9 @@ export async function userIdOf(t: TestApp, handle: string): Promise<string>;
 - Consumes: as Task 15.
 - Produces: as Task 15, for these four files.
 
-- [ ] **Step 1: Change** each file's setup as in Task 15.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts test/terminal.int.test.ts test/webhooks.int.test.ts`. Expected: PASS, same test count.
-- [ ] **Step 3: Commit** `test(api): build runs, SSE, terminal and webhook test users through invitations`.
+- [x] **Step 1: Change** each file's setup as in Task 15.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/runs.int.test.ts test/sse.int.test.ts test/terminal.int.test.ts test/webhooks.int.test.ts`. Expected: PASS, same test count.
+- [x] **Step 3: Commit** `test(api): build runs, SSE, terminal and webhook test users through invitations`.
 
 ---
 

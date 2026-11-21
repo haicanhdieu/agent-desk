@@ -5,7 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { PROMPT_PREVIEW_ARGS, PROMPT_PREVIEW_TICKET, promptSystemLines } from '@agentdesk/core';
 import type { Page, RuleDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -14,13 +14,15 @@ let alice: string;
 let bob: string;
 let projectId: string;
 let orgId: string;
+let bobOrgId: string;
 
 beforeAll(async () => {
   t = await createTestApp({ env: { FAKE_STATE_DIR: freshStateDir() }, wrapAdapters: wideFakeRepos });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  orgId = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrgId = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, orgId, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrgId, 'bob', 'owner', { type: 'org' });
   projectId = (await makeProject(t, alice, await installFake(t, alice))).projectId;
-  orgId = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
   await t.app.inject({
     method: 'PUT',
     url: `/api/projects/${projectId}/skills/fix`,
@@ -398,10 +400,8 @@ describe('paged rules', () => {
     pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
     await seed(pid, alice, orgId, 24, 20);
     // Another org's rules must not count towards alice's total.
-    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
-      .id;
     const bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
-    await seed(bobProject, bob, bobOrg, 5, 5);
+    await seed(bobProject, bob, bobOrgId, 5, 5);
   });
 
   const page = async (query: string) => expectContract('rules.list', await list(pid, alice, query)) as Page<RuleDto>;

@@ -14,7 +14,7 @@ import type {
   RunTranscriptResponse,
 } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -23,13 +23,15 @@ let alice: string;
 let bob: string;
 let projectId: string;
 let orgId: string;
+let bobOrgId: string;
 
 beforeAll(async () => {
   t = await createTestApp({ env: { FAKE_STATE_DIR: freshStateDir() }, wrapAdapters: wideFakeRepos });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  orgId = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrgId = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, orgId, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrgId, 'bob', 'owner', { type: 'org' });
   projectId = (await makeProject(t, alice, await installFake(t, alice))).projectId;
-  orgId = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
 });
 afterAll(async () => {
   await t.close();

@@ -1,8 +1,9 @@
+import { randomUUID } from 'node:crypto';
 import { Controller, Get, Inject, NotFoundException, Query, Res, UnauthorizedException } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
-import { user, type Db } from '@agentdesk/db';
+import { account, user, type Db } from '@agentdesk/db';
 import { ZodPipe } from '../common/zod-validation';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
@@ -42,6 +43,9 @@ export class DevLoginController {
     const email = `${handle}@dev.local`;
     const password = devPassword(this.config, email);
 
+    // Dev accounts have no mailbox: an existing one created before this was done is marked verified first, so the
+    // sign-in hooks (which read the stored flag) already see it. New accounts are marked by the sign-up path below.
+    await this.markVerified(email);
     let response = await this.auth.api.signInEmail({ body: { email, password }, asResponse: true });
     if (!response.ok) {
       response = await devSignUp.run(true, () =>
@@ -49,10 +53,30 @@ export class DevLoginController {
       );
     }
     if (!response.ok) throw new UnauthorizedException('Dev login failed');
-    // Dev accounts have no mailbox: mark them verified (also accounts created before this was done).
-    await this.db.orm.update(user).set({ emailVerified: true }).where(eq(user.email, email));
+    await this.markVerified(email);
+    await this.linkFakeAccount(email, handle);
     const cookies = response.headers.getSetCookie();
     if (cookies.length > 0) void reply.header('set-cookie', cookies);
     void reply.redirect(query.redirect, 302);
+  }
+
+  private async markVerified(email: string): Promise<void> {
+    await this.db.orm.update(user).set({ emailVerified: true }).where(eq(user.email, email));
+  }
+
+  /** Dev only: links a `fake` provider account (account id = handle) so fake-provider comments map to this user. */
+  private async linkFakeAccount(email: string, handle: string): Promise<void> {
+    const orm = this.db.orm;
+    const [row] = await orm.select({ id: user.id }).from(user).where(eq(user.email, email)).limit(1);
+    if (!row) return;
+    const linked = await orm
+      .select({ id: account.id })
+      .from(account)
+      .where(and(eq(account.userId, row.id), eq(account.providerId, 'fake'), eq(account.accountId, handle)))
+      .limit(1);
+    if (linked.length > 0) return;
+    await orm
+      .insert(account)
+      .values({ id: randomUUID(), userId: row.id, providerId: 'fake', accountId: handle, updatedAt: sql`now()` });
   }
 }

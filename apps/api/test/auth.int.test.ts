@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { withOrg } from '@agentdesk/db';
 import { createTestApp, type TestApp } from './helpers/app';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -18,6 +19,13 @@ afterAll(async () => {
 async function devLogin(handle: string, redirect?: string) {
   const qs = new URLSearchParams({ handle, ...(redirect === undefined ? {} : { redirect }) });
   return t.app.inject({ method: 'GET', url: `/auth/dev-login?${qs.toString()}` });
+}
+
+/** Creates an org named after `handle` and signs `handle` in as its owner through a real invitation. */
+async function ownerOfNewOrg(handle: string): Promise<{ cookie: string; orgId: string }> {
+  const orgId = (await createOrg(t, handle, handle)).id;
+  const cookie = await inviteAndLogin(t, orgId, handle, 'owner', { type: 'org' });
+  return { cookie, orgId };
 }
 
 function cookieOf(res: { headers: Record<string, unknown> }): string {
@@ -58,17 +66,17 @@ describe('auth', () => {
     const anon = await t.app.inject({ method: 'GET', url: '/api/projects' });
     expect(anon.statusCode).toBe(401);
     expect(anon.headers['content-type']).toContain('application/problem+json');
-    const cookie = cookieOf(await devLogin('alice'));
+    const { cookie } = await ownerOfNewOrg('auth-alice');
     const ok = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } });
     expect(ok.statusCode).toBe(200);
     expect(expectContract('projects.list', ok)).toEqual({ items: [], page: 1, pageSize: 20, total: 0 });
   });
 
   it('forwards /auth/* to better-auth (get-session with the dev cookie)', async () => {
-    const cookie = cookieOf(await devLogin('alice'));
+    const { cookie } = await ownerOfNewOrg('auth-sess');
     const res = await t.app.inject({ method: 'GET', url: '/auth/get-session', headers: { cookie } });
     expect(res.statusCode).toBe(200);
-    expect(res.json().user.email).toBe('alice@dev.local');
+    expect(res.json().user.email).toBe('auth-sess@dev.local');
     const anon = await t.app.inject({ method: 'GET', url: '/auth/get-session' });
     expect(anon.json()).toBeNull();
   });
@@ -127,7 +135,7 @@ describe('auth', () => {
   });
 
   it('blocks better-auth organization mutation endpoints but dev-login still works', async () => {
-    const cookie = cookieOf(await devLogin('alice'));
+    const { cookie } = await ownerOfNewOrg('auth-block');
     const res = await t.app.inject({
       method: 'POST',
       url: '/auth/organization/create',
@@ -146,18 +154,19 @@ describe('auth', () => {
   });
 
   it('returns 403 when the active organization is not one the user belongs to', async () => {
-    const cookie = cookieOf(await devLogin('carol'));
-    const other = await t.db.pool.query("select id from organization where slug = 'alice'");
+    const { cookie } = await ownerOfNewOrg('carol');
+    const otherOrgId = (await createOrg(t, 'Other', 'other-org')).id;
+    // The point of this test: point a session at an org its user has no membership in.
     await t.db.pool.query(
       `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'carol')`,
-      [other.rows[0].id],
+      [otherOrgId],
     );
     const res = await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } });
     expect(res.statusCode).toBe(403);
   });
 
   it('audits mutations with the body redacted (no value/token/secret/password keys)', async () => {
-    const cookie = cookieOf(await devLogin('dave'));
+    const { cookie, orgId } = await ownerOfNewOrg('dave');
     const { projectId } = await makeProject(t, cookie, await installFake(t, cookie));
     const agent = await t.app.inject({ method: 'GET', url: `/api/projects/${projectId}/agent`, headers: { cookie } });
     const agentId = (agent.json() as { id: string }).id;
@@ -173,9 +182,8 @@ describe('auth', () => {
       },
     });
     expect(res.statusCode).toBe(200);
-    const org = await t.db.pool.query("select id from organization where slug = 'dave'");
     // audit_log is RLS-forced: read it through the org context.
-    const found = await withOrg(t.db, org.rows[0].id, (tx) =>
+    const found = await withOrg(t.db, orgId, (tx) =>
       tx.execute(
         sql`select action, target_type, target_id, payload, actor_user_id from audit_log where action like 'PUT %'`,
       ),
@@ -191,10 +199,11 @@ describe('auth', () => {
   });
 
   it('does not audit GETs', async () => {
-    const cookie = cookieOf(await devLogin('erin'));
+    const { cookie, orgId } = await ownerOfNewOrg('erin');
     await t.app.inject({ method: 'GET', url: '/api/projects', headers: { cookie } });
-    const org = await t.db.pool.query("select id from organization where slug = 'erin'");
-    const found = await withOrg(t.db, org.rows[0].id, (tx) => tx.execute(sql`select 1 from audit_log`));
+    const found = await withOrg(t.db, orgId, (tx) =>
+      tx.execute(sql`select action from audit_log where action like 'GET %'`),
+    );
     expect(found.rows).toHaveLength(0);
   });
 });

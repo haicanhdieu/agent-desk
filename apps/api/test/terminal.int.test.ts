@@ -19,7 +19,7 @@ import {
 import { AUTH } from '../src/auth/auth';
 import { TerminalGateway } from '../src/terminal/terminal.gateway';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin, loginAs, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 const ORIGIN = 'http://localhost:5173';
@@ -75,9 +75,6 @@ async function until<T>(fn: () => T | undefined | false | Promise<T | undefined 
  */
 const previousSocketsCleanedUp = (): Promise<true> => until(() => t.app.get(TerminalGateway).openCount() === 0);
 
-const orgIdOf = async (slug: string): Promise<string> =>
-  ((await t.db.pool.query('select id from organization where slug = $1', [slug])).rows[0] as { id: string }).id;
-
 /** A gateway that records every resize the relay makes, otherwise the real file-backed fake. */
 function spy(inner: KubeGateway): KubeGateway {
   return Object.assign<KubeGateway, Pick<KubeGateway, 'exec' | 'getRunPod'>>(Object.create(inner), {
@@ -116,23 +113,15 @@ beforeAll(async () => {
   });
   await t.app.listen({ port: 0, host: '127.0.0.1' });
   wsBase = `ws://127.0.0.1:${(t.app.getHttpServer().address() as AddressInfo).port}`;
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
-  carol = await loginAs(t, 'carol');
+  aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
+  // carol is a plain member of alice's org (not the project's creator, not the owner).
+  carol = await inviteAndLogin(t, aliceOrg, 'carol', 'member', { type: 'org' });
   aliceConn = await installFake(t, alice);
   aliceProject = (await makeProject(t, alice, aliceConn)).projectId;
-  aliceOrg = await orgIdOf('alice');
-  carolId = ((await t.db.pool.query(`select id from "user" where handle = 'carol'`)).rows[0] as { id: string }).id;
-  // carol is a plain member of alice's org (not the project's creator, not the owner), with it as her active org.
-  await t.db.pool.query(
-    `insert into member (id, organization_id, user_id, role, created_at)
-     select $2, $1, id, 'member', now() from "user" where handle = 'carol'`,
-    [aliceOrg, randomUUID()],
-  );
-  await t.db.pool.query(
-    `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'carol')`,
-    [aliceOrg],
-  );
+  carolId = await userIdOf(t, 'carol');
 });
 
 afterAll(async () => {
@@ -379,16 +368,7 @@ describe('terminal relay', () => {
 
   it('re-validates membership on a live socket: a removed member closes 4403; an auth outage does not close', async () => {
     const runId = await makeRun('running');
-    const gina = await loginAs(t, 'gina');
-    await t.db.pool.query(
-      `insert into member (id, organization_id, user_id, role, created_at)
-       select $2, $1, id, 'owner', now() from "user" where handle = 'gina'`,
-      [aliceOrg, randomUUID()],
-    );
-    await t.db.pool.query(
-      `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'gina')`,
-      [aliceOrg],
-    );
+    const gina = await inviteAndLogin(t, aliceOrg, 'gina', 'owner', { type: 'org' });
     const c = connect(runId, { cookie: gina });
     await c.opened;
     await until(() => c.bytes().length > 0);

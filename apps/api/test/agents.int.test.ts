@@ -8,7 +8,7 @@ import { withOrg } from '@agentdesk/db';
 import type { AgentDto, AgentModelsDto } from '@agentdesk/contracts';
 import type { AgentHttpGet } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -39,8 +39,10 @@ beforeAll(async () => {
     logger: pino({ level: 'debug' }, stream),
     agentHttp,
   });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  const aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
   projectId = (await makeProject(t, alice, await installFake(t, alice))).projectId;
 });
 afterAll(async () => {
@@ -386,7 +388,8 @@ describe('models', () => {
       agentHttp: () => Promise.reject(new Error('must not be called')),
     });
     try {
-      const cookie = await loginAs(off, 'carol');
+      const carolOrg = (await createOrg(off, 'Carol', 'carol')).id;
+      const cookie = await inviteAndLogin(off, carolOrg, 'carol', 'owner', { type: 'org' });
       const pid = (await makeProject(off, cookie, await installFake(off, cookie))).projectId;
       const agent = (await off.app
         .inject({ method: 'GET', url: `/api/projects/${pid}/agent`, headers: { cookie } })

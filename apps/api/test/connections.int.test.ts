@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { ProjectSchedules } from '../src/projects/project-schedules';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin, loginAs } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
 let t: TestApp;
@@ -21,8 +21,10 @@ beforeAll(async () => {
       },
     }),
   });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  const aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
 });
 afterAll(async () => {
   await t.close();
@@ -86,7 +88,8 @@ describe('connections', () => {
         }),
       });
       try {
-        const cookieFor = await loginAs(synced, cookie);
+        const syncOrg = (await createOrg(synced, cookie, cookie)).id;
+        const cookieFor = await inviteAndLogin(synced, syncOrg, cookie, 'owner', { type: 'org' });
         const call = () =>
           synced.app.inject({ method: 'POST', url: '/api/connections/fake/sync', headers: { cookie: cookieFor } });
         const first = await call();
@@ -245,7 +248,8 @@ describe('connections', () => {
   });
 
   it('a successful callback resumes revoked polling projects; a failed unpause keeps token_revoked for retry', async () => {
-    const erin = await loginAs(t, 'erin');
+    const erinOrg = (await createOrg(t, 'Erin', 'erin')).id;
+    const erin = await inviteAndLogin(t, erinOrg, 'erin', 'owner', { type: 'org' });
     const complete = async () => {
       const u = new URL(((await install(erin)).json() as { url: string }).url);
       const cb = await t.app.inject({ method: 'GET', url: `${u.pathname}${u.search}`, headers: { cookie: erin } });
@@ -267,7 +271,7 @@ describe('connections', () => {
     const revoked = await mk('dev/demo-2', 'polling');
     const healthy = await mk('dev/demo-3', 'polling');
     const webhook = await mk('dev/demo-4', 'webhook');
-    const orgId = String((await t.db.pool.query("select id from organization where slug = 'erin'")).rows[0].id);
+    const orgId = erinOrg;
     const sql = async (text: string, params: unknown[] = []) => {
       const c = await t.db.pool.connect();
       try {

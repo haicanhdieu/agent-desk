@@ -4,7 +4,7 @@ import { eq } from 'drizzle-orm';
 import { runs, withOrg } from '@agentdesk/db';
 import { FAKE_SIGNATURE_HEADER, FakeStore, fakeSignature } from '@agentdesk/core';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { DEVELOP_REPO, freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
@@ -23,10 +23,10 @@ beforeAll(async () => {
   const u = new URL(t.pg.adminUrl);
   u.pathname = '/agentdesk';
   admin = new pg.Pool({ connectionString: u.toString() });
-  alice = await loginAs(t, 'alice');
+  orgId = (await createOrg(t, 'Alice', 'alice')).id;
+  alice = await inviteAndLogin(t, orgId, 'alice', 'owner', { type: 'org' });
   connectionId = await installFake(t, alice);
   ({ projectId, repoPath } = await makeProject(t, alice, connectionId));
-  orgId = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
   externalId = `fake-${orgId}`;
   await t.app.inject({
     method: 'PUT',
@@ -361,7 +361,8 @@ describe('dev fake routes', () => {
   it('is absent (404) when the fake provider is disabled', async () => {
     const off = await createTestApp({ env: { ENABLE_FAKE_PROVIDER: 'false' } });
     try {
-      const cookie = await loginAs(off, 'carol');
+      const offOrg = await createOrg(off, 'Carol', 'carol');
+      const cookie = await inviteAndLogin(off, offOrg.id, 'carol', 'owner', { type: 'org' });
       const res = await off.app.inject({
         method: 'POST',
         url: '/dev/fake/tickets',

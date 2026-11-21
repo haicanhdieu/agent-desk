@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { FakeStore, type AdapterProject, type AdapterRegistry } from '@agentdesk/core';
 import type { PluginsDto } from '@agentdesk/contracts';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -41,8 +41,10 @@ beforeAll(async () => {
   const dir = freshStateDir();
   store = new FakeStore(dir);
   t = await createTestApp({ env: { FAKE_STATE_DIR: dir }, wrapAdapters: failingReads });
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  const aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  const bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
   connectionId = await installFake(t, alice);
 });
 afterAll(async () => {

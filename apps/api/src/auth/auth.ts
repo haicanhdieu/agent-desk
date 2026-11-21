@@ -5,6 +5,7 @@ import { organization as organizationPlugin } from 'better-auth/plugins';
 import { asc, eq, sql } from 'drizzle-orm';
 import { account, invitation, member, organization, session, user, verification, type Db } from '@agentdesk/db';
 import type { Config } from '../config/config.schema';
+import { acceptPendingInvitations } from './accept-invitations';
 import { devSignUp } from './dev-signup';
 import { createWithUniqueSlug } from './unique-slug';
 
@@ -88,6 +89,27 @@ export function createAuth(config: Config, db: Db) {
     });
   }
 
+  /** Reads the stored email and verified flag (never the hook's copy), then applies the user's pending invitations. */
+  async function acceptInvitationsFor(userId: string): Promise<void> {
+    const [row] = await orm
+      .select({ email: user.email, emailVerified: user.emailVerified })
+      .from(user)
+      .where(eq(user.id, userId))
+      .limit(1);
+    if (row) await acceptPendingInvitations(db, { id: userId, email: row.email, emailVerified: row.emailVerified });
+  }
+
+  /** The oldest membership: the org a session starts in. */
+  async function oldestMembership(userId: string): Promise<string | undefined> {
+    const rows = await orm
+      .select({ organizationId: member.organizationId })
+      .from(member)
+      .where(eq(member.userId, userId))
+      .orderBy(asc(member.createdAt), asc(member.organizationId))
+      .limit(1);
+    return rows[0]?.organizationId;
+  }
+
   return betterAuth({
     baseURL: config.PUBLIC_ORIGIN,
     basePath: '/auth',
@@ -110,6 +132,7 @@ export function createAuth(config: Config, db: Db) {
             return { data: devSignUp.getStore() === true ? { ...u, handle, emailVerified: true } : { ...u, handle } };
           },
           after: async (u) => {
+            await acceptInvitationsFor(u.id);
             const row = await orm.select({ handle: user.handle }).from(user).where(eq(user.id, u.id)).limit(1);
             await ensurePersonalOrg(u.id, row[0]?.handle ?? handleFromEmail(u.email));
           },
@@ -118,8 +141,11 @@ export function createAuth(config: Config, db: Db) {
       session: {
         create: {
           before: async (s) => {
+            await acceptInvitationsFor(s.userId);
             const rows = await orm.select({ handle: user.handle }).from(user).where(eq(user.id, s.userId)).limit(1);
-            const activeOrganizationId = await ensurePersonalOrg(s.userId, rows[0]?.handle ?? 'user');
+            // Until the sign-up gate lands, a user with no membership still gets a personal org.
+            const activeOrganizationId =
+              (await oldestMembership(s.userId)) ?? (await ensurePersonalOrg(s.userId, rows[0]?.handle ?? 'user'));
             return { data: { ...s, activeOrganizationId } };
           },
         },

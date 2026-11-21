@@ -8,7 +8,7 @@ import { ProjectRunEvent, RunEventMessage, RunStatusEvent } from '@agentdesk/con
 import { RunStatusListener } from '../src/sse/run-status-listener';
 import { SseService } from '../src/sse/sse.service';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 let t: TestApp;
@@ -20,9 +20,6 @@ let bobOrg: string;
 let aliceProject: string;
 let bobProject: string;
 
-const orgIdOf = async (slug: string): Promise<string> =>
-  ((await t.db.pool.query('select id from organization where slug = $1', [slug])).rows[0] as { id: string }).id;
-
 beforeAll(async () => {
   t = await createTestApp({
     env: { FAKE_STATE_DIR: freshStateDir(), SSE_HEARTBEAT_MS: '100' },
@@ -30,12 +27,12 @@ beforeAll(async () => {
   });
   await t.app.listen({ port: 0, host: '127.0.0.1' });
   base = `http://127.0.0.1:${(t.app.getHttpServer().address() as AddressInfo).port}`;
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
+  aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
   aliceProject = (await makeProject(t, alice, await installFake(t, alice))).projectId;
   bobProject = (await makeProject(t, bob, await installFake(t, bob))).projectId;
-  aliceOrg = await orgIdOf('alice');
-  bobOrg = await orgIdOf('bob');
 });
 afterAll(async () => {
   await t.close();

@@ -9,7 +9,7 @@ import { SIGNAL, TASK_QUEUE, WORKFLOW, setupTestWorkflowId } from '@agentdesk/co
 import { RunEventDto, SetupTestDto } from '@agentdesk/contracts';
 import { SetupTestStream } from '../src/setup/setup-test-stream';
 import { createTestApp, type TestApp } from './helpers/app';
-import { loginAs } from './helpers/auth';
+import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -17,6 +17,7 @@ let t: TestApp;
 let base: string;
 let alice: string;
 let bob: string;
+let bobOrg: string;
 let carol: string;
 let aliceOrg: string;
 let connectionId: string;
@@ -35,21 +36,13 @@ beforeAll(async () => {
   base = `http://127.0.0.1:${(t.app.getHttpServer().address() as AddressInfo).port}`;
   stream = t.app.get(SetupTestStream);
   stream.pollMs = 50;
-  alice = await loginAs(t, 'alice');
-  bob = await loginAs(t, 'bob');
-  carol = await loginAs(t, 'carol');
+  aliceOrg = (await createOrg(t, 'Alice', 'alice')).id;
+  bobOrg = (await createOrg(t, 'Bob', 'bob')).id;
+  alice = await inviteAndLogin(t, aliceOrg, 'alice', 'owner', { type: 'org' });
+  bob = await inviteAndLogin(t, bobOrg, 'bob', 'owner', { type: 'org' });
+  // carol is a plain member of alice's org (neither its owner nor the project's creator).
+  carol = await inviteAndLogin(t, aliceOrg, 'carol', 'member', { type: 'org' });
   connectionId = await installFake(t, alice);
-  aliceOrg = ((await t.db.pool.query("select id from organization where slug = 'alice'")).rows[0] as { id: string }).id;
-  // carol is a plain member of alice's org (neither its owner nor the project's creator), with it as her active org.
-  await t.db.pool.query(
-    `insert into member (id, organization_id, user_id, role, created_at)
-     select $2, $1, id, 'member', now() from "user" where handle = 'carol'`,
-    [aliceOrg, randomUUID()],
-  );
-  await t.db.pool.query(
-    `update session set active_organization_id = $1 where user_id = (select id from "user" where handle = 'carol')`,
-    [aliceOrg],
-  );
 });
 afterAll(async () => {
   await t.close();
@@ -509,8 +502,6 @@ describe('setup test events stream', () => {
 describe('setup test rows are scoped by org (RLS)', () => {
   it('hides another org’s tests from a direct query under withOrg', async () => {
     const dto = await created();
-    const bobOrg = ((await t.db.pool.query("select id from organization where slug = 'bob'")).rows[0] as { id: string })
-      .id;
     const seen = await withOrg(t.db, bobOrg, (tx) =>
       tx
         .select({ id: setupTests.id })
