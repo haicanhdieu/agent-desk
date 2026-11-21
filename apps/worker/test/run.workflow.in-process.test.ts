@@ -527,6 +527,48 @@ describe('resume', () => {
     expect(h.outcome).toBeUndefined();
   });
 
+  it('a Cancel in a reopened session of a succeeded run is ignored: the session stays up and the run is not cancelled', async () => {
+    const h = start();
+    await toParked(h, 'done');
+    await resumeToSessionUp(h);
+    sendSignal(cancel);
+    await settle();
+
+    expect(phase()).toBe('agent_done');
+    expect(h.statuses.map((s) => s.status)).not.toContain('cancelled');
+    expect(h.calls).not.toContain('deleteRunVolume');
+    expect(h.outcome).toBeUndefined();
+  });
+
+  it('the time limit in a reopened session closes it: the run re-parks as succeeded, never timed_out', async () => {
+    const h = start({ timeoutSeconds: 7200 });
+    await toParked(h, 'done', 900);
+    vi.setSystemTime(new Date(T0.getTime() + 900 * 1000));
+    await resumeToSessionUp(h);
+    fireTimer(6300 * 1000);
+    await waitFor('re-parked', () => h.parks.length === 2);
+
+    expect(h.parks[1]).toMatchObject({ kind: 'done', closed: 'time_limit' });
+    expect(h.statuses.map((s) => s.status)).not.toContain('timed_out');
+    expect(h.calls).not.toContain('deleteRunVolume');
+    expect(h.comments.filter((c) => c.kind === 'finish')).toHaveLength(1);
+  });
+
+  it('a Finish on a fresh live Done run keeps the disk: the run parks as succeeded for the keep time', async () => {
+    const h = start();
+    await toRunning(h);
+    sendSignal(agentState, 'done');
+    await waitFor('phase done', () => phase() === 'agent_done');
+    await finishWithoutPodExit(h);
+    h.pods[0]?.exit({ exitCode: 0, agentStarted: true });
+    await waitFor('parked', () => h.parks.length === 1);
+
+    expect(h.parks[0]).toMatchObject({ kind: 'done', reason: 'idle_timeout' });
+    expect(h.parks[0]?.closed).toBeUndefined();
+    expect(h.calls).not.toContain('deleteRunVolume');
+    expect(h.outcome).toBeUndefined();
+  });
+
   it('a run that started before reopen-keeps-result existed keeps the original deadline on Finish after a done Reopen (ADR 0030)', async () => {
     runtime.unpatched.add('reopen-keeps-result');
     const h = start();

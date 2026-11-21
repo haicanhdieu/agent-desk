@@ -4,6 +4,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
+import { api } from '../api';
 import { useCancelRun, useCloseSession, useFinishRun, useResumeRun } from './mutations';
 import { runsQueries } from './queries';
 
@@ -67,5 +68,15 @@ describe('run mutations refresh the Run list numbers', () => {
     const { result } = renderHook(() => useCloseSession(org, projectId), { wrapper });
     await act(() => result.current.mutateAsync(ref));
     await waitFor(() => expect(qc.getQueryState(stats)?.isInvalidated).toBe(true));
+  });
+
+  it('close session reports a failed close to onError', async () => {
+    const { wrapper } = setup();
+    const boom = new Error('409');
+    vi.mocked(api.runs.closeSession).mockRejectedValueOnce(boom);
+    const onError = vi.fn();
+    const { result } = renderHook(() => useCloseSession(org, projectId, { onError }), { wrapper });
+    await act(() => result.current.mutateAsync(ref).catch(() => undefined));
+    expect(onError).toHaveBeenCalledWith(boom);
   });
 });

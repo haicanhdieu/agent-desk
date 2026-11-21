@@ -366,6 +366,33 @@ describe('run detail route, paused runs and kept sessions', () => {
     }
   });
 
+  /** The kept run as the worker leaves it after a Reopen: live (done), with the reopen flag set. */
+  function reopenKept() {
+    const run = dbRun(KEPT);
+    run.status = 'done';
+    run.reopenedAt = new Date(Date.now() - 5_000).toISOString();
+    run.sessionExpiresAt = null;
+    run.finishedAt = null;
+  }
+
+  it('Close session on a reopened run posts to close-session and the run returns to Succeeded', async () => {
+    reopenKept();
+    const { user } = await renderRoute(`${base}/runs/${KEPT}`);
+    const close = await screen.findByRole('button', { name: 'Close session' });
+    await user.click(close);
+    await waitFor(() => expect(mockDb.requests('POST', `/api/runs/${runId(KEPT)}/close-session`)).toBe(1));
+    await waitFor(() => expect(within(banner()).queryByText('Succeeded · Session open')).not.toBeInTheDocument());
+  });
+
+  it('a 409 on Close session shows the server message in a toast', async () => {
+    reopenKept();
+    const { user } = await renderRoute(`${base}/runs/${KEPT}`, {
+      scenario: () => scenarios.problem('runs.closeSession', { status: 409, title: 'Run is no longer active' }),
+    });
+    await user.click(await screen.findByRole('button', { name: 'Close session' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Run is no longer active');
+  });
+
   it('a succeeded run whose kept time has passed has a disabled Reopen session', async () => {
     dbRun(KEPT).sessionExpiresAt = new Date(Date.now() - 60_000).toISOString();
     await renderRoute(`${base}/runs/${KEPT}`);
