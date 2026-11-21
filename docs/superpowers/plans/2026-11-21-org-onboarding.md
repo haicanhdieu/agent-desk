@@ -1595,9 +1595,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: Task 10 helpers; a local `inviteByUi(page, email, role, scope): Promise<string>` that drives the dialog and returns the link read from the "Invitation link" field.
 
-- [ ] **Step 1: Write the spec**: TC-27.1 to TC-27.3 (BR-27); TC-18.1, TC-18.2 (BR-18: renewed toast, a relative label about 2 days out (assert it changed, not its text), the copied link equals L with a stubbed clipboard); TC-30.1 (BR-30); TC-31.1 (BR-31: project admin granted with the slice 1 grant helper); TC-32.1, TC-32.2 (BR-32); TC-47.1 to TC-47.4 (BR-47: each chip, `?status=`, page count, the Expired and empty states).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-inviter.spec.ts` with the stack up. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): e2e for inviting, resending, revoking and filtering invitations`.
+- [x] **Step 1: Write the spec**: TC-27.1 to TC-27.3 (BR-27); TC-18.1, TC-18.2 (BR-18: renewed toast, a relative label about 2 days out (assert it changed, not its text), the copied link equals L with a stubbed clipboard); TC-30.1 (BR-30); TC-31.1 (BR-31: project admin granted with the slice 1 grant helper); TC-32.1, TC-32.2 (BR-32); TC-47.1 to TC-47.4 (BR-47: each chip, `?status=`, page count, the Expired and empty states).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-inviter.spec.ts` with the stack up. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): e2e for inviting, resending, revoking and filtering invitations`.
 
 ---
 

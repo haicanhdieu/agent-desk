@@ -1,9 +1,9 @@
-import { randomBytes } from 'node:crypto';
-import { expect, test, type APIRequestContext, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Browser, type Page } from '@playwright/test';
 import { PlatformRoleDto, ProjectDto } from '@agentdesk/contracts';
 import { z } from 'zod';
-import { API, acceptViaApi, asPlatformAdmin, createOrg, inviteAndSignIn, inviteViaApi, ok, signInAs } from './helpers';
+import { API, acceptViaApi, inviteAndSignIn, inviteViaApi, ok, signInAs } from './helpers';
 import { REPO_P1, REPO_P2, installFake } from './rbac-cast';
+import { withScope, type Org, type Scope } from './onboarding-scope';
 
 /*
  * Local end-to-end for org onboarding: the refused sign-in, the welcome page and the invitations notice (spec "E2E
@@ -21,62 +21,6 @@ test.beforeAll(async ({ request }) => {
   const ready = await request.get(`${API}/readyz`).catch(() => null);
   expect(ready?.ok(), `${API}/readyz is not ready: start the stack with \`pnpm dev\` at the repo root`).toBe(true);
 });
-
-const tagOf = (): string => randomBytes(4).toString('hex');
-
-interface Org {
-  id: string;
-  slug: string;
-  name: string;
-}
-
-/** The test's own resources: the platform admin's request context and every browser context it opened. */
-class Scope {
-  pa!: APIRequestContext;
-  readonly contexts: BrowserContext[] = [];
-  readonly tag = tagOf();
-
-  async start(): Promise<this> {
-    this.pa = await asPlatformAdmin();
-    return this;
-  }
-
-  /** A fresh browser context: one person. */
-  async person(browser: Browser): Promise<BrowserContext> {
-    const context = await browser.newContext();
-    this.contexts.push(context);
-    return context;
-  }
-
-  handle(who: string): string {
-    return `e2e-${who}-${this.tag}`;
-  }
-
-  email(who: string): string {
-    return `${this.handle(who)}@dev.local`;
-  }
-
-  async org(label: string): Promise<Org> {
-    const slug = `e2e-${label}-${this.tag}`;
-    const name = `E2E ${label.toUpperCase()} ${this.tag}`;
-    const created = await createOrg(this.pa, name, slug);
-    return { id: created.id, slug, name };
-  }
-
-  async dispose(): Promise<void> {
-    for (const context of this.contexts) await context.close().catch(() => null);
-    await this.pa.dispose().catch(() => null);
-  }
-}
-
-async function withScope(body: (scope: Scope) => Promise<void>): Promise<void> {
-  const scope = await new Scope().start();
-  try {
-    await body(scope);
-  } finally {
-    await scope.dispose();
-  }
-}
 
 /** `/auth/get-session` as the browser context sees it: the parsed body (null when there is no session). */
 async function sessionOf(page: Page): Promise<unknown> {
