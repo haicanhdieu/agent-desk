@@ -1631,9 +1631,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: Task 10 helpers; the rule editor of the desk (existing).
 
-- [ ] **Step 1: Write the spec**: TC-7.1, TC-7.2 (BR-7); TC-8.1 (BR-8); TC-43.1 (BR-43); TC-11.1 to TC-11.3 (BR-11: two pages in one context; page B switches and the test waits for B's URL and heading; page A's reload shows only A's data with no error; page A's rule save shows "This organization was switched in another tab. Try again." with the input kept and the button enabled, exactly one write request counted with `page.on('request')` filtered to the rule's write route, the rule unchanged in A and B; saving again applies to A only).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-switch.spec.ts` with the stack up. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): e2e for org switching, landing and the stale tab`.
+- [x] **Step 1: Write the spec**: TC-7.1, TC-7.2 (BR-7); TC-8.1 (BR-8); TC-43.1 (BR-43); TC-11.1 to TC-11.3 (BR-11: two pages in one context; page B switches and the test waits for B's URL and heading; page A's reload shows only A's data with no error; page A's rule save shows "This organization was switched in another tab. Try again." with the input kept and the button enabled, exactly one write request counted with `page.on('request')` filtered to the rule's write route, the rule unchanged in A and B; saving again applies to A only).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-switch.spec.ts` with the stack up. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): e2e for org switching, landing and the stale tab`.
 
 ---
 
