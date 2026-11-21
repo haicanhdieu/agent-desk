@@ -1519,9 +1519,9 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: the guard (Task 25).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the tests:** BR-33 B's `rules.create|update|remove`, `skills.put|remove`, `setupScript.put`, `setupTests.create` → 403 with rereads unchanged, and B's `rules.list` → 200 with the rule; BR-29 A's rule create, skill put, setup script put and setup test create on P1 → 2xx.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS (a failure is a Task 25 bug).
-- [ ] **Step 3: Commit** `test(api): rules, skills and setup follow role and scope`.
+- [x] **Step 1: Write the tests:** BR-33 B's `rules.create|update|remove`, `skills.put|remove`, `setupScript.put`, `setupTests.create` → 403 with rereads unchanged, and B's `rules.list` → 200 with the rule; BR-29 A's rule create, skill put, setup script put and setup test create on P1 → 2xx.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/rules.int.test.ts test/skills.int.test.ts test/setup-script.int.test.ts test/setup-tests.int.test.ts`. Expected: PASS (a failure is a Task 25 bug).
+- [x] **Step 3: Commit** `test(api): rules, skills and setup follow role and scope`.
 
 ---
 

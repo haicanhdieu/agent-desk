@@ -212,3 +212,29 @@ describe('setup script API', () => {
     expect(JSON.stringify(rows.rows)).not.toContain('SECRET_VALUE_DO_NOT_LOG');
   });
 });
+
+describe('setup script API: permission (BR-33, BR-29)', () => {
+  it('TC-33.7: a member cannot put the setup script; it is unchanged on reread', async () => {
+    await freshProject();
+    expect((await put({ body: 'echo keep', baseVersion: null })).statusCode).toBe(200);
+    const member = await inviteAndLogin(t, aliceOrg, 'script-member', 'member', { type: 'org' });
+    const res = await put({ body: 'echo evil', baseVersion: 1 }, member);
+    expect(res.statusCode).toBe(403);
+    expect((await get().then((r) => r.json())) as SetupScriptDto).toMatchObject({ version: 1, body: 'echo keep' });
+    const versions = expectContract('setupScript.versions', await get('/versions')) as Page<SetupScriptVersionDto>;
+    expect(versions.total).toBe(1);
+  });
+
+  it('TC-29.2: an admin on P1 only can put the setup script on P1 and gets 404 on another project', async () => {
+    await freshProject();
+    const other = (await makeProject(t, alice, connectionId)).projectId;
+    const admin = await inviteAndLogin(t, aliceOrg, 'script-admin', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    const res = await put({ body: 'echo admin', baseVersion: null }, admin);
+    expect(res.statusCode).toBe(200);
+    expect(expectContract('setupScript.put', res)).toMatchObject({ version: 1, body: 'echo admin' });
+    expect((await put({ body: 'echo admin', baseVersion: null }, admin, other)).statusCode).toBe(404);
+  });
+});

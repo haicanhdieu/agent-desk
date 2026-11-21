@@ -512,3 +512,27 @@ describe('setup test rows are scoped by org (RLS)', () => {
     expect(seen).toHaveLength(0);
   });
 });
+
+describe('setup test create: permission (BR-33, BR-29)', () => {
+  it('TC-33.8: a member cannot start a setup test; no test row and no workflow', async () => {
+    const member = await inviteAndLogin(t, aliceOrg, 'setup-test-member', 'member', { type: 'org' });
+    const res = await create('echo nope', member);
+    expect(res.statusCode).toBe(403);
+    expect(await rowsOf()).toHaveLength(0);
+    expect(t.temporal.callsOfKind('start')).toHaveLength(0);
+  });
+
+  it('TC-29.2: an admin on P1 only can start a setup test on P1 and gets 404 on another project', async () => {
+    const other = (await makeProject(t, alice, connectionId)).projectId;
+    const admin = await inviteAndLogin(t, aliceOrg, 'setup-test-admin', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    const res = await create('echo admin', admin);
+    expect(res.statusCode).toBe(200);
+    expectContract('setupTests.create', res);
+    expect(await activeIds()).toHaveLength(1);
+    expect(t.temporal.callsOfKind('start')).toHaveLength(1);
+    expect((await create('echo admin', admin, other)).statusCode).toBe(404);
+  });
+});

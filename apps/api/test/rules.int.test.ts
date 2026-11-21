@@ -444,3 +444,67 @@ describe('paged rules', () => {
     expect((await list(pid, bob)).statusCode).toBe(404);
   });
 });
+
+describe('rules: permission (BR-33, BR-29)', () => {
+  const putSkill = (id: string, cookie: string) =>
+    t.app.inject({
+      method: 'PUT',
+      url: `/api/projects/${id}/skills/fix`,
+      headers: { cookie },
+      payload: { body: 'x', message: 'm' },
+    });
+  const remove = (id: string, cookie: string) =>
+    t.app.inject({ method: 'DELETE', url: `/api/rules/${id}`, headers: { cookie } });
+
+  /** A project of its own with the skill `fix` and one rule, so each test starts from a known list. */
+  async function projectWithRule(): Promise<{ pid: string; rule: RuleDto }> {
+    const pid = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    expect((await putSkill(pid, alice)).statusCode).toBe(200);
+    const rule = expectContract('rules.create', await create({ ...valid, command: 'seed' }, pid)) as RuleDto;
+    return { pid, rule };
+  }
+
+  it('TC-33.3: a member cannot create a rule; the rule list is unchanged', async () => {
+    const { pid, rule } = await projectWithRule();
+    const member = await inviteAndLogin(t, orgId, 'rules-member-create', 'member', { type: 'org' });
+    const before = await allRules(pid);
+    const res = await create({ ...valid, command: 'member-made' }, pid, member);
+    expect(res.statusCode).toBe(403);
+    expect(await allRules(pid)).toEqual(before);
+    expect(before.map((r) => r.id)).toEqual([rule.id]);
+  });
+
+  it('TC-33.4: a member cannot update a rule; it is unchanged on reread', async () => {
+    const { pid, rule } = await projectWithRule();
+    const member = await inviteAndLogin(t, orgId, 'rules-member-update', 'member', { type: 'org' });
+    const res = await patch(rule.id, { enabled: false, labelFilter: ['x'] }, member);
+    expect(res.statusCode).toBe(403);
+    expect((await allRules(pid)).find((r) => r.id === rule.id)).toEqual(rule);
+  });
+
+  it('TC-33.5: a member cannot remove a rule; it is still in the list', async () => {
+    const { pid, rule } = await projectWithRule();
+    const member = await inviteAndLogin(t, orgId, 'rules-member-remove', 'member', { type: 'org' });
+    const res = await remove(rule.id, member);
+    expect(res.statusCode).toBe(403);
+    expect((await allRules(pid)).map((r) => r.id)).toEqual([rule.id]);
+  });
+
+  it('TC-33.9: a member can list the rules', async () => {
+    const { pid, rule } = await projectWithRule();
+    const member = await inviteAndLogin(t, orgId, 'rules-member-list', 'member', { type: 'org' });
+    const res = await list(pid, member);
+    expect(res.statusCode).toBe(200);
+    expect((expectContract('rules.list', res) as Page<RuleDto>).items.map((r) => r.id)).toEqual([rule.id]);
+  });
+
+  it('TC-29.2: an admin on P1 only can create a rule on P1 and gets 404 on a project out of scope', async () => {
+    const { pid } = await projectWithRule();
+    const other = (await makeProject(t, alice, await installFake(t, alice))).projectId;
+    const admin = await inviteAndLogin(t, orgId, 'rules-admin-p1', 'admin', { type: 'project', projectIds: [pid] });
+    const res = await create({ ...valid, command: 'admin-made' }, pid, admin);
+    expect(res.statusCode).toBe(201);
+    expect(expectContract('rules.create', res)).toMatchObject({ command: 'admin-made', projectId: pid });
+    expect((await create({ ...valid, command: 'admin-made' }, other, admin)).statusCode).toBe(404);
+  });
+});
