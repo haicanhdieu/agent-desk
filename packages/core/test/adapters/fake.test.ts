@@ -26,8 +26,9 @@ describe('fake board', () => {
     await store.addTicket({ repoPath: 'dev/demo', number: 2, kind: 'pr', title: 'B', labels: [] });
     await store.addTicket({ repoPath: 'dev/demo', number: 3, kind: 'issue', title: 'C', labels: [], prState: 'open' });
     await store.addTicket({ repoPath: 'other/repo', number: 4, kind: 'pr', title: 'D', labels: [], prState: 'open' });
-    const out = await board.prStates(project, ['1', '2', '3', '4', '99']);
+    const out = (await board.prStates(project, ['1', '2', '3', '4', '99'])).states;
     expect(Object.fromEntries(out)).toEqual({ 1: 'merged' });
+    expect([...(await board.prStates(project, ['1', '2', '99'])).unresolved].sort()).toEqual(['2', '99']);
   });
 
   it('a comment appended by one store is polled through a second store on the same dir', async () => {

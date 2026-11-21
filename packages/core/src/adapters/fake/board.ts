@@ -8,6 +8,7 @@ import type {
   BoardAdapter,
   PollCursor,
   PollResult,
+  PrStatesResult,
   SecretLookup,
   Ticket,
   TicketEvent,
@@ -142,13 +143,13 @@ export class FakeBoardAdapter implements BoardAdapter {
     return this.store.postBotComment(project.repoPath, ref, text);
   }
 
-  async prStates(project: AdapterProject, refs: string[]): Promise<Map<string, PrState>> {
+  async prStates(project: AdapterProject, refs: string[]): Promise<PrStatesResult> {
     const wanted = new Set(refs);
     const out = new Map<string, PrState>();
     for (const t of await this.store.listTickets()) {
       if (t.repoPath === project.repoPath && t.kind === 'pr' && t.prState && wanted.has(String(t.number)))
         out.set(String(t.number), t.prState);
     }
-    return out;
+    return { states: out, unresolved: new Set(refs.filter((r) => !out.has(r))) };
   }
 }

@@ -256,7 +256,7 @@ reads under `withOrg`: `runs` (existing `runs_project_ticket_idx`) and `inbound_
   no run is not dropped). Issue refs that slip through come back null from the provider and are left out.
 - Flow: validate → `withOrg` (project check, ref filter, board connection lookup `projects.board_connection_id` →
   `connections.provider/external_id`, as in `packages/core/src/intake/process-ticket-event.ts:258-273`) → serve cache
-  hits → one adapter call for the misses, outside the transaction, bounded by the timeout → cache the successes → 200.
+  hits → one adapter call for the misses, outside the transaction, bounded by the timeout → cache the states and the not-found refs the provider ruled on → 200.
 - Agent call: a provider failure, timeout, rate limit or unregistered adapter returns 200 with those refs left out,
   not a 5xx, and failures are not cached, so the next request retries (architecture: the human said GitHub never
   blocks and the icon stays neutral).
@@ -293,7 +293,7 @@ No new dependency.
 - Provider adapters: provider code lives only in `packages/core/src/adapters/github/`, with a fake counterpart in the
   same change, resolved through `AdapterRegistry` (AGENTS.md rule 3; ADR 0005).
   - Agent call: the method goes on `BoardAdapter`, not `CodeHostAdapter`:
-    `prStates(project: AdapterProject, refs: string[]): Promise<Map<string, PrState>>` (architecture: PR tickets
+    `prStates(project: AdapterProject, refs: string[]): Promise<PrStatesResult>` (architecture: PR tickets
     already come from the board seam, where `getTicket` returns kind `pr` and its closing refs, through the project's
     board connection).
   - GitHub: one GraphQL request per call through `clients.installation(externalId).graphql`, like
@@ -306,13 +306,13 @@ No new dependency.
   - Agent call: partial data on a GraphQL error is read by parsing the error's `data` with Zod, without importing
     `@octokit/graphql` (architecture: it is not a direct dependency).
   - Agent call: the fake's `StoredTicket.prState?: PrState` stores the provider-neutral value (no GitHub flags);
-    `prStates` returns it for PR tickets that have one, and unset means left out (unknown); `DevTicketBody` accepts
+    `prStates` returns it for PR tickets that have one, and unset means left out of `states` and listed as `unresolved`; `DevTicketBody` accepts
     `prState` for PRs (architecture, testing T3: keeps existing local data and e2e unchanged and lets local e2e show
     the neutral fallback).
 - Worker: no workflow or activity change; the lookup is request-time work, which belongs in api.
 - Runner and Kubernetes: no Job spec or KubeGateway change.
 - Secrets: no new secret. The installation token stays inside `GithubClients` and is never logged, returned or cached;
-  the cache holds only `PrState` values. Logs carry error names only (precedent `AdapterLog`,
+  the cache holds only `PrState` values and a not-found marker the adapter vouches for (`unresolved`). Logs carry error names only (precedent `AdapterLog`,
   `adapters/github/board.ts`).
 - Events and live updates: no SSE, event or workflow change. "Live" means read from the provider when the page asks,
   through the cache. A state change shows on the next request after its cache entry expires. Reconnect behaviour is
@@ -498,11 +498,11 @@ e2e spec or a stated reason. New e2e specs: `apps/web/e2e/mock/pr-state.spec.ts`
 | BR-14 | Needs-you banner PR icon colour, including an idle run off the current page. Mock: idle run on a merged PR, also off the current page: purple and "Merged" | component/story; unit; e2e | `src/screens/runs.test.tsx`; `src/features/runs/map.test.ts`; `src/features/runs/runs.route.test.tsx` (off-page idle run); `src/components/NeedsYouBanner.stories.tsx`; `e2e/mock/pr-state.spec.ts` | mock |
 | BR-15 | Side panel Ticket card, run chain steps and collapsed rail in the top bar's colour. Mock: merged PR run, card, chain steps and collapsed rail purple with "Merged". Local: the Ticket card in the BR-3 detail test. The "Pull request" section: component test and story only (see below) | component/story; unit; e2e | `src/screens/runDetail.test.tsx`; `src/features/runs/detail.map.test.ts`; `TicketSummary` and `ChainTimeline` stories; `e2e/mock/pr-state.spec.ts`; `e2e/local/pr-state.spec.ts` | mock, local |
 | BR-16 | Ignored view PR icon colour for rows that are already a PR, including a PR with no run; the API looks up an ignored-only ref. Mock: ignored PR rows per state. No local e2e (see below) | component/story; integration; e2e | `src/screens/runs.test.tsx` (`RunsProblems`); `src/features/runs/runs.route.test.tsx` (Ignored filter); `apps/api/test/tickets.int.test.ts`; `e2e/mock/pr-state.spec.ts` | mock |
-| — | GitHub derivation merged > closed > draft > open; one batched GraphQL call per cache-missing request with aliases `p0..pN`, mapped by number not order (answer order shuffled); null node, unknown value and schema mismatch left out; owner, repo and numbers only in variables; adapter side of failure, timeout and rate limit | unit | `packages/core/test/adapters/github.test.ts` (undici intercept, new fixture) | — |
-| — | Fake `prStates` returns the stored state for PR tickets; unset is left out | unit | `packages/core/test/adapters/fake.test.ts` | — |
+| — | GitHub derivation merged > closed > draft > open; one batched GraphQL call per cache-missing request with aliases `p0..pN`, mapped by number not order (answer order shuffled); null node, unknown value and schema mismatch left out; `unresolved` holds only refs GitHub ruled on (a NOT_FOUND error, or a complete answer), never refs dropped by another error in partial data; owner, repo and numbers only in variables; adapter side of failure, timeout and rate limit | unit | `packages/core/test/adapters/github.test.ts` (undici intercept, new fixture) | — |
+| — | Fake `prStates` returns the stored state for PR tickets; unset is left out and listed as `unresolved` | unit | `packages/core/test/adapters/fake.test.ts` | — |
 | — | Contracts `PrState`, `PrStatesQuery` (digits `^[1-9]\d{0,9}$`, 1 to 100, deduplicated, one key or repeated keys, string vs array), `PrStatesResponse`, route `tickets.prStates` | contract | contract tests in `packages/contracts/src/` | — |
 | — | Cache `projectId:ref`, TTL 60 s, failures not cached, 10,000 entries with the oldest evicted at entry 10,001; project A's entry never served to project B | unit | `apps/api/src/tickets/` (cache unit test, injected `Clock`) | — |
-| — | API side of failure, timeout (small injected timeout, never-resolving adapter promise), rate limit and unregistered adapter → 200 with those refs left out and one warn with the error name only; only the project's PR refs (its PR runs and its ignored PR events) reach the adapter; validation; `expectContract` on every response | integration | `apps/api/test/tickets.int.test.ts` (`wrapRegistry` counting, throwing and hanging adapter) | — |
+| — | API side of failure, timeout (small injected timeout, never-resolving adapter promise), rate limit and unregistered adapter → 200 with those refs left out and one warn with the error name only; only the project's PR refs (its PR runs and its ignored PR events) reach the adapter; validation; `expectContract` on every response | integration | `apps/api/test/tickets.int.test.ts` (`wrapRegistry` counting, throwing and hanging adapter); a not-found ref is cached for the TTL, a ref the adapter left undecided is asked again | — |
 | — | `/dev/fake/tickets` accepts `prState` | integration | `apps/api/test/webhooks.int.test.ts` | — |
 | — | `TicketRef` state → token variant, accessible name and hover title; absent → neutral, glyph `aria-hidden`; `prStateTokens` and the four `--pr-*` tokens | component/story; unit | `src/ds/Chips.test.tsx`; `src/ds/tokens.test.ts` | — |
 | — | Mapper `withPrStates` sets `ticket.prState` on rows, headers, the banner run, ignored items, the detail ticket and the chain | unit | `src/features/runs/map.test.ts`; `src/features/runs/detail.map.test.ts` | — |
@@ -570,7 +570,7 @@ bar). The Ignored view has no local e2e (human answer).
 - The GraphQL query text is identical for any input; numbers only in variables (adapter unit, rule 6).
 - Project A's cache entry is never served to project B (cache unit).
 - Failure logs carry only the error name, `projectId` and ref count; the response body has no provider text; the cache
-  holds only `PrState` (adapter unit and API int, rule 5).
+  holds only `PrState` or the not-found marker (adapter unit and API int, rule 5).
 - A source value outside the four is left out; every response passes `expectContract`.
 - Webhook signature, terminal attach and run output redaction: not touched.
 

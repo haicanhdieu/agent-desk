@@ -20,7 +20,7 @@
 - Display precedence: merged > closed (draft or not) > open draft > open. GitHub: `merged === true` or `state === 'MERGED'` → merged; `CLOSED` → closed; `OPEN` + `isDraft` → draft; `OPEN` → open; anything else is left out.
 - Route: `GET /api/projects/:projectId/tickets/pr-states?ref=12&ref=15`. A ref is `^[1-9]\d{0,9}$`. 1 to 100 refs, duplicates collapsed, anything else 400. Signed out 401. A project that is not visible (including another org's) 404, and the adapter is never called.
 - Only refs that the project has a PR run for (`runs.ticket_kind = 'pr'`), or an ignored inbound event for (any kind), are looked up. They are looked up in the project's own repo, through its board connection.
-- Cache: key `projectId:ref`, TTL `60_000` ms, at most `10_000` entries with the oldest evicted. It is read only after the project check and holds only `PrState` values. Lookup timeout `5_000` ms. A failure, timeout, rate limit or unregistered adapter gives 200 without those refs, is not cached, and logs one `warn` with `projectId`, the ref count and the error name only.
+- Cache: key `projectId:ref`, TTL `60_000` ms, at most `10_000` entries with the oldest evicted. It is read only after the project check and holds only `PrState` values and a not-found marker for refs the adapter reports as `unresolved`. Lookup timeout `5_000` ms. A failure, timeout, rate limit or unregistered adapter gives 200 without those refs, is not cached, and logs one `warn` with `projectId`, the ref count and the error name only.
 - PR numbers go into GraphQL variables only (`$n0: Int!`, aliases `p0..pN`). Owner and repo are variables too (rule 6).
 - Tokens: `--pr-open: var(--ok)`, `--pr-draft: var(--faint)`, `--pr-merged: #c8a2f0`, `--pr-closed: var(--fail)`. Only the glyph is coloured. The "PR #148" text stays `--text`, and every state keeps the `pull-request` glyph.
 - Copy, verbatim: state words "Open", "Draft", "Merged", "Closed". They are the coloured glyph's accessible name and `title` tooltip, so a `TicketRef` reads "Merged PR #148". The collapsed rail item's title and aria-label is "Merged PR #148", and an unknown state keeps "PR #148". There is no new visible text and no error text.
@@ -59,7 +59,7 @@ None. No new package, library, service, image, CI action, binary or workspace pa
 - Agent call: the query helper and `withPrState` land with Run detail (Task 6), and the Runs page (Task 7) depends on it. Both add to the one mock spec `e2e/mock/pr-state.spec.ts`. Reason: the helper is `features` code under the Storybook blocker, so it cannot go into Task 1. Run detail is the smaller consumer.
 - Agent call: the GitHub `prStates` rejects on an HTTP or network failure (including a rate limit), and the API turns that into unknown. A GraphQL error whose `data` parses gives the partial states and one warn. A GraphQL error without usable `data` rejects. The adapter has no timer of its own; the API bounds the call. Reason: the spec puts the timeout and the 200 fallback in the API, and partial data in the adapter.
 - Agent call: refs that are not plain digits are dropped in the adapter before the query is built. Reason: defence in depth behind the contract.
-- Agent call: refs the adapter leaves out are not cached, and a late answer after the timeout is dropped. Reason: the cache holds only `PrState`, and failures are not cached.
+- Agent call: refs the adapter reports as `unresolved` (ruled on: not found, not a PR, unknown state; never a ref dropped by a non-NOT_FOUND error in partial data) are cached as a not-found marker for the TTL, and a late answer after the timeout is dropped. Reason: otherwise a ref the provider cannot resolve costs one provider read per request; failures are not cached.
 - Agent call: a cache entry has expired once `now − storedAt ≥ ttlMs`. Reason: this satisfies the spec's hit at 60 s − 1 ms and miss at 60 s + 1 ms.
 - Agent call: the options token is `PR_STATE_LOOKUP` (`{ clock, ttlMs, timeoutMs, maxEntries }`). `createTestApp` gains `prStateLookup?: Partial<PrStateLookupOptions>`. Reason: the spec asks for an injected `Clock` and options through a Nest token, settable from tests.
 - Agent call: the Storybook work is two tasks: Task 2 (ds tokens and `TicketIcon`) and Task 4 (every surface, its stories and fixtures). Reason: every surface renders Task 2's primitive, and together they pass 500 lines.
@@ -294,8 +294,9 @@ export function TicketIcon(props: TicketIconProps): JSX.Element;
 ```ts
 // adapters/types.ts, BoardAdapter gains:
 /** Live state of each PR among `refs` (ticket numbers) in the project's repo. Refs that are not PRs, are not found or
- *  have an unknown state are left out. Rejects when the provider cannot be asked. Stores nothing. */
-prStates(project: AdapterProject, refs: string[]): Promise<Map<string, PrState>>;
+ *  have an unknown state are left out of `states`; `unresolved` lists the ones the provider ruled on. Rejects when the provider
+ *  cannot be asked. Stores nothing. */
+prStates(project: AdapterProject, refs: string[]): Promise<PrStatesResult>; // { states: Map<string, PrState>; unresolved: Set<string> };
 // github/board.ts (exported for tests)
 /** `query PrStates($owner: String!, $repo: String!, $n0: Int!, …) { repository(owner: $owner, name: $repo) { p0: pullRequest(number: $n0) { number state isDraft merged } … } }` */
 export function prStatesQuery(count: number): string;
@@ -304,10 +305,11 @@ export function prStateOf(node: { state: string; isDraft: boolean; merged: boole
 ```
 
 - GitHub `prStates`:
-  - It keeps only refs matching `^[1-9]\d{0,9}$`. With none left, it returns an empty `Map` and makes no request.
+  - It keeps only refs matching `^[1-9]\d{0,9}$`. With none left, it returns empty `states` and makes no request.
   - One call: `clients.installation(project.connectionExternalId).graphql(prStatesQuery(n), { owner, repo, n0, … })`.
   - Each alias node is parsed on its own with Zod (`number`, `state`, `isDraft`, `merged`). A null node, a node that fails the schema, a node whose `number` was not asked, and an unknown state are each left out. The key is `String(node.number)`.
   - On a thrown error whose `data` parses as the same response shape (GraphQL errors with partial data), it uses that data and calls `log?.warn({ err: <error name> }, 'pr states partial')`. Any other error rethrows.
+  - `unresolved` (refs the provider ruled on; the API caches them as not found): refs that fail the pattern; any asked ref without a state in a complete answer; in a partial answer only a ref whose alias has a lone `NOT_FOUND` error. Any other error on the alias, or an error with no `repository.pN` path, leaves the missing refs undecided (in neither set).
 - Fake `prStates`: for each ref, the stored ticket of `project.repoPath` with `kind === 'pr'` and a `prState`.
 
 - [x] **Step 1: Add the fixture** `graphql.pr-states.json`. It is `{ "full": …, "partial": … }`, scrubbed, with no real users or tokens.
@@ -324,9 +326,12 @@ export function prStateOf(node: { state: string; isDraft: boolean; merged: boole
   - `GraphQL errors with partial data colour what came back and warn with the error name only`. `partial` gives `{1: open}`. `log.warn` is called once with `{ err: expect.any(String) }`, and its arguments do not contain `Could not resolve`.
   - `an HTTP failure, a rate limit and a network error reject`. Use a 502; a 403 with `x-ratelimit-remaining: 0`; and `replyWithError`.
   - `no refs means no request`.
-  - `a node whose number was not asked is left out` (Review Focus 5). Refs `['1']` answered with p0 `#9 OPEN` give an empty map.
+  - `a node whose number was not asked is left out` (Review Focus 5). Refs `['1']` answered with p0 `#9 OPEN` give empty `states`.
+  - `lists as unresolved only the asked refs GitHub authoritatively does not have`: `full` with an over-range ref gives `unresolved` `{6, 7, 3000000000}`.
+  - `a NOT_FOUND error in partial data makes that ref unresolved; any other error leaves it undecided`.
+  - `a partial answer whose errors cannot be attributed to a node leaves every missing ref undecided`.
 
-  In `fake.test.ts`, `prStates returns the stored state for PR tickets; unset, issues and unknown refs are left out`.
+  In `fake.test.ts`, `prStates returns the stored state for PR tickets; unset, issues and unknown refs are left out` (and unset or unknown refs are listed in `unresolved`).
 - [x] **Step 3: Run** `pnpm --filter @agentdesk/core test github fake`. Expected: FAIL.
 - [x] **Step 4: Implement** the interface method, the GitHub and fake implementations and `StoredTicket.prState`. Run `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/core test github fake`. Expected: PASS.
 - [x] **Step 5: Write ADR 0033.** Status Accepted, dated 2026-11-21, in the format of 0030. It covers:
@@ -468,7 +473,7 @@ export class PrStateCache {
   3. When there are misses, `registry.board(Provider.parse(provider)).prStates(toAdapterProject(row, externalId), misses)` runs inside `try`, raced against a `timeoutMs` timer.
      - The timer is always cleared.
      - The losing adapter promise gets a no-op `.catch`.
-     - A success caches only the asked refs that have a state.
+     - A success caches the asked refs that have a state, and the refs the adapter lists as `unresolved` as a not-found marker. A ref in neither is not cached.
      - Any failure or timeout logs `pr states unavailable {"projectId","refs":<n>,"err":<name>}` once and adds nothing.
   4. The answer is `{ items }` for the known refs that have a state, in request order.
 
@@ -501,6 +506,8 @@ export class PrStateCache {
   - `a throwing adapter, a rate limit and an unregistered provider give 200 with those refs left out and one warn with the error name only`. The log contains `HttpError` and the project id. Neither the log nor the body contains `provider-text-xyz`.
   - `a hanging adapter is cut off at the timeout`: 200 with `items: []`.
   - `failures are not cached: the next request asks again`.
+  - `a ref the provider could not resolve is not asked again until the TTL passes`.
+  - `a ref the provider left out without ruling on it is asked again, not cached as not found`.
   - `a cache hit skips the adapter until the TTL passes`.
   - `a request with cached and new refs sends only the new refs to the adapter and answers both` (Review Focus 3).
   - `a lookup that rejects after the timeout causes no unhandled rejection` (Review Focus 4). A `process.on('unhandledRejection')` spy is not called within 300 ms, and the next request answers 200.

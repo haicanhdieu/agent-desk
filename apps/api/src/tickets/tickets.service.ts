@@ -8,7 +8,7 @@ import { ADAPTER_REGISTRY } from '../adapters/adapter-registry.module';
 import type { OrgContext } from '../auth/org-context';
 import { LOGGER } from '../common/logger';
 import { DB } from '../db/db.module';
-import { PR_STATE_LOOKUP, PrStateCache, type PrStateLookupOptions } from './pr-state-cache';
+import { PR_STATE_LOOKUP, PrStateCache, UNRESOLVED, type PrStateLookupOptions } from './pr-state-cache';
 
 /** Rejects with a plain error after `ms`; the timer is always cleared and the losing promise's rejection is absorbed. */
 async function withTimeout<T>(work: Promise<T>, ms: number): Promise<T> {
@@ -83,6 +83,7 @@ export class TicketsService {
     const misses: string[] = [];
     for (const ref of known) {
       const hit = this.cache.get(projectId, ref);
+      if (hit === UNRESOLVED) continue;
       if (hit) states.set(ref, hit);
       else misses.push(ref);
     }
@@ -95,8 +96,12 @@ export class TicketsService {
           this.opts.timeoutMs,
         );
         for (const ref of misses) {
-          const state = found.get(ref);
-          if (state === undefined) continue;
+          const state = found.states.get(ref);
+          if (state === undefined) {
+            // Only a ref the provider ruled on is remembered (for the TTL); a partial answer is asked again.
+            if (found.unresolved.has(ref)) this.cache.set(projectId, ref, UNRESOLVED);
+            continue;
+          }
           states.set(ref, state);
           this.cache.set(projectId, ref, state);
         }

@@ -6,6 +6,7 @@ import type {
   BoardAdapter,
   PollCursor,
   PollResult,
+  PrStatesResult,
   SecretLookup,
   Ticket,
   TicketEvent,
@@ -78,6 +79,7 @@ export function prStateOf(node: { state: string; isDraft: boolean; merged: boole
 }
 
 const PrStatesResponse = z.object({ repository: z.record(z.string(), z.unknown()) });
+const PrStatesErrors = z.array(z.object({ type: z.string().optional(), path: z.array(z.unknown()).optional() }));
 const PrStateNode = z.object({
   number: z.number().int(),
   state: z.string(),
@@ -254,14 +256,20 @@ export class GithubBoardAdapter implements BoardAdapter {
     }
   }
 
-  async prStates(project: AdapterProject, refs: string[]): Promise<Map<string, PrState>> {
+  async prStates(project: AdapterProject, refs: string[]): Promise<PrStatesResult> {
     const asked = [...new Set(refs.filter((r) => PR_REF.test(r) && Number(r) <= GRAPHQL_INT_MAX))];
     const out = new Map<string, PrState>();
-    if (asked.length === 0) return out;
+    // Refs that can never be a PR number are authoritatively absent; they are not sent.
+    const unresolved = new Set(refs.filter((r) => !asked.includes(r)));
+    if (asked.length === 0) return { states: out, unresolved };
     const { owner, repo } = splitRepoPath(project.repoPath);
     const variables: Record<string, string | number> = { owner, repo };
     asked.forEach((r, i) => (variables[`n${i}`] = Number(r)));
     let raw: unknown;
+    // Aliases (p0..pN) GitHub reported NOT_FOUND for, and whether any other error leaves a missing ref undecided.
+    const notFound = new Set<string>();
+    let undecided: Set<string> | 'all' = new Set();
+    let partialAnswer = false;
     try {
       raw = await this.clients
         .installation(project.connectionExternalId)
@@ -274,6 +282,17 @@ export class GithubBoardAdapter implements BoardAdapter {
       if (!partial.success) throw e;
       this.log?.warn({ err: e instanceof Error ? e.name : 'UnknownError' }, 'pr states partial');
       raw = partial.data;
+      partialAnswer = true;
+      const errors = PrStatesErrors.safeParse(
+        typeof e === 'object' && e !== null && 'errors' in e ? e.errors : undefined,
+      );
+      // Errors that cannot be read are treated as one that cannot be attributed to a node.
+      for (const err of errors.success ? errors.data : [{}]) {
+        const alias = err.path?.[0] === 'repository' ? err.path[1] : undefined;
+        if (typeof alias !== 'string') undecided = 'all';
+        else if (err.type === 'NOT_FOUND') notFound.add(alias);
+        else if (undecided !== 'all') undecided.add(alias);
+      }
     }
     const { repository } = PrStatesResponse.parse(raw);
     const askedSet = new Set(asked);
@@ -283,7 +302,13 @@ export class GithubBoardAdapter implements BoardAdapter {
       const state = prStateOf(node.data);
       if (state) out.set(String(node.data.number), state);
     }
-    return out;
+    asked.forEach((ref, i) => {
+      if (out.has(ref)) return;
+      const alias = `p${i}`;
+      // A complete answer rules on every ask. In a partial one only a lone NOT_FOUND on the node does.
+      if (!partialAnswer || (undecided !== 'all' && notFound.has(alias) && !undecided.has(alias))) unresolved.add(ref);
+    });
+    return { states: out, unresolved };
   }
 
   async comment(project: AdapterProject, ref: string, text: string): Promise<string> {

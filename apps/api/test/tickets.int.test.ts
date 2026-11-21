@@ -12,7 +12,7 @@ import { createOrg, inviteAndLogin } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
-type Mode = 'real' | 'throw' | 'hang' | 'lateReject' | 'unregistered';
+type Mode = 'real' | 'undecided' | 'throw' | 'hang' | 'lateReject' | 'unregistered';
 
 let mode: Mode = 'real';
 let calls: Array<{ project: AdapterProject; refs: string[] }> = [];
@@ -33,6 +33,8 @@ function spyBoard(real: AdapterRegistry): AdapterRegistry {
             err.name = 'HttpError';
             return Promise.reject(err);
           }
+          if (mode === 'undecided')
+            return Promise.resolve({ states: new Map<string, PrState>(), unresolved: new Set<string>() });
           if (mode === 'hang') return new Promise<never>(() => undefined);
           if (mode === 'lateReject')
             return new Promise<never>((_, reject) => setTimeout(() => reject(new Error(SECRET_PROVIDER_TEXT)), 100));
@@ -328,6 +330,28 @@ describe('tickets.prStates', () => {
     expect(statesOf(await prStates(projectId, '?ref=81'))).toEqual([]);
     mode = 'real';
     expect(statesOf(await prStates(projectId, '?ref=81'))).toEqual([['81', 'open']]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('a ref the provider could not resolve is not asked again until the TTL passes', async () => {
+    const { projectId } = await newProject();
+    await ignoredFor(projectId, '9901');
+    expect(statesOf(await prStates(projectId, '?ref=9901'))).toEqual([]);
+    expect(calls).toHaveLength(1);
+    nowMs += 59_999;
+    expect(statesOf(await prStates(projectId, '?ref=9901'))).toEqual([]);
+    expect(calls).toHaveLength(1);
+    nowMs += 2;
+    expect(statesOf(await prStates(projectId, '?ref=9901'))).toEqual([]);
+    expect(calls).toHaveLength(2);
+  });
+
+  it('a ref the provider left out without ruling on it is asked again, not cached as not found', async () => {
+    const { projectId } = await newProject();
+    await ignoredFor(projectId, '9902');
+    mode = 'undecided';
+    expect(statesOf(await prStates(projectId, '?ref=9902'))).toEqual([]);
+    expect(statesOf(await prStates(projectId, '?ref=9902'))).toEqual([]);
     expect(calls).toHaveLength(2);
   });
 

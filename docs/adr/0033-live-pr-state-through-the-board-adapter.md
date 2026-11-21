@@ -19,7 +19,7 @@ Runs and Run detail pages must not wait for a provider call.
   (numbers, owner and repo as variables only) with the installation token; the fake adapter reads a state stored on
   its fake tickets. Refs that are not PRs, are not found or have an unknown state are left out.
 - The API keeps a per-project/PR TTL cache (60 s, at most 10,000 entries, oldest evicted). It holds only `PrState`
-  values and is read only after the project check.
+  values and a not-found marker (a ref the provider ruled on without a state; a partial answer with other errors is not one), and is read only after the project check.
 - Failure means unknown: a failure, timeout or rate limit gives 200 without those refs, is not cached, and logs the
   project, the ref count and the error name only. The UI stays neutral and silent.
 

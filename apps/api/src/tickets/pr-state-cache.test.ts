@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Clock } from '@agentdesk/core';
-import { PrStateCache } from './pr-state-cache';
+import { PrStateCache, UNRESOLVED } from './pr-state-cache';
 
 function makeClock(): Clock & { advance(ms: number): void } {
   let now = Date.parse('2026-01-01T00:00:00.000Z');
@@ -14,6 +14,16 @@ describe('PrStateCache', () => {
     cache.set('p', '1', 'open');
     clock.advance(59_999);
     expect(cache.get('p', '1')).toBe('open');
+    clock.advance(2);
+    expect(cache.get('p', '1')).toBeUndefined();
+  });
+
+  it('an unresolved marker is served until the TTL passes, then absent', () => {
+    const clock = makeClock();
+    const cache = new PrStateCache(clock, { ttlMs: 60_000, maxEntries: 10 });
+    cache.set('p', '1', UNRESOLVED);
+    clock.advance(59_999);
+    expect(cache.get('p', '1')).toBe(UNRESOLVED);
     clock.advance(2);
     expect(cache.get('p', '1')).toBeUndefined();
   });

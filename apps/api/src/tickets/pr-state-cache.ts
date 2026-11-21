@@ -17,12 +17,15 @@ export const PR_STATE_LOOKUP_DEFAULTS: Omit<PrStateLookupOptions, 'clock'> = {
   maxEntries: 10_000,
 };
 
+/** Marks a ref the provider answered for without a PR state (not found, not a PR, unknown state). */
+export const UNRESOLVED = 'unresolved';
+
 interface Entry {
-  state: PrState;
+  state: PrState | typeof UNRESOLVED;
   storedAt: number;
 }
 
-/** A per-project, per-PR TTL cache of live PR states. Holds only PrState values, never provider text. */
+/** A per-project, per-PR TTL cache of live PR states. Holds only PrState values or the unresolved marker, never provider text. */
 export class PrStateCache {
   private readonly entries = new Map<string, Entry>();
 
@@ -31,8 +34,8 @@ export class PrStateCache {
     private readonly opts: { ttlMs: number; maxEntries: number },
   ) {}
 
-  /** undefined when absent or expired (now - storedAt >= ttlMs). */
-  get(projectId: string, ref: string): PrState | undefined {
+  /** undefined when absent or expired (now - storedAt >= ttlMs); UNRESOLVED when the provider left the ref out. */
+  get(projectId: string, ref: string): PrState | typeof UNRESOLVED | undefined {
     const key = `${projectId}:${ref}`;
     const hit = this.entries.get(key);
     if (!hit) return undefined;
@@ -44,7 +47,7 @@ export class PrStateCache {
   }
 
   /** Re-setting moves the entry to newest; above maxEntries the oldest is dropped. */
-  set(projectId: string, ref: string, state: PrState): void {
+  set(projectId: string, ref: string, state: PrState | typeof UNRESOLVED): void {
     const key = `${projectId}:${ref}`;
     this.entries.delete(key);
     this.entries.set(key, { state, storedAt: this.clock.now().getTime() });
