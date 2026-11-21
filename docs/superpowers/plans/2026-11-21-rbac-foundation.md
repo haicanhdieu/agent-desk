@@ -1686,9 +1686,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: `buildCast`, `secondOrg`, `openTerminal` (Task 35).
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** BR-6 TC-6.1 to TC-6.4; BR-7 TC-7.1 to TC-7.5; BR-9 TC-9.1 to TC-9.6 (RC finished by O first where the Given says so); BR-12 TC-12.1 to TC-12.3 (assert `/not allowed for your role here/i` in the body, a `requestId`, and for TC-12.2 that the body contains neither Y's ids nor the credential value).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-denials.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e refusals, missing targets and wrong-state controls`.
+- [x] **Step 1: Write the spec:** BR-6 TC-6.1 to TC-6.4; BR-7 TC-7.1 to TC-7.5; BR-9 TC-9.1 to TC-9.6 (RC finished by O first where the Given says so); BR-12 TC-12.1 to TC-12.3 (assert `/not allowed for your role here/i` in the body, a `requestId`, and for TC-12.2 that the body contains neither Y's ids nor the credential value).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-denials.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e refusals, missing targets and wrong-state controls`.
 
 ---
 
