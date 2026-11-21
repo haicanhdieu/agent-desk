@@ -1148,11 +1148,11 @@ export function MyInvitations(props: { user: Actor; org?: OrgSwitchProps; state:
 
   Centered `emptyMain`/`emptyCol` column under the global top bar; list h1 "Invitations"; empty: "You're not a member of any organization", "No invitations for <email>. Ask an owner or admin to invite you." and "Sign out", or for a platform admin "Create an organization and invite its first owner." with "Create organization" and "Sign out".
 
-- [ ] **Step 1: Write the failing tests** in `invitations.test.tsx`: BR-37 the non-admin empty state has the exact heading, body and "Sign out" and no "Create organization"; BR-34 the platform admin variant has "Create organization" linking to `createHref`; the list renders one card per invitation; loading and error states render.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and `Screens/Invitations` stories MyInvitations, MyInvitationsAccepting, MyInvitationsEmpty, MyInvitationsEmptyPlatformAdmin, MyInvitationsError, MyInvitationsLoading; register the 6 boards (canvas row, `storyIds.ts` with `const invitations = 'Screens/Invitations'`, `parity.mjs`); `coverage.test.ts` count 91 → 97 and screens stories files 7 → 8.
-- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 6 boards. Expected: PASS, pairs match.
-- [ ] **Step 5: Commit** `feat(web): welcome page boards in Storybook`.
+- [x] **Step 1: Write the failing tests** in `invitations.test.tsx`: BR-37 the non-admin empty state has the exact heading, body and "Sign out" and no "Create organization"; BR-34 the platform admin variant has "Create organization" linking to `createHref`; the list renders one card per invitation; loading and error states render.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/invitations.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and `Screens/Invitations` stories MyInvitations, MyInvitationsAccepting, MyInvitationsEmpty, MyInvitationsEmptyPlatformAdmin, MyInvitationsError, MyInvitationsLoading; register the 6 boards (canvas row, `storyIds.ts` with `const invitations = 'Screens/Invitations'`, `parity.mjs`); `coverage.test.ts` count 91 → 97 and screens stories files 7 → 8.
+- [ ] **Step 4: Run** the Step 2 command, the stories smoke test, and parity for the 6 boards. Expected: PASS, pairs match. Not fully run: the vitest parts (invitations.test.tsx, coverage.test.ts, stories.smoke.test.tsx) were run and pass; `build-storybook` and `pnpm parity` were NOT run (runner pod has no Chromium), so the 6 pixel pairs are unchecked.
+- [x] **Step 5: Commit** `feat(web): welcome page boards in Storybook`.
 
 ---
 

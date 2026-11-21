@@ -161,3 +161,15 @@ SignInNoInvitation.
 - ProjectsSwitching: the story uses the shared `RouteSkeleton`; the board's skeleton lines differ in width and count.
 - Invitations banner: the story uses the shared `Banner` (title weight and size), the board draws plain body text.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: welcome page boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Six boards added, so `parity.mjs`
+finds 97: MyInvitations, MyInvitationsAccepting, MyInvitationsEmpty, MyInvitationsEmptyPlatformAdmin, MyInvitationsError,
+MyInvitationsLoading.
+
+- Cards: the stories use the shared `InvitationCard` (surface card, title weight and size), where the boards draw inline-styled cards.
+- MyInvitationsError: the story uses the shared `RouteLoadError` banner, so the Request ID sits in the banner body as in other route errors.
+- MyInvitationsLoading: the story uses `Skeleton` blocks sized as the board (32px heading, two 98px cards).
+- MyInvitationsLoading and MyInvitationsError: neither the boards nor the screen draw an h1 in these states. The error banner is an alert and the loading block is a labelled busy status.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.

@@ -587,3 +587,40 @@
   font-size: var(--fs-15);
   max-width: 56ch;
 }
+
+/* welcome page (my invitations) */
+.welcomeCol {
+  width: 100%;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.welcomeCol h1 {
+  font-size: var(--fs-28);
+}
+.welcomeList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.welcomeLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+.welcomeLoadingList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.welcomeActions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 10px;
+}

@@ -11,8 +11,9 @@ const runs = 'Screens/Runs';
 const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
+const invitations = 'Screens/Invitations';
 
-/** The 91 boards of design/prototype/project/canvas.json, in canvas order. */
+/** The 97 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
   Main: { title: 'Screens/Overview', exportName: 'Main' },
   NeedsYou: { title: runs, exportName: 'NeedsYou' },
@@ -105,6 +106,12 @@ export const boardStories = {
   ProjectsOrgSwitchOpen: { title: entry, exportName: 'ProjectsOrgSwitchOpen' },
   ProjectsSwitching: { title: entry, exportName: 'ProjectsSwitching' },
   SignInNoInvitation: { title: entry, exportName: 'SignInNoInvitation' },
+  MyInvitations: { title: invitations, exportName: 'MyInvitations' },
+  MyInvitationsAccepting: { title: invitations, exportName: 'MyInvitationsAccepting' },
+  MyInvitationsEmpty: { title: invitations, exportName: 'MyInvitationsEmpty' },
+  MyInvitationsEmptyPlatformAdmin: { title: invitations, exportName: 'MyInvitationsEmptyPlatformAdmin' },
+  MyInvitationsError: { title: invitations, exportName: 'MyInvitationsError' },
+  MyInvitationsLoading: { title: invitations, exportName: 'MyInvitationsLoading' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;
