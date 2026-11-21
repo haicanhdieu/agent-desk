@@ -10,7 +10,7 @@
 
 **Tech Stack:** TypeScript, Drizzle, Vitest (`*.int.test.ts` with `startPg`), Playwright local e2e.
 
-**Spec:** `docs/superpowers/specs/2026-11-21-bot-trigger-owner-design.md` (ADR `docs/adr/0033-bot-trigger-owner-from-linked-issue.md`)
+**Spec:** `docs/superpowers/specs/2026-11-21-bot-trigger-owner-design.md` (ADR `docs/adr/0034-bot-trigger-owner-from-linked-issue.md`)
 
 ## Global Constraints
 
@@ -148,4 +148,4 @@ Expected: FAIL (the first and second tests return `ignored_owner_unlinked` or th
 
 - **Spec coverage:** BO-1 → Tasks 1, 2, 4. BO-2 → Task 1. BO-3 → Task 1 (fallback and same-ticket tests). BO-4 → Tasks 3, 4 (e2e `TC-BO-2.1`; the once-only rule at intake level). BO-5 → Task 3 (no notice for `ignored_owner_not_permitted`).
 - **Type consistency:** `linkedIssueRefs` (Task 1) is what Task 2 passes; `OWNER_UNDETECTED_NOTICE` (Task 3) is the text the e2e asserts.
-- **PR plan:** two PRs. PR 1 (docs only): this plan, the spec, ADR 0033. PR 2 (code): Tasks 0 to 4 (about 400 lines), labelled `review:sensitive`.
+- **PR plan:** two PRs. PR 1 (docs only): this plan, the spec, ADR 0034. PR 2 (code): Tasks 0 to 4 (about 400 lines), labelled `review:sensitive`.

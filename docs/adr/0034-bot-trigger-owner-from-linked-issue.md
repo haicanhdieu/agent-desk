@@ -1,4 +1,4 @@
-# 0033. A bot trigger on a PR takes its owner from the PR's linked issue
+# 0034. A bot trigger on a PR takes its owner from the PR's linked issue
 
 - Status: Proposed
 - Date: 2026-11-21

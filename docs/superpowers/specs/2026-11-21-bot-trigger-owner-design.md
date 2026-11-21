@@ -2,7 +2,7 @@
 
 Status: draft. Sensitive paths: auth and run ownership (`access/run-owner.ts`), webhooks and polling intake
 (`intake/process-ticket-event.ts`).
-Source: PRs #209 and #210. Decision record: [ADR 0033](../../adr/0033-bot-trigger-owner-from-linked-issue.md).
+Source: PRs #209 and #210. Decision record: [ADR 0034](../../adr/0034-bot-trigger-owner-from-linked-issue.md).
 Amends: [rbac-foundation design](2026-11-20-rbac-foundation-design.md) (bot-authored triggers, and "no comment is posted
 on a refused trigger").
 
