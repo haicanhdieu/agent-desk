@@ -21,6 +21,7 @@ import type { AdapterRegistry, BoardAdapter, CodeHostAdapter, Ticket, TicketEven
 import {
   copyRoleTemplates,
   isUniqueViolation,
+  OWNER_UNDETECTED_NOTICE,
   processTicketEvent,
   startRunWorkflow,
   sweepOutbox,
@@ -165,7 +166,8 @@ const ticket = (n: number): Ticket => ({
 
 function harness(over: Partial<IntakeDeps> = {}, getTicketImpl?: (ref: string) => Promise<Ticket>) {
   const getTicket = vi.fn(async (_p: unknown, ref: string) => (getTicketImpl ?? (async (r) => ticket(Number(r))))(ref));
-  const board = { getTicket } as unknown as BoardAdapter; // only getTicket is exercised by the intake
+  const comment = vi.fn(async (_p: unknown, _ref: string, _text: string) => 'posted-1');
+  const board = { getTicket, comment } as unknown as BoardAdapter; // only getTicket and comment are exercised by the intake
   const host = {
     checkoutRef: (t: { kind: string; number: number }) => (t.kind === 'pr' ? `refs/pull/${t.number}/head` : 'main'),
   } as unknown as CodeHostAdapter; // only checkoutRef is exercised by the intake
@@ -179,7 +181,7 @@ function harness(over: Partial<IntakeDeps> = {}, getTicketImpl?: (ref: string) =
     botLogin: 'agentdesk[bot]',
     ...over,
   };
-  return { deps, startRun, getTicket };
+  return { deps, startRun, getTicket, comment };
 }
 
 const eventFor = (s: Seed, over: Partial<TicketEvent> = {}): TicketEvent => {
@@ -541,6 +543,113 @@ describe('processTicketEvent: run owner', () => {
     expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'ignored_owner_unlinked' });
     expect(await runsOf(s)).toHaveLength(0);
     expect(h.startRun).not.toHaveBeenCalled();
+  });
+
+  describe('a bot comment on a PR that links to issues', () => {
+    const prTicket = (linkedRefs: string[]): Ticket => ({ ...ticket(209), kind: 'pr', linkedRefs });
+    const prEvent = (s: Seed) => botTriggerEvent(eventFor(s, { ticketRef: '209', ticketKind: 'pr' }), BOT_AT);
+
+    it('is owned by the owner of the linked issue run while two other runs are active in the project', async () => {
+      const s = await seed();
+      const linked = await originRun(s, { ticketRef: '208' });
+      const other = await originRun(s, { ticketRef: '207' });
+      const h = harness({}, async (ref) => (ref === '209' ? prTicket(['208']) : ticket(Number(ref))));
+      expect((await processTicketEvent(h.deps, prEvent(s), 'webhook')).outcome).toBe('run_created');
+      const chained = (await runsOf(s)).find((r) => r.id !== linked && r.id !== other);
+      expect(chained).toMatchObject({ ownerUserId: s.ownerId, originRunId: linked, ticketRef: '209' });
+    });
+
+    it('falls back to the time match when the PR cannot be fetched, and never throws', async () => {
+      const failing = async (ref: string): Promise<Ticket> => {
+        if (ref === '209') throw new Error('board down');
+        return ticket(Number(ref));
+      };
+      const one = await seed();
+      const only = await originRun(one, { ticketRef: '300' });
+      const h1 = harness({}, failing);
+      expect((await processTicketEvent(h1.deps, prEvent(one), 'webhook')).outcome).toBe('run_created');
+      expect((await runsOf(one)).find((r) => r.id !== only)).toMatchObject({ originRunId: only });
+
+      const two = await seed();
+      await originRun(two, { ticketRef: '300' });
+      await originRun(two, { ticketRef: '301' });
+      const h2 = harness({}, failing);
+      expect((await processTicketEvent(h2.deps, prEvent(two), 'webhook')).outcome).toBe('ignored_owner_unlinked');
+    });
+  });
+
+  describe('the notice for a bot trigger whose owner cannot be detected', () => {
+    it('is posted once on the ticket and starts no run', async () => {
+      const s = await seed();
+      const h = harness();
+      const e = botTriggerEvent(eventFor(s), BOT_AT);
+      expect(await processTicketEvent(h.deps, e, 'webhook')).toEqual({ outcome: 'ignored_owner_unlinked' });
+      expect(h.comment).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ repoPath: s.repoPath }),
+        '7',
+        OWNER_UNDETECTED_NOTICE,
+      );
+      expect(await runsOf(s)).toHaveLength(0);
+      expect(h.startRun).not.toHaveBeenCalled();
+    });
+
+    it('is not posted twice when the same comment arrives again under another delivery id', async () => {
+      const s = await seed();
+      const h = harness();
+      const first = botTriggerEvent(eventFor(s), BOT_AT);
+      await processTicketEvent(h.deps, first, 'webhook');
+      const again = { ...first, deliveryId: `d-${randomUUID()}` };
+      expect((await processTicketEvent(h.deps, again, 'poll')).outcome).toBe('ignored_owner_unlinked');
+      expect(h.comment).toHaveBeenCalledTimes(1);
+    });
+
+    it('is not posted for a human trigger, for a refused permission, or when a run starts', async () => {
+      const stranger = await seed();
+      const h1 = harness();
+      const human = eventFor(stranger, { author: 'stranger', authorId: `stranger-${randomUUID()}` });
+      expect((await processTicketEvent(h1.deps, human, 'webhook')).outcome).toBe('ignored_owner_unlinked');
+      expect(h1.comment).not.toHaveBeenCalled();
+
+      const viewer = await seed({ role: 'viewer' });
+      await originRun(viewer);
+      const h2 = harness();
+      const denied = botTriggerEvent(eventFor(viewer), BOT_AT);
+      expect((await processTicketEvent(h2.deps, denied, 'webhook')).outcome).toBe('ignored_owner_not_permitted');
+      expect(h2.comment).not.toHaveBeenCalled();
+
+      const ok = await seed();
+      await originRun(ok);
+      const h3 = harness();
+      expect((await processTicketEvent(h3.deps, botTriggerEvent(eventFor(ok), BOT_AT), 'webhook')).outcome).toBe(
+        'run_created',
+      );
+      expect(h3.comment).not.toHaveBeenCalled();
+    });
+
+    it('never changes the outcome when the board comment fails or hangs, and logs only the error name', async () => {
+      const s = await seed();
+      const warn = vi.fn();
+      const h = harness({ log: { warn }, ticketTimeoutMs: 20 });
+      h.comment.mockRejectedValueOnce(new Error('secret-looking detail'));
+      expect(await processTicketEvent(h.deps, botTriggerEvent(eventFor(s), BOT_AT), 'webhook')).toEqual({
+        outcome: 'ignored_owner_unlinked',
+      });
+      expect(warn).toHaveBeenCalledWith({ err: 'Error' }, 'owner notice not posted');
+
+      h.comment.mockImplementationOnce(() => new Promise<string>(() => {}));
+      expect((await processTicketEvent(h.deps, botTriggerEvent(eventFor(s), BOT_AT), 'webhook')).outcome).toBe(
+        'ignored_owner_unlinked',
+      );
+      expect(warn).toHaveBeenCalledWith({ err: 'TicketFetchTimeoutError' }, 'owner notice not posted');
+    });
+
+    it('is not a command: the notice posted back is ignored and starts nothing', async () => {
+      const s = await seed();
+      const h = harness();
+      const echo = { ...botTriggerEvent(eventFor(s), BOT_AT), body: OWNER_UNDETECTED_NOTICE };
+      expect((await processTicketEvent(h.deps, echo, 'webhook')).outcome).toBe('ignored_no_command');
+      expect(h.comment).not.toHaveBeenCalled();
+    });
   });
 
   it('a bot comment whose originating run has no owner is unlinked', async () => {

@@ -344,3 +344,88 @@ describe('resolveRunOwner: bot-written trigger', () => {
     expect(await resolve(w, input)).toMatchObject({ kind: 'ignored', outcome: 'ignored_owner_unlinked' });
   });
 });
+
+describe('resolveRunOwner: bot comment on a PR with linked issues', () => {
+  const onPr = (projectId: string, linkedIssueRefs: string[], createdAt = T2): RunOwnerInput => ({
+    ...bot(projectId, '209', createdAt),
+    linkedIssueRefs,
+  });
+
+  it('uses the owner of the linked issue run even when two other runs are active in the project', async () => {
+    const w = await makeWorld();
+    const origin = await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.b, startedAt: T0 });
+    await addRun(w, { projectId: w.p1, ticketRef: '207', ownerUserId: w.b, startedAt: T0 });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toEqual({ kind: 'owner', userId: w.b, originRunId: origin });
+  });
+
+  it('takes the latest run when the linked issue has several runs of one owner', async () => {
+    const w = await makeWorld();
+    await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.b, startedAt: T0, finishedAt: T1 });
+    const latest = await addRun(w, {
+      projectId: w.p1,
+      ticketRef: '208',
+      ownerUserId: w.b,
+      startedAt: T1,
+      finishedAt: '2026-01-01T11:30:00.000Z',
+    });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toEqual({ kind: 'owner', userId: w.b, originRunId: latest });
+  });
+
+  it('takes the nearest run when the linked issues have runs of two owners', async () => {
+    const w = await makeWorld();
+    await addRun(w, { projectId: w.p1, ticketRef: '206', ownerUserId: w.v, startedAt: T0 });
+    const nearest = await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.b, startedAt: T1 });
+    expect(await resolve(w, onPr(w.p1, ['206', '208']))).toEqual({ kind: 'owner', userId: w.b, originRunId: nearest });
+  });
+
+  it('lets the nearest run decide even when its owner may not run (the viewer)', async () => {
+    const w = await makeWorld();
+    await addRun(w, { projectId: w.p1, ticketRef: '206', ownerUserId: w.b, startedAt: T0 });
+    await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.v, startedAt: T1 });
+    expect(await resolve(w, onPr(w.p1, ['206', '208']))).toMatchObject({
+      kind: 'ignored',
+      outcome: 'ignored_owner_not_permitted',
+    });
+  });
+
+  it('does not take a linked issue run of another project', async () => {
+    const w = await makeWorld();
+    await addRun(w, { projectId: w.p2, ticketRef: '208', ownerUserId: w.b, startedAt: T0 });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toMatchObject({ kind: 'ignored', outcome: 'ignored_owner_unlinked' });
+  });
+
+  it('does not take a linked issue run that started after the comment', async () => {
+    const w = await makeWorld();
+    await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.b, startedAt: T3 });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toMatchObject({ kind: 'ignored', outcome: 'ignored_owner_unlinked' });
+  });
+
+  it('does not take a linked issue run that has no owner', async () => {
+    const w = await makeWorld();
+    await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: null, startedAt: T0 });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toMatchObject({ kind: 'ignored', outcome: 'ignored_owner_unlinked' });
+  });
+
+  it('ignores refs that are not plain issue numbers', async () => {
+    const w = await makeWorld();
+    // finished before the comment, so only the linked-issue lookup could ever match it
+    await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.b, startedAt: T0, finishedAt: T1 });
+    expect(await resolve(w, onPr(w.p1, ['208 OR 1=1', '-1', '', '0208x']))).toMatchObject({
+      kind: 'ignored',
+      outcome: 'ignored_owner_unlinked',
+    });
+  });
+
+  it('a single active run on the ticket still wins over the linked issue', async () => {
+    const w = await makeWorld();
+    const onTicket = await addRun(w, { projectId: w.p1, ticketRef: '209', ownerUserId: w.b, startedAt: T1 });
+    await addRun(w, { projectId: w.p1, ticketRef: '208', ownerUserId: w.v, startedAt: T0 });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toEqual({ kind: 'owner', userId: w.b, originRunId: onTicket });
+  });
+
+  it('falls back to the project-wide single active run when the linked issue has no run', async () => {
+    const w = await makeWorld();
+    const elsewhere = await addRun(w, { projectId: w.p1, ticketRef: '300', ownerUserId: w.b, startedAt: T0 });
+    expect(await resolve(w, onPr(w.p1, ['208']))).toEqual({ kind: 'owner', userId: w.b, originRunId: elsewhere });
+  });
+});

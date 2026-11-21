@@ -1,7 +1,8 @@
-import { and, eq, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
+import { and, desc, eq, inArray, isNotNull, isNull, or, sql, type SQL } from 'drizzle-orm';
 import { runs, type Tx } from '@agentdesk/db';
 import { can } from '@agentdesk/contracts';
 import type { TicketEvent } from '../adapters/types';
+import { normalizeLinkedRefs } from '../adapters/linked-refs';
 import { loadAccess } from './load-access';
 import { findLinkedUser } from './linked-user';
 
@@ -14,6 +15,8 @@ export interface RunOwnerInput {
   boardProvider: string;
   event: Pick<TicketEvent, 'author' | 'authorId' | 'ticketRef' | 'createdAt'>;
   botLogin: string;
+  /** Issue refs the commented PR links to (`Ticket.linkedRefs`). Untrusted: normalised here. Only a bot comment reads it. */
+  linkedIssueRefs?: readonly string[];
 }
 
 const unlinked = (detail: string): RunOwner => ({ kind: 'ignored', outcome: 'ignored_owner_unlinked', detail });
@@ -59,12 +62,53 @@ async function activeRuns(tx: Tx, projectId: string, createdAt: string, ticketRe
     .limit(2);
 }
 
-/** Origin of a bot comment: the single candidate on the ticket, else the single one in the project; null when none or several. */
-async function findOrigin(tx: Tx, projectId: string, event: RunOwnerInput['event']): Promise<Candidate | null> {
+/**
+ * The nearest run on the issues a PR links to: of this project's issue runs on those refs that started at or before
+ * `createdAt` and have an owner, the one that started last. Refs are untrusted and normalised; none left, no query.
+ */
+async function linkedIssueOrigin(
+  tx: Tx,
+  projectId: string,
+  createdAt: string,
+  linkedIssueRefs: readonly string[],
+): Promise<Candidate | null> {
+  const refs = normalizeLinkedRefs(linkedIssueRefs);
+  if (refs.length === 0) return null;
+  const at = sql`${createdAt}::timestamptz`;
+  const [row] = await tx
+    .select({ id: runs.id, ownerUserId: runs.ownerUserId })
+    .from(runs)
+    .where(
+      and(
+        eq(runs.projectId, projectId),
+        eq(runs.ticketKind, 'issue'),
+        inArray(runs.ticketRef, refs),
+        isNotNull(runs.ownerUserId),
+        isNotNull(runs.startedAt),
+        sql`${runs.startedAt} <= ${at}`,
+      ),
+    )
+    .orderBy(desc(runs.startedAt))
+    .limit(1);
+  return row ?? null;
+}
+
+/**
+ * Origin of a bot comment: the single active run on the ticket, else the nearest run on the issues the PR links to,
+ * else the single active run in the project; null when none or several.
+ */
+async function findOrigin(
+  tx: Tx,
+  projectId: string,
+  event: RunOwnerInput['event'],
+  linkedIssueRefs: readonly string[],
+): Promise<Candidate | null> {
   if (!isRealInstant(event.createdAt)) return null;
   const onTicket = await activeRuns(tx, projectId, event.createdAt, event.ticketRef);
   if (onTicket.length > 1) return null;
   if (onTicket.length === 1) return onTicket[0] ?? null;
+  const linked = await linkedIssueOrigin(tx, projectId, event.createdAt, linkedIssueRefs);
+  if (linked) return linked;
   const inProject = await activeRuns(tx, projectId, event.createdAt);
   return inProject.length === 1 ? (inProject[0] ?? null) : null;
 }
@@ -82,7 +126,7 @@ export async function resolveRunOwner(tx: Tx, input: RunOwnerInput): Promise<Run
   let originRunId: string | null = null;
 
   if (botLogin !== '' && event.author === botLogin) {
-    const origin = await findOrigin(tx, projectId, event);
+    const origin = await findOrigin(tx, projectId, event, input.linkedIssueRefs ?? []);
     if (!origin) return unlinked('bot comment has no single originating run');
     if (!origin.ownerUserId) return unlinked('originating run has no owner');
     userId = origin.ownerUserId;
