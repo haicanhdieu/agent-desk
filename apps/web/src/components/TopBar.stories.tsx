@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Button, CountBadge, IconButton, StatusBadge } from '@/ds';
+import { orgSwitchFixtures } from '@/mocks';
 import { TopBar } from './TopBar';
 
 const user = { login: 'kim-hale', initials: 'KH' };
@@ -12,6 +13,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Global: Story = { args: { variant: 'global', user } };
+const org = {
+  ...orgSwitchFixtures.severalOrgs,
+  orgHref: (o: { slug: string }) => `/o/${o.slug}`,
+  createHref: '/orgs/new',
+};
+
+export const GlobalWithOrg: Story = { args: { variant: 'global', user, org: { ...org, ...orgSwitchFixtures.oneOrg } } };
+export const GlobalWithOrgSwitch: Story = { args: { variant: 'global', user, org } };
 export const ProjectNeedsYou: Story = { args: { variant: 'project', user, project, active: 'runs', needsYou: 1 } };
 export const ProjectDesk: Story = { args: { variant: 'project', user, project, active: 'desk' } };
 export const LongProjectName: Story = {

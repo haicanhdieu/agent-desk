@@ -999,13 +999,13 @@ export function OnboardingChecklist(props: { state: OnboardingChecklistState }):
 
   OrgSwitch: one org and not a platform admin → plain text (BR-9); otherwise a `<button aria-haspopup="dialog" aria-expanded>` labelled "Switch organization, currently <name>" (no org: text "No organization", label "Switch organization") opening a `Popover` menu "Organizations": org links with a check and `aria-current` on the current one, a divider, then "Create organization" for platform admins (BR-40); `ProjectSwitch`'s keyboard model; long names ellipsize with `title`. OnboardingChecklist: `SurfaceCard` with h2 "Get started", rows with the `succeeded`/`queued` glyph (titles "Done"/"Not done"), "Done" or a small "Start" link button; loading uses `Skeleton` rows; error an inline `Banner` "Internal server error" / "Request ID: <id>" plus "Retry".
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `OrgSwitch.test.tsx`: BR-6 several orgs → menu lists both, current has `aria-current`; BR-9 one org, not admin → no button; BR-40 platform admin with one org → "Create organization" after the orgs; with no org → button text "No organization", menu holds only "Create organization"; keyboard: ArrowDown opens, ArrowDown/Home/End move focus, Escape closes and focus returns to the button.
   - `OnboardingChecklist.test.tsx`: four rows with the spec labels; a done row shows "Done", a todo row a "Start" link to its `href`; loading shows skeleton rows; error shows the Banner and Retry calls `onRetry`; the heading is an h2.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/OnboardingChecklist.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the components and stories: `Components/OrgSwitch` (OneOrg, SeveralOrgs, Open, PlatformAdmin, PlatformAdminNoOrg, LongName), `Components/OnboardingChecklist` (NoneDone, Partial, Loading, Error), `Components/TopBar` (GlobalWithOrg, GlobalWithOrgSwitch).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): OrgSwitch, TopBar org and OnboardingChecklist with stories`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/OnboardingChecklist.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the components and stories: `Components/OrgSwitch` (OneOrg, SeveralOrgs, Open, PlatformAdmin, PlatformAdminNoOrg, LongName), `Components/OnboardingChecklist` (NoneDone, Partial, Loading, Error), `Components/TopBar` (GlobalWithOrg, GlobalWithOrgSwitch).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): OrgSwitch, TopBar org and OnboardingChecklist with stories`.
 
 ---
 

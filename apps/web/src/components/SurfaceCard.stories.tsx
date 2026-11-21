@@ -23,3 +23,11 @@ export const Default: Story = {
     ),
   },
 };
+
+export const NoCaption: Story = {
+  args: {
+    children: (
+      <div style={{ padding: 16, background: 'var(--chrome-bg)', color: 'var(--text)' }}>(1) Runs, Agent Desk</div>
+    ),
+  },
+};
