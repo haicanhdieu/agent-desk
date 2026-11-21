@@ -99,7 +99,7 @@ async function ignoredShowsLimit(page: Page, handle: string, projectId: string, 
   if (shown) await expect(main.getByText(LIMIT_TEXT).first()).toBeVisible();
   else {
     // The project is new and every comment in it started a run, so the loaded list is empty: its empty state proves it loaded.
-    await expect(main.getByRole('heading', { name: 'Ignored commands' })).toBeVisible();
+    await expect(main.getByRole('heading', { name: 'Ignored commands', exact: true })).toBeVisible();
     await expect(main.getByText('No ignored commands')).toBeVisible();
     await expect(main.getByText(LIMIT_TEXT)).toHaveCount(0);
   }
@@ -134,6 +134,7 @@ test.describe('BR-1: one group for an issue and its linked PR runs', () => {
 test.describe('BR-2: the chain note counts each ticket on its own', () => {
   test('TC-2.3: a second PR run raises only the PR count; nothing on the right', async ({ page }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 10);
     const { issue, pr, prRun } = await linkedPair(page, projectId);
     await cancelRun(page, prRun);
     await reviewOn(page, projectId, pr);
@@ -151,6 +152,7 @@ test.describe('BR-2: the chain note counts each ticket on its own', () => {
 test.describe('BR-3: a page holding only the PR runs is still led by the issue', () => {
   test('TC-3.3: the issue run falls on page 2, the PR run on page 1 under the issue-led header', async ({ page }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 10);
     const issue = await addFakeTicket(page, 'issue');
     await buildOn(page, projectId, issue);
     for (let i = 0; i < 20; i++) await commentOnNewTicket(page, handle, projectId, '/code-review');
@@ -229,6 +231,7 @@ test.describe('BR-9: the run limit stays per ticket', () => {
 test.describe('BR-12: an issue without runs does not lead a group', () => {
   test('TC-12.2: the PR keeps its own group with its own count on the right', async ({ page }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 10);
     const issue = await addFakeTicket(page, 'issue');
     const pr = await addFakeTicket(page, 'pr', { linked: [issue] });
     await reviewOn(page, projectId, pr);
@@ -248,6 +251,7 @@ test.describe('BR-12: an issue without runs does not lead a group', () => {
 test.describe('BR-13: the link on the PR side (its description)', () => {
   test('TC-13.1: a PR naming the issue lands under the issue though the issue lists no PR', async ({ page }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 10);
     const issue = await addFakeTicket(page, 'issue');
     await buildOn(page, projectId, issue);
     const pr = await addFakeTicket(page, 'pr', { linked: [issue] });
@@ -265,6 +269,7 @@ test.describe('BR-13: the link on the PR side (its description)', () => {
 test.describe('BR-14: the link on the issue side (its linked PRs)', () => {
   test('TC-14.1: an issue listing the PR groups it though the PR names nothing', async ({ page }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 10);
     const issue = await addFakeTicket(page, 'issue');
     await buildOn(page, projectId, issue);
     const pr = await addFakeTicket(page, 'pr');
@@ -302,6 +307,7 @@ async function linkAddedLater(page: Page, projectId: string) {
 test.describe('BR-16: a link added later does not move earlier runs', () => {
   test('TC-16.2: run 1 stays in the PR group, run 2 joins the issue group', async ({ page }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 10);
     const { issue, pr, link } = await linkAddedLater(page, projectId);
     await link();
 
@@ -322,6 +328,7 @@ test.describe('BR-20: the group view follows a link added at the source', () => 
     page,
   }) => {
     const { handle, projectId } = await signInAndCreateProject(page);
+    await setRunLimit(page, projectId, 10);
     const { issue, pr, link } = await linkAddedLater(page, projectId);
 
     const before = await openRuns(page, handle, projectId, 2);
