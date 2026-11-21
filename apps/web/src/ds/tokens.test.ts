@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { RUN_STATUSES, statusTokens } from './tokens';
+import { PR_STATES, prStateTokens, RUN_STATUSES, statusTokens } from './tokens';
 
 const css = readFileSync(resolve(process.cwd(), 'src/ds/tokens.css'), 'utf8').replace(/\s+/g, '').toLowerCase();
 
@@ -59,5 +59,18 @@ describe('statusTokens', () => {
     expect(statusTokens.timed_out.label).toBe('Timed out');
     expect(statusTokens.cancelled.colorVar).toBe('--off');
     expect(statusTokens.starting.colorVar).toBe('--run');
+  });
+});
+
+describe('pull request state tokens', () => {
+  it.each(['--pr-open:var(--ok)', '--pr-draft:var(--faint)', '--pr-merged:#c8a2f0', '--pr-closed:var(--fail)'])(
+    'defines %s',
+    (decl) => expect(css).toContain(decl),
+  );
+  it.each(PR_STATES)('maps %s to a defined css variable', (s) => {
+    expect(css).toContain(`${prStateTokens[s].colorVar}:`);
+  });
+  it('uses the words Open, Draft, Merged, Closed', () => {
+    expect(PR_STATES.map((s) => prStateTokens[s].label)).toEqual(['Open', 'Draft', 'Merged', 'Closed']);
   });
 });

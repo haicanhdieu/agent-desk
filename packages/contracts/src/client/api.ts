@@ -50,7 +50,7 @@ function substitute(path: string, params: object | undefined): string {
 function serializeQuery(query: object | undefined): string {
   const sp = new URLSearchParams();
   for (const [k, v] of Object.entries(query ?? {})) {
-    // Arrays (none in current query schemas) append one entry per element.
+    // Arrays (e.g. tickets.prStates `ref`) append one entry per element.
     if (Array.isArray(v)) for (const item of v) sp.append(k, String(item));
     else if (v !== undefined && v !== null) sp.append(k, String(v));
   }

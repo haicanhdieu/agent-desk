@@ -7,6 +7,7 @@ import { sessionEventFixtures, sessionRunFixtures, sessionTranscriptFixtures } f
 import { mockDb } from './db';
 import { applyMockLists, MOCK_LISTS_KEY, mockListHandlers, parseMockLists } from './e2eLists';
 import { handlers } from './handlers';
+import { PR_STATES_SCENARIO_KEY } from './prStates';
 import { scenarios, setScenarioTarget } from './scenarios';
 import { DEFAULT_RUN_SCRIPT, streamHandlers } from './stream-handlers';
 
@@ -60,6 +61,19 @@ function loadAgentModels(): void {
   }
 }
 
+const StoredPrStatesScenario = z.enum(['slow', 'error', 'pending', 'partial']);
+
+function loadPrStates(): void {
+  try {
+    const raw = sessionStorage.getItem(PR_STATES_SCENARIO_KEY);
+    if (raw === null) return;
+    const parsed = StoredPrStatesScenario.safeParse(raw);
+    if (parsed.success) scenarios.prStates(parsed.data);
+  } catch {
+    // Storage blocked: the normal answer applies.
+  }
+}
+
 // The mocked e2e specs seed list sizes and held or failing list requests here before the first load (e2e/mock/mock.ts
 // `seedLists`, e2eLists.ts). Anything unparsable is ignored and the seed stays.
 function loadLists(): void {
@@ -91,6 +105,7 @@ export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown
   started ??= (async () => {
     loadAuth();
     loadAgentModels();
+    loadPrStates();
     // Runs in the terminal lifecycle states (pausing, crashed, resume failed, resumed), for the mocked e2e specs.
     mockDb.addRuns(lifecycleRunFixtures, lifecycleEventFixtures);
     // Runs after an unexpected pod end with automatic resume (gave up, waiting between tries, resumed), for the mocked e2e specs.

@@ -118,6 +118,21 @@
   font-size: var(--fs-12_5);
   white-space: nowrap;
 }
+.prIcon {
+  display: inline-flex;
+}
+.prOpen {
+  color: var(--pr-open);
+}
+.prDraft {
+  color: var(--pr-draft);
+}
+.prMerged {
+  color: var(--pr-merged);
+}
+.prClosed {
+  color: var(--pr-closed);
+}
 .tref {
   font-family: var(--mono);
   font-size: var(--fs-12_5);

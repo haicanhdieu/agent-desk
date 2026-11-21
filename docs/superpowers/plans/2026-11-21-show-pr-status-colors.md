@@ -188,22 +188,22 @@ export async function setPrStates(page: Page, scenario: PrStatesScenario): Promi
 
   `browser.ts` reads `PR_STATES_SCENARIO_KEY` once at start, parses it with `z.enum([...])`, ignores anything else, and calls `scenarios.prStates`.
 
-- [ ] **Step 1: Write the failing contract tests** in `tickets.test.ts`:
+- [x] **Step 1: Write the failing contract tests** in `tickets.test.ts`:
   - `PrState` accepts the four values and rejects `'MERGED'` and `'locked'`.
   - `PrStatesQuery.parse({ ref: '12' })` gives `{ ref: ['12'] }`. `{ ref: ['15', '12', '15'] }` gives `['15', '12']`.
   - Each of these fails: `'0'`, `'-1'`, `'1.5'`, `'abc'`, `'012'`, `'12345678901'`, `[]`, a missing `ref`, and 101 distinct refs. Exactly 100 refs pass.
   - `PrStatesResponse` parses `{ items: [] }` and `{ items: [{ ref: '12', prState: 'merged' }] }`, and rejects `prState: 'unknown'`.
   - In `routes.test.ts`, 48 becomes 49, and `flat['tickets.prStates']` matches `{ method: 'GET', path: '/api/projects/:projectId/tickets/pr-states' }`.
   - In `api.test.ts`, `tickets.prStates sends each ref as a repeated key`: the request URL ends with `?ref=12&ref=15`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts test tickets routes api`. Expected: FAIL (`PrStatesQuery` is not exported).
-- [ ] **Step 3: Implement** the enum, the schemas, the barrel export and the route. Change the stale "(none in current query schemas)" comment in `api.ts` to name `tickets.prStates`. Run the same command. Expected: PASS.
-- [ ] **Step 4: Write the failing mock tests.**
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts test tickets routes api`. Expected: FAIL (`PrStatesQuery` is not exported).
+- [x] **Step 3: Implement** the enum, the schemas, the barrel export and the route. Change the stale "(none in current query schemas)" comment in `api.ts` to name `tickets.prStates`. Run the same command. Expected: PASS.
+- [x] **Step 4: Write the failing mock tests.**
   - `prStates.test.ts`: `prStateItems` answers known refs in request order, leaves out unknown refs, and with `partial` leaves out `draft` and `closed`.
   - `contract.test.ts`: every `prStateFixtures` project map, as `{ items }`, parses with `PrStatesResponse`. The existing "every route has a handler" test now covers `tickets.prStates`.
   - Also in `contract.test.ts`, a handler test through `createApi`: `ref=148&ref=133&ref=999` for invoicer-api gives `[{ ref: '148', prState: 'merged' }, { ref: '133', prState: 'open' }]`. Another org's project gives 404, and `ref=0` gives 400.
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test prStates contract`. Expected: FAIL.
-- [ ] **Step 6: Implement** the fixtures, db state, scenario, handler, the `browser.ts` loader and `setPrStates`. Run `pnpm --filter @agentdesk/web test prStates contract && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/contracts typecheck`. Expected: PASS.
-- [ ] **Step 7: Commit:** `feat(contracts): PrState and the tickets.prStates route`, then `feat(web): mock API for PR states with scenarios`.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/web test prStates contract`. Expected: FAIL.
+- [x] **Step 6: Implement** the fixtures, db state, scenario, handler, the `browser.ts` loader and `setPrStates`. Run `pnpm --filter @agentdesk/web test prStates contract && pnpm --filter @agentdesk/web typecheck && pnpm --filter @agentdesk/contracts typecheck`. Expected: PASS.
+- [x] **Step 7: Commit:** `feat(contracts): PrState and the tickets.prStates route`, then `feat(web): mock API for PR states with scenarios`.
 
 ---
 
@@ -248,7 +248,7 @@ export function TicketIcon(props: TicketIconProps): JSX.Element;
   - The wrapper is not focusable.
 - Neutral glyph (no state, or an issue): today's `<Icon … />`, `aria-hidden`, with no title.
 
-- [ ] **Step 1: Write the failing tests.** In `Chips.test.tsx` `describe('TicketRef')`:
+- [x] **Step 1: Write the failing tests.** In `Chips.test.tsx` `describe('TicketRef')`:
   - `TicketRef colours a merged PR icon with the merged token` (the spec's first red test). `<TicketRef kind="pr" number={148} prState="merged" />` gives:
     - `getByRole('img', { name: 'Merged' })`;
     - the parent has class `prMerged` and `title="Merged"`;
@@ -260,13 +260,13 @@ export function TicketIcon(props: TicketIconProps): JSX.Element;
   - `TicketIcon renders 16 px`: the svg's `width` is `16`.
 
   In `tokens.test.ts`, the css contains `--pr-open:var(--ok)`, `--pr-draft:var(--faint)`, `--pr-merged:#c8a2f0` and `--pr-closed:var(--fail)`. Every `prStateTokens[s].colorVar` is defined in `tokens.css`, and the labels are exactly Open, Draft, Merged, Closed.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test Chips tokens`. Expected: FAIL.
-- [ ] **Step 3: Implement** the tokens (group comment "pull request states", next to the `--label-*` aliases), `prStateTokens`, `TicketIcon`, `TicketRef.prState` and the CSS. Run the same command. Expected: PASS.
-- [ ] **Step 4: Update the stories.**
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test Chips tokens`. Expected: FAIL.
+- [x] **Step 3: Implement** the tokens (group comment "pull request states", next to the `--label-*` aliases), `prStateTokens`, `TicketIcon`, `TicketRef.prState` and the CSS. Run the same command. Expected: PASS.
+- [x] **Step 4: Update the stories.**
   - `Chips.stories.tsx` `All` gets two new rows of PR `TicketRef`s. Each row has open, draft, merged, closed and unknown, one row plain and one linked. Add an issue with `prState="merged"`, and `TicketIcon` per state at 14 and 16 px.
   - `Colors.stories.tsx` shows the four `--pr-*` tokens in a "Pull request states" group, in the file's existing swatch pattern.
-- [ ] **Step 5: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS, including the Storybook smoke and axe test.
-- [ ] **Step 6: Commit:** `feat(web): PR state tokens and TicketIcon in the design system`.
+- [x] **Step 5: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS, including the Storybook smoke and axe test.
+- [x] **Step 6: Commit:** `feat(web): PR state tokens and TicketIcon in the design system`.
 
 ---
 

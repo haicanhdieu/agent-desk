@@ -7,7 +7,8 @@ import { CountBadge } from './CountBadge';
 import { InlineStatus } from './InlineStatus';
 import { LabelChip } from './LabelChip';
 import { StepNumber } from './StepNumber';
-import { TicketRef } from './TicketRef';
+import { TicketIcon, TicketRef } from './TicketRef';
+import { PR_STATES } from './tokens';
 
 describe('CountBadge', () => {
   it('renders nothing for 0 and undefined', () => {
@@ -70,6 +71,42 @@ describe('TicketRef', () => {
     );
     expect(screen.queryByRole('link')).toBeNull();
     expect(screen.getByText('PR #148')).toBeInTheDocument();
+  });
+  it('TicketRef colours a merged PR icon with the merged token', () => {
+    render(<TicketRef kind="pr" number={148} prState="merged" />);
+    const icon = screen.getByRole('img', { name: 'Merged' });
+    expect(icon.parentElement).toHaveClass('prMerged');
+    expect(icon.parentElement).toHaveAttribute('title', 'Merged');
+    expect(screen.getByText('PR #148')).toBeInTheDocument();
+  });
+  it.each([
+    ['open', 'Open', 'prOpen'],
+    ['draft', 'Draft', 'prDraft'],
+    ['merged', 'Merged', 'prMerged'],
+    ['closed', 'Closed', 'prClosed'],
+  ] as const)('gives a %s PR its word and class', (state, word, cls) => {
+    expect(PR_STATES).toContain(state);
+    render(<TicketRef kind="pr" number={1} prState={state} />);
+    expect(screen.getByRole('img', { name: word }).parentElement).toHaveClass(cls);
+  });
+  it('a linked coloured TicketRef reads "Merged PR #148"', () => {
+    render(<TicketRef kind="pr" number={148} prState="merged" href="https://github.com/x/y/pull/148" />);
+    expect(screen.getByRole('link', { name: 'Merged PR #148' })).toBeInTheDocument();
+  });
+  it('an unknown PR keeps the neutral glyph', () => {
+    const { container } = render(<TicketRef kind="pr" number={148} />);
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    expect(container.querySelector('[title]')).toBeNull();
+  });
+  it('an issue ignores prState', () => {
+    const { container } = render(<TicketRef kind="issue" number={142} prState="merged" />);
+    expect(screen.queryByRole('img')).toBeNull();
+    expect(container.querySelector('.prMerged')).toBeNull();
+  });
+  it('TicketIcon renders 16 px', () => {
+    const { container } = render(<TicketIcon kind="pr" prState="open" size={16} />);
+    expect(container.querySelector('svg')).toHaveAttribute('width', '16');
   });
 });
 

@@ -36,6 +36,7 @@ import {
   UpdateProjectRequest,
 } from './schemas/projects';
 import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
+import { PrStatesQuery, PrStatesResponse } from './schemas/tickets';
 import { PageQuery, pageOf } from './schemas/page';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunTranscriptQuery, RunTranscriptResponse } from './schemas/transcript';
@@ -169,6 +170,15 @@ export const routes = {
       path: '/api/agents/:agentId/models',
       params: z.object({ agentId: z.uuid() }),
       response: AgentModelsDto,
+    },
+  },
+  tickets: {
+    prStates: {
+      method: 'GET',
+      path: '/api/projects/:projectId/tickets/pr-states',
+      params: projectParams,
+      query: PrStatesQuery,
+      response: PrStatesResponse,
     },
   },
   skills: {

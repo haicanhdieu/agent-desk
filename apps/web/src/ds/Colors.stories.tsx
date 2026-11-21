@@ -35,6 +35,7 @@ const groups: Record<string, string[]> = {
     'term-find-bg',
     'term-find-current-bg',
   ],
+  'Pull request states': ['pr-open', 'pr-draft', 'pr-merged', 'pr-closed'],
   Banner: [
     'banner-warn-bg',
     'banner-warn-line',

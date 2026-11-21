@@ -13,6 +13,7 @@ import {
   IgnoredEventDto,
   PluginsDto,
   PromptPreviewDto,
+  PrStatesResponse,
   ProjectConnectionDto,
   ProjectDto,
   RepoDto,
@@ -49,6 +50,7 @@ import { ids } from '../dto/ids';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
+import { prStateFixtures } from '../dto/prStates';
 import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 import { mockDb } from './db';
@@ -97,6 +99,12 @@ describe('MSW handlers cover the contract', () => {
       [PlatformOrgDto, platformOrgFixtures],
       [PlatformProjectDto, platformProjectFixtures],
       [PlatformMemberDto, platformMemberFixtures],
+      [
+        PrStatesResponse,
+        Object.values(prStateFixtures).map((m) => ({
+          items: Object.entries(m).map(([ref, prState]) => ({ ref, prState })),
+        })),
+      ],
     ];
     for (const [schema, items] of lists) {
       expect(items.length).toBeGreaterThan(0);
@@ -270,6 +278,20 @@ describe('MSW handler semantics', () => {
     expect(e.status).toBe(404);
     mockDb.setActiveOrg(ids.org.acme);
     expect((await api.projects.list()).items.map((p) => p.name)).toEqual(['storefront']);
+  });
+
+  it('tickets.prStates answers the known refs in request order, 404 for another org, 400 for a bad ref', async () => {
+    const ok = await api.tickets.prStates({ params: { projectId: P }, query: { ref: ['148', '133', '999'] } });
+    expect(ok.items).toEqual([
+      { ref: '148', prState: 'merged' },
+      { ref: '133', prState: 'open' },
+    ]);
+    const other = await rejection(
+      api.tickets.prStates({ params: { projectId: ids.project.storefront }, query: { ref: ['148'] } }),
+    );
+    expect(other.status).toBe(404);
+    const res = await fetch(`http://localhost:3000/api/projects/${P}/tickets/pr-states?ref=0`);
+    expect(res.status).toBe(400);
   });
 
   it('creates, updates and deletes rules with a 409 on a duplicate command', async () => {

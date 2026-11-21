@@ -1,5 +1,6 @@
 import type { Locator, Page } from '@playwright/test';
 import { AGENT_MODELS_SCENARIO_KEY, type AgentModelsScenario } from '../../src/mocks/msw/agentModels';
+import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/msw/prStates';
 import { ids } from '../../src/mocks/dto/ids';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
 
@@ -103,6 +104,19 @@ export async function setAgentModels(page: Page, byAgent: Record<string, AgentMo
       sessionStorage.setItem(key, value);
     },
     [AGENT_MODELS_SCENARIO_KEY, JSON.stringify(byAgent)] as const,
+  );
+}
+
+/**
+ * How `tickets.prStates` answers for this test: slow, failing, never answering, or without draft and closed refs. Call
+ * before the first `page.goto`: browser.ts reads the key once when the mock worker starts.
+ */
+export async function setPrStates(page: Page, scenario: PrStatesScenario): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [PR_STATES_SCENARIO_KEY, scenario] as const,
   );
 }
 

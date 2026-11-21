@@ -57,6 +57,10 @@ describe('contracts', () => {
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
     });
+    expect(flat['tickets.prStates']).toMatchObject({
+      method: 'GET',
+      path: '/api/projects/:projectId/tickets/pr-states',
+    });
     expect(flat['runs.stats']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/runs/stats' });
     expect(flat['agents.models']).toMatchObject({ method: 'GET', path: '/api/agents/:agentId/models' });
   });

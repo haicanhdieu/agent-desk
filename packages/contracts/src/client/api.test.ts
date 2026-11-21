@@ -32,6 +32,13 @@ describe('createApi', () => {
     expect(f.mock.calls[0]?.[0]).toBe(`http://x/api/projects/${P}/runs?filter=needs_you&page=1&pageSize=20`);
   });
 
+  it('tickets.prStates sends each ref as a repeated key', async () => {
+    const f = mockFetch(json({ items: [] }));
+    const api = createApi({ fetch: f });
+    await api.tickets.prStates({ params: { projectId: P }, query: { ref: ['12', '15'] } });
+    expect(f.mock.calls[0]?.[0]).toMatch(/\?ref=12&ref=15$/);
+  });
+
   it('sends JSON body with content-type', async () => {
     const f = mockFetch(json({}));
     const api = createApi({ fetch: f, parse: false });

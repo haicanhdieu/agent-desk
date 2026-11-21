@@ -56,6 +56,7 @@ const expected: Record<RouteKey, RouteAccess> = {
   'setupTests.end': project('setup:test', 'setupTestId'),
   'setupTests.events': project('setup:read', 'setupTestId'),
   'setupTests.terminal': project('terminal:attach', 'setupTestId'),
+  'tickets.prStates': project('run:read'),
   'runs.list': project('run:read'),
   'runs.stats': project('run:read'),
   'runs.byNumber': project('run:read'),

@@ -69,3 +69,6 @@ export type AgentKind = z.infer<typeof AgentKind>;
 
 export const CredentialType = z.enum(['oauth_token', 'api_key']);
 export type CredentialType = z.infer<typeof CredentialType>;
+
+export const PrState = z.enum(['open', 'draft', 'merged', 'closed']);
+export type PrState = z.infer<typeof PrState>;
