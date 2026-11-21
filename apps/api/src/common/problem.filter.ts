@@ -3,6 +3,7 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodValidationException } from 'nestjs-zod';
 import { z } from 'zod';
 import type { ProblemSchema } from '@agentdesk/contracts';
+import { OrgMismatchException } from './org-mismatch';
 import { describeError } from './pg-errors';
 import { requestContext } from './request-context';
 import {
@@ -85,7 +86,7 @@ export class ProblemFilter implements ExceptionFilter {
     }
 
     const problem: ProblemSchema = {
-      type: 'about:blank',
+      type: exception instanceof OrgMismatchException ? exception.problemType : 'about:blank',
       title: TITLES[status] ?? HttpStatus[status] ?? 'Error',
       status,
       ...(detail !== undefined && status !== 500 ? { detail } : {}),

@@ -434,16 +434,17 @@ export const CurrentSessionUser: () => ParameterDecorator; // reads req.sessionU
 
   Guard order: public path → session (401) → route match → `platform` (unchanged; header ignored) → `user`: set `req.sessionUser` and pass (no org, no membership, header ignored) → org check for `org`, `project`, `project-list`, `self`, `org-admin`: `requestedOrgId(req)` present and `!== session.session.activeOrganizationId` → log `info` `{requestId, userId, sessionOrgId, headerOrgId}` "org mismatch" and throw `OrgMismatchException` → `self` with no active org: `req.authz = { access: { userId, grants: [] }, routeKey }`, pass → today's checks. The problem filter emits `type: exception.problemType` for an `OrgMismatchException` (detail "The organization in the request is not the active organization"), `about:blank` for everything else.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `problem.filter.test.ts`: an `OrgMismatchException` becomes `{ type: 'org-mismatch', title: 'Conflict', status: 409, requestId }`; a plain `ConflictException` keeps `about:blank`.
   - `session.guard.test.ts`: `requestedOrgId` prefers the header over the query, ignores `''` and arrays of non-strings.
   - `org-check.int.test.ts` (N-5, a local `withOrgHeader(headers, orgId)` helper): a route-discovery table over every `org`, `project`, `project-list`, `self` and `org-admin` key (ids and bodies as `authz.int.test.ts` builds them) called by the owner of org A with `x-org-id: <org B>` (B is another org they belong to) → 409 `org-mismatch`, and no new row in `projects`, `rules`, `role_assignments`, `invitations` or `audit_log`, no Temporal start; the same with no header → today's status; with `x-org-id: <org A>` → today's status; a header naming an org the user is not in returns 409 and none of that org's data; `me.listInvitations` and every `platform.*` key ignore a mismatching header; Review Focus 1: `a header with no active org in the session is 409 org-mismatch`; N-3: a captured logger (`createTestApp({ logger })`) shows the mismatch line with exactly `requestId`, `userId`, `sessionOrgId`, `headerOrgId` and no email; `GET /api/me/access` for a platform admin with no org answers 200 `{ platformAdmin: true, assignments: [] }`.
   - `sse.int.test.ts` (N-6): `GET /api/runs/:runId/events?orgId=<other org>` and `/api/projects/:projectId/events?orgId=<other org>` answer 409 before any frame; `orgId` equal to the session org streams as today.
   - `authz.int.test.ts`: `'me.access'` row becomes `{ none: 200, viewer: 200, pa: 200 }`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/common/problem.filter.test.ts src/auth/session.guard.test.ts test/org-check.int.test.ts test/sse.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the files above; remove Task 1's `user-route` refusal from `checkTenantAccess` (the guard no longer sends `user` entries there).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/common/problem.filter.test.ts src/auth/session.guard.test.ts test/org-check.int.test.ts test/sse.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the files above; remove Task 1's `user-route` refusal from `checkTenantAccess` (the guard no longer sends `user` entries there).
+  - Agent call: the `user-route` refusal in `checkTenantAccess` (`apps/api/src/access/check-access.ts`) is kept, not removed. It is dead code for the guard but fails closed, and removing it would widen `entry` for the terminal gateway caller.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): refuse a request whose org header is not the active org`.
+- [x] **Step 5: Commit** `feat(api): refuse a request whose org header is not the active org`.
 
 ---
 

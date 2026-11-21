@@ -322,7 +322,11 @@ describe('SessionGuard route kinds', () => {
 
   describe('org routes', () => {
     it('refuse a caller with no active organization', async () => {
-      await expect(run(ME, { who: owner, activeOrgId: null }).result).rejects.toBeInstanceOf(ForbiddenException);
+      const list: Call = { method: 'GET', routeUrl: '/api/projects' };
+      await expect(run(list, { who: owner, activeOrgId: null }).result).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(run(ASSIGNMENTS, { who: owner, activeOrgId: null }).result).rejects.toBeInstanceOf(
+        ForbiddenException,
+      );
     });
     it('refuse a caller who is not a member of the active organization', async () => {
       await expect(run(ME, { who: nobody, activeOrgId: owner.orgId }).result).rejects.toBeInstanceOf(
@@ -345,6 +349,15 @@ describe('SessionGuard route kinds', () => {
       await expect(r.result).resolves.toBe(true);
       expect(r.req['authz']).toMatchObject({ routeKey: 'me.access', access: { userId: nobody.userId, grants: [] } });
       expect(r.req['orgContext']).toMatchObject({ userId: nobody.userId, orgId: nobody.orgId });
+    });
+  });
+
+  describe('self routes with no active organization', () => {
+    it('admit the caller with empty grants and no org context', async () => {
+      const r = run(ME, { who: owner, activeOrgId: null });
+      await expect(r.result).resolves.toBe(true);
+      expect(r.req['authz']).toEqual({ access: { userId: owner.userId, grants: [] }, routeKey: 'me.access' });
+      expect(r.req['orgContext']).toBeUndefined();
     });
   });
 
@@ -784,8 +797,8 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'runs.closeSession': tenant(403),
   'runs.transcript': tenant(200),
   'runs.events': tenant('stream'),
-  // a member with no assignment may still read their own (empty) access; a platform admin has no active org
-  'me.access': { none: 200, viewer: 200, pa: 403 },
+  // anyone signed in reads their own access: empty for a member with no assignment, platformAdmin only with no active org
+  'me.access': { none: 200, viewer: 200, pa: 200 },
   'roles.list': tenant(200),
   'members.list': tenant(403),
   'assignments.list': tenant(403),

@@ -16,6 +16,7 @@ import { checkTenantAccess, isOrgMember } from '../access/check-access';
 import { isPlatformAdmin } from '../access/platform-admin';
 import { routeEntryFor } from '../access/route-entry';
 import { LOGGER } from '../common/logger';
+import { OrgMismatchException, requestedOrgId } from '../common/org-mismatch';
 import { requestContext } from '../common/request-context';
 import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
@@ -109,7 +110,29 @@ export class SessionGuard implements CanActivate {
     }
     if (match.kind === 'unknown') throw this.deny(req, { userId, routeKey: null, permission: null });
 
+    if (match.kind === 'route' && match.entry.scope === 'user') {
+      // A signed-in user acting on their own data: no org, no membership, and an org header is ignored.
+      req.sessionUser = { userId, email: session.user.email, emailVerified: session.user.emailVerified };
+      return true;
+    }
+
     const orgId = session.session.activeOrganizationId;
+    if (match.kind === 'route') {
+      // Every request is pinned to the org it names: a header or query org that is not the session's active org
+      // (or any named org when there is no active one) is refused before anything else is looked at.
+      const named = requestedOrgId(req);
+      if (named !== undefined && named !== orgId) {
+        this.logger.info(
+          { requestId: req.id, userId, sessionOrgId: orgId ?? null, headerOrgId: named },
+          'org mismatch',
+        );
+        throw new OrgMismatchException();
+      }
+      if (!orgId && match.entry.scope === 'self') {
+        req.authz = { access: { userId, grants: [] }, routeKey: match.key };
+        return true;
+      }
+    }
     if (!orgId) throw new ForbiddenException('No active organization');
 
     if (match.kind === 'dev') {

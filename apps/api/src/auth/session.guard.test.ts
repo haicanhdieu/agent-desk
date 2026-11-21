@@ -6,6 +6,8 @@ import type { Config } from '../config/config.module';
 const checkTenantAccess = vi.hoisted(() => vi.fn());
 vi.mock('../access/check-access', () => ({ checkTenantAccess, isOrgMember: vi.fn() }));
 
+import type { FastifyRequest } from 'fastify';
+import { OrgMismatchException, requestedOrgId } from '../common/org-mismatch';
 import type { Auth } from './auth';
 import { SessionGuard, isPublicPath } from './session.guard';
 
@@ -110,5 +112,76 @@ describe('SessionGuard public paths', () => {
     ['/auth/*', true],
   ])('isPublicPath(%s) is %s', (path, expected) => {
     expect(isPublicPath(path)).toBe(expected);
+  });
+});
+
+describe('requestedOrgId', () => {
+  const req = (headers: Record<string, unknown>, query?: unknown) => ({ headers, query }) as unknown as FastifyRequest;
+
+  it('prefers the x-org-id header over the orgId query param', () => {
+    expect(requestedOrgId(req({ 'x-org-id': 'from-header' }, { orgId: 'from-query' }))).toBe('from-header');
+  });
+  it('falls back to the query param when there is no header', () => {
+    expect(requestedOrgId(req({}, { orgId: 'from-query' }))).toBe('from-query');
+  });
+  it('ignores an empty header and an empty query value', () => {
+    expect(requestedOrgId(req({ 'x-org-id': '' }, { orgId: '' }))).toBeUndefined();
+    expect(requestedOrgId(req({ 'x-org-id': '' }, { orgId: 'q' }))).toBe('q');
+  });
+  it('ignores arrays of non-strings and other non-string values', () => {
+    expect(requestedOrgId(req({ 'x-org-id': [1, 2] }, { orgId: [{}, 3] }))).toBeUndefined();
+    expect(requestedOrgId(req({ 'x-org-id': 5 }, { orgId: { a: 1 } }))).toBeUndefined();
+    expect(requestedOrgId(req({}, null))).toBeUndefined();
+  });
+  it('takes the first string of an array', () => {
+    expect(requestedOrgId(req({}, { orgId: ['a', 'b'] }))).toBe('a');
+  });
+});
+
+describe('SessionGuard org check and user routes', () => {
+  beforeEach(() => checkTenantAccess.mockReset());
+
+  const withHeader = (ctx: ReturnType<typeof setup>, headers: Record<string, string>, over: object = {}) => {
+    const req = ctx.context.switchToHttp().getRequest<Record<string, unknown>>();
+    Object.assign(req, { headers, ...over });
+    return req;
+  };
+
+  it('throws OrgMismatchException and logs only ids when the header is not the active org', async () => {
+    const ctx = setup();
+    withHeader(ctx, { 'x-org-id': 'other-org' });
+    await expect(ctx.guard.canActivate(ctx.context)).rejects.toBeInstanceOf(OrgMismatchException);
+    expect(ctx.logger.info).toHaveBeenCalledWith(
+      { requestId: 'req-1', userId: 'user-1', sessionOrgId: ORG_ID, headerOrgId: 'other-org' },
+      'org mismatch',
+    );
+    expect(checkTenantAccess).not.toHaveBeenCalled();
+  });
+
+  it('treats a header with no active org in the session as a mismatch', async () => {
+    const ctx = setup();
+    ctx.auth.api.getSession.mockResolvedValue({
+      user: { id: 'user-1', email: 'u@x.io', emailVerified: true },
+      session: { activeOrganizationId: null },
+    });
+    withHeader(ctx, { 'x-org-id': ORG_ID });
+    await expect(ctx.guard.canActivate(ctx.context)).rejects.toBeInstanceOf(OrgMismatchException);
+  });
+
+  it('passes a user route with the session user set, ignoring a mismatching header and the missing org', async () => {
+    const ctx = setup();
+    ctx.auth.api.getSession.mockResolvedValue({
+      user: { id: 'user-1', email: 'u@x.io', emailVerified: true },
+      session: { activeOrganizationId: null },
+    });
+    const req = withHeader(
+      ctx,
+      { 'x-org-id': 'other-org' },
+      { method: 'GET', url: '/api/me/invitations', routeOptions: { url: '/api/me/invitations' } },
+    );
+    await expect(ctx.guard.canActivate(ctx.context)).resolves.toBe(true);
+    expect(req['sessionUser']).toEqual({ userId: 'user-1', email: 'u@x.io', emailVerified: true });
+    expect(req['orgContext']).toBeUndefined();
+    expect(checkTenantAccess).not.toHaveBeenCalled();
   });
 });
