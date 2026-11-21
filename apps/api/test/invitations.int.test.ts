@@ -658,3 +658,257 @@ describe('accepting invitations at sign-in', () => {
     expect(res.rows).toEqual([{ provider_id: 'fake', account_id: 'acc-link' }]);
   });
 });
+
+describe('tenant invitations (BR-60)', () => {
+  let orgId: string;
+  let roles: Record<string, string>;
+  let p1: string;
+  let p2: string;
+  let owner: string;
+  let orgAdmin: string;
+  let projectAdmin: string;
+  let plainMember: string;
+  let viewer: string;
+
+  beforeAll(async () => {
+    const f = await fixture('ten-inv');
+    orgId = f.orgId;
+    roles = f.roles;
+    p1 = f.projectId;
+    p2 = await seedProject(orgId, 'Second-ten-inv');
+    owner = await inviteAndLogin(t, orgId, 'ten-o', 'owner', { type: 'org' });
+    orgAdmin = await inviteAndLogin(t, orgId, 'ten-d', 'admin', { type: 'org' });
+    projectAdmin = await inviteAndLogin(t, orgId, 'ten-a', 'admin', { type: 'project', projectIds: [p1] });
+    plainMember = await inviteAndLogin(t, orgId, 'ten-b', 'member', { type: 'org' });
+    viewer = await inviteAndLogin(t, orgId, 'ten-v', 'viewer', { type: 'org' });
+  });
+
+  function tenantInvite(cookie: string, payload: unknown) {
+    return t.app.inject({
+      method: 'POST',
+      url: `/api/orgs/${orgId}/invitations`,
+      headers: { cookie },
+      payload: payload as object,
+    });
+  }
+  function tenantList(cookie: string) {
+    return t.app.inject({ method: 'GET', url: `/api/orgs/${orgId}/invitations`, headers: { cookie } });
+  }
+  function tenantRevoke(cookie: string, id: string) {
+    return t.app.inject({ method: 'DELETE', url: `/api/orgs/${orgId}/invitations/${id}`, headers: { cookie } });
+  }
+  async function statusOf(id: string): Promise<string | undefined> {
+    const page = (await tenantList(owner)).json<Page<InvitationDto>>();
+    return page.items.find((i) => i.id === id)?.status;
+  }
+
+  it('lets a project admin invite a member on a project they administer', async () => {
+    const res = await tenantInvite(projectAdmin, {
+      email: 'ten-new1@example.com',
+      roleId: roles.member,
+      scope: { type: 'project', projectIds: [p1] },
+    });
+    expect(res.statusCode).toBe(201);
+    const dto = expectContract('invitations.create', res) as InvitationDto;
+    expect(dto).toMatchObject({
+      email: 'ten-new1@example.com',
+      status: 'pending',
+      role: { key: 'member' },
+      scope: { type: 'project', projects: [{ id: p1 }] },
+    });
+  });
+
+  it('lets a project admin invite an admin on their project', async () => {
+    const res = await tenantInvite(projectAdmin, {
+      email: 'ten-new2@example.com',
+      roleId: roles.admin,
+      scope: { type: 'project', projectIds: [p1] },
+    });
+    expect(res.statusCode).toBe(201);
+  });
+
+  it('refuses a project admin at org scope, on a project they do not administer, or for the owner role', async () => {
+    const atOrg = await tenantInvite(projectAdmin, {
+      email: 'ten-no1@example.com',
+      roleId: roles.member,
+      scope: { type: 'org' },
+    });
+    expect(atOrg.statusCode).toBe(403);
+    expect(atOrg.json<{ detail: string }>().detail).toBe('Not allowed for your role here');
+    const twoProjects = await tenantInvite(projectAdmin, {
+      email: 'ten-no2@example.com',
+      roleId: roles.member,
+      scope: { type: 'project', projectIds: [p1, p2] },
+    });
+    expect(twoProjects.statusCode).toBe(403);
+    const ownerRole = await tenantInvite(projectAdmin, {
+      email: 'ten-no3@example.com',
+      roleId: roles.owner,
+      scope: { type: 'project', projectIds: [p1] },
+    });
+    expect(ownerRole.statusCode).toBe(403);
+    // a project outside the org is 403 too for someone who administers only P1: no hint whether it exists
+    const unknownProject = await tenantInvite(projectAdmin, {
+      email: 'ten-no4@example.com',
+      roleId: roles.member,
+      scope: { type: 'project', projectIds: [randomUUID()] },
+    });
+    expect(unknownProject.statusCode).toBe(403);
+    const none = await list(orgId);
+    expect(none.json<Page<InvitationDto>>().items.some((i) => i.email.startsWith('ten-no'))).toBe(false);
+  });
+
+  it('refuses a plain member and a viewer', async () => {
+    for (const cookie of [plainMember, viewer]) {
+      const res = await tenantInvite(cookie, {
+        email: 'ten-no5@example.com',
+        roleId: roles.viewer,
+        scope: { type: 'project', projectIds: [p1] },
+      });
+      expect(res.statusCode).toBe(403);
+    }
+  });
+
+  it('lets an org owner invite another owner and refuses an org admin the owner role', async () => {
+    const ok = await tenantInvite(owner, { email: 'ten-own@example.com', roleId: roles.owner, scope: { type: 'org' } });
+    expect(ok.statusCode).toBe(201);
+    const refused = await tenantInvite(orgAdmin, {
+      email: 'ten-own2@example.com',
+      roleId: roles.owner,
+      scope: { type: 'org' },
+    });
+    expect(refused.statusCode).toBe(403);
+    const adminOnProject = await tenantInvite(orgAdmin, {
+      email: 'ten-own3@example.com',
+      roleId: roles.owner,
+      scope: { type: 'project', projectIds: [p1] },
+    });
+    expect(adminOnProject.statusCode).toBe(403);
+  });
+
+  it('lets an org admin invite an admin at org scope and gives 422 for a bad role or project', async () => {
+    const ok = await tenantInvite(orgAdmin, {
+      email: 'ten-adm@example.com',
+      roleId: roles.admin,
+      scope: { type: 'org' },
+    });
+    expect(ok.statusCode).toBe(201);
+    const ownerOnProject = await tenantInvite(owner, {
+      email: 'ten-422a@example.com',
+      roleId: roles.owner,
+      scope: { type: 'project', projectIds: [p1] },
+    });
+    expect(ownerOnProject.statusCode).toBe(422);
+    expect(pointerOf(ownerOnProject)).toBe('/roleId');
+    const badProject = await tenantInvite(orgAdmin, {
+      email: 'ten-422b@example.com',
+      roleId: roles.member,
+      scope: { type: 'project', projectIds: [p1, randomUUID()] },
+    });
+    expect(badProject.statusCode).toBe(422);
+    expect(pointerOf(badProject)).toBe('/scope/projectIds/1');
+  });
+
+  it('shows a project admin only the invitations whose every project they administer', async () => {
+    const others = await tenantInvite(owner, {
+      email: 'ten-p2@example.com',
+      roleId: roles.member,
+      scope: { type: 'project', projectIds: [p2] },
+    });
+    expect(others.statusCode).toBe(201);
+    const mixed = await tenantInvite(owner, {
+      email: 'ten-mixed@example.com',
+      roleId: roles.member,
+      scope: { type: 'project', projectIds: [p1, p2] },
+    });
+    expect(mixed.statusCode).toBe(201);
+
+    const res = await tenantList(projectAdmin);
+    expect(res.statusCode).toBe(200);
+    const page = expectContract('invitations.list', res) as Page<InvitationDto>;
+    const emails = page.items.map((i) => i.email);
+    expect(emails).toContain('ten-new1@example.com');
+    expect(emails).not.toContain('ten-p2@example.com');
+    expect(emails).not.toContain('ten-mixed@example.com');
+    expect(emails).not.toContain('ten-own@example.com');
+    expect(page.total).toBe(page.items.length);
+
+    const all = (await tenantList(owner)).json<Page<InvitationDto>>().items.map((i) => i.email);
+    expect(all).toEqual(
+      expect.arrayContaining([
+        'ten-new1@example.com',
+        'ten-p2@example.com',
+        'ten-mixed@example.com',
+        'ten-own@example.com',
+      ]),
+    );
+    const adminAll = (await tenantList(orgAdmin)).json<Page<InvitationDto>>().items.map((i) => i.email);
+    expect(adminAll).toContain('ten-p2@example.com');
+    expect((await tenantList(plainMember)).statusCode).toBe(403);
+    expect((await tenantList(viewer)).statusCode).toBe(403);
+  });
+
+  it('lets a project admin revoke their own project invitation and not another one', async () => {
+    const mine = (
+      await tenantInvite(projectAdmin, {
+        email: 'ten-rev1@example.com',
+        roleId: roles.viewer,
+        scope: { type: 'project', projectIds: [p1] },
+      })
+    ).json<InvitationDto>();
+    const theirs = (
+      await tenantInvite(owner, {
+        email: 'ten-rev2@example.com',
+        roleId: roles.viewer,
+        scope: { type: 'project', projectIds: [p2] },
+      })
+    ).json<InvitationDto>();
+    const atOrg = (
+      await tenantInvite(owner, { email: 'ten-rev3@example.com', roleId: roles.viewer, scope: { type: 'org' } })
+    ).json<InvitationDto>();
+
+    expect((await tenantRevoke(projectAdmin, theirs.id)).statusCode).toBe(403);
+    expect((await tenantRevoke(projectAdmin, atOrg.id)).statusCode).toBe(403);
+    expect((await tenantRevoke(plainMember, mine.id)).statusCode).toBe(403);
+    expect(await statusOf(theirs.id)).toBe('pending');
+    expect(await statusOf(atOrg.id)).toBe('pending');
+    expect(await statusOf(mine.id)).toBe('pending');
+
+    expect((await tenantRevoke(projectAdmin, mine.id)).statusCode).toBe(204);
+    expect(await statusOf(mine.id)).toBe('revoked');
+    expect((await tenantRevoke(projectAdmin, mine.id)).statusCode).toBe(409);
+    expect((await tenantRevoke(projectAdmin, randomUUID())).statusCode).toBe(404);
+    // an org admin may revoke the others, never an owner invitation
+    expect((await tenantRevoke(orgAdmin, theirs.id)).statusCode).toBe(204);
+    expect((await tenantRevoke(owner, atOrg.id)).statusCode).toBe(204);
+  });
+
+  it('refuses an org admin revoking an owner invitation', async () => {
+    const ownerInv = (
+      await tenantInvite(owner, { email: 'ten-rev4@example.com', roleId: roles.owner, scope: { type: 'org' } })
+    ).json<InvitationDto>();
+    expect((await tenantRevoke(orgAdmin, ownerInv.id)).statusCode).toBe(403);
+    expect(await statusOf(ownerInv.id)).toBe('pending');
+    expect((await tenantRevoke(owner, ownerInv.id)).statusCode).toBe(204);
+  });
+
+  it('writes tenant audit entries with actorKind member and the actor as actor_user_id', async () => {
+    const inv = (
+      await tenantInvite(projectAdmin, {
+        email: 'ten-aud@example.com',
+        roleId: roles.member,
+        scope: { type: 'project', projectIds: [p1] },
+      })
+    ).json<InvitationDto>();
+    expect((await tenantRevoke(projectAdmin, inv.id)).statusCode).toBe(204);
+    const actorId = await userIdOf(t, 'ten-a');
+    const rows = await asOrg(orgId, 'select action, actor_user_id, payload from audit_log where target_id = $1', [
+      inv.id,
+    ]);
+    const byAction = Object.fromEntries(rows.rows.map((r) => [r.action as string, r]));
+    for (const action of ['invitation.created', 'invitation.revoked']) {
+      expect(byAction[action]?.actor_user_id).toBe(actorId);
+      expect(byAction[action]?.payload).toMatchObject({ actorKind: 'member', email: 'ten-aud@example.com' });
+    }
+  });
+});

@@ -1,10 +1,14 @@
 import { Inject, Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { and, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
+import { and, desc, eq, getTableColumns, inArray, sql, type SQL } from 'drizzle-orm';
 import { invitations, member, projects, roles, user, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
   InvitationStatus,
+  can,
+  holdsAnywhere,
   pageWindow,
   toPage,
+  visibleProjects,
+  type Access,
   type CreateInvitationRequest,
   type InvitationDto,
   type Page,
@@ -13,6 +17,7 @@ import {
 } from '@agentdesk/contracts';
 import { actorUserId, type Actor } from '../access/actor';
 import { FORBIDDEN_DETAIL } from '../access/authorize';
+import { checkTenantAssign, type RoleForGrant } from '../access/grant-rules';
 import { writeAuditEntry } from '../audit/audit-entry';
 import { isUniqueViolation } from '../common/pg-errors';
 import { ConflictProblemException, UnprocessableProblemException } from '../common/zod-validation';
@@ -97,22 +102,20 @@ export class InvitationsService {
    * Role in org and allowed at the scope type, else 422 /roleId; projects in org, else 422 /scope/projectIds/<i>;
    * existing member with that email → 409 /email ("grant instead"); an expired pending row for (org,email) is set
    * 'expired' (audit invitation.expired) first; a live pending one → 409 /email (unique key, not read-then-insert).
-   * Audit invitation.created. Tenant-actor rules are added by Task 20 (until then a tenant actor is refused).
+   * Audit invitation.created. A member actor passes the grant rules first: a check on the caller's own access before any
+   * lookup (so nothing about a target leaks), then the role-based rules, both 403 and both before any 422. A platform
+   * admin has no subset rule.
    */
   async create(actor: Actor, orgId: string, req: CreateInvitationRequest): Promise<InvitationDto> {
-    requirePlatformAdmin(actor);
+    if (actor.kind === 'member' && !mayStartInvite(actor.access, req.scope)) throw forbidden();
     await this.orgs.requireOrg(orgId);
     try {
       return await withOrg(this.db, orgId, async (tx) => {
         const role = await loadRole(tx, req.roleId);
-        if (!role || !role.assignableScopes.includes(req.scope.type)) {
-          throw new UnprocessableProblemException('Role not allowed here', [
-            {
-              pointer: '/roleId',
-              detail: 'this role does not exist in the organization or cannot be given at this scope',
-            },
-          ]);
-        }
+        if (!role) throw badRole();
+        // the grant rules (403) come before the scope check (422): a project admin asking for `owner` is refused
+        if (actor.kind === 'member' && !mayInvite(actor.access, role, req.scope)) throw forbidden();
+        if (!role.assignableScopes.includes(req.scope.type)) throw badRole();
         const projectIds = req.scope.type === 'project' ? req.scope.projectIds : [];
         const found = await projectRefs(tx, orgId, projectIds);
         const foundIds = new Set(found.map((p) => p.id));
@@ -150,7 +153,7 @@ export class InvitationsService {
           await writeAuditEntry(tx, {
             orgId,
             actorUserId: actorId,
-            actorKind: 'platform_admin',
+            actorKind: actor.kind,
             action: 'invitation.expired',
             targetType: 'invitation',
             targetId: row.id,
@@ -175,7 +178,7 @@ export class InvitationsService {
         await writeAuditEntry(tx, {
           orgId,
           actorUserId: actorId,
-          actorKind: 'platform_admin',
+          actorKind: actor.kind,
           action: 'invitation.created',
           targetType: 'invitation',
           targetId: row.id,
@@ -190,20 +193,24 @@ export class InvitationsService {
     }
   }
 
-  /** Every invitation, createdAt desc; status 'expired' for pending rows with expires_at <= now(). */
+  /**
+   * Every invitation, createdAt desc; status 'expired' for pending rows with expires_at <= now(). A member actor without
+   * `member:read` at org scope sees only project invitations whose every project they can read assignments on.
+   */
   async list(actor: Actor, orgId: string, q: PageQuery): Promise<Page<InvitationDto>> {
-    requirePlatformAdmin(actor);
+    const visible = visibilityFilter(actor);
     await this.orgs.requireOrg(orgId);
     const { limit, offset } = pageWindow(q);
+    const where = and(eq(invitations.orgId, orgId), visible);
     return withOrg(this.db, orgId, async (tx) => {
       const [counted] = await tx
         .select({ total: sql<number>`count(*)::int` })
         .from(invitations)
-        .where(eq(invitations.orgId, orgId));
+        .where(where);
       const rows = await tx
         .select(invitationColumns)
         .from(invitations)
-        .where(eq(invitations.orgId, orgId))
+        .where(where)
         .orderBy(desc(invitations.createdAt), desc(invitations.id))
         .limit(limit)
         .offset(offset);
@@ -219,7 +226,7 @@ export class InvitationsService {
 
   /** Missing → 404; computed status not pending → 409; else 'revoked' + audit invitation.revoked. */
   async revoke(actor: Actor, orgId: string, invitationId: string): Promise<void> {
-    requirePlatformAdmin(actor);
+    if (actor.kind === 'member' && !holdsInviteRight(actor.access)) throw forbidden();
     await this.orgs.requireOrg(orgId);
     await withOrg(this.db, orgId, async (tx) => {
       const [current] = await tx
@@ -228,6 +235,15 @@ export class InvitationsService {
         .where(and(eq(invitations.orgId, orgId), eq(invitations.id, invitationId)))
         .limit(1);
       if (!current) throw new NotFoundException('Invitation not found');
+      if (actor.kind === 'member') {
+        // whoever could have created it: the create rules on the stored role and scope; a role that is gone fails closed
+        const role = await loadRole(tx, current.roleId);
+        const scope =
+          current.scopeType === 'project'
+            ? { type: 'project' as const, projectIds: current.projectIds }
+            : { type: 'org' as const };
+        if (!role || !mayInvite(actor.access, role, scope)) throw forbidden();
+      }
       if (current.status !== 'pending') throw notPending();
       // the status and expiry are checked again in the write itself, so a concurrent revoke or expiry gives 409
       const [row] = await tx
@@ -247,7 +263,7 @@ export class InvitationsService {
       await writeAuditEntry(tx, {
         orgId,
         actorUserId: actorUserId(actor),
-        actorKind: 'platform_admin',
+        actorKind: actor.kind,
         action: 'invitation.revoked',
         targetType: 'invitation',
         targetId: row.id,
@@ -257,9 +273,65 @@ export class InvitationsService {
   }
 }
 
-/** Fail closed: only the platform controller exists today; tenant rules come with the tenant routes (Task 20). */
-function requirePlatformAdmin(actor: Actor): void {
-  if (actor.kind !== 'platform_admin') throw new ForbiddenException(FORBIDDEN_DETAIL);
+type InviteScope = { type: 'org' } | { type: 'project'; projectIds: string[] };
+
+function forbidden(): ForbiddenException {
+  return new ForbiddenException(FORBIDDEN_DETAIL);
+}
+
+/** The caller can invite somewhere at all: `member:create` at org scope or `assignment:create` on some project. */
+function holdsInviteRight(access: Access): boolean {
+  return can(access, 'member:create') || holdsAnywhere(access, 'assignment:create');
+}
+
+/**
+ * Checks that need only the caller's access, so they run before any role or project lookup: org scope needs
+ * `member:create` at org scope; project scope needs `assignment:create` on every listed project.
+ */
+function mayStartInvite(access: Access, scope: InviteScope): boolean {
+  if (scope.type === 'org') return can(access, 'member:create');
+  return scope.projectIds.every((projectId) => can(access, 'assignment:create', { projectId }));
+}
+
+/**
+ * The tenant grant rules for `role` at `scope` (checkTenantAssign): org scope also needs `member:create` at org scope;
+ * project scope needs the rules to pass on every listed project. Owner is given only by an org owner; the role's lines
+ * must be held by the caller at that scope. Anything else is refused.
+ */
+function mayInvite(access: Access, role: RoleForGrant, scope: InviteScope): boolean {
+  if (!mayStartInvite(access, scope)) return false;
+  if (scope.type === 'org') return checkTenantAssign(access, 'assignment:create', role, { type: 'org' }).ok;
+  return scope.projectIds.every(
+    (projectId) => checkTenantAssign(access, 'assignment:create', role, { type: 'project', projectId }).ok,
+  );
+}
+
+/**
+ * Which rows the actor may list. Platform admin and `member:read` at org scope: all. Otherwise project invitations whose
+ * every project the caller can read assignments on; none of that: 403.
+ */
+function visibilityFilter(actor: Actor): SQL | undefined {
+  if (actor.kind === 'platform_admin') return undefined;
+  const access = actor.access;
+  if (can(access, 'member:read')) return undefined;
+  const projects = visibleProjects(access, 'assignment:read');
+  if (projects !== 'all' && projects.length === 0) throw forbidden();
+  const onlyProjects = eq(invitations.scopeType, 'project');
+  if (projects === 'all') return onlyProjects;
+  const ids = sql.join(
+    projects.map((id) => sql`${id}::uuid`),
+    sql`, `,
+  );
+  return and(onlyProjects, sql`${invitations.projectIds} <@ array[${ids}]::uuid[]`);
+}
+
+function badRole(): UnprocessableProblemException {
+  return new UnprocessableProblemException('Role not allowed here', [
+    {
+      pointer: '/roleId',
+      detail: 'this role does not exist in the organization or cannot be given at this scope',
+    },
+  ]);
 }
 
 function alreadyMember(): ConflictProblemException {

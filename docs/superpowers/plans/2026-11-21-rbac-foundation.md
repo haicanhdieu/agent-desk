@@ -1182,16 +1182,16 @@ accessOf(access: Access, platformAdmin: boolean): AccessDto;
 - Consumes: `CurrentAccess` (Task 10); `checkTenantAssign`, `isOrgOwner` (Task 11); Task 13's service.
 - Produces: member-actor rules in `InvitationsService` (spec "Tenant invitation create"): org scope needs `member:create` at org scope plus the grant rules (`owner` only by an org owner); project scope needs `member:create` at org scope, or `checkTenantAssign(access, 'assignment:create', role, {type:'project', projectId})` ok on every listed project, else 403. `list` for a member actor without `member:read` at org scope returns only invitations whose every project the caller administers. `revoke` uses the create rules on the stored invitation. Controller for the three tenant routes.
 
-- [ ] **Step 1: Write the failing tests** (append; cast as in Task 18), BR-60:
+- [x] **Step 1: Write the failing tests** (append; cast as in Task 18), BR-60:
   - A invites a new email as `member` on [P1] → 201 `pending`; at org scope → 403; on [P1, P2] → 403; B and V invite → 403.
   - O invites a new email as `owner` at org → 201; D does the same → 403.
   - A's list shows the P1 invitation and not O's P2 one; B's list → 403; O's list shows every invitation.
   - A revokes the P1 invitation → 204, then lists `revoked`; A revoking O's P2 invitation → 403 and it stays `pending`.
   - audit rows carry `actorKind 'member'`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the rules and the controller; register it in `InvitationsModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): owners, org admins and project admins invite on tenant routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the rules and the controller; register it in `InvitationsModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): owners, org admins and project admins invite on tenant routes`.
 
 ---
 
