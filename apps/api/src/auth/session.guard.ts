@@ -91,7 +91,10 @@ export class SessionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<FastifyRequest>();
-    if (isPublicPath(req.routeOptions.url ?? '')) return true;
+    // Decide from the matched pattern; only when there is none (never for a routed request) fall back to the raw url,
+    // so a missing pattern on an /api url is not public and ends in the unknown-route deny.
+    const pattern = req.routeOptions.url;
+    if (isPublicPath(pattern === undefined || pattern === '' ? req.url : pattern)) return true;
     const session = await this.auth.api.getSession({ headers: toHeaders(req) });
     if (!session) throw new UnauthorizedException('Authentication required');
     const userId = session.user.id;

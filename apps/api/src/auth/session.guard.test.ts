@@ -89,6 +89,17 @@ describe('SessionGuard public paths', () => {
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
+  it.each([[''], [undefined]])(
+    'fails closed when the matched route pattern is missing (%s) on an /api url',
+    async (pattern) => {
+      const { guard, auth } = setup();
+      auth.api.getSession.mockResolvedValue(null);
+      const req = { id: 'r', url: '/api/projects', method: 'GET', headers: {}, routeOptions: { url: pattern } };
+      const context = { switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext;
+      await expect(guard.canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
+    },
+  );
+
   it.each([
     ['/api/platform/orgs', false],
     ['/dev/fake/tickets', false],
