@@ -9,6 +9,7 @@ import {
   InstallResponse,
   PlatformMemberDto,
   PlatformRoleDto,
+  type PrState,
   RunDto,
   RunLogResponse,
   RunTranscriptResponse,
@@ -240,12 +241,12 @@ export async function commentOnNewTicket(
   return comment.runId ?? '';
 }
 
-/** A fake ticket with a random number (or `number` to re-add one with a new link). Issues carry the user-story label
+/** A fake ticket with a random number (or `number` to re-add one with a new link or `prState`, PRs only). Issues carry the user-story label
  *  the /code-build rule needs. `linked`: on a PR, the issues it closes; on an issue, its linked PRs. Returns its number. */
 export async function addFakeTicket(
   page: Page,
   kind: 'issue' | 'pr',
-  opts: { number?: number; linked?: number[] } = {},
+  opts: { number?: number; linked?: number[]; prState?: PrState } = {},
 ): Promise<number> {
   const number = opts.number ?? randomInt(100_000, 1_000_000_000);
   await ok(
@@ -257,6 +258,7 @@ export async function addFakeTicket(
         title: `e2e ${kind} ${number}`,
         labels: kind === 'issue' ? ['user-story'] : [],
         ...(opts.linked ? { linked: opts.linked } : {}),
+        ...(opts.prState ? { prState: opts.prState } : {}),
       },
     }),
     201,
@@ -265,17 +267,18 @@ export async function addFakeTicket(
   return number;
 }
 
-/** A webhook-delivered comment on an existing fake ticket of the project. */
+/** A webhook-delivered comment on an existing fake ticket of the project. `author` must be a linked user (the signed-in handle) to start a run. */
 export async function commentOn(
   page: Page,
   projectId: string,
   ticketNumber: number,
   body: string,
+  author?: string,
 ): Promise<{ outcome: string; runId?: string }> {
   return CommentResult.parse(
     await ok(
       await page.request.post('/dev/fake/comments', {
-        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId },
+        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId, ...(author ? { author } : {}) },
       }),
       201,
       'fake comment',

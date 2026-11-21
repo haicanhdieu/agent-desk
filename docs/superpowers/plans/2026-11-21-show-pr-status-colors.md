@@ -672,11 +672,11 @@ export function withPrStates(groups: TicketGroup[], states: ReadonlyMap<string, 
   - `DevTicketBody` gains `prState: PrState.optional()`, refined so that it is only allowed when `kind === 'pr'` (a 400 otherwise). `addTicket` stores it when set.
   - `addFakeTicket(page, kind, opts: { number?: number; linked?: number[]; prState?: PrState })` sends `prState` when set.
 
-- [ ] **Step 1: Write the failing int tests** in `webhooks.int.test.ts`:
+- [x] **Step 1: Write the failing int tests** in `webhooks.int.test.ts`:
   - `POST /dev/fake/tickets accepts prState on PRs`: the store reads it back.
   - `rejects prState on an issue or an unknown value`: 400.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api test:integration webhooks.int`. Expected: FAIL. **Implement** the field. Run again. Expected: PASS.
-- [ ] **Step 3: Write the local spec** `e2e/local/pr-state.spec.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api test:integration webhooks.int`. Expected: FAIL. **Implement** the field. Run again. Expected: PASS.
+- [x] **Step 3: Write the local spec** `e2e/local/pr-state.spec.ts`.
   - Header comment: the BRs covered, and the spec's reasons for BR-4 closed-draft, BR-7, BR-10, BR-11 exact window and BR-16 not being local.
   - Setup, in the shape of `ticket-groups.spec.ts`: a `readyz` guard, its own user and project per test, and random ticket numbers. PRs get `/code-review` and issues `/code-build`. States are set before the first load.
   - Tests:
@@ -684,6 +684,6 @@ export function withPrStates(groups: TicketGroup[], states: ReadonlyMap<string, 
     - `Run detail of a PR run shows its state on the top bar and the Ticket card` (BR-3, BR-15).
     - `a PR run that arrives live gets its colour` (BR-13). The Runs page is open, then a comment lands on a new merged PR, and the live row turns purple.
     - `a PR merged at the source shows purple after the cache window` (BR-11). The PR starts open and shows green. It is re-added `merged`, then `expect.poll` reloads until purple, with a 90 s timeout. The test timeout is 300 s.
-- [ ] **Step 4: Run the new spec** with the stack up (`devbox run dev-bg`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/pr-state.spec.ts`. Expected: PASS. If the stack cannot start (no Docker engine, runner pod), say so in the PR and list these specs as written but not run.
+- [x] **Step 4: Run the new spec** with the stack up (`devbox run dev-bg`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/pr-state.spec.ts`. Expected: PASS. If the stack cannot start (no Docker engine, runner pod), say so in the PR and list these specs as written but not run.
 - [ ] **Step 5: Final checks:** `pnpm typecheck && pnpm test` for `@agentdesk/contracts`, `@agentdesk/core`, `@agentdesk/api` and `@agentdesk/web` (or `devbox run check`). Report the real results.
-- [ ] **Step 6: Commit:** `feat(api): dev fake tickets accept prState`, then `test(web): local e2e for live PR state colours`.
+- [x] **Step 6: Commit:** `feat(api): dev fake tickets accept prState`, then `test(web): local e2e for live PR state colours`.

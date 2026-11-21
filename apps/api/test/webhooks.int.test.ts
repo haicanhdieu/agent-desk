@@ -335,6 +335,31 @@ describe('dev fake routes', () => {
     expect((await store.getTicket(repoPath, 30))?.linked).toEqual([31]);
   });
 
+  it('POST /dev/fake/tickets accepts prState on PRs', async () => {
+    const res = await post('/dev/fake/tickets', { repoPath, number: 33, kind: 'pr', title: 'PR', prState: 'merged' });
+    expect(res.statusCode).toBe(201);
+    expect((await new FakeStore(stateDir).getTicket(repoPath, 33))?.prState).toBe('merged');
+  });
+
+  it('rejects prState on an issue or an unknown value', async () => {
+    const onIssue = await post('/dev/fake/tickets', {
+      repoPath,
+      number: 34,
+      kind: 'issue',
+      title: 'I',
+      prState: 'open',
+    });
+    const unknown = await post('/dev/fake/tickets', {
+      repoPath,
+      number: 35,
+      kind: 'pr',
+      title: 'PR',
+      prState: 'bogus',
+    });
+    expect(onIssue.statusCode).toBe(400);
+    expect(unknown.statusCode).toBe(400);
+  });
+
   it('rejects linked with 0, -1, 1.5, a string, a number above 1e9 or 11 numbers', async () => {
     const bad: unknown[] = [[0], [-1], [1.5], ['3'], [1_000_000_001], Array.from({ length: 11 }, (_, i) => i + 1)];
     for (const linked of bad) {
