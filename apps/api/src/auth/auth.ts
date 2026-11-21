@@ -4,6 +4,7 @@ import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/a
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization as organizationPlugin } from 'better-auth/plugins';
 import { and, asc, eq } from 'drizzle-orm';
+import { NO_INVITATION_CODE } from '@agentdesk/contracts';
 import {
   account,
   invitation,
@@ -17,7 +18,6 @@ import {
 } from '@agentdesk/db';
 import { isPlatformAdmin } from '../access/platform-admin';
 import type { Config } from '../config/config.schema';
-import { acceptPendingInvitations } from './accept-invitations';
 import { devSignUp } from './dev-signup';
 
 export const AUTH = Symbol('AUTH');
@@ -62,16 +62,6 @@ export function createAuth(config: Config, db: Db) {
         }
       : {};
 
-  /** Reads the stored email and verified flag (never the hook's copy), then applies the user's pending invitations. */
-  async function acceptInvitationsFor(userId: string): Promise<void> {
-    const [row] = await orm
-      .select({ email: user.email, emailVerified: user.emailVerified })
-      .from(user)
-      .where(eq(user.id, userId))
-      .limit(1);
-    if (row) await acceptPendingInvitations(db, { id: userId, email: row.email, emailVerified: row.emailVerified });
-  }
-
   /** The oldest membership: the org a session starts in. */
   async function oldestMembership(userId: string): Promise<string | null> {
     const rows = await orm
@@ -86,10 +76,12 @@ export function createAuth(config: Config, db: Db) {
   /**
    * The sign-up gate. An account is created only for a verified email that either has a pending, unexpired invitation
    * or is a configured platform admin address. Anything else (including a failed lookup) throws, so no user row is
-   * written. The refusal never says which of the two checks failed.
+   * written. The refusal carries `NO_INVITATION_CODE`, which the sign-in page matches, and never says which of the
+   * two checks failed.
    */
   async function assertMaySignUp(candidate: { email: string; emailVerified?: boolean | null }): Promise<void> {
-    const refuse = () => new APIError('FORBIDDEN', { message: 'Sign-up needs an invitation' });
+    const refuse = () =>
+      new APIError('FORBIDDEN', { message: 'Sign-up needs an invitation', code: NO_INVITATION_CODE });
     const verified = devSignUp.getStore() === true || candidate.emailVerified === true;
     if (!verified) throw refuse();
     const email = candidate.email.trim().toLowerCase();
@@ -160,15 +152,11 @@ export function createAuth(config: Config, db: Db) {
               'handle' in u && typeof u.handle === 'string' && u.handle !== '' ? u.handle : handleFromEmail(u.email);
             return { data: devSignUp.getStore() === true ? { ...u, handle, emailVerified: true } : { ...u, handle } };
           },
-          after: async (u) => {
-            await acceptInvitationsFor(u.id);
-          },
         },
       },
       session: {
         create: {
           before: async (s) => {
-            await acceptInvitationsFor(s.userId);
             // The oldest membership, or none: a platform admin with no org, or a user nobody has granted yet.
             const activeOrganizationId = await oldestMembership(s.userId);
             return { data: { ...s, activeOrganizationId } };

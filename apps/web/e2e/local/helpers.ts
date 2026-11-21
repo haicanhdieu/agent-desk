@@ -1,15 +1,25 @@
 import { randomBytes, randomInt } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
-import { expect, request, type APIRequestContext, type APIResponse, type Page } from '@playwright/test';
+import {
+  expect,
+  request,
+  type APIRequestContext,
+  type APIResponse,
+  type Browser,
+  type BrowserContext,
+  type Page,
+} from '@playwright/test';
 import {
   AgentDto,
   AssignmentDto,
   CreateOrgResponse,
   InstallResponse,
+  InvitationDto,
   PlatformMemberDto,
   PlatformRoleDto,
   type PrState,
+  RoleDto,
   RunDto,
   RunLogResponse,
   RunTranscriptResponse,
@@ -84,8 +94,61 @@ async function roleIdOf(pa: APIRequestContext, orgId: string, roleKey: RoleKey):
 }
 
 /**
- * Platform-invites `<handle>@dev.local` with a built-in role and scope, then dev-logs `page` in as that handle (which
- * accepts the invitation); returns the new user's id. Ends on the dev-login redirect target (`/`).
+ * Invites `email` to the org with a built-in role and scope through the platform route (the default) or the org's own
+ * route (`via: 'tenant'`, for the signed-in owner or admin `api`); returns the pending invitation's id.
+ */
+export async function inviteViaApi(
+  api: APIRequestContext,
+  orgId: string,
+  email: string,
+  roleKey: RoleKey,
+  scope: InviteScope,
+  via: 'tenant' | 'platform' = 'platform',
+): Promise<{ id: string }> {
+  const roleId =
+    via === 'platform'
+      ? await roleIdOf(api, orgId, roleKey)
+      : z
+          .array(RoleDto)
+          .parse(await ok(await api.get(`/api/orgs/${orgId}/roles`), 200, 'org roles'))
+          .find((r) => r.key === roleKey)?.id;
+  expect(roleId, `org ${orgId} has no role ${roleKey}`).toBeTruthy();
+  const path = via === 'platform' ? `/api/platform/orgs/${orgId}/invitations` : `/api/orgs/${orgId}/invitations`;
+  const created = InvitationDto.parse(
+    await ok(await api.post(path, { data: { email, roleId, scope } }), 201, `invite ${email}`),
+  );
+  return { id: created.id };
+}
+
+/** Accepts an invitation as the person `page` is signed in as (`POST /api/me/invitations/:id/accept`, exactly 200). */
+export async function acceptViaApi(page: Page, invitationId: string): Promise<void> {
+  await ok(await page.request.post(`/api/me/invitations/${invitationId}/accept`), 200, 'accept invitation');
+}
+
+/** Dev-logs `handle` in on a new page of `context` (no invitation is accepted) and returns the page. */
+export async function signInAs(context: BrowserContext, handle: string, redirect = '/'): Promise<Page> {
+  const page = await context.newPage();
+  await page.goto(`/auth/dev-login?handle=${handle}&redirect=${encodeURIComponent(redirect)}`);
+  return page;
+}
+
+/** A new browser context signed in as the platform admin (`admin@dev.local`); the caller closes it. */
+export async function platformAdminContext(browser: Browser): Promise<BrowserContext> {
+  const context = await browser.newContext();
+  try {
+    const page = await signInAs(context, PLATFORM_ADMIN_HANDLE);
+    await page.close();
+    return context;
+  } catch (error) {
+    await context.close().catch(() => null);
+    throw error;
+  }
+}
+
+/**
+ * Platform-invites `<handle>@dev.local` with a built-in role and scope, dev-logs `page` in as that handle, accepts the
+ * invitation through the invitee route and signs in again (a new session starts in the oldest membership); returns the
+ * new user's id. Ends on the dev-login redirect target (`/`).
  */
 export async function inviteAndSignIn(
   page: Page,
@@ -96,13 +159,9 @@ export async function inviteAndSignIn(
   scope: InviteScope,
 ): Promise<{ userId: string }> {
   const email = `${handle.toLowerCase()}@dev.local`;
-  await ok(
-    await pa.post(`/api/platform/orgs/${orgId}/invitations`, {
-      data: { email, roleId: await roleIdOf(pa, orgId, roleKey), scope },
-    }),
-    201,
-    `invite ${handle}`,
-  );
+  const invitation = await inviteViaApi(pa, orgId, email, roleKey, scope);
+  await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
+  await acceptViaApi(page, invitation.id);
   await page.goto(`/auth/dev-login?handle=${handle}&redirect=/`);
   const members = pageOf(PlatformMemberDto).parse(
     await ok(await pa.get(`/api/platform/orgs/${orgId}/members?pageSize=100`), 200, 'platform members'),

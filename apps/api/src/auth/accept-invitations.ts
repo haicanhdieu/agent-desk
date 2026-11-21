@@ -1,17 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { and, eq, inArray, sql } from 'drizzle-orm';
-import {
-  auditLog,
-  invitations,
-  member,
-  pendingInvitationsForEmail,
-  projects,
-  roleAssignments,
-  roles,
-  withOrg,
-  type Db,
-  type Tx,
-} from '@agentdesk/db';
+import { auditLog, invitations, member, projects, roleAssignments, roles, type Tx } from '@agentdesk/db';
 import { buildAuditRow, writeAuditEntry } from '../audit/audit-entry';
 
 /**
@@ -123,41 +112,5 @@ export async function acceptInvitationInTx(
         }),
       ),
     );
-  }
-}
-
-/**
- * Applies every pending, unexpired invitation addressed to the user's verified email. Each invitation runs in its own
- * `withOrg` transaction, after the per-user advisory lock and a `for update`
- * re-read, so a concurrent or repeated call finds it already accepted and does nothing. Expiry and the email match are
- * decided in SQL (`now()`, `lower()`), never from a JS clock. An unverified email applies nothing: the address is only
- * a proof of identity once the provider vouched for it.
- */
-export async function acceptPendingInvitations(
-  db: Db,
-  user: { id: string; email: string; emailVerified: boolean },
-): Promise<void> {
-  if (!user.emailVerified) return;
-  const pending = await pendingInvitationsForEmail(db, user.email);
-  for (const candidate of pending) {
-    await withOrg(db, candidate.orgId, async (tx) => {
-      await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${user.id}))`);
-      const [invitation] = await tx
-        .select()
-        .from(invitations)
-        .where(
-          and(
-            eq(invitations.id, candidate.id),
-            eq(invitations.orgId, candidate.orgId),
-            eq(invitations.status, 'pending'),
-            sql`${invitations.expiresAt} > now()`,
-            sql`${invitations.email} = lower(${user.email})`,
-          ),
-        )
-        .for('update')
-        .limit(1);
-      if (!invitation) return;
-      await acceptInvitationInTx(tx, invitation, user);
-    });
   }
 }

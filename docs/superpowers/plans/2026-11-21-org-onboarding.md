@@ -722,14 +722,14 @@ export async function acceptViaApi(page: Page, invitationId: string): Promise<vo
 
     `inviteAndSignIn` and `signInAndCreateProject` call `acceptViaApi` after dev-login, so other specs do not change.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `auth.int.test.ts`: BR-1 dev-login of an uninvited handle → 302 `Location: /sign-in?error=no_invitation`, no `set-cookie`, no user row, and a second attempt the same; BR-1 social path with `GITHUB_CLIENT_ID`/`SECRET` set and `globalThis.fetch` stubbed for the token and user endpoints (no network): `POST /auth/sign-in/social` with `errorCallbackURL: '/sign-in'`, then `/auth/callback/github?code=x&state=<state>` → 302 to `/sign-in?error=no_invitation`, no user row; BR-2 an invited new handle's first dev-login creates the account but no member row, and its invitation stays pending; BR-3 an existing user invited to a second org is not a member after a new sign-in; BR-43 a user in orgs A (joined first) and B gets A as active org in a new session; the slice 1 test "an invited handle's first dev-login … lands in the invited org" becomes "lands with no active org until accept".
   - `invitations.int.test.ts`: slice 1's BR-55 and BR-56 tests become accept tests (sign-in, `acceptInvite`, then the invited scope).
   - `rbac-invitations.spec.ts`: TC-54.1 expects the redirect to `/sign-in?error=no_invitation`; the BR-55 and BR-56 cases accept through `acceptViaApi` before asserting the landing org.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/auth.int.test.ts test/invitations.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the hook, refusal code, dev-login redirect, helper and e2e helper changes. Other int files and e2e specs reach invitations only through `inviteAndLogin` and `inviteAndSignIn`, which now accept explicitly, so they do not change; if `pnpm --filter @agentdesk/api test` shows one that does, stop and report it rather than widening this task.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/auth.int.test.ts test/invitations.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the hook, refusal code, dev-login redirect, helper and e2e helper changes. Other int files and e2e specs reach invitations only through `inviteAndLogin` and `inviteAndSignIn`, which now accept explicitly, so they do not change; if `pnpm --filter @agentdesk/api test` shows one that does, stop and report it rather than widening this task.
 - [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api test`, then with the stack up `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-invitations.spec.ts e2e/local/rbac-platform.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): invitations wait for accept; refuse uninvited sign-up with no_invitation`.
+- [x] **Step 5: Commit** `feat(api): invitations wait for accept; refuse uninvited sign-up with no_invitation`.
 
 ---
 
