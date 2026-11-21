@@ -124,6 +124,55 @@ export async function commentOnNewTicket(
   return comment.runId ?? '';
 }
 
+/** A fake ticket with a random number (or `number` to re-add one with a new link). Issues carry the user-story label
+ *  the /code-build rule needs. `linked`: on a PR, the issues it closes; on an issue, its linked PRs. Returns its number. */
+export async function addFakeTicket(
+  page: Page,
+  kind: 'issue' | 'pr',
+  opts: { number?: number; linked?: number[] } = {},
+): Promise<number> {
+  const number = opts.number ?? randomInt(100_000, 1_000_000_000);
+  await ok(
+    await page.request.post('/dev/fake/tickets', {
+      data: {
+        repoPath: REPO,
+        number,
+        kind,
+        title: `e2e ${kind} ${number}`,
+        labels: kind === 'issue' ? ['user-story'] : [],
+        ...(opts.linked ? { linked: opts.linked } : {}),
+      },
+    }),
+    201,
+    'fake ticket',
+  );
+  return number;
+}
+
+/** A webhook-delivered comment on an existing fake ticket of the project. */
+export async function commentOn(
+  page: Page,
+  projectId: string,
+  ticketNumber: number,
+  body: string,
+): Promise<{ outcome: string; runId?: string }> {
+  return CommentResult.parse(
+    await ok(
+      await page.request.post('/dev/fake/comments', {
+        data: { repoPath: REPO, ticketNumber, body, deliver: 'webhook', projectId },
+      }),
+      201,
+      'fake comment',
+    ),
+  );
+}
+
+/** Cancels a run and waits for `cancelled` (a second run of one skill on a ticket is refused while one is active). */
+export async function cancelRun(page: Page, runId: string): Promise<void> {
+  await ok(await page.request.post(`/api/runs/${runId}/cancel`), 202, 'cancel');
+  await waitForStatus(page, runId, 'cancelled');
+}
+
 /** Creates `name` in the run's fake pod state dir (`release-start`, `release-end`, `hardkill`). */
 export async function touchPodFile(runId: string, name: string): Promise<void> {
   const podDir = `${FAKE_STATE_DIR}/kube/run-${runId}`;

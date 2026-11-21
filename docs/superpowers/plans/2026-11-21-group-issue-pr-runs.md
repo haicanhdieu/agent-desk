@@ -865,7 +865,7 @@ Every test uses its own `signInAndCreateProject` project and random ticket numbe
 | TC-16.2 | issue commented; PR with no link commented once; cancel; PR re-added with `linked: [issue]`; comment again | two groups: the PR's own group ("2 of 10 runs" on the right) with run 1, and the issue's group with run 2 and "PR #M (2 of 10 runs)" |
 | TC-20.1 | as TC-16.2, and before the link the page shows the PR's own group with "1 of 10 runs" | before: "1 of 10 runs" on the PR header; after: PR header "2 of 10 runs" over run 1, issue group over run 2 with "PR #M (2 of 10 runs)" |
 
-- [ ] **Step 1: Add the three helpers** to `helpers.ts`.
-- [ ] **Step 2: Write the spec.** At the top, put the same `readyz` `beforeAll` and file comment style as `pagination.spec.ts`, naming the spec and the "Not e2e" rules.
+- [x] **Step 1: Add the three helpers** to `helpers.ts`.
+- [x] **Step 2: Write the spec.** At the top, put the same `readyz` `beforeAll` and file comment style as `pagination.spec.ts`, naming the spec and the "Not e2e" rules.
 - [ ] **Step 3: Run with the stack up** (tests-and-e2e.md §3a): `pnpm --filter @agentdesk/web exec playwright test e2e/local/ticket-groups.spec.ts`. Expected: PASS. If the stack cannot start, say so in the PR and list the cases as written but not run.
-- [ ] **Step 4: Commit:** `test(web): local e2e for runs grouped by linked issue`.
+- [x] **Step 4: Commit:** `test(web): local e2e for runs grouped by linked issue`.
