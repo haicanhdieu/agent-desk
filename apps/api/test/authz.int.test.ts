@@ -1179,6 +1179,21 @@ describe('denial table over every route, stream and terminal', () => {
     expect((await t.app.inject({ method: 'GET', url })).statusCode).toBe(401);
   });
 
+  it('a percent-encoded /api or /dev path does not skip the session guard', async () => {
+    const orgId = '33333333-3333-4333-8333-333333333333';
+    const requests: Array<[method: 'GET' | 'POST', url: string]> = [
+      ['GET', '/%61pi/platform/orgs'],
+      ['GET', `/%61pi/platform/orgs/${orgId}/projects`],
+      ['GET', `/%61pi/platform/orgs/${orgId}/roles`],
+      ['GET', `/%61pi/orgs/${orgId}/roles`],
+      ['GET', '/%64ev/fake/posted'],
+      ['POST', '/%64ev/fake/tickets'],
+    ];
+    for (const [method, url] of requests) {
+      expect((await t.app.inject({ method, url })).statusCode, `${method} ${url}`).toBe(401);
+    }
+  });
+
   it('the platform admin gets the written 2xx on every platform route', async () => {
     // the remove routes run last: they take the rows the earlier list and create routes read
     const order = [

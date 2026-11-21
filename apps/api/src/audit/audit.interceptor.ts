@@ -44,17 +44,29 @@ export interface AuditTarget {
   targetId: string | null;
 }
 
-/** Derives `METHOD route-key` from the contracts route table; unmatched routes fall back to `METHOD path`. */
-export function describeRequest(method: string, path: string): AuditTarget {
+/**
+ * Derives `METHOD route-key` from the contracts route table; unmatched routes fall back to `METHOD path`. The interceptor
+ * passes the matched route pattern as `path` and the router's `params`, so no text of the request url reaches the row:
+ * without `params` the target id is the first path segment that is a param, as written in `path`.
+ */
+export function describeRequest(method: string, path: string, params?: Record<string, unknown>): AuditTarget {
   const segments = path.split('/').filter(Boolean);
   const targetType = segments[0] === 'api' ? (segments[1] ?? null) : (segments[0] ?? null);
   for (const route of compiled) {
     if (route.method !== method) continue;
     const m = route.pattern.exec(path);
     if (!m) continue;
-    return { action: `${method} ${route.key}`, targetType, targetId: m[1] ?? null };
+    const name = route.params[0];
+    const fromParams = name === undefined ? undefined : params?.[name];
+    const targetId = params === undefined ? (m[1] ?? null) : typeof fromParams === 'string' ? fromParams : null;
+    return { action: `${method} ${route.key}`, targetType, targetId };
   }
   return { action: `${method} ${path}`, targetType, targetId: null };
+}
+
+/** The router's path params as a record (it parses them to strings); anything else is no params. */
+function paramsOf(params: unknown): Record<string, unknown> {
+  return typeof params === 'object' && params !== null ? Object.fromEntries(Object.entries(params)) : {};
 }
 
 @Injectable()
@@ -65,12 +77,14 @@ export class AuditInterceptor implements NestInterceptor {
 
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const req = context.switchToHttp().getRequest<FastifyRequest>();
-    const path = req.url.split('?')[0] ?? '';
+    // Gate and describe by the matched route and its params, as the session guard does: the router percent-decodes
+    // the path and drops a fragment, so the raw url is neither a reliable test nor safe text for the audit row.
+    const route = req.routeOptions.url ?? '';
     const ctx = req.orgContext;
-    if (!MUTATING.has(req.method) || !(path === '/api' || path.startsWith('/api/')) || !ctx) return next.handle();
+    if (!MUTATING.has(req.method) || !(route === '/api' || route.startsWith('/api/')) || !ctx) return next.handle();
     return next.handle().pipe(
       mergeMap(async (value: unknown) => {
-        const target = describeRequest(req.method, path);
+        const target = describeRequest(req.method, route, paramsOf(req.params));
         try {
           await withOrg(this.db, ctx.orgId, (tx) =>
             tx.insert(auditLog).values({

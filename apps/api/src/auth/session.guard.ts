@@ -23,10 +23,11 @@ import { AUTH, type Auth } from './auth';
 
 /**
  * Everything under /api needs a session except the OpenAPI spec and UI; so do the dev-only /dev routes (they act on the
- * caller's org). Health and webhooks live outside /api and are public.
+ * caller's org). Health and webhooks live outside /api and are public. It takes the matched route pattern, never the
+ * raw request url: the router percent-decodes the path, so `/%61pi/...` reaches an /api handler but looks public as text.
  */
-export function isPublicPath(url: string): boolean {
-  const path = url.split('?')[0] ?? '';
+export function isPublicPath(routePattern: string): boolean {
+  const path = routePattern.split('?')[0] ?? '';
   if (path === '/api/docs' || path.startsWith('/api/docs/')) return true;
   return !(path === '/api' || path.startsWith('/api/') || path === '/dev' || path.startsWith('/dev/'));
 }
@@ -90,7 +91,7 @@ export class SessionGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<FastifyRequest>();
-    if (isPublicPath(req.url)) return true;
+    if (isPublicPath(req.routeOptions.url ?? '')) return true;
     const session = await this.auth.api.getSession({ headers: toHeaders(req) });
     if (!session) throw new UnauthorizedException('Authentication required');
     const userId = session.user.id;

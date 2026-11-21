@@ -1,4 +1,4 @@
-import { ForbiddenException, type ExecutionContext } from '@nestjs/common';
+import { ForbiddenException, UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '@agentdesk/db';
 import type { Config } from '../config/config.module';
@@ -7,7 +7,7 @@ const checkTenantAccess = vi.hoisted(() => vi.fn());
 vi.mock('../access/check-access', () => ({ checkTenantAccess, isOrgMember: vi.fn() }));
 
 import type { Auth } from './auth';
-import { SessionGuard } from './session.guard';
+import { SessionGuard, isPublicPath } from './session.guard';
 
 const PROJECT_ID = '11111111-1111-4111-8111-111111111111';
 const ORG_ID = '22222222-2222-4222-8222-222222222222';
@@ -37,7 +37,7 @@ function setup() {
     routeOptions: { url: '/api/runs/:runId/cancel' },
   };
   const context = { switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext;
-  return { guard, logger, context };
+  return { guard, logger, context, auth };
 }
 
 describe('SessionGuard deny log', () => {
@@ -71,5 +71,33 @@ describe('SessionGuard deny log', () => {
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
     const [fields] = logger.info.mock.calls[0] ?? [];
     expect(fields).not.toHaveProperty('projectId');
+  });
+});
+
+describe('SessionGuard public paths', () => {
+  it('decides from the matched route, so a percent-encoded /api url still needs a session', async () => {
+    const { guard, auth } = setup();
+    auth.api.getSession.mockResolvedValue(null);
+    const req = {
+      id: 'r',
+      url: '/%61pi/platform/orgs',
+      method: 'GET',
+      headers: {},
+      routeOptions: { url: '/api/platform/orgs' },
+    };
+    const context = { switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext;
+    await expect(guard.canActivate(context)).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it.each([
+    ['/api/platform/orgs', false],
+    ['/dev/fake/tickets', false],
+    ['/api/docs', true],
+    ['/api/docs/json', true],
+    ['/healthz', true],
+    ['/webhooks/:provider', true],
+    ['/auth/*', true],
+  ])('isPublicPath(%s) is %s', (path, expected) => {
+    expect(isPublicPath(path)).toBe(expected);
   });
 });

@@ -34,12 +34,16 @@ export class PlatformOrgsController {
   }
 
   @Get(routePath(routes.platform.listOrgs))
-  list(@Query(ListOrgsQuery) q: PageQuery): Promise<Page<PlatformOrgDto>> {
+  list(
+    @CurrentPlatformAdmin() _admin: PlatformAdminContext,
+    @Query(ListOrgsQuery) q: PageQuery,
+  ): Promise<Page<PlatformOrgDto>> {
     return this.orgs.listOrgs(q);
   }
 
   @Get(routePath(routes.platform.listProjects))
   projects(
+    @CurrentPlatformAdmin() _admin: PlatformAdminContext,
     @Param(ProjectsParams) p: { orgId: string },
     @Query(ProjectsQuery) q: PageQuery,
   ): Promise<Page<PlatformProjectDto>> {
@@ -47,7 +51,10 @@ export class PlatformOrgsController {
   }
 
   @Get(routePath(routes.platform.listRoles))
-  roles(@Param(RolesParams) p: { orgId: string }): Promise<PlatformRoleDto[]> {
+  roles(
+    @CurrentPlatformAdmin() _admin: PlatformAdminContext,
+    @Param(RolesParams) p: { orgId: string },
+  ): Promise<PlatformRoleDto[]> {
     return this.orgs.listRoles(p.orgId);
   }
 }
