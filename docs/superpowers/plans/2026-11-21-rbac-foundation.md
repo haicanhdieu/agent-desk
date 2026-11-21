@@ -839,13 +839,13 @@ export function buildAuditRow(entry: AuditEntry): typeof auditLog.$inferInsert;
 export async function writeAuditEntry(tx: Tx, entry: AuditEntry): Promise<void>;
 ```
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `grant-rules.test.ts` (`it.each`, expected table in the test): org owner grants `owner` at org → ok; org admin grants `owner` → `owner-only`; org admin grants `admin` at org → ok; project admin on P1 grants `admin`/`member`/`viewer` on P1 → ok; on P2 → `no-right`; at org → `no-right`; member grants anything → `no-right`; a made-up role holding `setup:test` granted by an actor whose P1 role lacks it → `escalation`; `own` member lines covered by the admin's `any` lines; revoke rules with `assignment:delete` mirror these.
   - `audit-entry.test.ts`: `buildAuditRow` keeps `{to: {roleId, roleKey, scope}}`, adds `actorKind: 'platform_admin'`, drops a `token` and a `password` key at any depth, and omits `actorKind` when undefined.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/grant-rules.test.ts src/audit/audit-entry.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three source files.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): tenant grant rules, the request actor and typed audit entries`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/access/grant-rules.test.ts src/audit/audit-entry.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the three source files.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): tenant grant rules, the request actor and typed audit entries`.
 
 ---
 
