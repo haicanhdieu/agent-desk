@@ -61,7 +61,7 @@ export class TicketsService {
         .where(and(eq(runs.projectId, projectId), eq(runs.ticketKind, 'pr'), inArray(runs.ticketRef, refs)));
       const set = new Set<string>();
       for (const r of fromRuns) if (r.ref !== null) set.add(r.ref);
-      // The ignored-event lookup has no (project_id, ticket_ref) index, so only run it for refs the runs did not match.
+      // Only look up refs the runs did not match; the ignored-event lookup uses inbound_events_project_ticket_ref_ignored_idx.
       const unmatched = refs.filter((r) => !set.has(r));
       if (unmatched.length > 0) {
         const fromEvents = await tx

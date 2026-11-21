@@ -12,7 +12,7 @@ Runs and Run detail pages must not wait for a provider call.
 
 ## Decision
 
-- The state is read live from the ticket source at request time and is never stored: no column, no migration.
+- The state is read live from the ticket source at request time and is never stored: no column and no stored copy. The only schema change is an index on `inbound_events` (project_id, ticket_ref) for the ignored-event lookup.
 - A separate, non-blocking endpoint (`GET /api/projects/:projectId/tickets/pr-states`) serves it. The pages render
   first and colour the icons when the answer arrives.
 - `BoardAdapter.prStates(project, refs)` is the seam. The GitHub adapter asks for all refs in one batched GraphQL call

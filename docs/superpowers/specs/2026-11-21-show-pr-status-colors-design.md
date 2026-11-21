@@ -3,7 +3,7 @@
 
 Status: draft. Sensitive paths: a new GitHub API call with the installation token in the board adapter, behind a new
 authenticated read endpoint (the PR gets `review:sensitive`, security.md §8). No RLS, auth, webhook, terminal, secrets
-or migration change.
+change. The one index migration is on a sensitive path (see Data model).
 Source: issue #202
 
 ## Summary
@@ -78,7 +78,7 @@ only feeds them). BR-10 is stated at the API because AGENTS.md rule 7 needs an a
 
 ### Not observable
 
-- No storage and no migration (effect: BR-11).
+- No stored state (effect: BR-11). The only schema change is one index on `inbound_events` (see Data model); it is proven at the database layer, not e2e.
 - The cache is per project and PR, 60 s. It is a timer, so it is proven below e2e (effect: BR-11).
 - Request limits: positive digits, 1 to 100 refs, duplicates collapsed. The web splits more than 100 visible refs into
   requests of at most 100 (effect: BR-1, BR-14; contract and API tests, and a web unit test of the query helper for
@@ -152,7 +152,7 @@ only feeds them). BR-10 is stated at the API because AGENTS.md rule 7 needs an a
 
 ### Lifecycle, compatibility and side effects
 
-- Lifecycle: nothing is created, changed or deleted. There is no migration and no column. The only data is a short,
+- Lifecycle: nothing is created, changed or deleted. There is no column and no stored state; the only schema change is one index on `inbound_events`. The only data is a short,
   size-bounded in-memory cache. No audit or retention change.
 - Compatibility: every existing run, and every existing ignored PR comment, gets its colour at once, because the state
   is live; no back-fill is needed. Existing API responses are unchanged; the state comes from a separate read. A
@@ -201,7 +201,7 @@ Layering stays `apps → core → db → contracts`, web → contracts only, and
   of 100 (`useQueries`, one request per chunk); `map.ts` merges the states by ref; `ds/TicketRef` gets an optional
   state prop with a local type (ds must not import contracts, like its existing local `TicketKind`). The rail's raw
   `Icon` (`screens/RunSidePanel.tsx:40`) gets the same treatment. MSW handler in `apps/web/src/mocks/msw/handlers.ts`.
-- `packages/db`, `apps/worker`, runner: untouched.
+- `apps/worker`, runner: untouched. `packages/db`: one additive index migration (see Data model).
 
 PR icon surfaces and the refs each needs:
 
@@ -236,9 +236,13 @@ PR icon surfaces and the refs each needs:
 
 ### Data model
 
-No schema change, no migration, no column, no backfill (human decision: live, not stored). The only database work is
-reads under `withOrg`: `runs` (existing `runs_project_ticket_idx`) and `inbound_events` (existing
-`inbound_events_project_received_idx`).
+No stored state, no column, no backfill (human decision: live, not stored). The only schema change is migration
+`0029_inbound_events_ticket_ref_ignored_idx`: a partial index `inbound_events_project_ticket_ref_ignored_idx` on
+`(project_id, ticket_ref) WHERE starts_with(outcome, 'ignored_')`, which serves the ignored-event ref lookup (human
+decision, database.md §4). It is a plain `CREATE INDEX` because the migrator runs every migration in one transaction
+(`packages/db/src/migrate.ts`), so `CONCURRENTLY` cannot be used; the build briefly blocks writes to `inbound_events`
+(intake) and the human accepted that. It is additive and safe while the previous app version runs. Reads run under
+`withOrg`: `runs` (existing `runs_project_ticket_idx`) and `inbound_events` (the new index).
 
 ### API
 
@@ -334,9 +338,11 @@ No new dependency.
   and the oldest evicted (architecture: project UUIDs are global, so there is no cross-tenant leak, and memory stays
   flat with many orgs). Each api replica has its own cache (the api is stateless). There is at most one GitHub request
   per project per TTL for the misses, at most 100 aliases each.
+  The ignored-event lookup is run only for refs the runs did not match and uses the new partial index, so it does not
+  scan all of a project's ignored events.
 - Sensitive path: a new GitHub API call with the installation token in the board adapter, behind a new authenticated
   read endpoint, so the PR gets `review:sensitive` (security.md §8; precedent spec 2026-11-21-group-issue-pr-runs). No
-  RLS, auth, webhook, terminal, secrets or migration change.
+  RLS, auth, webhook, terminal or secrets change. The one index migration is a sensitive path too (migrations).
 - ADR: needed (human decision). New `docs/adr/0033-live-pr-state-through-the-board-adapter.md` plus a row in
   `docs/adr/README.md`. It covers: a live provider read at request time instead of a stored column; a separate
   non-blocking endpoint; the `BoardAdapter.prStates` seam method; the per-project/PR TTL cache in the API; failure
@@ -504,6 +510,7 @@ e2e spec or a stated reason. New e2e specs: `apps/web/e2e/mock/pr-state.spec.ts`
 | — | Cache `projectId:ref`, TTL 60 s, failures not cached, 10,000 entries with the oldest evicted at entry 10,001; project A's entry never served to project B | unit | `apps/api/src/tickets/` (cache unit test, injected `Clock`) | — |
 | — | API side of failure, timeout (small injected timeout, never-resolving adapter promise), rate limit and unregistered adapter → 200 with those refs left out and one warn with the error name only; only the project's PR refs (its PR runs and its ignored PR events) reach the adapter; validation; `expectContract` on every response | integration | `apps/api/test/tickets.int.test.ts` (`wrapRegistry` counting, throwing and hanging adapter); a not-found ref is cached for the TTL, a ref the adapter left undecided is asked again | — |
 | — | `/dev/fake/tickets` accepts `prState` | integration | `apps/api/test/webhooks.int.test.ts` | — |
+| — | The ignored-event ref index exists, leads with `(project_id, ticket_ref)` and has the `ignored_` predicate | integration | `packages/db/test/migrate.int.test.ts` | — |
 | — | `TicketRef` state → token variant, accessible name and hover title; absent → neutral, glyph `aria-hidden`; `prStateTokens` and the four `--pr-*` tokens | component/story; unit | `src/ds/Chips.test.tsx`; `src/ds/tokens.test.ts` | — |
 | — | Mapper `withPrStates` sets `ticket.prState` on rows, headers, the banner run, ignored items, the detail ticket and the chain | unit | `src/features/runs/map.test.ts`; `src/features/runs/detail.map.test.ts` | — |
 | — | The web asks only for PR refs on screen (rows, PR-led headers, the banner idle run even off-page, Ignored rows; Run detail: the run's PR), none → no request; previous states kept while visible refs change | component/story | `src/features/runs/runs.route.test.tsx`; `src/features/runs/detail.route.test.tsx` | — |
@@ -599,7 +606,7 @@ bar). The Ignored view has no local e2e (human answer).
   `expect` auto-retry; colours come from tokens read at runtime.
 - Local e2e: its own user, project and random numbers; states are set before the first load so the cache never holds a
   stale value, except BR-11 (bounded 90 s reload poll).
-- Worker and migrations: not touched.
+- Worker: not touched. Migrations: one additive index migration (`0029_inbound_events_ticket_ref_ignored_idx`), tested in `packages/db/test/migrate.int.test.ts`.
 
 ## Agent calls
 

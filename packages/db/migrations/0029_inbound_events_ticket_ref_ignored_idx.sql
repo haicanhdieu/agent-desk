@@ -1,0 +1,1 @@
+CREATE INDEX "inbound_events_project_ticket_ref_ignored_idx" ON "inbound_events" USING btree ("project_id","ticket_ref") WHERE starts_with("inbound_events"."outcome", 'ignored_');
