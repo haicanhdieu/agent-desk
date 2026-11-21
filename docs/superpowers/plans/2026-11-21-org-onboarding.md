@@ -1500,13 +1500,13 @@ export function useCreateInvitation(org: string): UseMutationResult<InvitationDt
 
   TanStack Form validated by `CreateInvitationRequest` (errors on submit, then on change); "Create invitation" → created step with the link; "Done" closes and refetches; 409 `/email` → the Email field error ("This email already has a pending invitation." for already invited; the server detail for already a member); 400 and 422 by pointer; 403 and network → form Banner; org-mismatch → Toast with the T12 text, input kept, button re-enabled; input kept on every failure.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `inviteForm.test.ts`: BR-29 role options for owner, org admin and project admin; project options for a project admin of P1 only; `projectsOnly`.
   - `invite.route.test.tsx`: BR-27 an owner creates a whole-org and a some-projects invitation and sees "Invitation created" with the link, then the list shows it pending; BR-28 invalid email, 255 characters, no project chosen, already a member, already invited (`P@X.dev`) each show their field error and create nothing; 254 characters succeeds; BR-29 org admin has no owner role; project admin has no "Whole organization" and only P1; the org-mismatch answer shows the T12 Toast and keeps the input; Cancel closes without a request.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations/inviteForm.test.ts src/features/orgInvitations/invite.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the form, options and mutation, and open the dialog from "Invite people".
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): invite people with a copy link`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgInvitations/inviteForm.test.ts src/features/orgInvitations/invite.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the form, options and mutation, and open the dialog from "Invite people".
+- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS. Only the Step 2 command was run (the full web suite is the Verifier's).
+- [x] **Step 5: Commit** `feat(web): invite people with a copy link`.
 
 ---
 
