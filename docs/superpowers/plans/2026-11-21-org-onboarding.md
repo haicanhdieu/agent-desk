@@ -1667,9 +1667,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding` (Task 17); `page.clock` at `INVITATIONS_MOCK_NOW`.
 
-- [ ] **Step 1: Write the spec**: TC-1.3 to TC-1.5 (BR-1); TC-4.1 to TC-4.3 (BR-4, `noOrgInvitedStates`); TC-25.3, TC-25.4 (BR-25); TC-26.4, TC-26.5 (BR-26); TC-37.1, TC-37.2 (BR-37, `noOrgUninvited`); TC-46.2 (BR-46); TC-52.3, TC-52.5 (BR-52).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/onboarding.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the welcome page and invitee states`.
+- [x] **Step 1: Write the spec**: TC-1.3 to TC-1.5 (BR-1); TC-4.1 to TC-4.3 (BR-4, `noOrgInvitedStates`); TC-25.3, TC-25.4 (BR-25); TC-26.4, TC-26.5 (BR-26); TC-37.1, TC-37.2 (BR-37, `noOrgUninvited`); TC-46.2 (BR-46); TC-52.3, TC-52.5 (BR-52).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/onboarding.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the welcome page and invitee states`.
 
 ---
 
