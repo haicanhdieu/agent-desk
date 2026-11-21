@@ -160,7 +160,7 @@ async function listInvitations(api: APIRequestContext, path: string): Promise<In
   const items: InvitationDto[] = [];
   for (let page = 1; ; page++) {
     const body = InvitationPage.parse(
-      await ok(await api.get(`${path}?pageSize=100&page=${page}`), 200, 'invitation list'),
+      await ok(await api.get(`${path}?status=all&pageSize=100&page=${page}`), 200, 'invitation list'),
     );
     items.push(...body.items);
     if (body.items.length === 0 || items.length >= body.total) return items;
