@@ -914,7 +914,7 @@ export interface TranscriptItem {
   time: string;
   /** Tool name; kind 'tool' only. */
   tool?: string;
-  /** Plain text (already stripped of control and bidi characters by the caller). */
+  /** Text, rendered as Markdown (already stripped of control and bidi characters by the caller). */
   text: string;
   truncated: boolean;
 }
@@ -938,10 +938,10 @@ export function Transcript(props: TranscriptProps): JSX.Element;
 - Rendering rules (spec §7.3, boards `RunStopped`, `RunTranscriptStates`, `RunIdleEnding`):
   - `role="log"`, labelled "Transcript of the agent conversation".
   - Person messages sit in a raised bordered box, labelled with `label` and the time.
-  - Agent replies are plain text with `label` and the time.
+  - Agent replies are Markdown text with `label` and the time.
   - A tool step is one muted line: the `terminal` icon, the tool in bold, the text in mono.
   - Notices are centred muted lines between rules.
-  - Text is rendered with `white-space: pre-wrap` as React text only.
+  - Text is rendered as sanitized Markdown through Streamdown; paragraphs use `white-space: pre-line`.
   - A truncated entry ends with a muted "… (cut)".
   - With `hasEarlier`, a ghost "Show earlier messages" button with `chevron-up` sits at the top.
   - The log opens scrolled to the bottom. After `onShowEarlier` adds items above, the first visible item stays in place: restore `scrollTop` by the `scrollHeight` delta in a layout effect.
@@ -956,7 +956,7 @@ In `Transcript.test.tsx`:
 - `labels person messages You or Prompt and agent replies with the agent name and time`;
 - `a tool step shows the tool name in bold and its summary in mono`;
 - `notices render as centred rule lines in order`;
-- `markup and markdown render literally and whitespace is kept`: `<b>bold</b> <script>…</script>` gives no `b` or `script` element and the literal text; `# Heading` gives no heading;
+- `renders Markdown in user and agent text …`: `# Heading` gives a heading and `**strong**` a `strong` element; `unsafe raw HTML … is never rendered`: `<script>…</script>` gives no `script` element;
 - `a truncated entry ends with … (cut)`;
 - `Show earlier messages calls onShowEarlier and is absent without hasEarlier`;
 - `loading is busy and labelled Loading the transcript`;

@@ -38,12 +38,104 @@
 }
 .text {
   margin: 0;
-  white-space: pre-wrap;
+  min-width: 0;
   overflow-wrap: anywhere;
   font-family: var(--sans);
   font-size: var(--fs-14);
   line-height: 1.5;
   color: var(--text);
+}
+.text > :global([data-streamdown]):first-child,
+.text > :global([data-streamdown]) > :first-child {
+  margin-top: 0;
+}
+.text > :global([data-streamdown]) > :last-child {
+  margin-bottom: 0;
+}
+.text :global([data-streamdown='table-wrapper']),
+.text :global([data-streamdown='code-block']) {
+  overflow: auto;
+  max-width: 100%;
+}
+.text h4,
+.text h5,
+.text h6 {
+  margin: 14px 0 6px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+.text h4 {
+  font-size: var(--fs-15);
+}
+.text h5,
+.text h6 {
+  font-size: var(--fs-14);
+}
+.text strong {
+  font-weight: 600;
+}
+.text p {
+  margin: 0 0 8px;
+  /* Keep the line breaks a message was written with; runs of spaces still collapse. */
+  white-space: pre-line;
+}
+.text ul,
+.text ol {
+  margin: 0 0 8px;
+  padding-left: 22px;
+}
+.text li {
+  margin: 2px 0;
+}
+.text blockquote {
+  margin: 0 0 8px;
+  padding: 2px 12px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.text a {
+  color: var(--accent);
+}
+.text hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 12px 0;
+}
+.text code {
+  font-family: var(--mono);
+  font-size: var(--fs-12_5);
+  background: var(--panel);
+  border-radius: var(--radius-4);
+  padding: 1px 5px;
+}
+.text pre {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  overflow: auto;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-6);
+}
+.text pre code {
+  background: none;
+  padding: 0;
+  white-space: pre;
+}
+.text table {
+  border-collapse: collapse;
+  margin: 0 0 10px;
+  font-size: var(--fs-13);
+}
+.text th,
+.text td {
+  border: 1px solid var(--line);
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.text th {
+  background: var(--panel);
+  font-weight: 600;
 }
 .you .text {
   background: var(--raised);
@@ -90,6 +182,7 @@
   border-top: 1px solid var(--line);
 }
 .cut {
+  display: block;
   color: var(--muted);
 }
 .fill {

@@ -1,4 +1,5 @@
-import { useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef, type ComponentProps } from 'react';
+import { Streamdown, type ExtraProps } from 'streamdown';
 import { Banner, Button, Icon, Skeleton } from '@/ds';
 import styles from './Transcript.module.css';
 
@@ -11,7 +12,7 @@ export interface TranscriptItem {
   time: string;
   /** Tool name; kind 'tool' only. */
   tool?: string;
-  /** Plain text (already stripped of control and bidi characters by the caller). */
+  /** Text (already stripped of control and bidi characters by the caller); user and agent text is rendered as Markdown. */
   text: string;
   truncated: boolean;
 }
@@ -34,6 +35,54 @@ export function isPrepend(prevKeys: string[], nextKeys: string[]): boolean {
   return first !== undefined && nextKeys[0] !== first && nextKeys.includes(first);
 }
 
+type Anchor = ComponentProps<'a'>;
+type Image = ComponentProps<'img'>;
+
+// The page title is the h1 and the tabs sit below it, so Markdown headings sit three levels down (h1 -> h4 ... capped at h6).
+const HEADING_TAGS = { 1: 'h4', 2: 'h5', 3: 'h6', 4: 'h6', 5: 'h6', 6: 'h6' } as const;
+
+function heading(level: keyof typeof HEADING_TAGS) {
+  const Tag = HEADING_TAGS[level];
+  return function Heading({ children }: ComponentProps<'h1'> & ExtraProps) {
+    return <Tag>{children}</Tag>;
+  };
+}
+
+function Link({ href, children }: Anchor & ExtraProps) {
+  if (!href) return <span>{children}</span>;
+  return (
+    <a href={href} target="_blank" rel="noopener noreferrer">
+      {children}
+    </a>
+  );
+}
+
+// Images are never fetched: show the alt text, or the URL when there is none.
+function ImageAsText({ alt, src }: Image & ExtraProps) {
+  const label = alt?.trim() ? alt : typeof src === 'string' ? src : '';
+  return <span>{label}</span>;
+}
+
+// Streamdown draws bold as a <span> styled by a Tailwind class this app does not ship: use the real element.
+function Strong({ children }: ComponentProps<'strong'> & ExtraProps) {
+  return <strong>{children}</strong>;
+}
+
+// Module constant: Streamdown's memo compares linkSafety by reference, so an inline object re-parses every entry on each render.
+const LINK_SAFETY = { enabled: false };
+
+const markdownComponents = {
+  h1: heading(1),
+  h2: heading(2),
+  h3: heading(3),
+  h4: heading(4),
+  h5: heading(5),
+  h6: heading(6),
+  a: Link,
+  img: ImageAsText,
+  strong: Strong,
+};
+
 function Entry({ item }: { item: TranscriptItem }) {
   if (item.kind === 'notice') {
     return <div className={styles.notice}>{item.text}</div>;
@@ -53,20 +102,24 @@ function Entry({ item }: { item: TranscriptItem }) {
         <b>{item.label}</b>
         <span className={`num ${styles.time}`}>{item.time}</span>
       </div>
-      <p className={styles.text}>
-        {item.text}
-        {item.truncated && (
-          <>
-            {' '}
-            <span className={styles.cut}>… (cut)</span>
-          </>
-        )}
-      </p>
+      <div className={styles.text}>
+        {/* Untrusted text: Streamdown sanitizes raw HTML (script, handlers and javascript: links are never rendered); images show as text, links open in a new tab. */}
+        <Streamdown
+          mode="static"
+          parseIncompleteMarkdown={false}
+          controls={false}
+          linkSafety={LINK_SAFETY}
+          components={markdownComponents}
+        >
+          {item.text}
+        </Streamdown>
+        {item.truncated && <span className={styles.cut}>… (cut)</span>}
+      </div>
     </div>
   );
 }
 
-/** A saved agent conversation: read-only, opens at the bottom, text is always rendered as plain text. */
+/** A saved agent conversation: read-only, opens at the bottom, message text is rendered as sanitized Markdown (unsafe HTML never runs, images are never fetched). */
 export function Transcript({
   state,
   items,

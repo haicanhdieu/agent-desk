@@ -37,6 +37,10 @@ import {
 test.describe.configure({ timeout: 60_000 });
 test.use({ timezoneId: 'UTC' });
 
+// A message's Markdown paragraph sits two wrappers (the text box, Streamdown's own div) below the message block.
+const TEXT_BOX = 'xpath=../..';
+const MESSAGE = 'xpath=../../..';
+
 const runUrl = (number: number) => `/o/${ORG}/p/${INVOICER_API}/runs/${number}`;
 
 async function open(page: Page, number: number): Promise<void> {
@@ -284,10 +288,11 @@ test.describe('BR-38 to BR-41: entries of the Transcript', () => {
     const first = log(page).locator('p').first();
     await expect(first).toContainText('Add a refunds column to the weekly report');
     // The label sits with the first entry (the prompt's own block), not on a later one.
-    await expect(first.locator('xpath=..').getByText('Prompt', { exact: true })).toBeVisible();
+    await expect(first.locator(MESSAGE).getByText('Prompt', { exact: true })).toBeVisible();
     await expect(log(page).getByText('Prompt', { exact: true })).toHaveCount(1);
-    const text = log(page).locator('p', { hasText: 'Please also keep the totals row.' });
-    const message = text.locator('xpath=..');
+    const reply = log(page).locator('p', { hasText: 'Please also keep the totals row.' });
+    const message = reply.locator(MESSAGE);
+    const text = reply.locator(TEXT_BOX);
     await expect(message.getByText('You', { exact: true })).toBeVisible();
     await expect(message.getByText('14:16', { exact: true })).toBeVisible();
     // A raised, bordered box: a border and a fill that differ from the plain reply's.
@@ -296,16 +301,20 @@ test.describe('BR-38 to BR-41: entries of the Transcript', () => {
       return { border: s.borderTopWidth, fill: s.backgroundColor };
     };
     const box = await text.evaluate(look);
-    const plain = await log(page).locator('p', { hasText: 'I will start with the report builder.' }).evaluate(look);
+    const plain = await log(page)
+      .locator('p', { hasText: 'I will start with the report builder.' })
+      .locator(TEXT_BOX)
+      .evaluate(look);
     expect(box.border).toBe('1px');
     expect(box.fill).not.toBe(plain.fill);
     expect(plain.border).toBe('0px');
   });
 
-  test('TC-39.1 an agent reply is plain text labelled Claude with its time and has no box', async ({ page }) => {
+  test('TC-39.1 an agent reply is Markdown text labelled Claude with its time and has no box', async ({ page }) => {
     await open(page, TRANSCRIPT_RICH_RUN);
-    const text = log(page).locator('p', { hasText: 'I will start with the report builder.' });
-    const reply = text.locator('xpath=..');
+    const paragraph = log(page).locator('p', { hasText: 'I will start with the report builder.' });
+    const text = paragraph.locator(TEXT_BOX);
+    const reply = paragraph.locator(MESSAGE);
     await expect(reply.getByText('Claude', { exact: true })).toBeVisible();
     await expect(reply.getByText('14:13', { exact: true })).toBeVisible();
     // No box around the reply, nor around its block.
@@ -377,38 +386,61 @@ function unwanted(text: string): string[] {
   });
 }
 
-test.describe('BR-43: messages are plain text', () => {
-  test('TC-43.1 HTML is shown literally and nothing runs', async ({ page }) => {
+test.describe('BR-43: messages are rendered as safe Markdown', () => {
+  test('TC-43.1 unsafe raw HTML is never rendered and nothing runs', async ({ page }) => {
     const dialogs: string[] = [];
     page.on('dialog', (d) => {
       dialogs.push(d.message());
       void d.dismiss();
     });
     await open(page, TRANSCRIPT_RICH_RUN);
-    const html = log(page).getByText('<b>bold</b> <script>alert(1)</script>', { exact: true });
-    await expect(html).toBeVisible();
-    await expect(log(page).locator('script, img')).toHaveCount(0);
-    // The message is the one that carries <b>bold</b>: no element of its own may be bold or a script.
-    await expect(html.locator('b, strong, script')).toHaveCount(0);
-    await expect(log(page).locator('p b')).toHaveCount(0);
+    // The message that carries <b>bold</b> and a <script>: the script is never rendered and nothing runs.
+    await expect(log(page).locator('p', { hasText: 'bold' }).first()).toBeVisible();
+    await expect(log(page).getByText('alert(1)')).toHaveCount(0);
+    await expect(log(page).locator('script, img, [onerror], [onclick]')).toHaveCount(0);
     expect(dialogs).toEqual([]);
   });
 
-  test('TC-43.2 markdown characters are shown literally', async ({ page }) => {
+  test('TC-43.2 Markdown is rendered as headings, emphasis, lists and links', async ({ page }) => {
     await open(page, TRANSCRIPT_RICH_RUN);
-    await expect(log(page).getByText('# Heading', { exact: false })).toBeVisible();
-    await expect(log(page).getByText('**strong**', { exact: false })).toBeVisible();
-    await expect(log(page).locator('h1, h2, h3, strong, em, ul, li, a, code')).toHaveCount(0);
+    await expect(log(page).getByRole('heading', { name: 'Heading' })).toBeVisible();
+    await expect(log(page).locator('strong', { hasText: 'strong' })).toBeVisible();
+    await expect(log(page).locator('li')).toHaveText(['one', 'two']);
+    const link = log(page).getByRole('link', { name: 'a link' });
+    await expect(link).toHaveAttribute('href', 'https://example.com/');
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(log(page).getByText('# Heading', { exact: false })).toHaveCount(0);
+    await expect(log(page).getByText('**strong**', { exact: false })).toHaveCount(0);
   });
 
-  test('TC-43.3 line breaks and runs of spaces are kept', async ({ page }) => {
+  test('TC-43.2b tables, inline code and fenced code are readable and a long code line scrolls in its block', async ({
+    page,
+  }) => {
+    await open(page, TRANSCRIPT_RICH_RUN);
+    const table = log(page).getByRole('table');
+    await expect(table).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+    await expect(table.getByRole('cell', { name: 'refunds', exact: true })).toBeVisible();
+    await expect(log(page).locator('code', { hasText: /^inline_code$/ })).toBeVisible();
+    const block = log(page).locator('pre', { hasText: 'LONG_CODE_LINE' });
+    await expect(block).toBeVisible();
+    // The long code line does not widen the transcript itself.
+    expect(await log(page).evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    // It scrolls inside its own block: that block clips sideways (auto or scroll) and its line is wider than it.
+    const scroll = await block.evaluate((pre) => ({
+      overflowX: getComputedStyle(pre).overflowX,
+      wider: pre.scrollWidth > pre.clientWidth,
+    }));
+    expect(scroll.overflowX).toMatch(/^(auto|scroll)$/);
+    expect(scroll.wider).toBe(true);
+  });
+
+  test('TC-43.3 line breaks are kept and runs of spaces collapse', async ({ page }) => {
     await open(page, TRANSCRIPT_RICH_RUN);
     const text = log(page).locator('p', { hasText: /^a {5}b/ });
     await expect(text).toHaveCount(1);
     const shown = await text.evaluate((el) => (el as HTMLElement).innerText);
-    expect(shown).toBe('a     b\n     c\n     d');
-    const whiteSpace = await text.evaluate((el) => getComputedStyle(el).whiteSpace);
-    expect(whiteSpace).toMatch(/pre/);
+    expect(shown).toBe('a b\nc\nd');
   });
 
   test('TC-43.4 bidi and control characters are removed', async ({ page }) => {

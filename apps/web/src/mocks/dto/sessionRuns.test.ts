@@ -79,6 +79,9 @@ describe('session fixture runs (browser mock)', () => {
     expect(texts).toContain('API Error: 401 invalid credential');
     expect(texts).toContain('<b>bold</b> <script>alert(1)</script>');
     expect(texts.some((t) => t.includes('# Heading') && t.includes('**strong**'))).toBe(true);
+    expect(
+      texts.some((t) => t.includes('| refunds |') && t.includes('`inline_code`') && t.includes('LONG_CODE_LINE')),
+    ).toBe(true);
   });
 
   it('behaviours and slow actions point at runs that exist', () => {
