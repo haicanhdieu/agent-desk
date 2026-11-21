@@ -1537,13 +1537,13 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
   Non-platform-admin (`sessionAccessQuery().platformAdmin === false`) → the forbidden state, no request. 409 `/slug` → "This URL is taken. Try another."; field errors copy from the spec; network or 5xx on create → form Banner, input kept; an invitation 4xx on email → the email field error and Retry after the fix; created → "Done" goes to `/`; `['session','orgs']` invalidated after create.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `createOrg.test.ts`: `nextSlug` auto-fills "Acme Labs" → `acme-labs`; an edit wins over later name changes; clearing resumes; a name of only symbols gives `org` (slice 1 fallback, never empty).
   - `createOrg.route.test.tsx`: BR-35 create with name, auto slug and email shows "Organization created" with the link and "Done" goes to `/`; BR-36 empty name, 101 characters, `Bad_Slug`, `-abc`, 64 characters, taken `acme`, `nope`, 255-character email each show their error and send no org create; 100-character name and 63-character slug succeed; BR-39 `ownerInvitationFailsOnce` shows the Banner with Retry, Name and URL read-only, and Retry sends one invitation create and no second org create (request log); BR-46 a non-admin sees `Forbidden` and no request is sent; the org-mismatch answer shows the T12 Toast.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.test.ts src/features/orgs/createOrg.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (regenerate `routeTree.gen.ts`), slug logic and the two-step mutation.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): create an organization and its owner invitation`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/orgs/createOrg.test.ts src/features/orgs/createOrg.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (regenerate `routeTree.gen.ts`), slug logic and the two-step mutation.
+- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS. (Not ticked: only the Step 2 command was run; the full web suite was not.)
+- [x] **Step 5: Commit** `feat(web): create an organization and its owner invitation`.
 
 ---
 
