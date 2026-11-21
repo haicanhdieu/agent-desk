@@ -622,7 +622,7 @@ export function withPrStates(groups: TicketGroup[], states: ReadonlyMap<string, 
   - `groups` go through `withPrStates`, and `needsYouRun.run.ticket` through `withPrState`.
 - `IgnoredView`: `usePrStates(org, projectId, prRefsOf(items.map((i) => i.ticket)))`, and each item's `ticket` goes through `withPrState`. Real rows have kind `issue` (`ticketKind: null`), so they send nothing.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `map.test.ts`, `withPrStates`:
     - a PR-led group's header and rows get the state;
     - a merged group keeps its issue header and its `chainNote` string unchanged (BR-5, BR-12);
@@ -635,8 +635,8 @@ export function withPrStates(groups: TicketGroup[], states: ReadonlyMap<string, 
     - `page 2 asks for its own refs and keeps known states meanwhile` (BR-13): assert the set of refs asked, not call counts.
     - `the Ignored view colours PR rows and leaves issue rows alone` (BR-16). `applyMockLists({ ignored: 10 })` asks refs `102,104,106,108,110` and shows "Open", "Draft", "Merged", "Closed"; #110 stays neutral.
     - `partial and error leave icons neutral with no banner or toast` (BR-7, BR-8).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test map.test runs.route`. Expected: FAIL. **Implement** `withPrStates` and the wiring. Run again. Expected: PASS.
-- [ ] **Step 3: Extend the mock e2e** `e2e/mock/pr-state.spec.ts`:
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test map.test runs.route`. Expected: FAIL. **Implement** `withPrStates` and the wiring. Run again. Expected: PASS.
+- [x] **Step 3: Extend the mock e2e** `e2e/mock/pr-state.spec.ts`:
   - `Runs rows in each state, flat and grouped; a PR-led header matches its rows` (BR-1, BR-2, BR-4, BR-9). Seed `ticketRuns` with PRs 102, 104, 106, 108 and 110 and issue 120. Check each colour, the hover `title` and the accessible name. #110 and the issue stay neutral or issue.
   - `a merged group keeps its issue header and a plain chain note` (BR-5, BR-12): issue 120, PR 106 `linked: [120]`.
   - `the Needs-you banner on a merged PR is purple, also when the run is off the current page` (BR-14).
@@ -646,8 +646,8 @@ export function withPrStates(groups: TicketGroup[], states: ReadonlyMap<string, 
   - `error and pending: the Runs page stays neutral, silent, and works` (BR-7).
   - `partial: draft and closed stay neutral while the others are coloured` (BR-8).
   - `a page with only issues sends no PR-state request` (BR-5).
-- [ ] **Step 4: Run the changed spec:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/pr-state.spec.ts`. Expected: PASS. Then run `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit:** `feat(web): colour PR icons on the Runs list, banner and Ignored view`.
+- [x] **Step 4: Run the changed spec:** `pnpm --filter @agentdesk/web exec vite build --mode mock && pnpm --filter @agentdesk/web exec playwright test e2e/mock/pr-state.spec.ts`. Expected: PASS. Then run `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit:** `feat(web): colour PR icons on the Runs list, banner and Ignored view`.
 
 ---
 

@@ -19,6 +19,7 @@ import {
   groupByTicket,
   linkedTicketsByRun,
   idleSlotNote,
+  prRefsOf,
   repoUrlOf,
   startOfLocalDay,
   ticketRunCounts,
@@ -26,9 +27,11 @@ import {
   toIgnored,
   todaySummary,
   toRunSummary,
+  withPrState,
+  withPrStates,
 } from '@/features/runs/map';
 import { runHref, useProjectPage } from '@/features/runs/page';
-import { runsQueries } from '@/features/runs/queries';
+import { runsQueries, usePrStates } from '@/features/runs/queries';
 import { useGroupedPref } from '@/features/runs/useGroupedPref';
 import { relativeTime } from '@/features/relativeTime';
 import { Runs, RunsProblems, type RunsFilter, type RunsProblemsWarning } from '@/screens';
@@ -135,6 +138,9 @@ function IgnoredView({
     go,
   });
   const repoUrl = repoUrlOf(page.dto.repoPath);
+  const ignored = ignoredPage.items.map((i) => toIgnored(i, repoUrl));
+  // Real rows have kind issue and send nothing; a row that is already a PR gets its state.
+  const prStates = usePrStates(org, projectId, prRefsOf(ignored.map((i) => i.ticket)));
   const recheck = () => void queryClient.invalidateQueries(projectsQueries.connection(org, projectId));
   const warning = toConnectionWarning(page.connection, page.connectionDto, page.paths.agent, now);
   const warnings: RunsProblemsWarning[] = warning
@@ -145,7 +151,7 @@ function IgnoredView({
       {...common}
       filter="ignored"
       warnings={warnings}
-      ignored={ignoredPage.items.map((i) => toIgnored(i, repoUrl))}
+      ignored={ignored.map((i) => ({ ...i, ticket: withPrState(i.ticket, prStates) }))}
       pagination={pagination}
     />
   );
@@ -199,19 +205,28 @@ function ListView({
     href: runHref(paths, idle.number),
   };
 
+  const prStates = usePrStates(
+    org,
+    projectId,
+    prRefsOf([...summaries.map((s) => s.ticket), ...(needsYouRun ? [needsYouRun.run.ticket] : [])]),
+  );
+
   return (
     <Runs
       {...common}
       filter={filter}
       grouped={grouped}
       onGroupedChange={setGrouped}
-      groups={groupByTicket(
-        summaries,
-        dto.maxRunsPerTicket,
-        ticketRunCounts(listed.items),
-        linkedTicketsByRun(listed.items),
+      groups={withPrStates(
+        groupByTicket(summaries, dto.maxRunsPerTicket, ticketRunCounts(listed.items), linkedTicketsByRun(listed.items)),
+        prStates,
       )}
-      needsYouRun={needsYouRun}
+      needsYouRun={
+        needsYouRun && {
+          ...needsYouRun,
+          run: { ...needsYouRun.run, ticket: withPrState(needsYouRun.run.ticket, prStates) },
+        }
+      }
       waitingRun={stats.nextQueuedNumber ?? undefined}
       runHref={(r) => runHref(paths, r.id)}
       showAllHref={paths.runs}

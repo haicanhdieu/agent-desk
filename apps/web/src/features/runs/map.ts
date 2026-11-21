@@ -383,3 +383,12 @@ export function withPrState<T extends { kind: TicketKind; number: number }>(
   const prState = states.get(String(ticket.number));
   return prState === undefined ? ticket : { ...ticket, prState };
 }
+
+/** Each group's header ticket and every row's ticket through withPrState; chainNote and everything else unchanged. */
+export function withPrStates(groups: TicketGroup[], states: ReadonlyMap<string, PrState>): TicketGroup[] {
+  return groups.map((g) => ({
+    ...g,
+    ticket: withPrState(g.ticket, states),
+    runs: g.runs.map((r) => ({ ...r, ticket: withPrState(r.ticket, states) })),
+  }));
+}

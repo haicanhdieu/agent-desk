@@ -300,7 +300,7 @@ describe('runs route', () => {
     /** Ticket header rows: the table rows with no Run link. */
     const headers = () =>
       screen.getAllByRole('row').filter((r) => within(r).queryByRole('link', { name: /^Run \d+$/ }) === null);
-    const headerOf = (name: string) => {
+    const headerOf = (name: string | RegExp) => {
       const row = headers().find((r) => within(r).queryByRole('link', { name }) !== null);
       if (!row) throw new Error('no header row for ' + name);
       return row;
@@ -311,7 +311,7 @@ describe('runs route', () => {
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
       const header = headerOf('Issue #142');
       expect(header).toHaveTextContent('Issue #142 (1 of 10 runs) → PR #148 (1 of 10 runs)');
-      expect(headers().some((r) => within(r).queryByRole('link', { name: 'PR #148' }))).toBe(false);
+      expect(headers().some((r) => within(r).queryByRole('link', { name: /PR #148$/ }))).toBe(false);
       const rows: HTMLElement[] = [];
       for (
         let el = header.nextElementSibling;
@@ -342,7 +342,7 @@ describe('runs route', () => {
       await renderRoute(`${base}/runs`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
       expect(screen.getByRole('link', { name: 'Issue #142' })).toBeInTheDocument();
-      const pr = headerOf('PR #148');
+      const pr = headerOf(/PR #148$/);
       expect(pr).toHaveTextContent('2 of 10 runs');
     });
 
@@ -781,5 +781,112 @@ describe('needs-you route', () => {
     await renderRoute(`${base}/needs-you`);
     expect(await screen.findAllByText('No runs need you right now.')).not.toHaveLength(0);
     expect(screen.queryByRole('link', { name: /^Open run/ })).not.toBeInTheDocument();
+  });
+});
+
+describe('runs route, PR states', () => {
+  const prStatesPath = `/api/projects/${projectId}/tickets/pr-states`;
+  const stateWords = /^(Open|Draft|Merged|Closed)$/;
+
+  /** The refs of every GET pr-states request, one array per request. */
+  function captureAskedRefs() {
+    const asked: string[][] = [];
+    const listener = ({ request }: { request: Request }) => {
+      const url = new URL(request.url);
+      if (url.pathname === prStatesPath) asked.push(url.searchParams.getAll('ref'));
+    };
+    server.events.on('request:start', listener);
+    stopCapture = () => server.events.removeListener('request:start', listener);
+    return asked;
+  }
+  const askedSet = (asked: string[][]) => [...new Set(asked.flat())].sort((a, b) => Number(a) - Number(b));
+
+  /** The table row (header or run) that holds the link `name`. */
+  const rowOf = (name: string | RegExp) => {
+    const row = screen.getAllByRole('row').find((r) => within(r).queryByRole('link', { name }) !== null);
+    if (!row) throw new Error(`no row for ${String(name)}`);
+    return row;
+  };
+  /** The banner: the nearest ancestor of its title that holds a PR ticket. */
+  const bannerOf = (title: string) => {
+    let el: HTMLElement | null = screen.getByText(title);
+    while (el && within(el).queryByText(/^PR #\d+$/) === null) el = el.parentElement;
+    if (!el) throw new Error('no banner');
+    return el;
+  };
+
+  it('rows and the banner show their PR state', async () => {
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    await waitFor(() => expect(within(rowOf('Run 62')).getByLabelText('Merged')).toBeInTheDocument());
+    expect(within(bannerOf('Run 62 needs you.')).getByLabelText('Merged')).toBeInTheDocument();
+    expect(within(rowOf('Run 56')).getByLabelText('Open')).toBeInTheDocument();
+    expect(within(rowOf('Run 57')).getByLabelText('Open')).toBeInTheDocument();
+  });
+
+  it('a PR run whose ticket ref is pr-102 is asked as ref=102 and coloured', async () => {
+    const asked = captureAskedRefs();
+    applyMockLists({ ticketRuns: [{ kind: 'pr', number: 102 }] });
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    await waitFor(() => expect(within(rowOf(/PR #102$/)).getByLabelText('Open')).toBeInTheDocument());
+    expect(askedSet(asked)).toContain('102');
+    expect(askedSet(asked)).not.toContain('pr-102');
+    expect(within(rowOf('Run 1')).getByLabelText('Open')).toBeInTheDocument();
+  });
+
+  it("asks for an off-page idle run's PR", async () => {
+    const asked = captureAskedRefs();
+    applyMockLists({ runs: { total: 25 }, ticketRuns: [{ kind: 'pr', number: 106, status: 'idle' }] });
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('navigation', { name: 'Pagination' });
+    await waitFor(() => expect(askedSet(asked)).toContain('106'));
+    await waitFor(() => expect(within(bannerOf('Run 1 needs you.')).getByLabelText('Merged')).toBeInTheDocument());
+  });
+
+  it('an issue-only page sends no PR-state request', async () => {
+    applyMockLists({ ticketRuns: [{ kind: 'issue', number: 120 }] });
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('link', { name: 'Run 1' });
+    expect(mockDb.requests('GET', prStatesPath)).toBe(0);
+  });
+
+  it('page 2 asks for its own refs and keeps known states meanwhile', async () => {
+    const asked = captureAskedRefs();
+    applyMockLists({
+      runs: { total: 25 },
+      ticketRuns: [
+        { kind: 'pr', number: 102 },
+        { kind: 'pr', number: 104 },
+      ],
+    });
+    const { user } = await renderRoute(`${base}/runs`);
+    await screen.findByRole('navigation', { name: 'Pagination' });
+    await user.click(screen.getAllByRole('button', { name: 'Page 2' })[0] as HTMLElement);
+    await waitFor(() => expect(askedSet(asked)).toEqual(expect.arrayContaining(['102', '104'])));
+    await waitFor(() => expect(screen.getAllByLabelText(stateWords).length).toBeGreaterThan(0));
+  });
+
+  it('the Ignored view colours PR rows and leaves issue rows alone', async () => {
+    const asked = captureAskedRefs();
+    applyMockLists({ ignored: 10 });
+    await renderRoute(`${base}/runs?filter=ignored`);
+    await screen.findByRole('table');
+    await waitFor(() => expect(screen.getAllByLabelText(stateWords)).toHaveLength(4));
+    expect(askedSet(asked)).toEqual(['102', '104', '106', '108', '110']);
+    for (const w of ['Open', 'Draft', 'Merged', 'Closed']) expect(screen.getAllByLabelText(w)).toHaveLength(1);
+  });
+
+  it.each(['partial', 'error'] as const)('%s leaves icons neutral with no banner or toast', async (scenario) => {
+    scenarios.prStates(scenario);
+    applyMockLists({ ignored: 10 });
+    await renderRoute(`${base}/runs?filter=ignored`);
+    await screen.findByRole('table');
+    await waitFor(() => expect(mockDb.requests('GET', prStatesPath)).toBeGreaterThanOrEqual(1));
+    // partial still answers #102 and #106; error answers nothing.
+    await waitFor(() => expect(screen.queryAllByLabelText(stateWords)).toHaveLength(scenario === 'partial' ? 2 : 0));
+    expect(screen.queryByLabelText('Draft')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Closed')).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });
