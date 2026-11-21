@@ -1542,15 +1542,15 @@ export async function checkTenantAccess(db: Db, who: { userId: string; orgId: st
 - Consumes: `pendingInvitationsForEmail` (Task 5); `isPlatformAdmin` (Task 10); `devSignUp` (Task 12); acceptance (Task 14).
 - Produces: `user.create.before` throws (no user row) unless the email is verified and (`pendingInvitationsForEmail` returns a row or `isPlatformAdmin`); `ensurePersonalOrg` and its calls are removed; `session.create.before` sets `activeOrganizationId` to the oldest membership or `null`. The PR body carries the release note.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `invitations.int.test.ts`: BR-54 dev-login of an uninvited handle → 401, no `user` row, a second try → 401; BR-57 a handle whose only invitation is expired → refused, no user; BR-58 a revoked invitation's handle → refused, no user.
   - `platform.int.test.ts`: BR-62 on a fresh app the config email signs up with no invitation → 302, the user exists with no membership, `GET /api/platform/orgs` → 200, `get-session` shows `activeOrganizationId` null; N9 with `NODE_ENV=production` config, `/auth/dev-login` → 404.
   - `auth.int.test.ts`: the personal-org cases are replaced by "an invited handle's first dev-login creates no personal org and lands in the invited org" and "an uninvited handle is refused"; the slug-collision and concurrent-colliding-slug cases are removed with the behaviour.
   - `connections.int.test.ts`: "two orgs can both install" builds its two orgs with `createOrg` + `inviteAndLogin` and asserts both connections.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/auth.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/connections.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the gate and the session change; delete `ensurePersonalOrg`.
-- [ ] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Task 44.
-- [ ] **Step 5: Commit** `feat(api): sign-up needs an invitation or a platform admin email`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/auth.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/connections.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the gate and the session change; delete `ensurePersonalOrg`.
+- [x] **Step 4: Run** the same command and `pnpm --filter @agentdesk/api test`. Expected: PASS. E2E for this behaviour: Task 44.
+- [x] **Step 5: Commit** `feat(api): sign-up needs an invitation or a platform admin email`.
 
 ---
 

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import type { QueryResultRow } from 'pg';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type {
@@ -9,11 +10,13 @@ import type {
   PlatformProjectDto,
   RoleDto,
 } from '@agentdesk/contracts';
+import { FakeKubeGateway } from '@agentdesk/core';
 import { connections, projects, withOrg } from '@agentdesk/db';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
 import { createTestApp, type TestApp } from './helpers/app';
-import { asPlatformAdmin, createOrg, grant, inviteAndLogin, loginAs, revoke, userIdOf } from './helpers/auth';
+import { asPlatformAdmin, cookieOf, createOrg, grant, inviteAndLogin, loginAs, revoke, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
+import { freshStateDir } from './helpers/fixtures';
 
 let t: TestApp;
 let admin: string;
@@ -150,7 +153,8 @@ describe('platform org creation', () => {
   });
 
   it('refuses a caller who is not a platform admin, creating nothing', async () => {
-    const alice = await loginAs(t, 'alice');
+    const home = await createOrg(t, 'Alice Home', 'alice-home');
+    const alice = await inviteAndLogin(t, home.id, 'alice', 'owner', { type: 'org' });
     const res = await post({ name: 'Nope', slug: 'nope-org' }, alice);
     expect(res.statusCode).toBe(403);
     expect((res.json() as { detail: string }).detail).toBe(FORBIDDEN_DETAIL);
@@ -227,8 +231,8 @@ describe('platform org and project lists', () => {
   });
 
   it('refuses a non-platform user on the lists', async () => {
-    const alice = await loginAs(t, 'alice');
     const org = await createOrg(t, 'Guarded', 'guarded-org');
+    const alice = await inviteAndLogin(t, org.id, 'alice-lists', 'owner', { type: 'org' });
     for (const url of [
       '/api/platform/orgs',
       `/api/platform/orgs/${org.id}/projects`,
@@ -341,10 +345,59 @@ describe('platform admin from config', () => {
   });
 
   it('dev-login marks a user that was created unverified as verified on its next login', async () => {
-    await loginAs(t, 'carol');
+    const home = await createOrg(t, 'Carol Home', 'carol-home');
+    await inviteAndLogin(t, home.id, 'carol', 'viewer', { type: 'org' });
     await t.db.pool.query('update "user" set email_verified = false where email = \'carol@dev.local\'');
     await loginAs(t, 'carol');
     const rows = await t.db.pool.query('select email_verified from "user" where email = \'carol@dev.local\'');
     expect(rows.rows[0]?.email_verified).toBe(true);
+  });
+});
+
+describe('platform admin sign-up (BR-62, N9)', () => {
+  it('BR-62: the configured email signs up with no invitation, has no membership and no active org', async () => {
+    const fresh = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: 'fresh-pa@dev.local' } });
+    try {
+      const login = await fresh.app.inject({ method: 'GET', url: '/auth/dev-login?handle=fresh-pa' });
+      expect(login.statusCode).toBe(302);
+      const cookie = cookieOf(login);
+      const users = await fresh.db.pool.query<{ id: string; email_verified: boolean }>(
+        'select id, email_verified from "user" where email = $1',
+        ['fresh-pa@dev.local'],
+      );
+      expect(users.rows).toHaveLength(1);
+      expect(users.rows[0]?.email_verified).toBe(true);
+      const id = users.rows[0]?.id;
+      const members = await fresh.db.pool.query('select 1 from member where user_id = $1', [id]);
+      expect(members.rows).toHaveLength(0);
+      const orgs = await fresh.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie } });
+      expect(orgs.statusCode).toBe(200);
+      const sess = await fresh.app.inject({ method: 'GET', url: '/auth/get-session', headers: { cookie } });
+      expect(sess.json<{ session: { activeOrganizationId: string | null } }>().session.activeOrganizationId).toBeNull();
+    } finally {
+      await fresh.close();
+    }
+  });
+
+  it('N9: dev-login is absent when the config is production', async () => {
+    const prod = await createTestApp({
+      env: {
+        NODE_ENV: 'production',
+        AUTH_DEV_LOGIN: 'false',
+        ENABLE_FAKE_PROVIDER: 'false',
+        KUBE_MODE: 'incluster',
+        RUN_VOLUME_STORAGE_CLASS: 'delete-on-release',
+      },
+      kube: new FakeKubeGateway(join(freshStateDir(), 'kube')),
+    });
+    try {
+      const res = await prod.app.inject({ method: 'GET', url: '/auth/dev-login?handle=prod-probe' });
+      expect(res.statusCode).toBe(404);
+      expect(res.headers['set-cookie']).toBeUndefined();
+      const users = await prod.db.pool.query('select 1 from "user" where email = \'prod-probe@dev.local\'');
+      expect(users.rows).toHaveLength(0);
+    } finally {
+      await prod.close();
+    }
   });
 });

@@ -7,7 +7,7 @@ export function cookieOf(res: { headers: Record<string, unknown> }): string {
   return list.map((c) => String(c).split(';')[0]).join('; ');
 }
 
-/** Dev-logs in `handle` (creating user + personal org) and returns the session cookie header value. */
+/** Dev-logs in `handle` and returns the session cookie header value, or an empty string when the handle is uninvited and not a platform admin (the gate refuses it). Use inviteAndLogin for new users. */
 export async function loginAs(t: TestApp, handle: string): Promise<string> {
   const res = await t.app.inject({ method: 'GET', url: `/auth/dev-login?handle=${encodeURIComponent(handle)}` });
   return cookieOf(res);

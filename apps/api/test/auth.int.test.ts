@@ -35,31 +35,50 @@ function cookieOf(res: { headers: Record<string, unknown> }): string {
 }
 
 describe('auth', () => {
-  it('dev-login creates user, uuid personal org with slug and owner membership, redirects with cookie', async () => {
+  it("an invited handle's first dev-login creates no personal org and lands in the invited org", async () => {
+    const orgId = (await createOrg(t, 'Invited Org', 'invited-org')).id;
+    const orgsBefore = (await t.db.pool.query('select count(*)::int as n from organization')).rows[0]?.n;
+    const cookie = await inviteAndLogin(t, orgId, 'alice', 'viewer', { type: 'org' });
+    expect(cookie).not.toBe('');
     const res = await devLogin('alice', '/projects');
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toBe('/projects');
     expect(cookieOf(res)).not.toBe('');
-    const org = await t.db.pool.query("select id, slug from organization where slug = 'alice'");
-    expect(org.rows).toHaveLength(1);
-    expect(org.rows[0].id).toMatch(UUID);
+    const orgsAfter = (await t.db.pool.query('select count(*)::int as n from organization')).rows[0]?.n;
+    expect(orgsAfter).toBe(orgsBefore);
     const m = await t.db.pool.query(
-      'select m.role, u.handle, u.email from member m join "user" u on u.id = m.user_id where m.organization_id = $1',
-      [org.rows[0].id],
+      'select m.organization_id, u.handle, u.email from member m join "user" u on u.id = m.user_id where u.email = $1',
+      ['alice@dev.local'],
     );
-    expect(m.rows).toEqual([{ role: 'owner', handle: 'alice', email: 'alice@dev.local' }]);
-    const s = await t.db.pool.query('select active_organization_id from session');
-    expect(s.rows.map((r) => r.active_organization_id)).toContain(org.rows[0].id);
+    expect(m.rows).toHaveLength(1);
+    expect(m.rows[0]).toMatchObject({ organization_id: orgId, handle: 'alice', email: 'alice@dev.local' });
+    expect(orgId).toMatch(UUID);
+    const s = await t.db.pool.query(
+      'select active_organization_id from session where user_id = (select id from "user" where email = $1)',
+      ['alice@dev.local'],
+    );
+    expect(s.rows.length).toBeGreaterThan(0);
+    expect(s.rows.map((r) => r.active_organization_id)).toEqual(s.rows.map(() => orgId));
   });
 
-  it('a second dev-login for the same handle does not create another org', async () => {
+  it('an uninvited handle is refused with 401, no cookie and no user', async () => {
+    const res = await devLogin('uninvited');
+    expect(res.statusCode).toBe(401);
+    expect(res.headers['set-cookie']).toBeUndefined();
+    const users = await t.db.pool.query('select 1 from "user" where email = \'uninvited@dev.local\'');
+    expect(users.rows).toHaveLength(0);
+    const orgs = await t.db.pool.query("select 1 from organization where slug like 'uninvited%'");
+    expect(orgs.rows).toHaveLength(0);
+  });
+
+  it('a second dev-login for the same handle creates no second user or org', async () => {
     const res = await devLogin('alice');
     expect(res.statusCode).toBe(302);
     expect(res.headers['location']).toBe('/');
-    const org = await t.db.pool.query("select id from organization where slug like 'alice%'");
-    expect(org.rows).toHaveLength(1);
     const users = await t.db.pool.query('select id from "user" where email = \'alice@dev.local\'');
     expect(users.rows).toHaveLength(1);
+    const members = await t.db.pool.query('select 1 from member where user_id = $1', [users.rows[0]?.id]);
+    expect(members.rows).toHaveLength(1);
   });
 
   it('GET /api/projects without a cookie is a 401 problem; with a cookie it is 200', async () => {
@@ -100,13 +119,6 @@ describe('auth', () => {
     expect((await devLogin('Bad Handle!')).statusCode).toBe(400);
   });
 
-  it('suffixes the personal org slug on collision', async () => {
-    await devLogin('dup.one');
-    await devLogin('dup-one');
-    const r = await t.db.pool.query("select slug from organization where slug like 'dup-one%' order by slug");
-    expect(r.rows.map((x) => x.slug)).toEqual(['dup-one', 'dup-one-2']);
-  });
-
   it('blocks direct email/password sign-in and sign-up endpoints', async () => {
     for (const url of ['/auth/sign-in/email', '/auth/sign-up/email']) {
       const res = await t.app.inject({
@@ -143,14 +155,7 @@ describe('auth', () => {
       payload: { name: 'x', slug: 'x-org' },
     });
     expect(res.statusCode).toBe(404);
-    expect((await devLogin('frank')).statusCode).toBe(302);
-  });
-
-  it('concurrent sign-ups with colliding handles both succeed with distinct slugs (end-to-end; the retry itself is covered deterministically in unique-slug.test.ts)', async () => {
-    const [a, b] = await Promise.all([devLogin('race.x'), devLogin('race-x')]);
-    expect([a.statusCode, b.statusCode]).toEqual([302, 302]);
-    const r = await t.db.pool.query("select slug from organization where slug like 'race-x%' order by slug");
-    expect(r.rows.map((x) => x.slug)).toEqual(['race-x', 'race-x-2']);
+    expect((await devLogin('auth-block')).statusCode).toBe(302);
   });
 
   it('returns 403 when the active organization is not one the user belongs to', async () => {

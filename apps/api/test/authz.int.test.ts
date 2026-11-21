@@ -13,16 +13,15 @@ import { DiscoveryService, ModulesContainer } from '@nestjs/core';
 import type { Logger } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { flattenRoutes, routeAccess, routes, type RouteKey } from '@agentdesk/contracts';
-import { copyRoleTemplates } from '@agentdesk/core';
-import { roleAssignments, roles, rules as rulesTable, runs, setupTests, withOrg } from '@agentdesk/db';
-import { and, eq } from 'drizzle-orm';
+import { roleAssignments, rules as rulesTable, runs, setupTests, withOrg } from '@agentdesk/db';
+import { eq } from 'drizzle-orm';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
 import { routeEntryFor } from '../src/access/route-entry';
 import type { Auth } from '../src/auth/auth';
 import { SessionGuard } from '../src/auth/session.guard';
 import type { Config } from '../src/config/config.module';
 import { createTestApp, type TestApp } from './helpers/app';
-import { createOrg, inviteAndLogin, loginAs, userIdOf } from './helpers/auth';
+import { createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
 /**
@@ -143,7 +142,8 @@ describe('an /api route with no entry', () => {
   it('is refused with 403 even for a signed-in member', async () => {
     const t = await createTestApp({ controllers: [UnlistedController] });
     try {
-      const cookie = await loginAs(t, 'probe');
+      const home = await createOrg(t, 'Probe Home', 'probe-home');
+      const cookie = await inviteAndLogin(t, home.id, 'probe', 'member', { type: 'org' });
       const res = await t.app.inject({ method: 'GET', url: '/api/authz-probe', headers: { cookie } });
       expect(res.statusCode).toBe(403);
       expect(res.json()).toMatchObject({ detail: FORBIDDEN_DETAIL });
@@ -213,36 +213,23 @@ describe('SessionGuard route kinds', () => {
   let owner: Person; // org-scope owner of their org
   let viewer: Person; // org-scope viewer of their org
 
-  async function person(handle: string): Promise<Person> {
-    await loginAs(t, handle);
-    const r = await t.db.pool.query<{ id: string; organization_id: string }>(
-      `select u.id, m.organization_id from "user" u join member m on m.user_id = u.id where u.handle = $1`,
-      [handle],
-    );
-    const row = r.rows[0];
-    if (!row) throw new Error(`no user ${handle}`);
-    return { userId: row.id, email: `${handle}@dev.local`, orgId: row.organization_id };
-  }
-
-  async function assign(p: Person, roleKey: string): Promise<void> {
-    await withOrg(t.db, p.orgId, async (tx) => {
-      await copyRoleTemplates(tx, p.orgId);
-      const [role] = await tx
-        .select({ id: roles.id })
-        .from(roles)
-        .where(and(eq(roles.orgId, p.orgId), eq(roles.key, roleKey)));
-      if (!role) throw new Error(`no role ${roleKey}`);
-      await tx.insert(roleAssignments).values({ orgId: p.orgId, userId: p.userId, roleId: role.id, scopeType: 'org' });
-    });
+  /** A member of their own org holding `roleKey` on it, or (null) a member whose only assignment is then removed. */
+  async function person(handle: string, roleKey: 'owner' | 'viewer' | null): Promise<Person> {
+    const org = await createOrg(t, handle, handle);
+    await inviteAndLogin(t, org.id, handle, roleKey ?? 'viewer', { type: 'org' });
+    const userId = await userIdOf(t, handle);
+    if (roleKey === null) {
+      // Off-list data: a member with no assignment cannot be made through the invitation flow.
+      await withOrg(t.db, org.id, (tx) => tx.delete(roleAssignments).where(eq(roleAssignments.userId, userId)));
+    }
+    return { userId, email: `${handle}@dev.local`, orgId: org.id };
   }
 
   beforeAll(async () => {
     t = await createTestApp();
-    nobody = await person('az-nobody');
-    owner = await person('az-owner');
-    viewer = await person('az-viewer');
-    await assign(owner, 'owner');
-    await assign(viewer, 'viewer');
+    nobody = await person('az-nobody', null);
+    owner = await person('az-owner', 'owner');
+    viewer = await person('az-viewer', 'viewer');
   });
   afterAll(async () => {
     await t.close();

@@ -14,7 +14,7 @@ import { writeAuditEntry } from '../audit/audit-entry';
 
 /**
  * Applies every pending, unexpired invitation addressed to the user's verified email. Each invitation runs in its own
- * `withOrg` transaction, after the per-user advisory lock (shared with the personal-org hook) and a `for update`
+ * `withOrg` transaction, after the per-user advisory lock and a `for update`
  * re-read, so a concurrent or repeated call finds it already accepted and does nothing. Expiry and the email match are
  * decided in SQL (`now()`, `lower()`), never from a JS clock. An unverified email applies nothing: the address is only
  * a proof of identity once the provider vouched for it.

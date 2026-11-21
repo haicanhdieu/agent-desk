@@ -1,10 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import type { QueryResultRow } from 'pg';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import type { InvitationDto, Page, RoleDto } from '@agentdesk/contracts';
 import { connections, projects, withOrg } from '@agentdesk/db';
 import { createTestApp, type TestApp } from './helpers/app';
 import { acceptPendingInvitations } from '../src/auth/accept-invitations';
+import { AUTH } from '../src/auth/auth';
+import { devSignUp } from '../src/auth/dev-signup';
 import { asPlatformAdmin, createOrg, inviteAndLogin, loginAs, userIdOf } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
@@ -253,7 +255,8 @@ describe('platform invitation validation', () => {
 
   it('refuses an address that already belongs to a member of the org with 409 /email', async () => {
     const f = await fixture('inv-member');
-    await loginAs(t, 'existing-member');
+    const home = await fixture('inv-member-home');
+    await inviteAndLogin(t, home.orgId, 'existing-member', 'viewer', { type: 'org' });
     const row = (await t.db.pool.query('select id, email from "user" where handle = $1', ['existing-member'])).rows[0];
     await t.db.pool.query(
       `insert into member (id, organization_id, user_id, role, created_at) values ($1, $2, $3, 'member', now())`,
@@ -272,7 +275,7 @@ describe('platform invitation validation', () => {
     const f = await fixture('inv-404');
     const body = { email: 'a@example.com', roleId: f.roles.viewer, scope: { type: 'org' } };
     expect((await invite(randomUUID(), body)).statusCode).toBe(404);
-    const other = await loginAs(t, 'not-an-admin');
+    const other = await inviteAndLogin(t, f.orgId, 'not-an-admin', 'viewer', { type: 'org' });
     const denied = await t.app.inject({
       method: 'POST',
       url: `/api/platform/orgs/${f.orgId}/invitations`,
@@ -470,16 +473,14 @@ describe('accepting invitations at sign-in', () => {
     expect(await activeOrgOf(cookie)).toBe(first.orgId);
   });
 
-  it('BR-57: an expired invitation is not applied and stays non-accepted', async () => {
+  it('BR-57: an expired invitation does not let its handle sign up, and it stays non-accepted', async () => {
     const f = await fixture('acc-expired');
     const created = (
       await invite(f.orgId, { email: 'acc-late@dev.local', roleId: f.roles.viewer, scope: { type: 'org' } })
     ).json<InvitationDto>();
     await asOrg(f.orgId, "update invitations set expires_at = now() - interval '1 minute' where id = $1", [created.id]);
-    await loginAs(t, 'acc-late');
-    const userId = await userIdOf(t, 'acc-late');
-    expect(await memberRows(f.orgId, userId)).toHaveLength(0);
-    expect(await assignmentRows(f.orgId, userId)).toHaveLength(0);
+    expect((await devLogin('acc-late')).statusCode).toBe(401);
+    expect(await userRowCount('acc-late@dev.local')).toBe(0);
     const stored = await asOrg(f.orgId, 'select status, accepted_by from invitations where id = $1', [created.id]);
     expect(stored.rows[0]).toMatchObject({ status: 'pending', accepted_by: null });
   });
@@ -542,9 +543,11 @@ describe('accepting invitations at sign-in', () => {
   it('a concurrent pair of accepts creates one membership and one assignment', async () => {
     const f = await fixture('acc-race');
     await invite(f.orgId, { email: 'acc-race@dev.local', roleId: f.roles.viewer, scope: { type: 'org' } });
-    await loginAs(t, 'acc-race-other');
-    const userId = await userIdOf(t, 'acc-race-other');
-    await t.db.pool.query('update "user" set email = $1 where id = $2', ['acc-race@dev.local', userId]);
+    const userId = randomUUID();
+    await t.db.pool.query(
+      `insert into "user" (id, name, email, email_verified, handle) values ($1, 'race', 'acc-race@dev.local', true, 'acc-race')`,
+      [userId],
+    );
     const who = { id: userId, email: 'acc-race@dev.local', emailVerified: true };
     await Promise.all([acceptPendingInvitations(t.db, who), acceptPendingInvitations(t.db, who)]);
     expect(await memberRows(f.orgId, userId)).toHaveLength(1);
@@ -618,9 +621,10 @@ describe('accepting invitations at sign-in', () => {
     expect(await memberRows(f.orgId, userId)).toHaveLength(1);
   });
 
-  it('accepts an invitation at the first sign-in of a legacy dev user whose stored email is unverified', async () => {
+  it('accepts an invitation at the next sign-in of a legacy dev user whose stored email is unverified', async () => {
+    const first = await fixture('acc-legacy-a');
     const f = await fixture('acc-legacy');
-    await loginAs(t, 'acc-legacy');
+    await inviteAndLogin(t, first.orgId, 'acc-legacy', 'viewer', { type: 'org' });
     const userId = await userIdOf(t, 'acc-legacy');
     await t.db.pool.query('update "user" set email_verified = false where id = $1', [userId]);
     await invite(f.orgId, { email: 'acc-legacy@dev.local', roleId: f.roles.viewer, scope: { type: 'org' } });
@@ -628,27 +632,30 @@ describe('accepting invitations at sign-in', () => {
     expect(await memberRows(f.orgId, userId)).toHaveLength(1);
   });
 
-  it('does not accept a revoked invitation at sign-in', async () => {
+  it('BR-58: a revoked invitation does not let its handle sign up', async () => {
     const f = await fixture('acc-revoked');
     const created = (
       await invite(f.orgId, { email: 'acc-rev@dev.local', roleId: f.roles.viewer, scope: { type: 'org' } })
     ).json<InvitationDto>();
     expect((await revokeInvitation(f.orgId, created.id)).statusCode).toBe(204);
-    await loginAs(t, 'acc-rev');
-    expect(await memberRows(f.orgId, await userIdOf(t, 'acc-rev'))).toHaveLength(0);
+    expect((await devLogin('acc-rev')).statusCode).toBe(401);
+    expect(await userRowCount('acc-rev@dev.local')).toBe(0);
     const listed = (await list(f.orgId)).json<Page<InvitationDto>>();
     expect(listed.items.find((i) => i.id === created.id)?.status).toBe('revoked');
+    expect((await revokeInvitation(f.orgId, created.id)).statusCode).toBe(409);
   });
 
-  it('does not accept an invitation for another address', async () => {
+  it('an invitation for another address does not let a different handle sign up', async () => {
     const f = await fixture('acc-other');
     await invite(f.orgId, { email: 'acc-nobody@dev.local', roleId: f.roles.viewer, scope: { type: 'org' } });
-    await loginAs(t, 'acc-somebody');
-    expect(await memberRows(f.orgId, await userIdOf(t, 'acc-somebody'))).toHaveLength(0);
+    expect((await devLogin('acc-somebody')).statusCode).toBe(401);
+    expect(await userRowCount('acc-somebody@dev.local')).toBe(0);
+    expect(await userRowCount('acc-nobody@dev.local')).toBe(0);
   });
 
   it('dev-login links a fake provider account for the handle', async () => {
-    await loginAs(t, 'acc-link');
+    const f = await fixture('acc-link-org');
+    await inviteAndLogin(t, f.orgId, 'acc-link', 'viewer', { type: 'org' });
     await loginAs(t, 'acc-link');
     const userId = await userIdOf(t, 'acc-link');
     const res = await t.db.pool.query(
@@ -910,5 +917,103 @@ describe('tenant invitations (BR-60)', () => {
       expect(byAction[action]?.actor_user_id).toBe(actorId);
       expect(byAction[action]?.payload).toMatchObject({ actorKind: 'member', email: 'ten-aud@example.com' });
     }
+  });
+});
+
+async function devLogin(handle: string) {
+  return t.app.inject({ method: 'GET', url: `/auth/dev-login?handle=${encodeURIComponent(handle)}` });
+}
+
+async function userRowCount(email: string): Promise<number> {
+  const res = await t.db.pool.query('select count(*)::int as n from "user" where email = $1', [email]);
+  return res.rows[0]?.n;
+}
+
+describe('sign-up needs an invitation (BR-54)', () => {
+  it('refuses an uninvited handle, creates no user, and refuses a second try too', async () => {
+    const first = await devLogin('gate-nobody');
+    expect(first.statusCode).toBe(401);
+    expect(first.headers['set-cookie']).toBeUndefined();
+    expect(await userRowCount('gate-nobody@dev.local')).toBe(0);
+    const second = await devLogin('gate-nobody');
+    expect(second.statusCode).toBe(401);
+    expect(await userRowCount('gate-nobody@dev.local')).toBe(0);
+    const accounts = await t.db.pool.query("select count(*)::int as n from account where account_id = 'gate-nobody'");
+    expect(accounts.rows[0]?.n).toBe(0);
+  });
+
+  it('creates no personal org for an invited first sign-in', async () => {
+    const f = await fixture('gate-invited');
+    const before = (await t.db.pool.query('select count(*)::int as n from organization')).rows[0]?.n;
+    await inviteAndLogin(t, f.orgId, 'gate-in', 'viewer', { type: 'org' });
+    const after = (await t.db.pool.query('select count(*)::int as n from organization')).rows[0]?.n;
+    expect(after).toBe(before);
+    expect(await membershipCount(await userIdOf(t, 'gate-in'))).toBe(1);
+  });
+
+  it('refuses an invited address whose email is not verified, creating no user', async () => {
+    const f = await fixture('gate-unverified');
+    await invite(f.orgId, { email: 'gate-unv@example.com', roleId: f.roles.viewer, scope: { type: 'org' } });
+    // The sign-up path without dev-login: the email stays unverified, so the invitation proves nothing.
+    await expect(
+      t.app
+        .get(AUTH)
+        .api.signUpEmail({ body: { email: 'gate-unv@example.com', password: 'a-long-password-1', name: 'unv' } }),
+    ).rejects.toThrow();
+    expect(await userRowCount('gate-unv@example.com')).toBe(0);
+    const stored = await asOrg(f.orgId, "select status from invitations where email = 'gate-unv@example.com'");
+    expect(stored.rows[0]?.status).toBe('pending');
+  });
+
+  it('refuses the configured platform admin address when it is not verified', async () => {
+    const strict = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: 'gate-pa@example.com' } });
+    try {
+      await expect(
+        strict.app
+          .get(AUTH)
+          .api.signUpEmail({ body: { email: 'gate-pa@example.com', password: 'a-long-password-1', name: 'pa' } }),
+      ).rejects.toThrow();
+      const rows = await strict.db.pool.query('select 1 from "user" where email = $1', ['gate-pa@example.com']);
+      expect(rows.rows).toHaveLength(0);
+    } finally {
+      await strict.close();
+    }
+  });
+
+  it('accepts a platform admin address whatever its case, in the config or at sign-in', async () => {
+    const mixed = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: 'Gate-Mixed@Example.COM' } });
+    try {
+      await devSignUp.run(true, () =>
+        mixed.app
+          .get(AUTH)
+          .api.signUpEmail({ body: { email: 'GATE-mixed@example.com', password: 'a-long-password-1', name: 'mx' } }),
+      );
+      const rows = await mixed.db.pool.query('select 1 from "user" where lower(email) = $1', [
+        'gate-mixed@example.com',
+      ]);
+      expect(rows.rows).toHaveLength(1);
+    } finally {
+      await mixed.close();
+    }
+  });
+
+  it('refuses when the invitation lookup fails, creating no user (fails closed)', async () => {
+    const f = await fixture('gate-lookup');
+    await invite(f.orgId, { email: 'gate-lookup@dev.local', roleId: f.roles.viewer, scope: { type: 'org' } });
+    const realQuery = t.db.pool.query.bind(t.db.pool) as (...a: unknown[]) => Promise<unknown>;
+    const spy = vi
+      .spyOn(t.db.pool, 'query')
+      .mockImplementation(((...args: unknown[]) =>
+        typeof args[0] === 'string' && args[0].includes('pending_invitations_for_email')
+          ? Promise.reject(new Error('lookup down'))
+          : realQuery(...args)) as never);
+    try {
+      expect((await devLogin('gate-lookup')).statusCode).toBe(401);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await userRowCount('gate-lookup@dev.local')).toBe(0);
+    // With the lookup back, the same invited handle signs in: the refusal came from the failed lookup alone.
+    expect((await devLogin('gate-lookup')).statusCode).toBe(302);
   });
 });

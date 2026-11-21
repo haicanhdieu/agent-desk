@@ -660,7 +660,10 @@ describe('BR-63: own access', () => {
   });
 
   it('reports a config-listed platform admin as platformAdmin', async () => {
-    const res = await meAccess(admin);
+    // A platform admin has no org of their own any more: this one is also invited into an org, whose session answers.
+    const home = await createOrg(t, 'PA Home', 'as-pa-home');
+    const asMember = await inviteAndLogin(t, home.id, 'admin', 'viewer', { type: 'org' });
+    const res = await meAccess(asMember);
     expect(res.statusCode).toBe(200);
     expect((expectContract('me.access', res) as AccessDto).platformAdmin).toBe(true);
   });
