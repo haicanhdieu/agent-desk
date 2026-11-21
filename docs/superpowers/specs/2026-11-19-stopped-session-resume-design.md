@@ -702,7 +702,7 @@ Notes for all cases: "mock" cases use a mocked run in the stated state; "local" 
 | BR-40 | conditional-display | When the Transcript has a tool step, the person sees one muted line with a terminal icon, the tool name in bold and a mono summary: the command for Bash, the file path for Edit, Write and Read, the first 200 characters of the input for other tools; the tool's output is not shown. | spec §3.2, §7.3, board RunStopped                        |
 | BR-41 | conditional-display | When the Transcript has a notice (for example "Conversation compacted", "API Error: 401 invalid credential", or "Transcript limit reached; later messages were not saved"), the person sees it as a centred muted line between rules.                                                | spec §3.2, §4, §7.3, board RunTranscriptStates           |
 | BR-42 | conditional-display | When the agent thought before replying, the person sees no hidden reasoning in the Transcript, only the messages, tool steps and notices.                                                                                                                                             | spec §3.2 Agent call                                     |
-| BR-43 | validation          | When a message contains HTML, markdown, line breaks, runs of spaces, or bidi or control characters, the person sees it as plain text with whitespace and line breaks kept, the markup shown literally (not rendered) and the bidi and control characters removed.                    | spec §7.3, §8, Constraints rule 6                        |
+| BR-43 | validation          | When a message contains HTML, markdown, line breaks, runs of spaces, or bidi or control characters, the person sees the markdown rendered, unsafe HTML and images not rendered, line breaks kept, runs of spaces collapsed and the bidi and control characters removed.                    | spec §7.3, §8, Constraints rule 6                        |
 | BR-44 | limit               | When an entry's text is longer than 8,000 bytes, the person sees it cut, ending with a muted "… (cut)".                                                                                                                                                                               | spec §2.1, §7.3                                          |
 | BR-45 | navigation          | When the Transcript opens, the person sees it scrolled to the newest entry, oldest first; when older entries exist a ghost "Show earlier messages" button with a chevron-up icon sits at the top, pressing it loads older entries above and keeps the scroll position, and the button is gone once the oldest entry is loaded. | spec §6, §7.3                                            |
 | BR-46 | feedback-state      | When the Transcript is loading, the person sees skeleton lines (busy, labelled "Loading the transcript") instead of messages.                                                                                                                                                         | spec §7.3 States, board RunIdleEnding                    |
@@ -1024,13 +1024,13 @@ Notes for all cases: "mock" cases use a mocked run in the stated state; "local" 
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-42.1 | negative | local | A fake-pod run where the agent thought ("THINKING-MARKER") and then replied | 1. Stop the session 2. Open the Transcript | The reply is shown; "THINKING-MARKER" is not shown anywhere on the page |
 
-#### BR-43: Messages are plain text
+#### BR-43: Messages are rendered as safe Markdown
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
-| TC-43.1 | validation | mock | A mocked message containing `<b>bold</b> <script>alert(1)</script>` | 1. Open the run page | The markup is shown literally as text; no bold text is rendered; no script runs |
+| TC-43.1 | validation | mock | A mocked message containing `<b>bold</b> <script>alert(1)</script>` | 1. Open the run page | No script element is rendered and no script runs |
 | TC-43.2 | validation | mock | A mocked message containing markdown `# Heading` and `**strong**` | 1. Open the run page | The markdown is rendered: a heading and strong text appear and the `#` and `**` characters are not shown |
-| TC-43.3 | validation | mock | A mocked message with three lines and a run of 5 spaces inside a line | 1. Open the run page | The three lines are kept as lines; the run of spaces is kept |
+| TC-43.3 | validation | mock | A mocked message with three lines and a run of 5 spaces inside a line | 1. Open the run page | The three lines are kept as lines; the run of spaces collapses to one space |
 | TC-43.4 | validation | mock | A mocked message containing a right-to-left override character and a control character (for example U+202E and U+0007) around the word "visible" | 1. Open the run page | "visible" is shown in normal order; the bidi and control characters are not present in the page text |
 
 #### BR-44: Long entries are cut
