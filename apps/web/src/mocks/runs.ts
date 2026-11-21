@@ -1,4 +1,5 @@
 import { bot, user } from './projects';
+import { PR_STATES, type PrState } from '@/ds/tokens';
 import type { Label, RunSummary, Ticket, TicketGroup } from './types';
 
 // Prototype board: Runs (grouped table), RunsProblems; ticket titles/states from the Run*.dc.html side panels.
@@ -218,3 +219,26 @@ export const ticketGroups: TicketGroup[] = [
 ];
 
 export const runs: RunSummary[] = [run52, run54, run55, run56, run57, run60, run61, run62, run63];
+
+const prAt = (number: number, prState?: PrState): Ticket => ({
+  ...tickets.pr148,
+  number,
+  title: `Pull request ${number}`,
+  labels: [],
+  state: undefined,
+  ...(prState ? { prState } : {}),
+});
+
+/** One PR per live state (#170 to #173), for Storybook and the PR state tests. */
+export const prStateTickets: Record<PrState, Ticket> = {
+  open: prAt(170, 'open'),
+  draft: prAt(171, 'draft'),
+  merged: prAt(172, 'merged'),
+  closed: prAt(173, 'closed'),
+};
+
+/** One run per PR state, plus PR #174 whose state is unknown. */
+export const prStateRuns: RunSummary[] = [
+  ...PR_STATES.map((s, i): RunSummary => ({ ...run60, id: 170 + i, ticket: prStateTickets[s] })),
+  { ...run60, id: 174, ticket: prAt(174) },
+];

@@ -2,6 +2,7 @@ import {
   FINAL_RUN_STATUSES,
   type IgnoredEventDto,
   type LinkedTicketDto,
+  type PrState,
   type ProjectConnectionDto,
   type RunListItem,
   type RunStatsDto,
@@ -364,4 +365,30 @@ export function toConnectionWarning(
       .join(' '),
     actions: [{ label: connectionCopy.retryNow, icon: 'refresh' }, details],
   };
+}
+
+/** Ticket numbers of the PR tickets among `tickets`, as refs; issues are never asked. */
+export function prRefsOf(tickets: Iterable<{ kind: TicketKind; number: number }>): string[] {
+  const refs: string[] = [];
+  for (const t of tickets) if (t.kind === 'pr') refs.push(String(t.number));
+  return refs;
+}
+
+/** `prState` set when the ticket is a PR with a known state; issues and unknown refs come back unchanged. */
+export function withPrState<T extends { kind: TicketKind; number: number }>(
+  ticket: T,
+  states: ReadonlyMap<string, PrState>,
+): T & { prState?: PrState } {
+  if (ticket.kind !== 'pr') return ticket;
+  const prState = states.get(String(ticket.number));
+  return prState === undefined ? ticket : { ...ticket, prState };
+}
+
+/** Each group's header ticket and every row's ticket through withPrState; chainNote and everything else unchanged. */
+export function withPrStates(groups: TicketGroup[], states: ReadonlyMap<string, PrState>): TicketGroup[] {
+  return groups.map((g) => ({
+    ...g,
+    ticket: withPrState(g.ticket, states),
+    runs: g.runs.map((r) => ({ ...r, ticket: withPrState(r.ticket, states) })),
+  }));
 }

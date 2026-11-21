@@ -1,5 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Button, RUN_STATUSES } from '@/ds';
+import { Fragment } from 'react';
+import { Button, PR_STATES, RUN_STATUSES } from '@/ds';
+import { prStateRuns } from '@/mocks';
 import type { RunSummary, TicketGroup, Ticket } from '@/mocks/types';
 import { DataTable } from './DataTable';
 import { RunRow, TicketGroupRow } from './RunRow';
@@ -305,6 +307,36 @@ export const GroupHeaderPrRunsOnly: Story = {
       <TicketGroupRow group={group()} colSpan={8} />
       <RunRow run={{ ...base, id: 62, ticket: pr148 }} tree="mid" href="#" />
       <RunRow run={{ ...base, id: 63, ticket: pr148 }} tree="last" href="#" />
+    </>
+  ),
+};
+
+/** Flat rows: each live PR state, then PR #174 whose state is unknown (neutral). */
+export const PrStates: Story = {
+  args: { run: base, tree: 'none', href: '#' },
+  render: () => (
+    <>
+      {prStateRuns.map((r) => (
+        <RunRow key={r.id} run={r} tree="none" href="#" />
+      ))}
+    </>
+  ),
+};
+
+/** PR-led group headers, one per state, each over its run. */
+export const GroupHeaderPrStates: Story = {
+  args: { run: base, tree: 'last', href: '#' },
+  render: () => (
+    <>
+      {PR_STATES.map((s, i) => {
+        const r = prStateRuns[i];
+        return (
+          <Fragment key={s}>
+            <TicketGroupRow group={{ ticket: r.ticket, runsUsed: 1, runsMax: 10, runs: [r] }} colSpan={8} />
+            <RunRow run={r} tree="last" href="#" />
+          </Fragment>
+        );
+      })}
     </>
   ),
 };

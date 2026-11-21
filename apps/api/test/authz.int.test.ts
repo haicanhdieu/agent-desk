@@ -766,6 +766,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'setupTests.events': tenant('stream'),
   'runs.list': tenant(200),
   'runs.stats': tenant(200),
+  'tickets.prStates': tenant(200),
   'runs.byNumber': tenant(200),
   'runs.get': tenant(200),
   'runs.log': tenant(200),
@@ -824,7 +825,10 @@ describe('denial table over every route, stream and terminal', () => {
   let paCookie: string;
   let bodies: Partial<Record<RouteKey, object>>;
   /** Query strings a route needs to be valid (a fixed instant, never the clock). */
-  const queries: Partial<Record<RouteKey, string>> = { 'runs.stats': '?since=2020-01-01T00:00:00.000Z' };
+  const queries: Partial<Record<RouteKey, string>> = {
+    'runs.stats': '?since=2020-01-01T00:00:00.000Z',
+    'tickets.prStates': '?ref=1',
+  };
   let ids: Record<string, string>;
   let runTerminalId: string;
   let setupTerminalId: string;

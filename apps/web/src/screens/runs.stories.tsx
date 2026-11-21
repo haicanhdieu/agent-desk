@@ -3,10 +3,12 @@ import { AppShell, RouteLoadError, RouteSkeleton, type PaginationProps } from '@
 import {
   connectionWarnings,
   ignored,
+  ignoredPrStates,
   linkedGroups,
   pagedIgnored,
   pagedNeedsYou,
   pagedRuns,
+  prStateRuns,
   projects,
   runDetails,
   runs,
@@ -416,6 +418,38 @@ export const RouteError: Story = {
       detail="The server could not load this list."
       requestId="req_8f3a2c1d"
       onRetry={noop}
+    />
+  ),
+};
+
+/** Every PR icon takes its live state colour; the merged group's issue header stays plain. */
+export const RunsPrStates: Story = {
+  name: 'Runs, PR states',
+  decorators: artboard(1000),
+  globals: viewport(1440, 1000),
+  render: () => (
+    <RunsScreen
+      {...common}
+      filter="all"
+      counts={counts}
+      groups={[
+        ticketGroups[0],
+        ...prStateRuns.map((r): TicketGroup => ({ ticket: r.ticket, runsUsed: 1, runsMax: 10, runs: [r] })),
+      ]}
+    />
+  ),
+};
+
+export const RunsProblemsPrStates: Story = {
+  name: 'Runs, problems, ignored PR states',
+  decorators: artboard(960),
+  globals: viewport(1440, 960),
+  render: () => (
+    <RunsProblemsScreen
+      {...common}
+      counts={{ ...counts, ignored: ignoredPrStates.length }}
+      ignored={ignoredPrStates}
+      warnings={[]}
     />
   ),
 };

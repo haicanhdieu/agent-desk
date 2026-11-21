@@ -1,5 +1,6 @@
 import type { IgnoredEventDto, LinkedTicketDto, RunDto, RunListItem } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
+import type { TicketGroup } from '@/mocks/types';
 import { runFixtures } from '@/mocks/dto/runs';
 import {
   chainNoteOf,
@@ -7,12 +8,15 @@ import {
   groupByTicket,
   groupKeyOf,
   linkedTicketsByRun,
+  prRefsOf,
   safeHref,
   startOfLocalDay,
   ticketRunCounts,
   toIgnored,
   todaySummary,
   toRunSummary,
+  withPrState,
+  withPrStates,
 } from './map';
 
 const base = runFixtures.find((r) => r.number === 60);
@@ -541,5 +545,68 @@ describe('toRunSummary, run owner', () => {
   it('does not carry the owner id into the row the list shows', () => {
     const s = toRunSummary(run({ ownerUserId: 'user-owner-id-1' }), now);
     expect(JSON.stringify(s)).not.toContain('user-owner-id-1');
+  });
+});
+
+describe('PR states', () => {
+  const states = new Map<string, 'merged' | 'open'>([
+    ['148', 'merged'],
+    ['142', 'open'],
+  ]);
+
+  it('prRefsOf keeps PRs only, as numbers', () => {
+    expect(
+      prRefsOf([
+        { kind: 'pr', number: 148 },
+        { kind: 'issue', number: 142 },
+        { kind: 'pr', number: 9 },
+      ]),
+    ).toEqual(['148', '9']);
+  });
+
+  it('withPrState sets a known PR, leaves an unknown PR without the key and an issue unchanged', () => {
+    expect(withPrState({ kind: 'pr', number: 148 }, states)).toEqual({ kind: 'pr', number: 148, prState: 'merged' });
+    expect('prState' in withPrState({ kind: 'pr', number: 7 }, states)).toBe(false);
+    const issue = { kind: 'issue' as const, number: 142 };
+    expect(withPrState(issue, states)).toBe(issue);
+  });
+});
+
+describe('withPrStates', () => {
+  const states = new Map<string, 'merged' | 'open'>([
+    ['148', 'merged'],
+    ['133', 'open'],
+  ]);
+  const summary = toRunSummary(base, now);
+  const row = (kind: 'pr' | 'issue', number: number) => ({ ...summary, ticket: { ...summary.ticket, kind, number } });
+  const group = (kind: 'pr' | 'issue', number: number, runs: ReturnType<typeof row>[]): TicketGroup => ({
+    ticket: { ...summary.ticket, kind, number },
+    runsUsed: runs.length,
+    runsMax: 5,
+    runs,
+  });
+
+  it('a PR-led group gives its header and rows the state', () => {
+    const [g] = withPrStates([group('pr', 148, [row('pr', 148)])], states);
+    expect(g?.ticket.prState).toBe('merged');
+    expect(g?.runs[0]?.ticket.prState).toBe('merged');
+  });
+
+  it('a merged group keeps its issue header and its chain note, and colours the PR rows', () => {
+    const merged: TicketGroup = {
+      ...group('issue', 142, [row('issue', 142), row('pr', 148)]),
+      chainNote: '2 of 5 runs on #142, 1 on PR #148',
+      linked: [{ ticket: { kind: 'pr', number: 148 }, runsUsed: 1 }],
+    };
+    const [g] = withPrStates([merged], states);
+    expect('prState' in (g?.ticket ?? {})).toBe(false);
+    expect(g?.chainNote).toBe('2 of 5 runs on #142, 1 on PR #148');
+    expect(g?.linked).toEqual(merged.linked);
+    expect(g?.runs.map((r) => r.ticket.prState)).toEqual([undefined, 'merged']);
+  });
+
+  it('two rows of one PR get the same state', () => {
+    const [g] = withPrStates([group('pr', 133, [row('pr', 133), row('pr', 133)])], states);
+    expect(g?.runs.map((r) => r.ticket.prState)).toEqual(['open', 'open']);
   });
 });

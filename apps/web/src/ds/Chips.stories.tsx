@@ -1,8 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { CommandChip } from './CommandChip';
 import { LabelChip } from './LabelChip';
-import { TicketRef } from './TicketRef';
+import { TicketIcon, TicketRef } from './TicketRef';
+import { PR_STATES, type PrState } from './tokens';
 import { page } from './foundations.shared';
+
+const prStates: (PrState | undefined)[] = [...PR_STATES, undefined];
 
 function Gallery() {
   return (
@@ -29,6 +32,31 @@ function Gallery() {
         <TicketRef kind="issue" number={139} href="https://github.com/acme/invoicer-api/issues/139" />
         <TicketRef kind="pr" number={148} href="https://github.com/acme/invoicer-api/pull/148" />
         <TicketRef kind="issue" number={142} short href="" />
+      </section>
+      <section className="row" style={{ gap: 16 }}>
+        {prStates.map((s) => (
+          <TicketRef key={s ?? 'unknown'} kind="pr" number={148} prState={s} />
+        ))}
+      </section>
+      <section className="row" style={{ gap: 16 }}>
+        {prStates.map((s) => (
+          <TicketRef
+            key={s ?? 'unknown'}
+            kind="pr"
+            number={148}
+            prState={s}
+            href="https://github.com/acme/invoicer-api/pull/148"
+          />
+        ))}
+      </section>
+      <section className="row" style={{ gap: 16 }}>
+        <TicketRef kind="issue" number={142} prState="merged" />
+        {PR_STATES.map((s) => (
+          <span key={s} className="row" style={{ gap: 8 }}>
+            <TicketIcon kind="pr" prState={s} />
+            <TicketIcon kind="pr" prState={s} size={16} />
+          </span>
+        ))}
       </section>
     </div>
   );

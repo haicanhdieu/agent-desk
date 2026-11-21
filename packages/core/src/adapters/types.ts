@@ -1,4 +1,4 @@
-import type { Provider, RepoDto, SkillDto, SkillSummaryDto, TicketKind } from '@agentdesk/contracts';
+import type { PrState, Provider, RepoDto, SkillDto, SkillSummaryDto, TicketKind } from '@agentdesk/contracts';
 
 export type { Provider };
 
@@ -78,6 +78,11 @@ export type WebhookHeaders = Record<string, string | string[] | undefined>;
 /** Resolves the webhook signing secret (undefined when none is configured). */
 export type SecretLookup = () => Promise<string | undefined>;
 
+export interface PrStatesResult {
+  states: Map<string, PrState>;
+  unresolved: Set<string>;
+}
+
 export interface BoardAdapter {
   verifyAndParseWebhook(
     headers: WebhookHeaders,
@@ -88,6 +93,11 @@ export interface BoardAdapter {
   getTicket(project: AdapterProject, ref: string): Promise<Ticket>;
   /** Returns the new comment's id. */
   comment(project: AdapterProject, ref: string, text: string): Promise<string>;
+  /** Live state of each PR among `refs` (ticket numbers) in the project's repo. Refs that are not PRs, are not found or
+   *  have an unknown state are left out of `states`. `unresolved` holds the refs the provider authoritatively has no
+   *  PR state for; a ref missing from both was not ruled on (a partial answer) and must be asked again.
+   *  Rejects when the provider cannot be asked. Stores nothing. */
+  prStates(project: AdapterProject, refs: string[]): Promise<PrStatesResult>;
 }
 
 export interface CodeHostAdapter {

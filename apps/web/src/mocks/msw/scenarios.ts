@@ -1,5 +1,6 @@
 import type { RequestHandler } from 'msw';
 import type { AgentModelsScenario } from './agentModels';
+import type { PrStatesScenario } from './prStates';
 import { mockDb } from './db';
 import { problemResponse, routeHandler, type ProblemInit, type RouteKey } from './http';
 import { scriptRun, type ScriptStep } from './live';
@@ -27,6 +28,10 @@ export const scenarios = {
   /** What `agents.models` answers for the agent until the store resets. */
   agentModels(agentId: string, scenario: AgentModelsScenario): void {
     mockDb.state.agentModelScenarios[agentId] = scenario;
+  },
+  /** How `tickets.prStates` answers until the store resets; undefined is the normal answer. */
+  prStates(scenario: PrStatesScenario | undefined): void {
+    mockDb.state.prStatesScenario = scenario;
   },
   /** No session: get-session returns null, org routes and every API route return 401. */
   signedOut(): void {

@@ -17,9 +17,10 @@ import {
   type SetupTestDto,
   type SkillDto,
 } from '@agentdesk/contracts';
-import { http, type HttpHandler } from 'msw';
+import { delay, http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
+import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
 import {
   accessFixture,
@@ -414,6 +415,15 @@ const impl: Impl = {
     return answer;
   },
 
+  'tickets.prStates': async ({ params, query }) => {
+    const project = projectRow(params.projectId);
+    const scenario = db().prStatesScenario;
+    if (scenario === 'pending') return new Promise<never>(() => undefined);
+    if (scenario === 'error') throw new Problem({ status: 500, title: 'Internal server error', type: 'internal' });
+    if (scenario === 'slow') await delay(PR_STATES_SLOW_MS);
+    return { items: prStateItems(db().prStates[project.id] ?? {}, query.ref, scenario === 'partial') };
+  },
+
   // Full skills; the SkillSummaryDto response schema strips `body` and `sha`.
   'skills.list': ({ params, query }) =>
     slicePage(
@@ -791,6 +801,16 @@ function parsePart(schema: RouteDef['body'], value: unknown, where: string): unk
   });
 }
 
+/** The query as an object: a key sent once is a string, a repeated key an array (as the API's query parser does). */
+function queryOf(sp: URLSearchParams): Record<string, string | string[]> {
+  const out: Record<string, string | string[]> = {};
+  for (const key of new Set(sp.keys())) {
+    const all = sp.getAll(key);
+    out[key] = all.length === 1 ? (all[0] ?? '') : all;
+  }
+  return out;
+}
+
 function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
   const def = routeDef(key);
   return routeHandler(key, async (request, rawParams) => {
@@ -799,7 +819,7 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
       const url = new URL(request.url);
       const parts = {
         params: parsePart(def.params, rawParams, 'path parameters'),
-        query: parsePart(def.query, Object.fromEntries(url.searchParams), 'query'),
+        query: parsePart(def.query, queryOf(url.searchParams), 'query'),
         body: parsePart(def.body, def.body ? await readBody(request) : undefined, 'body'),
         request,
       };

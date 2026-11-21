@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { and, desc, eq } from 'drizzle-orm';
 import { z } from 'zod';
+import { PrState } from '@agentdesk/contracts';
 import { connections, projects } from '@agentdesk/db';
 import {
   FAKE_SIGNATURE_HEADER,
@@ -43,14 +44,21 @@ const Label = z.union([
   z.object({ name: z.string().min(1).max(100), color: z.string().regex(/^[0-9a-fA-F]{6}$/) }),
 ]);
 
-export const DevTicketBody = z.object({
-  repoPath: RepoPath,
-  number: z.number().int().positive().max(1_000_000_000),
-  kind: z.enum(['issue', 'pr']),
-  title: z.string().min(1).max(500),
-  labels: z.array(Label).max(50).default([]),
-  linked: z.array(z.number().int().positive().max(1_000_000_000)).max(10).optional(),
-});
+export const DevTicketBody = z
+  .object({
+    repoPath: RepoPath,
+    number: z.number().int().positive().max(1_000_000_000),
+    kind: z.enum(['issue', 'pr']),
+    title: z.string().min(1).max(500),
+    labels: z.array(Label).max(50).default([]),
+    linked: z.array(z.number().int().positive().max(1_000_000_000)).max(10).optional(),
+    /** The PR's state on the fake board (what `prStates` reads back); PRs only. */
+    prState: PrState.optional(),
+  })
+  .refine((b) => b.prState === undefined || b.kind === 'pr', {
+    message: 'prState is only allowed on a PR',
+    path: ['prState'],
+  });
 
 export const DevCommentBody = z.object({
   repoPath: RepoPath,
@@ -108,6 +116,7 @@ export class FakeController {
       title: body.title,
       labels: body.labels,
       ...(body.linked ? { linked: body.linked } : {}),
+      ...(body.prState ? { prState: body.prState } : {}),
     });
     return { ok: true };
   }

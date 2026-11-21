@@ -196,6 +196,10 @@ export const inboundEvents = pgTable(
     index('inbound_events_project_received_ignored_idx')
       .on(t.projectId, t.receivedAt.desc().nullsFirst(), t.id)
       .where(sql`starts_with(${t.outcome}, 'ignored_')`),
+    // Serves the Ignored view's PR-state lookup: ticket_ref in (...) among a project's ignored events.
+    index('inbound_events_project_ticket_ref_ignored_idx')
+      .on(t.projectId, t.ticketRef)
+      .where(sql`starts_with(${t.outcome}, 'ignored_')`),
     check('inbound_events_channel_check', sql`${t.channel} in ('webhook','poll')`),
     orgPolicy(),
     // The intake records deliveries before the project is resolved, so it may insert rows with a null org.

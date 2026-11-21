@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { RouteLoadError, RouteSkeleton } from '@/components';
 import {
   ignored,
+  ignoredPrStates,
   pagedIgnored,
   pagedNeedsYou,
   pagedProjects,
@@ -10,11 +11,14 @@ import {
   pagedRuns,
   pagedSkills,
   pagedVersions,
+  prStateRuns,
+  prStateTickets,
   projects,
   runs,
   ticketGroups,
   user,
 } from '@/mocks';
+import type { TicketGroup } from '@/mocks/types';
 import { filterGroups, Runs, type RunsFilter } from './Runs';
 import { RunsProblems } from './RunsProblems';
 import { NeedsYou } from './NeedsYou';
@@ -403,5 +407,54 @@ describe('paged fixtures', () => {
     expect(pagedRules(25)).toHaveLength(25);
     expect(pagedSkills(25)).toHaveLength(25);
     expect(pagedVersions(25).map((v) => v.version)).toEqual(Array.from({ length: 25 }, (_, i) => 25 - i));
+  });
+});
+
+describe('PR state colours on the Runs screen', () => {
+  const prGroups: TicketGroup[] = prStateRuns.map((r) => ({
+    ticket: r.ticket,
+    runsUsed: 1,
+    runsMax: 10,
+    runs: [r],
+  }));
+  const words = ['Open', 'Draft', 'Merged', 'Closed'];
+
+  it('every PR icon on the Runs screen shows its state', () => {
+    render(<Runs {...base} filter="all" groups={prGroups} />);
+    // Each PR appears twice: once in its group header, once in its run row.
+    for (const w of words) expect(screen.getAllByRole('img', { name: w })).toHaveLength(2);
+    expect(screen.getAllByRole('link', { name: 'Merged PR #172' })).toHaveLength(2);
+    const unknown = screen.getAllByRole('link', { name: 'PR #174' });
+    expect(unknown).toHaveLength(2);
+    for (const a of unknown) expect(within(a).queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it("the banner's PR icon shows its state", () => {
+    const run = { ...needsYouRun.run, ticket: prStateTickets.merged };
+    render(<Runs {...base} filter="all" needsYouRun={{ ...needsYouRun, run }} />);
+    const banner = screen.getByRole('link', { name: 'Merged PR #172' });
+    expect(within(banner).getByRole('img', { name: 'Merged' })).toBeInTheDocument();
+  });
+
+  it('Ignored PR rows show their state; issue rows do not', () => {
+    render(
+      <RunsProblems
+        {...base}
+        counts={{ ...counts, ignored: 6 }}
+        warnings={[]}
+        ignored={[ignored[0], ...ignoredPrStates]}
+      />,
+    );
+    for (const w of words) expect(screen.getAllByRole('img', { name: w })).toHaveLength(1);
+    const issueRow = screen.getByText('Issue #160').closest('tr')!;
+    expect(within(issueRow).queryByRole('img')).not.toBeInTheDocument();
+    const unknownRow = screen.getByText('PR #174').closest('tr')!;
+    expect(within(unknownRow).queryByRole('img')).not.toBeInTheDocument();
+  });
+
+  it("a merged group's issue header and chain note stay plain", () => {
+    render(<Runs {...base} filter="all" groups={[ticketGroups[0]]} />);
+    const header = screen.getByText(ticketGroups[0].chainNote!).closest('tr')!;
+    expect(within(header).queryByRole('img')).not.toBeInTheDocument();
   });
 });

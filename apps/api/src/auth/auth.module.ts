@@ -20,6 +20,6 @@ import { SessionGuard } from './session.guard';
     { provide: APP_INTERCEPTOR, useClass: AuditInterceptor },
     OrgDb,
   ],
-  exports: [AUTH, OrgDb],
+  exports: [AUTH, LOGGER, OrgDb],
 })
 export class AuthModule {}

@@ -4,6 +4,7 @@ import type {
   IgnoredEventDto,
   ProjectConnectionDto,
   PluginsDto,
+  PrState,
   ProjectDto,
   RepoDto,
   RuleDto,
@@ -22,6 +23,8 @@ import { ids } from '../dto/ids';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures, projectOrg } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
+import { prStateFixtures } from '../dto/prStates';
+import type { PrStatesScenario } from './prStates';
 import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 
@@ -77,6 +80,9 @@ export interface MockState {
   /** Model-list scenario per agent id (scenarios.agentModels), and the agents that had a credential saved since. */
   agentModelScenarios: Record<string, AgentModelsScenario>;
   agentCredentialSaved: string[];
+  /** Live PR states per project id and ticket number (`tickets.prStates`), and the scenario that bends the answer. */
+  prStates: Record<string, Record<string, PrState>>;
+  prStatesScenario?: PrStatesScenario;
   skills: Record<string, SkillDto[]>;
   rules: RuleDto[];
   runs: MockRun[];
@@ -153,6 +159,7 @@ export function seedState(): MockState {
     agents: agentFixtures,
     agentModelScenarios: {},
     agentCredentialSaved: [],
+    prStates: prStateFixtures,
     skills: skillFixtures,
     rules: ruleFixtures,
     runs: runFixtures,

@@ -1,3 +1,4 @@
+import type { PrState } from '@agentdesk/contracts';
 import { z } from 'zod';
 import type { Clock } from '../../clock';
 import type {
@@ -5,6 +6,7 @@ import type {
   BoardAdapter,
   PollCursor,
   PollResult,
+  PrStatesResult,
   SecretLookup,
   Ticket,
   TicketEvent,
@@ -52,6 +54,37 @@ const ClosingIssuesResponse = z.object({
       }),
     }),
   }),
+});
+
+const PR_REF = /^[1-9]\d{0,9}$/;
+const GRAPHQL_INT_MAX = 2147483647;
+
+/** `query PrStates($owner, $repo, $n0 … ) { repository(...) { p0: pullRequest(number: $n0) { number state isDraft merged } … } }`.
+ *  Owner, repo and numbers are variables only: nothing from a ticket is interpolated (rule 6). */
+export function prStatesQuery(count: number): string {
+  const vars = Array.from({ length: count }, (_, i) => `$n${i}: Int!`).join(', ');
+  const nodes = Array.from(
+    { length: count },
+    (_, i) => `p${i}: pullRequest(number: $n${i}) { number state isDraft merged }`,
+  ).join(' ');
+  return `query PrStates($owner: String!, $repo: String!${count ? ', ' : ''}${vars}) { repository(owner: $owner, name: $repo) { ${nodes} } }`;
+}
+
+/** Display precedence: merged > closed (draft or not) > open draft > open. Anything else is unknown. */
+export function prStateOf(node: { state: string; isDraft: boolean; merged: boolean }): PrState | undefined {
+  if (node.merged || node.state === 'MERGED') return 'merged';
+  if (node.state === 'CLOSED') return 'closed';
+  if (node.state === 'OPEN') return node.isDraft ? 'draft' : 'open';
+  return undefined;
+}
+
+const PrStatesResponse = z.object({ repository: z.record(z.string(), z.unknown()) });
+const PrStatesErrors = z.array(z.object({ type: z.string().optional(), path: z.array(z.unknown()).optional() }));
+const PrStateNode = z.object({
+  number: z.number().int(),
+  state: z.string(),
+  isDraft: z.boolean(),
+  merged: z.boolean(),
 });
 
 const CommentList = z.array(
@@ -221,6 +254,61 @@ export class GithubBoardAdapter implements BoardAdapter {
       this.log?.warn({ err: e instanceof Error ? e.name : 'UnknownError' }, 'ticket links unavailable');
       return [];
     }
+  }
+
+  async prStates(project: AdapterProject, refs: string[]): Promise<PrStatesResult> {
+    const asked = [...new Set(refs.filter((r) => PR_REF.test(r) && Number(r) <= GRAPHQL_INT_MAX))];
+    const out = new Map<string, PrState>();
+    // Refs that can never be a PR number are authoritatively absent; they are not sent.
+    const unresolved = new Set(refs.filter((r) => !asked.includes(r)));
+    if (asked.length === 0) return { states: out, unresolved };
+    const { owner, repo } = splitRepoPath(project.repoPath);
+    const variables: Record<string, string | number> = { owner, repo };
+    asked.forEach((r, i) => (variables[`n${i}`] = Number(r)));
+    let raw: unknown;
+    // Aliases (p0..pN) GitHub reported NOT_FOUND for, and whether any other error leaves a missing ref undecided.
+    const notFound = new Set<string>();
+    let undecided: Set<string> | 'all' = new Set();
+    let partialAnswer = false;
+    try {
+      raw = await this.clients
+        .installation(project.connectionExternalId)
+        .graphql(prStatesQuery(asked.length), variables);
+    } catch (e) {
+      // GraphQL errors can carry partial data: use it. Anything else (HTTP, network, no usable data) rejects.
+      const partial = PrStatesResponse.safeParse(
+        typeof e === 'object' && e !== null && 'data' in e ? e.data : undefined,
+      );
+      if (!partial.success) throw e;
+      this.log?.warn({ err: e instanceof Error ? e.name : 'UnknownError' }, 'pr states partial');
+      raw = partial.data;
+      partialAnswer = true;
+      const errors = PrStatesErrors.safeParse(
+        typeof e === 'object' && e !== null && 'errors' in e ? e.errors : undefined,
+      );
+      // Errors that cannot be read are treated as one that cannot be attributed to a node.
+      for (const err of errors.success ? errors.data : [{}]) {
+        const alias = err.path?.[0] === 'repository' ? err.path[1] : undefined;
+        if (typeof alias !== 'string') undecided = 'all';
+        else if (err.type === 'NOT_FOUND') notFound.add(alias);
+        else if (undecided !== 'all') undecided.add(alias);
+      }
+    }
+    const { repository } = PrStatesResponse.parse(raw);
+    const askedSet = new Set(asked);
+    for (const value of Object.values(repository)) {
+      const node = PrStateNode.safeParse(value);
+      if (!node.success || !askedSet.has(String(node.data.number))) continue;
+      const state = prStateOf(node.data);
+      if (state) out.set(String(node.data.number), state);
+    }
+    asked.forEach((ref, i) => {
+      if (out.has(ref)) return;
+      const alias = `p${i}`;
+      // A complete answer rules on every ask. In a partial one only a lone NOT_FOUND on the node does.
+      if (!partialAnswer || (undecided !== 'all' && notFound.has(alias) && !undecided.has(alias))) unresolved.add(ref);
+    });
+    return { states: out, unresolved };
   }
 
   async comment(project: AdapterProject, ref: string, text: string): Promise<string> {

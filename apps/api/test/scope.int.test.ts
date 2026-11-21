@@ -186,6 +186,7 @@ describe('BR-28: a project outside the caller scope is 404', () => {
     ['setupTests.events', 'GET', `/api/setup-tests/${setupTestP2}/events`, undefined],
     ['runs.list', 'GET', `/api/projects/${p2}/runs`, undefined],
     ['runs.stats', 'GET', `/api/projects/${p2}/runs/stats?since=2020-01-01T00:00:00.000Z`, undefined],
+    ['tickets.prStates', 'GET', `/api/projects/${p2}/tickets/pr-states?ref=1`, undefined],
     ['runs.byNumber', 'GET', `/api/projects/${p2}/runs/${runP2Number}`, undefined],
     ['runs.get', 'GET', `/api/runs/${runP2}`, undefined],
     ['runs.log', 'GET', `/api/runs/${runP2}/log`, undefined],

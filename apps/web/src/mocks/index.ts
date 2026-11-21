@@ -26,15 +26,15 @@ export {
   pollIntervals,
   DEFAULT_POLL_INTERVAL,
 } from './connection';
-export { ticketGroups, runs, tickets } from './runs';
+export { ticketGroups, runs, tickets, prStateRuns, prStateTickets } from './runs';
 export { linkedGroups } from './runsLinked';
-export { ignored } from './ignored';
+export { ignored, ignoredPrStates } from './ignored';
 export { skills, skillTemplates, skillPreviewSamples, skillDiffDraft } from './skills';
 export { rules, promptSystemLines, TRIAGE_PROMPT } from './rules';
 export { agentSettings } from './agent';
 export { transcriptFixtures, transcriptStateFixtures } from './transcript';
 export { terminalByRun, autoResumedTerminal } from './terminal';
-export { runDetails } from './runDetail';
+export { runDetails, runDetailPrMerged } from './runDetail';
 export {
   setupScript,
   setupDraft,

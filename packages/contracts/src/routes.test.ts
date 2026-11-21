@@ -52,10 +52,14 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(69);
+    expect(Object.keys(flat)).toHaveLength(70);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
+    });
+    expect(flat['tickets.prStates']).toMatchObject({
+      method: 'GET',
+      path: '/api/projects/:projectId/tickets/pr-states',
     });
     expect(flat['runs.stats']).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/runs/stats' });
     expect(flat['agents.models']).toMatchObject({ method: 'GET', path: '/api/agents/:agentId/models' });

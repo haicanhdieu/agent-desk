@@ -1,0 +1,30 @@
+{
+  "full": {
+    "data": {
+      "repository": {
+        "p3": { "number": 4, "state": "CLOSED", "isDraft": false, "merged": false },
+        "p0": { "number": 1, "state": "OPEN", "isDraft": false, "merged": false },
+        "p5": null,
+        "p2": { "number": 3, "state": "MERGED", "isDraft": false, "merged": true },
+        "p6": { "number": 7, "state": "LOCKED", "isDraft": false, "merged": false },
+        "p1": { "number": 2, "state": "OPEN", "isDraft": true, "merged": false },
+        "p4": { "number": 5, "state": "CLOSED", "isDraft": true, "merged": false }
+      }
+    }
+  },
+  "partial": {
+    "data": {
+      "repository": {
+        "p0": { "number": 1, "state": "OPEN", "isDraft": false, "merged": false },
+        "p1": null
+      }
+    },
+    "errors": [
+      {
+        "type": "NOT_FOUND",
+        "path": ["repository", "p1"],
+        "message": "Could not resolve to a PullRequest with the number of 2."
+      }
+    ]
+  }
+}

@@ -1,6 +1,7 @@
 import {
   hasKeptSession,
   type PauseReason,
+  type PrState,
   type ProjectDto,
   type RunDto,
   type RunEventDto,
@@ -12,7 +13,17 @@ import { statusTokens } from '@/ds';
 import type { RunDetailData, RunDetailKey } from '@/mocks/types';
 import { clockElapsed, formatLimit } from '../duration';
 import { relativeTime, timeLeft } from '../relativeTime';
-import { dateTime, duration, formatDuration, idleEndsAt, idleSlotNote, isFinal, safeHref, toRunSummary } from './map';
+import {
+  dateTime,
+  duration,
+  formatDuration,
+  idleEndsAt,
+  idleSlotNote,
+  isFinal,
+  safeHref,
+  toRunSummary,
+  withPrState,
+} from './map';
 import type { CachedRunDetail, RunCore } from './queries';
 import type { TerminalState } from './useTerminal';
 
@@ -667,5 +678,18 @@ export function toRunDetail(
     ...(resumed !== undefined && { resumed }),
     connection: connection(run, lines),
     ...(note && { endNote: note }),
+  };
+}
+
+/** The run's ticket, every chain step's ticket and the Pull request section's ticket, through withPrState. */
+export function withDetailPrStates(data: RunDetailData, states: ReadonlyMap<string, PrState>): RunDetailData {
+  if (states.size === 0) return data;
+  return {
+    ...data,
+    run: { ...data.run, ticket: withPrState(data.run.ticket, states) },
+    chain: data.chain.map((s) => (s.ticket ? { ...s, ticket: withPrState(s.ticket, states) } : s)),
+    ...(data.pullRequest && {
+      pullRequest: { ...data.pullRequest, ticket: withPrState(data.pullRequest.ticket, states) },
+    }),
   };
 }

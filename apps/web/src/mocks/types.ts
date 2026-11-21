@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import type { RunStatus } from '@/ds/tokens';
 import type { TicketKind } from '@/ds/TicketRef';
+import type { PrState } from '@/ds/tokens';
 import type { IconName } from '@/ds/icons';
 import type { ChainStep } from '@/components/ChainTimeline';
 import type { ConnectionState } from '@/components/ConnectionIndicator';
@@ -8,7 +9,15 @@ import type { CredentialType } from '@/components/SecretField';
 import type { RuleDraft } from '@/components/RuleSentence';
 
 export type Label = { name: string; color: string };
-export type Ticket = { kind: TicketKind; number: number; title: string; labels: Label[]; state?: string; href: string };
+export type Ticket = {
+  kind: TicketKind;
+  number: number;
+  title: string;
+  labels: Label[];
+  state?: string;
+  href: string;
+  prState?: PrState;
+};
 export type Actor = { login: string; initials?: string; bot?: boolean };
 export type RunSummary = {
   id: number;
@@ -67,7 +76,7 @@ export type Project = {
 
 export type IgnoredCommand = {
   at: string;
-  ticket: { kind: TicketKind; number: number };
+  ticket: { kind: TicketKind; number: number; prState?: PrState };
   command: string;
   author: string;
   reason: string;

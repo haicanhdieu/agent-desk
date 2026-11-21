@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Avatar, CommandChip, Icon, StatusIcon } from '@/ds';
+import { Avatar, CommandChip, Icon, StatusIcon, TicketIcon } from '@/ds';
 import { ChainTimeline } from './ChainTimeline';
 import { EventLog } from './EventLog';
 import { KeyValue } from './KeyValue';
@@ -163,6 +163,41 @@ export const Collapsed: Story = {
           { icon: <Icon name="issue" size={16} />, title: 'Issue #139' },
           { icon: <StatusIcon status="running" size={16} />, title: 'Running' },
           { icon: <Icon name="rule" size={16} />, title: 'Chain: 1 of 2' },
+        ]}
+      />
+    </div>
+  ),
+};
+
+/** A merged PR: the Ticket card and the Pull request section both take the state colour. */
+export const PullRequestStates: Story = {
+  args: { children: null },
+  render: () => {
+    const pr = { ...ticket, kind: 'pr' as const, number: 148, state: 'Merged', prState: 'merged' as const };
+    return (
+      <div style={{ height: 400, display: 'flex', justifyContent: 'flex-end' }}>
+        <SidePanel>
+          <Section title="Ticket">
+            <TicketSummary ticket={pr} />
+          </Section>
+          <Section title="Pull request">
+            <TicketSummary ticket={pr} diffstat="+214 −12" />
+          </Section>
+        </SidePanel>
+      </div>
+    );
+  },
+};
+
+export const CollapsedOnPr: Story = {
+  args: { children: null },
+  render: () => (
+    <div style={{ height: 300, display: 'flex', justifyContent: 'flex-end' }}>
+      <SideRail
+        items={[
+          { icon: <TicketIcon kind="pr" prState="merged" size={16} />, title: 'Merged PR #148' },
+          { icon: <StatusIcon status="idle" size={16} />, title: 'Idle' },
+          { icon: <Icon name="rule" size={16} />, title: 'Chain: 2 of 2' },
         ]}
       />
     </div>

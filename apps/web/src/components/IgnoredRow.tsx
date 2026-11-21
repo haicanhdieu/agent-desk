@@ -9,7 +9,7 @@ export function IgnoredRow({ item }: { item: IgnoredCommand }) {
     <tr>
       <td className={`${styles.num} ${styles.muted}`}>{item.at}</td>
       <td>
-        <TicketRef kind={item.ticket.kind} number={item.ticket.number} />
+        <TicketRef kind={item.ticket.kind} number={item.ticket.number} prState={item.ticket.prState} />
       </td>
       <td>
         <CommandChip>{item.command}</CommandChip>

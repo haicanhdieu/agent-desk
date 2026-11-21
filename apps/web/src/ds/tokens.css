@@ -104,6 +104,12 @@
   --label-bug: var(--fail);
   --label-e2e: #c8a2f0;
 
+  /* pull request states */
+  --pr-open: var(--ok);
+  --pr-draft: var(--faint);
+  --pr-merged: #c8a2f0;
+  --pr-closed: var(--fail);
+
   /* radius */
   --radius-3: 3px;
   --radius-4: 4px;

@@ -164,6 +164,15 @@ describe('bootstrap and migrations', () => {
     expect(rows).toHaveLength(4);
   });
 
+  it('inbound_events has a partial (project_id, ticket_ref) index for the ignored-event ref lookup', async () => {
+    const [idx] = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where indexname = 'inbound_events_project_ticket_ref_ignored_idx'",
+    );
+    expect(idx?.indexdef).toContain('(project_id, ticket_ref)');
+    expect(idx?.indexdef).toContain("WHERE starts_with(outcome, 'ignored_'::text)");
+  });
+
   it('the two runs foreign keys from the RBAC migration are added NOT VALID (validated in a later release)', async () => {
     const rows = await query<{ conname: string; convalidated: boolean }>(
       env.ownerUrl,

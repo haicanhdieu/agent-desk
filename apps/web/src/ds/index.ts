@@ -6,7 +6,7 @@ export { Button, IconButton, type ButtonProps, type IconButtonProps } from './Bu
 export { StatusBadge, type StatusBadgeProps } from './StatusBadge';
 export { CommandChip } from './CommandChip';
 export { LabelChip, type LabelChipProps } from './LabelChip';
-export { TicketRef, type TicketKind, type TicketRefProps } from './TicketRef';
+export { TicketIcon, TicketRef, type TicketIconProps, type TicketKind, type TicketRefProps } from './TicketRef';
 export { Avatar, type AvatarProps } from './Avatar';
 export { CountBadge, type CountBadgeProps } from './CountBadge';
 export { StepNumber, type StepNumberProps } from './StepNumber';

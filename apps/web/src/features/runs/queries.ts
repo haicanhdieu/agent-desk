@@ -1,14 +1,17 @@
-import type {
-  Page,
-  PageQuery,
-  RunDto,
-  RunEventDto,
-  RunListFilter,
-  RunListItem,
-  RunStatsDto,
-  RunTranscriptResponse,
+import {
+  PR_STATES_MAX_REFS,
+  type Page,
+  type PageQuery,
+  type PrState,
+  type PrStatesResponse,
+  type RunDto,
+  type RunEventDto,
+  type RunListFilter,
+  type RunListItem,
+  type RunStatsDto,
+  type RunTranscriptResponse,
 } from '@agentdesk/contracts';
-import { infiniteQueryOptions, queryOptions } from '@tanstack/react-query';
+import { infiniteQueryOptions, keepPreviousData, queryOptions, useQueries } from '@tanstack/react-query';
 import { api } from '../api';
 import { withPendingNote } from './pending';
 
@@ -136,3 +139,40 @@ export const runsQueries = {
       queryFn: () => api.projects.ignored({ params: { projectId }, query: q }),
     }),
 };
+
+/** Distinct refs, sorted by number, in groups of at most PR_STATES_MAX_REFS. */
+export function prStateChunks(refs: readonly string[]): string[][] {
+  const sorted = [...new Set(refs)].sort((a, b) => Number(a) - Number(b));
+  const chunks: string[][] = [];
+  for (let i = 0; i < sorted.length; i += PR_STATES_MAX_REFS) chunks.push(sorted.slice(i, i + PR_STATES_MAX_REFS));
+  return chunks;
+}
+
+export const ticketsQueries = {
+  /**
+   * The live states of PR `refs` (a sorted group, see prStateChunks). Global query defaults apply; the previous group
+   * stays on screen while a changed one loads, so an icon does not flash neutral.
+   */
+  prStates: (org: string, projectId: string, refs: string[]) =>
+    queryOptions({
+      queryKey: [...projectKey(org, projectId), 'tickets', 'pr-states', refs] as const,
+      queryFn: async (): Promise<PrStatesResponse['items']> =>
+        (await api.tickets.prStates({ params: { projectId }, query: { ref: refs } })).items,
+      placeholderData: keepPreviousData,
+    }),
+};
+
+/**
+ * The states of the refs on screen, merged across groups. A group that is loading or failed adds nothing (the icon
+ * stays neutral): it never suspends or throws. No refs send no request.
+ */
+export function usePrStates(org: string, projectId: string, refs: readonly string[]): ReadonlyMap<string, PrState> {
+  return useQueries({
+    queries: prStateChunks(refs).map((chunk) => ticketsQueries.prStates(org, projectId, chunk)),
+    combine: (results) => {
+      const states = new Map<string, PrState>();
+      for (const r of results) for (const item of r.data ?? []) states.set(item.ref, item.prState);
+      return states;
+    },
+  });
+}

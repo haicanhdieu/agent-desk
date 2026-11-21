@@ -1,10 +1,19 @@
-import { AppLink, CommandChip, StatusIcon, TicketRef, statusTokens, type RunStatus, type TicketKind } from '@/ds';
+import {
+  AppLink,
+  CommandChip,
+  StatusIcon,
+  TicketRef,
+  statusTokens,
+  type PrState,
+  type RunStatus,
+  type TicketKind,
+} from '@/ds';
 import styles from './SidePanel.module.css';
 
 export type ChainStep = {
   runId?: number;
   command: string;
-  ticket?: { kind: TicketKind; number: number };
+  ticket?: { kind: TicketKind; number: number; prState?: PrState };
   context?: string;
   note: string;
   status: RunStatus | 'future';
@@ -25,7 +34,7 @@ export function ChainTimeline({ steps }: { steps: ChainStep[] }) {
               {s.ticket && (
                 <>
                   <span className="faint">on</span>
-                  <TicketRef kind={s.ticket.kind} number={s.ticket.number} />
+                  <TicketRef kind={s.ticket.kind} number={s.ticket.number} prState={s.ticket.prState} />
                 </>
               )}
               {!s.ticket && s.context && <span>{s.context}</span>}
