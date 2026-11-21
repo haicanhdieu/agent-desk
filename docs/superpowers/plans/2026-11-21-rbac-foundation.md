@@ -377,7 +377,7 @@ export function inScope(access: Access, projectId: string): boolean;
 export function visibleProjects(access: Access, permission: Permission): 'all' | string[];
 ```
 
-- [ ] **Step 1: Write the failing tests** in `access.test.ts`. Role fixtures are written in the test (never read from the seed): `OWNER`, `ADMIN`, `MEMBER`, `VIEWER` as in Global Constraints, plus made-up `READ_RUNS_ONLY = [{run:read, any}]` and `PROJECT_DELETER = [{project:delete, any}]`. `it.each` rows `[name, grants, permission, target, expected]`, at least:
+- [x] **Step 1: Write the failing tests** in `access.test.ts`. Role fixtures are written in the test (never read from the seed): `OWNER`, `ADMIN`, `MEMBER`, `VIEWER` as in Global Constraints, plus made-up `READ_RUNS_ONLY = [{run:read, any}]` and `PROJECT_DELETER = [{project:delete, any}]`. `it.each` rows `[name, grants, permission, target, expected]`, at least:
   - union: member on P1 + viewer on P2 → `run:create` P1 `true`, P2 `false`, P3 `false`.
   - org vs project: viewer at org → `project:read` on a random new project id `true`; viewer on P1 → P2 `false`.
   - org-level at project scope: `PROJECT_DELETER` on P1 → `can(project:delete, {projectId:P1})` `false`, `holdsAnywhere(project:delete)` `false`; same role at org → `true`.
@@ -387,10 +387,10 @@ export function visibleProjects(access: Access, permission: Permission): 'all' |
   - `visibleProjects`: viewer at org → `'all'`; member on P2 and P1 → `[P1, P2]` sorted; no grants → `[]`.
   - `inScope`: org grant → any id `true`; project grant P1 → P1 `true`, P2 `false`.
   - `Object.keys(PERMISSION_LEVEL).sort()` equals `Permission.options.slice().sort()`; every `platform-*` has level `platform`; `project:create`, `project:delete`, `connection:*`, `member:*`, `org:*` are `org`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts`. Expected: FAIL (module not found).
-- [ ] **Step 3: Implement** `access.ts` with the exports above and add `export * from './access';` to `index.ts`.
-- [ ] **Step 4: Run** the same command. Expected: PASS. Then `pnpm --filter @agentdesk/contracts typecheck`.
-- [ ] **Step 5: Commit** `feat(contracts): permission model with scope and ownership conditions`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts`. Expected: FAIL (module not found).
+- [x] **Step 3: Implement** `access.ts` with the exports above and add `export * from './access';` to `index.ts`.
+- [x] **Step 4: Run** the same command. Expected: PASS. Then `pnpm --filter @agentdesk/contracts typecheck`.
+- [x] **Step 5: Commit** `feat(contracts): permission model with scope and ownership conditions`.
 
 ---
 
@@ -444,14 +444,14 @@ export const PlatformRoleDto, PlatformAssignmentDto, PlatformInvitationDto; // o
 
 Every schema has its `export type X = z.infer<typeof X>`.
 
-- [ ] **Step 1: Write the failing tests** (contract unit for BR-37, BR-59, BR-73):
+- [x] **Step 1: Write the failing tests** (contract unit for BR-37, BR-59, BR-73):
   - `slug.test.ts`: `slugFromName('Acme Corp')` is `'acme-corp'`; `'  Hello__World!! '` → `'hello-world'`; `''` and `'ÄÖ'` → `'org'`; a 200-char name gives ≤ 63 chars, no trailing `-`; for 50 random strings the result parses with `OrgSlug`. `OrgSlug` rejects `''`, `'-a'`, `'a-'`, `'A'`, `'a_b'`, 64 chars; accepts `'acme-eu-1'` and 63 chars.
   - `schemas/access.test.ts`: `CreateAssignmentRequest` rejects a missing `roleId`, `{type:'project'}` without `projectId`, `{type:'team'}`, `userId: ''`; accepts org and project scopes. `CreateInvitationRequest` rejects `'not-an-email'`, a 255-char email (accepts 254), `projectIds: []`, 101 ids (accepts 100); `'Mixed@Example.COM'` parses to `'mixed@example.com'`; `[P1, P1, P2]` parses to `[P1, P2]`. `MemberDto.shape` has no `email` key. `InvitationStatus.options` equals the four statuses.
   - `schemas/platform.test.ts`: `CreateOrgRequest` rejects missing name, missing slug, 101-char name (accepts 100), slug `'-x'`, with the issue path `['slug']`; `PlatformMemberDto` rejects a member without `email`; `PlatformRoleDto` parses a `RoleDto` fixture.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/slug.test.ts src/schemas/access.test.ts src/schemas/platform.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three files and export them from `index.ts`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): access, invitation and platform DTOs and the org slug helper`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/slug.test.ts src/schemas/access.test.ts src/schemas/platform.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the three files and export them from `index.ts`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(contracts): access, invitation and platform DTOs and the org slug helper`.
 
 ---
 
