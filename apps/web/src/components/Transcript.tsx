@@ -68,6 +68,9 @@ function Strong({ children }: ComponentProps<'strong'> & ExtraProps) {
   return <strong>{children}</strong>;
 }
 
+// Module constant: Streamdown's memo compares linkSafety by reference, so an inline object re-parses every entry on each render.
+const LINK_SAFETY = { enabled: false };
+
 const markdownComponents = {
   h1: heading(1),
   h2: heading(2),
@@ -105,7 +108,7 @@ function Entry({ item }: { item: TranscriptItem }) {
           mode="static"
           parseIncompleteMarkdown={false}
           controls={false}
-          linkSafety={{ enabled: false }}
+          linkSafety={LINK_SAFETY}
           components={markdownComponents}
         >
           {item.text}

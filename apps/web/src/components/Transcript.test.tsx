@@ -1,7 +1,20 @@
+import type { ComponentProps } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Transcript, isPrepend, type TranscriptItem } from './Transcript';
+
+const linkSafetySeen = vi.hoisted(() => [] as unknown[]);
+vi.mock('streamdown', async (importOriginal) => {
+  const real = await importOriginal<typeof import('streamdown')>();
+  return {
+    ...real,
+    Streamdown: (props: ComponentProps<typeof real.Streamdown>) => {
+      linkSafetySeen.push(props.linkSafety);
+      return <real.Streamdown {...props} />;
+    },
+  };
+});
 
 const item = (over: Partial<TranscriptItem> & Pick<TranscriptItem, 'key' | 'kind'>): TranscriptItem => ({
   time: '14:13',
@@ -11,6 +24,15 @@ const item = (over: Partial<TranscriptItem> & Pick<TranscriptItem, 'key' | 'kind
 });
 
 describe('Transcript', () => {
+  it('passes the same linkSafety object on every render so Streamdown memoisation can hit', () => {
+    linkSafetySeen.length = 0;
+    const items = [item({ key: 'a', kind: 'agent', label: 'Claude', text: 'Hi' })];
+    const { rerender } = render(<Transcript state="ready" items={items} />);
+    rerender(<Transcript state="ready" items={items} />);
+    expect(linkSafetySeen).toHaveLength(2);
+    expect(linkSafetySeen[1]).toBe(linkSafetySeen[0]);
+  });
+
   it('labels person messages You or Prompt and agent replies with the agent name and time', () => {
     render(
       <Transcript
