@@ -1,4 +1,5 @@
 import { createFileRoute, notFound, Outlet } from '@tanstack/react-router';
+import { orgAccessQuery } from '@/features/access/queries';
 import { orgsQuery, sessionQuery, setActiveOrganization } from '@/features/auth/session';
 
 // Org layout: resolves the `$org` slug among the user's organizations. Unknown (or not a member) → not found, and
@@ -18,6 +19,8 @@ export const Route = createFileRoute('/o/$org')({
       if (preload) throw new Error(`Not preloading org ${org.slug}: it is not the active org`);
       await setActiveOrganization(queryClient, org);
     }
+    // Every org page can call `can()`: load the grants once the org is resolved and active.
+    await queryClient.ensureQueryData(orgAccessQuery(org.slug));
     return { org };
   },
   component: Outlet,
