@@ -11,6 +11,7 @@ import {
   RuleDto,
   RunDto,
   RunEventDto,
+  RunListItem,
   SetupScriptDto,
   SkillDto,
   canResume,
@@ -29,11 +30,12 @@ import { runEventFixtures } from '../dto/events';
 import { ids } from '../dto/ids';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
-import { runFixtures } from '../dto/runs';
+import { runFixtures, type MockRun } from '../dto/runs';
 import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 import { mockDb } from './db';
 import { routeHandlers } from './handlers';
+import { linkedTicketsFor } from './linkedTickets';
 import { scenarios } from './scenarios';
 
 const api = createApi({ baseUrl: 'http://localhost:3000', parse: true });
@@ -725,5 +727,105 @@ describe('better-auth endpoints', () => {
     const signIn = await json('/sign-in/social', { provider: 'github', callbackURL: '/o/alice/projects' });
     expect(await signIn.json()).toEqual({ url: '/o/alice/projects', redirect: true });
     expect(await (await json('/get-session')).json()).toMatchObject({ user: { handle: 'alice' } });
+  });
+});
+
+describe('runs.list linkedTickets follow the API rules', () => {
+  const base = runFixtures[0];
+  if (!base) throw new Error('no run fixtures');
+  let seq = 0;
+  /** A run of a ticket; `at` orders queuedAt (higher = newer). */
+  const mk = (kind: 'issue' | 'pr', number: number, at: number, linked?: number[]): MockRun => {
+    seq += 1;
+    return {
+      ...base,
+      id: `f0000000-0000-4000-8000-${String(seq).padStart(12, '0')}`,
+      number: seq,
+      queuedAt: new Date(Date.UTC(2026, 10, 12, 10, at)).toISOString(),
+      ticket: {
+        ref: String(number),
+        kind,
+        number,
+        title: `${kind} ${number}`,
+        url: `https://github.com/o/r/${kind === 'pr' ? 'pull' : 'issues'}/${number}`,
+        labels: [],
+      },
+      ...(linked ? { linkedIssueRefs: linked.map(String) } : {}),
+    };
+  };
+  const refs = (run: MockRun, all: MockRun[]) => linkedTicketsFor(run, all).map((t) => `${t.kind}:${t.number}`);
+
+  it('with the default fixtures, run 62 (PR #148) lists issue 142 and run 60 lists PR 148', async () => {
+    const list = await api.runs.list({ params: { projectId: P } });
+    const of = (n: number) => list.items.find((r) => r.number === n)?.linkedTickets;
+    expect(of(62)).toMatchObject([{ kind: 'issue', number: 142, ticketRunCount: 1 }]);
+    expect(of(60)).toMatchObject([{ kind: 'pr', number: 148, ticketRunCount: 1 }]);
+  });
+
+  it('a PR whose linked issue has no runs gives []', () => {
+    const pr = mk('pr', 10, 1, [5]);
+    expect(refs(pr, [pr])).toEqual([]);
+  });
+
+  it('a PR run with an empty snapshot gives [] when a newer run of the PR is linked', () => {
+    const issue = mk('issue', 5, 0);
+    const old = mk('pr', 10, 1);
+    const fresh = mk('pr', 10, 2, [5]);
+    expect(refs(old, [issue, old, fresh])).toEqual([]);
+    expect(refs(fresh, [issue, old, fresh])).toEqual(['issue:5']);
+  });
+
+  it('the newest linked run decides the lead', () => {
+    const i5 = mk('issue', 5, 0);
+    const i6 = mk('issue', 6, 0);
+    const a = mk('pr', 10, 1, [5]);
+    const b = mk('pr', 10, 2, [6]);
+    expect(refs(b, [i5, i6, a, b])).toEqual(['issue:6']);
+    expect(refs(i5, [i5, i6, a, b])).toEqual([]);
+    expect(refs(i6, [i5, i6, a, b])).toEqual(['pr:10']);
+  });
+
+  it('a PR linked to two issues joins the lower one', () => {
+    const i5 = mk('issue', 5, 0);
+    const i6 = mk('issue', 6, 0);
+    const pr = mk('pr', 10, 1, [6, 5]);
+    expect(refs(pr, [i5, i6, pr])).toEqual(['issue:5']);
+    expect(refs(i6, [i5, i6, pr])).toEqual([]);
+  });
+
+  it('an issue with two PRs lists them by number, and a PR lists the issue then the other PRs', () => {
+    const issue = mk('issue', 5, 0);
+    const p12 = mk('pr', 12, 1, [5]);
+    const p10 = mk('pr', 10, 2, [5]);
+    const all = [issue, p12, p10];
+    expect(refs(issue, all)).toEqual(['pr:10', 'pr:12']);
+    expect(refs(p12, all)).toEqual(['issue:5', 'pr:10']);
+    expect(refs(p10, all)).toEqual(['issue:5', 'pr:12']);
+  });
+
+  it('a ref whose newest run is a PR is never a lead', () => {
+    const asIssue = mk('issue', 5, 0);
+    const asPr = mk('pr', 5, 1);
+    const pr = mk('pr', 10, 2, [5]);
+    expect(refs(pr, [asIssue, asPr, pr])).toEqual([]);
+  });
+
+  it('counts the runs of each linked ticket and takes title and url from its newest run', () => {
+    const i1 = mk('issue', 5, 0);
+    const i2 = mk('issue', 5, 1);
+    const pr = mk('pr', 10, 2, [5]);
+    expect(linkedTicketsFor(pr, [i1, i2, pr])).toEqual([
+      { ref: '5', kind: 'issue', number: 5, title: 'issue 5', url: i2.ticket.url, labels: [], ticketRunCount: 2 },
+    ]);
+  });
+
+  it('every runs.list and runs.stats response parses against the contract and leaks no mock field', async () => {
+    const list = await api.runs.list({ params: { projectId: P } });
+    expect(() => list.items.forEach((r) => RunListItem.parse(r))).not.toThrow();
+    const raw = await (await fetch(`http://localhost:3000/api/projects/${P}/runs`)).json();
+    const items = z.object({ items: z.array(z.record(z.string(), z.unknown())) }).parse(raw).items;
+    expect(items.some((r) => 'linkedIssueRefs' in r)).toBe(false);
+    const stats = await api.runs.stats({ params: { projectId: P }, query: { since: '2000-01-01T00:00:00.000Z' } });
+    expect(stats.idleRun === null || RunListItem.safeParse(stats.idleRun).success).toBe(true);
   });
 });

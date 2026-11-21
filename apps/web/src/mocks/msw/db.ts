@@ -21,7 +21,7 @@ import { runEventFixtures } from '../dto/events';
 import { ids } from '../dto/ids';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures, projectOrg } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
-import { runFixtures } from '../dto/runs';
+import { runFixtures, type MockRun } from '../dto/runs';
 import { pluginFixtures, setupScriptFixtures } from '../dto/setup';
 import { skillFixtures } from '../dto/skills';
 
@@ -79,7 +79,7 @@ export interface MockState {
   agentCredentialSaved: string[];
   skills: Record<string, SkillDto[]>;
   rules: RuleDto[];
-  runs: RunDto[];
+  runs: MockRun[];
   runEvents: Record<string, RunEventDto[]>;
   /** Saved transcript entries per run id, oldest first. */
   runTranscripts: Record<string, RunTranscriptEntryDto[]>;

@@ -20,6 +20,7 @@ import {
 import { http, type HttpHandler } from 'msw';
 import { authHandlers } from './auth-handlers';
 import { agentModelsAnswer } from './agentModels';
+import type { MockRun } from '../dto/runs';
 import { promptPreviewFixture } from '../dto/rules';
 import { slowActionRuns, transcriptBehaviours } from '../dto/sessionRuns';
 import { noPlugins } from '../dto/setup';
@@ -39,6 +40,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
+import { linkedTicketsFor, toDto } from './linkedTickets';
 import { appendRunEvent, endSetupTest, rememberSetupTestScript, scriptRun, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
@@ -132,13 +134,16 @@ function assertUniqueCommand(projectId: string, command: string, exceptId?: stri
 }
 
 /** As the API: a list item carries how many runs its ticket has had in the project, all statuses. */
-const withTicketRunCount = (run: RunDto): RunDto & { ticketRunCount: number; linkedTickets: LinkedTicketDto[] } => ({
-  ...run,
-  linkedTickets: [],
-  ticketRunCount: db().runs.filter((r) => r.projectId === run.projectId && r.ticket.ref === run.ticket.ref).length,
-});
+const withTicketRunCount = (run: MockRun): RunDto & { ticketRunCount: number; linkedTickets: LinkedTicketDto[] } => {
+  const projectRuns = db().runs.filter((r) => r.projectId === run.projectId);
+  return {
+    ...toDto(run),
+    linkedTickets: linkedTicketsFor(run, projectRuns),
+    ticketRunCount: projectRuns.filter((r) => r.ticket.ref === run.ticket.ref).length,
+  };
+};
 
-function runOf(runId: string): RunDto {
+function runOf(runId: string): MockRun {
   const run = db().runs.find((r) => r.id === runId);
   if (!run) throw notFound('Run');
   projectRow(run.projectId);
@@ -146,7 +151,7 @@ function runOf(runId: string): RunDto {
 }
 
 /** As the API: a run carries its agent's idle end, so an edit on Agent & settings shows on the run screens. */
-const withAgentIdleEnd = (run: RunDto): RunDto => {
+const withAgentIdleEnd = (run: MockRun): MockRun => {
   const agent = db().agents.find((a) => a.projectId === run.projectId);
   return agent ? { ...run, idleEndSeconds: agent.idleEndSeconds, pausedKeepSeconds: agent.pausedKeepSeconds } : run;
 };
@@ -588,9 +593,9 @@ const impl: Impl = {
     const projectId = projectRow(params.projectId).id;
     const run = db().runs.find((r) => r.projectId === projectId && r.number === params.number);
     if (!run) throw notFound('Run');
-    return withAgentIdleEnd(run);
+    return toDto(withAgentIdleEnd(run));
   },
-  'runs.get': ({ params }) => withAgentIdleEnd(runOf(params.runId)),
+  'runs.get': ({ params }) => toDto(withAgentIdleEnd(runOf(params.runId))),
   'runs.log': ({ params }) => ({ items: db().runEvents[runOf(params.runId).id] ?? [] }),
   'runs.cancel': async ({ params }) => {
     const { user } = session();

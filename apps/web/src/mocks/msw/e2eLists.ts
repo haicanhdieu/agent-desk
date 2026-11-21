@@ -9,6 +9,7 @@ import {
 import { http, type RequestHandler } from 'msw';
 import { z } from 'zod';
 import { ids } from '../dto/ids';
+import type { MockRun } from '../dto/runs';
 import { mockDb, type ProjectRow } from './db';
 import { flatRoutes, problemResponse } from './http';
 
@@ -31,6 +32,20 @@ export const MockLists = z.object({
       /** Runs per ticket, in consecutive chunks from the newest (default 1). */
       ticketSize: z.number().int().min(1).optional(),
     })
+    .optional(),
+  /**
+   * Explicit runs, oldest first, numbered 1..n and queued before every generated run (which shift to n+1..).
+   * Issues carry label user-story; PR refs are `pr-<n>`; `linked` (PR entries only) becomes linkedIssueRefs.
+   */
+  ticketRuns: z
+    .array(
+      z.object({
+        kind: z.enum(['issue', 'pr']),
+        number: z.number().int().min(1),
+        linked: z.array(z.number().int().min(1)).max(10).optional(),
+        status: RunStatus.optional(),
+      }),
+    )
     .optional(),
   /** Idle runs added on top of `runs`, newer than all of them. */
   needsYou: count.optional(),
@@ -136,7 +151,7 @@ function runOf(spec: RunSpec): RunDto {
   };
 }
 
-function generateRuns(lists: NonNullable<MockLists['runs']>, needsYou: number): RunDto[] {
+function generateRuns(lists: NonNullable<MockLists['runs']>, needsYou: number, offset: number): RunDto[] {
   const { total, ticketSize = 1, today = 0 } = lists;
   const taken = Object.entries(lists.statuses ?? {}).flatMap(([status, n]) => {
     const parsed = RunStatus.safeParse(status);
@@ -147,7 +162,7 @@ function generateRuns(lists: NonNullable<MockLists['runs']>, needsYou: number): 
   for (let j = 0; j < needsYou; j++) {
     // Idle runs sit on earlier days so they never count towards "today".
     specs.push({
-      number: total + needsYou - j,
+      number: offset + total + needsYou - j,
       status: 'idle',
       ticketNumber: 5000 + j,
       queuedAt: midnight - day - j * minute,
@@ -155,7 +170,7 @@ function generateRuns(lists: NonNullable<MockLists['runs']>, needsYou: number): 
   }
   for (let i = 0; i < total; i++) {
     specs.push({
-      number: total - i,
+      number: offset + total - i,
       status: taken[i] ?? 'succeeded',
       ticketNumber: 100 + Math.floor(i / ticketSize),
       queuedAt: i < today ? midnight + (today - i) * 1000 : midnight - (i - today + 1) * hour,
@@ -233,12 +248,43 @@ function generateSkills(spec: number | string[]): SkillDto[] {
   });
 }
 
+type TicketRunEntry = NonNullable<MockLists['ticketRuns']>[number];
+
+/** The explicit runs, oldest first, numbered 1..n and queued before `generated`. */
+function ticketRunsOf(entries: readonly TicketRunEntry[], generated: readonly RunDto[]): MockRun[] {
+  const first = Math.min(startOfToday(), ...generated.map((r) => Date.parse(r.queuedAt))) - hour;
+  return entries.map((entry, i): MockRun => {
+    const { kind, number } = entry;
+    const run = runOf({
+      number: i + 1,
+      status: entry.status ?? 'succeeded',
+      ticketNumber: number,
+      queuedAt: first - (entries.length - i) * minute,
+    });
+    const isPr = kind === 'pr';
+    return {
+      ...run,
+      ticket: {
+        ref: isPr ? `pr-${number}` : String(number),
+        kind,
+        number,
+        title: `${isPr ? 'PR' : 'Issue'} ${number}: add a health check endpoint`,
+        url: `https://github.com/harbor-labs/invoicer-api/${isPr ? 'pull' : 'issues'}/${number}`,
+        labels: isPr ? [] : [{ name: 'user-story', color: '0e8a16' }],
+      },
+      ...(isPr && entry.linked ? { linkedIssueRefs: entry.linked.map(String) } : {}),
+    };
+  });
+}
+
 /** Replaces the invoicer-api lists (and alice's projects) with generated rows; deterministic. */
 export function applyMockLists(lists: MockLists): void {
   const state = mockDb.state;
   const projectId = ids.project.invoicerApi;
-  if (lists.runs !== undefined || lists.needsYou !== undefined) {
-    const runs = generateRuns(lists.runs ?? { total: 0 }, lists.needsYou ?? 0);
+  if (lists.runs !== undefined || lists.needsYou !== undefined || lists.ticketRuns !== undefined) {
+    const entries = lists.ticketRuns ?? [];
+    const generated = generateRuns(lists.runs ?? { total: 0 }, lists.needsYou ?? 0, entries.length);
+    const runs = [...ticketRunsOf(entries, generated), ...generated];
     const old = new Set(state.runs.filter((r) => r.projectId === projectId).map((r) => r.id));
     for (const id of old) delete state.runEvents[id];
     state.runs = [...state.runs.filter((r) => r.projectId !== projectId), ...runs];

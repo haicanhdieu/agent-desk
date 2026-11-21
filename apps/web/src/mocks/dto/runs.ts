@@ -46,12 +46,24 @@ const failure: Partial<Record<RunSummary['status'], { exitCode: number | null; f
   cancelled: { exitCode: null, failureReason: null },
 };
 
-function fromSummary(r: RunSummary): RunDto {
+/** A mock DB run: the DTO plus the issue refs it was linked to when created (mirrors runs.linked_issue_refs). */
+export type MockRun = RunDto & { linkedIssueRefs?: string[] };
+
+/** Fixture links: PR #148 closes issue #142, PR #133 closes issue #131. */
+const linkedRefsOf = (ticket: Ticket): string[] | undefined => {
+  if (ticket.kind !== 'pr') return undefined;
+  if (ticket.number === 148) return ['142'];
+  return ticket.number === 133 ? ['131'] : undefined;
+};
+
+function fromSummary(r: RunSummary): MockRun {
   const command = r.command.replace(/^\//, '');
   const queued = r.status === 'queued';
   const final = failure[r.status];
   const duration = seconds(r.duration);
+  const linkedIssueRefs = linkedRefsOf(r.ticket);
   return {
+    ...(linkedIssueRefs ? { linkedIssueRefs } : {}),
     id: ids.run(1, r.id),
     number: r.id,
     projectId: ids.project.invoicerApi,
@@ -133,7 +145,7 @@ const ended = (
 });
 
 /** Run 52 ran the custom prompt rule /triage: no skill, the prompt and the final prompt as recorded. */
-const asPromptRun = (r: RunDto): RunDto => ({
+const asPromptRun = (r: MockRun): MockRun => ({
   ...r,
   ruleId: ids.rule.r6,
   command: 'triage',
@@ -156,7 +168,7 @@ const parked = (number: number, ticket: Ticket, over: Partial<RunDto>): RunDto =
   ...over,
 });
 
-export const runFixtures: RunDto[] = [
+export const runFixtures: MockRun[] = [
   ...Object.values(runsById).map((r) => (r.id === 52 ? asPromptRun(fromSummary(r)) : fromSummary(r))),
   // Run 64 paused by the idle timer, run 65 succeeded with its session kept, run 66 never resumed.
   parked(64, issue(150, 'Add an audit trail to the CSV export'), {

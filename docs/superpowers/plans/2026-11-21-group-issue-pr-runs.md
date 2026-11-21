@@ -632,7 +632,7 @@ ticketRuns: z.array(z.object({
   - Every runs response goes through `toDto`.
   - `applyMockLists` replaces the project's runs when `runs`, `needsYou` or `ticketRuns` is set.
 
-- [ ] **Step 1: Write the failing tests.**
+- [x] **Step 1: Write the failing tests.**
   - `contract.test.ts`, `describe('runs.list linkedTickets follow the API rules')`:
     - with the default fixtures, run 62 (PR #148) lists `[issue 142, ticketRunCount 1]`, and run 60 (#142) lists `[PR 148, ticketRunCount 1]`;
     - over `linkedTicketsFor` directly:
@@ -650,10 +650,10 @@ ticketRuns: z.array(z.object({
     - `issue entries carry the user-story label and PR entries use ref pr-<n> and a pull url`;
     - `ticketRuns alone replace the project's runs`;
     - one seed for each scenario the e2e uses parses and gives the expected `linkedTicketsFor` result: a pair, an issue with two PRs (one page and split), a PR with two issues, a PR linked to a zero-run issue, a split pair across pages, and a PR with an old unlinked and a new linked run.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web test contract e2eLists`. Expected: FAIL.
-- [ ] **Step 3: Implement** `MockRun`, `linkedTicketsFor`, `toDto`, the handler changes, the fixture links and `ticketRuns`.
-- [ ] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS. The route tests are unchanged, because the web still ignores `linkedTickets`.
-- [ ] **Step 5: Commit:** `feat(web): mock API serves linkedTickets and seeds linked runs`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web test contract e2eLists`. Expected: FAIL.
+- [x] **Step 3: Implement** `MockRun`, `linkedTicketsFor`, `toDto`, the handler changes, the fixture links and `ticketRuns`.
+- [x] **Step 4: Run** `pnpm --filter @agentdesk/web test && pnpm --filter @agentdesk/web typecheck`. Expected: PASS. The route tests are unchanged, because the web still ignores `linkedTickets`.
+- [x] **Step 5: Commit:** `feat(web): mock API serves linkedTickets and seeds linked runs`.
 
 ---
 
