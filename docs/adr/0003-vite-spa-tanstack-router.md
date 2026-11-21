@@ -1,6 +1,7 @@
 # 0003. Vite SPA with TanStack Router and org-scoped URLs
 
 - Status: Accepted
+- Amended by [0034](0034-per-request-org-check-and-auth-allow-list.md) (the org in the URL wins on every request)
 - Date: 2026-11-12
 - Source: frontend design §2 (Rendering and routing, URL scheme, Serving), §3.4
 

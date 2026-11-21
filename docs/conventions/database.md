@@ -25,7 +25,7 @@ Temporal keeps its own databases (`temporal`, `temporal_visibility`); nothing in
 - **MUST** obtain a handle only through `withOrg(db, orgId, tx => …)` (in the api: `OrgDb.run`). _Why: it opens the transaction and sets `app.org_id` locally; without it RLS returns zero rows._
 - **MUST NOT** pass `db` (the pool) into repositories or services; pass `tx: Tx`.
 - **MUST** still write `org_id` on inserts and **SHOULD** filter by `project_id` explicitly; RLS is the backstop, not the only filter. _Why: defence in depth, and the planner uses the index._
-- Cross-tenant reads are limited to three `SECURITY DEFINER` functions: `resolve_project(provider, external_id, repo_path)`, `queued_runs_without_workflow(older_than)` and `pending_invitations_for_email(p_email)` (ids only, [ADR-0031](../adr/0031-scoped-rbac-roles-assignments.md)). A new one **MUST** be reviewed against [security.md](security.md), `SET search_path` explicitly, return only ids, and get an RLS test.
+- Cross-tenant reads are limited to four `SECURITY DEFINER` functions: `resolve_project(provider, external_id, repo_path)`, `queued_runs_without_workflow(older_than)`, `pending_invitations_for_email(p_email)` (ids only, [ADR-0031](../adr/0031-scoped-rbac-roles-assignments.md)) and `invitation_org_for_email(invitation_id, email)` (the org id only, any status, one id per call). A new one **MUST** be reviewed against [security.md](security.md), `SET search_path` explicitly, return only ids, and get an RLS test.
 - **MUST** ship a leak test for every new org table: org A cannot read, update or insert B's rows, and a query without `withOrg` sees nothing (`packages/db/test/rls.test.ts`).
 
 ```ts

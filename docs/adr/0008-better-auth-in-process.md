@@ -1,6 +1,7 @@
 # 0008. better-auth in process for authentication
 
 - Status: Accepted
+- Amended by [0034](0034-per-request-org-check-and-auth-allow-list.md) (`/auth` is an allow-list; the `setActive` latency check is closed)
 - Date: 2026-11-12
 - Source: control plane design §2 (Auth), §4.1, §5; frontend design §2 (Auth client), §4.4
 
