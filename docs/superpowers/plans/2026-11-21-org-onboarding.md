@@ -1613,9 +1613,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `platformAdminContext`, `signInAs`, `grant` (Task 10 and slice 1 helpers).
 
-- [ ] **Step 1: Write the spec**: TC-34.1 (BR-34); TC-35.1 to TC-35.3 (BR-35: URL auto-filled and matching the slug format, an edited slug becomes the org URL, "Done" → `/`); TC-38.1 (BR-38: the owner context opens the link, signs in, accepts, sees "Get started" with four "Not done" rows; the platform admin does not list the org); TC-40.1 to TC-40.3 (BR-40: the admin granted on one org sees "Create organization" after a divider; no org → "No organization"; a non-admin owner of two orgs has no create item). The shared platform admin only creates orgs and never accepts an invitation.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-platform.spec.ts` with the stack up. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): e2e for platform org creation and the first owner`.
+- [x] **Step 1: Write the spec**: TC-34.1 (BR-34); TC-35.1 to TC-35.3 (BR-35: URL auto-filled and matching the slug format, an edited slug becomes the org URL, "Done" → `/`); TC-38.1 (BR-38: the owner context opens the link, signs in, accepts, sees "Get started" with four "Not done" rows; the platform admin does not list the org); TC-40.1 to TC-40.3 (BR-40: the admin granted on one org sees "Create organization" after a divider; no org → "No organization"; a non-admin owner of two orgs has no create item). The shared platform admin only creates orgs and never accepts an invitation.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-platform.spec.ts` with the stack up. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): e2e for platform org creation and the first owner`.
 
 ---
 
