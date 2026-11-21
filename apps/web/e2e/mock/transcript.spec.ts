@@ -413,6 +413,28 @@ test.describe('BR-43: messages are rendered as safe Markdown', () => {
     await expect(log(page).getByText('**strong**', { exact: false })).toHaveCount(0);
   });
 
+  test('TC-43.2b tables, inline code and fenced code are readable and a long code line scrolls in its block', async ({
+    page,
+  }) => {
+    await open(page, TRANSCRIPT_RICH_RUN);
+    const table = log(page).getByRole('table');
+    await expect(table).toBeVisible();
+    await expect(table.getByRole('columnheader', { name: 'Name' })).toBeVisible();
+    await expect(table.getByRole('cell', { name: 'refunds', exact: true })).toBeVisible();
+    await expect(log(page).locator('code', { hasText: /^inline_code$/ })).toBeVisible();
+    const block = log(page).locator('pre', { hasText: 'LONG_CODE_LINE' });
+    await expect(block).toBeVisible();
+    // The long code line does not widen the transcript itself.
+    expect(await log(page).evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    // It scrolls inside its own block: that block clips sideways (auto or scroll) and its line is wider than it.
+    const scroll = await block.evaluate((pre) => ({
+      overflowX: getComputedStyle(pre).overflowX,
+      wider: pre.scrollWidth > pre.clientWidth,
+    }));
+    expect(scroll.overflowX).toMatch(/^(auto|scroll)$/);
+    expect(scroll.wider).toBe(true);
+  });
+
   test('TC-43.3 line breaks are kept and runs of spaces collapse', async ({ page }) => {
     await open(page, TRANSCRIPT_RICH_RUN);
     const text = log(page).locator('p', { hasText: /^a {5}b/ });

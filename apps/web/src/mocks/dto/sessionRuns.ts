@@ -313,6 +313,20 @@ const richSpecs = (start: string): Spec[] => {
     { kind: 'agent', text: '<b>bold</b> <script>alert(1)</script>' },
     { kind: 'agent', text: '# Heading\n\n**strong**\n\n- one\n- two\n\n[a link](https://example.com)' },
     { kind: 'agent', text: 'a     b\n     c\n     d' },
+    {
+      kind: 'agent',
+      text: [
+        'Totals by column, with `inline_code` inside:',
+        '',
+        '| Name | Rows | Note |',
+        '| --- | --- | --- |',
+        '| refunds | 12 | the new column |',
+        '',
+        '```',
+        `LONG_CODE_LINE ${'dotnet_test_filter_'.repeat(30)}`,
+        '```',
+      ].join('\n'),
+    },
     { kind: 'agent', text: 'before ‮visible\u0007 after' },
     {
       kind: 'agent',
