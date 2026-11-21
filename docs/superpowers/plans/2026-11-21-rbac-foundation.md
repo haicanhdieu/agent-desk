@@ -1724,9 +1724,9 @@ export async function streamStatus(who: Actor, path: string): Promise<number>;
 - Consumes: Task 35 cast.
 - Produces: tests only.
 
-- [ ] **Step 1: Write the spec:** TC-27.1 to TC-27.4; TC-28.1 to TC-28.7; TC-42.1, TC-42.2; TC-44.1 to TC-44.3.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-scope.spec.ts`. Expected: PASS (or report not run).
-- [ ] **Step 3: Commit** `test(web): e2e project scope in lists and lookups`.
+- [x] **Step 1: Write the spec:** TC-27.1 to TC-27.4; TC-28.1 to TC-28.7; TC-42.1, TC-42.2; TC-44.1 to TC-44.3.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-scope.spec.ts`. Expected: PASS (or report not run).
+- [x] **Step 3: Commit** `test(web): e2e project scope in lists and lookups`.
 
 ---
 
