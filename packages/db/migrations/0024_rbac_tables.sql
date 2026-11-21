@@ -91,10 +91,14 @@ CREATE INDEX "role_assignments_project_idx" ON "role_assignments" USING btree ("
 CREATE INDEX "role_assignments_org_role_idx" ON "role_assignments" USING btree ("org_id","role_id");--> statement-breakpoint
 CREATE INDEX "role_permissions_org_idx" ON "role_permissions" USING btree ("org_id");--> statement-breakpoint
 CREATE INDEX "roles_template_id_idx" ON "roles" USING btree ("template_id");--> statement-breakpoint
-ALTER TABLE "runs" ADD CONSTRAINT "runs_owner_user_id_user_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "runs" ADD CONSTRAINT "runs_origin_run_id_runs_id_fk" FOREIGN KEY ("origin_run_id") REFERENCES "public"."runs"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "runs" ADD CONSTRAINT "runs_owner_user_id_user_id_fk" FOREIGN KEY ("owner_user_id") REFERENCES "public"."user"("id") ON DELETE set null ON UPDATE no action NOT VALID;--> statement-breakpoint
+ALTER TABLE "runs" ADD CONSTRAINT "runs_origin_run_id_runs_id_fk" FOREIGN KEY ("origin_run_id") REFERENCES "public"."runs"("id") ON DELETE set null ON UPDATE no action NOT VALID;--> statement-breakpoint
 CREATE INDEX "runs_owner_user_idx" ON "runs" USING btree ("owner_user_id");--> statement-breakpoint
 CREATE INDEX "runs_origin_run_id_idx" ON "runs" USING btree ("origin_run_id");--> statement-breakpoint
+CREATE INDEX "account_provider_account_idx" ON "account" USING btree ("provider_id","account_id");--> statement-breakpoint
+CREATE INDEX "runs_project_finished_idx" ON "runs" USING btree ("project_id","finished_at");--> statement-breakpoint
+CREATE INDEX "invitations_org_created_idx" ON "invitations" USING btree ("org_id","created_at" DESC NULLS FIRST,"id" DESC NULLS FIRST);--> statement-breakpoint
+CREATE INDEX "role_assignments_org_granted_idx" ON "role_assignments" USING btree ("org_id","granted_at" DESC NULLS FIRST,"id");--> statement-breakpoint
 CREATE POLICY "org_isolation" ON "invitations" AS PERMISSIVE FOR ALL TO public USING (org_id = nullif(current_setting('app.org_id', true), '')::uuid) WITH CHECK (org_id = nullif(current_setting('app.org_id', true), '')::uuid);--> statement-breakpoint
 CREATE POLICY "org_isolation" ON "role_assignments" AS PERMISSIVE FOR ALL TO public USING (org_id = nullif(current_setting('app.org_id', true), '')::uuid) WITH CHECK (org_id = nullif(current_setting('app.org_id', true), '')::uuid);--> statement-breakpoint
 CREATE POLICY "org_isolation" ON "role_permissions" AS PERMISSIVE FOR ALL TO public USING (org_id = nullif(current_setting('app.org_id', true), '')::uuid) WITH CHECK (org_id = nullif(current_setting('app.org_id', true), '')::uuid);--> statement-breakpoint

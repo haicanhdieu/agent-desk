@@ -118,6 +118,8 @@ export const roleAssignments = pgTable(
     index('role_assignments_user_id_idx').on(t.userId),
     index('role_assignments_project_idx').on(t.projectId),
     index('role_assignments_org_role_idx').on(t.orgId, t.roleId),
+    // Matches the assignments list ORDER BY (granted_at desc, id asc).
+    index('role_assignments_org_granted_idx').on(t.orgId, t.grantedAt.desc().nullsFirst(), t.id),
     check('role_assignments_scope_type_check', sql`${t.scopeType} in ('org','project')`),
     check(
       'role_assignments_scope_check',
@@ -160,6 +162,8 @@ export const invitations = pgTable(
       .on(t.email)
       .where(sql`${t.status} = 'pending'`),
     index('invitations_org_role_idx').on(t.orgId, t.roleId),
+    // Matches the invitations list ORDER BY (created_at desc, id desc).
+    index('invitations_org_created_idx').on(t.orgId, t.createdAt.desc().nullsFirst(), t.id.desc().nullsFirst()),
     check('invitations_scope_type_check', sql`${t.scopeType} in ('org','project')`),
     check('invitations_status_check', sql`${t.status} in ('pending','accepted','revoked','expired')`),
     check(

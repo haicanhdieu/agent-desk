@@ -149,6 +149,32 @@ describe('bootstrap and migrations', () => {
     expect(idx?.indexdef).toContain('(user_id)');
   });
 
+  it('the RBAC indexes match their lookups and list orders', async () => {
+    const rows = await query<{ indexname: string; indexdef: string }>(
+      env.ownerUrl,
+      `select indexname, indexdef from pg_indexes
+       where indexname in ('account_provider_account_idx','runs_project_finished_idx','invitations_org_created_idx','role_assignments_org_granted_idx')
+       order by 1`,
+    );
+    const defs = Object.fromEntries(rows.map((r) => [r.indexname, r.indexdef]));
+    expect(defs.account_provider_account_idx).toContain('(provider_id, account_id)');
+    expect(defs.runs_project_finished_idx).toContain('(project_id, finished_at)');
+    expect(defs.invitations_org_created_idx).toContain('(org_id, created_at DESC, id DESC)');
+    expect(defs.role_assignments_org_granted_idx).toContain('(org_id, granted_at DESC, id)');
+    expect(rows).toHaveLength(4);
+  });
+
+  it('the two runs foreign keys from the RBAC migration are added NOT VALID (validated in a later release)', async () => {
+    const rows = await query<{ conname: string; convalidated: boolean }>(
+      env.ownerUrl,
+      "select conname, convalidated from pg_constraint where conname in ('runs_owner_user_id_user_id_fk','runs_origin_run_id_runs_id_fk') order by 1",
+    );
+    expect(rows).toEqual([
+      { conname: 'runs_origin_run_id_runs_id_fk', convalidated: false },
+      { conname: 'runs_owner_user_id_user_id_fk', convalidated: false },
+    ]);
+  });
+
   it('a run inserted without owner or origin reads back a null owner and origin', async () => {
     const orgId = randomUUID();
     const client = new pg.Client({ connectionString: env.appUrl });
@@ -837,7 +863,7 @@ describe('role templates and run owner backfill on an upgraded database', () => 
   async function owners(): Promise<Record<string, string | null>> {
     const rows = await query<{ trigger_comment_id: string; owner_user_id: string | null }>(
       adminDbUrl,
-      "select trigger_comment_id, owner_user_id from runs where trigger_comment_id not like 'b-bulk-%'",
+      "select trigger_comment_id, owner_user_id from runs where trigger_comment_id not like 'b-bulk-%' and trigger_comment_id not like 'b-skip-%'",
     );
     return Object.fromEntries(rows.map((r) => [r.trigger_comment_id, r.owner_user_id]));
   }
@@ -904,6 +930,15 @@ describe('role templates and run owner backfill on an upgraded database', () => 
            select $1, $2, 'fix', $3, 'issue', 'main', 'queued', 'webhook', 'b-bulk-' || n, '/fix', $4
            from generate_series(1, ${BULK_RUNS}) as n`,
           [orgId, proj.rows[0]?.id, `dev/${slug}#1`, externalAccount],
+        );
+        // Owner-less runs with no linked account, as many as one batch, mixed by random id with the matching ones:
+        // the keyset must walk past them without skipping a matching run or stopping early.
+        await client.query(
+          `insert into runs (org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                             trigger_source, trigger_comment_id, command, triggered_by_external_id)
+           select $1, $2, 'fix', $3, 'issue', 'main', 'queued', 'webhook', 'b-skip-' || n, '/fix', 'nobody-linked'
+           from generate_series(1, ${BULK_RUNS}) as n`,
+          [orgId, proj.rows[0]?.id, `dev/${slug}#1`],
         );
       }
       await client.query('commit');
@@ -1020,6 +1055,15 @@ describe('role templates and run owner backfill on an upgraded database', () => 
       [userB],
     );
     expect(rows).toEqual([{ owned: String(BULK_RUNS), total: String(BULK_RUNS) }]);
+  });
+
+  it('the backfill leaves unmatched runs owner-less while it walks past them in id order', async () => {
+    const rows = await query<{ owned: string; total: string }>(
+      adminDbUrl,
+      `select count(owner_user_id)::text as owned, count(*)::text as total
+       from runs where trigger_comment_id like 'b-skip-%'`,
+    );
+    expect(rows).toEqual([{ owned: '0', total: String(BULK_RUNS) }]);
   });
 
   it('running both data migrations again changes nothing', async () => {
