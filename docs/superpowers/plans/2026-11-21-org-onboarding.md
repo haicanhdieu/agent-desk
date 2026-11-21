@@ -1559,9 +1559,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `signInAs`, `platformAdminContext`, `inviteViaApi`, `acceptViaApi`, `createOrg`, `asPlatformAdmin` (Task 10 and slice 1 helpers).
 
-- [ ] **Step 1: Write the spec**, one `test('TC-x.y: …')` per case, fresh `e2e-<rand>` handles and orgs per test, one browser context per person: TC-1.1, TC-1.2 (BR-1: redirect to `/sign-in?error=no_invitation`, the Banner, `/auth/get-session` null, twice); TC-2.1 to TC-2.3 (BR-2: welcome card with P1 and P2, the accept page through `redirect`, not found on the org); TC-3.1, TC-3.2 (BR-3: the banner count 2 and "View", switcher lists A and D only, B not found); TC-41.1 (BR-41); TC-45.1, TC-45.2 (BR-45: decline both, welcome copy, same page after a new sign-in). Waits on URLs and headings, never timeouts.
-- [ ] **Step 2: Run** with the stack up `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-signin.spec.ts`. Expected: PASS (if the stack cannot start, say so in the PR and list the specs as written but not run).
-- [ ] **Step 3: Commit** `test(web): e2e for refused sign-in, the welcome page and the invitations notice`.
+- [x] **Step 1: Write the spec**, one `test('TC-x.y: …')` per case, fresh `e2e-<rand>` handles and orgs per test, one browser context per person: TC-1.1, TC-1.2 (BR-1: redirect to `/sign-in?error=no_invitation`, the Banner, `/auth/get-session` null, twice); TC-2.1 to TC-2.3 (BR-2: welcome card with P1 and P2, the accept page through `redirect`, not found on the org); TC-3.1, TC-3.2 (BR-3: the banner count 2 and "View", switcher lists A and D only, B not found); TC-41.1 (BR-41); TC-45.1, TC-45.2 (BR-45: decline both, welcome copy, same page after a new sign-in). Waits on URLs and headings, never timeouts.
+- [x] **Step 2: Run** with the stack up `pnpm --filter @agentdesk/web exec playwright test e2e/local/onboarding-signin.spec.ts`. Expected: PASS (if the stack cannot start, say so in the PR and list the specs as written but not run).
+- [x] **Step 3: Commit** `test(web): e2e for refused sign-in, the welcome page and the invitations notice`.
 
 ---
 
