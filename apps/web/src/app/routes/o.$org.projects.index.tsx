@@ -1,4 +1,4 @@
-import { useQuery, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient, useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
 import { can } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { createFileRoute, useNavigate, type ErrorComponentProps } from '@tanstack/react-router';
@@ -15,11 +15,12 @@ import {
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { Forbidden, RouteError } from '@/app/boundaries';
-import { TopBar } from '@/components';
+import { TopBar, type OnboardingChecklistState } from '@/components';
 import { canInvite, orgAccessQuery, toAccess } from '@/features/access/queries';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { myInvitationsQuery } from '@/features/invitations/queries';
 import { toOrgSwitch } from '@/features/orgs/orgSwitch';
+import { checklistKey, checklistQuery, toChecklistSteps } from '@/features/onboarding/checklist';
 import { toConnectionStatus, toProject } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
 import { Projects } from '@/screens';
@@ -65,6 +66,29 @@ function ProjectsForbidden() {
   );
 }
 
+/**
+ * The first-run checklist card's state: only for org-scope `project:create` holders, nothing once the org is complete.
+ * It never suspends or throws: a failure is the card's own error state with Retry, the page stays usable.
+ */
+function useChecklistState(
+  org: string,
+  orgId: string | undefined,
+  enabled: boolean,
+): OnboardingChecklistState | undefined {
+  const query = useQuery({ ...checklistQuery(org, orgId ?? ''), enabled: enabled && orgId !== undefined });
+  const queryClient = useQueryClient();
+  // Data known to be out of date (a step was completed since) is never shown while its refetch runs.
+  const stale = query.isFetching && queryClient.getQueryState(checklistKey(org))?.isInvalidated === true;
+  if (!enabled) return undefined;
+  if (query.isError) {
+    const requestId = query.error instanceof ApiError ? query.error.requestId : undefined;
+    return { kind: 'error', ...(requestId !== undefined && { requestId }), onRetry: () => void query.refetch() };
+  }
+  if (query.data === undefined || stale) return { kind: 'loading' };
+  if (query.data.complete) return undefined;
+  return { kind: 'ready', steps: toChecklistSteps(query.data, org) };
+}
+
 function ProjectsPage() {
   const { org } = Route.useParams();
   const page = pageOfSearch(Route.useSearch());
@@ -74,6 +98,7 @@ function ProjectsPage() {
   const { data: accessDto } = useSuspenseQuery(orgAccessQuery(org));
   const access = toAccess(accessDto);
   const orgSwitch = useOrgSwitchProps(org, accessDto.platformAdmin);
+  const checklist = useChecklistState(org, orgSwitch.current?.id, can(access, 'project:create'));
   // A failed invitations list hides the banner; it never breaks the page.
   const { data: invitations } = useQuery(myInvitationsQuery);
   const pending = invitations?.total ?? 0;
@@ -112,6 +137,7 @@ function ProjectsPage() {
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}
       {...(canInvite(access) && { invitationsHref: `${orgPath}/invitations` })}
       canCreate={can(access, 'project:create')}
+      {...(checklist && { checklist })}
     />
   );
 }

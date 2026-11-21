@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import type { AgentSettings } from '@/mocks/types';
 import type { AgentLimits, LimitField } from '@/screens';
 import { api } from '../api';
+import { checklistKey } from '../onboarding/checklist';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { relativeTime } from '../relativeTime';
 import { fieldErrorsFromProblem } from './problem';
@@ -288,6 +289,8 @@ export function useReplaceCredential(org: string, projectId: string, agentId: st
     }
     // The screen must see the agent refresh, or it would keep the old address and "credential set" (BR-16).
     const refreshed = await refreshAfterCredential(qc, org, projectId, agentId);
+    // A saved credential completes the checklist's "Add an agent" step.
+    if (saved) await qc.invalidateQueries({ queryKey: checklistKey(org) });
     setError([writeError, refreshed ? undefined : REFRESH_ERROR].filter(Boolean).join(' ') || undefined);
     inFlight.current = false;
     setPending(false);

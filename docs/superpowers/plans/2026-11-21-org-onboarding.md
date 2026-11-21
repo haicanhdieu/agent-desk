@@ -1337,13 +1337,13 @@ export function toChecklistSteps(dto: OrgChecklistDto, org: string): ChecklistSt
 
   The route fetches the checklist only when `can(access, 'project:create')` at org scope, renders nothing when `complete`, and passes loading, error (Retry refetches; the rest of the page stays usable) or ready to `Projects`/`ProjectsEmpty`. Project create, agent credential put (setup and desk), rule create (setup and desk) and connection install or sync invalidate `checklistKey(org)` on success.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `checklist.test.ts`: BR-15 hrefs: no project → every step links to `/o/acme/projects/new/repo`; with `projectId` → `add_agent` to `/o/acme/p/<id>/desk/agent`, `add_rule` to `/o/acme/p/<id>/desk/rules`; labels match the spec.
   - `projects.route.test.tsx`: BR-13 `checklistNoProject` (owner) shows "Get started" with four "Not done" rows on the empty page in place of the step cards; `checklistPartial` shows it above the table; BR-16 `checklistComplete` shows no card; BR-17 `projectAdmin`, `member`, `viewer` show no card and never call `orgs.checklist`; BR-15 `checklistTwoProjects` "Start" on "Add a rule" links to P1's rules; a failing checklist shows the inline Banner and Retry while the project list still renders; BR-14 creating a rule invalidates the checklist query.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/onboarding/checklist.test.ts src/features/projects/projects.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the query, mapper, route wiring and invalidations.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): first-run checklist on the Projects page`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/onboarding/checklist.test.ts src/features/projects/projects.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the query, mapper, route wiring and invalidations.
+- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web test`. Expected: PASS. Only the Step 2 command was run (the full web suite is the Verifier's).
+- [x] **Step 5: Commit** `feat(web): first-run checklist on the Projects page`.
 
 ---
 

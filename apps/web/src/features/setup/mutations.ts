@@ -15,6 +15,7 @@ import { WHOLE_SET } from '@/app/pagination';
 import { api } from '../api';
 import { refreshAfterCredential } from '../desk/agent.form';
 import { rulesKey, skillsKey } from '../desk/queries';
+import { checklistKey } from '../onboarding/checklist';
 import { projectsListKey, projectsQueries } from '../projects/queries';
 import { setupQueries as scriptQueries, versionsKey } from '../setup-script/queries';
 import { setupQueries } from './queries';
@@ -81,9 +82,13 @@ export function useSaveRepoStep(org: string) {
       input.kind === 'create'
         ? api.projects.create({ body: input.body })
         : api.projects.update({ params: { projectId: input.project.id }, body: input.body }),
-    onSuccess: async (project) => {
+    onSuccess: async (project, input) => {
       qc.setQueryData(projectsQueries.detail(org, project.id).queryKey, project);
-      await qc.invalidateQueries({ queryKey: projectsListKey(org) });
+      // A created project completes the checklist's "Create a project" step; an update keeps it.
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: projectsListKey(org) }),
+        ...(input.kind === 'create' ? [qc.invalidateQueries({ queryKey: checklistKey(org) })] : []),
+      ]);
     },
   });
 }
@@ -166,8 +171,11 @@ async function replaceCredential(
     failed = true;
     writeError = e;
   }
-  if (!(await refreshAfterCredential(qc, org, projectId, agentId)))
-    throw new CredentialRefreshError(failed ? writeError : undefined);
+  const [refreshed] = await Promise.all([
+    refreshAfterCredential(qc, org, projectId, agentId),
+    failed ? undefined : qc.invalidateQueries({ queryKey: checklistKey(org) }),
+  ]);
+  if (!refreshed) throw new CredentialRefreshError(failed ? writeError : undefined);
   if (failed) throw writeError;
 }
 
@@ -251,7 +259,10 @@ export function useSaveRulesStep(org: string) {
           throw new RuleSaveError(index, e);
         }
       }
-      await qc.invalidateQueries({ queryKey: rulesKey(org, project.id) });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: rulesKey(org, project.id) }),
+        qc.invalidateQueries({ queryKey: checklistKey(org) }),
+      ]);
       return finishStep(qc, org, project, 'ready');
     },
   });
@@ -278,7 +289,10 @@ export function useInstallConnection(org: string) {
         // The lookup is a shortcut; when it fails the install page is still the way to connect.
       }
       if (linked) {
-        await qc.invalidateQueries({ queryKey: setupQueries.connections(org).queryKey });
+        await Promise.all([
+          qc.invalidateQueries({ queryKey: setupQueries.connections(org).queryKey }),
+          qc.invalidateQueries({ queryKey: checklistKey(org) }),
+        ]);
         return { kind: 'linked', connection: linked };
       }
       const { url } = await api.connections.install({ params: { provider } });
