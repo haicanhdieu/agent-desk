@@ -120,40 +120,6 @@ describe('auth', () => {
     expect((await devLogin('Bad Handle!')).statusCode).toBe(400);
   });
 
-  it('blocks direct email/password sign-in and sign-up endpoints', async () => {
-    for (const url of ['/auth/sign-in/email', '/auth/sign-up/email']) {
-      const res = await t.app.inject({
-        method: 'POST',
-        url,
-        payload: { email: 'alice@dev.local', password: 'password1234', name: 'x' },
-      });
-      expect(res.statusCode).toBe(404);
-    }
-  });
-
-  it.each([
-    '/auth/./sign-in/email',
-    '/auth/x/../sign-up/email',
-    '/auth/%2e/sign-in/email',
-    '/auth/sign-in/email/',
-    '/auth/organization/create/',
-    '/auth/Organization/Delete',
-    '/auth/organization/List-Members',
-    '/auth/organization/list-members/',
-    '/auth/organization/./get-full-organization',
-    '/auth/organization/%2e/get-full-organization',
-    '/auth//organization/list-members',
-    '/auth/organization//list-members',
-    '/auth/organization',
-  ])('blocks %s after path normalization', async (url) => {
-    const res = await t.app.inject({
-      method: 'POST',
-      url,
-      payload: { email: 'alice@dev.local', password: 'password1234', name: 'x' },
-    });
-    expect(res.statusCode).toBe(404);
-  });
-
   it('blocks better-auth organization mutation endpoints but dev-login still works', async () => {
     const { cookie } = await ownerOfNewOrg('auth-block');
     const res = await t.app.inject({
@@ -192,16 +158,30 @@ describe('auth', () => {
     expect(asOwner.statusCode).toBe(404);
   });
 
-  it('answers only the organization plugin endpoints the web uses and 404 for every other one', async () => {
-    const { cookie } = await ownerOfNewOrg('plugin-surface');
+  /** The allow-list, written out here on purpose: the test must not read it from the code it checks. */
+  const OPEN_AUTH_PATHS = [
+    '/get-session',
+    '/sign-in/social',
+    '/callback/github',
+    '/sign-out',
+    '/organization/list',
+    '/organization/set-active',
+    '/ok',
+    '/error',
+  ];
+
+  it('N-1: answers only the allow-listed better-auth routes and 404 (problem body) for every other one', async () => {
+    const { cookie } = await ownerOfNewOrg('auth-surface');
     const auth = t.app.get(AUTH, { strict: false });
-    const paths = Object.values(auth.api as Record<string, { path?: unknown }>)
+    const endpointPaths = Object.values(auth.api as Record<string, { path?: unknown }>)
       .map((endpoint) => endpoint.path)
-      .filter((p): p is string => typeof p === 'string' && p.startsWith('/organization/'));
-    // Guards the enumeration itself: the plugin exposes dozens of endpoints, not zero.
-    expect(paths.length).toBeGreaterThan(20);
+      .filter((p): p is string => typeof p === 'string')
+      .map((p) => p.replace(/:[A-Za-z]+/g, 'x'));
+    // Guards the enumeration itself: better-auth installs dozens of endpoints, not zero.
+    expect(endpointPaths.length).toBeGreaterThan(40);
+    const open = new Set(OPEN_AUTH_PATHS);
     const answered: string[] = [];
-    for (const path of paths) {
+    for (const path of new Set([...endpointPaths, ...OPEN_AUTH_PATHS])) {
       for (const method of ['GET', 'POST'] as const) {
         const res = await t.app.inject({
           method,
@@ -209,11 +189,166 @@ describe('auth', () => {
           headers: { cookie },
           ...(method === 'POST' ? { payload: {} } : {}),
         });
+        const isOpen = open.has(path) || path.startsWith('/callback/');
         if (res.statusCode !== 404) answered.push(`${method} ${path}`);
+        if (!isOpen) {
+          expect(res.statusCode, `${method} ${path}`).toBe(404);
+          expect(res.headers['content-type'], `${method} ${path}`).toContain('application/problem+json');
+        }
       }
     }
-    // Deny by default: a new plugin endpoint is unreachable until it is added to the allow list in auth.ts.
-    expect(answered.sort()).toEqual(['GET /organization/list', 'POST /organization/set-active'].sort());
+    // Every listed path is reachable (some other status than the router's 404) for at least one method.
+    for (const path of OPEN_AUTH_PATHS) {
+      expect(
+        answered.some((a) => a.endsWith(` ${path}`)),
+        path,
+      ).toBe(true);
+    }
+    expect(answered.every((a) => OPEN_AUTH_PATHS.some((p) => a.endsWith(` ${p}`)) || a.includes(' /callback/'))).toBe(
+      true,
+    );
+  });
+
+  let variantOwner: Promise<string> | undefined;
+  const variantCookie = (): Promise<string> => (variantOwner ??= ownerOfNewOrg('auth-variant').then((o) => o.cookie));
+
+  it.each([
+    '/auth/./sign-in/email',
+    '/auth/x/../sign-up/email',
+    '/auth/%2e/sign-in/email',
+    '/auth/sign-in/email/',
+    '/auth//sign-in/email',
+    '/auth/Sign-In/Email',
+    '/auth/organization/create/',
+    '/auth/Organization/Delete',
+    '/auth/organization/List-Members',
+    '/auth/organization/list-members/',
+    '/auth/organization/./get-full-organization',
+    '/auth/organization/%2e/get-full-organization',
+    '/auth//organization/list-members',
+    '/auth/organization//list-members',
+    '/auth/organization',
+    '/auth/update-user',
+    '/auth/list-sessions',
+    '/auth/./list-sessions',
+    '/auth/callback',
+    '/auth/callback/a/b',
+    '/auth/Dev-Login',
+  ])('N-1: %s answers 404 after path normalization', async (url) => {
+    const cookie = await variantCookie();
+    for (const method of ['GET', 'POST'] as const) {
+      const res = await t.app.inject({
+        method,
+        url,
+        headers: { cookie },
+        ...(method === 'POST' ? { payload: { email: 'a@dev.local', password: 'password1234', name: 'x' } } : {}),
+      });
+      expect(res.statusCode, `${method} ${url}`).toBe(404);
+    }
+  });
+
+  it('N-4: set-active to an org the user is not a member of is 403 and the active org stays', async () => {
+    const { cookie, orgId } = await ownerOfNewOrg('auth-setactive');
+    const foreignOrgId = (await createOrg(t, 'Foreign', 'auth-foreign')).id;
+    const res = await t.app.inject({
+      method: 'POST',
+      url: '/auth/organization/set-active',
+      headers: { cookie },
+      payload: { organizationId: foreignOrgId },
+    });
+    expect(res.statusCode).toBe(403);
+    const session = await t.app.inject({ method: 'GET', url: '/auth/get-session', headers: { cookie } });
+    expect(session.json<{ session: { activeOrganizationId: string } }>().session.activeOrganizationId).toBe(orgId);
+  });
+
+  describe('set-active (N-4)', () => {
+    const activeOf = async (cookie: string): Promise<string | null | undefined> => {
+      const res = await t.app.inject({ method: 'GET', url: '/auth/get-session', headers: { cookie } });
+      return res.json<{ session: { activeOrganizationId?: string | null } }>().session.activeOrganizationId;
+    };
+    const setActive = (cookie: string, payload: Record<string, unknown>) =>
+      t.app.inject({ method: 'POST', url: '/auth/organization/set-active', headers: { cookie }, payload });
+
+    it.each([
+      ['sa-slug', 'a foreign slug', (slug: string): Record<string, unknown> => ({ organizationSlug: slug })],
+      [
+        'sa-empty',
+        'an empty id and a foreign slug',
+        (slug: string): Record<string, unknown> => ({ organizationId: '', organizationSlug: slug }),
+      ],
+    ])('refuses %s (%s) with 403 and leaves the session as it was', async (handle, _name, payload) => {
+      const { cookie, orgId } = await ownerOfNewOrg(handle);
+      await createOrg(t, 'Foreign', `${handle}-foreign`);
+      expect(await activeOf(cookie)).toBe(orgId);
+      const res = await setActive(cookie, payload(`${handle}-foreign`));
+      expect(res.statusCode).toBe(403);
+      expect(await activeOf(cookie)).toBe(orgId);
+    });
+
+    it.each([
+      ['sa-fb-none', 'no id and no slug', {}],
+      ['sa-fb-empty', 'an empty id', { organizationId: '' }],
+    ])(
+      'refuses %s (%s) for a removed member with the library 403 body and leaves the session as it was',
+      async (handle, _name, payload) => {
+        const { cookie, orgId } = await ownerOfNewOrg(handle);
+        await t.db.pool.query('delete from member where organization_id = $1', [orgId]);
+        expect(await activeOf(cookie)).toBe(orgId);
+        const res = await setActive(cookie, payload);
+        expect(res.statusCode).toBe(403);
+        expect(res.json<{ message: string; code: string }>()).toEqual({
+          message: 'User is not a member of the organization',
+          code: 'USER_IS_NOT_A_MEMBER_OF_THE_ORGANIZATION',
+        });
+        expect(await activeOf(cookie)).toBe(orgId);
+      },
+    );
+
+    it('refuses a foreign id with the library error code and message', async () => {
+      const { cookie } = await ownerOfNewOrg('sa-body');
+      const foreignOrgId = (await createOrg(t, 'Foreign', 'sa-body-foreign')).id;
+      const res = await setActive(cookie, { organizationId: foreignOrgId });
+      expect(res.statusCode).toBe(403);
+      expect(res.json()).toEqual({
+        message: 'User is not a member of the organization',
+        code: 'USER_IS_NOT_A_MEMBER_OF_THE_ORGANIZATION',
+      });
+    });
+
+    it('refuses an unknown id with 403 (no org-existence oracle) and leaves the session as it was', async () => {
+      const { cookie, orgId } = await ownerOfNewOrg('sa-unk-id');
+      expect(await activeOf(cookie)).toBe(orgId);
+      const res = await setActive(cookie, { organizationId: '00000000-0000-4000-8000-000000000000' });
+      expect(res.statusCode).toBe(403);
+      expect(await activeOf(cookie)).toBe(orgId);
+    });
+
+    it('answers the library 400 for an unknown slug and leaves the session as it was', async () => {
+      const { cookie, orgId } = await ownerOfNewOrg('sa-unk-slug');
+      expect(await activeOf(cookie)).toBe(orgId);
+      const res = await setActive(cookie, { organizationSlug: 'sa-nope' });
+      expect(res.statusCode).toBe(400);
+      expect(await activeOf(cookie)).toBe(orgId);
+    });
+
+    it('clears the active org for a null id and ignores a foreign slug', async () => {
+      const { cookie, orgId } = await ownerOfNewOrg('sa-null');
+      await createOrg(t, 'Foreign', 'sa-foreign-null');
+      expect(await activeOf(cookie)).toBe(orgId);
+      const res = await setActive(cookie, { organizationId: null, organizationSlug: 'sa-foreign-null' });
+      expect(res.statusCode).toBe(200);
+      expect(await activeOf(cookie)).toBeFalsy();
+    });
+
+    it('switches the active org to one the user is a member of', async () => {
+      const { cookie, orgId } = await ownerOfNewOrg('sa-member');
+      const secondId = (await createOrg(t, 'Second', 'sa-second')).id;
+      await inviteAndLogin(t, secondId, 'sa-member', 'viewer', { type: 'org' });
+      expect(await activeOf(cookie)).toBe(orgId);
+      const res = await setActive(cookie, { organizationSlug: 'sa-second' });
+      expect(res.statusCode).toBe(200);
+      expect(await activeOf(cookie)).toBe(secondId);
+    });
   });
 
   it('returns 403 when the active organization is not one the user belongs to', async () => {

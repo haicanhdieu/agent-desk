@@ -1,9 +1,9 @@
 import { createHmac, randomUUID } from 'node:crypto';
 import { betterAuth } from 'better-auth';
-import { APIError } from 'better-auth/api';
+import { APIError, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { organization as organizationPlugin } from 'better-auth/plugins';
-import { asc, eq } from 'drizzle-orm';
+import { and, asc, eq } from 'drizzle-orm';
 import {
   account,
   invitation,
@@ -39,22 +39,6 @@ export const DISABLED_PATHS = [
   '/organization/accept-invitation',
   '/organization/reject-invitation',
 ];
-
-/**
- * Deny by default: the only organization plugin endpoints answered over HTTP, the two the web uses. The plugin's
- * other endpoints (list-members, get-full-organization, ...) check only that a membership row exists and return
- * member emails, bypassing the RBAC routes' permission checks. A new plugin endpoint stays unreachable until it is
- * added here.
- */
-export const ALLOWED_ORGANIZATION_PATHS = ['/organization/list', '/organization/set-active'];
-
-/** True when `pathname` (lowercased, trailing slashes removed, dot segments resolved) must answer 404 before better-auth sees it. */
-export function isDisabledPath(pathname: string): boolean {
-  if (DISABLED_PATHS.some((p) => pathname === `/auth${p}` || pathname.startsWith(`/auth${p}/`))) return true;
-  if (pathname === '/auth/organization' || pathname.startsWith('/auth/organization/'))
-    return !ALLOWED_ORGANIZATION_PATHS.some((p) => pathname === `/auth${p}`);
-  return false;
-}
 
 /** Dev-login accounts are not guessable from outside: the password is an HMAC of the email under the server secret. */
 export function devPassword(config: Pick<Config, 'BETTER_AUTH_SECRET'>, email: string): string {
@@ -115,11 +99,50 @@ export function createAuth(config: Config, db: Db) {
     if (pending.length === 0) throw refuse();
   }
 
+  const orgPlugin = organizationPlugin({ allowUserToCreateOrganization: false });
+
   return betterAuth({
     baseURL: config.PUBLIC_ORIGIN,
     basePath: '/auth',
     secret: config.BETTER_AUTH_SECRET,
     disabledPaths: DISABLED_PATHS,
+    hooks: {
+      // better-auth clears the session's active org before it refuses a non-member; refuse first so the session stays as it was.
+      before: createAuthMiddleware(async (ctx) => {
+        if (ctx.path !== '/organization/set-active') return;
+        const body: unknown = ctx.body;
+        if (typeof body !== 'object' || body === null) return;
+        // Mirror better-auth's target choice: a null id only clears the active org, a non-empty id wins over the slug.
+        const id = 'organizationId' in body ? body.organizationId : undefined;
+        const slug = 'organizationSlug' in body ? body.organizationSlug : undefined;
+        if (id === null) return;
+        let targetId: string | undefined;
+        if (typeof id === 'string' && id !== '') {
+          targetId = id;
+        } else if (typeof slug === 'string' && slug !== '') {
+          const [bySlug] = await orm
+            .select({ id: organization.id })
+            .from(organization)
+            .where(eq(organization.slug, slug))
+            .limit(1);
+          // An unknown slug is the library's plain 400 and changes nothing.
+          targetId = bySlug?.id;
+        }
+        const current = await getSessionFromCtx(ctx);
+        if (!current) return;
+        // With neither id nor slug the library falls back to the session's active org and clears it on refusal.
+        if ((id === undefined || id === '') && (slug === undefined || slug === '')) {
+          targetId = current.session.activeOrganizationId ?? undefined;
+        }
+        if (targetId === undefined) return;
+        const [m] = await orm
+          .select({ id: member.id })
+          .from(member)
+          .where(and(eq(member.userId, current.user.id), eq(member.organizationId, targetId)))
+          .limit(1);
+        if (!m) throw APIError.from('FORBIDDEN', orgPlugin.$ERROR_CODES.USER_IS_NOT_A_MEMBER_OF_THE_ORGANIZATION);
+      }),
+    },
     trustedOrigins: [config.PUBLIC_ORIGIN],
     database: drizzleAdapter(orm, { provider: 'pg', schema }),
     // Ids double as uuid org ids for organizations, so every generated id is a uuid.
@@ -127,7 +150,7 @@ export function createAuth(config: Config, db: Db) {
     emailAndPassword: { enabled: config.AUTH_DEV_LOGIN && config.NODE_ENV !== 'production', autoSignIn: true },
     socialProviders: github,
     user: { additionalFields: { handle: { type: 'string', required: false, input: false } } },
-    plugins: [organizationPlugin({ allowUserToCreateOrganization: false })],
+    plugins: [orgPlugin],
     databaseHooks: {
       user: {
         create: {

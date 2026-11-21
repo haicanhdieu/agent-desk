@@ -646,15 +646,15 @@ export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[])
 - Consumes: `orgChecklist` (Task 7); route `orgs.checklist` (Task 1); `acceptInvite`, `invite` helpers (Task 5).
 - Produces: `GET /api/orgs/:orgId/checklist` → `OrgChecklistDto`, computed under `withOrg(orgId)` over every project id of the org.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - BR-13, BR-14, BR-16 at the API: an owner's checklist moves through each step (fake connection install, project create, agent credential put, rule create) and is `complete` once one project has all four, with one and with two projects.
   - BR-17 and T11: a project admin, a member and a viewer get 403; an org admin gets 200.
   - BR-38: a platform-created org whose first owner joined through `inviteAndLogin(t, orgId, handle, 'owner', { type: 'org' })` (it accepts explicitly once Task 10 lands, with the same signature) → owner assignment at org scope, checklist with all four not done.
   - another org's id in the path → 404.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/checklist.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the controller and module registration; delete the `orgs.checklist` line from `NOT_REGISTERED_YET`.
-- [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts` and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): serve the org onboarding checklist`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/checklist.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the controller and module registration; delete the `orgs.checklist` line from `NOT_REGISTERED_YET`.
+- [x] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts` and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): serve the org onboarding checklist`.
 
 ---
 
@@ -680,15 +680,15 @@ export function isBlockedAuthPath(pathname: string): boolean;
 
   `auth.controller.ts` uses `isBlockedAuthPath`; `auth.ts` drops `ALLOWED_ORGANIZATION_PATHS` and `isDisabledPath` and keeps passing its `DISABLED_PATHS` list to better-auth's `disabledPaths`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `allowed-paths.test.ts` (`it.each`): each allowed path is open, `/auth/callback/github` is open, `/auth/callback` and `/auth/callback/a/b` are blocked, `/auth/organization/list-members`, `/auth/sign-in/email`, `/auth/update-user`, `/auth/list-sessions` are blocked.
   - `auth.int.test.ts` (N-1): replace the three slice 1 path tests with one table over every endpoint better-auth installs (walk `auth.api` endpoints' `path`, so a new endpoint fails the test): as a signed-in owner, each path outside the allow-list answers 404 with the problem body, each allowed one does not; normalization variants of a blocked path (`//`, trailing `/`, upper case, `/./`, `%2e`) also 404.
   - N-4: `POST /auth/organization/set-active` to an org the user is not a member of → 403 and `get-session` shows the old active org.
   - dev-login still signs in (its own controller).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/auth/allowed-paths.test.ts test/auth.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `allowed-paths.ts` and the controller switch.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): answer only an allow-list of better-auth routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/auth/allowed-paths.test.ts test/auth.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `allowed-paths.ts` and the controller switch.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): answer only an allow-list of better-auth routes`.
 
 ---
 
