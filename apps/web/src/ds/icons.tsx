@@ -19,6 +19,7 @@ export type IconName =
   | 'plus'
   | 'more'
   | 'warning'
+  | 'mail'
   | 'lock'
   | 'x'
   | 'trash'
@@ -114,6 +115,12 @@ export const iconPaths: Record<IconName, ReactNode> = {
     <>
       <path d="M12 3 2 20h20z" />
       <path d="M12 10v4M12 17h.01" />
+    </>
+  ),
+  mail: (
+    <>
+      <rect x="3" y="5" width="18" height="14" rx="2" />
+      <path d="M3.5 6.5 12 13l8.5-6.5" />
     </>
   ),
   lock: (

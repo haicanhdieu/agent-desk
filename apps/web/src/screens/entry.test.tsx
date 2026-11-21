@@ -1,7 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import type { PaginationProps } from '@/components';
-import { projects, user } from '@/mocks';
-import { SignIn } from './SignIn';
+import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
+import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
 import { Projects } from './Projects';
 
@@ -122,5 +122,128 @@ describe('Projects pagination', () => {
     const nav = screen.getByRole('navigation', { name: 'Pagination' });
     expect(screen.getByRole('table').compareDocumentPosition(nav) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     expect(nav).toHaveTextContent('Showing 21–26 of 26');
+  });
+});
+
+const orgLinks = { orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`, createHref: '/orgs/new' };
+const ready = { kind: 'ready', steps: checklistSteps.partial } as const;
+
+describe('Projects onboarding', () => {
+  it('says "You have 1 pending invitation." with a View link above the page head', () => {
+    render(
+      <Projects
+        user={user}
+        projects={projects}
+        newHref="/new"
+        invitationsBanner={{ count: 1, href: '/invitations' }}
+      />,
+    );
+    const banner = screen.getByText('You have 1 pending invitation.');
+    expect(
+      within(banner.closest('[role="status"]') as HTMLElement).getByRole('link', { name: 'View' }),
+    ).toHaveAttribute('href', '/invitations');
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Projects' });
+    expect(banner.compareDocumentPosition(h1) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('says "You have 2 pending invitations." for a plural count', () => {
+    render(
+      <Projects
+        user={user}
+        projects={projects}
+        newHref="/new"
+        invitationsBanner={{ count: 2, href: '/invitations' }}
+      />,
+    );
+    expect(screen.getByText('You have 2 pending invitations.')).toBeInTheDocument();
+  });
+
+  it('hides the banner when the count is 0', () => {
+    render(
+      <Projects
+        user={user}
+        projects={projects}
+        newHref="/new"
+        invitationsBanner={{ count: 0, href: '/invitations' }}
+      />,
+    );
+    expect(screen.queryByText(/pending invitation/)).not.toBeInTheDocument();
+  });
+
+  it('shows no banner without invitationsBanner', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    expect(screen.queryByText(/pending invitation/)).not.toBeInTheDocument();
+  });
+
+  it('shows the Invitations link next to New project when invitationsHref is given', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" invitationsHref="/o/acme/invitations" />);
+    expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
+    expect(screen.getByRole('link', { name: 'New project' })).toBeInTheDocument();
+  });
+
+  it('a member view has no Invitations and no New project', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" canCreate={false} />);
+    expect(screen.queryByRole('link', { name: 'Invitations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'New project' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
+  });
+
+  it('puts the checklist card between the page head and the table', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" checklist={ready} />);
+    const card = screen.getByRole('heading', { level: 2, name: 'Get started' });
+    const h1 = screen.getByRole('heading', { level: 1, name: 'Projects' });
+    const table = screen.getByRole('table');
+    expect(h1.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(card.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows the org switcher in the top bar', () => {
+    render(
+      <Projects
+        user={user}
+        projects={projects}
+        newHref="/new"
+        org={{ ...orgSwitchFixtures.severalOrgs, ...orgLinks }}
+      />,
+    );
+    expect(screen.getByRole('button', { name: 'Switch organization, currently Acme' })).toBeInTheDocument();
+  });
+});
+
+describe('ProjectsEmpty onboarding', () => {
+  it('renders the checklist instead of the step cards', () => {
+    render(<ProjectsEmpty user={user} createHref="/new" checklist={ready} />);
+    expect(screen.getByRole('heading', { level: 2, name: 'Get started' })).toBeInTheDocument();
+    expect(screen.queryByText('Connect a repo')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
+  });
+
+  it('offers Invitations beside Create project', () => {
+    render(<ProjectsEmpty user={user} createHref="/new" invitationsHref="/o/acme/invitations" />);
+    expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
+  });
+
+  it('without canCreate shows "No projects yet" and no Create project', () => {
+    render(<ProjectsEmpty user={user} createHref="/new" canCreate={false} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'No projects yet' })).toBeInTheDocument();
+    expect(screen.getByText('An owner or admin of this organization creates projects.')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Create project' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Connect a repo')).not.toBeInTheDocument();
+  });
+
+  it('shows the banner on the empty page too', () => {
+    render(
+      <Projects user={user} projects={[]} newHref="/new" invitationsBanner={{ count: 1, href: '/invitations' }} />,
+    );
+    expect(screen.getByText('You have 1 pending invitation.')).toBeInTheDocument();
+  });
+});
+
+describe('SignInNoInvitationError', () => {
+  it('announces why sign-in was refused', () => {
+    render(<SignIn signInHref="/x" error={<SignInNoInvitationError />} />);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('No invitation found for your email');
+    expect(alert).toHaveTextContent('Ask an owner or admin of your organization to invite you, then sign in again.');
   });
 });

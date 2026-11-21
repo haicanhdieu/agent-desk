@@ -143,3 +143,21 @@ Copy must match exactly.
 - Runs, RunsProblems: the run table shows a "Routing rule" column (the run's command, for example `/code-build`; `—` when none was recorded; one line with an ellipsis and the full command in a tooltip) where the prototype has "Skill". Intended drift, not fixed. Storybook and the parity script were not run in the runner pod (no browser build), so the pixel check of these two boards is still to do.
 - DeskAgent, DeskAgentCustomModel, DeskAgentAddressChanged (model list and API address): the Agent field is disabled so it renders dimmed (as DeskAgent above). The credential panel sits 6px lower than the board (the shared 12px gap between the credential row and its panel), and the New token input has no "Paste the token" placeholder; both are the existing SecretField, left as is. The Limits section keeps the current layout (six limit fields), not the older board's four. Treated as intentional state differences.
 - Setup2 (API address and Default model picker): Storybook was built and `pnpm parity` run; `Setup2.story.png` was compared with `Setup2.proto.png`. The new API address and Default model rows match the board. Remaining differences are older and intentional: the story says "Step 2 of 5" and lists the Prepare workspace step (the board predates it, as on SetupWorkspace), the Token input is empty (the board shows a prefilled token), and the reveal button sits inside the input. Setup2Fallback has no board and is not in the parity script, so it was not compared; it differs from Setup2 only by the standard names and the reason note under Default model.
+
+## Org onboarding: Projects and sign-in boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Twelve boards added, so `parity.mjs`
+finds 91: ProjectsChecklist, ProjectsChecklistDone, ProjectsChecklistError, ProjectsChecklistLoading, ProjectsEmptyChecklist,
+ProjectsEmptyNoCreate, ProjectsMember, ProjectsNoAccess, ProjectsOrgSwitchAdmin, ProjectsOrgSwitchOpen, ProjectsSwitching,
+SignInNoInvitation.
+
+- Projects, ProjectsEmpty, ProjectsPaged: the boards are unchanged (no org name, no "Invitations" button). Their stories now
+  draw a one-org owner, so they show the org name after the brand and an "Invitations" button beside "New project" (beside
+  "Create project" on the empty page). Intended drift, not fixed.
+- ProjectsNoAccess: the story draws the "You don't have access" copy with the screens' centered notice markup, not the
+  router-bound `Forbidden` (screens cannot import the app layer).
+- ProjectsEmptyNoCreate: drawn as the board does (h1 "No projects yet" in the centered notice) rather than the `EmptyState`
+  component, which has no h1 and a smaller title.
+- ProjectsSwitching: the story uses the shared `RouteSkeleton`; the board's skeleton lines differ in width and count.
+- Invitations banner: the story uses the shared `Banner` (title weight and size), the board draws plain body text.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.

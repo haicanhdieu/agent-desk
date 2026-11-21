@@ -1,4 +1,4 @@
-export { SignIn, type SignInProps } from './SignIn';
+export { SignIn, SignInNoInvitationError, type SignInProps } from './SignIn';
 export { ProjectsEmpty, type ProjectsEmptyProps } from './ProjectsEmpty';
 export { Projects, type ProjectsProps } from './Projects';
 export { Setup1, type Setup1Draft, type Setup1Props } from './Setup1';

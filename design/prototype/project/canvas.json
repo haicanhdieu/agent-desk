@@ -641,6 +641,102 @@
    "h": 1000,
    "title": "Runs \u2014 grouped, loading page 3 from page 4, merged group",
    "expand": "fill"
+  },
+  "ProjectsChecklist.dc.html": {
+   "x": 0,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 first-run checklist, partial",
+   "expand": "fill"
+  },
+  "ProjectsChecklistDone.dc.html": {
+   "x": 1520,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 one project set up, checklist gone; pending invitations banner",
+   "expand": "fill"
+  },
+  "ProjectsChecklistError.dc.html": {
+   "x": 3040,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 checklist failed to load",
+   "expand": "fill"
+  },
+  "ProjectsChecklistLoading.dc.html": {
+   "x": 4560,
+   "y": 14640,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 checklist loading",
+   "expand": "fill"
+  },
+  "ProjectsEmptyChecklist.dc.html": {
+   "x": 0,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 empty, owner: live checklist, nothing done",
+   "expand": "fill"
+  },
+  "ProjectsEmptyNoCreate.dc.html": {
+   "x": 1520,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 empty, no create rights",
+   "expand": "fill"
+  },
+  "ProjectsMember.dc.html": {
+   "x": 3040,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 member, one org: no switcher, no Invitations, no New project",
+   "expand": "fill"
+  },
+  "ProjectsNoAccess.dc.html": {
+   "x": 4560,
+   "y": 15920,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 member with no role in this org, switcher still usable",
+   "expand": "fill"
+  },
+  "ProjectsOrgSwitchAdmin.dc.html": {
+   "x": 0,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 platform admin with one org, switcher open with Create organization",
+   "expand": "fill"
+  },
+  "ProjectsOrgSwitchOpen.dc.html": {
+   "x": 1520,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 org switcher open, several orgs, long name",
+   "expand": "fill"
+  },
+  "ProjectsSwitching.dc.html": {
+   "x": 3040,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 switching org, loading",
+   "expand": "fill"
+  },
+  "SignInNoInvitation.dc.html": {
+   "x": 4560,
+   "y": 17200,
+   "w": 1440,
+   "h": 900,
+   "title": "Sign in \u2014 refused, no invitation",
+   "expand": "fill"
   }
  },
  "order": [
@@ -722,7 +818,19 @@
   "DeskSetupPaged.dc.html",
   "DeskSetupVersionsLoading.dc.html",
   "DeskSetupVersionsError.dc.html",
-  "DeskSetupVersionsEmpty.dc.html"
+  "DeskSetupVersionsEmpty.dc.html",
+  "ProjectsChecklist.dc.html",
+  "ProjectsChecklistDone.dc.html",
+  "ProjectsChecklistError.dc.html",
+  "ProjectsChecklistLoading.dc.html",
+  "ProjectsEmptyChecklist.dc.html",
+  "ProjectsEmptyNoCreate.dc.html",
+  "ProjectsMember.dc.html",
+  "ProjectsNoAccess.dc.html",
+  "ProjectsOrgSwitchAdmin.dc.html",
+  "ProjectsOrgSwitchOpen.dc.html",
+  "ProjectsSwitching.dc.html",
+  "SignInNoInvitation.dc.html"
  ],
  "notes": {
   "t-intro": {

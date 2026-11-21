@@ -65,6 +65,18 @@ const stories = {
   DeskSetupVersionsLoading: ['Screens/Desk', 'DeskSetupVersionsLoading'],
   DeskSetupVersionsError: ['Screens/Desk', 'DeskSetupVersionsError'],
   DeskSetupVersionsEmpty: ['Screens/Desk', 'DeskSetupVersionsEmpty'],
+  ProjectsChecklist: ['Screens/Entry', 'ProjectsChecklist'],
+  ProjectsChecklistDone: ['Screens/Entry', 'ProjectsChecklistDone'],
+  ProjectsChecklistError: ['Screens/Entry', 'ProjectsChecklistError'],
+  ProjectsChecklistLoading: ['Screens/Entry', 'ProjectsChecklistLoading'],
+  ProjectsEmptyChecklist: ['Screens/Entry', 'ProjectsEmptyChecklist'],
+  ProjectsEmptyNoCreate: ['Screens/Entry', 'ProjectsEmptyNoCreate'],
+  ProjectsMember: ['Screens/Entry', 'ProjectsMember'],
+  ProjectsNoAccess: ['Screens/Entry', 'ProjectsNoAccess'],
+  ProjectsOrgSwitchAdmin: ['Screens/Entry', 'ProjectsOrgSwitchAdmin'],
+  ProjectsOrgSwitchOpen: ['Screens/Entry', 'ProjectsOrgSwitchOpen'],
+  ProjectsSwitching: ['Screens/Entry', 'ProjectsSwitching'],
+  SignInNoInvitation: ['Screens/Entry', 'SignInNoInvitation'],
   ...Object.fromEntries(
     [
       'Starting',
