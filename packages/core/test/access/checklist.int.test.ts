@@ -176,6 +176,21 @@ describe('orgChecklist', () => {
     expect(c.projectId).toBe(p2);
   });
 
+  it('without an id list every project of the org counts', async () => {
+    const orgId = randomUUID();
+    const { p1, c } = await withOrg(db, orgId, async (tx) => {
+      const conn = await addConnection(tx, orgId, { code: true, board: true });
+      const p1 = await addProject(tx, orgId, conn);
+      await addProject(tx, orgId, conn); // newer, empty
+      const a = await addAgent(tx, orgId, p1, 'secret-1');
+      await addRule(tx, orgId, p1, a);
+      return { p1, c: await orgChecklist(tx) };
+    });
+    expect(done(c)).toEqual([true, true, true, true]);
+    expect(c.complete).toBe(true);
+    expect(c.projectId).toBe(p1);
+  });
+
   it('only visible projects count', async () => {
     const orgId = randomUUID();
     const c = await withOrg(db, orgId, async (tx) => {

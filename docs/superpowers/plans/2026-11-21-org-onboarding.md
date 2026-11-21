@@ -47,7 +47,7 @@ None. The spec adds no dependency and this plan adds none.
 - Agent call: the guard's org check also covers the `project-list` kind (slice 1 added it for `projects.list`; it is org-scoped like `org`, and leaving it out would let a stale tab read the other org's project list).
 - Agent call: `GET /api/me/access` answers a session with no active org (empty assignments, `platformAdmin` from config) instead of 403, because the spec has the welcome and create-org pages read `platformAdmin` from it under `['session','access']`.
 - Agent call: `invitation_org_for_email` reads through a second definer policy limited to the one id it was asked for (a transaction-local setting the function sets and clears), so slice 1's rule that definer policies expose only rows a function may return still holds.
-- Agent call: the api checklist passes every project id of the org to `orgChecklist`, because only org-scope `project:create` holders (owner, org admin) reach the route and they see every project.
+- Agent call: the api checklist calls `orgChecklist(tx)` with no id list, because only org-scope `project:create` holders (owner, org admin) reach the route, they see every project, and RLS already scopes projects to the org.
 - Agent call: checklist "Start" targets: no project → `/o/<org>/projects/new/repo` for every step; with a focus project, `connect_code_host` and `create_project` → the wizard, `add_agent` → `/o/<org>/p/<id>/desk/agent`, `add_rule` → `/o/<org>/p/<id>/desk/rules`.
 - Agent call: the spec's "onb int" splits into `my-invitations.int.test.ts`, `invitation-resend.int.test.ts`, `checklist.int.test.ts` and `org-check.int.test.ts`, so parallel tasks never share a test file; BR-31's int test goes in `invitations.int.test.ts` (Task 4).
 - Agent call: Task 1 lists the new route keys in `NOT_REGISTERED_YET` and the denial table skips those keys until each controller task deletes its line (the existing stale-entry check forces that); `platform.resendInvitation` sits before `platform.removeInvitation` in `DENIAL_TABLE` so it sees the seeded pending invitation.
@@ -610,10 +610,10 @@ resend(actor: Actor, orgId: string, invitationId: string): Promise<InvitationDto
 
 ```ts
 /** Runs inside the caller's withOrg transaction. Steps in the order connect_code_host, create_project, add_agent, add_rule. */
-export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[]): Promise<OrgChecklistDto>;
+export async function orgChecklist(tx: Tx, visibleProjectIds?: readonly string[]): Promise<OrgChecklistDto>;
 ```
 
-  `connect_code_host`: an `active` connection with `capabilities.code = true`; `create_project`: `visibleProjectIds.length > 0`; focus project: the visible project with the most of {agent `credential_secret_name is not null`, at least one rule}, ties to the newest `created_at` (then id desc); `add_agent`, `add_rule`: the focus project's; `complete`: the focus project has both; `projectId`: the focus id or null.
+  `connect_code_host`: an `active` connection with `capabilities.code = true`; `create_project`: a focus project exists; focus project: the visible project (all projects of the org when `visibleProjectIds` is omitted) with the most of {agent `credential_secret_name is not null`, at least one rule}, ties to the newest `created_at` (then id desc); `add_agent`, `add_rule`: the focus project's; `complete`: the focus project has both; `projectId`: the focus id or null.
 
 - [x] **Step 1: Write the failing tests** (real database, org under `withOrg`):
   - nothing → all four not done, `complete: false`, `projectId: null`.

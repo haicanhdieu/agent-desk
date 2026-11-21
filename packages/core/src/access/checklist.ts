@@ -2,8 +2,8 @@ import { and, eq, exists, inArray, isNotNull, sql } from 'drizzle-orm';
 import { agents, connections, projects, rules, type Tx } from '@agentdesk/db';
 import type { OrgChecklistDto } from '@agentdesk/contracts';
 
-/** Runs inside the caller's withOrg transaction. Steps in the order connect_code_host, create_project, add_agent, add_rule. */
-export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[]): Promise<OrgChecklistDto> {
+/** Runs inside the caller's withOrg transaction. Without `visibleProjectIds` every project RLS lets the transaction see counts. Steps in the order connect_code_host, create_project, add_agent, add_rule. */
+export async function orgChecklist(tx: Tx, visibleProjectIds?: readonly string[]): Promise<OrgChecklistDto> {
   const [code] = await tx
     .select({ id: connections.id })
     .from(connections)
@@ -11,7 +11,7 @@ export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[])
     .limit(1);
 
   let focus: { id: string; hasAgent: boolean; hasRule: boolean } | null = null;
-  if (visibleProjectIds.length > 0) {
+  if (visibleProjectIds === undefined || visibleProjectIds.length > 0) {
     const hasAgent = sql<boolean>`${exists(
       tx
         .select({ one: sql`1` })
@@ -27,7 +27,7 @@ export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[])
     const [row] = await tx
       .select({ id: projects.id, hasAgent, hasRule })
       .from(projects)
-      .where(inArray(projects.id, [...visibleProjectIds]))
+      .where(visibleProjectIds === undefined ? undefined : inArray(projects.id, [...visibleProjectIds]))
       .orderBy(
         sql`(case when ${hasAgent} then 1 else 0 end) + (case when ${hasRule} then 1 else 0 end) desc`,
         sql`${projects.createdAt} desc`,
@@ -44,7 +44,7 @@ export async function orgChecklist(tx: Tx, visibleProjectIds: readonly string[])
     projectId: focus?.id ?? null,
     steps: [
       { key: 'connect_code_host', done: code !== undefined },
-      { key: 'create_project', done: visibleProjectIds.length > 0 },
+      { key: 'create_project', done: focus !== null },
       { key: 'add_agent', done: addAgent },
       { key: 'add_rule', done: addRule },
     ],

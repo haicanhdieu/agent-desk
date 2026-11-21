@@ -248,7 +248,7 @@ web → contracts only (AGENTS rule 2).
   route gets a `routeAccess` entry.
 - `packages/db`: one migration (invitation `declined` state, definer `invitation_org_for_email`). No new table.
 - `packages/core` `src/access/`: `acceptInvitation`, `declineInvitation`, `resendInvitation`, `listMyInvitations`
-  (moved from or extending slice 1's acceptance code), `orgChecklist(tx, visibleProjects)`.
+  (moved from or extending slice 1's acceptance code), `orgChecklist(tx, visibleProjectIds?)`.
 - `apps/api`: the guard (kind `user`, org header check), controllers, the `/auth/*` allow-list, sign-in hooks (auto-accept
   removed; the gate's refusal carries `no_invitation`), the terminal gateway (`orgId` param, reauth pinned to the connect
   org).
