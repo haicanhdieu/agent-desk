@@ -29,12 +29,7 @@ import { loginAs } from './helpers/auth';
  * unregistered, so the task that adds the controller must delete its line here.
  */
 const NOT_REGISTERED_YET: RouteKey[] = [
-  'me.access',
-  'roles.list',
   'members.list',
-  'assignments.list',
-  'assignments.create',
-  'assignments.remove',
   'platform.listMembers',
   'platform.listAssignments',
   'platform.createAssignment',

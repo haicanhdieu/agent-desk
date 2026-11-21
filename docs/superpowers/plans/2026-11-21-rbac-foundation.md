@@ -1107,7 +1107,7 @@ export function toAssignmentDto(row: AssignmentRow): AssignmentDto;
 
   Controller: `POST /api/orgs/:orgId/assignments` answers 201 when created, 200 for a repeat (`@Res({ passthrough: true })` status); `GET` lists.
 
-- [ ] **Step 1: Write the failing tests** in `assignments.int.test.ts` (cast via `createOrg` + `inviteAndLogin`: owner O, org admin D, A admin on P1, B member on P1 and P2, V viewer on org, C member with project scope). "Next request" is proven through an `org-admin` route (`GET …/assignments`), already enforced since Task 10:
+- [x] **Step 1: Write the failing tests** in `assignments.int.test.ts` (cast via `createOrg` + `inviteAndLogin`: owner O, org admin D, A admin on P1, B member on P1 and P2, V viewer on org, C member with project scope). "Next request" is proven through an `org-admin` route (`GET …/assignments`), already enforced since Task 10:
   - BR-36 (grant): B and V granting → 403; A granting C `member` on P2 → 403.
   - BR-37: unknown role 422 `/roleId`; another org's role id 422 `/roleId` (N2 second half); `owner` on a project 422 `/roleId`; another org's project 422 `/scope/projectId`; unknown user and a non-member user both 422 `/userId`; malformed body 400; another org id in the path → 404.
   - BR-41: the same grant twice → 201 then 200 with the same `id`; one row. Review Focus 2: `two concurrent identical grants give 201 and 200 and one row`.
@@ -1115,10 +1115,10 @@ export function toAssignmentDto(row: AssignmentRow): AssignmentDto;
   - BR-61 (grant): A grants V `member`, `admin`, `viewer` on P1 → 201 each; on P2 → 403; at org → 403.
   - BR-64: O and D list all; A lists only P1's with and without `projectId`; A with `projectId` = P2 → 404; B and V → 403.
   - N5: `assignment.granted` has `target_type 'user'`, `target_id` = user, `payload.to {roleId, roleKey, scope}`, no `from`, `actorKind 'member'`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service, controller (`{ kind: 'member', access }` actor) and module; register it in `AppModule`.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): grant roles and list assignments on tenant routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service, controller (`{ kind: 'member', access }` actor) and module; register it in `AppModule`.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): grant roles and list assignments on tenant routes`.
 
 ---
 
@@ -1151,7 +1151,7 @@ accessOf(access: Access, platformAdmin: boolean): AccessDto;
 
   `GET /api/me/access` (`me.access`), `GET /api/orgs/:orgId/roles` (`roles.list`), `DELETE /api/orgs/:orgId/assignments/:assignmentId` → 204.
 
-- [ ] **Step 1: Write the failing tests** (append):
+- [x] **Step 1: Write the failing tests** (append):
   - BR-36 (revoke): B revoking C's P1 assignment → 403, row kept; A revoking B's P2 assignment → 403.
   - BR-45 (revoke): O revokes V's org `viewer` → 204 and V's next `GET /api/me/access` lists none; D revoking A's `owner` → 403.
   - BR-46: O revoking O's own only `owner` assignment → 409 and it stays; with a second owner O2, O revokes O2's → 204.
@@ -1159,10 +1159,10 @@ accessOf(access: Access, platformAdmin: boolean): AccessDto;
   - BR-63: a member whose only assignment was revoked gets `GET /api/me/access` 200 `{userId, platformAdmin:false, assignments:[]}`; after O grants `member` on P2 it lists one assignment `member` / project P2 with its lines; O's shows `owner` at org.
   - roles: any assignment holder gets the four roles; the member with none → 403.
   - N5: `assignment.revoked` has `payload.from {roleId, roleKey, scope}` and no `to`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `revoke`, `accessOf`, the DELETE handler and the two controllers; register them.
-- [ ] **Step 4: Run** the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): revoke assignments, read own access and list org roles`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `revoke`, `accessOf`, the DELETE handler and the two controllers; register them.
+- [x] **Step 4: Run** the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): revoke assignments, read own access and list org roles`.
 
 ---
 

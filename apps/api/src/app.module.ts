@@ -3,6 +3,7 @@ import { AdapterRegistryModule } from './adapters/adapter-registry.module';
 import { AgentsController } from './agents/agents.controller';
 import { agentHttpProvider } from './agents/agent-http.provider';
 import { AgentsService } from './agents/agents.service';
+import { AssignmentsModule } from './assignments/assignments.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from './config/config.module';
 import { ConnectionsController } from './connections/connections.controller';
@@ -44,6 +45,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     SetupModule,
     OrgsModule,
     InvitationsModule,
+    AssignmentsModule,
   ],
   controllers: [
     HealthController,
