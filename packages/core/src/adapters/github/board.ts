@@ -11,9 +11,48 @@ import type {
   WebhookHeaders,
 } from '../types';
 import { errorHeaders, errorStatus, splitRepoPath, type GithubClients } from './app';
+import { normalizeLinkedRefs } from '../linked-refs';
 import { headerValue, parseIssueComment, verifyGithubSignature } from './webhook';
 
 const MAX_PAGES = 10;
+const MAX_BODY_SCAN = 65_536;
+const CLOSING_KEYWORD = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\b:?\s{1,10}#(\d+)/gi;
+
+/** Minimal logger the adapter warns through; fields carry error names only, never ticket text. */
+export interface AdapterLog {
+  warn(fields: { err: string }, msg: string): void;
+}
+
+/** Same-repo issue numbers named by closing keywords in a PR description (first 65,536 characters).
+ *  `owner/repo#n`, URLs and a bare '#n' without a keyword are not matched. Raw strings: normalizeLinkedRefs cleans them. */
+export function closingRefsInBody(body: string): string[] {
+  const refs: string[] = [];
+  for (const m of body.slice(0, MAX_BODY_SCAN).matchAll(CLOSING_KEYWORD)) if (m[1]) refs.push(m[1]);
+  return refs;
+}
+
+/** Variables only: { owner, repo, number }. Nothing from a ticket is ever interpolated into the query. */
+export const CLOSING_ISSUES_QUERY = `query ClosingIssues($owner: String!, $repo: String!, $number: Int!) {
+  repository(owner: $owner, name: $repo) {
+    pullRequest(number: $number) {
+      closingIssuesReferences(first: 10) {
+        nodes { number repository { nameWithOwner } }
+      }
+    }
+  }
+}`;
+
+const ClosingIssuesResponse = z.object({
+  repository: z.object({
+    pullRequest: z.object({
+      closingIssuesReferences: z.object({
+        nodes: z.array(
+          z.object({ number: z.number().int(), repository: z.object({ nameWithOwner: z.string() }) }).nullable(),
+        ),
+      }),
+    }),
+  }),
+});
 
 const CommentList = z.array(
   z.object({
@@ -32,6 +71,7 @@ const IssueBody = z.object({
   title: z.string(),
   html_url: z.string(),
   pull_request: z.unknown().optional(),
+  body: z.string().nullable().optional(),
   labels: z.array(
     z.union([z.string(), z.object({ name: z.string().optional(), color: z.string().nullable().optional() })]),
   ),
@@ -55,6 +95,7 @@ export class GithubBoardAdapter implements BoardAdapter {
     private readonly clients: GithubClients,
     private readonly clock: Clock,
     private readonly fallbackSecret?: string,
+    private readonly log?: AdapterLog,
   ) {}
 
   async verifyAndParseWebhook(
@@ -145,17 +186,41 @@ export class GithubBoardAdapter implements BoardAdapter {
       .installation(project.connectionExternalId)
       .request('GET /repos/{owner}/{repo}/issues/{issue_number}', { owner, repo, issue_number: number });
     const t = IssueBody.parse(res.data);
+    const kind = t.pull_request !== undefined ? 'pr' : 'issue';
+    const linkedRefs =
+      kind === 'pr'
+        ? normalizeLinkedRefs([
+            ...closingRefsInBody(t.body ?? ''),
+            ...(await this.closingIssueRefs(project.connectionExternalId, owner, repo, t.number)),
+          ])
+        : [];
     return {
       ref: String(t.number),
-      kind: t.pull_request !== undefined ? 'pr' : 'issue',
+      kind,
       number: t.number,
       title: t.title,
       url: t.html_url,
       labels: t.labels.flatMap((l) =>
         typeof l === 'string' ? [{ name: l, color: '' }] : l.name ? [{ name: l.name, color: l.color ?? '' }] : [],
       ),
-      linkedRefs: [],
+      linkedRefs,
     };
+  }
+
+  /** Same-repo issues GitHub links to a PR. Any failure (HTTP, errors payload, schema) yields [] and a warn with the error name only. */
+  private async closingIssueRefs(externalId: string, owner: string, repo: string, number: number): Promise<string[]> {
+    try {
+      const res = ClosingIssuesResponse.parse(
+        await this.clients.installation(externalId).graphql(CLOSING_ISSUES_QUERY, { owner, repo, number }),
+      );
+      const repoPath = `${owner}/${repo}`.toLowerCase();
+      return res.repository.pullRequest.closingIssuesReferences.nodes.flatMap((n) =>
+        n && n.repository.nameWithOwner.toLowerCase() === repoPath ? [String(n.number)] : [],
+      );
+    } catch (e) {
+      this.log?.warn({ err: e instanceof Error ? e.name : 'UnknownError' }, 'ticket links unavailable');
+      return [];
+    }
   }
 
   async comment(project: AdapterProject, ref: string, text: string): Promise<string> {

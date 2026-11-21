@@ -406,11 +406,11 @@ export const CLOSING_ISSUES_QUERY: string; // repository(owner,name){ pullReques
 - `getTicket` for an issue makes no GraphQL call and returns `linkedRefs: []`.
 - `IssueBody` gains `body: z.string().nullable().optional()`.
 
-- [ ] **Step 1: Add the fixtures.**
+- [x] **Step 1: Add the fixtures.**
   - `pull.closes.json` is `pull.json` (PR #7, `acme/widgets`) with `"body": "Fixes the flaky test.\n\nCloses #5\nfixes: #12\nSee also #99 and other/repo#3"`.
   - `graphql.pr-closing-issues.json` is `{"data":{"repository":{"pullRequest":{"closingIssuesReferences":{"nodes":[{"number":5,"repository":{"nameWithOwner":"acme/widgets"}},{"number":21,"repository":{"nameWithOwner":"Acme/Widgets"}},{"number":8,"repository":{"nameWithOwner":"acme/other"}}]}}}}}`.
   - Both are scrubbed, with no real tokens or users.
-- [ ] **Step 2: Write the failing tests** in `github.test.ts`. Intercept `POST /graphql` on `gh()` and capture the request body.
+- [x] **Step 2: Write the failing tests** in `github.test.ts`. Intercept `POST /graphql` on `gh()` and capture the request body.
   - "getTicket maps issues and PRs" gains a GraphQL intercept for PR #7 (empty nodes). The issue #5 fetch makes no GraphQL call: `vi.spyOn(clients.installation('4242'), 'graphql')` (the client is cached) is not called for #5, and is called once for #7. The adapter swallows GraphQL errors, so a missing intercept alone would not show a call.
   - `a PR's linkedRefs is the union of description keywords and closingIssuesReferences, same repo only`. `pull.closes.json` plus the GraphQL fixture gives `['5', '12', '21']`.
   - `the GraphQL request carries the PR number only in variables`. Parsed body `{ query: CLOSING_ISSUES_QUERY, variables: { owner: 'acme', repo: 'widgets', number: 7 } }`.
@@ -430,11 +430,11 @@ expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0
 ```
 
   - `more than ten refs are capped at ten, lowest first`. A body naming #1 to #12 gives `['1', … '10']`.
-- [ ] **Step 3: Run** `pnpm --filter @agentdesk/core test github`. Expected: FAIL.
-- [ ] **Step 4: Implement** `closingRefsInBody`, `CLOSING_ISSUES_QUERY`, the private `closingIssueRefs(octokit, owner, repo, number): Promise<string[]>` (parsed with a Zod schema), the `log` constructor argument and `RegistryOptions.log`.
-- [ ] **Step 5: Pass a logger.** The API's `createAdapterRegistry(config, systemClock, { log })` passes `{ warn: (f, m) => logger.warn(\`${m} ${JSON.stringify(f)}\`) }` from a `new Logger('BoardAdapter')`. The worker's factory passes the same shape.
-- [ ] **Step 6: Run** `pnpm --filter @agentdesk/core test github && pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 7: Commit:** `feat(core): read a PR's linked issues from its description and closingIssuesReferences`.
+- [x] **Step 3: Run** `pnpm --filter @agentdesk/core test github`. Expected: FAIL.
+- [x] **Step 4: Implement** `closingRefsInBody`, `CLOSING_ISSUES_QUERY`, the private `closingIssueRefs(octokit, owner, repo, number): Promise<string[]>` (parsed with a Zod schema), the `log` constructor argument and `RegistryOptions.log`.
+- [x] **Step 5: Pass a logger.** The API's `createAdapterRegistry(config, systemClock, { log })` passes `{ warn: (f, m) => logger.warn(\`${m} ${JSON.stringify(f)}\`) }` from a `new Logger('BoardAdapter')`. The worker's factory passes the same shape.
+- [x] **Step 6: Run** `pnpm --filter @agentdesk/core test github && pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck && pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 7: Commit:** `feat(core): read a PR's linked issues from its description and closingIssuesReferences`.
 
 ---
 

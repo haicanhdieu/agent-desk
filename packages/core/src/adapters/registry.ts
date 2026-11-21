@@ -4,13 +4,15 @@ import { FakeBoardAdapter } from './fake/board';
 import { FakeCodeHostAdapter } from './fake/codehost';
 import { FakeStore } from './fake/store';
 import { GithubClients } from './github/app';
-import { GithubBoardAdapter } from './github/board';
+import { GithubBoardAdapter, type AdapterLog } from './github/board';
 import { GithubCodeHostAdapter } from './github/codehost';
 import type { AdapterRegistry, BoardAdapter, CodeHostAdapter, Provider } from './types';
 
 export interface RegistryOptions {
   /** Injected HTTP transport for provider API calls (tests). */
   fetch?: typeof fetch;
+  /** Warn sink for adapters (error names only, never ticket text). */
+  log?: AdapterLog;
 }
 
 export function createAdapterRegistry(config: Config, clock: Clock, opts: RegistryOptions = {}): AdapterRegistry {
@@ -30,7 +32,7 @@ export function createAdapterRegistry(config: Config, clock: Clock, opts: Regist
       privateKey: config.GITHUB_PRIVATE_KEY.replace(/\\n/g, '\n'),
       ...(opts.fetch ? { fetch: opts.fetch } : {}),
     });
-    boards.set('github', new GithubBoardAdapter(clients, clock, config.GITHUB_WEBHOOK_SECRET));
+    boards.set('github', new GithubBoardAdapter(clients, clock, config.GITHUB_WEBHOOK_SECRET, opts.log));
     codeHosts.set(
       'github',
       new GithubCodeHostAdapter(clients, clock, {

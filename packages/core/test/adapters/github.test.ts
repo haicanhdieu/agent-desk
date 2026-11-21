@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { MockAgent, fetch as undiciFetch } from 'undici';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GithubBoardAdapter } from '../../src/adapters/github/board';
+import { CLOSING_ISSUES_QUERY, GithubBoardAdapter, closingRefsInBody } from '../../src/adapters/github/board';
+import { normalizeLinkedRefs } from '../../src/adapters/linked-refs';
 import { GithubCodeHostAdapter } from '../../src/adapters/github/codehost';
 import { GithubClients, assertSafeRef } from '../../src/adapters/github/app';
 import { verifyGithubSignature } from '../../src/adapters/github/webhook';
@@ -290,6 +291,8 @@ describe('github board tickets', () => {
     gh()
       .intercept({ path: '/repos/acme/widgets/issues/7', method: 'GET' })
       .reply(200, fixture('pull.json'), { headers: JSON_HEADERS });
+    gh().intercept({ path: '/graphql', method: 'POST' }).reply(200, gqlNodes([]), { headers: JSON_HEADERS });
+    const graphql = vi.spyOn(clients.installation('4242'), 'graphql');
     const board = new GithubBoardAdapter(clients, clock);
     expect(await board.getTicket(project, '5')).toEqual({
       ref: '5',
@@ -303,7 +306,103 @@ describe('github board tickets', () => {
       ],
       linkedRefs: [],
     });
+    expect(graphql).not.toHaveBeenCalled();
     expect((await board.getTicket(project, '7')).kind).toBe('pr');
+    expect(graphql).toHaveBeenCalledTimes(1);
+  });
+
+  const gqlNodes = (numbers: number[]): string =>
+    JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            closingIssuesReferences: {
+              nodes: numbers.map((number) => ({ number, repository: { nameWithOwner: 'acme/widgets' } })),
+            },
+          },
+        },
+      },
+    });
+
+  function mockPull(file: string, body?: string, status = 200): void {
+    mockInstallationToken();
+    gh()
+      .intercept({ path: '/repos/acme/widgets/issues/7', method: 'GET' })
+      .reply(200, fixture(file), { headers: JSON_HEADERS });
+    if (body !== undefined)
+      gh().intercept({ path: '/graphql', method: 'POST' }).reply(status, body, { headers: JSON_HEADERS });
+  }
+
+  it("a PR's linkedRefs is the union of description keywords and closingIssuesReferences, same repo only", async () => {
+    mockPull('pull.closes.json', fixture('graphql.pr-closing-issues.json'));
+    const t = await new GithubBoardAdapter(clients, clock).getTicket(project, '7');
+    expect(t.linkedRefs).toEqual(['5', '12', '21']);
+  });
+
+  it('the GraphQL request carries the PR number only in variables', async () => {
+    mockInstallationToken();
+    gh()
+      .intercept({ path: '/repos/acme/widgets/issues/7', method: 'GET' })
+      .reply(200, fixture('pull.json'), { headers: JSON_HEADERS });
+    let captured: unknown;
+    gh()
+      .intercept({
+        path: '/graphql',
+        method: 'POST',
+        body: (b) => {
+          captured = JSON.parse(b);
+          return true;
+        },
+      })
+      .reply(200, gqlNodes([]), { headers: JSON_HEADERS });
+    await new GithubBoardAdapter(clients, clock).getTicket(project, '7');
+    expect(captured).toEqual({
+      query: CLOSING_ISSUES_QUERY,
+      variables: { owner: 'acme', repo: 'widgets', number: 7 },
+    });
+  });
+
+  it('refs from closingIssuesReferences alone link a PR whose description names nothing', async () => {
+    mockPull('pull.json', gqlNodes([5]));
+    expect((await new GithubBoardAdapter(clients, clock).getTicket(project, '7')).linkedRefs).toEqual(['5']);
+  });
+
+  it('a GraphQL failure keeps the description refs, resolves, and logs the error name only', async () => {
+    mockPull('pull.closes.json', '{"message":"Closes #77 bad gateway"}', 502);
+    const log = { warn: vi.fn() };
+    const t = await new GithubBoardAdapter(clients, clock, undefined, log).getTicket(project, '7');
+    expect(t.linkedRefs).toEqual(['5', '12']);
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn).toHaveBeenCalledWith({ err: expect.any(String) }, 'ticket links unavailable');
+    const logged = JSON.stringify(log.warn.mock.calls);
+    expect(logged).not.toContain('Closes');
+    expect(logged).not.toContain('flaky');
+  });
+
+  it('a GraphQL errors payload keeps the description refs and logs the error name', async () => {
+    mockPull('pull.closes.json', '{"data":null,"errors":[{"type":"NOT_FOUND","message":"Closes #77"}]}');
+    const log = { warn: vi.fn() };
+    const t = await new GithubBoardAdapter(clients, clock, undefined, log).getTicket(project, '7');
+    expect(t.linkedRefs).toEqual(['5', '12']);
+    expect(log.warn).toHaveBeenCalledTimes(1);
+    expect(log.warn).toHaveBeenCalledWith({ err: expect.any(String) }, 'ticket links unavailable');
+    expect(JSON.stringify(log.warn.mock.calls)).not.toContain('Closes');
+  });
+
+  it('more than ten refs are capped at ten, lowest first', async () => {
+    mockPull('pull.json', gqlNodes([12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1]));
+    expect((await new GithubBoardAdapter(clients, clock).getTicket(project, '7')).linkedRefs).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+      '6',
+      '7',
+      '8',
+      '9',
+      '10',
+    ]);
   });
 
   it('comment posts and returns the comment id', async () => {
@@ -648,5 +747,19 @@ describe('github code host', () => {
 
   it('rejects invalid skill names before any request', async () => {
     await expect(host().readSkill(project, '../x')).rejects.toThrow();
+  });
+});
+
+describe('closingRefsInBody', () => {
+  it('reads case, colon and punctuation variants and needs a keyword per number', () => {
+    expect(closingRefsInBody('CLOSES #142.\nfixes: #150, Resolved #9')).toEqual(['142', '150', '9']);
+    expect(closingRefsInBody('Closes #142, #150')).toEqual(['142']);
+    expect(closingRefsInBody('closes owner/repo#5 and see #7 and https://github.com/acme/widgets/issues/8')).toEqual(
+      [],
+    );
+    expect(closingRefsInBody('<b>Fixes</b> #3 `closes #4` **resolves #5**')).toEqual(['4', '5']);
+    expect(normalizeLinkedRefs(closingRefsInBody('Closes #0 fixes #-1 closes #00012'))).toEqual([]);
+    expect(closingRefsInBody('x'.repeat(70_000) + ' Closes #1')).toEqual([]);
+    expect(closingRefsInBody('Closes #142 '.repeat(5_000)).length).toBeGreaterThan(0);
   });
 });
