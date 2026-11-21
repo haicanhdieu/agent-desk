@@ -737,6 +737,54 @@
    "h": 900,
    "title": "Sign in \u2014 refused, no invitation",
    "expand": "fill"
+  },
+  "MyInvitations.dc.html": {
+   "x": 0,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 pending invitations",
+   "expand": "fill"
+  },
+  "MyInvitationsAccepting.dc.html": {
+   "x": 1520,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 accepting one invitation",
+   "expand": "fill"
+  },
+  "MyInvitationsEmpty.dc.html": {
+   "x": 3040,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 no org, no invitations",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptyPlatformAdmin.dc.html": {
+   "x": 4560,
+   "y": 18480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 platform admin, no org",
+   "expand": "fill"
+  },
+  "MyInvitationsError.dc.html": {
+   "x": 0,
+   "y": 19760,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 failed to load",
+   "expand": "fill"
+  },
+  "MyInvitationsLoading.dc.html": {
+   "x": 1520,
+   "y": 19760,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 loading",
+   "expand": "fill"
   }
  },
  "order": [
@@ -830,7 +878,13 @@
   "ProjectsOrgSwitchAdmin.dc.html",
   "ProjectsOrgSwitchOpen.dc.html",
   "ProjectsSwitching.dc.html",
-  "SignInNoInvitation.dc.html"
+  "SignInNoInvitation.dc.html",
+  "MyInvitations.dc.html",
+  "MyInvitationsAccepting.dc.html",
+  "MyInvitationsEmpty.dc.html",
+  "MyInvitationsEmptyPlatformAdmin.dc.html",
+  "MyInvitationsError.dc.html",
+  "MyInvitationsLoading.dc.html"
  ],
  "notes": {
   "t-intro": {

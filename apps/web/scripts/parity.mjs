@@ -77,6 +77,12 @@ const stories = {
   ProjectsOrgSwitchOpen: ['Screens/Entry', 'ProjectsOrgSwitchOpen'],
   ProjectsSwitching: ['Screens/Entry', 'ProjectsSwitching'],
   SignInNoInvitation: ['Screens/Entry', 'SignInNoInvitation'],
+  MyInvitations: ['Screens/Invitations', 'MyInvitations'],
+  MyInvitationsAccepting: ['Screens/Invitations', 'MyInvitationsAccepting'],
+  MyInvitationsEmpty: ['Screens/Invitations', 'MyInvitationsEmpty'],
+  MyInvitationsEmptyPlatformAdmin: ['Screens/Invitations', 'MyInvitationsEmptyPlatformAdmin'],
+  MyInvitationsError: ['Screens/Invitations', 'MyInvitationsError'],
+  MyInvitationsLoading: ['Screens/Invitations', 'MyInvitationsLoading'],
   ...Object.fromEntries(
     [
       'Starting',
