@@ -1721,9 +1721,9 @@ export function useCreateOrgWithOwner(): { submit(v: CreateOrgValues): Promise<v
 
 - Consumes: `seedOnboarding` (`owner`, `orgAdmin`, `projectAdmin`) (Task 17).
 
-- [ ] **Step 1: Write the spec**: TC-28.1 to TC-28.6 (BR-28); TC-29.1 to TC-29.3 (BR-29).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/invite-dialog.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the invite dialog`.
+- [x] **Step 1: Write the spec**: TC-28.1 to TC-28.6 (BR-28); TC-29.1 to TC-29.3 (BR-29).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/invite-dialog.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for the invite dialog`.
 
 ---
 
