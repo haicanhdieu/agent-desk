@@ -21,11 +21,11 @@ Temporal keeps its own databases (`temporal`, `temporal_visibility`); nothing in
 
 ## 2. Tenancy: every query is org-scoped
 
-- Every application table **MUST** have `org_id uuid not null`, `ENABLE` + `FORCE ROW LEVEL SECURITY`, and the policy `org_id = current_setting('app.org_id')::uuid` declared with Drizzle `pgPolicy`. Sole exception: `inbound_events.org_id` is nullable until the project is resolved. better-auth tables (`user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`) are owned by better-auth and have no `org_id`.
+- Every application table **MUST** have `org_id uuid not null`, `ENABLE` + `FORCE ROW LEVEL SECURITY`, and the policy `org_id = current_setting('app.org_id')::uuid` declared with Drizzle `pgPolicy`. Exceptions: `inbound_events.org_id` is nullable until the project is resolved, and the platform catalog tables `role_templates` and `role_template_permissions` have no `org_id` and no RLS (SELECT-only for `agentdesk_app`; [ADR-0031](../adr/0031-scoped-rbac-roles-assignments.md)). better-auth tables (`user`, `session`, `account`, `verification`, `organization`, `member`, `invitation`) are owned by better-auth and have no `org_id`.
 - **MUST** obtain a handle only through `withOrg(db, orgId, tx => …)` (in the api: `OrgDb.run`). _Why: it opens the transaction and sets `app.org_id` locally; without it RLS returns zero rows._
 - **MUST NOT** pass `db` (the pool) into repositories or services; pass `tx: Tx`.
 - **MUST** still write `org_id` on inserts and **SHOULD** filter by `project_id` explicitly; RLS is the backstop, not the only filter. _Why: defence in depth, and the planner uses the index._
-- Cross-tenant reads are limited to two `SECURITY DEFINER` functions: `resolve_project(provider, external_id, repo_path)` and `queued_runs_without_workflow(older_than)`. A new one **MUST** be reviewed against [security.md](security.md), `SET search_path` explicitly, return only ids, and get an RLS test.
+- Cross-tenant reads are limited to three `SECURITY DEFINER` functions: `resolve_project(provider, external_id, repo_path)`, `queued_runs_without_workflow(older_than)` and `pending_invitations_for_email(p_email)` (ids only, [ADR-0031](../adr/0031-scoped-rbac-roles-assignments.md)). A new one **MUST** be reviewed against [security.md](security.md), `SET search_path` explicitly, return only ids, and get an RLS test.
 - **MUST** ship a leak test for every new org table: org A cannot read, update or insert B's rows, and a query without `withOrg` sees nothing (`packages/db/test/rls.test.ts`).
 
 ```ts

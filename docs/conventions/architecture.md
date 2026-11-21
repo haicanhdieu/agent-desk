@@ -84,11 +84,11 @@ Same rule for agents: Claude Code specifics belong behind the `AgentRunner` seam
 
 ## 4. Tenancy scoping
 
-The schema is tenant-ready now: every application table has `org_id`, Postgres RLS is forced, and the app role cannot bypass it.
+The schema is tenant-ready now: every tenant table has `org_id`, Postgres RLS is forced, and the app role cannot bypass it.
 
 - **MUST** obtain a database handle only through `withOrg(orgId, fn)` from `@agentdesk/db`. _Why:_ it sets `app.org_id` for the transaction, which is what RLS checks.
 - **MUST NOT** connect as `agentdesk_owner` or an admin user from request or activity code; only migrations do. _Why:_ the owner role is not subject to the app's RLS path.
-- **MUST** use only the two cross-tenant entry points, `resolve_project(...)` and `queued_runs_without_workflow(...)`. Adding a third `SECURITY DEFINER` function requires security review ([security.md](security.md)).
+- **MUST** use only the three cross-tenant entry points, `resolve_project(...)`, `queued_runs_without_workflow(...)` and `pending_invitations_for_email(...)`. Adding a fourth `SECURITY DEFINER` function requires security review ([security.md](security.md)).
 - **MUST** also filter by `project_id` (and check the caller's access to that project) for project-scoped resources. _Why:_ RLS isolates orgs, not projects; project-level checks are application logic.
 - **MUST** return 404 for a record in another org (it is invisible), never 403. _Why:_ 403 leaks existence.
 - **MUST** carry `orgId` in every workflow input, activity input, Kubernetes label (`agentdesk/org-id`) and Secret name (`org-{orgId}-agent-{agentId}`). _Why:_ background work has no session to derive the tenant from.
