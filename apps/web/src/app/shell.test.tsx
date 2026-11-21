@@ -96,7 +96,7 @@ describe('app shell', () => {
   });
 
   it('renders the index route for a user without an organization', async () => {
-    await renderRoute('/', { scenario: () => (mockDb.state.members = []) });
+    await renderRoute('/', { scenario: () => (mockDb.state.memberships = []) });
     expect(await screen.findByRole('heading', { name: 'Agent Desk' })).toBeInTheDocument();
   });
 });

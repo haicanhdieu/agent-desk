@@ -2,6 +2,8 @@ import type {
   AgentDto,
   ConnectionDto,
   IgnoredEventDto,
+  InvitationDto,
+  OrgChecklistDto,
   ProjectConnectionDto,
   PluginsDto,
   ProjectDto,
@@ -14,11 +16,13 @@ import type {
   SetupTestDto,
   SkillDto,
 } from '@agentdesk/contracts';
+import { invitationFixtures } from '../dto/access';
 import { agentFixtures } from '../dto/agents';
 import type { AgentModelsScenario } from './agentModels';
 import { connectionFixtures, connectionOrg, repoFixtures } from '../dto/connections';
 import { runEventFixtures } from '../dto/events';
 import { ids } from '../dto/ids';
+import { checklistFixtures } from '../dto/invitations';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures, projectOrg } from '../dto/projects';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
@@ -37,9 +41,22 @@ export interface MockUser {
   image: string | null;
   /** Additional user field (GitHub login) the API adds to the better-auth user. */
   handle: string;
+  /** Whether `me.access` reports the user as a platform admin. */
+  platformAdmin: boolean;
   createdAt: string;
   updatedAt: string;
 }
+
+/** A user's seat in an org: the built-in role key, and the projects it is limited to (none means the whole org). */
+export interface MockMembership {
+  userId: string;
+  orgId: string;
+  roleKey: string;
+  projectIds?: string[];
+}
+
+/** An invitation row; `status` is the stored one (a pending row past `expiresAt` reads as expired). */
+export type InvitationRow = InvitationDto & { orgId: string };
 
 export interface MockOrg {
   id: string;
@@ -67,7 +84,14 @@ export interface MockState {
   auth: MockAuth;
   users: MockUser[];
   orgs: MockOrg[];
-  members: { userId: string; orgId: string }[];
+  memberships: MockMembership[];
+  invitations: InvitationRow[];
+  /** The first-run checklist each org's owners and admins see. */
+  checklists: Record<string, OrgChecklistDto>;
+  /** How long `set-active` holds its answer, for the slow org switch. */
+  setActiveDelayMs: number;
+  /** The next invitation create answers 500 once, then the flag clears. */
+  failNextOrgInvitationCreate: boolean;
   connections: ConnectionRow[];
   repos: Record<string, RepoDto[]>;
   projects: ProjectRow[];
@@ -130,6 +154,7 @@ export function seedState(): MockState {
         emailVerified: true,
         image: null,
         handle: 'alice',
+        platformAdmin: false,
         createdAt: created,
         updatedAt: created,
       },
@@ -138,10 +163,17 @@ export function seedState(): MockState {
       { id: ids.org.alice, name: 'Alice', slug: 'alice', logo: null, metadata: null, createdAt: created },
       { id: ids.org.acme, name: 'Acme', slug: 'acme', logo: null, metadata: null, createdAt: created },
     ],
-    members: [
-      { userId: ids.user.alice, orgId: ids.org.alice },
-      { userId: ids.user.alice, orgId: ids.org.acme },
+    memberships: [
+      { userId: ids.user.alice, orgId: ids.org.alice, roleKey: 'owner' },
+      { userId: ids.user.alice, orgId: ids.org.acme, roleKey: 'owner' },
     ],
+    invitations: invitationFixtures.map((i) => ({ ...i, orgId: ids.org.alice })),
+    checklists: {
+      [ids.org.alice]: checklistFixtures.complete,
+      [ids.org.acme]: checklistFixtures.complete,
+    },
+    setActiveDelayMs: 0,
+    failNextOrgInvitationCreate: false,
     connections: connectionFixtures.map((c) => ({ ...c, orgId: orgOf(connectionOrg, c.id) })),
     repos: repoFixtures,
     // counts and lastRunAt ride along unused: handlers recompute them from the runs.
@@ -227,7 +259,7 @@ export const mockDb = {
     return state.auth.signedIn ? (state.users[0] ?? null) : null;
   },
   orgsOf(userId: string): MockOrg[] {
-    const mine = new Set(state.members.filter((m) => m.userId === userId).map((m) => m.orgId));
+    const mine = new Set(state.memberships.filter((m) => m.userId === userId).map((m) => m.orgId));
     return state.orgs.filter((o) => mine.has(o.id));
   },
   logRequest(method: string, path: string): void {
