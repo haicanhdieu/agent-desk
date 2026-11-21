@@ -26,6 +26,36 @@ export function useToast(): ToastApi {
 
 type Item = ToastInput & { id: number };
 
+export interface ToastProps extends ToastInput {
+  onDismiss(): void;
+  /** Defaults to "alert" for errors and "status" otherwise. */
+  role?: 'alert' | 'status';
+}
+
+/** One toast card with its Dismiss button. `ToastProvider` uses it; stories and screens can draw it in place. */
+export function Toast({ tone, title, detail, onDismiss, role }: ToastProps) {
+  return (
+    <div className={`${styles.toast} ${styles[tone]}`} role={role ?? (tone === 'err' ? 'alert' : 'status')}>
+      <div className={styles.body}>
+        <span className={styles.title}>{title}</span>
+        {detail && <span className={styles.detail}>{detail}</span>}
+      </div>
+      <span className={styles.dismiss}>
+        <IconButton icon="x" size="sm" aria-label="Dismiss notification" onClick={onDismiss} />
+      </span>
+    </div>
+  );
+}
+
+/** The fixed bottom-right region toasts sit in. */
+export function ToastRegion({ children }: { children?: ReactNode }) {
+  return (
+    <section className={styles.region} aria-label="Notifications">
+      {children}
+    </section>
+  );
+}
+
 function ToastItem({ item, onDismiss }: { item: Item; onDismiss(id: number): void }) {
   const isError = item.tone === 'err';
   useEffect(() => {
@@ -33,17 +63,7 @@ function ToastItem({ item, onDismiss }: { item: Item; onDismiss(id: number): voi
     const t = setTimeout(() => onDismiss(item.id), AUTO_DISMISS_MS);
     return () => clearTimeout(t);
   }, [isError, item.id, onDismiss]);
-  return (
-    <div className={`${styles.toast} ${styles[item.tone]}`} role={isError ? 'alert' : 'status'}>
-      <div className={styles.body}>
-        <span className={styles.title}>{item.title}</span>
-        {item.detail && <span className={styles.detail}>{item.detail}</span>}
-      </div>
-      <span className={styles.dismiss}>
-        <IconButton icon="x" size="sm" aria-label="Dismiss notification" onClick={() => onDismiss(item.id)} />
-      </span>
-    </div>
-  );
+  return <Toast tone={item.tone} title={item.title} detail={item.detail} onDismiss={() => onDismiss(item.id)} />;
 }
 
 /** Hosts the toast region. Shows the newest three; non-error toasts leave after 5 s. */
@@ -60,11 +80,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <section className={styles.region} aria-label="Notifications">
+      <ToastRegion>
         {items.map((item) => (
           <ToastItem key={item.id} item={item} onDismiss={dismiss} />
         ))}
-      </section>
+      </ToastRegion>
     </ToastContext.Provider>
   );
 }

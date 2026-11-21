@@ -202,3 +202,18 @@ OrgInvitationsRowMenu, OrgInvitationsRowMenuExpired.
 - Loading and error: the loading block is a labelled busy status of `Skeleton` blocks; the error is the shared `RouteLoadError` banner. Neither draws an h1.
 - Row menus: the story-only `openMenuRowId` opens the menu by pressing that row's Actions button once after mount; the menu is placed under the button by `useRowMenu`, where the boards use fixed offsets.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 12 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org onboarding: org Invitations page action boards
+
+Spec: `docs/superpowers/specs/2026-11-21-org-onboarding-design.md` (UI and Storybook). Fifteen boards added, so `parity.mjs`
+finds 136: OrgInvitationsCopyFailed, OrgInvitationsCreated, OrgInvitationsInvite, OrgInvitationsInviteFieldError,
+OrgInvitationsInviteFormError, OrgInvitationsInviteProjectAdmin, OrgInvitationsInviteProjects, OrgInvitationsInviteSaving,
+OrgInvitationsInviteTabSwitched, OrgInvitationsLinkCopied, OrgInvitationsRenewed, OrgInvitationsResendConflict,
+OrgInvitationsResending, OrgInvitationsRevokeConfirm, OrgInvitationsRevoked.
+
+- Toasts: drawn by the shared `Toast` in the shared `ToastRegion` (fixed bottom right) with a Dismiss button; the notice carries `role="status"` for both tones, as the spec says, where the live provider uses `alert` for errors.
+- Copy failed: the popover sits under the row's Actions button (placed from its measured position) and holds the shared `InviteLink` (the "Invitation link" field with "Copy link", which retries the copy); the board draws a fixed offset.
+- Revoke confirm: the shared `Dialog`, 440px like the decline confirm; while the row's request is in flight the buttons disable and the confirm button reads "Revoking…" (the boards draw only the idle confirm).
+- Invite dialog boards: the shared `InviteDialog` over the page; the tab-switched board shows the red Toast over the dialog with the input kept.
+- Resending: the in-flight row's Actions button is disabled; no spinner is drawn (as the board).
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 15 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.

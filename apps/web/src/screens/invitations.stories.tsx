@@ -1,6 +1,21 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, type OrgSwitchProps, type PaginationProps } from '@/components';
-import { orgInvitationRows, orgSwitchFixtures, pagedInvitationRows } from '@/mocks';
+import {
+  AppShell,
+  InviteDialog,
+  type InviteDialogProps,
+  type InviteDialogStep,
+  type InviteDialogValues,
+  type OrgSwitchProps,
+  type PaginationProps,
+} from '@/components';
+import {
+  invitationLink,
+  inviteProjectOptions,
+  inviteRoleOptions,
+  orgInvitationRows,
+  orgSwitchFixtures,
+  pagedInvitationRows,
+} from '@/mocks';
 import type { Actor, InvitationCardView, InvitationDetailsView } from '@/mocks/types';
 import {
   MyInvitations as MyInvitationsScreen,
@@ -271,4 +286,136 @@ export const OrgInvitationsRowMenu: Story = {
 export const OrgInvitationsRowMenuExpired: Story = {
   name: 'Invitations, row menu on an expired invitation: Resend only',
   render: () => list('expired', ready(expiredRows), { openMenuRowId: expiredRows[0].id }),
+};
+
+const dialogArgs = {
+  open: true,
+  roles: inviteRoleOptions.owner,
+  projects: inviteProjectOptions,
+  projectsOnly: false,
+  onChange: noop,
+  onSubmit: noop,
+  onCancel: noop,
+  onCopy: noop,
+  onDone: noop,
+};
+const emptyValues: InviteDialogValues = { email: '', roleId: '', scope: 'org', projectIds: [] };
+const filledValues: InviteDialogValues = {
+  email: 'new.person@example.com',
+  roleId: 'member',
+  scope: 'org',
+  projectIds: [],
+};
+const formStep = (
+  values: InviteDialogValues,
+  extra: Partial<Extract<InviteDialogStep, { kind: 'form' }>> = {},
+): InviteDialogStep => ({ kind: 'form', values, errors: {}, saving: false, ...extra });
+const withDialog = (step: InviteDialogStep, extra: Partial<InviteDialogProps> = {}) =>
+  list('pending', ready(pendingRows), {
+    children: <InviteDialog {...dialogArgs} step={step} {...extra} />,
+  });
+const firstProject = inviteProjectOptions[0];
+const linkRow = pendingRows[0];
+const renewRow = pendingRows[1];
+
+export const OrgInvitationsCopyFailed: Story = {
+  name: 'Invitations, copy failed, link shown to copy by hand',
+  render: () =>
+    list('pending', ready(pendingRows), {
+      copyFailed: { rowId: linkRow.id, link: invitationLink },
+      notice: { tone: 'error', title: 'Could not copy. Select the link and copy it.', onDismiss: noop },
+    }),
+};
+export const OrgInvitationsCreated: Story = {
+  name: 'Invite dialog, invitation created, copy link',
+  render: () =>
+    withDialog({
+      kind: 'created',
+      email: 'ivy.chen@example.com',
+      expiresOn: '23 Nov, 14:05',
+      link: invitationLink,
+    }),
+};
+export const OrgInvitationsInvite: Story = {
+  name: 'Invite dialog, default',
+  render: () => withDialog(formStep(emptyValues)),
+};
+export const OrgInvitationsInviteFieldError: Story = {
+  name: 'Invite dialog, email already invited',
+  render: () =>
+    withDialog(formStep(filledValues, { errors: { email: 'This email already has a pending invitation.' } })),
+};
+export const OrgInvitationsInviteFormError: Story = {
+  name: 'Invite dialog, form error',
+  render: () => withDialog(formStep(filledValues, { formError: 'Could not create the invitation. Try again.' })),
+};
+export const OrgInvitationsInviteProjectAdmin: Story = {
+  name: 'Invite dialog, project admin: projects they administer only, no Owner',
+  render: () =>
+    withDialog(formStep({ ...filledValues, roleId: 'viewer', scope: 'projects' }), {
+      roles: inviteRoleOptions.projectAdmin,
+      projects: inviteProjectOptions.slice(0, 1),
+      projectsOnly: true,
+    }),
+};
+export const OrgInvitationsInviteProjects: Story = {
+  name: 'Invite dialog, some projects',
+  render: () =>
+    withDialog(formStep({ ...filledValues, scope: 'projects', projectIds: firstProject ? [firstProject.id] : [] })),
+};
+export const OrgInvitationsInviteSaving: Story = {
+  name: 'Invite dialog, saving',
+  render: () => withDialog(formStep(filledValues, { saving: true })),
+};
+export const OrgInvitationsInviteTabSwitched: Story = {
+  name: 'Invite dialog, refused, org switched in another tab; input kept',
+  render: () =>
+    list('pending', ready(pendingRows), {
+      children: <InviteDialog {...dialogArgs} step={formStep(filledValues)} />,
+      notice: { tone: 'error', title: 'This organization was switched in another tab. Try again.', onDismiss: noop },
+    }),
+};
+export const OrgInvitationsLinkCopied: Story = {
+  name: 'Invitations, link copied',
+  render: () => list('pending', ready(pendingRows), { notice: { tone: 'ok', title: 'Link copied', onDismiss: noop } }),
+};
+export const OrgInvitationsRenewed: Story = {
+  name: 'Invitations, resend done, new expiry',
+  render: () =>
+    list('pending', ready(pendingRows), {
+      notice: { tone: 'ok', title: 'Invitation renewed. It now expires on 23 Nov, 15:02.', onDismiss: noop },
+    }),
+};
+export const OrgInvitationsResendConflict: Story = {
+  name: 'Invitations, resend refused, invitation changed meanwhile, list refreshed',
+  render: () =>
+    list('pending', ready(pendingRows.filter((r) => r.id !== renewRow.id)), {
+      notice: { tone: 'error', title: 'Invitation is no longer pending', onDismiss: noop },
+    }),
+};
+export const OrgInvitationsResending: Story = {
+  name: 'Invitations, resend in flight, row menu disabled',
+  render: () => list('pending', { kind: 'ready', rows: pendingRows, busyRowId: renewRow.id }),
+};
+export const OrgInvitationsRevokeConfirm: Story = {
+  name: 'Invitations, revoke confirmation',
+  render: () =>
+    list('pending', ready(pendingRows), {
+      revokeConfirm: { email: pendingRows[0].email, onConfirm: noop, onCancel: noop },
+    }),
+};
+export const OrgInvitationsRevoked: Story = {
+  name: 'Invitations, revoked (All filter), toast',
+  render: () =>
+    list(
+      'all',
+      ready(
+        orgInvitationRows.map((r) =>
+          r.id === pendingRows[0].id
+            ? { ...r, status: 'revoked' as const, expires: { kind: 'none' as const, text: '–' }, actions: [] }
+            : r,
+        ),
+      ),
+      { notice: { tone: 'ok', title: 'Invitation revoked', onDismiss: noop } },
+    ),
 };

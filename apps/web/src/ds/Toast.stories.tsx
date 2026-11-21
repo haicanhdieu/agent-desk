@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { Button } from './Button';
-import { ToastProvider, useToast } from './Toast';
+import { Toast, ToastProvider, ToastRegion, useToast } from './Toast';
 import type { StatusTone } from './tokens';
 
 const samples: { tone: StatusTone; title: string; detail?: string; label: string }[] = [
@@ -33,3 +33,15 @@ const meta: Meta = {
 };
 export default meta;
 export const Playground: StoryObj = {};
+
+/** The card drawn in place (no provider): screens use it for a toast that is part of their state. */
+export const Static: StoryObj = {
+  render: () => (
+    <div style={{ minHeight: 160 }}>
+      <ToastRegion>
+        <Toast tone="ok" title="Link copied" onDismiss={() => undefined} />
+        <Toast tone="err" title="Could not copy. Select the link and copy it." onDismiss={() => undefined} />
+      </ToastRegion>
+    </div>
+  ),
+};
