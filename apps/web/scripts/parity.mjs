@@ -137,6 +137,16 @@ const stories = {
   ProjectsEmptyChecklistSettings: ['Screens/Entry', 'ProjectsEmptyChecklistSettings'],
   OrgInvitationsSettings: ['Screens/Invitations', 'OrgInvitationsSettings'],
   OrgInvitationsSettingsProjectAdmin: ['Screens/Invitations', 'OrgInvitationsSettingsProjectAdmin'],
+  OrgMembers: ['Screens/OrgSettings', 'OrgMembers'],
+  OrgMembersAdmin: ['Screens/OrgSettings', 'OrgMembersAdmin'],
+  OrgMembersPaged: ['Screens/OrgSettings', 'OrgMembersPaged'],
+  OrgMembersEmpty: ['Screens/OrgSettings', 'OrgMembersEmpty'],
+  OrgMembersLoading: ['Screens/OrgSettings', 'OrgMembersLoading'],
+  OrgMembersError: ['Screens/OrgSettings', 'OrgMembersError'],
+  OrgMembersForbidden: ['Screens/OrgSettings', 'OrgMembersForbidden'],
+  OrgMembersRowMenu: ['Screens/OrgSettings', 'OrgMembersRowMenu'],
+  OrgMembersRowMenuSelf: ['Screens/OrgSettings', 'OrgMembersRowMenuSelf'],
+  OrgMembersBusy: ['Screens/OrgSettings', 'OrgMembersBusy'],
   ...Object.fromEntries(
     [
       'Starting',

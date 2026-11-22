@@ -12,6 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 const invitations = 'Screens/Invitations';
+const orgSettings = 'Screens/OrgSettings';
 
 /** The 97 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
@@ -166,6 +167,16 @@ export const boardStories = {
   ProjectsEmptyChecklistSettings: { title: entry, exportName: 'ProjectsEmptyChecklistSettings' },
   OrgInvitationsSettings: { title: invitations, exportName: 'OrgInvitationsSettings' },
   OrgInvitationsSettingsProjectAdmin: { title: invitations, exportName: 'OrgInvitationsSettingsProjectAdmin' },
+  OrgMembers: { title: orgSettings, exportName: 'OrgMembers' },
+  OrgMembersAdmin: { title: orgSettings, exportName: 'OrgMembersAdmin' },
+  OrgMembersPaged: { title: orgSettings, exportName: 'OrgMembersPaged' },
+  OrgMembersEmpty: { title: orgSettings, exportName: 'OrgMembersEmpty' },
+  OrgMembersLoading: { title: orgSettings, exportName: 'OrgMembersLoading' },
+  OrgMembersError: { title: orgSettings, exportName: 'OrgMembersError' },
+  OrgMembersForbidden: { title: orgSettings, exportName: 'OrgMembersForbidden' },
+  OrgMembersRowMenu: { title: orgSettings, exportName: 'OrgMembersRowMenu' },
+  OrgMembersRowMenuSelf: { title: orgSettings, exportName: 'OrgMembersRowMenuSelf' },
+  OrgMembersBusy: { title: orgSettings, exportName: 'OrgMembersBusy' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

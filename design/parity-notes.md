@@ -264,3 +264,18 @@ and the side menu (owner: all four tabs; project admin: Invitations only), so th
   `InvitationAccept` and `CreateOrg` take an optional `account`.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 2 new pixel pairs are unchecked: none is
   claimed to match.
+
+## Org tenant admin: Members list boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Members). Ten boards added, so
+`parity.mjs` finds 161: OrgMembers, OrgMembersAdmin, OrgMembersPaged, OrgMembersEmpty, OrgMembersLoading, OrgMembersError,
+OrgMembersForbidden, OrgMembersRowMenu, OrgMembersRowMenuSelf, OrgMembersBusy (`Screens/OrgSettings`). Their boards already draw
+the Option A bar and the side menu, so they have no header drift (Forbidden has no side menu and no Settings tab, as the board).
+
+- Table: the shared `DataTable` and `MemberRow`; column widths follow the shared table layout, not the boards' fixed percentages.
+- Empty: the shared `EmptyState` as an h2 under the table (the board draws an h3; axe heading-order needs h2 under the h1).
+- Loading and error: a labelled busy status of `Skeleton` blocks (no h1) and the shared `RouteLoadError` banner.
+- Row menus: the story-only `openMenuUserId` presses that row's Actions button once after mount; `useRowMenu` places the menu
+  under the button, where the boards use fixed offsets.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 10 pixel pairs are unchecked: none is claimed
+  to match.

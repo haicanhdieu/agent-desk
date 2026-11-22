@@ -694,3 +694,16 @@
   font-size: var(--fs-12);
   color: var(--muted);
 }
+
+/* org members page loading */
+.membersLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.membersLoadingRows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}

@@ -872,13 +872,13 @@ export interface OrgMembersProps {
 export function OrgMembers(props: OrgMembersProps): JSX.Element; // h1 "Members", focusable for the post-remove focus
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `orgMembers.test.tsx` (BR-1, BR-24): loading skeleton; error "Internal server error", "Request ID: <id>", Retry calls `onRetry`; empty "No members"; forbidden "You don't have access" and "Ask an owner of this organization to give you access."; ready lists rows with pagination "Showing 21–25 of 25".
   - Register `OrgMembers`, `OrgMembersAdmin`, `OrgMembersPaged`, `OrgMembersEmpty`, `OrgMembersLoading`, `OrgMembersError`, `OrgMembersForbidden`, `OrgMembersRowMenu`, `OrgMembersRowMenuSelf`, `OrgMembersBusy` (title `Screens/OrgSettings`); `coverage.test.ts` 151 → 161 and the screens module count 8 → 9.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgMembers.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and `orgSettings.stories.tsx` (`parameters.layout: 'fullscreen'`, each story in `OrgSettingsFrame`; `OrgMembersForbidden` renders the member frame with no side menu and no Settings tab); export `OrgMembers` from `screens/index.ts` and `MemberRow` from `components/index.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgMembers.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and `orgSettings.stories.tsx` (`parameters.layout: 'fullscreen'`, each story in `OrgSettingsFrame`; `OrgMembersForbidden` renders the member frame with no side menu and no Settings tab); export `OrgMembers` from `screens/index.ts` and `MemberRow` from `components/index.ts`.
 - [ ] **Step 4: Run** the Step 2 command, the stories smoke test and the parity pass for the ten boards. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Members screen and its list states`.
+- [x] **Step 5: Commit** `feat(web): Members screen and its list states`.
 
 ---
 

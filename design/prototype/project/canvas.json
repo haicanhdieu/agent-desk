@@ -1217,6 +1217,86 @@
    "h": 900,
    "title": "Settings \u2014 Invitations, project admin: only the Invitations tab",
    "expand": "fill"
+  },
+  "OrgMembers.dc.html": {
+   "x": 0,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, owner: several owners, No role, project roles",
+   "expand": "fill"
+  },
+  "OrgMembersAdmin.dc.html": {
+   "x": 1520,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, org admin: owner rows have no actions",
+   "expand": "fill"
+  },
+  "OrgMembersPaged.dc.html": {
+   "x": 3040,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, page 2 of 2",
+   "expand": "fill"
+  },
+  "OrgMembersEmpty.dc.html": {
+   "x": 4560,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, empty (only via a clamped page)",
+   "expand": "fill"
+  },
+  "OrgMembersLoading.dc.html": {
+   "x": 6080,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, loading",
+   "expand": "fill"
+  },
+  "OrgMembersError.dc.html": {
+   "x": 7600,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, failed to load",
+   "expand": "fill"
+  },
+  "OrgMembersForbidden.dc.html": {
+   "x": 0,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members URL opened by a member or viewer: no access, no side menu",
+   "expand": "fill"
+  },
+  "OrgMembersRowMenu.dc.html": {
+   "x": 1520,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, row menu on another member",
+   "expand": "fill"
+  },
+  "OrgMembersRowMenuSelf.dc.html": {
+   "x": 3040,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, row menu on the caller's own row: no Remove",
+   "expand": "fill"
+  },
+  "OrgMembersBusy.dc.html": {
+   "x": 4560,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, request in flight: row menu disabled",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1370,7 +1450,17 @@
   "ProjectsChecklistDoneSettings.dc.html",
   "ProjectsEmptyChecklistSettings.dc.html",
   "OrgInvitationsSettings.dc.html",
-  "OrgInvitationsSettingsProjectAdmin.dc.html"
+  "OrgInvitationsSettingsProjectAdmin.dc.html",
+  "OrgMembers.dc.html",
+  "OrgMembersAdmin.dc.html",
+  "OrgMembersPaged.dc.html",
+  "OrgMembersEmpty.dc.html",
+  "OrgMembersLoading.dc.html",
+  "OrgMembersError.dc.html",
+  "OrgMembersForbidden.dc.html",
+  "OrgMembersRowMenu.dc.html",
+  "OrgMembersRowMenuSelf.dc.html",
+  "OrgMembersBusy.dc.html"
  ],
  "notes": {
   "t-intro": {
