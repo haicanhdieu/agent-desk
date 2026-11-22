@@ -186,17 +186,17 @@ revokeAdmin: { method: 'DELETE', path: '/api/platform/admins/:adminId', params: 
 - Produces (web mocks): `platformAdminFixtures: PlatformAdminDto[]` in `apps/web/src/mocks/dto/access.ts` with three entries: `admin@dev.local` hand-seeded with an account (`grantedBy: null`), one granted entry with an account and `grantedBy` set, one seeded email with no account (`userId`, `name`, `handle`, `grantedBy` null). `apps/web/src/mocks/msw/platformAdmins.ts` exports `listPlatformAdmins(q: PageQuery): Page<PlatformAdminDto>`, `grantPlatformAdmin(body: GrantPlatformAdminRequest): WithStatus<PlatformAdminDto> | PlatformAdminDto`, `revokePlatformAdmin(adminId: string): null`, over a list copied from the fixtures and restored on `mockDb.onReset`.
 - Produces (api test): `NOT_REGISTERED_YET` = `['platform.listAdmins', 'platform.grantAdmin', 'platform.revokeAdmin']`; `DENIAL_TABLE` rows `'platform.listAdmins': platformRoute(200)`, `'platform.grantAdmin': platformRoute(201)`, `'platform.revokeAdmin': platformRoute(204)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `access.test.ts`: the count test becomes `has 33 tenant and 15 platform permissions` (`Permission.options` length 48); `platform-admin:read`, `:create`, `:delete` are platform level, `isPlatformPermission` true, and the owner holds none of them (`holdsAnywhere(access(org('owner', OWNER)), 'platform-admin:read')` false).
   - `schemas/platform.test.ts` (BR-6 contract, BR-1 contract): `GrantPlatformAdminRequest` rejects `{}`, `{ email: 'not-an-email' }`, a 255-character email and `{ email: 'a@b.co', extra: 1 }`, each with an issue at path `['email']` (or the unrecognized key); accepts a 254-character email (64 × `a` @ labels of 63, 63 and 57 characters, then `com`); parses `'  E2E-AB@DEV.LOCAL  '` to `'e2e-ab@dev.local'`. `PlatformAdminDto` parses an entry with all account fields null and `grantedBy: null`, and `pageOf(PlatformAdminDto)` parses a page of the three mock fixtures; it rejects `grantedBy: { name: 'x' }` (no handle).
   - `routes.test.ts` (N-3): `every platform route lives under /api/platform/` with 15 entries; `platform.revokeAdmin.params` rejects `{ adminId: 'not-a-uuid' }`.
   - `route-access.test.ts`, `role-matrix.test.ts` (N-3): the three expected entries; the three keys are `NOBODY` in the role matrix.
   - `apps/web/src/mocks/msw/contract.test.ts` (N-6): `platformAdminFixtures` joins the fixture-parse list as `[PlatformAdminDto, platformAdminFixtures]`; the existing "handler for every route key" and "every GET through its schema" cases cover the new keys; a new case `grants and revokes platform admins: repeat 200, unknown 404, last-admin 409` signs in the mock user as platform admin, POSTs the granted fixture's email (200, same id), POSTs an email no mock user has (404 with an error pointer `/email`), POSTs `alice@example.com` (201), DELETEs entries until one working entry (non-null `userId`) remains and gets 409 on deleting it, and a DELETE of a random uuid gets 404.
   - `apps/api/test/authz.int.test.ts`: the three `NOT_REGISTERED_YET` keys and `DENIAL_TABLE` rows above (N3 "a row for every route key" stays green).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts src/routes.test.ts src/route-access.test.ts src/role-matrix.test.ts src/schemas/platform.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts above; the fixtures; `platformAdmins.ts` (grant: existing email → `withStatus(entry, 200)`; no mock user with that email → `Problem` 404 with `errors: [{ pointer: '/email', … }]`; else append `{ userId, name, handle }` of that user and `grantedBy` of the session user, return it (201 from `STATUS`); revoke: unknown id → 404; no other entry with non-null `userId` would remain → `Problem` 409; else remove → `null`); in `handlers.ts` add `export class WithStatus<T> { constructor(readonly body: T, readonly status: number) {} }` plus `withStatus`, widen `Impl` to `ResponseOf<K> | WithStatus<ResponseOf<K>>`, unwrap it in `contractHandler` before `def.response.parse`, add the three `impl` entries and `'platform.grantAdmin': 201` / `'platform.revokeAdmin': 204` to `STATUS`.
-- [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/contracts test`, `pnpm --filter @agentdesk/web test`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts` and `pnpm typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): platform admin list, grant and revoke routes`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts src/routes.test.ts src/route-access.test.ts src/role-matrix.test.ts src/schemas/platform.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts above; the fixtures; `platformAdmins.ts` (grant: existing email → `withStatus(entry, 200)`; no mock user with that email → `Problem` 404 with `errors: [{ pointer: '/email', … }]`; else append `{ userId, name, handle }` of that user and `grantedBy` of the session user, return it (201 from `STATUS`); revoke: unknown id → 404; no other entry with non-null `userId` would remain → `Problem` 409; else remove → `null`); in `handlers.ts` add `export class WithStatus<T> { constructor(readonly body: T, readonly status: number) {} }` plus `withStatus`, widen `Impl` to `ResponseOf<K> | WithStatus<ResponseOf<K>>`, unwrap it in `contractHandler` before `def.response.parse`, add the three `impl` entries and `'platform.grantAdmin': 201` / `'platform.revokeAdmin': 204` to `STATUS`.
+- [x] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/contracts test`, `pnpm --filter @agentdesk/web test`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts` and `pnpm typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(contracts): platform admin list, grant and revoke routes`.
 
 ---
 
@@ -229,13 +229,13 @@ export const platformAuditLog: PgTable;  // columns: id, actorUserId, action, ta
 export async function seedPlatformAdmin(db: Db, email: string): Promise<void>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `migrate.int.test.ts` (N-2): on `startPgAt('0032_revoke_desk_reads_member_viewer')` with a `user` row inserted, `migrateRest()` succeeds and both new tables are empty; a second insert of the same email fails with `23505`; inserting `'Ops@x.io'`, `''` or `' ops@x.io'` fails with `23514`; `has_table_privilege('agentdesk_app', 'platform_admins', p)` is true for SELECT, INSERT, DELETE and false for UPDATE; on `platform_audit_log` true for SELECT, INSERT and false for UPDATE, DELETE; index `platform_audit_log_created_at_idx` is on `(created_at, id)`; neither table has an `org_id` column (so `APP_TABLES` and the RLS cases stay unchanged).
   - `seed-platform-admin.int.test.ts` (BR-28 integration, N-5): on its own `startPg()`, as the app role (`createDb(env.appUrl)`), `seedPlatformAdmin(db, '  Ops@Example.COM ')` leaves exactly one row `{ email: 'ops@example.com', granted_by: null }` with a `granted_at`; a second call resolves and still leaves one row; `seedPlatformAdmin(db, '   ')` rejects and adds no row.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts test/seed-platform-admin.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the schema (unique and check constraints with the spec's names, the created-at index), `pnpm --filter @agentdesk/db db:generate --name platform_admins` (read the SQL: two `CREATE TABLE`s, the index, nothing else), append `GRANT SELECT, INSERT, DELETE ON "platform_admins" TO agentdesk_app;--> statement-breakpoint` and `GRANT SELECT, INSERT ON "platform_audit_log" TO agentdesk_app;` with a header comment that the tables have no `org_id` and no RLS by ADR-0037, and `seedPlatformAdmin` (`db.pool.query` with the runbook statement and `[email.trim().toLowerCase()]`).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/db test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(db): platform_admins and platform_audit_log tables with a seed function`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts test/seed-platform-admin.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the schema (unique and check constraints with the spec's names, the created-at index), `pnpm --filter @agentdesk/db db:generate --name platform_admins` (read the SQL: two `CREATE TABLE`s, the index, nothing else), append `GRANT SELECT, INSERT, DELETE ON "platform_admins" TO agentdesk_app;--> statement-breakpoint` and `GRANT SELECT, INSERT ON "platform_audit_log" TO agentdesk_app;` with a header comment that the tables have no `org_id` and no RLS by ADR-0037, and `seedPlatformAdmin` (`db.pool.query` with the runbook statement and `[email.trim().toLowerCase()]`).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/db test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(db): platform_admins and platform_audit_log tables with a seed function`.
 
 ---
 
@@ -272,7 +272,7 @@ export interface TestAppOptions { /* existing fields */ seedDevAdmin?: boolean }
 
   `SessionGuard` constructor becomes `(auth, db, logger)`; `MeController` injects `DB` instead of `CONFIG`; the sign-up gate's exception becomes `await isPlatformAdmin(db, { email, emailVerified: true })` with the same `NO_INVITATION_CODE` refusal. `Config` no longer has `PLATFORM_ADMIN_EMAILS`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `packages/core/test/config.test.ts` (BR-26 unit): the `PLATFORM_ADMIN_EMAILS` describe is replaced by `drops a leftover PLATFORM_ADMIN_EMAILS`: `'PLATFORM_ADMIN_EMAILS' in parseConfig({ ...base, PLATFORM_ADMIN_EMAILS: 'a@x.io' })` is false. The production refine cases (BR-23) stay.
   - `platform-admin-source.int.test.ts` (resolver, BR-26, BR-27; each case on its own `createTestApp({ pg: await startPg(), seedDevAdmin: false, … })`, pg stopped in `finally`):
     - `a seeded email signs in as platform admin, whatever the case of the session email`: seed `src-pa@dev.local`, dev-login `src-pa`, `/api/me/access` `platformAdmin: true`, `GET /api/platform/orgs` 200; `isPlatformAdmin(t.db, { email: ' SRC-PA@Dev.Local ', emailVerified: true })` true and `emailVerified: false` false; `xsrc-pa@dev.local` and `src-pa@dev.local.evil.io` false.
@@ -284,10 +284,10 @@ export interface TestAppOptions { /* existing fields */ seedDevAdmin?: boolean }
   - `invitations.int.test.ts`: `refuses a seeded platform admin email when it is not verified` (seed `gate-pa@example.com` on `t`, `signUpEmail` without dev sign-up rejects, no user row) and `accepts a seeded platform admin email whatever its case at sign-in` (`seedPlatformAdmin(t.db, 'Gate-Mixed@Example.COM')`, dev sign-up of `GATE-mixed@example.com` makes one user) replace the two env cases.
   - `platform.int.test.ts`: the "platform admin from config" config case becomes `deleting the entry makes the same session a 403 on the next call` (seed `cfg-rm@dev.local`, dev-login, 200 on `/api/platform/orgs`, delete the row, same cookie → 403 `FORBIDDEN_DETAIL`); BR-62 becomes `BR-62: a seeded email signs up with no invitation, has no membership and no active org` (seed `fresh-pa@dev.local` on `t`, same assertions). N9 (BR-23) stays as is.
   - `auth.int.test.ts` (BR-25, one `startPg()` app with `seedDevAdmin: false` for the describe): dev-login `admin` is refused (`no_invitation`, no user); after `seedPlatformAdmin(t.db, 'ops@dev.local')` dev-login `ops` signs up and `/api/me/access` is true; the GitHub case `BR-25: a seeded GitHub account with a verified email and no invitation signs up and is platform admin` (seed `ghadmin@example.com`); `a seeded GitHub account with an unverified email is refused with no_invitation and no user row`; `a seeded email whose entry is deleted before first sign-in is refused`; `a failing platform_admins lookup at sign-up refuses and creates no user` (pool query spied to reject, as the existing invitation-lookup case). `githubCallback` takes the app to use instead of reading `t`, and no longer takes a config override. "BR-1: a platform admin with no invitation signs in" stays (admin is seeded by `createTestApp`).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts` and `pnpm --filter @agentdesk/api exec vitest run src/auth/session.guard.test.ts test/platform-admin-source.int.test.ts test/authz.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/auth.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the resolver (one `select id from platform_admins where email = $1 limit 1` through `db.orm`), the guard and `/me/access` awaiting it, the gate, the config key removal (`.env.example` loses the key and its comment line), `createTestApp` seeding (`await seedPlatformAdmin(db, 'admin@dev.local')` unless `seedDevAdmin === false`), the comment rewording ("a platform admin (a `platform_admins` entry matching the verified session email)"), and delete the old unit test.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts` and `pnpm --filter @agentdesk/api exec vitest run src/auth/session.guard.test.ts test/platform-admin-source.int.test.ts test/authz.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/auth.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the resolver (one `select id from platform_admins where email = $1 limit 1` through `db.orm`), the guard and `/me/access` awaiting it, the gate, the config key removal (`.env.example` loses the key and its comment line), `createTestApp` seeding (`await seedPlatformAdmin(db, 'admin@dev.local')` unless `seedDevAdmin === false`), the comment rewording ("a platform admin (a `platform_admins` entry matching the verified session email)"), and delete the old unit test.
 - [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/core test`, `pnpm --filter @agentdesk/api test` and `pnpm typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): read platform admins from platform_admins and drop PLATFORM_ADMIN_EMAILS`.
+- [x] **Step 5: Commit** `feat(api): read platform admins from platform_admins and drop PLATFORM_ADMIN_EMAILS`.
 
 ---
 
@@ -319,16 +319,16 @@ export async function findPlatformAdmin(tx: Db['orm'] | Tx, id: string): Promise
 
   The list is one query: `platform_admins pa left join "user" u on lower(u.email) = pa.email left join "user" g on g.id = pa.granted_by`, order `pa.granted_at desc, pa.id`, plus a count; `grantedBy = toInviterDto(g)`.
 
-- [ ] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (shared `createTestApp()`, admin cookie from `asPlatformAdmin`; `expectContract('platform.listAdmins', res)` on every 200):
+- [x] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (shared `createTestApp()`, admin cookie from `asPlatformAdmin`; `expectContract('platform.listAdmins', res)` on every 200):
   - `BR-1: lists every entry with exactly the documented keys`: raw item keys are exactly `email, grantedAt, grantedBy, handle, id, name, userId`; `admin@dev.local` has its account fields and `grantedBy: null`; a row inserted as `{ email: 'lst-granted@dev.local', granted_by: <admin id> }` for a signed-in `lst-granted` has `grantedBy` `{ name, handle: 'admin' }`; a row with `granted_by` set to a random id has `grantedBy: null`; a seeded `lst-noacct@dev.local` has `userId`, `name`, `handle` and `grantedBy` null (BR-29 list part).
   - `orders by granted_at desc, then id`, and Review Focus 4 `entries with the same granted_at page by id, each exactly once` (insert three rows in one transaction; walking `pageSize=1` gives each id once, in id order within the tie).
   - `BR-15: every non-platform caller gets 403 before any lookup on the list`: owner, org admin, project admin, member, viewer of a fresh org, and a signed-in user with no org (invited, not accepted) → 403 with `FORBIDDEN_DETAIL` and no `items`; a captured logger (`createTestApp({ logger })` in its own app) shows the `access denied` line with `routeKey: 'platform.listAdmins'` and no email.
   - `ignores an org header`: the list with `x-org-id: <some org>` still answers 200.
   - `authz.int.test.ts`: `platform.listAdmins` leaves `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module, `list` and `findPlatformAdmin`, and the controller method (`@CurrentPlatformAdmin() _admin`, `@Query(new ZodPipe(routes.platform.listAdmins.query))`).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module, `list` and `findPlatformAdmin`, and the controller method (`@CurrentPlatformAdmin() _admin`, `@Query(new ZodPipe(routes.platform.listAdmins.query))`).
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): list platform admins`.
+- [x] **Step 5: Commit** `feat(api): list platform admins`.
 
 ---
 
@@ -375,7 +375,7 @@ export async function grantPlatformAdmin(t: TestApp, cookie: string, email: stri
 
   Grant, inside the transaction and lock: user by `lower(email) = req.email` → none: `NotFoundProblemException('User not found', [{ pointer: '/email', detail: 'no account has this email' }])`; not verified: `UnprocessableProblemException('Email not verified', [{ pointer: '/email', detail: 'this account has no verified email' }])`; entry exists → `{ entry, created: false }`; else insert `{ email, grantedBy: actorUserId }`, write the audit row, log `platform admin granted`. Controller sets 201 or 200 (`@Res({ passthrough: true })`, as `platform-assignments.controller.ts`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform-audit-entry.test.ts`: `buildPlatformAuditRow` keeps actor, action, target and passes the payload through `redactBody` (a `token` key is redacted; `email` and `userId` kept).
   - `problem.filter.test.ts`: a `NotFoundProblemException` renders 404 with its `errors[]`.
   - `platform-admins.int.test.ts`:
@@ -389,10 +389,10 @@ export async function grantPlatformAdmin(t: TestApp, cookie: string, email: stri
     - `BR-15: a granted platform admin with no assignment gets 403 or 404 and no data on another org's /api/orgs/:orgId routes, with and without x-org-id`.
     - Review Focus 1 `grant matches an account whose stored email has upper case`, 2 `concurrent grants of one email give one 201, one 200, one row and one audit row` (`Promise.all`; assert the set of statuses), 3 `grant to a seeded email with no account is 404 and changes nothing`.
   - `authz.int.test.ts`: `platform.grantAdmin` leaves `NOT_REGISTERED_YET`; `bodies['platform.grantAdmin'] = { email: 'dt-spare@dev.local' }`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/platform-audit-entry.test.ts src/common/problem.filter.test.ts test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the audit writer, the exception and its filter branch, `grant`, the controller method and the test helper.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): grant the platform admin role`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/platform-audit-entry.test.ts src/common/problem.filter.test.ts test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the audit writer, the exception and its filter branch, `grant`, the controller method and the test helper.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): grant the platform admin role`.
 
 ---
 
@@ -420,7 +420,7 @@ export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: s
 
   Revoke, inside the transaction and lock: entry by id → none: `NotFoundException`; count entries other than `adminId` joined to a `user` with `lower(email) = pa.email and email_verified` → 0: `ConflictException('Cannot revoke the last platform admin')`; else delete, write the `platform_admin.revoked` audit row (payload `userId` = the matching account id or null), log `platform admin revoked`. Controller `@HttpCode(204)`.
 
-- [ ] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (count-sensitive cases on their own `createTestApp({ pg: await startPg() })`, which seeds only `admin@dev.local`):
+- [x] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (count-sensitive cases on their own `createTestApp({ pg: await startPg() })`, which seeds only `admin@dev.local`):
   - `BR-10: revoking another entry is 204 and it leaves the list`; N-1 revoke: one `platform_admin.revoked` row with the entry id and payload `{ email, userId }`, and the `platform admin revoked` info line carries ids only; `a second revoke is 404`; `a malformed adminId is 400`.
   - `BR-11: the revoked user's same cookie gets platformAdmin false and 403 on list, grant and /api/platform/orgs`.
   - `BR-12: revoking the last working admin is 409 and nothing changes, no audit` (fresh DB, admin revokes its own entry).
@@ -431,10 +431,10 @@ export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: s
   - `BR-30: an entry whose account was deleted` (fresh DB: `orphan` is invited into an org and signs in, admin grants `orphan@dev.local`, then its `user` row is deleted as owner; the list shows null `userId`, `name`, `handle` and unchanged `grantedBy`; admin's self-revoke is 409 (N-4: the orphan does not count); the pending invitation is revoked, and dev-login `orphan` still signs up with no invitation, `/api/me/access` true, `/api/platform/orgs` 200; admin revokes the entry, the `user` row is deleted again, and dev-login `orphan` is refused `no_invitation` with no user row).
   - Review Focus 5 `an entry whose account is unverified does not count as a working admin` (fresh DB: grant `unv@dev.local`, then set its `email_verified = false` as owner; admin's self-revoke is 409).
   - `authz.int.test.ts`: `platform.revokeAdmin` leaves `NOT_REGISTERED_YET`; `beforeAll` seeds `dt-revoke@dev.local` and sets `ids.adminId` to its entry id.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `revoke`, the controller method (`@Param(new ZodPipe(routes.platform.revokeAdmin.params))`) and the test helper.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): revoke the platform admin role, never the last one`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `revoke`, the controller method (`@Param(new ZodPipe(routes.platform.revokeAdmin.params))`) and the test helper.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): revoke the platform admin role, never the last one`.
 
 ---
 
@@ -446,7 +446,7 @@ export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: s
 
 - Create: `apps/api/src/seed-dev-admin.ts`
 - Modify: `apps/api/package.json`
-- Create: `apps/api/test/seed-dev-admin.test.ts`
+- Create: `apps/api/test/seed-dev-admin.int.test.ts`
 - Modify: `process-compose.yaml`, `scripts/dev.sh`, `scripts/runner-stack.sh`, `devbox.json`
 - Create: `scripts/seed-dev-admin-wiring.test.ts`
 
@@ -468,13 +468,13 @@ export async function runDevAdminSeed(
 
   Package script `"seed:dev-admin": "tsx --env-file-if-exists=../../.env src/seed-dev-admin.ts"`. `main()` passes a seed that opens `createDb(url)`, calls `seedPlatformAdmin` and closes it; prints `seed-dev-admin: skipped (dev login is off)` or `seed-dev-admin: done`; exits 1 with the message on error.
 
-- [ ] **Step 1: Write the failing tests**
-  - `apps/api/test/seed-dev-admin.test.ts` (BR-28 gate, N-5): `devAdminSeedEnabled` is true only for `AUTH_DEV_LOGIN: true`; `runDevAdminSeed(validEnv({ AUTH_DEV_LOGIN: 'false' }), seed)` resolves `'skipped'` and `seed` is not called; with `'true'` it resolves `'seeded'` and `seed` was called once with `(env.DATABASE_APP_URL, 'admin@dev.local')`; with `NODE_ENV: 'production'` and `AUTH_DEV_LOGIN: 'true'` it rejects (config refusal) and `seed` is not called.
+- [x] **Step 1: Write the failing tests**
+  - `apps/api/test/seed-dev-admin.int.test.ts` (BR-28 gate, N-5): `devAdminSeedEnabled` is true only for `AUTH_DEV_LOGIN: true`; `runDevAdminSeed(validEnv({ AUTH_DEV_LOGIN: 'false' }), seed)` resolves `'skipped'` and `seed` is not called; with `'true'` it resolves `'seeded'` and `seed` was called once with `(env.DATABASE_APP_URL, 'admin@dev.local')`; with `NODE_ENV: 'production'` and `AUTH_DEV_LOGIN: 'true'` it rejects (config refusal) and `seed` is not called.
   - `scripts/seed-dev-admin-wiring.test.ts` (BR-28 wiring): copies the scripts into a temp root as the Agent call says; a stub `pnpm` appends `"$*"` to `calls.log`. `dev.sh up` with `COMPOSE=<stub>` logs `--filter @agentdesk/api migrate`, then `--filter @agentdesk/api seed:dev-admin`, then `exec turbo run dev …`, in that order; a failing stub for `seed:dev-admin` stops the script (non-zero, no turbo call). `runner-stack.sh up` with `RUNNER_STACK_APPS=0`, `TEST_PG_BIN_DIR=<stub dir>`, `RUNNER_STACK_DIR=<tmp>` (with `pgdata/PG_VERSION`) logs migrate before `seed:dev-admin`; a failing seed stub makes it exit non-zero with `seed-dev-admin failed`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/seed-dev-admin.test.ts` and `pnpm exec vitest run --root scripts seed-dev-admin-wiring.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the entrypoint and script; `process-compose.yaml` process `seed-dev-admin` (command `pnpm --filter @agentdesk/api run seed:dev-admin`, same `availability` as `migrate`, depends on `migrate: process_completed_successfully`) and `api` depending on `seed-dev-admin: process_completed_successfully` (the start-order comment updated); `scripts/dev.sh` runs `pnpm --filter @agentdesk/api seed:dev-admin` after migrate; `scripts/runner-stack.sh` adds `echo "==> seed dev admin"` and `pnpm --filter @agentdesk/api seed:dev-admin >"$logs/seed-dev-admin.log" 2>&1 || die "seed-dev-admin failed (log: $logs/seed-dev-admin.log)"` after migrate; `devbox.json` `db-reset` message ends `Next \`devbox run dev\` re-runs migrations and seeds admin@dev.local on an empty database.`
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/seed-dev-admin.int.test.ts` and `pnpm exec vitest run --root scripts seed-dev-admin-wiring.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the entrypoint and script; `process-compose.yaml` process `seed-dev-admin` (command `pnpm --filter @agentdesk/api run seed:dev-admin`, same `availability` as `migrate`, depends on `migrate: process_completed_successfully`) and `api` depending on `seed-dev-admin: process_completed_successfully` (the start-order comment updated); `scripts/dev.sh` runs `pnpm --filter @agentdesk/api seed:dev-admin` after migrate; `scripts/runner-stack.sh` adds `echo "==> seed dev admin"` and `pnpm --filter @agentdesk/api seed:dev-admin >"$logs/seed-dev-admin.log" 2>&1 || die "seed-dev-admin failed (log: $logs/seed-dev-admin.log)"` after migrate; `devbox.json` `db-reset` message ends `Next \`devbox run dev\` re-runs migrations and seeds admin@dev.local on an empty database.`
 - [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/api test`, `pnpm test:scripts`; then `devbox run db-reset`, `devbox run dev-bg`, and `devbox run db-psql` with `select email, granted_by from platform_admins;` → one row `admin@dev.local`, null. Expected: PASS (if the stack cannot start, say so in the PR). The sign-in side (BR-28, TC-28.1) is proved by Task 9.
-- [ ] **Step 5: Commit** `feat(api): seed the dev platform admin when the local stack starts`.
+- [x] **Step 5: Commit** `feat(api): seed the dev platform admin when the local stack starts`.
 
 ---
 
@@ -493,12 +493,12 @@ export async function runDevAdminSeed(
 
 - Produces: `docs/runbooks/platform-setup.md` ("Set up the platform") with steps 1 to 6, Upgrade, Recovery, Local stack and Troubleshooting exactly as the spec's "Platform setup runbook" lists them; step 5 quotes `INSERT INTO platform_admins (email) VALUES ('ops@example.com') ON CONFLICT (email) DO NOTHING;`, the role (`agentdesk_app` or `agentdesk_owner`), the lowercase-email rule and "not audited".
 
-- [ ] **Step 1: Write** ADR-0037 "Platform admins are stored in the database and seeded by hand" (context: the env list and its restart; decision: `platform_admins` keyed by email, hand seed as bootstrap and recovery, `platform_audit_log`, both without `org_id` or RLS, reached only through `scope: 'platform'` routes, `/me/access` and the sign-up gate; consequences: upgrade needs a seed; amends ADR-0031's platform admin line) and add it to `docs/adr/README.md`.
-- [ ] **Step 2: Edit** ADR-0031 line 18 (platform admins are `platform_admins` entries matched on the verified session email, see ADR-0037); `database.md` §2 exceptions (the two platform tables); rbac-foundation spec lines 9, 23, 183, 262, desk-access-matrix line 57 and org-onboarding line 33 (config list → database entries, link ADR-0037); `local-dev.md` §4 step 1, `tests-and-e2e.md` line 87, `database-local.md` "Seed data" and the `README.md` Operations row, each as the spec's "How it fits with the other docs" says. Leave `docs/superpowers/plans/2026-11-21-rbac-foundation.md` as is.
-- [ ] **Step 3: Write** `docs/runbooks/platform-setup.md`, taking each value from the files the spec names (`packages/core/src/config.ts`, `apps/api/src/migrate.ts`, the Dockerfiles, `.env.example`).
-- [ ] **Step 4: Check** `grep -rn PLATFORM_ADMIN_EMAILS docs` returns only `docs/superpowers/plans/2026-11-21-rbac-foundation.md`, this plan and the spec; every runbook link resolves.
+- [x] **Step 1: Write** ADR-0037 "Platform admins are stored in the database and seeded by hand" (context: the env list and its restart; decision: `platform_admins` keyed by email, hand seed as bootstrap and recovery, `platform_audit_log`, both without `org_id` or RLS, reached only through `scope: 'platform'` routes, `/me/access` and the sign-up gate; consequences: upgrade needs a seed; amends ADR-0031's platform admin line) and add it to `docs/adr/README.md`.
+- [x] **Step 2: Edit** ADR-0031 line 18 (platform admins are `platform_admins` entries matched on the verified session email, see ADR-0037); `database.md` §2 exceptions (the two platform tables); rbac-foundation spec lines 9, 23, 183, 262, desk-access-matrix line 57 and org-onboarding line 33 (config list → database entries, link ADR-0037); `local-dev.md` §4 step 1, `tests-and-e2e.md` line 87, `database-local.md` "Seed data" and the `README.md` Operations row, each as the spec's "How it fits with the other docs" says. Leave `docs/superpowers/plans/2026-11-21-rbac-foundation.md` as is.
+- [x] **Step 3: Write** `docs/runbooks/platform-setup.md`, taking each value from the files the spec names (`packages/core/src/config.ts`, `apps/api/src/migrate.ts`, the Dockerfiles, `.env.example`).
+- [x] **Step 4: Check** `grep -rn PLATFORM_ADMIN_EMAILS docs` returns only `docs/superpowers/plans/2026-11-21-rbac-foundation.md`, this plan and the spec; every runbook link resolves.
 - [ ] **Step 5: Post** the #192 note: `gh issue comment 192 --body-file -` listing the deferred UI (platform admins page, nav entry, grant dialog, loading/empty/error states, stories, mock e2e) and its deferred tests (BR-3, BR-24), linking the spec.
-- [ ] **Step 6: Commit** `docs(adr): platform admins live in the database (ADR-0037) and the platform setup runbook`.
+- [x] **Step 6: Commit** `docs(adr): platform admins live in the database (ADR-0037) and the platform setup runbook`.
 
 ---
 
@@ -527,11 +527,11 @@ export async function allPlatformAdmins(pa: APIRequestContext): Promise<Platform
 
   `asPlatformAdmin()` now fails fast after sign-in: if `GET /api/platform/orgs?pageSize=1` answers 403 it disposes the context and throws `admin@dev.local is not a platform admin on this stack: seed it (docs/runbooks/platform-setup.md, step 5)`.
 
-- [ ] **Step 1: Write the spec** (`test.describe.configure({ timeout: 120_000 })`; `beforeAll` checks `/readyz` and creates one org `e2e-pa-<rand>`; every response parsed with the contracts schemas and raw keys checked as in `rbac-platform.spec.ts`; every grant revoked in `finally`, cleanup errors swallowed; `admin@dev.local`'s entry never touched). One `test('TC-n.m: …')` per case: TC-1.1, 1.2 (BR-1); TC-4.1, 4.2 (BR-4); TC-5.1, 5.2 (BR-5); TC-6.1 to 6.5 (BR-6, the 400 pointing at the email field per the spec's Q1); TC-7.1 (BR-7); TC-9.1, 9.2 (BR-9); TC-10.1 to 10.4 (BR-10); TC-11.1, 11.2 (BR-11); TC-13.1, 13.2 (BR-13); TC-28.1 (BR-28).
-- [ ] **Step 2: Run** with the stack up from this branch (`devbox run dev-bg`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-admins.spec.ts`. Expected: PASS (before the helpers exist: FAIL).
-- [ ] **Step 3: Implement** the helpers, the fail-fast, and replace "the `PLATFORM_ADMIN_EMAILS` default in `.env.example`" in the comments of `helpers.ts`, `scripts/e2e-local.ts`, `onboarding-platform.spec.ts` and `run.spec.ts` with "seeded by the local stack start".
-- [ ] **Step 4: Run** the Step 2 command, then `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-platform.spec.ts` (an existing user of `asPlatformAdmin`), and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `test(web): local e2e for listing, granting and revoking platform admins`.
+- [x] **Step 1: Write the spec** (`test.describe.configure({ timeout: 120_000 })`; `beforeAll` checks `/readyz` and creates one org `e2e-pa-<rand>`; every response parsed with the contracts schemas and raw keys checked as in `rbac-platform.spec.ts`; every grant revoked in `finally`, cleanup errors swallowed; `admin@dev.local`'s entry never touched). One `test('TC-n.m: …')` per case: TC-1.1, 1.2 (BR-1); TC-4.1, 4.2 (BR-4); TC-5.1, 5.2 (BR-5); TC-6.1 to 6.5 (BR-6, the 400 pointing at the email field per the spec's Q1); TC-7.1 (BR-7); TC-9.1, 9.2 (BR-9); TC-10.1 to 10.4 (BR-10); TC-11.1, 11.2 (BR-11); TC-13.1, 13.2 (BR-13); TC-28.1 (BR-28).
+- [x] **Step 2: Run** with the stack up from this branch (`devbox run dev-bg`): `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-admins.spec.ts`. Expected: PASS (before the helpers exist: FAIL).
+- [x] **Step 3: Implement** the helpers, the fail-fast, and replace "the `PLATFORM_ADMIN_EMAILS` default in `.env.example`" in the comments of `helpers.ts`, `scripts/e2e-local.ts`, `onboarding-platform.spec.ts` and `run.spec.ts` with "seeded by the local stack start".
+- [x] **Step 4: Run** the Step 2 command, then `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-platform.spec.ts` (an existing user of `asPlatformAdmin`), and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** `test(web): local e2e for listing, granting and revoking platform admins`.
 
 ---
 
@@ -547,7 +547,7 @@ export async function allPlatformAdmins(pa: APIRequestContext): Promise<Platform
 
 - Consumes: `freshUser`, `grantPlatformAdmin`, `revokePlatformAdmin`, `allPlatformAdmins`, `asPlatformAdmin`, `createOrg` (Task 9 and existing helpers); `buildCast`, `disposeCast` (`rbac-cast.ts`: `o` owner, `d` org admin, `a` project admin on P1, `b` member, `v` viewer).
 
-- [ ] **Step 1: Write the spec** (one cast built in `beforeAll` and disposed in `afterAll`; a real entry E from a fresh user granted in `beforeAll` and revoked in `afterAll`; T a fresh verified non-admin user; N a fresh user with no org). One `test('TC-15.n: …')` per case: TC-15.1 to 15.5 as the owner (15.4 and 15.5 compare status and error code with 15.2 and 15.3), TC-15.6 org admin, 15.7 project admin, 15.8 member, 15.9 viewer, 15.10 no-org user (each list, grant and revoke → 403), TC-15.11 admin on another org's `/api/orgs/<X>/members` with and without `x-org-id` → 403 or 404 and no body text of org X (per the spec's Q2).
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-admins-denials.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Run** `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 1: Write the spec** (one cast built in `beforeAll` and disposed in `afterAll`; a real entry E from a fresh user granted in `beforeAll` and revoked in `afterAll`; T a fresh verified non-admin user; N a fresh user with no org). One `test('TC-15.n: …')` per case: TC-15.1 to 15.5 as the owner (15.4 and 15.5 compare status and error code with 15.2 and 15.3), TC-15.6 org admin, 15.7 project admin, 15.8 member, 15.9 viewer, 15.10 no-org user (each list, grant and revoke → 403), TC-15.11 admin on another org's `/api/orgs/<X>/members` with and without `x-org-id` → without the header 403 or 404, with it exactly 409 `org-mismatch` (ADR-0035), and no body text of org X in either (per the spec's Q2).
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-admins-denials.spec.ts`. Expected: PASS.
+- [x] **Step 3: Run** `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
 - [ ] **Step 4: Commit** `test(web): local e2e for platform admin route denials`.

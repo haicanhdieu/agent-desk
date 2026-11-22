@@ -68,7 +68,7 @@ scripts/runner-stack.sh status
 scripts/runner-stack.sh down      # also stops KUBE_MODE=fake run "pods"
 ```
 
-Everything listens on 127.0.0.1. State, logs and PID files are in `.agentdesk/runner-stack/` (`RUNNER_STACK_DIR`); logs are in its `logs/` folder. `RUNNER_STACK_APPS=0` starts only Postgres, Temporal and the migration. The stack uses the ports and the Postgres admin login from `.env.example`; keep them if you edit `.env`.
+Everything listens on 127.0.0.1. State, logs and PID files are in `.agentdesk/runner-stack/` (`RUNNER_STACK_DIR`); logs are in its `logs/` folder. `RUNNER_STACK_APPS=0` starts only Postgres, Temporal and the migration. The stack uses the ports and the Postgres admin login from `.env.example`; keep them if you edit `.env`. The stack ignores a `BOT_NAME` exported in the shell (the pod's own QA identity); set it in `.env` to change the bot login.
 
 The mocked suite needs no stack: `pnpm --filter @agentdesk/web test:e2e:mock` (full profile).
 

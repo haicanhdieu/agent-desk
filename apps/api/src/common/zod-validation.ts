@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   ConflictException,
+  NotFoundException,
   UnprocessableEntityException,
   type PipeTransform,
 } from '@nestjs/common';
@@ -20,6 +21,16 @@ export class ValidationProblemException extends BadRequestException {
 
 /** 409 whose problem body carries `errors[]` pointers. */
 export class ConflictProblemException extends ConflictException {
+  constructor(
+    message: string,
+    readonly issues: ValidationIssue[],
+  ) {
+    super(message);
+  }
+}
+
+/** 404 whose problem body carries `errors[]` pointers. */
+export class NotFoundProblemException extends NotFoundException {
   constructor(
     message: string,
     readonly issues: ValidationIssue[],

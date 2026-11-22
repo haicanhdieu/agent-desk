@@ -75,7 +75,7 @@ export function createAuth(config: Config, db: Db) {
 
   /**
    * The sign-up gate. An account is created only for a verified email that either has a pending, unexpired invitation
-   * or is a configured platform admin address. Anything else (including a failed lookup) throws, so no user row is
+   * or has a `platform_admins` entry. Anything else (including a failed lookup) throws, so no user row is
    * written. The refusal carries `NO_INVITATION_CODE`, which the sign-in page matches, and never says which of the
    * two checks failed.
    */
@@ -86,7 +86,7 @@ export function createAuth(config: Config, db: Db) {
     if (!verified) throw refuse();
     const email = candidate.email.trim().toLowerCase();
     if (email === '') throw refuse();
-    if (isPlatformAdmin(config, { email, emailVerified: true })) return;
+    if (await isPlatformAdmin(db, { email, emailVerified: true })) return;
     const pending = await pendingInvitationsForEmail(db, email);
     if (pending.length === 0) throw refuse();
   }

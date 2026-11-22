@@ -104,3 +104,12 @@ export function routeHandler(key: RouteKey, resolve: (request: Request, params: 
   });
   return handler;
 }
+
+/** A response body with the status it answers (the static status map gives a route one code; a repeat grant is 200). */
+export class WithStatus<T> {
+  constructor(
+    readonly body: T,
+    readonly status: number,
+  ) {}
+}
+export const withStatus = <T>(body: T, status: number): WithStatus<T> => new WithStatus(body, status);

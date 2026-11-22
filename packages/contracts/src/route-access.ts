@@ -102,4 +102,7 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'platform.createInvitation': platform('platform-invitation:create'),
   'platform.removeInvitation': platform('platform-invitation:delete'),
   'platform.resendInvitation': platform('platform-invitation:update'),
+  'platform.listAdmins': platform('platform-admin:read'),
+  'platform.grantAdmin': platform('platform-admin:create'),
+  'platform.revokeAdmin': platform('platform-admin:delete'),
 };

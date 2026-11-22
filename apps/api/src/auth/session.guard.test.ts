@@ -1,10 +1,11 @@
 import { ForbiddenException, UnauthorizedException, type ExecutionContext } from '@nestjs/common';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Db } from '@agentdesk/db';
-import type { Config } from '../config/config.module';
 
 const checkTenantAccess = vi.hoisted(() => vi.fn());
 vi.mock('../access/check-access', () => ({ checkTenantAccess, isOrgMember: vi.fn() }));
+const isPlatformAdmin = vi.hoisted(() => vi.fn());
+vi.mock('../access/platform-admin', () => ({ isPlatformAdmin }));
 
 import type { FastifyRequest } from 'fastify';
 import { OrgMismatchException, requestedOrgId } from '../common/org-mismatch';
@@ -24,12 +25,7 @@ function setup() {
       }),
     },
   };
-  const guard = new SessionGuard(
-    auth as unknown as Auth,
-    {} as Db,
-    { PLATFORM_ADMIN_EMAILS: [] } as unknown as Config,
-    logger as never,
-  );
+  const guard = new SessionGuard(auth as unknown as Auth, {} as Db, logger as never);
   const req = {
     id: 'req-1',
     url: `/api/runs/abc/cancel`,
@@ -39,7 +35,7 @@ function setup() {
     routeOptions: { url: '/api/runs/:runId/cancel' },
   };
   const context = { switchToHttp: () => ({ getRequest: () => req }) } as unknown as ExecutionContext;
-  return { guard, logger, context, auth };
+  return { guard, logger, context, auth, req };
 }
 
 describe('SessionGuard deny log', () => {
@@ -73,6 +69,19 @@ describe('SessionGuard deny log', () => {
     await expect(guard.canActivate(context)).rejects.toBeInstanceOf(ForbiddenException);
     const [fields] = logger.info.mock.calls[0] ?? [];
     expect(fields).not.toHaveProperty('projectId');
+  });
+});
+
+describe('SessionGuard platform routes', () => {
+  it('a platform route rejects, and never passes, when the resolver throws', async () => {
+    isPlatformAdmin.mockReset();
+    isPlatformAdmin.mockRejectedValue(new Error('db down'));
+    const { guard, req, context } = setup();
+    req.method = 'GET';
+    req.url = '/api/platform/orgs';
+    req.routeOptions = { url: '/api/platform/orgs' };
+    await expect(guard.canActivate(context)).rejects.toThrow('db down');
+    expect(req).not.toHaveProperty('platformAdmin');
   });
 });
 

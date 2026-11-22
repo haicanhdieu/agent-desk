@@ -18,7 +18,7 @@ const CreateBody = new ZodPipe(routes.platform.createInvitation.body);
 const ResendParams = new ZodPipe(routes.platform.resendInvitation.params);
 const RemoveParams = new ZodPipe(routes.platform.removeInvitation.params);
 
-/** `/api/platform/orgs/:orgId/invitations`: reachable only by a config-listed platform admin (SessionGuard). */
+/** `/api/platform/orgs/:orgId/invitations`: reachable only by a platform admin (a `platform_admins` entry matching the verified session email) (SessionGuard). */
 @Controller()
 export class PlatformInvitationsController {
   constructor(@Inject(InvitationsService) private readonly invitations: InvitationsService) {}

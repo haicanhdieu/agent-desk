@@ -48,6 +48,7 @@ import { noPlugins } from '../dto/setup';
 import { NO_ROLE, defaultTriggerState, mockDb, type InvitationRow, type MockUser, type ProjectRow } from './db';
 import {
   Problem,
+  WithStatus,
   conflict,
   fieldErrors,
   flatRoutes,
@@ -61,6 +62,7 @@ import {
   type RouteCtx,
   type RouteKey,
 } from './http';
+import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import { appendRunEvent, endSetupTest, rememberSetupTestScript, scriptRun, setRunStatus } from './live';
 
@@ -146,6 +148,8 @@ function requireRouteAccess(key: RouteKey, user: MockUser): void {
   }
   if (!allowed) throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
 }
+
+type Answer<T> = T | WithStatus<T>;
 
 const never = (what: string): never => {
   throw new Error(`${what} fixture missing`);
@@ -476,7 +480,9 @@ const STREAM_KEYS = [
 type StreamKey = (typeof STREAM_KEYS)[number];
 type JsonKey = Exclude<RouteKey, StreamKey>;
 
-type Impl = { [K in JsonKey]: (ctx: RouteCtx<K>) => ResponseOf<K> | Promise<ResponseOf<K>> };
+type Impl = {
+  [K in JsonKey]: (ctx: RouteCtx<K>) => Answer<ResponseOf<K>> | Promise<Answer<ResponseOf<K>>>;
+};
 
 const impl: Impl = {
   'connections.list': () => {
@@ -1037,6 +1043,9 @@ const impl: Impl = {
   'platform.createInvitation': ({ params, body }) => createInvitation(requireOrg(params.orgId), body),
   'platform.removeInvitation': ({ params }) => revokeInvitation(requireOrg(params.orgId), params.invitationId),
   'platform.resendInvitation': ({ params }) => resendInvitation(requireOrg(params.orgId), params.invitationId),
+  'platform.listAdmins': ({ query }) => listPlatformAdmins(query),
+  'platform.grantAdmin': ({ body }) => grantPlatformAdmin(body),
+  'platform.revokeAdmin': ({ params }) => revokePlatformAdmin(params.adminId),
 };
 
 // As the API answers (Nest: 201 for a POST without @HttpCode).
@@ -1056,11 +1065,13 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'platform.createOrg': 201,
   'platform.createAssignment': 201,
   'platform.createInvitation': 201,
+  'platform.grantAdmin': 201,
   'assignments.remove': 204,
   'invitations.remove': 204,
   'me.declineInvitation': 204,
   'platform.removeAssignment': 204,
   'platform.removeInvitation': 204,
+  'platform.revokeAdmin': 204,
 };
 
 async function readBody(request: Request): Promise<unknown> {
@@ -1124,7 +1135,9 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
       };
       // Each part was parsed by this route's own schema above, so it has the shape RouteCtx<K> names.
       const ctx = parts as RouteCtx<K>;
-      return jsonResponse(def.response.parse(await run(ctx)), STATUS[key]);
+      const answer = await run(ctx);
+      const [body, status] = answer instanceof WithStatus ? [answer.body, answer.status] : [answer, STATUS[key]];
+      return jsonResponse(def.response.parse(body), status);
     } catch (e) {
       if (e instanceof Problem) return problemResponse(e.init);
       throw e;

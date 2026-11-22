@@ -31,7 +31,7 @@ import {
 
 /*
  * Local end-to-end for RBAC foundation, invitation-only sign-in and invitation rights (spec "E2E requirements": BR-54,
- * BR-55, BR-56, BR-58, BR-60). PA is the dev-config platform admin; the cast is the spec's: O owner, D admin on the org,
+ * BR-55, BR-56, BR-58, BR-60). PA is the seeded platform admin; the cast is the spec's: O owner, D admin on the org,
  * A admin on P1, B member on P1 and P2, C member on P1, V viewer on the org. A dev-login handle `h` signs in as the
  * verified email `h@dev.local`, which is the address an invitation names.
  *

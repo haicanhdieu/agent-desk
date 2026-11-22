@@ -6,6 +6,7 @@ import {
   type InvitationDto,
   type MemberDto,
   type PermissionLineDto,
+  type PlatformAdminDto,
   type PlatformMemberDto,
   type PlatformOrgDto,
   type PlatformProjectDto,
@@ -144,3 +145,36 @@ export const platformMemberFixtures: PlatformMemberDto[] = memberFixtures.map((m
   ...m,
   email: `${m.handle ?? 'user'}@example.com`,
 }));
+
+const platformAdminId = (n: number) => uuid('b5000000', n);
+
+/** The platform admin list: the hand-seeded first admin, one granted by them, and a seeded email with no account yet. */
+export const platformAdminFixtures: PlatformAdminDto[] = [
+  {
+    id: platformAdminId(1),
+    email: 'admin@dev.local',
+    userId: 'user-dev-admin',
+    name: 'Dev Admin',
+    handle: 'dev-admin',
+    grantedAt: MOCK_NOW,
+    grantedBy: null,
+  },
+  {
+    id: platformAdminId(2),
+    email: 'pat@example.com',
+    userId: 'user-pat',
+    name: 'Pat',
+    handle: 'pat',
+    grantedAt: MOCK_NOW,
+    grantedBy: { name: 'Dev Admin', handle: 'dev-admin' },
+  },
+  {
+    id: platformAdminId(3),
+    email: 'seeded@example.com',
+    userId: null,
+    name: null,
+    handle: null,
+    grantedAt: MOCK_NOW,
+    grantedBy: null,
+  },
+];

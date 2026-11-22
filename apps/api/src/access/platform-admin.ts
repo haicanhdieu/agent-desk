@@ -1,13 +1,17 @@
-import type { Config } from '../config/config.module';
+import { platformAdmins, type Db } from '@agentdesk/db';
+import { eq } from 'drizzle-orm';
 
 /**
- * A platform admin is a session user whose verified email is listed in PLATFORM_ADMIN_EMAILS. Checked on every request,
- * so removing an email from config revokes the next call. The list is already trimmed and lowercased by the config.
+ * A platform admin is a session user whose verified email has a `platform_admins` entry. Checked on every request, so
+ * deleting the entry revokes the next call. False for an unverified session email; a database error rejects, so the
+ * callers fail closed.
  */
-export function isPlatformAdmin(
-  config: Pick<Config, 'PLATFORM_ADMIN_EMAILS'>,
-  user: { email: string; emailVerified: boolean },
-): boolean {
+export async function isPlatformAdmin(db: Db, user: { email: string; emailVerified: boolean }): Promise<boolean> {
   if (!user.emailVerified) return false;
-  return config.PLATFORM_ADMIN_EMAILS.includes(user.email.trim().toLowerCase());
+  const rows = await db.orm
+    .select({ id: platformAdmins.id })
+    .from(platformAdmins)
+    .where(eq(platformAdmins.email, user.email.trim().toLowerCase()))
+    .limit(1);
+  return rows.length > 0;
 }

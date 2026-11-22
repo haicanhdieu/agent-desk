@@ -22,7 +22,7 @@ const RemoveParams = new ZodPipe(routes.platform.removeAssignment.params);
 const asActor = (admin: PlatformAdminContext): Actor => ({ kind: 'platform_admin', userId: admin.userId });
 
 /**
- * `/api/platform/orgs/:orgId/assignments`: reachable only by a config-listed platform admin (SessionGuard,
+ * `/api/platform/orgs/:orgId/assignments`: reachable only by a platform admin (a `platform_admins` entry matching the verified session email) (SessionGuard,
  * `scope: 'platform'`). The service checks the org exists first, and a platform actor skips the tenant-only rules.
  */
 @Controller()

@@ -49,6 +49,9 @@ const PLATFORM_PERMISSIONS = [
   'platform-invitation:create',
   'platform-invitation:update',
   'platform-invitation:delete',
+  'platform-admin:read',
+  'platform-admin:create',
+  'platform-admin:delete',
 ] as const;
 
 export const Permission = z.enum([...TENANT_PERMISSIONS, ...PLATFORM_PERMISSIONS]);

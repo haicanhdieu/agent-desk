@@ -11,7 +11,7 @@ import {
   type AgentHttpGet,
   type KubeGateway,
 } from '@agentdesk/core';
-import { createDb, type Db } from '@agentdesk/db';
+import { createDb, seedPlatformAdmin, type Db } from '@agentdesk/db';
 import { startPg, type TestPg } from '@agentdesk/db/testing';
 import { AGENT_HTTP } from '../../src/agents/agent-http.provider';
 import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
@@ -44,7 +44,6 @@ export function validEnv(overrides: Record<string, string> = {}): Record<string,
     RUNNER_IMAGE: 'agentdesk-runner:test',
     ENABLE_FAKE_PROVIDER: 'true',
     AUTH_DEV_LOGIN: 'true',
-    PLATFORM_ADMIN_EMAILS: 'admin@dev.local',
     ...overrides,
   };
 }
@@ -66,6 +65,8 @@ export interface TestAppOptions {
   prStateLookup?: Partial<PrStateLookupOptions>;
   /** Logger for request/problem logging (default: silent); tests capture output through it. */
   logger?: Logger;
+  /** Seeds admin@dev.local as platform admin once the database is created (default true). */
+  seedDevAdmin?: boolean;
 }
 
 export interface TestApp {
@@ -110,6 +111,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
       }),
     );
     const db = createDb(config.DATABASE_APP_URL);
+    if (options.seedDevAdmin !== false) await seedPlatformAdmin(db, 'admin@dev.local');
     const temporal = new FakeTemporalClient();
     const secrets = new MemorySecretStore();
     const builder = Test.createTestingModule({ imports: [AppModule], controllers: options.controllers ?? [] });

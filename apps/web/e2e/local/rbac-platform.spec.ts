@@ -17,7 +17,7 @@ import { REPO_P1, REPO_P2, buildCast, disposeCast, installFake, type Actor, type
 
 /*
  * Local end-to-end for RBAC foundation, the platform admin (spec "E2E requirements": BR-38, BR-40, BR-69, BR-70). PA is
- * the dev-config platform admin (`admin@dev.local`); the cast is the spec's: O owner, D admin on the org, A admin on P1,
+ * the seeded platform admin (`admin@dev.local`); the cast is the spec's: O owner, D admin on the org, A admin on P1,
  * B member on P1 and P2, C member on P1, V viewer on the org; P1 and P2 are its projects.
  *
  * Every case that uses the cast only reads, or is refused, so one cast serves the BR-38, BR-40 and BR-70 cases of a

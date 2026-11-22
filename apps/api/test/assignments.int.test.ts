@@ -659,7 +659,7 @@ describe('BR-63: own access', () => {
     expect(owner.assignments.map((a) => [a.roleKey, a.scope.type])).toEqual([['owner', 'org']]);
   });
 
-  it('reports a config-listed platform admin as platformAdmin', async () => {
+  it('reports a platform admin (seeded in platform_admins) as platformAdmin', async () => {
     // A platform admin has no org of their own any more: this one is also invited into an org, whose session answers.
     const home = await createOrg(t, 'PA Home', 'as-pa-home');
     const asMember = await inviteAndLogin(t, home.id, 'admin', 'viewer', { type: 'org' });

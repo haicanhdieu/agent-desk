@@ -46,7 +46,7 @@ const ORIGIN = new URL(process.env['PUBLIC_ORIGIN'] ?? 'http://localhost:5173').
 const TEMPORAL_ADDRESS = process.env['TEMPORAL_ADDRESS'] ?? 'localhost:7233';
 const TEMPORAL_NAMESPACE = process.env['TEMPORAL_NAMESPACE'] ?? 'agentdesk';
 const REPO = 'dev/demo';
-/** admin@dev.local: the `PLATFORM_ADMIN_EMAILS` default in `.env.example`. */
+/** admin@dev.local: seeded by the local stack start. */
 const PLATFORM_ADMIN_HANDLE = 'admin';
 const OVERALL_TIMEOUT_MS = 240_000;
 const IDLE_TIMEOUT_MS = 30_000;

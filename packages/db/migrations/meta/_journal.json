@@ -232,6 +232,20 @@
       "when": 1795262474389,
       "tag": "0032_revoke_desk_reads_member_viewer",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1795361731228,
+      "tag": "0033_platform_admins",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795375925142,
+      "tag": "0034_user_email_lower_idx",
+      "breakpoints": true
     }
   ]
 }

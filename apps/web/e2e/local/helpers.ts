@@ -11,11 +11,13 @@ import {
   type Page,
 } from '@playwright/test';
 import {
+  AccessDto,
   AgentDto,
   AssignmentDto,
   CreateOrgResponse,
   InstallResponse,
   InvitationDto,
+  PlatformAdminDto,
   PlatformMemberDto,
   PlatformRoleDto,
   type PrState,
@@ -53,7 +55,7 @@ export type RoleKey = 'owner' | 'admin' | 'member' | 'viewer';
 export type InviteScope = { type: 'org' } | { type: 'project'; projectIds: string[] };
 export type GrantScope = { type: 'org' } | { type: 'project'; projectId: string };
 
-/** The platform admin's dev-login handle: `admin@dev.local`, the `PLATFORM_ADMIN_EMAILS` default in `.env.example`. */
+/** The platform admin's dev-login handle: `admin@dev.local`, seeded by the local stack start. */
 export const PLATFORM_ADMIN_HANDLE = 'admin';
 
 /**
@@ -66,7 +68,18 @@ export async function asPlatformAdmin(): Promise<APIRequestContext> {
   const attempts = 4;
   for (let attempt = 1; ; attempt++) {
     const res = await pa.get(`/auth/dev-login?handle=${PLATFORM_ADMIN_HANDLE}&redirect=/`, { maxRedirects: 0 });
-    if (res.status() === 302) return pa;
+    if (res.status() === 302) {
+      // No account and no platform_admins entry: dev login refuses with a 302 to /sign-in?error=no_invitation and sets no cookie.
+      const refused = (res.headers()['location'] ?? '').startsWith('/sign-in');
+      const orgs = refused ? null : await pa.get('/api/platform/orgs?pageSize=1');
+      if (refused || orgs?.status() === 401 || orgs?.status() === 403) {
+        await pa.dispose();
+        throw new Error(
+          `${PLATFORM_ADMIN_HANDLE}@dev.local is not a platform admin on this stack: seed it (docs/runbooks/platform-setup.md, step 5)`,
+        );
+      }
+      return pa;
+    }
     if (res.status() === 401 && attempt < attempts) {
       await new Promise((resolve) => setTimeout(resolve, 200));
       continue;
@@ -74,6 +87,56 @@ export async function asPlatformAdmin(): Promise<APIRequestContext> {
     const text = await res.text();
     await pa.dispose();
     throw new Error(`platform admin dev-login answered ${res.status()}: ${text}`);
+  }
+}
+
+/** A new e2e-<rand> user invited (viewer, org scope) into orgId and signed in through dev login in its own context, not accepted (no org). */
+export async function freshUser(
+  pa: APIRequestContext,
+  orgId: string,
+): Promise<{ api: APIRequestContext; handle: string; email: string; userId: string }> {
+  const handle = `e2e-${randomBytes(4).toString('hex')}`;
+  const email = `${handle}@dev.local`;
+  await inviteViaApi(pa, orgId, email, 'viewer', { type: 'org' });
+  const api = await request.newContext({ baseURL: API });
+  try {
+    const login = await api.get(`/auth/dev-login?handle=${handle}&redirect=/`, { maxRedirects: 0 });
+    expect(login.status(), `dev-login ${handle}: ${await login.text()}`).toBe(302);
+    const access = AccessDto.parse(await ok(await api.get('/api/me/access'), 200, `access of ${handle}`));
+    return { api, handle, email, userId: access.userId };
+  } catch (error) {
+    await api.dispose();
+    throw error;
+  }
+}
+
+/** Grants the platform admin role to an email through the platform route: 201 new or 200 existing, else throws. */
+export async function grantPlatformAdmin(
+  pa: APIRequestContext,
+  email: string,
+): Promise<{ status: number; entry: PlatformAdminDto }> {
+  const res = await pa.post('/api/platform/admins', { data: { email } });
+  const text = await res.text();
+  if (res.status() !== 200 && res.status() !== 201) {
+    throw new Error(`grant platform admin ${email}: ${res.status()} ${text}`);
+  }
+  return { status: res.status(), entry: PlatformAdminDto.parse(JSON.parse(text)) };
+}
+
+/** Removes a platform admin entry (exactly 204). */
+export async function revokePlatformAdmin(pa: APIRequestContext, adminId: string): Promise<void> {
+  await ok(await pa.delete(`/api/platform/admins/${adminId}`), 204, 'revoke platform admin');
+}
+
+/** Every platform admin entry (reads every page). */
+export async function allPlatformAdmins(pa: APIRequestContext): Promise<PlatformAdminDto[]> {
+  const entries: PlatformAdminDto[] = [];
+  for (let page = 1; ; page++) {
+    const body = pageOf(PlatformAdminDto).parse(
+      await ok(await pa.get(`/api/platform/admins?pageSize=100&page=${page}`), 200, 'platform admins'),
+    );
+    entries.push(...body.items);
+    if (body.items.length === 0 || entries.length >= body.total) return entries;
   }
 }
 

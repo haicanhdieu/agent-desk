@@ -8,7 +8,7 @@ import { MembersService } from './members.service';
 const ListParams = new ZodPipe(routes.platform.listMembers.params);
 const ListQuery = new ZodPipe(routes.platform.listMembers.query);
 
-/** `/api/platform/orgs/:orgId/members`: reachable only by a config-listed platform admin (SessionGuard, `scope: 'platform'`). */
+/** `/api/platform/orgs/:orgId/members`: reachable only by a platform admin (a `platform_admins` entry matching the verified session email) (SessionGuard, `scope: 'platform'`). */
 @Controller()
 export class PlatformMembersController {
   constructor(@Inject(MembersService) private readonly members: MembersService) {}

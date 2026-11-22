@@ -11,7 +11,7 @@ import type {
   RoleDto,
 } from '@agentdesk/contracts';
 import { FakeKubeGateway } from '@agentdesk/core';
-import { connections, projects, withOrg } from '@agentdesk/db';
+import { connections, projects, seedPlatformAdmin, withOrg } from '@agentdesk/db';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
 import { createTestApp, type TestApp } from './helpers/app';
 import { asPlatformAdmin, cookieOf, createOrg, grant, inviteAndLogin, loginAs, revoke, userIdOf } from './helpers/auth';
@@ -327,16 +327,16 @@ describe('platform member list', () => {
   });
 });
 
-describe('platform admin from config', () => {
-  it('removing the email from config makes the same session a 403 on the next call', async () => {
-    const strict = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: '' } });
-    try {
-      const res = await strict.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie: admin } });
-      expect(res.statusCode).toBe(403);
-      expect((res.json() as { detail: string }).detail).toBe(FORBIDDEN_DETAIL);
-    } finally {
-      await strict.close();
-    }
+describe('platform admin from the database', () => {
+  it('deleting the entry makes the same session a 403 on the next call', async () => {
+    await seedPlatformAdmin(t.db, 'cfg-rm@dev.local');
+    const cookie = cookieOf(await t.app.inject({ method: 'GET', url: '/auth/dev-login?handle=cfg-rm' }));
+    const before = await t.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie } });
+    expect(before.statusCode).toBe(200);
+    await t.db.pool.query('delete from platform_admins where email = $1', ['cfg-rm@dev.local']);
+    const res = await t.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie } });
+    expect(res.statusCode).toBe(403);
+    expect((res.json() as { detail: string }).detail).toBe(FORBIDDEN_DETAIL);
   });
 
   it('dev-login of admin leaves the user email verified', async () => {
@@ -355,28 +355,25 @@ describe('platform admin from config', () => {
 });
 
 describe('platform admin sign-up (BR-62, N9)', () => {
-  it('BR-62: the configured email signs up with no invitation, has no membership and no active org', async () => {
-    const fresh = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: 'fresh-pa@dev.local' } });
-    try {
-      const login = await fresh.app.inject({ method: 'GET', url: '/auth/dev-login?handle=fresh-pa' });
-      expect(login.statusCode).toBe(302);
-      const cookie = cookieOf(login);
-      const users = await fresh.db.pool.query<{ id: string; email_verified: boolean }>(
-        'select id, email_verified from "user" where email = $1',
-        ['fresh-pa@dev.local'],
-      );
-      expect(users.rows).toHaveLength(1);
-      expect(users.rows[0]?.email_verified).toBe(true);
-      const id = users.rows[0]?.id;
-      const members = await fresh.db.pool.query('select 1 from member where user_id = $1', [id]);
-      expect(members.rows).toHaveLength(0);
-      const orgs = await fresh.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie } });
-      expect(orgs.statusCode).toBe(200);
-      const sess = await fresh.app.inject({ method: 'GET', url: '/auth/get-session', headers: { cookie } });
-      expect(sess.json<{ session: { activeOrganizationId: string | null } }>().session.activeOrganizationId).toBeNull();
-    } finally {
-      await fresh.close();
-    }
+  it('BR-62: a seeded email signs up with no invitation, has no membership and no active org', async () => {
+    const fresh = t;
+    await seedPlatformAdmin(fresh.db, 'fresh-pa@dev.local');
+    const login = await fresh.app.inject({ method: 'GET', url: '/auth/dev-login?handle=fresh-pa' });
+    expect(login.statusCode).toBe(302);
+    const cookie = cookieOf(login);
+    const users = await fresh.db.pool.query<{ id: string; email_verified: boolean }>(
+      'select id, email_verified from "user" where email = $1',
+      ['fresh-pa@dev.local'],
+    );
+    expect(users.rows).toHaveLength(1);
+    expect(users.rows[0]?.email_verified).toBe(true);
+    const id = users.rows[0]?.id;
+    const members = await fresh.db.pool.query('select 1 from member where user_id = $1', [id]);
+    expect(members.rows).toHaveLength(0);
+    const orgs = await fresh.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie } });
+    expect(orgs.statusCode).toBe(200);
+    const sess = await fresh.app.inject({ method: 'GET', url: '/auth/get-session', headers: { cookie } });
+    expect(sess.json<{ session: { activeOrganizationId: string | null } }>().session.activeOrganizationId).toBeNull();
   });
 
   it('N9: dev-login is absent when the config is production', async () => {

@@ -8,6 +8,7 @@ import { describeError } from './pg-errors';
 import { requestContext } from './request-context';
 import {
   ConflictProblemException,
+  NotFoundProblemException,
   UnprocessableProblemException,
   type ValidationIssue,
   ValidationProblemException,
@@ -72,7 +73,11 @@ export class ProblemFilter implements ExceptionFilter {
         : typeof body === 'string'
           ? body
           : exception.message;
-      if (exception instanceof ConflictProblemException || exception instanceof UnprocessableProblemException) {
+      if (
+        exception instanceof ConflictProblemException ||
+        exception instanceof NotFoundProblemException ||
+        exception instanceof UnprocessableProblemException
+      ) {
         errors = exception.issues;
       }
     } else if (clientErrorStatus(exception) !== undefined) {

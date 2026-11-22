@@ -118,6 +118,7 @@ The choice and the concrete rules that follow from it.
 | [0034](0034-bot-trigger-owner-from-linked-issue.md)                | A bot trigger on a PR takes its owner from the PR's linked issue            | Proposed | 2026-11-21 |
 | [0035](0035-per-request-org-check-and-auth-allow-list.md)          | Per-request org check and the /auth allow-list                              | Accepted | 2026-11-21 |
 | [0036](0036-rbac-permissions-roles-scope.md)                       | RBAC has three dimensions: permissions, roles and scope                     | Accepted | 2026-11-22 |
+| [0037](0037-platform-admins-in-database.md)                        | Platform admins are stored in the database and seeded by hand               | Accepted | 2026-11-22 |
 
 The specs these ADRs come from were marked "draft for review" when written; the
 ADRs are recorded as Accepted because implementation has started on them (the

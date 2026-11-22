@@ -20,7 +20,7 @@ const ProjectsParams = new ZodPipe(routes.platform.listProjects.params);
 const ProjectsQuery = new ZodPipe(routes.platform.listProjects.query);
 const RolesParams = new ZodPipe(routes.platform.listRoles.params);
 
-/** `/api/platform/*`: reachable only by a config-listed platform admin (SessionGuard, `scope: 'platform'`). */
+/** `/api/platform/*`: reachable only by a platform admin (a `platform_admins` entry matching the verified session email) (SessionGuard, `scope: 'platform'`). */
 @Controller()
 export class PlatformOrgsController {
   constructor(@Inject(OrgsService) private readonly orgs: OrgsService) {}

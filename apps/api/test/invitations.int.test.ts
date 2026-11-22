@@ -8,7 +8,7 @@ import {
   type Page,
   type RoleDto,
 } from '@agentdesk/contracts';
-import { connections, projects, withOrg } from '@agentdesk/db';
+import { connections, projects, seedPlatformAdmin, withOrg } from '@agentdesk/db';
 import { createTestApp, type TestApp } from './helpers/app';
 import { AUTH } from '../src/auth/auth';
 import { devSignUp } from '../src/auth/dev-signup';
@@ -1020,36 +1020,25 @@ describe('sign-up needs an invitation (BR-54)', () => {
     expect(stored.rows[0]?.status).toBe('pending');
   });
 
-  it('refuses the configured platform admin address when it is not verified', async () => {
-    const strict = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: 'gate-pa@example.com' } });
-    try {
-      await expect(
-        strict.app
-          .get(AUTH)
-          .api.signUpEmail({ body: { email: 'gate-pa@example.com', password: 'a-long-password-1', name: 'pa' } }),
-      ).rejects.toThrow();
-      const rows = await strict.db.pool.query('select 1 from "user" where email = $1', ['gate-pa@example.com']);
-      expect(rows.rows).toHaveLength(0);
-    } finally {
-      await strict.close();
-    }
+  it('refuses a seeded platform admin email when it is not verified', async () => {
+    await seedPlatformAdmin(t.db, 'gate-pa@example.com');
+    await expect(
+      t.app
+        .get(AUTH)
+        .api.signUpEmail({ body: { email: 'gate-pa@example.com', password: 'a-long-password-1', name: 'pa' } }),
+    ).rejects.toThrow();
+    expect(await userRowCount('gate-pa@example.com')).toBe(0);
   });
 
-  it('accepts a platform admin address whatever its case, in the config or at sign-in', async () => {
-    const mixed = await createTestApp({ env: { PLATFORM_ADMIN_EMAILS: 'Gate-Mixed@Example.COM' } });
-    try {
-      await devSignUp.run(true, () =>
-        mixed.app
-          .get(AUTH)
-          .api.signUpEmail({ body: { email: 'GATE-mixed@example.com', password: 'a-long-password-1', name: 'mx' } }),
-      );
-      const rows = await mixed.db.pool.query('select 1 from "user" where lower(email) = $1', [
-        'gate-mixed@example.com',
-      ]);
-      expect(rows.rows).toHaveLength(1);
-    } finally {
-      await mixed.close();
-    }
+  it('accepts a seeded platform admin email whatever its case at sign-in', async () => {
+    await seedPlatformAdmin(t.db, 'Gate-Mixed@Example.COM');
+    await devSignUp.run(true, () =>
+      t.app
+        .get(AUTH)
+        .api.signUpEmail({ body: { email: 'GATE-mixed@example.com', password: 'a-long-password-1', name: 'mx' } }),
+    );
+    const rows = await t.db.pool.query('select 1 from "user" where lower(email) = $1', ['gate-mixed@example.com']);
+    expect(rows.rows).toHaveLength(1);
   });
 
   it('refuses when the invitation lookup fails, creating no user (fails closed)', async () => {

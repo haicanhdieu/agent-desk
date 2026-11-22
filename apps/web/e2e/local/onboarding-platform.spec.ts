@@ -14,7 +14,7 @@ import { withScope, type Scope } from './onboarding-scope';
  * TC-40.1 (a platform admin who IS a member of one org) is not written here: the only platform admin of the local
  * stack is the shared `admin@dev.local`, and the only way to make it a member (accept an invitation, which cannot be
  * undone) would break TC-34.1 and TC-40.2 and every spec that expects `admin` to have no org. It needs a second
- * platform admin email in the stack's `PLATFORM_ADMIN_EMAILS`; the switcher's markup is proven at the lower layer by
+ * platform admin entry in the stack's `platform_admins` table; the switcher's markup is proven at the lower layer by
  * `apps/web/src/components/OrgSwitch.test.tsx` and `features/orgs/orgSwitch.route.test.tsx`.
  */
 

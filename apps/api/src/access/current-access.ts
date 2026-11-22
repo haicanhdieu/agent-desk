@@ -18,7 +18,7 @@ declare module 'fastify' {
   interface FastifyRequest {
     /** Set by SessionGuard on tenant routes: the caller's loaded access and the matched route. */
     authz?: RequestAuthz;
-    /** Set by SessionGuard on `/api/platform/*` routes for a config-listed, verified platform admin. */
+    /** Set by SessionGuard on `/api/platform/*` routes for a platform admin (a `platform_admins` entry matching the verified session email). */
     platformAdmin?: PlatformAdminContext;
   }
 }
