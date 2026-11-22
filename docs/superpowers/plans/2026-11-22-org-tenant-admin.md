@@ -773,13 +773,13 @@ export interface OrgSettingsLayoutProps {
 export function OrgSettingsLayout(props: OrgSettingsLayoutProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `AuditRow.test.tsx` (BR-20, BR-23): When is `<time dateTime>` with the exact date in `title` and `sr-only`; Who shows the label, "Deleted user" tag, "Platform admin" tag; a sentence renders its parts as text with `strong` parts in `<b>` and the full sentence in `title`; a raw entry shows the key in mono and the target; an email or `<b>x</b>` renders literally, never as a link or markup.
   - `OrgSettingsLayout.test.tsx` (BR-2, BR-13): `<nav aria-label="Organization settings">` with heading "Organization" and only the tabs given, in the order General, Members, Invitations, Audit log; `aria-current="page"` on `active`; children render in the scrolling content area.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AuditRow.test.tsx src/components/OrgSettingsLayout.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both (fixed-width side menu like `DeskLayout`) and stories RoleChanged, MadeOwner, MemberRemoved, InvitationCreated, OrgRenamed, SlugChanged, GenericRequest, PlatformAdminActor, DeletedActor, LongText (AuditRow) and Owner, Admin, ProjectAdmin (layout).
-- [ ] **Step 4: Run** the Step 2 command and the stories smoke test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): audit row and the org settings side menu`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AuditRow.test.tsx src/components/OrgSettingsLayout.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both (fixed-width side menu like `DeskLayout`) and stories RoleChanged, MadeOwner, MemberRemoved, InvitationCreated, OrgRenamed, SlugChanged, GenericRequest, PlatformAdminActor, DeletedActor, LongText (AuditRow) and Owner, Admin, ProjectAdmin (layout).
+- [x] **Step 4: Run** the Step 2 command and the stories smoke test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): audit row and the org settings side menu`.
 
 ---
 

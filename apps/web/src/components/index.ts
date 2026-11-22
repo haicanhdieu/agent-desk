@@ -120,4 +120,6 @@ export { ExpiryLabel } from './ExpiryLabel';
 export { InviteDialog, type InviteDialogProps, type InviteDialogStep, type InviteDialogValues } from './InviteDialog';
 export { InviteLink, type InviteLinkProps } from './InviteLink';
 export { InvitationRow, type InvitationRowProps } from './InvitationRow';
+export { AuditRow, auditColumns } from './AuditRow';
+export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLayout';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
