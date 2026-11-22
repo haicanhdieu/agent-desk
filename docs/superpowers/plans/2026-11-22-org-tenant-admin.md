@@ -1070,11 +1070,11 @@ export function useAppBar(orgSlug: string | null, opts?: { onMyInvitations?: boo
 - Consumes: `useAppBar` (Task 22), the settings routes (Task 23), the Projects props (Task 15).
 - Produces: `invitationsHref` and the "Invitations" header button removed from `Projects` and `ProjectsEmpty`.
 
-- [ ] **Step 1: Write the failing tests**: `projects.route.test.tsx` (BR-43, BR-49) replaces the "Invitations link" assertions: owner, admin and project admin see Projects and Settings tabs with Projects active and no Settings or Invitations button in the head; member and viewer see only Projects; the account menu shows "2 pending" with the fixture. `setup.route.test.tsx`: the wizard shows the org bar with Projects active. `checklist.spec.ts` TC-20.1, 20.2 and the "BR-20 control" case: the Invitations link becomes the Settings tab (owner, admin, project admin) or nothing (member, viewer); "member/viewer sees no invite entry" kept.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projects/projects.route.test.tsx src/features/setup/setup.route.test.tsx src/screens/entry.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the routes with `useAppBar(slug)` and remove the prop and button.
+- [x] **Step 1: Write the failing tests**: `projects.route.test.tsx` (BR-43, BR-49) replaces the "Invitations link" assertions: owner, admin and project admin see Projects and Settings tabs with Projects active and no Settings or Invitations button in the head; member and viewer see only Projects; the account menu shows "2 pending" with the fixture. `setup.route.test.tsx`: the wizard shows the org bar with Projects active. `checklist.spec.ts` TC-20.1, 20.2 and the "BR-20 control" case: the Invitations link becomes the Settings tab (owner, admin, project admin) or nothing (member, viewer); "member/viewer sees no invite entry" kept.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projects/projects.route.test.tsx src/features/setup/setup.route.test.tsx src/screens/entry.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the routes with `useAppBar(slug)` and remove the prop and button.
 - [ ] **Step 4: Run** the Step 2 command; mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/checklist.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Projects page reaches Settings from the top bar`.
+- [x] **Step 5: Commit** `feat(web): Projects page reaches Settings from the top bar`.
 
 ---
 

@@ -41,6 +41,16 @@ const cacheText = (qc: QueryClient) =>
 afterEach(() => vi.restoreAllMocks());
 
 describe('setup flow', () => {
+  it('BR-43: the wizard shows the org bar with Projects active and the Settings tab for an owner', async () => {
+    await renderRoute(`${base}/repo`);
+    await screen.findByRole('heading', { level: 1, name: 'Connect a repository' });
+    const bar = screen.getByRole('banner');
+    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+    expect(await within(tabs).findByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
+    expect(within(bar).getByRole('button', { name: /^(Switch organization|Organization menu)/ })).toBeVisible();
+  });
+
   it('saves each step on Continue and moves on with the project in the URL', async () => {
     const log = vi.spyOn(console, 'log');
     const { router, queryClient, user } = await renderRoute(`${base}/repo`);

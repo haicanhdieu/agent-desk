@@ -177,10 +177,11 @@ describe('Projects onboarding', () => {
     expect(screen.queryByText(/pending invitation/)).not.toBeInTheDocument();
   });
 
-  it('shows the Invitations link next to New project when invitationsHref is given', () => {
-    render(<Projects user={user} projects={projects} newHref="/new" invitationsHref="/o/acme/invitations" canCreate />);
-    expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
-    expect(screen.getByRole('link', { name: 'New project' })).toBeInTheDocument();
+  it('TC-49.1: the header has New project and no Settings or Invitations button', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" canCreate />);
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('link', { name: 'New project' })).toBeInTheDocument();
+    expect(within(main).queryByRole('link', { name: /^(Settings|Invitations)$/ })).not.toBeInTheDocument();
   });
 
   it('shows no New project and no Settings or Switch to polling without their hrefs', async () => {
@@ -235,9 +236,10 @@ describe('ProjectsEmpty onboarding', () => {
     expect(screen.getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
   });
 
-  it('offers Invitations beside Create project', () => {
-    render(<ProjectsEmpty user={user} createHref="/new" invitationsHref="/o/acme/invitations" canCreate />);
-    expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
+  it('TC-49.6: offers Create project and no Settings or Invitations button', () => {
+    render(<ProjectsEmpty user={user} createHref="/new" canCreate />);
+    expect(screen.getByRole('link', { name: 'Create project' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^(Settings|Invitations)$/ })).not.toBeInTheDocument();
   });
 
   it('shows no Create project when canCreate is left out (fail closed)', () => {

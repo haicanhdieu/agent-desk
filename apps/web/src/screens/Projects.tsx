@@ -35,8 +35,6 @@ export interface ProjectsProps {
   checklist?: OnboardingChecklistState;
   /** The pending-invitations strip above the page head. */
   invitationsBanner?: InvitationsBannerProps;
-  /** The org's Invitations page; the header button shows only when given. */
-  invitationsHref?: string;
   /** Whether the viewer may create projects (default false: fail closed); hides "New project" without it. */
   canCreate?: boolean;
 }
@@ -63,7 +61,6 @@ export function Projects({
   account,
   checklist,
   invitationsBanner,
-  invitationsHref,
   canCreate = false,
 }: ProjectsProps) {
   if (projects.length === 0)
@@ -75,7 +72,6 @@ export function Projects({
         account={account}
         checklist={checklist}
         invitationsBanner={invitationsBanner}
-        invitationsHref={invitationsHref}
         canCreate={canCreate}
       />
     );
@@ -86,14 +82,11 @@ export function Projects({
         {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
         <div className={styles.listHead}>
           <h1>Projects</h1>
-          {(invitationsHref || canCreate) && (
+          {canCreate && (
             <div className={styles.listActions}>
-              {invitationsHref && <Button href={invitationsHref}>Invitations</Button>}
-              {canCreate && (
-                <Button variant="primary" icon="plus" href={newHref}>
-                  New project
-                </Button>
-              )}
+              <Button variant="primary" icon="plus" href={newHref}>
+                New project
+              </Button>
             </div>
           )}
         </div>

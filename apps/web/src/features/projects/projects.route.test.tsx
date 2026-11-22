@@ -288,17 +288,65 @@ describe('projects route invitations banner', () => {
 });
 
 describe('projects route controls by role', () => {
-  it.each(['member', 'viewer'] as const)('BR-20: a %s sees no Invitations and no New project', async (name) => {
-    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
-    await screen.findByRole('link', { name: 'invoicer-api' });
-    expect(screen.queryByRole('link', { name: 'Invitations' })).toBeNull();
-    expect(screen.queryByRole('link', { name: /New project/ })).toBeNull();
+  /** The Projects header (h1 and its actions): no Settings or Invitations button, whatever the role. */
+  const expectNoHeaderButtons = () => {
+    const main = screen.getByRole('main');
+    expect(within(main).queryByRole('link', { name: /^(Settings|Invitations)$/ })).toBeNull();
+    expect(within(main).queryByRole('button', { name: /^(Settings|Invitations)$/ })).toBeNull();
+  };
+  const mainTabs = () => within(screen.getByRole('banner')).getByRole('navigation', { name: 'Main' });
+
+  it.each(['owner', 'orgAdmin', 'projectAdmin'] as const)(
+    'TC-43.1, TC-49.1 to TC-49.3: a %s sees the Projects and Settings tabs, Projects active, and no header button',
+    async (name) => {
+      await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
+      await screen.findByRole('link', { name: 'invoicer-api' });
+      const settings = await within(mainTabs()).findByRole('link', { name: 'Settings' });
+      expect(settings).toHaveAttribute('href', '/o/acme/settings');
+      expect(within(mainTabs()).getAllByRole('link')).toHaveLength(2);
+      expect(within(mainTabs()).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+      expectNoHeaderButtons();
+    },
+  );
+
+  it.each(['member', 'viewer'] as const)(
+    'TC-43.3, TC-49.4, TC-49.5, BR-20: a %s sees only the Projects tab, no Settings, no Invitations and no New project',
+    async (name) => {
+      await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding(name) });
+      await screen.findByRole('link', { name: 'invoicer-api' });
+      expect(within(mainTabs()).getAllByRole('link')).toHaveLength(1);
+      expect(within(mainTabs()).getByRole('link', { name: 'Projects' })).toHaveAttribute('aria-current', 'page');
+      expect(screen.queryByRole('link', { name: /^(Settings|Invitations)$/ })).toBeNull();
+      expect(screen.queryByRole('link', { name: /New project/ })).toBeNull();
+    },
+  );
+
+  it('TC-49.6: an owner of an org with no projects sees no Settings or Invitations button', async () => {
+    await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('checklistNoProject') });
+    await screen.findByRole('heading', { name: 'Create your first project' });
+    await within(mainTabs()).findByRole('link', { name: 'Settings' });
+    expect(within(screen.getByRole('main')).queryByRole('link', { name: /^(Settings|Invitations)$/ })).toBeNull();
+    expect(screen.getByRole('link', { name: /Create project/ })).toBeVisible();
   });
 
-  it('BR-20: an owner sees Invitations (to the org Invitations page) and New project', async () => {
+  it('BR-20: an owner sees New project', async () => {
     await renderRoute('/o/acme/projects', { scenario: () => scenarios.onboarding('owner') });
-    expect(await screen.findByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
-    expect(screen.getByRole('link', { name: /New project/ })).toHaveAttribute('href', '/o/acme/projects/new/repo');
+    expect(await screen.findByRole('link', { name: /New project/ })).toHaveAttribute(
+      'href',
+      '/o/acme/projects/new/repo',
+    );
+  });
+
+  it('BR-45: the account menu shows "2 pending" with two pending invitations', async () => {
+    const { user } = await renderRoute('/o/acme/projects', {
+      scenario: () => {
+        scenarios.onboarding('owner');
+        inviteMe(2);
+      },
+    });
+    await screen.findByRole('link', { name: 'invoicer-api' });
+    await user.click(await screen.findByRole('button', { name: /^Account menu for/ }));
+    expect(await screen.findByText('2 pending')).toBeVisible();
   });
 });
 

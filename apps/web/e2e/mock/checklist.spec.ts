@@ -5,7 +5,8 @@ import { seedOnboarding } from './mock';
 
 /*
  * The first-run checklist and the Projects page controls (spec 2026-11-21-org-onboarding-design.md "E2E requirements":
- * TC-15.1 to TC-15.5, TC-17.1 to TC-17.3, TC-20.1, TC-20.2).
+ * TC-15.1 to TC-15.5, TC-17.1 to TC-17.3, TC-20.1, TC-20.2; org-tenant-admin TC-43.1, TC-43.3, TC-49.1 to TC-49.6;
+ * a bare TC-20.x here is the org-onboarding id, not the org-tenant-admin Audit log case).
  *
  * Every test seeds the case's mock scenario before its first goto; the mock store reseeds on every page load, so each
  * test stays in the app after it (a click, no second goto). The org is Acme (`acme`); its projects are invoicer-api
@@ -127,15 +128,22 @@ test.describe('BR-17: no checklist for project admin, member, viewer', () => {
 });
 
 test.describe('BR-20: member or viewer has no invite controls', () => {
+  // The org's Invitations page lives in Settings: the top bar's Settings tab (nav "Main") is its entry, never a
+  // button in the Projects header (org-tenant-admin spec BR-43, BR-49).
+  const mainNav = (page: Page): Locator => page.getByRole('navigation', { name: 'Main' });
   const noInviteControls = async (page: Page): Promise<void> => {
     for (const role of ['link', 'button'] as const) {
       await expect(page.getByRole(role, { name: 'Invitations' })).toHaveCount(0);
+      await expect(page.getByRole(role, { name: 'Settings' })).toHaveCount(0);
       await expect(page.getByRole(role, { name: /invite/i })).toHaveCount(0);
     }
     await expect(page.getByText(/invite people/i)).toHaveCount(0);
+    await expect(mainNav(page).getByRole('link')).toHaveCount(1);
   };
 
-  test('TC-20.1: a member sees no Invitations, no Invite people and no New project control', async ({ page }) => {
+  test('org-onboarding TC-20.1, org-tenant-admin TC-43.3, TC-49.4: a member sees no Invitations, no Settings tab, no Invite people and no New project control', async ({
+    page,
+  }) => {
     await open(page, 'member');
     await projectsLoaded(page);
     await noInviteControls(page);
@@ -143,19 +151,41 @@ test.describe('BR-20: member or viewer has no invite controls', () => {
     await expect(page.getByRole('button', { name: 'New project' })).toHaveCount(0);
   });
 
-  test('TC-20.2: a viewer sees no Invitations and no Invite people control', async ({ page }) => {
+  test('org-onboarding TC-20.2, org-tenant-admin TC-49.5: a viewer sees no Invitations, no Settings tab and no Invite people control', async ({
+    page,
+  }) => {
     await open(page, 'viewer');
     await projectsLoaded(page);
     await noInviteControls(page);
   });
 
-  // Positive control: the absence checks above mean something only if the same controls show for an owner.
-  test('BR-20 control: an owner sees the Invitations and New project controls the member and viewer lack', async ({
+  test('TC-49.6: an owner of an org with no projects has no Settings or Invitations button in the header', async ({
     page,
   }) => {
-    await open(page, 'owner');
-    await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Invitations' })).toBeVisible();
-    await expect(page.getByRole('link', { name: 'New project' })).toBeVisible();
+    await open(page, 'checklistNoProject');
+    await expect(page.getByRole('heading', { name: 'Create your first project' })).toBeVisible();
+    await expect(mainNav(page).getByRole('link', { name: 'Settings' })).toBeVisible();
+    await expect(page.getByRole('main').getByRole('link', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
+    await expect(page.getByRole('main').getByRole('button', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
   });
+
+  // Positive control: the absence checks above mean something only if the same entry shows for an owner, org admin and
+  // project admin, in the top bar and not in the Projects header.
+  for (const scenario of ['owner', 'orgAdmin', 'projectAdmin'] as const) {
+    test(`BR-20 control, TC-49.1 to TC-49.3: a ${scenario} has the Settings tab (to the Invitations page entry), not a header button`, async ({
+      page,
+    }) => {
+      await open(page, scenario);
+      await expect(page.getByRole('heading', { level: 1, name: 'Projects' })).toBeVisible();
+      await expect(mainNav(page).getByRole('link', { name: 'Settings' })).toBeVisible();
+      await expect(page.getByRole('main').getByRole('link', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
+      await expect(page.getByRole('main').getByRole('button', { name: /^(Settings|Invitations)$/ })).toHaveCount(0);
+      if (scenario === 'owner') await expect(page.getByRole('link', { name: 'New project' })).toBeVisible();
+      await mainNav(page).getByRole('link', { name: 'Settings' }).click();
+      // Settings opens the first page the role may open: General for owner and admin, Invitations for a project admin.
+      await expect(page).toHaveURL(
+        new RegExp(`/o/acme/settings/${scenario === 'projectAdmin' ? 'invitations' : 'general'}$`),
+      );
+    });
+  }
 });
