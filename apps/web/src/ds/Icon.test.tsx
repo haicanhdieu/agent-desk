@@ -18,8 +18,13 @@ describe('Icon', () => {
     expect(screen.getByRole('img', { name: 'Done' })).toBeInTheDocument();
   });
 
-  it('has all 40 glyphs', () => {
-    expect(Object.keys(iconPaths)).toHaveLength(40);
+  it('has all 42 glyphs', () => {
+    expect(Object.keys(iconPaths)).toHaveLength(42);
+  });
+
+  it.each(['grid', 'sliders'] as const)('renders paths for the %s glyph', (name) => {
+    const { container } = render(<Icon name={name} />);
+    expect(container.querySelectorAll('svg path, svg rect, svg circle').length).toBeGreaterThan(0);
   });
 });
 

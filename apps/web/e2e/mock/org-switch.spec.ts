@@ -24,7 +24,9 @@ async function open(page: Page, scenario: OnboardingScenario, path = '/o/alice/p
 const switcher = (page: Page, current: string): Locator =>
   page.getByRole('button', { name: `Switch organization, currently ${current}` });
 const menu = (page: Page): Locator => page.getByRole('dialog', { name: 'Organizations' });
-const orgItem = (page: Page, name: string): Locator => menu(page).getByRole('link', { name, exact: true });
+const switchGroup = (page: Page): Locator => menu(page).getByRole('group', { name: 'Switch organization' });
+const orgLinks = (page: Page): Locator => switchGroup(page).getByRole('link');
+const orgItem = (page: Page, name: string): Locator => switchGroup(page).getByRole('link', { name, exact: true });
 
 /** The Alice Projects page has loaded: its projects are listed. */
 async function aliceLoaded(page: Page): Promise<void> {
@@ -52,7 +54,7 @@ test.describe('BR-6: switcher lists the orgs with the current marked', () => {
 
     await expect(menu(page)).toBeVisible();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu(page).getByRole('link')).toHaveText(['Alice', 'Acme']);
+    await expect(orgLinks(page)).toHaveText(['Alice', 'Acme']);
     await expect(orgItem(page, 'Alice')).toHaveAttribute('aria-current', /.+/);
     await expect(orgItem(page, 'Alice').locator('svg')).toHaveCount(1);
     await expect(orgItem(page, 'Acme')).not.toHaveAttribute('aria-current', /.+/);
@@ -73,16 +75,17 @@ test.describe('BR-6: switcher lists the orgs with the current marked', () => {
     await page.keyboard.press('ArrowDown');
     await expect(menu(page)).toBeVisible();
     await expect(button).toHaveAttribute('aria-expanded', 'true');
-    await expect(menu(page).getByRole('link')).toHaveText(['Alice', 'Acme']);
+    await expect(orgLinks(page)).toHaveText(['Alice', 'Acme']);
 
-    // 2. Focus moves through the orgs: ArrowDown, then Home (first org), then End (last org).
+    // 2. Focus moves through the items: ArrowDown, then Home (first item, Projects), then End (last org).
     await page.keyboard.press('ArrowDown');
-    await expect.poll(() => focusedName(page)).toMatch(/^(Alice|Acme)/);
+    await expect.poll(() => focusedName(page)).toMatch(/^(Projects|Alice|Acme)/);
     await page.keyboard.press('Home');
-    await expect(orgItem(page, 'Alice')).toBeFocused();
+    await expect(menu(page).getByRole('link', { name: 'Projects' })).toBeFocused();
     await page.keyboard.press('End');
     await expect(orgItem(page, 'Acme')).toBeFocused();
     await page.keyboard.press('Home');
+    await page.keyboard.press('ArrowDown');
     await expect(orgItem(page, 'Alice')).toBeFocused();
     await page.keyboard.press('ArrowDown');
     await expect(orgItem(page, 'Acme')).toBeFocused();
@@ -95,14 +98,19 @@ test.describe('BR-6: switcher lists the orgs with the current marked', () => {
   });
 });
 
-test.describe('BR-9: one org, no switcher', () => {
-  test('TC-9.1: the org name is plain text and no switcher shows', async ({ page }) => {
+test.describe('BR-9 and BR-44: one org, an org menu without the switch group', () => {
+  test('TC-9.1: the org crumb is a button whose menu has Projects and no Switch organization', async ({ page }) => {
     await open(page, 'singleOrg');
     await expect(page.getByText('invoicer-api', { exact: true }).first()).toBeVisible();
-    await expect(page.getByRole('banner').getByText('Alice', { exact: true })).toBeVisible();
-    await expect(page.getByRole('button', { name: /Switch organization/ })).toHaveCount(0);
-    await expect(page.getByRole('dialog', { name: 'Organizations' })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: 'Alice' })).toHaveCount(0);
+    await expect(page.getByRole('button', { name: /^Switch organization/ })).toHaveCount(0);
+    const button = page.getByRole('button', { name: 'Organization menu, Alice' });
+    await expect(button).toBeVisible();
+    await button.click();
+    await expect(menu(page)).toBeVisible();
+    await expect(menu(page).getByRole('heading', { name: 'Alice' })).toBeVisible();
+    await expect(menu(page).getByRole('link', { name: 'Projects' })).toBeVisible();
+    await expect(menu(page).getByText('Switch organization')).toHaveCount(0);
+    await expect(menu(page).getByText('Create organization')).toHaveCount(0);
   });
 });
 
@@ -173,7 +181,7 @@ test.describe('BR-44: a member with no role in an org can still switch', () => {
     await expect(button).toBeEnabled();
     await button.click();
     await expect(menu(page)).toBeVisible();
-    await expect(menu(page).getByRole('link')).toHaveText(['Alice', 'Acme']);
+    await expect(orgLinks(page)).toHaveText(['Alice', 'Acme']);
     await expect(orgItem(page, 'Acme')).toHaveAttribute('aria-current', /.+/);
   });
 
@@ -202,7 +210,7 @@ test.describe('BR-46: org creation is for platform admins', () => {
     await switcher(page, 'Alice').click();
 
     await expect(menu(page)).toBeVisible();
-    await expect(menu(page).getByRole('link')).toHaveText(['Alice', 'Acme']);
+    await expect(orgLinks(page)).toHaveText(['Alice', 'Acme']);
     await expect(menu(page).getByText('Create organization')).toHaveCount(0);
     await expect(page.getByText('Create organization')).toHaveCount(0);
   });

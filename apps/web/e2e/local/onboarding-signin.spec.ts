@@ -37,7 +37,9 @@ async function switcherOrgs(page: Page): Promise<string[]> {
   await orgSwitchButton(page).click();
   const menu = page.getByRole('dialog', { name: 'Organizations' });
   await expect(menu).toBeVisible();
-  return (await menu.getByRole('link').allInnerTexts()).map((t) => t.trim());
+  return (await menu.getByRole('group', { name: 'Switch organization' }).getByRole('link').allInnerTexts()).map((t) =>
+    t.trim(),
+  );
 }
 
 test('TC-1.1: a person with no account and no invitation is sent back to sign-in with the no-invitation banner and no session', async ({

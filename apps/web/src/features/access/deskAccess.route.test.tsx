@@ -74,7 +74,7 @@ describe.each(['owner', 'orgAdmin'] as const)('an %s', (role) => {
     // The page's own landmark: the Setup tab has no project nav of its own while its script loads.
     // The Setup page replaces its first render once its script has loaded, so it is polled rather than found once.
     const landmark =
-      tab === 'setup' ? { role: 'heading', name: 'Workspace setup' } : { role: 'navigation', name: 'Project' };
+      tab === 'setup' ? { role: 'heading', name: 'Workspace setup' } : { role: 'navigation', name: 'Main' };
     await waitFor(() => expect(screen.getByRole(landmark.role, { name: landmark.name })).toBeInTheDocument());
     expect(screen.queryByRole('heading', FORBIDDEN)).not.toBeInTheDocument();
   });

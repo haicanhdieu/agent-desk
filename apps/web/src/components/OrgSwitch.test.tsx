@@ -7,12 +7,16 @@ import { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
 const orgHref: OrgSwitchProps['orgHref'] = (org) => `/o/${org.slug}`;
 const createHref = '/orgs/new';
 
-function setup(data: keyof typeof orgSwitchFixtures) {
+const projectsHref = '/o/acme/projects';
+const settingsHref = '/o/acme/settings';
+
+function setup(data: keyof typeof orgSwitchFixtures, extra: Partial<OrgSwitchProps> = {}) {
   const user = userEvent.setup();
-  render(<OrgSwitch {...orgSwitchFixtures[data]} orgHref={orgHref} createHref={createHref} />);
+  render(<OrgSwitch {...orgSwitchFixtures[data]} orgHref={orgHref} createHref={createHref} {...extra} />);
   return user;
 }
 const button = () => screen.getByRole('button', { name: /^Switch organization/ });
+const noOrgData = { current: null, orgs: [], platformAdmin: false };
 
 describe('OrgSwitch', () => {
   it('BR-6: several orgs list both in the menu and mark the current one', async () => {
@@ -30,29 +34,58 @@ describe('OrgSwitch', () => {
     expect(within(menu).queryByRole('link', { name: 'Create organization' })).toBeNull();
   });
 
-  it('BR-9: one org and not a platform admin shows plain text, no button', () => {
-    setup('oneOrg');
-    expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText('Acme')).toBeInTheDocument();
+  it('BR-44: one org shows an Organization menu button whose menu lists the name, Projects and Settings', async () => {
+    const user = setup('oneOrg', { projectsHref, settingsHref });
+    const trigger = screen.getByRole('button', { name: 'Organization menu, Acme' });
+    expect(trigger).toHaveAttribute('aria-haspopup', 'dialog');
+    await user.click(trigger);
+    const menu = screen.getByRole('dialog', { name: 'Organizations' });
+    expect(within(menu).getByRole('heading', { name: 'Acme' })).toBeInTheDocument();
+    const links = within(menu).getAllByRole('link');
+    expect(links.map((l) => l.textContent?.trim())).toEqual(['Projects', 'Settings']);
+    expect(links[0]).toHaveAttribute('href', projectsHref);
+    expect(links[1]).toHaveAttribute('href', settingsHref);
+    expect(within(menu).queryByText('Switch organization')).toBeNull();
   });
 
-  it('BR-9: one org with no current org still shows no switcher button', () => {
+  it('BR-44: one org without settingsHref has no Settings item', async () => {
+    const user = setup('oneOrg', { projectsHref });
+    await user.click(screen.getByRole('button', { name: 'Organization menu, Acme' }));
+    const menu = screen.getByRole('dialog');
+    expect(within(menu).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(within(menu).queryByRole('link', { name: 'Settings' })).toBeNull();
+  });
+
+  it('BR-44: one org with no current org still shows the button for the lone org', () => {
     render(<OrgSwitch {...orgSwitchFixtures.oneOrg} current={null} orgHref={orgHref} createHref={createHref} />);
-    expect(screen.queryByRole('button')).toBeNull();
-    expect(screen.getByText('Acme')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Organization menu, Acme' })).toBeInTheDocument();
   });
 
-  it('BR-9: no org and not a platform admin renders no switcher', () => {
-    const { container } = render(
-      <OrgSwitch {...orgSwitchFixtures.oneOrg} current={null} orgs={[]} orgHref={orgHref} createHref={createHref} />,
-    );
-    expect(container).toBeEmptyDOMElement();
+  it('BR-44: several orgs list Projects, Settings, then a Switch organization group with the current one checked', async () => {
+    const user = setup('severalOrgs', { projectsHref, settingsHref });
+    await user.click(button());
+    const menu = screen.getByRole('dialog');
+    const group = within(menu).getByRole('group', { name: 'Switch organization' });
+    expect(within(group).getByRole('link', { name: /Acme/ })).toHaveAttribute('aria-current', 'true');
+    expect(within(group).getByRole('link', { name: /Beta/ })).not.toHaveAttribute('aria-current');
+    const labels = within(menu)
+      .getAllByRole('link')
+      .map((l) => l.textContent?.trim());
+    expect(labels).toEqual(['Projects', 'Settings', expect.stringContaining('Acme'), expect.stringContaining('Beta')]);
+  });
+
+  it('BR-44: a person with no org who is not a platform admin sees plain text, no button', () => {
+    render(<OrgSwitch {...noOrgData} orgHref={orgHref} createHref={createHref} />);
+    expect(screen.queryByRole('button')).toBeNull();
+    expect(screen.getByText('No organization')).toBeInTheDocument();
   });
 
   it('BR-40: a platform admin with several orgs gets Create organization after the orgs', async () => {
     const user = setup('platformAdmin');
     await user.click(button());
-    const links = within(screen.getByRole('dialog')).getAllByRole('link');
+    const menu = screen.getByRole('dialog');
+    expect(within(menu).getByRole('group', { name: 'Switch organization' })).toBeInTheDocument();
+    const links = within(menu).getAllByRole('link');
     expect(links.map((l) => l.textContent?.trim())).toEqual([
       expect.stringContaining('Acme'),
       expect.stringContaining('Beta'),
@@ -93,7 +126,7 @@ describe('OrgSwitch', () => {
 
   it('long names ellipsize and keep the full name in a title', () => {
     setup('longName');
-    expect(screen.getByTitle(orgSwitchFixtures.longName.current?.name ?? '')).toBeInTheDocument();
+    expect(screen.getAllByTitle(orgSwitchFixtures.longName.current?.name ?? '')[0]).toBeInTheDocument();
   });
 
   it('keyboard: ArrowDown opens, arrows/Home/End move focus, Escape closes and refocuses the button', async () => {

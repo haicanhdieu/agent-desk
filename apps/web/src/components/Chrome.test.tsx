@@ -63,7 +63,7 @@ describe('Brand', () => {
 describe('TopBar project', () => {
   it('marks the active tab with aria-current and class on', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" links={{ desk: '/desk' }} />);
-    const tabs = screen.getByRole('navigation', { name: 'Project' });
+    const tabs = screen.getByRole('navigation', { name: 'Main' });
     const runs = within(tabs).getByRole('link', { name: /Runs/ });
     expect(runs).toHaveAttribute('aria-current', 'page');
     expect(runs.className).toMatch(/\bon\b/);
@@ -71,7 +71,7 @@ describe('TopBar project', () => {
   });
   it('shows no Desk tab without a desk link (a member or viewer may not open the Desk)', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" />);
-    const tabs = screen.getByRole('navigation', { name: 'Project' });
+    const tabs = screen.getByRole('navigation', { name: 'Main' });
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
     expect(within(tabs).queryByRole('link', { name: 'Desk' })).not.toBeInTheDocument();
   });
@@ -110,7 +110,7 @@ describe('TopBar project', () => {
 describe('TopBar global', () => {
   it('has no tabs and no switch', () => {
     render(<TopBar variant="global" user={user} />);
-    expect(screen.queryByRole('navigation', { name: 'Project' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
     expect(screen.getByRole('img', { name: 'Agent Desk' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
@@ -160,7 +160,7 @@ describe('TopBar run', () => {
         <span>Running pill</span>
       </TopBar>,
     );
-    expect(screen.queryByRole('navigation', { name: 'Project' })).toBeNull();
+    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
     const last = screen.getByText('Run 61');
     expect(last).toHaveAttribute('aria-current', 'page');
     expect(last.tagName).not.toBe('A');

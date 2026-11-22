@@ -13,6 +13,7 @@ export {
   type ProjectMenuProps,
 } from './ProjectSwitch';
 export { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
+export { OrgNav, type OrgNavProps } from './OrgNav';
 export { OnboardingChecklist, type OnboardingChecklistState } from './OnboardingChecklist';
 export {
   AccountInfoProvider,

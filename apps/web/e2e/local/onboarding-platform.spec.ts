@@ -241,11 +241,13 @@ test('TC-40.3: an org owner who is not a platform admin and belongs to two orgs 
     await orgSwitchButton(page).click();
     const menu = switcherMenu(page);
     await expect(menu).toBeVisible();
-    await expect(menu.getByRole('link')).toHaveCount(2);
-    expect((await menu.getByRole('link').allInnerTexts()).map((t) => t.trim()).sort()).toEqual(
+    const orgs = menu.getByRole('group', { name: 'Switch organization' });
+    await expect(orgs.getByRole('link')).toHaveCount(2);
+    expect((await orgs.getByRole('link').allInnerTexts()).map((t) => t.trim()).sort()).toEqual(
       [first.name, second.name].sort(),
     );
     await expect(menu.getByText('Create organization')).toHaveCount(0);
-    await expect(menu.getByRole('separator')).toHaveCount(0);
+    // The one divider separates Projects from the org group; a non-admin has no Create organization divider after it.
+    await expect(menu.getByRole('separator')).toHaveCount(1);
   });
 });

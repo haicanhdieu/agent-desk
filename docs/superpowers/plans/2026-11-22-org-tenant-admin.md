@@ -595,19 +595,19 @@ export function OrgNav(props: OrgNavProps): JSX.Element; // <nav aria-label="Mai
 
   `orgSwitchVisible` keeps its current result (Task 11 removes its use), so the top bar is unchanged until Task 11.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `OrgSwitch.test.tsx` (BR-44): one org → a button labelled "Organization menu, <name>" whose menu lists, in order, the org name heading, "Projects", "Settings" only with `settingsHref`, and no "Switch organization"; two orgs → label "Switch organization, currently <name>" and a "Switch organization" group with `aria-current="true"` on the current org; platform admin → the group and "Create organization"; no org and not a platform admin → plain text "No organization"; no org platform admin → "No organization ▾" with Create only; long name → ellipsis with `title`; keyboard (ArrowDown opens, arrows, Home, End, Escape returns focus). Replace the "BR-9 plain text" cases with the button cases (the rule changed; spec Testing "Existing tests that change").
   - `OrgNav.test.tsx` (BR-43): Projects and Settings in `nav` "Main" with `aria-current` on the active one; no Settings tab without `settingsHref`; no active tab when `active` is absent.
   - `Icon.test.tsx`: `grid` and `sliders` render paths.
   - `orgSwitch.route.test.tsx`: the BR-9 case becomes "one org shows a button whose menu has Projects and no Switch organization"; BR-6 and BR-40 cases pick orgs under "Switch organization".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/OrgNav.test.tsx src/ds/Icon.test.tsx src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the menu, `OrgNav` (tabs with the `grid` and `sliders` icons, `Chrome.module.css` `.tabs` classes) and the icons; stories OneOrg, OneOrgNoSettings, SeveralOrgs, Open, PlatformAdmin, PlatformAdminNoOrg, NoOrg, LongName (OrgSwitch) and ProjectsActive, SettingsActive, NoSettings, NoneActive (OrgNav); update `Primitives/Icon`. Re-point the e2e specs: mock TC-9.1 asserts the one-org button and its menu; TC-6.1, 6.2, 10.1 and 44.x open the org menu and pick under "Switch organization"; local TC-7.1, 7.2 the same navigation, assertions on URL, heading and projects kept.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/OrgSwitch.test.tsx src/components/OrgNav.test.tsx src/ds/Icon.test.tsx src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the menu, `OrgNav` (tabs with the `grid` and `sliders` icons, `Chrome.module.css` `.tabs` classes) and the icons; stories OneOrg, OneOrgNoSettings, SeveralOrgs, Open, PlatformAdmin, PlatformAdminNoOrg, NoOrg, LongName (OrgSwitch) and ProjectsActive, SettingsActive, NoSettings, NoneActive (OrgNav); update `Primitives/Icon`. Re-point the e2e specs: mock TC-9.1 asserts the one-org button and its menu; TC-6.1, 6.2, 10.1 and 44.x open the org menu and pick under "Switch organization"; local TC-7.1, 7.2 the same navigation, assertions on URL, heading and projects kept.
 - [ ] **Step 4: Run** the Step 2 command; `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-switch.spec.ts`; with the stack up `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-switch.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): org menu with Projects and Settings, org tabs and grid icon`.
+- [x] **Step 5: Commit** `feat(web): org menu with Projects and Settings, org tabs and grid icon`.
 
 ---
 
-### Task 10: Storybook: account menu and the "Main" project tabs
+### Task 10: Storybook: account menu and the "Main" project tabs Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; the account prop, AccountMenu.test.tsx and the menu assertions of this task are dropped.
 
 **Depends on:** none
 
@@ -629,13 +629,13 @@ export interface AccountMenuProps { user: Actor; account?: AccountMenuAccount }
 // ProjectNav: <nav aria-label="Main">
 ```
 
-- [ ] **Step 1: Write the failing tests**
-  - `AccountMenu.test.tsx` (BR-45): button "Account menu for <handle>"; `role="menu"` labelled "Account" with name and handle at the top, "My invitations" linking to `invitationsHref` with "<n> pending" in its text when `pendingCount > 0`, none for 0 or undefined, `aria-current="page"` when `current`, a divider, then "Logout" calling the `SignOutProvider` action; no "Settings" item; Escape closes and returns focus; without `account` only Logout shows (static boards keep the plain avatar without a provider).
+- [x] **Step 1: Write the failing tests**
+  - `AccountMenu.test.tsx` (BR-45): button "Account menu for <handle>"; `role="menu"` labelled "Account" with name and handle at the top, "My invitations" linking to `invitationsHref` with "<n> pending" in its text when `pendingCount > 0`, none for 0 or undefined, `aria-current="page"` when `current`, a divider, then "Logout" calling the `SignOutProvider` action; no "Settings" item; Escape closes and returns focus; without `account` only Logout shows (static boards keep the plain avatar without a provider). Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; the account prop, AccountMenu.test.tsx and the menu assertions of this task are dropped.
   - Rename every `navigation` query named "Project" to "Main" in `Chrome.test.tsx`, `skills.route.test.tsx`, `runs.route.test.tsx` and the three mock e2e specs (the label changed; assertions kept).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AccountMenu.test.tsx src/components/Chrome.test.tsx src/features/desk/skills.route.test.tsx src/features/runs/runs.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the menu (amber `idle` count, as `CountBadge` tones allow) and the label; stories Default, Open, OpenWithPending, OnMyInvitations; ProjectNav stories updated.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/AccountMenu.test.tsx src/components/Chrome.test.tsx src/features/desk/skills.route.test.tsx src/features/runs/runs.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the menu (amber `idle` count, as `CountBadge` tones allow) and the label; stories Default, Open, OpenWithPending, OnMyInvitations; ProjectNav stories updated.
 - [ ] **Step 4: Run** the Step 2 command; mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/agent-model.spec.ts e2e/mock/desk-default.spec.ts e2e/mock/agent-limits.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): account menu with My invitations and pending count`.
+- [x] **Step 5: Commit** `feat(web): account menu with My invitations and pending count`.
 
 ---
 
@@ -1091,7 +1091,7 @@ export function useAppBar(orgSlug: string | null, opts?: { onMyInvitations?: boo
 
 - Consumes: `useAppBar(null, { onMyInvitations })` (Task 22), the screen props (Task 16).
 
-- [ ] **Step 1: Write the failing tests** (BR-43, BR-45, BR-13): My invitations and the invitation page show the org bar for the session's active org with no tab active and the org menu's Settings item for an owner; the account menu marks My invitations `aria-current="page"` on `/invitations`; a person with no org sees "No organization" with no tabs and the bell; Create organization shows the org crumb and no tabs.
+- [ ] **Step 1: Write the failing tests** (BR-43, BR-45, BR-13): My invitations and the invitation page show the org bar for the session's active org with no tab active and the org menu's Settings item for an owner; the account menu marks My invitations `aria-current="page"` on `/invitations`; a person with no org sees "No organization" with no tabs and the bell; Create organization shows the org crumb and no tabs. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; the account prop, AccountMenu.test.tsx and the menu assertions of this task are dropped.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/invitations src/features/orgs/createOrg.route.test.tsx`. Expected: FAIL.
 - [ ] **Step 3: Implement** the three routes with `useAppBar`.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: covered by Tasks 36, 38 and 39.
@@ -1413,7 +1413,7 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 **Interfaces:**
 
 - Consumes: `seedTenantAdmin`, `seedOnboarding` (one org, two orgs, platform admin scenarios; the `me.listInvitations` fixtures for 2 pending, none and error).
-
+ Removed by #230: TC-45.1 and TC-45.2 (My invitations in the account menu) are dropped.
 - [ ] **Step 1: Write the specs**: `org-switch.spec.ts` BR-44 (TC-44.1 to 44.7); `account-menu.spec.ts` BR-45 (TC-45.1 to 45.6; the existing Logout assertions kept); `checklist.spec.ts` BR-49 (TC-49.1 to 49.6, folded into the re-pointed TC-20 cases).
 - [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-switch.spec.ts e2e/mock/account-menu.spec.ts e2e/mock/checklist.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the org menu, account menu and Projects header`.
+- [ ] **Step 3: Commit** `test(web): mock e2e for the org menu, account menu and Projects header`. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; the account prop, AccountMenu.test.tsx and the menu assertions of this task are dropped.

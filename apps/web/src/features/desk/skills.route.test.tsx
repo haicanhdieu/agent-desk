@@ -90,7 +90,7 @@ describe('desk skills route', () => {
     expect(within(desk).getByRole('link', { name: /Skills/ })).toHaveAttribute('href', `${base}/skills`);
     expect(within(desk).getByRole('link', { name: /Routing rules/ })).toHaveAttribute('href', `${base}/rules`);
     expect(within(desk).getByRole('link', { name: /Agent & settings/ })).toHaveAttribute('href', `${base}/agent`);
-    const tabs = screen.getByRole('navigation', { name: 'Project' });
+    const tabs = screen.getByRole('navigation', { name: 'Main' });
     expect(within(tabs).getByRole('link', { name: /Runs/ })).toHaveAttribute('href', `/o/alice/p/${projectId}/runs`);
     expect(within(tabs).getByRole('link', { name: /Desk/ })).toHaveAttribute('href', `${base}/rules`);
     expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/o/alice/projects');

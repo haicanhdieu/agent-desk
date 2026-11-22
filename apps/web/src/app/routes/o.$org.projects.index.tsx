@@ -42,6 +42,7 @@ function useOrgSwitchProps(org: string, platformAdmin: boolean) {
     ...toOrgSwitch(orgs, org, platformAdmin),
     orgHref: (o: { slug: string }) => `/o/${encodeURIComponent(o.slug)}/projects`,
     createHref: '/orgs/new',
+    projectsHref: `/o/${encodeURIComponent(org)}/projects`,
   };
 }
 

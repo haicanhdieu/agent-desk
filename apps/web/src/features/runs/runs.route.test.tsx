@@ -210,7 +210,7 @@ describe('runs route', () => {
   it('the Desk tab opens Routing rules, not Skills', async () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    const tabs = screen.getByRole('navigation', { name: 'Project' });
+    const tabs = screen.getByRole('navigation', { name: 'Main' });
     expect(within(tabs).getByRole('link', { name: /Desk/ })).toHaveAttribute('href', `${base}/desk/rules`);
   });
 

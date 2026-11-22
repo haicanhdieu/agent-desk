@@ -14,7 +14,7 @@ export interface ProjectNavProps {
 /** Runs / Desk tabs of the project top bar. */
 export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref }: ProjectNavProps) {
   return (
-    <nav className={styles.tabs} aria-label="Project">
+    <nav className={styles.tabs} aria-label="Main">
       <AppLink
         href={runsHref}
         className={active === 'runs' ? styles.on : undefined}

@@ -40,7 +40,9 @@ export type IconName =
   | 'play'
   | 'ignored'
   | 'eye'
-  | 'info';
+  | 'info'
+  | 'grid'
+  | 'sliders';
 
 /** Stroke glyph contents, 24 viewBox. Path data copied from the prototype boards. */
 export const iconPaths: Record<IconName, ReactNode> = {
@@ -215,6 +217,22 @@ export const iconPaths: Record<IconName, ReactNode> = {
     <>
       <circle cx="12" cy="12" r="9" />
       <path d="M12 11v5M12 8h.01" />
+    </>
+  ),
+  grid: (
+    <>
+      <rect x="4" y="4" width="7" height="7" rx="1.5" />
+      <rect x="13" y="4" width="7" height="7" rx="1.5" />
+      <rect x="4" y="13" width="7" height="7" rx="1.5" />
+      <rect x="13" y="13" width="7" height="7" rx="1.5" />
+    </>
+  ),
+  sliders: (
+    <>
+      <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" />
+      <circle cx="16" cy="6" r="2" />
+      <circle cx="10" cy="12" r="2" />
+      <circle cx="18" cy="18" r="2" />
     </>
   ),
 };
