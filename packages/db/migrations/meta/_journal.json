@@ -239,6 +239,13 @@
       "when": 1795361731228,
       "tag": "0033_platform_admins",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1795375925142,
+      "tag": "0034_user_email_lower_idx",
+      "breakpoints": true
     }
   ]
 }

@@ -164,6 +164,14 @@ describe('bootstrap and migrations', () => {
     expect(rows).toHaveLength(4);
   });
 
+  it('user has an expression index on lower(email) for platform-admin lookups', async () => {
+    const [idx] = await query<{ indexdef: string }>(
+      env.ownerUrl,
+      "select indexdef from pg_indexes where indexname = 'user_email_lower_idx'",
+    );
+    expect(idx?.indexdef).toContain('lower(email)');
+  });
+
   it('inbound_events has a partial (project_id, ticket_ref) index for the ignored-event ref lookup', async () => {
     const [idx] = await query<{ indexdef: string }>(
       env.ownerUrl,
