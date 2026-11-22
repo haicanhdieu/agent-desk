@@ -1,9 +1,9 @@
 import { useSuspenseQuery } from '@tanstack/react-query';
 import { can } from '@agentdesk/contracts';
-import type { Actor } from '@/mocks/types';
+import type { AccountMenuAccount, OrgSwitchProps } from '@/components';
 import type { DeskFrameData } from '@/screens';
 import { useAccess } from '../access/guards';
-import { sessionQuery } from '../auth/session';
+import { useAppBar } from '../chrome/appBar';
 import { toConnectionStatus, toProject } from '../projects/map';
 import { useProjectMenu } from '../projects/menu';
 import { projectsQueries } from '../projects/queries';
@@ -45,25 +45,29 @@ export function useDeskRights(org: string, projectId: string): DeskRights {
 }
 
 /** Top bar and Desk navigation data for a project page, from the `$project` layout's cached queries. Pass `useNow()`. */
-export function useDeskFrame(org: string, projectId: string, now: Date): DeskFrameData {
-  const { data: session } = useSuspenseQuery(sessionQuery);
+export function useDeskFrame(
+  org: string,
+  projectId: string,
+  now: Date,
+): DeskFrameData & { org: OrgSwitchProps; account: AccountMenuAccount } {
+  const bar = useAppBar(org);
   const { data: dto } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: connectionDto } = useSuspenseQuery(projectsQueries.connection(org, projectId));
   const connection = toConnectionStatus(connectionDto, dto, now);
   const project = toProject(dto, connection, org, now);
-  // The top bar and Desk show the repository owner where the prototype shows "org".
+  // The Desk repository line shows the repository owner where the prototype shows "org".
   const owner = dto.repoPath.split('/')[0] ?? '';
-  const handle = session?.user.handle ?? '';
-  const user: Actor = { login: handle, initials: handle.slice(0, 2).toUpperCase() };
   const paths = projectPaths(org, projectId);
   const rights = useDeskRights(org, projectId);
   const warning = useSetupWarning(org, projectId, rights.setup);
   const projectMenu = useProjectMenu(org, projectId);
   return {
-    user,
+    user: bar.user,
     project: { org: owner, name: project.name, repo: project.repo, needsYou: project.needsYou },
     connection,
     projectMenu,
+    org: bar.org,
+    account: bar.account,
     links: {
       projects: paths.projects,
       runs: paths.runs,

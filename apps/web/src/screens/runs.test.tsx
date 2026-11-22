@@ -484,11 +484,12 @@ describe('Runs under the app bar (BR-43)', () => {
     expect(within(tabs).getByRole('link', { name: 'Desk' })).not.toHaveAttribute('aria-current');
   });
 
-  it('without org: the legacy owner text and no org menu', () => {
+  it('without org: no org crumb and no owner text, only the project', () => {
     render(<Runs {...base} filter="all" />);
     const bar = screen.getByRole('banner');
     expect(within(bar).queryByRole('button', { name: /organization/i })).toBeNull();
-    expect(within(bar).getByText(project.org)).toBeInTheDocument();
+    expect(within(bar).queryByText(project.org)).toBeNull();
+    expect(within(bar).getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
   });
 
   it('passes the account to the avatar menu', async () => {
@@ -521,11 +522,5 @@ describe('Runs under the app bar (BR-43)', () => {
     render(<NeedsYou project={project} projects={projects} topBar={{ user, org }} />);
     expect(screen.getAllByRole('navigation', { name: 'Main' })).toHaveLength(1);
     expect(screen.getByRole('navigation', { name: 'Runs and Desk tabs, example' })).toBeInTheDocument();
-  });
-
-  it('NeedsYou without topBar.org keeps the project bar with Runs current', () => {
-    render(<NeedsYou project={project} projects={projects} topBar={{ user }} />);
-    const tabs = within(screen.getByRole('banner')).getByRole('navigation', { name: 'Main' });
-    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
   });
 });

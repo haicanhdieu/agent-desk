@@ -21,18 +21,16 @@ export interface TopBarProps {
   /** Which tabs the bar shows. Default: 'project' on the project variant, else 'none'. */
   tabs?: 'org' | 'project' | 'none';
   active?: 'projects' | 'settings' | 'runs' | 'desk';
-  /** `org` is legacy (the org text before the org crumb existed), removed by Task 26. */
-  project?: { name: string; repoUrl: string; org?: string };
+  /** The project crumb and, on the project bar, the repository link (absent: no link, as on the run bar). */
+  project?: { name: string; repoUrl?: string };
   /** The project menu behind the switcher button; without it the button does nothing. */
   projectMenu?: ProjectSwitchMenu;
   needsYou?: number;
   /** Run level: the "Runs" link and the current "Run N" crumb. */
   run?: { runsHref: string; label: string };
-  /** Legacy, removed by Task 26. */
-  breadcrumb?: { label: ReactNode; href?: string }[];
   children?: ReactNode;
   actions?: ReactNode;
-  /** In-app hrefs; default to the prototype's "/projects" and "/runs". The Desk tab shows only with `desk`. */
+  /** In-app hrefs; `projects` defaults to the org crumb's `projectsHref`, then "/projects"; "/runs" for Runs. The Desk tab shows only with `desk`. */
   links?: { projects?: string; runs?: string; desk?: string };
 }
 
@@ -52,12 +50,11 @@ export function TopBar({
   projectMenu,
   needsYou,
   run,
-  breadcrumb,
   children,
   actions,
   links,
 }: TopBarProps) {
-  const projectsHref = links?.projects ?? '/projects';
+  const projectsHref = links?.projects ?? org?.projectsHref ?? '/projects';
   const avatar = <AccountMenu user={user} account={account} />;
   const bell = <IconButton icon="bell" aria-label="Notifications on" />;
   const shownTabs = tabs ?? (variant === 'project' ? 'project' : 'none');
@@ -65,7 +62,7 @@ export function TopBar({
   const projectCrumb = project && <ProjectSwitch project={project.name} menu={projectMenu} />;
 
   if (variant === 'run') {
-    const items: BreadcrumbItem[] = [...(breadcrumb ?? [])];
+    const items: BreadcrumbItem[] = [];
     if (run) {
       if (orgCrumb) items.push({ control: orgCrumb });
       if (projectCrumb) items.push({ control: projectCrumb });
@@ -118,13 +115,12 @@ export function TopBar({
     );
   }
 
-  const legacyOrg = project?.org && <span className={styles.crumbText}>{project.org}</span>;
   return (
     <header className={styles.top}>
       <Brand href={projectsHref} />
       <span className={styles.sep} />
-      {orgCrumb ?? legacyOrg}
-      {project && (orgCrumb || legacyOrg) && (
+      {orgCrumb}
+      {project && orgCrumb && (
         <span className={styles.crumbText} aria-hidden="true">
           /
         </span>
@@ -132,7 +128,7 @@ export function TopBar({
       {projectCrumb}
       {nav}
       <span className={styles.grow} />
-      {project && (
+      {project?.repoUrl && (
         <Button
           variant="ghost"
           size="sm"

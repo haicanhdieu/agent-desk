@@ -203,9 +203,12 @@ function RunDetailRoute() {
       reconnectOverlay={live && term.state === 'gave_up'}
       reconnectBody={live ? GAVE_UP_BODY : undefined}
       inactiveBody={live && term.state === 'inactive' ? INACTIVE_BODY : undefined}
-      needsYou={page.dto.counts.needsYou}
       projectName={page.dto.name}
       user={page.user}
+      org={page.org}
+      account={page.account}
+      projectMenu={page.projectMenu}
+      run={{ runsHref: paths.runs, label: `Run ${number}` }}
       maxRunsPerTicket={page.dto.maxRunsPerTicket}
       links={{
         projects: paths.projects,

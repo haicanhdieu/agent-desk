@@ -32,7 +32,7 @@ export interface RunsPageProps {
   links?: TopBarProps['links'];
   /** The project menu behind the top bar's switcher. */
   projectMenu?: ProjectSwitchMenu;
-  /** The org crumb of the top bar; without it the bar shows the legacy owner text. */
+  /** The org crumb of the top bar. */
   org?: OrgSwitchProps;
   /** Name, handle and the My invitations link for the account menu. */
   account?: AccountMenuAccount;
@@ -80,7 +80,7 @@ export function RunsPage({
         needsYou={needsYou}
         links={links}
         projectMenu={projectMenu}
-        project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
+        project={{ name: project.name, repoUrl: `https://github.com/${project.repo}` }}
       />
       <main className={`${styles.runsMain} ${banners ? styles.runsMainBanners : ''}`}>
         {banners}

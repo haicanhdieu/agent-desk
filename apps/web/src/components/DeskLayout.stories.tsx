@@ -25,7 +25,7 @@ export const Skills: Story = {
         <TopBar
           variant="project"
           user={{ login: 'kim-hale', initials: 'KH' }}
-          project={{ org: 'harbor-labs', name: 'invoicer-api', repoUrl: '#' }}
+          project={{ name: 'invoicer-api', repoUrl: '#' }}
           org={{ ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' }}
           account={{ ...accountFixture, invitationsHref: '#invitations' }}
           active="desk"

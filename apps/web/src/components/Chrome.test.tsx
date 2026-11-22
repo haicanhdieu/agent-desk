@@ -193,10 +193,22 @@ describe('TopBar project level with the org crumb', () => {
     expect(screen.getByRole('link', { name: /Repo on GitHub/ })).toHaveAttribute('href', project.repoUrl);
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
   });
-  it('shows the legacy org text when no org crumb is given', () => {
+  it('shows no org text when no org crumb is given', () => {
     render(<TopBar variant="project" user={user} project={project} active="runs" />);
-    expect(screen.getByText('harbor-labs')).toBeInTheDocument();
+    expect(screen.queryByText('harbor-labs')).toBeNull();
     expect(screen.queryByRole('button', { name: /^Organization menu/ })).toBeNull();
+    expect(screen.getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
+  });
+  it("the brand link goes to the org crumb's projects href when links.projects is omitted", () => {
+    render(
+      <TopBar
+        variant="project"
+        user={user}
+        project={project}
+        org={{ ...orgProps, projectsHref: '/o/acme/projects' }}
+      />,
+    );
+    expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/o/acme/projects');
   });
 });
 
@@ -251,17 +263,6 @@ describe('TopBar run', () => {
     await userEvent.click(within(crumbs).getByRole('button', { name: /^Switch project/ }));
     expect(onOpen).toHaveBeenCalled();
     expect(within(crumbs).getByRole('link', { name: /invoicer-web/ })).toHaveAttribute('href', '/b');
-  });
-  it('still renders a legacy breadcrumb list', () => {
-    render(
-      <TopBar
-        variant="run"
-        user={user}
-        breadcrumb={[{ label: 'invoicer-api', href: '/p' }, { label: 'Runs', href: '/runs' }, { label: 'Run 61' }]}
-      />,
-    );
-    expect(screen.getByText('Run 61')).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/runs');
   });
 });
 
@@ -362,11 +363,12 @@ describe('ProjectMenu', () => {
 });
 
 describe('TopBar account menu', () => {
-  const breadcrumb = [{ label: 'invoicer-api', href: '/p' }, { label: 'Run 61' }];
   const variants = {
     global: <TopBar variant="global" user={user} />,
     project: <TopBar variant="project" user={user} project={project} active="runs" />,
-    run: <TopBar variant="run" user={user} breadcrumb={breadcrumb} />,
+    run: (
+      <TopBar variant="run" user={user} project={{ name: project.name }} run={{ runsHref: '/runs', label: 'Run 61' }} />
+    ),
   } as const;
   const setup = (variant: keyof typeof variants) => {
     const onSignOut = vi.fn();

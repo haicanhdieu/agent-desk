@@ -53,17 +53,17 @@ const artboard = (width: number, height: number): NonNullable<Story['decorators'
 export const RunStarting: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunStarting, lines: terminalByRun[63], needsYou: 1 },
+  args: { data: runDetails.RunStarting, lines: terminalByRun[63] },
 };
 export const RunRunning: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunRunning, lines: terminalByRun[61], needsYou: 1, cancelConfirmOpen: true },
+  args: { data: runDetails.RunRunning, lines: terminalByRun[61], cancelConfirmOpen: true },
 };
 export const RunIdle: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunIdle, lines: terminalByRun[62], needsYou: 1 },
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62] },
 };
 /** A viewer, or a member on someone else's run: the same run with no action buttons. */
 export const RunIdleReadOnly: Story = {
@@ -72,7 +72,6 @@ export const RunIdleReadOnly: Story = {
   args: {
     data: runDetails.RunIdle,
     lines: terminalByRun[62],
-    needsYou: 1,
     onCancel: undefined,
     onFinish: undefined,
     onResume: undefined,
@@ -84,52 +83,52 @@ export const RunIdleReadOnly: Story = {
 export const RunReconnect: Story = {
   decorators: artboard(1280, 800),
   globals: viewport(1280, 800),
-  args: { data: runDetails.RunReconnect, lines: terminalByRun[61], needsYou: 1, panelCollapsed: true, height: 800 },
+  args: { data: runDetails.RunReconnect, lines: terminalByRun[61], panelCollapsed: true, height: 800 },
 };
 export const RunSucceeded: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunSucceeded, lines: terminalByRun[60], needsYou: 1 },
+  args: { data: runDetails.RunSucceeded, lines: terminalByRun[60] },
 };
 /** Run 60 with its Prompt section open (prototype board RunPrompt). */
 export const RunPrompt: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: { ...runDetails.RunSucceeded, promptOpen: true }, lines: terminalByRun[60], needsYou: 1 },
+  args: { data: { ...runDetails.RunSucceeded, promptOpen: true }, lines: terminalByRun[60] },
 };
 export const RunFailed: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunFailed, lines: terminalByRun[56], needsYou: 1 },
+  args: { data: runDetails.RunFailed, lines: terminalByRun[56] },
 };
 /** Failed in setup: the agent never started (prototype board RunSetupFailed). */
 export const RunSetupFailed: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunSetupFailed, lines: terminalByRun[58], needsYou: 1 },
+  args: { data: runDetails.RunSetupFailed, lines: terminalByRun[58] },
 };
 export const RunTimedOut: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunTimedOut, lines: terminalByRun[54], needsYou: 1 },
+  args: { data: runDetails.RunTimedOut, lines: terminalByRun[54] },
 };
 export const RunCancelled: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunCancelled, needsYou: 1 },
+  args: { data: runDetails.RunCancelled },
 };
 
 /** Paused by the idle timer: how long it can be resumed, the agent note, Resume and Finish. */
 export const RunPaused: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunPaused, lines: terminalByRun[62], needsYou: 1, onResume: () => {} },
+  args: { data: runDetails.RunPaused, lines: terminalByRun[62], onResume: () => {} },
 };
 /** A resume in flight: both buttons wait. */
 export const RunPausedResuming: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunPaused, lines: terminalByRun[62], needsYou: 1, resuming: true },
+  args: { data: runDetails.RunPaused, lines: terminalByRun[62], resuming: true },
 };
 /** The resume fell back: the error sits above the buttons and the run can be resumed again. */
 export const RunResumeFailed: Story = {
@@ -145,7 +144,6 @@ export const RunResumeFailed: Story = {
       },
     },
     lines: terminalByRun[62],
-    needsYou: 1,
   },
 };
 /** Succeeded with its session kept: Reopen session until the kept time passes. */
@@ -159,7 +157,6 @@ export const RunSucceededKept: Story = {
       session: { state: 'kept', detail: 'Session kept until 13 Nov, 14:20' },
     },
     lines: terminalByRun[60],
-    needsYou: 1,
     onResume: () => {},
   },
 };
@@ -170,7 +167,6 @@ export const RunReopened: Story = {
   args: {
     data: { ...runDetails.RunDone, reopened: true },
     lines: terminalByRun[62],
-    needsYou: 1,
     onCloseSession: () => {},
   },
 };
@@ -178,13 +174,13 @@ export const RunReopened: Story = {
 export const RunSucceededReopenUnavailable: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunSucceeded, lines: terminalByRun[60], needsYou: 1 },
+  args: { data: runDetails.RunSucceeded, lines: terminalByRun[60] },
 };
 /** Nobody resumed it in time: the saved session was deleted, no actions. */
 export const RunExpired: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunExpired, needsYou: 1 },
+  args: { data: runDetails.RunExpired },
 };
 
 /** Stopped by you: the Stopped notice with Resume and Finish, and the saved Transcript, read-only. */
@@ -194,7 +190,6 @@ export const RunStopped: Story = {
   args: {
     data: runDetails.RunStopped,
     transcript: { state: 'ready', items: transcriptFixtures.default, hasEarlier: true },
-    needsYou: 1,
     onResume: () => {},
   },
 };
@@ -208,7 +203,6 @@ export const RunSucceededFinished: Story = {
       state: 'ready',
       items: transcriptFixtures.default.filter((i) => i.kind !== 'notice' && !i.truncated),
     },
-    needsYou: 1,
   },
 };
 
@@ -216,7 +210,7 @@ const readOnlyTranscript = { state: 'ready', items: transcriptFixtures.default, 
 const pausedAfterCrash = (key: keyof typeof runDetails): Story => ({
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails[key], transcript: readOnlyTranscript, needsYou: 1, onResume: () => {}, onFinish: () => {} },
+  args: { data: runDetails[key], transcript: readOnlyTranscript, onResume: () => {}, onFinish: () => {} },
 });
 
 /** Paused after the pod was killed: automatic resume is off or has not tried yet; no gave-up line. */
@@ -235,7 +229,7 @@ export const RunStoppedAutoResumeFailedGaveUp: Story = pausedAfterCrash('RunStop
 export const RunRunningAutoResume: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunRunningAutoResume, lines: autoResumedTerminal, needsYou: 1 },
+  args: { data: runDetails.RunRunningAutoResume, lines: autoResumedTerminal },
 };
 
 const stateCells: { caption: string; props: RunTerminalAreaProps }[] = [
@@ -307,7 +301,7 @@ export const RunTranscriptStates: Story = {
     ),
   ],
   globals: viewport(1440, 740),
-  args: { data: runDetails.RunPaused, needsYou: 1 },
+  args: { data: runDetails.RunPaused },
   render: () => (
     <div className={styles.stateGrid}>
       {stateCells.map((c) => (
@@ -327,7 +321,6 @@ export const RunRunningStop: Story = {
   args: {
     data: runDetails.RunRunningStop,
     lines: terminalByRun[61],
-    needsYou: 1,
     stopConfirmOpen: true,
     onStopClose: () => {},
     onStop: () => {},
@@ -337,23 +330,23 @@ export const RunRunningStop: Story = {
 export const RunIdleEnding: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunIdleEnding, transcript: { state: 'loading', items: [] }, needsYou: 1 },
+  args: { data: runDetails.RunIdleEnding, transcript: { state: 'loading', items: [] } },
 };
 /** Finish is in flight on an idle run: Stop session waits with it. */
 export const RunIdleActionPending: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetails.RunIdle, lines: terminalByRun[62], needsYou: 1, pendingNote: 'Finishing…' },
+  args: { data: runDetails.RunIdle, lines: terminalByRun[62], pendingNote: 'Finishing…' },
 };
 
 /** RunIdle on a merged PR: top bar, Ticket card, chain step and Pull request section are purple. */
 export const RunPrMerged: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetailPrMerged, lines: terminalByRun[62], needsYou: 1 },
+  args: { data: runDetailPrMerged, lines: terminalByRun[62] },
 };
 export const RunPrMergedCollapsed: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
-  args: { data: runDetailPrMerged, lines: terminalByRun[62], needsYou: 1, panelCollapsed: true },
+  args: { data: runDetailPrMerged, lines: terminalByRun[62], panelCollapsed: true },
 };

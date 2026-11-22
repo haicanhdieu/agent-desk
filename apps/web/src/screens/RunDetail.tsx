@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { Button, CommandChip, CountBadge, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
+import { Button, CommandChip, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
 import {
   AppShell,
   PopoverCard,
@@ -21,7 +21,6 @@ import { RunTerminalArea } from './RunTerminalArea';
 export interface RunDetailProps {
   data: RunDetailData;
   lines?: TermLine[];
-  needsYou: number;
   panelCollapsed?: boolean;
   cancelConfirmOpen?: boolean;
   /** Board height in pixels; `'viewport'` fills the window (the app route). */
@@ -64,7 +63,7 @@ export interface RunDetailProps {
   account?: AccountMenuAccount;
   /** The project menu behind the project crumb (with `run`); without it the crumb does nothing. */
   projectMenu?: ProjectSwitchMenu;
-  /** The "Runs" crumb link and the current run's label; without it the legacy breadcrumb shows. */
+  /** The "Runs" crumb link and the current run's label; defaults to `links.runs` and "Run N". */
   run?: { runsHref: string; label: string };
   /** The project's run limit per ticket (the chain's "max N runs"); defaults to the board's 10. */
   maxRunsPerTicket?: number;
@@ -106,7 +105,6 @@ const FINISH_HINT = 'Finish is available when the agent is waiting for you';
 export function RunDetail({
   data,
   lines,
-  needsYou,
   panelCollapsed,
   cancelConfirmOpen,
   height = 900,
@@ -221,27 +219,10 @@ export function RunDetail({
           account={account}
           projectMenu={projectMenu}
           links={{ projects: links?.projects }}
-          {...(runCrumb
-            ? {
-                org,
-                run: runCrumb,
-                // The run bar shows the name only; the repo link belongs to the project bar.
-                project: { name: projectName, repoUrl: '' },
-              }
-            : {
-                breadcrumb: [
-                  { label: projectName, href: links?.projects ?? '/projects' },
-                  {
-                    label: (
-                      <>
-                        Runs <CountBadge count={needsYou} title="Needs you" />
-                      </>
-                    ),
-                    href: links?.runs ?? '/runs',
-                  },
-                  { label: `Run ${run.id}` },
-                ],
-              })}
+          org={org}
+          // The run bar shows the name only; the repo link belongs to the project bar.
+          project={{ name: projectName }}
+          run={runCrumb ?? { runsHref: links?.runs ?? '/runs', label: `Run ${run.id}` }}
           actions={actions}
         >
           {reopened ? (

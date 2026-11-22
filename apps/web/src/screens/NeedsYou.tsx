@@ -7,8 +7,6 @@ import {
   SurfaceCard,
   TopBar,
   type PaginationProps,
-  type ProjectSwitchMenu,
-  type TopBarProps,
   type AccountMenuAccount,
   type OrgSwitchProps,
 } from '@/components';
@@ -40,13 +38,10 @@ export interface NeedsYouProps {
   projectHref?(p: Project): string;
   /** The page control, drawn under the run cards; the cards are aria-busy while it loads. */
   pagination?: PaginationProps;
-  /** In the app the page gets the project top bar; the board has none. */
+  /** In the app the page gets the org bar (Projects and Settings tabs, none current); the board has none. */
   topBar?: {
     user: Actor;
-    links?: TopBarProps['links'];
-    projectMenu?: ProjectSwitchMenu;
-    /** With it the bar is the org bar (Projects and Settings tabs, none current); without it, the project bar. */
-    org?: OrgSwitchProps;
+    org: OrgSwitchProps;
     account?: AccountMenuAccount;
   };
 }
@@ -194,33 +189,9 @@ export function NeedsYou({
     </main>
   );
   if (!topBar) return main;
-  if (topBar.org) {
-    return (
-      <>
-        <TopBar
-          variant="global"
-          tabs="org"
-          user={topBar.user}
-          org={topBar.org}
-          account={topBar.account}
-          links={topBar.links}
-        />
-        {main}
-      </>
-    );
-  }
   return (
     <>
-      <TopBar
-        variant="project"
-        active="runs"
-        user={topBar.user}
-        account={topBar.account}
-        needsYou={project.needsYou}
-        links={topBar.links}
-        projectMenu={topBar.projectMenu}
-        project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
-      />
+      <TopBar variant="global" tabs="org" user={topBar.user} org={topBar.org} account={topBar.account} />
       {main}
     </>
   );

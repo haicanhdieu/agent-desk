@@ -24,13 +24,13 @@ const RunDetail = (props: React.ComponentProps<typeof RunDetailScreen>) => (
 
 const linesFor = (k: RunDetailKey) => terminalByRun[runDetails[k].run.id];
 const show = (k: RunDetailKey, extra: Partial<React.ComponentProps<typeof RunDetail>> = {}) =>
-  render(<RunDetail data={runDetails[k]} lines={linesFor(k)} needsYou={1} {...extra} />);
+  render(<RunDetail data={runDetails[k]} lines={linesFor(k)} {...extra} />);
 
 const ended: RunDetailKey[] = ['RunSucceeded', 'RunFailed', 'RunTimedOut', 'RunCancelled', 'RunExpired'];
 const FINISH_TITLE = 'Finish is available when the agent is waiting for you';
 
 describe('RunDetail without action handlers (a viewer, or a member on another person run)', () => {
-  const bare = (k: RunDetailKey) => render(<RunDetailScreen data={runDetails[k]} lines={linesFor(k)} needsYou={1} />);
+  const bare = (k: RunDetailKey) => render(<RunDetailScreen data={runDetails[k]} lines={linesFor(k)} />);
 
   it('an idle run shows no Finish, Stop session or Cancel run, in the top bar or the notice', () => {
     bare('RunIdle');
@@ -58,12 +58,12 @@ describe('RunDetail without action handlers (a viewer, or a member on another pe
   });
 
   it('a succeeded run with a kept session shows no Reopen session', () => {
-    render(<RunDetailScreen data={runDetails.RunSucceeded} needsYou={1} />);
+    render(<RunDetailScreen data={runDetails.RunSucceeded} />);
     expect(screen.queryByRole('button', { name: 'Reopen session' })).not.toBeInTheDocument();
   });
 
   it('a reopened session shows no Close session', () => {
-    render(<RunDetailScreen data={{ ...runDetails.RunSucceeded, reopened: true }} needsYou={1} />);
+    render(<RunDetailScreen data={{ ...runDetails.RunSucceeded, reopened: true }} />);
     expect(screen.queryByRole('button', { name: 'Close session' })).not.toBeInTheDocument();
   });
 });
@@ -108,7 +108,6 @@ describe('RunDetail actions', () => {
       <RunDetail
         data={{ ...base, run: { ...base.run, ticket: { ...base.run.ticket, kind } } }}
         lines={linesFor('RunSucceeded')}
-        needsYou={1}
       />,
     );
     expect(screen.getByRole('link', { name: label })).toBeInTheDocument();
@@ -162,7 +161,7 @@ describe('RunDetail done and agent notes', () => {
 
   it('done: the agent note shows above the body as plain text, never markup', () => {
     const data = { ...runDetails.RunDone, agentNote: '<b>x</b> opened PR #9' };
-    const { container } = render(<RunDetail data={data} lines={linesFor('RunDone')} needsYou={1} />);
+    const { container } = render(<RunDetail data={data} lines={linesFor('RunDone')} />);
     expect(screen.getByText('<b>x</b> opened PR #9')).toBeInTheDocument();
     expect([...container.querySelectorAll('b')].some((b) => b.textContent === 'x')).toBe(false);
   });
@@ -174,7 +173,7 @@ describe('RunDetail done and agent notes', () => {
 
   it('needs you: the agent note shows above the existing body', () => {
     const data = { ...runDetails.RunIdle, agentNote: 'Which database should I use?' };
-    render(<RunDetail data={data} lines={linesFor('RunIdle')} needsYou={1} />);
+    render(<RunDetail data={data} lines={linesFor('RunIdle')} />);
     expect(screen.getByText('The agent is waiting for your answer')).toBeInTheDocument();
     expect(screen.getByText('Which database should I use?')).toBeInTheDocument();
     expect(screen.getByText(/Type your answer in the terminal below/)).toBeInTheDocument();
@@ -228,7 +227,7 @@ describe('RunDetail paused, kept and expired sessions', () => {
       ...runDetails.RunPaused,
       session: { state: 'paused', resumeFailure: 'Resume failed: no pod' },
     } as const;
-    render(<RunDetail data={data} needsYou={1} />);
+    render(<RunDetail data={data} />);
     const failure = screen.getByText('Resume failed: no pod');
     expect(failure.compareDocumentPosition(screen.getByRole('button', { name: 'Resume' }))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -237,7 +236,7 @@ describe('RunDetail paused, kept and expired sessions', () => {
 
   it('succeeded with a kept session: the note, the kept-until line and Reopen session', async () => {
     const onResume = vi.fn();
-    render(<RunDetail data={kept} lines={linesFor('RunSucceeded')} needsYou={1} onResume={onResume} />);
+    render(<RunDetail data={kept} lines={linesFor('RunSucceeded')} onResume={onResume} />);
     expect(screen.getByText('Opened PR #148.')).toBeInTheDocument();
     expect(screen.getByText('Session kept until 13 Nov, 09:05')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Reopen session' }));
@@ -258,7 +257,7 @@ describe('RunDetail paused, kept and expired sessions', () => {
 
     it('shows the Succeeded · Session open pill and Close session as the only action', async () => {
       const onCloseSession = vi.fn();
-      render(<RunDetail data={reopened} needsYou={1} onCloseSession={onCloseSession} />);
+      render(<RunDetail data={reopened} onCloseSession={onCloseSession} />);
       expect(screen.getByText('Succeeded · Session open')).toBeInTheDocument();
       await userEvent.click(screen.getByRole('button', { name: 'Close session' }));
       expect(onCloseSession).toHaveBeenCalledTimes(1);
@@ -266,27 +265,27 @@ describe('RunDetail paused, kept and expired sessions', () => {
     });
 
     it('replaces the stale "task is done" banner, which had a Finish run button', () => {
-      render(<RunDetail data={reopened} needsYou={1} />);
+      render(<RunDetail data={reopened} />);
       expect(screen.queryByText('The agent says the task is done')).not.toBeInTheDocument();
       expect(screen.getByText('Session open: this run already succeeded')).toBeInTheDocument();
     });
 
     it('also replaces the waiting-for-your-answer banner while the agent asks a question', () => {
-      render(<RunDetail data={{ ...runDetails.RunIdle, reopened: true }} needsYou={1} />);
+      render(<RunDetail data={{ ...runDetails.RunIdle, reopened: true }} />);
       expect(screen.queryByText('The agent is waiting for your answer')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
       expect(screen.getByRole('button', { name: 'Close session' })).toBeInTheDocument();
     });
 
     it('Close session waits while a close is in flight and while the session is ending', () => {
-      const { rerender } = render(<RunDetail data={reopened} needsYou={1} closing />);
+      const { rerender } = render(<RunDetail data={reopened} closing />);
       expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
-      rerender(<RunDetail data={{ ...reopened, pausing: true }} needsYou={1} />);
+      rerender(<RunDetail data={{ ...reopened, pausing: true }} />);
       expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
     });
 
     it('Close session waits while the reopen is still starting', () => {
-      render(<RunDetail data={{ ...runDetails.RunStarting, reopened: true }} needsYou={1} />);
+      render(<RunDetail data={{ ...runDetails.RunStarting, reopened: true }} />);
       expect(screen.getByRole('button', { name: 'Close session' })).toBeDisabled();
     });
   });
@@ -463,7 +462,7 @@ describe('RunDetail app props', () => {
     expect(screen.queryByRole('log')).not.toBeInTheDocument();
   });
 
-  it('links set the breadcrumb and Desk hrefs; cancelBody replaces the confirmation text', () => {
+  it('links set the logo, Runs crumb and Desk hrefs; cancelBody replaces the confirmation text', () => {
     show('RunRunning', {
       links: {
         projects: '/o/a/projects',
@@ -475,8 +474,8 @@ describe('RunDetail app props', () => {
       cancelBody: 'Stops the pod.',
     });
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
-    expect(within(crumbs).getByRole('link', { name: 'invoicer-api' })).toHaveAttribute('href', '/o/a/projects');
-    expect(within(crumbs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('href', '/o/a/p/1/runs');
+    expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute('href', '/o/a/projects');
+    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/o/a/p/1/runs');
     expect(screen.getByRole('link', { name: 'code-build' })).toHaveAttribute('href', '/o/a/p/1/desk/skills');
     expect(screen.getByRole('dialog')).toHaveTextContent('Stops the pod.');
   });
@@ -487,7 +486,7 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
 
   it('pausing: says so, closes the terminal view, and the idle notice is gone', () => {
     const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Ending…' } } as const;
-    render(<RunDetail data={data} needsYou={1} />);
+    render(<RunDetail data={data} />);
     expect(screen.getByText('Session ending…')).toBeInTheDocument();
     expect(
       screen.getByText('The session is being saved. This page updates by itself when the session has ended.'),
@@ -500,7 +499,7 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
 
   it('pausing: the last scrollback shows greyed', () => {
     const data = { ...idle, pausing: true, connection: { state: 'none', label: 'Ending…' } } as const;
-    render(<RunDetail data={data} lines={[[{ text: 'last words' }]]} needsYou={1} />);
+    render(<RunDetail data={data} lines={[[{ text: 'last words' }]]} />);
     const log = screen.getByRole('log');
     expect(log).toHaveTextContent('last words');
     expect(log.className).toMatch(/dimmed/);
@@ -509,7 +508,7 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
   it('resumed: the banner sits above the idle notice, the note stays text', () => {
     const text =
       'Resumed. The agent asked: <b>x</b>. Background tasks and sub-agents that were running when it paused were stopped.';
-    render(<RunDetail data={{ ...idle, resumed: text }} lines={linesFor('RunIdle')} needsYou={1} />);
+    render(<RunDetail data={{ ...idle, resumed: text }} lines={linesFor('RunIdle')} />);
     const banner = screen.getByText(text);
     expect(banner.compareDocumentPosition(screen.getByText('The agent is waiting for your answer'))).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -520,9 +519,7 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
   it('closed for inactivity: a status region with the text and a Reconnect button, no "connection lost" overlay', async () => {
     const onReconnect = vi.fn();
     const body = 'Nobody used this page for <b>4 hours</b>, so the terminal was closed.';
-    render(
-      <RunDetail data={idle} lines={linesFor('RunIdle')} needsYou={1} inactiveBody={body} onReconnect={onReconnect} />,
-    );
+    render(<RunDetail data={idle} lines={linesFor('RunIdle')} inactiveBody={body} onReconnect={onReconnect} />);
     const region = screen.getByRole('status', { name: 'Terminal closed for inactivity' });
     expect(within(region).getByText(body)).toBeInTheDocument();
     expect(region.querySelector('b')).toBeNull();
@@ -542,7 +539,7 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
   });
 
   it('resuming: a queued run says it is resuming, not starting the agent', () => {
-    render(<RunDetail data={{ ...runDetails.RunStarting, resuming: true }} needsYou={1} />);
+    render(<RunDetail data={{ ...runDetails.RunStarting, resuming: true }} />);
     expect(screen.getByText('Resuming the run')).toBeInTheDocument();
     expect(screen.queryByText('Starting the agent')).not.toBeInTheDocument();
     show('RunStarting');
@@ -554,7 +551,7 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
       ...runDetails.RunSucceeded,
       session: { state: 'none', resumeFailure: 'Resume failed: nothing was kept to resume from' },
     } as const;
-    render(<RunDetail data={data} lines={linesFor('RunSucceeded')} needsYou={1} />);
+    render(<RunDetail data={data} lines={linesFor('RunSucceeded')} />);
     expect(screen.getByText('Resume failed: nothing was kept to resume from')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
   });
@@ -568,7 +565,7 @@ describe('RunDetail pausing, resumed and pause reasons', () => {
         detail: 'Paused 2 min ago, the agent crashed. Can be resumed for 5 days.',
       },
     } as const;
-    render(<RunDetail data={data} needsYou={1} onResume={() => {}} />);
+    render(<RunDetail data={data} onResume={() => {}} />);
     expect(screen.getByText('Paused: agent crashed (exit code 2)')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
     expect(screen.getByRole('button', { name: 'Finish' })).toBeEnabled();
@@ -586,7 +583,7 @@ describe('RunDetail transcript and stopped', () => {
   });
 
   it('a stopped run shows the Stopped notice headline and detail, Resume and Finish, and the Transcript under a bar without Find or Copy all', () => {
-    render(<RunDetail data={runDetails.RunStopped} transcript={ready} needsYou={1} onResume={() => {}} />);
+    render(<RunDetail data={runDetails.RunStopped} transcript={ready} onResume={() => {}} />);
     expect(screen.getByText('Stopped: can be resumed for 7 days.')).toBeInTheDocument();
     expect(screen.getByText('Stopped by you 2 min ago.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Resume' })).toBeEnabled();
@@ -601,17 +598,17 @@ describe('RunDetail transcript and stopped', () => {
   });
 
   it("the paused notice's icon reads Stopped only for a stopped run", () => {
-    const { unmount } = render(<RunDetail data={runDetails.RunStopped} transcript={ready} needsYou={1} />);
+    const { unmount } = render(<RunDetail data={runDetails.RunStopped} transcript={ready} />);
     expect(screen.getByRole('img', { name: 'Stopped' })).toBeInTheDocument();
     unmount();
-    render(<RunDetail data={runDetails.RunPaused} transcript={ready} needsYou={1} />);
+    render(<RunDetail data={runDetails.RunPaused} transcript={ready} />);
     expect(screen.getAllByRole('img', { name: 'Paused' }).length).toBeGreaterThan(0);
     expect(screen.queryByRole('img', { name: 'Stopped' })).not.toBeInTheDocument();
   });
 
   it('a session ending shows Session ending… above a loading Transcript', () => {
     const data = { ...runDetails.RunIdle, pausing: true, connection: { state: 'none', label: 'Ending…' } } as const;
-    render(<RunDetail data={data} transcript={{ state: 'loading', items: [] }} needsYou={1} />);
+    render(<RunDetail data={data} transcript={{ state: 'loading', items: [] }} />);
     const notice = screen.getByText('Session ending…');
     const loading = screen.getByRole('status', { name: 'Loading the transcript' });
     expect(notice.compareDocumentPosition(loading)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
@@ -620,20 +617,20 @@ describe('RunDetail transcript and stopped', () => {
   });
 
   it('a cancelled run with a transcript shows the Transcript, not No scrollback was saved', () => {
-    render(<RunDetail data={runDetails.RunCancelled} transcript={ready} needsYou={1} />);
+    render(<RunDetail data={runDetails.RunCancelled} transcript={ready} />);
     expect(screen.getByRole('log', { name: 'Transcript of the agent conversation' })).toBeInTheDocument();
     expect(screen.getByText(/Cancelled by kim-hale/)).toBeInTheDocument();
     expect(screen.queryByText('No scrollback was saved')).not.toBeInTheDocument();
   });
 
   it('an expired run with a transcript keeps the Transcript under the Expired notice', () => {
-    render(<RunDetail data={runDetails.RunExpired} transcript={ready} needsYou={1} />);
+    render(<RunDetail data={runDetails.RunExpired} transcript={ready} />);
     expect(screen.getByText(/Nobody resumed this run within 7 days/)).toBeInTheDocument();
     expect(screen.getByRole('log')).toBeInTheDocument();
   });
 
   it('a succeeded run after Finish shows Finished. The session was deleted and cannot be resumed. and a disabled Reopen session', () => {
-    render(<RunDetail data={runDetails.RunSucceededFinished} transcript={ready} needsYou={1} />);
+    render(<RunDetail data={runDetails.RunSucceededFinished} transcript={ready} />);
     expect(screen.getByText('Succeeded in 9m 03s.')).toBeInTheDocument();
     expect(screen.getByText('Finished. The session was deleted and cannot be resumed.')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Reopen session' })).toBeDisabled();
@@ -650,11 +647,11 @@ describe('RunDetail transcript and stopped', () => {
   });
 
   it('starting and resuming keep their placeholder even with a transcript prop', () => {
-    const { unmount } = render(<RunDetail data={runDetails.RunStarting} transcript={ready} needsYou={1} />);
+    const { unmount } = render(<RunDetail data={runDetails.RunStarting} transcript={ready} />);
     expect(screen.getByText('Starting the agent')).toBeInTheDocument();
     expect(screen.queryByRole('log', { name: 'Transcript of the agent conversation' })).not.toBeInTheDocument();
     unmount();
-    render(<RunDetail data={{ ...runDetails.RunStarting, resuming: true }} transcript={ready} needsYou={1} />);
+    render(<RunDetail data={{ ...runDetails.RunStarting, resuming: true }} transcript={ready} />);
     expect(screen.getByText('Resuming the run')).toBeInTheDocument();
     expect(screen.queryByRole('log', { name: 'Transcript of the agent conversation' })).not.toBeInTheDocument();
   });
@@ -685,7 +682,7 @@ describe('RunDetail Stop session', () => {
   });
 
   it('is disabled with the title The session is already ending while the session ends', () => {
-    render(<RunDetail data={runDetails.RunIdleEnding} needsYou={1} />);
+    render(<RunDetail data={runDetails.RunIdleEnding} />);
     const stop = screen.getByRole('button', { name: 'Stop session' });
     expect(stop).toBeDisabled();
     expect(stop).toHaveAttribute('title', STOP_TITLE);
@@ -769,7 +766,7 @@ describe('RunDetail paused notice, automatic resume gave up', () => {
   } as const;
 
   it('shows the line after the detail line, beside Resume and Finish', () => {
-    render(<RunDetail data={gaveUp} needsYou={1} onResume={() => {}} />);
+    render(<RunDetail data={gaveUp} onResume={() => {}} />);
     const detail = screen.getByText(stopped.session?.detail ?? 'missing detail');
     const line = screen.getByText(GAVE_UP);
     expect(detail.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -778,19 +775,19 @@ describe('RunDetail paused notice, automatic resume gave up', () => {
   });
 
   it('without it the notice is unchanged', () => {
-    render(<RunDetail data={stopped} needsYou={1} onResume={() => {}} />);
+    render(<RunDetail data={stopped} onResume={() => {}} />);
     expect(screen.queryByText(/Tried to resume automatically/)).not.toBeInTheDocument();
   });
 });
 
 describe('PR state colours on Run detail', () => {
   it('the top bar, Ticket card, chain step and Pull request section of a merged PR read "Merged"', () => {
-    render(<RunDetail data={runDetailPrMerged} lines={terminalByRun[62]} needsYou={1} />);
+    render(<RunDetail data={runDetailPrMerged} lines={terminalByRun[62]} />);
     expect(screen.getAllByRole('img', { name: 'Merged' })).toHaveLength(4);
   });
 
   it('the collapsed rail names the state', () => {
-    render(<RunDetail data={runDetailPrMerged} lines={terminalByRun[62]} needsYou={1} panelCollapsed />);
+    render(<RunDetail data={runDetailPrMerged} lines={terminalByRun[62]} panelCollapsed />);
     const item = screen.getByRole('img', { name: 'Merged PR #148' });
     expect(item.querySelector('svg')?.parentElement).toHaveClass('prMerged');
   });
@@ -801,7 +798,7 @@ describe('PR state colours on Run detail', () => {
   });
 
   it('an unknown PR keeps "PR #148" on the rail', () => {
-    render(<RunDetail data={runDetails.RunIdle} lines={terminalByRun[62]} needsYou={1} panelCollapsed />);
+    render(<RunDetail data={runDetails.RunIdle} lines={terminalByRun[62]} panelCollapsed />);
     expect(screen.getByRole('img', { name: 'PR #148' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Merged PR #148' })).not.toBeInTheDocument();
   });
@@ -832,11 +829,13 @@ describe('RunDetail under the app bar (BR-46)', () => {
     expect(within(crumbs).getByRole('button', { name: /forecast/ })).toBeInTheDocument();
   });
 
-  it('without org and run: the legacy breadcrumb stays (no org menu)', () => {
+  it('without org and run: the crumbs default to the project, Runs and the run number (no org menu)', () => {
     show('RunRunning');
     const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
     expect(within(crumbs).queryByRole('button', { name: /organization/i })).toBeNull();
-    expect(within(crumbs).getByRole('link', { name: 'invoicer-api' })).toBeInTheDocument();
+    expect(within(crumbs).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
+    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/runs');
+    expect(within(crumbs).getByText('Run 61')).toHaveAttribute('aria-current', 'page');
   });
 
   it('keeps one main', () => {
@@ -872,7 +871,6 @@ describe('RunDetail under the app bar (BR-46)', () => {
         <RunDetail
           data={runDetails.RunRunning}
           lines={linesFor('RunRunning')}
-          needsYou={1}
           org={org}
           run={run}
           account={accountFixture}

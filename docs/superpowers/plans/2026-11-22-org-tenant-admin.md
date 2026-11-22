@@ -1117,11 +1117,11 @@ export function useAppBar(orgSlug: string | null, opts?: { onMyInvitations?: boo
 - Consumes: `useAppBar` (Task 22), the screen props (Task 21).
 - Produces: `TopBarProps.project` is `{ name; repoUrl }` and `breadcrumb` is gone; `NeedsYouProps['topBar']` loses `links` and `projectMenu`; the legacy-org fallback is removed from `TopBar` and its `Chrome.test.tsx` case.
 
-- [ ] **Step 1: Write the failing tests**: `detail.route.test.tsx` (BR-46, BR-47): crumbs org / project / "Runs" / "Run 62"; "Runs" opens `/o/alice/p/<id>/runs`; the project crumb opens the project switcher; org menu → Settings → `/o/alice/settings/general` for the owner. `runs.route.test.tsx` (BR-43, BR-48): the project bar shows the org crumb and Runs and Desk; the logo goes to `/o/alice/projects`; the needs-you page shows the org bar with no tab active. `run-detail-layout.spec.ts`: the crumb assertions follow; layout assertions kept. `top-bar-sticky.spec.ts`: run on org, project and Desk pages.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/runs/detail.route.test.tsx src/features/runs/runs.route.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the routes and `useDeskFrame` with `useAppBar(slug)`, then remove the legacy props.
+- [x] **Step 1: Write the failing tests**: `detail.route.test.tsx` (BR-46, BR-47): crumbs org / project / "Runs" / "Run 62"; "Runs" opens `/o/alice/p/<id>/runs`; the project crumb opens the project switcher; org menu → Settings → `/o/alice/settings/general` for the owner. `runs.route.test.tsx` (BR-43, BR-48): the project bar shows the org crumb and Runs and Desk; the logo goes to `/o/alice/projects`; the needs-you page shows the org bar with no tab active. `run-detail-layout.spec.ts`: the crumb assertions follow; layout assertions kept. `top-bar-sticky.spec.ts`: run on org, project and Desk pages.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/runs/detail.route.test.tsx src/features/runs/runs.route.test.tsx src/components/Chrome.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the routes and `useDeskFrame` with `useAppBar(slug)`, then remove the legacy props.
 - [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/web exec vitest run src/features/desk src/screens` and `pnpm --filter @agentdesk/web typecheck`; mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/run-detail-layout.spec.ts e2e/mock/top-bar-sticky.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): project and run pages under the app bar`.
+- [x] **Step 5: Commit** `feat(web): project and run pages under the app bar`.
 
 ---
 
