@@ -21,7 +21,7 @@ const line = (permission: GrantLine['permission'], condition: PermissionConditio
   condition,
 });
 const OWN: GrantLine['permission'][] = ['run:update', 'run:cancel', 'terminal:attach'];
-const READS = ['project:read', 'agent:read', 'skill:read', 'rule:read', 'setup:read', 'run:read'] as const;
+const READS = ['project:read', 'run:read'] as const; // the seeded member and viewer reads (no Desk config, issue 216)
 
 const ownerLines = ALL.map((p) => line(p));
 const adminLines = ALL.filter((p) => p !== 'org:delete').map((p) => line(p));

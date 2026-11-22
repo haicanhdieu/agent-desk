@@ -344,9 +344,10 @@ describe('setup test latest', () => {
     expect(done.endedAt).not.toBeNull();
   });
 
-  it('is readable by any org member, 404 for another org', async () => {
+  it('is refused to a member (issue 216), 404 for another org', async () => {
     await created();
-    expect((await latest(carol)).statusCode).toBe(200);
+    expect((await latest(carol)).statusCode).toBe(403);
+    expect((await latest()).statusCode).toBe(200);
     expect((await latest(bob)).statusCode).toBe(404);
   });
 });
@@ -462,7 +463,7 @@ describe('setup test events stream', () => {
     await addEvent(dto.id, 1);
     await addEvent(dto.id, 2);
     await finalize(dto.id);
-    const s = await open(`/api/setup-tests/${dto.id}/events`, carol);
+    const s = await open(`/api/setup-tests/${dto.id}/events`, alice);
     await s.closed;
     expect(s.status).toBe(200);
     expect(ofType(s.messages, 'event')).toHaveLength(2);

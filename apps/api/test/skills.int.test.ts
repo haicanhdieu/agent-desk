@@ -157,8 +157,8 @@ describe('skills: permission (BR-33, BR-29)', () => {
 
     expect((await get('guarded').then((r) => r.json())) as SkillDto).toEqual(before);
     expect((await get('member-made')).statusCode).toBe(404);
-    // Reading stays allowed for the member.
-    expect((await get('guarded', member)).statusCode).toBe(200);
+    // A member has no Desk read either (issue 216).
+    expect((await get('guarded', member)).statusCode).toBe(403);
   });
 
   it('TC-29.2: an admin on P1 only can put a skill on P1', async () => {
