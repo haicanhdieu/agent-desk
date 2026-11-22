@@ -88,7 +88,7 @@ export class MembersService {
    * `withOrg` transaction with the audit entry. 403 without `member:update` before any lookup; 404 for a non-member;
    * 422 `/roleId` for a role that is missing or not org-assignable; `checkTenantAssign` on each removed and the new
    * role; 409 when the org would be left without an owner (owner rows are locked in id order first, so two
-   * concurrent demotions cannot both pass). The same role again is a no-op without an audit row.
+   * concurrent demotions cannot both pass). The same role again is a no-op without an audit row, but only after these checks: an org admin giving `owner` to an owner is 403.
    */
   async updateRole(access: Access, orgId: string, userId: string, roleId: string | null): Promise<MemberDto> {
     if (!can(access, 'member:update')) throw new ForbiddenException(FORBIDDEN_DETAIL);
@@ -126,19 +126,21 @@ export class MembersService {
         .orderBy(asc(roleAssignments.id));
       const removed = current.filter((r) => r.roleId !== roleId);
       const keeps = current.some((r) => r.roleId === roleId);
-      if (removed.length === 0 && (roleId === null || keeps)) return false;
       for (const r of removed) {
         const role = await loadRole(tx, r.roleId);
         if (!role || !checkTenantAssign(access, 'assignment:delete', role, { type: 'org' }).ok) {
           throw new ForbiddenException(FORBIDDEN_DETAIL);
         }
       }
-      if (next && !keeps && !checkTenantAssign(access, 'assignment:create', next, { type: 'org' }).ok) {
+      // the create check runs on the requested role even when the member already holds it: an admin never gives owner
+      if (next && !checkTenantAssign(access, 'assignment:create', next, { type: 'org' }).ok) {
         throw new ForbiddenException(FORBIDDEN_DETAIL);
       }
       if (removed.some((r) => r.roleKey === 'owner') && !owners.some((o) => o.userId !== userId)) {
         throw new ConflictProblemException('The organization needs at least one owner', []);
       }
+      // nothing to change: 200 without an audit row, after every check above
+      if (removed.length === 0 && (roleId === null || keeps)) return false;
       if (removed.length > 0) {
         await tx.delete(roleAssignments).where(
           and(

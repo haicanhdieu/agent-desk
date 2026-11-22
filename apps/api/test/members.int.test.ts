@@ -478,6 +478,36 @@ describe('changing a member org role', () => {
     expect(await orgScopeRoles(f.orgId, f.ids.o)).toEqual(['owner']);
   });
 
+  it('BR-18: an org admin giving owner to an existing owner is 403 and nothing changes or is audited', async () => {
+    const f = await buildCast('mr-owner-same');
+    const r = await roleIdsOf(t, f.o, f.orgId);
+    const orgAdmin = await inviteAndLogin(t, f.orgId, 'mr-owner-same-oa', 'admin', { type: 'org' });
+    const res = await changeRole(t, orgAdmin, f.orgId, f.ids.o, r.owner);
+    expect(res.statusCode).toBe(403);
+    expect(await orgScopeRoles(f.orgId, f.ids.o)).toEqual(['owner']);
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.o)).toHaveLength(0);
+  });
+
+  it('BR-3: giving owner to an owner is 200 for an owner with no audit row', async () => {
+    const f = await buildCast('mr-owner-noop');
+    const r = await roleIdsOf(t, f.o, f.orgId);
+    expect((await changeRole(t, f.o, f.orgId, f.ids.b, r.owner)).statusCode).toBe(200);
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.b)).toHaveLength(1);
+    const again = await changeRole(t, f.o, f.orgId, f.ids.b, r.owner);
+    expect(again.statusCode).toBe(200);
+    expect(await orgScopeRoles(f.orgId, f.ids.b)).toEqual(['owner']);
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.b)).toHaveLength(1);
+  });
+
+  it('BR-3: an org admin sending the same non-owner role is 200 with no audit row', async () => {
+    const f = await buildCast('mr-admin-noop');
+    const r = await roleIdsOf(t, f.o, f.orgId);
+    const orgAdmin = await inviteAndLogin(t, f.orgId, 'mr-admin-noop-oa', 'admin', { type: 'org' });
+    expect((await changeRole(t, orgAdmin, f.orgId, f.ids.v, r.viewer)).statusCode).toBe(200);
+    expect(await orgScopeRoles(f.orgId, f.ids.v)).toEqual(['viewer']);
+    expect(await auditRows(f.orgId, 'member.role_changed', f.ids.v)).toHaveLength(0);
+  });
+
   it('BR-8: a user who is not a member is 404; the audit from is the current role', async () => {
     const f = await buildCast('mr-gone');
     const r = await roleIdsOf(t, f.o, f.orgId);

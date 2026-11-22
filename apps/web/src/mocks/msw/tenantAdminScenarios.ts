@@ -229,7 +229,7 @@ function syncSeat(db: MockDb, orgId: string, userId: string, roleKey: string | n
 
 /**
  * `members.updateRole`: replaces the member's org-scope assignments with one of `roleId` (or none). Only an owner gives
- * or takes `owner`. The same role again is a 200 that changes nothing. The change may not leave the org with no owner.
+ * or takes `owner`. The same role again is a 200 that changes nothing, after that owner check. The change may not leave the org with no owner.
  */
 export function changeMemberRole(
   db: MockDb,
@@ -250,9 +250,10 @@ export function changeMemberRole(
   }
   const current = orgRoleKey(target);
   const next = role?.key;
-  if (current === next) return structuredClone(target);
   const touchesOwner = current === ORG_OWNER || next === ORG_OWNER;
   if (touchesOwner && !callerIsOwner(db, orgId, caller.userId)) throw forbidden();
+  // the same role is a no-op, but only after the owner check: an admin giving owner to an owner is 403
+  if (current === next) return structuredClone(target);
   const roster = state(db).members[orgId] ?? [];
   if (current === ORG_OWNER && ownerCount(roster) <= 1) throw conflict(LAST_OWNER, []);
   target.assignments = [

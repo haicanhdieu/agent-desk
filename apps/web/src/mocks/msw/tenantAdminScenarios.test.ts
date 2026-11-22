@@ -136,6 +136,27 @@ describe('who may do what', () => {
     expect(await roleOf(CLEO)).toBe('member');
   });
 
+  it('an admin giving owner to an owner is 403 and nothing changes', async () => {
+    apply('admin');
+    const before = (await members({ pageSize: 100 })).items.find((m) => m.userId === PRIYA);
+    expect((await rejection(setRole(PRIYA, 'owner'))).status).toBe(403);
+    expect((await members({ pageSize: 100 })).items.find((m) => m.userId === PRIYA)).toEqual(before);
+  });
+
+  it('an owner giving owner to an owner is a 200 that changes nothing', async () => {
+    apply('twoOwners');
+    const before = (await members({ pageSize: 100 })).items.find((m) => m.userId === PRIYA);
+    await setRole(PRIYA, 'owner');
+    expect((await members({ pageSize: 100 })).items.find((m) => m.userId === PRIYA)).toEqual(before);
+  });
+
+  it('an admin sending the same non-owner role is a 200 that changes nothing', async () => {
+    apply('admin');
+    const before = (await members({ pageSize: 100 })).items.find((m) => m.userId === CLEO);
+    await setRole(CLEO, 'member');
+    expect((await members({ pageSize: 100 })).items.find((m) => m.userId === CLEO)).toEqual(before);
+  });
+
   it('the same role again is a 200 and keeps the assignment id', async () => {
     apply('twoOwners');
     const before = (await members({ pageSize: 100 })).items.find((m) => m.userId === BEN);
