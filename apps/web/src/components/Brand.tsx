@@ -8,10 +8,12 @@ export interface BrandProps {
 }
 
 /**
- * The Agent Desk logo icon, the same drawing as public/agent-desk-icon.svg (the favicon). It is inline SVG, not an
- * <img>, so it needs no request and no markup-injection guard sees an image element in the page.
- * The colours are the brand asset's own, not theme colours, so they are not design tokens (convention: no raw colours
- * outside tokens.css, except a brand asset copied verbatim).
+ * The Agent Desk logo icon, the same drawing as public/agent-desk-icon.svg (the favicon); branding.test.ts fails if
+ * the two drift. It is inline SVG, not an <img>, so it needs no request and no markup-injection guard sees an image
+ * element in the page.
+ * Judgment call: the colours below are hard-coded because they must match the favicon file and must not follow the
+ * theme. docs/conventions/frontend.md §5 has no exception for brand artwork (no raw colours outside tokens.css), so
+ * review may prefer brand tokens instead.
  */
 function Logo({ size, label }: { size: number; label?: string }) {
   return (

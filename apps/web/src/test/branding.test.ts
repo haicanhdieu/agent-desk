@@ -74,16 +74,23 @@ describe('index.html branding', () => {
 });
 
 describe('Brand logo', () => {
-  it('draws the same shapes and colours as the favicon file', () => {
+  /** Every drawing element as 'parent > tag [sorted attributes]'. React writes SVG props in their attribute names. */
+  const drawing = (root: Element) =>
+    [...root.querySelectorAll('*')]
+      .filter((e) => !['title', 'desc'].includes(e.localName))
+      .map((e) => {
+        const attrs = [...e.attributes].map((a) => `${a.name}=${a.value}`).sort();
+        return `${e.parentElement?.localName} > ${e.localName} [${attrs.join(' ')}]`;
+      });
+
+  it('draws the same viewBox and elements, with the same attributes, as the favicon file', () => {
     const file = new DOMParser().parseFromString(
       readFileSync(publicFile('/agent-desk-icon.svg'), 'utf8'),
       'image/svg+xml',
-    );
+    ).documentElement;
     const { container } = render(createElement(Brand, { withName: false }));
-    const shapes = (root: ParentNode) =>
-      [...root.querySelectorAll('path, circle, rect')].map((e) =>
-        [e.getAttribute('d') ?? e.getAttribute('r'), e.getAttribute('fill'), e.getAttribute('stroke')].join('|'),
-      );
-    expect(shapes(container)).toEqual(shapes(file));
+    const logo = container.querySelector('svg');
+    expect(logo?.getAttribute('viewBox')).toBe(file.getAttribute('viewBox'));
+    expect(logo && drawing(logo)).toEqual(drawing(file));
   });
 });
