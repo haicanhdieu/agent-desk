@@ -78,7 +78,8 @@ for (const f of files) {
   const hm = inner.match(/^\s*<header class="top">([\s\S]*?)<\/header>/);
   if (hm) { hdr = hm[1].trim(); inner = inner.slice(hm[0].length); }
   let kind = 'none';
-  if (hdr) kind = /class="tabs"/.test(hdr) ? 'project' : /aria-label="Breadcrumb"/.test(hdr) ? 'run' : 'global';
+  // Option A: org pages also have tabs (Projects, Settings), so tabs no longer mean "project bar". A project bar has the project switcher.
+  if (hdr) kind = /aria-label="Breadcrumb"/.test(hdr) ? 'run' : /aria-label="Switch project"/.test(hdr) ? 'project' : 'global';
   const fix = (x) => x
     .replace(/href="([A-Za-z0-9]+)\.dc\.html"/g, 'href="#/b/$1"')
     .replace(/href="https:\/\/github\.com\/"/g, 'href="https://github.com/" target="_blank" rel="noopener"');

@@ -314,7 +314,7 @@ for (const persona of ['mira-chen', 'theo-brandt']) {
   const btn = (n) => p.evaluate((n) => { const r = AD.boardRoute(n); location.hash = AD.href(r.path, r.q); return new Promise((res) => setTimeout(() => res(!!Array.from(document.querySelectorAll('main a.btn')).find((a) => /^(Settings|Invitations)$/.test(a.textContent.trim()))), 60)); }, n);
   for (const n of ['ProjectsChecklistDoneSettings', 'ProjectsEmptyChecklistSettings', 'ProjectsOrgSwitchOpen', 'ProjectsEmpty']) ok(!(await btn(n)), n + ' has no Settings/Invitations head button by default');
   await p.click('#pc-p-btn');
-  ok(await btn('ProjectsChecklistDoneSettings'), 'proposal on: the board drawn with a Settings button keeps it');
+  ok(!(await btn('ProjectsChecklistDoneSettings')), 'proposal on: the redrawn board has no Settings head button (it is not drawn; the live screens show it, checked below)');
   await go(p, '/o/harbor-labs/projects?s=empty'); // live empty state with the proposal on
   ok(!!(await p.$('main a.btn:text-is("Settings")')), 'proposal on: live empty state shows Settings');
   await p.click('#pc-p-btn');

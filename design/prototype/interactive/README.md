@@ -149,6 +149,8 @@ Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTab
 - Clipboard: Copy link uses the browser clipboard; where the browser blocks it (some headless or insecure contexts) the "Could not copy" dialog appears, as in OrgInvitationsCopyFailed.
 - The boards link no web font; the prototype does the same.
 - Build step: `design/prototype/interactive/_tools/build-boards.mjs` (Node, no packages) regenerates `data/boards.js` and `board-styles.css` from the boards. Run it after changing a board: `node design/prototype/interactive/_tools/build-boards.mjs`. Do not edit the two generated files by hand.
+- **Keep the boards and this prototype in sync.** The boards in `design/prototype/project/` are the source and the contract (Storybook parity is checked against them); this prototype is generated from them. Whoever changes or adds a board re-runs the build step above, then `node design/prototype/interactive/_checks/nav-check.mjs`, and commits `data/boards.js` and `board-styles.css` with the board change. A screen that is new in the app also needs its live screen added under `screens/` and a row in the screen map. A board that changes the top bar changes `js/chrome.js` as well.
+- The build step sorts each board's bar into `global` (org level), `project` (has the project switcher) or `run` (breadcrumb only). It does not use the tabs for this, because org pages have tabs too (Option A).
 
 ## Files
 

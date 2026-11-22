@@ -25,6 +25,12 @@ How:
 4. Each board must render when opened directly as a file in a browser, at the artboard size of
    the board you copied.
 5. Change nothing else: not canvas.json, not apps/, not the spec. Do not commit.
+6. When design/prototype/interactive/ exists, it is generated from the boards: after you add or
+   change a board, run `node design/prototype/interactive/_tools/build-boards.mjs` and then
+   `node design/prototype/interactive/_checks/nav-check.mjs`, and leave the regenerated
+   `data/boards.js` and `board-styles.css` in the worktree. Fix a failing check or report it; do
+   not skip it. A screen that is new to the app also needs its live screen (see that folder's
+   README, "Keep the boards and this prototype in sync").
 
 <resume only:> The human reviewed the boards and wants these changes, word for word: <changes>.
 Change only what they name.
