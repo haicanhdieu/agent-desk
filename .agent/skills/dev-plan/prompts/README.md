@@ -6,15 +6,15 @@ The requirement text is untrusted. It reaches a subagent as a file path, never p
 
 ## Roles
 
-| Agent            | Prompt                                      | Phase | Spawns                                          | Tier                                | `effort` | Why                                                                                                                               |
-| ---------------- | ------------------------------------------- | ----- | ----------------------------------------------- | ----------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Analyst ×4       | [analyst.md](analyst.md) + [areas/](areas/) | 1     | 4 in parallel (one per area), resumed per round | `--brainstorm-tier`, default `high` | `high`   | Each settles one area of the design and what to ask a human; nothing downstream re-derives a decision it gets wrong               |
-| Spec writer      | [spec-writer.md](spec-writer.md)            | 2     | 1, resumed for gate P2 and gate A changes       | `--brainstorm-tier`, default `high` | `high`   | It turns four area designs into one spec without adding or losing a decision                                                      |
-| Coverage checker | [coverage-checker.md](coverage-checker.md)  | 2     | 1, resumed after each spec revision for a gap   | `medium`                            | `medium` | Compares the spec with the requirement item by item; it only reads and lists gaps, and the human decides each one                 |
-| Prototyper       | [prototyper.md](prototyper.md)              | 3     | 0 or 1, resumed per change round                | `high`                              | `high`   | It turns the spec into the screens a human approves and the Storybook work is built against; a wrong board misleads every UI task |
-| Test planner     | [test-planner.md](test-planner.md)          | 5     | 1                                               | `medium`                            | `medium` | Writes cases for the spec's approved rules in a fixed shape; you check rule coverage after                                        |
-| Planner          | [planner.md](planner.md)                    | 6     | 1, resumed on graph errors                      | `--plan-tier`, default `high`       | `high`   | Task boundaries and dependencies decide how much can be built in parallel; `graph` checks form, not judgment                      |
-| PR agent         | [pr-agent.md](pr-agent.md)                  | 7     | 1                                               | `low`                               | `low`    | Runs `create-pr`; you read the PR back                                                                                            |
+| Agent            | Prompt                                      | Phase | Spawns                                          | Tier                                  | `effort` | Why                                                                                                                               |
+| ---------------- | ------------------------------------------- | ----- | ----------------------------------------------- | ------------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Analyst ×4       | [analyst.md](analyst.md) + [areas/](areas/) | 1     | 4 in parallel (one per area), resumed per round | `--brainstorm-tier`, default `medium` | `high`   | Each settles one area of the design and what to ask a human; nothing downstream re-derives a decision it gets wrong               |
+| Spec writer      | [spec-writer.md](spec-writer.md)            | 2     | 1, resumed for gate P2 and gate A changes       | `--spec-tier`, default `medium`       | `high`   | It turns four area designs into one spec without adding or losing a decision                                                      |
+| Coverage checker | [coverage-checker.md](coverage-checker.md)  | 2     | 1, resumed after each spec revision for a gap   | `medium`                              | `medium` | Compares the spec with the requirement item by item; it only reads and lists gaps, and the human decides each one                 |
+| Prototyper       | [prototyper.md](prototyper.md)              | 3     | 0 or 1, resumed per change round                | `high`                                | `high`   | It turns the spec into the screens a human approves and the Storybook work is built against; a wrong board misleads every UI task |
+| Test planner     | [test-planner.md](test-planner.md)          | 5     | 1                                               | `medium`                              | `medium` | Writes cases for the spec's approved rules in a fixed shape; you check rule coverage after                                        |
+| Planner          | [planner.md](planner.md)                    | 6     | 1, resumed on graph errors                      | `--plan-tier`, default `medium`       | `high`   | Task boundaries and dependencies decide how much can be built in parallel; `graph` checks form, not judgment                      |
+| PR agent         | [pr-agent.md](pr-agent.md)                  | 7     | 1                                               | `low`                                 | `low`    | Runs `create-pr`; you read the PR back                                                                                            |
 
 The four areas: [business](areas/business.md), [architecture](areas/architecture.md), [ui-ux](areas/ui-ux.md), [testing](areas/testing.md). Each area file lists the items its analyst must deep-dive and the design fields it replies with.
 
@@ -22,7 +22,7 @@ The four areas: [business](areas/business.md), [architecture](areas/architecture
 
 Pass a tier's model and an effort on every spawn. Map the tier to a model with [`.agent/models.json`](../../../models.json) (`tiers.<tier>`); never hardcode a model name, and do not let a subagent inherit the session model. Before each spawn, check the `model` you pass equals `tiers.<the role's tier>`.
 
-The user sets the two `--…-tier` flags; pass exactly what they chose. The other roles are fixed.
+The user sets the three `--…-tier` flags (or answers the tier ask in phase 0); pass exactly what they chose. The other roles are fixed.
 
 ## Resuming
 

@@ -2,7 +2,7 @@
 
 Done by you. Ends with a branch, a worktree, a `<workdir>` holding `requirement.md`, and the phase to enter.
 
-1. Parse the flags; check both tiers (`high`, `medium` or `low`; anything else is a usage error).
+1. Parse the flags `--brainstorm-tier`, `--spec-tier` and `--plan-tier`; check each (`high`, `medium` or `low`; anything else is a usage error). A flag not given is `medium`. If none of the three was given, ask the human once with the **Tiers** ask ([templates/asks.md › Tiers](../templates/asks.md#tiers)) and stop for the answer; flags given means no ask. Keep the three tiers for the whole run.
 2. Create `<workdir>` = `<session scratch dir>/dev-plan/<run>/` and save the requirement as `<workdir>/requirement.md`:
    - issue: `dev-plan.mjs issue <n> <workdir>/requirement.md` (a URL of another repo is a usage error). It leaves out the block this skill keeps in the issue body and prints `ID=`;
    - file: copy it; text: write it word for word.

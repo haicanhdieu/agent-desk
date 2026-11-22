@@ -13,4 +13,4 @@ Do not merge. `dev-review` or a human does.
 
 ## Report
 
-PR URL; spec and plan paths with `rev` and `hash`; the areas that were active (and why any was not applicable); the prototype boards (or "no UI", or "prototype skipped"); rules and cases (or "no e2e section"); the waves; every `Agent call:`; open questions; and what happens next ([reference/after-merge.md](../reference/after-merge.md)).
+PR URL; the spec and the plan as full GitHub `blob` links at the PR head ([templates/asks.md › File links](../templates/asks.md#file-links)), each with `rev` and `hash`; the areas that were active (and why any was not applicable); the prototype boards (or "no UI", or "prototype skipped"); rules and cases (or "no e2e section"); the waves; every `Agent call:`; open questions; and what happens next ([reference/after-merge.md](../reference/after-merge.md)).
