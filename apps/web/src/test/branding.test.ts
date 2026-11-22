@@ -1,5 +1,8 @@
+import { createElement } from 'react';
+import { render } from '@testing-library/react';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { Brand } from '@/components/Brand';
 
 const webRoot = resolve(__dirname, '../..');
 const publicDir = resolve(webRoot, 'public');
@@ -67,5 +70,20 @@ describe('index.html branding', () => {
     expect(png.readUInt32BE(20)).toBe(180);
     const ico = readFileSync(publicFile('/favicon.ico'));
     expect([ico.readUInt16LE(0), ico.readUInt16LE(2)]).toEqual([0, 1]);
+  });
+});
+
+describe('Brand logo', () => {
+  it('draws the same shapes and colours as the favicon file', () => {
+    const file = new DOMParser().parseFromString(
+      readFileSync(publicFile('/agent-desk-icon.svg'), 'utf8'),
+      'image/svg+xml',
+    );
+    const { container } = render(createElement(Brand, { withName: false }));
+    const shapes = (root: ParentNode) =>
+      [...root.querySelectorAll('path, circle, rect')].map((e) =>
+        [e.getAttribute('d') ?? e.getAttribute('r'), e.getAttribute('fill'), e.getAttribute('stroke')].join('|'),
+      );
+    expect(shapes(container)).toEqual(shapes(file));
   });
 });

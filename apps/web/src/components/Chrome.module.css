@@ -51,7 +51,7 @@
 .brand:hover {
   text-decoration: none;
 }
-.brand img {
+.brand svg {
   display: block;
   flex: 0 0 auto;
 }
