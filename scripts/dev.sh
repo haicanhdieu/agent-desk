@@ -24,6 +24,9 @@ case "${1:-up}" in
     # Idempotent: roles/databases are created or updated, applied migrations are skipped.
     pnpm --filter @agentdesk/api migrate
 
+    # Seeds admin@dev.local as platform admin when dev login is on (idempotent).
+    pnpm --filter @agentdesk/api seed:dev-admin
+
     filters=(--filter=@agentdesk/api --filter=@agentdesk/worker)
     if [ "${DEV_WEB:-1}" != "0" ] && node -e 'process.exit(require("./apps/web/package.json").scripts?.dev ? 0 : 1)'; then
       filters+=(--filter=@agentdesk/web)

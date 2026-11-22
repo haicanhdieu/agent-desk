@@ -122,6 +122,9 @@ up() {
   echo "==> migrate"
   pnpm --filter @agentdesk/api migrate >"$logs/migrate.log" 2>&1 || die "migrate failed (log: $logs/migrate.log)"
 
+  echo "==> seed dev admin"
+  pnpm --filter @agentdesk/api seed:dev-admin >"$logs/seed-dev-admin.log" 2>&1 || die "seed-dev-admin failed (log: $logs/seed-dev-admin.log)"
+
   if [ "${RUNNER_STACK_APPS:-1}" = 0 ]; then
     echo "==> up (services only). Logs: $logs"
     return

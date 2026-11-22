@@ -420,7 +420,7 @@ export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: s
 
   Revoke, inside the transaction and lock: entry by id → none: `NotFoundException`; count entries other than `adminId` joined to a `user` with `lower(email) = pa.email and email_verified` → 0: `ConflictException('Cannot revoke the last platform admin')`; else delete, write the `platform_admin.revoked` audit row (payload `userId` = the matching account id or null), log `platform admin revoked`. Controller `@HttpCode(204)`.
 
-- [ ] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (count-sensitive cases on their own `createTestApp({ pg: await startPg() })`, which seeds only `admin@dev.local`):
+- [x] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (count-sensitive cases on their own `createTestApp({ pg: await startPg() })`, which seeds only `admin@dev.local`):
   - `BR-10: revoking another entry is 204 and it leaves the list`; N-1 revoke: one `platform_admin.revoked` row with the entry id and payload `{ email, userId }`, and the `platform admin revoked` info line carries ids only; `a second revoke is 404`; `a malformed adminId is 400`.
   - `BR-11: the revoked user's same cookie gets platformAdmin false and 403 on list, grant and /api/platform/orgs`.
   - `BR-12: revoking the last working admin is 409 and nothing changes, no audit` (fresh DB, admin revokes its own entry).
@@ -431,10 +431,10 @@ export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: s
   - `BR-30: an entry whose account was deleted` (fresh DB: `orphan` is invited into an org and signs in, admin grants `orphan@dev.local`, then its `user` row is deleted as owner; the list shows null `userId`, `name`, `handle` and unchanged `grantedBy`; admin's self-revoke is 409 (N-4: the orphan does not count); the pending invitation is revoked, and dev-login `orphan` still signs up with no invitation, `/api/me/access` true, `/api/platform/orgs` 200; admin revokes the entry, the `user` row is deleted again, and dev-login `orphan` is refused `no_invitation` with no user row).
   - Review Focus 5 `an entry whose account is unverified does not count as a working admin` (fresh DB: grant `unv@dev.local`, then set its `email_verified = false` as owner; admin's self-revoke is 409).
   - `authz.int.test.ts`: `platform.revokeAdmin` leaves `NOT_REGISTERED_YET`; `beforeAll` seeds `dt-revoke@dev.local` and sets `ids.adminId` to its entry id.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `revoke`, the controller method (`@Param(new ZodPipe(routes.platform.revokeAdmin.params))`) and the test helper.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): revoke the platform admin role, never the last one`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `revoke`, the controller method (`@Param(new ZodPipe(routes.platform.revokeAdmin.params))`) and the test helper.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): revoke the platform admin role, never the last one`.
 
 ---
 
@@ -468,13 +468,13 @@ export async function runDevAdminSeed(
 
   Package script `"seed:dev-admin": "tsx --env-file-if-exists=../../.env src/seed-dev-admin.ts"`. `main()` passes a seed that opens `createDb(url)`, calls `seedPlatformAdmin` and closes it; prints `seed-dev-admin: skipped (dev login is off)` or `seed-dev-admin: done`; exits 1 with the message on error.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `apps/api/test/seed-dev-admin.test.ts` (BR-28 gate, N-5): `devAdminSeedEnabled` is true only for `AUTH_DEV_LOGIN: true`; `runDevAdminSeed(validEnv({ AUTH_DEV_LOGIN: 'false' }), seed)` resolves `'skipped'` and `seed` is not called; with `'true'` it resolves `'seeded'` and `seed` was called once with `(env.DATABASE_APP_URL, 'admin@dev.local')`; with `NODE_ENV: 'production'` and `AUTH_DEV_LOGIN: 'true'` it rejects (config refusal) and `seed` is not called.
   - `scripts/seed-dev-admin-wiring.test.ts` (BR-28 wiring): copies the scripts into a temp root as the Agent call says; a stub `pnpm` appends `"$*"` to `calls.log`. `dev.sh up` with `COMPOSE=<stub>` logs `--filter @agentdesk/api migrate`, then `--filter @agentdesk/api seed:dev-admin`, then `exec turbo run dev …`, in that order; a failing stub for `seed:dev-admin` stops the script (non-zero, no turbo call). `runner-stack.sh up` with `RUNNER_STACK_APPS=0`, `TEST_PG_BIN_DIR=<stub dir>`, `RUNNER_STACK_DIR=<tmp>` (with `pgdata/PG_VERSION`) logs migrate before `seed:dev-admin`; a failing seed stub makes it exit non-zero with `seed-dev-admin failed`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/seed-dev-admin.test.ts` and `pnpm exec vitest run --root scripts seed-dev-admin-wiring.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the entrypoint and script; `process-compose.yaml` process `seed-dev-admin` (command `pnpm --filter @agentdesk/api run seed:dev-admin`, same `availability` as `migrate`, depends on `migrate: process_completed_successfully`) and `api` depending on `seed-dev-admin: process_completed_successfully` (the start-order comment updated); `scripts/dev.sh` runs `pnpm --filter @agentdesk/api seed:dev-admin` after migrate; `scripts/runner-stack.sh` adds `echo "==> seed dev admin"` and `pnpm --filter @agentdesk/api seed:dev-admin >"$logs/seed-dev-admin.log" 2>&1 || die "seed-dev-admin failed (log: $logs/seed-dev-admin.log)"` after migrate; `devbox.json` `db-reset` message ends `Next \`devbox run dev\` re-runs migrations and seeds admin@dev.local on an empty database.`
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/seed-dev-admin.test.ts` and `pnpm exec vitest run --root scripts seed-dev-admin-wiring.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the entrypoint and script; `process-compose.yaml` process `seed-dev-admin` (command `pnpm --filter @agentdesk/api run seed:dev-admin`, same `availability` as `migrate`, depends on `migrate: process_completed_successfully`) and `api` depending on `seed-dev-admin: process_completed_successfully` (the start-order comment updated); `scripts/dev.sh` runs `pnpm --filter @agentdesk/api seed:dev-admin` after migrate; `scripts/runner-stack.sh` adds `echo "==> seed dev admin"` and `pnpm --filter @agentdesk/api seed:dev-admin >"$logs/seed-dev-admin.log" 2>&1 || die "seed-dev-admin failed (log: $logs/seed-dev-admin.log)"` after migrate; `devbox.json` `db-reset` message ends `Next \`devbox run dev\` re-runs migrations and seeds admin@dev.local on an empty database.`
 - [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/api test`, `pnpm test:scripts`; then `devbox run db-reset`, `devbox run dev-bg`, and `devbox run db-psql` with `select email, granted_by from platform_admins;` → one row `admin@dev.local`, null. Expected: PASS (if the stack cannot start, say so in the PR). The sign-in side (BR-28, TC-28.1) is proved by Task 9.
-- [ ] **Step 5: Commit** `feat(api): seed the dev platform admin when the local stack starts`.
+- [x] **Step 5: Commit** `feat(api): seed the dev platform admin when the local stack starts`.
 
 ---
 

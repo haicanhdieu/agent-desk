@@ -34,7 +34,7 @@
       "db-reset": [
         "docker-compose -f \"$AGENTDESK_COMPOSE_FILE\" down -v",
         "rm -rf .agentdesk/fake",
-        "echo 'Wiped Postgres, Temporal history and fake-provider state. Next `devbox run dev` re-runs migrations on an empty database.'"
+        "echo 'Wiped Postgres, Temporal history and fake-provider state. Next `devbox run dev` re-runs migrations and seeds admin@dev.local on an empty database.'"
       ],
       "help": [
         "echo 'dev | dev-bg | stop        start (TUI / background) or stop the local stack'",

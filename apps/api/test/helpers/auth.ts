@@ -184,3 +184,9 @@ export async function grantPlatformAdmin(
   });
   return { statusCode: res.statusCode, entry: res.json<PlatformAdminDto>() };
 }
+
+/** Revokes platform admin entry `adminId` as the session `cookie`; returns the status code. */
+export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: string): Promise<number> {
+  const res = await t.app.inject({ method: 'DELETE', url: `/api/platform/admins/${adminId}`, headers: { cookie } });
+  return res.statusCode;
+}

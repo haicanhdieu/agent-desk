@@ -1,11 +1,21 @@
 import { randomUUID } from 'node:crypto';
+import pg from 'pg';
 import type { InjectOptions } from 'fastify';
 import pino from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Page, PlatformAdminDto } from '@agentdesk/contracts';
+import { NO_INVITATION_CODE, type Page, type PlatformAdminDto } from '@agentdesk/contracts';
 import { FORBIDDEN_DETAIL } from '../src/access/authorize';
+import { startPg } from '@agentdesk/db/testing';
 import { createTestApp, type TestApp } from './helpers/app';
-import { asPlatformAdmin, createOrg, grantPlatformAdmin, inviteAndLogin, loginAs, userIdOf } from './helpers/auth';
+import {
+  asPlatformAdmin,
+  createOrg,
+  grantPlatformAdmin,
+  inviteAndLogin,
+  loginAs,
+  revokePlatformAdmin,
+  userIdOf,
+} from './helpers/auth';
 import { expectContract } from './helpers/contract';
 import { installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
 
@@ -393,5 +403,275 @@ describe('POST /api/platform/admins', () => {
     expect(res.json<{ errors: { pointer: string }[] }>().errors.map((e) => e.pointer)).toEqual(['/email']);
     expect(await entryRows('gr-seeded@dev.local')).toEqual(before);
     expect(await auditRows('gr-seeded@dev.local')).toEqual([]);
+  });
+});
+
+describe('DELETE /api/platform/admins/:adminId', () => {
+  const revokeRaw = (cookie: string, adminId: string) =>
+    t.app.inject({ method: 'DELETE', url: `/api/platform/admins/${adminId}`, headers: { cookie } });
+
+  it('BR-10: revoking another entry is 204 and it leaves the list', async () => {
+    await mkUser('rv-one');
+    const granted = await grantPlatformAdmin(t, admin, 'rv-one@dev.local');
+    const adminUserId = await userIdOf(t, 'admin');
+    const targetUserId = await userIdOf(t, 'rv-one');
+    logLines.length = 0;
+    const res = await revokeRaw(admin, granted.entry.id);
+    expect(res.statusCode).toBe(204);
+    expectContract('platform.revokeAdmin', res);
+    expect((await listAll()).items.find((i) => i.id === granted.entry.id)).toBeUndefined();
+    expect(await entryRows('rv-one@dev.local')).toEqual([]);
+
+    const revoked = (await auditRows('rv-one@dev.local')).filter((r) => r.action === 'platform_admin.revoked');
+    expect(revoked).toEqual([
+      {
+        actor_user_id: adminUserId,
+        action: 'platform_admin.revoked',
+        target_type: 'platform_admin',
+        target_id: granted.entry.id,
+        payload: { email: 'rv-one@dev.local', userId: targetUserId },
+        created_at: expect.any(String),
+      },
+    ]);
+    const line = logLines.find((l) => l['msg'] === 'platform admin revoked');
+    expect(line).toMatchObject({ actorUserId: adminUserId, adminId: granted.entry.id, targetUserId });
+    expect(JSON.stringify(line)).not.toContain('@');
+
+    expect((await revokeRaw(admin, granted.entry.id)).statusCode).toBe(404);
+    expect((await auditRows('rv-one@dev.local')).filter((r) => r.action === 'platform_admin.revoked')).toHaveLength(1);
+  });
+
+  it('a malformed adminId is 400', async () => {
+    expect((await revokeRaw(admin, 'not-a-uuid')).statusCode).toBe(400);
+  });
+
+  it("BR-11: the revoked user's same cookie gets platformAdmin false and 403 on list, grant and /api/platform/orgs", async () => {
+    const cookie = await mkUser('rv-same');
+    const granted = await grantPlatformAdmin(t, admin, 'rv-same@dev.local');
+    expect((await list(cookie)).statusCode).toBe(200);
+    expect((await revokeRaw(admin, granted.entry.id)).statusCode).toBe(204);
+    const me = await t.app.inject({ method: 'GET', url: '/api/me/access', headers: { cookie } });
+    expect(me.json<{ platformAdmin: boolean }>().platformAdmin).toBe(false);
+    expect((await list(cookie)).statusCode).toBe(403);
+    expect((await post(cookie, { email: 'rv-same@dev.local' })).statusCode).toBe(403);
+    const orgs = await t.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie } });
+    expect(orgs.statusCode).toBe(403);
+  });
+
+  it('BR-15: every non-platform caller gets 403 before any lookup on revoke, the same for a real and a random adminId', async () => {
+    const org = await createOrg(t, 'Pa Revoke Org', 'pa-revoke-org');
+    const owner = await inviteAndLogin(t, org.id, 'par-owner', 'owner', { type: 'org' });
+    const orgAdmin = await inviteAndLogin(t, org.id, 'par-admin', 'admin', { type: 'org' });
+    const connectionId = await installFake(t, owner);
+    const { projectId } = await makeProject(t, owner, connectionId);
+    const projectAdmin = await inviteAndLogin(t, org.id, 'par-padmin', 'admin', {
+      type: 'project',
+      projectIds: [projectId],
+    });
+    const member = await inviteAndLogin(t, org.id, 'par-member', 'member', { type: 'org' });
+    const viewer = await inviteAndLogin(t, org.id, 'par-viewer', 'viewer', { type: 'org' });
+    const other = await createOrg(t, 'Pa Revoke Other', 'pa-revoke-other');
+    const roles = await t.app.inject({
+      method: 'GET',
+      url: `/api/platform/orgs/${other.id}/roles`,
+      headers: { cookie: admin },
+    });
+    const roleId = roles.json<{ id: string; key: string }[]>().find((r) => r.key === 'viewer')?.id;
+    await t.app.inject({
+      method: 'POST',
+      url: `/api/platform/orgs/${other.id}/invitations`,
+      headers: { cookie: admin },
+      payload: { email: 'par-noorg@dev.local', roleId, scope: { type: 'org' } },
+    });
+    const noOrg = await loginAs(t, 'par-noorg');
+    expect(noOrg).not.toBe('');
+    await mkUser('par-target');
+    const target = await grantPlatformAdmin(t, admin, 'par-target@dev.local');
+
+    for (const cookie of [owner, orgAdmin, projectAdmin, member, viewer, noOrg]) {
+      const real = await revokeRaw(cookie, target.entry.id);
+      const random = await revokeRaw(cookie, randomUUID());
+      expect(real.statusCode).toBe(403);
+      expect(random.statusCode).toBe(403);
+      expect(real.json<{ detail: string }>().detail).toBe(FORBIDDEN_DETAIL);
+      expect(random.json<{ detail: string }>().detail).toBe(FORBIDDEN_DETAIL);
+    }
+    expect(await entryRows('par-target@dev.local')).toHaveLength(1);
+  });
+});
+
+/** A fresh database with only `admin@dev.local` seeded, for the cases that depend on the exact admin count. */
+async function withFreshApp(fn: (f: TestApp, adminCookie: string) => Promise<void>): Promise<void> {
+  const pgs = await startPg();
+  try {
+    const f = await createTestApp({ pg: pgs });
+    try {
+      await fn(f, await asPlatformAdmin(f));
+    } finally {
+      await f.close();
+    }
+  } finally {
+    await pgs.stop();
+  }
+}
+
+describe('DELETE /api/platform/admins/:adminId on a fresh database', () => {
+  const entryId = async (f: TestApp, email: string): Promise<string> => {
+    const res = await f.db.pool.query<{ id: string }>('select id from platform_admins where email = $1', [email]);
+    const id = res.rows[0]?.id;
+    if (id === undefined) throw new Error(`no entry for ${email}`);
+    return id;
+  };
+  const audit = async (f: TestApp): Promise<string[]> =>
+    (
+      await f.db.pool.query<{ action: string }>('select action from platform_audit_log order by created_at, id')
+    ).rows.map((r) => r.action);
+  const verifiedUser = async (f: TestApp, handle: string): Promise<string> => {
+    const org = (await createOrg(f, `Fresh ${handle}`, `fresh-${handle}`)).id;
+    return inviteAndLogin(f, org, handle, 'viewer', { type: 'org' });
+  };
+
+  it('BR-12: revoking the last working admin is 409 and nothing changes, no audit', async () => {
+    await withFreshApp(async (f, cookie) => {
+      const id = await entryId(f, 'admin@dev.local');
+      expect(await revokePlatformAdmin(f, cookie, id)).toBe(409);
+      expect(await entryId(f, 'admin@dev.local')).toBe(id);
+      expect(await audit(f)).toEqual([]);
+      const res = await f.app.inject({ method: 'GET', url: '/api/platform/admins', headers: { cookie } });
+      expect(res.statusCode).toBe(200);
+    });
+  });
+
+  it('BR-13: self-revoke while another working admin remains is 204, then 403', async () => {
+    await withFreshApp(async (f, cookie) => {
+      await verifiedUser(f, 'rv-other');
+      expect((await grantPlatformAdmin(f, cookie, 'rv-other@dev.local')).statusCode).toBe(201);
+      expect(await revokePlatformAdmin(f, cookie, await entryId(f, 'admin@dev.local'))).toBe(204);
+      const after = await f.app.inject({ method: 'GET', url: '/api/platform/admins', headers: { cookie } });
+      expect(after.statusCode).toBe(403);
+    });
+  });
+
+  it('BR-14: two last admins revoking each other at once give one 204 and one 409; one entry remains', async () => {
+    await withFreshApp(async (f, cookie) => {
+      const peerCookie = await verifiedUser(f, 'rv-peer');
+      expect((await grantPlatformAdmin(f, cookie, 'rv-peer@dev.local')).statusCode).toBe(201);
+      const adminEntry = await entryId(f, 'admin@dev.local');
+      const peerEntry = await entryId(f, 'rv-peer@dev.local');
+      // hold the table lock until both requests have passed the guard and wait on it, so neither is a 403 by timing
+      const holder = await f.db.pool.connect();
+      let statuses: number[];
+      try {
+        await holder.query('begin');
+        await holder.query("select pg_advisory_xact_lock(hashtext('platform_admins'))");
+        const both = Promise.all([
+          revokePlatformAdmin(f, cookie, peerEntry),
+          revokePlatformAdmin(f, peerCookie, adminEntry),
+        ]);
+        for (let i = 0; i < 200; i += 1) {
+          const waiting = await holder.query<{ n: number }>(
+            "select count(*)::int as n from pg_locks where locktype = 'advisory' and not granted",
+          );
+          if ((waiting.rows[0]?.n ?? 0) >= 2) break;
+          await new Promise((resolve) => setTimeout(resolve, 25));
+        }
+        await holder.query('commit');
+        statuses = await both;
+      } finally {
+        holder.release();
+      }
+      expect([...statuses].sort()).toEqual([204, 409]);
+      const left = await f.db.pool.query('select 1 from platform_admins');
+      expect(left.rows).toHaveLength(1);
+      expect((await audit(f)).filter((a) => a === 'platform_admin.revoked')).toHaveLength(1);
+    });
+  });
+
+  it('BR-29: a seeded email with no account is revocable (204) and never counts as the last working admin', async () => {
+    await withFreshApp(async (f, cookie) => {
+      await f.db.pool.query('insert into platform_admins (email) values ($1)', ['noacct@dev.local']);
+      expect(await revokePlatformAdmin(f, cookie, await entryId(f, 'admin@dev.local'))).toBe(409);
+      const seededId = await entryId(f, 'noacct@dev.local');
+      expect(await revokePlatformAdmin(f, cookie, seededId)).toBe(204);
+      const row = await f.db.pool.query<{ payload: unknown; target_id: string }>(
+        "select payload, target_id from platform_audit_log where action = 'platform_admin.revoked'",
+      );
+      expect(row.rows).toEqual([{ payload: { email: 'noacct@dev.local', userId: null }, target_id: seededId }]);
+    });
+  });
+
+  it('BR-30: an entry whose account was deleted', async () => {
+    await withFreshApp(async (f, cookie) => {
+      const org = (await createOrg(f, 'Orphan Org', 'orphan-org')).id;
+      const roles = await f.app.inject({ method: 'GET', url: `/api/platform/orgs/${org}/roles`, headers: { cookie } });
+      const roleId = roles.json<{ id: string; key: string }[]>().find((r) => r.key === 'viewer')?.id;
+      const inv = await f.app.inject({
+        method: 'POST',
+        url: `/api/platform/orgs/${org}/invitations`,
+        headers: { cookie },
+        payload: { email: 'orphan@dev.local', roleId, scope: { type: 'org' } },
+      });
+      expect(inv.statusCode).toBe(201);
+      expect(await loginAs(f, 'orphan')).not.toBe('');
+      const granted = await grantPlatformAdmin(f, cookie, 'orphan@dev.local');
+      expect(granted.statusCode).toBe(201);
+
+      const owner = new pg.Pool({ connectionString: f.pg.ownerUrl, max: 1 });
+      try {
+        await owner.query('delete from "user" where email = $1', ['orphan@dev.local']);
+        const listed = await f.app.inject({
+          method: 'GET',
+          url: '/api/platform/admins?pageSize=100',
+          headers: { cookie },
+        });
+        const entry = listed.json<Page<PlatformAdminDto>>().items.find((i) => i.id === granted.entry.id);
+        expect(entry).toMatchObject({ userId: null, name: null, handle: null, grantedBy: granted.entry.grantedBy });
+
+        // the orphan does not count as a working admin (N-4)
+        expect(await revokePlatformAdmin(f, cookie, await entryId(f, 'admin@dev.local'))).toBe(409);
+
+        // revoke the pending invitation so only the entry lets the email sign up
+        const removed = await f.app.inject({
+          method: 'DELETE',
+          url: `/api/platform/orgs/${org}/invitations/${inv.json<{ id: string }>().id}`,
+          headers: { cookie },
+        });
+        expect(removed.statusCode).toBe(204);
+        const again = await loginAs(f, 'orphan');
+        expect(again).not.toBe('');
+        const me = await f.app.inject({ method: 'GET', url: '/api/me/access', headers: { cookie: again } });
+        expect(me.json<{ platformAdmin: boolean }>().platformAdmin).toBe(true);
+        const orgs = await f.app.inject({ method: 'GET', url: '/api/platform/orgs', headers: { cookie: again } });
+        expect(orgs.statusCode).toBe(200);
+
+        expect(await revokePlatformAdmin(f, cookie, granted.entry.id)).toBe(204);
+        await owner.query('delete from "user" where email = $1', ['orphan@dev.local']);
+        const refused = await f.app.inject({ method: 'GET', url: '/auth/dev-login?handle=orphan' });
+        expect(refused.statusCode).toBe(302);
+        expect(refused.headers['location']).toBe(`/sign-in?error=${NO_INVITATION_CODE}`);
+        expect(refused.headers['set-cookie']).toBeUndefined();
+        const rows = await owner.query('select 1 from "user" where email = $1', ['orphan@dev.local']);
+        expect(rows.rows).toHaveLength(0);
+      } finally {
+        await owner.end();
+      }
+    });
+  });
+
+  it('an entry whose account is unverified does not count as a working admin', async () => {
+    await withFreshApp(async (f, cookie) => {
+      await verifiedUser(f, 'unv');
+      expect((await grantPlatformAdmin(f, cookie, 'unv@dev.local')).statusCode).toBe(201);
+      const owner = new pg.Pool({ connectionString: f.pg.ownerUrl, max: 1 });
+      try {
+        await owner.query('update "user" set email_verified = false where email = $1', ['unv@dev.local']);
+      } finally {
+        await owner.end();
+      }
+      const adminEntry = await entryId(f, 'admin@dev.local');
+      expect(await revokePlatformAdmin(f, cookie, adminEntry)).toBe(409);
+      expect(await entryId(f, 'admin@dev.local')).toBe(adminEntry);
+      expect((await audit(f)).filter((a) => a === 'platform_admin.revoked')).toEqual([]);
+    });
   });
 });

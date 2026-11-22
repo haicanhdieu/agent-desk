@@ -37,7 +37,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = ['platform.revokeAdmin'];
+const NOT_REGISTERED_YET: RouteKey[] = [];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -1092,7 +1092,16 @@ describe('denial table over every route, stream and terminal', () => {
     });
     expect(invite.statusCode).toBe(201);
 
+    // a seeded entry with no account: the platform admin's revoke is 204 and never touches admin@dev.local
+    await seedPlatformAdmin(t.db, 'dt-revoke@dev.local');
+    const revokeEntry = await t.db.pool.query<{ id: string }>('select id from platform_admins where email = $1', [
+      'dt-revoke@dev.local',
+    ]);
+    const revokeAdminId = revokeEntry.rows[0]?.id;
+    if (revokeAdminId === undefined) throw new Error('no dt-revoke entry');
+
     ids = {
+      adminId: revokeAdminId,
       projectId: p1,
       runId,
       ruleId: rule.json<{ id: string }>().id,

@@ -10,6 +10,7 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "typecheck": "tsc --noEmit",
     "migrate": "tsx --env-file-if-exists=../../.env src/migrate.ts",
+    "seed:dev-admin": "tsx --env-file-if-exists=../../.env src/seed-dev-admin.ts",
     "test": "vitest run",
     "start": "tsx src/main.ts",
     "lint": "eslint .",

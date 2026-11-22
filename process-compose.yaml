@@ -4,7 +4,7 @@ version: '0.5'
 # App config (ports, DB URLs, secrets) comes from .env, created from .env.example by `devbox run setup`.
 # Ports below must match .env: api PORT=3000, web 5173 (Vite), postgres 54329, temporal 7233 / UI 8233.
 #
-# Start order: postgres + temporal -> migrate (one-shot) -> api + worker; web starts at once
+# Start order: postgres + temporal -> migrate (one-shot) -> seed-dev-admin (one-shot) -> api; worker after migrate; web starts at once
 # (its Vite proxy forwards /api, /auth, /webhooks, /dev to the api when it is up).
 
 processes:
@@ -48,6 +48,18 @@ processes:
       postgres:
         condition: process_healthy
 
+  # One-shot: seeds admin@dev.local as platform admin when AUTH_DEV_LOGIN is on (idempotent).
+  seed-dev-admin:
+    command: pnpm --filter @agentdesk/api run seed:dev-admin
+    availability:
+      restart: on_failure
+      backoff_seconds: 3
+      max_restarts: 10
+      exit_on_end: false
+    depends_on:
+      migrate:
+        condition: process_completed_successfully
+
   api:
     command: pnpm --filter @agentdesk/api dev
     depends_on:
@@ -55,7 +67,7 @@ processes:
         condition: process_healthy
       temporal:
         condition: process_healthy
-      migrate:
+      seed-dev-admin:
         condition: process_completed_successfully
     readiness_probe:
       http_get:

@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Inject, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Inject, Param, Post, Query, Res } from '@nestjs/common';
 import type { FastifyReply } from 'fastify';
 import {
   routes,
@@ -14,6 +14,7 @@ import { PlatformAdminsService } from './platform-admins.service';
 
 const ListQuery = new ZodPipe(routes.platform.listAdmins.query);
 const GrantBody = new ZodPipe(routes.platform.grantAdmin.body);
+const RevokeParams = new ZodPipe(routes.platform.revokeAdmin.params);
 
 /** `/api/platform/admins`: reachable only by a platform admin (a `platform_admins` entry matching the verified session email) (SessionGuard). */
 @Controller()
@@ -38,5 +39,15 @@ export class PlatformAdminsController {
     const { entry, created } = await this.admins.grant(admin.userId, body);
     void reply.status(created ? 201 : 200);
     return entry;
+  }
+
+  /** 204; 404 for an unknown entry; 409 when no other working admin would remain. */
+  @Delete(routePath(routes.platform.revokeAdmin))
+  @HttpCode(204)
+  async revoke(
+    @CurrentPlatformAdmin() admin: PlatformAdminContext,
+    @Param(RevokeParams) params: { adminId: string },
+  ): Promise<void> {
+    await this.admins.revoke(admin.userId, params.adminId);
   }
 }

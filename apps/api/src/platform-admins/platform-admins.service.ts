@@ -1,5 +1,5 @@
-import { Inject, Injectable } from '@nestjs/common';
-import { asc, desc, eq, sql } from 'drizzle-orm';
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { and, asc, desc, eq, ne, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { platformAdmins, user, type Db, type Tx } from '@agentdesk/db';
 import {
@@ -141,6 +141,49 @@ export class PlatformAdminsService {
       );
     }
     return { entry: result.entry, created: result.created };
+  }
+
+  /**
+   * Removes entry `adminId`. One transaction under the table's advisory lock: re-read, count the working entries
+   * (a verified account with the entry's email) other than the target, refuse with 409 when none would remain,
+   * delete, audit row. A 4xx writes nothing.
+   */
+  async revoke(actorUserId: string, adminId: string): Promise<void> {
+    const result = await this.db.orm.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('platform_admins'))`);
+      const found = await tx
+        .select({ id: platformAdmins.id, email: platformAdmins.email })
+        .from(platformAdmins)
+        .where(eq(platformAdmins.id, adminId))
+        .limit(1);
+      const entry = found[0];
+      if (entry === undefined) throw new NotFoundException('Platform admin not found');
+      const [working] = await tx
+        .select({ n: sql<number>`count(*)::int` })
+        .from(platformAdmins)
+        .innerJoin(user, and(sql`lower(${user.email}) = ${platformAdmins.email}`, eq(user.emailVerified, true)))
+        .where(ne(platformAdmins.id, adminId));
+      if ((working?.n ?? 0) === 0) throw new ConflictException('Cannot revoke the last platform admin');
+      const accounts = await tx
+        .select({ id: user.id })
+        .from(user)
+        .where(sql`lower(${user.email}) = ${entry.email}`)
+        .limit(1);
+      const userId = accounts[0]?.id ?? null;
+      await tx.delete(platformAdmins).where(eq(platformAdmins.id, adminId));
+      await writePlatformAuditEntry(tx, {
+        actorUserId,
+        action: 'platform_admin.revoked',
+        targetType: 'platform_admin',
+        targetId: adminId,
+        payload: { email: entry.email, userId },
+      });
+      return { userId };
+    });
+    this.logger.info(
+      { requestId: requestContext.get()?.requestId, actorUserId, adminId, targetUserId: result.userId },
+      'platform admin revoked',
+    );
   }
 
   /** Every entry, newest grant first (ties by id). Platform-wide by design: no tenant data is touched. */
