@@ -33,14 +33,42 @@ No devbox or Docker (a runner pod)? Run `pnpm env:detect` first and follow its `
 1. **Contracts first:** API changes start in `packages/contracts`; never duplicate those types. (architecture)
 2. **Layering:** `apps → core → db → contracts`; `web → contracts` only; no app imports another app. (architecture)
 3. **Provider-agnostic names:** no `github_*` or other provider names in tables, types, modules or routes. Use generic concepts (connection, scm, ticket source); provider code goes only in adapters. (architecture)
-4. **Tenant scope:** every query goes through `withOrg` or is scoped by org/project; no unscoped repository methods. (database)
+4. **Tenant scope:** every query goes through `withOrg` or is scoped by org/project; no unscoped repository methods. See "Access control and tenant isolation" below. (database)
 5. **Secrets** never go into Postgres, logs, events, errors or commits. Reference them by name and redact run output. (security)
 6. **Ticket, comment and repo text is untrusted:** never interpolate it into shell, k8s specs or SQL. (security)
-7. **Authz on every endpoint**, including WebSocket/terminal attach. Verify webhook signatures (constant-time) before any side effect. (security)
+7. **Authz on every endpoint** (RBAC per ADR-0036, see below), including WebSocket/terminal attach. Verify webhook signatures (constant-time) before any side effect. (security)
 8. **Never edit an applied migration;** add a new one. (database)
 9. **Bug fix starts with a failing test.** No network in tests. (testing)
 10. **UI:** design tokens only; every shared component has a story; loading, empty and error states are required. (frontend)
 11. **Strict TS:** no `any`, no unexplained `!` or casts; parse `unknown` with Zod at boundaries. (typescript)
+
+## Access control and tenant isolation (mandatory)
+
+Applies to every spec, plan, implementation and test. Model: [ADR-0036](docs/adr/0036-rbac-permissions-roles-scope.md) (permission, role, scope; assignments add up; no deny). Read it before touching routes, queries, workflows, the terminal or the UI.
+
+**Design**
+
+- **MUST** state in every spec and plan, per route, query, workflow or screen: the permission (`resource:verb`, `any`/`own`), its level (org/project), and the tenant data touched.
+- **MUST** change permissions or roles only in `packages/contracts/src/access.ts` plus a new migration, with an ADR or spec update. Never grant access ad hoc in a handler.
+- **MUST NOT** add bypasses (flags, "internal" routes, UI-only gates). Hiding a button is not authorization.
+
+**Implementation**
+
+- **MUST** give every route (including SSE, WebSocket, terminal) a `routeAccess` entry and run it through `checkTenantAccess`. No entry is a bug.
+- **MUST** keep the ADR-0036 guard order: org membership, permission (403, before any id lookup), target/project scope (404), then `any`/`own` (403). Never 403 for another org's record.
+- **MUST** respect permission levels: org-level permissions never come from a project grant.
+- **MUST** use `withOrg` only, and for project data also filter by `project_id` and check project access. RLS covers orgs only.
+- **MUST** take the tenant from the session, never the request body. Carry `orgId` through workflows, activities, k8s labels and Secret names.
+- **MUST** scope lists with `visibleProjects`; never return, stream or log another tenant's or project's data or existence.
+- **MUST** use session permissions in the web app only to show/hide UI; the API is the authority.
+
+**Testing**
+
+- **MUST** test every new or changed route/query for: allowed, denied (403), out of scope (404), own vs someone else's (`own`), cross-tenant (org A vs org B), and project scope (admin on P1 gets nothing in P2).
+- **MUST** go through the real guard and `withOrg`/RLS; never mock the access check.
+- **MUST** add at least one role-based e2e case (a lower role cannot do or see it).
+- **MUST NOT** weaken, skip or delete an access/isolation test, or widen a role, to get green. A failing access test means the code is wrong; stop and ask.
+- Access/isolation changes are a **sensitive path**: `review:sensitive` and a high-effort security review.
 
 ## Workflow ([git-workflow.md](docs/conventions/git-workflow.md))
 
