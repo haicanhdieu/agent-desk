@@ -101,6 +101,26 @@ describe('runner-stack.sh up', () => {
     expect(lines()).toEqual(['--filter @agentdesk/api migrate', '--filter @agentdesk/api seed:dev-admin']);
   });
 
+  it('starts the api and worker without the pod BOT_NAME', () => {
+    const seen = (app: string): string => join(dir, `bot-name-${app}`);
+    stub(
+      'pnpm',
+      [
+        'case "$*" in',
+        `*"@agentdesk/api dev"*) echo "\${BOT_NAME-unset}" > "${seen('api')}";;`,
+        `*"@agentdesk/worker dev"*) echo "\${BOT_NAME-unset}" > "${seen('worker')}";;`,
+        'esac',
+        'exit 0',
+      ].join('\n'),
+    );
+    // api_ready only succeeds once both launched processes have recorded what they saw.
+    stub('curl', `[ -f "${seen('api')}" ] && [ -f "${seen('worker')}" ]`);
+    const r = run('runner-stack.sh', ['up'], { ...stackEnv(), RUNNER_STACK_APPS: '1', BOT_NAME: 'agent-desk-qa[bot]' });
+    expect(r.status).toBe(0);
+    expect(readFileSync(seen('api'), 'utf8').trim()).toBe('unset');
+    expect(readFileSync(seen('worker'), 'utf8').trim()).toBe('unset');
+  });
+
   it('fails with a clear message when the seed fails', () => {
     stub('pnpm', pnpmStub('seed:dev-admin'));
     const r = run('runner-stack.sh', ['up'], stackEnv());

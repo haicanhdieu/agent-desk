@@ -130,8 +130,9 @@ up() {
     return
   fi
   echo "==> api (:$api_port) and worker"
-  HOST=127.0.0.1 start_bg api pnpm --filter @agentdesk/api dev
-  start_bg worker pnpm --filter @agentdesk/worker dev
+  # The pod's own BOT_NAME (its QA identity) must not leak in: the e2e specs expect the default bot login (.env.example).
+  HOST=127.0.0.1 start_bg api env -u BOT_NAME pnpm --filter @agentdesk/api dev
+  start_bg worker env -u BOT_NAME pnpm --filter @agentdesk/worker dev
   wait_for api 120 api_ready
   echo "==> up. Logs: $logs. Next: pnpm test:e2e:local"
 }
