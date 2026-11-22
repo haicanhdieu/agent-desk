@@ -706,11 +706,11 @@ export const memberColumns: DataTableColumn[]; // Name, Role, Project roles, Act
 export function MemberRow(props: MemberRowProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `MemberRow.test.tsx`: name with the handle in muted mono; "You" tag on `you`; Role shows the role name or "No role"; Project roles text with `title`, or "—"; the menu button "Actions for <name>" lists "Change role" when `canChangeRole` and "Remove from organization" when `canRemove` (BR-9: none on the own row); no menu button when neither (BR-4 admin on an owner row); `busy` disables the menu; HTML-like names render as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/MemberRow.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the row and the stories Owner, Admin, Member, Viewer, NoRole, ProjectRoles, You, OwnerRowForOwner, OwnerRowForAdmin, LongName, Busy (no disabled story), matching `design/prototype/project/OrgMembers.dc.html`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): member row with role, project roles and row menu`.
+- [x] **Step 1: Write the failing tests** in `MemberRow.test.tsx`: name with the handle in muted mono; "You" tag on `you`; Role shows the role name or "No role"; Project roles text with `title`, or "—"; the menu button "Actions for <name>" lists "Change role" when `canChangeRole` and "Remove from organization" when `canRemove` (BR-9: none on the own row); no menu button when neither (BR-4 admin on an owner row); `busy` disables the menu; HTML-like names render as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/MemberRow.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the row and the stories Owner, Admin, Member, Viewer, NoRole, ProjectRoles, You, OwnerRowForOwner, OwnerRowForAdmin, LongName, Busy (no disabled story), matching `design/prototype/project/OrgMembers.dc.html`.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): member row with role, project roles and row menu`.
 
 ---
 

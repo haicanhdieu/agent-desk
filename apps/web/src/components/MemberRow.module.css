@@ -1,0 +1,55 @@
+.name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.nameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  min-width: 0;
+}
+.handle {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--fs-13);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}
+.handleOnly {
+  font-weight: 500;
+  color: var(--text);
+}
+.nameCell {
+  max-width: 0;
+  width: 34%;
+}
+.cell {
+  font-size: var(--fs-13);
+}
+.faint {
+  color: var(--faint);
+  font-size: var(--fs-13);
+}
+.projectCell {
+  max-width: 0;
+  width: 34%;
+}
+.ellipsis {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.actionsCell {
+  text-align: right;
+}
+.menuAction {
+  width: 100%;
+  min-width: 160px;
+  justify-content: flex-start;
+}
