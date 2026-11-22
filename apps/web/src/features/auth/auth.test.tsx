@@ -1,5 +1,5 @@
 import { createRoute } from '@tanstack/react-router';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it, vi } from 'vitest';
 import { ids } from '@/mocks/dto/ids';
@@ -224,5 +224,21 @@ describe('sign-in', () => {
   it('a signed-in user opening /sign-in goes to the landing org', async () => {
     const { router } = await renderRoute('/sign-in');
     await waitFor(() => expect(router.state.location.pathname).toBe('/o/alice/projects'));
+  });
+});
+
+describe('account menu Logout in the top bar', () => {
+  it('the avatar opens an account menu whose Logout signs out, clears the cache and lands on /sign-in', async () => {
+    const { router, queryClient, user } = await renderRoute('/o/alice/projects');
+    await screen.findByText('invoicer-api');
+    expect(queryClient.getQueryData(sessionQuery.queryKey)).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: /^Account menu/ }));
+    await user.click(within(screen.getByRole('dialog', { name: 'Account' })).getByRole('menuitem', { name: 'Logout' }));
+
+    await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'));
+    expect(router.state.location.href).toBe('/sign-in');
+    expect(mockDb.requests('POST', '/auth/sign-out')).toBe(1);
+    expect(queryClient.getQueryData(sessionQuery.queryKey)).toBeFalsy();
   });
 });

@@ -1,9 +1,11 @@
 import { render, screen, within } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import userEvent from '@testing-library/user-event';
+import { describe, expect, it, vi } from 'vitest';
 import { Brand } from './Brand';
 import { Breadcrumb } from './Breadcrumb';
 import { ProjectMenu } from './ProjectSwitch';
 import { SubNav } from './SubNav';
+import { SignOutProvider } from './AccountMenu';
 import { TopBar } from './TopBar';
 import { orgSwitchFixtures } from '@/mocks';
 
@@ -213,5 +215,59 @@ describe('ProjectMenu', () => {
     );
     expect(screen.getByText('webhooks').closest('.inline-status')).toHaveClass('idle');
     expect(screen.getByText('polling').closest('.inline-status')).toHaveClass('err');
+  });
+});
+
+describe('TopBar account menu', () => {
+  const breadcrumb = [{ label: 'invoicer-api', href: '/p' }, { label: 'Run 61' }];
+  const variants = {
+    global: <TopBar variant="global" user={user} />,
+    project: <TopBar variant="project" user={user} project={project} active="runs" />,
+    run: <TopBar variant="run" user={user} breadcrumb={breadcrumb} />,
+  } as const;
+  const setup = (variant: keyof typeof variants) => {
+    const onSignOut = vi.fn();
+    const events = userEvent.setup();
+    render(<SignOutProvider onSignOut={onSignOut}>{variants[variant]}</SignOutProvider>);
+    return { onSignOut, events };
+  };
+  const trigger = () => screen.getByRole('button', { name: 'Account menu for kim-hale' });
+  const menu = () => screen.queryByRole('dialog', { name: 'Account' });
+
+  it.each(Object.keys(variants) as (keyof typeof variants)[])(
+    'the %s avatar is a button that opens a menu with Logout, and Logout signs out and closes it',
+    async (variant) => {
+      const { onSignOut, events } = setup(variant);
+      expect(trigger()).toHaveAttribute('aria-haspopup', 'dialog');
+      expect(trigger()).toHaveAttribute('aria-expanded', 'false');
+      expect(menu()).toBeNull();
+      await events.click(trigger());
+      expect(trigger()).toHaveAttribute('aria-expanded', 'true');
+      await events.click(
+        within(screen.getByRole('dialog', { name: 'Account' })).getByRole('menuitem', { name: 'Logout' }),
+      );
+      expect(onSignOut).toHaveBeenCalledTimes(1);
+      expect(menu()).toBeNull();
+    },
+  );
+
+  it('opens from the keyboard, closes on Escape with focus back on the avatar, and closes on an outside press', async () => {
+    const { onSignOut, events } = setup('global');
+    trigger().focus();
+    await events.keyboard('{Enter}');
+    expect(menu()).toBeInTheDocument();
+    await events.keyboard('{Escape}');
+    expect(menu()).toBeNull();
+    expect(trigger()).toHaveFocus();
+    await events.click(trigger());
+    await events.click(document.body);
+    expect(menu()).toBeNull();
+    expect(onSignOut).not.toHaveBeenCalled();
+  });
+
+  it('keeps the avatar static when nothing can sign the user out (no provider)', () => {
+    render(<TopBar variant="global" user={user} />);
+    expect(screen.queryByRole('button', { name: /^Account menu/ })).toBeNull();
+    expect(screen.getByTitle('kim-hale')).toHaveTextContent('KH');
   });
 });
