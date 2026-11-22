@@ -102,18 +102,37 @@ Surface: <UI | API | CLI | webhook | …> (<why it is the outermost surface the 
 
 ## Architecture section
 
-```markdown
+````markdown
 ## Architecture
 
 Confirmed by the human at planning time.
 
 ### Overview
 
+```mermaid
+flowchart LR
+    <PART_A>["<part> (<package/app>)"] -->|"<what flows>"| <PART_B>
+```
+
 <the parts and the flow between them, by layer; where each piece lives (packages/contracts, packages/db, packages/core, apps/api, apps/worker, apps/web, runner)>
 
 ### Data model
 
-<each new or changed table, column, index and RLS policy, with its type and tenant scope, and the new migration that adds it>
+Migration: <the new migration that adds these changes | "No schema change.">
+
+```mermaid
+erDiagram
+    <ENTITY_A> ||--o{ <ENTITY_B> : "<relationship>"
+```
+
+#### <entity / table name> (<new | changed>; scope: <org | project>)
+
+| Field | Type | Null | Default | Key / index | Change | Notes |
+| ----- | ---- | ---- | ------- | ----------- | ------ | ----- |
+
+RLS: <policy and tenant scope | "unchanged">
+
+<one `####` block per new or changed entity>
 
 ### API
 
@@ -132,10 +151,23 @@ Confirmed by the human at planning time.
 | Service | New or existing | How it is used |
 | ------- | --------------- | -------------- |
 
+### Configuration
+
+| Name | Kind | Added or changed | Where it is set | Default | Used by | Purpose |
+| ---- | ---- | ---------------- | --------------- | ------- | ------- | ------- |
+
+<or "No config change.">
+
 ### Other decisions
 
-<events, workflows, config and env, secrets by name, sensitive paths touched, ADR needed>
-```
+<events, workflows, sensitive paths touched, ADR needed>
+````
+
+Overview: the Mermaid `flowchart` is high level: each part the change touches (web, api, worker, runner, Postgres, Temporal, Kubernetes, external services), grouped by layer with `subgraph` when it helps, and the calls or data flows between them as labelled arrows. Mark new or changed parts distinctly (e.g. `classDef new`, `classDef changed`). Keep it to the parts this change involves; detail stays in the text below it.
+
+Data model: the Mermaid `erDiagram` is high level: each new or changed entity, the existing entities it relates to, and the relationships with their cardinality; field lists stay in the tables. Mark new entities in the relationship label or a `%%` comment. `Change` is `added`, `changed` (say from what) or `removed`; list only new, changed or removed fields of an existing table, and every field of a new one.
+
+Configuration: `Kind` is `env var`, `setting`, `feature flag` (only a mechanism the repo already has) or `secret`. A secret is listed by name only, never its value (rule 5), with `Where it is set` naming the SecretStore entry or k8s Secret. `Where it is set` names the file or system (`.env.example`, Helm values, devbox, `packages/core` config schema, …).
 
 `Approval` is `existing`, or `approved by the human` / `refused` as recorded in `answers.md`. A new library is also listed under `## Needs approval`.
 
