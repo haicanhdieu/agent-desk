@@ -55,7 +55,7 @@ const ready = () => screen.findByRole('heading', { level: 1, name: 'Invitations'
 
 describe('org invitations page: filter and paging', () => {
   it('BR-30 defaults to Pending with no status in the URL, paged', async () => {
-    const { router, user } = await open('/o/acme/invitations', 'invitationsPaged');
+    const { router, user } = await open('/o/acme/settings/invitations', 'invitationsPaged');
     await ready();
     expect(router.state.location.search).toEqual({});
     expect(chip('Pending')).toHaveAttribute('aria-pressed', 'true');
@@ -82,14 +82,14 @@ describe('org invitations page: filter and paging', () => {
   });
 
   it('BR-30 a bad ?status= falls back to Pending', async () => {
-    await open('/o/acme/invitations?status=bogus', 'owner');
+    await open('/o/acme/settings/invitations?status=bogus', 'owner');
     await ready();
     expect(chip('Pending')).toHaveAttribute('aria-pressed', 'true');
     expect(emails().sort()).toEqual(['b@x.dev', 'n@x.dev', 'p@x.dev', 'q@x.dev']);
   });
 
   it('BR-47 a chip updates ?status=, the rows and the page count, and returns to page 1', async () => {
-    const { router, user } = await open('/o/acme/invitations?page=2', 'invitationsPaged');
+    const { router, user } = await open('/o/acme/settings/invitations?page=2', 'invitationsPaged');
     await ready();
     await waitFor(() => expect(emails()).toHaveLength(5));
     await user.click(chip('Accepted'));
@@ -108,7 +108,7 @@ describe('org invitations page: filter and paging', () => {
   });
 
   it('shows the empty state of a status with no rows', async () => {
-    const { user } = await open('/o/acme/invitations', 'invitationChanged');
+    const { user } = await open('/o/acme/settings/invitations', 'invitationChanged');
     await ready();
     await user.click(chip('Declined'));
     expect(await screen.findByRole('heading', { name: 'No declined invitations' })).toBeInTheDocument();
@@ -117,7 +117,7 @@ describe('org invitations page: filter and paging', () => {
   });
 
   it('shows the error state with Retry when the list fails, then the rows', async () => {
-    const { user } = await renderRoute('/o/acme/invitations', {
+    const { user } = await renderRoute('/o/acme/settings/invitations', {
       scenario: () => {
         scenarios.onboarding('owner');
         scenarios.serverError('invitations.list');
@@ -135,7 +135,7 @@ describe('org invitations page: filter and paging', () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    await renderRoute('/o/acme/invitations', {
+    await renderRoute('/o/acme/settings/invitations', {
       scenario: () => {
         scenarios.onboarding('owner');
         server.use(
@@ -154,7 +154,7 @@ describe('org invitations page: filter and paging', () => {
 
 describe('org invitations page: empty states (BR-47)', () => {
   it('TC-47.3 and TC-47.4 a status with no rows shows its empty state', async () => {
-    const { user } = await open('/o/acme/invitations', 'invitationChanged');
+    const { user } = await open('/o/acme/settings/invitations', 'invitationChanged');
     await ready();
     await user.click(chip('Expired'));
     expect(await screen.findByRole('heading', { name: 'No expired invitations' })).toBeInTheDocument();
@@ -166,7 +166,7 @@ describe('org invitations page: empty states (BR-47)', () => {
   });
 
   it('TC-47.4 All with no invitations at all shows "No invitations yet"', async () => {
-    const { user } = await renderRoute('/o/acme/invitations', {
+    const { user } = await renderRoute('/o/acme/settings/invitations', {
       scenario: () => {
         scenarios.onboarding('owner');
         mockDb.state.invitations = [];
@@ -183,11 +183,13 @@ describe('org invitations page: access (BR-20)', () => {
   it.each(['member', 'viewer'] as const)('a %s sees the no-access state and nothing is fetched', async (scenario) => {
     const listed: string[] = [];
     const listener = ({ request }: { request: Request }) => {
-      if (new URL(request.url).pathname.endsWith('/invitations')) listed.push(request.url);
+      // The org's list only: the app bar reads the person's own invitations (/api/me/invitations) for its count.
+      const { pathname } = new URL(request.url);
+      if (pathname.startsWith('/api/orgs/') && pathname.endsWith('/invitations')) listed.push(request.url);
     };
     server.events.on('request:start', listener);
     try {
-      await open('/o/acme/invitations', scenario);
+      await open('/o/acme/settings/invitations', scenario);
       expect(await screen.findByRole('heading', { name: "You don't have access" })).toBeInTheDocument();
       expect(screen.queryByRole('row')).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Invite people' })).not.toBeInTheDocument();
@@ -201,7 +203,7 @@ describe('org invitations page: access (BR-20)', () => {
 describe('org invitations page: copy link (BR-33)', () => {
   it('copies <origin>/invitations/<id> and says "Link copied"', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    const { user } = await open('/o/acme/invitations', 'owner');
+    const { user } = await open('/o/acme/settings/invitations', 'owner');
     await ready();
     // user-event installs its own clipboard on setup: stub after it.
     stubClipboard(writeText);
@@ -213,7 +215,7 @@ describe('org invitations page: copy link (BR-33)', () => {
   });
 
   it('a refused clipboard shows the failure toast and a popover with the link, again after a dismissal', async () => {
-    const { user } = await open('/o/acme/invitations', 'owner');
+    const { user } = await open('/o/acme/settings/invitations', 'owner');
     await ready();
     stubClipboard(() => Promise.reject(new Error('denied')));
     await menu(user, 'p@x.dev', 'Copy link');
@@ -231,7 +233,7 @@ describe('org invitations page: copy link (BR-33)', () => {
 
 describe('org invitations page: resend (BR-18, BR-19, BR-49, BR-50)', () => {
   it('BR-18 renews a pending row and says when it now expires', async () => {
-    const { user } = await open('/o/acme/invitations', 'owner');
+    const { user } = await open('/o/acme/settings/invitations', 'owner');
     await ready();
     const before = invitationRow('p@x.dev').expiresAt;
     await menu(user, 'p@x.dev', 'Resend');
@@ -249,7 +251,7 @@ describe('org invitations page: resend (BR-18, BR-19, BR-49, BR-50)', () => {
 
   it('TC-18.2 Copy link after a resend yields the same link as before', async () => {
     const writeText = vi.fn().mockResolvedValue(undefined);
-    const { user } = await open('/o/acme/invitations', 'owner');
+    const { user } = await open('/o/acme/settings/invitations', 'owner');
     await ready();
     stubClipboard(writeText);
     await menu(user, 'p@x.dev', 'Copy link');
@@ -264,7 +266,7 @@ describe('org invitations page: resend (BR-18, BR-19, BR-49, BR-50)', () => {
   });
 
   it('BR-49 an expired row becomes pending with an expiry 2 days out', async () => {
-    const { user } = await open('/o/acme/invitations?status=all', 'invitationsExpiry');
+    const { user } = await open('/o/acme/settings/invitations?status=all', 'invitationsExpiry');
     await ready();
     expect(within(rowOf('expired-5d@x.dev')).getByText('Expired')).toBeInTheDocument();
     await menu(user, 'expired-5d@x.dev', 'Resend');
@@ -278,7 +280,7 @@ describe('org invitations page: resend (BR-18, BR-19, BR-49, BR-50)', () => {
   });
 
   it('BR-19 a row that changed meanwhile: error toast, refetch, the row shows its new status', async () => {
-    const { user } = await open('/o/acme/invitations?status=all', 'invitationChanged');
+    const { user } = await open('/o/acme/settings/invitations?status=all', 'invitationChanged');
     await ready();
     expect(within(rowOf('p@x.dev')).getByText('Pending')).toBeInTheDocument();
     await menu(user, 'p@x.dev', 'Resend');
@@ -291,7 +293,7 @@ describe('org invitations page: resend (BR-18, BR-19, BR-49, BR-50)', () => {
   });
 
   it('BR-19 shows the same toast when the API puts the sentence in the detail (title "Conflict")', async () => {
-    const { user } = await renderRoute('/o/acme/invitations', {
+    const { user } = await renderRoute('/o/acme/settings/invitations', {
       scenario: () => {
         scenarios.onboarding('owner');
         scenarios.problem('invitations.resend', {
@@ -309,7 +311,7 @@ describe('org invitations page: resend (BR-18, BR-19, BR-49, BR-50)', () => {
   });
 
   it('BR-50 an expired row whose email has a newer pending one: "already invited", the list is unchanged', async () => {
-    const { user } = await open('/o/acme/invitations?status=expired', 'invitationsExpiry');
+    const { user } = await open('/o/acme/settings/invitations?status=expired', 'invitationsExpiry');
     await ready();
     const expired = mockDb.state.invitations.find((i) => i.email === 'again@x.dev' && i.status === 'expired');
     const pending = mockDb.state.invitations.find((i) => i.email === 'again@x.dev' && i.status === 'pending');
@@ -324,7 +326,7 @@ describe('org invitations page: resend (BR-18, BR-19, BR-49, BR-50)', () => {
 
 describe('org invitations page: revoke (BR-19, BR-32)', () => {
   it('BR-32 confirms, revokes, says "Invitation revoked" and the row shows Revoked', async () => {
-    const { user } = await open('/o/acme/invitations?status=all', 'owner');
+    const { user } = await open('/o/acme/settings/invitations?status=all', 'owner');
     await ready();
     await menu(user, 'p@x.dev', 'Revoke');
     const dialog = await screen.findByRole('dialog', { name: 'Revoke invitation for p@x.dev?' });
@@ -337,7 +339,7 @@ describe('org invitations page: revoke (BR-19, BR-32)', () => {
   });
 
   it('BR-32 Cancel keeps the row pending and sends nothing', async () => {
-    const { user } = await open('/o/acme/invitations', 'owner');
+    const { user } = await open('/o/acme/settings/invitations', 'owner');
     await ready();
     await menu(user, 'p@x.dev', 'Revoke');
     const dialog = await screen.findByRole('dialog');
@@ -352,7 +354,7 @@ describe('org invitations page: revoke (BR-19, BR-32)', () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const { user } = await open('/o/acme/invitations', 'owner');
+    const { user } = await open('/o/acme/settings/invitations', 'owner');
     await ready();
     server.use(
       http.delete('*/api/orgs/:orgId/invitations/:invitationId', async () => {
@@ -378,7 +380,7 @@ describe('org invitations page: revoke (BR-19, BR-32)', () => {
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const { user } = await open('/o/acme/invitations', 'owner');
+    const { user } = await open('/o/acme/settings/invitations', 'owner');
     await ready();
     server.use(
       http.post('*/api/orgs/:orgId/invitations/:invitationId/resend', async () => {
@@ -399,7 +401,7 @@ describe('org invitations page: revoke (BR-19, BR-32)', () => {
   });
 
   it('BR-19 a row that changed meanwhile: error toast, dialog closed, refetch shows the new status', async () => {
-    const { user } = await open('/o/acme/invitations?status=all', 'invitationChanged');
+    const { user } = await open('/o/acme/settings/invitations?status=all', 'invitationChanged');
     await ready();
     await menu(user, 'p@x.dev', 'Revoke');
     const dialog = await screen.findByRole('dialog');
@@ -415,7 +417,7 @@ describe('org invitations page: revoke (BR-19, BR-32)', () => {
   });
 
   it('BR-19 final rows offer neither Resend nor Revoke; an expired row offers Resend only', async () => {
-    const { user } = await open('/o/acme/invitations?status=all', 'owner');
+    const { user } = await open('/o/acme/settings/invitations?status=all', 'owner');
     await ready();
     for (const email of ['a@x.dev', 'd@x.dev', 'r@x.dev']) {
       expect(screen.getByRole('button', { name: `Actions for ${email}` })).toBeDisabled();
@@ -430,7 +432,7 @@ describe('org invitations page: columns (BR-51, BR-52)', () => {
   it('BR-51 relative labels with the exact date on hover, exact date past 3 days', async () => {
     // The expiry rows are placed relative to the mock clock.
     vi.setSystemTime(new Date(INVITATIONS_MOCK_NOW));
-    await open('/o/acme/invitations?status=all', 'invitationsExpiry');
+    await open('/o/acme/settings/invitations?status=all', 'invitationsExpiry');
     await ready();
     const cell = (email: string) => within(rowOf(email)).getAllByRole('cell')[4] as HTMLElement;
     const time = (email: string) => {
@@ -459,7 +461,7 @@ describe('org invitations page: columns (BR-51, BR-52)', () => {
   });
 
   it('BR-52 shows the inviter name as given and a dash when the inviter is gone', async () => {
-    await open('/o/acme/invitations', 'owner');
+    await open('/o/acme/settings/invitations', 'owner');
     await ready();
     const by = (email: string) => within(rowOf(email)).getAllByRole('cell')[5]?.textContent;
     expect(by('p@x.dev')).toBe('Ada Lovelace');

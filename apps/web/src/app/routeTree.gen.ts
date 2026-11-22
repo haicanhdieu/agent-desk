@@ -18,8 +18,11 @@ import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OrgsNewRouteImport } from './routes/orgs.new';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgInvitationsRouteImport } from './routes/o.$org.invitations';
+import { Route as OOrgSettingsRouteImport } from './routes/o.$org.settings';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
+import { Route as OOrgSettingsIndexRouteImport } from './routes/o.$org.settings.index';
+import { Route as OOrgSettingsInvitationsRouteImport } from './routes/o.$org.settings.invitations';
 import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
 import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
 import { Route as OOrgPProjectDeskAgentRouteImport } from './routes/o.$org.p.$project.desk.agent';
@@ -74,6 +77,11 @@ const OOrgInvitationsRoute = OOrgInvitationsRouteImport.update({
   path: '/invitations',
   getParentRoute: () => OOrgRoute,
 } as any);
+const OOrgSettingsRoute = OOrgSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => OOrgRoute,
+} as any);
 const OOrgPProjectRoute = OOrgPProjectRouteImport.update({
   id: '/p/$project',
   path: '/p/$project',
@@ -83,6 +91,16 @@ const OOrgProjectsIndexRoute = OOrgProjectsIndexRouteImport.update({
   id: '/projects/',
   path: '/projects/',
   getParentRoute: () => OOrgRoute,
+} as any);
+const OOrgSettingsIndexRoute = OOrgSettingsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => OOrgSettingsRoute,
+} as any);
+const OOrgSettingsInvitationsRoute = OOrgSettingsInvitationsRouteImport.update({
+  id: '/invitations',
+  path: '/invitations',
+  getParentRoute: () => OOrgSettingsRoute,
 } as any);
 const OOrgPProjectNeedsYouRoute = OOrgPProjectNeedsYouRouteImport.update({
   id: '/needs-you',
@@ -134,9 +152,12 @@ export interface FileRoutesByFullPath {
   '/orgs/new': typeof OrgsNewRoute;
   '/invitations/': typeof InvitationsIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
+  '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
+  '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
+  '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -156,7 +177,9 @@ export interface FileRoutesByTo {
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
+  '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
+  '/o/$org/settings': typeof OOrgSettingsIndexRoute;
   '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -176,9 +199,12 @@ export interface FileRoutesById {
   '/orgs/new': typeof OrgsNewRoute;
   '/invitations/': typeof InvitationsIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
+  '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
+  '/o/$org/settings/invitations': typeof OOrgSettingsInvitationsRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
+  '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
   '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -199,9 +225,12 @@ export interface FileRouteTypes {
     | '/orgs/new'
     | '/invitations/'
     | '/o/$org/invitations'
+    | '/o/$org/settings'
     | '/o/$org/'
     | '/o/$org/p/$project'
+    | '/o/$org/settings/invitations'
     | '/o/$org/projects/'
+    | '/o/$org/settings/'
     | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
@@ -221,7 +250,9 @@ export interface FileRouteTypes {
     | '/o/$org/invitations'
     | '/o/$org'
     | '/o/$org/p/$project'
+    | '/o/$org/settings/invitations'
     | '/o/$org/projects'
+    | '/o/$org/settings'
     | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
@@ -240,9 +271,12 @@ export interface FileRouteTypes {
     | '/orgs/new'
     | '/invitations/'
     | '/o/$org/invitations'
+    | '/o/$org/settings'
     | '/o/$org/'
     | '/o/$org/p/$project'
+    | '/o/$org/settings/invitations'
     | '/o/$org/projects/'
+    | '/o/$org/settings/'
     | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
@@ -328,6 +362,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OOrgInvitationsRouteImport;
       parentRoute: typeof OOrgRoute;
     };
+    '/o/$org/settings': {
+      id: '/o/$org/settings';
+      path: '/settings';
+      fullPath: '/o/$org/settings';
+      preLoaderRoute: typeof OOrgSettingsRouteImport;
+      parentRoute: typeof OOrgRoute;
+    };
     '/o/$org/p/$project': {
       id: '/o/$org/p/$project';
       path: '/p/$project';
@@ -341,6 +382,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/o/$org/projects/';
       preLoaderRoute: typeof OOrgProjectsIndexRouteImport;
       parentRoute: typeof OOrgRoute;
+    };
+    '/o/$org/settings/': {
+      id: '/o/$org/settings/';
+      path: '/';
+      fullPath: '/o/$org/settings/';
+      preLoaderRoute: typeof OOrgSettingsIndexRouteImport;
+      parentRoute: typeof OOrgSettingsRoute;
+    };
+    '/o/$org/settings/invitations': {
+      id: '/o/$org/settings/invitations';
+      path: '/invitations';
+      fullPath: '/o/$org/settings/invitations';
+      preLoaderRoute: typeof OOrgSettingsInvitationsRouteImport;
+      parentRoute: typeof OOrgSettingsRoute;
     };
     '/o/$org/p/$project/needs-you': {
       id: '/o/$org/p/$project/needs-you';
@@ -401,6 +456,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface OOrgSettingsRouteChildren {
+  OOrgSettingsInvitationsRoute: typeof OOrgSettingsInvitationsRoute;
+  OOrgSettingsIndexRoute: typeof OOrgSettingsIndexRoute;
+}
+
+const OOrgSettingsRouteChildren: OOrgSettingsRouteChildren = {
+  OOrgSettingsInvitationsRoute: OOrgSettingsInvitationsRoute,
+  OOrgSettingsIndexRoute: OOrgSettingsIndexRoute,
+};
+
+const OOrgSettingsRouteWithChildren = OOrgSettingsRoute._addFileChildren(
+  OOrgSettingsRouteChildren,
+);
+
 interface OOrgPProjectRouteChildren {
   OOrgPProjectNeedsYouRoute: typeof OOrgPProjectNeedsYouRoute;
   OOrgPProjectDeskAgentRoute: typeof OOrgPProjectDeskAgentRoute;
@@ -427,6 +496,7 @@ const OOrgPProjectRouteWithChildren = OOrgPProjectRoute._addFileChildren(
 
 interface OOrgRouteChildren {
   OOrgInvitationsRoute: typeof OOrgInvitationsRoute;
+  OOrgSettingsRoute: typeof OOrgSettingsRouteWithChildren;
   OOrgIndexRoute: typeof OOrgIndexRoute;
   OOrgPProjectRoute: typeof OOrgPProjectRouteWithChildren;
   OOrgProjectsIndexRoute: typeof OOrgProjectsIndexRoute;
@@ -435,6 +505,7 @@ interface OOrgRouteChildren {
 
 const OOrgRouteChildren: OOrgRouteChildren = {
   OOrgInvitationsRoute: OOrgInvitationsRoute,
+  OOrgSettingsRoute: OOrgSettingsRouteWithChildren,
   OOrgIndexRoute: OOrgIndexRoute,
   OOrgPProjectRoute: OOrgPProjectRouteWithChildren,
   OOrgProjectsIndexRoute: OOrgProjectsIndexRoute,

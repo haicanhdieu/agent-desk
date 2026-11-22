@@ -30,7 +30,9 @@ const pending = (email: string) => mockDb.state.invitations.find((i) => i.email 
 type Rendered = Awaited<ReturnType<typeof renderRoute>>;
 
 const open = async (scenario: Parameters<typeof scenarios.onboarding>[0]): Promise<Rendered> => {
-  const rendered = await renderRoute('/o/acme/invitations', { scenario: () => scenarios.onboarding(scenario) });
+  const rendered = await renderRoute('/o/acme/settings/invitations', {
+    scenario: () => scenarios.onboarding(scenario),
+  });
   await screen.findByRole('heading', { level: 1, name: 'Invitations' });
   return rendered;
 };

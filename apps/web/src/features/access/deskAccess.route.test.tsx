@@ -27,6 +27,7 @@ const track = () => {
 afterEach(() => server.events.removeListener('request:start', listener));
 
 const DESK_DATA = /\/(agent|skills|rules|setup-script|plugins|setup-tests)(\/|$)|\/agents\/|\/rules\/|\/setup-tests\//;
+const ORG_INVITATIONS = /^\/api\/orgs\/[^/]+\/invitations(\/|$)/;
 const deskCalls = () => seen.filter((p) => DESK_DATA.test(p));
 
 const open = (path: string, scenario: Parameters<typeof scenarios.onboarding>[0]) => {
@@ -50,7 +51,8 @@ describe.each(['member', 'viewer'] as const)('a %s', (role) => {
   it('sees Forbidden on the org invitations page and no invitations are requested', async () => {
     await open('/o/acme/invitations', role);
     expect(await screen.findByRole('heading', FORBIDDEN)).toBeInTheDocument();
-    expect(seen.filter((p) => p.endsWith('/invitations'))).toEqual([]);
+    // The app bar's own /api/me/invitations (the caller's pending count) is allowed; the ORG's list is not.
+    expect(seen.filter((p) => ORG_INVITATIONS.test(p))).toEqual([]);
   });
 
   it('has no Desk tab on the runs page and no Desk data is requested there', async () => {

@@ -19,7 +19,7 @@ test.describe.configure({ timeout: 60_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-US' });
 
 const ORG_SLUG = 'acme';
-const INVITATIONS = `/o/${ORG_SLUG}/invitations`;
+const INVITATIONS = `/o/${ORG_SLUG}/settings/invitations`;
 const NOW = new Date(INVITATIONS_MOCK_NOW);
 const OWN_EMAIL = 'alice@example.com';
 
@@ -203,7 +203,7 @@ test.describe('BR-52: an invitation whose inviter was deleted names no inviter',
   }) => {
     // The one invitation whose inviter is gone: the owner's own email, pending, expiring 23 Nov, 17:05, in Alice (the
     // other org the owner administers). Its Invitations page lists it under Pending.
-    await open(page, '/o/alice/invitations');
+    await open(page, '/o/alice/settings/invitations');
     await loaded(page);
     const noInviter = rowByExpiry(page, OWN_EMAIL, NO_INVITER_EXPIRES);
     await expect(noInviter).toHaveCount(1);

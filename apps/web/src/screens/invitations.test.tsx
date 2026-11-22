@@ -259,15 +259,7 @@ describe('InvitationAccept', () => {
   });
 });
 
-const orgProps = {
-  ...orgSwitchFixtures.oneOrg,
-  orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
-};
-
 const listProps = (over: Partial<OrgInvitationsProps> = {}): OrgInvitationsProps => ({
-  user,
-  org: orgProps,
   filter: 'pending',
   onFilterChange: vi.fn(),
   state: { kind: 'ready', rows: orgInvitationRows, busyRowId: null },
@@ -826,17 +818,10 @@ describe('CreateOrg', () => {
   });
 });
 
-/** The props the settings route passes: the layout draws the bar, so no `user` and no `org`. */
-const bare = (over: Partial<OrgInvitationsProps>): OrgInvitationsProps => {
-  const p = listProps(over);
-  delete p.user;
-  delete p.org;
-  return p;
-};
-
+/** OrgInvitations renders the page body only: the settings layout draws the bar. */
 describe('OrgInvitations inside the settings layout', () => {
-  it('without user and org it renders no top bar and keeps its table and the revoke dialog', () => {
-    const rest = bare({
+  it('it renders no top bar of its own and keeps its table and the revoke dialog', () => {
+    const rest = listProps({
       revokeConfirm: { email: 'x@example.com', onConfirm: vi.fn(), onCancel: vi.fn() },
     });
     render(<OrgInvitations {...rest} />);
@@ -846,8 +831,8 @@ describe('OrgInvitations inside the settings layout', () => {
     expect(screen.getByRole('dialog', { name: 'Revoke invitation for x@example.com?' })).toBeInTheDocument();
   });
 
-  it('without user and org the forbidden state renders no top bar either', () => {
-    const rest = bare({ state: { kind: 'forbidden' } });
+  it('the forbidden state renders no top bar either', () => {
+    const rest = listProps({ state: { kind: 'forbidden' } });
     render(<OrgInvitations {...rest} />);
     expect(screen.queryByRole('banner')).not.toBeInTheDocument();
     expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
