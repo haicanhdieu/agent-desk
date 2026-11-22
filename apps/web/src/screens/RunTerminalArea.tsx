@@ -23,8 +23,9 @@ export interface RunTerminalAreaProps {
   terminal?: ReactNode;
   /** A cancel, finish or resume is in flight: Finish, Resume and Reopen session wait. */
   busy?: boolean;
+  /** Finish buttons show only with this handler (the viewer holds run:update on this run). */
   onFinish?(): void;
-  /** Resume a paused run, or re-open a succeeded run whose session is kept. */
+  /** Resume a paused run, or re-open a succeeded run whose session is kept. Resume and Reopen show only with it. */
   onResume?(): void;
   onReconnect?(): void;
   /** Shows the "Connection to the terminal lost" overlay (`false` suppresses it); defaults to the connection reconnecting (the board). */
@@ -125,12 +126,16 @@ function PausedNotice({
         title={data.session?.headline ?? 'Paused: can be resumed'}
         actions={
           <>
-            <Button variant="go" icon="play" disabled={busy} onClick={onResume}>
-              Resume
-            </Button>
-            <Button icon="check" disabled={busy} onClick={onFinish}>
-              Finish
-            </Button>
+            {onResume && (
+              <Button variant="go" icon="play" disabled={busy} onClick={onResume}>
+                Resume
+              </Button>
+            )}
+            {onFinish && (
+              <Button icon="check" disabled={busy} onClick={onFinish}>
+                Finish
+              </Button>
+            )}
           </>
         }
       >
@@ -205,7 +210,7 @@ function EndNotice({ data, busy, onResume }: { data: RunDetailData; busy?: boole
                 {a.label}
               </Button>
             ))}
-            {succeeded && (
+            {onResume && (
               <Button
                 variant="go"
                 size="sm"
@@ -373,9 +378,11 @@ export function RunTerminalArea({
       icon={<StatusIcon status="done" size={20} title="Done" />}
       title="The agent says the task is done"
       actions={
-        <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
-          Finish run
-        </Button>
+        onFinish && (
+          <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
+            Finish run
+          </Button>
+        )
       }
     >
       {note && <div>{note}</div>}
@@ -389,9 +396,11 @@ export function RunTerminalArea({
       icon={<StatusIcon status="idle" size={20} title="Needs you" />}
       title="The agent is waiting for your answer"
       actions={
-        <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
-          Finish run
-        </Button>
+        onFinish && (
+          <Button variant="go" icon="check" disabled={busy} onClick={onFinish}>
+            Finish run
+          </Button>
+        )
       }
     >
       {note && <div>{note}</div>}

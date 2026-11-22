@@ -12,6 +12,7 @@ import {
   usePaginationProps,
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
+import { requirePermission } from '@/features/access/guards';
 import { useDeskFrame } from '@/features/desk/frame';
 import {
   isStaleSetupScript,
@@ -27,6 +28,9 @@ import { DeskSetup, type DeskFrameData } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/setup')({
   validateSearch: (search) => PageSearch.parse(search),
+  // Desk config is for roles that hold `setup:read` on this project; the guard runs before any loader.
+  beforeLoad: ({ context: { queryClient }, params }) =>
+    requirePermission(queryClient, params.org, 'setup:read', { projectId: params.project }),
   component: DeskSetupPage,
 });
 

@@ -14,6 +14,7 @@ import {
   useSaveLimits,
 } from '@/features/desk/agent.form';
 import { checkNowMessage, failedPollMessage } from '@/features/desk/checkNow';
+import { requirePermission } from '@/features/access/guards';
 import { useDeskFrame } from '@/features/desk/frame';
 import { forgetProject, useCheckNow, useDeleteProject, useSaveTrigger } from '@/features/desk/mutations';
 import { deskQueries } from '@/features/desk/queries';
@@ -25,6 +26,9 @@ import type { PollInterval, TriggerMode } from '@/mocks/types';
 import { DeskAgent } from '@/screens';
 
 export const Route = createFileRoute('/o/$org/p/$project/desk/agent')({
+  // Desk config is for roles that hold `agent:read` on this project; the guard runs before any loader.
+  beforeLoad: ({ context: { queryClient }, params }) =>
+    requirePermission(queryClient, params.org, 'agent:read', { projectId: params.project }),
   loader: ({ context: { queryClient }, params: { org, project } }) =>
     queryClient.ensureQueryData(deskQueries.agent(org, project)),
   component: DeskAgentPage,

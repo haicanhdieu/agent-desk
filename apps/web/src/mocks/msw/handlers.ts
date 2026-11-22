@@ -3,6 +3,8 @@ import {
   INVITATION_EXPIRY_SECONDS,
   ORG_HEADER,
   ORG_MISMATCH_PROBLEM_TYPE,
+  can,
+  holdsAnywhere,
   routeAccess,
   type AccessDto,
   type CreateInvitationRequest,
@@ -109,6 +111,40 @@ function accessOf(user: MockUser): AccessDto {
           permissions: role.permissions,
         }));
   return { userId: user.id, platformAdmin: user.platformAdmin, assignments };
+}
+
+/**
+ * What the API guard decides before any id is looked up (apps/api access/authorize.ts): the route's permission must be
+ * held somewhere (org scope for an org-level one), else 403. Targets are not resolved here, so own-run and out-of-scope
+ * checks are left to the handlers. Keeps the mock as strict as the API for roles with fewer permissions.
+ */
+function requireRouteAccess(key: RouteKey, user: MockUser): void {
+  const entry = routeAccess[key];
+  const access = {
+    userId: user.id,
+    grants: accessOf(user).assignments.map((a) => ({
+      roleId: a.roleKey,
+      roleKey: a.roleKey,
+      scope: a.scope,
+      lines: a.permissions,
+    })),
+  };
+  let allowed = true;
+  switch (entry.scope) {
+    case 'org':
+      allowed = holdsAnywhere(access, entry.permission) && can(access, entry.permission);
+      break;
+    case 'project':
+    case 'project-list':
+      allowed = holdsAnywhere(access, entry.permission);
+      break;
+    case 'org-admin':
+      allowed = entry.anyOf.some((p) => holdsAnywhere(access, p));
+      break;
+    default:
+      break;
+  }
+  if (!allowed) throw new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
 }
 
 const never = (what: string): never => {
@@ -1078,7 +1114,7 @@ function contractHandler<K extends JsonKey>(key: K, run: Impl[K]): HttpHandler {
           type: ORG_MISMATCH_PROBLEM_TYPE,
         });
       }
-      if (isOrgPinned(key) && key !== 'me.access') session();
+      if (isOrgPinned(key) && key !== 'me.access') requireRouteAccess(key, session().user);
       const url = new URL(request.url);
       const parts = {
         params: parsePart(def.params, rawParams, 'path parameters'),

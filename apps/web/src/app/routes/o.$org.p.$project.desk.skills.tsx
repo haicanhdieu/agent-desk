@@ -16,6 +16,7 @@ import {
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
+import { requirePermission } from '@/features/access/guards';
 import { projectPaths, useDeskFrame } from '@/features/desk/frame';
 import { rulesUsing, toSkill } from '@/features/desk/map';
 import { isStaleSkill, useCommitSkill, useDeleteSkill } from '@/features/desk/mutations';
@@ -31,6 +32,9 @@ const openSkill = (pageNames: string[], allNames: string[] | undefined, wanted: 
 export const Route = createFileRoute('/o/$org/p/$project/desk/skills')({
   validateSearch: (search) => SkillsSearch.parse(search),
   loaderDeps: ({ search }) => ({ page: pageOfSearch(search), skill: search.skill }),
+  // Desk config is for roles that hold `skill:read` on this project; the guard runs before any loader.
+  beforeLoad: ({ context: { queryClient }, params }) =>
+    requirePermission(queryClient, params.org, 'skill:read', { projectId: params.project }),
   loader: async ({ context: { queryClient }, params: { org, project }, deps, cause }) => {
     const pageOptions = deskQueries.skills(org, project, { page: deps.page, pageSize: readPageSize() });
     await Promise.all([

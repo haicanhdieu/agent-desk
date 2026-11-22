@@ -31,6 +31,8 @@ export interface NeedsYouProps {
   runs?: NeedsYouRun[];
   /** Resume a paused run (its row has a Resume button); `resuming` is the number of the run being resumed. */
   onResume?(run: RunSummary): void;
+  /** Whether the viewer may resume this run (a member only their own; never a viewer). Without it no row has Resume. */
+  canResume?(run: RunSummary): boolean;
   resuming?: number;
   /** Href of a project in the switcher; defaults to '#'. */
   projectHref?(p: Project): string;
@@ -52,6 +54,7 @@ export function NeedsYou({
   projects,
   runs = boardRuns,
   onResume,
+  canResume = () => false,
   resuming,
   projectHref = () => '#',
   topBar,
@@ -128,15 +131,17 @@ export function NeedsYou({
                   <span className={`muted ${styles.ghSub}`}>{run.statusNote}</span>
                   <span className={mock.pausedActions}>
                     <StatusBadge status="paused" variant="pill" />
-                    <Button
-                      size="sm"
-                      variant="go"
-                      icon="play"
-                      disabled={resuming !== undefined}
-                      onClick={() => onResume?.(run)}
-                    >
-                      Resume
-                    </Button>
+                    {canResume(run) && (
+                      <Button
+                        size="sm"
+                        variant="go"
+                        icon="play"
+                        disabled={resuming !== undefined}
+                        onClick={() => onResume?.(run)}
+                      >
+                        Resume
+                      </Button>
+                    )}
                   </span>
                   <AppLink href={href}>Open run {run.id} in Agent Desk</AppLink>
                 </GitHubComment>

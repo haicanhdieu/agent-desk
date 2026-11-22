@@ -20,7 +20,7 @@ export interface ProjectsEmptyProps {
   invitationsBanner?: InvitationsBannerProps;
   /** The org's Invitations page; the button shows only when given. */
   invitationsHref?: string;
-  /** Whether the viewer may create projects (default true); without it the page only explains who does. */
+  /** Whether the viewer may create projects (default false: fail closed); without it the page only explains who does. */
   canCreate?: boolean;
 }
 
@@ -38,7 +38,7 @@ export function ProjectsEmpty({
   checklist,
   invitationsBanner,
   invitationsHref,
-  canCreate = true,
+  canCreate = false,
 }: ProjectsEmptyProps) {
   if (!canCreate) {
     return (

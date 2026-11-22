@@ -124,14 +124,17 @@ function ProjectsPage() {
     initials: handle.slice(0, 2).toUpperCase(),
   };
   const orgPath = `/o/${encodeURIComponent(org)}`;
+  const settingsHref = (id: string): string | undefined =>
+    can(access, 'agent:read', { projectId: id }) ? `${orgPath}/p/${encodeURIComponent(id)}/desk/agent` : undefined;
   return (
     <Projects
       user={user}
       projects={projects}
       newHref={`${orgPath}/projects/new/repo`}
       projectHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/runs`}
-      settingsHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/desk/agent`}
-      switchToPollingHref={(p) => `${orgPath}/p/${encodeURIComponent(p.id)}/desk/agent`}
+      // Project settings is the Desk agent page: only for roles that may read it on that project.
+      settingsHref={(p) => settingsHref(p.id)}
+      switchToPollingHref={(p) => settingsHref(p.id)}
       pagination={pagination}
       org={orgSwitch}
       {...(pending > 0 && { invitationsBanner: { count: pending, href: '/invitations' } })}

@@ -20,10 +20,10 @@ export interface ProjectsProps {
   newHref: string;
   /** Where a project row links (its runs). Defaults to the prototype's `/runs`. */
   projectHref?: (project: Project) => string;
-  /** Where a row's More menu Settings goes (the project's settings). */
-  settingsHref?: (project: Project) => string;
-  /** Where a row's "Switch to polling" goes (the project's settings). */
-  switchToPollingHref?: (project: Project) => string;
+  /** Where a row's More menu Settings goes (the project's settings); a row without an href has no Settings item. */
+  settingsHref?: (project: Project) => string | undefined;
+  /** Where a row's "Switch to polling" goes (the project's settings); a row without an href has no such button. */
+  switchToPollingHref?: (project: Project) => string | undefined;
   /** The paging control under the table; its `busy` marks the table aria-busy. */
   pagination?: PaginationProps;
   /** The org switcher in the top bar. */
@@ -34,7 +34,7 @@ export interface ProjectsProps {
   invitationsBanner?: InvitationsBannerProps;
   /** The org's Invitations page; the header button shows only when given. */
   invitationsHref?: string;
-  /** Whether the viewer may create projects (default true); hides "New project" without it. */
+  /** Whether the viewer may create projects (default false: fail closed); hides "New project" without it. */
   canCreate?: boolean;
 }
 
@@ -60,7 +60,7 @@ export function Projects({
   checklist,
   invitationsBanner,
   invitationsHref,
-  canCreate = true,
+  canCreate = false,
 }: ProjectsProps) {
   if (projects.length === 0)
     return (

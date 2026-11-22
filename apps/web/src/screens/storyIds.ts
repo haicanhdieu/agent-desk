@@ -208,6 +208,8 @@ export const stateStories = {
   DeskSetupLoading: { title: desk, exportName: 'DeskSetupLoading', board: 'DeskSetup' },
   DeskSetupLoadError: { title: desk, exportName: 'DeskSetupLoadError', board: 'DeskSetup' },
   RunTerminalAreaDone: { title: terminalArea, exportName: 'Done', board: 'RunIdle' },
+  RunTerminalAreaDoneReadOnly: { title: terminalArea, exportName: 'DoneReadOnly', board: 'RunIdle' },
+  RunIdleReadOnly: { title: detail, exportName: 'RunIdleReadOnly', board: 'RunIdle' },
   RunTerminalAreaNeedsYouWithNote: { title: terminalArea, exportName: 'NeedsYouWithNote', board: 'RunIdle' },
   RunTerminalAreaPausing: { title: terminalArea, exportName: 'Pausing', board: 'RunIdle' },
   RunTerminalAreaInactiveClosed: { title: terminalArea, exportName: 'InactiveClosed', board: 'RunIdle' },

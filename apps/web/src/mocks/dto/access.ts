@@ -28,7 +28,8 @@ const TENANT_PERMISSIONS = Permission.options.filter((p) => !isPlatformPermissio
 
 const any = (permission: PermissionLineDto['permission']): PermissionLineDto => ({ permission, condition: 'any' });
 const own = (permission: PermissionLineDto['permission']): PermissionLineDto => ({ permission, condition: 'own' });
-const readOnly = ['project:read', 'agent:read', 'skill:read', 'rule:read', 'setup:read', 'run:read'] as const;
+// The seeded member and viewer reads: no Desk configuration (issue 216).
+const readOnly = ['project:read', 'run:read'] as const;
 
 export const roleFixtures: RoleDto[] = [
   {

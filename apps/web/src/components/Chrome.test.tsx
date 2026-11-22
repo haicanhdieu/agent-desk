@@ -26,12 +26,18 @@ describe('Brand', () => {
 
 describe('TopBar project', () => {
   it('marks the active tab with aria-current and class on', () => {
-    render(<TopBar variant="project" user={user} project={project} active="runs" />);
+    render(<TopBar variant="project" user={user} project={project} active="runs" links={{ desk: '/desk' }} />);
     const tabs = screen.getByRole('navigation', { name: 'Project' });
     const runs = within(tabs).getByRole('link', { name: /Runs/ });
     expect(runs).toHaveAttribute('aria-current', 'page');
     expect(runs.className).toMatch(/\bon\b/);
     expect(within(tabs).getByRole('link', { name: 'Desk' })).not.toHaveAttribute('aria-current');
+  });
+  it('shows no Desk tab without a desk link (a member or viewer may not open the Desk)', () => {
+    render(<TopBar variant="project" user={user} project={project} active="runs" />);
+    const tabs = screen.getByRole('navigation', { name: 'Project' });
+    expect(within(tabs).getByRole('link', { name: /Runs/ })).toBeInTheDocument();
+    expect(within(tabs).queryByRole('link', { name: 'Desk' })).not.toBeInTheDocument();
   });
   it('needsYou 0 or undefined renders no badge', () => {
     const { rerender } = render(<TopBar variant="project" user={user} project={project} active="runs" needsYou={0} />);

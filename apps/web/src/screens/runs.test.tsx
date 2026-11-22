@@ -170,6 +170,12 @@ describe('Runs', () => {
     expect(screen.queryByRole('button', { name: 'Finish run' })).not.toBeInTheDocument();
   });
 
+  it('the idle banner has no Finish run without onFinishIdle (the viewer may not finish this run)', () => {
+    render(<Runs {...base} filter="all" needsYouRun={needsYouRun} />);
+    expect(screen.getByRole('link', { name: 'Answer in terminal' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Finish run' })).not.toBeInTheDocument();
+  });
+
   it('the idle banner wins over waitingRun, which would repeat its slot note', () => {
     render(<Runs {...base} filter="all" needsYouRun={needsYouRun} waitingRun={63} />);
     expect(screen.getByText('Run 62 needs you.')).toBeInTheDocument();
@@ -177,7 +183,7 @@ describe('Runs', () => {
   });
 
   it('renders the needs-you banner, header, row actions and one main', () => {
-    render(<Runs {...base} filter="all" needsYouRun={needsYouRun} />);
+    render(<Runs {...base} filter="all" needsYouRun={needsYouRun} onFinishIdle={() => undefined} />);
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
     expect(screen.getByText('Run 62 needs you.')).toBeInTheDocument();

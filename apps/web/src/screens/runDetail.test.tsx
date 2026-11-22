@@ -2,7 +2,23 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { runDetailPrMerged, runDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
-import { RunDetail } from './RunDetail';
+import { RunDetail as RunDetailScreen } from './RunDetail';
+
+// The screen shows a run action only for a handler it is given (the route passes one where the viewer holds the
+// permission). These tests exercise the buttons themselves, so they render a viewer who may do everything; the
+// "without a handler" cases below use the bare screen.
+const noop = () => undefined;
+const RunDetail = (props: React.ComponentProps<typeof RunDetailScreen>) => (
+  <RunDetailScreen
+    onCancel={noop}
+    onFinish={noop}
+    onResume={noop}
+    onStopOpen={noop}
+    onStop={noop}
+    onCloseSession={noop}
+    {...props}
+  />
+);
 
 const linesFor = (k: RunDetailKey) => terminalByRun[runDetails[k].run.id];
 const show = (k: RunDetailKey, extra: Partial<React.ComponentProps<typeof RunDetail>> = {}) =>
@@ -10,6 +26,45 @@ const show = (k: RunDetailKey, extra: Partial<React.ComponentProps<typeof RunDet
 
 const ended: RunDetailKey[] = ['RunSucceeded', 'RunFailed', 'RunTimedOut', 'RunCancelled', 'RunExpired'];
 const FINISH_TITLE = 'Finish is available when the agent is waiting for you';
+
+describe('RunDetail without action handlers (a viewer, or a member on another person run)', () => {
+  const bare = (k: RunDetailKey) => render(<RunDetailScreen data={runDetails[k]} lines={linesFor(k)} needsYou={1} />);
+
+  it('an idle run shows no Finish, Stop session or Cancel run, in the top bar or the notice', () => {
+    bare('RunIdle');
+    expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop session' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
+    expect(screen.getByText('The agent is waiting for your answer')).toBeInTheDocument();
+  });
+
+  it('a running run shows no Cancel run or Stop session', () => {
+    bare('RunRunning');
+    expect(screen.queryByRole('button', { name: 'Cancel run' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Stop session' })).not.toBeInTheDocument();
+  });
+
+  it('a done run shows no Finish run', () => {
+    bare('RunDone');
+    expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
+  });
+
+  it('a paused run shows no Resume and no Finish', () => {
+    bare('RunPaused');
+    expect(screen.queryByRole('button', { name: 'Resume' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^Finish/ })).not.toBeInTheDocument();
+  });
+
+  it('a succeeded run with a kept session shows no Reopen session', () => {
+    render(<RunDetailScreen data={runDetails.RunSucceeded} needsYou={1} />);
+    expect(screen.queryByRole('button', { name: 'Reopen session' })).not.toBeInTheDocument();
+  });
+
+  it('a reopened session shows no Close session', () => {
+    render(<RunDetailScreen data={{ ...runDetails.RunSucceeded, reopened: true }} needsYou={1} />);
+    expect(screen.queryByRole('button', { name: 'Close session' })).not.toBeInTheDocument();
+  });
+});
 
 describe('RunDetail actions', () => {
   it.each(['RunStarting', 'RunRunning', 'RunReconnect'] as RunDetailKey[])(

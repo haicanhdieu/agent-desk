@@ -68,6 +68,7 @@ export const Runs: Story = {
           'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
         href: '/runs/62',
       }}
+      onFinishIdle={() => undefined}
     />
   ),
 };
@@ -120,7 +121,7 @@ export const NeedsYou: Story = {
   name: 'Where needs you shows up',
   decorators: artboard(740),
   globals: viewport(1440, 740),
-  render: () => <NeedsYouScreen project={project} projects={projects.slice(0, 3)} />,
+  render: () => <NeedsYouScreen project={project} projects={projects.slice(0, 3)} canResume={() => true} />,
 };
 
 export const RunsProblemsEmpty: Story = {
@@ -156,6 +157,7 @@ export const NeedsYouPaused: Story = {
         ...runs.filter((r) => r.id === 62).map((run) => ({ run, href: '/runs/62', idleAt: '14:13', endsAt: '14:43' })),
       ]}
       onResume={() => {}}
+      canResume={() => true}
     />
   ),
 };
@@ -391,6 +393,7 @@ export const NeedsYouPaged: Story = {
   globals: viewport(1440, 740),
   render: () => (
     <NeedsYouScreen
+      canResume={() => true}
       project={{ ...project, needsYou: 21 }}
       projects={projects.slice(0, 3).map((p) => (p.id === project.id ? { ...p, needsYou: 21 } : p))}
       runs={pagedNeedsYou(21).slice(20)}

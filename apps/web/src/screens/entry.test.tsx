@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import type { PaginationProps } from '@/components';
 import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
 import { SignIn, SignInNoInvitationError } from './SignIn';
@@ -22,7 +23,7 @@ describe('SignIn', () => {
 
 describe('ProjectsEmpty', () => {
   it('renders the four setup steps and a create link', () => {
-    render(<ProjectsEmpty user={user} createHref="/new" />);
+    render(<ProjectsEmpty user={user} createHref="/new" canCreate />);
     expect(screen.getByRole('heading', { level: 1, name: 'Create your first project' })).toBeInTheDocument();
     expect(within(screen.getByRole('list')).getAllByRole('listitem')).toHaveLength(4);
     expect(screen.getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
@@ -32,14 +33,14 @@ describe('ProjectsEmpty', () => {
 
 describe('Projects', () => {
   it('shows the empty-state content when there are no projects', () => {
-    render(<Projects user={user} projects={[]} newHref="/new" />);
+    render(<Projects user={user} projects={[]} newHref="/new" canCreate />);
     expect(screen.getByText('Create your first project')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
   });
 
   it('has one main landmark, an h1 and a New project link', () => {
-    render(<Projects user={user} projects={projects} newHref="/new" />);
+    render(<Projects user={user} projects={projects} newHref="/new" canCreate />);
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'New project' })).toHaveAttribute('href', '/new');
@@ -84,7 +85,7 @@ describe('Projects', () => {
   });
 
   it('offers Switch to polling only on the silent-webhook row', () => {
-    render(<Projects user={user} projects={projects} newHref="/new" />);
+    render(<Projects user={user} projects={projects} newHref="/new" switchToPollingHref={() => '/settings'} />);
     const links = screen.getAllByRole('link', { name: /^Switch to polling/ });
     expect(links).toHaveLength(1);
     expect(links[0]).toHaveAccessibleName('Switch to polling for docs-site');
@@ -176,9 +177,24 @@ describe('Projects onboarding', () => {
   });
 
   it('shows the Invitations link next to New project when invitationsHref is given', () => {
-    render(<Projects user={user} projects={projects} newHref="/new" invitationsHref="/o/acme/invitations" />);
+    render(<Projects user={user} projects={projects} newHref="/new" invitationsHref="/o/acme/invitations" canCreate />);
     expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
     expect(screen.getByRole('link', { name: 'New project' })).toBeInTheDocument();
+  });
+
+  it('shows no New project and no Settings or Switch to polling without their hrefs', async () => {
+    render(<Projects user={user} projects={projects} newHref="/new" />);
+    expect(screen.queryByRole('link', { name: 'New project' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^Switch to polling/ })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
+    expect(screen.getByRole('link', { name: 'Runs' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+  });
+
+  it('shows Settings in the row menu when the row has a settings href', async () => {
+    render(<Projects user={user} projects={projects} newHref="/new" settingsHref={() => '/settings'} />);
+    await userEvent.click(screen.getByRole('button', { name: 'More for docs-site' }));
+    expect(screen.getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/settings');
   });
 
   it('a member view has no Invitations and no New project', () => {
@@ -212,15 +228,20 @@ describe('Projects onboarding', () => {
 
 describe('ProjectsEmpty onboarding', () => {
   it('renders the checklist instead of the step cards', () => {
-    render(<ProjectsEmpty user={user} createHref="/new" checklist={ready} />);
+    render(<ProjectsEmpty user={user} createHref="/new" checklist={ready} canCreate />);
     expect(screen.getByRole('heading', { level: 2, name: 'Get started' })).toBeInTheDocument();
     expect(screen.queryByText('Connect a repo')).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
   });
 
   it('offers Invitations beside Create project', () => {
-    render(<ProjectsEmpty user={user} createHref="/new" invitationsHref="/o/acme/invitations" />);
+    render(<ProjectsEmpty user={user} createHref="/new" invitationsHref="/o/acme/invitations" canCreate />);
     expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
+  });
+
+  it('shows no Create project when canCreate is left out (fail closed)', () => {
+    render(<ProjectsEmpty user={user} createHref="/new" />);
+    expect(screen.queryByRole('link', { name: 'Create project' })).not.toBeInTheDocument();
   });
 
   it('without canCreate shows "No projects yet" and no Create project', () => {
