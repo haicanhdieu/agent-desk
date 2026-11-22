@@ -1,0 +1,16 @@
+/* The logo's colours are brand tokens (tokens.css), not theme colours: they match public/agent-desk-icon.svg. */
+.bg {
+  fill: var(--logo-bg);
+}
+.ink {
+  stroke: var(--logo-ink);
+}
+.violet {
+  stroke: var(--logo-violet);
+}
+.node {
+  fill: var(--logo-violet);
+}
+.teal {
+  fill: var(--logo-teal);
+}

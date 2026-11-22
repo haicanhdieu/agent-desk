@@ -52,7 +52,7 @@
   text-decoration: none;
 }
 .brand svg {
-  color: var(--text);
+  display: block;
   flex: 0 0 auto;
 }
 .sep {

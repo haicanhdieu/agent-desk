@@ -22,6 +22,25 @@ describe('Brand', () => {
     expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toBeInTheDocument();
     expect(screen.queryByText('Agent Desk')).toBeNull();
   });
+  it('draws the Agent Desk logo as an inline svg, sized to the prop, instead of the generic glyph', () => {
+    const { container } = render(<Brand href="/projects" size={26} />);
+    const logo = container.querySelector('svg');
+    expect(logo).toHaveAttribute('viewBox', '0 0 120 120');
+    expect(logo).toHaveAttribute('width', '26');
+    expect(logo).toHaveAttribute('height', '26');
+    expect(container.querySelector('img')).toBeNull();
+  });
+  it('names the logo for a screen reader only when no text beside it does', () => {
+    const { container, rerender } = render(<Brand />);
+    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+    rerender(<Brand withName={false} />);
+    expect(screen.getByRole('img', { name: 'Agent Desk' })).toHaveAttribute('viewBox', '0 0 120 120');
+  });
+  it('is the logo in the top bar', () => {
+    const { container } = render(<TopBar variant="global" user={user} />);
+    expect(container.querySelector('header svg[viewBox="0 0 120 120"]')).not.toBeNull();
+    expect(container.querySelector('img')).toBeNull();
+  });
 });
 
 describe('TopBar project', () => {
