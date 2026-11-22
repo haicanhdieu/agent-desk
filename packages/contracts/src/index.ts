@@ -8,6 +8,7 @@ export * from './slug';
 export * from './schemas/common';
 export * from './schemas/access';
 export * from './schemas/platform';
+export * from './schemas/audit';
 export * from './schemas/page';
 export * from './schemas/connections';
 export * from './schemas/projects';

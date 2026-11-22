@@ -110,6 +110,19 @@ describe('copyRoleTemplates', () => {
     }
   });
 
+  it('gives an org created after 0033 audit:read for owner and admin only (NO-4)', async () => {
+    const orgId = randomUUID();
+    await withOrg(db, orgId, (tx) => copyRoleTemplates(tx, orgId));
+    const rows = await withOrg(db, orgId, (tx) =>
+      tx
+        .select({ key: roles.key, permission: rolePermissions.permission, condition: rolePermissions.condition })
+        .from(rolePermissions)
+        .innerJoin(roles, eq(roles.id, rolePermissions.roleId)),
+    );
+    const holders = rows.filter((r) => r.permission === 'audit:read').map((r) => `${r.key}=${r.condition}`);
+    expect(holders.sort()).toEqual(['admin=any', 'owner=any']);
+  });
+
   it('adds nothing on a second call', async () => {
     const orgId = randomUUID();
     await withOrg(db, orgId, (tx) => copyRoleTemplates(tx, orgId));
@@ -191,7 +204,7 @@ describe('loadAccess', () => {
 
     const accessB = await withOrg(db, orgB, (tx) => loadAccess(tx, alice));
     expect(accessB.grants.map((g) => g.roleKey)).toEqual(['owner']);
-    expect(accessB.grants[0]?.lines).toHaveLength(33);
+    expect(accessB.grants[0]?.lines).toHaveLength(34);
   });
 
   it('returns no grants for a user without assignments in the org', async () => {

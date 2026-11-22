@@ -985,6 +985,13 @@ const impl: Impl = {
   'invitations.create': ({ body }) => createInvitation(session().orgId, body),
   'invitations.remove': ({ params }) => revokeInvitation(session().orgId, params.invitationId),
   'invitations.resend': ({ params }) => resendInvitation(session().orgId, params.invitationId),
+  'members.updateRole': () => memberFixtures[0] ?? never('member'),
+  'members.remove': () => null,
+  'orgs.update': ({ body }) => {
+    const org = db().orgs.find((o) => o.id === session().orgId) ?? never('org');
+    return { id: org.id, name: body.name ?? org.name, slug: body.slug ?? org.slug };
+  },
+  'audit.list': ({ query }) => slicePage([], query),
   'orgs.checklist': () => {
     const { user, orgId } = session();
     const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
+import type { Logger } from 'pino';
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { copyRoleTemplates } from '@agentdesk/core';
 import { organization, projects, withOrg, type Db } from '@agentdesk/db';
@@ -8,21 +9,28 @@ import {
   toPage,
   type CreateOrgRequest,
   type CreateOrgResponse,
+  type OrgDto,
   type Page,
   type PageQuery,
   type PlatformOrgDto,
   type PlatformProjectDto,
+  type UpdateOrgRequest,
   type RoleDto,
 } from '@agentdesk/contracts';
 import { writeAuditEntry } from '../audit/audit-entry';
+import { LOGGER } from '../common/logger';
 import { isUniqueViolation } from '../common/pg-errors';
+import { requestContext } from '../common/request-context';
 import { ConflictProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { loadAllRoles, toRoleDto } from './roles';
 
 @Injectable()
 export class OrgsService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(LOGGER) private readonly logger: Logger,
+  ) {}
 
   /**
    * One withOrg(newId) tx: the organization row (id = uuid), the built-in roles copied from the templates and the
@@ -54,6 +62,61 @@ export class OrgsService {
       throw err;
     }
     return { id: orgId, name: req.name, slug: req.slug };
+  }
+
+  /**
+   * One withOrg(orgId) tx: read the row under a row lock (so concurrent PATCHes serialize and audit from/to stay true), keep only the fields that differ, write nothing when none do, otherwise update
+   * and write one `org.updated` audit entry (from/to hold the changed fields only). A taken slug is caught on the
+   * unique index. The caller's guard already matched `orgId` to the session's org.
+   */
+  async update(actorUserId: string, orgId: string, req: UpdateOrgRequest): Promise<OrgDto> {
+    try {
+      const result = await withOrg(this.db, orgId, async (tx): Promise<{ dto: OrgDto; changed: boolean }> => {
+        const [current] = await tx
+          .select({ id: organization.id, name: organization.name, slug: organization.slug })
+          .from(organization)
+          .where(eq(organization.id, orgId))
+          .limit(1)
+          .for('update');
+        if (!current) throw new NotFoundException('Organization not found');
+        const from: { name?: string; slug?: string } = {};
+        const to: { name?: string; slug?: string } = {};
+        if (req.name !== undefined && req.name !== current.name) {
+          from.name = current.name;
+          to.name = req.name;
+        }
+        if (req.slug !== undefined && req.slug !== current.slug) {
+          from.slug = current.slug;
+          to.slug = req.slug;
+        }
+        if (Object.keys(to).length === 0) return { dto: current, changed: false };
+        await tx.update(organization).set(to).where(eq(organization.id, orgId));
+        await writeAuditEntry(tx, {
+          orgId,
+          actorUserId,
+          actorKind: 'member',
+          action: 'org.updated',
+          targetType: 'org',
+          targetId: orgId,
+          payload: { from, to },
+        });
+        return { dto: { id: orgId, name: to.name ?? current.name, slug: to.slug ?? current.slug }, changed: true };
+      });
+      if (result.changed) {
+        this.logger.info(
+          { requestId: requestContext.get()?.requestId, orgId, actorUserId, action: 'org.updated' },
+          'org updated',
+        );
+      }
+      return result.dto;
+    } catch (err) {
+      if (isUniqueViolation(err)) {
+        throw new ConflictProblemException('Slug already in use', [
+          { pointer: '/slug', detail: 'this slug is already taken' },
+        ]);
+      }
+      throw err;
+    }
   }
 
   /** Every org, newest first. Platform-wide by design: the platform admin sees ids, names, slugs and member counts only. */

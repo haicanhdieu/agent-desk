@@ -34,6 +34,7 @@ const TENANT_PERMISSIONS = [
   'assignment:delete',
   'org:update',
   'org:delete',
+  'audit:read',
 ] as const;
 
 const PLATFORM_PERMISSIONS = [
@@ -77,6 +78,7 @@ const ORG_LEVEL = new Set<string>([
   'member:delete',
   'org:update',
   'org:delete',
+  'audit:read',
 ]);
 
 function levelOf(permission: Permission): PermissionLevel {

@@ -15,7 +15,7 @@
 
 - AGENTS.md rules 1 to 11 and the "Access control and tenant isolation" section bind every task. Layering `apps → core → db → contracts`; `web → contracts` only. Names stay generic: member, role, assignment, invitation, organization, owner, audit. No provider name in routes, tables, types or new copy ("Repo on GitHub" stays as it is).
 - No new dependency of any kind (spec "Third-party libraries": none new).
-- Never edit an applied migration (0000 to 0031). New: `0032_seed_audit_read.sql`, hand-written, idempotent (`on conflict do nothing`), DO loop setting `app.org_id`, as 0026 does. No schema change.
+- Never edit an applied migration (0000 to 0034). New: `0035_seed_audit_read.sql`, hand-written, idempotent (`on conflict do nothing`), DO loop setting `app.org_id`, as 0026 does. No schema change.
 - Permissions: `member:read`, `member:update`, `member:delete`, `org:update` and the new `audit:read` are org-level; `own` does not apply; a project grant never gives them. `audit:read` is held by `owner` and `admin` only.
 - Guard order (ADR-0036): org membership, permission (403 before any id lookup), target or scope (404), then `any`/`own`. `:orgId` must be the active org (404 otherwise); the `x-org-id` check applies (409 `org-mismatch`). The tenant comes from the session, never the body.
 - Grant rules: `checkTenantAssign` (`apps/api/src/access/grant-rules.ts`) runs with `assignment:delete` on each removed role and `assignment:create` on the new one; only an org owner gives or takes `owner`. Last-owner rule: lock the org's org-scope owner rows `for update` in id order; refuse with 409 problem title "The organization needs at least one owner" when none would be left.
@@ -302,7 +302,7 @@ export async function roleIdsOf(t: TestApp, cookie: string, orgId: string): Prom
   | `orgs.update` | PATCH `/api/orgs/:orgId` | `orgParams`, body `UpdateOrgRequest` | `OrgDto` | `org('org:update')` |
   | `audit.list` | GET `/api/orgs/:orgId/audit` | `orgParams`, query `PageQuery` | `pageOf(AuditEntryDto)` | `org('audit:read')` |
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `access.test.ts` (NO-4): `PERMISSION_LEVEL['audit:read'] === 'org'`; `can()` with a project-scope admin grant listing `audit:read` is false; with an org-scope grant it is true.
   - `schemas/access.test.ts`: `UpdateMemberRoleRequest` accepts a uuid and `null`, rejects `''` and a missing key; `MemberUserId` rejects `''` and 256 characters.
   - `schemas/platform.test.ts` (BR-15, BR-17): `UpdateOrgRequest` rejects `{}`, `{name: ''}`, `{name: 'a'.repeat(101)}`, `{slug: 'Acme'}`, `{slug: '-acme'}`, `{slug: 'a'.repeat(64)}`; accepts `{name: 'a'}`, `{name: 'a'.repeat(100)}`, `{slug: 'a'.repeat(63)}`, `{name, slug}`.
@@ -310,9 +310,9 @@ export async function roleIdsOf(t: TestApp, cookie: string, orgId: string): Prom
   - `routes.test.ts`: `flattenRoutes(routes)` has the four keys with the methods and paths above.
   - `route-access.test.ts`: `expected` gains the four entries.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL (missing exports).
-- [ ] **Step 3: Implement** the contracts above and export `schemas/audit.ts` from `index.ts`. Compile fixes outside contracts: `audit-entry.ts` re-exports the contract `AuditAction`; `handlers.ts` gets fixture-backed `impl` entries so the exhaustive `Impl` type compiles (`members.updateRole` returns the first `memberFixtures` row, `members.remove` 204, `orgs.update` echoes the org with the sent fields, `audit.list` an empty page). In `authz.int.test.ts`: `DENIAL_TABLE` rows `'members.updateRole': tenant(403)`, `'members.remove': tenant(403)`, `'orgs.update': tenant(403)`, `'audit.list': tenant(403)`, and the four keys in `NOT_REGISTERED_YET` (the existing filter skips them until each controller task deletes its line). Add the five helpers. In ADR-0036 §Decision "Each permission has a level", the org-level list reads `` `member:*`, `org:update`, `org:delete`, `audit:read` ``.
+- [x] **Step 3: Implement** the contracts above and export `schemas/audit.ts` from `index.ts`. Compile fixes outside contracts: `audit-entry.ts` re-exports the contract `AuditAction`; `handlers.ts` gets fixture-backed `impl` entries so the exhaustive `Impl` type compiles (`members.updateRole` returns the first `memberFixtures` row, `members.remove` 204, `orgs.update` echoes the org with the sent fields, `audit.list` an empty page). In `authz.int.test.ts`: `DENIAL_TABLE` rows `'members.updateRole': tenant(403)`, `'members.remove': tenant(403)`, `'orgs.update': tenant(403)`, `'audit.list': tenant(403)`, and the four keys in `NOT_REGISTERED_YET` (the existing filter skips them until each controller task deletes its line). Add the five helpers. In ADR-0036 §Decision "Each permission has a level", the org-level list reads `` `member:*`, `org:update`, `org:delete`, `audit:read` ``.
 - [ ] **Step 4: Run** the Step 2 command, then `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/web typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts` and `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(contracts): tenant admin routes, audit DTO and the audit:read permission`.
+- [x] **Step 5: Commit** `feat(contracts): tenant admin routes, audit DTO and the audit:read permission`.
 
 ---
 
@@ -322,7 +322,7 @@ export async function roleIdsOf(t: TestApp, cookie: string, orgId: string): Prom
 
 **Files:**
 
-- Create: `packages/db/migrations/0032_seed_audit_read.sql`, `packages/db/migrations/meta/0032_snapshot.json`
+- Create: `packages/db/migrations/0035_seed_audit_read.sql`, `packages/db/migrations/meta/0035_snapshot.json`
 - Modify: `packages/db/migrations/meta/_journal.json`
 - Test: `packages/db/test/migrate.int.test.ts`, `packages/core/test/access/role-templates.int.test.ts`
 - Modify: `apps/web/e2e/local/rbac-grants.spec.ts`
@@ -331,14 +331,14 @@ export async function roleIdsOf(t: TestApp, cookie: string, orgId: string): Prom
 
 - Produces: `role_template_permissions` rows `('owner','audit:read','any')`, `('admin','audit:read','any')`; every existing org's `owner` and `admin` roles gain `('audit:read','any')` in `role_permissions`. New orgs get them through `copyRoleTemplates`.
 
-- [ ] **Step 1: Write the failing tests**
-  - `migrate.int.test.ts` (NO-4): on a database stopped at 0031 (the `startPgAt` helper) with two orgs, applying 0032 adds exactly one `audit:read` line to each org's `owner` and `admin` roles and none to `member` or `viewer`; a second apply changes no row count; an org created after 0032 holds it through `copyRoleTemplates`. Update the "every existing org gets exactly the four built-in roles" counts to admin 33, owner 34 (the rule change, not to get green).
-  - `role-templates.int.test.ts`: `ADMIN_PERMISSIONS` gains `audit:read`; the lengths read `[34, 33, 10, 6]`.
+- [x] **Step 1: Write the failing tests**
+  - `migrate.int.test.ts` (NO-4): on a database stopped at 0032 (the `startPgAt` helper) with two orgs, applying 0035 adds exactly one `audit:read` line to each org's `owner` and `admin` roles and none to `member` or `viewer`; a second apply changes no row count; an org created after 0032 holds it through `copyRoleTemplates`. Update the "every existing org gets exactly the four built-in roles" counts to admin 33, owner 34, member 6, viewer 2 (the rule change, not to get green).
+  - `role-templates.int.test.ts`: `ADMIN_PERMISSIONS` gains `audit:read`; the lengths read `[34, 33, 6, 2]`.
   - `rbac-grants.spec.ts`: the owner permission list gains `'audit:read'` (sorted as today).
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts` and `pnpm --filter @agentdesk/core exec vitest run test/access/role-templates.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `0032_seed_audit_read.sql` (template insert from `role_templates` keys `owner`, `admin`, then a DO loop over `organization` that sets `app.org_id` and inserts into `role_permissions` for that org's built-in `owner` and `admin` roles; every insert `on conflict do nothing`), its journal entry (idx 32) and a snapshot copied from 0031 (no schema change).
+- [x] **Step 3: Implement** `0035_seed_audit_read.sql` (template insert from `role_templates` keys `owner`, `admin`, then a DO loop over `organization` that sets `app.org_id` and inserts into `role_permissions` for that org's built-in `owner` and `admin` roles; every insert `on conflict do nothing`), its journal entry (idx 35) and a snapshot copied from 0034 (no schema change).
 - [ ] **Step 4: Run** the Step 2 commands and `pnpm --filter @agentdesk/db test`. Expected: PASS. The `rbac-grants.spec.ts` change is run with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-grants.spec.ts`.
-- [ ] **Step 5: Commit** `feat(db): seed the audit:read permission for owner and admin`.
+- [x] **Step 5: Commit** `feat(db): seed the audit:read permission for owner and admin`.
 
 ---
 
@@ -358,7 +358,7 @@ export async function roleIdsOf(t: TestApp, cookie: string, orgId: string): Prom
 - Consumes: `routes.orgs.update`, `UpdateOrgRequest`, `OrgDto`, `updateOrg` helper (Task 1).
 - Produces: `OrgsService.update(actorUserId: string, orgId: string, req: UpdateOrgRequest): Promise<OrgDto>`; `OrgsController` with `@Patch(routePath(routes.orgs.update))` using `CurrentAccess` and `ZodPipe` like `MembersController`.
 
-- [ ] **Step 1: Write the failing tests** in `org-settings.int.test.ts` (owner, org admin, P1 admin, member, viewer of org A; owner of org B):
+- [x] **Step 1: Write the failing tests** in `org-settings.int.test.ts` (owner, org admin, P1 admin, member, viewer of org A; owner of org B):
   - BR-14, BR-22: owner renames → 200 `OrgDto`, `organization.name` changed, one `org.updated` audit row in the same transaction with payload `{from:{name}, to:{name}}`; slug change likewise with `slug`; both at once → one row with both fields.
   - Review Focus 2: `PATCH {name: 'New', slug: <current slug>}` → 200 and the audit `from`/`to` list only `name`; `PATCH` with the current name and slug → 200, no audit row.
   - BR-15, BR-17: `{}`, empty name, 101-character name → 400 with pointer `/name` (or the form-level issue for `{}`), nothing changed; bad slug format → 400 `/slug`; a slug taken by org B → 409 with pointer `/slug`; the old slug is free at once (org B can take it).
@@ -367,9 +367,9 @@ export async function roleIdsOf(t: TestApp, cookie: string, orgId: string): Prom
   - Untrusted text: a name with `<b>x</b>'; drop table` round-trips unchanged.
   - Logs: with `createTestApp({ logger })` the update logs `{requestId, orgId}` at `info` and no email.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/org-settings.int.test.ts`. Expected: FAIL (404 route).
-- [ ] **Step 3: Implement** `update`: one `withOrg(orgId)` transaction reads the current row (`organization.id = orgId`, no RLS on this table), computes the changed fields, returns early with no write when none changed, updates `name`/`slug`, writes `org.updated` with `writeAuditEntry` (`actorKind: 'member'`, `targetType: 'org'`, `targetId: orgId`); catch `isUniqueViolation` → `ConflictProblemException('Slug already in use', [{ pointer: '/slug', detail: 'this slug is already taken' }])`. Delete `'orgs.update'` from `NOT_REGISTERED_YET`.
+- [x] **Step 3: Implement** `update`: one `withOrg(orgId)` transaction reads the current row (`organization.id = orgId`, no RLS on this table), computes the changed fields, returns early with no write when none changed, updates `name`/`slug`, writes `org.updated` with `writeAuditEntry` (`actorKind: 'member'`, `targetType: 'org'`, `targetId: orgId`); catch `isUniqueViolation` → `ConflictProblemException('Slug already in use', [{ pointer: '/slug', detail: 'this slug is already taken' }])`. Delete `'orgs.update'` from `NOT_REGISTERED_YET`.
 - [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/org-check.int.test.ts` (NO-3 picks up the route) and `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: covered by Tasks 33 and 34.
-- [ ] **Step 5: Commit** `feat(api): owners and admins change the org name and slug`.
+- [x] **Step 5: Commit** `feat(api): owners and admins change the org name and slug`.
 
 ---
 

@@ -3,9 +3,11 @@ import { pageOf } from './page';
 import {
   CreateOrgRequest,
   GrantPlatformAdminRequest,
+  OrgDto,
   PlatformAdminDto,
   PlatformMemberDto,
   PlatformRoleDto,
+  UpdateOrgRequest,
 } from './platform';
 
 const ID = '33333333-3333-4333-8333-333333333333';
@@ -90,5 +92,32 @@ describe('PlatformAdminDto', () => {
   });
   it('rejects a granter without a handle', () => {
     expect(PlatformAdminDto.safeParse({ ...entries[1], grantedBy: { name: 'x' } }).success).toBe(false);
+  });
+});
+
+describe('UpdateOrgRequest', () => {
+  it.each([
+    ['empty body', {}],
+    ['empty name', { name: '' }],
+    ['101-char name', { name: 'a'.repeat(101) }],
+    ['uppercase slug', { slug: 'Acme' }],
+    ['leading dash slug', { slug: '-acme' }],
+    ['64-char slug', { slug: 'a'.repeat(64) }],
+  ])('rejects %s', (_n, body) => {
+    expect(UpdateOrgRequest.safeParse(body).success).toBe(false);
+  });
+  it.each([
+    ['1-char name', { name: 'a' }],
+    ['100-char name', { name: 'a'.repeat(100) }],
+    ['63-char slug', { slug: 'a'.repeat(63) }],
+    ['name and slug', { name: 'Acme', slug: 'acme' }],
+  ])('accepts %s', (_n, body) => {
+    expect(UpdateOrgRequest.safeParse(body).success).toBe(true);
+  });
+});
+
+describe('OrgDto', () => {
+  it('parses id, name and slug', () => {
+    expect(OrgDto.safeParse({ id: ID, name: 'Acme', slug: 'acme' }).success).toBe(true);
   });
 });

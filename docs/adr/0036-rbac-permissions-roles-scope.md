@@ -33,7 +33,7 @@ user ──assignment──► role ──holds──► permissions (resource:v
 
 Two rules from the code make the examples exact:
 
-- **Each permission has a level** (`PERMISSION_LEVEL`). Project-level permissions (project data: runs, agents, skills, rules, setup, `project:read|update`, assignments) count from an org-scope grant (all projects) or a project grant (that project). Org-level permissions (`project:create`, `project:delete`, `connection:*`, `member:*`, `org:update`, `org:delete`) count only from an org-scope grant. So `admin` on P1 cannot delete P1, create projects, read connections or manage org members.
+- **Each permission has a level** (`PERMISSION_LEVEL`). Project-level permissions (project data: runs, agents, skills, rules, setup, `project:read|update`, assignments) count from an org-scope grant (all projects) or a project grant (that project). Org-level permissions (`project:create`, `project:delete`, `connection:*`, `member:*`, `org:update`, `org:delete`, `audit:read`) count only from an org-scope grant. So `admin` on P1 cannot delete P1, create projects, read connections or manage org members.
 - **`own`** means the target's owner is the caller: the run's owner, or the setup test's starter. An ownerless run matches only `any`.
 
 ### How a request is checked

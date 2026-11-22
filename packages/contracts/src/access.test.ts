@@ -96,6 +96,10 @@ describe('can', () => {
     ['admin member:create', [org('admin', ADMIN)], 'member:create', undefined, true],
     ['admin org:update', [org('admin', ADMIN)], 'org:update', undefined, true],
     ['member member:read', [org('member', MEMBER)], 'member:read', undefined, false],
+    ['owner audit:read', [org('owner', OWNER)], 'audit:read', undefined, true],
+    ['admin audit:read', [org('admin', ADMIN)], 'audit:read', undefined, true],
+    ['project admin audit:read', [proj('admin', P1, ADMIN)], 'audit:read', { projectId: P1 }, false],
+    ['project admin audit:read without target', [proj('admin', P1, ADMIN)], 'audit:read', undefined, false],
     ['viewer member:read', [org('viewer', VIEWER)], 'member:read', undefined, false],
     ['read-only runs at org', [org('r', READ_RUNS_ONLY)], 'run:read', { projectId: P1 }, true],
     ['owner never holds platform permission', [org('owner', OWNER)], 'platform-org:create', undefined, false],
@@ -174,12 +178,13 @@ describe('PERMISSION_LEVEL', () => {
         'member:delete',
         'org:update',
         'org:delete',
+        'audit:read',
       ].sort(),
     );
   });
-  it('has 33 tenant and 15 platform permissions', () => {
-    expect(TENANT).toHaveLength(33);
-    expect(Permission.options).toHaveLength(48);
+  it('has 34 tenant and 15 platform permissions', () => {
+    expect(TENANT).toHaveLength(34);
+    expect(Permission.options).toHaveLength(49);
   });
   it.each(['platform-admin:read', 'platform-admin:create', 'platform-admin:delete'] as const)(
     '%s is a platform permission the owner never holds',

@@ -9,6 +9,14 @@ export type OrgName = z.infer<typeof OrgName>;
 export const CreateOrgRequest = z.object({ name: OrgName, slug: OrgSlug });
 export type CreateOrgRequest = z.infer<typeof CreateOrgRequest>;
 
+export const UpdateOrgRequest = z
+  .object({ name: OrgName.optional(), slug: OrgSlug.optional() })
+  .refine((r) => r.name !== undefined || r.slug !== undefined, { message: 'Send a name or a slug' });
+export type UpdateOrgRequest = z.infer<typeof UpdateOrgRequest>;
+
+export const OrgDto = z.object({ id: Id, name: z.string(), slug: z.string() });
+export type OrgDto = z.infer<typeof OrgDto>;
+
 export const CreateOrgResponse = z.object({ id: Id, name: z.string(), slug: z.string() });
 export type CreateOrgResponse = z.infer<typeof CreateOrgResponse>;
 
