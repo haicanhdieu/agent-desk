@@ -398,7 +398,7 @@ updateRole(access: Access, orgId: string, userId: string, roleId: string | null)
 export const NOT_A_MEMBER = 'Member is no longer in the organization';
 ```
 
-- [ ] **Step 1: Write the failing tests** in `members.int.test.ts` (cast: owner O, P1 admin A, member B, org viewer V, no-role N; extra owners made through `changeRole`):
+- [x] **Step 1: Write the failing tests** in `members.int.test.ts` (cast: owner O, P1 admin A, member B, org viewer V, no-role N; extra owners made through `changeRole`):
   - BR-3: O sets B to admin → 200 `MemberDto`, B's org-scope assignments are exactly `admin`, B's P1 project role kept; B's next request follows the new role; same role again → 200 and no audit row; `roleId: null` removes org-scope assignments and keeps project ones.
   - BR-21: one `member.role_changed` row per change, in the same transaction, payload `{from: [roleKeys], to: roleKey | null}`; a refused change writes none.
   - BR-40, BR-41, BR-42: O makes B owner; B can then grant owner and demote O; with two owners, demoting the other → 200; O steps down while B is owner → 200 and O's next request gets 403 on an owner change.
@@ -407,12 +407,12 @@ export const NOT_A_MEMBER = 'Member is no longer in the organization';
   - BR-8: a user who is not a member → 404 `NOT_A_MEMBER`; change after another change → 200, audit `from` is the current role.
   - BR-36: an admin demoted to member → their next change 403.
   - Security: a `roleId` from org B, unknown, or not assignable at org scope → 422 `/roleId`; owner of A on org B's member → 404; tenant from the session, not the body.
-  - NO-1 (a), (c): two owners demote each other with `Promise.all` → exactly one 200 and one 409, one owner left; A steps down while B demotes A → one owner left, exactly one 409.
+  - NO-1 (a), (c): two owners demote each other with `Promise.all` → exactly one 200 and one 409, one owner left; A steps down while A removes owner B → one owner left, exactly one 409.
   - Logs: `{requestId, orgId, actorUserId, targetUserId, action}` at `info`, no email.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `updateRole` in one `withOrg` transaction: 403 (`FORBIDDEN_DETAIL`) unless `can(access, 'member:update')`; the target's `member` row filtered by `organization_id = orgId` (else 404 `NOT_A_MEMBER`); load the new role (422 `/roleId` when missing or not org-assignable); read the target's org-scope assignments; `checkTenantAssign` delete on each removed role and create on the new one (403 on any failure); when an org-scope `owner` row is removed, `lockOrgOwnerRows` and 409 unless another owner remains; return early (no audit) when the set is already exactly `roleId`; delete and insert under `withOrg`; `writeAuditEntry` `member.role_changed`; log; return the member as `list` builds it. Controller `@Put(routePath(routes.members.updateRole))`. Delete `'members.updateRole'` from `NOT_REGISTERED_YET`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/org-check.int.test.ts test/assignments.int.test.ts`. Expected: PASS. E2E: covered by Tasks 31 to 33.
-- [ ] **Step 5: Commit** `feat(api): owners and admins change a member's org role`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `updateRole` in one `withOrg` transaction: 403 (`FORBIDDEN_DETAIL`) unless `can(access, 'member:update')`; the target's `member` row filtered by `organization_id = orgId` (else 404 `NOT_A_MEMBER`); load the new role (422 `/roleId` when missing or not org-assignable); read the target's org-scope assignments; `checkTenantAssign` delete on each removed role and create on the new one (403 on any failure); when an org-scope `owner` row is removed, `lockOrgOwnerRows` and 409 unless another owner remains; return early (no audit) when the set is already exactly `roleId`; delete and insert under `withOrg`; `writeAuditEntry` `member.role_changed`; log; return the member as `list` builds it. Controller `@Put(routePath(routes.members.updateRole))`. Delete `'members.updateRole'` from `NOT_REGISTERED_YET`.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/org-check.int.test.ts test/assignments.int.test.ts`. Expected: PASS. E2E: covered by Tasks 31 to 33.
+- [x] **Step 5: Commit** `feat(api): owners and admins change a member's org role`.
 
 ---
 
@@ -430,7 +430,7 @@ export const NOT_A_MEMBER = 'Member is no longer in the organization';
 - Consumes: `lockOrgOwnerRows`, `NOT_A_MEMBER` (Task 4), `removeMember` helper.
 - Produces: `MembersService.remove(access: Access, orgId: string, userId: string): Promise<void>`; controller `@Delete(routePath(routes.members.remove))` with `@HttpCode(204)`.
 
-- [ ] **Step 1: Write the failing tests** in `members.int.test.ts`:
+- [x] **Step 1: Write the failing tests** in `members.int.test.ts`:
   - BR-6: O removes B → 204; B's `member` row and every org and project assignment in the org are gone; B's next org request 403; one `member.removed` row `{from: [assignments]}` in the same transaction.
   - BR-7: B's run keeps its status and `owner_user_id` after the removal (the terminal close stays proved by `terminal.int.test.ts:361`).
   - BR-41: with two owners, removing the other owner → 204; with three owners the same twice.
@@ -441,10 +441,10 @@ export const NOT_A_MEMBER = 'Member is no longer in the organization';
   - BR-10: removed B invited again as viewer and accepted → exactly one org-scope `viewer` assignment, no project role.
   - BR-25: owner of A removing a member of B → 404.
   - Logs: ids only.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `remove`: 403 when `userId === access.userId` or without `can(access, 'member:delete')`, before any lookup; in one `withOrg` transaction the member row (404), every assignment of the user in the org, `checkTenantAssign` delete on each (403), `lockOrgOwnerRows` and 409 when an org-scope owner row goes and none would remain; delete the assignments, then the `member` row filtered by `organization_id = orgId`; audit; log. Delete `'members.remove'` from `NOT_REGISTERED_YET`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/org-check.int.test.ts test/terminal.int.test.ts`. Expected: PASS. E2E: covered by Tasks 31 and 32.
-- [ ] **Step 5: Commit** `feat(api): owners and admins remove members`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/members.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `remove`: 403 when `userId === access.userId` or without `can(access, 'member:delete')`, before any lookup; in one `withOrg` transaction the member row (404), every assignment of the user in the org, `checkTenantAssign` delete on each (403), `lockOrgOwnerRows` and 409 when an org-scope owner row goes and none would remain; delete the assignments, then the `member` row filtered by `organization_id = orgId`; audit; log. Delete `'members.remove'` from `NOT_REGISTERED_YET`.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/org-check.int.test.ts test/terminal.int.test.ts`. Expected: PASS. E2E: covered by Tasks 31 and 32.
+- [x] **Step 5: Commit** `feat(api): owners and admins remove members`.
 
 ---
 

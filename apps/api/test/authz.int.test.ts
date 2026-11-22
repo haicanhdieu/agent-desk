@@ -37,7 +37,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = ['members.updateRole', 'members.remove', 'audit.list'];
+const NOT_REGISTERED_YET: RouteKey[] = ['audit.list'];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -1113,6 +1113,7 @@ describe('denial table over every route, stream and terminal', () => {
       setupTestId: setupTerminalId,
       assignmentId: spareAssignment.id,
       invitationId: invite.json<{ id: string }>().id,
+      userId: spareId,
       connectionId: connA,
       provider: 'fake',
       name: 'fix',
@@ -1138,6 +1139,7 @@ describe('denial table over every route, stream and terminal', () => {
       'setupScript.put': { body: 'echo denied', baseVersion: null },
       'setupTests.create': { script: 'echo denied' },
       'assignments.create': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },
+      'members.updateRole': { roleId: viewerRole },
       'invitations.create': { email: 'dt-denied@dev.local', roleId: viewerRole, scope: { type: 'org' } },
       'platform.createOrg': { name: 'Denial New', slug: 'denial-new' },
       'platform.createAssignment': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },
