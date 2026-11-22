@@ -1,4 +1,4 @@
-import { AppLink, Icon } from '@/ds';
+import { AppLink } from '@/ds';
 import styles from './Chrome.module.css';
 
 export interface BrandProps {
@@ -7,8 +7,12 @@ export interface BrandProps {
   href?: string;
 }
 
+/** Served from public/ (the same file is the favicon), so it needs no import and works in Storybook through staticDirs. */
+const LOGO_SRC = '/agent-desk-icon.svg';
+
 export function Brand({ withName = true, size = 20, href }: BrandProps) {
-  const glyph = <Icon name="brand" size={size} strokeWidth={size >= 36 ? 1.4 : 1.6} />;
+  // Decorative when the text beside it names the product; otherwise it is the only name there is.
+  const glyph = <img src={LOGO_SRC} width={size} height={size} alt={withName ? '' : 'Agent Desk'} />;
   if (!href) {
     return (
       <span className={styles.brand}>
