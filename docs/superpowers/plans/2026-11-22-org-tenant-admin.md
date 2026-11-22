@@ -741,11 +741,11 @@ export interface ChangeRoleDialogProps {
 export function ChangeRoleDialog(props: ChangeRoleDialogProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests** (BR-3, BR-4, BR-5, BR-40, BR-42): title "Change role for <name>"; cards in a radio group with legend "Role" and the spec's one-line descriptions; the current role preselected and focused; "Save role" disabled until the choice differs; picking Owner shows the note "Owners can change or remove every member, including other owners." (`role="status"`, `aria-describedby`); on the own owner row picking a lower card shows the warn Banner "You will lose owner rights in <Org>."; `error.lastOwner` shows `role="alert"` Banner "An organization needs at least one owner." and keeps the dialog open; `error.forbidden` shows "You don't have access" and "Request ID: <id>"; while `saving` the button reads "Saving…" and Escape and Cancel do nothing.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/ChangeRoleDialog.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the dialog and stories Default (admin caller, no Owner card), OwnerCaller, OwnerPicked, StepDown, LastOwner, Saving, Error, matching `OrgMembersChangeRole*.dc.html` and the invite role cards.
-- [ ] **Step 4: Run** the Step 2 command and the stories smoke test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): change role dialog with owner note and step-down warning`.
+- [x] **Step 1: Write the failing tests** (BR-3, BR-4, BR-5, BR-40, BR-42): title "Change role for <name>"; cards in a radio group with legend "Role" and the spec's one-line descriptions; the current role preselected and focused; "Save role" disabled until the choice differs; picking Owner shows the note "Owners can change or remove every member, including other owners." (`role="status"`, `aria-describedby`); on the own owner row picking a lower card shows the warn Banner "You will lose owner rights in <Org>."; `error.lastOwner` shows `role="alert"` Banner "An organization needs at least one owner." and keeps the dialog open; `error.forbidden` shows "You don't have access" and "Request ID: <id>"; while `saving` the button reads "Saving…" and Escape and Cancel do nothing.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/ChangeRoleDialog.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the dialog and stories Default (admin caller, no Owner card), OwnerCaller, OwnerPicked, StepDown, LastOwner, Saving, Error, matching `OrgMembersChangeRole*.dc.html` and the invite role cards.
+- [x] **Step 4: Run** the Step 2 command and the stories smoke test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): change role dialog with owner note and step-down warning`.
 
 ---
 
