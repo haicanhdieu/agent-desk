@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { IDLE_RUN, INVOICER_API, ORG } from './mock';
 
 /*
- * The account menu behind the top bar avatar (issue #213): the avatar is a button that opens a popover with Logout,
+ * The account menu behind the top bar avatar (issues #213, #227): the avatar is a menu button that opens the identity header, My invitations and Logout,
  * on the global, project and run top bars. Logout signs out and lands on the sign-in page; Escape and an outside
  * press dismiss the popover.
  */
@@ -16,7 +16,7 @@ const PAGES = [
 ] as const;
 
 const avatar = (page: Page) => page.getByRole('button', { name: /^Account menu for / });
-const menu = (page: Page) => page.getByRole('dialog', { name: 'Account' });
+const menu = (page: Page) => page.getByRole('menu', { name: 'Account' });
 
 for (const [name, path] of PAGES) {
   test(`the ${name} top bar avatar opens an account menu and Logout lands on the sign-in page`, async ({ page }) => {
@@ -41,4 +41,26 @@ test('Escape and an outside press close the account menu', async ({ page }) => {
   await expect(menu(page)).toBeVisible();
   await page.mouse.click(5, 300);
   await expect(menu(page)).toHaveCount(0);
+});
+
+test('the account menu shows who is signed in, My invitations and Logout below a separator, and no Settings', async ({
+  page,
+}) => {
+  await page.goto(`/o/${ORG}/projects`);
+  await expect(avatar(page)).toHaveAttribute('aria-haspopup', 'menu');
+  await avatar(page).click();
+  const m = menu(page);
+  await expect(m).toBeVisible();
+  await expect(m.getByText('Alice', { exact: true })).toBeVisible();
+  await expect(m.getByRole('menuitem')).toHaveText([/My invitations/, 'Logout']);
+  await expect(m.getByRole('separator')).toHaveCount(1);
+  await expect(m.getByRole('menuitem', { name: /Settings/ })).toHaveCount(0);
+  expect((await m.boundingBox())?.width).toBe(240);
+});
+
+test('the top bar brand is the horizontal logo lockup, with the name drawn inside the logo', async ({ page }) => {
+  await page.goto(`/o/${ORG}/projects`);
+  const brand = page.getByRole('link', { name: 'Agent Desk, all projects' });
+  await expect(brand.locator('svg[viewBox="0 0 480 120"]')).toBeVisible();
+  await expect(brand.locator('svg text')).toHaveText(['Agent', 'Desk']);
 });

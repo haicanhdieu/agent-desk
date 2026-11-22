@@ -6,7 +6,7 @@ export interface PopoverProps {
   open: boolean;
   label: string;
   onClose?(): void;
-  role?: 'dialog' | 'status';
+  role?: 'dialog' | 'menu' | 'status';
   style?: CSSProperties;
   width?: number;
   children?: ReactNode;
@@ -15,9 +15,9 @@ export interface PopoverProps {
 /** Non-modal card positioned by the caller via `style`. */
 export function Popover({ open, label, onClose, role = 'dialog', style, width, children }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const isDialog = role === 'dialog';
+  const managesFocus = role !== 'status';
   useFocusTrap(ref, {
-    active: open && isDialog,
+    active: open && managesFocus,
     restoreFocus: true,
     trap: false,
     onEscape: onClose,

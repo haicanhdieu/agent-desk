@@ -49,6 +49,24 @@ describe('Popover', () => {
     expect(opener).toHaveFocus();
   });
 
+  it('menu role: named by label, focus moves in, Escape closes and focus returns, like a dialog', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <>
+        <button>Open</button>
+        <Popover open label="Account" role="menu" onClose={onClose}>
+          <button role="menuitem">Logout</button>
+        </Popover>
+      </>,
+    );
+    expect(screen.getByRole('menu', { name: 'Account' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('menuitem', { name: 'Logout' })).toHaveFocus();
+    await user.keyboard('{Escape}');
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
   it('status role does not move focus', () => {
     render(
       <>

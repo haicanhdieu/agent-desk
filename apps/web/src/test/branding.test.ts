@@ -76,7 +76,8 @@ describe('Brand logo', () => {
   const tokenValue = (name: string) => new RegExp(`--${name}:\\s*([^;]+);`).exec(tokensCss)?.[1].trim();
   /** The colours a Brand.module.css class paints with: its `fill`/`stroke` declarations, resolved through tokens.css. */
   const classPaint = (cls: string) => {
-    const rule = new RegExp(`\\.${cls}\\s*\\{([^}]*)\\}`).exec(brandCss)?.[1] ?? '';
+    // `drawing` lower-cases attribute values, class names included, hence the case-insensitive match.
+    const rule = new RegExp(`\\.${cls}\\s*\\{([^}]*)\\}`, 'i').exec(brandCss)?.[1] ?? '';
     return [...rule.matchAll(/(fill|stroke):\s*var\(--([\w-]+)\)/g)].map(
       (m) => [m[1], tokenValue(m[2])?.toLowerCase() ?? 'unresolved'] as const,
     );
@@ -112,5 +113,49 @@ describe('Brand logo', () => {
     const logo = container.querySelector('svg');
     expect(logo?.getAttribute('viewBox')).toBe(file.getAttribute('viewBox'));
     expect(logo && drawing(logo)).toEqual(drawing(file));
+  });
+
+  describe('horizontal lockup (the app bar brand)', () => {
+    const lockupFile = new DOMParser().parseFromString(
+      readFileSync(publicFile('/agent-desk-horizontal.svg'), 'utf8'),
+      'image/svg+xml',
+    ).documentElement;
+    const lockup = () => {
+      const { container } = render(createElement(Brand));
+      const svg = container.querySelector('svg');
+      if (!svg) throw new Error('Brand drew no svg');
+      return svg;
+    };
+    /** The drawing without its colours: the file is drawn for a light page (dark ink), the bar is dark, so the
+     *  colours come from the --logo-* tokens instead. A `none` paint is shape, not colour, so it stays. */
+    const shape = (root: Element) =>
+      drawing(root).map((line) => line.replace(/(?<=[[ ])(fill|stroke)=(?!none\b)[^ \]]+ ?/g, '').replace(/ \]$/, ']'));
+
+    it('draws the same viewBox, shapes and words as agent-desk-horizontal.svg', () => {
+      const logo = lockup();
+      expect(logo.getAttribute('viewBox')).toBe(lockupFile.getAttribute('viewBox'));
+      expect(shape(logo)).toEqual(shape(lockupFile));
+      const words = (root: Element) => [...root.querySelectorAll('text')].map((t) => t.textContent);
+      expect(words(logo)).toEqual(words(lockupFile));
+    });
+
+    it('paints the lockup with the --logo-* tokens so the name is readable on the dark bar', () => {
+      const paints = drawing(lockup())
+        .join('\n')
+        .match(/(fill|stroke)=#[0-9a-f]{6}/g);
+      expect(new Set(paints)).toEqual(
+        new Set(
+          [
+            `stroke=${tokenValue('logo-ink')}`,
+            `stroke=${tokenValue('logo-violet')}`,
+            `fill=${tokenValue('logo-violet')}`,
+            `fill=${tokenValue('logo-teal')}`,
+            `fill=${tokenValue('logo-ink')}`,
+          ].map((p) => p.toLowerCase()),
+        ),
+      );
+      // The word "Agent" is ink (white), never the file's dark #111827, which vanishes on the --panel bar.
+      expect(drawing(lockup()).find((l) => l.startsWith('svg > text') && l.includes('fill=#ffffff'))).toBeDefined();
+    });
   });
 });

@@ -5,7 +5,7 @@ import { Brand } from './Brand';
 import { Breadcrumb } from './Breadcrumb';
 import { ProjectMenu } from './ProjectSwitch';
 import { SubNav } from './SubNav';
-import { SignOutProvider } from './AccountMenu';
+import { AccountInfoProvider, SignOutProvider } from './AccountMenu';
 import { TopBar } from './TopBar';
 import { orgSwitchFixtures } from '@/mocks';
 
@@ -22,24 +22,40 @@ describe('Brand', () => {
     expect(screen.getByRole('link', { name: 'Agent Desk, all projects' })).toBeInTheDocument();
     expect(screen.queryByText('Agent Desk')).toBeNull();
   });
-  it('draws the Agent Desk logo as an inline svg, sized to the prop, instead of the generic glyph', () => {
+  it('draws the horizontal lockup (icon and name in one svg) instead of the icon plus a text name', () => {
     const { container } = render(<Brand href="/projects" size={26} />);
+    const logo = container.querySelector('svg');
+    expect(logo).toHaveAttribute('viewBox', '0 0 480 120');
+    expect(Number(logo?.getAttribute('width'))).toBe(Number(logo?.getAttribute('height')) * 4);
+    expect(container.querySelector('img')).toBeNull();
+    // The name is part of the drawing, not a text node of the link.
+    const link = screen.getByRole('link', { name: 'Agent Desk, all projects' });
+    expect([...link.childNodes].filter((n) => n.nodeType === Node.TEXT_NODE)).toHaveLength(0);
+    expect([...container.querySelectorAll('svg text')].map((t) => t.textContent)).toEqual(['Agent', 'Desk']);
+  });
+  it('draws the icon alone, sized to the prop, when the name is off', () => {
+    const { container } = render(<Brand withName={false} href="/projects" size={26} />);
     const logo = container.querySelector('svg');
     expect(logo).toHaveAttribute('viewBox', '0 0 120 120');
     expect(logo).toHaveAttribute('width', '26');
     expect(logo).toHaveAttribute('height', '26');
     expect(container.querySelector('img')).toBeNull();
   });
-  it('names the logo for a screen reader only when no text beside it does', () => {
-    const { container, rerender } = render(<Brand />);
-    expect(container.querySelector('svg')).toHaveAttribute('aria-hidden', 'true');
+  it('names the lockup (or the lone icon) for a screen reader, since no text beside it does', () => {
+    const { rerender } = render(<Brand />);
+    expect(screen.getByRole('img', { name: 'Agent Desk' })).toHaveAttribute('viewBox', '0 0 480 120');
     rerender(<Brand withName={false} />);
     expect(screen.getByRole('img', { name: 'Agent Desk' })).toHaveAttribute('viewBox', '0 0 120 120');
   });
-  it('is the logo in the top bar', () => {
-    const { container } = render(<TopBar variant="global" user={user} />);
-    expect(container.querySelector('header svg[viewBox="0 0 120 120"]')).not.toBeNull();
+  it('is the horizontal lockup in the global and project top bars and the icon in the run top bar', () => {
+    const { container, rerender } = render(<TopBar variant="global" user={user} />);
+    expect(container.querySelector('header svg[viewBox="0 0 480 120"]')).not.toBeNull();
     expect(container.querySelector('img')).toBeNull();
+    rerender(<TopBar variant="project" user={user} project={project} />);
+    expect(container.querySelector('header svg[viewBox="0 0 480 120"]')).not.toBeNull();
+    rerender(<TopBar variant="run" user={user} />);
+    expect(container.querySelector('header svg[viewBox="0 0 480 120"]')).toBeNull();
+    expect(container.querySelector('header svg[viewBox="0 0 120 120"]')).not.toBeNull();
   });
 });
 
@@ -95,7 +111,7 @@ describe('TopBar global', () => {
     render(<TopBar variant="global" user={user} />);
     expect(screen.queryByRole('navigation', { name: 'Project' })).toBeNull();
     expect(screen.queryByRole('button', { name: /^Switch project/ })).toBeNull();
-    expect(screen.getByText('Agent Desk')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Agent Desk' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
   });
 });
@@ -250,31 +266,96 @@ describe('TopBar account menu', () => {
     project: <TopBar variant="project" user={user} project={project} active="runs" />,
     run: <TopBar variant="run" user={user} breadcrumb={breadcrumb} />,
   } as const;
-  const setup = (variant: keyof typeof variants) => {
+  const setup = (variant: keyof typeof variants, pendingInvitations = 0) => {
     const onSignOut = vi.fn();
     const events = userEvent.setup();
-    render(<SignOutProvider onSignOut={onSignOut}>{variants[variant]}</SignOutProvider>);
+    render(
+      <SignOutProvider onSignOut={onSignOut}>
+        <AccountInfoProvider name="Kim Hale" pendingInvitations={pendingInvitations}>
+          {variants[variant]}
+        </AccountInfoProvider>
+      </SignOutProvider>,
+    );
     return { onSignOut, events };
   };
   const trigger = () => screen.getByRole('button', { name: 'Account menu for kim-hale' });
-  const menu = () => screen.queryByRole('dialog', { name: 'Account' });
+  const menu = () => screen.queryByRole('menu', { name: 'Account' });
 
   it.each(Object.keys(variants) as (keyof typeof variants)[])(
     'the %s avatar is a button that opens a menu with Logout, and Logout signs out and closes it',
     async (variant) => {
       const { onSignOut, events } = setup(variant);
-      expect(trigger()).toHaveAttribute('aria-haspopup', 'dialog');
+      expect(trigger()).toHaveAttribute('aria-haspopup', 'menu');
       expect(trigger()).toHaveAttribute('aria-expanded', 'false');
       expect(menu()).toBeNull();
       await events.click(trigger());
       expect(trigger()).toHaveAttribute('aria-expanded', 'true');
       await events.click(
-        within(screen.getByRole('dialog', { name: 'Account' })).getByRole('menuitem', { name: 'Logout' }),
+        within(screen.getByRole('menu', { name: 'Account' })).getByRole('menuitem', { name: 'Logout' }),
       );
       expect(onSignOut).toHaveBeenCalledTimes(1);
       expect(menu()).toBeNull();
     },
   );
+
+  it('closes when the avatar is pressed again', async () => {
+    const { events } = setup('global');
+    await events.click(trigger());
+    expect(menu()).toBeInTheDocument();
+    await events.click(trigger());
+    expect(menu()).toBeNull();
+    expect(trigger()).toHaveAttribute('aria-expanded', 'false');
+  });
+
+  it('shows the identity header, My invitations with its pending count, a separator and Logout, in the prototype order', async () => {
+    const { events } = setup('global', 2);
+    await events.click(trigger());
+    const m = screen.getByRole('menu', { name: 'Account' });
+    expect(within(m).getByText('Kim Hale')).toBeInTheDocument();
+    const handle = within(m).getByText('kim-hale');
+    expect(handle).toHaveClass('mono');
+    const invitations = within(m).getByRole('menuitem', { name: /My invitations/ });
+    expect(invitations).toHaveAttribute('href', '/invitations');
+    expect(within(invitations).getByText('2 pending')).toBeInTheDocument();
+    const logout = within(m).getByRole('menuitem', { name: 'Logout' });
+    const separator = within(m).getByRole('separator');
+    const follows = (a: Node, b: Node) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(follows(handle, invitations)).toBe(true);
+    expect(follows(invitations, separator)).toBe(true);
+    expect(follows(separator, logout)).toBe(true);
+    expect(within(m).getAllByRole('menuitem')).toHaveLength(2);
+    expect(within(m).queryByRole('menuitem', { name: /Settings/ })).toBeNull();
+    expect(m).toHaveStyle({ width: '240px' });
+  });
+
+  it('shows no pending count when no invitation is pending', async () => {
+    const { events } = setup('global', 0);
+    await events.click(trigger());
+    const invitations = screen.getByRole('menuitem', { name: /My invitations/ });
+    expect(within(invitations).queryByText(/pending/)).toBeNull();
+  });
+
+  it('tells the app when the menu opens, so it can fetch the pending count then', async () => {
+    const onOpen = vi.fn();
+    const events = userEvent.setup();
+    render(
+      <SignOutProvider onSignOut={vi.fn()}>
+        <AccountInfoProvider onOpen={onOpen}>
+          <TopBar variant="global" user={user} />
+        </AccountInfoProvider>
+      </SignOutProvider>,
+    );
+    expect(onOpen).not.toHaveBeenCalled();
+    await events.click(trigger());
+    expect(onOpen).toHaveBeenCalledTimes(1);
+  });
+
+  it('closes the menu when My invitations is followed', async () => {
+    const { events } = setup('global', 1);
+    await events.click(trigger());
+    await events.click(screen.getByRole('menuitem', { name: /My invitations/ }));
+    expect(menu()).toBeNull();
+  });
 
   it('opens from the keyboard, closes on Escape with focus back on the avatar, and closes on an outside press', async () => {
     const { onSignOut, events } = setup('global');
@@ -288,6 +369,35 @@ describe('TopBar account menu', () => {
     await events.click(document.body);
     expect(menu()).toBeNull();
     expect(onSignOut).not.toHaveBeenCalled();
+  });
+
+  it('moves between the menu items with the arrow keys, Home and End', async () => {
+    const { events } = setup('global', 1);
+    await events.click(trigger());
+    const invitations = screen.getByRole('menuitem', { name: /My invitations/ });
+    const logout = screen.getByRole('menuitem', { name: 'Logout' });
+    invitations.focus();
+    await events.keyboard('{ArrowDown}');
+    expect(logout).toHaveFocus();
+    await events.keyboard('{ArrowDown}');
+    expect(invitations).toHaveFocus();
+    await events.keyboard('{ArrowUp}');
+    expect(logout).toHaveFocus();
+    await events.keyboard('{Home}');
+    expect(invitations).toHaveFocus();
+    await events.keyboard('{End}');
+    expect(logout).toHaveFocus();
+  });
+
+  it('shows the handle as the name when the session gives none', async () => {
+    const events = userEvent.setup();
+    render(
+      <SignOutProvider onSignOut={vi.fn()}>
+        <TopBar variant="global" user={user} />
+      </SignOutProvider>,
+    );
+    await events.click(trigger());
+    expect(within(screen.getByRole('menu', { name: 'Account' })).getAllByText('kim-hale')).toHaveLength(2);
   });
 
   it('keeps the avatar static when nothing can sign the user out (no provider)', () => {
