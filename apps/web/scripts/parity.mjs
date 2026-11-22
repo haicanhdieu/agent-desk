@@ -160,6 +160,15 @@ const stories = {
   OrgMembersRemoving: ['Screens/OrgSettings', 'OrgMembersRemoving'],
   OrgMembersRemoved: ['Screens/OrgSettings', 'OrgMembersRemoved'],
   OrgMembersRemoveLastOwner: ['Screens/OrgSettings', 'OrgMembersRemoveLastOwner'],
+  OrgGeneral: ['Screens/OrgSettings', 'OrgGeneral'],
+  OrgGeneralSaving: ['Screens/OrgSettings', 'OrgGeneralSaving'],
+  OrgGeneralSaved: ['Screens/OrgSettings', 'OrgGeneralSaved'],
+  OrgGeneralFieldErrors: ['Screens/OrgSettings', 'OrgGeneralFieldErrors'],
+  OrgGeneralNameTooLong: ['Screens/OrgSettings', 'OrgGeneralNameTooLong'],
+  OrgGeneralSlugTaken: ['Screens/OrgSettings', 'OrgGeneralSlugTaken'],
+  OrgGeneralSlugConfirm: ['Screens/OrgSettings', 'OrgGeneralSlugConfirm'],
+  OrgGeneralFormError: ['Screens/OrgSettings', 'OrgGeneralFormError'],
+  OrgGeneralForbidden: ['Screens/OrgSettings', 'OrgGeneralForbidden'],
   ...Object.fromEntries(
     [
       'Starting',

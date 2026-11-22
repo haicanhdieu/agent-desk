@@ -308,3 +308,18 @@ OrgMembersRemoveConfirm, OrgMembersRemoving, OrgMembersRemoved, OrgMembersRemove
 - Toasts (Role changed, "<name> removed", the two problem titles) use the shared `Toast` through `notice`.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 13 pixel pairs are unchecked: none is claimed
   to match.
+
+## Org tenant admin: General boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, General). Nine boards added, so
+`parity.mjs` finds 183: OrgGeneral, OrgGeneralSaving, OrgGeneralSaved, OrgGeneralFieldErrors, OrgGeneralNameTooLong,
+OrgGeneralSlugTaken, OrgGeneralSlugConfirm, OrgGeneralFormError, OrgGeneralForbidden (`Screens/OrgSettings`). The boards were
+missing from `canvas.json`; their entries (and order) are added after the Members boards.
+
+- Layout: one shared `SettingsSection` column ("Organization") with `Field`, `TextInput` and `PrefixInput` (`/o/`); Save is the
+  shared primary `Button`, disabled until something changed, "Saving…" while busy.
+- Slug confirm: a shared `Dialog` opened on "Change URL" (focus moved after the focus trap's own first-button focus).
+- Saved: the org crumb shows the new name through `OrgSettingsFrame`'s story-only `orgName`; the toast is the shared `Toast`.
+- Forbidden: the project admin's frame (side menu lists only Invitations), the no-access notice inside the layout.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 9 pixel pairs are unchecked: none is claimed
+  to match.

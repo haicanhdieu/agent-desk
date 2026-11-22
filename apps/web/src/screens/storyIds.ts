@@ -190,6 +190,15 @@ export const boardStories = {
   OrgMembersRemoving: { title: orgSettings, exportName: 'OrgMembersRemoving' },
   OrgMembersRemoved: { title: orgSettings, exportName: 'OrgMembersRemoved' },
   OrgMembersRemoveLastOwner: { title: orgSettings, exportName: 'OrgMembersRemoveLastOwner' },
+  OrgGeneral: { title: orgSettings, exportName: 'OrgGeneral' },
+  OrgGeneralSaving: { title: orgSettings, exportName: 'OrgGeneralSaving' },
+  OrgGeneralSaved: { title: orgSettings, exportName: 'OrgGeneralSaved' },
+  OrgGeneralFieldErrors: { title: orgSettings, exportName: 'OrgGeneralFieldErrors' },
+  OrgGeneralNameTooLong: { title: orgSettings, exportName: 'OrgGeneralNameTooLong' },
+  OrgGeneralSlugTaken: { title: orgSettings, exportName: 'OrgGeneralSlugTaken' },
+  OrgGeneralSlugConfirm: { title: orgSettings, exportName: 'OrgGeneralSlugConfirm' },
+  OrgGeneralFormError: { title: orgSettings, exportName: 'OrgGeneralFormError' },
+  OrgGeneralForbidden: { title: orgSettings, exportName: 'OrgGeneralForbidden' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

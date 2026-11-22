@@ -21,17 +21,21 @@ export function OrgSettingsFrame({
   role,
   active,
   sideMenu = true,
+  orgName,
   children,
 }: {
   role: Role;
   active: OrgSettingsTabKey | null;
   sideMenu?: boolean;
+  /** The org's current name in the bar, when a story shows it after a rename. */
+  orgName?: string;
   children: ReactNode;
 }) {
   const keys = tabsFor(role);
+  const current = orgName === undefined ? harbor : { ...harbor, name: orgName };
   const org: OrgSwitchProps = {
-    current: harbor,
-    orgs: [harbor],
+    current,
+    orgs: [current],
     platformAdmin: false,
     orgHref: (o) => `/o/${o.slug}/projects`,
     createHref: '/orgs/new',

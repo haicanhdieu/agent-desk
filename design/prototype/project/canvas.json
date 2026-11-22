@@ -1401,6 +1401,78 @@
    "h": 900,
    "title": "Settings \u2014 Members, remove refused (409 last owner): toast, list refetched",
    "expand": "fill"
+  },
+  "OrgGeneral.dc.html": {
+   "x": 0,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, ready: nothing changed, Save disabled",
+   "expand": "fill"
+  },
+  "OrgGeneralSaving.dc.html": {
+   "x": 1520,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, saving a new name",
+   "expand": "fill"
+  },
+  "OrgGeneralSaved.dc.html": {
+   "x": 3040,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, saved: switcher shows the new name, toast",
+   "expand": "fill"
+  },
+  "OrgGeneralFieldErrors.dc.html": {
+   "x": 4560,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, field errors: empty name, bad URL format",
+   "expand": "fill"
+  },
+  "OrgGeneralNameTooLong.dc.html": {
+   "x": 6080,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, field error: name over 100 characters",
+   "expand": "fill"
+  },
+  "OrgGeneralSlugTaken.dc.html": {
+   "x": 0,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, field error: URL taken by another org, input kept",
+   "expand": "fill"
+  },
+  "OrgGeneralSlugConfirm.dc.html": {
+   "x": 1520,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, URL change confirmation",
+   "expand": "fill"
+  },
+  "OrgGeneralFormError.dc.html": {
+   "x": 3040,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, form error with request ID, input kept",
+   "expand": "fill"
+  },
+  "OrgGeneralForbidden.dc.html": {
+   "x": 4560,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General URL opened by a project admin: no access inside the layout",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1577,7 +1649,16 @@
   "OrgMembersRemoveConfirm.dc.html",
   "OrgMembersRemoving.dc.html",
   "OrgMembersRemoved.dc.html",
-  "OrgMembersRemoveLastOwner.dc.html"
+  "OrgMembersRemoveLastOwner.dc.html",
+  "OrgGeneral.dc.html",
+  "OrgGeneralSaving.dc.html",
+  "OrgGeneralSaved.dc.html",
+  "OrgGeneralFieldErrors.dc.html",
+  "OrgGeneralNameTooLong.dc.html",
+  "OrgGeneralSlugTaken.dc.html",
+  "OrgGeneralSlugConfirm.dc.html",
+  "OrgGeneralFormError.dc.html",
+  "OrgGeneralForbidden.dc.html"
  ],
  "notes": {
   "t-intro": {

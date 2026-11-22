@@ -933,11 +933,11 @@ export interface OrgGeneralProps {
 export function OrgGeneral(props: OrgGeneralProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: `orgGeneral.test.tsx` (BR-15, BR-16, BR-17): h1 "General", section "Organization", fields "Name" and "URL" with the `/o/` prefix and help "Links that use the old URL will show "not found"."; Save disabled while not `dirty`, "Saving…" while saving; field errors render under their field with the input kept; the slug confirm "Change the organization URL?" with the spec body, "Cancel" and "Change URL" (focused); the form Banner shows the request id; forbidden shows the no-access copy. Register `OrgGeneral`, `OrgGeneralSaving`, `OrgGeneralSaved`, `OrgGeneralFieldErrors`, `OrgGeneralNameTooLong`, `OrgGeneralSlugTaken`, `OrgGeneralSlugConfirm`, `OrgGeneralFormError`, `OrgGeneralForbidden`; `coverage.test.ts` 174 → 183.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgGeneral.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen (one `SettingsSection` column, `PrefixInput`) and the nine stories (`OrgGeneralForbidden`: project admin frame with only Invitations in the side menu); export `OrgGeneral`.
+- [x] **Step 1: Write the failing tests**: `orgGeneral.test.tsx` (BR-15, BR-16, BR-17): h1 "General", section "Organization", fields "Name" and "URL" with the `/o/` prefix and help "Links that use the old URL will show "not found"."; Save disabled while not `dirty`, "Saving…" while saving; field errors render under their field with the input kept; the slug confirm "Change the organization URL?" with the spec body, "Cancel" and "Change URL" (focused); the form Banner shows the request id; forbidden shows the no-access copy. Register `OrgGeneral`, `OrgGeneralSaving`, `OrgGeneralSaved`, `OrgGeneralFieldErrors`, `OrgGeneralNameTooLong`, `OrgGeneralSlugTaken`, `OrgGeneralSlugConfirm`, `OrgGeneralFormError`, `OrgGeneralForbidden`; `coverage.test.ts` 174 → 183.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgGeneral.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen (one `SettingsSection` column, `PrefixInput`) and the nine stories (`OrgGeneralForbidden`: project admin frame with only Invitations in the side menu); export `OrgGeneral`.
 - [ ] **Step 4: Run** the Step 2 command, the stories smoke test and the parity pass. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): General screen for the org name and URL`.
+- [x] **Step 5: Commit** `feat(web): General screen for the org name and URL`.
 
 ---
 

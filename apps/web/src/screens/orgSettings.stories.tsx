@@ -3,6 +3,7 @@ import { userEvent, within } from 'storybook/test';
 import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
 import { memberRows, orgSettingsFixtures, roleCards } from '@/mocks';
 import type { MemberRowView } from '@/mocks/types';
+import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
 import { OrgMembers as OrgMembersScreen, type OrgMembersProps } from './OrgMembers';
 import { OrgSettingsFrame } from './orgSettingsFrame';
 import { viewport } from './viewports';
@@ -221,4 +222,92 @@ export const OrgMembersRemoveLastOwner: Story = {
     members(ready(soleOwnerRows), {
       notice: { tone: 'error', title: 'The organization needs at least one owner', onDismiss: noop },
     }),
+};
+
+const general = (
+  over: Partial<OrgGeneralProps> = {},
+  frame: Pick<Parameters<typeof OrgSettingsFrame>[0], 'role' | 'sideMenu' | 'orgName'> = { role: 'owner' },
+) => (
+  <OrgSettingsFrame {...frame} active="general">
+    <OrgGeneralScreen
+      state={{ kind: 'ready' }}
+      name={{ value: orgSettingsFixtures.org.name, onChange: noop }}
+      slug={{ value: orgSettingsFixtures.org.slug, onChange: noop }}
+      dirty={false}
+      saving={false}
+      onSave={noop}
+      {...over}
+    />
+  </OrgSettingsFrame>
+);
+const renamed = `${orgSettingsFixtures.org.name} Group`;
+const longName =
+  'Harbor Labs Platform Engineering, Developer Experience and Internal Tooling Group for North America and Europe';
+const slugFormat = 'Use lowercase letters, numbers and dashes, with no dash at the start or end.';
+
+export const OrgGeneral: Story = {
+  name: 'General, ready: nothing changed, Save disabled',
+  render: () => general(),
+};
+export const OrgGeneralSaving: Story = {
+  name: 'General, saving a new name',
+  render: () => general({ name: { value: renamed, onChange: noop }, dirty: true, saving: true }),
+};
+export const OrgGeneralSaved: Story = {
+  name: 'General, saved: switcher shows the new name, toast',
+  render: () =>
+    general(
+      {
+        name: { value: renamed, onChange: noop },
+        notice: { tone: 'ok', title: 'Organization updated', onDismiss: noop },
+      },
+      { role: 'owner', orgName: renamed },
+    ),
+};
+export const OrgGeneralFieldErrors: Story = {
+  name: 'General, field errors: empty name, bad URL format',
+  render: () =>
+    general({
+      name: { value: '', error: 'Enter a name.', onChange: noop },
+      slug: { value: '-harbor-', error: slugFormat, onChange: noop },
+      dirty: true,
+    }),
+};
+export const OrgGeneralNameTooLong: Story = {
+  name: 'General, field error: name over 100 characters',
+  render: () =>
+    general({
+      name: { value: longName, error: 'Use 100 characters or fewer.', onChange: noop },
+      dirty: true,
+    }),
+};
+export const OrgGeneralSlugTaken: Story = {
+  name: 'General, field error: URL taken by another org, input kept',
+  render: () =>
+    general({
+      slug: { value: 'northwind', error: 'This URL is taken. Try another.', onChange: noop },
+      dirty: true,
+    }),
+};
+export const OrgGeneralSlugConfirm: Story = {
+  name: 'General, URL change confirmation',
+  render: () =>
+    general({
+      slug: { value: 'harbor', onChange: noop },
+      dirty: true,
+      slugConfirm: { from: orgSettingsFixtures.org.slug, to: 'harbor', onConfirm: noop, onCancel: noop },
+    }),
+};
+export const OrgGeneralFormError: Story = {
+  name: 'General, form error with request ID, input kept',
+  render: () =>
+    general({
+      name: { value: renamed, onChange: noop },
+      dirty: true,
+      formError: { title: 'Internal server error', requestId: 'req_01JD7Q3M8V2K' },
+    }),
+};
+export const OrgGeneralForbidden: Story = {
+  name: 'General URL opened by a project admin: no access inside the layout',
+  render: () => general({ state: { kind: 'forbidden' } }, { role: 'projectAdmin' }),
 };
