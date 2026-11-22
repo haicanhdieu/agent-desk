@@ -1,0 +1,364 @@
+# Agent Desk: interactive prototype
+
+One clickable prototype of the whole web app, built from the design boards in `design/prototype/project/*.dc.html`. It is for a UI designer to explore. It is not production code and it talks to no server.
+
+## How to open
+
+Double-click `index.html`, or open it in any current browser (checked in headless Chrome). It runs from `file://`: plain HTML, CSS and JavaScript, no build, no server, no npm, no CDN, no libraries.
+
+- Entry file: `design/prototype/interactive/index.html`
+- Start screen: Sign in. Click "Sign in with GitHub" to enter as the default role (Org owner).
+- The URL hash is the router: `#/o/harbor-labs/settings/members`. Links, the back button and reloading a URL work. State (members, invitations, audit) lives in memory and resets on reload.
+- Fonts are not loaded (the boards link none), so the browser falls back to its system font. Text widths can differ slightly from the boards.
+
+## Prototype controls (outside the app)
+
+A dashed panel at the bottom right, collapsible (it remembers its state in the browser). It is not part of the app.
+
+| Control | What it does |
+| --- | --- |
+| Signed in as (role) | Switches the signed-in person: Org owner (Kim Hale), Org admin (Jordan Wu), Project admin (Lee Park), Member (Mira Chen), Viewer (Theo Brandt), Platform admin (Morgan Avery), New user with invitations (Dana Ortiz), Visitor with no invitation (Jo Marsh). Only roles that appear in the boards and spec are offered. |
+| Scenario / state of this screen | Live (the working screen), Loading, Empty, Error, Forbidden, Page crash, plus every board of that screen family as a static snapshot. The choice is stored in the URL as `?s=`. |
+| Fail the next action with | Makes the next save, role change, remove, invite, resend, revoke or accept fail with 500, 403, 404 (removed meanwhile), 409 (last owner, no longer pending) or "clipboard blocked". |
+| Reset | Restores all fake data and signs out. |
+| Logout, Screen map, Copy link | Log out; a modal list of every route; copy the current URL. |
+| Proposals to review | Two checkboxes, both off by default, for the open questions of the navigation proposal (see "Navigation (Option A)"): "Keep a Settings button on the Projects page header" and "Show the org-wide 'needs you' count on the Projects tab". Reset turns both off. |
+
+## Roles and what they see (per spec)
+
+| Role | Settings tab and org-menu item | Settings side menu | Notes |
+| --- | --- | --- | --- |
+| Org owner | yes | General, Members, Invitations, Audit log | Owner card in Change role; can act on owner rows; step-down warning on own row; cannot remove self |
+| Org admin | yes | General, Members, Invitations, Audit log | No Owner card; no actions on owner rows |
+| Project admin | yes | Invitations only | Sees and invites only for projects they administer; other tabs show "You don't have access" inside the Settings layout; sees only their projects |
+| Member, Viewer | no | none | A typed Settings URL shows "You don't have access" under the same bar |
+| Platform admin | no | none | "Create organization" in the org switcher; holds no org role, so org Settings shows "You don't have access" |
+
+## Navigation (Option A)
+
+From the approved navigation proposal ("go with option A"). One top bar on every page. The crumbs say where you are, and the tabs are the sections of the last crumb.
+
+```
+Org page      [logo] | Harbor Labs v |  Projects   Settings                         bell (KH)
+Project page  [logo] | Harbor Labs v / invoicer-api v |  Runs   Desk    Repo on GitHub  bell (KH)
+Run page      [logo] | Harbor Labs v / invoicer-api v / Runs 1 / Run 62   status, actions   (KH)
+Personal      [logo] | Harbor Labs v                                                 bell (KH)   (My invitations: org tabs, none active)
+Create org    [logo] | No organization v                                             bell (KH)   (no tabs)
+No org (Dana) [logo] | No organization                                               bell (KH)
+```
+
+| Part | What it does |
+| --- | --- |
+| Logo | Goes to the org's Projects list (the proposal keeps this, but it is no longer the only way). |
+| Org crumb "Harbor Labs v" | Always a button, also for people in one org. Menu: the org name, Projects, Settings (only for roles that may open it), then "Switch organization" (2+ orgs, or platform admin), then "Create organization" (platform admin). |
+| Project crumb "invoicer-api v" | Project switcher with needs-you counts and "All projects". Shows only the project name (the org has its own crumb). |
+| Tabs, org level | Projects, Settings. Settings opens the first tab the role may open (project admin: Invitations). Members, viewers and platform admins get no Settings tab and no Settings item in the org menu. |
+| Tabs, project level | Runs (with "1 needs you"), Desk, plus the "Repo on GitHub" link. |
+| Run page | Compact bar with the org and project crumbs, then "Runs" (goes to the project's Runs list) and "Run N". No tabs, so the terminal keeps its height. |
+| Account menu (avatar) | Name and handle, "My invitations" (with a "N pending" count), "Logout". No Settings here: Settings belongs to the org. |
+| Settings side menu | `<nav aria-label="Organization settings">`; the tabs in the bar are `<nav aria-label="Main">`. |
+| Needs you page (`/o/<org>/needs-you`) | Now under the org bar (no tab is active, because it is not one of the tabs). |
+| New project setup | Org bar, Projects tab active. |
+
+Clicks, as the proposal promises: Projects <-> Settings is one click with the tabs. From Runs, Desk or a run to Settings: org menu, Settings (2 clicks). To another org: org menu, org (2 clicks). To another project: project menu, project (2 clicks). To My invitations: avatar, My invitations (2 clicks). The browser back button follows every step.
+
+### What changed from the first prototype
+
+- Three different bars (global, project, run) became one bar with two crumb depths (`chrome.bar`, `chrome.orgCrumb`, `chrome.projCrumb`, `chrome.orgTabs`, `chrome.projTabs` in `js/chrome.js`).
+- The org switcher is now on every org, project and run page, and is a real menu also for single-org people.
+- Settings is a tab (org pages) and an org-menu item (every page). The Settings button on the Projects page header is gone by default (a proposal toggle brings it back). The avatar-menu Settings item and its toggle are dropped.
+- The run page crumb "invoicer-api" no longer leads to the all-projects list; the crumbs are now the org and project switchers followed by "Runs" (the project's Runs list).
+- The needs-you page has the bar. My invitations is in the account menu. "Sign out" is now "Logout" everywhere (the code uses "Logout").
+- The 189 static boards are still drawn inside the live bar: the bar of each board's header strip is replaced by the live one (120 org-level, 38 project-level, 21 run-level). Boards drawn without a bar and now given one: the needs-you explainer (org bar) and the page-crash and loading boards (bar of the current area). Boards that stay barless: Main (index), the two sign-in boards, Pagination and RunTranscriptStates (explainers). The check script counts the bars of every board: exactly one, never two.
+- Board text changes done at display time (the boards stay untouched): "This list is one click away on the logo." reads "... on the Projects tab." on Projects boards, and the Settings or Invitations button in the head of the Projects boards is hidden unless the first proposal toggle is on.
+
+### Proposals to review (open questions 2 and 3 of the proposal, not decided)
+
+| Toggle (Prototype controls) | Default | What it does |
+| --- | --- | --- |
+| Keep a Settings button on the Projects page header | off | Shows the "Settings" button (only for roles who may open Settings) next to "New project", as the spec had it. Static Projects boards that were drawn with a Settings or Invitations button keep it while this is on. |
+| Show the org-wide "needs you" count on the Projects tab | off | Adds the amber "N needs you" badge (same style as on the Runs tab) to the Projects tab on every org page, summed over the projects the person can see. |
+
+The proposal's question 1 (is "Settings two clicks from inside a project" acceptable) is not a toggle: the prototype draws Option A as proposed, so Settings from a project is the org menu, then Settings.
+
+## Screen map (route to source boards)
+
+| Route | Screen | Source boards |
+| --- | --- | --- |
+| `#/signin` | Sign in (also the refused case with `?s=SignInNoInvitation`) | SignIn, SignInNoInvitation |
+| `#/invitations` | My invitations (accept and decline work) | MyInvitations* |
+| `#/invitations/<token>` | Accept an invitation | InvitationAccept* |
+| `#/orgs/new` | Create organization (platform admin) | CreateOrg* |
+| `#/o/<org>/projects` | Projects list, banners, checklist, org switcher | Projects* |
+| `#/o/<org>/projects/new/1..4`, `ready`, `workspace` | New project setup | Setup* |
+| `#/o/<org>/needs-you` | Needs you outside the run page (under the org bar) | NeedsYou* |
+| `#/o/<org>/p/<project>/runs` | Runs (grouped, flat, problems, linked) | Runs* |
+| `#/o/<org>/p/<project>/runs/<n>` | Run page (starting, running, idle, stopped, failed, ...) | Run* |
+| `#/o/<org>/p/<project>/desk/agent\|rules\|skills\|setup` | Desk (agent settings, routing rules, skills, workspace setup) | Desk* |
+| `#/o/<org>/settings` | Redirects to the first tab the role may open | n/a |
+| `#/o/<org>/settings/general` | General (rename, URL change) | OrgGeneral* |
+| `#/o/<org>/settings/members` | Members (change role, remove) | OrgMembers* |
+| `#/o/<org>/settings/invitations` | Invitations (invite, revoke, resend, copy link) | OrgInvitationsSettings, OrgInvitations* |
+| `#/o/<org>/settings/audit` | Audit log | OrgAudit* |
+| `#/o/<org>/invitations` | Old URL; redirects to Settings > Invitations | n/a |
+| `#/index` | Index of all boards | Main |
+| `#/gallery/pagination` | Pagination and route loading/error boards | Pagination, RouteLoading, RouteError |
+
+Orgs in the data: `harbor-labs` (Harbor Labs, main one), `northwind` (Northwind Analytics, empty, with a getting-started checklist), `riverside` (long name, Kim Hale is only a member). Projects: invoicer-api, invoicer-web, docs-site, billing-jobs.
+
+## What is real and what is faked
+
+Real (works and changes what you see):
+- Sign-in as the chosen role, the top bar (org and project switchers, tabs by role, account menu), org switching (with a short loading state), hash routing, back button.
+- Projects list with per-role visibility, checklist, pending-invitation banner, "Switch to polling".
+- Settings: General (validation, slug-taken, slug-change confirmation, rename updates the switcher), Members (paging, row menus, Change role with cards, Owner note, step-down warning, last-owner conflict, Remove), Invitations (filters, paging, invite dialog with whole-org or some-projects, created dialog, revoke, resend, copy link), Audit log (new entries appear at the top for every change above).
+- Accepting and declining invitations; creating an organization as platform admin.
+- Dialogs, toasts, busy states (about 0.7 s of fake latency), field errors, form banners, failure injection.
+
+Faked or static:
+- Runs, Run page, Desk, Setup and Needs-you are the boards drawn as static snapshots inside the live bar, with sample data for invoicer-api in every project. Their links navigate between boards, but their buttons mostly do nothing; a click on an unwired control shows the toast "Not wired in this prototype".
+- The terminal, transcript and editors are pictures.
+- There is no real GitHub, clipboard guarantee, email, or persistence. The clock is fixed at 22 Nov 2026, about 11:00.
+- Filler members (12 invented names) and audit rows exist so paging has something to page.
+
+## Coverage of every board
+
+There are 189 boards in `design/prototype/project/`. Every one is reproduced: each is reachable through the route in the table and also from the Scenario selector on its screen. "Live screen" means the default route is the working, stateful screen. "Board snapshot" means the route shows the board as drawn inside the live header and navigation. Where a board's states can be produced live, the last column says how. Routes assume `harbor-labs` and `invoicer-api`; the Screen map and the Scenario selector build them for the current org and project.
+
+Three default routes depend on the role: CreateOrg (Platform admin; others see CreateOrgForbidden), MyInvitations (New user with invitations; others see the empty board) and InvitationAccept (New user with invitations; others see "not available"). Their other boards are reachable with `?s=`.
+
+Boards not reproduced: none. Closest to not reproduced: `OrgInvitationsInviteTabSwitched` (a moment of switching tabs while a dialog is open) and `RouteLoading` (a skeleton) are static snapshots only.
+
+
+## Gaps and choices
+
+- Org slug: the boards use `harbor-labs`; some plans and boards' sample text mention `acme`. The prototype uses `harbor-labs` throughout.
+- Navigation follows Option A of the approved proposal (see "Navigation (Option A)"). The avatar-menu Settings proposal is dropped; the account menu has name, handle, My invitations and Logout. The boards had no account menu, so this menu itself is new.
+- Agent calls in the bar, for the designer to review: (1) the Projects tab icon is a new four-square icon in the same stroke style as the others (Settings reuses the sliders icon of the side menu); (2) My invitations and the invitation-accept page show the org tabs with none active, so the way back is one click (Create organization shows no tabs, as the proposal says); (3) on the run page the project crumb is a project switcher, and "Runs" is the crumb that goes to the project (the proposal drew "invoicer-api" as the link); (4) the needs-you page shows no active tab; (5) a long org name is cut with an ellipsis in the bar (full name on hover and in the menu); (6) the run bar keeps no bell, as the boards drew it.
+- The needs-you explainer board still draws the old "In the app" panel (the board is not changed here). The proposal asks to redraw it with the count on the Projects tab.
+- Member persona: Mira Chen is used for Member because the boards name her. Viewer is Theo Brandt, who exists in the member list.
+- Platform admin: the spec says platform admins create orgs and hold no org role. The prototype shows them every org they created plus Harbor Labs, with "Create organization" in the switcher. The boards do not say whether a platform admin may open Settings; here they cannot, because Settings needs an org role.
+- Project admin: invitations are limited to projects they administer (rows and the project picker). The spec does not say whether they can also invite to the whole organization; the prototype does not allow it.
+- Run, Desk, Setup and Needs-you show sample invoicer-api data for every project, because the boards draw one project only. Project scope is still enforced: a project the role cannot see gives "Not found".
+- Pages with no board for loading, empty, error or forbidden use generic placeholders built from the board markup (Not found, loading skeleton, "Internal server error" banner, "You don't have access"). They are not designed screens.
+- Old boards still say "Invitations" as the Projects button; they are hidden by default (see Proposals to review), and the old `/o/<org>/invitations` URL redirects.
+- OrgInvitations* boards (without Settings layout) are older drafts; they are kept as snapshots, and the live screen follows OrgInvitationsSettings.
+- Name length limit is 100 characters, URL rules and the 20-per-page pager follow the boards; other limits (invite email format) are my reading of the boards.
+- Last-owner and no-self-remove rules follow the spec as drawn: the last owner cannot step down or be removed (409 banner or toast); nobody removes themselves.
+- A removed member who is the signed-in persona loses the org on the next screen change (redirects to "No organization").
+- Clipboard: Copy link uses the browser clipboard; where the browser blocks it (some headless or insecure contexts) the "Could not copy" dialog appears, as in OrgInvitationsCopyFailed.
+- The boards link no web font; the prototype does the same.
+- Build step: `design/prototype/interactive/_tools/build-boards.mjs` (Node, no packages) regenerates `data/boards.js` and `board-styles.css` from the boards. Run it after changing a board: `node design/prototype/interactive/_tools/build-boards.mjs`. Do not edit the two generated files by hand.
+
+## Files
+
+| Path | Purpose |
+| --- | --- |
+| `index.html` | Entry; loads the CSS and scripts in order |
+| `board-styles.css` | Union of the boards' shared CSS (generated) |
+| `styles.css` | Prototype-only styles: sticky bar, name truncation in the bar, menus, toasts, controls panel, screen map (tokens only) |
+| `data/boards.js` | The 189 boards' markup (generated) |
+| `js/core.js` | Fake data, roles, permission rules, fake API |
+| `js/router.js` | Hash router |
+| `js/boards.js` | Board lookup, board-to-route mapping, generic states |
+| `js/chrome.js` | The top bar (org and project crumbs, tabs, run bar), account, org and project menus, dialogs, toasts, pager |
+| `js/controls.js` | Prototype controls panel and screen map |
+| `js/main.js` | Render pipeline, click and input handlers |
+| `screens/*.js` | Settings, invitations, projects, sign-in and invitation screens, board-backed screens |
+| `_checks/` | Screenshots from the headless Chrome run (not needed to use the prototype). `_checks/nav-check.mjs` re-runs the navigation checks (Option A) and writes `_checks/nav/*.png`; it needs playwright-core and a headless Chromium (read-only use of the repo's `node_modules`). |
+
+## Coverage table
+
+No routes changed with the Option A navigation update, so every row below still holds. "Live header and navigation" now means the Option A bar.
+
+| Board | Route (after sign-in as the Org owner) | How shown | How to reach it / note |
+| --- | --- | --- | --- |
+| `CreateOrg` | `#/orgs/new` | Snapshot (the default route shows CreateOrgForbidden for Org owner; see note) | Live: persona Platform admin > org switcher > Create organization (as another role: CreateOrgForbidden) |
+| `CreateOrgCreated` | `#/orgs/new?s=CreateOrgCreated` | Board snapshot, live header and navigation | Live: submit the form |
+| `CreateOrgError` | `#/orgs/new?s=CreateOrgError` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `CreateOrgFieldErrors` | `#/orgs/new?s=CreateOrgFieldErrors` | Board snapshot, live header and navigation | Live: submit an empty form |
+| `CreateOrgForbidden` | `#/orgs/new?s=CreateOrgForbidden` | Board snapshot, live header and navigation | Live: open #/orgs/new as any non-platform role |
+| `CreateOrgInvitationFailed` | `#/orgs/new?s=CreateOrgInvitationFailed` | Board snapshot, live header and navigation | Live: Fail next = Conflict, then submit |
+| `CreateOrgRetrying` | `#/orgs/new?s=CreateOrgRetrying` | Board snapshot, live header and navigation | Live: Retry on the invitation-failed view |
+| `CreateOrgSaving` | `#/orgs/new?s=CreateOrgSaving` | Board snapshot, live header and navigation | Live: submit (0.7 s) |
+| `CreateOrgSlugAuto` | `#/orgs/new?s=CreateOrgSlugAuto` | Board snapshot, live header and navigation | Live: type a name; the URL fills in |
+| `CreateOrgSlugEdited` | `#/orgs/new?s=CreateOrgSlugEdited` | Board snapshot, live header and navigation | Live: edit the URL |
+| `CreateOrgSlugTaken` | `#/orgs/new?s=CreateOrgSlugTaken` | Board snapshot, live header and navigation | Live: use northwind as URL |
+| `DeskAgent` | `#/o/harbor-labs/p/invoicer-api/desk/agent` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAgentAddressChanged` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAddressChanged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAgentAutoResume` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAutoResume` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAgentAutoResumeChanged` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAutoResumeChanged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAgentAutoResumeError` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentAutoResumeError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskAgentCustomModel` | `#/o/harbor-labs/p/invoicer-api/desk/agent?s=DeskAgentCustomModel` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskRules` | `#/o/harbor-labs/p/invoicer-api/desk/rules` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskRulesEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskRulesPaged` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskRulesPrompt` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPrompt` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskRulesPromptError` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPromptError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskRulesPromptNew` | `#/o/harbor-labs/p/invoicer-api/desk/rules?s=DeskRulesPromptNew` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetup` | `#/o/harbor-labs/p/invoicer-api/desk/setup` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetupPaged` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetupTest` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupTest` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetupVersionsEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupVersionsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetupVersionsError` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupVersionsError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSetupVersionsLoading` | `#/o/harbor-labs/p/invoicer-api/desk/setup?s=DeskSetupVersionsLoading` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSkillDelete` | `#/o/harbor-labs/p/invoicer-api/desk/skills?s=DeskSkillDelete` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSkills` | `#/o/harbor-labs/p/invoicer-api/desk/skills` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSkillsEmpty` | `#/o/harbor-labs/p/invoicer-api/desk/skills?s=DeskSkillsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `DeskSkillsPaged` | `#/o/harbor-labs/p/invoicer-api/desk/skills?s=DeskSkillsPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `InvitationAccept` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43` | Snapshot (the default route shows InvitationAcceptNotAvailable for Org owner; see note) | Live: New user with invitations, open the sample link (from Screen map) |
+| `InvitationAcceptAccepted` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptAccepted` | Board snapshot, live header and navigation | Live: Accept on the link page |
+| `InvitationAcceptAccepting` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptAccepting` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `InvitationAcceptDeclineConfirm` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptDeclineConfirm` | Board snapshot, live header and navigation | Live: Decline on the link page |
+| `InvitationAcceptDeclined` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptDeclined` | Board snapshot, live header and navigation | Live: confirm Decline |
+| `InvitationAcceptDeclining` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptDeclining` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `InvitationAcceptError` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptError` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `InvitationAcceptExpired` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptExpired` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `InvitationAcceptExpiredInviterDeleted` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptExpiredInviterDeleted` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `InvitationAcceptLoading` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptLoading` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `InvitationAcceptNotAvailable` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptNotAvailable` | Board snapshot, live header and navigation | Live: open the sample link as anyone but the invitee |
+| `InvitationAcceptRevoked` | `#/invitations/7f3c2a9e-41d8-4b6e-9c0a-2e5b8d1f6a43?s=InvitationAcceptRevoked` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `Main` | `#/index` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `MyInvitations` | `#/invitations` | Snapshot (the default route shows MyInvitationsEmpty for Org owner; see note) | Live: persona New user with invitations, Sign in |
+| `MyInvitationsAccepting` | `#/invitations?s=MyInvitationsAccepting` | Board snapshot, live header and navigation | Live: Accept (0.7 s) |
+| `MyInvitationsEmpty` | `#/invitations?s=MyInvitationsEmpty` | Board snapshot, live header and navigation | Live: persona Org owner, open #/invitations |
+| `MyInvitationsEmptyPlatformAdmin` | `#/invitations?s=MyInvitationsEmptyPlatformAdmin` | Board snapshot, live header and navigation | Live: persona Platform admin, open #/invitations |
+| `MyInvitationsError` | `#/invitations?s=MyInvitationsError` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `MyInvitationsLoading` | `#/invitations?s=MyInvitationsLoading` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `NeedsYou` | `#/o/harbor-labs/needs-you` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
+| `NeedsYouEmpty` | `#/o/harbor-labs/needs-you?s=NeedsYouEmpty` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
+| `NeedsYouPaged` | `#/o/harbor-labs/needs-you?s=NeedsYouPaged` | Board snapshot, under the live org bar (new) | Static board (not stateful in this prototype) |
+| `OrgAudit` | `#/o/harbor-labs/settings/audit` | Live screen | Live: Settings > Audit log |
+| `OrgAuditEmpty` | `#/o/harbor-labs/settings/audit?s=OrgAuditEmpty` | Board snapshot, live header and navigation | Live: switch to Northwind (empty audit) |
+| `OrgAuditError` | `#/o/harbor-labs/settings/audit?s=OrgAuditError` | Board snapshot, live header and navigation | Scenario selector: Error |
+| `OrgAuditForbidden` | `#/o/harbor-labs/settings/audit?s=OrgAuditForbidden` | Board snapshot, live header and navigation | Live: sign in as Member/Viewer and open the URL |
+| `OrgAuditLoading` | `#/o/harbor-labs/settings/audit?s=OrgAuditLoading` | Board snapshot, live header and navigation | Scenario selector: Loading |
+| `OrgAuditPaged` | `#/o/harbor-labs/settings/audit?s=OrgAuditPaged` | Board snapshot, live header and navigation | Live: 25 entries, page size 20, page 2 |
+| `OrgGeneral` | `#/o/harbor-labs/settings/general` | Live screen | Live: Settings > General |
+| `OrgGeneralFieldErrors` | `#/o/harbor-labs/settings/general?s=OrgGeneralFieldErrors` | Board snapshot, live header and navigation | Live: clear the name, enter a bad URL, Save |
+| `OrgGeneralForbidden` | `#/o/harbor-labs/settings/general?s=OrgGeneralForbidden` | Board snapshot, live header and navigation | Live: sign in as Member/Viewer and open the URL; project admin gets it inside the Settings layout |
+| `OrgGeneralFormError` | `#/o/harbor-labs/settings/general?s=OrgGeneralFormError` | Board snapshot, live header and navigation | Live: Fail next = Server error, then Save |
+| `OrgGeneralNameTooLong` | `#/o/harbor-labs/settings/general?s=OrgGeneralNameTooLong` | Board snapshot, live header and navigation | Live: enter a name over 100 characters, Save |
+| `OrgGeneralSaved` | `#/o/harbor-labs/settings/general?s=OrgGeneralSaved` | Board snapshot, live header and navigation | Live: change the name, Save (toast) |
+| `OrgGeneralSaving` | `#/o/harbor-labs/settings/general?s=OrgGeneralSaving` | Board snapshot, live header and navigation | Live: Save (0.7 s Saving...) |
+| `OrgGeneralSlugConfirm` | `#/o/harbor-labs/settings/general?s=OrgGeneralSlugConfirm` | Board snapshot, live header and navigation | Live: change the URL, Save |
+| `OrgGeneralSlugTaken` | `#/o/harbor-labs/settings/general?s=OrgGeneralSlugTaken` | Board snapshot, live header and navigation | Live: enter northwind as URL, Save |
+| `OrgInvitations` | `#/o/harbor-labs/settings/invitations?s=OrgInvitations` | Board snapshot, live header and navigation | Live: Invitations (older board, no Settings layout) |
+| `OrgInvitationsAll` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsAll` | Board snapshot, live header and navigation | Live: filter chip All |
+| `OrgInvitationsCopyFailed` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsCopyFailed` | Board snapshot, live header and navigation | Live: Fail next = Clipboard blocked, row menu > Copy link |
+| `OrgInvitationsCreated` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsCreated` | Board snapshot, live header and navigation | Live: Invite people > Create invitation |
+| `OrgInvitationsEmpty` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsEmpty` | Board snapshot, live header and navigation | Live: switch to Northwind (no invitations), or scenario Empty |
+| `OrgInvitationsEmptyAll` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsEmptyAll` | Board snapshot, live header and navigation | Live: Northwind, filter All |
+| `OrgInvitationsEmptyFiltered` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsEmptyFiltered` | Board snapshot, live header and navigation | Live: Northwind, filter chip Pending/Accepted/etc. |
+| `OrgInvitationsError` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsError` | Board snapshot, live header and navigation | Scenario selector: Error |
+| `OrgInvitationsFiltered` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsFiltered` | Board snapshot, live header and navigation | Live: any filter chip |
+| `OrgInvitationsForbidden` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsForbidden` | Board snapshot, live header and navigation | Live: sign in as Member/Viewer and open the URL |
+| `OrgInvitationsInvite` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsInvite` | Board snapshot, live header and navigation | Live: Invite people |
+| `OrgInvitationsInviteFieldError` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsInviteFieldError` | Board snapshot, live header and navigation | Live: invite an email that already has a pending invitation |
+| `OrgInvitationsInviteFormError` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsInviteFormError` | Board snapshot, live header and navigation | Live: Fail next = Server error, then Create invitation |
+| `OrgInvitationsInviteProjectAdmin` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsInviteProjectAdmin` | Board snapshot, live header and navigation | Live: Project admin > Invite people |
+| `OrgInvitationsInviteProjects` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsInviteProjects` | Board snapshot, live header and navigation | Live: Invite people > Some projects |
+| `OrgInvitationsInviteSaving` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsInviteSaving` | Board snapshot, live header and navigation | Live: Create invitation (0.7 s) |
+| `OrgInvitationsInviteTabSwitched` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsInviteTabSwitched` | Board snapshot, live header and navigation | Not reproduced live (tab-switch moment); snapshot only |
+| `OrgInvitationsLinkCopied` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsLinkCopied` | Board snapshot, live header and navigation | Live: row menu > Copy link (where the browser allows the clipboard) |
+| `OrgInvitationsLoading` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsLoading` | Board snapshot, live header and navigation | Scenario selector: Loading |
+| `OrgInvitationsPaged` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsPaged` | Board snapshot, live header and navigation | Snapshot (the live list has fewer than 21 rows) |
+| `OrgInvitationsRenewed` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsRenewed` | Board snapshot, live header and navigation | Live: row menu > Resend (toast) |
+| `OrgInvitationsResendConflict` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsResendConflict` | Board snapshot, live header and navigation | Live: Fail next = Conflict, then Resend |
+| `OrgInvitationsResending` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsResending` | Board snapshot, live header and navigation | Live: Resend (0.7 s) |
+| `OrgInvitationsRevokeConfirm` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsRevokeConfirm` | Board snapshot, live header and navigation | Live: row menu > Revoke |
+| `OrgInvitationsRevoked` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsRevoked` | Board snapshot, live header and navigation | Live: confirm Revoke (toast) |
+| `OrgInvitationsRowMenu` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsRowMenu` | Board snapshot, live header and navigation | Live: row menu on a pending row |
+| `OrgInvitationsRowMenuExpired` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsRowMenuExpired` | Board snapshot, live header and navigation | Live: row menu on an expired row (filter Expired) |
+| `OrgInvitationsSettings` | `#/o/harbor-labs/settings/invitations` | Live screen | Live: Settings > Invitations |
+| `OrgInvitationsSettingsProjectAdmin` | `#/o/harbor-labs/settings/invitations?s=OrgInvitationsSettingsProjectAdmin` | Board snapshot, live header and navigation | Live: sign in as Project admin |
+| `OrgMembers` | `#/o/harbor-labs/settings/members` | Live screen | Live: Settings > Members (any owner/admin) |
+| `OrgMembersAdmin` | `#/o/harbor-labs/settings/members?s=OrgMembersAdmin` | Board snapshot, live header and navigation | Live: sign in as Org admin; no actions on owner rows |
+| `OrgMembersBusy` | `#/o/harbor-labs/settings/members?s=OrgMembersBusy` | Board snapshot, live header and navigation | Live for ~0.7 s while a role change or removal is saving (row dimmed) |
+| `OrgMembersChangeRole` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRole` | Board snapshot, live header and navigation | Live: row menu > Change role |
+| `OrgMembersChangeRoleAdmin` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleAdmin` | Board snapshot, live header and navigation | Live: as Org admin, Change role (no Owner card) |
+| `OrgMembersChangeRoleError` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleError` | Board snapshot, live header and navigation | Live: Fail next = Server error, then Save role |
+| `OrgMembersChangeRoleSaving` | `#/o/harbor-labs/settings/members?s=OrgMembersChangeRoleSaving` | Board snapshot, live header and navigation | Live: Save role (0.7 s Saving...) |
+| `OrgMembersEmpty` | `#/o/harbor-labs/settings/members?s=OrgMembersEmpty` | Board snapshot, live header and navigation | Scenario selector: Empty (also a snapshot) |
+| `OrgMembersError` | `#/o/harbor-labs/settings/members?s=OrgMembersError` | Board snapshot, live header and navigation | Scenario selector: Error |
+| `OrgMembersForbidden` | `#/o/harbor-labs/settings/members?s=OrgMembersForbidden` | Board snapshot, live header and navigation | Live: sign in as Member or Viewer and open the URL; or scenario Forbidden |
+| `OrgMembersGone` | `#/o/harbor-labs/settings/members?s=OrgMembersGone` | Board snapshot, live header and navigation | Live: Fail next = Not found, then Save role |
+| `OrgMembersLastOwner` | `#/o/harbor-labs/settings/members?s=OrgMembersLastOwner` | Board snapshot, live header and navigation | Live: make the other owner a member, then step Kim Hale down; or Fail next = Conflict |
+| `OrgMembersLoading` | `#/o/harbor-labs/settings/members?s=OrgMembersLoading` | Board snapshot, live header and navigation | Scenario selector: Loading |
+| `OrgMembersMakeOwner` | `#/o/harbor-labs/settings/members?s=OrgMembersMakeOwner` | Board snapshot, live header and navigation | Live: Change role, pick the Owner card (owner only) |
+| `OrgMembersPaged` | `#/o/harbor-labs/settings/members?s=OrgMembersPaged` | Board snapshot, live header and navigation | Live: 26 members, 20 per page, page 2 |
+| `OrgMembersRemoveConfirm` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoveConfirm` | Board snapshot, live header and navigation | Live: row menu > Remove from organization |
+| `OrgMembersRemoveLastOwner` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoveLastOwner` | Board snapshot, live header and navigation | Live: Fail next = Conflict, then Remove |
+| `OrgMembersRemoved` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoved` | Board snapshot, live header and navigation | Live: confirm Remove (toast, row gone, audit entry) |
+| `OrgMembersRemoving` | `#/o/harbor-labs/settings/members?s=OrgMembersRemoving` | Board snapshot, live header and navigation | Live: confirm Remove (0.7 s Removing...) |
+| `OrgMembersRoleChanged` | `#/o/harbor-labs/settings/members?s=OrgMembersRoleChanged` | Board snapshot, live header and navigation | Live: Save role (toast, audit entry) |
+| `OrgMembersRowMenu` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenu` | Board snapshot, live header and navigation | Live: row menu on another member |
+| `OrgMembersRowMenuSelf` | `#/o/harbor-labs/settings/members?s=OrgMembersRowMenuSelf` | Board snapshot, live header and navigation | Live: row menu on your own row |
+| `OrgMembersStepDown` | `#/o/harbor-labs/settings/members?s=OrgMembersStepDown` | Board snapshot, live header and navigation | Live: as owner, Change role on your own row, pick a lower role |
+| `Pagination` | `#/gallery/pagination` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Projects` | `#/o/harbor-labs/projects` | Live screen | Live: Projects |
+| `ProjectsChecklist` | `#/o/harbor-labs/projects?s=ProjectsChecklist` | Board snapshot, live header and navigation | Live: Northwind as Kim Hale (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
+| `ProjectsChecklistDone` | `#/o/harbor-labs/projects?s=ProjectsChecklistDone` | Board snapshot, live header and navigation | Board snapshot (static) (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
+| `ProjectsChecklistDoneSettings` | `#/o/harbor-labs/projects?s=ProjectsChecklistDoneSettings` | Board snapshot, live header and navigation | Board snapshot (static) (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
+| `ProjectsChecklistError` | `#/o/harbor-labs/projects?s=ProjectsChecklistError` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `ProjectsChecklistLoading` | `#/o/harbor-labs/projects?s=ProjectsChecklistLoading` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `ProjectsEmpty` | `#/o/harbor-labs/projects?s=ProjectsEmpty` | Board snapshot, live header and navigation | Live: sign in as Platform admin, switch to a new org, or scenario Empty |
+| `ProjectsEmptyChecklist` | `#/o/harbor-labs/projects?s=ProjectsEmptyChecklist` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `ProjectsEmptyChecklistSettings` | `#/o/harbor-labs/projects?s=ProjectsEmptyChecklistSettings` | Board snapshot, live header and navigation | Board snapshot (static) (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
+| `ProjectsEmptyNoCreate` | `#/o/harbor-labs/projects?s=ProjectsEmptyNoCreate` | Board snapshot, live header and navigation | Live: Riverside as Kim Hale (member) |
+| `ProjectsMember` | `#/o/harbor-labs/projects?s=ProjectsMember` | Board snapshot, live header and navigation | Live: sign in as Member |
+| `ProjectsNoAccess` | `#/o/harbor-labs/projects?s=ProjectsNoAccess` | Board snapshot, live header and navigation | Live: Mira Chen in Northwind (no role) |
+| `ProjectsOrgSwitchAdmin` | `#/o/harbor-labs/projects?s=ProjectsOrgSwitchAdmin` | Board snapshot, live header and navigation | Live: org switcher as Platform admin (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
+| `ProjectsOrgSwitchOpen` | `#/o/harbor-labs/projects?s=ProjectsOrgSwitchOpen` | Board snapshot, live header and navigation | Live: open the org switcher (the drawn Settings or Invitations head button is hidden unless the proposal toggle is on) |
+| `ProjectsPaged` | `#/o/harbor-labs/projects?s=ProjectsPaged` | Board snapshot, live header and navigation | Board snapshot (static) |
+| `ProjectsSwitching` | `#/o/harbor-labs/projects?s=ProjectsSwitching` | Board snapshot, live header and navigation | Live: choose another org (0.7 s) |
+| `RouteError` | `#/gallery/pagination?s=RouteError` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RouteLoading` | `#/gallery/pagination?s=RouteLoading` | Board snapshot, live header and navigation | Static board: a loading skeleton with no text; select it in the Scenario selector |
+| `RunCancelled` | `#/o/harbor-labs/p/invoicer-api/runs/52` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunFailed` | `#/o/harbor-labs/p/invoicer-api/runs/56` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunIdle` | `#/o/harbor-labs/p/invoicer-api/runs/62` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunIdleEnding` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunIdleEnding` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunPrompt` | `#/o/harbor-labs/p/invoicer-api/runs/60?s=RunPrompt` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunReconnect` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunReconnect` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunRunning` | `#/o/harbor-labs/p/invoicer-api/runs/61` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunRunningAutoResume` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunRunningAutoResume` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunRunningStop` | `#/o/harbor-labs/p/invoicer-api/runs/61?s=RunRunningStop` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunSetupFailed` | `#/o/harbor-labs/p/invoicer-api/runs/58` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStarting` | `#/o/harbor-labs/p/invoicer-api/runs/63` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStopped` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStopped` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStoppedAutoResumeFailedGaveUp` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStoppedAutoResumeFailedGaveUp` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStoppedAutoResumeWaiting` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStoppedAutoResumeWaiting` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStoppedCrashedGaveUp` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStoppedCrashedGaveUp` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStoppedPodLost` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStoppedPodLost` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStoppedPodLostGaveUp` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStoppedPodLostGaveUp` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunStoppedPodLostGaveUpOnce` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunStoppedPodLostGaveUpOnce` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunSucceeded` | `#/o/harbor-labs/p/invoicer-api/runs/60` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunSucceededFinished` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunSucceededFinished` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunTimedOut` | `#/o/harbor-labs/p/invoicer-api/runs/54` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunTranscriptStates` | `#/o/harbor-labs/p/invoicer-api/runs/62?s=RunTranscriptStates` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Runs` | `#/o/harbor-labs/p/invoicer-api/runs` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsEmpty` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsFlatPaged` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsFlatPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsLinked` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsLinked` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsLinkedFiltered` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsLinkedFiltered` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsLinkedLongChain` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsLinkedLongChain` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsLinkedSeveralPrs` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsLinkedSeveralPrs` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsLinkedSplitPr` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsLinkedSplitPr` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsPageLoading` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPageLoading` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsPageLoadingLinked` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPageLoadingLinked` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsPaged` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsPagedLinkedIssueOnly` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPagedLinkedIssueOnly` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsPagedLinkedPrOnly` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsPagedLinkedPrOnly` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsProblems` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblems` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsProblemsEmpty` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblemsEmpty` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `RunsProblemsPaged` | `#/o/harbor-labs/p/invoicer-api/runs?s=RunsProblemsPaged` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Setup1` | `#/o/harbor-labs/projects/new/1` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Setup1Polling` | `#/o/harbor-labs/projects/new/1?s=Setup1Polling` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Setup1PollingOk` | `#/o/harbor-labs/projects/new/1?s=Setup1PollingOk` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Setup2` | `#/o/harbor-labs/projects/new/2` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Setup3` | `#/o/harbor-labs/projects/new/3` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `Setup4` | `#/o/harbor-labs/projects/new/4` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `SetupReady` | `#/o/harbor-labs/projects/new/ready` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `SetupWorkspace` | `#/o/harbor-labs/projects/new/workspace` | Board snapshot, live header and navigation | Static board (not stateful in this prototype) |
+| `SignIn` | `#/signin` | Board snapshot, live header and navigation | Live: first screen; Sign in with GitHub |
+| `SignInNoInvitation` | `#/signin?s=SignInNoInvitation` | Board snapshot, live header and navigation | Live: persona Visitor with no invitation, Sign in |

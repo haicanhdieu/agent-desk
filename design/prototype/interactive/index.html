@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent Desk - interactive prototype</title>
+<!-- Plain HTML, CSS and JS. Open this file directly (file://). No server, no build step, no network.
+     Fonts: the boards load IBM Plex from Google Fonts; this prototype uses the same font tokens but loads nothing,
+     so it falls back to the system font unless IBM Plex Sans / Mono are installed locally. -->
+<link rel="stylesheet" href="board-styles.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="stage" role="presentation"></div>
+<div id="toasts" aria-live="polite"></div>
+<noscript><p style="padding:24px">This prototype needs JavaScript.</p></noscript>
+<script src="data/boards.js"></script>
+<script src="js/core.js"></script>
+<script src="js/router.js"></script>
+<script src="js/boards.js"></script>
+<script src="js/chrome.js"></script>
+<script src="screens/settings.js"></script>
+<script src="screens/invitations.js"></script>
+<script src="screens/projects.js"></script>
+<script src="screens/auth.js"></script>
+<script src="screens/boardscreens.js"></script>
+<script src="js/controls.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>
