@@ -244,3 +244,23 @@ added, so `parity.mjs` finds 149: ProjectsChecklistDoneSettings, ProjectsEmptyCh
   still draw it.
 - The Setup screens take optional `account` and `org` and pass them to `SetupLayout`; the Setup stories set both, so the story header shows the org crumb, the Projects tab (active) and Settings. The app route does not pass them yet.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 2 new pixel pairs are unchecked: none is claimed to match.
+
+## Org tenant admin: Invitations inside the settings layout
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Invitations). Two boards added, so
+`parity.mjs` finds 151: OrgInvitationsSettings, OrgInvitationsSettingsProjectAdmin. Their boards already draw the Option A bar
+and the side menu (owner: all four tabs; project admin: Invitations only), so they have no header drift.
+
+- OrgInvitations* (slice-2 drafts): the story renders inside the Settings layout with the Option A bar; the board keeps the old
+  global bar and no side menu. Intentional header difference; the table and dialog body below the header must still match.
+  Superseded by OrgInvitationsSettings.
+- OrgInvitationsForbidden: intentional: Option A app bar. The story shows the no-access notice under the app bar of a member
+  (no Settings tab, no side menu), as the Members no-access page does, not inside the layout.
+- MyInvitations*, InvitationAccept* and CreateOrg* boards: intentional: Option A app bar. The story header is the new bar (org
+  crumb and menu, account menu); MyInvitations and InvitationAccept show the Projects and Settings tabs with none active, and
+  CreateOrg shows the org crumb with no tabs. The boards still draw the older header and are not redrawn. The no-organization
+  stories show the "No organization" crumb.
+- `OrgInvitations` takes optional `user` and `org`; the stories omit both, so the screen draws no top bar. `MyInvitations`,
+  `InvitationAccept` and `CreateOrg` take an optional `account`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 2 new pixel pairs are unchecked: none is
+  claimed to match.

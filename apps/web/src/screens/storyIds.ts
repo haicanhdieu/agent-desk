@@ -164,6 +164,8 @@ export const boardStories = {
   CreateOrgSlugTaken: { title: invitations, exportName: 'CreateOrgSlugTaken' },
   ProjectsChecklistDoneSettings: { title: entry, exportName: 'ProjectsChecklistDoneSettings' },
   ProjectsEmptyChecklistSettings: { title: entry, exportName: 'ProjectsEmptyChecklistSettings' },
+  OrgInvitationsSettings: { title: invitations, exportName: 'OrgInvitationsSettings' },
+  OrgInvitationsSettingsProjectAdmin: { title: invitations, exportName: 'OrgInvitationsSettingsProjectAdmin' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

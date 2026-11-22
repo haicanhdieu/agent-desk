@@ -12,6 +12,10 @@ import { InvitationAccept, type InvitationAcceptState } from './InvitationAccept
 import { OrgInvitations, type OrgInvitationsProps } from './OrgInvitations';
 import { MyInvitations, type MyInvitationsState } from './MyInvitations';
 import { CreateOrg, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
+import { OrgSettingsFrame } from './orgSettingsFrame';
+import { SignOutProvider } from '@/components';
+
+const settingsOrg = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o/acme/projects', createHref: '/orgs/new' };
 
 const props = (state: MyInvitationsState) => ({
   user,
@@ -628,6 +632,22 @@ describe('CreateOrg', () => {
     ...over,
   });
 
+  it('BR-43: Create organization shows no tabs and passes the account to the menu', async () => {
+    render(
+      <SignOutProvider onSignOut={vi.fn()}>
+        <CreateOrg
+          {...createProps(form())}
+          org={settingsOrg}
+          account={{ name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' }}
+        />
+      </SignOutProvider>,
+    );
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: /Account menu/ }));
+    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
+  });
+
   it('BR-35: shows the h1, the labelled fields with the /o/ prefix described, the hint and Create organization', async () => {
     const p = createProps(form());
     render(<CreateOrg {...p} />);
@@ -803,5 +823,112 @@ describe('CreateOrg', () => {
     render(<CreateOrg {...createProps(form({ values: { ...values, name: '<b>x</b>' } }))} />);
     expect(screen.getByLabelText('Name')).toHaveValue('<b>x</b>');
     expect(document.querySelector('b')).toBeNull();
+  });
+});
+
+/** The props the settings route passes: the layout draws the bar, so no `user` and no `org`. */
+const bare = (over: Partial<OrgInvitationsProps>): OrgInvitationsProps => {
+  const p = listProps(over);
+  delete p.user;
+  delete p.org;
+  return p;
+};
+
+describe('OrgInvitations inside the settings layout', () => {
+  it('without user and org it renders no top bar and keeps its table and the revoke dialog', () => {
+    const rest = bare({
+      revokeConfirm: { email: 'x@example.com', onConfirm: vi.fn(), onCancel: vi.fn() },
+    });
+    render(<OrgInvitations {...rest} />);
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Invitations' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Revoke invitation for x@example.com?' })).toBeInTheDocument();
+  });
+
+  it('without user and org the forbidden state renders no top bar either', () => {
+    const rest = bare({ state: { kind: 'forbidden' } });
+    render(<OrgInvitations {...rest} />);
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
+  });
+
+  const tabNames = () =>
+    within(screen.getByRole('navigation', { name: 'Organization settings' }))
+      .getAllByRole('link')
+      .map((a) => a.textContent);
+
+  it('the frame for an owner shows the app bar with Settings active and the full side menu', () => {
+    render(
+      <OrgSettingsFrame role="owner" active="invitations">
+        <p>Body</p>
+      </OrgSettingsFrame>,
+    );
+    const main = within(screen.getByRole('navigation', { name: 'Main' }));
+    expect(main.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    expect(tabNames()).toEqual(['General', 'Members', 'Invitations', 'Audit log']);
+    const side = within(screen.getByRole('navigation', { name: 'Organization settings' }));
+    expect(side.getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('the frame for a project admin lists only Invitations', () => {
+    render(
+      <OrgSettingsFrame role="projectAdmin" active="invitations">
+        <p>Body</p>
+      </OrgSettingsFrame>,
+    );
+    expect(tabNames()).toEqual(['Invitations']);
+  });
+
+  it('the frame for a member has no Settings tab and, without a side menu, no settings navigation', () => {
+    render(
+      <OrgSettingsFrame role="member" active={null} sideMenu={false}>
+        <p>Body</p>
+      </OrgSettingsFrame>,
+    );
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Organization settings' })).not.toBeInTheDocument();
+    expect(screen.getByText('Body')).toBeInTheDocument();
+  });
+
+  const noTabActive = () => {
+    const main = within(screen.getByRole('navigation', { name: 'Main' }));
+    expect(main.getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
+    expect(main.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+  };
+
+  it('BR-43: My invitations shows the org bar with no tab active', () => {
+    render(<MyInvitations {...props({ kind: 'list', cards: invitationCards, pending: null })} org={settingsOrg} />);
+    noTabActive();
+  });
+
+  it('BR-43: the invitation page shows the org bar with no tab active and passes the account to the menu', async () => {
+    render(
+      <SignOutProvider onSignOut={vi.fn()}>
+        <InvitationAccept
+          {...accept({ kind: 'revoked' })}
+          org={settingsOrg}
+          account={{ name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' }}
+        />
+      </SignOutProvider>,
+    );
+    noTabActive();
+    await userEvent.click(screen.getByRole('button', { name: /Account menu/ }));
+    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
+  });
+
+  it('MyInvitations passes the account to the account menu', async () => {
+    render(
+      <SignOutProvider onSignOut={vi.fn()}>
+        <MyInvitations
+          {...props({ kind: 'list', cards: invitationCards, pending: null })}
+          account={{ name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' }}
+        />
+      </SignOutProvider>,
+    );
+    await userEvent.click(screen.getByRole('button', { name: /Account menu/ }));
+    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
   });
 });

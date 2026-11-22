@@ -1,5 +1,5 @@
 import { Button, Skeleton } from '@/ds';
-import { InvitationCard, RouteLoadError, TopBar, type OrgSwitchProps } from '@/components';
+import { InvitationCard, RouteLoadError, TopBar, type AccountMenuAccount, type OrgSwitchProps } from '@/components';
 import type { Actor, InvitationCardView } from '@/mocks/types';
 import styles from './Screens.module.css';
 
@@ -11,6 +11,8 @@ export type MyInvitationsState =
 
 export interface MyInvitationsProps {
   user: Actor;
+  /** Name, handle and the My invitations link for the account menu. */
+  account?: AccountMenuAccount;
   org?: OrgSwitchProps;
   state: MyInvitationsState;
   onAccept: (id: string) => void;
@@ -19,10 +21,10 @@ export interface MyInvitationsProps {
 }
 
 /** The welcome page: the signed-in person's pending invitations, or what to do when there are none. */
-export function MyInvitations({ user, org, state, onAccept, onDecline, onSignOut }: MyInvitationsProps) {
+export function MyInvitations({ user, account, org, state, onAccept, onDecline, onSignOut }: MyInvitationsProps) {
   return (
     <>
-      <TopBar variant="global" user={user} org={org} />
+      <TopBar variant="global" user={user} account={account} org={org} tabs={org?.current ? 'org' : 'none'} />
       <main className={styles.emptyMain}>{body(state, onAccept, onDecline, onSignOut)}</main>
     </>
   );

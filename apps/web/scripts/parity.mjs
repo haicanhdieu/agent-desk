@@ -135,6 +135,8 @@ const stories = {
   CreateOrgSlugTaken: ['Screens/Invitations', 'CreateOrgSlugTaken'],
   ProjectsChecklistDoneSettings: ['Screens/Entry', 'ProjectsChecklistDoneSettings'],
   ProjectsEmptyChecklistSettings: ['Screens/Entry', 'ProjectsEmptyChecklistSettings'],
+  OrgInvitationsSettings: ['Screens/Invitations', 'OrgInvitationsSettings'],
+  OrgInvitationsSettingsProjectAdmin: ['Screens/Invitations', 'OrgInvitationsSettingsProjectAdmin'],
   ...Object.fromEntries(
     [
       'Starting',

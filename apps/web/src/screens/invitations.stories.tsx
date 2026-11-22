@@ -33,6 +33,7 @@ import {
   type OrgInvitationsProps,
 } from './OrgInvitations';
 import { CreateOrg as CreateOrgScreen, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
+import { OrgSettingsFrame } from './orgSettingsFrame';
 import { viewport } from './viewports';
 
 const noop = () => undefined;
@@ -74,14 +75,42 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' };
+const noOrg: OrgSwitchProps = {
+  current: null,
+  orgs: [],
+  platformAdmin: false,
+  orgHref: (o) => `/o/${o.slug}/projects`,
+  createHref: '/orgs/new',
+};
+
 const adminOrg: OrgSwitchProps = {
   ...orgSwitchFixtures.platformAdminNoOrg,
   orgHref: (o) => `/o/${o.slug}/projects`,
   createHref: '/orgs/new',
 };
 
-const screen = (state: MyInvitationsState, user: Actor = dana, org?: MyInvitationsProps['org']) => (
-  <MyInvitationsScreen user={user} org={org} state={state} onAccept={noop} onDecline={noop} onSignOut={noop} />
+/** The org bar with no tab active: a person of one org. */
+const harborBar: OrgSwitchProps = {
+  current: { id: 'o1', slug: 'harbor-labs', name: 'Harbor Labs' },
+  orgs: [{ id: 'o1', slug: 'harbor-labs', name: 'Harbor Labs' }],
+  platformAdmin: false,
+  orgHref: (o) => `/o/${o.slug}/projects`,
+  createHref: '/orgs/new',
+  projectsHref: '#projects',
+  settingsHref: '#settings',
+};
+
+const screen = (state: MyInvitationsState, user: Actor = dana, org: MyInvitationsProps['org'] = harborBar) => (
+  <MyInvitationsScreen
+    user={user}
+    account={account}
+    org={org}
+    state={state}
+    onAccept={noop}
+    onDecline={noop}
+    onSignOut={noop}
+  />
 );
 
 export const MyInvitations: Story = {
@@ -95,7 +124,11 @@ export const MyInvitationsAccepting: Story = {
 export const MyInvitationsEmpty: Story = {
   name: 'Welcome, no org, no invitations',
   render: () =>
-    screen({ kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/orgs/new' }),
+    screen(
+      { kind: 'empty', email: 'dana.ortiz@example.com', platformAdmin: false, createHref: '/orgs/new' },
+      dana,
+      noOrg,
+    ),
 };
 export const MyInvitationsEmptyPlatformAdmin: Story = {
   name: 'Welcome, platform admin, no org',
@@ -121,17 +154,11 @@ const harbor: InvitationDetailsView = {
   status: 'pending',
 };
 const jo: Actor = { login: 'jo-marsh', initials: 'JM' };
-const harborOrg: OrgSwitchProps = {
-  current: { id: 'o1', slug: 'harbor-labs', name: 'Harbor Labs' },
-  orgs: [{ id: 'o1', slug: 'harbor-labs', name: 'Harbor Labs' }],
-  platformAdmin: false,
-  orgHref: (o) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
-};
 
-const accept = (state: InvitationAcceptState, user: Actor = dana, org?: InvitationAcceptProps['org']) => (
+const accept = (state: InvitationAcceptState, user: Actor = dana, org: InvitationAcceptProps['org'] = harborBar) => (
   <InvitationAcceptScreen
     user={user}
+    account={account}
     org={org}
     state={state}
     onAccept={noop}
@@ -154,8 +181,7 @@ export const InvitationAccept: Story = {
 };
 export const InvitationAcceptAccepted: Story = {
   name: 'Invitation, already joined',
-  render: () =>
-    accept({ kind: 'accepted', orgName: 'Harbor Labs', orgHref: '/o/harbor-labs/projects' }, dana, harborOrg),
+  render: () => accept({ kind: 'accepted', orgName: 'Harbor Labs', orgHref: '/o/harbor-labs/projects' }, dana),
 };
 export const InvitationAcceptAccepting: Story = {
   name: 'Invitation, accepting',
@@ -191,15 +217,13 @@ export const InvitationAcceptLoading: Story = {
 };
 export const InvitationAcceptNotAvailable: Story = {
   name: 'Invitation, not available',
-  render: () => accept({ kind: 'notAvailable', email: 'jo.marsh@example.org' }, jo),
+  render: () => accept({ kind: 'notAvailable', email: 'jo.marsh@example.org' }, jo, noOrg),
 };
 export const InvitationAcceptRevoked: Story = {
   name: 'Invitation, revoked',
   render: () => accept({ kind: 'revoked' }),
 };
 
-const kim: Actor = { login: 'kim-hale', initials: 'KH' };
-const sam: Actor = { login: 'sam-reyes', initials: 'SR' };
 const byStatus = (status: InvitationFilter) => orgInvitationRows.filter((r) => status === 'all' || r.status === status);
 const pendingRows = byStatus('pending');
 const expiredRows = byStatus('expired');
@@ -208,20 +232,20 @@ const list = (
   filter: InvitationFilter,
   state: OrgInvitationsProps['state'],
   extra: Partial<OrgInvitationsProps> = {},
-  user: Actor = kim,
+  frame: Pick<Parameters<typeof OrgSettingsFrame>[0], 'role' | 'sideMenu'> = { role: 'owner' },
 ) => (
-  <OrgInvitationsScreen
-    user={user}
-    org={harborOrg}
-    filter={filter}
-    onFilterChange={noop}
-    state={state}
-    onInvite={noop}
-    onCopy={noop}
-    onResend={noop}
-    onRevoke={noop}
-    {...extra}
-  />
+  <OrgSettingsFrame {...frame} active="invitations">
+    <OrgInvitationsScreen
+      filter={filter}
+      onFilterChange={noop}
+      state={state}
+      onInvite={noop}
+      onCopy={noop}
+      onResend={noop}
+      onRevoke={noop}
+      {...extra}
+    />
+  </OrgSettingsFrame>
 );
 const ready = (rows: typeof orgInvitationRows, pagination?: PaginationProps): OrgInvitationsProps['state'] => ({
   kind: 'ready',
@@ -230,6 +254,16 @@ const ready = (rows: typeof orgInvitationRows, pagination?: PaginationProps): Or
   ...(pagination && { pagination }),
 });
 
+/** The live screen: the Settings layout under the app bar, as an owner or admin sees it. */
+export const OrgInvitationsSettings: Story = {
+  name: 'Invitations, in Settings (owner or admin)',
+  render: () => list('pending', ready(pendingRows)),
+};
+/** A project admin: Settings opens Invitations only. */
+export const OrgInvitationsSettingsProjectAdmin: Story = {
+  name: 'Invitations, in Settings (project admin)',
+  render: () => list('pending', ready(pendingRows), {}, { role: 'projectAdmin' }),
+};
 export const OrgInvitations: Story = {
   name: 'Invitations, pending (default filter)',
   render: () => list('pending', ready(pendingRows)),
@@ -260,7 +294,7 @@ export const OrgInvitationsFiltered: Story = {
 };
 export const OrgInvitationsForbidden: Story = {
   name: 'Invitations, no access',
-  render: () => list('pending', { kind: 'forbidden' }, {}, sam),
+  render: () => list('pending', { kind: 'forbidden' }, {}, { role: 'member', sideMenu: false }),
 };
 export const OrgInvitationsLoading: Story = {
   name: 'Invitations, loading',
@@ -432,6 +466,7 @@ const requestId = 'req_01JD8B2W4N7P';
 const createOrg = (state: CreateOrgState, user: Actor = opsAdmin) => (
   <CreateOrgScreen
     user={user}
+    account={account}
     org={adminOrg}
     state={state}
     onChange={noop}

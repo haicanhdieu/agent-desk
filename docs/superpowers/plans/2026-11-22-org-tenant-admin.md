@@ -833,11 +833,11 @@ export function OrgSettingsFrame(props: { role: 'owner' | 'admin' | 'projectAdmi
 // components/index.ts exports OrgSettingsLayout and its props type
 ```
 
-- [ ] **Step 1: Write the failing tests**: register boards `OrgInvitationsSettings` and `OrgInvitationsSettingsProjectAdmin` (title `Screens/Invitations`); `coverage.test.ts` 149 → 151; `invitations.test.tsx`: `OrgInvitations` without `user`/`org` renders no `banner` header and keeps its table and dialogs.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/screens/invitations.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the frame and the stories: the two new boards (owner with the full side menu; project admin with only Invitations); every older `OrgInvitations*` story keeps its export name and state but renders inside `OrgSettingsFrame` (Invitations active); MyInvitations and InvitationAccept stories show the org bar with no tab active; CreateOrg shows the org crumb with no tabs. `parity-notes.md`: the group entry for `OrgInvitations*` (slice-2 drafts) worded as in the spec, and "intentional: Option A app bar" entries for the MyInvitations, InvitationAccept and CreateOrg boards.
+- [x] **Step 1: Write the failing tests**: register boards `OrgInvitationsSettings` and `OrgInvitationsSettingsProjectAdmin` (title `Screens/Invitations`); `coverage.test.ts` 149 → 151; `invitations.test.tsx`: `OrgInvitations` without `user`/`org` renders no `banner` header and keeps its table and dialogs.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/screens/invitations.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the frame and the stories: the two new boards (owner with the full side menu; project admin with only Invitations); every older `OrgInvitations*` story keeps its export name and state but renders inside `OrgSettingsFrame` (Invitations active); MyInvitations and InvitationAccept stories show the org bar with no tab active; CreateOrg shows the org crumb with no tabs. `parity-notes.md`: the group entry for `OrgInvitations*` (slice-2 drafts) worded as in the spec, and "intentional: Option A app bar" entries for the MyInvitations, InvitationAccept and CreateOrg boards.
 - [ ] **Step 4: Run** the Step 2 command, the stories smoke test and the parity pass for the touched boards. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Invitations stories inside the settings layout`.
+- [x] **Step 5: Commit** `feat(web): Invitations stories inside the settings layout`.
 
 ---
 

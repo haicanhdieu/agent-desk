@@ -1201,6 +1201,22 @@
    "h": 900,
    "title": "Projects \u2014 empty, owner: checklist, Projects tab active, Settings tab in the top bar",
    "expand": "fill"
+  },
+  "OrgInvitationsSettings.dc.html": {
+   "x": 6080,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Invitations inside the settings layout, owner or admin",
+   "expand": "fill"
+  },
+  "OrgInvitationsSettingsProjectAdmin.dc.html": {
+   "x": 7600,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Invitations, project admin: only the Invitations tab",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1352,7 +1368,9 @@
   "CreateOrgSlugEdited.dc.html",
   "CreateOrgSlugTaken.dc.html",
   "ProjectsChecklistDoneSettings.dc.html",
-  "ProjectsEmptyChecklistSettings.dc.html"
+  "ProjectsEmptyChecklistSettings.dc.html",
+  "OrgInvitationsSettings.dc.html",
+  "OrgInvitationsSettingsProjectAdmin.dc.html"
  ],
  "notes": {
   "t-intro": {
