@@ -791,7 +791,7 @@ Each case signs in as the named user with its own context. "Real entry id" is th
 | TC-15.8 | permission | local | A member M of a fresh org; a fresh verified user T; a real entry id E. | 1. As M, `GET /api/platform/admins`. 2. As M, `POST /api/platform/admins` `{ "email": "<T email>" }`. 3. As M, `DELETE /api/platform/admins/<E id>`. | Each of steps 1, 2 and 3 answers 403. |
 | TC-15.9 | permission | local | A viewer V of a fresh org; a fresh verified user T; a real entry id E. | 1. As V, `GET /api/platform/admins`. 2. As V, `POST /api/platform/admins` `{ "email": "<T email>" }`. 3. As V, `DELETE /api/platform/admins/<E id>`. | Each of steps 1, 2 and 3 answers 403. |
 | TC-15.10 | permission | local | A user N who belongs to no org; a fresh verified user T; a real entry id E. | 1. As N, `GET /api/platform/admins`. 2. As N, `POST /api/platform/admins` `{ "email": "<T email>" }`. 3. As N, `DELETE /api/platform/admins/<E id>`. | Each of steps 1, 2 and 3 answers 403. |
-| TC-15.11 | permission | local | A fresh org X created by someone else; admin is not a member of X and has no assignment in it. | 1. As admin, send a read request to a tenant route under `/api/orgs/` of org X, with and without an org header naming X. | The role gives no tenant data: each answer is 403 or 404 and carries no data of org X (Q2). |
+| TC-15.11 | permission | local | A fresh org X created by someone else; admin is not a member of X and has no assignment in it. | 1. As admin, send a read request to a tenant route under `/api/orgs/` of org X, with and without an org header naming X. | The role gives no tenant data: without an org header each answer is 403 or 404; with an org header naming X the answer is 409 `org-mismatch` (ADR-0035); in both cases the answer carries no data of org X (Q2). |
 
 #### BR-23: Dev login in production
 
@@ -828,4 +828,4 @@ Not e2e: no product route deletes an account and the last-admin part needs a kno
 ### Open questions
 
 - Q1 (BR-6, TC-6.1, TC-6.2, TC-6.3): the spec states the 400 "with pointer" but names the pointer only for 404 and 422 (`/email`). Until answered, the cases assert a 400 whose error points at the email field, as the 404 and 422 cases do.
-- Q2 (BR-15, TC-15.11): the spec names `/api/orgs/*` but no concrete tenant route for the "no tenant data" check. Until answered, the case asserts only that a tenant read of another org answers 403 or 404 with no data of that org (the rbac spec reference in the security tests gives "403/404").
+- Q2 (BR-15, TC-15.11): the spec names `/api/orgs/*` but no concrete tenant route for the "no tenant data" check. Answered by the human: the case reads `/api/orgs/<X>/members`; without an org header the answer is 403 or 404, with an org header naming X it is exactly 409 `org-mismatch` per ADR-0035, and neither carries data of that org.
