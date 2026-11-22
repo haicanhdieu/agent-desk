@@ -13,11 +13,12 @@ This is the step before `dev-build`: when the PR merges, CI links the spec and p
 
 ## Input
 
-- **Requirement** (required): a GitHub issue URL or number of this repo, a file path, or plain text. If none is given, ask for it. Ask nothing else up front.
-- **`--brainstorm-tier`** (optional, default `high`): tier for the four Analysts and the Spec writer.
-- **`--plan-tier`** (optional, default `high`): tier for the Planner.
+- **Requirement** (required): a GitHub issue URL or number of this repo, a file path, or plain text. If none is given, ask for it. Ask nothing else up front, except the tier ask below.
+- **`--brainstorm-tier`** (optional, default `medium`): tier for the four Analysts (the brainstormers).
+- **`--spec-tier`** (optional, default `medium`): tier for the Spec writer.
+- **`--plan-tier`** (optional, default `medium`): tier for the Planner (the plan writer).
 
-A tier is `high`, `medium` or `low`; anything else is a usage error. Models come from [`.agent/models.json`](../../models.json), never from a model name.
+A tier is `high`, `medium` or `low`; anything else is a usage error. When none of the three flags is given, phase 0 asks the human once which tiers to use ([templates/asks.md › Tiers](templates/asks.md#tiers)); `medium` is the default and `high` the suggested step up. Models come from [`.agent/models.json`](../../models.json), never from a model name.
 
 ## Rules that hold in every phase
 
@@ -27,6 +28,7 @@ A tier is `high`, `medium` or `low`; anything else is a usage error. Models come
 - **An approval lasts for this session only.** Nothing on disk records a yes. A gate you did not see answered in this conversation is not approved, whatever `check` prints: ask it again.
 - **Spawning.** Copy the role's prompt from [prompts/](prompts/README.md), fill the `<…>` slots, send it as written, with the tier's model and the effort its table gives.
 - **The script.** Run it as `node <main checkout>/.agent/skills/dev-plan/scripts/dev-plan.mjs <command> …` (`start`, `issue`, `stamp`, `check`, `graph`, `sync`); the phase files call it `dev-plan.mjs`. It prints `KEY=value` lines; act on them, not on your reading of the files.
+- **File links.** Whenever you tell the human where the spec or plan is, give a full clickable link ([templates/asks.md › File links](templates/asks.md#file-links)), never a repo-relative path.
 - **Untrusted text.** The requirement goes into files and prompts as a path, never into a shell command.
 
 ## Layout

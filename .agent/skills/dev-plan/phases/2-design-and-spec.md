@@ -15,7 +15,7 @@ No written yes, no spec.
 
 ## Write the spec
 
-1. No Spec writer yet in this run: spawn the **Spec writer** (tier `--brainstorm-tier`, effort `high`) with the active areas. Back here after a design change from phase 4 or 6 (the spec file exists): resume the same Spec writer ([prompts/spec-writer.md › Resume, design changed](../prompts/spec-writer.md#resume-design-changed)); if it cannot be resumed, spawn a fresh one with the prompt's update-mode line pointing at the existing spec. Never let a second spec file be written.
+1. No Spec writer yet in this run: spawn the **Spec writer** (tier `--spec-tier`, effort `high`) with the active areas. Back here after a design change from phase 4 or 6 (the spec file exists): resume the same Spec writer ([prompts/spec-writer.md › Resume, design changed](../prompts/spec-writer.md#resume-design-changed)); if it cannot be resumed, spawn a fresh one with the prompt's update-mode line pointing at the existing spec. Never let a second spec file be written.
 2. On its `STATUS: spec-written`, confirm the file exists under `docs/superpowers/specs/` in the worktree, was not committed, and follows [templates/spec-sections.md](../templates/spec-sections.md):
    - `## Business rules`, `## Architecture` and `## Testing` each match their area's confirmed design, decision for decision, none left out;
    - `## UI and Storybook`, with its Storybook-first blocker, is there exactly when the ui-ux area is active;

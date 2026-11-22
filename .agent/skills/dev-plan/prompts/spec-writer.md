@@ -1,6 +1,6 @@
 # Spec writer (phase 2)
 
-One, spawned after a yes at gate AR. Tier `--brainstorm-tier`, effort `high`. Resumed (SendMessage) for gate P2 and gate A changes.
+One, spawned after a yes at gate AR. Tier `--spec-tier`, effort `high`. Resumed (SendMessage) for gate P2 and gate A changes.
 
 `<active areas>` are the areas whose analyst replied `STATUS: design` (not `not-applicable`).
 

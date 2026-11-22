@@ -10,7 +10,7 @@ The **Planner** ([prompts/planner.md](../prompts/planner.md)) writes the plan wi
 
 ## Gate D: the plan
 
-Report the plan path, `rev`, `hash`, the `WAVE` lines, the `Agent call:` lines and any `## Needs approval` items the human has not already answered (each its own ask first), then ask ([templates/asks.md › Gate asks](../templates/asks.md#gate-asks)).
+Report the plan as a full `file://` link ([templates/asks.md › File links](../templates/asks.md#file-links)), its `rev`, `hash`, the `WAVE` lines, the `Agent call:` lines and any `## Needs approval` items the human has not already answered (each its own ask first), then ask ([templates/asks.md › Gate asks](../templates/asks.md#gate-asks)).
 
 - **Changes:** resume the Planner, then steps 2 and 3 again. A change that alters the spec goes back to [phase 4](4-spec-approval.md) (and to phase 1 or gate AR when it reverses a confirmed design decision).
 - **Yes:** [phase 7](7-pr-and-report.md).

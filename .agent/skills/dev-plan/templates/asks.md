@@ -51,6 +51,15 @@ Append each question and the human's answer, word for word, to `<workdir>/answer
 
 Send the results first (paths, `rev`, `hash`, agent calls), then the ask, then stop. Keep the wording; fill the slots.
 
+<a id="file-links"></a>**File links.** Report the spec and the plan as a full clickable link, never a repo-relative path like `docs/superpowers/specs/<file>.md`. Before the PR exists: `file://` plus the absolute path of the file in the worktree, one per line, so the human can click or paste it to open it:
+
+```text
+Spec: file://<absolute path of the spec in the worktree> (rev <rev>, <hash>)
+Plan: file://<absolute path of the plan in the worktree> (rev <rev>, <hash>)
+```
+
+After the PR exists (phase 7 report): the PR URL, and the GitHub `blob` URL of each file at the PR's head commit (`https://github.com/<repo>/blob/<sha>/<path>`). Never a relative path, a bare file name, or a path that starts at the worktree.
+
 **AR, the design** (before the spec is written)
 
 <a id="design-results"></a>Results, sent before the ask, from each active analyst's `STATUS: design` fields, in plain words. An area that replied `not-applicable` is one line with its `REASON`.
@@ -202,4 +211,14 @@ Solutions:
 2. Use <the existing alternative> instead.
 3. Drop the part that needs it.
 Suggestion: <…>
+```
+
+## Tiers
+
+Asked once in phase 0, only when no `--…-tier` flag was given. Default is `medium` everywhere; `high` is the suggested step up.
+
+```
+Problem: Which model tier should the brainstormers, the spec writer and the plan writer use? The default is medium for all three.
+Solutions: (1) medium for all three; (2) high for all three; (3) custom: tell me one tier each for brainstormers, spec writer, plan writer.
+Suggestion: (1) medium for all three; pick (2) if the requirement is large or touches access control, since a wrong design is costly downstream.
 ```
