@@ -1,7 +1,9 @@
 import { sql } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { NO_INVITATION_CODE } from '@agentdesk/contracts';
-import { withOrg } from '@agentdesk/db';
+import { seedPlatformAdmin, withOrg } from '@agentdesk/db';
+import { startPg } from '@agentdesk/db/testing';
+import { isPlatformAdmin } from '../src/access/platform-admin';
 import { AUTH, createAuth } from '../src/auth/auth';
 import { createTestApp, type TestApp } from './helpers/app';
 import {
@@ -44,6 +46,65 @@ function cookieOf(res: { headers: Record<string, unknown> }): string {
   const list = Array.isArray(raw) ? raw : typeof raw === 'string' ? [raw] : [];
   return list.map((c) => String(c).split(';')[0]).join('; ');
 }
+
+/** Runs the GitHub callback against stubbed GitHub endpoints (no network) and returns where the browser is sent. */
+async function githubCallback(
+  app: TestApp,
+  profile: { id: number; login: string; email: string; verified: boolean },
+): Promise<URL> {
+  const social = createAuth({ ...app.config, GITHUB_CLIENT_ID: 'cid', GITHUB_CLIENT_SECRET: 'csecret' }, app.db);
+  const realFetch = globalThis.fetch;
+  const stub = vi.fn((input: unknown, init?: unknown) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+    const json = (body: unknown) =>
+      Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
+    if (url.includes('/login/oauth/access_token')) {
+      return json({ access_token: 'tok', token_type: 'bearer', scope: 'read:user,user:email' });
+    }
+    if (url.endsWith('/user/emails')) {
+      return json([{ email: profile.email, primary: true, verified: profile.verified, visibility: 'public' }]);
+    }
+    if (url.endsWith('/user')) {
+      return json({
+        id: profile.id,
+        login: profile.login,
+        name: profile.login,
+        email: profile.email,
+        avatar_url: '',
+      });
+    }
+    return realFetch(input as Request, init as RequestInit);
+  });
+  vi.stubGlobal('fetch', stub);
+  try {
+    const base = 'http://localhost:5173/auth';
+    const start = await social.handler(
+      new Request(`${base}/sign-in/social`, {
+        method: 'POST',
+        headers: { origin: 'http://localhost:5173', 'content-type': 'application/json' },
+        body: JSON.stringify({ provider: 'github', callbackURL: '/', errorCallbackURL: '/sign-in' }),
+      }),
+    );
+    expect(start.status).toBe(200);
+    const state = new URL(((await start.json()) as { url: string }).url).searchParams.get('state');
+    expect(state).not.toBeNull();
+    const cookie = start.headers
+      .getSetCookie()
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    const done = await social.handler(
+      new Request(`${base}/callback/github?code=x&state=${state}`, { headers: { cookie } }),
+    );
+    expect(done.status).toBe(302);
+    expect(stub).toHaveBeenCalled();
+    return new URL(done.headers.get('location') ?? '', 'http://localhost:5173');
+  } finally {
+    vi.unstubAllGlobals();
+  }
+}
+
+const usersWithEmail = async (app: TestApp, email: string) =>
+  (await app.db.pool.query('select id from "user" where email = $1', [email])).rows;
 
 describe('auth', () => {
   it("an invited handle's first dev-login creates the account but no membership and no active org until accept", async () => {
@@ -125,70 +186,8 @@ describe('auth', () => {
     expect(sess.json().session.activeOrganizationId).toBe(a);
   });
 
-  /** Runs the GitHub callback against stubbed GitHub endpoints (no network) and returns where the browser is sent. */
-  async function githubCallback(
-    profile: { id: number; login: string; email: string; verified: boolean },
-    config: Partial<typeof t.config> = {},
-  ): Promise<URL> {
-    const social = createAuth(
-      { ...t.config, ...config, GITHUB_CLIENT_ID: 'cid', GITHUB_CLIENT_SECRET: 'csecret' },
-      t.db,
-    );
-    const realFetch = globalThis.fetch;
-    const stub = vi.fn((input: unknown, init?: unknown) => {
-      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
-      const json = (body: unknown) =>
-        Promise.resolve(new Response(JSON.stringify(body), { headers: { 'content-type': 'application/json' } }));
-      if (url.includes('/login/oauth/access_token')) {
-        return json({ access_token: 'tok', token_type: 'bearer', scope: 'read:user,user:email' });
-      }
-      if (url.endsWith('/user/emails')) {
-        return json([{ email: profile.email, primary: true, verified: profile.verified, visibility: 'public' }]);
-      }
-      if (url.endsWith('/user')) {
-        return json({
-          id: profile.id,
-          login: profile.login,
-          name: profile.login,
-          email: profile.email,
-          avatar_url: '',
-        });
-      }
-      return realFetch(input as Request, init as RequestInit);
-    });
-    vi.stubGlobal('fetch', stub);
-    try {
-      const base = 'http://localhost:5173/auth';
-      const start = await social.handler(
-        new Request(`${base}/sign-in/social`, {
-          method: 'POST',
-          headers: { origin: 'http://localhost:5173', 'content-type': 'application/json' },
-          body: JSON.stringify({ provider: 'github', callbackURL: '/', errorCallbackURL: '/sign-in' }),
-        }),
-      );
-      expect(start.status).toBe(200);
-      const state = new URL(((await start.json()) as { url: string }).url).searchParams.get('state');
-      expect(state).not.toBeNull();
-      const cookie = start.headers
-        .getSetCookie()
-        .map((c) => c.split(';')[0])
-        .join('; ');
-      const done = await social.handler(
-        new Request(`${base}/callback/github?code=x&state=${state}`, { headers: { cookie } }),
-      );
-      expect(done.status).toBe(302);
-      expect(stub).toHaveBeenCalled();
-      return new URL(done.headers.get('location') ?? '', 'http://localhost:5173');
-    } finally {
-      vi.unstubAllGlobals();
-    }
-  }
-
-  const usersWithEmail = async (email: string) =>
-    (await t.db.pool.query('select id from "user" where email = $1', [email])).rows;
-
   it('BR-1: an uninvited GitHub account is sent back to /sign-in?error=no_invitation and no user row is made', async () => {
-    const location = await githubCallback({
+    const location = await githubCallback(t, {
       id: 424242,
       login: 'stranger',
       email: 'stranger@example.com',
@@ -196,13 +195,13 @@ describe('auth', () => {
     });
     expect(location.pathname).toBe('/sign-in');
     expect(location.searchParams.get('error')).toBe(NO_INVITATION_CODE);
-    expect(await usersWithEmail('stranger@example.com')).toHaveLength(0);
+    expect(await usersWithEmail(t, 'stranger@example.com')).toHaveLength(0);
   });
 
   it('BR-1/BR-2: an invited GitHub account with a verified email signs up with no membership and the invitation still pending', async () => {
     const orgId = (await createOrg(t, 'Gh Invited', 'gh-invited')).id;
     const inv = await invite(t, orgId, 'ghinvited@example.com', 'viewer', { type: 'org' });
-    const location = await githubCallback({
+    const location = await githubCallback(t, {
       id: 424243,
       login: 'ghinvited',
       email: 'ghinvited@example.com',
@@ -210,7 +209,7 @@ describe('auth', () => {
     });
     expect(location.searchParams.get('error')).toBeNull();
     expect(location.pathname).toBe('/');
-    const users = await usersWithEmail('ghinvited@example.com');
+    const users = await usersWithEmail(t, 'ghinvited@example.com');
     expect(users).toHaveLength(1);
     expect((await t.db.pool.query('select 1 from member where user_id = $1', [users[0]?.id])).rows).toHaveLength(0);
     const pending = await withOrg(t.db, orgId, (tx) =>
@@ -222,7 +221,7 @@ describe('auth', () => {
   it('BR-1: an invited GitHub account whose email is unverified is refused with no_invitation and no user row', async () => {
     const orgId = (await createOrg(t, 'Gh Unverified', 'gh-unverified')).id;
     await invite(t, orgId, 'ghunverified@example.com', 'viewer', { type: 'org' });
-    const location = await githubCallback({
+    const location = await githubCallback(t, {
       id: 424244,
       login: 'ghunverified',
       email: 'ghunverified@example.com',
@@ -230,16 +229,7 @@ describe('auth', () => {
     });
     expect(location.pathname).toBe('/sign-in');
     expect(location.searchParams.get('error')).toBe(NO_INVITATION_CODE);
-    expect(await usersWithEmail('ghunverified@example.com')).toHaveLength(0);
-  });
-
-  it('BR-1: a configured platform admin GitHub account with no invitation signs up', async () => {
-    const location = await githubCallback(
-      { id: 424245, login: 'ghadmin', email: 'ghadmin@example.com', verified: true },
-      { PLATFORM_ADMIN_EMAILS: ['ghadmin@example.com'] },
-    );
-    expect(location.searchParams.get('error')).toBeNull();
-    expect(await usersWithEmail('ghadmin@example.com')).toHaveLength(1);
+    expect(await usersWithEmail(t, 'ghunverified@example.com')).toHaveLength(0);
   });
 
   it('a second dev-login for the same handle creates no second user or org', async () => {
@@ -596,5 +586,103 @@ describe('auth with dev login disabled', () => {
     } finally {
       await off.close();
     }
+  });
+});
+
+describe('platform admin sign-up (BR-25)', () => {
+  let a: TestApp;
+  beforeAll(async () => {
+    a = await createTestApp({ pg: await startPg(), seedDevAdmin: false });
+  });
+  afterAll(async () => {
+    const { pg } = a;
+    await a.close();
+    await pg.stop();
+  });
+
+  const devLoginOn = (handle: string) => a.app.inject({ method: 'GET', url: `/auth/dev-login?handle=${handle}` });
+  const failLookup = () => {
+    const realQuery = a.db.pool.query.bind(a.db.pool) as (...args: unknown[]) => Promise<unknown>;
+    return vi.spyOn(a.db.pool, 'query').mockImplementation(((...args: unknown[]) => {
+      const first = args[0];
+      const text = typeof first === 'string' ? first : (first as { text?: string } | undefined)?.text;
+      return typeof text === 'string' && text.includes('platform_admins')
+        ? Promise.reject(new Error('lookup down'))
+        : realQuery(...args);
+    }) as never);
+  };
+
+  it('dev-login admin is refused while no entry exists, a seeded ops is let in and is platform admin', async () => {
+    const refused = await devLoginOn('admin');
+    expect(refused.statusCode).toBe(302);
+    expect(new URL(String(refused.headers['location']), 'http://x').searchParams.get('error')).toBe(NO_INVITATION_CODE);
+    expect(await usersWithEmail(a, 'admin@dev.local')).toHaveLength(0);
+
+    await seedPlatformAdmin(a.db, 'ops@dev.local');
+    const cookie = cookieOf(await devLoginOn('ops'));
+    expect(cookie).not.toBe('');
+    const me = await a.app.inject({ method: 'GET', url: '/api/me/access', headers: { cookie } });
+    expect(me.json<{ platformAdmin: boolean }>().platformAdmin).toBe(true);
+  });
+
+  it('BR-25: a seeded GitHub account with a verified email and no invitation signs up and is platform admin', async () => {
+    await seedPlatformAdmin(a.db, 'ghadmin@example.com');
+    const location = await githubCallback(a, {
+      id: 424245,
+      login: 'ghadmin',
+      email: 'ghadmin@example.com',
+      verified: true,
+    });
+    expect(location.searchParams.get('error')).toBeNull();
+    expect(await usersWithEmail(a, 'ghadmin@example.com')).toHaveLength(1);
+    const created = (
+      await a.db.pool.query('select email, email_verified from "user" where email = $1', ['ghadmin@example.com'])
+    ).rows[0] as { email: string; email_verified: boolean };
+    expect(await isPlatformAdmin(a.db, { email: created.email, emailVerified: created.email_verified })).toBe(true);
+  });
+
+  it('a seeded GitHub account with an unverified email is refused with no_invitation and no user row', async () => {
+    await seedPlatformAdmin(a.db, 'ghunv-pa@example.com');
+    const location = await githubCallback(a, {
+      id: 424246,
+      login: 'ghunvpa',
+      email: 'ghunv-pa@example.com',
+      verified: false,
+    });
+    expect(location.pathname).toBe('/sign-in');
+    expect(location.searchParams.get('error')).toBe(NO_INVITATION_CODE);
+    expect(await usersWithEmail(a, 'ghunv-pa@example.com')).toHaveLength(0);
+  });
+
+  it('a seeded email whose entry is deleted before first sign-in is refused', async () => {
+    await seedPlatformAdmin(a.db, 'ghgone@example.com');
+    await a.db.pool.query('delete from platform_admins where email = $1', ['ghgone@example.com']);
+    const location = await githubCallback(a, {
+      id: 424247,
+      login: 'ghgone',
+      email: 'ghgone@example.com',
+      verified: true,
+    });
+    expect(location.pathname).toBe('/sign-in');
+    expect(location.searchParams.get('error')).toBe(NO_INVITATION_CODE);
+    expect(await usersWithEmail(a, 'ghgone@example.com')).toHaveLength(0);
+  });
+
+  it('a failing platform_admins lookup at sign-up refuses and creates no user', async () => {
+    await seedPlatformAdmin(a.db, 'ghdown@example.com');
+    const spy = failLookup();
+    try {
+      const location = await githubCallback(a, {
+        id: 424248,
+        login: 'ghdown',
+        email: 'ghdown@example.com',
+        verified: true,
+      });
+      expect(location.pathname).toBe('/sign-in');
+      expect(location.searchParams.get('error')).not.toBeNull();
+    } finally {
+      spy.mockRestore();
+    }
+    expect(await usersWithEmail(a, 'ghdown@example.com')).toHaveLength(0);
   });
 });

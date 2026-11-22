@@ -15,6 +15,7 @@ import { InvitationsModule } from './invitations/invitations.module';
 import { MembersModule } from './members/members.module';
 import { KubeGatewayModule } from './kube/kube-gateway.module';
 import { OrgsModule } from './orgs/orgs.module';
+import { PlatformAdminsModule } from './platform-admins/platform-admins.module';
 import { TerminalModule } from './terminal/terminal.module';
 import { HealthController } from './health/health.controller';
 import { ProjectSchedules } from './projects/project-schedules';
@@ -52,6 +53,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     InvitationsModule,
     AssignmentsModule,
     MembersModule,
+    PlatformAdminsModule,
   ],
   controllers: [
     HealthController,

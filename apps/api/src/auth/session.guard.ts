@@ -18,7 +18,6 @@ import { routeEntryFor } from '../access/route-entry';
 import { LOGGER } from '../common/logger';
 import { OrgMismatchException, requestedOrgId } from '../common/org-mismatch';
 import { requestContext } from '../common/request-context';
-import { CONFIG, type Config } from '../config/config.module';
 import { DB } from '../db/db.module';
 import { AUTH, type Auth } from './auth';
 
@@ -61,7 +60,6 @@ export class SessionGuard implements CanActivate {
   constructor(
     @Inject(AUTH) private readonly auth: Auth,
     @Inject(DB) private readonly db: Db,
-    @Inject(CONFIG) private readonly config: Config,
     @Inject(LOGGER) private readonly logger: Logger,
   ) {}
 
@@ -102,7 +100,7 @@ export class SessionGuard implements CanActivate {
     const match = routeEntryFor(req.method, req.routeOptions.url ?? '');
 
     if (match.kind === 'route' && match.entry.scope === 'platform') {
-      if (!isPlatformAdmin(this.config, session.user)) {
+      if (!(await isPlatformAdmin(this.db, session.user))) {
         throw this.deny(req, { userId, routeKey: match.key, permission: match.entry.permission });
       }
       req.platformAdmin = { userId, email: session.user.email };

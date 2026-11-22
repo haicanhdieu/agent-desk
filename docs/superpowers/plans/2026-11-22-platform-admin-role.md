@@ -272,7 +272,7 @@ export interface TestAppOptions { /* existing fields */ seedDevAdmin?: boolean }
 
   `SessionGuard` constructor becomes `(auth, db, logger)`; `MeController` injects `DB` instead of `CONFIG`; the sign-up gate's exception becomes `await isPlatformAdmin(db, { email, emailVerified: true })` with the same `NO_INVITATION_CODE` refusal. `Config` no longer has `PLATFORM_ADMIN_EMAILS`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `packages/core/test/config.test.ts` (BR-26 unit): the `PLATFORM_ADMIN_EMAILS` describe is replaced by `drops a leftover PLATFORM_ADMIN_EMAILS`: `'PLATFORM_ADMIN_EMAILS' in parseConfig({ ...base, PLATFORM_ADMIN_EMAILS: 'a@x.io' })` is false. The production refine cases (BR-23) stay.
   - `platform-admin-source.int.test.ts` (resolver, BR-26, BR-27; each case on its own `createTestApp({ pg: await startPg(), seedDevAdmin: false, … })`, pg stopped in `finally`):
     - `a seeded email signs in as platform admin, whatever the case of the session email`: seed `src-pa@dev.local`, dev-login `src-pa`, `/api/me/access` `platformAdmin: true`, `GET /api/platform/orgs` 200; `isPlatformAdmin(t.db, { email: ' SRC-PA@Dev.Local ', emailVerified: true })` true and `emailVerified: false` false; `xsrc-pa@dev.local` and `src-pa@dev.local.evil.io` false.
@@ -284,10 +284,10 @@ export interface TestAppOptions { /* existing fields */ seedDevAdmin?: boolean }
   - `invitations.int.test.ts`: `refuses a seeded platform admin email when it is not verified` (seed `gate-pa@example.com` on `t`, `signUpEmail` without dev sign-up rejects, no user row) and `accepts a seeded platform admin email whatever its case at sign-in` (`seedPlatformAdmin(t.db, 'Gate-Mixed@Example.COM')`, dev sign-up of `GATE-mixed@example.com` makes one user) replace the two env cases.
   - `platform.int.test.ts`: the "platform admin from config" config case becomes `deleting the entry makes the same session a 403 on the next call` (seed `cfg-rm@dev.local`, dev-login, 200 on `/api/platform/orgs`, delete the row, same cookie → 403 `FORBIDDEN_DETAIL`); BR-62 becomes `BR-62: a seeded email signs up with no invitation, has no membership and no active org` (seed `fresh-pa@dev.local` on `t`, same assertions). N9 (BR-23) stays as is.
   - `auth.int.test.ts` (BR-25, one `startPg()` app with `seedDevAdmin: false` for the describe): dev-login `admin` is refused (`no_invitation`, no user); after `seedPlatformAdmin(t.db, 'ops@dev.local')` dev-login `ops` signs up and `/api/me/access` is true; the GitHub case `BR-25: a seeded GitHub account with a verified email and no invitation signs up and is platform admin` (seed `ghadmin@example.com`); `a seeded GitHub account with an unverified email is refused with no_invitation and no user row`; `a seeded email whose entry is deleted before first sign-in is refused`; `a failing platform_admins lookup at sign-up refuses and creates no user` (pool query spied to reject, as the existing invitation-lookup case). `githubCallback` takes the app to use instead of reading `t`, and no longer takes a config override. "BR-1: a platform admin with no invitation signs in" stays (admin is seeded by `createTestApp`).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts` and `pnpm --filter @agentdesk/api exec vitest run src/auth/session.guard.test.ts test/platform-admin-source.int.test.ts test/authz.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/auth.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the resolver (one `select id from platform_admins where email = $1 limit 1` through `db.orm`), the guard and `/me/access` awaiting it, the gate, the config key removal (`.env.example` loses the key and its comment line), `createTestApp` seeding (`await seedPlatformAdmin(db, 'admin@dev.local')` unless `seedDevAdmin === false`), the comment rewording ("a platform admin (a `platform_admins` entry matching the verified session email)"), and delete the old unit test.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/config.test.ts` and `pnpm --filter @agentdesk/api exec vitest run src/auth/session.guard.test.ts test/platform-admin-source.int.test.ts test/authz.int.test.ts test/invitations.int.test.ts test/platform.int.test.ts test/auth.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the resolver (one `select id from platform_admins where email = $1 limit 1` through `db.orm`), the guard and `/me/access` awaiting it, the gate, the config key removal (`.env.example` loses the key and its comment line), `createTestApp` seeding (`await seedPlatformAdmin(db, 'admin@dev.local')` unless `seedDevAdmin === false`), the comment rewording ("a platform admin (a `platform_admins` entry matching the verified session email)"), and delete the old unit test.
 - [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/core test`, `pnpm --filter @agentdesk/api test` and `pnpm typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): read platform admins from platform_admins and drop PLATFORM_ADMIN_EMAILS`.
+- [x] **Step 5: Commit** `feat(api): read platform admins from platform_admins and drop PLATFORM_ADMIN_EMAILS`.
 
 ---
 
@@ -319,16 +319,16 @@ export async function findPlatformAdmin(tx: Db['orm'] | Tx, id: string): Promise
 
   The list is one query: `platform_admins pa left join "user" u on lower(u.email) = pa.email left join "user" g on g.id = pa.granted_by`, order `pa.granted_at desc, pa.id`, plus a count; `grantedBy = toInviterDto(g)`.
 
-- [ ] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (shared `createTestApp()`, admin cookie from `asPlatformAdmin`; `expectContract('platform.listAdmins', res)` on every 200):
+- [x] **Step 1: Write the failing tests** in `platform-admins.int.test.ts` (shared `createTestApp()`, admin cookie from `asPlatformAdmin`; `expectContract('platform.listAdmins', res)` on every 200):
   - `BR-1: lists every entry with exactly the documented keys`: raw item keys are exactly `email, grantedAt, grantedBy, handle, id, name, userId`; `admin@dev.local` has its account fields and `grantedBy: null`; a row inserted as `{ email: 'lst-granted@dev.local', granted_by: <admin id> }` for a signed-in `lst-granted` has `grantedBy` `{ name, handle: 'admin' }`; a row with `granted_by` set to a random id has `grantedBy: null`; a seeded `lst-noacct@dev.local` has `userId`, `name`, `handle` and `grantedBy` null (BR-29 list part).
   - `orders by granted_at desc, then id`, and Review Focus 4 `entries with the same granted_at page by id, each exactly once` (insert three rows in one transaction; walking `pageSize=1` gives each id once, in id order within the tie).
   - `BR-15: every non-platform caller gets 403 before any lookup on the list`: owner, org admin, project admin, member, viewer of a fresh org, and a signed-in user with no org (invited, not accepted) → 403 with `FORBIDDEN_DETAIL` and no `items`; a captured logger (`createTestApp({ logger })` in its own app) shows the `access denied` line with `routeKey: 'platform.listAdmins'` and no email.
   - `ignores an org header`: the list with `x-org-id: <some org>` still answers 200.
   - `authz.int.test.ts`: `platform.listAdmins` leaves `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the module, `list` and `findPlatformAdmin`, and the controller method (`@CurrentPlatformAdmin() _admin`, `@Query(new ZodPipe(routes.platform.listAdmins.query))`).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the module, `list` and `findPlatformAdmin`, and the controller method (`@CurrentPlatformAdmin() _admin`, `@Query(new ZodPipe(routes.platform.listAdmins.query))`).
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): list platform admins`.
+- [x] **Step 5: Commit** `feat(api): list platform admins`.
 
 ---
 

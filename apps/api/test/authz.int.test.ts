@@ -13,7 +13,15 @@ import { DiscoveryService, ModulesContainer } from '@nestjs/core';
 import type { Logger } from 'pino';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { flattenRoutes, routeAccess, routes, type RouteKey } from '@agentdesk/contracts';
-import { roleAssignments, roles, rules as rulesTable, runs, setupTests, withOrg } from '@agentdesk/db';
+import {
+  roleAssignments,
+  roles,
+  rules as rulesTable,
+  runs,
+  seedPlatformAdmin,
+  setupTests,
+  withOrg,
+} from '@agentdesk/db';
 import { and, eq } from 'drizzle-orm';
 import pg from 'pg';
 import { WebSocket } from 'ws';
@@ -21,7 +29,6 @@ import { FORBIDDEN_DETAIL } from '../src/access/authorize';
 import { routeEntryFor } from '../src/access/route-entry';
 import type { Auth } from '../src/auth/auth';
 import { SessionGuard } from '../src/auth/session.guard';
-import type { Config } from '../src/config/config.module';
 import { createTestApp, type TestApp } from './helpers/app';
 import { asPlatformAdmin, createOrg, inviteAndLogin, userIdOf } from './helpers/auth';
 import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helpers/fixtures';
@@ -30,7 +37,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = ['platform.listAdmins', 'platform.grantAdmin', 'platform.revokeAdmin'];
+const NOT_REGISTERED_YET: RouteKey[] = ['platform.grantAdmin', 'platform.revokeAdmin'];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -170,7 +177,6 @@ interface Opts {
   emailVerified?: boolean;
   activeOrgId?: string | null;
   noSession?: boolean;
-  admins?: string[];
   params?: Record<string, unknown>;
 }
 interface Call {
@@ -195,8 +201,7 @@ function runGuard(t: TestApp, call: Call, opts: Opts) {
           user: { id: who.userId, email: who.email, emailVerified: opts.emailVerified ?? true },
         };
   const auth = { api: { getSession: async () => session } } as unknown as Auth; // the guard only reads getSession
-  const config = { ...t.config, PLATFORM_ADMIN_EMAILS: opts.admins ?? [] } as Config;
-  const guard = new SessionGuard(auth, t.db, config, logger);
+  const guard = new SessionGuard(auth, t.db, logger);
   const req: Record<string, unknown> = {
     id: 'req-test',
     method: call.method,
@@ -253,27 +258,28 @@ describe('SessionGuard route kinds', () => {
   });
 
   describe('platform routes', () => {
-    const admins = ['admin@dev.local'];
+    // `createTestApp` seeds admin@dev.local
     const adminPerson = (): Person => ({ ...owner, email: 'admin@dev.local' });
 
     it('refuse a caller whose email is not listed, even an org owner (BR-70)', async () => {
-      const r = run(PLATFORM, { who: owner, admins });
+      const r = run(PLATFORM, { who: owner });
       await expect(r.result).rejects.toBeInstanceOf(ForbiddenException);
       await expect(r.result).rejects.toMatchObject({ message: FORBIDDEN_DETAIL });
     });
 
     it('refuse a listed email that is not verified', async () => {
-      await expect(run(PLATFORM, { who: adminPerson(), admins, emailVerified: false }).result).rejects.toBeInstanceOf(
+      await expect(run(PLATFORM, { who: adminPerson(), emailVerified: false }).result).rejects.toBeInstanceOf(
         ForbiddenException,
       );
     });
 
-    it('refuse everyone while the admin list is empty', async () => {
-      await expect(run(PLATFORM, { who: adminPerson(), admins: [] }).result).rejects.toBeInstanceOf(ForbiddenException);
+    it('refuse a person with no platform_admins row', async () => {
+      const who = { ...owner, email: 'az-no-row@dev.local' };
+      await expect(run(PLATFORM, { who }).result).rejects.toBeInstanceOf(ForbiddenException);
     });
 
     it('admit a listed verified email with no active organization and set the platform admin only', async () => {
-      const r = run(PLATFORM, { who: adminPerson(), admins, activeOrgId: null });
+      const r = run(PLATFORM, { who: adminPerson(), activeOrgId: null });
       await expect(r.result).resolves.toBe(true);
       expect(r.req['platformAdmin']).toEqual({ userId: owner.userId, email: 'admin@dev.local' });
       expect(r.req['orgContext']).toBeUndefined();
@@ -282,18 +288,23 @@ describe('SessionGuard route kinds', () => {
 
     it('admit a listed verified email whatever the case of the session email', async () => {
       const who = { ...owner, email: 'Admin@Dev.LOCAL' };
-      await expect(run(PLATFORM, { who, admins, activeOrgId: null }).result).resolves.toBe(true);
+      await expect(run(PLATFORM, { who, activeOrgId: null }).result).resolves.toBe(true);
     });
   });
 
   describe('a platform admin on tenant routes gets nothing for being one', () => {
-    const admins = ['az-nobody@dev.local'];
+    beforeAll(async () => {
+      await seedPlatformAdmin(t.db, 'az-nobody@dev.local');
+    });
+    afterAll(async () => {
+      await t.db.pool.query('delete from platform_admins where email = $1', ['az-nobody@dev.local']);
+    });
     it('is refused on an org-admin route when not a member of the active org', async () => {
-      const r = run(ASSIGNMENTS, { who: nobody, admins, activeOrgId: owner.orgId, params: { orgId: owner.orgId } });
+      const r = run(ASSIGNMENTS, { who: nobody, activeOrgId: owner.orgId, params: { orgId: owner.orgId } });
       await expect(r.result).rejects.toBeInstanceOf(ForbiddenException);
     });
     it('keeps only tenant grants when also a member', async () => {
-      const r = run(ASSIGNMENTS, { who: nobody, admins, params: { orgId: nobody.orgId } });
+      const r = run(ASSIGNMENTS, { who: nobody, params: { orgId: nobody.orgId } });
       await expect(r.result).rejects.toBeInstanceOf(ForbiddenException);
       expect(r.denies[0]?.obj).toMatchObject({ routeKey: 'assignments.list', userId: nobody.userId });
     });
@@ -302,9 +313,9 @@ describe('SessionGuard route kinds', () => {
   it('refuses an /api route with no entry with 403, for an owner and for a platform admin alike', async () => {
     const unknown: Call = { method: 'GET', routeUrl: '/api/not-a-route' };
     await expect(run(unknown, { who: owner }).result).rejects.toBeInstanceOf(ForbiddenException);
-    await expect(
-      run(unknown, { who: { ...owner, email: 'admin@dev.local' }, admins: ['admin@dev.local'] }).result,
-    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(run(unknown, { who: { ...owner, email: 'admin@dev.local' } }).result).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('refuses an /api route whose Fastify url is missing (fail closed)', async () => {
