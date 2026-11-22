@@ -46,3 +46,4 @@ Access today is "org member, plus project creator or org owner for the terminal"
 - [RBAC foundation design](../superpowers/specs/2026-11-20-rbac-foundation-design.md)
 - Amends: [0014](0014-terminal-over-websocket-exec-relay.md) (terminal rule), [0013](0013-webhook-and-polling-intake.md) (who may trigger)
 - Related: [0006](0006-tenant-ready-schema-with-rls.md)
+- See also: [0036](0036-rbac-permissions-roles-scope.md) (the model restated: permissions, roles, scope)

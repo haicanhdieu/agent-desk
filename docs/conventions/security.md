@@ -105,7 +105,7 @@ await gateway.exec(pod, ['agentdesk-end']);
 
 - **MUST** require a session on every `/api/*` route, SSE stream and the terminal WebSocket, and run it under `withOrg(activeOrganizationId)` after a membership check. Public exceptions are explicit and short: `/auth/*`, `/webhooks/:provider` (signature instead), `/healthz`, `/readyz`, `/api/docs`.
 - **MUST** deny by default: a new controller without the session guard fails review (an automated "every route is guarded" test is **planned** in the api auth tests).
-- **MUST** check project access for project-scoped routes, not just org membership.
+- **MUST** check project access for project-scoped routes, not just org membership. The model (permission, role, scope; assignments add up) and the guard order are in [ADR-0036](../adr/0036-rbac-permissions-roles-scope.md); every route names its permission in `routeAccess` (`packages/contracts`).
 - **MUST** authorize the terminal on connect: session (else close 4401), `terminal:attach` on the run's project, with ownership for members; a missing permission or an out-of-scope project is 4403 (amended by ADR-0031), run `running` or `idle` (else 4409). _Why:_ `pods/exec` is shell-equivalent.
 - **MUST** check the `Origin` header on the terminal WebSocket upgrade and SSE against `PUBLIC_ORIGIN`. _Why:_ browsers send cookies on cross-site WebSocket upgrades (cross-site WebSocket hijacking).
 - **MUST NOT** give Kubernetes credentials, exec URLs or pod names to the browser; the api relays.
