@@ -446,7 +446,7 @@ export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: s
 
 - Create: `apps/api/src/seed-dev-admin.ts`
 - Modify: `apps/api/package.json`
-- Create: `apps/api/test/seed-dev-admin.test.ts`
+- Create: `apps/api/test/seed-dev-admin.int.test.ts`
 - Modify: `process-compose.yaml`, `scripts/dev.sh`, `scripts/runner-stack.sh`, `devbox.json`
 - Create: `scripts/seed-dev-admin-wiring.test.ts`
 
@@ -469,9 +469,9 @@ export async function runDevAdminSeed(
   Package script `"seed:dev-admin": "tsx --env-file-if-exists=../../.env src/seed-dev-admin.ts"`. `main()` passes a seed that opens `createDb(url)`, calls `seedPlatformAdmin` and closes it; prints `seed-dev-admin: skipped (dev login is off)` or `seed-dev-admin: done`; exits 1 with the message on error.
 
 - [x] **Step 1: Write the failing tests**
-  - `apps/api/test/seed-dev-admin.test.ts` (BR-28 gate, N-5): `devAdminSeedEnabled` is true only for `AUTH_DEV_LOGIN: true`; `runDevAdminSeed(validEnv({ AUTH_DEV_LOGIN: 'false' }), seed)` resolves `'skipped'` and `seed` is not called; with `'true'` it resolves `'seeded'` and `seed` was called once with `(env.DATABASE_APP_URL, 'admin@dev.local')`; with `NODE_ENV: 'production'` and `AUTH_DEV_LOGIN: 'true'` it rejects (config refusal) and `seed` is not called.
+  - `apps/api/test/seed-dev-admin.int.test.ts` (BR-28 gate, N-5): `devAdminSeedEnabled` is true only for `AUTH_DEV_LOGIN: true`; `runDevAdminSeed(validEnv({ AUTH_DEV_LOGIN: 'false' }), seed)` resolves `'skipped'` and `seed` is not called; with `'true'` it resolves `'seeded'` and `seed` was called once with `(env.DATABASE_APP_URL, 'admin@dev.local')`; with `NODE_ENV: 'production'` and `AUTH_DEV_LOGIN: 'true'` it rejects (config refusal) and `seed` is not called.
   - `scripts/seed-dev-admin-wiring.test.ts` (BR-28 wiring): copies the scripts into a temp root as the Agent call says; a stub `pnpm` appends `"$*"` to `calls.log`. `dev.sh up` with `COMPOSE=<stub>` logs `--filter @agentdesk/api migrate`, then `--filter @agentdesk/api seed:dev-admin`, then `exec turbo run dev …`, in that order; a failing stub for `seed:dev-admin` stops the script (non-zero, no turbo call). `runner-stack.sh up` with `RUNNER_STACK_APPS=0`, `TEST_PG_BIN_DIR=<stub dir>`, `RUNNER_STACK_DIR=<tmp>` (with `pgdata/PG_VERSION`) logs migrate before `seed:dev-admin`; a failing seed stub makes it exit non-zero with `seed-dev-admin failed`.
-- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/seed-dev-admin.test.ts` and `pnpm exec vitest run --root scripts seed-dev-admin-wiring.test.ts`. Expected: FAIL.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/seed-dev-admin.int.test.ts` and `pnpm exec vitest run --root scripts seed-dev-admin-wiring.test.ts`. Expected: FAIL.
 - [x] **Step 3: Implement** the entrypoint and script; `process-compose.yaml` process `seed-dev-admin` (command `pnpm --filter @agentdesk/api run seed:dev-admin`, same `availability` as `migrate`, depends on `migrate: process_completed_successfully`) and `api` depending on `seed-dev-admin: process_completed_successfully` (the start-order comment updated); `scripts/dev.sh` runs `pnpm --filter @agentdesk/api seed:dev-admin` after migrate; `scripts/runner-stack.sh` adds `echo "==> seed dev admin"` and `pnpm --filter @agentdesk/api seed:dev-admin >"$logs/seed-dev-admin.log" 2>&1 || die "seed-dev-admin failed (log: $logs/seed-dev-admin.log)"` after migrate; `devbox.json` `db-reset` message ends `Next \`devbox run dev\` re-runs migrations and seeds admin@dev.local on an empty database.`
 - [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/api test`, `pnpm test:scripts`; then `devbox run db-reset`, `devbox run dev-bg`, and `devbox run db-psql` with `select email, granted_by from platform_admins;` → one row `admin@dev.local`, null. Expected: PASS (if the stack cannot start, say so in the PR). The sign-in side (BR-28, TC-28.1) is proved by Task 9.
 - [x] **Step 5: Commit** `feat(api): seed the dev platform admin when the local stack starts`.
