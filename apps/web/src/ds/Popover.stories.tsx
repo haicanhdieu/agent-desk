@@ -47,7 +47,35 @@ function StatusCard() {
   );
 }
 
+function MenuList() {
+  const [open, setOpen] = useState(true);
+  return (
+    <div style={stage}>
+      <Button aria-haspopup="menu" aria-expanded={open} aria-controls="story-menu" onClick={() => setOpen(true)}>
+        Account
+      </Button>
+      <Popover
+        open={open}
+        id="story-menu"
+        label="Account menu"
+        role="menu"
+        onClose={() => setOpen(false)}
+        width={200}
+        style={{ left: 16, top: 56 }}
+      >
+        <Button role="menuitem" variant="ghost" onClick={() => setOpen(false)}>
+          Profile
+        </Button>
+        <Button role="menuitem" variant="ghost" onClick={() => setOpen(false)}>
+          Sign out
+        </Button>
+      </Popover>
+    </div>
+  );
+}
+
 const meta: Meta = { title: 'Primitives/Popover', parameters: { layout: 'fullscreen' } };
 export default meta;
 export const CancelConfirmation: StoryObj = { render: () => <CancelConfirm /> };
 export const StatusCardStory: StoryObj = { name: 'Status card', render: () => <StatusCard /> };
+export const Menu: StoryObj = { render: () => <MenuList /> };
