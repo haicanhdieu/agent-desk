@@ -3,6 +3,7 @@ import type { Logger } from 'pino';
 import { describe, expect, it } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { OrgMismatchException } from './org-mismatch';
+import { NotFoundProblemException } from './zod-validation';
 import { ProblemFilter } from './problem.filter';
 
 /** A host whose reply records what was sent. */
@@ -59,6 +60,21 @@ describe('ProblemFilter', () => {
     const { logger, logged } = capturingLogger();
     new ProblemFilter(logger).catch('SECRET_SCRIPT_TEXT', host().host);
     expect(JSON.stringify(logged)).not.toContain('SECRET_SCRIPT_TEXT');
+  });
+
+  it('answers a NotFoundProblemException with 404 and its errors[]', () => {
+    const { host: h, sent } = host();
+    const issues = [{ pointer: '/email', detail: 'no account has this email' }];
+    new ProblemFilter(capturingLogger().logger).catch(new NotFoundProblemException('User not found', issues), h);
+    expect(sent.status).toBe(404);
+    expect(sent.body).toEqual({
+      type: 'about:blank',
+      title: 'Not Found',
+      status: 404,
+      detail: 'User not found',
+      requestId: 'req-1',
+      errors: issues,
+    });
   });
 
   it('answers an OrgMismatchException with the org-mismatch problem type', () => {

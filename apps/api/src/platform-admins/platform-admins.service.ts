@@ -2,7 +2,19 @@ import { Inject, Injectable } from '@nestjs/common';
 import { asc, desc, eq, sql } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import { platformAdmins, user, type Db, type Tx } from '@agentdesk/db';
-import { pageWindow, toPage, type Page, type PageQuery, type PlatformAdminDto } from '@agentdesk/contracts';
+import {
+  pageWindow,
+  toPage,
+  type GrantPlatformAdminRequest,
+  type Page,
+  type PageQuery,
+  type PlatformAdminDto,
+} from '@agentdesk/contracts';
+import type { Logger } from 'pino';
+import { writePlatformAuditEntry } from '../audit/platform-audit-entry';
+import { LOGGER } from '../common/logger';
+import { requestContext } from '../common/request-context';
+import { NotFoundProblemException, UnprocessableProblemException } from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { toInviterDto } from '../invitations/inviter';
 
@@ -58,9 +70,78 @@ export async function findPlatformAdmin(tx: Db['orm'] | Tx, id: string): Promise
   return row === undefined ? undefined : toDto(row);
 }
 
+/** Reads the entry inside the grant transaction, so a concurrent revoke cannot remove it before the answer. */
+async function readEntry(tx: Tx, id: string): Promise<PlatformAdminDto> {
+  const entry = await findPlatformAdmin(tx, id);
+  if (entry === undefined) throw new Error('platform admin entry vanished inside the grant transaction');
+  return entry;
+}
+
 @Injectable()
 export class PlatformAdminsService {
-  constructor(@Inject(DB) private readonly db: Db) {}
+  constructor(
+    @Inject(DB) private readonly db: Db,
+    @Inject(LOGGER) private readonly logger: Logger,
+  ) {}
+
+  /**
+   * Grants the role to `req.email` (an existing verified account). One transaction under the table's advisory lock:
+   * re-read, insert, audit row. A repeat answers the existing entry with `created: false` and writes nothing.
+   */
+  async grant(
+    actorUserId: string,
+    req: GrantPlatformAdminRequest,
+  ): Promise<{ entry: PlatformAdminDto; created: boolean }> {
+    const result = await this.db.orm.transaction(async (tx) => {
+      await tx.execute(sql`select pg_advisory_xact_lock(hashtext('platform_admins'))`);
+      const found = await tx
+        .select({ id: user.id, emailVerified: user.emailVerified })
+        .from(user)
+        .where(sql`lower(${user.email}) = ${req.email}`)
+        .limit(1);
+      const account = found[0];
+      if (account === undefined) {
+        throw new NotFoundProblemException('User not found', [
+          { pointer: '/email', detail: 'no account has this email' },
+        ]);
+      }
+      if (!account.emailVerified) {
+        throw new UnprocessableProblemException('Email not verified', [
+          { pointer: '/email', detail: 'this account has no verified email' },
+        ]);
+      }
+      const existing = await tx
+        .select({ id: platformAdmins.id })
+        .from(platformAdmins)
+        .where(eq(platformAdmins.email, req.email))
+        .limit(1);
+      const existingId = existing[0]?.id;
+      if (existingId !== undefined) {
+        return { id: existingId, created: false, userId: account.id, entry: await readEntry(tx, existingId) };
+      }
+      const inserted = await tx
+        .insert(platformAdmins)
+        .values({ email: req.email, grantedBy: actorUserId })
+        .returning({ id: platformAdmins.id });
+      const id = inserted[0]?.id;
+      if (id === undefined) throw new Error('platform admin insert returned no row');
+      await writePlatformAuditEntry(tx, {
+        actorUserId,
+        action: 'platform_admin.granted',
+        targetType: 'platform_admin',
+        targetId: id,
+        payload: { email: req.email, userId: account.id },
+      });
+      return { id, created: true, userId: account.id, entry: await readEntry(tx, id) };
+    });
+    if (result.created) {
+      this.logger.info(
+        { requestId: requestContext.get()?.requestId, actorUserId, adminId: result.id, targetUserId: result.userId },
+        'platform admin granted',
+      );
+    }
+    return { entry: result.entry, created: result.created };
+  }
 
   /** Every entry, newest grant first (ties by id). Platform-wide by design: no tenant data is touched. */
   async list(q: PageQuery): Promise<Page<PlatformAdminDto>> {

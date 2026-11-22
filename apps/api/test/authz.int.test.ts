@@ -37,7 +37,7 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = ['platform.grantAdmin', 'platform.revokeAdmin'];
+const NOT_REGISTERED_YET: RouteKey[] = ['platform.revokeAdmin'];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -1107,6 +1107,7 @@ describe('denial table over every route, stream and terminal', () => {
       number: '1',
     };
     bodies = {
+      'platform.grantAdmin': { email: 'dt-spare@dev.local' },
       'projects.create': { connectionId: connA, repoPath: 'dev/p-denied', triggerMode: 'webhook' },
       'projects.update': { pollIntervalSeconds: 600 },
       'agents.put': { model: 'claude-opus-4-1', timeoutSeconds: 3600 },

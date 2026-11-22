@@ -375,7 +375,7 @@ export async function grantPlatformAdmin(t: TestApp, cookie: string, email: stri
 
   Grant, inside the transaction and lock: user by `lower(email) = req.email` → none: `NotFoundProblemException('User not found', [{ pointer: '/email', detail: 'no account has this email' }])`; not verified: `UnprocessableProblemException('Email not verified', [{ pointer: '/email', detail: 'this account has no verified email' }])`; entry exists → `{ entry, created: false }`; else insert `{ email, grantedBy: actorUserId }`, write the audit row, log `platform admin granted`. Controller sets 201 or 200 (`@Res({ passthrough: true })`, as `platform-assignments.controller.ts`).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform-audit-entry.test.ts`: `buildPlatformAuditRow` keeps actor, action, target and passes the payload through `redactBody` (a `token` key is redacted; `email` and `userId` kept).
   - `problem.filter.test.ts`: a `NotFoundProblemException` renders 404 with its `errors[]`.
   - `platform-admins.int.test.ts`:
@@ -389,10 +389,10 @@ export async function grantPlatformAdmin(t: TestApp, cookie: string, email: stri
     - `BR-15: a granted platform admin with no assignment gets 403 or 404 and no data on another org's /api/orgs/:orgId routes, with and without x-org-id`.
     - Review Focus 1 `grant matches an account whose stored email has upper case`, 2 `concurrent grants of one email give one 201, one 200, one row and one audit row` (`Promise.all`; assert the set of statuses), 3 `grant to a seeded email with no account is 404 and changes nothing`.
   - `authz.int.test.ts`: `platform.grantAdmin` leaves `NOT_REGISTERED_YET`; `bodies['platform.grantAdmin'] = { email: 'dt-spare@dev.local' }`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/platform-audit-entry.test.ts src/common/problem.filter.test.ts test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the audit writer, the exception and its filter branch, `grant`, the controller method and the test helper.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(api): grant the platform admin role`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/platform-audit-entry.test.ts src/common/problem.filter.test.ts test/platform-admins.int.test.ts test/authz.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the audit writer, the exception and its filter branch, `grant`, the controller method and the test helper.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api test`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(api): grant the platform admin role`.
 
 ---
 

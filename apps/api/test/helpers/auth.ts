@@ -1,4 +1,11 @@
-import type { AssignmentDto, CreateOrgResponse, MyInvitationDto, Page, RoleDto } from '@agentdesk/contracts';
+import type {
+  AssignmentDto,
+  CreateOrgResponse,
+  MyInvitationDto,
+  Page,
+  PlatformAdminDto,
+  RoleDto,
+} from '@agentdesk/contracts';
 import type { TestApp } from './app';
 
 export function cookieOf(res: { headers: Record<string, unknown> }): string {
@@ -161,4 +168,19 @@ export function acceptInvite(t: TestApp, cookie: string, invitationId: string): 
 /** `POST /api/me/invitations/:id/decline` as the cookie's user; returns the raw response. */
 export function declineInvite(t: TestApp, cookie: string, invitationId: string): ReturnType<TestApp['app']['inject']> {
   return t.app.inject({ method: 'POST', url: `/api/me/invitations/${invitationId}/decline`, headers: { cookie } });
+}
+
+/** Grants the platform admin role to `email` as the session `cookie` and returns the status and the entry (the body of a 200 or 201). */
+export async function grantPlatformAdmin(
+  t: TestApp,
+  cookie: string,
+  email: string,
+): Promise<{ statusCode: number; entry: PlatformAdminDto }> {
+  const res = await t.app.inject({
+    method: 'POST',
+    url: '/api/platform/admins',
+    headers: { cookie },
+    payload: { email },
+  });
+  return { statusCode: res.statusCode, entry: res.json<PlatformAdminDto>() };
 }
