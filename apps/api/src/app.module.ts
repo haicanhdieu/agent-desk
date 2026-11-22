@@ -4,6 +4,7 @@ import { AdapterRegistryModule } from './adapters/adapter-registry.module';
 import { AgentsController } from './agents/agents.controller';
 import { agentHttpProvider } from './agents/agent-http.provider';
 import { AgentsService } from './agents/agents.service';
+import { AuditModule } from './audit/audit.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AuthModule } from './auth/auth.module';
 import { ConfigModule } from './config/config.module';
@@ -54,6 +55,7 @@ import { TemporalClientModule } from './temporal/temporal-client.module';
     AssignmentsModule,
     MembersModule,
     PlatformAdminsModule,
+    AuditModule,
   ],
   controllers: [
     HealthController,

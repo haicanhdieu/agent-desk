@@ -476,13 +476,13 @@ export function toAuditEntry(row: AuditRowIn, lookups: AuditLookups): AuditEntry
 list(orgId: string, q: PageQuery): Promise<Page<AuditEntryDto>>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `audit-view.test.ts` (`it.each` over every action): `member.role_changed` → one `role` change with role names (several joined with ", "), `org.updated` → `name` and/or `slug` changes, `member.removed` → `role` from names to null, `invitation.created`/`invitation.accepted` → `role` to the role name, the other known actions and generic rows → `changes: []`; the payload is passed through `redactBody` before reading (a `token` value never reaches a label); the output has exactly the DTO keys (fields picked one by one, no `payload`); `actorKind` from `payload.actorKind`, else null; Review Focus 1: `a known action with a payload missing its fields maps to empty changes and keeps the target`; the invitee email is a label only for invitation targets.
   - `audit.int.test.ts`: BR-20 newest first by `at` then `id` (rows at seeded times by direct `withOrg` inserts), offset paging with `total`, actor name or handle, a deleted actor → `actor: null`, a platform admin row → `actorKind: 'platform_admin'`; BR-21, BR-22 entries made through the real endpoints show from/to; BR-23 invitation created, resent, revoked, accepted and declined entries carry the invitee email as `target.label` for an owner and an org admin, and no other entry kind carries an email; generic `METHOD route-key` rows list with `changes: []`; BR-18 member, viewer, P1 admin → 403 with no entry data; BR-25 org B's rows never in org A's list and the owner of A on `/api/orgs/<B>/audit` → 404; untrusted HTML and SQL text round-trips as text; a secret-shaped payload value never appears in the response; logs carry no email.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/audit-view.test.ts test/audit.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `AuditService.list` under `withOrg(orgId)` only: `count(*)` and the page ordered `at desc, id desc` on `audit_log` (index `(org_id, at)`), then one lookup each for the page's actor and user-target ids (`user`), invitation-target emails (`invitations`) and the org's role names (`loadAllRoles`), then `toAuditEntry`. Controller `@Get(routePath(routes.audit.list))`; register `AuditModule` in `app.module.ts`. Delete `'audit.list'` from `NOT_REGISTERED_YET` (the list is now empty).
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/org-check.int.test.ts test/scope.int.test.ts`. Expected: PASS. E2E: covered by Tasks 33 and 34.
-- [ ] **Step 5: Commit** `feat(api): owners and admins read the org audit log`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/audit-view.test.ts test/audit.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `AuditService.list` under `withOrg(orgId)` only: `count(*)` and the page ordered `at desc, id desc` on `audit_log` (index `(org_id, at)`), then one lookup each for the page's actor and user-target ids (`user`), invitation-target emails (`invitations`) and the org's role names (`loadAllRoles`), then `toAuditEntry`. Controller `@Get(routePath(routes.audit.list))`; register `AuditModule` in `app.module.ts`. Delete `'audit.list'` from `NOT_REGISTERED_YET` (the list is now empty).
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/org-check.int.test.ts test/scope.int.test.ts`. Expected: PASS. E2E: covered by Tasks 33 and 34.
+- [x] **Step 5: Commit** `feat(api): owners and admins read the org audit log`.
 
 ---
 
