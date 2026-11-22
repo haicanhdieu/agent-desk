@@ -29,5 +29,6 @@ export { MyInvitations, type MyInvitationsProps, type MyInvitationsState } from 
 export { InvitationAccept, type InvitationAcceptProps, type InvitationAcceptState } from './InvitationAccept';
 export { OrgInvitations, type InvitationFilter, type OrgInvitationsProps } from './OrgInvitations';
 export { OrgGeneral, type OrgGeneralProps } from './OrgGeneral';
+export { OrgAudit, type OrgAuditProps } from './OrgAudit';
 export { OrgMembers, type OrgMembersProps } from './OrgMembers';
 export { CreateOrg, type CreateOrgProps, type CreateOrgState, type CreateOrgValues } from './CreateOrg';

@@ -965,11 +965,11 @@ export interface OrgAuditProps {
 export function OrgAudit(props: OrgAuditProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: `orgAudit.test.tsx` (BR-20, BR-24): h1 "Audit log", columns "When", "Who", "What"; loading skeleton; error with request id and Retry; empty "No activity yet"; forbidden copy. Register `OrgAudit`, `OrgAuditPaged`, `OrgAuditEmpty`, `OrgAuditLoading`, `OrgAuditError`, `OrgAuditForbidden`; `coverage.test.ts` 183 → 189 (147 + the 42 approved boards).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgAudit.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and the six stories; export `OrgAudit` and `AuditRow`.
+- [x] **Step 1: Write the failing tests**: `orgAudit.test.tsx` (BR-20, BR-24): h1 "Audit log", columns "When", "Who", "What"; loading skeleton; error with request id and Retry; empty "No activity yet"; forbidden copy. Register `OrgAudit`, `OrgAuditPaged`, `OrgAuditEmpty`, `OrgAuditLoading`, `OrgAuditError`, `OrgAuditForbidden`; `coverage.test.ts` 183 → 189 (147 + the 42 approved boards).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgAudit.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and the six stories; export `OrgAudit` and `AuditRow`.
 - [ ] **Step 4: Run** the Step 2 command, the stories smoke test and the parity pass. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Audit log screen`.
+- [x] **Step 5: Commit** `feat(web): Audit log screen`.
 
 ---
 

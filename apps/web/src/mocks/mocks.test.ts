@@ -7,6 +7,7 @@ import {
   auditRows,
   memberRows,
   orgSettingsFixtures,
+  pagedAuditLastPage,
   pagedAuditRows,
   roleCards,
   checklistSteps,
@@ -401,6 +402,19 @@ describe('tenant-admin fixtures', () => {
     expect(pagedAuditRows(7)).toHaveLength(7);
   });
 
+  it('the paged last page holds the five board entries, newest first', () => {
+    expect(pagedAuditLastPage.map((r) => (r.what.kind === 'raw' ? r.what.key : r.what.title))).toEqual([
+      'Kim Hale resent the invitation for mira.chen@example.com',
+      'Mira Chen accepted an invitation as Member',
+      'ari-k declined an invitation',
+      'PUT desk.agent.put',
+      'Morgan Avery invited kim.hale@harborlabs.dev as Owner',
+    ]);
+    expect(pagedAuditLastPage[4]!.who).toEqual({ label: 'Morgan Avery', tag: 'platform' });
+    const times = pagedAuditLastPage.map((r) => Date.parse(r.when.iso));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
   it('keeps each audit time label and exact date in agreement with its iso', () => {
     const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const pad = (n: number) => String(n).padStart(2, '0');
@@ -409,7 +423,7 @@ describe('tenant-admin fixtures', () => {
       return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
     };
     const now = Date.parse(AUDIT_MOCK_NOW);
-    for (const r of [...auditRows, ...pagedAuditRows(5)]) {
+    for (const r of [...auditRows, ...pagedAuditRows(5), ...pagedAuditLastPage]) {
       const { label, exact, iso } = r.when;
       expect(exact, label).toBe(exactOf(iso));
       const ago = (now - Date.parse(iso)) / 60_000;

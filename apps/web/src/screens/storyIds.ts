@@ -199,6 +199,12 @@ export const boardStories = {
   OrgGeneralSlugConfirm: { title: orgSettings, exportName: 'OrgGeneralSlugConfirm' },
   OrgGeneralFormError: { title: orgSettings, exportName: 'OrgGeneralFormError' },
   OrgGeneralForbidden: { title: orgSettings, exportName: 'OrgGeneralForbidden' },
+  OrgAudit: { title: orgSettings, exportName: 'OrgAudit' },
+  OrgAuditPaged: { title: orgSettings, exportName: 'OrgAuditPaged' },
+  OrgAuditEmpty: { title: orgSettings, exportName: 'OrgAuditEmpty' },
+  OrgAuditLoading: { title: orgSettings, exportName: 'OrgAuditLoading' },
+  OrgAuditError: { title: orgSettings, exportName: 'OrgAuditError' },
+  OrgAuditForbidden: { title: orgSettings, exportName: 'OrgAuditForbidden' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

@@ -1,8 +1,9 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
-import { memberRows, orgSettingsFixtures, roleCards } from '@/mocks';
+import { auditRows, memberRows, orgSettingsFixtures, pagedAuditLastPage, roleCards } from '@/mocks';
 import type { MemberRowView } from '@/mocks/types';
+import { OrgAudit as OrgAuditScreen, type OrgAuditProps } from './OrgAudit';
 import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
 import { OrgMembers as OrgMembersScreen, type OrgMembersProps } from './OrgMembers';
 import { OrgSettingsFrame } from './orgSettingsFrame';
@@ -310,4 +311,43 @@ export const OrgGeneralFormError: Story = {
 export const OrgGeneralForbidden: Story = {
   name: 'General URL opened by a project admin: no access inside the layout',
   render: () => general({ state: { kind: 'forbidden' } }, { role: 'projectAdmin' }),
+};
+
+const audit = (
+  state: OrgAuditProps['state'],
+  frame: Pick<Parameters<typeof OrgSettingsFrame>[0], 'role' | 'sideMenu'> = { role: 'owner' },
+) => (
+  <OrgSettingsFrame {...frame} active="audit">
+    <OrgAuditScreen state={state} />
+  </OrgSettingsFrame>
+);
+
+export const OrgAudit: Story = {
+  name: 'Audit log, newest first: role, owner, URL, name, removal, invitation, generic, platform admin, deleted user',
+  render: () => audit({ kind: 'ready', rows: auditRows }),
+};
+export const OrgAuditPaged: Story = {
+  name: 'Audit log, page 2 of 2',
+  render: () =>
+    audit({
+      kind: 'ready',
+      rows: pagedAuditLastPage,
+      pagination: { page: 2, pageSize: 20, total: 25, onPageChange: noop, onPageSizeChange: noop },
+    }),
+};
+export const OrgAuditEmpty: Story = {
+  name: 'Audit log, empty',
+  render: () => audit({ kind: 'ready', rows: [] }),
+};
+export const OrgAuditLoading: Story = {
+  name: 'Audit log, loading',
+  render: () => audit({ kind: 'loading' }),
+};
+export const OrgAuditError: Story = {
+  name: 'Audit log, failed to load',
+  render: () => audit({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
+};
+export const OrgAuditForbidden: Story = {
+  name: 'Audit log URL opened by a project admin: no access inside the layout',
+  render: () => audit({ kind: 'forbidden' }, { role: 'projectAdmin' }),
 };

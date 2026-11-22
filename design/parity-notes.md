@@ -323,3 +323,17 @@ missing from `canvas.json`; their entries (and order) are added after the Member
 - Forbidden: the project admin's frame (side menu lists only Invitations), the no-access notice inside the layout.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 9 pixel pairs are unchecked: none is claimed
   to match.
+
+## Org tenant admin: Audit log boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Audit). Six boards added, so
+`parity.mjs` finds 189: OrgAudit, OrgAuditPaged, OrgAuditEmpty, OrgAuditLoading, OrgAuditError, OrgAuditForbidden
+(`Screens/OrgSettings`). The boards were missing from `canvas.json`; their entries (and order) are added after the General boards.
+
+- Table: the shared `DataTable` and `AuditRow` (When, Who, What); column widths follow the shared table layout, not the boards'
+  fixed percentages.
+- Empty, loading and error: as the Members page (`EmptyState` h2 "No activity yet" under the h1, a labelled busy status of
+  `Skeleton` blocks with no h1, the shared `RouteLoadError`).
+- Forbidden: the project admin's frame (side menu lists only Invitations), the no-access notice inside the layout.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
+  to match.

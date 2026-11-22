@@ -1473,6 +1473,54 @@
    "h": 900,
    "title": "Settings \u2014 General URL opened by a project admin: no access inside the layout",
    "expand": "fill"
+  },
+  "OrgAudit.dc.html": {
+   "x": 6080,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, newest first: role, owner, URL, name, removal, invitation, generic, platform admin, deleted user",
+   "expand": "fill"
+  },
+  "OrgAuditPaged.dc.html": {
+   "x": 0,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, page 2 of 2",
+   "expand": "fill"
+  },
+  "OrgAuditEmpty.dc.html": {
+   "x": 1520,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, empty",
+   "expand": "fill"
+  },
+  "OrgAuditLoading.dc.html": {
+   "x": 3040,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, loading",
+   "expand": "fill"
+  },
+  "OrgAuditError.dc.html": {
+   "x": 4560,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, failed to load",
+   "expand": "fill"
+  },
+  "OrgAuditForbidden.dc.html": {
+   "x": 6080,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log URL opened by a project admin: no access inside the layout",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1658,7 +1706,13 @@
   "OrgGeneralSlugTaken.dc.html",
   "OrgGeneralSlugConfirm.dc.html",
   "OrgGeneralFormError.dc.html",
-  "OrgGeneralForbidden.dc.html"
+  "OrgGeneralForbidden.dc.html",
+  "OrgAudit.dc.html",
+  "OrgAuditPaged.dc.html",
+  "OrgAuditEmpty.dc.html",
+  "OrgAuditLoading.dc.html",
+  "OrgAuditError.dc.html",
+  "OrgAuditForbidden.dc.html"
  ],
  "notes": {
   "t-intro": {

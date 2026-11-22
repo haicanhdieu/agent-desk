@@ -108,3 +108,51 @@ export function pagedAuditRows(n: number): AuditRowView[] {
     };
   });
 }
+
+const entry = (
+  day: number,
+  hour: number,
+  minute: number,
+  who: AuditRowView['who'],
+  what: AuditRowView['what'],
+): AuditRowView => {
+  const iso = new Date(Date.UTC(2026, 10, day, hour, minute)).toISOString();
+  return {
+    id: `b5300000-0000-4000-8000-${String(++seq).padStart(12, '0')}`,
+    when: { label: `${day} Nov`, exact: exactOf(iso), iso },
+    who,
+    what,
+  };
+};
+const said = (parts: ReturnType<typeof p>[]): AuditRowView['what'] => ({
+  kind: 'sentence',
+  parts,
+  title: parts.map((x) => x.text).join(''),
+});
+
+/** The five entries on page 2 of 2 in the approved OrgAuditPaged board (25 in total), newest first. */
+export const pagedAuditLastPage: AuditRowView[] = [
+  entry(
+    12,
+    9,
+    15,
+    { label: 'Kim Hale', tag: null },
+    said([p('Kim Hale', true), p(' resent the invitation for '), p('mira.chen@example.com', true)]),
+  ),
+  entry(
+    11,
+    18,
+    20,
+    { label: 'Mira Chen', tag: null },
+    said([p('Mira Chen', true), p(' accepted an invitation as Member')]),
+  ),
+  entry(11, 12, 0, { label: 'ari-k', tag: null }, said([p('ari-k', true), p(' declined an invitation')])),
+  entry(10, 10, 2, { label: 'Kim Hale', tag: null }, { kind: 'raw', key: 'PUT desk.agent.put', target: null }),
+  entry(
+    10,
+    9,
+    41,
+    { label: 'Morgan Avery', tag: 'platform' },
+    said([p('Morgan Avery', true), p(' invited '), p('kim.hale@harborlabs.dev', true), p(' as Owner')]),
+  ),
+];

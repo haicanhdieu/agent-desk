@@ -169,6 +169,12 @@ const stories = {
   OrgGeneralSlugConfirm: ['Screens/OrgSettings', 'OrgGeneralSlugConfirm'],
   OrgGeneralFormError: ['Screens/OrgSettings', 'OrgGeneralFormError'],
   OrgGeneralForbidden: ['Screens/OrgSettings', 'OrgGeneralForbidden'],
+  OrgAudit: ['Screens/OrgSettings', 'OrgAudit'],
+  OrgAuditPaged: ['Screens/OrgSettings', 'OrgAuditPaged'],
+  OrgAuditEmpty: ['Screens/OrgSettings', 'OrgAuditEmpty'],
+  OrgAuditLoading: ['Screens/OrgSettings', 'OrgAuditLoading'],
+  OrgAuditError: ['Screens/OrgSettings', 'OrgAuditError'],
+  OrgAuditForbidden: ['Screens/OrgSettings', 'OrgAuditForbidden'],
   ...Object.fromEntries(
     [
       'Starting',
