@@ -21,7 +21,7 @@ const line = (permission: Permission, condition: PermissionCondition = 'any'): G
 
 const TENANT = Permission.options.filter((p) => !p.startsWith('platform-'));
 const OWNABLE = ['run:update', 'run:cancel', 'terminal:attach'];
-const READS: Permission[] = ['project:read', 'agent:read', 'skill:read', 'rule:read', 'setup:read', 'run:read'];
+const READS: Permission[] = ['project:read', 'run:read']; // the viewer's reads: no Desk configuration (issue 216)
 
 const OWNER = TENANT.map((p) => line(p));
 const ADMIN = TENANT.filter((p) => p !== 'org:delete').map((p) => line(p));

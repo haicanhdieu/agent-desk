@@ -80,7 +80,7 @@ export const routeAccess: Record<RouteKey, RouteAccess> = {
   'me.getInvitation': { scope: 'user' },
   'me.acceptInvitation': { scope: 'user' },
   'me.declineInvitation': { scope: 'user' },
-  'roles.list': orgAdmin('project:read'),
+  'roles.list': orgAdmin('assignment:read'),
   'members.list': orgAdmin('member:read', 'assignment:create'),
   'assignments.list': orgAdmin('assignment:read'),
   'assignments.create': orgAdmin('assignment:create'),
