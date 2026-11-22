@@ -1185,6 +1185,22 @@
    "h": 900,
    "title": "Create organization \u2014 URL taken",
    "expand": "fill"
+  },
+  "ProjectsChecklistDoneSettings.dc.html": {
+   "x": 3040,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 owner or admin: Projects tab active, Settings tab in the top bar, no Settings button in the head",
+   "expand": "fill"
+  },
+  "ProjectsEmptyChecklistSettings.dc.html": {
+   "x": 4560,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 empty, owner: checklist, Projects tab active, Settings tab in the top bar",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1334,7 +1350,9 @@
   "CreateOrgSaving.dc.html",
   "CreateOrgSlugAuto.dc.html",
   "CreateOrgSlugEdited.dc.html",
-  "CreateOrgSlugTaken.dc.html"
+  "CreateOrgSlugTaken.dc.html",
+  "ProjectsChecklistDoneSettings.dc.html",
+  "ProjectsEmptyChecklistSettings.dc.html"
  ],
  "notes": {
   "t-intro": {

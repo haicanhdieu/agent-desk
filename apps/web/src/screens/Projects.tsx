@@ -6,6 +6,7 @@ import {
   ProjectRow,
   TopBar,
   type OnboardingChecklistState,
+  type AccountMenuAccount,
   type OrgSwitchProps,
   type PaginationProps,
 } from '@/components';
@@ -28,6 +29,8 @@ export interface ProjectsProps {
   pagination?: PaginationProps;
   /** The org switcher in the top bar. */
   org?: OrgSwitchProps;
+  /** Name, handle and the My invitations link for the account menu. */
+  account?: AccountMenuAccount;
   /** The first-run checklist card between the page head and the table. */
   checklist?: OnboardingChecklistState;
   /** The pending-invitations strip above the page head. */
@@ -57,6 +60,7 @@ export function Projects({
   switchToPollingHref,
   pagination,
   org,
+  account,
   checklist,
   invitationsBanner,
   invitationsHref,
@@ -68,6 +72,7 @@ export function Projects({
         user={user}
         createHref={newHref}
         org={org}
+        account={account}
         checklist={checklist}
         invitationsBanner={invitationsBanner}
         invitationsHref={invitationsHref}
@@ -76,7 +81,7 @@ export function Projects({
     );
   return (
     <>
-      <TopBar variant="global" user={user} org={org} />
+      <TopBar variant="global" user={user} account={account} org={org} tabs="org" active="projects" />
       <main className={styles.listMain}>
         {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
         <div className={styles.listHead}>

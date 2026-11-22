@@ -1,6 +1,7 @@
+import type { ReactElement } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PaginationProps } from '@/components';
+import { SignOutProvider, type PaginationProps } from '@/components';
 import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
 import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
@@ -266,5 +267,69 @@ describe('SignInNoInvitationError', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('No invitation found for your email');
     expect(alert).toHaveTextContent('Ask an owner or admin of your organization to invite you, then sign in again.');
+  });
+});
+
+describe('org bar on Projects and ProjectsEmpty', () => {
+  const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
+  const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '/invitations' };
+  const orgBar = (settingsHref?: string) => ({
+    current: harbor,
+    orgs: [harbor],
+    platformAdmin: false,
+    orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+    createHref: '/orgs/new',
+    projectsHref: '/o/harbor-labs/projects',
+    settingsHref,
+  });
+  const cases: [string, (settingsHref?: string) => ReactElement][] = [
+    [
+      'Projects',
+      (s) => <Projects user={user} projects={projects} newHref="/new" canCreate org={orgBar(s)} account={account} />,
+    ],
+    [
+      'Projects without create',
+      (s) => <Projects user={user} projects={projects} newHref="/new" org={orgBar(s)} account={account} />,
+    ],
+    [
+      'ProjectsEmpty',
+      (s) => <ProjectsEmpty user={user} createHref="/new" canCreate org={orgBar(s)} account={account} />,
+    ],
+    [
+      'ProjectsEmpty without create',
+      (s) => <ProjectsEmpty user={user} createHref="/new" org={orgBar(s)} account={account} />,
+    ],
+  ];
+
+  it.each(cases)('%s: Main nav marks Projects current and shows Settings with settingsHref', (_n, make) => {
+    render(make('/o/harbor-labs/settings'));
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: /Settings/ })).toHaveAttribute('href', '/o/harbor-labs/settings');
+  });
+
+  it.each(cases)('%s: header has no Settings or Invitations button when the Settings tab is shown', (_n, make) => {
+    render(make('/o/harbor-labs/settings'));
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const outsideNav = (role: 'link' | 'button', name: RegExp) =>
+      screen.queryAllByRole(role, { name }).filter((el) => !nav.contains(el));
+    expect(screen.queryByRole('link', { name: 'Invitations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Invitations' })).not.toBeInTheDocument();
+    expect(outsideNav('link', /^Settings$/)).toHaveLength(0);
+    expect(outsideNav('button', /^Settings$/)).toHaveLength(0);
+  });
+
+  it.each(cases)('%s: no Settings tab without settingsHref', (_n, make) => {
+    render(make());
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
+  });
+
+  it.each(cases)('%s: account reaches the avatar menu', async (_n, make) => {
+    render(<SignOutProvider onSignOut={() => undefined}>{make()}</SignOutProvider>);
+    await userEvent.click(screen.getByRole('button', { name: `Account menu for ${user.login}` }));
+    expect(screen.getByText('Kim Hale')).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('href', '/invitations');
   });
 });

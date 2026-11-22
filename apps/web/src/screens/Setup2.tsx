@@ -2,6 +2,7 @@ import { useRef, useState } from 'react';
 import { Banner, Field, Icon, RadioCard, StatusIcon, TextInput, CommandChip } from '@/ds';
 import { ModelPicker, SecretField, SetupLayout, type CredentialType, type ModelList } from '@/components';
 import type { Actor } from '@/mocks/types';
+import type { AccountMenuAccount, OrgSwitchProps } from '@/components';
 import { setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
 
@@ -26,6 +27,10 @@ const addressHelp = (
 
 export interface Setup2Props extends SetupNav {
   user: Actor;
+  /** Name, handle and the My invitations link for the account menu. */
+  account?: AccountMenuAccount;
+  /** The org crumb and menu in the top bar. */
+  org?: OrgSwitchProps;
   projectName: string;
   repo: string;
   credentialType: CredentialType;
@@ -50,6 +55,8 @@ export interface Setup2Props extends SetupNav {
 
 export function Setup2({
   user,
+  account,
+  org,
   projectName,
   repo,
   credentialType,
@@ -94,6 +101,8 @@ export function Setup2({
   return (
     <SetupLayout
       user={user}
+      account={account}
+      org={org}
       projectName={projectName}
       steps={setupSteps({ repo, withWorkspace: true })}
       current={1}

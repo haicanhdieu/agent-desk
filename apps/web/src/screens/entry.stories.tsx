@@ -44,6 +44,14 @@ const forecast: Project = {
   lastRun: 'None',
 };
 
+/** The org menu and bar of an owner or admin: the Projects tab and the Settings tab. */
+const withSettings = (o: OrgSwitchProps): OrgSwitchProps => ({
+  ...o,
+  projectsHref: '#projects',
+  settingsHref: '#settings',
+});
+const account = { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' };
+
 const invitations = (count: number) => ({ count, href: '#' });
 const ready = (steps: typeof checklistSteps.none) => ({ kind: 'ready', steps }) as const;
 
@@ -72,7 +80,7 @@ export const SignIn: Story = {
 };
 export const ProjectsEmpty: Story = {
   name: 'Projects, empty',
-  render: () => <ProjectsEmptyScreen user={user} createHref="#" org={loneHarbor} invitationsHref="#" canCreate />,
+  render: () => <ProjectsEmptyScreen user={user} createHref="#" org={loneHarbor} account={account} canCreate />,
 };
 export const Projects: Story = {
   name: 'Projects',
@@ -82,7 +90,7 @@ export const Projects: Story = {
       projects={projects}
       newHref="#"
       org={loneHarbor}
-      invitationsHref="#"
+      account={account}
       canCreate
       settingsHref={() => '#settings'}
     />
@@ -98,7 +106,7 @@ export const ProjectsPaged: Story = {
       projects={pagedProjects(26).slice(20)}
       newHref="#"
       org={loneHarbor}
-      invitationsHref="#"
+      account={account}
       canCreate
       pagination={{
         page: 2,
@@ -120,7 +128,7 @@ export const ProjectsChecklist: Story = {
       projects={[forecast]}
       newHref="#"
       org={loneNorthwind}
-      invitationsHref="#"
+      account={account}
       canCreate
       checklist={ready(checklistSteps.partial)}
     />
@@ -136,7 +144,23 @@ export const ProjectsChecklistDone: Story = {
       projects={projects}
       newHref="#"
       org={orgOf(harbor, [harbor, northwind])}
-      invitationsHref="#"
+      account={account}
+      canCreate
+      invitationsBanner={invitations(2)}
+    />
+  ),
+};
+
+/** An owner or admin: Projects tab active, Settings tab in the bar, no Settings or Invitations button in the head. */
+export const ProjectsChecklistDoneSettings: Story = {
+  name: 'Projects, owner, Settings tab',
+  render: () => (
+    <ProjectsScreen
+      user={user}
+      projects={projects}
+      newHref="#"
+      org={withSettings(orgOf(harbor, [harbor, northwind]))}
+      account={account}
       canCreate
       invitationsBanner={invitations(2)}
     />
@@ -151,7 +175,7 @@ export const ProjectsChecklistError: Story = {
       projects={[forecast]}
       newHref="#"
       org={loneNorthwind}
-      invitationsHref="#"
+      account={account}
       canCreate
       checklist={{ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }}
     />
@@ -166,7 +190,7 @@ export const ProjectsChecklistLoading: Story = {
       projects={[forecast]}
       newHref="#"
       org={loneNorthwind}
-      invitationsHref="#"
+      account={account}
       canCreate
       checklist={{ kind: 'loading' }}
     />
@@ -180,7 +204,21 @@ export const ProjectsEmptyChecklist: Story = {
       user={user}
       createHref="#"
       org={loneNorthwind}
-      invitationsHref="#"
+      account={account}
+      canCreate
+      checklist={ready(checklistSteps.none)}
+    />
+  ),
+};
+
+export const ProjectsEmptyChecklistSettings: Story = {
+  name: 'Projects, empty, owner, Settings tab',
+  render: () => (
+    <ProjectsEmptyScreen
+      user={user}
+      createHref="#"
+      org={withSettings(loneNorthwind)}
+      account={account}
       canCreate
       checklist={ready(checklistSteps.none)}
     />
@@ -231,7 +269,7 @@ export const ProjectsOrgSwitchAdmin: Story = {
       projects={projects}
       newHref="#"
       org={orgOf(harbor, [harbor], true)}
-      invitationsHref="#"
+      account={account}
       canCreate
     />
   ),
@@ -246,7 +284,7 @@ export const ProjectsOrgSwitchOpen: Story = {
       projects={projects}
       newHref="#"
       org={orgOf(harbor, [harbor, northwind, riverside])}
-      invitationsHref="#"
+      account={account}
       canCreate
     />
   ),

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Banner, Button, Icon, StatusIcon } from '@/ds';
 import { CodeEditor, PluginList, SetupLayout, type PluginListProps } from '@/components';
 import type { Actor } from '@/mocks/types';
+import type { AccountMenuAccount, OrgSwitchProps } from '@/components';
 import { SETUP_SCRIPT_STARTER } from './DeskSetup';
 import { DEFAULT_CREDENTIAL_DETAIL, setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
@@ -13,6 +14,10 @@ export type SetupStepTest =
 
 export interface SetupWorkspaceProps extends SetupNav {
   user: Actor;
+  /** Name, handle and the My invitations link for the account menu. */
+  account?: AccountMenuAccount;
+  /** The org crumb and menu in the top bar. */
+  org?: OrgSwitchProps;
   projectName: string;
   repo: string;
   credentialDetail?: string;
@@ -64,6 +69,8 @@ function TestResult({ test, onViewLog }: { test: SetupStepTest; onViewLog?(): vo
 /** Onboarding step "Prepare workspace": the same editor, plugins and Test as the Desk Setup tab. */
 export function SetupWorkspace({
   user,
+  account,
+  org,
   projectName,
   repo,
   credentialDetail = DEFAULT_CREDENTIAL_DETAIL,
@@ -84,6 +91,8 @@ export function SetupWorkspace({
   return (
     <SetupLayout
       user={user}
+      account={account}
+      org={org}
       projectName={projectName}
       steps={setupSteps({ repo, credential: credentialDetail, withWorkspace: true })}
       current={2}

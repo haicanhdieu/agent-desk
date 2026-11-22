@@ -799,11 +799,11 @@ export function OrgSettingsLayout(props: OrgSettingsLayoutProps): JSX.Element;
 - Consumes: `TopBarProps` (Task 11).
 - Produces: `ProjectsProps`, `ProjectsEmptyProps` and `SetupLayoutProps` gain optional `account?: AccountMenuAccount` and pass `tabs: 'org'`, `active: 'projects'` to the bar; `org` (already a prop) carries `projectsHref`/`settingsHref`. `invitationsHref` stays for now (Task 24 removes it).
 
-- [ ] **Step 1: Write the failing tests**: register boards `ProjectsChecklistDoneSettings` and `ProjectsEmptyChecklistSettings` (title `Screens/Entry`) in `boardStories`, `parity.mjs` and `canvas.json` (the board files exist under `design/prototype/project/`); `coverage.test.ts` count 147 → 149.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts`. Expected: FAIL (no story).
-- [ ] **Step 3: Implement** the props and stories: the two new boards (owner, Settings tab, no Settings or Invitations button in the head), the existing Projects and ProjectsEmpty stories without `invitationsHref` and with the Projects tab active, setup stories with the org bar. `parity-notes.md`: one entry "intentional: Option A app bar" per existing board whose header now differs and is not redrawn: Projects, ProjectsEmpty, Setup boards, Runs, RunsProblems, NeedsYou, the RunDetail boards and the Desk boards (the project-level stories change in Task 21).
+- [x] **Step 1: Write the failing tests**: register boards `ProjectsChecklistDoneSettings` and `ProjectsEmptyChecklistSettings` (title `Screens/Entry`) in `boardStories`, `parity.mjs` and `canvas.json` (the board files exist under `design/prototype/project/`); `coverage.test.ts` count 147 → 149.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts`. Expected: FAIL (no story).
+- [x] **Step 3: Implement** the props and stories: the two new boards (owner, Settings tab, no Settings or Invitations button in the head), the existing Projects and ProjectsEmpty stories without `invitationsHref` and with the Projects tab active, setup stories with the org bar. `parity-notes.md`: one entry "intentional: Option A app bar" per existing board whose header now differs and is not redrawn: Projects, ProjectsEmpty, Setup boards, Runs, RunsProblems, NeedsYou, the RunDetail boards and the Desk boards (the project-level stories change in Task 21).
 - [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx src/screens/entry.test.tsx` and the parity pass for the touched boards (storybook-and-parity.md). Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Projects and setup stories under the app bar`.
+- [x] **Step 5: Commit** `feat(web): Projects and setup stories under the app bar`.
 
 ---
 

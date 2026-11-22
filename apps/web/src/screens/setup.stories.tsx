@@ -44,6 +44,21 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
+/** The org bar of an owner or admin: the Projects tab (active) and the Settings tab. */
+const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
+const bar = {
+  account: { name: 'Kim Hale', handle: 'kim-hale', invitationsHref: '#invitations' },
+  org: {
+    current: harbor,
+    orgs: [harbor],
+    platformAdmin: false,
+    orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+    createHref: '/orgs/new',
+    projectsHref: '#projects',
+    settingsHref: '#settings',
+  },
+};
+
 const tall = { parameters: { artboardHeight: 1000 }, globals: viewport(1440, 1000) };
 
 const repo = 'harbor-labs/invoicer-api';
@@ -52,6 +67,7 @@ const rule = rules[0];
 
 const setup1 = {
   user,
+  ...bar,
   projectName,
   repos: [
     { name: repo, meta: 'Private, updated 2 hours ago' },
@@ -98,6 +114,7 @@ export const Setup2: Story = {
   render: () => (
     <Setup2Screen
       user={user}
+      {...bar}
       projectName={projectName}
       repo={repo}
       credentialType={agentSettings.credential.type}
@@ -115,6 +132,7 @@ export const Setup2Fallback: Story = {
   render: () => (
     <Setup2Screen
       user={user}
+      {...bar}
       projectName={projectName}
       repo={repo}
       credentialType={agentSettings.credential.type}
@@ -125,7 +143,7 @@ export const Setup2Fallback: Story = {
   ),
 };
 
-const workspace = { user, projectName, repo, plugins: { plugins: setupPlugins.planned } };
+const workspace = { user, ...bar, projectName, repo, plugins: { plugins: setupPlugins.planned } };
 
 /** New optional step between the credential and skills (five steps once it ships). */
 export const SetupWorkspace: Story = {
@@ -184,6 +202,7 @@ export const Setup3: Story = {
   render: () => (
     <Setup3Screen
       user={user}
+      {...bar}
       projectName={projectName}
       repo={repo}
       branch="main"
@@ -201,6 +220,7 @@ export const Setup4: Story = {
   render: () => (
     <Setup4Screen
       user={user}
+      {...bar}
       projectName={projectName}
       repo={repo}
       rule={rule}
@@ -221,6 +241,7 @@ export const Setup4Prompt: Story = {
   render: () => (
     <Setup4Screen
       user={user}
+      {...bar}
       projectName={projectName}
       repo={repo}
       rule={{ ...rule, command: 'triage', labels: [], skill: '', kind: 'prompt', prompt: TRIAGE_PROMPT }}
@@ -251,6 +272,7 @@ const readySummary = (trigger: string) => [
 
 const ready = {
   user,
+  ...bar,
   projectName,
   repo,
   label: { name: 'user-story', color: '#7C8FD8' },

@@ -133,6 +133,8 @@ const stories = {
   CreateOrgSlugAuto: ['Screens/Invitations', 'CreateOrgSlugAuto'],
   CreateOrgSlugEdited: ['Screens/Invitations', 'CreateOrgSlugEdited'],
   CreateOrgSlugTaken: ['Screens/Invitations', 'CreateOrgSlugTaken'],
+  ProjectsChecklistDoneSettings: ['Screens/Entry', 'ProjectsChecklistDoneSettings'],
+  ProjectsEmptyChecklistSettings: ['Screens/Entry', 'ProjectsEmptyChecklistSettings'],
   ...Object.fromEntries(
     [
       'Starting',
