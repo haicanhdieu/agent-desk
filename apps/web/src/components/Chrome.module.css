@@ -80,13 +80,6 @@
   max-width: 320px;
   min-width: 0;
 }
-.switch .org {
-  color: var(--muted);
-  white-space: nowrap;
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .name {
   font-weight: 600;
   min-width: 0;
@@ -148,6 +141,19 @@
 }
 .crumbs b.crumb {
   flex: 0 0 auto;
+  max-width: 240px;
+}
+.crumbs .crumbControl {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.crumbText {
+  color: var(--muted);
+  white-space: nowrap;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   max-width: 240px;
 }
 .crumbs .sepch {

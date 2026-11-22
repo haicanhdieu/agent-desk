@@ -102,7 +102,7 @@ export function NeedsYou({
           </div>
         </SurfaceCard>
         <SurfaceCard caption="In the app: badge on the Runs tab, per-project counts in the switcher, a pinned banner at the top of Runs, and amber rows in the list.">
-          <ProjectStrip org={project.org} project={project.name} active="runs" needsYou={project.needsYou} />
+          <ProjectStrip project={project.name} active="runs" needsYou={project.needsYou} />
           <div className={mock.menuWrap}>
             <ProjectMenu
               items={projects.map((p) => ({

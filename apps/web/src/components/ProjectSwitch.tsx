@@ -11,21 +11,20 @@ export type ProjectSwitchMenu = (
 };
 
 export interface ProjectSwitchProps {
-  org: string;
   project: string;
   onClick?(): void;
   /** Without it the button is inert (static boards); with it the button opens the project menu. */
   menu?: ProjectSwitchMenu;
 }
 
-interface SwitchButtonProps extends Pick<ProjectSwitchProps, 'org' | 'project' | 'onClick'> {
+interface SwitchButtonProps extends Pick<ProjectSwitchProps, 'project' | 'onClick'> {
   buttonRef?: Ref<HTMLButtonElement>;
   expanded?: boolean;
   controls?: string;
   onKeyDown?(e: KeyboardEvent<HTMLButtonElement>): void;
 }
 
-function SwitchButton({ org, project, onClick, buttonRef, expanded, controls, onKeyDown }: SwitchButtonProps) {
+function SwitchButton({ project, onClick, buttonRef, expanded, controls, onKeyDown }: SwitchButtonProps) {
   return (
     <button
       ref={buttonRef}
@@ -38,7 +37,6 @@ function SwitchButton({ org, project, onClick, buttonRef, expanded, controls, on
       onClick={onClick}
       onKeyDown={onKeyDown}
     >
-      <span className={styles.org}>{org} /</span>
       <span className={styles.name} title={project}>
         {project}
       </span>
@@ -50,12 +48,12 @@ function SwitchButton({ org, project, onClick, buttonRef, expanded, controls, on
 const MENU_ITEMS = 'a[href],button:not([disabled])';
 const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
 
-export function ProjectSwitch({ org, project, onClick, menu }: ProjectSwitchProps) {
-  if (!menu) return <SwitchButton org={org} project={project} onClick={onClick} />;
-  return <ProjectSwitchWithMenu org={org} project={project} menu={menu} />;
+export function ProjectSwitch({ project, onClick, menu }: ProjectSwitchProps) {
+  if (!menu) return <SwitchButton project={project} onClick={onClick} />;
+  return <ProjectSwitchWithMenu project={project} menu={menu} />;
 }
 
-function ProjectSwitchWithMenu({ org, project, menu }: { org: string; project: string; menu: ProjectSwitchMenu }) {
+function ProjectSwitchWithMenu({ project, menu }: { project: string; menu: ProjectSwitchMenu }) {
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
@@ -99,7 +97,6 @@ function ProjectSwitchWithMenu({ org, project, menu }: { org: string; project: s
   return (
     <div ref={wrapRef} className={styles.switchWrap}>
       <SwitchButton
-        org={org}
         project={project}
         expanded={open}
         controls={menuId}

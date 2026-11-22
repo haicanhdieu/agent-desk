@@ -15,11 +15,6 @@ export interface OrgSwitchProps extends OrgSwitchData {
 const MENU_ITEMS = 'a[href]';
 const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
 
-/** Whether the switcher renders anything: a non-admin with no org at all gets nothing. */
-export function orgSwitchVisible({ current, orgs, platformAdmin }: OrgSwitchData): boolean {
-  return platformAdmin || orgs.length > 1 || Boolean(current ?? orgs[0]);
-}
-
 /** The org crumb of the top bar: always a menu button (org name, Projects, Settings, switch group, Create), except plain text for no org and no platform admin. */
 export function OrgSwitch(props: OrgSwitchProps) {
   if (props.orgs.length === 0 && !props.current && !props.platformAdmin) {

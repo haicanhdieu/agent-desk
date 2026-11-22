@@ -43,10 +43,10 @@ export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref }: P
 }
 
 /** Project switch plus tabs on a bare top-bar strip (no brand, no right-hand actions). */
-export function ProjectStrip({ org, project, active, needsYou }: ProjectNavProps & { org: string; project: string }) {
+export function ProjectStrip({ project, active, needsYou }: ProjectNavProps & { project: string }) {
   return (
     <div className={`${styles.top} ${styles.stripBare}`}>
-      <ProjectSwitch org={org} project={project} />
+      <ProjectSwitch project={project} />
       <ProjectNav active={active} needsYou={needsYou} />
     </div>
   );
