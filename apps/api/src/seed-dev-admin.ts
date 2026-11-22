@@ -10,13 +10,28 @@ export function devAdminSeedEnabled(config: Pick<Config, 'AUTH_DEV_LOGIN'>): boo
   return config.AUTH_DEV_LOGIN;
 }
 
-/** Parses env with parseConfig; when the gate is off returns 'skipped' without calling seed, else seeds DEV_ADMIN_EMAIL once. */
+/** True only for a loopback database host; an unparseable url is not local. Never logs the url (it carries credentials). */
+export function isLocalDatabaseUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    // pg lets a host/hostaddr query parameter override the authority, and an empty authority falls back to PGHOST; fail closed on both.
+    if (u.searchParams.has('host') || u.searchParams.has('hostaddr')) return false;
+    // new URL keeps the case of a non-special scheme's host, so compare lowercased.
+    const host = u.hostname.toLowerCase();
+    return host === 'localhost' || host === '127.0.0.1' || host === '[::1]' || host === '::1';
+  } catch {
+    return false;
+  }
+}
+
+/** Parses env with parseConfig; returns 'skipped' (dev login off) or 'skipped-remote' (database not loopback) without calling seed, else seeds DEV_ADMIN_EMAIL once. */
 export async function runDevAdminSeed(
   env: Record<string, string | undefined>,
   seed: (databaseAppUrl: string, email: string) => Promise<void>,
-): Promise<'skipped' | 'seeded'> {
+): Promise<'skipped' | 'skipped-remote' | 'seeded'> {
   const config = parseConfig(env);
   if (!devAdminSeedEnabled(config)) return 'skipped';
+  if (!isLocalDatabaseUrl(config.DATABASE_APP_URL)) return 'skipped-remote';
   await seed(config.DATABASE_APP_URL, DEV_ADMIN_EMAIL);
   return 'seeded';
 }
@@ -32,7 +47,12 @@ async function seedWithAppDb(databaseAppUrl: string, email: string): Promise<voi
 
 async function main(): Promise<void> {
   const result = await runDevAdminSeed(process.env, seedWithAppDb);
-  console.log(result === 'skipped' ? 'seed-dev-admin: skipped (dev login is off)' : 'seed-dev-admin: done');
+  const lines = {
+    skipped: 'seed-dev-admin: skipped (dev login is off)',
+    'skipped-remote': 'seed-dev-admin: skipped (database is not local)',
+    seeded: 'seed-dev-admin: done',
+  };
+  console.log(lines[result]);
 }
 
 // Only the process entry runs main() (argv[1] is realpath'd to match import.meta.url under symlinks); tests import runDevAdminSeed without connecting anywhere.

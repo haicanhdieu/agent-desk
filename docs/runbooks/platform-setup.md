@@ -85,7 +85,7 @@ If the platform has no working admin left (no entry matches a verified account, 
 
 ## Local stack
 
-`devbox run dev` does steps 3 to 5 for you. `migrate` runs the migrations, then `seed-dev-admin` seeds `admin@dev.local` into `platform_admins`, and the api starts only after that. The seed runs only when `AUTH_DEV_LOGIN` is `true` (the `.env.example` default); otherwise it prints that it was skipped. `devbox run db-reset` wipes the database, and the next `devbox run dev` migrates and seeds it again. Runner pods use `scripts/runner-stack.sh`, which runs the same seed. See [local-dev.md](local-dev.md) §4.
+`devbox run dev` does steps 3 to 5 for you. `migrate` runs the migrations, then `seed-dev-admin` seeds `admin@dev.local` into `platform_admins`, and the api starts only after that. The seed runs only when `AUTH_DEV_LOGIN` is `true` (the `.env.example` default); otherwise it prints that it was skipped. It also runs only against a local database (host `localhost`, `127.0.0.1` or `::1`) and skips any other host. `devbox run db-reset` wipes the database, and the next `devbox run dev` migrates and seeds it again. Runner pods use `scripts/runner-stack.sh`, which runs the same seed. See [local-dev.md](local-dev.md) §4.
 
 ## Troubleshooting
 
