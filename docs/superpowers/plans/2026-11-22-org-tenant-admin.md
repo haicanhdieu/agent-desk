@@ -1020,11 +1020,11 @@ export interface AppBarData { user: Actor; org: OrgSwitchProps; account: Account
 export function useAppBar(orgSlug: string | null, opts?: { onMyInvitations?: boolean }): AppBarData;
 ```
 
-- [ ] **Step 1: Write the failing tests** (`it.each` over `tenantAccessFixtures`; BR-2, BR-13, BR-44, BR-45): owner and admin → four tabs, first `general`; project admin → only `invitations`; member, viewer, no-role → none and `canOpenSettings` false; `useAppBar` gives `settingsHref` `/o/<slug>/settings` only when allowed, none while access is pending, `projectsHref` `/o/<slug>/projects`, `pendingCount` from the `me.listInvitations` total, undefined while pending, on error or when 0, `account.current` from the option.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/chrome/appBar.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the helpers and the hook.
+- [x] **Step 1: Write the failing tests** (`it.each` over `tenantAccessFixtures`; BR-2, BR-13, BR-44, BR-45): owner and admin → four tabs, first `general`; project admin → only `invitations`; member, viewer, no-role → none and `canOpenSettings` false; `useAppBar` gives `settingsHref` `/o/<slug>/settings` only when allowed, none while access is pending, `projectsHref` `/o/<slug>/projects`, `pendingCount` from the `me.listInvitations` total, undefined while pending, on error or when 0, `account.current` from the option.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/chrome/appBar.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the helpers and the hook.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): top bar data and settings visibility per role`.
+- [x] **Step 5: Commit** `feat(web): top bar data and settings visibility per role`.
 
 ---
 

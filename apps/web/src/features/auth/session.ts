@@ -1,5 +1,6 @@
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
+import { accessKeys } from '../access/keys';
 import { authCall, authClient } from './client';
 import { resetSignOutGuard } from './signOut';
 
@@ -52,7 +53,8 @@ export const orgsQuery = queryOptions({
 
 /**
  * Makes `org` the session's active organization (the API scopes every request by it), then drops the org-scoped
- * cache. Callers pass only an org from `orgsQuery`, so a non-member org is never sent.
+ * cache and the session-wide access (`['session','access']` holds the grants in the active org). Callers pass only an
+ * org from `orgsQuery`, so a non-member org is never sent.
  */
 export async function setActiveOrganization(queryClient: QueryClient, org: Organization): Promise<void> {
   await authCall(() => authClient.organization.setActive({ organizationId: org.id }));
@@ -60,6 +62,9 @@ export async function setActiveOrganization(queryClient: QueryClient, org: Organ
   // In-flight fetches of the old org must not land in the cache after it is cleared.
   await queryClient.cancelQueries({ queryKey: ['org'] });
   queryClient.removeQueries({ queryKey: ['org'] });
+  // The grants of the previous active org must not outlive the switch (personal pages read them for the top bar).
+  await queryClient.cancelQueries({ queryKey: accessKeys.session(), exact: true });
+  queryClient.removeQueries({ queryKey: accessKeys.session(), exact: true });
 }
 
 /** The org `/` and `/projects` open: the session's active org, else the first membership, else none. */
