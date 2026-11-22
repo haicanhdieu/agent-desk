@@ -68,16 +68,42 @@ describe('index.html branding', () => {
 });
 
 describe('Brand logo', () => {
-  /** Every drawing element as 'parent > tag [sorted attributes]'. React writes SVG props in their attribute names. */
+  const tokensCss = readFileSync(resolve(webRoot, 'src/ds/tokens.css'), 'utf8');
+  const brandCss = readFileSync(resolve(webRoot, 'src/components/Brand.module.css'), 'utf8');
+  const brandSrc = readFileSync(resolve(webRoot, 'src/components/Brand.tsx'), 'utf8');
+
+  /** The value of a custom property declared in tokens.css. */
+  const tokenValue = (name: string) => new RegExp(`--${name}:\\s*([^;]+);`).exec(tokensCss)?.[1].trim();
+  /** The colours a Brand.module.css class paints with: its `fill`/`stroke` declarations, resolved through tokens.css. */
+  const classPaint = (cls: string) => {
+    const rule = new RegExp(`\\.${cls}\\s*\\{([^}]*)\\}`).exec(brandCss)?.[1] ?? '';
+    return [...rule.matchAll(/(fill|stroke):\s*var\(--([\w-]+)\)/g)].map(
+      (m) => [m[1], tokenValue(m[2])?.toLowerCase() ?? 'unresolved'] as const,
+    );
+  };
+
+  /** Every drawing element as 'parent > tag [sorted attributes]'. React writes SVG props in their attribute names;
+   *  a class from Brand.module.css is replaced by the fill/stroke colours it resolves to through tokens.css. */
   const drawing = (root: Element) =>
     [...root.querySelectorAll('*')]
       .filter((e) => !['title', 'desc'].includes(e.localName))
       .map((e) => {
-        const attrs = [...e.attributes].map((a) => `${a.name}=${a.value}`).sort();
-        return `${e.parentElement?.localName} > ${e.localName} [${attrs.join(' ')}]`;
+        const attrs = new Map([...e.attributes].map((a) => [a.name, a.value.toLowerCase()]));
+        for (const cls of (attrs.get('class') ?? '').split(/\s+/).filter(Boolean)) {
+          for (const [prop, value] of classPaint(cls)) attrs.set(prop, value);
+        }
+        attrs.delete('class');
+        const list = [...attrs].map(([k, v]) => `${k}=${v}`).sort();
+        return `${e.parentElement?.localName} > ${e.localName} [${list.join(' ')}]`;
       });
 
-  it('draws the same viewBox and elements, with the same attributes, as the favicon file', () => {
+  it('has no raw colour and no inline style in the component, so the palette stays in tokens.css', () => {
+    expect(brandSrc).not.toMatch(/#[0-9a-fA-F]{3,8}\b/);
+    expect(brandSrc).not.toMatch(/\b(rgb|hsl)a?\(/);
+    expect(brandSrc).not.toMatch(/style=/);
+  });
+
+  it('draws the same viewBox and elements, with the same attributes and resolved colours, as the favicon file', () => {
     const file = new DOMParser().parseFromString(
       readFileSync(publicFile('/agent-desk-icon.svg'), 'utf8'),
       'image/svg+xml',

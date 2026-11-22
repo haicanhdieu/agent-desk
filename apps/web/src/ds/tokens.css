@@ -50,6 +50,12 @@
   --avatar-bot-bg: #2f3a36;
   --avatar-bot-text: #bfe6d2;
 
+  /* Agent Desk logo (brand colours; match public/agent-desk-icon.svg, not theme-dependent) */
+  --logo-bg: #111827;
+  --logo-ink: #ffffff;
+  --logo-violet: #756eff;
+  --logo-teal: #20c9b0;
+
   /* text on solid fills */
   --on-idle: #1a1405;
   --on-primary: #14171c;
