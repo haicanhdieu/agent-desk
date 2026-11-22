@@ -559,11 +559,11 @@ export async function seedTenantAdmin(page: Page, scenario: TenantAdminScenario)
 
   Mock store rules (spec "Fakes and fixtures"): `members.updateRole` and `members.remove` answer 409 problem "The organization needs at least one owner" by counting owners after the change (the web never pre-checks); 403 to self-removal and to an admin touching an owner or giving `owner`; 404 problem "Member is no longer in the organization" for a removed member; `orgs.update` keeps slugs unique (409 `/slug`, the seed includes an org with slug `taken`) and updates the org list `/auth/organization/list` returns; `audit.list` pages the audit fixtures newest first. `memberRemovedMeanwhile` drops B from the store after the first list read; `roleChangedMeanwhile` changes B to viewer after it; the `*Slow` scenarios hold the answer back 1500 ms; the `*Error` scenarios answer 500 with a request id until one retry.
 
-- [ ] **Step 1: Write the failing tests** in `tenantAdminScenarios.test.ts`: each rule above against the in-memory store (sole owner demoting self → 409; two owners → 200; admin on an owner → 403; self remove → 403; removed member → 404; taken slug → 409 `/slug`; rename changes the org list); every scenario name applies without throwing; `memberRemovedMeanwhile` returns B on the first list and 404 on a later change.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/tenantAdminScenarios.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the store state and rules in `db.ts`, replace Task 1's placeholder `impl` entries in `handlers.ts`, read the scenario key in `browser.ts` as the onboarding key is read, and add `seedTenantAdmin` to `mock.ts` (writes the key before the first page load, like `seedOnboarding`).
-- [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/web exec vitest run src/mocks` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): mock handlers and scenarios for tenant admin`.
+- [x] **Step 1: Write the failing tests** in `tenantAdminScenarios.test.ts`: each rule above against the in-memory store (sole owner demoting self → 409; two owners → 200; admin on an owner → 403; self remove → 403; removed member → 404; taken slug → 409 `/slug`; rename changes the org list); every scenario name applies without throwing; `memberRemovedMeanwhile` returns B on the first list and 404 on a later change.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/tenantAdminScenarios.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the store state and rules in `db.ts`, replace Task 1's placeholder `impl` entries in `handlers.ts`, read the scenario key in `browser.ts` as the onboarding key is read, and add `seedTenantAdmin` to `mock.ts` (writes the key before the first page load, like `seedOnboarding`).
+- [x] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/web exec vitest run src/mocks` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): mock handlers and scenarios for tenant admin`.
 
 ---
 

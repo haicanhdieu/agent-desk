@@ -1,8 +1,10 @@
 import type {
   AgentDto,
+  AuditEntryDto,
   ConnectionDto,
   IgnoredEventDto,
   InvitationDto,
+  MemberDto,
   OrgChecklistDto,
   ProjectConnectionDto,
   PluginsDto,
@@ -17,7 +19,8 @@ import type {
   SetupTestDto,
   SkillDto,
 } from '@agentdesk/contracts';
-import { invitationFixtures } from '../dto/access';
+import { invitationFixtures, memberFixtures } from '../dto/access';
+import { auditEntryFixtures } from '../dto/audit';
 import { agentFixtures } from '../dto/agents';
 import type { AgentModelsScenario } from './agentModels';
 import { connectionFixtures, connectionOrg, repoFixtures } from '../dto/connections';
@@ -86,12 +89,34 @@ export interface TriggerState {
   polling: Omit<NonNullable<ProjectConnectionDto['polling']>, 'intervalSeconds'>;
 }
 
+/** What the tenant-admin scenarios bend (tenantAdminScenarios.ts): reads that change the data, slow and failing lists. */
+export interface TenantAdminState {
+  /** After the first members list is read, drop this member or make them a viewer (the "meanwhile" scenarios). */
+  afterFirstMembersList?: { userId: string; change: 'remove' | 'viewer' };
+  membersListReads: number;
+  /** How long each list holds its answer, in ms. */
+  delayMs: { members: number; audit: number };
+  /** Requests still to answer 500 with a request id. */
+  failuresLeft: { members: number; audit: number };
+}
+
+export const freshTenantAdmin = (): TenantAdminState => ({
+  membersListReads: 0,
+  delayMs: { members: 0, audit: 0 },
+  failuresLeft: { members: 0, audit: 0 },
+});
+
 export interface MockState {
   auth: MockAuth;
   users: MockUser[];
   orgs: MockOrg[];
   memberships: MockMembership[];
   invitations: InvitationRow[];
+  /** Each org's members with their assignments, as `members.list` returns them. */
+  members: Record<string, MemberDto[]>;
+  /** Each org's audit entries, newest first. */
+  audit: Record<string, AuditEntryDto[]>;
+  tenantAdmin: TenantAdminState;
   /** The first-run checklist each org's owners and admins see. */
   checklists: Record<string, OrgChecklistDto>;
   /** How long `set-active` holds its answer, for the slow org switch. */
@@ -151,6 +176,9 @@ function orgOf(map: Record<string, string>, id: string): string {
   return org;
 }
 
+/** An org nobody is a member of, which owns the slug `taken`. */
+export const TAKEN_ORG_ID = 'b6000000-0000-4000-8000-000000000009';
+
 export function seedState(): MockState {
   const created = '2026-09-01T09:00:00.000Z';
   const state: MockState = {
@@ -171,12 +199,17 @@ export function seedState(): MockState {
     orgs: [
       { id: ids.org.alice, name: 'Alice', slug: 'alice', logo: null, metadata: null, createdAt: created },
       { id: ids.org.acme, name: 'Acme', slug: 'acme', logo: null, metadata: null, createdAt: created },
+      // Nobody here belongs to it: it only holds the slug `taken` (orgs.update answers 409 for it).
+      { id: TAKEN_ORG_ID, name: 'Taken', slug: 'taken', logo: null, metadata: null, createdAt: created },
     ],
     memberships: [
       { userId: ids.user.alice, orgId: ids.org.alice, roleKey: 'owner' },
       { userId: ids.user.alice, orgId: ids.org.acme, roleKey: 'owner' },
     ],
     invitations: invitationFixtures.map((i) => ({ ...i, orgId: ids.org.alice })),
+    members: { [ids.org.alice]: structuredClone(memberFixtures), [ids.org.acme]: structuredClone(memberFixtures) },
+    audit: { [ids.org.alice]: auditEntryFixtures, [ids.org.acme]: [] },
+    tenantAdmin: freshTenantAdmin(),
     checklists: {
       [ids.org.alice]: checklistFixtures.complete,
       [ids.org.acme]: checklistFixtures.complete,
@@ -290,3 +323,6 @@ export const mockDb = {
     return `req-mock-${String(requestCounter).padStart(6, '0')}`;
   },
 };
+
+/** The store's type, for helpers that seed it (tenantAdminScenarios.ts). */
+export type MockDb = typeof mockDb;

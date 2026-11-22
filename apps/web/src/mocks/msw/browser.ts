@@ -10,6 +10,7 @@ import { handlers } from './handlers';
 import { PR_STATES_SCENARIO_KEY } from './prStates';
 import { ONBOARDING_SCENARIO_KEY, parseOnboardingScenario } from './onboardingScenarios';
 import { scenarios, setScenarioTarget } from './scenarios';
+import { TENANT_ADMIN_SCENARIO_KEY, applyTenantAdminScenario, parseTenantAdminScenario } from './tenantAdminScenarios';
 import { DEFAULT_RUN_SCRIPT, streamHandlers } from './stream-handlers';
 
 /** MSW service worker for `dev:mock` and Storybook (the API plus the SSE streams). */
@@ -104,6 +105,19 @@ function loadOnboarding(): void {
   if (name !== undefined) scenarios.onboarding(name);
 }
 
+// The mocked e2e specs pick a tenant-admin scenario here before the first load (e2e/mock/mock.ts `seedTenantAdmin`,
+// tenantAdminScenarios.ts). It resets the store like an onboarding scenario does. An unknown name is ignored.
+function loadTenantAdmin(): void {
+  let raw: string | null = null;
+  try {
+    raw = sessionStorage.getItem(TENANT_ADMIN_SCENARIO_KEY);
+  } catch {
+    // Storage blocked: the seed stays.
+  }
+  const name = parseTenantAdminScenario(raw);
+  if (name !== undefined) applyTenantAdminScenario(mockDb, name);
+}
+
 function saveAuth(): void {
   try {
     sessionStorage.setItem(AUTH_KEY, JSON.stringify(mockDb.auth));
@@ -118,6 +132,7 @@ let started: Promise<unknown> | undefined;
 export function startMockWorker(opts: { quiet?: boolean } = {}): Promise<unknown> {
   started ??= (async () => {
     loadOnboarding();
+    loadTenantAdmin();
     loadAuth();
     loadAgentModels();
     loadPrStates();

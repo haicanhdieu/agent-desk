@@ -35,7 +35,6 @@ import { PR_STATES_SLOW_MS, prStateItems } from './prStates';
 import type { MockRun } from '../dto/runs';
 import {
   assignmentFixtures,
-  memberFixtures,
   platformMemberFixtures,
   platformOrgFixtures,
   platformProjectFixtures,
@@ -64,6 +63,15 @@ import {
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
 import { linkedTicketsFor, toDto } from './linkedTickets';
+import {
+  changeMemberRole,
+  gate,
+  listAudit,
+  listMembers,
+  removeMember,
+  requireActiveOrg,
+  updateOrg,
+} from './tenantAdminScenarios';
 import { appendRunEvent, endSetupTest, rememberSetupTestScript, scriptRun, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
@@ -977,7 +985,12 @@ const impl: Impl = {
 
   'me.access': () => accessOf(sessionUser()),
   'roles.list': () => roleFixtures,
-  'members.list': ({ query }) => slicePage(memberFixtures, query),
+  'members.list': async ({ params, query }) => {
+    const { orgId } = session();
+    requireActiveOrg(params.orgId, orgId);
+    await gate(mockDb, 'members');
+    return listMembers(mockDb, orgId, query);
+  },
   'assignments.list': ({ query }) => slicePage(assignmentFixtures, query),
   'assignments.create': () => assignmentFixtures[0] ?? never('assignment'),
   'assignments.remove': () => null,
@@ -985,13 +998,29 @@ const impl: Impl = {
   'invitations.create': ({ body }) => createInvitation(session().orgId, body),
   'invitations.remove': ({ params }) => revokeInvitation(session().orgId, params.invitationId),
   'invitations.resend': ({ params }) => resendInvitation(session().orgId, params.invitationId),
-  'members.updateRole': () => memberFixtures[0] ?? never('member'),
-  'members.remove': () => null,
-  'orgs.update': ({ body }) => {
-    const org = db().orgs.find((o) => o.id === session().orgId) ?? never('org');
-    return { id: org.id, name: body.name ?? org.name, slug: body.slug ?? org.slug };
+  'members.updateRole': ({ params, body }) => {
+    const { user, orgId } = session();
+    requireActiveOrg(params.orgId, orgId);
+    return changeMemberRole(mockDb, { userId: user.id, orgId }, params.userId, body.roleId);
   },
-  'audit.list': ({ query }) => slicePage([], query),
+  'members.remove': ({ params }) => {
+    const { user, orgId } = session();
+    // Self removal is refused before anything is looked up, the org included.
+    if (params.userId === user.id) removeMember(mockDb, { userId: user.id, orgId }, params.userId);
+    requireActiveOrg(params.orgId, orgId);
+    return removeMember(mockDb, { userId: user.id, orgId }, params.userId);
+  },
+  'orgs.update': ({ params, body }) => {
+    const { orgId } = session();
+    requireActiveOrg(params.orgId, orgId);
+    return updateOrg(mockDb, orgId, body);
+  },
+  'audit.list': async ({ params, query }) => {
+    const { orgId } = session();
+    requireActiveOrg(params.orgId, orgId);
+    await gate(mockDb, 'audit');
+    return listAudit(mockDb, orgId, query);
+  },
   'orgs.checklist': () => {
     const { user, orgId } = session();
     const seat = db().memberships.find((m) => m.userId === user.id && m.orgId === orgId);
