@@ -1149,13 +1149,13 @@ export function toMemberRow(dto: MemberDto, caller: CallerRights, projectNames: 
 
   `canChangeRole`: `canUpdate` and (target not an owner or caller is owner); `canRemove`: `canDelete`, not self, and (target not an owner or caller is owner).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts` (`it.each`; BR-1, BR-4, BR-9): role from the org-scope assignment or null; project roles "Alpha (Admin), Beta (Member)" sorted by project name, "—" when none; owner caller on an owner row → both actions; admin caller on an owner row → none; own row → no Remove.
   - `members.route.test.tsx` (BR-1, BR-2, BR-24, BR-25): owner sees the rows, several owners, "No role" and project roles; paging page 2 of 2 with `?page=2`; loading skeleton; 500 → error with request id, Retry refetches; project admin typing the URL → no-access inside the layout; member → no-access under the bar; no email anywhere.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/members`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (`validateSearch` `PageSearch`, `useClampToLastPage`, `usePaginationProps`), the query and the mapper; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/members`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (`validateSearch` `PageSearch`, `useClampToLastPage`, `usePaginationProps`), the query and the mapper; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 35.
-- [ ] **Step 5: Commit** `feat(web): Members page lists the org's members`.
+- [x] **Step 5: Commit** `feat(web): Members page lists the org's members`.
 
 ---
 
