@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
-import { Avatar, Button, IconButton } from '@/ds';
+import { Button, IconButton } from '@/ds';
 import type { Actor } from '@/mocks/types';
+import { AccountMenu } from './AccountMenu';
 import { Brand } from './Brand';
 import { OrgSwitch, orgSwitchVisible, type OrgSwitchProps } from './OrgSwitch';
 import { ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
@@ -44,7 +45,7 @@ export function TopBar({
   links,
 }: TopBarProps) {
   const projectsHref = links?.projects ?? '/projects';
-  const avatar = <Avatar initials={user.initials} kind={user.bot ? 'bot' : 'user'} title={user.login} />;
+  const avatar = <AccountMenu user={user} />;
   const bell = <IconButton icon="bell" aria-label="Notifications on" />;
 
   if (variant === 'run') {
