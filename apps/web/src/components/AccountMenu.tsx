@@ -114,14 +114,15 @@ function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar
       </button>
       <Popover
         open={open}
+        id={menuId}
         role="menu"
         label="Account"
         width={240}
         onClose={() => setOpen(false)}
         style={{ top: 'calc(100% + 8px)', right: 0, padding: 0, gap: 0 }}
       >
-        {/* The Popover is the menu; this wrapper carries the id and the arrow-key handling. */}
-        <div id={menuId} className={styles.menu} onKeyDown={onMenuKeyDown}>
+        {/* The Popover is the menu (it carries the id); this wrapper handles the arrow keys. */}
+        <div className={styles.menu} onKeyDown={onMenuKeyDown}>
           <span className={styles.who} role="presentation">
             <b className={styles.name} title={name ?? login}>
               {name || login}

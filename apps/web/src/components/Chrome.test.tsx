@@ -298,6 +298,14 @@ describe('TopBar account menu', () => {
     },
   );
 
+  it('aria-controls on the avatar points at the role="menu" element itself', async () => {
+    const { events } = setup('global');
+    await events.click(trigger());
+    const controlled = trigger().getAttribute('aria-controls');
+    expect(controlled).toBeTruthy();
+    expect(screen.getByRole('menu', { name: 'Account' }).id).toBe(controlled);
+  });
+
   it('closes when the avatar is pressed again', async () => {
     const { events } = setup('global');
     await events.click(trigger());

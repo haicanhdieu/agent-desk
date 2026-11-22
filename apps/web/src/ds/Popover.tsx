@@ -5,6 +5,8 @@ import styles from './Overlay.module.css';
 export interface PopoverProps {
   open: boolean;
   label: string;
+  /** Id of the popover element, for a trigger's `aria-controls`. */
+  id?: string;
   onClose?(): void;
   role?: 'dialog' | 'menu' | 'status';
   style?: CSSProperties;
@@ -13,7 +15,7 @@ export interface PopoverProps {
 }
 
 /** Non-modal card positioned by the caller via `style`. */
-export function Popover({ open, label, onClose, role = 'dialog', style, width, children }: PopoverProps) {
+export function Popover({ open, label, id, onClose, role = 'dialog', style, width, children }: PopoverProps) {
   const ref = useRef<HTMLDivElement>(null);
   const managesFocus = role !== 'status';
   useFocusTrap(ref, {
@@ -26,6 +28,7 @@ export function Popover({ open, label, onClose, role = 'dialog', style, width, c
   return (
     <div
       ref={ref}
+      id={id}
       className={styles.pop}
       role={role}
       aria-label={label}

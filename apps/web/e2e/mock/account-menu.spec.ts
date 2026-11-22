@@ -64,3 +64,9 @@ test('the top bar brand is the horizontal logo lockup, with the name drawn insid
   await expect(brand.locator('svg[viewBox="0 0 480 120"]')).toBeVisible();
   await expect(brand.locator('svg text')).toHaveText(['Agent', 'Desk']);
 });
+
+test('My invitations is marked as the current page while the invitations page is open', async ({ page }) => {
+  await page.goto('/invitations');
+  await avatar(page).click();
+  await expect(menu(page).getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute('aria-current', 'page');
+});
