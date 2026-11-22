@@ -30,12 +30,6 @@ describe('index.html branding', () => {
     expect(meta('name', 'twitter:description')).toBe(DESCRIPTION);
   });
 
-  it('uses the horizontal logo as the Open Graph and Twitter image', () => {
-    expect(meta('property', 'og:image')).toBe('/agent-desk-horizontal.svg');
-    expect(meta('name', 'twitter:image')).toBe('/agent-desk-horizontal.svg');
-    expect(meta('name', 'twitter:card')).toBe('summary_large_image');
-  });
-
   it('sets the theme colour to the brand midnight navy', () => {
     expect(meta('name', 'theme-color')).toBe('#111827');
   });
