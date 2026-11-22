@@ -17,7 +17,7 @@ import {
 /*
  * Real localhost end-to-end: the Vite dev server (proxy to the API on :3000) and the stack from `pnpm dev` at the repo
  * root with KUBE_MODE=fake, ENABLE_FAKE_PROVIDER=true and AUTH_DEV_LOGIN=true. Each flow gets a new owner: the platform admin
- * (`admin@dev.local`, the PLATFORM_ADMIN_EMAILS default) creates an org whose slug is the handle (`e2e-<rand>`) and invites the
+ * (`admin@dev.local`, seeded by the local stack start) creates an org whose slug is the handle (`e2e-<rand>`) and invites the
  * handle as owner, then dev login signs the handle in and accepts the invitation. Nothing is shared with another user's
  * org, so it can run against a stack someone is using.
  *

@@ -30,7 +30,7 @@ project is fully set up.
 
 | Actor | May do |
 | ----- | ------ |
-| Platform admin (config email) | Create an org with a name, slug and first owner's email; gets the owner invitation's copy link. Not a member of the new org because of that (T1; slice 1 BR-69, BR-70). |
+| Platform admin (a `platform_admins` entry, [ADR-0037](../../adr/0037-platform-admins-in-database.md)) | Create an org with a name, slug and first owner's email; gets the owner invitation's copy link. Not a member of the new org because of that (T1; slice 1 BR-69, BR-70). |
 | Org owner | Invite with any role on the org or projects; list, resend, revoke, copy link (slice 1 BR-60; T4). Sees the first-run checklist. |
 | Org admin | Same as owner, except never `owner` as a role (slice 1 BR-60). Sees the checklist. |
 | Project admin | Invite as admin, member or viewer on the projects they administer only; sees and acts on only those invitations (slice 1 BR-60 and the list rule). No checklist. |
@@ -918,7 +918,7 @@ decline, link states, platform create-org), `apps/web/e2e/local/org-switch.spec.
 `apps/web/e2e/mock/invitations.spec.ts`, `apps/web/e2e/mock/checklist.spec.ts`. `local` when the API, session or
 membership is crossed; `mock` when the web app alone proves it (`tests-and-e2e.md` §3a).
 
-Local e2e scenarios (stack up; the dev platform admin `admin@dev.local` from slice 1's `.env.example`; fresh
+Local e2e scenarios (stack up; the dev platform admin `admin@dev.local` seeded by the local stack start (ADR-0037); fresh
 `e2e-<rand>` handles):
 
 - BR-1: a fresh uninvited `e2e-<rand>` handle opens `/auth/dev-login?handle=e2e-<rand>` → lands on

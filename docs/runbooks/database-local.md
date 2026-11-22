@@ -46,4 +46,4 @@ Never edit a migration that has been merged. Write a new one instead. If your ow
 
 ## Seed data
 
-Seed through the app's dev flows (dev login, fake install, `/dev/fake/*`, see [local-dev.md](local-dev.md)), not SQL dumps.
+Seed through the app's dev flows (dev login, fake install, `/dev/fake/*`, see [local-dev.md](local-dev.md)), not SQL dumps. The one exception is built in: every local stack start seeds `admin@dev.local` into `platform_admins` when dev login is on, and `devbox run db-reset` followed by the next start does it again ([platform-setup.md](platform-setup.md) step 5).

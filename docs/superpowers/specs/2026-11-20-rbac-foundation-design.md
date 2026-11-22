@@ -1,12 +1,14 @@
 <!-- dev-plan: kind=spec id=rbac-foundation rev=3 hash=38ffcc62851d source=issue#188 -->
 # Scoped RBAC foundation design
 
+> Note: the platform admin source in this spec was superseded by [ADR-0037](../../adr/0037-platform-admins-in-database.md) (the `platform_admins` table). Older wording below about config-based platform admins (`PLATFORM_ADMIN_EMAILS`, `.env.example`) is historical.
+
 Status: draft. Sensitive paths: auth (session guard, invitation-gated sign-up, platform admin and the `/api/platform/*` endpoint set, session hooks), terminal (attach authorization and its timed re-check), RLS/`withOrg` (new org tables `roles`, `role_permissions`, `role_assignments`, `invitations` and a new `SECURITY DEFINER` function), migrations (new tables, role seed, run-owner backfill), webhooks (ticket intake trigger authorization, shared with the poller).
 Source: issue #188
 
 ## Summary
 
-Today any member of an org can do almost everything, and anyone who signs in with GitHub gets a personal org. This slice (slice 1 of epic #185) adds permissions, roles and scopes: an admin gives each person a role on the org or on single projects, and every HTTP, SSE and terminal endpoint, and every run started from a ticket comment, checks it. Sign-up needs an invitation; platform admins come from deployment config and create orgs. Existing users keep their data but have no access until someone grants it. API only: no screen changes.
+Today any member of an org can do almost everything, and anyone who signs in with GitHub gets a personal org. This slice (slice 1 of epic #185) adds permissions, roles and scopes: an admin gives each person a role on the org or on single projects, and every HTTP, SSE and terminal endpoint, and every run started from a ticket comment, checks it. Sign-up needs an invitation; platform admins come from the `platform_admins` table (since [ADR-0037](../../adr/0037-platform-admins-in-database.md); first seeded by hand) and create orgs. Existing users keep their data but have no access until someone grants it. API only: no screen changes.
 
 ## Business rules
 
@@ -180,7 +182,7 @@ v1 matrix (fills every "?" of the approved permission proposal; the human confir
 - Removing the org's last owner assignment is 409 on the tenant routes, even for an org owner; it is allowed only on the platform routes (orgs start with no owner after deploy).
 - A user with no assignment in the active org gets 403 on every endpoint there, the project list included. `GET /api/me/access` is the one exception: it answers 200 with their empty access, so the web can tell "no access yet" from an error; it reads only the caller's own data, not org data.
 - `projects.created_by` and `member.role` decide nothing.
-- Platform admins come from deployment config listing verified sign-in emails, checked on each request; removing an email revokes it; no API grants it (epic §7.5). A config-listed email may sign up without an invitation. Platform endpoints (`/api/platform/*`) are outside any org, have their own permissions and responses, and need platform admin (403 otherwise); the tenant routes `/api/orgs/:orgId/*` are tenant-only, and platform admin alone gives no tenant data there (epic G4). A platform admin may grant themselves an assignment; it is audited.
+- Platform admins are `platform_admins` entries matched on the verified sign-in email, checked on each request; the first is seeded by hand and, since [ADR-0037](../../adr/0037-platform-admins-in-database.md), platform admins grant and revoke through `/api/platform/admins` (epic §7.5 first said config only). An email with an entry may sign up without an invitation. Platform endpoints (`/api/platform/*`) are outside any org, have their own permissions and responses, and need platform admin (403 otherwise); the tenant routes `/api/orgs/:orgId/*` are tenant-only, and platform admin alone gives no tenant data there (epic G4). A platform admin may grant themselves an assignment; it is audited.
 - Runs from ticket comments: the existing ticket-source check (author association) still applies first (`security.md` §5); then the commenter must map to an Agent Desk user who holds `run:create` in that project; that user is the run's owner (T6, T6b). "Maps to a user" means the Agent Desk user who signed in with the same account at the ticket source's provider (same external user id); no other link exists in this slice.
 - Permission is checked when the run starts; a run already started keeps going if its owner later loses access; worker actions (auto-resume, time limit) are system work and need no owner check.
 - Dev-only `/dev/*` routes stay session-only; a fake comment they post still goes through the trigger owner check.
@@ -259,13 +261,13 @@ New migrations follow `0021_agent_auto_resume_max.sql`; schema and data migratio
 - Data migration 1: seed `role_templates` and their permissions (the v1 roles and lines from the business matrix), then copy them into every existing org with a `DO` loop that sets `app.org_id` per org so forced RLS accepts the inserts; idempotent (`on conflict do nothing`).
 - Data migration 2: best-effort backfill of `runs.owner_user_id` from `account` where `provider_id` is the project's board connection provider and `account_id = runs.triggered_by_external_id`, batched, `where owner_user_id is null`. Unmatched runs stay owner-less, so only `any` grants control them.
 - No assignment backfill: `role_assignments` starts empty. `member` rows stay as membership; `member.role` and `projects.created_by` are not authz inputs.
-- Platform admins come from config only; no user column.
+- Platform admins are `platform_admins` entries (no user column; [ADR-0037](../../adr/0037-platform-admins-in-database.md)).
 
 ### API
 
 Guard: one global guard, the extended `SessionGuard`:
 
-1. No session → 401. A `scope:'platform'` route (only `/api/platform/*`) needs a verified email in `PLATFORM_ADMIN_EMAILS` (which then holds every `platform-*` permission), else 403; no active org or membership is needed; an unknown `:orgId` → 404. A route-table test asserts every `/api/platform/*` route is `scope:'platform'` and no other route is.
+1. No session → 401. A `scope:'platform'` route (only `/api/platform/*`) needs a verified email with a `platform_admins` entry ([ADR-0037](../../adr/0037-platform-admins-in-database.md)) (which then holds every `platform-*` permission), else 403; no active org or membership is needed; an unknown `:orgId` → 404. A route-table test asserts every `/api/platform/*` route is `scope:'platform'` and no other route is.
 2. Org routes need an active org and a `member` row, else 403.
 3. `loadAccess(tx, userId)` under `withOrg(orgId)`: one query over `role_assignments` joined with `role_permissions` (and the role key).
 4. The route entry is found by `method + req.routeOptions.url`; an `/api` route with no entry → 403. The install callback reuses `connections.install`.
@@ -324,7 +326,7 @@ WebSocket and SSE:
 
 Sign-up gate and invitation acceptance (better-auth hooks in `apps/api/src/auth/auth.ts`):
 
-- `user.create.before`: allow only if the email is verified and (`pending_invitations_for_email` returns a row or the email is in `PLATFORM_ADMIN_EMAILS`); otherwise throw, so no user row is created (T1). The same gate applies to dev-login sign-ups.
+- `user.create.before`: allow only if the email is verified and (`pending_invitations_for_email` returns a row or the email has a `platform_admins` entry); otherwise throw, so no user row is created (T1). The same gate applies to dev-login sign-ups.
 - Sign-in hooks: `user.create.before` refuses an uninvited sign-up; `session.create.before` only sets the oldest membership as the active org. Nothing is accepted at sign-in. Accept is its own endpoint, under the per-user advisory lock and idempotent: in `withOrg(orgId)`, one transaction: refuse if not pending or expired; insert `member` if absent; org scope → one `role_assignments` row (`scope_type = 'org'`); project scope → one row per listed project that still exists (deleted ones skipped and named in the audit payload), all through the unique key (`on conflict do nothing`); `granted_by` = the inviter; mark `accepted` with `accepted_by` and `accepted_at`; audit `invitation.accepted` plus one `assignment.granted` per row created. If every listed project was deleted, the invitation is still accepted (membership only). Decline marks `declined` (final).
 - `session.create.before`: `activeOrganizationId` is the user's oldest membership, or null (a platform admin with no org).
 - `ensurePersonalOrg` is no longer called for new users; existing personal orgs are kept untouched.
@@ -370,11 +372,11 @@ Provider adapters and run owner:
 - Residual risk, for the security review: a run pod in the same project can post a bot comment timed so another active run is the only match, making that run's owner the new run's owner. The impact is bounded: same project and repo token (all pods of a project already hold the same code-host powers); the new run's execution, credentials and commit identity do not depend on the owner (bot-triggered runs commit as the bot, `run-author.ts`); ownership only decides who may control the run and who it is attributed to. It never crosses projects or orgs. A bot comment starting another run is an existing cross-run effect of pod output (allowed today by `isAuthorizedAuthor`); this design narrows it to a single origin or nothing and does not widen `security.md` §4.
 - `fake` adapter: the comment author external id = the author handle (dev link above).
 
-Secrets: no new secret. `agents.putCredential` needs `secret:update` at project scope. Audit and invitation rows hold ids, emails, role keys and scopes only. `PLATFORM_ADMIN_EMAILS` is config, not a secret.
+Secrets: no new secret. `agents.putCredential` needs `secret:update` at project scope. Audit and invitation rows hold ids, emails, role keys and scopes only. Platform admin emails are database entries ([ADR-0037](../../adr/0037-platform-admins-in-database.md)), not secrets.
 
 Events and live updates: no new event type. SSE is checked at connect (T7). The new ignored outcomes appear in the existing ignored-events list.
 
-Config and environment: `PLATFORM_ADMIN_EMAILS` (comma list, lowercased, default empty) in `packages/core/src/config.ts`, in `.env.example` (`admin@dev.local`) and in the chart ConfigMap (`architecture.md` §7). No feature flag.
+Config and environment: none for platform admins. They are `platform_admins` rows ([ADR-0037](../../adr/0037-platform-admins-in-database.md); the earlier config email list was removed). No feature flag.
 
 Failure, observability and scale:
 

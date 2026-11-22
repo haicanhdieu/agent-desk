@@ -54,7 +54,7 @@ Org administration:
 | GET `/api/orgs/:orgId/checklist` | `project:create` (org) | yes | yes | no | no |
 | GET `/api/connections`, `/connections/:id/repos` | `connection:read` (org) | yes | yes | no | no |
 | POST `/api/connections/:p/install`, `/sync`, GET `/callback` | `connection:create` (org) | yes | yes | no | no |
-| `/api/platform/**` (12 routes) | `PLATFORM_ADMIN_EMAILS` only | no | no | no | no |
+| `/api/platform/**` (15 routes) | platform admins only (`platform_admins` entries, [ADR-0037](../../adr/0037-platform-admins-in-database.md)) | no | no | no | no |
 
 Projects, runs, tickets (unchanged):
 

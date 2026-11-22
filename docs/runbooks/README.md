@@ -19,14 +19,15 @@ A runbook says **how to do one task**. Write it as numbered steps with commands 
 
 ## Operations
 
-| Runbook                                      | Use it to…                                                             |
-| -------------------------------------------- | ---------------------------------------------------------------------- |
-| [incident-response.md](incident-response.md) | Contain and recover from a leaked secret, rogue run or tenant exposure |
-| `agentdesk-prereqs.md` _(planned)_           | Prepare the Mac mini host before install                               |
-| `agentdesk-install.md` _(planned)_           | First QA install: age key, secrets, tunnel, bootstrap, first sign-in   |
-| `agentdesk-operate.md` _(planned)_           | See what's deployed, read logs, roll back, pause, rotate tokens        |
-| `agentdesk-capacity.md` _(planned)_          | Measure memory peaks during real runs; tune limits                     |
-| `agentdesk-teardown.md` _(planned)_          | Remove the QA install without touching neighbouring workloads          |
+| Runbook                                      | Use it to…                                                                                         |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| [incident-response.md](incident-response.md) | Contain and recover from a leaked secret, rogue run or tenant exposure                             |
+| [platform-setup.md](platform-setup.md)       | Set up a new Agent Desk platform: config, migrate, start, seed the first platform admin, first org |
+| `agentdesk-prereqs.md` _(planned)_           | Prepare the Mac mini host before install                                                           |
+| `agentdesk-install.md` _(planned)_           | First QA install: age key, secrets, tunnel, bootstrap, first sign-in                               |
+| `agentdesk-operate.md` _(planned)_           | See what's deployed, read logs, roll back, pause, rotate tokens                                    |
+| `agentdesk-capacity.md` _(planned)_          | Measure memory peaks during real runs; tune limits                                                 |
+| `agentdesk-teardown.md` _(planned)_          | Remove the QA install without touching neighbouring workloads                                      |
 
 The planned ops runbooks are defined in §9.1 of the [infra spec](../superpowers/specs/2026-11-12-infra-design.md).
 
