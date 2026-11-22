@@ -897,11 +897,11 @@ export function OrgMembers(props: OrgMembersProps): JSX.Element; // h1 "Members"
 - Consumes: `ChangeRoleDialog` (Task 13).
 - Produces: `OrgMembersProps` gains `removeConfirm?: { memberName: string; orgName: string; busy?: boolean; onConfirm: () => void; onCancel: () => void }`; the change-role dialog comes in through `children` as a `ChangeRoleDialog`.
 
-- [ ] **Step 1: Write the failing tests**: `orgMembers.test.tsx` remove confirm title "Remove <name> from <Org>?", body "They lose access to every project in <Org>.", buttons "Cancel" and "Remove" (`solid-danger`), "Removing…" while busy with Escape ignored; register `OrgMembersChangeRole`, `OrgMembersChangeRoleAdmin`, `OrgMembersMakeOwner`, `OrgMembersStepDown`, `OrgMembersChangeRoleSaving`, `OrgMembersChangeRoleError`, `OrgMembersLastOwner`, `OrgMembersRoleChanged`, `OrgMembersGone`, `OrgMembersRemoveConfirm`, `OrgMembersRemoving`, `OrgMembersRemoved`, `OrgMembersRemoveLastOwner`; `coverage.test.ts` 161 → 174.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgMembers.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the confirm and the 13 stories (toasts "Role changed", "<name> removed", "Member is no longer in the organization", "The organization needs at least one owner"); export `ChangeRoleDialog` from `components/index.ts`.
+- [x] **Step 1: Write the failing tests**: `orgMembers.test.tsx` remove confirm title "Remove <name> from <Org>?", body "They lose access to every project in <Org>.", buttons "Cancel" and "Remove" (`solid-danger`), "Removing…" while busy with Escape ignored; register `OrgMembersChangeRole`, `OrgMembersChangeRoleAdmin`, `OrgMembersMakeOwner`, `OrgMembersStepDown`, `OrgMembersChangeRoleSaving`, `OrgMembersChangeRoleError`, `OrgMembersLastOwner`, `OrgMembersRoleChanged`, `OrgMembersGone`, `OrgMembersRemoveConfirm`, `OrgMembersRemoving`, `OrgMembersRemoved`, `OrgMembersRemoveLastOwner`; `coverage.test.ts` 161 → 174.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/orgMembers.test.tsx src/test/coverage.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the confirm and the 13 stories (toasts "Role changed", "<name> removed", "Member is no longer in the organization", "The organization needs at least one owner"); export `ChangeRoleDialog` from `components/index.ts`.
 - [ ] **Step 4: Run** the Step 2 command, the stories smoke test and the parity pass for the 13 boards. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): Members change role and remove states`.
+- [x] **Step 5: Commit** `feat(web): Members change role and remove states`.
 
 ---
 

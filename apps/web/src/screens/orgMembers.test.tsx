@@ -1,6 +1,8 @@
+import { useState } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { memberRows } from '@/mocks';
+import { ChangeRoleDialog } from '@/components';
+import { memberRows, roleCards } from '@/mocks';
 import { OrgMembers, type OrgMembersProps } from './OrgMembers';
 
 const props = (over: Partial<OrgMembersProps> = {}): OrgMembersProps => ({
@@ -145,5 +147,100 @@ describe('OrgMembers', () => {
     expect(within(toast).getByText('Role changed')).toBeInTheDocument();
     await userEvent.click(within(toast).getByRole('button', { name: 'Dismiss notification' }));
     expect(onDismiss).toHaveBeenCalled();
+  });
+});
+
+describe('OrgMembers remove confirm', () => {
+  const confirm = (over: Partial<NonNullable<OrgMembersProps['removeConfirm']>> = {}) => ({
+    memberName: 'Cleo Martin',
+    orgName: 'Harbor Labs',
+    onConfirm: vi.fn(),
+    onCancel: vi.fn(),
+    ...over,
+  });
+
+  it('TC-6.1: shows the title, body and the Cancel and Remove buttons', async () => {
+    const removeConfirm = confirm();
+    render(<OrgMembers {...props({ removeConfirm })} />);
+    const dialog = screen.getByRole('dialog', { name: 'Remove Cleo Martin from Harbor Labs?' });
+    expect(within(dialog).getByText('They lose access to every project in Harbor Labs.')).toBeInTheDocument();
+    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Remove' }));
+    expect(removeConfirm.onConfirm).toHaveBeenCalledTimes(1);
+    expect(removeConfirm.onCancel).not.toHaveBeenCalled();
+  });
+
+  it('Remove is the danger button', () => {
+    render(<OrgMembers {...props({ removeConfirm: confirm() })} />);
+    expect(screen.getByRole('button', { name: 'Remove' })).toHaveClass('solid-danger');
+  });
+
+  it('Cancel and Escape call onCancel', async () => {
+    const removeConfirm = confirm();
+    render(<OrgMembers {...props({ removeConfirm })} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Cancel' }));
+    await userEvent.keyboard('{Escape}');
+    expect(removeConfirm.onCancel).toHaveBeenCalledTimes(2);
+  });
+
+  it('while busy: Removing…, both buttons disabled, Escape ignored', async () => {
+    const removeConfirm = confirm({ busy: true });
+    render(<OrgMembers {...props({ removeConfirm })} />);
+    const remove = screen.getByRole('button', { name: 'Removing…' });
+    expect(remove).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Cancel' })).toBeDisabled();
+    await userEvent.keyboard('{Escape}');
+    expect(removeConfirm.onCancel).not.toHaveBeenCalled();
+  });
+
+  it('renders a hostile member name as text', () => {
+    const memberName = '<b>x</b>';
+    const { baseElement } = render(<OrgMembers {...props({ removeConfirm: confirm({ memberName }) })} />);
+    expect(baseElement.querySelector('dialog b, [role=dialog] b')).toBeNull();
+    expect(screen.getByRole('dialog', { name: 'Remove <b>x</b> from Harbor Labs?' })).toBeInTheDocument();
+  });
+
+  it('returns focus to the row menu button when the confirm closes', async () => {
+    function Harness() {
+      const [open, setOpen] = useState(false);
+      return (
+        <OrgMembers
+          {...props({
+            onRemove: () => setOpen(true),
+            ...(open && { removeConfirm: confirm({ onCancel: () => setOpen(false) }) }),
+          })}
+        />
+      );
+    }
+    render(<Harness />);
+    await userEvent.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Remove from organization' }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Actions for Cleo Martin' })).toHaveFocus();
+  });
+
+  it('shows the change role dialog passed as children over the list', () => {
+    render(
+      <OrgMembers
+        {...props({
+          children: (
+            <ChangeRoleDialog
+              memberName="Cleo Martin"
+              orgName="Harbor Labs"
+              options={roleCards.ownerCaller}
+              current={roleCards.ownerCaller[2]?.roleId ?? null}
+              self={false}
+              currentIsOwner={false}
+              saving={false}
+              onSave={vi.fn()}
+              onCancel={vi.fn()}
+            />
+          ),
+        })}
+      />,
+    );
+    expect(screen.getByRole('dialog', { name: 'Change role for Cleo Martin' })).toBeInTheDocument();
   });
 });

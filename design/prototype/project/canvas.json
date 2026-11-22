@@ -1297,6 +1297,110 @@
    "h": 900,
    "title": "Settings \u2014 Members, request in flight: row menu disabled",
    "expand": "fill"
+  },
+  "OrgMembersChangeRole.dc.html": {
+   "x": 6080,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 owner caller: Owner card offered, current role preselected",
+   "expand": "fill"
+  },
+  "OrgMembersChangeRoleAdmin.dc.html": {
+   "x": 7600,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 org admin caller: no Owner card",
+   "expand": "fill"
+  },
+  "OrgMembersMakeOwner.dc.html": {
+   "x": 0,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 owner caller picks Owner: inline note",
+   "expand": "fill"
+  },
+  "OrgMembersStepDown.dc.html": {
+   "x": 1520,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 owner on own row picks Admin: step-down warning",
+   "expand": "fill"
+  },
+  "OrgMembersChangeRoleSaving.dc.html": {
+   "x": 3040,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 saving",
+   "expand": "fill"
+  },
+  "OrgMembersChangeRoleError.dc.html": {
+   "x": 4560,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 refused (403): Banner in the dialog",
+   "expand": "fill"
+  },
+  "OrgMembersLastOwner.dc.html": {
+   "x": 6080,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 sole owner steps down: 409, dialog stays open",
+   "expand": "fill"
+  },
+  "OrgMembersRoleChanged.dc.html": {
+   "x": 7600,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, role changed: list refetched, toast",
+   "expand": "fill"
+  },
+  "OrgMembersGone.dc.html": {
+   "x": 0,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, member removed meanwhile: dialog closed, list refetched, error toast",
+   "expand": "fill"
+  },
+  "OrgMembersRemoveConfirm.dc.html": {
+   "x": 1520,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, remove confirmation",
+   "expand": "fill"
+  },
+  "OrgMembersRemoving.dc.html": {
+   "x": 3040,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, removing",
+   "expand": "fill"
+  },
+  "OrgMembersRemoved.dc.html": {
+   "x": 4560,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, removed: list refetched, toast",
+   "expand": "fill"
+  },
+  "OrgMembersRemoveLastOwner.dc.html": {
+   "x": 6080,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, remove refused (409 last owner): toast, list refetched",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1460,7 +1564,20 @@
   "OrgMembersForbidden.dc.html",
   "OrgMembersRowMenu.dc.html",
   "OrgMembersRowMenuSelf.dc.html",
-  "OrgMembersBusy.dc.html"
+  "OrgMembersBusy.dc.html",
+  "OrgMembersChangeRole.dc.html",
+  "OrgMembersChangeRoleAdmin.dc.html",
+  "OrgMembersMakeOwner.dc.html",
+  "OrgMembersStepDown.dc.html",
+  "OrgMembersChangeRoleSaving.dc.html",
+  "OrgMembersChangeRoleError.dc.html",
+  "OrgMembersLastOwner.dc.html",
+  "OrgMembersRoleChanged.dc.html",
+  "OrgMembersGone.dc.html",
+  "OrgMembersRemoveConfirm.dc.html",
+  "OrgMembersRemoving.dc.html",
+  "OrgMembersRemoved.dc.html",
+  "OrgMembersRemoveLastOwner.dc.html"
  ],
  "notes": {
   "t-intro": {

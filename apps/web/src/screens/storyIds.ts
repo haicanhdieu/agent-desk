@@ -177,6 +177,19 @@ export const boardStories = {
   OrgMembersRowMenu: { title: orgSettings, exportName: 'OrgMembersRowMenu' },
   OrgMembersRowMenuSelf: { title: orgSettings, exportName: 'OrgMembersRowMenuSelf' },
   OrgMembersBusy: { title: orgSettings, exportName: 'OrgMembersBusy' },
+  OrgMembersChangeRole: { title: orgSettings, exportName: 'OrgMembersChangeRole' },
+  OrgMembersChangeRoleAdmin: { title: orgSettings, exportName: 'OrgMembersChangeRoleAdmin' },
+  OrgMembersMakeOwner: { title: orgSettings, exportName: 'OrgMembersMakeOwner' },
+  OrgMembersStepDown: { title: orgSettings, exportName: 'OrgMembersStepDown' },
+  OrgMembersChangeRoleSaving: { title: orgSettings, exportName: 'OrgMembersChangeRoleSaving' },
+  OrgMembersChangeRoleError: { title: orgSettings, exportName: 'OrgMembersChangeRoleError' },
+  OrgMembersLastOwner: { title: orgSettings, exportName: 'OrgMembersLastOwner' },
+  OrgMembersRoleChanged: { title: orgSettings, exportName: 'OrgMembersRoleChanged' },
+  OrgMembersGone: { title: orgSettings, exportName: 'OrgMembersGone' },
+  OrgMembersRemoveConfirm: { title: orgSettings, exportName: 'OrgMembersRemoveConfirm' },
+  OrgMembersRemoving: { title: orgSettings, exportName: 'OrgMembersRemoving' },
+  OrgMembersRemoved: { title: orgSettings, exportName: 'OrgMembersRemoved' },
+  OrgMembersRemoveLastOwner: { title: orgSettings, exportName: 'OrgMembersRemoveLastOwner' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

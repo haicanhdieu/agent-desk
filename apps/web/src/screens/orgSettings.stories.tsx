@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell } from '@/components';
-import { memberRows } from '@/mocks';
+import { userEvent, within } from 'storybook/test';
+import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
+import { memberRows, orgSettingsFixtures, roleCards } from '@/mocks';
+import type { MemberRowView } from '@/mocks/types';
 import { OrgMembers as OrgMembersScreen, type OrgMembersProps } from './OrgMembers';
 import { OrgSettingsFrame } from './orgSettingsFrame';
 import { viewport } from './viewports';
@@ -90,4 +92,133 @@ export const OrgMembersRowMenuSelf: Story = {
 export const OrgMembersBusy: Story = {
   name: 'Members, request in flight: row menu disabled',
   render: () => members(ready(ownerRows, other.userId)),
+};
+
+const orgName = orgSettingsFixtures.org.name;
+const find = (rows: MemberRowView[], handle: string): MemberRowView => {
+  const m = rows.find((r) => r.handle === handle);
+  if (!m) throw new Error(`member fixtures lost ${handle}`);
+  return m;
+};
+const cardId = (key: string) => roleCards.ownerCaller.find((c) => c.key === key)?.roleId ?? null;
+
+/** The change-role dialog over the list, for the member `target`. */
+const changeRole = (
+  target: MemberRowView,
+  over: Partial<ChangeRoleDialogProps> = {},
+  rows: MemberRowView[] = ownerRows,
+  frame: Pick<Parameters<typeof OrgSettingsFrame>[0], 'role' | 'sideMenu'> = { role: 'owner' },
+) =>
+  members(
+    ready(rows),
+    {
+      children: (
+        <ChangeRoleDialog
+          memberName={target.name}
+          orgName={orgName}
+          options={roleCards.ownerCaller}
+          current={target.role ? cardId(target.role.key) : null}
+          self={target.you}
+          currentIsOwner={target.role?.key === 'owner'}
+          saving={false}
+          onSave={noop}
+          onCancel={noop}
+          {...over}
+        />
+      ),
+    },
+    frame,
+  );
+const pick =
+  (name: string): Story['play'] =>
+  async ({ canvasElement }) => {
+    await userEvent.click(await within(canvasElement.ownerDocument.body).findByRole('radio', { name }));
+  };
+
+const cleo = other;
+const ben = find(ownerRows, 'ben');
+const dana = find(ownerRows, 'dana');
+const eli = find(ownerRows, 'eli');
+const priya = find(ownerRows, 'priya');
+
+export const OrgMembersChangeRole: Story = {
+  name: 'Change role, owner caller: Owner card offered, current role preselected',
+  render: () => changeRole(cleo),
+};
+export const OrgMembersChangeRoleAdmin: Story = {
+  name: 'Change role, org admin caller: no Owner card',
+  render: () =>
+    changeRole(find(memberRows.admin, 'dana'), { options: roleCards.adminCaller }, memberRows.admin, { role: 'admin' }),
+};
+export const OrgMembersMakeOwner: Story = {
+  name: 'Change role, owner picks Owner: inline note',
+  render: () => changeRole(ben),
+  play: pick('Owner'),
+};
+export const OrgMembersStepDown: Story = {
+  name: 'Change role, owner on own row picks Admin: step-down warning',
+  render: () => changeRole(caller),
+  play: pick('Admin'),
+};
+export const OrgMembersChangeRoleSaving: Story = {
+  name: 'Change role, saving',
+  render: () => changeRole(eli, { saving: true }),
+};
+export const OrgMembersChangeRoleError: Story = {
+  name: 'Change role, refused (403): Banner in the dialog',
+  render: () => changeRole(dana, { error: { kind: 'forbidden', requestId: 'req_01JD7Q3M8V2K' } }),
+};
+const soleOwnerRows = ownerRows.map((r) =>
+  r.userId === priya.userId ? { ...r, role: { key: 'admin' as const, name: 'Admin' } } : r,
+);
+export const OrgMembersLastOwner: Story = {
+  name: 'Change role, sole owner steps down: 409, dialog stays open',
+  render: () => changeRole(caller, { error: { kind: 'lastOwner' } }, soleOwnerRows),
+  play: pick('Member'),
+};
+export const OrgMembersRoleChanged: Story = {
+  name: 'Members, role changed: list refetched, toast',
+  render: () =>
+    members(
+      ready(
+        ownerRows.map((r) => (r.userId === cleo.userId ? { ...r, role: { key: 'admin' as const, name: 'Admin' } } : r)),
+      ),
+      { notice: { tone: 'ok', title: 'Role changed', onDismiss: noop } },
+    ),
+};
+export const OrgMembersGone: Story = {
+  name: 'Members, member removed meanwhile: dialog closed, list refetched, error toast',
+  render: () =>
+    members(ready(ownerRows.filter((r) => r.userId !== dana.userId)), {
+      notice: { tone: 'error', title: 'Member is no longer in the organization', onDismiss: noop },
+    }),
+};
+const removeConfirm = (over: Partial<NonNullable<OrgMembersProps['removeConfirm']>> = {}) => ({
+  memberName: cleo.name,
+  orgName,
+  onConfirm: noop,
+  onCancel: noop,
+  ...over,
+});
+export const OrgMembersRemoveConfirm: Story = {
+  name: 'Members, remove confirmation',
+  render: () => members(ready(ownerRows), { removeConfirm: removeConfirm() }),
+};
+export const OrgMembersRemoving: Story = {
+  name: 'Members, removing',
+  render: () => members(ready(ownerRows, cleo.userId), { removeConfirm: removeConfirm({ busy: true }) }),
+};
+export const OrgMembersRemoved: Story = {
+  name: 'Members, removed: list refetched, toast',
+  render: () =>
+    members(ready(ownerRows.filter((r) => r.userId !== cleo.userId)), {
+      notice: { tone: 'ok', title: `${cleo.name} removed`, onDismiss: noop },
+    }),
+};
+export const OrgMembersRemoveLastOwner: Story = {
+  name: 'Members, remove refused (409 last owner): toast, list refetched',
+  render: () =>
+    members(ready(soleOwnerRows), {
+      notice: { tone: 'error', title: 'The organization needs at least one owner', onDismiss: noop },
+    }),
 };

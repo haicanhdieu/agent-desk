@@ -279,3 +279,17 @@ the Option A bar and the side menu, so they have no header drift (Forbidden has 
   under the button, where the boards use fixed offsets.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 10 pixel pairs are unchecked: none is claimed
   to match.
+
+## Org tenant admin: Members change role and remove boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Members). Thirteen boards added, so
+`parity.mjs` finds 174: OrgMembersChangeRole, OrgMembersChangeRoleAdmin, OrgMembersMakeOwner, OrgMembersStepDown,
+OrgMembersChangeRoleSaving, OrgMembersChangeRoleError, OrgMembersLastOwner, OrgMembersRoleChanged, OrgMembersGone,
+OrgMembersRemoveConfirm, OrgMembersRemoving, OrgMembersRemoved, OrgMembersRemoveLastOwner (`Screens/OrgSettings`).
+
+- Change-role boards: the shared `ChangeRoleDialog` passed as `children` of `OrgMembers`; MakeOwner, StepDown and LastOwner pick
+  the card in a `play` function. LastOwner shows Priya demoted so the caller is the sole owner.
+- Remove confirm: `OrgMembers` `removeConfirm` draws a shared `Dialog` (`solid-danger` Remove, as the Invitations revoke dialog).
+- Toasts (Role changed, "<name> removed", the two problem titles) use the shared `Toast` through `notice`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 13 pixel pairs are unchecked: none is claimed
+  to match.
