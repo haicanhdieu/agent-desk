@@ -17,6 +17,8 @@ import {
 import {
   CreateOrgRequest,
   CreateOrgResponse,
+  GrantPlatformAdminRequest,
+  PlatformAdminDto,
   PlatformAssignmentDto,
   PlatformInvitationDto,
   PlatformMemberDto,
@@ -524,6 +526,19 @@ export const routes = {
       path: '/api/platform/orgs/:orgId/invitations/:invitationId/resend',
       params: orgInvitationParams,
       response: PlatformInvitationDto,
+    },
+    listAdmins: { method: 'GET', path: '/api/platform/admins', query: PageQuery, response: pageOf(PlatformAdminDto) },
+    grantAdmin: {
+      method: 'POST',
+      path: '/api/platform/admins',
+      body: GrantPlatformAdminRequest,
+      response: PlatformAdminDto,
+    },
+    revokeAdmin: {
+      method: 'DELETE',
+      path: '/api/platform/admins/:adminId',
+      params: z.object({ adminId: z.uuid() }),
+      response: empty,
     },
   },
 } as const satisfies Record<string, Record<string, RouteDef>>;

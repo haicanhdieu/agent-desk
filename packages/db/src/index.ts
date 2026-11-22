@@ -3,6 +3,7 @@ export { bootstrapDatabase, type BootstrapPasswords } from './bootstrap';
 export { runMigrations } from './migrate';
 export { createDb, type Db } from './client';
 export { withOrg, type Tx } from './withOrg';
+export { seedPlatformAdmin } from './platform-admins';
 export {
   resolveProject,
   queuedRunsWithoutWorkflow,

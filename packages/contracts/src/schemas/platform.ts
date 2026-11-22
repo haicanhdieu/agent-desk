@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { OrgSlug } from '../slug';
-import { AssignmentDto, InvitationDto, RoleDto } from './access';
+import { AssignmentDto, InvitationDto, InvitationEmail, InviterDto, RoleDto } from './access';
 import { Id, Timestamp } from './common';
 
 export const OrgName = z.string().min(1).max(100);
@@ -32,6 +32,20 @@ export const PlatformMemberDto = z.object({
   assignments: z.array(AssignmentDto),
 });
 export type PlatformMemberDto = z.infer<typeof PlatformMemberDto>;
+
+export const PlatformAdminDto = z.object({
+  id: Id,
+  email: z.string(),
+  userId: z.string().nullable(),
+  name: z.string().nullable(),
+  handle: z.string().nullable(),
+  grantedAt: Timestamp,
+  grantedBy: InviterDto.nullable(),
+});
+export type PlatformAdminDto = z.infer<typeof PlatformAdminDto>;
+
+export const GrantPlatformAdminRequest = z.object({ email: z.string().trim().pipe(InvitationEmail) }).strict();
+export type GrantPlatformAdminRequest = z.infer<typeof GrantPlatformAdminRequest>;
 
 export const PlatformRoleDto = z.object({ ...RoleDto.shape });
 export type PlatformRoleDto = z.infer<typeof PlatformRoleDto>;

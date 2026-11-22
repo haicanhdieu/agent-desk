@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { CreateOrgRequest, PlatformMemberDto, PlatformRoleDto } from './platform';
+import { pageOf } from './page';
+import {
+  CreateOrgRequest,
+  GrantPlatformAdminRequest,
+  PlatformAdminDto,
+  PlatformMemberDto,
+  PlatformRoleDto,
+} from './platform';
 
 const ID = '33333333-3333-4333-8333-333333333333';
 
@@ -41,5 +48,47 @@ describe('PlatformRoleDto', () => {
         permissions: [{ permission: 'project:read', condition: 'any' }],
       }).success,
     ).toBe(true);
+  });
+});
+
+describe('GrantPlatformAdminRequest', () => {
+  const tail = `${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(57)}.com`;
+  const long254 = `${'a'.repeat(64)}@${tail}`;
+  it('accepts a 254-character email', () => {
+    expect(long254).toHaveLength(254);
+    expect(GrantPlatformAdminRequest.safeParse({ email: long254 }).success).toBe(true);
+  });
+  it.each([
+    ['empty body', {}],
+    ['not an email', { email: 'not-an-email' }],
+    ['255-character email', { email: `a${long254}` }],
+  ])('rejects %s at the email field', (_n, body) => {
+    const r = GrantPlatformAdminRequest.safeParse(body);
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(['email']);
+  });
+  it('rejects an unknown key', () => {
+    expect(GrantPlatformAdminRequest.safeParse({ email: 'a@b.co', extra: 1 }).success).toBe(false);
+  });
+  it('trims and lowercases', () => {
+    expect(GrantPlatformAdminRequest.parse({ email: '  E2E-AB@DEV.LOCAL  ' }).email).toBe('e2e-ab@dev.local');
+  });
+});
+
+describe('PlatformAdminDto', () => {
+  const base = { id: ID, email: 'a@dev.local', grantedAt: '2026-01-01T00:00:00.000Z' };
+  const entries = [
+    { ...base, userId: 'u1', name: 'Admin', handle: 'admin', grantedBy: null },
+    { ...base, userId: 'u2', name: 'Bo', handle: 'bo', grantedBy: { name: 'Admin', handle: 'admin' } },
+    { ...base, userId: null, name: null, handle: null, grantedBy: null },
+  ];
+  it('parses an entry with no account and no granter', () => {
+    expect(PlatformAdminDto.safeParse(entries[2]).success).toBe(true);
+  });
+  it('parses a page of entries', () => {
+    expect(pageOf(PlatformAdminDto).safeParse({ items: entries, page: 1, pageSize: 20, total: 3 }).success).toBe(true);
+  });
+  it('rejects a granter without a handle', () => {
+    expect(PlatformAdminDto.safeParse({ ...entries[1], grantedBy: { name: 'x' } }).success).toBe(false);
   });
 });

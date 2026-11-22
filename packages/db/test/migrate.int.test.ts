@@ -1183,3 +1183,78 @@ describe('declined invitations migration is additive (N-7)', () => {
     ).rejects.toMatchObject({ code: '23514' });
   });
 });
+
+describe('migration 0033: platform_admins and platform_audit_log (N-2)', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+  const priv = async (table: string, p: string): Promise<boolean> =>
+    (await owner<{ ok: boolean }>("select has_table_privilege('agentdesk_app', $1, $2) as ok", [table, p]))[0]?.ok ===
+    true;
+  const insertAdmin = (email: string) => owner('insert into platform_admins (email) values ($1)', [email]);
+
+  beforeAll(async () => {
+    old = await startPgAt('0032_revoke_desk_reads_member_viewer');
+    await owner(
+      `insert into "user" (id, name, email, email_verified, handle) values ('u-pre', 'Pre', 'pre@x.io', true, 'pre')`,
+    );
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('applies on top of 0032 with an existing user and creates both tables empty', async () => {
+    expect(await owner('select * from platform_admins')).toEqual([]);
+    expect(await owner('select * from platform_audit_log')).toEqual([]);
+    expect(await owner('select id from "user"')).toEqual([{ id: 'u-pre' }]);
+  });
+
+  it('rejects a second entry for the same email with a unique violation', async () => {
+    await insertAdmin('dup@x.io');
+    await expect(insertAdmin('dup@x.io')).rejects.toMatchObject({ code: '23505' });
+  });
+
+  it.each(['Ops@x.io', '', ' ops@x.io'])('rejects the email %j with a check violation', async (email) => {
+    await expect(insertAdmin(email)).rejects.toMatchObject({ code: '23514' });
+  });
+
+  it('gives the app role SELECT, INSERT and DELETE on platform_admins, and no UPDATE', async () => {
+    expect(await priv('platform_admins', 'SELECT')).toBe(true);
+    expect(await priv('platform_admins', 'INSERT')).toBe(true);
+    expect(await priv('platform_admins', 'DELETE')).toBe(true);
+    expect(await priv('platform_admins', 'UPDATE')).toBe(false);
+  });
+
+  it('gives the app role only SELECT and INSERT on platform_audit_log', async () => {
+    expect(await priv('platform_audit_log', 'SELECT')).toBe(true);
+    expect(await priv('platform_audit_log', 'INSERT')).toBe(true);
+    expect(await priv('platform_audit_log', 'UPDATE')).toBe(false);
+    expect(await priv('platform_audit_log', 'DELETE')).toBe(false);
+  });
+
+  it('indexes platform_audit_log by (created_at, id)', async () => {
+    const rows = await owner<{ col: string }>(
+      `select a.attname as col from pg_index i
+       join pg_class c on c.oid = i.indexrelid
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+       where c.relname = 'platform_audit_log_created_at_idx'
+       order by array_position(i.indkey::int2[], a.attnum)`,
+    );
+    expect(rows.map((r) => r.col)).toEqual(['created_at', 'id']);
+  });
+
+  it('has no org_id column and no RLS on either table', async () => {
+    const cols = await owner(
+      `select table_name from information_schema.columns
+       where table_name in ('platform_admins','platform_audit_log') and column_name = 'org_id'`,
+    );
+    expect(cols).toEqual([]);
+    const rls = await owner<{ relrowsecurity: boolean }>(
+      `select relrowsecurity from pg_class where relname in ('platform_admins','platform_audit_log')`,
+    );
+    expect(rls.every((r) => !r.relrowsecurity)).toBe(true);
+  });
+});

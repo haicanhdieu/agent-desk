@@ -8,6 +8,7 @@ import {
   MemberDto,
   MyInvitationDto,
   OrgChecklistDto,
+  PlatformAdminDto,
   PlatformMemberDto,
   PlatformOrgDto,
   PlatformProjectDto,
@@ -39,6 +40,7 @@ import {
   assignmentFixtures,
   invitationFixtures,
   memberFixtures,
+  platformAdminFixtures,
   platformMemberFixtures,
   platformOrgFixtures,
   platformProjectFixtures,
@@ -102,6 +104,7 @@ describe('MSW handlers cover the contract', () => {
       [PlatformOrgDto, platformOrgFixtures],
       [PlatformProjectDto, platformProjectFixtures],
       [PlatformMemberDto, platformMemberFixtures],
+      [PlatformAdminDto, platformAdminFixtures],
       [
         PrStatesResponse,
         Object.values(prStateFixtures).map((m) => ({
@@ -495,6 +498,61 @@ describe('MSW handler semantics', () => {
     });
     expect(res.status).toBe(201);
     expect(await res.json()).toMatchObject({ name: 'Globex', slug: 'globex' });
+  });
+
+  it('grants and revokes platform admins: repeat 200, unknown 404, last-admin 409', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const base = 'http://localhost:3000/api/platform/admins';
+    const post = (email: string) =>
+      fetch(base, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) });
+    const granted = platformAdminFixtures.find((a) => a.grantedBy !== null);
+    if (!granted) throw new Error('no granted fixture');
+
+    const repeat = await post(granted.email);
+    expect(repeat.status).toBe(200);
+    expect(await repeat.json()).toMatchObject({ id: granted.id });
+
+    const unknown = await post('nobody@example.org');
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toMatchObject({ errors: [{ pointer: '/email' }] });
+
+    const created = await post('alice@example.com');
+    expect(created.status).toBe(201);
+    expect(await created.json()).toMatchObject({ email: 'alice@example.com', userId: ids.user.alice });
+
+    const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    expect(listed).toHaveLength(platformAdminFixtures.length + 1);
+    let remaining = listed;
+    while (remaining.filter((a) => a.userId !== null).length > 1) {
+      const target = remaining.find((a) => a.userId === null) ?? remaining.find((a) => a.userId !== null);
+      if (!target) throw new Error('empty');
+      expect((await fetch(`${base}/${target.id}`, { method: 'DELETE' })).status).toBe(204);
+      remaining = remaining.filter((a) => a.id !== target.id);
+    }
+    const last = remaining.find((a) => a.userId !== null);
+    if (!last) throw new Error('no working entry');
+    expect((await fetch(`${base}/${last.id}`, { method: 'DELETE' })).status).toBe(409);
+    const random = await fetch(`${base}/${crypto.randomUUID()}`, { method: 'DELETE' });
+    expect(random.status).toBe(404);
+  });
+
+  it('answers 404 on /email when granting a seeded email that has no account, entry unchanged', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const base = 'http://localhost:3000/api/platform/admins';
+    const seeded = platformAdminFixtures.find((a) => a.userId === null);
+    if (!seeded) throw new Error('no accountless fixture');
+    const res = await fetch(base, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ email: seeded.email }),
+    });
+    expect(res.status).toBe(404);
+    expect(await res.json()).toMatchObject({ errors: [{ pointer: '/email' }] });
+    const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    expect(listed.find((a) => a.id === seeded.id)).toMatchObject({ userId: null, email: seeded.email });
+    expect(listed).toHaveLength(platformAdminFixtures.length);
   });
 
   it('finishes a done run, and answers 409 for a run that is only running', async () => {

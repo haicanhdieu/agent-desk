@@ -177,10 +177,19 @@ describe('PERMISSION_LEVEL', () => {
       ].sort(),
     );
   });
-  it('has 33 tenant and 12 platform permissions', () => {
+  it('has 33 tenant and 15 platform permissions', () => {
     expect(TENANT).toHaveLength(33);
-    expect(Permission.options).toHaveLength(45);
+    expect(Permission.options).toHaveLength(48);
   });
+  it.each(['platform-admin:read', 'platform-admin:create', 'platform-admin:delete'] as const)(
+    '%s is a platform permission the owner never holds',
+    (p) => {
+      expect(Permission.options).toContain(p);
+      expect(PERMISSION_LEVEL[p]).toBe('platform');
+      expect(isPlatformPermission(p)).toBe(true);
+      expect(holdsAnywhere(access(org('owner', OWNER)), p)).toBe(false);
+    },
+  );
   it('treats platform-invitation:update as a platform permission', () => {
     expect(Permission.options).toContain('platform-invitation:update');
     expect(isPlatformPermission('platform-invitation:update')).toBe(true);

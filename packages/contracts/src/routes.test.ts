@@ -31,10 +31,19 @@ describe('contracts', () => {
       expect(r.response).toBeDefined();
     }
   });
-  it('every platform route lives under /api/platform/orgs', () => {
+  it('every platform route lives under /api/platform/', () => {
     const platform = Object.entries(flattenRoutes(routes)).filter(([k]) => k.startsWith('platform.'));
-    expect(platform).toHaveLength(12);
-    for (const [, r] of platform) expect(r.path.startsWith('/api/platform/orgs')).toBe(true);
+    expect(platform).toHaveLength(15);
+    for (const [, r] of platform) expect(r.path.startsWith('/api/platform/')).toBe(true);
+  });
+  it('platform admin routes are listed, granted and revoked under /api/platform/admins', () => {
+    expect(routes.platform.listAdmins).toMatchObject({ method: 'GET', path: '/api/platform/admins' });
+    expect(routes.platform.grantAdmin).toMatchObject({ method: 'POST', path: '/api/platform/admins' });
+    expect(routes.platform.revokeAdmin).toMatchObject({ method: 'DELETE', path: '/api/platform/admins/:adminId' });
+    expect(routes.platform.revokeAdmin.params.safeParse({ adminId: 'not-a-uuid' }).success).toBe(false);
+    expect(
+      routes.platform.revokeAdmin.params.safeParse({ adminId: '00000000-0000-4000-8000-000000000001' }).success,
+    ).toBe(true);
   });
   it('assignments.list query keeps projectId', () => {
     const P = '00000000-0000-4000-8000-000000000001';
@@ -52,7 +61,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(77);
+    expect(Object.keys(flat)).toHaveLength(80);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
