@@ -128,6 +128,7 @@ export const runsQueries = {
 
 - **MUST** leave no drift beyond what `design/parity-notes.md` lists; fix it or record it there with a reason (intentional state difference, needs browser check, not fixed).
 - **MUST** add a new prototype board to `canvas.json`, `screens/storyIds.ts` and `scripts/parity.mjs` together. Why: `coverage.test.ts` requires the lists to match.
+- **MUST** regenerate `design/prototype/interactive/` (`_tools/build-boards.mjs`, then `_checks/nav-check.mjs`) in the same PR that adds or changes a board. Why: the interactive prototype is generated from the boards; a stale one misleads the next design review.
 - **MUST NOT** rewrite UI copy taken from the prototype in the same PR as a code change. Copy changes go through the copy pass.
 - Automated pixel-diff threshold in CI is (planned); today parity is a reviewed screenshot pass.
 
