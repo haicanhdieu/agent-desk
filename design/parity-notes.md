@@ -280,6 +280,21 @@ the Option A bar and the side menu, so they have no header drift (Forbidden has 
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 10 pixel pairs are unchecked: none is claimed
   to match.
 
+## Org tenant admin: Runs, run detail, needs-you and Desk under the app bar
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook). No board added (`parity.mjs` still
+finds the same boards as before). Every story of Runs, RunsProblems, NeedsYou, run detail and Desk now draws the new bar, so the header differs from
+the boards on purpose: project level (Runs, RunsProblems, Desk) shows the org crumb and menu, the project crumb, the Runs tab
+with the needs-you count, the Desk tab and the account menu; run detail shows org / project / Runs / Run N with no bell;
+NeedsYou shows the org bar (Projects and Settings tabs, none current). The content below the header must still match.
+
+- `RunsPage`, `RunDetail` and `DeskFrame` take optional `org` and `account`; `RunDetail` also takes `run` (the Runs link and the
+  Run N label); `NeedsYou`'s `topBar` takes optional `org` and `account`. Without them the legacy bar draws (routes keep it until
+  Task 26).
+- The example tab strip inside the NeedsYou page is a nav named "Runs and Desk tabs, example", so the page has one "Main" nav.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The pixel pairs of these boards are unchecked: none is
+  claimed to match.
+
 ## Org tenant admin: Members change role and remove boards
 
 Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Members). Thirteen boards added, so

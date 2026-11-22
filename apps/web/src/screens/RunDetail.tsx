@@ -1,6 +1,16 @@
 import type { ReactNode } from 'react';
 import { Button, CommandChip, CountBadge, IconButton, Popover, StatusBadge, TicketRef } from '@/ds';
-import { AppShell, PopoverCard, TopBar, TopBarSeparator, type TermLine, type TranscriptProps } from '@/components';
+import {
+  AppShell,
+  PopoverCard,
+  TopBar,
+  TopBarSeparator,
+  type AccountMenuAccount,
+  type OrgSwitchProps,
+  type ProjectSwitchMenu,
+  type TermLine,
+  type TranscriptProps,
+} from '@/components';
 import type { RunDetailData } from '@/mocks';
 import { user as boardUser } from '@/mocks';
 import type { Actor } from '@/mocks/types';
@@ -48,6 +58,14 @@ export interface RunDetailProps {
   inactiveBody?: ReactNode;
   /** The signed-in user in the top bar; defaults to the board's. */
   user?: Actor;
+  /** The org crumb; with `run` the bar reads org / project / Runs / Run N, with no bell. */
+  org?: OrgSwitchProps;
+  /** Name, handle and the My invitations link for the account menu. */
+  account?: AccountMenuAccount;
+  /** The project menu behind the project crumb (with `run`); without it the crumb does nothing. */
+  projectMenu?: ProjectSwitchMenu;
+  /** The "Runs" crumb link and the current run's label; without it the legacy breadcrumb shows. */
+  run?: { runsHref: string; label: string };
   /** The project's run limit per ticket (the chain's "max N runs"); defaults to the board's 10. */
   maxRunsPerTicket?: number;
   /** No live pod: show this Transcript in the terminal area (see RunTerminalArea). */
@@ -109,6 +127,10 @@ export function RunDetail({
   reconnectBody,
   inactiveBody,
   user = boardUser,
+  org,
+  account,
+  projectMenu,
+  run: runCrumb,
   maxRunsPerTicket,
   transcript,
   onStopOpen,
@@ -196,19 +218,30 @@ export function RunDetail({
         <TopBar
           variant="run"
           user={user}
+          account={account}
+          projectMenu={projectMenu}
           links={{ projects: links?.projects }}
-          breadcrumb={[
-            { label: projectName, href: links?.projects ?? '/projects' },
-            {
-              label: (
-                <>
-                  Runs <CountBadge count={needsYou} title="Needs you" />
-                </>
-              ),
-              href: links?.runs ?? '/runs',
-            },
-            { label: `Run ${run.id}` },
-          ]}
+          {...(runCrumb
+            ? {
+                org,
+                run: runCrumb,
+                // The run bar shows the name only; the repo link belongs to the project bar.
+                project: { name: projectName, repoUrl: '' },
+              }
+            : {
+                breadcrumb: [
+                  { label: projectName, href: links?.projects ?? '/projects' },
+                  {
+                    label: (
+                      <>
+                        Runs <CountBadge count={needsYou} title="Needs you" />
+                      </>
+                    ),
+                    href: links?.runs ?? '/runs',
+                  },
+                  { label: `Run ${run.id}` },
+                ],
+              })}
           actions={actions}
         >
           {reopened ? (

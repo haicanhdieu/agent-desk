@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import {
+  accountFixture,
   autoResumedTerminal,
+  orgSwitchFixtures,
   runDetailPrMerged,
   runDetails,
   terminalByRun,
@@ -27,6 +29,15 @@ const meta = {
     onStop: () => undefined,
     onCloseSession: () => undefined,
   },
+  // Under the app bar: org / project / Runs / Run N (no bell) and the account menu. Run N comes from the story's run.
+  render: (args) => (
+    <RunDetail
+      {...args}
+      org={{ ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' }}
+      account={{ ...accountFixture, invitationsHref: '#invitations' }}
+      run={{ runsHref: '#runs', label: `Run ${args.data.run.id}` }}
+    />
+  ),
 } satisfies Meta<typeof RunDetail>;
 export default meta;
 type Story = StoryObj<typeof meta>;

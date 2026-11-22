@@ -988,11 +988,11 @@ export function OrgAudit(props: OrgAuditProps): JSX.Element;
 - Consumes: `TopBarProps` (Task 11).
 - Produces: `RunsPageProps`, `RunDetailProps` and `DeskFrame` props gain optional `org?: OrgSwitchProps`, `account?: AccountMenuAccount`; `RunDetailProps` gains `run?: { runsHref: string; label: string }`; `NeedsYouProps['topBar']` gains optional `org` and `account`, and with `org` it renders the org bar (`variant: 'global'`, `tabs: 'org'`, no tab active). Legacy props stay (Task 26 removes them).
 
-- [ ] **Step 1: Write the failing tests**: `runDetail.test.tsx` (BR-46): with `org` and `run`, the crumbs read org / project / "Runs" / "Run 61" and "Runs" links to `run.runsHref`; the layout assertions (no page scroll, terminal height) kept. `runs.test.tsx` (BR-43): with `org`, the project bar shows the org crumb, Runs and Desk; NeedsYou with `topBar.org` renders `nav` "Main" with Projects and no `aria-current`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/runDetail.test.tsx src/screens/runs.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the optional props and update every story of the four screens and `DeskLayout.stories.tsx` to pass `org` and `account` (project level: Runs active with the needs-you count, Desk active; run level: crumbs, no bell; needs-you: org bar, no tab active).
-- [ ] **Step 4: Run** the Step 2 command and the stories smoke test. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): project and run screens under the app bar`.
+- [x] **Step 1: Write the failing tests**: `runDetail.test.tsx` (BR-46): with `org` and `run`, the crumbs read org / project / "Runs" / "Run 61" and "Runs" links to `run.runsHref`; the layout assertions (no page scroll, terminal height) kept. `runs.test.tsx` (BR-43): with `org`, the project bar shows the org crumb, Runs and Desk; NeedsYou with `topBar.org` renders `nav` "Main" with Projects and no `aria-current`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/runDetail.test.tsx src/screens/runs.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the optional props and update every story of the four screens and `DeskLayout.stories.tsx` to pass `org` and `account` (project level: Runs active with the needs-you count, Desk active; run level: crumbs, no bell; needs-you: org bar, no tab active).
+- [x] **Step 4: Run** the Step 2 command and the stories smoke test. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): project and run screens under the app bar`.
 
 ---
 

@@ -1,11 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { agentSettings, connections, deskFrame, rules, skills } from '@/mocks';
+import { accountFixture, agentSettings, connections, deskFrame, orgSwitchFixtures, rules, skills } from '@/mocks';
 import { DeskSkills } from './DeskSkills';
 import { DeskRules } from './DeskRules';
 import { DeskAgent } from './DeskAgent';
 import { vi } from 'vitest';
-import { toModelList, type PaginationProps } from '@/components';
+import { SignOutProvider, toModelList, type PaginationProps } from '@/components';
 import { agentModelsFixtures } from '@/mocks/dto/agentModels';
 
 const skillNames = skills.map((s) => s.name);
@@ -760,5 +760,38 @@ describe('DeskAgent automatic resumes field', () => {
     await userEvent.type(input, '2');
     await userEvent.click(screen.getByRole('button', { name: 'Save limits' }));
     expect(onSaveLimits).toHaveBeenCalledWith(expect.objectContaining({ autoResumeMax: 2 }));
+  });
+});
+
+describe('Desk under the app bar (BR-43)', () => {
+  const links = { projects: '/p', runs: '/r', desk: '/d', skills: 's', rules: 'r', agent: 'a' };
+  const org = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o', createHref: '/new' };
+
+  it('with org: the org crumb, the project crumb, Runs and Desk tabs with Desk current', () => {
+    render(<DeskSkills frame={{ ...deskFrame, org, links }} skills={skills} activeName="code-build" />);
+    const bar = screen.getByRole('banner');
+    expect(within(bar).getByRole('button', { name: /^Organization menu, Acme/ })).toBeInTheDocument();
+    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    expect(within(tabs).getByRole('link', { name: 'Desk' })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: /^Runs/ })).not.toHaveAttribute('aria-current');
+  });
+
+  it('without org: no org menu', () => {
+    render(<DeskSkills frame={{ ...deskFrame, links }} skills={skills} activeName="code-build" />);
+    expect(within(screen.getByRole('banner')).queryByRole('button', { name: /organization/i })).toBeNull();
+  });
+
+  it('passes the account to the avatar menu', async () => {
+    render(
+      <SignOutProvider onSignOut={() => undefined}>
+        <DeskSkills
+          frame={{ ...deskFrame, org, links, account: { ...accountFixture, invitationsHref: '/inv' } }}
+          skills={skills}
+          activeName="code-build"
+        />
+      </SignOutProvider>,
+    );
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Account menu for/ }));
+    expect(within(screen.getByRole('dialog', { name: 'Account' })).getByText(accountFixture.name)).toBeInTheDocument();
   });
 });

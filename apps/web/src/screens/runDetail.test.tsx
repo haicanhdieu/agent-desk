@@ -1,5 +1,7 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { SignOutProvider, type OrgSwitchProps } from '@/components';
+import { accountFixture, orgSwitchFixtures } from '@/mocks';
 import { runDetailPrMerged, runDetails, terminalByRun, transcriptFixtures } from '@/mocks';
 import type { RunDetailKey } from '@/mocks';
 import { RunDetail as RunDetailScreen } from './RunDetail';
@@ -802,5 +804,87 @@ describe('PR state colours on Run detail', () => {
     render(<RunDetail data={runDetails.RunIdle} lines={terminalByRun[62]} needsYou={1} panelCollapsed />);
     expect(screen.getByRole('img', { name: 'PR #148' })).toBeInTheDocument();
     expect(screen.queryByRole('img', { name: 'Merged PR #148' })).not.toBeInTheDocument();
+  });
+});
+
+describe('RunDetail under the app bar (BR-46)', () => {
+  const org: OrgSwitchProps = {
+    ...orgSwitchFixtures.oneOrgSettings,
+    orgHref: (o) => `/o/${o.slug}`,
+    createHref: '/orgs/new',
+  };
+  const run = { runsHref: '/o/acme/p/1/runs', label: 'Run 61' };
+
+  it('with org and run: the crumbs read org / project / Runs / Run 61, Runs links to run.runsHref, no bell', () => {
+    show('RunRunning', { org, run });
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(crumbs).toHaveTextContent(/^Acme\/invoicer-api\/Runs\/Run 61$/);
+    expect(within(crumbs).getByRole('button', { name: /^Organization menu, Acme/ })).toBeInTheDocument();
+    expect(within(crumbs).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
+    expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', '/o/acme/p/1/runs');
+    expect(within(crumbs).getByText('Run 61')).toHaveAttribute('aria-current', 'page');
+    expect(screen.queryByRole('button', { name: 'Notifications on' })).toBeNull();
+  });
+
+  it('uses the given project name in the project crumb', () => {
+    show('RunRunning', { org, run, projectName: 'forecast' });
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).getByRole('button', { name: /forecast/ })).toBeInTheDocument();
+  });
+
+  it('without org and run: the legacy breadcrumb stays (no org menu)', () => {
+    show('RunRunning');
+    const crumbs = screen.getByRole('navigation', { name: 'Breadcrumb' });
+    expect(within(crumbs).queryByRole('button', { name: /organization/i })).toBeNull();
+    expect(within(crumbs).getByRole('link', { name: 'invoicer-api' })).toBeInTheDocument();
+  });
+
+  it('keeps one main', () => {
+    show('RunRunning', { org, run });
+    expect(screen.getAllByRole('main')).toHaveLength(1);
+  });
+
+  it('the run bar has crumbs only: no Main tab list (TC-43.5)', () => {
+    show('RunRunning', { org, run });
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
+  });
+
+  it('the project crumb opens the project switcher with projectMenu (TC-46.3)', async () => {
+    show('RunRunning', {
+      org,
+      run,
+      projectMenu: {
+        status: 'ready',
+        items: [
+          { name: 'invoicer-api', needsYou: 1, current: true, href: '/p/api' },
+          { name: 'docs-site', needsYou: 0, href: '/p/docs' },
+        ],
+      },
+    });
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Switch project/ }));
+    expect(screen.getByRole('link', { name: /docs-site/ })).toHaveAttribute('href', '/p/docs');
+  });
+
+  it('passes the account to the avatar menu', async () => {
+    render(
+      <SignOutProvider onSignOut={() => undefined}>
+        <RunDetail
+          data={runDetails.RunRunning}
+          lines={linesFor('RunRunning')}
+          needsYou={1}
+          org={org}
+          run={run}
+          account={accountFixture}
+        />
+      </SignOutProvider>,
+    );
+    await userEvent.setup().click(screen.getByRole('button', { name: /^Account menu for/ }));
+    const menu = screen.getByRole('dialog', { name: 'Account' });
+    expect(within(menu).getByText(accountFixture.name)).toBeInTheDocument();
+    expect(within(menu).getByRole('menuitem', { name: /My invitations/ })).toHaveAttribute(
+      'href',
+      accountFixture.invitationsHref,
+    );
   });
 });

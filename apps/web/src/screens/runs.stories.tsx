@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, RouteLoadError, RouteSkeleton, type PaginationProps } from '@/components';
+import { AppShell, RouteLoadError, RouteSkeleton, type OrgSwitchProps, type PaginationProps } from '@/components';
 import {
+  accountFixture,
   connectionWarnings,
   ignored,
   ignoredPrStates,
   linkedGroups,
+  orgSwitchFixtures,
   pagedIgnored,
   pagedNeedsYou,
   pagedRuns,
@@ -42,9 +44,19 @@ const artboard = (height: number): NonNullable<Story['decorators']> => [
 ];
 
 const project = projects[0];
+/** The app bar of an owner: the org crumb with Settings, the account menu, and the Runs and Desk tabs. */
+const org: OrgSwitchProps = {
+  ...orgSwitchFixtures.severalOrgsSettings,
+  orgHref: (o) => `#${o.slug}`,
+  createHref: '#new-org',
+};
+const account = { ...accountFixture, invitationsHref: '#invitations' };
 const common = {
   project,
   user,
+  org,
+  account,
+  links: { desk: '#desk' },
   needsYou: 1,
   slots: { used: 2, total: 2 },
   today: 'Today: 9 runs, 1 failed',
@@ -121,7 +133,14 @@ export const NeedsYou: Story = {
   name: 'Where needs you shows up',
   decorators: artboard(740),
   globals: viewport(1440, 740),
-  render: () => <NeedsYouScreen project={project} projects={projects.slice(0, 3)} canResume={() => true} />,
+  render: () => (
+    <NeedsYouScreen
+      project={project}
+      projects={projects.slice(0, 3)}
+      canResume={() => true}
+      topBar={{ user, org, account }}
+    />
+  ),
 };
 
 export const RunsProblemsEmpty: Story = {
@@ -135,7 +154,14 @@ export const NeedsYouNone: Story = {
   name: 'Where needs you shows up, no idle run',
   decorators: artboard(740),
   globals: viewport(1440, 740),
-  render: () => <NeedsYouScreen project={{ ...project, needsYou: 0 }} projects={projects.slice(0, 3)} runs={[]} />,
+  render: () => (
+    <NeedsYouScreen
+      project={{ ...project, needsYou: 0 }}
+      projects={projects.slice(0, 3)}
+      runs={[]}
+      topBar={{ user, org, account }}
+    />
+  ),
 };
 
 /** A paused run beside the idle one: the Paused badge and a Resume button. */
@@ -147,6 +173,7 @@ export const NeedsYouPaused: Story = {
     <NeedsYouScreen
       project={project}
       projects={projects.slice(0, 3)}
+      topBar={{ user, org, account }}
       runs={[
         {
           run: { ...runDetails.RunPaused.run },
@@ -394,6 +421,7 @@ export const NeedsYouPaged: Story = {
   render: () => (
     <NeedsYouScreen
       canResume={() => true}
+      topBar={{ user, org, account }}
       project={{ ...project, needsYou: 21 }}
       projects={projects.slice(0, 3).map((p) => (p.id === project.id ? { ...p, needsYou: 21 } : p))}
       runs={pagedNeedsYou(21).slice(20)}
