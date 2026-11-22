@@ -43,16 +43,10 @@ const ADMIN_PERMISSIONS = [
   'assignment:delete',
   'org:update',
 ];
-const MEMBER_ANY = [
-  'project:read',
-  'agent:read',
-  'skill:read',
-  'rule:read',
-  'setup:read',
-  'run:read',
-  'run:create',
-] as const;
-const VIEWER = ['project:read', 'agent:read', 'skill:read', 'rule:read', 'setup:read', 'run:read'] as const;
+// Issue 216: member and viewer hold no Desk configuration read (agent, skill, rule, setup).
+const MEMBER_ANY = ['project:read', 'run:read', 'run:create'] as const;
+const VIEWER = ['project:read', 'run:read'] as const;
+const DESK_READS = ['agent:read', 'skill:read', 'rule:read', 'setup:read'] as const;
 
 const any = (permissions: readonly string[]) => permissions.map((p) => `${p}=any`);
 const EXPECTED: Record<string, string[]> = {
@@ -112,10 +106,19 @@ describe('seeded role templates', () => {
   });
 
   it('the template matrix is the expected one', () => {
-    expect(Object.keys(EXPECTED).map((k) => EXPECTED[k]?.length)).toEqual([33, 32, 10, 6]);
+    expect(Object.keys(EXPECTED).map((k) => EXPECTED[k]?.length)).toEqual([33, 32, 6, 2]);
     expect([...new Set(lines.map((l) => l.key))].sort()).toEqual(['admin', 'member', 'owner', 'viewer']);
     for (const [key, expected] of Object.entries(EXPECTED)) {
       expect(linesOf(key).sort(), key).toEqual([...expected].sort());
+    }
+  });
+
+  it('member and viewer hold none of the Desk reads, admin and owner keep all four', () => {
+    for (const key of ['member', 'viewer']) {
+      for (const p of DESK_READS) expect(linesOf(key), `${key} ${p}`).not.toContain(`${p}=any`);
+    }
+    for (const key of ['owner', 'admin']) {
+      for (const p of DESK_READS) expect(linesOf(key), `${key} ${p}`).toContain(`${p}=any`);
     }
   });
 

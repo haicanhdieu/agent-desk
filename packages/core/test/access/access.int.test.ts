@@ -92,6 +92,24 @@ describe('copyRoleTemplates', () => {
     expect(linesOf(lineRows)).toEqual(linesOf(templateRows.rows));
   });
 
+  it('gives a new org member and viewer none of the four Desk reads, and admin and owner all four (issue 216)', async () => {
+    const orgId = randomUUID();
+    await withOrg(db, orgId, (tx) => copyRoleTemplates(tx, orgId));
+    const rows = await withOrg(db, orgId, (tx) =>
+      tx
+        .select({ key: roles.key, permission: rolePermissions.permission })
+        .from(rolePermissions)
+        .innerJoin(roles, eq(roles.id, rolePermissions.roleId)),
+    );
+    const of = (key: string) => rows.filter((r) => r.key === key).map((r) => r.permission);
+    for (const p of ['agent:read', 'skill:read', 'rule:read', 'setup:read']) {
+      expect(of('member'), `member ${p}`).not.toContain(p);
+      expect(of('viewer'), `viewer ${p}`).not.toContain(p);
+      expect(of('admin'), `admin ${p}`).toContain(p);
+      expect(of('owner'), `owner ${p}`).toContain(p);
+    }
+  });
+
   it('adds nothing on a second call', async () => {
     const orgId = randomUUID();
     await withOrg(db, orgId, (tx) => copyRoleTemplates(tx, orgId));
@@ -195,7 +213,7 @@ describe('loadAccess', () => {
       return loadAccess(tx, carol, { warn: (obj) => warnings.push(obj) });
     });
     expect(access.grants[0]?.lines.map((l) => l.permission)).not.toContain('project:explode');
-    expect(access.grants[0]?.lines).toHaveLength(6);
+    expect(access.grants[0]?.lines).toHaveLength(2);
     expect(warnings).toEqual([{ permission: 'project:explode' }]);
   });
 });
