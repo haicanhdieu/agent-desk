@@ -327,15 +327,19 @@ const since = (iso: string, now: Date) => (sameLocalDay(new Date(iso), now) ? cl
 /**
  * The banner above the runs list when commands may be missed: a silent webhook (status tone `warn`) or failing
  * polling (`err`). Healthy connections give none. Actions without an `href` are wired by the route (re-check).
+ * `agentHref` is the Desk agent page; without it (the caller may not open the Desk, issue 216) the actions that link
+ * there are left out.
  */
 export function toConnectionWarning(
   status: ConnectionStatus,
   dto: ProjectConnectionDto,
-  agentHref: string,
+  agentHref: string | undefined,
   now: Date,
 ): ConnectionWarning | undefined {
   if (status.tone === 'ok') return undefined;
-  const details = { label: connectionCopy.connectionDetails, href: agentHref, variant: 'ghost' as const };
+  const details = agentHref
+    ? [{ label: connectionCopy.connectionDetails, href: agentHref, variant: 'ghost' as const }]
+    : [];
   if (status.mode === 'webhook') {
     const last = dto.webhook?.lastEventAt;
     return {
@@ -344,9 +348,9 @@ export function toConnectionWarning(
       title: last ? `No webhooks from GitHub since ${since(last, now)}` : 'No webhooks from GitHub yet',
       body: 'Comments posted since then have not started runs. Start the webhook relay and redeliver missed events from the app settings in GitHub, or switch this project to polling, which needs no public URL.',
       actions: [
-        { label: connectionCopy.switchToPolling, href: agentHref, variant: 'primary' },
-        { label: connectionCopy.checkAgain, icon: 'refresh' },
-        details,
+        ...(agentHref ? [{ label: connectionCopy.switchToPolling, href: agentHref, variant: 'primary' as const }] : []),
+        { label: connectionCopy.checkAgain, icon: 'refresh' as const },
+        ...details,
       ],
     };
   }
@@ -363,7 +367,7 @@ export function toConnectionWarning(
     ]
       .filter(Boolean)
       .join(' '),
-    actions: [{ label: connectionCopy.retryNow, icon: 'refresh' }, details],
+    actions: [{ label: connectionCopy.retryNow, icon: 'refresh' as const }, ...details],
   };
 }
 

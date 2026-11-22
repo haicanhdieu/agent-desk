@@ -1,4 +1,4 @@
-import { RunListFilter } from '@agentdesk/contracts';
+import { RunListFilter, can } from '@agentdesk/contracts';
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
@@ -13,7 +13,11 @@ import {
   usePagedQuery,
   usePaginationProps,
 } from '@/app/pagination';
+import { toastFromError } from '@/app/boundaries';
 import { useNow } from '@/app/useNow';
+import { useToast } from '@/ds';
+import { useAccess } from '@/features/access/guards';
+import { useFinishRun } from '@/features/runs/mutations';
 import { projectsQueries } from '@/features/projects/queries';
 import {
   groupByTicket,
@@ -142,7 +146,12 @@ function IgnoredView({
   // Real rows have kind issue and send nothing; a row that is already a PR gets its state.
   const prStates = usePrStates(org, projectId, prRefsOf(ignored.map((i) => i.ticket)));
   const recheck = () => void queryClient.invalidateQueries(projectsQueries.connection(org, projectId));
-  const warning = toConnectionWarning(page.connection, page.connectionDto, page.paths.agent, now);
+  const warning = toConnectionWarning(
+    page.connection,
+    page.connectionDto,
+    page.desk.agent ? page.paths.agent : undefined,
+    now,
+  );
   const warnings: RunsProblemsWarning[] = warning
     ? [{ ...warning, actions: warning.actions.map((a) => (a.href ? a : { ...a, onClick: recheck })) }]
     : [];
@@ -171,6 +180,7 @@ function ListView({
   now: Date;
 }) {
   const [grouped, setGroupedPref] = useGroupedPref();
+  const toast = useToast();
   const { page, stats, common } = useRunsCommon(org, projectId, ticket, now);
   const { paths, dto } = page;
   const navigate = useNavigate({ from: Route.fullPath });
@@ -210,6 +220,13 @@ function ListView({
     projectId,
     prRefsOf([...summaries.map((s) => s.ticket), ...(needsYouRun ? [needsYouRun.run.ticket] : [])]),
   );
+  // Finish from the banner: only where the viewer holds run:update on the idle run (a member on their own run).
+  const finish = useFinishRun(org, projectId, { onError: (e) => toast.show(toastFromError(e)) });
+  const access = useAccess(org);
+  const mayFinishIdle =
+    idle !== undefined &&
+    access !== undefined &&
+    can(access, 'run:update', { projectId, ownerUserId: idle.ownerUserId });
 
   return (
     <Runs
@@ -228,6 +245,7 @@ function ListView({
         }
       }
       waitingRun={stats.nextQueuedNumber ?? undefined}
+      {...(mayFinishIdle && idle && { onFinishIdle: () => finish({ id: idle.id, number: idle.number }) })}
       runHref={(r) => runHref(paths, r.id)}
       showAllHref={paths.runs}
       pagination={pagination}

@@ -309,8 +309,9 @@ test.describe('platform admin and the cast', () => {
 
       const lines = (key: string): string[] =>
         (builtIn.find((r) => r.key === key)?.permissions ?? []).map((l) => `${l.permission}:${l.condition}`).sort();
-      const reads = ['project:read', 'agent:read', 'skill:read', 'rule:read', 'setup:read', 'run:read'];
-      expect(lines('viewer'), 'viewer: the six read permissions with any').toEqual(reads.map((p) => `${p}:any`).sort());
+      // Issue 216: member and viewer hold no Desk reads (agent, skill, rule, setup).
+      const reads = ['project:read', 'run:read'];
+      expect(lines('viewer'), 'viewer: the two read permissions with any').toEqual(reads.map((p) => `${p}:any`).sort());
       expect(lines('member'), 'member').toEqual(
         [
           ...reads.map((p) => `${p}:any`),

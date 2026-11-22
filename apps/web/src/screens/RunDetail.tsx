@@ -17,6 +17,11 @@ export interface RunDetailProps {
   /** Board height in pixels; `'viewport'` fills the window (the app route). */
   height?: number | 'viewport';
   projectName?: string;
+  /**
+   * The run actions (Cancel, Finish, Stop session, Close session, Resume) show only for the handlers that are given:
+   * the route passes one only when the viewer holds that permission on this run (a member on their own runs, never a
+   * viewer; issue 216). Hiding is a convenience, the API is the authority.
+   */
   onCancel?(): void;
   onCancelClose?(): void;
   onCancelConfirm?(): void;
@@ -129,14 +134,16 @@ export function RunDetail({
   const actions = (
     <>
       {reopened ? (
-        <Button
-          icon="check"
-          disabled={data.pausing === true || starting || busy}
-          title={data.pausing ? CLOSE_ENDING_HINT : starting ? CLOSE_STARTING_HINT : undefined}
-          onClick={onCloseSession}
-        >
-          Close session
-        </Button>
+        onCloseSession && (
+          <Button
+            icon="check"
+            disabled={data.pausing === true || starting || busy}
+            title={data.pausing ? CLOSE_ENDING_HINT : starting ? CLOSE_STARTING_HINT : undefined}
+            onClick={onCloseSession}
+          >
+            Close session
+          </Button>
+        )
       ) : ended || parked ? (
         <Button icon="external" href={t.href} target="_blank" rel="noopener noreferrer">
           {t.kind === 'pr' ? 'View PR' : 'View issue'}
@@ -144,15 +151,17 @@ export function RunDetail({
       ) : (
         <>
           {/* Disabled like the board unless the run needs you or is done; the title explains why. */}
-          <Button
-            icon="check"
-            disabled={!finishable || busy}
-            title={finishable ? undefined : FINISH_HINT}
-            onClick={onFinish}
-          >
-            {finishable ? 'Finish run' : 'Finish'}
-          </Button>
-          {stoppable && (
+          {onFinish && (
+            <Button
+              icon="check"
+              disabled={!finishable || busy}
+              title={finishable ? undefined : FINISH_HINT}
+              onClick={onFinish}
+            >
+              {finishable ? 'Finish run' : 'Finish'}
+            </Button>
+          )}
+          {stoppable && (onStopOpen || onStop) && (
             <Button
               icon="pause"
               disabled={data.pausing === true || busy}
@@ -162,9 +171,11 @@ export function RunDetail({
               Stop session
             </Button>
           )}
-          <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
-            Cancel run
-          </Button>
+          {onCancel && (
+            <Button variant="danger" icon="x" disabled={busy} onClick={onCancel}>
+              Cancel run
+            </Button>
+          )}
         </>
       )}
       <TopBarSeparator />

@@ -9,6 +9,7 @@ export interface NeedsYouBannerProps {
   askedAgo: string;
   slotNote: ReactNode;
   href: string;
+  /** The Finish run button shows only with this handler (the viewer holds run:update on this run). */
   onFinish?(): void;
 }
 
@@ -37,7 +38,7 @@ export function NeedsYouBanner({ run, askedAgo, slotNote, href, onFinish }: Need
           <Button variant="go" icon="terminal" href={href}>
             Answer in terminal
           </Button>
-          <Button onClick={onFinish}>Finish run</Button>
+          {onFinish && <Button onClick={onFinish}>Finish run</Button>}
         </>
       }
     >

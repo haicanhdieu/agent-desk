@@ -6,6 +6,7 @@ const meta = {
   title: 'Screens/RunTerminalArea',
   component: RunTerminalArea,
   parameters: { layout: 'fullscreen' },
+  args: { onFinish: () => undefined, onResume: () => undefined },
   decorators: [
     (S) => (
       <div style={{ height: 520, display: 'flex', flexDirection: 'column' }}>
@@ -22,6 +23,16 @@ export const Done: Story = {
   args: {
     data: { ...runDetails.RunDone, agentNote: 'Opened PR #148 with the CSV export and tests.' },
     lines: terminalByRun[62],
+  },
+};
+
+/** A viewer, or a member on someone else's run: the notice has no Finish button. */
+export const DoneReadOnly: Story = {
+  args: {
+    data: { ...runDetails.RunDone, agentNote: 'Opened PR #148 with the CSV export and tests.' },
+    lines: terminalByRun[62],
+    onFinish: undefined,
+    onResume: undefined,
   },
 };
 

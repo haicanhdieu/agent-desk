@@ -21,7 +21,7 @@ const line = (permission: GrantLine['permission'], condition: PermissionConditio
   permission,
   condition,
 });
-const READS = ['project:read', 'agent:read', 'skill:read', 'rule:read', 'setup:read', 'run:read'] as const;
+const READS = ['project:read', 'run:read'] as const; // the seeded member and viewer reads (no Desk config, issue 216)
 const ownerLines = ALL.map((p) => line(p));
 const adminLines = ALL.filter((p) => p !== 'org:delete').map((p) => line(p));
 const memberLines = [
@@ -72,9 +72,12 @@ const table: [RouteKey, ...PreTarget[]][] = [
   ['runs.get', N, N, N, N, F],
   ['runs.cancel', F, N, N, N, F],
   ['setupTests.create', F, F, N, N, F],
+  // Desk configuration reads: a viewer or member holds none (issue 216)
+  ['agents.get', F, F, N, N, F],
+  ['setupScript.get', F, F, N, N, F],
   // org-admin: any of anyOf held somewhere
   ['assignments.create', F, F, A, A, F],
-  ['roles.list', A, A, A, A, F],
+  ['roles.list', F, F, A, A, F],
   ['invitations.list', F, F, A, A, F],
 ];
 

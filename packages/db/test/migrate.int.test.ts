@@ -846,7 +846,12 @@ describe('role templates and run owner backfill on an upgraded database', () => 
   const orgB = randomUUID();
   const userA = `user-a-${randomUUID()}`;
   const userB = `user-b-${randomUUID()}`;
-  const FILES = ['0026_seed_role_templates.sql', '0027_backfill_run_owner.sql'];
+  // Replayed in order: 0032 removes the Desk reads that 0026 seeds, so it must follow 0026.
+  const FILES = [
+    '0026_seed_role_templates.sql',
+    '0027_backfill_run_owner.sql',
+    '0032_revoke_desk_reads_member_viewer.sql',
+  ];
   const BULK_RUNS = 1001;
   let old: Awaited<ReturnType<typeof startPgAt>>;
   let adminDbUrl: string;
@@ -1016,9 +1021,9 @@ describe('role templates and run owner backfill on an upgraded database', () => 
       );
       expect(rows).toEqual([
         { key: 'admin', built_in: true, has_template: true, n: '32' },
-        { key: 'member', built_in: true, has_template: true, n: '10' },
+        { key: 'member', built_in: true, has_template: true, n: '6' },
         { key: 'owner', built_in: true, has_template: true, n: '33' },
-        { key: 'viewer', built_in: true, has_template: true, n: '6' },
+        { key: 'viewer', built_in: true, has_template: true, n: '2' },
       ]);
     }
     const [total] = await query<{ n: string }>(adminDbUrl, 'select count(*)::text as n from roles');

@@ -101,12 +101,13 @@ describe('setup script API', () => {
     expect((expectContract('setupScript.put', res) as SetupScriptDto).body).toBe('');
   });
 
-  it('non-creator member: PUT 403, GET 200; another org 404', async () => {
+  it('member: PUT 403 and GET 403 (issue 216); another org 404', async () => {
     await freshProject();
     await put({ body: 'echo a', baseVersion: null });
     expect((await put({ body: 'x', baseVersion: 1 }, carol)).statusCode).toBe(403);
-    expect((await get('', carol)).statusCode).toBe(200);
-    expect((await get('/versions', carol)).statusCode).toBe(200);
+    expect((await get('', carol)).statusCode).toBe(403);
+    expect((await get('/versions', carol)).statusCode).toBe(403);
+    expect((await get('/versions/1', carol)).statusCode).toBe(403);
     expect((await put({ body: 'x', baseVersion: 1 }, bob)).statusCode).toBe(404);
     expect((await get('', bob)).statusCode).toBe(404);
     expect((await get('/versions', bob)).statusCode).toBe(404);

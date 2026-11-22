@@ -224,8 +224,9 @@ describe('roles', () => {
     expect(holdsAnywhere(access, 'assignment:create')).toBe(false);
     expect(access.grants[0]?.roleKey).toBe(name);
     expect((await rejection(api.orgs.checklist({ params: anyOrg }))).status).toBe(403);
-    // The rows exist, so a page that shows none shows them because it checked access.
-    expect((await listed('all')).length).toBeGreaterThan(0);
+    // The rows exist, and the list answers 403 as the API does: a page that shows none checked access.
+    expect(mockDb.state.invitations.length).toBeGreaterThan(0);
+    expect((await rejection(api.invitations.list({ params: anyOrg }))).status).toBe(403);
   });
 });
 

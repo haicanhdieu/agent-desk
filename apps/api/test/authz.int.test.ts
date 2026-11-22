@@ -740,7 +740,7 @@ interface Expected {
 const tenant = (viewer: Expected['viewer']): Expected => ({ none: 403, viewer, pa: 403 });
 const platformRoute = (pa: number): Expected => ({ none: 403, viewer: 403, pa });
 
-/** The viewer's six `*:read` permissions (project, agent, skill, rule, setup, run) are 200, everything else 403. */
+/** The viewer's two `*:read` permissions (project, run) are 200, everything else 403: no Desk configuration (issue 216). */
 const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'connections.list': tenant(403),
   'connections.install': tenant(403),
@@ -755,28 +755,28 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'projects.pollNow': tenant(403),
   'projects.ignored': tenant(200),
   'projects.events': tenant('stream'),
-  'agents.get': tenant(200),
+  'agents.get': tenant(403),
   'agents.put': tenant(403),
   'agents.putCredential': tenant(403),
-  'agents.models': tenant(200),
-  'skills.list': tenant(200),
-  'skills.get': tenant(200),
+  'agents.models': tenant(403),
+  'skills.list': tenant(403),
+  'skills.get': tenant(403),
   'skills.put': tenant(403),
   'skills.remove': tenant(403),
-  'rules.list': tenant(200),
+  'rules.list': tenant(403),
   'rules.create': tenant(403),
   'rules.update': tenant(403),
-  'rules.promptPreview': tenant(200),
+  'rules.promptPreview': tenant(403),
   'rules.remove': tenant(403),
-  'setupScript.get': tenant(200),
+  'setupScript.get': tenant(403),
   'setupScript.put': tenant(403),
-  'setupScript.versions': tenant(200),
-  'setupScript.version': tenant(200),
-  'setup.plugins': tenant(200),
+  'setupScript.versions': tenant(403),
+  'setupScript.version': tenant(403),
+  'setup.plugins': tenant(403),
   'setupTests.create': tenant(403),
-  'setupTests.latest': tenant(200),
+  'setupTests.latest': tenant(403),
   'setupTests.end': tenant(403),
-  'setupTests.events': tenant('stream'),
+  'setupTests.events': tenant(403),
   'runs.list': tenant(200),
   'runs.stats': tenant(200),
   'tickets.prStates': tenant(200),
@@ -792,7 +792,7 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'runs.events': tenant('stream'),
   // anyone signed in reads their own access: empty for a member with no assignment, platformAdmin only with no active org
   'me.access': { none: 200, viewer: 200, pa: 200 },
-  'roles.list': tenant(200),
+  'roles.list': tenant(403),
   'members.list': tenant(403),
   'assignments.list': tenant(403),
   'assignments.create': tenant(403),
@@ -1204,7 +1204,7 @@ describe('denial table over every route, stream and terminal', () => {
 
   it('the viewer reads what a viewer may (200) and opens the streams it may', async () => {
     const reads = ALL_KEYS.filter((k) => typeof DENIAL_TABLE[k].viewer === 'number' && DENIAL_TABLE[k].viewer !== 403);
-    expect(reads.length).toBeGreaterThan(20);
+    expect(reads.length).toBeGreaterThan(15); // 16 since issue 216 took the Desk reads away
     expect(await mismatches(reads, viewerCookie, (k) => Number(DENIAL_TABLE[k].viewer))).toEqual([]);
     for (const key of ALL_KEYS.filter((k) => DENIAL_TABLE[k].viewer === 'stream')) {
       expect(await streamStatus(key, viewerCookie), key).toBe(200);

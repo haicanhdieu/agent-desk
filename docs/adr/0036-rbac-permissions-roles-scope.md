@@ -61,7 +61,7 @@ Lists use `visibleProjects`: `all` with an org-scope grant, else the projects wh
 
 ### Not decided here
 
-- The contents of the built-in roles are being revised in GitHub issue #216. Options under discussion: the lowest role may become own-runs-only, and `run:read` may gain an `own` condition. Until a later decision lands, the seeded roles in migration `0026` are the truth.
+- Part of the built-in roles' contents was decided in GitHub issue #216 (2026-11-22): `member` and `viewer` hold no Desk configuration read (`agent:read`, `skill:read`, `rule:read`, `setup:read`), removed by migration `0032`; the resulting matrix is in the [Desk access matrix](../superpowers/specs/2026-11-22-desk-access-matrix.md). Still open: whether the lowest role becomes own-runs-only, and whether `run:read` gains an `own` condition. Until a later decision lands, migrations `0026` and `0032` together are the truth.
 
 ## Alternatives considered
 

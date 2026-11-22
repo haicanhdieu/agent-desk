@@ -14,6 +14,7 @@ import {
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
+import { requireInvite } from '@/features/access/guards';
 import { canInvite, orgAccessQuery, toAccess } from '@/features/access/queries';
 import { ORG_SWITCHED_MESSAGE } from '@/features/auth/orgResync';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
@@ -32,6 +33,8 @@ const InvitationsSearch = PageSearch.extend({
 });
 
 export const Route = createFileRoute('/o/$org/invitations')({
+  // Invite rights are checked before the page loads; the page keeps its own no-access state as a second line.
+  beforeLoad: ({ context: { queryClient }, params }) => requireInvite(queryClient, params.org),
   validateSearch: InvitationsSearch,
   component: InvitationsPage,
 });

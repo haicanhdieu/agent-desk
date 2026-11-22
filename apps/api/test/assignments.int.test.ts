@@ -674,13 +674,18 @@ describe('BR-63: own access', () => {
 });
 
 describe('the org roles list', () => {
-  it('gives the four roles to any assignment holder and 403 to a member with none', async () => {
+  it('gives the four roles to owner and admins and 403 to a member, a viewer and a member with no assignment (issue 216)', async () => {
     const f = await buildCast('as-roles');
-    for (const cookie of [f.o, f.d, f.a, f.b, f.v]) {
+    for (const cookie of [f.o, f.d, f.a]) {
       const res = await rolesOf(f.orgId, cookie);
       expect(res.statusCode).toBe(200);
       const roles = expectContract('roles.list', res) as RoleDto[];
       expect(roles.map((r) => r.key)).toEqual(['owner', 'admin', 'member', 'viewer']);
+    }
+    for (const cookie of [f.b, f.v]) {
+      const res = await rolesOf(f.orgId, cookie);
+      expect(res.statusCode).toBe(403);
+      expect((res.json() as { detail: string }).detail).toBe('Not allowed for your role here');
     }
     const id = await assignmentId(f, f.ids.c, 'member', f.p1);
     expect((await revoke(f.orgId, f.o, id)).statusCode).toBe(204);

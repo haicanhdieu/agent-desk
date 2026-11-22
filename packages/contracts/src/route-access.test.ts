@@ -75,7 +75,7 @@ const expected: Record<RouteKey, RouteAccess> = {
   'me.getInvitation': { scope: 'user' },
   'me.acceptInvitation': { scope: 'user' },
   'me.declineInvitation': { scope: 'user' },
-  'roles.list': admin('project:read'),
+  'roles.list': admin('assignment:read'),
   'members.list': admin('member:read', 'assignment:create'),
   'assignments.list': admin('assignment:read'),
   'assignments.create': admin('assignment:create'),

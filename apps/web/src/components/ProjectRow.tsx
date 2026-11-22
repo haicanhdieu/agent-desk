@@ -9,13 +9,13 @@ export interface ProjectRowProps {
   project: Project;
   /** The project's runs; also the More menu's Runs. */
   href: string;
-  /** The More menu's Settings link (project settings). */
+  /** The More menu's Settings link (project settings); the item is left out without it (the caller may not open the Desk). */
   settingsHref?: string;
-  /** Where "Switch to polling" goes on a silent-webhook warning (project settings). */
+  /** Where "Switch to polling" goes on a silent-webhook warning (project settings); the button is left out without it. */
   switchToPollingHref?: string;
 }
 
-export function ProjectRow({ project: p, href, settingsHref = '#', switchToPollingHref = '#' }: ProjectRowProps) {
+export function ProjectRow({ project: p, href, settingsHref, switchToPollingHref }: ProjectRowProps) {
   const { tone, mode, text } = p.connection;
   const { menuAt, open, moreRef, toggleMenu, closeMenu } = useRowMenu();
 
@@ -43,7 +43,7 @@ export function ProjectRow({ project: p, href, settingsHref = '#', switchToPolli
             <InlineStatus tone="idle" icon={<Icon name="warning" size={14} />}>
               {text}
             </InlineStatus>
-            {mode === 'webhook' && (
+            {mode === 'webhook' && switchToPollingHref !== undefined && (
               <span className={styles.connAction}>
                 <Button
                   size="sm"
@@ -99,9 +99,17 @@ export function ProjectRow({ project: p, href, settingsHref = '#', switchToPolli
             <Button variant="ghost" size="sm" className={composites.menuAction} href={href} onClick={closeMenu}>
               Runs
             </Button>
-            <Button variant="ghost" size="sm" className={composites.menuAction} href={settingsHref} onClick={closeMenu}>
-              Settings
-            </Button>
+            {settingsHref !== undefined && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className={composites.menuAction}
+                href={settingsHref}
+                onClick={closeMenu}
+              >
+                Settings
+              </Button>
+            )}
             {/* Delete waits for a product decision on what it does (issue 152): shown, but it cannot be chosen. */}
             <Button variant="ghost" size="sm" icon="trash" className={composites.menuAction} disabled>
               Delete

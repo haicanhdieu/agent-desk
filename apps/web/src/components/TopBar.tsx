@@ -22,7 +22,7 @@ export interface TopBarProps {
   breadcrumb?: { label: ReactNode; href?: string }[];
   children?: ReactNode;
   actions?: ReactNode;
-  /** In-app hrefs; default to the prototype's "/projects", "/runs" and "/desk". */
+  /** In-app hrefs; default to the prototype's "/projects" and "/runs". The Desk tab shows only with `desk`. */
   links?: { projects?: string; runs?: string; desk?: string };
 }
 

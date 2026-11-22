@@ -21,7 +21,7 @@ export interface RunSidePanelProps {
   data: RunDetailData;
   collapsed?: boolean;
   onExpand?(): void;
-  /** In-app hrefs of the Desk pages; default to the prototype's. */
+  /** In-app hrefs of the Desk pages; a row shows plain text without its href (the caller may not open the Desk). */
   links?: { skills?: string; rules?: string; setup?: string };
   /** The project's run limit per ticket; defaults to the board's 10. */
   maxRunsPerTicket?: number;
@@ -64,18 +64,22 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
   const kv = [
     {
       term: 'Skill',
-      value: (
-        <AppLink className="mono" href={links?.skills ?? '/desk/skills'}>
+      value: links?.skills ? (
+        <AppLink className="mono" href={links.skills}>
           {run.skill}
         </AppLink>
+      ) : (
+        <span className="mono">{run.skill}</span>
       ),
     },
     {
       term: 'Rule',
-      value: (
-        <AppLink href={links?.rules ?? '/desk/rules'}>
+      value: links?.rules ? (
+        <AppLink href={links.rules}>
           <RuleText rule={data.rule} command={run.command} />
         </AppLink>
+      ) : (
+        <RuleText rule={data.rule} command={run.command} />
       ),
     },
     {
@@ -89,7 +93,11 @@ export function RunSidePanel({ data, collapsed, onExpand, links, maxRunsPerTicke
             term: 'Setup',
             value: (
               <>
-                <AppLink href={links?.setup ?? '/desk/setup'}>Version {data.setup.version}</AppLink>
+                {links?.setup ? (
+                  <AppLink href={links.setup}>Version {data.setup.version}</AppLink>
+                ) : (
+                  <>Version {data.setup.version}</>
+                )}
                 {data.setup.note && (
                   <>
                     {' '}

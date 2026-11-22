@@ -225,6 +225,13 @@
       "when": 1795262473389,
       "tag": "0031_invitation_org_for_email",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1795262474389,
+      "tag": "0032_revoke_desk_reads_member_viewer",
+      "breakpoints": true
     }
   ]
 }

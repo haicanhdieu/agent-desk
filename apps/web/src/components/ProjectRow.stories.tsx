@@ -37,6 +37,21 @@ export const LongRepo: Story = {
   args: { project: { ...projects[1], repo: `harbor-labs/${'very-long-'.repeat(8)}` }, href: '#' },
 };
 
+/** A member or viewer: no Settings item (the Desk is closed to them). */
+export const MenuNoSettings: Story = {
+  args: { project: projects[0], href: '#runs' },
+  decorators: [
+    (S) => (
+      <div style={{ minHeight: 180 }}>
+        <S />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /^More for/ }));
+  },
+};
+
 /** The More menu: Runs and Settings link out; Delete is shown disabled until its behaviour is decided. */
 export const MenuOpen: Story = {
   args: { project: projects[0], href: '#runs', settingsHref: '#settings' },

@@ -11,6 +11,7 @@ import { sessionQuery } from '@/features/auth/session';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
 import { REFRESH_ERROR } from '@/features/desk/agent.form';
+import { requirePermission, useCan } from '@/features/access/guards';
 import { projectPaths } from '@/features/desk/frame';
 import { deskQueries } from '@/features/desk/queries';
 import { usePromptPreview } from '@/features/desk/promptPreview';
@@ -53,6 +54,8 @@ import { Setup1, Setup2, Setup3, Setup4, SetupReady, type Setup1Draft, type Setu
 export const Route = createFileRoute('/o/$org/projects/new/$step')({
   validateSearch: (search) => SetupSearch.parse(search),
   beforeLoad: async ({ context: { queryClient }, params, search }) => {
+    // Creating a project is org-level `project:create`; refused before the step is read or anything is requested.
+    await requirePermission(queryClient, params.org, 'project:create');
     const requested = SetupStepParam.safeParse(params.step);
     if (!requested.success) throw notFound();
     const project = search.project
@@ -497,7 +500,7 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   const { data: rulesPage } = useSuspenseQuery(setupQueries.rules(org, projectId));
   const rules = rulesPage.items;
   const { data: connection } = useSuspenseQuery(projectsQueries.connection(org, projectId));
-  const warning = useSetupWarning(org, projectId);
+  const warning = useSetupWarning(org, projectId, useCan(org, 'setup:read', { projectId }));
   const first = rules[0];
   const label = first?.labelFilter[0];
   const skillList = skills.items.map((s) => s.name).join(', ');

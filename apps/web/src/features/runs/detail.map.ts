@@ -297,8 +297,8 @@ function chain(run: RunCore, ticketRuns: RunCore[], runsHref: string, now: Date)
 export interface RunDetailLinks {
   /** The project's runs list; a run is `${runs}/<number>`. */
   runs: string;
-  /** Agent & settings (the time limit). */
-  agent: string;
+  /** Agent & settings (the time limit); left out for a caller who may not open the Desk (issue 216). */
+  agent?: string;
   /** Desk workspace setup, for a run that failed in setup. */
   setup?: string;
 }
@@ -391,7 +391,7 @@ function endNote(
       return {
         title: `Timed out at the ${formatLimit(run.timeoutSeconds)} limit`,
         body: run.failureReason ?? '',
-        actions: [{ label: 'Change time limit', href: links.agent, icon: 'clock' }],
+        actions: links.agent ? [{ label: 'Change time limit', href: links.agent, icon: 'clock' }] : [],
       };
     default:
       return { title: endedAt ? `Cancelled at ${endedAt}.` : 'Cancelled.', body: '', actions: [] };

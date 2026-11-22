@@ -8,6 +8,7 @@ if (!run62) throw new Error('mock run 62 is missing');
 const meta = {
   title: 'Components/NeedsYouBanner',
   component: NeedsYouBanner,
+  args: { onFinish: () => undefined },
   decorators: [
     (S) => (
       <div style={{ width: 1100 }}>
@@ -28,6 +29,9 @@ export const Default: Story = {
       'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
   },
 };
+
+/** A viewer, or a member on someone else's run: no Finish run button. */
+export const ReadOnly: Story = { args: { ...Default.args, onFinish: undefined } };
 
 /** No valid ticket URL: the ticket number is plain text, not a link. */
 export const NoTicketLink: Story = {

@@ -1,4 +1,5 @@
 import { useSuspenseQueries, useSuspenseQuery } from '@tanstack/react-query';
+import { can } from '@agentdesk/contracts';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { toastFromError } from '@/app/boundaries';
 import {
@@ -14,6 +15,7 @@ import {
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
+import { useAccess } from '@/features/access/guards';
 import { projectPaths } from '@/features/desk/frame';
 import { toConnectionStatus, toProject } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
@@ -44,6 +46,7 @@ function NeedsYouRoute() {
   const now = useNow();
   const toast = useToast();
   const resume = useResumeRun(org, projectId, { onError: (e) => toast.show(toastFromError(e)) });
+  const access = useAccess(org);
   const page = useProjectPage(org, projectId, now);
   const navigate = useNavigate({ from: Route.fullPath });
   const current = pageOfSearch(Route.useSearch());
@@ -81,6 +84,14 @@ function NeedsYouRoute() {
       project={page.project}
       projects={projects}
       runs={runs}
+      canResume={(r) => {
+        const dto = idle.items.find((x) => x.number === r.id);
+        return (
+          access !== undefined &&
+          dto !== undefined &&
+          can(access, 'run:update', { projectId, ownerUserId: dto.ownerUserId })
+        );
+      }}
       onResume={(r) => {
         const dto = idle.items.find((x) => x.number === r.id);
         if (dto) resume.mutate({ id: dto.id, number: dto.number });

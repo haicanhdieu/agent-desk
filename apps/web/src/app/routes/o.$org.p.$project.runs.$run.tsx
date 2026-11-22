@@ -1,3 +1,4 @@
+import { can } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useInfiniteQuery, useSuspenseQuery } from '@tanstack/react-query';
 import { createFileRoute, notFound } from '@tanstack/react-router';
@@ -9,6 +10,7 @@ import { useNow } from '@/app/useNow';
 import type { TranscriptProps } from '@/components';
 import type { LiveTerminalHandle } from '@/components/LiveTerminal';
 import { Banner, Skeleton, useToast } from '@/ds';
+import { useAccess } from '@/features/access/guards';
 import {
   scrollbackLines,
   scrollbackText,
@@ -117,11 +119,17 @@ function RunDetailRoute() {
 
   const { paths } = page;
   const target = { id: dto.id, number };
+  // The action buttons show only where the viewer holds the permission on this run: a member on their own runs, an
+  // admin or owner on any, a viewer on none. The API decides; this only keeps buttons that would answer 403 away.
+  const access = useAccess(org);
+  const runTarget = { projectId, ownerUserId: dto.ownerUserId };
+  const mayUpdate = access !== undefined && can(access, 'run:update', runTarget);
+  const mayCancel = access !== undefined && can(access, 'run:cancel', runTarget);
   const mapped = withDetailPrStates(
     toRunDetail(dto, events, page.dto, ticketRuns.items, now, {
       runs: paths.runs,
-      agent: paths.agent,
-      setup: paths.setup,
+      ...(page.desk.agent && { agent: paths.agent }),
+      ...(page.desk.setup && { setup: paths.setup }),
     }),
     prStates,
   );
@@ -202,9 +210,9 @@ function RunDetailRoute() {
       links={{
         projects: paths.projects,
         runs: paths.runs,
-        skills: paths.skills,
-        rules: paths.rules,
-        setup: paths.setup,
+        ...(page.desk.skills && { skills: paths.skills }),
+        ...(page.desk.rules && { rules: paths.rules }),
+        ...(page.desk.setup && { setup: paths.setup }),
       }}
       pendingNote={dto.statusNote}
       panelCollapsed={panelCollapsed}
@@ -216,24 +224,26 @@ function RunDetailRoute() {
           {ticket}.
         </>
       }
-      onCancel={() => setConfirmingCancel(true)}
+      {...(mayCancel && { onCancel: () => setConfirmingCancel(true) })}
       onCancelClose={() => setConfirmingCancel(false)}
       onCancelConfirm={() => {
         setConfirmingCancel(false);
         cancel(target);
       }}
-      onFinish={() => finish(target)}
-      onResume={() => resume.mutate(target)}
+      {...(mayUpdate && {
+        onFinish: () => finish(target),
+        onResume: () => resume.mutate(target),
+        onStopOpen: () => setConfirmingStop(true),
+        onStop: () => {
+          setConfirmingStop(false);
+          stop.mutate(target);
+        },
+        onCloseSession: () => closeSession.mutate(target),
+      })}
       resuming={resume.isPending}
       stopConfirmOpen={confirmingStop && live}
-      onStopOpen={() => setConfirmingStop(true)}
       onStopClose={() => setConfirmingStop(false)}
-      onStop={() => {
-        setConfirmingStop(false);
-        stop.mutate(target);
-      }}
       stopping={stop.isPending}
-      onCloseSession={() => closeSession.mutate(target)}
       closing={closeSession.isPending}
     />
   );

@@ -490,10 +490,11 @@ describe('rules: permission (BR-33, BR-29)', () => {
     expect((await allRules(pid)).map((r) => r.id)).toEqual([rule.id]);
   });
 
-  it('TC-33.9: a member can list the rules', async () => {
+  it('TC-33.9: a member cannot list the rules (issue 216), an admin can', async () => {
     const { pid, rule } = await projectWithRule();
     const member = await inviteAndLogin(t, orgId, 'rules-member-list', 'member', { type: 'org' });
-    const res = await list(pid, member);
+    expect((await list(pid, member)).statusCode).toBe(403);
+    const res = await list(pid, alice);
     expect(res.statusCode).toBe(200);
     expect((expectContract('rules.list', res) as Page<RuleDto>).items.map((r) => r.id)).toEqual([rule.id]);
   });

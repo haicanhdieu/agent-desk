@@ -7,12 +7,12 @@ export interface ProjectNavProps {
   needsYou?: number;
   /** Default "/runs". */
   runsHref?: string;
-  /** Default "/desk". */
+  /** The Desk tab shows only when this is given: it is for roles that may read the Desk (issue 216), so none by default. */
   deskHref?: string;
 }
 
 /** Runs / Desk tabs of the project top bar. */
-export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref = '/desk' }: ProjectNavProps) {
+export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref }: ProjectNavProps) {
   return (
     <nav className={styles.tabs} aria-label="Project">
       <AppLink
@@ -28,14 +28,16 @@ export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref = '/
           title={needsYou ? `${needsYou} ${needsYou === 1 ? 'run needs' : 'runs need'} you` : undefined}
         />
       </AppLink>
-      <AppLink
-        href={deskHref}
-        className={active === 'desk' ? styles.on : undefined}
-        aria-current={active === 'desk' ? 'page' : undefined}
-      >
-        <Icon name="desk" size={15} />
-        Desk
-      </AppLink>
+      {deskHref !== undefined && (
+        <AppLink
+          href={deskHref}
+          className={active === 'desk' ? styles.on : undefined}
+          aria-current={active === 'desk' ? 'page' : undefined}
+        >
+          <Icon name="desk" size={15} />
+          Desk
+        </AppLink>
+      )}
     </nav>
   );
 }

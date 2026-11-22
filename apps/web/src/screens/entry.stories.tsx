@@ -72,11 +72,21 @@ export const SignIn: Story = {
 };
 export const ProjectsEmpty: Story = {
   name: 'Projects, empty',
-  render: () => <ProjectsEmptyScreen user={user} createHref="#" org={loneHarbor} invitationsHref="#" />,
+  render: () => <ProjectsEmptyScreen user={user} createHref="#" org={loneHarbor} invitationsHref="#" canCreate />,
 };
 export const Projects: Story = {
   name: 'Projects',
-  render: () => <ProjectsScreen user={user} projects={projects} newHref="#" org={loneHarbor} invitationsHref="#" />,
+  render: () => (
+    <ProjectsScreen
+      user={user}
+      projects={projects}
+      newHref="#"
+      org={loneHarbor}
+      invitationsHref="#"
+      canCreate
+      settingsHref={() => '#settings'}
+    />
+  ),
 };
 
 /** Page 2 of 2 of 26 projects: "Showing 21–26 of 26". */
@@ -89,6 +99,7 @@ export const ProjectsPaged: Story = {
       newHref="#"
       org={loneHarbor}
       invitationsHref="#"
+      canCreate
       pagination={{
         page: 2,
         pageSize: 20,
@@ -110,6 +121,7 @@ export const ProjectsChecklist: Story = {
       newHref="#"
       org={loneNorthwind}
       invitationsHref="#"
+      canCreate
       checklist={ready(checklistSteps.partial)}
     />
   ),
@@ -125,6 +137,7 @@ export const ProjectsChecklistDone: Story = {
       newHref="#"
       org={orgOf(harbor, [harbor, northwind])}
       invitationsHref="#"
+      canCreate
       invitationsBanner={invitations(2)}
     />
   ),
@@ -139,6 +152,7 @@ export const ProjectsChecklistError: Story = {
       newHref="#"
       org={loneNorthwind}
       invitationsHref="#"
+      canCreate
       checklist={{ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }}
     />
   ),
@@ -153,6 +167,7 @@ export const ProjectsChecklistLoading: Story = {
       newHref="#"
       org={loneNorthwind}
       invitationsHref="#"
+      canCreate
       checklist={{ kind: 'loading' }}
     />
   ),
@@ -166,6 +181,7 @@ export const ProjectsEmptyChecklist: Story = {
       createHref="#"
       org={loneNorthwind}
       invitationsHref="#"
+      canCreate
       checklist={ready(checklistSteps.none)}
     />
   ),
@@ -216,6 +232,7 @@ export const ProjectsOrgSwitchAdmin: Story = {
       newHref="#"
       org={orgOf(harbor, [harbor], true)}
       invitationsHref="#"
+      canCreate
     />
   ),
   play: openSwitch,
@@ -230,6 +247,7 @@ export const ProjectsOrgSwitchOpen: Story = {
       newHref="#"
       org={orgOf(harbor, [harbor, northwind, riverside])}
       invitationsHref="#"
+      canCreate
     />
   ),
   play: openSwitch,

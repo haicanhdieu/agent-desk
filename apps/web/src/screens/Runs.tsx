@@ -20,6 +20,8 @@ export interface RunsProps extends Omit<RunsPageProps, 'children' | 'banners'> {
   needsYouRun?: { run: RunSummary; askedAgo: string; slotNote: string; href: string };
   /** Number of the oldest queued run, shown as a plain "is waiting" banner when no run is idle. Ignored while `needsYouRun` is set (its slot note already names it). */
   waitingRun?: number;
+  /** Finishes the idle run from its banner; the banner's Finish run button shows only with it. */
+  onFinishIdle?(): void;
   /** In-app href of a run; defaults to the prototype's `/runs/<id>`. */
   runHref?(run: RunSummary): string;
   /** Href for the empty state's "Show all runs" (a link instead of the `onFilter('all')` button). */
@@ -84,6 +86,7 @@ export function Runs({
   groups,
   needsYouRun,
   waitingRun,
+  onFinishIdle,
   filter,
   runHref = defaultRunHref,
   showAllHref,
@@ -110,6 +113,7 @@ export function Runs({
           askedAgo={needsYouRun.askedAgo}
           slotNote={needsYouRun.slotNote}
           href={needsYouRun.href}
+          onFinish={onFinishIdle}
         />
       )}
       {!needsYouRun && waitingRun !== undefined && (

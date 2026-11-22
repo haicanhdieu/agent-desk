@@ -18,6 +18,15 @@ const meta = {
   title: 'Screens/Run detail',
   component: RunDetail,
   parameters: { layout: 'fullscreen' },
+  // A viewer who holds every run permission: the action buttons show only for the handlers given.
+  args: {
+    onCancel: () => undefined,
+    onFinish: () => undefined,
+    onResume: () => undefined,
+    onStopOpen: () => undefined,
+    onStop: () => undefined,
+    onCloseSession: () => undefined,
+  },
 } satisfies Meta<typeof RunDetail>;
 export default meta;
 type Story = StoryObj<typeof meta>;
@@ -44,6 +53,22 @@ export const RunIdle: Story = {
   decorators: artboard(1440, 900),
   globals: viewport(1440, 900),
   args: { data: runDetails.RunIdle, lines: terminalByRun[62], needsYou: 1 },
+};
+/** A viewer, or a member on someone else's run: the same run with no action buttons. */
+export const RunIdleReadOnly: Story = {
+  decorators: artboard(1440, 900),
+  globals: viewport(1440, 900),
+  args: {
+    data: runDetails.RunIdle,
+    lines: terminalByRun[62],
+    needsYou: 1,
+    onCancel: undefined,
+    onFinish: undefined,
+    onResume: undefined,
+    onStopOpen: undefined,
+    onStop: undefined,
+    onCloseSession: undefined,
+  },
 };
 export const RunReconnect: Story = {
   decorators: artboard(1280, 800),
