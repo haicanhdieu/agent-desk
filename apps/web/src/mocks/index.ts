@@ -26,6 +26,12 @@ export type {
   InvitationCardView,
   InvitationDetailsView,
   InviteOption,
+  OrgSettingsTabKey,
+  OrgRoleKey,
+  MemberRowView,
+  RoleCardOption,
+  AuditTextPart,
+  AuditRowView,
 } from './types';
 export { user, bot, projects, deskFrame } from './projects';
 export {
@@ -55,7 +61,10 @@ export {
   setupFailedRunTerminal,
 } from './setup';
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
-export { orgOptions, orgSwitchFixtures } from './orgs';
+export { orgOptions, orgSwitchFixtures, accountFixture } from './orgs';
+export { memberRows, roleCards } from './members';
+export { auditRows, pagedAuditRows } from './audit';
+export { orgSettingsFixtures } from './orgSettings';
 export { checklistSteps, pendingInvitationsCount } from './onboarding';
 export {
   invitationCards,

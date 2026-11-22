@@ -523,11 +523,11 @@ export interface AuditRowView {
 
   Views: `memberRows: Record<'owner' | 'admin' | 'paged', MemberRowView[]>` (several owners, "No role", project roles, a long name; `admin` = the admin caller's view with owner rows unactionable), `roleCards: Record<'ownerCaller' | 'adminCaller', RoleCardOption[]>` (copy from the spec), `auditRows: AuditRowView[]` (newest first: role change, owner grant, URL change, name change, removal, invitation, generic request, platform actor, deleted user, HTML and long text), `pagedAuditRows(n: number): AuditRowView[]`, `orgSettingsFixtures: { org: { name: 'Harbor Labs'; slug: 'harbor-labs' }; tabs: Record<'owner' | 'admin' | 'projectAdmin', OrgSettingsTabKey[]> }`. DTOs: `tenantMemberFixtures: Record<'soleOwner' | 'twoOwners' | 'paged25', MemberDto[]>` (paged25 has 25 members), `auditEntryFixtures: AuditEntryDto[]` (every action above), `pagedAuditFixtures(n: number): AuditEntryDto[]`, `AUDIT_MOCK_NOW: string`, `tenantAccessFixtures: Record<'owner' | 'admin' | 'projectAdmin' | 'member' | 'viewer' | 'noRole', AccessDto>`. Top bar: `orgSwitchFixtures` entries gain `projectsHref`/`settingsHref` variants; `accountFixture: { name: 'Alice Doe'; handle: 'alice'; invitationsHref: '/invitations'; pendingCount: 2 }`.
 
-- [ ] **Step 1: Write the failing tests**: `contract.test.ts` parses every new DTO fixture with its contract schema; `mocks.test.ts` asserts `memberRows.owner` holds at least two owners and one `role: null`, `memberRows.paged` has 25 rows, every `MemberRowView` with `you: true` has `canRemove: false`, and `auditRows` is ordered newest first by `when.iso`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts src/mocks/mocks.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the types, views and DTOs above (ids from `mocks/dto/ids.ts`, times relative to `AUDIT_MOCK_NOW`) and export them from `mocks/index.ts`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): fixtures for members, audit and org settings`.
+- [x] **Step 1: Write the failing tests**: `contract.test.ts` parses every new DTO fixture with its contract schema; `mocks.test.ts` asserts `memberRows.owner` holds at least two owners and one `role: null`, `memberRows.paged` has 25 rows, every `MemberRowView` with `you: true` has `canRemove: false`, and `auditRows` is ordered newest first by `when.iso`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts src/mocks/mocks.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the types, views and DTOs above (ids from `mocks/dto/ids.ts`, times relative to `AUDIT_MOCK_NOW`) and export them from `mocks/index.ts`.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): fixtures for members, audit and org settings`.
 
 ---
 
