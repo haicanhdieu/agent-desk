@@ -5,13 +5,12 @@ import { useState } from 'react';
 import { z } from 'zod';
 import { toastFromError } from '@/app/boundaries';
 import { useToast } from '@/ds';
-import { sessionAccessQuery } from '@/features/access/queries';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { signOutAndRedirect } from '@/features/auth/signOut';
 import { toAcceptState } from '@/features/invitations/map';
 import { useAcceptInvitation, useDeclineInvitation } from '@/features/invitations/mutations';
 import { myInvitationQuery } from '@/features/invitations/queries';
-import { toOrgSwitch } from '@/features/orgs/orgSwitch';
+import { useAppBar } from '@/features/chrome/appBar';
 import { InvitationAccept, type InvitationAcceptState } from '@/screens';
 
 // The invitation link: the signed-in person's own invitation with Accept and Decline, or why it cannot be answered.
@@ -30,8 +29,7 @@ const isNotFound = (e: unknown) => e instanceof ApiError && e.status === 404;
 function InvitationLinkPage() {
   const { invitation: param } = Route.useParams();
   const { data: session } = useSuspenseQuery(sessionQuery);
-  const { data: orgs } = useSuspenseQuery(orgsQuery);
-  const access = useQuery(sessionAccessQuery);
+  const bar = useAppBar(null);
   const valid = InvitationId.safeParse(param).success;
   const invitation = useQuery({ ...myInvitationQuery(param), enabled: valid });
   const accept = useAcceptInvitation();
@@ -42,13 +40,7 @@ function InvitationLinkPage() {
   // explain the refusal and falls to the error state instead of offering the same answer again.
   const [conflicted, setConflicted] = useState(false);
 
-  const handle = session?.user.handle ?? '';
   const email = session?.user.email ?? '';
-  const orgSwitch = {
-    ...toOrgSwitch(orgs, null, access.data?.platformAdmin ?? false),
-    orgHref: (o: { slug: string }) => `/o/${encodeURIComponent(o.slug)}/projects`,
-    createHref: '/orgs/new',
-  };
 
   const retry = () => {
     setConflicted(false);
@@ -105,8 +97,9 @@ function InvitationLinkPage() {
 
   return (
     <InvitationAccept
-      user={{ login: handle, initials: handle.slice(0, 2).toUpperCase() }}
-      org={orgSwitch}
+      user={bar.user}
+      account={bar.account}
+      org={bar.org}
       state={state}
       onAccept={onAccept}
       onDecline={() => setConfirmDecline(true)}

@@ -10,7 +10,7 @@ import { signOutAndRedirect } from '@/features/auth/signOut';
 import { toInvitationCard } from '@/features/invitations/map';
 import { useAcceptInvitation, useDeclineInvitation } from '@/features/invitations/mutations';
 import { myInvitationsQuery } from '@/features/invitations/queries';
-import { toOrgSwitch } from '@/features/orgs/orgSwitch';
+import { useAppBar } from '@/features/chrome/appBar';
 import { MyInvitations, type MyInvitationsState } from '@/screens';
 
 // The welcome page, outside `/o/$org`: the signed-in person's pending invitations, or how to get one (the landing of
@@ -26,7 +26,7 @@ const noop = () => undefined;
 
 function WelcomePage() {
   const { data: session } = useSuspenseQuery(sessionQuery);
-  const { data: orgs } = useSuspenseQuery(orgsQuery);
+  const bar = useAppBar(null, { onMyInvitations: true });
   const invitations = useQuery(myInvitationsQuery);
   const access = useQuery(sessionAccessQuery);
   const accept = useAcceptInvitation();
@@ -34,14 +34,8 @@ function WelcomePage() {
   const toast = useToast();
   const [declining, setDeclining] = useState<{ id: string; orgName: string } | null>(null);
 
-  const handle = session?.user.handle ?? '';
   const email = session?.user.email ?? '';
   const platformAdmin = access.data?.platformAdmin ?? false;
-  const orgSwitch = {
-    ...toOrgSwitch(orgs, null, platformAdmin),
-    orgHref: (o: { slug: string }) => `/o/${encodeURIComponent(o.slug)}/projects`,
-    createHref: '/orgs/new',
-  };
 
   const pending = accept.isPending
     ? { id: accept.variables, action: 'accept' as const }
@@ -91,8 +85,9 @@ function WelcomePage() {
   return (
     <>
       <MyInvitations
-        user={{ login: handle, initials: handle.slice(0, 2).toUpperCase() }}
-        org={orgSwitch}
+        user={bar.user}
+        account={bar.account}
+        org={bar.org}
         state={state}
         onAccept={(id) => accept.mutate(id, { onError: (e) => toast.show(toastFromError(e)) })}
         onDecline={(id) => {

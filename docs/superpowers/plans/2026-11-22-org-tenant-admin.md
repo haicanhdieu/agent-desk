@@ -1091,11 +1091,11 @@ export function useAppBar(orgSlug: string | null, opts?: { onMyInvitations?: boo
 
 - Consumes: `useAppBar(null, { onMyInvitations })` (Task 22), the screen props (Task 16).
 
-- [ ] **Step 1: Write the failing tests** (BR-43, BR-45, BR-13): My invitations and the invitation page show the org bar for the session's active org with no tab active and the org menu's Settings item for an owner; the account menu marks My invitations `aria-current="page"` on `/invitations`; a person with no org sees "No organization" with no tabs and the bell; Create organization shows the org crumb and no tabs. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; the account prop, AccountMenu.test.tsx and the menu assertions of this task are dropped.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/invitations src/features/orgs/createOrg.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the three routes with `useAppBar`.
+- [x] **Step 1: Write the failing tests** (BR-43, BR-45, BR-13): My invitations and the invitation page show the org bar for the session's active org with no tab active and the org menu's Settings item for an owner; the account menu marks My invitations `aria-current="page"` on `/invitations`; a person with no org sees "No organization" with no tabs and the bell; Create organization shows the org crumb and no tabs. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; the account prop, AccountMenu.test.tsx and the menu assertions of this task are dropped.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/invitations src/features/orgs/createOrg.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the three routes with `useAppBar`.
 - [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: covered by Tasks 36, 38 and 39.
-- [ ] **Step 5: Commit** `feat(web): personal pages under the org bar`.
+- [x] **Step 5: Commit** `feat(web): personal pages under the org bar`.
 
 ---
 

@@ -2,6 +2,7 @@ import { screen, waitFor, within } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { myInvitationFixtures as fx } from '@/mocks/dto/invitations';
+import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
@@ -310,5 +311,32 @@ describe('invitation link: answering', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Internal server error');
     expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled();
     expect(router.state.location.pathname).toBe(`/invitations/${pendingId}`);
+  });
+});
+
+describe('invitation link under the app bar', () => {
+  const asOwnerOfAlice = () => {
+    scenarios.onboarding('noOrgInvited');
+    const me = mockDb.state.users[0];
+    if (!me) throw new Error('no user');
+    mockDb.state.memberships = [{ userId: me.id, orgId: ids.org.alice, roleKey: 'owner' }];
+    mockDb.state.auth = { signedIn: true, activeOrganizationId: ids.org.alice };
+  };
+
+  it('BR-43 / BR-13 an owner sees the org bar with no tab active and Settings in the org menu', async () => {
+    const { user } = await renderRoute(`/invitations/${pendingId}`, { scenario: asOwnerOfAlice });
+    await screen.findByRole('heading', { level: 1, name: 'Join Acme Robotics' });
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
+    await user.click(screen.getByRole('button', { name: /^Organization menu/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
+  });
+
+  it('BR-43 a person with no org sees "No organization" and no tabs', async () => {
+    await open(pendingId);
+    await screen.findByRole('heading', { level: 1, name: 'Join Acme Robotics' });
+    expect(screen.getByText('No organization')).toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Main' })).toBeNull();
   });
 });
