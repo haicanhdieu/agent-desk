@@ -110,9 +110,9 @@ const anyOf = (permissions: PermissionLineDto['permission'][]): PermissionLineDt
 const ownOf = (permissions: PermissionLineDto['permission'][]): PermissionLineDto[] =>
   permissions.map((permission) => ({ permission, condition: 'own' }));
 
-/** The built-in `member` role's permissions (spec role matrix): reads and `run:create` with any, run controls and the terminal with own. */
+/** The built-in `member` role's permissions (issue 216 matrix: no Desk reads): project and run reads and `run:create` with any, run controls and the terminal with own. */
 const MEMBER_PERMISSIONS: PermissionLineDto[] = [
-  ...anyOf(['project:read', 'agent:read', 'skill:read', 'rule:read', 'setup:read', 'run:read', 'run:create']),
+  ...anyOf(['project:read', 'run:read', 'run:create']),
   ...ownOf(['run:update', 'run:cancel', 'terminal:attach']),
 ].sort(byPermission);
 

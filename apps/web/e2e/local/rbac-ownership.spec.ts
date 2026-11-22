@@ -206,7 +206,8 @@ test.describe('BR-17: a member is refused the agent credential', () => {
     await expect403(res, 'agents.putCredential');
     expect(await res.text(), 'the refusal does not contain the value').not.toContain(value);
     expect(await agentOf(o, p1)).toEqual(before);
-    expect(await agentOf(b, p1)).toEqual(before);
+    // A member has no Desk read either (issue 216): B cannot read the agent back.
+    await expect403(await b.api.get(`/api/projects/${p1}/agent`), 'agents.get');
   });
 });
 
@@ -336,11 +337,12 @@ test.describe('BR-33: a member is refused every edit area', () => {
     expect(await latest()).toEqual(before);
   });
 
-  test('TC-33.9: B listing the rules of P1 gets 200 with R in the list', async () => {
-    const { b, p1 } = cast;
+  test('TC-33.9: B listing the rules of P1 gets 403 (issue 216), and O still lists R', async () => {
+    const { b, o, p1 } = cast;
     const r = await createRule(cast);
 
-    const rules = await rulesOf(b, p1);
+    await expect403(await b.api.get(`/api/projects/${p1}/rules?pageSize=100`), 'rules.list');
+    const rules = await rulesOf(o, p1);
     expect(rules.find((x) => x.id === r.id)).toEqual(r);
   });
 });

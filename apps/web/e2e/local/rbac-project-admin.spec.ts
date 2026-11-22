@@ -427,8 +427,10 @@ test.describe('BR-32: a member with no assignment is locked out until granted', 
       expect(idsOf(list.items), 'only P2, not P1').toEqual([p2]);
       expect(list.total).toBe(1);
 
+      // A member has no Desk read (issue 216): C gets 403 on the rules, and O still sees R2 unchanged.
+      await expect403Naming(await c.api.get(`/api/projects/${p2}/rules?pageSize=100`), 'rules.list P2', [r2.id]);
       expect(
-        (await rulesOf(c, p2)).find((r) => r.id === r2.id),
+        (await rulesOf(o, p2)).find((r) => r.id === r2.id),
         'R2 is present and unchanged',
       ).toEqual(r2);
 

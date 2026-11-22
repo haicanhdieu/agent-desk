@@ -260,7 +260,7 @@ test.describe('BR-4: viewer writes are refused and change nothing', () => {
       await v.api.patch(`/api/rules/${before?.id}`, { data: { prompt: 'A new body from a viewer.' } }),
       'rules.update',
     );
-    expect((await rulesOf(v, p1)).find((r) => r.id === before?.id)).toEqual(before);
+    expect((await rulesOf(o, p1)).find((r) => r.id === before?.id)).toEqual(before);
   });
 
   test('TC-4.3: a viewer cannot create a project', async () => {
@@ -270,8 +270,8 @@ test.describe('BR-4: viewer writes are refused and change nothing', () => {
   });
 
   test('TC-4.4: a viewer cannot change the agent', async () => {
-    const { v, p1 } = cast;
-    const before = AgentDto.parse(await ok(await v.api.get(`/api/projects/${p1}/agent`), 200, 'agents.get'));
+    const { v, o, p1 } = cast;
+    const before = AgentDto.parse(await ok(await o.api.get(`/api/projects/${p1}/agent`), 200, 'agents.get'));
 
     await expect403(
       await v.api.put(`/api/projects/${p1}/agent`, {
@@ -279,7 +279,7 @@ test.describe('BR-4: viewer writes are refused and change nothing', () => {
       }),
       'agents.put',
     );
-    expect(AgentDto.parse(await ok(await v.api.get(`/api/projects/${p1}/agent`), 200, 'agents.get'))).toEqual(before);
+    expect(AgentDto.parse(await ok(await o.api.get(`/api/projects/${p1}/agent`), 200, 'agents.get'))).toEqual(before);
   });
 });
 
