@@ -26,6 +26,12 @@ describe('platform query keys', () => {
     for (const key of keys) expect(key[0]).toBe('platform');
   });
 
+  it('every admins list key starts with the admins prefix that grant and revoke invalidate', () => {
+    const prefix = platformKeys.adminsAll();
+    expect(platformKeys.admins(q).slice(0, prefix.length)).toEqual(prefix);
+    expect(platformKeys.admins({ page: 3, pageSize: 50 }).slice(0, prefix.length)).toEqual(prefix);
+  });
+
   it('the platform-admin flag key is session-wide, outside any org', () => {
     expect(accessKeys.platform()).toEqual(['session', 'platform']);
   });

@@ -43,6 +43,15 @@ export function grantPlatformAdmin(body: GrantPlatformAdminRequest): WithStatus<
       errors: [{ pointer: '/email', detail: 'No account has this email yet.' }],
     });
   }
+  // The API's order: 404 (no account), then 422 (unverified email), then the repeat check.
+  if (account && !account.emailVerified) {
+    throw new Problem({
+      status: 422,
+      title: 'Email not verified',
+      type: 'validation',
+      errors: [{ pointer: '/email', detail: 'The email of this account is not verified.' }],
+    });
+  }
   if (existing) return withStatus(flagged(admins).find((a) => a.id === existing.id) ?? existing, 200);
   if (!account) throw new Error('unreachable: account checked above');
   const actor = mockDb.currentUser();
@@ -72,5 +81,8 @@ export function revokePlatformAdmin(adminId: string): null {
     });
   }
   admins = admins.filter((a) => a.id !== adminId);
+  // The flag behind me.platform and me.access follows the row, as the API's does.
+  const holder = mockDb.state.users.find((u) => u.email.toLowerCase() === target.email.toLowerCase());
+  if (holder) holder.platformAdmin = false;
   return null;
 }

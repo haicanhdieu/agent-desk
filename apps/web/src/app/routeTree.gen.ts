@@ -18,6 +18,7 @@ import { Route as InvitationsInvitationRouteImport } from './routes/invitations.
 import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OrgsNewRouteImport } from './routes/orgs.new';
 import { Route as PlatformIndexRouteImport } from './routes/platform.index';
+import { Route as PlatformAdminsRouteImport } from './routes/platform.admins';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgInvitationsRouteImport } from './routes/o.$org.invitations';
 import { Route as OOrgSettingsRouteImport } from './routes/o.$org.settings';
@@ -80,6 +81,11 @@ const OrgsNewRoute = OrgsNewRouteImport.update({
 const PlatformIndexRoute = PlatformIndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => PlatformRoute,
+} as any);
+const PlatformAdminsRoute = PlatformAdminsRouteImport.update({
+  id: '/admins',
+  path: '/admins',
   getParentRoute: () => PlatformRoute,
 } as any);
 const OOrgIndexRoute = OOrgIndexRouteImport.update({
@@ -181,6 +187,7 @@ export interface FileRoutesByFullPath {
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/orgs/new': typeof OrgsNewRoute;
+  '/platform/admins': typeof PlatformAdminsRoute;
   '/invitations/': typeof InvitationsIndexRoute;
   '/platform/': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
@@ -208,6 +215,7 @@ export interface FileRoutesByTo {
   '/sign-in': typeof SignInRoute;
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/orgs/new': typeof OrgsNewRoute;
+  '/platform/admins': typeof PlatformAdminsRoute;
   '/invitations': typeof InvitationsIndexRoute;
   '/platform': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/orgs/new': typeof OrgsNewRoute;
+  '/platform/admins': typeof PlatformAdminsRoute;
   '/invitations/': typeof InvitationsIndexRoute;
   '/platform/': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
@@ -268,6 +277,7 @@ export interface FileRouteTypes {
     | '/invitations/$invitation'
     | '/o/$org'
     | '/orgs/new'
+    | '/platform/admins'
     | '/invitations/'
     | '/platform/'
     | '/o/$org/invitations'
@@ -295,6 +305,7 @@ export interface FileRouteTypes {
     | '/sign-in'
     | '/invitations/$invitation'
     | '/orgs/new'
+    | '/platform/admins'
     | '/invitations'
     | '/platform'
     | '/o/$org/invitations'
@@ -323,6 +334,7 @@ export interface FileRouteTypes {
     | '/invitations/$invitation'
     | '/o/$org'
     | '/orgs/new'
+    | '/platform/admins'
     | '/invitations/'
     | '/platform/'
     | '/o/$org/invitations'
@@ -419,6 +431,13 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/platform/';
       preLoaderRoute: typeof PlatformIndexRouteImport;
+      parentRoute: typeof PlatformRoute;
+    };
+    '/platform/admins': {
+      id: '/platform/admins';
+      path: '/admins';
+      fullPath: '/platform/admins';
+      preLoaderRoute: typeof PlatformAdminsRouteImport;
       parentRoute: typeof PlatformRoute;
     };
     '/o/$org/': {
@@ -551,10 +570,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface PlatformRouteChildren {
+  PlatformAdminsRoute: typeof PlatformAdminsRoute;
   PlatformIndexRoute: typeof PlatformIndexRoute;
 }
 
 const PlatformRouteChildren: PlatformRouteChildren = {
+  PlatformAdminsRoute: PlatformAdminsRoute,
   PlatformIndexRoute: PlatformIndexRoute,
 };
 

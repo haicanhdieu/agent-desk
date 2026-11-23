@@ -592,13 +592,13 @@ export function useRevokePlatformAdmin(): UseMutationResult<void, ApiError, { ad
 export function toPlatformAdminRow(dto: PlatformAdminDto, sessionUserId: string, now: Date): PlatformAdminRowView;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts` (BR-5 to BR-7, BR-16): "You" when `session.user.id === entry.userId`; `neverSignedIn` when `userId` is null; `lastWorkingAdmin` copied from the DTO; relative added time with the full date in `title` from a fixed `now`.
   - `admins.route.test.tsx`: paged list with `?page=N` (BR-5); grant closes the dialog, toasts "Platform admin added", refetches (BR-8); 400 shows the schema message, 404 "No account has this email yet.", 422 "This email is not verified yet." under Email with input kept (BR-9 to BR-11); 403/5xx show the dialog Banner; repeat grant 200 closes with no error and one entry (BR-12); confirm Revoke toasts "Platform admin revoked", refetches, focuses the h1 (BR-13); Cancel keeps the row (BR-14); own revoke removes `accessKeys.session()` and `['session','platform']` and lands on `/` (BR-15); `lastAdmin` disables Revoke with "Last admin" on page 2 and leaves page 1 enabled (BR-16); `revoke409` toasts the problem title and refetches (BR-17); loading, empty and `serverError` with Retry (BR-4); an admin name `<img src=x onerror=alert(1)>` renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (`Pagination` + `?page=N` + `usePageSize()`, `useClampToLastPage`), TanStack Form with `GrantPlatformAdminRequest` and `fieldErrorsFromProblem`, the mutations (invalidate `['platform','admins']`), the mapper; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (`Pagination` + `?page=N` + `usePageSize()`, `useClampToLastPage`), TanStack Form with `GrantPlatformAdminRequest` and `fieldErrorsFromProblem`, the mutations (invalidate `['platform','admins']`), the mapper; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform admins page`.
+- [x] **Step 5: Commit**: `feat(web): platform admins page`.
 
 ---
 
@@ -614,7 +614,7 @@ export function toPlatformAdminRow(dto: PlatformAdminDto, sessionUserId: string,
 
 Covers: BR-1 (TC-1.1, TC-1.2, TC-1.3), BR-3 (TC-3.1, TC-3.3, TC-3.4) in `platform-shell.spec.ts`; BR-4 (TC-4.1, TC-4.2, TC-4.3), BR-5 (TC-5.1, TC-5.3), BR-6 (TC-6.1), BR-7 (TC-7.1), BR-9 (TC-9.1 to TC-9.4), BR-10 (TC-10.1), BR-11 (TC-11.1), BR-14 (TC-14.1), BR-15 (TC-15.1), BR-16 (TC-16.1, TC-16.2, TC-16.3), BR-17 (TC-17.1) in `platform-admins.spec.ts`. Role-based case: TC-1.3 and TC-3.1.
 
-- [ ] **Step 1: Write the specs** with the spec's strings; TC-3.1 records requests with `page.on('request')` and expects none to `/api/platform/`; TC-9.x assert only that an error shows at the Email field (spec open question Q1); fixed clock `SESSION_MOCK_NOW`, `timezoneId: 'UTC'`; never a sleep.
+- [x] **Step 1: Write the specs** with the spec's strings; TC-3.1 records requests with `page.on('request')` and expects none to `/api/platform/`; TC-9.x assert only that an error shows at the Email field (spec open question Q1); fixed clock `SESSION_MOCK_NOW`, `timezoneId: 'UTC'`; never a sleep.
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock`, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-shell.spec.ts e2e/mock/platform-admins.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): mock e2e for the platform shell and admins page`.
 

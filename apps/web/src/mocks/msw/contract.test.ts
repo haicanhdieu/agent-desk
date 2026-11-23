@@ -68,7 +68,7 @@ import { skillFixtures } from '../dto/skills';
 import { mockDb } from './db';
 import { routeHandlers } from './handlers';
 import { linkedTicketsFor } from './linkedTickets';
-import { withLastWorkingAdmin } from './platformAdmins';
+import { seedPlatformAdmins, withLastWorkingAdmin } from './platformAdmins';
 import { scenarios } from './scenarios';
 
 const api = createApi({ baseUrl: 'http://localhost:3000', parse: true });
@@ -581,6 +581,8 @@ describe('MSW handler semantics', () => {
     while (remaining.filter((a) => a.userId !== null).length > 1) {
       const target = remaining.find((a) => a.userId === null) ?? remaining.find((a) => a.userId !== null);
       if (!target) throw new Error('empty');
+      // Revoking the signed-in user's own row clears their flag (as the API does); sign them back in as admin.
+      if (me) me.platformAdmin = true;
       expect((await fetch(`${base}/${target.id}`, { method: 'DELETE' })).status).toBe(204);
       remaining = remaining.filter((a) => a.id !== target.id);
     }
@@ -607,6 +609,55 @@ describe('MSW handler semantics', () => {
     const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
     expect(listed.find((a) => a.id === seeded.id)).toMatchObject({ userId: null, email: seeded.email });
     expect(listed).toHaveLength(platformAdminFixtures.length);
+  });
+
+  it('answers 422 on /email for an unverified account, after the 404 check, and adds nothing', async () => {
+    const me = mockDb.state.users[0];
+    if (!me) throw new Error('no user');
+    me.platformAdmin = true;
+    mockDb.state.users.push({
+      ...me,
+      id: 'user-unverified',
+      name: 'Unverified',
+      email: 'unverified@example.test',
+      emailVerified: false,
+      handle: 'unverified',
+      platformAdmin: false,
+    });
+    const base = 'http://localhost:3000/api/platform/admins';
+    const post = (email: string) =>
+      fetch(base, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email }) });
+    const res = await post('unverified@example.test');
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ errors: [{ pointer: '/email' }] });
+    const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    expect(listed).toHaveLength(platformAdminFixtures.length);
+    expect((await post('nobody@example.org')).status).toBe(404);
+  });
+
+  it('revoking an admin row clears the platform flag of the user with that email', async () => {
+    const me = mockDb.state.users[0];
+    if (!me) throw new Error('no user');
+    me.platformAdmin = true;
+    const base = 'http://localhost:3000/api/platform/admins';
+    seedPlatformAdmins([
+      {
+        id: crypto.randomUUID(),
+        email: me.email.toLowerCase(),
+        userId: me.id,
+        name: me.name,
+        handle: me.handle,
+        grantedAt: me.createdAt,
+        grantedBy: null,
+        lastWorkingAdmin: false,
+      },
+      ...platformAdminFixtures.filter((a) => a.userId !== null),
+    ]);
+    const listed = PlatformAdminDto.array().parse(((await (await fetch(base)).json()) as { items: unknown[] }).items);
+    const mine = listed.find((a) => a.userId === me.id);
+    if (!mine) throw new Error('own row missing');
+    expect((await fetch(`${base}/${mine.id}`, { method: 'DELETE' })).status).toBe(204);
+    expect(me.platformAdmin).toBe(false);
   });
 
   it('finishes a done run, and answers 409 for a run that is only running', async () => {

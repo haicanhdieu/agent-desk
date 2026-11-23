@@ -30,6 +30,8 @@ describe('platform scenarios', () => {
       'revoke409',
       'platformEmpty',
       'lastAdminPage1',
+      'ownAdminRow',
+      'unverifiedAccount',
     ]);
   });
 
@@ -106,5 +108,22 @@ describe('platform scenarios', () => {
     scenarios.platform('platformEmpty');
     expect((await api.platform.listAdmins({ query: {} })).items).toEqual([]);
     expect((await api.me.platform()).platformAdmin).toBe(true);
+  });
+
+  it('ownAdminRow: the signed-in user is a working admin row next to another working admin', async () => {
+    scenarios.platform('ownAdminRow');
+    const me = mockDb.state.users[0];
+    const items = (await api.platform.listAdmins({ query: {} })).items;
+    expect(items.filter((a) => a.userId !== null).length).toBeGreaterThanOrEqual(2);
+    expect(items.find((a) => a.userId === me?.id)?.lastWorkingAdmin).toBe(false);
+    expect(items.some((a) => a.userId !== null && a.userId !== me?.id)).toBe(true);
+  });
+
+  it('unverifiedAccount: an unverified account has no admin row', async () => {
+    scenarios.platform('unverifiedAccount');
+    const account = mockDb.state.users.find((u) => u.email === 'unverified@example.test');
+    expect(account?.emailVerified).toBe(false);
+    const items = (await api.platform.listAdmins({ query: {} })).items;
+    expect(items.some((a) => a.email === 'unverified@example.test')).toBe(false);
   });
 });

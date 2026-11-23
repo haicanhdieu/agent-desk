@@ -1,5 +1,6 @@
 import type { HttpHandler } from 'msw';
 import { PAGE_SIZE_DEFAULT, type PlatformAdminDto } from '@agentdesk/contracts';
+import { platformAdminFixtures } from '../dto/access';
 import { mockDb } from './db';
 import { problemResponse, routeHandler } from './http';
 import { applyOnboardingScenario } from './onboardingScenarios';
@@ -21,6 +22,8 @@ export const PLATFORM_SCENARIOS = [
   'revoke409',
   'platformEmpty',
   'lastAdminPage1',
+  'ownAdminRow',
+  'unverifiedAccount',
 ] as const;
 
 export type PlatformScenario = (typeof PLATFORM_SCENARIOS)[number];
@@ -75,6 +78,40 @@ const seeders: Record<PlatformScenario, () => void> = {
   lastAdminPage1() {
     applyOnboardingScenario('platformAdminOneOrg');
     seedPlatformAdmins(lastAdminEntries(true));
+  },
+  ownAdminRow() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    const user = mockDb.state.users[0];
+    if (!user) throw new Error('seed has no user');
+    const other = platformAdminFixtures.find((a) => a.userId !== null);
+    if (!other) throw new Error('no working admin fixture');
+    seedPlatformAdmins([
+      {
+        id: uuid(1),
+        email: user.email.toLowerCase(),
+        userId: user.id,
+        name: user.name,
+        handle: user.handle,
+        grantedAt: SEEDED_AT,
+        grantedBy: null,
+        lastWorkingAdmin: false,
+      },
+      other,
+    ]);
+  },
+  unverifiedAccount() {
+    applyOnboardingScenario('platformAdminOneOrg');
+    const user = mockDb.state.users[0];
+    if (!user) throw new Error('seed has no user');
+    mockDb.state.users.push({
+      ...user,
+      id: 'user-unverified',
+      name: 'Unverified',
+      email: 'unverified@example.test',
+      emailVerified: false,
+      handle: 'unverified',
+      platformAdmin: false,
+    });
   },
   revoke409: () => applyOnboardingScenario('platformAdminOneOrg'),
   platformEmpty() {

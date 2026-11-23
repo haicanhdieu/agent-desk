@@ -6,6 +6,7 @@ import type { PageQuery } from '@agentdesk/contracts';
  */
 export const platformKeys = {
   all: () => ['platform'] as const,
+  adminsAll: () => ['platform', 'admins'] as const,
   admins: (q: PageQuery) => ['platform', 'admins', q] as const,
   orgs: (q: object) => ['platform', 'orgs', q] as const,
   org: (orgId: string) => ['platform', 'orgs', orgId] as const,
