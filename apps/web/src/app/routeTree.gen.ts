@@ -10,12 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root';
 import { Route as IndexRouteImport } from './routes/index';
+import { Route as PlatformRouteImport } from './routes/platform';
 import { Route as ProjectsRouteImport } from './routes/projects';
 import { Route as SignInRouteImport } from './routes/sign-in';
 import { Route as InvitationsIndexRouteImport } from './routes/invitations.index';
 import { Route as InvitationsInvitationRouteImport } from './routes/invitations.$invitation';
 import { Route as OOrgRouteImport } from './routes/o.$org';
 import { Route as OrgsNewRouteImport } from './routes/orgs.new';
+import { Route as PlatformIndexRouteImport } from './routes/platform.index';
 import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgInvitationsRouteImport } from './routes/o.$org.invitations';
 import { Route as OOrgSettingsRouteImport } from './routes/o.$org.settings';
@@ -38,6 +40,11 @@ import { Route as OOrgPProjectRunsRunRouteImport } from './routes/o.$org.p.$proj
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const PlatformRoute = PlatformRouteImport.update({
+  id: '/platform',
+  path: '/platform',
   getParentRoute: () => rootRouteImport,
 } as any);
 const ProjectsRoute = ProjectsRouteImport.update({
@@ -69,6 +76,11 @@ const OrgsNewRoute = OrgsNewRouteImport.update({
   id: '/orgs/new',
   path: '/orgs/new',
   getParentRoute: () => rootRouteImport,
+} as any);
+const PlatformIndexRoute = PlatformIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PlatformRoute,
 } as any);
 const OOrgIndexRoute = OOrgIndexRouteImport.update({
   id: '/',
@@ -163,12 +175,14 @@ const OOrgPProjectRunsRunRoute = OOrgPProjectRunsRunRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute;
+  '/platform': typeof PlatformRouteWithChildren;
   '/projects': typeof ProjectsRoute;
   '/sign-in': typeof SignInRoute;
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/orgs/new': typeof OrgsNewRoute;
   '/invitations/': typeof InvitationsIndexRoute;
+  '/platform/': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
@@ -195,6 +209,7 @@ export interface FileRoutesByTo {
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/orgs/new': typeof OrgsNewRoute;
   '/invitations': typeof InvitationsIndexRoute;
+  '/platform': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org': typeof OOrgIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
@@ -216,12 +231,14 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport;
   '/': typeof IndexRoute;
+  '/platform': typeof PlatformRouteWithChildren;
   '/projects': typeof ProjectsRoute;
   '/sign-in': typeof SignInRoute;
   '/invitations/$invitation': typeof InvitationsInvitationRoute;
   '/o/$org': typeof OOrgRouteWithChildren;
   '/orgs/new': typeof OrgsNewRoute;
   '/invitations/': typeof InvitationsIndexRoute;
+  '/platform/': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
@@ -245,12 +262,14 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath;
   fullPaths:
     | '/'
+    | '/platform'
     | '/projects'
     | '/sign-in'
     | '/invitations/$invitation'
     | '/o/$org'
     | '/orgs/new'
     | '/invitations/'
+    | '/platform/'
     | '/o/$org/invitations'
     | '/o/$org/settings'
     | '/o/$org/'
@@ -277,6 +296,7 @@ export interface FileRouteTypes {
     | '/invitations/$invitation'
     | '/orgs/new'
     | '/invitations'
+    | '/platform'
     | '/o/$org/invitations'
     | '/o/$org'
     | '/o/$org/p/$project'
@@ -297,12 +317,14 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/platform'
     | '/projects'
     | '/sign-in'
     | '/invitations/$invitation'
     | '/o/$org'
     | '/orgs/new'
     | '/invitations/'
+    | '/platform/'
     | '/o/$org/invitations'
     | '/o/$org/settings'
     | '/o/$org/'
@@ -325,6 +347,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute;
+  PlatformRoute: typeof PlatformRouteWithChildren;
   ProjectsRoute: typeof ProjectsRoute;
   SignInRoute: typeof SignInRoute;
   InvitationsInvitationRoute: typeof InvitationsInvitationRoute;
@@ -340,6 +363,13 @@ declare module '@tanstack/react-router' {
       path: '/';
       fullPath: '/';
       preLoaderRoute: typeof IndexRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/platform': {
+      id: '/platform';
+      path: '/platform';
+      fullPath: '/platform';
+      preLoaderRoute: typeof PlatformRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/projects': {
@@ -383,6 +413,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/orgs/new';
       preLoaderRoute: typeof OrgsNewRouteImport;
       parentRoute: typeof rootRouteImport;
+    };
+    '/platform/': {
+      id: '/platform/';
+      path: '/';
+      fullPath: '/platform/';
+      preLoaderRoute: typeof PlatformIndexRouteImport;
+      parentRoute: typeof PlatformRoute;
     };
     '/o/$org/': {
       id: '/o/$org/';
@@ -513,6 +550,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PlatformRouteChildren {
+  PlatformIndexRoute: typeof PlatformIndexRoute;
+}
+
+const PlatformRouteChildren: PlatformRouteChildren = {
+  PlatformIndexRoute: PlatformIndexRoute,
+};
+
+const PlatformRouteWithChildren = PlatformRoute._addFileChildren(
+  PlatformRouteChildren,
+);
+
 interface OOrgSettingsRouteChildren {
   OOrgSettingsAuditRoute: typeof OOrgSettingsAuditRoute;
   OOrgSettingsGeneralRoute: typeof OOrgSettingsGeneralRoute;
@@ -579,6 +628,7 @@ const OOrgRouteWithChildren = OOrgRoute._addFileChildren(OOrgRouteChildren);
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  PlatformRoute: PlatformRouteWithChildren,
   ProjectsRoute: ProjectsRoute,
   SignInRoute: SignInRoute,
   InvitationsInvitationRoute: InvitationsInvitationRoute,

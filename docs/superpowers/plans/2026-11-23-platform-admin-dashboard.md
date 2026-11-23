@@ -560,12 +560,12 @@ export function PlatformForbidden(): JSX.Element; // boundaries.tsx
 // useAppBar: OrgSwitchProps.platformHref = '/platform' when platformAdminQuery says true (org and personal pages); the switcher's platformAdmin flag comes from the same query
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `keys.test.ts`: every platform key starts with `'platform'`; `setActiveOrganization` (removes `['org']`) keeps `['platform', …]` and `['session','platform']` data.
   - `appBar.test.tsx` and `orgSwitch.route.test.tsx` (BR-1): the item shows for a platform admin on an org page and in the no-org menu, never for `ownerNoPlatform`; Review Focus 2: `me.platform` 500 hides the item with no crash.
   - `shell.route.test.tsx` (BR-2, BR-3): `/platform` redirects to `/platform/admins`; the top bar shows "No organization" and no Projects or Settings tabs; `ownerNoPlatform` on `/platform/admins` sees "You don't have access" with the normal org top bar and MSW logs zero `/api/platform/*` requests; signed out goes to sign-in; Review Focus 1: a child platform query answering 403 shows the same forbidden state; Review Focus 2: `me.platform` 500 on `/platform` shows the load error with "Retry".
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/chrome src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the query and keys, the `platform.tsx` layout (loader `ensureQueryData(platformAdminQuery)`, renders `PlatformForbidden` itself for a non-admin, `errorComponent` maps a 403 to it, `PlatformFrame` otherwise), `platform.index.tsx` redirect, the app-bar change; regenerate `routeTree.gen.ts` with the Vite plugin. frontend.md §3: platform keys start `['platform', …]` and `['session','platform']` (amends "every key starts `['org', slug]`").
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform src/features/chrome src/features/orgs/orgSwitch.route.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the query and keys, the `platform.tsx` layout (loader `ensureQueryData(platformAdminQuery)`, renders `PlatformForbidden` itself for a non-admin, `errorComponent` maps a 403 to it, `PlatformFrame` otherwise), `platform.index.tsx` redirect, the app-bar change; regenerate `routeTree.gen.ts` with the Vite plugin. frontend.md §3: platform keys start `['platform', …]` and `['session','platform']` (amends "every key starts `['org', slug]`").
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
 - [ ] **Step 5: Commit**: `feat(web): platform area shell and the platform admin switcher item`.
 
