@@ -24,6 +24,7 @@ const APP_TABLES = [
   'role_permissions',
   'role_assignments',
   'invitations',
+  'project_env_vars',
 ];
 
 let env: TestPg;
@@ -1949,5 +1950,56 @@ describe('platform_audit_log.target_org_id on an upgraded database (migration 00
       `select relrowsecurity from pg_class where relname = 'platform_audit_log'`,
     );
     expect(rls).toEqual([{ relrowsecurity: false }]);
+  });
+});
+
+describe('migration 0044: project_env_vars on a database that already has projects', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+
+  beforeAll(async () => {
+    old = await startPgAt('0043_platform_audit_target_org');
+    const orgId = randomUUID();
+    await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [orgId]);
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const c = await client.query<{ id: string }>(
+        `insert into connections (org_id, provider, capabilities, external_id, account_name)
+         values ($1, 'fake', '{"code":true,"board":true}', 'x', 'acct') returning id`,
+        [orgId],
+      );
+      await client.query(
+        `insert into projects (org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, 'pre', 'pre/p', $2, $2)`,
+        [orgId, c.rows[0]?.id],
+      );
+      await client.query('commit');
+    } finally {
+      await client.end();
+    }
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('applies, keeps the existing project and leaves it with no env rows', async () => {
+    expect(await owner('select name from projects')).toEqual([{ name: 'pre' }]);
+    expect(await owner('select * from project_env_vars')).toEqual([]);
+  });
+
+  it('gives the app role SELECT, INSERT, UPDATE and DELETE', async () => {
+    for (const p of ['SELECT', 'INSERT', 'UPDATE', 'DELETE']) {
+      const [r] = await owner<{ ok: boolean }>(
+        "select has_table_privilege('agentdesk_app', 'project_env_vars', $1) as ok",
+        [p],
+      );
+      expect(r?.ok, p).toBe(true);
+    }
   });
 });

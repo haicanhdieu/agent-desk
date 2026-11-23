@@ -81,6 +81,14 @@ describe('plugin and setup config', () => {
     // The default interval (120 s) does not fit a short lease time set alone.
     expect(() => parseConfig({ ...base, RUN_LEASE_TTL_SECONDS: '60' })).toThrow('TERMINAL_LEASE_INTERVAL_MS');
   });
+  it('PROJECT_ENV_MAX_ENTRIES defaults to 500, takes a set value, and blank is the default', () => {
+    expect(parseConfig(base).PROJECT_ENV_MAX_ENTRIES).toBe(500);
+    expect(parseConfig({ ...base, PROJECT_ENV_MAX_ENTRIES: '20' }).PROJECT_ENV_MAX_ENTRIES).toBe(20);
+    expect(parseConfig({ ...base, PROJECT_ENV_MAX_ENTRIES: '' }).PROJECT_ENV_MAX_ENTRIES).toBe(500);
+  });
+  it.each(['0', '-1', '1.5', 'abc'])('PROJECT_ENV_MAX_ENTRIES %j is refused', (v) => {
+    expect(() => parseConfig({ ...base, PROJECT_ENV_MAX_ENTRIES: v })).toThrow('PROJECT_ENV_MAX_ENTRIES');
+  });
   it('HOST defaults to all interfaces, can be narrowed, and blank falls back to the default', () => {
     expect(parseConfig(base).HOST).toBe('0.0.0.0');
     expect(parseConfig({ ...base, HOST: '127.0.0.1' }).HOST).toBe('127.0.0.1');

@@ -484,3 +484,35 @@ export const setupScriptVersions = pgTable(
     orgPolicy(),
   ],
 );
+
+export const projectEnvVars = pgTable(
+  'project_env_vars',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    orgId: uuid('org_id').notNull(),
+    projectId: uuid('project_id')
+      .notNull()
+      .references(() => projects.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    kind: text('kind').notNull(),
+    /** Plain values only. A secret row keeps null: its value lives in a per-entry Kubernetes Secret. */
+    value: text('value'),
+    sizeBytes: integer('size_bytes').notNull(),
+    updatedBy: text('updated_by').notNull(),
+    createdAt: ts('created_at').notNull().defaultNow(),
+    updatedAt: ts('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    unique('project_env_vars_project_name_key').on(t.projectId, t.name),
+    index('project_env_vars_org_idx').on(t.orgId),
+    index('project_env_vars_project_kind_name_idx').on(t.projectId, t.kind, sql`${t.name} COLLATE "C"`),
+    check('project_env_vars_name_check', sql`${t.name} ~ '^[A-Za-z_][A-Za-z0-9_]*$'`),
+    check('project_env_vars_kind_check', sql`${t.kind} in ('plain','secret')`),
+    check(
+      'project_env_vars_value_check',
+      sql`(${t.kind} = 'plain' and ${t.value} is not null and octet_length(${t.value}) <= 8192 and ${t.value} !~ '[\\r\\n]') or (${t.kind} = 'secret' and ${t.value} is null)`,
+    ),
+    check('project_env_vars_size_check', sql`${t.sizeBytes} between 1 and 8320`),
+    orgPolicy(),
+  ],
+);

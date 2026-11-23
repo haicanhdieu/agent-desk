@@ -57,6 +57,15 @@ import {
 import { CreateRuleRequest, PromptPreviewDto, RuleDto, UpdateRuleRequest } from './schemas/rules';
 import { PrStatesQuery, PrStatesResponse } from './schemas/tickets';
 import { PageQuery, pageOf } from './schemas/page';
+import {
+  CreateEnvSecretRequest,
+  CreateEnvVarRequest,
+  EnvEntryDto,
+  EnvListQuery,
+  EnvName,
+  UpdateEnvSecretRequest,
+  UpdateEnvVarRequest,
+} from './schemas/env';
 import { RunStatusEvent, ProjectRunEvent } from './schemas/events';
 import { RunTranscriptQuery, RunTranscriptResponse } from './schemas/transcript';
 import { RunDto, RunListQuery, RunListResponse, RunLogResponse, RunStatsDto, RunStatsQuery } from './schemas/runs';
@@ -93,6 +102,7 @@ const projectMemberParams = z.object({ projectId: z.uuid(), userId: MemberUserId
 const runParams = z.object({ runId: z.uuid() });
 const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
+const envEntryParams = z.object({ projectId: z.uuid(), name: EnvName });
 const setupTestParams = z.object({ setupTestId: z.uuid() });
 const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1).max(2147483647) });
 const orgParams = z.object({ orgId: z.uuid() });
@@ -292,6 +302,55 @@ export const routes = {
       path: '/api/projects/:projectId/setup-script/versions/:version',
       params: setupVersionParams,
       response: SetupScriptDto,
+    },
+  },
+  projectEnv: {
+    list: {
+      method: 'GET',
+      path: '/api/projects/:projectId/env',
+      params: projectParams,
+      query: EnvListQuery,
+      response: pageOf(EnvEntryDto),
+    },
+    createVar: {
+      method: 'POST',
+      path: '/api/projects/:projectId/env-vars',
+      params: projectParams,
+      body: CreateEnvVarRequest,
+      response: EnvEntryDto,
+    },
+    updateVar: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/env-vars/:name',
+      params: envEntryParams,
+      body: UpdateEnvVarRequest,
+      response: EnvEntryDto,
+    },
+    removeVar: {
+      method: 'DELETE',
+      path: '/api/projects/:projectId/env-vars/:name',
+      params: envEntryParams,
+      response: empty,
+    },
+    createSecret: {
+      method: 'POST',
+      path: '/api/projects/:projectId/env-secrets',
+      params: projectParams,
+      body: CreateEnvSecretRequest,
+      response: EnvEntryDto,
+    },
+    updateSecret: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/env-secrets/:name',
+      params: envEntryParams,
+      body: UpdateEnvSecretRequest,
+      response: EnvEntryDto,
+    },
+    removeSecret: {
+      method: 'DELETE',
+      path: '/api/projects/:projectId/env-secrets/:name',
+      params: envEntryParams,
+      response: empty,
     },
   },
   setup: {

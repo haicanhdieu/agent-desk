@@ -19,7 +19,7 @@
 - List: `GET /api/projects/:projectId/env?kind=plain|secret&page=&pageSize` (ADR 0028, `pageSize` ceiling 100), `ORDER BY name COLLATE "C"`, `count(*)` in the same `withOrg` transaction.
 - Secret entry: Kubernetes Secret `org-{orgId}-env-{entryId}`, data `{ value }`, built by `projectEnvSecretName(orgId, entryId)`. Postgres holds a secret row with `value` null. A secret value is never in Postgres, logs, events, errors, audit, problem+json, DTOs, Temporal inputs or results, labels or the Job literal env.
 - Write order: add and edit are Secret first then row; remove is row first then Secret (best effort). No transaction or lock is held across a store call.
-- Migration `0035_project_env_vars.sql` (never edit an applied migration). Permissions reuse `setup:read`, `setup:update`, `secret:update` (no `access.ts` change, no role migration).
+- Migration `0036_project_env_vars.sql` (never edit an applied migration). Permissions reuse `setup:read`, `setup:update`, `secret:update` (no `access.ts` change, no role migration).
 - Pod env: project vars first, platform env after; a duplicate name is rejected; no `envFrom`; the loader reads secrets with concurrency 10.
 - Web: tokens only, every shared component has a story with loading, empty and error states; secret values live only in the entry form's state and are never cached; `?tab=environment` (default `script`), `varsPage`, `secretsPage` in the URL.
 - Copy strings are the ones in the spec's "UI and Storybook > Copy" and "User flows", character for character. Contract messages equal those strings (see Agent calls).
@@ -211,11 +211,11 @@ graph LR
   - `routes.projectEnv.{list, createVar, updateVar, removeVar, createSecret, updateSecret, removeSecret}` with the methods and paths of the spec API table; `PUT`/`DELETE` params are `{ projectId: z.uuid(), name: EnvName }`
   - `routeAccess` keys `'projectEnv.list'` = `project('setup:read')`; `createVar`, `updateVar`, `removeVar` = `project('setup:update')`; `createSecret`, `updateSecret`, `removeSecret` = `project('secret:update')`
 
-- [ ] **Step 1: Write the failing tests** in `env.test.ts` as `it.each` tables: name 128 ok / 129 bad, `1A`, empty, space, `MY-VAR`, ` DB`, `NAMÉ` bad, `_A1` ok, `db_host` and `DB_HOST` both ok, `path` ok; each reserved name and prefix refused with a near-miss accepted (`PATHS`, `MY_RUN_ID`, `AGENTDESK_X` refused, `GITHUB_TOKEN` refused with message `GITHUB_TOKEN is reserved: Agent Desk sets it for every run.`); plain value 8192 and 8193 UTF-8 bytes (multibyte case), empty accepted, `\n`, `\r`, `\r\n`, NUL refused; secret value `''` and 5 chars refused, 6 accepted, 8193 refused; `EnvListQuery` needs `kind` (missing and `other` refused), `pageSize` 100 ok and 101 refused; create body `{name,value}` and update body `{value}` shapes; `EnvEntryDto` accepts `value: null`. In `routes.test.ts` change the route count 80 to 87 and pin `ENV_MAX_TOTAL_BYTES` at 262144. In `route-access.test.ts` change the count to 87 and add the 7 expected entries.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/env.test.ts src/routes.test.ts src/route-access.test.ts`. Expected: FAIL (module and routes missing).
-- [ ] **Step 3: Implement** `env.ts` (validators above; the UTF-8 byte refine is the one `SetupScriptBody` uses), the `projectEnv` group in `routes.ts` (list returns `pageOf(EnvEntryDto)`, creates return `EnvEntryDto` with status 201, removes return `empty`), the 7 `routeAccess` entries (default `projectId` param), and the barrel export in `index.ts`. The reserved check is case-sensitive.
-- [ ] **Step 4: Run** the command of Step 2, then `pnpm --filter @agentdesk/contracts typecheck` and `pnpm --filter @agentdesk/contracts test`. Expected: PASS. Run `role-matrix.test.ts` unchanged and green.
-- [ ] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): add project env schemas, routes and access`.
+- [x] **Step 1: Write the failing tests** in `env.test.ts` as `it.each` tables: name 128 ok / 129 bad, `1A`, empty, space, `MY-VAR`, ` DB`, `NAMÉ` bad, `_A1` ok, `db_host` and `DB_HOST` both ok, `path` ok; each reserved name and prefix refused with a near-miss accepted (`PATHS`, `MY_RUN_ID`, `AGENTDESK_X` refused, `GITHUB_TOKEN` refused with message `GITHUB_TOKEN is reserved: Agent Desk sets it for every run.`); plain value 8192 and 8193 UTF-8 bytes (multibyte case), empty accepted, `\n`, `\r`, `\r\n`, NUL refused; secret value `''` and 5 chars refused, 6 accepted, 8193 refused; `EnvListQuery` needs `kind` (missing and `other` refused), `pageSize` 100 ok and 101 refused; create body `{name,value}` and update body `{value}` shapes; `EnvEntryDto` accepts `value: null`. In `routes.test.ts` change the route count 80 to 87 and pin `ENV_MAX_TOTAL_BYTES` at 262144. In `route-access.test.ts` change the count to 87 and add the 7 expected entries.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/schemas/env.test.ts src/routes.test.ts src/route-access.test.ts`. Expected: FAIL (module and routes missing).
+- [x] **Step 3: Implement** `env.ts` (validators above; the UTF-8 byte refine is the one `SetupScriptBody` uses), the `projectEnv` group in `routes.ts` (list returns `pageOf(EnvEntryDto)`, creates return `EnvEntryDto` with status 201, removes return `empty`), the 7 `routeAccess` entries (default `projectId` param), and the barrel export in `index.ts`. The reserved check is case-sensitive.
+- [x] **Step 4: Run** the command of Step 2, then `pnpm --filter @agentdesk/contracts typecheck` and `pnpm --filter @agentdesk/contracts test`. Expected: PASS. Run `role-matrix.test.ts` unchanged and green.
+- [x] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): add project env schemas, routes and access`.
 
 ---
 
@@ -226,9 +226,9 @@ graph LR
 **Files:**
 
 - Modify: `packages/db/src/schema/app.ts`
-- Create: `packages/db/migrations/0035_project_env_vars.sql`
+- Create: `packages/db/migrations/0036_project_env_vars.sql`
 - Modify: `packages/db/migrations/meta/_journal.json`
-- Create: `packages/db/migrations/meta/0035_snapshot.json`
+- Create: `packages/db/migrations/meta/0036_snapshot.json`
 - Test: `packages/db/test/rls.int.test.ts`
 - Test: `packages/db/test/migrate.int.test.ts`
 
@@ -236,9 +236,9 @@ graph LR
 
 - Produces: Drizzle export `projectEnvVars` from `@agentdesk/db` with columns `id` (uuid pk, `defaultRandom()`), `orgId`, `projectId` (fk `projects` on delete cascade), `name`, `kind`, `value` (nullable text), `sizeBytes` (integer), `updatedBy` (text), `createdAt`, `updatedAt` (timestamptz not null default now()); `orgPolicy()` RLS; unique `project_env_vars_project_name_key (project_id, name)`; index `project_env_vars_org_idx`; list index `project_env_vars_project_kind_name_idx` on `(project_id, kind, (name COLLATE "C"))`. Checks: name regex, `kind in ('plain','secret')`, `project_env_vars_value_check` (plain implies value not null, `octet_length(value) <= 8192`, no CR, LF, NUL; secret implies value null), `project_env_vars_size_check` (1 to 8320). `GRANT SELECT, INSERT, UPDATE, DELETE ... TO agentdesk_app` in the SQL.
 
-- [ ] **Step 1: Write the failing tests.** In `rls.int.test.ts` add the `inserts` entry for `project_env_vars` (cross-org read and write denied as `agentdesk_app`) and tests: an insert with none of `id`, `created_at`, `updated_at` gets a uuid and `now()` timestamps, an explicit NULL for each is refused; duplicate `(project_id, name)` refused; `kind` `other` refused; secret row with a non-null `value` refused; plain value of 8193 bytes refused; plain value with LF, CR or NUL refused; `size_bytes` 0 and 8321 refused; name `1BAD` refused; deleting a project cascades its rows; the list index exists. In `migrate.int.test.ts` add: the migration applies on a database that already has projects and leaves them with no rows.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts test/migrate.int.test.ts`. Expected: FAIL (table missing).
-- [ ] **Step 3: Implement** the table in `schema/app.ts` (provider-agnostic name, local `ts` helper) and generate the migration with drizzle-kit; hand-write the expression index and the GRANT if drizzle-kit cannot emit them, and keep the journal and snapshot in step.
+- [x] **Step 1: Write the failing tests.** In `rls.int.test.ts` add the `inserts` entry for `project_env_vars` (cross-org read and write denied as `agentdesk_app`) and tests: an insert with none of `id`, `created_at`, `updated_at` gets a uuid and `now()` timestamps, an explicit NULL for each is refused; duplicate `(project_id, name)` refused; `kind` `other` refused; secret row with a non-null `value` refused; plain value of 8193 bytes refused; plain value with LF, CR or NUL refused; `size_bytes` 0 and 8321 refused; name `1BAD` refused; deleting a project cascades its rows; the list index exists. In `migrate.int.test.ts` add: the migration applies on a database that already has projects and leaves them with no rows.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts test/migrate.int.test.ts`. Expected: FAIL (table missing).
+- [x] **Step 3: Implement** the table in `schema/app.ts` (provider-agnostic name, local `ts` helper) and generate the migration with drizzle-kit; hand-write the expression index and the GRANT if drizzle-kit cannot emit them, and keep the journal and snapshot in step.
 - [ ] **Step 4: Run** the Step 2 command plus `pnpm --filter @agentdesk/db typecheck`. Expected: PASS.
 - [ ] **Step 5: Commit**: `feat(db): add project_env_vars table with RLS`. Label `review:sensitive` (RLS, migration).
 
@@ -266,11 +266,11 @@ graph LR
   - `Config.PROJECT_ENV_MAX_ENTRIES: number` (default 500)
   - Fake pod behaviour: for every env name starting `E2E_` it logs `agentdesk: env <NAME> <first 12 hex of sha256(value)>` (value empty string allowed); when PROMPT contains `--fake-echo-env=<NAME>` it also prints that variable's raw value to the pane and log stream.
 
-- [ ] **Step 1: Write the failing tests.** `secrets.test.ts`: `projectEnvSecretName` equals `org-<org>-env-<id>`, passes `assertSecretName`, differs from `credentialSecretName`'s `org-...-agent-...`; put, replace, get, delete of a `{ value }` Secret through `MemorySecretStore`, `FileSecretStore` and `KubeSecretStore` with a fake `CoreV1Api`. `config.test.ts` (copy the `RUN_LEASE_TTL_SECONDS` cases): default 500, a set value used, blank gives 500, `0`, `-1`, `1.5`, `abc` refused. `fake-pod.test.ts`: env `E2E_A=hello` logs the expected hash line, `E2E_EMPTY=` logs the hash of the empty string, an env name without the prefix logs nothing, `--fake-echo-env=E2E_A` prints `hello`, without the flag the raw value is absent from log and pane. `fake-gateway.test.ts`: a Job whose env has a literal `E2E_P` and a `secretKeyRef` `E2E_S` makes the pod log both hash lines.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/secrets.test.ts test/config.test.ts test/kube/fake-pod.test.ts test/kube/fake-gateway.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the helper, the config key (same style as `RUN_SETUP_TIMEOUT_SECONDS`) plus a `.env.example` line `PROJECT_ENV_MAX_ENTRIES=500`, and the fake-pod lines (value only hashed or echoed under the flag; the pod never executes env or prompt text). Update the fake-pod header comment.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(core): add project env secret name, entry cap config and fake pod env lines`. Label `review:sensitive` (secrets).
+- [x] **Step 1: Write the failing tests.** `secrets.test.ts`: `projectEnvSecretName` equals `org-<org>-env-<id>`, passes `assertSecretName`, differs from `credentialSecretName`'s `org-...-agent-...`; put, replace, get, delete of a `{ value }` Secret through `MemorySecretStore`, `FileSecretStore` and `KubeSecretStore` with a fake `CoreV1Api`. `config.test.ts` (copy the `RUN_LEASE_TTL_SECONDS` cases): default 500, a set value used, blank gives 500, `0`, `-1`, `1.5`, `abc` refused. `fake-pod.test.ts`: env `E2E_A=hello` logs the expected hash line, `E2E_EMPTY=` logs the hash of the empty string, an env name without the prefix logs nothing, `--fake-echo-env=E2E_A` prints `hello`, without the flag the raw value is absent from log and pane. `fake-gateway.test.ts`: a Job whose env has a literal `E2E_P` and a `secretKeyRef` `E2E_S` makes the pod log both hash lines.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/secrets.test.ts test/config.test.ts test/kube/fake-pod.test.ts test/kube/fake-gateway.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the helper, the config key (same style as `RUN_SETUP_TIMEOUT_SECONDS`) plus a `.env.example` line `PROJECT_ENV_MAX_ENTRIES=500`, and the fake-pod lines (value only hashed or echoed under the flag; the pod never executes env or prompt text). Update the fake-pod header comment.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/core typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(core): add project env secret name, entry cap config and fake pod env lines`. Label `review:sensitive` (secrets).
 
 ---
 

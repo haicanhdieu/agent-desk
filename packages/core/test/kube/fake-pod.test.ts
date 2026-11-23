@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   appendFileSync,
   mkdirSync,
@@ -92,6 +93,34 @@ const DONE = `agentdesk: state done declared ${b64('Fake agent finished')}`;
 describe('fake-pod.mjs', () => {
   it('exits 64 without a state dir', async () => {
     await expect(boot({}, null)).rejects.toMatchObject({ code: 64 });
+  });
+
+  describe('env lines', () => {
+    const hash = (v: string): string => createHash('sha256').update(v).digest('hex').slice(0, 12);
+
+    it('logs the first 12 hex of the value hash for each E2E_ name, empty value included', async () => {
+      await boot({ E2E_A: 'hello', E2E_EMPTY: '' });
+      expect(logLines()).toContain(`agentdesk: env E2E_A ${hash('hello')}`);
+      expect(logLines()).toContain(`agentdesk: env E2E_EMPTY ${hash('')}`);
+    });
+
+    it('logs nothing for a name without the E2E_ prefix', async () => {
+      await boot({ OTHER_A: 'hello' });
+      expect(logLines().filter((l) => l.includes('OTHER_A'))).toEqual([]);
+    });
+
+    it('prints the raw value to the pane and log only under --fake-echo-env=<NAME>', async () => {
+      await boot({ E2E_A: 'hello-raw', PROMPT: '--fake-echo-env=E2E_A' });
+      expect(read('pane')).toContain('hello-raw');
+      expect(read('log')).toContain('hello-raw');
+    });
+
+    it('keeps the raw value out of the log and pane without the flag', async () => {
+      await boot({ E2E_A: 'hello-raw' });
+      advance(TURN_MS * 2);
+      expect(read('pane')).not.toContain('hello-raw');
+      expect(read('log')).not.toContain('hello-raw');
+    });
   });
 
   describe('launch line', () => {

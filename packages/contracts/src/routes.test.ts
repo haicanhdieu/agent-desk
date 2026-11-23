@@ -3,6 +3,7 @@ import {
   AGENT_TIMEOUT_SECONDS_DEFAULT,
   AGENT_TIMEOUT_SECONDS_MAX,
   AGENT_TIMEOUT_SECONDS_MIN,
+  ENV_MAX_TOTAL_BYTES,
   SETUP_SCRIPT_MAX_BYTES,
   SetupScriptBody,
   CreateRuleRequest,
@@ -73,7 +74,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(93);
+    expect(Object.keys(flat)).toHaveLength(95);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
@@ -95,6 +96,30 @@ describe('contracts', () => {
   it('rule command must be lowercase slug without slash', () => {
     expect(CreateRuleRequest.safeParse({ ...validRule, command: '/Review' }).success).toBe(false);
     expect(CreateRuleRequest.safeParse(validRule).success).toBe(true);
+  });
+});
+
+describe('project env contract', () => {
+  it('pins the total size cap', () => {
+    expect(ENV_MAX_TOTAL_BYTES).toBe(262144);
+  });
+
+  it('registers the seven projectEnv routes with the spec methods and paths', () => {
+    const e = routes.projectEnv;
+    expect(e.list).toMatchObject({ method: 'GET', path: '/api/projects/:projectId/env' });
+    expect(e.createVar).toMatchObject({ method: 'POST', path: '/api/projects/:projectId/env-vars' });
+    expect(e.updateVar).toMatchObject({ method: 'PUT', path: '/api/projects/:projectId/env-vars/:name' });
+    expect(e.removeVar).toMatchObject({ method: 'DELETE', path: '/api/projects/:projectId/env-vars/:name' });
+    expect(e.createSecret).toMatchObject({ method: 'POST', path: '/api/projects/:projectId/env-secrets' });
+    expect(e.updateSecret).toMatchObject({ method: 'PUT', path: '/api/projects/:projectId/env-secrets/:name' });
+    expect(e.removeSecret).toMatchObject({ method: 'DELETE', path: '/api/projects/:projectId/env-secrets/:name' });
+  });
+
+  it('validates the name in the path', () => {
+    const P = '00000000-0000-4000-8000-000000000001';
+    expect(routes.projectEnv.updateVar.params.safeParse({ projectId: P, name: 'DB_HOST' }).success).toBe(true);
+    expect(routes.projectEnv.updateVar.params.safeParse({ projectId: P, name: '../x' }).success).toBe(false);
+    expect(routes.projectEnv.removeSecret.params.safeParse({ projectId: P, name: 'PATH' }).success).toBe(false);
   });
 });
 

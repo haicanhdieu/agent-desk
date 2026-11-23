@@ -7,6 +7,11 @@
 //     trigger person reach the pod), then `agentdesk: checkout <sha>`, `plugins begin`, `plugins end`, the setup markers (`setup skipped (no script)`, or
 //     `setup begin` + `setup passed` | `setup failed exit=1` when SETUP_SCRIPT contains `--fake-setup-fail`; the script is
 //     never executed), then `agentdesk: session started`, write a banner and PROMPT to `pane`;
+//   - for every env name starting `E2E_` log `agentdesk: env <NAME> <first 12 hex of sha256(value)>` (an empty value is
+//     allowed), right after the identity line, so a test sees which project env reached the pod without the value ever
+//     being logged; only when PROMPT contains `--fake-echo-env=<NAME>` is that variable's raw value also printed to the
+//     pane and the log stream (a test seam for a value that must reach the agent's shell). The pod never executes env
+//     or prompt text;
 //   - a failed setup in a real run exits 78 before `session started`, like the runner;
 //   - RUN_MODE=setup_test: session started after the setup markers (pass or fail), the pane is a shell that echoes typed
 //     lines, and no turn markers are ever logged;
@@ -53,7 +58,7 @@
 // log line; the real runner prints it just before the tmux session starts. setup_test prints none, like the runner.
 // PROMPT is untrusted text: it is only written to files and searched with `includes`, never executed.
 import { spawnSync } from 'node:child_process';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
@@ -110,6 +115,26 @@ const launchLine = () => {
 };
 const logIdentity = () => {
   if (authorName !== '' && authorEmail !== '') log(`agentdesk: git identity ${authorName} ${authorEmail}`);
+};
+// A test seam for project env: the hash of each E2E_ variable (never the value), and the raw value of one variable only
+// when the prompt names it. The value is data: hashed or printed, never executed.
+const logEnv = () => {
+  for (const [name, value] of Object.entries(process.env)) {
+    if (!name.startsWith('E2E_')) continue;
+    log(
+      `agentdesk: env ${name} ${createHash('sha256')
+        .update(value ?? '')
+        .digest('hex')
+        .slice(0, 12)}`,
+    );
+  }
+};
+const echoEnv = () => {
+  const m = /--fake-echo-env=(E2E_[A-Za-z0-9_]*)/.exec(prompt);
+  const value = m ? process.env[m[1]] : undefined;
+  if (value === undefined) return;
+  log(value);
+  pane(`${value}\r\n`);
 };
 const pane = (text) => {
   appendFileSync(file('pane'), text);
@@ -207,6 +232,7 @@ if (prompt.includes('--fake-pending')) {
       process.exit(79);
     }
     logIdentity();
+    logEnv();
     initSession();
     log('agentdesk: session resumed');
     log('agentdesk: session started');
@@ -216,8 +242,11 @@ if (prompt.includes('--fake-pending')) {
     // RESUME_NOTE is the continued session's first message (the runner passes it to `claude --continue`): pane text only.
     const resumeNote = process.env.RESUME_NOTE ?? '';
     if (resumeNote !== '') appendFileSync(file('pane'), `${resumeNote}\r\n`);
+    echoEnv();
   } else {
     logIdentity();
+    logEnv();
+    echoEnv();
     log(`agentdesk: checkout ${'0'.repeat(40)}`);
     log('agentdesk: plugins begin');
     log('agentdesk: plugins end');

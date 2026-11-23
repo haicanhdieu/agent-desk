@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -452,6 +453,29 @@ describe('FakeKubeGateway', () => {
     await sleep(200);
     await expect(readFile(marker)).rejects.toThrow();
     await gw.deleteJob(name);
+  });
+
+  it('a literal and a secretKeyRef E2E_ env var each make the pod log a hash line', async () => {
+    const id = runId();
+    const name = `run-${id}`;
+    const secretName = `org-${ORG}-env-e1`;
+    await gw.ensureSecret(secretName, { value: 'secret-v' }, {});
+    const j = job(id, 'p', { E2E_P: 'plain-v' });
+    j.spec?.template.spec?.containers[0]?.env?.push({
+      name: 'E2E_S',
+      valueFrom: { secretKeyRef: { name: secretName, key: 'value' } },
+    });
+    await gw.ensureJob(j);
+    const hash = (v: string): string => createHash('sha256').update(v).digest('hex').slice(0, 12);
+    const c = collect(name);
+    await until(async () => c.lines.some((l) => l.startsWith('agentdesk: session started')));
+    expect(c.lines).toContain(`agentdesk: env E2E_P ${hash('plain-v')}`);
+    expect(c.lines).toContain(`agentdesk: env E2E_S ${hash('secret-v')}`);
+    expect(c.lines.join('\n')).not.toContain('secret-v');
+    c.ac.abort();
+    await c.done;
+    await gw.deleteJob(name);
+    await gw.deleteSecret(secretName);
   });
 
   it('replaceSecretData merges keys into an existing Secret and keeps its labels', async () => {
