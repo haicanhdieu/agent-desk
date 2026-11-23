@@ -239,18 +239,23 @@ test('TC-21.2: O changes admin B to Owner; the Audit log reads "O changed B\'s r
   });
 });
 
-test('TC-21.3: with owners O and B, O steps down to Admin; the Audit log reads "O changed O\'s role from Owner to Admin"', async ({
+test('TC-21.3: with owners O and B, B steps O down to Admin; the Audit log reads "B changed O\'s role from Owner to Admin"', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
     const b = await join(w.scope, browser, w.org, 'b', 'member');
     await setRole(w, b.userId, w.roleIds.owner);
     const nameO = await nameOf(w, w.o.userId);
-    await openMembers(w.o.page, w.org.slug);
-    await changeRoleThroughUi(w.o.page, nameO, 'Admin');
+    const nameB = await nameOf(w, b.userId);
+    // nobody changes their own role, so the other owner B does it (through the API, as the Given)
+    await ok(
+      await b.api.put(`/api/orgs/${w.org.id}/members/${w.o.userId}/role`, { data: { roleId: w.roleIds.admin } }),
+      200,
+      'B steps O down',
+    );
 
-    await openAudit(w.o.page, w.org.slug);
-    await expect(entryRows(w.o.page, `${nameO} changed ${nameO}'s role from Owner to Admin`)).toHaveCount(1);
+    await openAudit(b.page, w.org.slug);
+    await expect(entryRows(b.page, `${nameB} changed ${nameO}'s role from Owner to Admin`)).toHaveCount(1);
   });
 });
 
@@ -274,17 +279,19 @@ test('TC-21.4: O removes member B; the Audit log reads "O removed B from the org
   });
 });
 
-test('TC-21.5: sole owner O is refused stepping down (409 Banner); the Audit log has no role-change entry', async ({
+test('TC-21.5: sole owner O has no menu on the own row and is refused changing it (403); the Audit log has no role-change entry', async ({
   browser,
 }) => {
   await withWorld(browser, async (w) => {
     const nameO = await nameOf(w, w.o.userId);
     const page = w.o.page;
     await openMembers(page, w.org.slug);
-    const dialog = await chooseRole(page, nameO, 'Admin');
-    await dialog.getByRole('button', { name: 'Save role' }).click();
-    await expect(dialog.getByText('An organization needs at least one owner.')).toBeVisible();
-    await expect(toastOf(page, 'Role changed')).toHaveCount(0);
+    await expect(rowOf(page, w.o.handle)).toContainText('You');
+    await expect(menuButton(page, nameO)).toHaveCount(0);
+    const put = await w.o.api.put(`/api/orgs/${w.org.id}/members/${w.o.userId}/role`, {
+      data: { roleId: w.roleIds.admin },
+    });
+    expect(put.status(), 'PUT own role').toBe(403);
     expect(await roleKeysOf(w, w.o.userId)).toEqual(['owner']);
 
     await openAudit(page, w.org.slug);

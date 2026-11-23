@@ -89,34 +89,30 @@ describe('members page: rows (BR-1)', () => {
     expect(hasMenu('Ben Okafor')).toBe(true);
   });
 
-  it('TC-9.1 the own row offers Change role and no Remove; another row offers both', async () => {
+  it('TC-9.1 the own row has no actions at all; another row offers Change role and Remove', async () => {
     const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Actions for Alice Doe' }));
-    const own = screen.getByRole('dialog', { name: 'Actions for Alice Doe' });
-    expect(within(own).getByRole('button', { name: 'Change role' })).toBeInTheDocument();
-    expect(within(own).queryByRole('button', { name: 'Remove from organization' })).not.toBeInTheDocument();
-    await user.keyboard('{Escape}');
+    expect(hasMenu('Alice Doe')).toBe(false);
     await user.click(screen.getByRole('button', { name: 'Actions for Ben Okafor' }));
     const other = screen.getByRole('dialog', { name: 'Actions for Ben Okafor' });
     expect(within(other).getByRole('button', { name: 'Change role' })).toBeInTheDocument();
     expect(within(other).getByRole('button', { name: 'Remove from organization' })).toBeInTheDocument();
   });
 
-  it("TC-9.2 an admin's own row offers Change role and no Remove", async () => {
+  it("TC-9.2 an admin's own row has no actions; another member row still offers Change role", async () => {
     const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('admin') });
     await ready();
-    await user.click(screen.getByRole('button', { name: 'Actions for Alice Doe' }));
-    const own = screen.getByRole('dialog', { name: 'Actions for Alice Doe' });
-    expect(within(own).getByRole('button', { name: 'Change role' })).toBeInTheDocument();
-    expect(within(own).queryByRole('button', { name: 'Remove from organization' })).not.toBeInTheDocument();
+    expect(hasMenu('Alice Doe')).toBe(false);
+    await user.click(screen.getByRole('button', { name: 'Actions for Cleo Martin' }));
+    const other = screen.getByRole('dialog', { name: 'Actions for Cleo Martin' });
+    expect(within(other).getByRole('button', { name: 'Change role' })).toBeInTheDocument();
   });
 
-  it('BR-4 an admin has no menu on an owner row and one on every other row', async () => {
+  it('BR-4 an admin has no menu on an owner row or on their own row, and one on every other row', async () => {
     await renderRoute('/o/alice/settings/members', { scenario: asRole('admin') });
     await ready();
     expect(hasMenu('Priya Raman')).toBe(false);
-    expect(hasMenu('Alice Doe')).toBe(true); // the admin's own row (an admin row): Change role only
+    expect(hasMenu('Alice Doe')).toBe(false); // the admin's own row: nobody changes their own role
     expect(hasMenu('Ben Okafor')).toBe(true);
     expect(hasMenu('Cleo Martin')).toBe(true);
   });
@@ -579,62 +575,21 @@ describe('members page: change role (BR-3, BR-4, BR-40)', () => {
   });
 });
 
-describe('members page: change role by the caller on their own row (BR-42, Review Focus 3)', () => {
-  it('TC-42.1 an owner steps down to Admin: warning, "Role changed", access refetched, no Owner card and no actions on an owner row', async () => {
-    const { user, queryClient } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
+describe('members page: the caller never changes their own role (NO-3)', () => {
+  it.each([
+    { scenario: 'twoOwners', who: 'an owner' },
+    { scenario: 'soleOwner', who: 'the only owner' },
+    { scenario: 'admin', who: 'an admin' },
+  ] as const)('$scenario: $who has no Change role on their own row, whatever the role', async ({ scenario }) => {
+    await renderRoute('/o/alice/settings/members', { scenario: asRole(scenario) });
     await ready();
-    const dialog = await openChangeRole(user, 'Alice Doe');
-    await pickRole(user, dialog, 'Admin');
-    expect(within(dialog).getByText(`You will lose owner rights in ${orgName()}.`)).toBeInTheDocument();
-    const before = queryClient.getQueryState(orgAccessQuery('alice').queryKey)?.dataUpdateCount ?? 0;
-    await saveRole(user, dialog);
-    await screen.findByText('Role changed');
-    await waitFor(() => expect(hasMenu('Priya Raman')).toBe(false));
-    expect(queryClient.getQueryState(orgAccessQuery('alice').queryKey)?.dataUpdateCount).toBeGreaterThan(before);
-    expect(hasMenu('Ben Okafor')).toBe(true);
-    const next = await openChangeRole(user, 'Ben Okafor');
-    expect(within(next).queryByRole('radio', { name: 'Owner' })).not.toBeInTheDocument();
-  });
-
-  it('TC-42.2 an owner steps down to Member: the page turns to no-access and the Settings tab leaves', async () => {
-    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('twoOwners') });
-    await ready();
-    const dialog = await openChangeRole(user, 'Alice Doe');
-    await pickRole(user, dialog, 'Member');
-    await saveRole(user, dialog);
-    await noAccess();
-    expect(screen.queryByRole('row')).not.toBeInTheDocument();
-    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
-  });
-
-  it('an admin who demotes themselves to Viewer sees no-access after the save', async () => {
-    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('admin') });
-    await ready();
-    const dialog = await openChangeRole(user, 'Alice Doe');
-    await pickRole(user, dialog, 'Viewer');
-    await saveRole(user, dialog);
-    await noAccess();
-    expect(screen.getByText('Role changed')).toBeInTheDocument();
-    expect(screen.queryByRole('row')).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { level: 1, name: 'Something went wrong' })).not.toBeInTheDocument();
+    expect(within(rowOf('Alice Doe')).getByText('You')).toBeInTheDocument();
+    expect(hasMenu('Alice Doe')).toBe(false);
+    expect(within(rowOf('Alice Doe')).queryByRole('button')).not.toBeInTheDocument();
   });
 });
 
 describe('members page: change role errors (BR-5, BR-8, BR-36)', () => {
-  it('TC-5.1 the only owner steps down: warning, 409 Banner, dialog stays open, the row still shows Owner', async () => {
-    const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('soleOwner') });
-    await ready();
-    const dialog = await openChangeRole(user, 'Alice Doe');
-    await pickRole(user, dialog, 'Admin');
-    expect(within(dialog).getByText(`You will lose owner rights in ${orgName()}.`)).toBeInTheDocument();
-    await saveRole(user, dialog);
-    expect(await within(dialog).findByText('An organization needs at least one owner.')).toBeInTheDocument();
-    expect(screen.getByRole('dialog', { name: 'Change role for Alice Doe' })).toBeInTheDocument();
-    expect(screen.queryByText('Role changed')).not.toBeInTheDocument();
-    await user.click(within(dialog).getByRole('button', { name: 'Cancel' }));
-    expect(orgRoleOf('Alice Doe')).toContain('Owner');
-  });
-
   it('TC-8.1 a member removed meanwhile: the dialog closes, the 404 title shows as an error toast, the list drops them', async () => {
     const { user } = await renderRoute('/o/alice/settings/members', { scenario: asRole('memberRemovedMeanwhile') });
     await ready();

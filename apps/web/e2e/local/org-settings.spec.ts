@@ -378,6 +378,22 @@ test('TC-18.5: org admin A gets 403 giving owner O the Member role, and O is sti
   });
 });
 
+test('TC-18.9: owner O and admin A each get 403 changing their own role, and both roles are unchanged', async ({
+  browser,
+}) => {
+  await withWorld(browser, async (w) => {
+    const a = await join(w.scope, browser, w.org, 'a', 'admin');
+    const own = async (who: Actor, roleId: string): Promise<number> =>
+      (await who.api.put(`/api/orgs/${w.org.id}/members/${who.userId}/role`, { data: { roleId } })).status();
+    expect(await own(w.o, w.roleIds.admin), 'owner, own role').toBe(403);
+    expect(await own(a, w.roleIds.viewer), 'admin, own role').toBe(403);
+    // the same role again is refused too: the own-role rule comes before any other check
+    expect(await own(a, w.roleIds.admin), 'admin, same role').toBe(403);
+    expect(await roleKeysOf(w, w.o.userId)).toEqual(['owner']);
+    expect(await roleKeysOf(w, a.userId)).toEqual(['admin']);
+  });
+});
+
 test('TC-18.6: org admin A gets 403 removing owner O, and O is still a member', async ({ browser }) => {
   await withWorld(browser, async (w) => {
     const a = await join(w.scope, browser, w.org, 'a', 'admin');

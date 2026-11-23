@@ -43,7 +43,8 @@ export function toMemberRow(dto: MemberDto, caller: CallerRights, projectNames: 
     you,
     role: orgRole ? { key: roleKeyOf(orgRole.key), name: orgRole.name } : null,
     projectRoles: projectRoles.length > 0 ? projectRoles.join(', ') : '—',
-    canChangeRole: caller.canUpdate && mayTouch,
+    // nobody changes their own role (the API refuses it too: this only hides the action)
+    canChangeRole: caller.canUpdate && mayTouch && !you,
     canRemove: caller.canDelete && !you && mayTouch,
   };
 }

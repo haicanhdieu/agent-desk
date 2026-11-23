@@ -71,39 +71,25 @@ describe.each(TENANT_ADMIN_SCENARIOS)('%s', (name) => {
   });
 });
 
-describe('last owner', () => {
-  it('a sole owner demoting themselves is a 409 and nothing changes', async () => {
-    apply('soleOwner');
-    const err = await rejection(setRole(ALICE, 'admin'));
-    expect(err.status).toBe(409);
-    expect(err.title).toBe('The organization needs at least one owner');
+describe('own role', () => {
+  it.each([
+    ['soleOwner', 'admin'],
+    ['soleOwner', null],
+    ['twoOwners', 'admin'],
+    ['twoOwners', 'owner'],
+    ['admin', 'viewer'],
+  ] as const)('%s: changing your own role to %s is 403 and nothing changes', async (scenario, role) => {
+    apply(scenario);
+    const before = await roleOf(ALICE);
+    expect((await rejection(setRole(ALICE, role))).status).toBe(403);
+    expect(await roleOf(ALICE)).toBe(before);
+  });
+
+  it('with two owners an owner demotes the other owner and keeps their own role', async () => {
+    apply('twoOwners');
+    await setRole(PRIYA, 'admin');
+    expect(await roleOf(PRIYA)).toBe('admin');
     expect(await roleOf(ALICE)).toBe('owner');
-  });
-
-  it('a sole owner dropping their own role is a 409', async () => {
-    apply('soleOwner');
-    expect((await rejection(setRole(ALICE, null))).status).toBe(409);
-  });
-
-  it('with two owners an owner can step down, and the other cannot then', async () => {
-    apply('twoOwners');
-    const done = await setRole(ALICE, 'admin');
-    expect(done.assignments.map((a) => a.role.key)).toEqual(['admin']);
-    expect(await roleOf(ALICE)).toBe('admin');
-    // Priya is the sole owner now, and the caller (an admin) may not touch her anyway.
-    expect((await rejection(setRole(PRIYA, 'member'))).status).toBe(403);
-  });
-
-  it('the last owner cannot step down once the other owner is removed', async () => {
-    apply('twoOwners');
-    await remove(PRIYA);
-    expect((await rejection(setRole(ALICE, 'viewer'))).title).toBe('The organization needs at least one owner');
-  });
-
-  it('the access of the signed-in user follows their own role change', async () => {
-    apply('twoOwners');
-    await setRole(ALICE, 'viewer');
-    expect(mockDb.state.memberships.find((m) => m.userId === ALICE && m.orgId === orgId)?.roleKey).toBe('viewer');
   });
 });
 

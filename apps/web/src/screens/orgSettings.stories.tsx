@@ -88,8 +88,8 @@ export const OrgMembersRowMenu: Story = {
   render: () => members(ready(ownerRows), { openMenuUserId: other.userId }),
 };
 export const OrgMembersRowMenuSelf: Story = {
-  name: "Members, row menu on the caller's own row: no Remove",
-  render: () => members(ready(ownerRows), { openMenuUserId: caller.userId }),
+  name: "Members, the caller's own row has no menu (nobody changes or removes themselves)",
+  render: () => members(ready(ownerRows)),
 };
 export const OrgMembersBusy: Story = {
   name: 'Members, request in flight: row menu disabled',

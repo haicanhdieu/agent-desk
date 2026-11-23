@@ -85,13 +85,15 @@ export class MembersService {
 
   /**
    * Sets the member's org-scope role to `roleId` (null removes the org-scope assignments; project ones stay), in one
-   * `withOrg` transaction with the audit entry. 403 without `member:update` before any lookup; 404 for a non-member;
+   * `withOrg` transaction with the audit entry. 403 for the caller's own user id (whatever their role) or without
+   * `member:update`, before any lookup; 404 for a non-member;
    * 422 `/roleId` for a role that is missing or not org-assignable; `checkTenantAssign` on each removed and the new
    * role; 409 when the org would be left without an owner (owner rows are locked in id order first, so two
    * concurrent demotions cannot both pass). The same role again is a no-op without an audit row, but only after these checks: an org admin giving `owner` to an owner is 403.
    */
   async updateRole(access: Access, orgId: string, userId: string, roleId: string | null): Promise<MemberDto> {
-    if (!can(access, 'member:update')) throw new ForbiddenException(FORBIDDEN_DETAIL);
+    // nobody changes their own org role, whatever it is; `access.userId` comes from the session, never the request
+    if (userId === access.userId || !can(access, 'member:update')) throw new ForbiddenException(FORBIDDEN_DETAIL);
     const changed = await withOrg(this.db, orgId, async (tx) => {
       // owner rows first (id order), then the member row: a change queued behind a removal of the same member finds it
       // gone (404) instead of re-granting, with or without owners
