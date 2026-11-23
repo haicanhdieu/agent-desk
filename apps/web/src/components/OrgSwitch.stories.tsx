@@ -50,3 +50,10 @@ export const NoOrgPlatformItem: Story = {
 };
 export const NoOrg: Story = { args: { current: null, orgs: [], platformAdmin: false } };
 export const LongName: Story = { args: orgSwitchFixtures.longName, play: openOnLoad };
+export const WithSuspendedOrg: Story = {
+  args: {
+    ...orgSwitchFixtures.severalOrgs,
+    orgs: orgSwitchFixtures.severalOrgs.orgs.map((o, i) => (i === 1 ? { ...o, suspended: true } : o)),
+  },
+  play: openOnLoad,
+};

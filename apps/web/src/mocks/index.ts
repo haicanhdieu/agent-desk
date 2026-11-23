@@ -77,3 +77,4 @@ export {
 } from './invitations';
 export { platformAdminRows, pagedPlatformAdminRows, type PlatformAdminRowView } from './platform/admins';
 export { platformOrgRows, pagedPlatformOrgRows, type PlatformOrgRowView, type OrgStatusView } from './platform/orgs';
+export { activeOrgOverview, suspendedOrgOverview, type PlatformOrgOverviewView } from './platform/detail';

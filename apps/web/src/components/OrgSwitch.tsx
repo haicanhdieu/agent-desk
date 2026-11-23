@@ -132,6 +132,7 @@ function OrgSwitchMenu({
                       <span className={styles.itemName} title={org.name}>
                         {org.name}
                       </span>
+                      {org.suspended && <span className={styles.suspended}>Suspended</span>}
                       {isCurrent && (
                         <span className={styles.check}>
                           <Icon name="check" size={14} />

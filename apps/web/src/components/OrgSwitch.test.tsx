@@ -158,6 +158,26 @@ describe('OrgSwitch', () => {
     expect(screen.queryByRole('link', { name: 'Platform admin' })).toBeNull();
   });
 
+  it('BR-48: a suspended option reads "Suspended" and still links', async () => {
+    const user = userEvent.setup();
+    const [acme, beta] = orgSwitchFixtures.severalOrgs.orgs;
+    if (!acme || !beta) throw new Error('fixture');
+    render(
+      <OrgSwitch
+        {...orgSwitchFixtures.severalOrgs}
+        orgs={[acme, { ...beta, suspended: true }]}
+        orgHref={orgHref}
+        createHref={createHref}
+      />,
+    );
+    await user.click(button());
+    const menu = screen.getByRole('dialog');
+    const link = within(menu).getByRole('link', { name: /Beta/ });
+    expect(link).toHaveTextContent('Suspended');
+    expect(link).toHaveAttribute('href', '/o/beta');
+    expect(within(menu).getByRole('link', { name: /Acme/ })).not.toHaveTextContent('Suspended');
+  });
+
   it('keyboard: ArrowDown opens, arrows/Home/End move focus, Escape closes and refocuses the button', async () => {
     const user = setup('platformAdmin');
     button().focus();

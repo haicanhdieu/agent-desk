@@ -1174,11 +1174,11 @@ export interface PlatformOrgOverviewView { facts: { slug: string; owner: string 
 export const activeOrgOverview: PlatformOrgOverviewView; export const suspendedOrgOverview: PlatformOrgOverviewView;
 ```
 
-- [ ] **Step 1: Write the failing tests**: header h1 with `tabIndex={-1}`, `/o/<slug>` in mono, `OrgStatus`, "Suspend organization" (danger) or "Reactivate organization" (default) by status, "View audit log" link; no Edit button without `onEdit`. Dialog: title "Suspend <org>?" with its body, label "Reason" (`rows`), "Suspend"/"Suspending…" solid danger, reactivate title "Reactivate <org>?" body "People can open it again." button "Reactivate"/"Reactivating…" primary, field error, Banner, not closable while saving, Escape closes when idle. OrgSwitch (BR-48): a suspended option reads "Suspended" and still links.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgHeader.test.tsx src/components/SuspendOrgDialog.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** with stories (header: Active, Suspended; dialog: Suspend, SuspendSaving, SuspendFieldError, SuspendFormError, Reactivate; OrgSwitch: WithSuspendedOrg).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org header, suspend dialog and suspended switcher mark in Storybook`.
+- [x] **Step 1: Write the failing tests**: header h1 with `tabIndex={-1}`, `/o/<slug>` in mono, `OrgStatus`, "Suspend organization" (danger) or "Reactivate organization" (default) by status, "View audit log" link; no Edit button without `onEdit`. Dialog: title "Suspend <org>?" with its body, label "Reason" (`rows`), "Suspend"/"Suspending…" solid danger, reactivate title "Reactivate <org>?" body "People can open it again." button "Reactivate"/"Reactivating…" primary, field error, Banner, not closable while saving, Escape closes when idle. OrgSwitch (BR-48): a suspended option reads "Suspended" and still links.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgHeader.test.tsx src/components/SuspendOrgDialog.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** with stories (header: Active, Suspended; dialog: Suspend, SuspendSaving, SuspendFieldError, SuspendFormError, Reactivate; OrgSwitch: WithSuspendedOrg).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform org header, suspend dialog and suspended switcher mark in Storybook`.
 
 ---
 
