@@ -14,14 +14,34 @@
 .menu {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 6px;
-  min-width: 160px;
+  gap: 2px;
+  padding: 8px;
+  text-align: left;
+}
+.who {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 4px 8px 6px;
+  color: var(--muted);
+  font-size: var(--fs-12_5);
+  font-weight: 500;
+}
+.name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+  font-weight: 600;
 }
 .item {
   display: flex;
   align-items: center;
-  gap: 10px;
+  justify-content: flex-start;
+  gap: 8px;
+  width: 100%;
   padding: 8px 10px;
   border: 1px solid transparent;
   border-radius: var(--radius-8);
@@ -31,7 +51,17 @@
   font: inherit;
   font-size: var(--fs-13);
   text-align: left;
+  text-decoration: none;
 }
 .item:hover {
   background: var(--raised);
+  text-decoration: none;
+}
+.count {
+  margin-left: auto;
+}
+.separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--line);
 }

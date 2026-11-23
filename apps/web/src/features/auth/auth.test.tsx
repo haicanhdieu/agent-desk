@@ -234,7 +234,7 @@ describe('account menu Logout in the top bar', () => {
     expect(queryClient.getQueryData(sessionQuery.queryKey)).toBeTruthy();
 
     await user.click(screen.getByRole('button', { name: /^Account menu/ }));
-    await user.click(within(screen.getByRole('dialog', { name: 'Account' })).getByRole('menuitem', { name: 'Logout' }));
+    await user.click(within(screen.getByRole('menu', { name: 'Account' })).getByRole('menuitem', { name: 'Logout' }));
 
     await waitFor(() => expect(router.state.location.pathname).toBe('/sign-in'));
     expect(router.state.location.href).toBe('/sign-in');

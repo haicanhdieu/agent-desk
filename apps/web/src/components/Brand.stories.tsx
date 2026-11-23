@@ -10,3 +10,4 @@ export const Link: Story = { args: { href: '/projects' } };
 export const LogoOnly: Story = { args: { withName: false, href: '/projects' } };
 export const Medium: Story = { args: { size: 26 } };
 export const Large: Story = { args: { withName: false, size: 36 } };
+export const LockupLarge: Story = { args: { size: 36, href: '/projects' } };
