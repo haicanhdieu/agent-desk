@@ -1,5 +1,5 @@
-import type { PlatformAdminDto, PlatformOrgDto } from '@agentdesk/contracts';
-import type { PlatformAdminRowView, PlatformOrgRowView } from '@/mocks';
+import type { PlatformAdminDto, PlatformOrgDetailDto, PlatformOrgDto } from '@agentdesk/contracts';
+import type { PlatformAdminRowView, PlatformOrgOverviewView, PlatformOrgRowView } from '@/mocks';
 import { formatFullDate } from '../invitations/dates';
 import { relativeTime } from '../relativeTime';
 
@@ -45,5 +45,37 @@ export function toPlatformOrgRow(dto: PlatformOrgDto, now: Date, timeZone?: stri
         : { label: relativeTime(dto.lastActivityAt, now), title: formatFullDate(dto.lastActivityAt, timeZone) },
     status: dto.status,
     created: { label: relativeTime(dto.createdAt, now), title: formatFullDate(dto.createdAt, timeZone) },
+  };
+}
+
+const DAY_FORMAT = new Intl.DateTimeFormat('en-GB', {
+  day: 'numeric',
+  month: 'short',
+  year: 'numeric',
+  timeZone: 'UTC',
+});
+
+/** "21 Nov 2026", in UTC so the same instant reads the same for every admin. */
+const utcDay = (iso: string): string => DAY_FORMAT.format(new Date(iso));
+
+/**
+ * The Overview facts and, for a suspended org, the warning Banner (since, by whom, reason). No owner, no activity or an
+ * actor that is gone stay null: the screen says "No owner yet" and "No activity yet" and shows no name.
+ */
+export function toPlatformOrgOverview(dto: PlatformOrgDetailDto, now: Date): PlatformOrgOverviewView {
+  return {
+    facts: {
+      slug: dto.slug,
+      owner: dto.owner?.name ?? null,
+      members: dto.memberCount,
+      projects: dto.projectCount,
+      lastActivity: dto.lastActivityAt === null ? null : relativeTime(dto.lastActivityAt, now),
+      created: utcDay(dto.createdAt),
+      status: dto.status,
+    },
+    suspension:
+      dto.suspension === null
+        ? null
+        : { since: utcDay(dto.suspension.at), by: dto.suspension.by?.name ?? null, reason: dto.suspension.reason },
   };
 }

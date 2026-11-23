@@ -1777,6 +1777,38 @@
    "h": 900,
    "title": "Organization detail \u2014 Reactivate dialog on a suspended org",
    "expand": "fill"
+  },
+  "OrgSuspended.dc.html": {
+   "x": 0,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization suspended \u2014 fixed message for every member, no reason",
+   "expand": "fill"
+  },
+  "OrgSuspendedSwitcher.dc.html": {
+   "x": 1520,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization suspended \u2014 switcher open: the suspended org is marked, other orgs open",
+   "expand": "fill"
+  },
+  "OrgSuspendedPlatformAdmin.dc.html": {
+   "x": 3040,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Organization suspended \u2014 a platform admin whose active org is suspended still has Platform admin",
+   "expand": "fill"
+  },
+  "OrgAuditPlatformSuspend.dc.html": {
+   "x": 4560,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log after reactivation: platform admin suspended and reactivated the organization (no reason)",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2000,7 +2032,11 @@
   "PlatformOrgOverviewSuspendError.dc.html",
   "PlatformOrgOverviewSuspendFormError.dc.html",
   "PlatformOrgOverviewSuspendSaving.dc.html",
-  "PlatformOrgOverviewReactivateDialog.dc.html"
+  "PlatformOrgOverviewReactivateDialog.dc.html",
+  "OrgSuspended.dc.html",
+  "OrgSuspendedSwitcher.dc.html",
+  "OrgSuspendedPlatformAdmin.dc.html",
+  "OrgAuditPlatformSuspend.dc.html"
  ],
  "notes": {
   "t-intro": {

@@ -328,6 +328,28 @@ describe('PlatformOrgDetail', () => {
     expect(screen.queryByText('This organization is suspended')).not.toBeInTheDocument();
   });
 
+  it('children render below the header and the suspended banner, in place of the built-in Overview', () => {
+    render(
+      <PlatformOrgDetail view={ready(true)}>
+        <p>child page</p>
+      </PlatformOrgDetail>,
+    );
+    const child = screen.getByText('child page');
+    const banner = screen.getByText('This organization is suspended');
+    expect(banner.compareDocumentPosition(child) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByRole('heading', { level: 1, name: 'Acme' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 2, name: 'Overview' })).not.toBeInTheDocument();
+  });
+
+  it('children are not rendered while loading', () => {
+    render(
+      <PlatformOrgDetail view={{ kind: 'loading' }}>
+        <p>child page</p>
+      </PlatformOrgDetail>,
+    );
+    expect(screen.queryByText('child page')).not.toBeInTheDocument();
+  });
+
   it('header shows the edit slot when given, and Suspend comes before View audit log', () => {
     render(<PlatformOrgDetail view={ready()} editSlot={<span>edit slot</span>} />);
     expect(screen.getByText('edit slot')).toBeInTheDocument();

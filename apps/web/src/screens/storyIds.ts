@@ -238,6 +238,10 @@ export const boardStories = {
   PlatformOrgOverviewSuspendFormError: { title: platform, exportName: 'PlatformOrgOverviewSuspendFormError' },
   PlatformOrgOverviewSuspendSaving: { title: platform, exportName: 'PlatformOrgOverviewSuspendSaving' },
   PlatformOrgOverviewReactivateDialog: { title: platform, exportName: 'PlatformOrgOverviewReactivateDialog' },
+  OrgSuspended: { title: entry, exportName: 'OrgSuspended' },
+  OrgSuspendedSwitcher: { title: entry, exportName: 'OrgSuspendedSwitcher' },
+  OrgSuspendedPlatformAdmin: { title: entry, exportName: 'OrgSuspendedPlatformAdmin' },
+  OrgAuditPlatformSuspend: { title: orgSettings, exportName: 'OrgAuditPlatformSuspend' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

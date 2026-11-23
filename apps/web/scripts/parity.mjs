@@ -207,6 +207,10 @@ const stories = {
   PlatformOrgOverviewSuspendFormError: ['Screens/Platform', 'PlatformOrgOverviewSuspendFormError'],
   PlatformOrgOverviewSuspendSaving: ['Screens/Platform', 'PlatformOrgOverviewSuspendSaving'],
   PlatformOrgOverviewReactivateDialog: ['Screens/Platform', 'PlatformOrgOverviewReactivateDialog'],
+  OrgSuspended: ['Screens/Entry', 'OrgSuspended'],
+  OrgSuspendedSwitcher: ['Screens/Entry', 'OrgSuspendedSwitcher'],
+  OrgSuspendedPlatformAdmin: ['Screens/Entry', 'OrgSuspendedPlatformAdmin'],
+  OrgAuditPlatformSuspend: ['Screens/OrgSettings', 'OrgAuditPlatformSuspend'],
   ...Object.fromEntries(
     [
       'Starting',

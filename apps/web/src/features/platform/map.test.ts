@@ -1,6 +1,6 @@
-import type { PlatformAdminDto, PlatformOrgDto } from '@agentdesk/contracts';
+import type { PlatformAdminDto, PlatformOrgDetailDto, PlatformOrgDto } from '@agentdesk/contracts';
 import { describe, expect, it } from 'vitest';
-import { toPlatformAdminRow, toPlatformOrgRow } from './map';
+import { toPlatformAdminRow, toPlatformOrgOverview, toPlatformOrgRow } from './map';
 
 const NOW = new Date('2026-11-23T12:00:00.000Z');
 
@@ -97,5 +97,66 @@ describe('toPlatformOrgRow', () => {
 
   it('BR-18: created reads as a short date, with the full date in the title', () => {
     expect(toPlatformOrgRow(org(), NOW, 'UTC').created).toEqual({ label: '21 Nov', title: '21 Nov 2026, 10:00' });
+  });
+});
+
+describe('toPlatformOrgOverview', () => {
+  const detail = (over: Partial<PlatformOrgDetailDto> = {}): PlatformOrgDetailDto => ({
+    id: 'b8000000-0000-4000-8000-000000000001',
+    name: 'Acme',
+    slug: 'acme',
+    memberCount: 12,
+    projectCount: 4,
+    createdAt: '2026-03-03T10:00:00.000Z',
+    lastActivityAt: '2026-11-23T10:00:00.000Z',
+    status: 'active',
+    suspendedAt: null,
+    owner: { userId: 'u1', name: 'Dana Whitfield', handle: 'dana', email: 'dana@example.com' },
+    suspension: null,
+    ...over,
+  });
+
+  it('BR-24: takes the facts from the DTO and has no suspension for an active org', () => {
+    const view = toPlatformOrgOverview(detail(), NOW);
+    expect(view.facts).toEqual({
+      slug: 'acme',
+      owner: 'Dana Whitfield',
+      members: 12,
+      projects: 4,
+      lastActivity: '2 hours ago',
+      created: '3 Mar 2026',
+      status: 'active',
+    });
+    expect(view.suspension).toBeNull();
+  });
+
+  it('BR-19: no owner and no activity stay null', () => {
+    const view = toPlatformOrgOverview(detail({ owner: null, lastActivityAt: null }), NOW);
+    expect(view.facts.owner).toBeNull();
+    expect(view.facts.lastActivity).toBeNull();
+  });
+
+  it('BR-32: the suspension shows its date in UTC, who and the reason', () => {
+    const view = toPlatformOrgOverview(
+      detail({
+        status: 'suspended',
+        suspendedAt: '2026-11-21T23:30:00.000Z',
+        suspension: {
+          at: '2026-11-21T23:30:00.000Z',
+          reason: 'Billing hold',
+          by: { userId: 'u2', name: 'Sam Rivera', handle: 'sam' },
+        },
+      }),
+      NOW,
+    );
+    expect(view.suspension).toEqual({ since: '21 Nov 2026', by: 'Sam Rivera', reason: 'Billing hold' });
+  });
+
+  it('BR-32: an actor that is gone shows no name', () => {
+    const view = toPlatformOrgOverview(
+      detail({ status: 'suspended', suspension: { at: '2026-11-21T10:00:00.000Z', reason: 'x', by: null } }),
+      NOW,
+    );
+    expect(view.suspension?.by).toBeNull();
   });
 });

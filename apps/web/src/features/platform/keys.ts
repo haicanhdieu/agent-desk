@@ -8,6 +8,7 @@ export const platformKeys = {
   all: () => ['platform'] as const,
   adminsAll: () => ['platform', 'admins'] as const,
   admins: (q: PageQuery) => ['platform', 'admins', q] as const,
+  orgsAll: () => ['platform', 'orgs'] as const,
   orgs: (q: object) => ['platform', 'orgs', q] as const,
   org: (orgId: string) => ['platform', 'orgs', orgId] as const,
   orgList: (orgId: string, list: 'members' | 'projects' | 'invitations', q: object) =>

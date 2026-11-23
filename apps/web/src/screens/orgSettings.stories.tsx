@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { userEvent, within } from 'storybook/test';
 import { AppShell, ChangeRoleDialog, type ChangeRoleDialogProps } from '@/components';
-import { auditRows, memberRows, orgSettingsFixtures, pagedAuditLastPage, roleCards } from '@/mocks';
+import {
+  auditRows,
+  memberRows,
+  orgSettingsFixtures,
+  pagedAuditLastPage,
+  platformSuspendAuditRows,
+  roleCards,
+} from '@/mocks';
 import type { MemberRowView } from '@/mocks/types';
 import { OrgAudit as OrgAuditScreen, type OrgAuditProps } from './OrgAudit';
 import { OrgGeneral as OrgGeneralScreen, type OrgGeneralProps } from './OrgGeneral';
@@ -350,4 +357,9 @@ export const OrgAuditError: Story = {
 export const OrgAuditForbidden: Story = {
   name: 'Audit log URL opened by a project admin: no access inside the layout',
   render: () => audit({ kind: 'forbidden' }, { role: 'projectAdmin' }),
+};
+
+export const OrgAuditPlatformSuspend: Story = {
+  name: 'Audit log after reactivation: a platform admin suspended and reactivated the organization, no reason',
+  render: () => audit({ kind: 'ready', rows: platformSuspendAuditRows }),
 };

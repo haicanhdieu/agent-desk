@@ -25,10 +25,12 @@ export interface PlatformOrgDetailProps {
   dialog?: SuspendOrgDialogProps;
   /** Where the route mounts its Edit organization dialog. */
   editSlot?: ReactNode;
+  /** The page below the header and the banner (a route's child page). Without it the Overview facts show. */
+  children?: ReactNode;
 }
 
 /** Platform org detail: header, the suspended warning and the Overview facts. Names and reasons are text, never HTML. */
-export function PlatformOrgDetail({ view, dialog, editSlot }: PlatformOrgDetailProps) {
+export function PlatformOrgDetail({ view, dialog, editSlot, children }: PlatformOrgDetailProps) {
   return (
     <main className={styles.platformMain}>
       {view.kind === 'loading' && (
@@ -72,23 +74,32 @@ export function PlatformOrgDetail({ view, dialog, editSlot }: PlatformOrgDetailP
               <p>{`Reason: ${view.overview.suspension.reason}`}</p>
             </Banner>
           )}
-          <h2>Overview</h2>
-          <KeyValue
-            termWidth={120}
-            items={[
-              { term: 'Slug', value: `/o/${view.overview.facts.slug}` },
-              { term: 'Owner', value: view.overview.facts.owner ?? 'No owner yet' },
-              { term: 'Members', value: view.overview.facts.members },
-              { term: 'Projects', value: view.overview.facts.projects },
-              { term: 'Last activity', value: view.overview.facts.lastActivity ?? 'No activity yet' },
-              { term: 'Created', value: view.overview.facts.created },
-              { term: 'Status', value: <OrgStatus status={view.overview.facts.status} /> },
-            ]}
-          />
+          {children ?? <PlatformOrgOverview overview={view.overview} />}
         </>
       )}
       {dialog && <SuspendOrgDialog {...dialog} />}
       {editSlot}
     </main>
+  );
+}
+
+/** The Overview facts of one organization. */
+export function PlatformOrgOverview({ overview }: { overview: PlatformOrgOverviewView }) {
+  return (
+    <>
+      <h2>Overview</h2>
+      <KeyValue
+        termWidth={120}
+        items={[
+          { term: 'Slug', value: `/o/${overview.facts.slug}` },
+          { term: 'Owner', value: overview.facts.owner ?? 'No owner yet' },
+          { term: 'Members', value: overview.facts.members },
+          { term: 'Projects', value: overview.facts.projects },
+          { term: 'Last activity', value: overview.facts.lastActivity ?? 'No activity yet' },
+          { term: 'Created', value: overview.facts.created },
+          { term: 'Status', value: <OrgStatus status={overview.facts.status} /> },
+        ]}
+      />
+    </>
   );
 }

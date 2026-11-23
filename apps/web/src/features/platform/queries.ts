@@ -1,5 +1,12 @@
 import { keepPreviousData, queryOptions } from '@tanstack/react-query';
-import type { Page, PageQuery, PlatformAdminDto, PlatformOrgDto, PlatformOrgListQuery } from '@agentdesk/contracts';
+import type {
+  Page,
+  PageQuery,
+  PlatformAdminDto,
+  PlatformOrgDetailDto,
+  PlatformOrgDto,
+  PlatformOrgListQuery,
+} from '@agentdesk/contracts';
 import { api } from '../api';
 import { platformKeys } from './keys';
 
@@ -17,4 +24,11 @@ export const platformOrgsQuery = (q: PlatformOrgListQuery) =>
     queryKey: platformKeys.orgs(q),
     queryFn: (): Promise<Page<PlatformOrgDto>> => api.platform.listOrgs({ query: q }),
     placeholderData: keepPreviousData,
+  });
+
+/** One organization (`GET /api/platform/orgs/:orgId`): the detail page and its side menu share it. */
+export const platformOrgQuery = (orgId: string) =>
+  queryOptions({
+    queryKey: platformKeys.org(orgId),
+    queryFn: (): Promise<PlatformOrgDetailDto> => api.platform.getOrg({ params: { orgId } }),
   });

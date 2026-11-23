@@ -1226,11 +1226,11 @@ export function PlatformOrgDetail(props: PlatformOrgDetailProps): JSX.Element; /
 
 - Produces: `export function OrgSuspended(props: { orgName: string }): JSX.Element;` (title "This organization is suspended", body "You can't open <org> right now. Contact your Agent Desk administrator.", loads nothing); `mocks/audit.ts` gains tenant rows "<actor> suspended the organization" and "<actor> reactivated the organization" tagged "Platform admin".
 
-- [ ] **Step 1: Write the failing tests**: `entry.test.tsx` renders the fixed title and body with the org name and no reason text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/entry.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `OrgSuspended`, `OrgSuspendedSwitcher` (switcher open, suspended org marked, other orgs listed), `OrgSuspendedPlatformAdmin` (switcher shows "Platform admin") in `Screens/Entry`, top bar with the org name and no Projects or Settings tabs; `OrgAuditPlatformSuspend` in `Screens/OrgSettings`; register the 4 boards; coverage 221 to 225; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests**: `entry.test.tsx` renders the fixed title and body with the org name and no reason text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/entry.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `OrgSuspended`, `OrgSuspendedSwitcher` (switcher open, suspended org marked, other orgs listed), `OrgSuspendedPlatformAdmin` (switcher shows "Platform admin") in `Screens/Entry`, top bar with the org name and no Projects or Settings tabs; `OrgAuditPlatformSuspend` in `Screens/OrgSettings`; register the 4 boards; coverage 221 to 225; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 4 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): suspended organization boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): suspended organization boards in Storybook`.
 
 ---
 
@@ -1255,13 +1255,13 @@ export function toPlatformOrgOverview(dto: PlatformOrgDetailDto, now: Date): Pla
 // the $orgId layout renders PlatformFrame with org { name, links: { overview } } and the header; children render below
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts`: facts from the DTO; Banner date "21 Nov 2026" in UTC; `by` null shows no name.
   - `orgDetail.route.test.tsx` (BR-24 header, BR-32 to BR-34): a directory row opens `/platform/orgs/<id>` with heading, `/o/<slug>` and status; "Suspend organization" opens the dialog; empty or spaces-only reason shows "Enter a reason." and sends nothing; a 501-character reason shows an error at Reason; a valid reason sets the detail from the response, toasts "Organization suspended", shows the Banner with the reason, invalidates `['platform','orgs']`; reactivate toasts "Organization reactivated" and removes the Banner; 403/5xx show the dialog Banner with input kept; 404 toasts "Organization not found" and goes to the directory; an unknown id shows the not-found state inside the platform layout; loading and `serverError` with Retry; Review Focus 4: two quick clicks on "Suspend" send one request.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
-- [ ] **Step 3: Implement** the layout and index routes, TanStack Form with `OrgStatusChangeRequest` and `fieldErrorsFromProblem` (pointer `/reason`), the mutation (`setQueryData` on `platformKeys.org(orgId)`, invalidate `['platform','orgs']`), directory rows linking to the detail; regenerate `routeTree.gen.ts`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/platform`. Expected: FAIL.
+- [x] **Step 3: Implement** the layout and index routes, TanStack Form with `OrgStatusChangeRequest` and `fieldErrorsFromProblem` (pointer `/reason`), the mutation (`setQueryData` on `platformKeys.org(orgId)`, invalidate `['platform','orgs']`), directory rows linking to the detail; regenerate `routeTree.gen.ts`.
 - [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org detail with suspend and reactivate`.
+- [x] **Step 5: Commit**: `feat(web): platform org detail with suspend and reactivate`.
 
 ---
 

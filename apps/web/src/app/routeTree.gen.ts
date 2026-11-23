@@ -23,6 +23,7 @@ import { Route as OOrgIndexRouteImport } from './routes/o.$org.index';
 import { Route as OOrgInvitationsRouteImport } from './routes/o.$org.invitations';
 import { Route as OOrgSettingsRouteImport } from './routes/o.$org.settings';
 import { Route as PlatformOrgsIndexRouteImport } from './routes/platform.orgs.index';
+import { Route as PlatformOrgsOrgIdRouteImport } from './routes/platform.orgs.$orgId';
 import { Route as OOrgPProjectRouteImport } from './routes/o.$org.p.$project';
 import { Route as OOrgProjectsIndexRouteImport } from './routes/o.$org.projects.index';
 import { Route as OOrgSettingsIndexRouteImport } from './routes/o.$org.settings.index';
@@ -30,6 +31,7 @@ import { Route as OOrgSettingsAuditRouteImport } from './routes/o.$org.settings.
 import { Route as OOrgSettingsGeneralRouteImport } from './routes/o.$org.settings.general';
 import { Route as OOrgSettingsInvitationsRouteImport } from './routes/o.$org.settings.invitations';
 import { Route as OOrgSettingsMembersRouteImport } from './routes/o.$org.settings.members';
+import { Route as PlatformOrgsOrgIdIndexRouteImport } from './routes/platform.orgs.$orgId.index';
 import { Route as OOrgPProjectNeedsYouRouteImport } from './routes/o.$org.p.$project.needs-you';
 import { Route as OOrgProjectsNewStepRouteImport } from './routes/o.$org.projects.new.$step';
 import { Route as OOrgPProjectDeskAgentRouteImport } from './routes/o.$org.p.$project.desk.agent';
@@ -109,6 +111,11 @@ const PlatformOrgsIndexRoute = PlatformOrgsIndexRouteImport.update({
   path: '/orgs/',
   getParentRoute: () => PlatformRoute,
 } as any);
+const PlatformOrgsOrgIdRoute = PlatformOrgsOrgIdRouteImport.update({
+  id: '/orgs/$orgId',
+  path: '/orgs/$orgId',
+  getParentRoute: () => PlatformRoute,
+} as any);
 const OOrgPProjectRoute = OOrgPProjectRouteImport.update({
   id: '/p/$project',
   path: '/p/$project',
@@ -143,6 +150,11 @@ const OOrgSettingsMembersRoute = OOrgSettingsMembersRouteImport.update({
   id: '/members',
   path: '/members',
   getParentRoute: () => OOrgSettingsRoute,
+} as any);
+const PlatformOrgsOrgIdIndexRoute = PlatformOrgsOrgIdIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => PlatformOrgsOrgIdRoute,
 } as any);
 const OOrgPProjectNeedsYouRoute = OOrgPProjectNeedsYouRouteImport.update({
   id: '/needs-you',
@@ -198,6 +210,7 @@ export interface FileRoutesByFullPath {
   '/platform/': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
+  '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/platform/orgs/': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
@@ -207,6 +220,7 @@ export interface FileRoutesByFullPath {
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
+  '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
   '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -235,6 +249,7 @@ export interface FileRoutesByTo {
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
   '/o/$org/projects': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings': typeof OOrgSettingsIndexRoute;
+  '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdIndexRoute;
   '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -258,6 +273,7 @@ export interface FileRoutesById {
   '/platform/': typeof PlatformIndexRoute;
   '/o/$org/invitations': typeof OOrgInvitationsRoute;
   '/o/$org/settings': typeof OOrgSettingsRouteWithChildren;
+  '/platform/orgs/$orgId': typeof PlatformOrgsOrgIdRouteWithChildren;
   '/o/$org/': typeof OOrgIndexRoute;
   '/platform/orgs/': typeof PlatformOrgsIndexRoute;
   '/o/$org/p/$project': typeof OOrgPProjectRouteWithChildren;
@@ -267,6 +283,7 @@ export interface FileRoutesById {
   '/o/$org/settings/members': typeof OOrgSettingsMembersRoute;
   '/o/$org/projects/': typeof OOrgProjectsIndexRoute;
   '/o/$org/settings/': typeof OOrgSettingsIndexRoute;
+  '/platform/orgs/$orgId/': typeof PlatformOrgsOrgIdIndexRoute;
   '/o/$org/p/$project/needs-you': typeof OOrgPProjectNeedsYouRoute;
   '/o/$org/projects/new/$step': typeof OOrgProjectsNewStepRoute;
   '/o/$org/p/$project/desk/agent': typeof OOrgPProjectDeskAgentRoute;
@@ -291,6 +308,7 @@ export interface FileRouteTypes {
     | '/platform/'
     | '/o/$org/invitations'
     | '/o/$org/settings'
+    | '/platform/orgs/$orgId'
     | '/o/$org/'
     | '/platform/orgs/'
     | '/o/$org/p/$project'
@@ -300,6 +318,7 @@ export interface FileRouteTypes {
     | '/o/$org/settings/members'
     | '/o/$org/projects/'
     | '/o/$org/settings/'
+    | '/platform/orgs/$orgId/'
     | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
@@ -328,6 +347,7 @@ export interface FileRouteTypes {
     | '/o/$org/settings/members'
     | '/o/$org/projects'
     | '/o/$org/settings'
+    | '/platform/orgs/$orgId'
     | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
@@ -350,6 +370,7 @@ export interface FileRouteTypes {
     | '/platform/'
     | '/o/$org/invitations'
     | '/o/$org/settings'
+    | '/platform/orgs/$orgId'
     | '/o/$org/'
     | '/platform/orgs/'
     | '/o/$org/p/$project'
@@ -359,6 +380,7 @@ export interface FileRouteTypes {
     | '/o/$org/settings/members'
     | '/o/$org/projects/'
     | '/o/$org/settings/'
+    | '/platform/orgs/$orgId/'
     | '/o/$org/p/$project/needs-you'
     | '/o/$org/projects/new/$step'
     | '/o/$org/p/$project/desk/agent'
@@ -480,6 +502,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PlatformOrgsIndexRouteImport;
       parentRoute: typeof PlatformRoute;
     };
+    '/platform/orgs/$orgId': {
+      id: '/platform/orgs/$orgId';
+      path: '/orgs/$orgId';
+      fullPath: '/platform/orgs/$orgId';
+      preLoaderRoute: typeof PlatformOrgsOrgIdRouteImport;
+      parentRoute: typeof PlatformRoute;
+    };
     '/o/$org/p/$project': {
       id: '/o/$org/p/$project';
       path: '/p/$project';
@@ -528,6 +557,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/o/$org/settings/members';
       preLoaderRoute: typeof OOrgSettingsMembersRouteImport;
       parentRoute: typeof OOrgSettingsRoute;
+    };
+    '/platform/orgs/$orgId/': {
+      id: '/platform/orgs/$orgId/';
+      path: '/';
+      fullPath: '/platform/orgs/$orgId/';
+      preLoaderRoute: typeof PlatformOrgsOrgIdIndexRouteImport;
+      parentRoute: typeof PlatformOrgsOrgIdRoute;
     };
     '/o/$org/p/$project/needs-you': {
       id: '/o/$org/p/$project/needs-you';
@@ -588,15 +624,28 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface PlatformOrgsOrgIdRouteChildren {
+  PlatformOrgsOrgIdIndexRoute: typeof PlatformOrgsOrgIdIndexRoute;
+}
+
+const PlatformOrgsOrgIdRouteChildren: PlatformOrgsOrgIdRouteChildren = {
+  PlatformOrgsOrgIdIndexRoute: PlatformOrgsOrgIdIndexRoute,
+};
+
+const PlatformOrgsOrgIdRouteWithChildren =
+  PlatformOrgsOrgIdRoute._addFileChildren(PlatformOrgsOrgIdRouteChildren);
+
 interface PlatformRouteChildren {
   PlatformAdminsRoute: typeof PlatformAdminsRoute;
   PlatformIndexRoute: typeof PlatformIndexRoute;
+  PlatformOrgsOrgIdRoute: typeof PlatformOrgsOrgIdRouteWithChildren;
   PlatformOrgsIndexRoute: typeof PlatformOrgsIndexRoute;
 }
 
 const PlatformRouteChildren: PlatformRouteChildren = {
   PlatformAdminsRoute: PlatformAdminsRoute,
   PlatformIndexRoute: PlatformIndexRoute,
+  PlatformOrgsOrgIdRoute: PlatformOrgsOrgIdRouteWithChildren,
   PlatformOrgsIndexRoute: PlatformOrgsIndexRoute,
 };
 

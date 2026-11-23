@@ -1,4 +1,9 @@
-import type { GrantPlatformAdminRequest, PlatformAdminDto } from '@agentdesk/contracts';
+import type {
+  GrantPlatformAdminRequest,
+  OrgStatus,
+  PlatformAdminDto,
+  PlatformOrgDetailDto,
+} from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient, type UseMutationResult } from '@tanstack/react-query';
 import { accessKeys } from '../access/keys';
@@ -41,6 +46,31 @@ export function useRevokePlatformAdmin(): UseMutationResult<void, ApiError, { ad
       if (e instanceof ApiError && (e.status === 404 || e.status === 409)) {
         await queryClient.invalidateQueries({ queryKey: platformKeys.adminsAll() });
       }
+    },
+  });
+}
+
+/**
+ * `POST /api/platform/orgs/:orgId/suspend` or `…/reactivate`. The answer is the new detail: it is the cached org at
+ * once, and the directory pages (and the org lists under them) are fetched again. A repeat answers 200 like a change.
+ */
+export function useSetOrgStatus(
+  orgId: string,
+): UseMutationResult<PlatformOrgDetailDto, ApiError, { to: OrgStatus; reason: string }> {
+  const queryClient = useQueryClient();
+  return useMutation<PlatformOrgDetailDto, ApiError, { to: OrgStatus; reason: string }>({
+    mutationFn: ({ to, reason }) =>
+      to === 'suspended'
+        ? api.platform.suspendOrg({ params: { orgId }, body: { reason } })
+        : api.platform.reactivateOrg({ params: { orgId }, body: { reason } }),
+    onSuccess: async (detail) => {
+      queryClient.setQueryData(platformKeys.org(orgId), detail);
+      // The detail was just set from the answer: only the lists (and other orgs' details) are fetched again.
+      const own = platformKeys.org(orgId);
+      await queryClient.invalidateQueries({
+        queryKey: platformKeys.orgsAll(),
+        predicate: (q) => !(q.queryKey.length === own.length && q.queryKey.every((part, i) => part === own[i])),
+      });
     },
   });
 }

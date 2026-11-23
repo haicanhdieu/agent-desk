@@ -63,7 +63,7 @@ export {
 export { pagedRuns, pagedIgnored, pagedNeedsYou, pagedProjects, pagedRules, pagedSkills, pagedVersions } from './paged';
 export { orgOptions, orgSwitchFixtures } from './orgs';
 export { memberRows, roleCards } from './members';
-export { auditRows, pagedAuditLastPage, pagedAuditRows } from './audit';
+export { auditRows, pagedAuditLastPage, pagedAuditRows, platformSuspendAuditRows } from './audit';
 export { orgSettingsFixtures } from './orgSettings';
 export { checklistSteps, pendingInvitationsCount } from './onboarding';
 export {

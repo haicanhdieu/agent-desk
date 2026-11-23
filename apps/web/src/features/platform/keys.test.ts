@@ -32,6 +32,13 @@ describe('platform query keys', () => {
     expect(platformKeys.admins({ page: 3, pageSize: 50 }).slice(0, prefix.length)).toEqual(prefix);
   });
 
+  it('every directory and org key starts with the orgs prefix that a suspend or reactivate invalidates', () => {
+    const prefix = platformKeys.orgsAll();
+    for (const key of [platformKeys.orgs(q), platformKeys.org('o1'), platformKeys.orgList('o1', 'members', q)]) {
+      expect(key.slice(0, prefix.length)).toEqual(prefix);
+    }
+  });
+
   it('the platform-admin flag key is session-wide, outside any org', () => {
     expect(accessKeys.platform()).toEqual(['session', 'platform']);
   });
