@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import pino from 'pino';
+import { eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AuditEntryDto, Page } from '@agentdesk/contracts';
 import { auditLog, connections, projects, withOrg } from '@agentdesk/db';
@@ -221,6 +222,53 @@ describe('audit list', () => {
       }
       expect(page.items.some((e) => e.action === 'assignment.granted')).toBe(true);
     }
+  });
+
+  it('names the listed projects on invitation entries for the owner and org admin, and on no other entry', async () => {
+    const f = await buildCast('au-proj');
+    const other = await buildCast('au-proj-b');
+    const zeta = await seedProject(f.orgId, 'Zeta project');
+    const alpha = await seedProject(f.orgId, 'Alpha project');
+    await seedProject(other.orgId, 'Org B secret project');
+    const email = 'au-proj-guest@dev.local';
+    const created = await invite(t, f.orgId, email, 'viewer', { type: 'project', projectIds: [zeta, alpha] });
+    const orgScope = await invite(t, f.orgId, 'au-proj-org@dev.local', 'viewer', { type: 'org' });
+    for (const cookie of [f.o, f.a]) {
+      const page = await entries(f.orgId, cookie);
+      const inv = page.items.find((e) => e.action === 'invitation.created' && e.target.id === created.id);
+      expect(inv?.projects).toEqual([
+        { id: alpha, name: 'Alpha project' },
+        { id: zeta, name: 'Zeta project' },
+      ]);
+      expect(inv?.target.label).toBe(email);
+      const orgInv = page.items.find((e) => e.action === 'invitation.created' && e.target.id === orgScope.id);
+      expect(orgInv?.projects).toEqual([]);
+      expect(orgInv?.target.label).toBe('au-proj-org@dev.local');
+      for (const e of page.items.filter((x) => !x.action.startsWith('invitation.'))) expect(e.projects).toEqual([]);
+      expect(JSON.stringify(page)).not.toContain('Org B secret project');
+    }
+  });
+
+  it('a project deleted after the invitation is left out of the entry, never shown as an id', async () => {
+    const f = await buildCast('au-projdel');
+    const keep = await seedProject(f.orgId, 'Kept project');
+    const gone = await seedProject(f.orgId, 'Gone project');
+    const pending = await invite(t, f.orgId, 'au-projdel-guest@dev.local', 'viewer', {
+      type: 'project',
+      projectIds: [keep, gone],
+    });
+    await withOrg(t.db, f.orgId, (tx) => tx.delete(projects).where(eq(projects.id, gone)));
+    const page = await entries(f.orgId, f.o);
+    const inv = page.items.find((e) => e.action === 'invitation.created' && e.target.id === pending.id);
+    expect(inv?.projects).toEqual([{ id: keep, name: 'Kept project' }]);
+    expect(JSON.stringify(inv)).not.toContain(gone);
+  });
+
+  it('assignment.granted rows show the role as a change', async () => {
+    const f = await buildCast('au-grant');
+    const granted = (await entries(f.orgId, f.o)).items.find((e) => e.action === 'assignment.granted');
+    expect(granted?.changes).toHaveLength(1);
+    expect(granted?.changes[0]).toMatchObject({ field: 'role', from: null });
   });
 
   it('lists generic METHOD route-key rows with no changes', async () => {

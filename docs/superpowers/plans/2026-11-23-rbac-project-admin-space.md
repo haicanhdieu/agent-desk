@@ -480,13 +480,13 @@ private page(access: Access, orgId: string, q: PageQuery, where: SQL): Promise<P
 
   `changesOf`: `assignment.granted` → `[{field: 'role', from: null, to: roleName(to.roleKey)}]`; `project_member.role_changed` → `[{field: 'role', from: names(from), to: roleName(to)}]`; `project_member.removed` → `[{field: 'role', from: names(from), to: null}]`; malformed payloads → `[]`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `audit-view.test.ts` (BR-27 unit, BR-19): `it.each` over the six invitation actions × viewers: owner / org admin (email, every project name sorted by name then id); P1 admin with an invitation listing P1 only (email, P1); P1 admin with P1 + P2 (no email, `target.label` null, only P1, neither P2's id nor name anywhere in `JSON.stringify(entry)`); a deleted listed project left out (Review Focus 5: all listed deleted → `projects: []`); non-invitation rows → `projects: []`; the three new `changesOf` mappings and a malformed payload of each → `[]`; an org-scope invitation row for an owner keeps the email.
   - `audit.int.test.ts` (org route, human spec gap 6): owner and org admin reading `audit.list` after a real invitation listing P1 + P2 get `projects` with both names; org B's project names never appear; non-invitation rows carry `projects: []`; `expectContract('audit.list', …)` passes with the new DTO; the existing org BR-18 tests (project admin, member, viewer → 403) are kept unchanged.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/audit-view.test.ts test/audit.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the view changes; in `AuditService` select `project_ids`, load the org's project names (`projects` under `withOrg`, ids of the page only), build the viewer with `auditViewerOf(access)`, and move the page query into `page(…)`; the controller passes `@CurrentAccess()` access.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Task 31 and Task 37.
-- [ ] **Step 5: Commit**: `feat(api): name visible projects and redact invitee emails per viewer in the audit view`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit/audit-view.test.ts test/audit.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the view changes; in `AuditService` select `project_ids`, load the org's project names (`projects` under `withOrg`, ids of the page only), build the viewer with `auditViewerOf(access)`, and move the page query into `page(…)`; the controller passes `@CurrentAccess()` access.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Task 31 and Task 37.
+- [x] **Step 5: Commit**: `feat(api): name visible projects and redact invitee emails per viewer in the audit view`. Label `review:sensitive`.
 
 ---
 
