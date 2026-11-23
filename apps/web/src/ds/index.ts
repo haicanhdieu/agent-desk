@@ -44,3 +44,4 @@ export { LabelInput, type LabelInputProps } from './LabelInput';
 export { LinkProvider, useLink, AppLink, type LinkComponent } from './Link';
 export { Skeleton, type SkeletonProps } from './Skeleton';
 export { Toast, ToastProvider, ToastRegion, useToast, type ToastInput, type ToastProps } from './Toast';
+export { Tabs, TabPanel, type TabsProps, type TabPanelProps } from './Tabs';

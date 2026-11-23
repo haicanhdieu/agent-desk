@@ -482,11 +482,11 @@ graph LR
 
 - Produces: `Tabs<T extends string>` with props `{ tabs: { value: T; label: string }[]; value: T; onChange(value: T): void; label: string; idPrefix?: string }` rendering `role=tablist` / `tab` (`aria-selected`, `aria-controls`) with arrow-key roving; and `TabPanel` props `{ value: string; active: string; children }` with `role=tabpanel`. Exported from `@/ds`. Domain-free; `TerminalBar` is untouched.
 
-- [ ] **Step 1: Write the failing test** `Tabs.test.tsx`: renders both tabs, `aria-selected` follows `value`, click calls `onChange`, ArrowRight and ArrowLeft move focus and select, `aria-controls` points at the panel id, the inactive panel is not rendered.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/ds/Tabs.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** `Tabs` with design tokens only, and the stories Default, Narrow and a keyboard note; export from `ds/index.ts`.
-- [ ] **Step 4: Run** the test, the story smoke and axe test (`pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`) and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): add Tabs primitive`.
+- [x] **Step 1: Write the failing test** `Tabs.test.tsx`: renders both tabs, `aria-selected` follows `value`, click calls `onChange`, ArrowRight and ArrowLeft move focus and select, `aria-controls` points at the panel id, the inactive panel is not rendered.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/ds/Tabs.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** `Tabs` with design tokens only, and the stories Default, Narrow and a keyboard note; export from `ds/index.ts`.
+- [x] **Step 4: Run** the test, the story smoke and axe test (`pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`) and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): add Tabs primitive`.
 
 ---
 
