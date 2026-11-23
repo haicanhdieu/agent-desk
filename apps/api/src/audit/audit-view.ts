@@ -1,4 +1,4 @@
-import type { AuditActorKind, AuditChange, AuditEntryDto } from '@agentdesk/contracts';
+import { AuditAction, type AuditActorKind, type AuditChange, type AuditEntryDto } from '@agentdesk/contracts';
 import { redactBody } from './redact-body';
 
 /** One stored `audit_log` row as the view reads it. */
@@ -93,7 +93,9 @@ export function toAuditEntry(row: AuditRowIn, lookups: AuditLookups): AuditEntry
     at: row.at.toISOString(),
     actor:
       row.actorUserId !== null && actor ? { userId: row.actorUserId, name: actor.name, handle: actor.handle } : null,
-    actorKind: actorKindOf(payload['actorKind']),
+    // Only a typed audit entry carries a trusted actorKind: the interceptor stores the raw request body of any other
+    // row, so a member could forge the key there.
+    actorKind: AuditAction.safeParse(row.action).success ? actorKindOf(payload['actorKind']) : null,
     action: row.action,
     target: { type: row.targetType, id: row.targetId, label: labelOf(row, lookups) },
     changes: changesOf(row.action, payload, lookups),

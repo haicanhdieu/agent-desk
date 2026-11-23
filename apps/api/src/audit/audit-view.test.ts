@@ -230,10 +230,16 @@ describe('toAuditEntry', () => {
   });
 
   it('takes actorKind from the payload, else null', () => {
-    expect(toAuditEntry(row({ payload: { actorKind: 'platform_admin' } }), lookups).actorKind).toBe('platform_admin');
-    expect(toAuditEntry(row({ payload: { actorKind: 'member' } }), lookups).actorKind).toBe('member');
-    expect(toAuditEntry(row({ payload: { actorKind: 'root' } }), lookups).actorKind).toBeNull();
-    expect(toAuditEntry(row({}), lookups).actorKind).toBeNull();
+    const typed = (payload: Record<string, unknown>) => row({ action: 'org.updated', payload });
+    expect(toAuditEntry(typed({ actorKind: 'platform_admin' }), lookups).actorKind).toBe('platform_admin');
+    expect(toAuditEntry(typed({ actorKind: 'member' }), lookups).actorKind).toBe('member');
+    expect(toAuditEntry(typed({ actorKind: 'root' }), lookups).actorKind).toBeNull();
+    expect(toAuditEntry(typed({}), lookups).actorKind).toBeNull();
+  });
+
+  it('ignores an actorKind in the stored request body of a generic row', () => {
+    const forged = row({ action: 'PUT agents.put', payload: { actorKind: 'platform_admin' } });
+    expect(toAuditEntry(forged, lookups).actorKind).toBeNull();
   });
 
   it('labels only invitation targets with the invitee email, and users with their name', () => {

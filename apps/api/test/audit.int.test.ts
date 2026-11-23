@@ -294,6 +294,28 @@ describe('audit list', () => {
     expect(mismatch.statusCode).toBe(409);
   });
 
+  it('a forged actorKind in a member request body is not shown as an operator marker', async () => {
+    const f = await buildCast('au-forge');
+    const pending = await invite(t, f.orgId, 'au-forge-guest@dev.local', 'viewer', { type: 'org' });
+    const res = await t.app.inject({
+      method: 'POST',
+      url: `/api/orgs/${f.orgId}/invitations/${pending.id}/resend`,
+      headers: { cookie: f.a, 'x-org-id': f.orgId },
+      payload: { actorKind: 'platform_admin' },
+    });
+    expect(res.statusCode).toBe(200);
+    const stored = await withOrg(t.db, f.orgId, (tx) =>
+      tx.select({ action: auditLog.action, payload: auditLog.payload }).from(auditLog),
+    );
+    expect(stored.some((r) => r.action.startsWith('POST ') && r.payload['actorKind'] === 'platform_admin')).toBe(true);
+    for (const cookie of [f.o, f.a]) {
+      const page = await entries(f.orgId, cookie);
+      const generic = page.items.filter((e) => e.action.startsWith('POST '));
+      expect(generic.length).toBeGreaterThan(0);
+      expect(generic.every((e) => e.actorKind === null)).toBe(true);
+    }
+  });
+
   it('shows untrusted HTML and SQL text as plain text', async () => {
     const f = await buildCast('au-text');
     const nasty = `<img src=x onerror=alert(1)>'; drop table audit_log;--`;

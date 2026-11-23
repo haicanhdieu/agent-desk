@@ -99,6 +99,22 @@ async function updates(orgId: string): Promise<{ payload: Record<string, unknown
 const pointerOf = (res: { json: () => unknown }): string | undefined =>
   (res.json() as { errors?: { pointer: string }[] }).errors?.[0]?.pointer;
 
+async function lockWaiters(): Promise<number> {
+  const res = await t.db.pool.query<{ n: number }>(
+    "select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock' and datname = current_database()",
+  );
+  return res.rows[0]?.n ?? 0;
+}
+
+/** Waits until `n` more sessions than `baseline` are blocked on a row lock. */
+async function waitForWaiters(baseline: number, n: number): Promise<void> {
+  for (let i = 0; i < 200; i++) {
+    if ((await lockWaiters()) >= baseline + n) return;
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+  throw new Error('the update never queued behind the org row lock');
+}
+
 describe('PATCH /api/orgs/:orgId', () => {
   it('an owner renames the org and one org.updated audit row records the change', async () => {
     const f = await buildCast('os-rename');
@@ -117,8 +133,9 @@ describe('PATCH /api/orgs/:orgId', () => {
     let patch: ReturnType<typeof updateOrg> | undefined;
     await withOrg(t.db, f.orgId, async (tx) => {
       await tx.select({ id: organization.id }).from(organization).where(eq(organization.id, f.orgId)).for('update');
+      const baseline = await lockWaiters();
       patch = updateOrg(t, f.o, f.orgId, { name: 'C' });
-      await new Promise((r) => setTimeout(r, 400));
+      await waitForWaiters(baseline, 1);
       await tx.update(organization).set({ name: 'B' }).where(eq(organization.id, f.orgId));
     });
     const res = await patch;
