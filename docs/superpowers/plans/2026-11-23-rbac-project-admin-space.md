@@ -520,7 +520,7 @@ export const NOT_ON_PROJECT = 'Member is no longer on this project'; // 404 titl
 
   The org comes from `@CurrentOrg()`, access from `@CurrentAccess()`; the guard has already decided 403 and 404.
 
-- [ ] **Step 1: Write the failing tests** in `project-members.int.test.ts` (fresh org per describe: owner O, org admin, A admin P1, B member P1 + P2, C member P1, V org viewer, D org member with a P2-only role, N no assignment; a second org; `expectContract` on every 2xx):
+- [x] **Step 1: Write the failing tests** in `project-members.int.test.ts` (fresh org per describe: owner O, org admin, A admin P1, B member P1 + P2, C member P1, V org viewer, D org member with a P2-only role, N no assignment; a second org; `expectContract` on every 2xx):
   - BR-4: O, the org admin and A list P1 → B, C, A only, never O or V (org-only roles), sorted by name then id; 25 extra project members page as 20 + 6 with the right `total`; each item has `projectRoles` with role names; no `email` key anywhere.
   - BR-5: A adds D as member → 201 `ProjectMemberDto`; D's next `/api/me/access` lists P1 with member; one `assignment.granted` row tagged `[P1]`.
   - BR-6, N-ADD: Owner role id → 422 `/roleId`; a role id of org B → 422 `/roleId`; a non-member and an org B user → 422 `/userId` (same body); C (already member on P1) added as viewer, and as member again → 409 `ALREADY_ON_PROJECT`, no new row, no new audit row; A adding someone as admin → 201 (subset rule allows admin on own project).
@@ -528,10 +528,10 @@ export const NOT_ON_PROJECT = 'Member is no longer on this project'; // 404 titl
   - BR-23/24/26 (Security tests for list and add): B, V, N → 403 before any lookup (random, malformed and real project id give the same 403); A on P2 → 404; org B owner on P1 → 404 naming nothing of org A; an org viewer who is admin on P1 lists and adds on P1 and gets 403 on P2's list (viewer lacks `assignment:read`); tenant from the session, a body `orgId` ignored.
   - Review Focus 1: after O deletes P1, A's list of P1 → 404.
   - Logs: `{requestId, orgId, projectId, actorUserId, targetUserId, action}` at info, no email.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/project-members.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `list` (one `withOrg` transaction: `count(distinct user_id)` and the page of users holding a project-scope row on P, `ORDER BY user.name, user.id`, then their P rows joined with roles), `add` in the order of Global Constraints with `lockPerson`, the controller and module wiring; delete `'projectMembers.list'` and `'projectMembers.add'` from `NOT_REGISTERED_YET`.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts test/org-check.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Tasks 32 and 34.
-- [ ] **Step 5: Commit**: `feat(api): list project members and add an org member to a project`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/project-members.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `list` (one `withOrg` transaction: `count(distinct user_id)` and the page of users holding a project-scope row on P, `ORDER BY user.name, user.id`, then their P rows joined with roles), `add` in the order of Global Constraints with `lockPerson`, the controller and module wiring; delete `'projectMembers.list'` and `'projectMembers.add'` from `NOT_REGISTERED_YET`.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts test/org-check.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Tasks 32 and 34.
+- [x] **Step 5: Commit**: `feat(api): list project members and add an org member to a project`. Label `review:sensitive`.
 
 ---
 
