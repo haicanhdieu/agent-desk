@@ -4,6 +4,15 @@ import { GuardsCard } from './GuardsCard';
 import { CommitSummary } from './CommitSummary';
 
 const user = { login: 'kim-hale', initials: 'KH' };
+const org = {
+  current: { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' },
+  orgs: [{ id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' }],
+  platformAdmin: false,
+  orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+  createHref: '/orgs/new',
+  projectsHref: '#projects',
+  settingsHref: '#settings',
+};
 const steps = [
   { label: 'Add Claude credential', detail: 'Claude Code token, opus' },
   { label: 'Add skills', optional: true },
@@ -27,6 +36,7 @@ type Story = StoryObj<typeof meta>;
 export const Skills: Story = {
   args: {
     user,
+    org,
     projectName: 'invoicer-api',
     steps,
     current: 1,
@@ -52,6 +62,7 @@ export const Skills: Story = {
 export const WithAside: Story = {
   args: {
     user,
+    org,
     projectName: 'invoicer-api',
     steps,
     current: 2,
@@ -67,6 +78,7 @@ export const Saving: Story = {
   args: {
     ...Skills.args,
     user,
+    org,
     projectName: 'invoicer-api',
     steps,
     current: 1,

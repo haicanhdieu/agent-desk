@@ -29,7 +29,7 @@ export interface InvitationAcceptProps {
 export function InvitationAccept({ user, org, state, ...handlers }: InvitationAcceptProps) {
   return (
     <>
-      <TopBar variant="global" user={user} org={org} />
+      <TopBar variant="global" user={user} org={org} tabs={org?.current ? 'org' : 'none'} />
       <main className={styles.emptyMain}>{body(state, handlers)}</main>
     </>
   );

@@ -190,3 +190,86 @@ export async function revokePlatformAdmin(t: TestApp, cookie: string, adminId: s
   const res = await t.app.inject({ method: 'DELETE', url: `/api/platform/admins/${adminId}`, headers: { cookie } });
   return res.statusCode;
 }
+
+const orgHeaders = (cookie: string, orgId: string): Record<string, string> => ({ cookie, 'x-org-id': orgId });
+
+/** `PUT /api/orgs/:orgId/members/:userId/role` as the cookie's user; returns the raw response. */
+export function changeRole(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  userId: string,
+  roleId: string | null,
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'PUT',
+    url: `/api/orgs/${orgId}/members/${encodeURIComponent(userId)}/role`,
+    headers: orgHeaders(cookie, orgId),
+    payload: { roleId },
+  });
+}
+
+/** `DELETE /api/orgs/:orgId/members/:userId` as the cookie's user; returns the raw response. */
+export function removeMember(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  userId: string,
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'DELETE',
+    url: `/api/orgs/${orgId}/members/${encodeURIComponent(userId)}`,
+    headers: orgHeaders(cookie, orgId),
+  });
+}
+
+/** `PATCH /api/orgs/:orgId` as the cookie's user; returns the raw response. */
+export function updateOrg(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  body: Record<string, unknown>,
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'PATCH',
+    url: `/api/orgs/${orgId}`,
+    headers: orgHeaders(cookie, orgId),
+    payload: body,
+  });
+}
+
+/** `GET /api/orgs/:orgId/audit` as the cookie's user; returns the raw response. */
+export function auditList(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+  query: { page?: number; pageSize?: number } = {},
+): ReturnType<TestApp['app']['inject']> {
+  return t.app.inject({
+    method: 'GET',
+    url: `/api/orgs/${orgId}/audit`,
+    headers: orgHeaders(cookie, orgId),
+    query: Object.fromEntries(Object.entries(query).map(([k, v]) => [k, String(v)])),
+  });
+}
+
+/** The org's built-in role ids by key, read through `GET /api/orgs/:orgId/roles` as the cookie's user. */
+export async function roleIdsOf(
+  t: TestApp,
+  cookie: string,
+  orgId: string,
+): Promise<Record<'owner' | 'admin' | 'member' | 'viewer', string>> {
+  const res = await t.app.inject({
+    method: 'GET',
+    url: `/api/orgs/${orgId}/roles`,
+    headers: orgHeaders(cookie, orgId),
+  });
+  if (res.statusCode !== 200) throw new Error(`roleIdsOf answered ${res.statusCode}: ${res.body}`);
+  const roles = res.json<RoleDto[]>();
+  const find = (key: string): string => {
+    const role = roles.find((r) => r.key === key);
+    if (!role) throw new Error(`roleIdsOf: org ${orgId} has no role ${key}`);
+    return role.id;
+  };
+  return { owner: find('owner'), admin: find('admin'), member: find('member'), viewer: find('viewer') };
+}

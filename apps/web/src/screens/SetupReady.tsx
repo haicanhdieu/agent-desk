@@ -3,11 +3,14 @@ import { Banner, Button, Icon, InlineStatus, LabelChip, StatusIcon } from '@/ds'
 import { CodeBlock, KeyValue, SetupLayout } from '@/components';
 import { connectionCopy as c } from '@/mocks/connection';
 import type { Actor, TriggerMode } from '@/mocks/types';
+import type { OrgSwitchProps } from '@/components';
 import { DEFAULT_CREDENTIAL_DETAIL, setupSteps } from './setupSteps';
 import styles from './Screens.module.css';
 
 export interface SetupReadyProps {
   user: Actor;
+  /** The org crumb and menu in the top bar. */
+  org?: OrgSwitchProps;
   projectName: string;
   repo: string;
   /** The label the first rule needs, if any. */
@@ -26,6 +29,7 @@ export interface SetupReadyProps {
 
 export function SetupReady({
   user,
+  org,
   projectName,
   repo,
   label,
@@ -41,6 +45,7 @@ export function SetupReady({
   return (
     <SetupLayout
       user={user}
+      org={org}
       projectName={projectName}
       steps={setupSteps({ repo, credential: credentialDetail, skills, withWorkspace: true })}
       current={5}

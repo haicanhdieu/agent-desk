@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { Provider } from './enums';
+import { AuditEntryDto } from './schemas/audit';
 import {
   AccessDto,
   AssignmentDto,
@@ -12,13 +13,17 @@ import {
   MyInvitationDto,
   OrgChecklistDto,
   MemberDto,
+  MemberUserId,
   RoleDto,
+  UpdateMemberRoleRequest,
 } from './schemas/access';
 import {
   CreateOrgRequest,
   CreateOrgResponse,
   GrantPlatformAdminRequest,
   PlatformAdminDto,
+  OrgDto,
+  UpdateOrgRequest,
   PlatformAssignmentDto,
   PlatformInvitationDto,
   PlatformMemberDto,
@@ -82,6 +87,7 @@ const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
 const setupTestParams = z.object({ setupTestId: z.uuid() });
 const setupVersionParams = z.object({ projectId: z.uuid(), version: z.coerce.number().int().min(1).max(2147483647) });
 const orgParams = z.object({ orgId: z.uuid() });
+const orgMemberParams = z.object({ orgId: z.uuid(), userId: MemberUserId });
 const orgAssignmentParams = z.object({ orgId: z.uuid(), assignmentId: z.uuid() });
 const orgInvitationParams = z.object({ orgId: z.uuid(), invitationId: z.uuid() });
 const invitationParams = z.object({ invitationId: z.uuid() });
@@ -394,6 +400,7 @@ export const routes = {
     },
   },
   orgs: {
+    update: { method: 'PATCH', path: '/api/orgs/:orgId', params: orgParams, body: UpdateOrgRequest, response: OrgDto },
     checklist: { method: 'GET', path: '/api/orgs/:orgId/checklist', params: orgParams, response: OrgChecklistDto },
   },
   roles: {
@@ -406,6 +413,28 @@ export const routes = {
       params: orgParams,
       query: PageQuery,
       response: pageOf(MemberDto),
+    },
+    updateRole: {
+      method: 'PUT',
+      path: '/api/orgs/:orgId/members/:userId/role',
+      params: orgMemberParams,
+      body: UpdateMemberRoleRequest,
+      response: MemberDto,
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/orgs/:orgId/members/:userId',
+      params: orgMemberParams,
+      response: empty,
+    },
+  },
+  audit: {
+    list: {
+      method: 'GET',
+      path: '/api/orgs/:orgId/audit',
+      params: orgParams,
+      query: PageQuery,
+      response: pageOf(AuditEntryDto),
     },
   },
   assignments: {

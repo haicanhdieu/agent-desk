@@ -1,7 +1,8 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { RouteLoadError, RouteSkeleton } from '@/components';
+import { RouteLoadError, RouteSkeleton, type OrgSwitchProps } from '@/components';
 import {
+  orgSwitchFixtures,
   ignored,
   ignoredPrStates,
   pagedIgnored,
@@ -40,6 +41,11 @@ const needsYouRun = {
   href: '/runs/62',
   slotNote:
     'It holds one of your 2 slots, so Run 63 is waiting. It ends on its own after 30 minutes with nobody attached.',
+};
+const org: OrgSwitchProps = {
+  ...orgSwitchFixtures.severalOrgsSettings,
+  orgHref: (o) => `/o/${o.slug}`,
+  createHref: '/orgs/new',
 };
 const runIds = () =>
   screen.queryAllByRole('link', { name: /^Run \d+$/ }).map((a) => Number(a.textContent!.replace('Run ', '')));
@@ -462,5 +468,43 @@ describe('PR state colours on the Runs screen', () => {
     render(<Runs {...base} filter="all" groups={[ticketGroups[0]]} />);
     const header = screen.getByText(ticketGroups[0].chainNote!).closest('tr')!;
     expect(within(header).queryByRole('img')).not.toBeInTheDocument();
+  });
+});
+
+describe('Runs under the app bar (BR-43)', () => {
+  it('with org: the org crumb, the project crumb, Runs current with the needs-you count, and Desk', () => {
+    render(<Runs {...base} filter="all" org={org} links={{ desk: '/desk' }} />);
+    const bar = screen.getByRole('banner');
+    expect(within(bar).getByRole('button', { name: /^Switch organization, currently Acme/ })).toBeInTheDocument();
+    expect(within(bar).getByRole('button', { name: /invoicer-api/ })).toBeInTheDocument();
+    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveTextContent('1');
+    expect(within(tabs).getByRole('link', { name: 'Desk' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('without org: no org crumb and no owner text, only the project', () => {
+    render(<Runs {...base} filter="all" />);
+    const bar = screen.getByRole('banner');
+    expect(within(bar).queryByRole('button', { name: /organization/i })).toBeNull();
+    expect(within(bar).queryByText(project.org)).toBeNull();
+    expect(within(bar).getByRole('button', { name: /^Switch project/ })).toBeInTheDocument();
+  });
+
+  it('NeedsYou with topBar.org renders the org bar: Projects tab, no tab current, no project crumb', () => {
+    render(<NeedsYou project={project} projects={projects} topBar={{ user, org }} />);
+    const bar = screen.getByRole('banner');
+    expect(within(bar).getByRole('button', { name: /^Switch organization, currently Acme/ })).toBeInTheDocument();
+    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    expect(within(tabs).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(within(tabs).queryByRole('link', { current: 'page' })).toBeNull();
+    expect(within(tabs).queryByRole('link', { name: /^Runs/ })).toBeNull();
+    expect(within(bar).getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
+  });
+
+  it('NeedsYou has one Main nav: the example strip in the page is labelled apart from the bar', () => {
+    render(<NeedsYou project={project} projects={projects} topBar={{ user, org }} />);
+    expect(screen.getAllByRole('navigation', { name: 'Main' })).toHaveLength(1);
+    expect(screen.getByRole('navigation', { name: 'Runs and Desk tabs, example' })).toBeInTheDocument();
   });
 });

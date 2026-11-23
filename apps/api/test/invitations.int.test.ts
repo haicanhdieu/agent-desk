@@ -612,7 +612,7 @@ describe('accepting invitations (sign-in accepts nothing)', () => {
     expect(granted.rows[0]?.payload).toMatchObject({ via: { invitationId: created.id } });
   });
 
-  it('N5: the audit rows name the inviter as the actor and link each grant to the invitation', async () => {
+  it('N5: the accepted entry names the acceptor and the grant row the inviter, and each grant is linked to the invitation', async () => {
     const f = await fixture('acc-audit');
     const created = (
       await invite(f.orgId, {
@@ -627,7 +627,7 @@ describe('accepting invitations (sign-in accepts nothing)', () => {
     const accepted = await asOrg(f.orgId, "select * from audit_log where action = 'invitation.accepted'");
     expect(accepted.rows).toHaveLength(1);
     expect(accepted.rows[0]).toMatchObject({
-      actor_user_id: adminId,
+      actor_user_id: userId,
       target_type: 'invitation',
       target_id: created.id,
     });

@@ -244,21 +244,14 @@ describe('SetupWorkspace', () => {
 
 describe('RunDetail setup failed', () => {
   it('labels the run Setup failed and links the setup version', () => {
-    render(
-      <RunDetail
-        data={runDetails.RunSetupFailed}
-        lines={terminalByRun[58]}
-        needsYou={1}
-        links={{ setup: '/desk/setup' }}
-      />,
-    );
+    render(<RunDetail data={runDetails.RunSetupFailed} lines={terminalByRun[58]} links={{ setup: '/desk/setup' }} />);
     expect(screen.getAllByText('Setup failed').length).toBeGreaterThan(0);
     expect(screen.getByRole('link', { name: 'Version 5' })).toHaveAttribute('href', '/desk/setup');
     expect(screen.getByText(/Setup failed after 52s/)).toBeInTheDocument();
   });
 
   it('shows the setup version as plain text without a setup link (the caller may not open the Desk)', () => {
-    render(<RunDetail data={runDetails.RunSetupFailed} lines={terminalByRun[58]} needsYou={1} />);
+    render(<RunDetail data={runDetails.RunSetupFailed} lines={terminalByRun[58]} />);
     expect(screen.queryByRole('link', { name: 'Version 5' })).not.toBeInTheDocument();
     expect(screen.getByText('Version 5')).toBeInTheDocument();
   });

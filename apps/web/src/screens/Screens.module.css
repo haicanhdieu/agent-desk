@@ -694,3 +694,30 @@
   font-size: var(--fs-12);
   color: var(--muted);
 }
+
+/* org members page loading */
+.membersLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.membersLoadingRows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+/* org general page */
+.generalMain {
+  flex: 1;
+  padding: 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.generalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

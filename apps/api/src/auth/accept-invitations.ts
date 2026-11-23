@@ -77,7 +77,7 @@ export async function acceptInvitationInTx(
 
   await writeAuditEntry(tx, {
     orgId: invitation.orgId,
-    actorUserId: invitation.invitedBy,
+    actorUserId: user.id,
     action: 'invitation.accepted',
     targetType: 'invitation',
     targetId: invitation.id,

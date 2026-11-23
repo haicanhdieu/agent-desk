@@ -1,16 +1,8 @@
 import { auditLog, type Tx } from '@agentdesk/db';
+import type { AuditAction } from '@agentdesk/contracts';
 import { redactBody } from './redact-body';
 
-export type AuditAction =
-  | 'assignment.granted'
-  | 'assignment.revoked'
-  | 'invitation.created'
-  | 'invitation.revoked'
-  | 'invitation.expired'
-  | 'invitation.accepted'
-  | 'invitation.declined'
-  | 'invitation.resent'
-  | 'org.created';
+export type { AuditAction } from '@agentdesk/contracts';
 
 export interface AuditEntry {
   orgId: string;

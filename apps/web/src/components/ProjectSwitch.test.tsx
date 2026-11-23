@@ -15,7 +15,7 @@ function setup(menu?: ProjectSwitchMenu) {
   const user = userEvent.setup();
   render(
     <div>
-      <ProjectSwitch org="harbor-labs" project="invoicer-api" menu={menu} />
+      <ProjectSwitch project="invoicer-api" menu={menu} />
       <button>Elsewhere</button>
     </div>,
   );
@@ -23,6 +23,12 @@ function setup(menu?: ProjectSwitchMenu) {
 }
 
 describe('ProjectSwitch menu', () => {
+  it('the button shows only the project name', () => {
+    setup();
+    expect(button()).toHaveTextContent(/^invoicer-api$/);
+    expect(button()).toHaveAccessibleName('Switch project, currently invoicer-api');
+  });
+
   it('without a menu the button stays inert', async () => {
     const user = setup();
     await user.click(button());

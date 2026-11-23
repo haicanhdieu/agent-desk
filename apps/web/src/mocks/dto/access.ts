@@ -1,4 +1,5 @@
 import {
+  PERMISSION_LEVEL,
   Permission,
   isPlatformPermission,
   type AccessDto,
@@ -178,3 +179,98 @@ export const platformAdminFixtures: PlatformAdminDto[] = [
     grantedBy: null,
   },
 ];
+
+// Tenant-admin fixtures (Settings → Members): the Harbor Labs cast for the owner, admin and project-admin views.
+const tenantUser = (n: number) => `user-tenant-${n}`;
+const tenantAssignment = (
+  n: number,
+  userId: string,
+  key: keyof typeof roleId,
+  scope: AssignmentDto['scope'],
+): AssignmentDto => ({
+  id: uuid('b2100000', n),
+  userId,
+  role: ref(key, key[0].toUpperCase() + key.slice(1)),
+  scope,
+  grantedBy: ids.user.alice,
+  grantedAt: '2026-10-05T10:30:00.000Z',
+});
+const orgScope = { type: 'org' } as const;
+const tenantMember = (
+  n: number,
+  name: string,
+  handle: string | null,
+  roleKey: keyof typeof roleId | null,
+  projectRoles: { key: keyof typeof roleId; projectId: string }[] = [],
+): MemberDto => {
+  const userId = tenantUser(n);
+  return {
+    userId,
+    handle,
+    name,
+    assignments: [
+      ...(roleKey ? [tenantAssignment(n, userId, roleKey, orgScope)] : []),
+      ...projectRoles.map((p, i) =>
+        tenantAssignment(n * 10 + i + 100, userId, p.key, { type: 'project', projectId: p.projectId }),
+      ),
+    ],
+  };
+};
+
+const alice = { ...memberFixtures[0], name: 'Alice Doe' };
+const owner2 = tenantMember(2, 'Priya Raman', 'priya', 'owner');
+const admin = tenantMember(3, 'Ben Okafor', 'ben', 'admin');
+const memberWithProjects = tenantMember(4, 'Cleo Martin', 'cleo', 'member', [
+  { key: 'admin', projectId: ids.project.invoicerApi },
+  { key: 'member', projectId: ids.project.invoicerWeb },
+]);
+
+export const tenantMemberFixtures: Record<'soleOwner' | 'twoOwners' | 'paged25', MemberDto[]> = {
+  soleOwner: [alice, admin, memberWithProjects, tenantMember(5, 'Dana Wu', 'dana', 'viewer')],
+  twoOwners: [
+    alice,
+    owner2,
+    admin,
+    memberWithProjects,
+    tenantMember(6, 'Eli Ford', 'eli', null, [{ key: 'viewer', projectId: ids.project.docsSite }]),
+  ],
+  paged25: [
+    alice,
+    ...Array.from({ length: 24 }, (_, i) =>
+      tenantMember(i + 10, `Member ${String(i + 1).padStart(2, '0')}`, `member${i + 1}`, 'member'),
+    ),
+  ],
+};
+
+const adminPermissions = roleFixtures[1].permissions;
+const projectAdminPermissions = adminPermissions.filter((l) => PERMISSION_LEVEL[l.permission] === 'project');
+const memberPermissions = roleFixtures[2].permissions;
+const viewerPermissions = roleFixtures[3].permissions;
+const orgAccess = (roleKey: string, permissions: PermissionLineDto[]): AccessDto => ({
+  userId: ids.user.alice,
+  platformAdmin: false,
+  assignments: [{ roleKey, scope: orgScope, permissions }],
+});
+
+/** What `GET /api/orgs/:orgId/access` answers per caller. */
+export const tenantAccessFixtures: Record<
+  'owner' | 'admin' | 'projectAdmin' | 'member' | 'viewer' | 'noRole',
+  AccessDto
+> = {
+  owner: orgAccess('owner', roleFixtures[0].permissions),
+  admin: orgAccess('admin', adminPermissions),
+  projectAdmin: {
+    userId: ids.user.alice,
+    platformAdmin: false,
+    assignments: [
+      {
+        roleKey: 'admin',
+        scope: { type: 'project', projectId: ids.project.invoicerApi },
+        permissions: projectAdminPermissions,
+      },
+    ],
+  },
+  member: orgAccess('member', memberPermissions),
+  viewer: orgAccess('viewer', viewerPermissions),
+  noRole: { userId: ids.user.alice, platformAdmin: false, assignments: [] },
+};

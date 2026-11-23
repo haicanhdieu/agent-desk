@@ -214,6 +214,9 @@ export interface OrgSwitchData {
   current: OrgOption | null;
   orgs: OrgOption[];
   platformAdmin: boolean;
+  /** Absent means the org menu has no such item. */
+  projectsHref?: string;
+  settingsHref?: string;
 }
 export type ChecklistStepKey = 'connect_code_host' | 'create_project' | 'add_agent' | 'add_rule';
 export interface ChecklistStep {
@@ -254,4 +257,38 @@ export interface InvitationDetailsView extends InvitationCardView {
 export interface InviteOption {
   id: string;
   label: string;
+}
+
+// Tenant admin (Settings → General, Members, Invitations, Audit log).
+export type OrgSettingsTabKey = 'general' | 'members' | 'invitations' | 'audit';
+export type OrgRoleKey = 'owner' | 'admin' | 'member' | 'viewer';
+export interface MemberRowView {
+  userId: string;
+  name: string;
+  handle: string;
+  you: boolean;
+  /** null renders "No role". */
+  role: { key: OrgRoleKey; name: string } | null;
+  /** "Alpha (Admin), Beta (Member)" or "—". */
+  projectRoles: string;
+  /** From the caller's rights (BR-4, BR-9). */
+  canChangeRole: boolean;
+  canRemove: boolean;
+}
+export interface RoleCardOption {
+  roleId: string | null;
+  key: OrgRoleKey | 'none';
+  name: string;
+  description: string;
+}
+export interface AuditTextPart {
+  text: string;
+  strong: boolean;
+}
+export interface AuditRowView {
+  id: string;
+  when: { label: string; exact: string; iso: string };
+  who: { label: string; tag: 'deleted' | 'platform' | null };
+  what:
+    { kind: 'sentence'; parts: AuditTextPart[]; title: string } | { kind: 'raw'; key: string; target: string | null };
 }

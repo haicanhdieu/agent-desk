@@ -14,7 +14,7 @@ import { seedOnboarding } from './mock';
 test.describe.configure({ timeout: 60_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-US' });
 
-const INVITATIONS = '/o/acme/invitations';
+const INVITATIONS = '/o/acme/settings/invitations';
 
 async function open(page: Page, scenario: OnboardingScenario): Promise<void> {
   await seedOnboarding(page, scenario);

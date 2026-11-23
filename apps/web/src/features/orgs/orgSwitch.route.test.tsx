@@ -11,8 +11,9 @@ describe('org switcher on the Projects page', () => {
     const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('twoOrgs') });
     await user.click(await switchButton('Alice'));
     const menu = await screen.findByRole('dialog', { name: 'Organizations' });
-    const alice = within(menu).getByRole('link', { name: 'Alice' });
-    const acme = within(menu).getByRole('link', { name: 'Acme' });
+    const orgs = within(menu).getByRole('group', { name: 'Switch organization' });
+    const alice = within(orgs).getByRole('link', { name: 'Alice' });
+    const acme = within(orgs).getByRole('link', { name: 'Acme' });
     expect(alice).toHaveAttribute('href', '/o/alice/projects');
     expect(alice).toHaveAttribute('aria-current');
     expect(acme).toHaveAttribute('href', '/o/acme/projects');
@@ -62,11 +63,14 @@ describe('org switcher on the Projects page', () => {
     expect(screen.queryByRole('link', { name: 'invoicer-api' })).toBeNull();
   });
 
-  it('BR-9: a member of one org who is not a platform admin sees the org name as plain text', async () => {
-    await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('singleOrg') });
+  it('BR-9: one org shows a button whose menu has Projects and no Switch organization', async () => {
+    const { user } = await renderRoute('/o/alice/projects', { scenario: () => scenarios.onboarding('singleOrg') });
     await screen.findByRole('link', { name: 'invoicer-api' });
-    expect(screen.getByText('Alice')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /^Switch organization/ })).toBeNull();
+    await user.click(screen.getByRole('button', { name: 'Organization menu, Alice' }));
+    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    expect(within(menu).getByRole('link', { name: 'Projects' })).toBeInTheDocument();
+    expect(within(menu).queryByText('Switch organization')).toBeNull();
   });
 
   it('BR-10: under the new URL a loading state shows and no project of the previous org, until set-active answers', async () => {

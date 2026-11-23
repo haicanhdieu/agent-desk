@@ -1,5 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { ids } from '@/mocks/dto/ids';
 import { mockDb } from '@/mocks/msw/db';
 import { scenarios } from '@/mocks/msw/scenarios';
 import { renderRoute } from '@/test/renderRoute';
@@ -223,5 +224,36 @@ describe('accept and decline', () => {
     expect(await screen.findByRole('alert')).toBeInTheDocument();
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(router.state.location.pathname).toBe('/invitations');
+  });
+});
+
+const ownerWithInvitations = () => {
+  scenarios.onboarding('noOrgInvited');
+  const me = mockDb.state.users[0];
+  if (!me) throw new Error('no user');
+  mockDb.state.memberships = [{ userId: me.id, orgId: ids.org.alice, roleKey: 'owner' }];
+  mockDb.state.auth = { signedIn: true, activeOrganizationId: ids.org.alice };
+};
+
+const mainNav = () => screen.queryByRole('navigation', { name: 'Main' });
+
+describe('welcome page under the app bar', () => {
+  it('BR-43 / BR-13 an owner sees the org bar with no tab active and Settings in the org menu', async () => {
+    const { user } = await renderRoute('/invitations', { scenario: ownerWithInvitations });
+    await screen.findByRole('heading', { level: 1, name: 'Invitations' });
+    const nav = await screen.findByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
+    expect(await within(nav).findByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+    await user.click(screen.getByRole('button', { name: /^Organization menu/ }));
+    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    expect(within(menu).getByRole('link', { name: 'Settings' })).toHaveAttribute('href', '/o/alice/settings');
+  });
+
+  it('BR-43 a person with no org sees "No organization", the bell and no tabs', async () => {
+    await renderRoute('/invitations', { scenario: () => scenarios.onboarding('noOrgUninvited') });
+    await screen.findByRole('heading', { level: 1, name: "You're not a member of any organization" });
+    expect(screen.getByText('No organization')).toBeInTheDocument();
+    expect(mainNav()).toBeNull();
+    expect(screen.getByRole('button', { name: 'Notifications on' })).toBeInTheDocument();
   });
 });

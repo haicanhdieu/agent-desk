@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { connections } from '@/mocks';
+import { connections, orgSwitchFixtures } from '@/mocks';
 import { AppShell } from './AppShell';
 import { DeskLayout } from './DeskLayout';
 import { TopBar } from './TopBar';
@@ -25,9 +25,11 @@ export const Skills: Story = {
         <TopBar
           variant="project"
           user={{ login: 'kim-hale', initials: 'KH' }}
-          project={{ org: 'harbor-labs', name: 'invoicer-api', repoUrl: '#' }}
+          project={{ name: 'invoicer-api', repoUrl: '#' }}
+          org={{ ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' }}
           active="desk"
           needsYou={1}
+          links={{ desk: '#desk' }}
         />
       }
     >

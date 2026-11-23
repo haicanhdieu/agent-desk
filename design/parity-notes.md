@@ -230,3 +230,110 @@ CreateOrgRetrying, CreateOrgSaving, CreateOrgSlugAuto, CreateOrgSlugEdited, Crea
 - Created: the shared `SurfaceCard` holding the h2, the text, the shared `InviteLink` (the "Invitation link" box with "Copy link") and "Done"; the board draws the link in an input.
 - Forbidden: the same notice as the other screens (h1, one line), with no "Go to projects" button.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 11 pixel pairs are unchecked: none of them is claimed to match; the pixel check is still to do in a browser.
+
+## Org tenant admin: Projects and setup under the app bar
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, navigation Option A). Two boards
+added, so `parity.mjs` finds 149: ProjectsChecklistDoneSettings, ProjectsEmptyChecklistSettings.
+
+- Projects, ProjectsEmpty, Setup1, Setup1Polling, Setup1PollingOk, Setup2, SetupWorkspace, Setup3, Setup4, SetupReady,
+  Runs, RunsProblems, NeedsYou, every RunDetail board (RunStarting to RunRunningAutoResume) and every Desk board: intentional: Option A app bar. The
+  story header is the new app bar (org crumb and menu, Projects and Settings tabs or the project tabs); the board still
+  draws the older header and is not redrawn. The project-level stories change in Task 21.
+- Projects and ProjectsEmpty stories no longer show the "Invitations" header button (Option A, BR-49); the older boards
+  still draw it.
+- The Setup screens take optional `account` and `org` and pass them to `SetupLayout`; the Setup stories set both, so the story header shows the org crumb, the Projects tab (active) and Settings. The app route does not pass them yet.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 2 new pixel pairs are unchecked: none is claimed to match.
+
+## Org tenant admin: Invitations inside the settings layout
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Invitations). Two boards added, so
+`parity.mjs` finds 151: OrgInvitationsSettings, OrgInvitationsSettingsProjectAdmin. Their boards already draw the Option A bar
+and the side menu (owner: all four tabs; project admin: Invitations only), so they have no header drift.
+
+- OrgInvitations* (slice-2 drafts): the story renders inside the Settings layout with the Option A bar; the board keeps the old
+  global bar and no side menu. Intentional header difference; the table and dialog body below the header must still match.
+  Superseded by OrgInvitationsSettings.
+- OrgInvitationsForbidden: intentional: Option A app bar. The story shows the no-access notice under the app bar of a member
+  (no Settings tab, no side menu), as the Members no-access page does, not inside the layout.
+- MyInvitations*, InvitationAccept* and CreateOrg* boards: intentional: Option A app bar. The story header is the new bar (org
+  crumb and menu, account menu); MyInvitations and InvitationAccept show the Projects and Settings tabs with none active, and
+  CreateOrg shows the org crumb with no tabs. The boards still draw the older header and are not redrawn. The no-organization
+  stories show the "No organization" crumb.
+- `OrgInvitations` takes optional `user` and `org`; the stories omit both, so the screen draws no top bar. `MyInvitations`,
+  `InvitationAccept` and `CreateOrg` take an optional `account`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 2 new pixel pairs are unchecked: none is
+  claimed to match.
+
+## Org tenant admin: Members list boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Members). Ten boards added, so
+`parity.mjs` finds 161: OrgMembers, OrgMembersAdmin, OrgMembersPaged, OrgMembersEmpty, OrgMembersLoading, OrgMembersError,
+OrgMembersForbidden, OrgMembersRowMenu, OrgMembersRowMenuSelf, OrgMembersBusy (`Screens/OrgSettings`). Their boards already draw
+the Option A bar and the side menu, so they have no header drift (Forbidden has no side menu and no Settings tab, as the board).
+
+- Table: the shared `DataTable` and `MemberRow`; column widths follow the shared table layout, not the boards' fixed percentages.
+- Empty: the shared `EmptyState` as an h2 under the table (the board draws an h3; axe heading-order needs h2 under the h1).
+- Loading and error: a labelled busy status of `Skeleton` blocks (no h1) and the shared `RouteLoadError` banner.
+- Row menus: the story-only `openMenuUserId` presses that row's Actions button once after mount; `useRowMenu` places the menu
+  under the button, where the boards use fixed offsets.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 10 pixel pairs are unchecked: none is claimed
+  to match.
+
+## Org tenant admin: Runs, run detail, needs-you and Desk under the app bar
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook). No board added (`parity.mjs` still
+finds the same boards as before). Every story of Runs, RunsProblems, NeedsYou, run detail and Desk now draws the new bar, so the header differs from
+the boards on purpose: project level (Runs, RunsProblems, Desk) shows the org crumb and menu, the project crumb, the Runs tab
+with the needs-you count, the Desk tab and the account menu; run detail shows org / project / Runs / Run N with no bell;
+NeedsYou shows the org bar (Projects and Settings tabs, none current). The content below the header must still match.
+
+- `RunsPage`, `RunDetail` and `DeskFrame` take optional `org` and `account`; `RunDetail` also takes `run` (the Runs link and the
+  Run N label); `NeedsYou`'s `topBar` takes optional `org` and `account`. Without them the legacy bar draws (routes keep it until
+  Task 26).
+- The example tab strip inside the NeedsYou page is a nav named "Runs and Desk tabs, example", so the page has one "Main" nav.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The pixel pairs of these boards are unchecked: none is
+  claimed to match.
+
+## Org tenant admin: Members change role and remove boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Members). Thirteen boards added, so
+`parity.mjs` finds 174: OrgMembersChangeRole, OrgMembersChangeRoleAdmin, OrgMembersMakeOwner, OrgMembersStepDown,
+OrgMembersChangeRoleSaving, OrgMembersChangeRoleError, OrgMembersLastOwner, OrgMembersRoleChanged, OrgMembersGone,
+OrgMembersRemoveConfirm, OrgMembersRemoving, OrgMembersRemoved, OrgMembersRemoveLastOwner (`Screens/OrgSettings`).
+
+- Change-role boards: the shared `ChangeRoleDialog` passed as `children` of `OrgMembers`; MakeOwner, StepDown and LastOwner pick
+  the card in a `play` function. LastOwner shows Priya demoted so the caller is the sole owner.
+- Remove confirm: `OrgMembers` `removeConfirm` draws a shared `Dialog` (`solid-danger` Remove, as the Invitations revoke dialog).
+- Toasts (Role changed, "<name> removed", the two problem titles) use the shared `Toast` through `notice`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 13 pixel pairs are unchecked: none is claimed
+  to match.
+
+## Org tenant admin: General boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, General). Nine boards added, so
+`parity.mjs` finds 183: OrgGeneral, OrgGeneralSaving, OrgGeneralSaved, OrgGeneralFieldErrors, OrgGeneralNameTooLong,
+OrgGeneralSlugTaken, OrgGeneralSlugConfirm, OrgGeneralFormError, OrgGeneralForbidden (`Screens/OrgSettings`). The boards were
+missing from `canvas.json`; their entries (and order) are added after the Members boards.
+
+- Layout: one shared `SettingsSection` column ("Organization") with `Field`, `TextInput` and `PrefixInput` (`/o/`); Save is the
+  shared primary `Button`, disabled until something changed, "Saving…" while busy.
+- Slug confirm: a shared `Dialog` opened on "Change URL" (focus moved after the focus trap's own first-button focus).
+- Saved: the org crumb shows the new name through `OrgSettingsFrame`'s story-only `orgName`; the toast is the shared `Toast`.
+- Forbidden: the project admin's frame (side menu lists only Invitations), the no-access notice inside the layout.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 9 pixel pairs are unchecked: none is claimed
+  to match.
+
+## Org tenant admin: Audit log boards
+
+Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Storybook, Audit). Six boards added, so
+`parity.mjs` finds 189: OrgAudit, OrgAuditPaged, OrgAuditEmpty, OrgAuditLoading, OrgAuditError, OrgAuditForbidden
+(`Screens/OrgSettings`). The boards were missing from `canvas.json`; their entries (and order) are added after the General boards.
+
+- Table: the shared `DataTable` and `AuditRow` (When, Who, What); column widths follow the shared table layout, not the boards'
+  fixed percentages.
+- Empty, loading and error: as the Members page (`EmptyState` h2 "No activity yet" under the h1, a labelled busy status of
+  `Skeleton` blocks with no h1, the shared `RouteLoadError`).
+- Forbidden: the project admin's frame (side menu lists only Invitations), the no-access notice inside the layout.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
+  to match.

@@ -246,6 +246,13 @@
       "when": 1795375925142,
       "tag": "0034_user_email_lower_idx",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1795400000000,
+      "tag": "0035_seed_audit_read",
+      "breakpoints": true
     }
   ]
 }

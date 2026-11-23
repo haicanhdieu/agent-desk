@@ -2,8 +2,11 @@ import { Fragment, type ReactNode } from 'react';
 import { AppLink } from '@/ds';
 import styles from './Chrome.module.css';
 
+/** A text crumb (a link when it has an href, unless it is the last), or a control such as a switch button, rendered as is. */
+export type BreadcrumbItem = { label: ReactNode; href?: string } | { control: ReactNode };
+
 export interface BreadcrumbProps {
-  items: { label: ReactNode; href?: string }[];
+  items: BreadcrumbItem[];
 }
 
 export function Breadcrumb({ items }: BreadcrumbProps) {
@@ -18,7 +21,9 @@ export function Breadcrumb({ items }: BreadcrumbProps) {
                 /
               </span>
             )}
-            {last || !item.href ? (
+            {'control' in item ? (
+              <span className={styles.crumbControl}>{item.control}</span>
+            ) : last || !item.href ? (
               <b
                 className={styles.crumb}
                 aria-current={last ? 'page' : undefined}

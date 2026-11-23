@@ -7,8 +7,7 @@ import {
   SurfaceCard,
   TopBar,
   type PaginationProps,
-  type ProjectSwitchMenu,
-  type TopBarProps,
+  type OrgSwitchProps,
 } from '@/components';
 import { menuWarning } from '@/mocks/connection';
 import { runs as runFixtures } from '@/mocks';
@@ -38,8 +37,11 @@ export interface NeedsYouProps {
   projectHref?(p: Project): string;
   /** The page control, drawn under the run cards; the cards are aria-busy while it loads. */
   pagination?: PaginationProps;
-  /** In the app the page gets the project top bar; the board has none. */
-  topBar?: { user: Actor; links?: TopBarProps['links']; projectMenu?: ProjectSwitchMenu };
+  /** In the app the page gets the org bar (Projects and Settings tabs, none current); the board has none. */
+  topBar?: {
+    user: Actor;
+    org: OrgSwitchProps;
+  };
 }
 
 const boardRun = runFixtures.find((r) => r.id === 62);
@@ -102,7 +104,7 @@ export function NeedsYou({
           </div>
         </SurfaceCard>
         <SurfaceCard caption="In the app: badge on the Runs tab, per-project counts in the switcher, a pinned banner at the top of Runs, and amber rows in the list.">
-          <ProjectStrip org={project.org} project={project.name} active="runs" needsYou={project.needsYou} />
+          <ProjectStrip project={project.name} active="runs" needsYou={project.needsYou} />
           <div className={mock.menuWrap}>
             <ProjectMenu
               items={projects.map((p) => ({
@@ -187,15 +189,7 @@ export function NeedsYou({
   if (!topBar) return main;
   return (
     <>
-      <TopBar
-        variant="project"
-        active="runs"
-        user={topBar.user}
-        needsYou={project.needsYou}
-        links={topBar.links}
-        projectMenu={topBar.projectMenu}
-        project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
-      />
+      <TopBar variant="global" tabs="org" user={topBar.user} org={topBar.org} />
       {main}
     </>
   );

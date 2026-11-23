@@ -3,6 +3,7 @@ import {
   AgentDto,
   AgentModelsDto,
   AssignmentDto,
+  AuditEntryDto,
   ConnectionDto,
   InvitationDto,
   MemberDto,
@@ -45,7 +46,10 @@ import {
   platformOrgFixtures,
   platformProjectFixtures,
   roleFixtures,
+  tenantAccessFixtures,
+  tenantMemberFixtures,
 } from '../dto/access';
+import { auditEntryFixtures, pagedAuditFixtures } from '../dto/audit';
 import { checklistFixtures, myInvitationFixtures, orgInvitationFixtures } from '../dto/invitations';
 import { agentFixtures } from '../dto/agents';
 import { agentModelsFixtures } from '../dto/agentModels';
@@ -114,6 +118,10 @@ describe('MSW handlers cover the contract', () => {
       [MyInvitationDto, Object.values(myInvitationFixtures)],
       [InvitationDto, orgInvitationFixtures],
       [OrgChecklistDto, Object.values(checklistFixtures)],
+      [MemberDto, Object.values(tenantMemberFixtures).flat()],
+      [AuditEntryDto, auditEntryFixtures],
+      [AuditEntryDto, pagedAuditFixtures(25)],
+      [AccessDto, Object.values(tenantAccessFixtures)],
     ];
     for (const [schema, items] of lists) {
       expect(items.length).toBeGreaterThan(0);

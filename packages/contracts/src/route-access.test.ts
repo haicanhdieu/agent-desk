@@ -84,6 +84,10 @@ const expected: Record<RouteKey, RouteAccess> = {
   'invitations.create': admin('member:create', 'assignment:create'),
   'invitations.remove': admin('member:create', 'assignment:create'),
   'invitations.resend': admin('member:create', 'assignment:create'),
+  'members.updateRole': org('member:update'),
+  'members.remove': org('member:delete'),
+  'orgs.update': org('org:update'),
+  'audit.list': org('audit:read'),
   'orgs.checklist': org('project:create'),
   'platform.createOrg': platform('platform-org:create'),
   'platform.listOrgs': platform('platform-org:read'),
@@ -105,8 +109,8 @@ const expected: Record<RouteKey, RouteAccess> = {
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 80 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(80);
+  it('matches the approved permission map for all 84 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(84);
     expect(routeAccess).toEqual(expected);
   });
 

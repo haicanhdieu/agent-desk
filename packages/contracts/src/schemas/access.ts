@@ -38,12 +38,18 @@ export const AssignmentDto = z.object({
 });
 export type AssignmentDto = z.infer<typeof AssignmentDto>;
 
+export const MemberUserId = z.string().min(1).max(255);
+
 export const CreateAssignmentRequest = z.object({
-  userId: z.string().min(1).max(255),
+  userId: MemberUserId,
   roleId: Id,
   scope: ScopeDto,
 });
 export type CreateAssignmentRequest = z.infer<typeof CreateAssignmentRequest>;
+
+/** null = the member keeps no org role. */
+export const UpdateMemberRoleRequest = z.object({ roleId: Id.nullable() });
+export type UpdateMemberRoleRequest = z.infer<typeof UpdateMemberRoleRequest>;
 
 export const AssignmentListQuery = PageQuery.extend({ projectId: Id.optional() });
 export type AssignmentListQuery = z.infer<typeof AssignmentListQuery>;

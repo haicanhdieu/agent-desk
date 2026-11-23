@@ -1,0 +1,33 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.legend {
+  padding: 0;
+  margin-bottom: 8px;
+  font-size: var(--fs-13);
+  font-weight: 500;
+  color: var(--text);
+}
+.note {
+  margin: 0;
+  font-size: var(--fs-13);
+  color: var(--muted);
+}
+.request {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-12);
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}

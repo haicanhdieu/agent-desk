@@ -61,7 +61,7 @@ describe('contracts', () => {
       method: 'POST',
       path: '/api/projects/:projectId/connection/poll',
     });
-    expect(Object.keys(flat)).toHaveLength(80);
+    expect(Object.keys(flat)).toHaveLength(84);
     expect(flat['assignments.remove']).toMatchObject({
       method: 'DELETE',
       path: '/api/orgs/:orgId/assignments/:assignmentId',
@@ -181,6 +181,10 @@ describe('contract boundaries', () => {
       method: 'POST',
       path: '/api/platform/orgs/:orgId/invitations/:invitationId/resend',
     });
+    expect(flat['members.updateRole']).toMatchObject({ method: 'PUT', path: '/api/orgs/:orgId/members/:userId/role' });
+    expect(flat['members.remove']).toMatchObject({ method: 'DELETE', path: '/api/orgs/:orgId/members/:userId' });
+    expect(flat['orgs.update']).toMatchObject({ method: 'PATCH', path: '/api/orgs/:orgId' });
+    expect(flat['audit.list']).toMatchObject({ method: 'GET', path: '/api/orgs/:orgId/audit' });
     expect(flat['orgs.checklist']).toMatchObject({ method: 'GET', path: '/api/orgs/:orgId/checklist' });
   });
   it('invitation lists default to pending', () => {

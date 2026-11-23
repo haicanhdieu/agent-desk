@@ -4,6 +4,7 @@ import { PR_STATES_SCENARIO_KEY, type PrStatesScenario } from '../../src/mocks/m
 import { ids } from '../../src/mocks/dto/ids';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
 import { ONBOARDING_SCENARIO_KEY, type OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
+import { TENANT_ADMIN_SCENARIO_KEY, type TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenarios';
 
 /*
  * Mock-mode controls for the e2e specs. There is no test hook in the app: these use what `vite --mode mock` already
@@ -159,5 +160,20 @@ export async function seedOnboarding(page: Page, name: OnboardingScenario): Prom
       sessionStorage.setItem(key, value);
     },
     [ONBOARDING_SCENARIO_KEY, name] as const,
+  );
+}
+
+/**
+ * Starts this test in a tenant-admin scenario (src/mocks/msw/tenantAdminScenarios.ts): who is signed in, their role in
+ * the first org, its members and audit log, and any change, delay or failure the Members and Audit pages meet. Call
+ * before the first `page.goto`: browser.ts reads the key once when the mock worker starts. It lives in sessionStorage,
+ * so a reload in the same tab keeps it.
+ */
+export async function seedTenantAdmin(page: Page, scenario: TenantAdminScenario): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [TENANT_ADMIN_SCENARIO_KEY, scenario] as const,
   );
 }

@@ -7,12 +7,12 @@ const meta = { title: 'Components/ProjectSwitch', component: ProjectSwitch } sat
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Button: Story = { args: { org: 'harbor-labs', project: 'invoicer-api' } };
+export const Button: Story = { args: { project: 'invoicer-api' } };
 export const LongName: Story = {
-  args: { org: 'harbor-labs', project: 'a-very-long-repository-name-that-keeps-going-and-going-and-going-forever' },
+  args: { project: 'a-very-long-repository-name-that-keeps-going-and-going-and-going-forever' },
 };
 export const OpenMenu: Story = {
-  args: { org: 'harbor-labs', project: 'invoicer-api' },
+  args: { project: 'invoicer-api' },
   render: (args) => (
     <div style={{ width: 320, background: 'var(--panel)', border: '1px solid var(--line2)', borderRadius: 10 }}>
       <div style={{ padding: '8px 16px' }}>
@@ -29,7 +29,7 @@ export const OpenMenu: Story = {
   ),
 };
 export const MenuWithPolling: Story = {
-  args: { org: 'harbor-labs', project: 'invoicer-api' },
+  args: { project: 'invoicer-api' },
   render: (args) => (
     <div style={{ width: 320, background: 'var(--panel)', border: '1px solid var(--line2)', borderRadius: 10 }}>
       <div style={{ padding: '8px 16px' }}>
@@ -62,7 +62,7 @@ const openOnLoad: Story['play'] = async ({ canvasElement }) => {
   await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch project/ }));
 };
 const menuStory = (menu: ProjectSwitchMenu): Story => ({
-  args: { org: 'harbor-labs', project: 'invoicer-api', menu },
+  args: { project: 'invoicer-api', menu },
   decorators: [
     (Story) => (
       <div style={{ minHeight: 220 }}>

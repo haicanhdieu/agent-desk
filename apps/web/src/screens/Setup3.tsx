@@ -2,11 +2,14 @@ import { useState } from 'react';
 import { Banner, Icon } from '@/ds';
 import { CommitSummary, SetupLayout, SkillTemplateCard } from '@/components';
 import type { Actor, SkillTemplate } from '@/mocks/types';
+import type { OrgSwitchProps } from '@/components';
 import { DEFAULT_CREDENTIAL_DETAIL, commitLabel, setupSteps, type SetupNav } from './setupSteps';
 import styles from './Screens.module.css';
 
 export interface Setup3Props extends SetupNav {
   user: Actor;
+  /** The org crumb and menu in the top bar. */
+  org?: OrgSwitchProps;
   projectName: string;
   repo: string;
   branch: string;
@@ -27,6 +30,7 @@ export interface Setup3Props extends SetupNav {
 
 export function Setup3({
   user,
+  org,
   projectName,
   repo,
   branch,
@@ -53,6 +57,7 @@ export function Setup3({
   return (
     <SetupLayout
       user={user}
+      org={org}
       projectName={projectName}
       steps={setupSteps({ repo, credential: credentialDetail, withWorkspace: true })}
       current={3}

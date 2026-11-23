@@ -1185,6 +1185,342 @@
    "h": 900,
    "title": "Create organization \u2014 URL taken",
    "expand": "fill"
+  },
+  "ProjectsChecklistDoneSettings.dc.html": {
+   "x": 3040,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 owner or admin: Projects tab active, Settings tab in the top bar, no Settings button in the head",
+   "expand": "fill"
+  },
+  "ProjectsEmptyChecklistSettings.dc.html": {
+   "x": 4560,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 empty, owner: checklist, Projects tab active, Settings tab in the top bar",
+   "expand": "fill"
+  },
+  "OrgInvitationsSettings.dc.html": {
+   "x": 6080,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Invitations inside the settings layout, owner or admin",
+   "expand": "fill"
+  },
+  "OrgInvitationsSettingsProjectAdmin.dc.html": {
+   "x": 7600,
+   "y": 36400,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Invitations, project admin: only the Invitations tab",
+   "expand": "fill"
+  },
+  "OrgMembers.dc.html": {
+   "x": 0,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, owner: several owners, No role, project roles",
+   "expand": "fill"
+  },
+  "OrgMembersAdmin.dc.html": {
+   "x": 1520,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, org admin: owner rows have no actions",
+   "expand": "fill"
+  },
+  "OrgMembersPaged.dc.html": {
+   "x": 3040,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, page 2 of 2",
+   "expand": "fill"
+  },
+  "OrgMembersEmpty.dc.html": {
+   "x": 4560,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, empty (only via a clamped page)",
+   "expand": "fill"
+  },
+  "OrgMembersLoading.dc.html": {
+   "x": 6080,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, loading",
+   "expand": "fill"
+  },
+  "OrgMembersError.dc.html": {
+   "x": 7600,
+   "y": 37680,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, failed to load",
+   "expand": "fill"
+  },
+  "OrgMembersForbidden.dc.html": {
+   "x": 0,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members URL opened by a member or viewer: no access, no side menu",
+   "expand": "fill"
+  },
+  "OrgMembersRowMenu.dc.html": {
+   "x": 1520,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, row menu on another member",
+   "expand": "fill"
+  },
+  "OrgMembersRowMenuSelf.dc.html": {
+   "x": 3040,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, row menu on the caller's own row: no Remove",
+   "expand": "fill"
+  },
+  "OrgMembersBusy.dc.html": {
+   "x": 4560,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, request in flight: row menu disabled",
+   "expand": "fill"
+  },
+  "OrgMembersChangeRole.dc.html": {
+   "x": 6080,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 owner caller: Owner card offered, current role preselected",
+   "expand": "fill"
+  },
+  "OrgMembersChangeRoleAdmin.dc.html": {
+   "x": 7600,
+   "y": 38960,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 org admin caller: no Owner card",
+   "expand": "fill"
+  },
+  "OrgMembersMakeOwner.dc.html": {
+   "x": 0,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 owner caller picks Owner: inline note",
+   "expand": "fill"
+  },
+  "OrgMembersStepDown.dc.html": {
+   "x": 1520,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 owner on own row picks Admin: step-down warning",
+   "expand": "fill"
+  },
+  "OrgMembersChangeRoleSaving.dc.html": {
+   "x": 3040,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 saving",
+   "expand": "fill"
+  },
+  "OrgMembersChangeRoleError.dc.html": {
+   "x": 4560,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 refused (403): Banner in the dialog",
+   "expand": "fill"
+  },
+  "OrgMembersLastOwner.dc.html": {
+   "x": 6080,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Change role dialog \u2014 sole owner steps down: 409, dialog stays open",
+   "expand": "fill"
+  },
+  "OrgMembersRoleChanged.dc.html": {
+   "x": 7600,
+   "y": 40240,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, role changed: list refetched, toast",
+   "expand": "fill"
+  },
+  "OrgMembersGone.dc.html": {
+   "x": 0,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, member removed meanwhile: dialog closed, list refetched, error toast",
+   "expand": "fill"
+  },
+  "OrgMembersRemoveConfirm.dc.html": {
+   "x": 1520,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, remove confirmation",
+   "expand": "fill"
+  },
+  "OrgMembersRemoving.dc.html": {
+   "x": 3040,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, removing",
+   "expand": "fill"
+  },
+  "OrgMembersRemoved.dc.html": {
+   "x": 4560,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, removed: list refetched, toast",
+   "expand": "fill"
+  },
+  "OrgMembersRemoveLastOwner.dc.html": {
+   "x": 6080,
+   "y": 41520,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Members, remove refused (409 last owner): toast, list refetched",
+   "expand": "fill"
+  },
+  "OrgGeneral.dc.html": {
+   "x": 0,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, ready: nothing changed, Save disabled",
+   "expand": "fill"
+  },
+  "OrgGeneralSaving.dc.html": {
+   "x": 1520,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, saving a new name",
+   "expand": "fill"
+  },
+  "OrgGeneralSaved.dc.html": {
+   "x": 3040,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, saved: switcher shows the new name, toast",
+   "expand": "fill"
+  },
+  "OrgGeneralFieldErrors.dc.html": {
+   "x": 4560,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, field errors: empty name, bad URL format",
+   "expand": "fill"
+  },
+  "OrgGeneralNameTooLong.dc.html": {
+   "x": 6080,
+   "y": 42800,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, field error: name over 100 characters",
+   "expand": "fill"
+  },
+  "OrgGeneralSlugTaken.dc.html": {
+   "x": 0,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, field error: URL taken by another org, input kept",
+   "expand": "fill"
+  },
+  "OrgGeneralSlugConfirm.dc.html": {
+   "x": 1520,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, URL change confirmation",
+   "expand": "fill"
+  },
+  "OrgGeneralFormError.dc.html": {
+   "x": 3040,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General, form error with request ID, input kept",
+   "expand": "fill"
+  },
+  "OrgGeneralForbidden.dc.html": {
+   "x": 4560,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 General URL opened by a project admin: no access inside the layout",
+   "expand": "fill"
+  },
+  "OrgAudit.dc.html": {
+   "x": 6080,
+   "y": 44080,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, newest first: role, owner, URL, name, removal, invitation, generic, platform admin, deleted user",
+   "expand": "fill"
+  },
+  "OrgAuditPaged.dc.html": {
+   "x": 0,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, page 2 of 2",
+   "expand": "fill"
+  },
+  "OrgAuditEmpty.dc.html": {
+   "x": 1520,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, empty",
+   "expand": "fill"
+  },
+  "OrgAuditLoading.dc.html": {
+   "x": 3040,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, loading",
+   "expand": "fill"
+  },
+  "OrgAuditError.dc.html": {
+   "x": 4560,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, failed to load",
+   "expand": "fill"
+  },
+  "OrgAuditForbidden.dc.html": {
+   "x": 6080,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log URL opened by a project admin: no access inside the layout",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1334,7 +1670,49 @@
   "CreateOrgSaving.dc.html",
   "CreateOrgSlugAuto.dc.html",
   "CreateOrgSlugEdited.dc.html",
-  "CreateOrgSlugTaken.dc.html"
+  "CreateOrgSlugTaken.dc.html",
+  "ProjectsChecklistDoneSettings.dc.html",
+  "ProjectsEmptyChecklistSettings.dc.html",
+  "OrgInvitationsSettings.dc.html",
+  "OrgInvitationsSettingsProjectAdmin.dc.html",
+  "OrgMembers.dc.html",
+  "OrgMembersAdmin.dc.html",
+  "OrgMembersPaged.dc.html",
+  "OrgMembersEmpty.dc.html",
+  "OrgMembersLoading.dc.html",
+  "OrgMembersError.dc.html",
+  "OrgMembersForbidden.dc.html",
+  "OrgMembersRowMenu.dc.html",
+  "OrgMembersRowMenuSelf.dc.html",
+  "OrgMembersBusy.dc.html",
+  "OrgMembersChangeRole.dc.html",
+  "OrgMembersChangeRoleAdmin.dc.html",
+  "OrgMembersMakeOwner.dc.html",
+  "OrgMembersStepDown.dc.html",
+  "OrgMembersChangeRoleSaving.dc.html",
+  "OrgMembersChangeRoleError.dc.html",
+  "OrgMembersLastOwner.dc.html",
+  "OrgMembersRoleChanged.dc.html",
+  "OrgMembersGone.dc.html",
+  "OrgMembersRemoveConfirm.dc.html",
+  "OrgMembersRemoving.dc.html",
+  "OrgMembersRemoved.dc.html",
+  "OrgMembersRemoveLastOwner.dc.html",
+  "OrgGeneral.dc.html",
+  "OrgGeneralSaving.dc.html",
+  "OrgGeneralSaved.dc.html",
+  "OrgGeneralFieldErrors.dc.html",
+  "OrgGeneralNameTooLong.dc.html",
+  "OrgGeneralSlugTaken.dc.html",
+  "OrgGeneralSlugConfirm.dc.html",
+  "OrgGeneralFormError.dc.html",
+  "OrgGeneralForbidden.dc.html",
+  "OrgAudit.dc.html",
+  "OrgAuditPaged.dc.html",
+  "OrgAuditEmpty.dc.html",
+  "OrgAuditLoading.dc.html",
+  "OrgAuditError.dc.html",
+  "OrgAuditForbidden.dc.html"
  ],
  "notes": {
   "t-intro": {

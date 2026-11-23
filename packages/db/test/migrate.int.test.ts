@@ -859,6 +859,7 @@ describe('role templates and run owner backfill on an upgraded database', () => 
     '0026_seed_role_templates.sql',
     '0027_backfill_run_owner.sql',
     '0032_revoke_desk_reads_member_viewer.sql',
+    '0035_seed_audit_read.sql',
   ];
   const BULK_RUNS = 1001;
   let old: Awaited<ReturnType<typeof startPgAt>>;
@@ -1028,9 +1029,9 @@ describe('role templates and run owner backfill on an upgraded database', () => 
         [orgId],
       );
       expect(rows).toEqual([
-        { key: 'admin', built_in: true, has_template: true, n: '32' },
+        { key: 'admin', built_in: true, has_template: true, n: '33' },
         { key: 'member', built_in: true, has_template: true, n: '6' },
-        { key: 'owner', built_in: true, has_template: true, n: '33' },
+        { key: 'owner', built_in: true, has_template: true, n: '34' },
         { key: 'viewer', built_in: true, has_template: true, n: '2' },
       ]);
     }
@@ -1264,5 +1265,110 @@ describe('migration 0033: platform_admins and platform_audit_log (N-2)', () => {
       `select relrowsecurity from pg_class where relname in ('platform_admins','platform_audit_log')`,
     );
     expect(rls.every((r) => !r.relrowsecurity)).toBe(true);
+  });
+});
+
+describe('audit:read seed migration (0035) on an upgraded database (NO-4)', () => {
+  const orgA = randomUUID();
+  const orgB = randomUUID();
+  const MIGRATION = new URL('../migrations/0035_seed_audit_read.sql', import.meta.url);
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  async function owner<T extends pg.QueryResultRow>(sql: string, params: unknown[] = [], orgId?: string): Promise<T[]> {
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      if (orgId) await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const r = await client.query<T>(sql, params);
+      await client.query('commit');
+      return r.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  /** The way 0026 copied the templates into an org: roles, then role_permissions, in the org's own scope. */
+  async function copyTemplates(orgId: string): Promise<void> {
+    await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [orgId]);
+    await owner(
+      `insert into roles (org_id, key, name, built_in, template_id, assignable_scopes)
+       select $1::uuid, t.key, t.name, true, t.id, t.assignable_scopes from role_templates t`,
+      [orgId],
+      orgId,
+    );
+    await owner(
+      `insert into role_permissions (org_id, role_id, permission, condition)
+       select $1::uuid, r.id, tp.permission, tp.condition
+       from roles r join role_template_permissions tp on tp.template_id = r.template_id where r.org_id = $1::uuid`,
+      [orgId],
+      orgId,
+    );
+  }
+
+  /** `audit:read` lines per built-in role key of one org. */
+  async function auditLines(orgId: string): Promise<Record<string, string[]>> {
+    const rows = await owner<{ key: string; line: string }>(
+      `select r.key, p.permission || '=' || p.condition as line from roles r
+       join role_permissions p on p.role_id = r.id
+       where r.org_id = $1 and p.permission = 'audit:read' order by 1, 2`,
+      [orgId],
+      orgId,
+    );
+    const out: Record<string, string[]> = {};
+    for (const r of rows) (out[r.key] ??= []).push(r.line);
+    return out;
+  }
+
+  const templateAudit = async (): Promise<{ key: string; condition: string }[]> =>
+    owner(
+      `select t.key, p.condition from role_templates t
+       join role_template_permissions p on p.template_id = t.id where p.permission = 'audit:read' order by 1`,
+    );
+
+  /** Template rows, plus role_permissions per org (forced RLS: a count only sees rows in the org's own scope). */
+  const rowCounts = async (): Promise<string[]> => {
+    const [templates] = await owner<{ n: string }>(`select count(*)::text as n from role_template_permissions`);
+    const out = [`templates=${templates?.n}`];
+    for (const orgId of [orgA, orgB]) {
+      const [perOrg] = await owner<{ n: string }>(`select count(*)::text as n from role_permissions`, [], orgId);
+      out.push(`${orgId}=${perOrg?.n}`);
+    }
+    return out;
+  };
+
+  beforeAll(async () => {
+    old = await startPgAt('0032_revoke_desk_reads_member_viewer');
+    await copyTemplates(orgA);
+    await copyTemplates(orgB);
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('starts with no audit:read anywhere', async () => {
+    expect(await templateAudit()).toEqual([]);
+    expect(await auditLines(orgA)).toEqual({});
+  });
+
+  it('adds one audit:read line to the owner and admin templates and each org copy, none to member or viewer', async () => {
+    await old.migrateRest();
+    expect(await templateAudit()).toEqual([
+      { key: 'admin', condition: 'any' },
+      { key: 'owner', condition: 'any' },
+    ]);
+    for (const orgId of [orgA, orgB]) {
+      expect(await auditLines(orgId), orgId).toEqual({ admin: ['audit:read=any'], owner: ['audit:read=any'] });
+    }
+  });
+
+  it('is idempotent: applying its SQL again changes no row count', async () => {
+    const before = await rowCounts();
+    for (const line of before.slice(1)) expect(line.split('=')[1], line).not.toBe('0');
+    const sql = await readFile(MIGRATION, 'utf8');
+    for (const statement of sql.split('--> statement-breakpoint')) await owner(statement);
+    expect(await rowCounts()).toEqual(before);
+    expect(await auditLines(orgA)).toEqual({ admin: ['audit:read=any'], owner: ['audit:read=any'] });
   });
 });

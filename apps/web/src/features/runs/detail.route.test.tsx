@@ -77,6 +77,75 @@ describe('run detail route', () => {
     ).toHaveAttribute('href', `${base}/runs`);
   });
 
+  describe('the run bar (BR-46, BR-47)', () => {
+    const orgButton = () => within(banner()).getByRole('button', { name: /^(Switch organization|Organization menu)/ });
+
+    it("TC-46.1, TC-43.5: has crumbs only, org / project / Runs / Run 62 (TC-46.2: Runs links to the project's list), with no tabs and no bell", async () => {
+      await renderRoute(`${base}/runs/62`);
+      await screen.findByText('The agent is waiting for your answer');
+      const crumbs = within(banner()).getByRole('navigation', { name: 'Breadcrumb' });
+      expect(within(crumbs).getByRole('button', { name: /^(Switch organization|Organization menu)/ })).toBeVisible();
+      expect(within(crumbs).getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
+      expect(within(crumbs).getByRole('link', { name: 'Runs' })).toHaveAttribute('href', `${base}/runs`);
+      expect(within(crumbs).getByText('Run 62')).toHaveAttribute('aria-current', 'page');
+      expect(within(banner()).queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
+      expect(within(banner()).queryByRole('button', { name: 'Notifications on' })).not.toBeInTheDocument();
+    });
+
+    it('TC-46.3: the project crumb opens the switcher with the org projects', async () => {
+      const { user } = await renderRoute(`${base}/runs/62`);
+      await screen.findByText('The agent is waiting for your answer');
+      await user.click(within(banner()).getByRole('button', { name: /^Switch project, currently/ }));
+      const menu = await screen.findByRole('dialog', { name: 'Projects' });
+      const other = await within(menu).findByRole('link', { name: /invoicer-web/ });
+      expect(other).toHaveAttribute('href', `/o/alice/p/${ids.project.invoicerWeb}/runs`);
+    });
+
+    it('TC-47.4: the owner presses the org crumb, then Settings, and General opens', async () => {
+      const { user, router } = await renderRoute(`${base}/runs/62`);
+      await screen.findByText('The agent is waiting for your answer');
+      await user.click(orgButton());
+      await user.click(await screen.findByRole('link', { name: /^Settings/ }));
+      await screen.findByRole('navigation', { name: 'Organization settings' });
+      expect(router.state.location.pathname).toBe('/o/alice/settings/general');
+    });
+
+    it("TC-48.2: the logo opens the org's Projects page", async () => {
+      await renderRoute(`${base}/runs/62`);
+      await screen.findByText('The agent is waiting for your answer');
+      expect(within(banner()).getByRole('link', { name: 'Agent Desk, all projects' })).toHaveAttribute(
+        'href',
+        '/o/alice/projects',
+      );
+    });
+
+    it('TC-47.2: a project admin presses the org crumb, then Settings, and only Invitations opens', async () => {
+      const { user, router } = await renderRoute(`/o/acme/p/${projectId}/runs/62`, {
+        scenario: () => scenarios.onboarding('projectAdmin'),
+      });
+      await screen.findByText('The agent is waiting for your answer');
+      await user.click(orgButton());
+      await user.click(await screen.findByRole('link', { name: /^Settings/ }));
+      const side = await screen.findByRole('navigation', { name: 'Organization settings' });
+      expect(router.state.location.pathname).toBe('/o/acme/settings/invitations');
+      expect(
+        within(side)
+          .getAllByRole('link')
+          .map((a) => a.textContent),
+      ).toEqual(['Invitations']);
+    });
+
+    it('BR-47: a viewer has no Settings in the org menu', async () => {
+      const { user } = await renderRoute(`/o/acme/p/${projectId}/runs/62`, {
+        scenario: () => scenarios.onboarding('viewer'),
+      });
+      await screen.findByText('The agent is waiting for your answer');
+      await user.click(orgButton());
+      await screen.findByRole('link', { name: /^Projects/ });
+      expect(screen.queryByRole('link', { name: /^Settings/ })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows the final prompt of a run behind Show, and Not recorded for an older run', async () => {
     const recorded = await renderRoute(`${base}/runs/60`);
     const show = await screen.findByRole('button', { name: 'Show' });

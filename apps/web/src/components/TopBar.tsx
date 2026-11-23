@@ -3,26 +3,32 @@ import { Button, IconButton } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import { AccountMenu } from './AccountMenu';
 import { Brand } from './Brand';
-import { OrgSwitch, orgSwitchVisible, type OrgSwitchProps } from './OrgSwitch';
+import { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
+import { OrgNav } from './OrgNav';
 import { ProjectSwitch, type ProjectSwitchMenu } from './ProjectSwitch';
-import { Breadcrumb } from './Breadcrumb';
+import { Breadcrumb, type BreadcrumbItem } from './Breadcrumb';
 import { ProjectNav } from './ProjectNav';
 import styles from './Chrome.module.css';
 
 export interface TopBarProps {
+  /** global = org level; project; run. */
   variant: 'global' | 'project' | 'run';
   user: Actor;
-  project?: { org: string; name: string; repoUrl: string };
+  /** The org crumb, on every level. */
+  org?: OrgSwitchProps;
+  /** Which tabs the bar shows. Default: 'project' on the project variant, else 'none'. */
+  tabs?: 'org' | 'project' | 'none';
+  active?: 'projects' | 'settings' | 'runs' | 'desk';
+  /** The project crumb and, on the project bar, the repository link (absent: no link, as on the run bar). */
+  project?: { name: string; repoUrl?: string };
   /** The project menu behind the switcher button; without it the button does nothing. */
   projectMenu?: ProjectSwitchMenu;
-  /** The org switcher, after the brand on the global variant only. */
-  org?: OrgSwitchProps;
-  active?: 'runs' | 'desk';
   needsYou?: number;
-  breadcrumb?: { label: ReactNode; href?: string }[];
+  /** Run level: the "Runs" link and the current "Run N" crumb. */
+  run?: { runsHref: string; label: string };
   children?: ReactNode;
   actions?: ReactNode;
-  /** In-app hrefs; default to the prototype's "/projects" and "/runs". The Desk tab shows only with `desk`. */
+  /** In-app hrefs; `projects` defaults to the org crumb's `projectsHref`, then "/projects"; "/runs" for Runs. The Desk tab shows only with `desk`. */
   links?: { projects?: string; runs?: string; desk?: string };
 }
 
@@ -34,26 +40,36 @@ export function TopBarSeparator() {
 export function TopBar({
   variant,
   user,
+  org,
+  tabs,
+  active,
   project,
   projectMenu,
-  org,
-  active,
   needsYou,
-  breadcrumb,
+  run,
   children,
   actions,
   links,
 }: TopBarProps) {
-  const projectsHref = links?.projects ?? '/projects';
+  const projectsHref = links?.projects ?? org?.projectsHref ?? '/projects';
   const avatar = <AccountMenu user={user} />;
   const bell = <IconButton icon="bell" aria-label="Notifications on" />;
+  const shownTabs = tabs ?? (variant === 'project' ? 'project' : 'none');
+  const orgCrumb = org && <OrgSwitch {...org} />;
+  const projectCrumb = project && <ProjectSwitch project={project.name} menu={projectMenu} />;
 
   if (variant === 'run') {
+    const items: BreadcrumbItem[] = [];
+    if (run) {
+      if (orgCrumb) items.push({ control: orgCrumb });
+      if (projectCrumb) items.push({ control: projectCrumb });
+      items.push({ label: 'Runs', href: run.runsHref }, { label: run.label });
+    }
     return (
       <header className={styles.top}>
         <Brand withName={false} href={projectsHref} />
         <span className={styles.sep} />
-        {breadcrumb && <Breadcrumb items={breadcrumb} />}
+        {items.length > 0 && <Breadcrumb items={items} />}
         {children && <div className={styles.runExtra}>{children}</div>}
         <span className={styles.grow} />
         {actions}
@@ -62,16 +78,33 @@ export function TopBar({
     );
   }
 
+  const nav =
+    shownTabs === 'org' ? (
+      <OrgNav
+        active={active === 'projects' || active === 'settings' ? active : undefined}
+        projectsHref={projectsHref}
+        settingsHref={org?.settingsHref}
+      />
+    ) : shownTabs === 'project' ? (
+      <ProjectNav
+        active={active === 'desk' ? 'desk' : 'runs'}
+        needsYou={needsYou}
+        runsHref={links?.runs}
+        deskHref={links?.desk}
+      />
+    ) : null;
+
   if (variant === 'global') {
     return (
       <header className={styles.top}>
         <Brand href={projectsHref} />
-        {org && orgSwitchVisible(org) && (
+        {orgCrumb && (
           <>
             <span className={styles.sep} />
-            <OrgSwitch {...org} />
+            {orgCrumb}
           </>
         )}
+        {nav}
         <span className={styles.grow} />
         {bell}
         {avatar}
@@ -83,10 +116,16 @@ export function TopBar({
     <header className={styles.top}>
       <Brand href={projectsHref} />
       <span className={styles.sep} />
-      {project && <ProjectSwitch org={project.org} project={project.name} menu={projectMenu} />}
-      <ProjectNav active={active} needsYou={needsYou} runsHref={links?.runs} deskHref={links?.desk} />
+      {orgCrumb}
+      {project && orgCrumb && (
+        <span className={styles.crumbText} aria-hidden="true">
+          /
+        </span>
+      )}
+      {projectCrumb}
+      {nav}
       <span className={styles.grow} />
-      {project && (
+      {project?.repoUrl && (
         <Button
           variant="ghost"
           size="sm"

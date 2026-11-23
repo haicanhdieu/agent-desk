@@ -3,7 +3,12 @@ import { userEvent, within } from 'storybook/test';
 import { orgSwitchFixtures } from '@/mocks';
 import { OrgSwitch } from './OrgSwitch';
 
-const links = { orgHref: (o: { slug: string }) => `/o/${o.slug}`, createHref: '/orgs/new' };
+const links = {
+  orgHref: (o: { slug: string }) => `/o/${o.slug}`,
+  createHref: '/orgs/new',
+  projectsHref: '/o/acme/projects',
+  settingsHref: '/o/acme/settings',
+};
 
 const meta = {
   title: 'Components/OrgSwitch',
@@ -21,12 +26,19 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 const openOnLoad: Story['play'] = async ({ canvasElement }) => {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch organization/ }));
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: /^(Switch organization|Organization menu)/ }),
+  );
 };
 
-export const OneOrg: Story = { args: orgSwitchFixtures.oneOrg };
+export const OneOrg: Story = { args: orgSwitchFixtures.oneOrg, play: openOnLoad };
+export const OneOrgNoSettings: Story = {
+  args: { ...orgSwitchFixtures.oneOrg, settingsHref: undefined },
+  play: openOnLoad,
+};
 export const SeveralOrgs: Story = { args: orgSwitchFixtures.severalOrgs };
 export const Open: Story = { args: orgSwitchFixtures.severalOrgs, play: openOnLoad };
 export const PlatformAdmin: Story = { args: orgSwitchFixtures.platformAdmin, play: openOnLoad };
 export const PlatformAdminNoOrg: Story = { args: orgSwitchFixtures.platformAdminNoOrg, play: openOnLoad };
+export const NoOrg: Story = { args: { current: null, orgs: [], platformAdmin: false } };
 export const LongName: Story = { args: orgSwitchFixtures.longName, play: openOnLoad };

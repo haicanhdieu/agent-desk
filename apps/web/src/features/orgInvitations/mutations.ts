@@ -5,6 +5,8 @@ import { api } from '../api';
 import { orgsQuery } from '../auth/session';
 import { orgInvitationsListKey } from './queries';
 
+const auditKey = (org: string) => ['org', org, 'audit'] as const;
+
 function orgIdOf(queryClient: QueryClient, org: string): string {
   const found = queryClient.getQueryData(orgsQuery.queryKey)?.find((o) => o.slug === org);
   if (!found) throw new Error(`Unknown organization ${org}`);
@@ -13,10 +15,12 @@ function orgIdOf(queryClient: QueryClient, org: string): string {
 
 // No optimistic updates. Success and failure both refetch: a 409 means the row changed elsewhere, so the list shows
 // its new status (BR-19). The mutation stays pending until the refetch is done.
+// A success also writes an audit entry, so the audit log is read again.
 export function useResendInvitation(org: string): UseMutationResult<InvitationDto, ApiError, string> {
   const queryClient = useQueryClient();
   return useMutation<InvitationDto, ApiError, string>({
     mutationFn: (id) => api.invitations.resend({ params: { orgId: orgIdOf(queryClient, org), invitationId: id } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: auditKey(org) }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orgInvitationsListKey(org) }),
   });
 }
@@ -25,6 +29,7 @@ export function useRevokeInvitation(org: string): UseMutationResult<null, ApiErr
   const queryClient = useQueryClient();
   return useMutation<null, ApiError, string>({
     mutationFn: (id) => api.invitations.remove({ params: { orgId: orgIdOf(queryClient, org), invitationId: id } }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: auditKey(org) }),
     onSettled: () => queryClient.invalidateQueries({ queryKey: orgInvitationsListKey(org) }),
   });
 }
@@ -34,6 +39,10 @@ export function useCreateInvitation(org: string): UseMutationResult<InvitationDt
   const queryClient = useQueryClient();
   return useMutation<InvitationDto, ApiError, CreateInvitationRequest>({
     mutationFn: (body) => api.invitations.create({ params: { orgId: orgIdOf(queryClient, org) }, body }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: orgInvitationsListKey(org) }),
+    onSuccess: () =>
+      Promise.all([
+        queryClient.invalidateQueries({ queryKey: orgInvitationsListKey(org) }),
+        queryClient.invalidateQueries({ queryKey: auditKey(org) }),
+      ]),
   });
 }

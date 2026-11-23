@@ -10,6 +10,8 @@ import {
   INVITATION_EXPIRY_SECONDS,
   AcceptInvitationResponse,
   MemberDto,
+  MemberUserId,
+  UpdateMemberRoleRequest,
   MyInvitationDto,
   OrgChecklistDto,
   RoleDto,
@@ -180,5 +182,24 @@ describe('onboarding schemas', () => {
     const ok = { complete: false, projectId: null, steps: [{ key: 'create_project', done: false }] };
     expect(OrgChecklistDto.safeParse(ok).success).toBe(true);
     expect(OrgChecklistDto.safeParse({ ...ok, steps: [{ key: 'nope', done: false }] }).success).toBe(false);
+  });
+});
+
+describe('UpdateMemberRoleRequest and MemberUserId', () => {
+  it('accepts a uuid and null', () => {
+    expect(UpdateMemberRoleRequest.safeParse({ roleId: ROLE }).success).toBe(true);
+    expect(UpdateMemberRoleRequest.safeParse({ roleId: null }).success).toBe(true);
+  });
+  it.each([
+    ['empty roleId', { roleId: '' }],
+    ['missing roleId', {}],
+  ])('rejects %s', (_n, body) => {
+    expect(UpdateMemberRoleRequest.safeParse(body).success).toBe(false);
+  });
+  it('bounds the user id to 1 to 255 characters', () => {
+    expect(MemberUserId.safeParse('u').success).toBe(true);
+    expect(MemberUserId.safeParse('a'.repeat(255)).success).toBe(true);
+    expect(MemberUserId.safeParse('').success).toBe(false);
+    expect(MemberUserId.safeParse('a'.repeat(256)).success).toBe(false);
   });
 });

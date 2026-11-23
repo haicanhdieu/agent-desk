@@ -1,6 +1,7 @@
+import type { ReactElement } from 'react';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { PaginationProps } from '@/components';
+import { type PaginationProps } from '@/components';
 import { checklistSteps, orgSwitchFixtures, projects, user } from '@/mocks';
 import { SignIn, SignInNoInvitationError } from './SignIn';
 import { ProjectsEmpty } from './ProjectsEmpty';
@@ -176,10 +177,11 @@ describe('Projects onboarding', () => {
     expect(screen.queryByText(/pending invitation/)).not.toBeInTheDocument();
   });
 
-  it('shows the Invitations link next to New project when invitationsHref is given', () => {
-    render(<Projects user={user} projects={projects} newHref="/new" invitationsHref="/o/acme/invitations" canCreate />);
-    expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
-    expect(screen.getByRole('link', { name: 'New project' })).toBeInTheDocument();
+  it('TC-49.1: the header has New project and no Settings or Invitations button', () => {
+    render(<Projects user={user} projects={projects} newHref="/new" canCreate />);
+    const main = screen.getByRole('main');
+    expect(within(main).getByRole('link', { name: 'New project' })).toBeInTheDocument();
+    expect(within(main).queryByRole('link', { name: /^(Settings|Invitations)$/ })).not.toBeInTheDocument();
   });
 
   it('shows no New project and no Settings or Switch to polling without their hrefs', async () => {
@@ -234,9 +236,10 @@ describe('ProjectsEmpty onboarding', () => {
     expect(screen.getByRole('link', { name: 'Create project' })).toHaveAttribute('href', '/new');
   });
 
-  it('offers Invitations beside Create project', () => {
-    render(<ProjectsEmpty user={user} createHref="/new" invitationsHref="/o/acme/invitations" canCreate />);
-    expect(screen.getByRole('link', { name: 'Invitations' })).toHaveAttribute('href', '/o/acme/invitations');
+  it('TC-49.6: offers Create project and no Settings or Invitations button', () => {
+    render(<ProjectsEmpty user={user} createHref="/new" canCreate />);
+    expect(screen.getByRole('link', { name: 'Create project' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: /^(Settings|Invitations)$/ })).not.toBeInTheDocument();
   });
 
   it('shows no Create project when canCreate is left out (fail closed)', () => {
@@ -266,5 +269,49 @@ describe('SignInNoInvitationError', () => {
     const alert = screen.getByRole('alert');
     expect(alert).toHaveTextContent('No invitation found for your email');
     expect(alert).toHaveTextContent('Ask an owner or admin of your organization to invite you, then sign in again.');
+  });
+});
+
+describe('org bar on Projects and ProjectsEmpty', () => {
+  const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
+  const orgBar = (settingsHref?: string) => ({
+    current: harbor,
+    orgs: [harbor],
+    platformAdmin: false,
+    orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+    createHref: '/orgs/new',
+    projectsHref: '/o/harbor-labs/projects',
+    settingsHref,
+  });
+  const cases: [string, (settingsHref?: string) => ReactElement][] = [
+    ['Projects', (s) => <Projects user={user} projects={projects} newHref="/new" canCreate org={orgBar(s)} />],
+    ['Projects without create', (s) => <Projects user={user} projects={projects} newHref="/new" org={orgBar(s)} />],
+    ['ProjectsEmpty', (s) => <ProjectsEmpty user={user} createHref="/new" canCreate org={orgBar(s)} />],
+    ['ProjectsEmpty without create', (s) => <ProjectsEmpty user={user} createHref="/new" org={orgBar(s)} />],
+  ];
+
+  it.each(cases)('%s: Main nav marks Projects current and shows Settings with settingsHref', (_n, make) => {
+    render(make('/o/harbor-labs/settings'));
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: /Settings/ })).toHaveAttribute('href', '/o/harbor-labs/settings');
+  });
+
+  it.each(cases)('%s: header has no Settings or Invitations button when the Settings tab is shown', (_n, make) => {
+    render(make('/o/harbor-labs/settings'));
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    const outsideNav = (role: 'link' | 'button', name: RegExp) =>
+      screen.queryAllByRole(role, { name }).filter((el) => !nav.contains(el));
+    expect(screen.queryByRole('link', { name: 'Invitations' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Invitations' })).not.toBeInTheDocument();
+    expect(outsideNav('link', /^Settings$/)).toHaveLength(0);
+    expect(outsideNav('button', /^Settings$/)).toHaveLength(0);
+  });
+
+  it.each(cases)('%s: no Settings tab without settingsHref', (_n, make) => {
+    render(make());
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).queryByRole('link', { name: /Settings/ })).not.toBeInTheDocument();
   });
 });

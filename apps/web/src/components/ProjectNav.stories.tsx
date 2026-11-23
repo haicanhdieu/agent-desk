@@ -20,5 +20,5 @@ export const Quiet: Story = { args: { active: 'desk', deskHref: '#desk' } };
 /** A member or viewer: no Desk tab. */
 export const NoDesk: Story = { args: { active: 'runs', needsYou: 1 } };
 export const Strip: Story = {
-  render: () => <ProjectStrip org="harbor-labs" project="invoicer-api" active="runs" needsYou={1} />,
+  render: () => <ProjectStrip project="invoicer-api" active="runs" needsYou={1} />,
 };

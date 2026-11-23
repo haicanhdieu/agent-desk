@@ -113,7 +113,10 @@ async function pickOrg(page: Page, org: Org) {
   await switchButton(page).click();
   const menu = page.getByRole('dialog', { name: 'Organizations' });
   await expect(menu).toBeVisible();
-  await menu.getByRole('link', { name: new RegExp(org.name) }).click();
+  await menu
+    .getByRole('group', { name: 'Switch organization' })
+    .getByRole('link', { name: new RegExp(org.name) })
+    .click();
 }
 
 /**

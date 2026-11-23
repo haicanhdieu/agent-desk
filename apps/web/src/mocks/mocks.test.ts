@@ -3,6 +3,12 @@ import { z } from 'zod';
 import { RUN_STATUSES } from '@/ds';
 import {
   agentSettings,
+  auditRows,
+  memberRows,
+  orgSettingsFixtures,
+  pagedAuditLastPage,
+  pagedAuditRows,
+  roleCards,
   checklistSteps,
   connectionCopy,
   connections,
@@ -30,6 +36,9 @@ import {
   terminalByRun,
   ticketGroups,
 } from '@/mocks';
+import { tenantMemberFixtures } from '@/mocks/dto/access';
+import { AUDIT_MOCK_NOW } from '@/mocks/dto/audit';
+import { ids } from '@/mocks/dto/ids';
 
 const ACTIVE = ['queued', 'starting', 'running', 'idle'];
 
@@ -263,7 +272,17 @@ describe('onboarding fixtures', () => {
     expect(orgOptions.length).toBeGreaterThanOrEqual(3);
     expect(orgOptions.some((o) => o.name.length === 60)).toBe(true);
     expect(Object.keys(orgSwitchFixtures).sort()).toEqual(
-      ['longName', 'oneOrg', 'platformAdmin', 'platformAdminNoOrg', 'severalOrgs'].sort(),
+      [
+        'longName',
+        'longNameSettings',
+        'oneOrg',
+        'oneOrgSettings',
+        'platformAdmin',
+        'platformAdminNoOrg',
+        'platformAdminSettings',
+        'severalOrgs',
+        'severalOrgsSettings',
+      ].sort(),
     );
     expect(orgSwitchFixtures.platformAdminNoOrg.current).toBeNull();
     expect(Object.keys(checklistSteps)).toEqual(['none', 'partial', 'complete']);
@@ -326,5 +345,98 @@ describe('onboarding fixtures', () => {
   it('shows the exact date directly for an invitation expired long ago (BR-51)', () => {
     expect(orgInvitationRows.some((r) => r.status === 'expired' && r.expires.kind === 'exact')).toBe(true);
     expect(orgInvitationRows.some((r) => r.status === 'expired' && r.expires.kind === 'relative')).toBe(true);
+  });
+});
+
+describe('tenant-admin fixtures', () => {
+  it('lists several owners and a member with no role for the owner caller', () => {
+    expect(memberRows.owner.filter((m) => m.role?.key === 'owner').length).toBeGreaterThanOrEqual(2);
+    expect(memberRows.owner.some((m) => m.role === null)).toBe(true);
+    expect(memberRows.paged).toHaveLength(25);
+  });
+
+  it('never lets a caller remove their own row', () => {
+    for (const rows of Object.values(memberRows)) {
+      for (const r of rows.filter((m) => m.you)) expect(r.canRemove).toBe(false);
+    }
+  });
+
+  it('marks exactly one row as the caller in each view', () => {
+    for (const rows of Object.values(memberRows)) expect(rows.filter((m) => m.you)).toHaveLength(1);
+    expect(memberRows.admin.find((m) => m.you)?.handle).toBe('ben');
+  });
+
+  it('agrees with the DTO members on role and project roles', () => {
+    const projectName: Record<string, string> = {
+      [ids.project.invoicerApi]: 'invoicer-api',
+      [ids.project.invoicerWeb]: 'invoicer-web',
+      [ids.project.docsSite]: 'docs-site',
+    };
+    for (const dto of tenantMemberFixtures.twoOwners) {
+      const view = memberRows.owner.find((m) => m.handle === dto.handle);
+      expect(view, dto.handle ?? dto.userId).toBeDefined();
+      const org = dto.assignments.find((a) => a.scope.type === 'org');
+      expect(view?.role?.key ?? null).toBe(org?.role.key ?? null);
+      const projects = dto.assignments.flatMap((a) =>
+        a.scope.type === 'project' ? [`${projectName[a.scope.projectId]} (${a.role.name})`] : [],
+      );
+      expect(view?.projectRoles).toBe(projects.length ? projects.join(', ') : '—');
+    }
+  });
+
+  it('gives the admin caller no actions on owner rows', () => {
+    for (const r of memberRows.admin.filter((m) => m.role?.key === 'owner')) {
+      expect([r.canChangeRole, r.canRemove]).toEqual([false, false]);
+    }
+  });
+
+  it('offers the Owner card to owner callers only', () => {
+    expect(roleCards.ownerCaller.map((c) => c.key)).toEqual(['owner', 'admin', 'member', 'viewer', 'none']);
+    expect(roleCards.adminCaller.map((c) => c.key)).toEqual(['admin', 'member', 'viewer', 'none']);
+  });
+
+  it('orders audit rows newest first', () => {
+    const times = auditRows.map((r) => Date.parse(r.when.iso));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    expect(pagedAuditRows(7)).toHaveLength(7);
+  });
+
+  it('the paged last page holds the five board entries, newest first', () => {
+    expect(pagedAuditLastPage.map((r) => (r.what.kind === 'raw' ? r.what.key : r.what.title))).toEqual([
+      'Kim Hale resent the invitation for mira.chen@example.com',
+      'Mira Chen accepted an invitation as Member',
+      'ari-k declined an invitation',
+      'PUT desk.agent.put',
+      'Morgan Avery invited kim.hale@harborlabs.dev as Owner',
+    ]);
+    expect(pagedAuditLastPage[4]!.who).toEqual({ label: 'Morgan Avery', tag: 'platform' });
+    const times = pagedAuditLastPage.map((r) => Date.parse(r.when.iso));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it('keeps each audit time label and exact date in agreement with its iso', () => {
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const exactOf = (iso: string) => {
+      const d = new Date(iso);
+      return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+    };
+    const now = Date.parse(AUDIT_MOCK_NOW);
+    for (const r of [...auditRows, ...pagedAuditRows(5), ...pagedAuditLastPage]) {
+      const { label, exact, iso } = r.when;
+      expect(exact, label).toBe(exactOf(iso));
+      const ago = (now - Date.parse(iso)) / 60_000;
+      const rel = /^(\d+) (min|hours?) ago$/.exec(label);
+      if (rel) expect(ago).toBe(Number(rel[1]) * (rel[2] === 'min' ? 1 : 60));
+      else if (label === 'yesterday') expect(exact.startsWith('21 Nov')).toBe(true);
+      else expect(exact.startsWith(label + ' ')).toBe(true);
+    }
+  });
+
+  it('exposes the org settings tabs per role', () => {
+    expect(orgSettingsFixtures.org).toEqual({ name: 'Harbor Labs', slug: 'harbor-labs' });
+    expect(orgSettingsFixtures.tabs.projectAdmin).toEqual(['invitations']);
+    expect(orgSwitchFixtures.severalOrgsSettings.settingsHref).toBe('/o/acme/settings');
+    expect(orgSwitchFixtures.severalOrgs.settingsHref).toBeUndefined();
   });
 });

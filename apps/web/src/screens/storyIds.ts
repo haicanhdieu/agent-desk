@@ -12,6 +12,7 @@ const detail = 'Screens/Run detail';
 const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 const invitations = 'Screens/Invitations';
+const orgSettings = 'Screens/OrgSettings';
 
 /** The 97 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
@@ -162,6 +163,48 @@ export const boardStories = {
   CreateOrgSlugAuto: { title: invitations, exportName: 'CreateOrgSlugAuto' },
   CreateOrgSlugEdited: { title: invitations, exportName: 'CreateOrgSlugEdited' },
   CreateOrgSlugTaken: { title: invitations, exportName: 'CreateOrgSlugTaken' },
+  ProjectsChecklistDoneSettings: { title: entry, exportName: 'ProjectsChecklistDoneSettings' },
+  ProjectsEmptyChecklistSettings: { title: entry, exportName: 'ProjectsEmptyChecklistSettings' },
+  OrgInvitationsSettings: { title: invitations, exportName: 'OrgInvitationsSettings' },
+  OrgInvitationsSettingsProjectAdmin: { title: invitations, exportName: 'OrgInvitationsSettingsProjectAdmin' },
+  OrgMembers: { title: orgSettings, exportName: 'OrgMembers' },
+  OrgMembersAdmin: { title: orgSettings, exportName: 'OrgMembersAdmin' },
+  OrgMembersPaged: { title: orgSettings, exportName: 'OrgMembersPaged' },
+  OrgMembersEmpty: { title: orgSettings, exportName: 'OrgMembersEmpty' },
+  OrgMembersLoading: { title: orgSettings, exportName: 'OrgMembersLoading' },
+  OrgMembersError: { title: orgSettings, exportName: 'OrgMembersError' },
+  OrgMembersForbidden: { title: orgSettings, exportName: 'OrgMembersForbidden' },
+  OrgMembersRowMenu: { title: orgSettings, exportName: 'OrgMembersRowMenu' },
+  OrgMembersRowMenuSelf: { title: orgSettings, exportName: 'OrgMembersRowMenuSelf' },
+  OrgMembersBusy: { title: orgSettings, exportName: 'OrgMembersBusy' },
+  OrgMembersChangeRole: { title: orgSettings, exportName: 'OrgMembersChangeRole' },
+  OrgMembersChangeRoleAdmin: { title: orgSettings, exportName: 'OrgMembersChangeRoleAdmin' },
+  OrgMembersMakeOwner: { title: orgSettings, exportName: 'OrgMembersMakeOwner' },
+  OrgMembersStepDown: { title: orgSettings, exportName: 'OrgMembersStepDown' },
+  OrgMembersChangeRoleSaving: { title: orgSettings, exportName: 'OrgMembersChangeRoleSaving' },
+  OrgMembersChangeRoleError: { title: orgSettings, exportName: 'OrgMembersChangeRoleError' },
+  OrgMembersLastOwner: { title: orgSettings, exportName: 'OrgMembersLastOwner' },
+  OrgMembersRoleChanged: { title: orgSettings, exportName: 'OrgMembersRoleChanged' },
+  OrgMembersGone: { title: orgSettings, exportName: 'OrgMembersGone' },
+  OrgMembersRemoveConfirm: { title: orgSettings, exportName: 'OrgMembersRemoveConfirm' },
+  OrgMembersRemoving: { title: orgSettings, exportName: 'OrgMembersRemoving' },
+  OrgMembersRemoved: { title: orgSettings, exportName: 'OrgMembersRemoved' },
+  OrgMembersRemoveLastOwner: { title: orgSettings, exportName: 'OrgMembersRemoveLastOwner' },
+  OrgGeneral: { title: orgSettings, exportName: 'OrgGeneral' },
+  OrgGeneralSaving: { title: orgSettings, exportName: 'OrgGeneralSaving' },
+  OrgGeneralSaved: { title: orgSettings, exportName: 'OrgGeneralSaved' },
+  OrgGeneralFieldErrors: { title: orgSettings, exportName: 'OrgGeneralFieldErrors' },
+  OrgGeneralNameTooLong: { title: orgSettings, exportName: 'OrgGeneralNameTooLong' },
+  OrgGeneralSlugTaken: { title: orgSettings, exportName: 'OrgGeneralSlugTaken' },
+  OrgGeneralSlugConfirm: { title: orgSettings, exportName: 'OrgGeneralSlugConfirm' },
+  OrgGeneralFormError: { title: orgSettings, exportName: 'OrgGeneralFormError' },
+  OrgGeneralForbidden: { title: orgSettings, exportName: 'OrgGeneralForbidden' },
+  OrgAudit: { title: orgSettings, exportName: 'OrgAudit' },
+  OrgAuditPaged: { title: orgSettings, exportName: 'OrgAuditPaged' },
+  OrgAuditEmpty: { title: orgSettings, exportName: 'OrgAuditEmpty' },
+  OrgAuditLoading: { title: orgSettings, exportName: 'OrgAuditLoading' },
+  OrgAuditError: { title: orgSettings, exportName: 'OrgAuditError' },
+  OrgAuditForbidden: { title: orgSettings, exportName: 'OrgAuditForbidden' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

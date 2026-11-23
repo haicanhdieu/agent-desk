@@ -32,6 +32,8 @@ function watchRequests(page: Page): string[] {
 }
 
 const forbidden = (page: Page) => page.getByRole('heading', { name: "You don't have access" });
+/** The project row's action menu: the top bar's own Settings tab is outside it. */
+const rowMenu = (page: Page) => page.getByRole('dialog', { name: 'Actions for invoicer-api' });
 
 async function open(page: Page, scenario: OnboardingScenario, path: string): Promise<string[]> {
   await seedOnboarding(page, scenario);
@@ -60,20 +62,16 @@ for (const role of ['member', 'viewer'] as const) {
 
     test('has no Desk tab on the runs page and no Desk data is requested there', async ({ page }) => {
       const seen = await open(page, role, `/o/acme/p/${P1}/runs`);
-      await expect(
-        page.getByRole('navigation', { name: 'Project' }).getByRole('link', { name: /^Runs/ }),
-      ).toBeVisible();
-      await expect(page.getByRole('navigation', { name: 'Project' }).getByRole('link', { name: 'Desk' })).toHaveCount(
-        0,
-      );
+      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /^Runs/ })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Desk' })).toHaveCount(0);
       expect(seen.filter((p) => DESK_DATA.test(p))).toEqual([]);
     });
 
     test('has no Settings entry in the project list row menu', async ({ page }) => {
       await open(page, role, '/o/acme/projects');
       await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
-      await expect(page.getByRole('link', { name: 'Runs' })).toBeVisible();
-      await expect(page.getByRole('link', { name: 'Settings' })).toHaveCount(0);
+      await expect(rowMenu(page).getByRole('link', { name: 'Runs' })).toBeVisible();
+      await expect(rowMenu(page).getByRole('link', { name: 'Settings' })).toHaveCount(0);
     });
   });
 }
@@ -82,7 +80,7 @@ test.describe('an admin', () => {
   for (const tab of TABS) {
     test(`opens the Desk ${tab} page by direct URL`, async ({ page }) => {
       await open(page, 'orgAdmin', `/o/acme/p/${P1}/desk/${tab}`);
-      await expect(page.getByRole('navigation', { name: 'Project' }).getByRole('link', { name: 'Desk' })).toBeVisible();
+      await expect(page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: 'Desk' })).toBeVisible();
       await expect(forbidden(page)).toHaveCount(0);
     });
   }
@@ -96,6 +94,6 @@ test.describe('an admin', () => {
   test('has the Settings entry in the project list row menu', async ({ page }) => {
     await open(page, 'orgAdmin', '/o/acme/projects');
     await page.getByRole('button', { name: /^More for invoicer-api/ }).click();
-    await expect(page.getByRole('link', { name: 'Settings' })).toBeVisible();
+    await expect(rowMenu(page).getByRole('link', { name: 'Settings' })).toBeVisible();
   });
 });

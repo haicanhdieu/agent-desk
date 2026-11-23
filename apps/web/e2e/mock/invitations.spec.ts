@@ -19,7 +19,7 @@ test.describe.configure({ timeout: 60_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-US' });
 
 const ORG_SLUG = 'acme';
-const INVITATIONS = `/o/${ORG_SLUG}/invitations`;
+const INVITATIONS = `/o/${ORG_SLUG}/settings/invitations`;
 
 async function open(page: Page, scenario: OnboardingScenario, path: string = INVITATIONS): Promise<void> {
   await seedOnboarding(page, scenario);

@@ -160,7 +160,9 @@ async function switcherOrgs(page: Page): Promise<string[]> {
   await orgSwitchButton(page).click();
   const menu = page.getByRole('dialog', { name: 'Organizations' });
   await expect(menu).toBeVisible();
-  return (await menu.getByRole('link').allInnerTexts()).map((t) => t.trim());
+  return (await menu.getByRole('group', { name: 'Switch organization' }).getByRole('link').allInnerTexts()).map((t) =>
+    t.trim(),
+  );
 }
 
 /** Y: a user with an account and a membership in a separate org, signed in on a fresh context. */

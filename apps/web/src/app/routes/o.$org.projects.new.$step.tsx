@@ -7,7 +7,7 @@ import { useNow } from '@/app/useNow';
 import type { RuleDraft } from '@/components';
 import { toModelList } from '@/components/ModelPicker';
 import { CommandChip, useToast } from '@/ds';
-import { sessionQuery } from '@/features/auth/session';
+import { useAppBar } from '@/features/chrome/appBar';
 import { pollIntervalLabel } from '@/features/projects/map';
 import { projectsQueries } from '@/features/projects/queries';
 import { REFRESH_ERROR } from '@/features/desk/agent.form';
@@ -45,7 +45,6 @@ import { resolveStep } from '@/features/setup/resume';
 import { SetupSearch, SetupStepParam } from '@/features/setup/steps';
 import { SKILL_TEMPLATES } from '@/features/setup/templates';
 import { connectionCopy } from '@/mocks/connection';
-import type { Actor } from '@/mocks/types';
 import { Setup1, Setup2, Setup3, Setup4, SetupReady, type Setup1Draft, type Setup2Draft } from '@/screens';
 
 // Setup (spec §4.5): one route per step, each saving on Continue. Which step shows comes only from the server's
@@ -104,12 +103,6 @@ function usableConnections(connections: ConnectionDto[], only: string | undefine
   );
 }
 
-function useActor(): Actor {
-  const { data: session } = useSuspenseQuery(sessionQuery);
-  const handle = session?.user.handle ?? '';
-  return { login: handle, initials: handle.slice(0, 2).toUpperCase() };
-}
-
 function SetupPage() {
   const { step } = Route.useRouteContext();
   const { org } = Route.useParams();
@@ -154,7 +147,7 @@ const REPO_POINTERS = {
 } as const;
 
 function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: string; connectionId?: string }) {
-  const user = useActor();
+  const bar = useAppBar(org);
   const now = useNow();
   const toast = useToast();
   const goTo = useGoToStep(org);
@@ -252,7 +245,8 @@ function RepoStep({ org, projectId, connectionId }: { org: string; projectId?: s
   return (
     <Setup1
       key={project?.id ?? 'new'}
-      user={user}
+      user={bar.user}
+      org={bar.org}
       projectName={project?.name ?? repoName(selected)}
       repos={shown}
       selected={selected}
@@ -280,7 +274,7 @@ const AGENT_POINTERS = {
 } as const;
 
 function AgentStep({ org, projectId }: { org: string; projectId: string }) {
-  const user = useActor();
+  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -317,7 +311,8 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
 
   return (
     <Setup2
-      user={user}
+      user={bar.user}
+      org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
       credentialType={agent.credential.type ?? 'oauth_token'}
@@ -336,7 +331,7 @@ function AgentStep({ org, projectId }: { org: string; projectId: string }) {
 }
 
 function WorkspaceSetupStep({ org, projectId }: { org: string; projectId: string }) {
-  const user = useActor();
+  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -344,7 +339,7 @@ function WorkspaceSetupStep({ org, projectId }: { org: string; projectId: string
     <WorkspaceStep
       org={org}
       project={project}
-      user={user}
+      bar={bar}
       credentialDetail={credentialDetail(agent)}
       backHref={stepHref(org, 'agent', projectId)}
       onDone={(saved) => void goTo('skills', saved)}
@@ -355,7 +350,7 @@ function WorkspaceSetupStep({ org, projectId }: { org: string; projectId: string
 const SKILLS_POINTERS = { '/message': 'message' } as const;
 
 function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
-  const user = useActor();
+  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -375,7 +370,8 @@ function SkillsStep({ org, projectId }: { org: string; projectId: string }) {
 
   return (
     <Setup3
-      user={user}
+      user={bar.user}
+      org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
       branch="main"
@@ -406,7 +402,7 @@ const FOLLOW_UP = { command: 'code-review', target: 'pr', skill: 'code-review', 
 const MODEL_REQUIRED = 'Enter a model name.';
 
 function RulesStep({ org, projectId }: { org: string; projectId: string }) {
-  const user = useActor();
+  const bar = useAppBar(org);
   const goTo = useGoToStep(org);
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -472,7 +468,8 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
 
   return (
     <Setup4
-      user={user}
+      user={bar.user}
+      org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
       rule={rule}
@@ -492,7 +489,7 @@ function RulesStep({ org, projectId }: { org: string; projectId: string }) {
 }
 
 function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
-  const user = useActor();
+  const bar = useAppBar(org);
   const now = useNow();
   const { data: project } = useSuspenseQuery(projectsQueries.detail(org, projectId));
   const { data: agent } = useSuspenseQuery(setupQueries.agent(org, projectId));
@@ -527,7 +524,8 @@ function ReadyStep({ org, projectId }: { org: string; projectId: string }) {
   ];
   return (
     <SetupReady
-      user={user}
+      user={bar.user}
+      org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
       label={label ? { name: label } : undefined}

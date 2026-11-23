@@ -1,12 +1,15 @@
 import type { ReactNode } from 'react';
 import { Button } from '@/ds';
 import type { Actor } from '@/mocks/types';
+import type { OrgSwitchProps } from './OrgSwitch';
 import { TopBar } from './TopBar';
 import { Stepper, type StepperProps } from './Stepper';
 import styles from './Composites.module.css';
 
 export interface SetupLayoutProps {
   user: Actor;
+  /** The org crumb and menu in the top bar. */
+  org?: OrgSwitchProps;
   projectName: string;
   steps: StepperProps['steps'];
   current: number;
@@ -33,6 +36,7 @@ export interface SetupLayoutProps {
 
 export function SetupLayout({
   user,
+  org,
   projectName,
   steps,
   current,
@@ -47,7 +51,7 @@ export function SetupLayout({
 }: SetupLayoutProps) {
   return (
     <>
-      <TopBar variant="global" user={user} />
+      <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
       <div className={styles.setup}>
         <aside className={styles.setupLeft} aria-label="Setup progress">
           <div className={styles.setupHead}>

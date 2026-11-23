@@ -1,10 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { Button, CountBadge, IconButton, StatusBadge } from '@/ds';
+import { Button, IconButton, StatusBadge } from '@/ds';
 import { orgSwitchFixtures } from '@/mocks';
 import { TopBar } from './TopBar';
 
 const user = { login: 'kim-hale', initials: 'KH' };
-const project = { org: 'harbor-labs', name: 'invoicer-api', repoUrl: 'https://github.com/harbor-labs/invoicer-api' };
+const project = { name: 'invoicer-api', repoUrl: 'https://github.com/harbor-labs/invoicer-api' };
 
 const meta = { title: 'Components/TopBar', component: TopBar, parameters: { layout: 'fullscreen' } } satisfies Meta<
   typeof TopBar
@@ -12,42 +12,56 @@ const meta = { title: 'Components/TopBar', component: TopBar, parameters: { layo
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const Global: Story = { args: { variant: 'global', user } };
-const org = {
-  ...orgSwitchFixtures.severalOrgs,
+const orgBase = {
   orgHref: (o: { slug: string }) => `/o/${o.slug}`,
   createHref: '/orgs/new',
+  projectsHref: '#projects',
 };
+const orgWithSettings = { ...orgBase, ...orgSwitchFixtures.oneOrg, settingsHref: '#settings' };
+const orgNoSettings = { ...orgBase, ...orgSwitchFixtures.oneOrg };
+const links = { projects: '#projects', runs: '#runs', desk: '#desk' };
 
-export const GlobalWithOrg: Story = { args: { variant: 'global', user, org: { ...org, ...orgSwitchFixtures.oneOrg } } };
-export const GlobalWithOrgSwitch: Story = { args: { variant: 'global', user, org } };
-export const ProjectNeedsYou: Story = { args: { variant: 'project', user, project, active: 'runs', needsYou: 1 } };
-export const ProjectDesk: Story = { args: { variant: 'project', user, project, active: 'desk' } };
-export const LongProjectName: Story = {
+export const OrgLevelOwner: Story = {
+  args: { variant: 'global', user, org: orgWithSettings, tabs: 'org', active: 'projects', links },
+};
+export const OrgLevelMember: Story = {
+  args: { variant: 'global', user, org: orgNoSettings, tabs: 'org', active: 'projects', links },
+};
+export const OrgLevelSettingsActive: Story = {
+  args: { variant: 'global', user, org: orgWithSettings, tabs: 'org', active: 'settings', links },
+};
+export const PersonalNoTabActive: Story = {
+  args: { variant: 'global', user, org: orgWithSettings, tabs: 'org', links },
+};
+export const CreateOrgNoTabs: Story = {
+  args: { variant: 'global', user, org: { ...orgBase, ...orgSwitchFixtures.platformAdmin }, tabs: 'none' },
+};
+export const NoOrg: Story = {
+  args: { variant: 'global', user, org: { ...orgBase, current: null, orgs: [], platformAdmin: false } },
+};
+export const ProjectLevel: Story = {
+  args: { variant: 'project', user, org: orgWithSettings, project, active: 'runs', needsYou: 1, links },
+};
+export const ProjectLevelDesk: Story = {
+  args: { variant: 'project', user, org: orgWithSettings, project, active: 'desk', links },
+};
+export const LongOrgName: Story = {
   args: {
-    variant: 'project',
+    variant: 'global',
     user,
-    project: { ...project, name: 'a-very-long-repository-name-that-keeps-going-and-going-and-going-forever' },
-    active: 'runs',
-    needsYou: 2,
+    org: { ...orgBase, ...orgSwitchFixtures.longName, settingsHref: '#settings' },
+    tabs: 'org',
+    active: 'projects',
+    links,
   },
 };
-export const Run: Story = {
+export const RunLevel: Story = {
   args: {
     variant: 'run',
     user,
-    breadcrumb: [
-      { label: 'invoicer-api', href: '#' },
-      {
-        label: (
-          <>
-            Runs <CountBadge count={1} />
-          </>
-        ),
-        href: '#',
-      },
-      { label: 'Run 61' },
-    ],
+    org: orgWithSettings,
+    project,
+    run: { runsHref: '#runs', label: 'Run 61' },
     children: (
       <>
         <StatusBadge status="running" />
@@ -69,28 +83,6 @@ export const Run: Story = {
         <IconButton icon="panel" aria-label="Toggle side panel" />
         <IconButton icon="fullscreen" aria-label="Full screen" />
       </>
-    ),
-  },
-};
-export const RunLongNames: Story = {
-  args: {
-    variant: 'run',
-    user,
-    breadcrumb: [
-      { label: 'a-very-long-repository-name-that-keeps-going-and-going-forever', href: '#' },
-      { label: 'Runs', href: '#' },
-      { label: 'Run 61' },
-    ],
-    children: (
-      <span>
-        /code-build on Issue #139: an extremely long ticket title that should truncate rather than wrap or push the
-        actions
-      </span>
-    ),
-    actions: (
-      <Button variant="danger" icon="x">
-        Cancel run
-      </Button>
     ),
   },
 };

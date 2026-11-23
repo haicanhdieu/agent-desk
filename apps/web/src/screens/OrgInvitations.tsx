@@ -9,11 +9,9 @@ import {
   InviteLink,
   Pagination,
   RouteLoadError,
-  TopBar,
-  type OrgSwitchProps,
   type PaginationProps,
 } from '@/components';
-import type { Actor, OrgInvitationRowView } from '@/mocks/types';
+import type { OrgInvitationRowView } from '@/mocks/types';
 import styles from './Screens.module.css';
 
 const noop = () => undefined;
@@ -21,8 +19,6 @@ const noop = () => undefined;
 export type InvitationFilter = 'pending' | 'accepted' | 'declined' | 'revoked' | 'expired' | 'all';
 
 export interface OrgInvitationsProps {
-  user: Actor;
-  org: OrgSwitchProps;
   filter: InvitationFilter;
   onFilterChange: (f: InvitationFilter) => void;
   state:
@@ -72,8 +68,6 @@ function emptyTitle(filter: InvitationFilter): string {
 
 /** The org's Invitations page: status filter, the invitations table, paging, and the states around it. */
 export function OrgInvitations({
-  user,
-  org,
   filter,
   onFilterChange,
   state,
@@ -185,7 +179,6 @@ export function OrgInvitations({
   if (state.kind === 'forbidden') {
     return (
       <>
-        <TopBar variant="global" user={user} org={org} />
         <main className={styles.emptyNotice}>
           <div className={styles.emptyNoticeCol}>
             <h1>You don&apos;t have access</h1>
@@ -205,7 +198,6 @@ export function OrgInvitations({
 
   return (
     <>
-      <TopBar variant="global" user={user} org={org} />
       <main className={styles.listMain}>
         {state.kind === 'loading' && (
           <div className={styles.invitationsLoading} aria-busy="true" role="status" aria-label="Loading">

@@ -9,12 +9,14 @@ export interface ProjectNavProps {
   runsHref?: string;
   /** The Desk tab shows only when this is given: it is for roles that may read the Desk (issue 216), so none by default. */
   deskHref?: string;
+  /** The nav landmark's name; the example strip on a page that has the real bar uses another one. */
+  label?: string;
 }
 
 /** Runs / Desk tabs of the project top bar. */
-export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref }: ProjectNavProps) {
+export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref, label = 'Main' }: ProjectNavProps) {
   return (
-    <nav className={styles.tabs} aria-label="Project">
+    <nav className={styles.tabs} aria-label={label}>
       <AppLink
         href={runsHref}
         className={active === 'runs' ? styles.on : undefined}
@@ -43,11 +45,11 @@ export function ProjectNav({ active, needsYou, runsHref = '/runs', deskHref }: P
 }
 
 /** Project switch plus tabs on a bare top-bar strip (no brand, no right-hand actions). */
-export function ProjectStrip({ org, project, active, needsYou }: ProjectNavProps & { org: string; project: string }) {
+export function ProjectStrip({ project, active, needsYou }: ProjectNavProps & { project: string }) {
   return (
     <div className={`${styles.top} ${styles.stripBare}`}>
-      <ProjectSwitch org={org} project={project} />
-      <ProjectNav active={active} needsYou={needsYou} />
+      <ProjectSwitch project={project} />
+      <ProjectNav active={active} needsYou={needsYou} label="Runs and Desk tabs, example" />
     </div>
   );
 }

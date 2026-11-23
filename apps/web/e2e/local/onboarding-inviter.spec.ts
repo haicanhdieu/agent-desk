@@ -72,7 +72,7 @@ async function ownerOrg(scope: Scope, browser: Browser): Promise<Setup> {
   return { org, context, page, projects, roleNames };
 }
 
-const invitationsPath = (s: Setup) => `/o/${s.org.slug}/invitations`;
+const invitationsPath = (s: Setup) => `/o/${s.org.slug}/settings/invitations`;
 
 async function openInvitations(s: Setup, page: Page = s.page, query = ''): Promise<void> {
   await page.goto(`${invitationsPath(s)}${query}`);

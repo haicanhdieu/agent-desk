@@ -8,7 +8,7 @@ import { isStaleSetupScript, STALE_SETUP_SCRIPT, useCreateSetupTest } from '../s
 import { setupScriptSaveProblem, toDeskSetupProps, toSetupStepTest } from '../setup-script/map';
 import { setupQueries as scriptQueries } from '../setup-script/queries';
 import { useSetupTest } from '../setup-script/useSetupTest';
-import type { Actor } from '@/mocks/types';
+import type { AppBarData } from '../chrome/appBar';
 import { SetupWorkspace } from '@/screens';
 import { browserLocation } from './location';
 import { useSaveWorkspaceStep } from './mutations';
@@ -19,7 +19,8 @@ const messageOf = (e: unknown): string => (e instanceof ApiError ? (e.detail ?? 
 interface Props {
   org: string;
   project: ProjectDto;
-  user: Actor;
+  /** The app bar's user, org switcher and account menu (`useAppBar`). */
+  bar: AppBarData;
   credentialDetail: string | undefined;
   backHref: string;
   /** Moves on to the next step with the project as the server has it. */
@@ -31,7 +32,7 @@ interface Props {
  * continue stores the script; Skip does not. The test's log lives on the Desk Setup tab, opened in a
  * new tab so this step stays where it is.
  */
-export function WorkspaceStep({ org, project, user, credentialDetail, backHref, onDone }: Props) {
+export function WorkspaceStep({ org, project, bar, credentialDetail, backHref, onDone }: Props) {
   const projectId = project.id;
   const qc = useQueryClient();
   const now = useNow();
@@ -90,7 +91,8 @@ export function WorkspaceStep({ org, project, user, credentialDetail, backHref, 
 
   return (
     <SetupWorkspace
-      user={user}
+      user={bar.user}
+      org={bar.org}
       projectName={project.name}
       repo={project.repoPath}
       {...(credentialDetail !== undefined && { credentialDetail })}

@@ -13,6 +13,7 @@ export {
   type ProjectMenuProps,
 } from './ProjectSwitch';
 export { OrgSwitch, type OrgSwitchProps } from './OrgSwitch';
+export { OrgNav, type OrgNavProps } from './OrgNav';
 export { OnboardingChecklist, type OnboardingChecklistState } from './OnboardingChecklist';
 export {
   AccountInfoProvider,
@@ -119,4 +120,8 @@ export { ExpiryLabel } from './ExpiryLabel';
 export { InviteDialog, type InviteDialogProps, type InviteDialogStep, type InviteDialogValues } from './InviteDialog';
 export { InviteLink, type InviteLinkProps } from './InviteLink';
 export { InvitationRow, type InvitationRowProps } from './InvitationRow';
+export { ChangeRoleDialog, type ChangeRoleDialogProps } from './ChangeRoleDialog';
+export { MemberRow, memberColumns, type MemberRowProps } from './MemberRow';
+export { AuditRow, auditColumns } from './AuditRow';
+export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLayout';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';

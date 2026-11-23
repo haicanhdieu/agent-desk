@@ -1,10 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell, type PaginationProps } from '@/components';
+import type { DeskFrameData } from './DeskFrame';
 import {
   agentSettings,
   connectionCopy,
   connections,
-  deskFrame,
+  deskFrame as plainDeskFrame,
+  orgSwitchFixtures,
   pagedRules,
   pagedSkills,
   pagedVersions,
@@ -48,6 +50,20 @@ const artboard = (height: number): NonNullable<Story['decorators']> => [
     </div>
   ),
 ];
+
+/** The Desk boards under the app bar: the org crumb, the account menu, and the Runs and Desk tabs with Desk active. */
+const deskFrame: DeskFrameData = {
+  ...plainDeskFrame,
+  org: { ...orgSwitchFixtures.severalOrgsSettings, orgHref: (o) => `#${o.slug}`, createHref: '#new-org' },
+  links: {
+    projects: '#projects',
+    runs: '#runs',
+    desk: '#desk',
+    skills: '#skills',
+    rules: '#rules',
+    agent: '#agent',
+  },
+};
 
 const skillsProps: DeskSkillsProps = {
   frame: deskFrame,

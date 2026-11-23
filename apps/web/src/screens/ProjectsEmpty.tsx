@@ -18,8 +18,6 @@ export interface ProjectsEmptyProps {
   /** The first-run checklist; it replaces the static step cards. */
   checklist?: OnboardingChecklistState;
   invitationsBanner?: InvitationsBannerProps;
-  /** The org's Invitations page; the button shows only when given. */
-  invitationsHref?: string;
   /** Whether the viewer may create projects (default false: fail closed); without it the page only explains who does. */
   canCreate?: boolean;
 }
@@ -37,13 +35,12 @@ export function ProjectsEmpty({
   org,
   checklist,
   invitationsBanner,
-  invitationsHref,
   canCreate = false,
 }: ProjectsEmptyProps) {
   if (!canCreate) {
     return (
       <>
-        <TopBar variant="global" user={user} org={org} />
+        <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
         <main className={styles.emptyNotice}>
           <div className={styles.emptyNoticeCol}>
             {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
@@ -56,7 +53,7 @@ export function ProjectsEmpty({
   }
   return (
     <>
-      <TopBar variant="global" user={user} org={org} />
+      <TopBar variant="global" user={user} org={org} tabs="org" active="projects" />
       <main className={styles.emptyMain}>
         <div className={styles.emptyCol}>
           {invitationsBanner && <InvitationsBanner {...invitationsBanner} />}
@@ -72,11 +69,6 @@ export function ProjectsEmpty({
             <Button variant="primary" size="lg" icon="plus" href={createHref}>
               Create project
             </Button>
-            {invitationsHref && (
-              <Button size="lg" href={invitationsHref}>
-                Invitations
-              </Button>
-            )}
             <span className={`faint ${styles.emptyNote}`}>
               You can delete a project at any time. Nothing is written to the repo until you save a skill.
             </span>

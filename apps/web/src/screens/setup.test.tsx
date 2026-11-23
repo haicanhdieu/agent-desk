@@ -9,6 +9,7 @@ import { Setup2 } from './Setup2';
 import { Setup3 } from './Setup3';
 import { Setup4 } from './Setup4';
 import { SetupReady } from './SetupReady';
+import { SetupWorkspace } from './SetupWorkspace';
 
 const repos = [
   { name: 'harbor-labs/invoicer-api', meta: 'Private, updated 2 hours ago' },
@@ -402,5 +403,77 @@ describe('Setup2 credential callback', () => {
     await userEvent.type(screen.getByLabelText('Token'), 'tok-abc{Enter}');
     expect(onSubmitCredential).toHaveBeenCalledWith('oauth_token', 'tok-abc');
     expect(container.textContent).not.toContain('tok-abc');
+  });
+});
+
+describe('setup screens pass the org to the top bar', () => {
+  const harbor = { id: 'org-harbor', slug: 'harbor-labs', name: 'Harbor Labs' };
+  const org = {
+    current: harbor,
+    orgs: [harbor],
+    platformAdmin: false,
+    orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
+    createHref: '/orgs/new',
+    projectsHref: '/o/harbor-labs/projects',
+    settingsHref: '/o/harbor-labs/settings',
+  };
+
+  const bar = { org };
+  const workspace = (
+    <SetupWorkspace user={user} projectName="invoicer-api" repo={repo} plugins={{ plugins: [] }} {...bar} />
+  );
+
+  it.each([
+    ['Setup1', <Setup1 key="1" {...s1Props} {...bar} />],
+    ['Setup2', s2(bar)],
+    ['SetupWorkspace', workspace],
+    [
+      'Setup3',
+      <Setup3
+        key="3"
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        branch="main"
+        templates={skillTemplates}
+        selected={[]}
+        commitMessage="m"
+        {...bar}
+      />,
+    ],
+    [
+      'Setup4',
+      <Setup4
+        key="4"
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        rule={rules[0]}
+        skills={[]}
+        followUp={{ command: 'code-review', target: 'pr', skill: 'code-review', enabled: true }}
+        maxRunsPerTicket={agentSettings.maxRunsPerTicket}
+        {...bar}
+      />,
+    ],
+    [
+      'SetupReady',
+      <SetupReady
+        key="r"
+        user={user}
+        projectName="invoicer-api"
+        repo={repo}
+        label={{ name: 'user-story', color: '#7C8FD8' }}
+        command="/code-build"
+        summary={[{ term: 'Repository', value: repo }]}
+        lastEvent={{ mode: 'webhook', at: 'ping, 14:01:37' }}
+        {...bar}
+      />,
+    ],
+  ])('%s shows the org bar', (_n, el) => {
+    render(el);
+    const nav = screen.getByRole('navigation', { name: 'Main' });
+    expect(within(nav).getByRole('link', { name: /Projects/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(nav).getByRole('link', { name: /Settings/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Harbor Labs/ })).toBeInTheDocument();
   });
 });

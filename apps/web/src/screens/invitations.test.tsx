@@ -12,6 +12,9 @@ import { InvitationAccept, type InvitationAcceptState } from './InvitationAccept
 import { OrgInvitations, type OrgInvitationsProps } from './OrgInvitations';
 import { MyInvitations, type MyInvitationsState } from './MyInvitations';
 import { CreateOrg, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
+import { OrgSettingsFrame } from './orgSettingsFrame';
+
+const settingsOrg = { ...orgSwitchFixtures.oneOrgSettings, orgHref: () => '/o/acme/projects', createHref: '/orgs/new' };
 
 const props = (state: MyInvitationsState) => ({
   user,
@@ -255,15 +258,7 @@ describe('InvitationAccept', () => {
   });
 });
 
-const orgProps = {
-  ...orgSwitchFixtures.oneOrg,
-  orgHref: (o: { slug: string }) => `/o/${o.slug}/projects`,
-  createHref: '/orgs/new',
-};
-
 const listProps = (over: Partial<OrgInvitationsProps> = {}): OrgInvitationsProps => ({
-  user,
-  org: orgProps,
   filter: 'pending',
   onFilterChange: vi.fn(),
   state: { kind: 'ready', rows: orgInvitationRows, busyRowId: null },
@@ -628,6 +623,11 @@ describe('CreateOrg', () => {
     ...over,
   });
 
+  it('BR-43: Create organization shows no tabs', () => {
+    render(<CreateOrg {...createProps(form())} org={settingsOrg} />);
+    expect(screen.queryByRole('navigation', { name: 'Main' })).not.toBeInTheDocument();
+  });
+
   it('BR-35: shows the h1, the labelled fields with the /o/ prefix described, the hint and Create organization', async () => {
     const p = createProps(form());
     render(<CreateOrg {...p} />);
@@ -803,5 +803,80 @@ describe('CreateOrg', () => {
     render(<CreateOrg {...createProps(form({ values: { ...values, name: '<b>x</b>' } }))} />);
     expect(screen.getByLabelText('Name')).toHaveValue('<b>x</b>');
     expect(document.querySelector('b')).toBeNull();
+  });
+});
+
+/** OrgInvitations renders the page body only: the settings layout draws the bar. */
+describe('OrgInvitations inside the settings layout', () => {
+  it('it renders no top bar of its own and keeps its table and the revoke dialog', () => {
+    const rest = listProps({
+      revokeConfirm: { email: 'x@example.com', onConfirm: vi.fn(), onCancel: vi.fn() },
+    });
+    render(<OrgInvitations {...rest} />);
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Invitations' })).toBeInTheDocument();
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Revoke invitation for x@example.com?' })).toBeInTheDocument();
+  });
+
+  it('the forbidden state renders no top bar either', () => {
+    const rest = listProps({ state: { kind: 'forbidden' } });
+    render(<OrgInvitations {...rest} />);
+    expect(screen.queryByRole('banner')).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: "You don't have access" })).toBeInTheDocument();
+  });
+
+  const tabNames = () =>
+    within(screen.getByRole('navigation', { name: 'Organization settings' }))
+      .getAllByRole('link')
+      .map((a) => a.textContent);
+
+  it('the frame for an owner shows the app bar with Settings active and the full side menu', () => {
+    render(
+      <OrgSettingsFrame role="owner" active="invitations">
+        <p>Body</p>
+      </OrgSettingsFrame>,
+    );
+    const main = within(screen.getByRole('navigation', { name: 'Main' }));
+    expect(main.getByRole('link', { name: 'Settings' })).toHaveAttribute('aria-current', 'page');
+    expect(tabNames()).toEqual(['General', 'Members', 'Invitations', 'Audit log']);
+    const side = within(screen.getByRole('navigation', { name: 'Organization settings' }));
+    expect(side.getByRole('link', { name: 'Invitations' })).toHaveAttribute('aria-current', 'page');
+  });
+
+  it('the frame for a project admin lists only Invitations', () => {
+    render(
+      <OrgSettingsFrame role="projectAdmin" active="invitations">
+        <p>Body</p>
+      </OrgSettingsFrame>,
+    );
+    expect(tabNames()).toEqual(['Invitations']);
+  });
+
+  it('the frame for a member has no Settings tab and, without a side menu, no settings navigation', () => {
+    render(
+      <OrgSettingsFrame role="member" active={null} sideMenu={false}>
+        <p>Body</p>
+      </OrgSettingsFrame>,
+    );
+    expect(screen.queryByRole('link', { name: 'Settings' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Organization settings' })).not.toBeInTheDocument();
+    expect(screen.getByText('Body')).toBeInTheDocument();
+  });
+
+  const noTabActive = () => {
+    const main = within(screen.getByRole('navigation', { name: 'Main' }));
+    expect(main.getByRole('link', { name: 'Projects' })).not.toHaveAttribute('aria-current');
+    expect(main.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+  };
+
+  it('BR-43: My invitations shows the org bar with no tab active', () => {
+    render(<MyInvitations {...props({ kind: 'list', cards: invitationCards, pending: null })} org={settingsOrg} />);
+    noTabActive();
+  });
+
+  it('BR-43: the invitation page shows the org bar with no tab active', () => {
+    render(<InvitationAccept {...accept({ kind: 'revoked' })} org={settingsOrg} />);
+    noTabActive();
   });
 });

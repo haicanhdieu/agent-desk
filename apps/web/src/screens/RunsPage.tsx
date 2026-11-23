@@ -1,6 +1,13 @@
 import type { ReactNode } from 'react';
 import { Button, Icon, SearchInput, StatusIcon } from '@/ds';
-import { FilterChip, FilterChips, TopBar, type ProjectSwitchMenu, type TopBarProps } from '@/components';
+import {
+  FilterChip,
+  FilterChips,
+  TopBar,
+  type OrgSwitchProps,
+  type ProjectSwitchMenu,
+  type TopBarProps,
+} from '@/components';
 import type { Actor, Project } from '@/mocks/types';
 import styles from './Screens.module.css';
 
@@ -24,6 +31,8 @@ export interface RunsPageProps {
   links?: TopBarProps['links'];
   /** The project menu behind the top bar's switcher. */
   projectMenu?: ProjectSwitchMenu;
+  /** The org crumb of the top bar. */
+  org?: OrgSwitchProps;
   /** Static banners above the page header. */
   banners?: ReactNode;
   children?: ReactNode;
@@ -52,6 +61,7 @@ export function RunsPage({
   filterHref,
   links,
   projectMenu,
+  org,
   banners,
   children,
 }: RunsPageProps) {
@@ -61,10 +71,11 @@ export function RunsPage({
         variant="project"
         active="runs"
         user={user}
+        org={org}
         needsYou={needsYou}
         links={links}
         projectMenu={projectMenu}
-        project={{ org: project.org, name: project.name, repoUrl: `https://github.com/${project.repo}` }}
+        project={{ name: project.name, repoUrl: `https://github.com/${project.repo}` }}
       />
       <main className={`${styles.runsMain} ${banners ? styles.runsMainBanners : ''}`}>
         {banners}

@@ -5,7 +5,7 @@ import { sessionAccessQuery } from '@/features/access/queries';
 import { ORG_SWITCHED_MESSAGE } from '@/features/auth/orgResync';
 import { orgsQuery, sessionQuery } from '@/features/auth/session';
 import { useCreateOrgForm } from '@/features/orgs/createOrg';
-import { toOrgSwitch } from '@/features/orgs/orgSwitch';
+import { useAppBar } from '@/features/chrome/appBar';
 import { copyText } from '@/features/orgInvitations/link';
 import { CreateOrg, type CreateOrgState } from '@/screens';
 
@@ -24,22 +24,16 @@ export const Route = createFileRoute('/orgs/new')({
 const COPY_FAILED = 'Could not copy. Select the link and copy it.';
 
 function CreateOrgPage() {
-  const { data: session } = useSuspenseQuery(sessionQuery);
-  const { data: orgs } = useSuspenseQuery(orgsQuery);
+  const bar = useAppBar(null);
   const { data: access } = useSuspenseQuery(sessionAccessQuery);
   const toast = useToast();
   const navigate = useNavigate();
   const form = useCreateOrgForm({ onOrgSwitched: () => toast.show({ tone: 'err', title: ORG_SWITCHED_MESSAGE }) });
-  const handle = session?.user.handle ?? '';
   const state: CreateOrgState = access.platformAdmin ? form.state : { kind: 'forbidden' };
   return (
     <CreateOrg
-      user={{ login: handle, initials: handle.slice(0, 2).toUpperCase() }}
-      org={{
-        ...toOrgSwitch(orgs, null, access.platformAdmin),
-        orgHref: (o: { slug: string }) => `/o/${encodeURIComponent(o.slug)}/projects`,
-        createHref: '/orgs/new',
-      }}
+      user={bar.user}
+      org={bar.org}
       state={state}
       onChange={form.change}
       onSubmit={form.submit}

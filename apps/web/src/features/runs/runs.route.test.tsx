@@ -207,10 +207,22 @@ describe('runs route', () => {
     );
   });
 
+  it('TC-43.4, TC-48.1: the project bar shows the org crumb, Runs and Desk, and the logo goes to the org projects', async () => {
+    await renderRoute(`${base}/runs`);
+    await screen.findByRole('heading', { level: 1, name: 'Runs' });
+    const bar = screen.getByRole('banner');
+    expect(within(bar).getByRole('button', { name: /^(Switch organization|Organization menu)/ })).toBeVisible();
+    expect(within(bar).getByRole('button', { name: /^Switch project, currently/ })).toBeVisible();
+    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    expect(within(tabs).getByRole('link', { name: /^Runs/ })).toHaveAttribute('aria-current', 'page');
+    expect(within(tabs).getByRole('link', { name: 'Desk' })).toBeVisible();
+    expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
+  });
+
   it('the Desk tab opens Routing rules, not Skills', async () => {
     await renderRoute(`${base}/runs`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    const tabs = screen.getByRole('navigation', { name: 'Project' });
+    const tabs = screen.getByRole('navigation', { name: 'Main' });
     expect(within(tabs).getByRole('link', { name: /Desk/ })).toHaveAttribute('href', `${base}/desk/rules`);
   });
 
@@ -714,6 +726,19 @@ describe('runs route', () => {
 });
 
 describe('needs-you route', () => {
+  it('TC-43.7: the needs-you page shows the org bar with no tab current, the logo going to the org projects', async () => {
+    await renderRoute(`${base}/needs-you`);
+    await screen.findByRole('link', { name: 'Open run 62 in Agent Desk' });
+    const bar = screen.getByRole('banner');
+    const tabs = within(bar).getByRole('navigation', { name: 'Main' });
+    expect(within(tabs).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/o/alice/projects');
+    expect(within(tabs).queryByRole('link', { current: 'page' })).not.toBeInTheDocument();
+    expect(within(tabs).queryByRole('link', { name: /^Runs/ })).not.toBeInTheDocument();
+    expect(within(bar).queryByRole('button', { name: /^Switch project/ })).not.toBeInTheDocument();
+    expect(within(bar).getAllByRole('link', { name: /Agent Desk/ })[0]).toHaveAttribute('href', '/o/alice/projects');
+    expect(screen.getAllByRole('navigation', { name: 'Main' })).toHaveLength(1);
+  });
+
   it('lists idle runs linking to /runs/<number>', async () => {
     const queries = captureRunListQueries();
     await renderRoute(`${base}/needs-you`);

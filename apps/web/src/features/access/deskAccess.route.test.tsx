@@ -27,6 +27,7 @@ const track = () => {
 afterEach(() => server.events.removeListener('request:start', listener));
 
 const DESK_DATA = /\/(agent|skills|rules|setup-script|plugins|setup-tests)(\/|$)|\/agents\/|\/rules\/|\/setup-tests\//;
+const ORG_INVITATIONS = /^\/api\/orgs\/[^/]+\/invitations(\/|$)/;
 const deskCalls = () => seen.filter((p) => DESK_DATA.test(p));
 
 const open = (path: string, scenario: Parameters<typeof scenarios.onboarding>[0]) => {
@@ -50,7 +51,8 @@ describe.each(['member', 'viewer'] as const)('a %s', (role) => {
   it('sees Forbidden on the org invitations page and no invitations are requested', async () => {
     await open('/o/acme/invitations', role);
     expect(await screen.findByRole('heading', FORBIDDEN)).toBeInTheDocument();
-    expect(seen.filter((p) => p.endsWith('/invitations'))).toEqual([]);
+    // The app bar's own /api/me/invitations (the caller's pending count) is allowed; the ORG's list is not.
+    expect(seen.filter((p) => ORG_INVITATIONS.test(p))).toEqual([]);
   });
 
   it('has no Desk tab on the runs page and no Desk data is requested there', async () => {
@@ -74,7 +76,7 @@ describe.each(['owner', 'orgAdmin'] as const)('an %s', (role) => {
     // The page's own landmark: the Setup tab has no project nav of its own while its script loads.
     // The Setup page replaces its first render once its script has loaded, so it is polled rather than found once.
     const landmark =
-      tab === 'setup' ? { role: 'heading', name: 'Workspace setup' } : { role: 'navigation', name: 'Project' };
+      tab === 'setup' ? { role: 'heading', name: 'Workspace setup' } : { role: 'navigation', name: 'Main' };
     await waitFor(() => expect(screen.getByRole(landmark.role, { name: landmark.name })).toBeInTheDocument());
     expect(screen.queryByRole('heading', FORBIDDEN)).not.toBeInTheDocument();
   });

@@ -1,8 +1,10 @@
-import { screen } from '@testing-library/react';
+import { act, screen, waitFor } from '@testing-library/react';
 import { http, HttpResponse } from 'msw';
 import { describe, expect, it } from 'vitest';
+import { mockDb } from '@/mocks/msw/db';
 import { server } from '@/mocks/msw/node';
 import { scenarios } from '@/mocks/msw/scenarios';
+import { applyTenantAdminScenario } from '@/mocks/msw/tenantAdminScenarios';
 import { renderRoute } from '@/test/renderRoute';
 
 describe('org layout route loads the session access', () => {
@@ -22,5 +24,29 @@ describe('org layout route loads the session access', () => {
     await renderRoute('/o/alice/projects', { scenario: () => scenarios.serverError('me.access') });
     expect(await screen.findByText('Internal server error')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+});
+
+describe('org layout route after a slug change (BR-16)', () => {
+  it('TC-16.4: the old slug shows not found and the new slug resolves', async () => {
+    const { router, user } = await renderRoute('/o/alice/settings/general', {
+      scenario: () => applyTenantAdminScenario(mockDb, 'soleOwner'),
+    });
+    await screen.findByRole('heading', { level: 1, name: 'General' });
+    const url = screen.getByLabelText('URL');
+    await user.click(url);
+    (url as HTMLInputElement).select();
+    await user.paste('acme-new');
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    await user.click(await screen.findByRole('button', { name: 'Change URL' }));
+    await waitFor(() => expect(router.state.location.pathname).toBe('/o/acme-new/settings/general'));
+
+    await act(() => router.navigate({ to: '/o/$org/projects', params: { org: 'alice' } }));
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Projects' })).not.toBeInTheDocument();
+
+    await act(() => router.navigate({ to: '/o/$org/projects', params: { org: 'acme-new' } }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Projects' })).toBeInTheDocument();
+    expect(screen.queryByText('Page not found')).not.toBeInTheDocument();
   });
 });
