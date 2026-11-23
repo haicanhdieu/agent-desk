@@ -82,7 +82,7 @@ A platform admin suspends or reactivates an organization from its page under `/p
 - The change is one transaction on the org row. Suspending an already suspended org (or reactivating an active one) answers 200, changes nothing and writes no audit row, so two admins clicking at once produce one change.
 - A change writes two audit rows. The platform audit row (`platform_audit_log`, `target_org_id` set) holds the reason, with token-shaped values masked, and is the only place the reason is stored. The organization's own audit (Settings, Audit) gets an `org.suspended` or `org.reactivated` entry marked "Platform admin", with the status change and no reason. Do not put secrets in a reason.
 - The org page shows the current reason, who suspended the org and when, read from the latest `org.suspended` platform audit row.
-- What members see: a suspended org's members are refused (the "This organization is suspended" message and an API refusal that names the suspension). That enforcement lands in a later change of this feature; until then the status is recorded and shown but is not yet enforced. Running runs finish. On reactivation members get access back on their next request, paused runs stay paused until someone resumes them, and triggers missed while suspended start no run.
+- What members see: a suspended org's members are refused (the "This organization is suspended" message and an API refusal that names the suspension). Running runs finish. On reactivation members get access back on their next request, paused runs stay paused until someone resumes them, and triggers missed while suspended start no run.
 - A platform admin can still edit the name and URL of a suspended org.
 
 ## Upgrade
