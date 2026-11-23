@@ -1649,6 +1649,54 @@
    "h": 900,
    "title": "Welcome \u2014 platform admin, no org, menu open with Platform admin",
    "expand": "fill"
+  },
+  "PlatformOrgs.dc.html": {
+   "x": 1520,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Organizations \u2014 directory: suspended org, no owner yet, no activity yet",
+   "expand": "fill"
+  },
+  "PlatformOrgsLoading.dc.html": {
+   "x": 3040,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Organizations \u2014 loading",
+   "expand": "fill"
+  },
+  "PlatformOrgsEmpty.dc.html": {
+   "x": 4560,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Organizations \u2014 no organizations yet",
+   "expand": "fill"
+  },
+  "PlatformOrgsEmptyFiltered.dc.html": {
+   "x": 6080,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Organizations \u2014 search and status match nothing",
+   "expand": "fill"
+  },
+  "PlatformOrgsError.dc.html": {
+   "x": 0,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Organizations \u2014 failed to load",
+   "expand": "fill"
+  },
+  "PlatformOrgsPaged.dc.html": {
+   "x": 1520,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Organizations \u2014 page 2 of 2",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1856,7 +1904,13 @@
   "PlatformAdminsRevoking.dc.html",
   "PlatformAdminsLastAdmin.dc.html",
   "ProjectsOrgSwitchAdminPlatform.dc.html",
-  "MyInvitationsEmptyPlatformAdminMenu.dc.html"
+  "MyInvitationsEmptyPlatformAdminMenu.dc.html",
+  "PlatformOrgs.dc.html",
+  "PlatformOrgsLoading.dc.html",
+  "PlatformOrgsEmpty.dc.html",
+  "PlatformOrgsEmptyFiltered.dc.html",
+  "PlatformOrgsError.dc.html",
+  "PlatformOrgsPaged.dc.html"
  ],
  "notes": {
   "t-intro": {

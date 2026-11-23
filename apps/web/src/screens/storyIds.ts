@@ -222,6 +222,12 @@ export const boardStories = {
   PlatformAdminsLastAdmin: { title: platform, exportName: 'PlatformAdminsLastAdmin' },
   ProjectsOrgSwitchAdminPlatform: { title: entry, exportName: 'ProjectsOrgSwitchAdminPlatform' },
   MyInvitationsEmptyPlatformAdminMenu: { title: invitations, exportName: 'MyInvitationsEmptyPlatformAdminMenu' },
+  PlatformOrgs: { title: platform, exportName: 'PlatformOrgs' },
+  PlatformOrgsLoading: { title: platform, exportName: 'PlatformOrgsLoading' },
+  PlatformOrgsEmpty: { title: platform, exportName: 'PlatformOrgsEmpty' },
+  PlatformOrgsEmptyFiltered: { title: platform, exportName: 'PlatformOrgsEmptyFiltered' },
+  PlatformOrgsError: { title: platform, exportName: 'PlatformOrgsError' },
+  PlatformOrgsPaged: { title: platform, exportName: 'PlatformOrgsPaged' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

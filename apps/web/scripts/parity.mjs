@@ -191,6 +191,12 @@ const stories = {
   PlatformAdminsLastAdmin: ['Screens/Platform', 'PlatformAdminsLastAdmin'],
   ProjectsOrgSwitchAdminPlatform: ['Screens/Entry', 'ProjectsOrgSwitchAdminPlatform'],
   MyInvitationsEmptyPlatformAdminMenu: ['Screens/Invitations', 'MyInvitationsEmptyPlatformAdminMenu'],
+  PlatformOrgs: ['Screens/Platform', 'PlatformOrgs'],
+  PlatformOrgsLoading: ['Screens/Platform', 'PlatformOrgsLoading'],
+  PlatformOrgsEmpty: ['Screens/Platform', 'PlatformOrgsEmpty'],
+  PlatformOrgsEmptyFiltered: ['Screens/Platform', 'PlatformOrgsEmptyFiltered'],
+  PlatformOrgsError: ['Screens/Platform', 'PlatformOrgsError'],
+  PlatformOrgsPaged: ['Screens/Platform', 'PlatformOrgsPaged'],
   ...Object.fromEntries(
     [
       'Starting',

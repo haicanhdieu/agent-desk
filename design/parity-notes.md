@@ -357,3 +357,21 @@ were missing from `canvas.json`; their entries (and order) are added after the A
 - Switcher boards: the open menu shows "Platform admin" above "Create organization" through `OrgSwitch`'s `platformHref`.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 16 pixel pairs are unchecked: none is claimed
   to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
+
+## Platform admin: Organizations directory boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Six boards added, so
+`parity.mjs` finds 211: PlatformOrgs, PlatformOrgsLoading, PlatformOrgsEmpty, PlatformOrgsEmptyFiltered, PlatformOrgsError and
+PlatformOrgsPaged (`Screens/Platform`). The boards were missing from `canvas.json`; their entries (and order) are added after
+the Platform admins boards.
+
+- Rows: the stories use the shared fixtures (`platformOrgRows`), so names and owners differ from the boards' sample orgs; the
+  columns, the status chip and the "No owner yet" and "No activity yet" cells are the shared `PlatformOrgRow`.
+- Filters: a labelled search box (100 characters) and a status select, shared `TextInput` and `Select`; hidden when the list
+  is empty and nothing is filtered, as on the Empty board.
+- Empty filtered: "No organizations match" with "Clear filters" as an `EmptyState` h2; the board also keeps the empty table
+  header above it, the story does not.
+- The table sits in a focusable region that scrolls sideways inside `main` (minimum width 960px).
+- Loading and error: a labelled busy status of `Skeleton` blocks with no h1, the shared `RouteLoadError`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
+  to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.

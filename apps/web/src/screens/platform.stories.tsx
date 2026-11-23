@@ -1,7 +1,14 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
 import { AppShell } from '@/components';
-import { pagedPlatformAdminRows, platformAdminRows, type PlatformAdminRowView } from '@/mocks';
+import {
+  pagedPlatformAdminRows,
+  pagedPlatformOrgRows,
+  platformAdminRows,
+  platformOrgRows,
+  type PlatformAdminRowView,
+} from '@/mocks';
 import { PlatformAdmins as PlatformAdminsScreen, type PlatformAdminsProps } from './PlatformAdmins';
+import { PlatformOrgs as PlatformOrgsScreen, type PlatformOrgsProps } from './PlatformOrgs';
 import { PlatformFrame } from './platformFrame';
 import { viewport } from './viewports';
 
@@ -143,6 +150,66 @@ export const PlatformAdminsLastAdmin: Story = {
         kind: 'ready',
         rows: [find('new.hire@example.com'), { ...alice, lastWorkingAdmin: true }],
         pagination: { ...pagination, total: 2 },
+      },
+    }),
+};
+
+const orgsPagination = {
+  page: 1,
+  pageSize: 20 as const,
+  total: platformOrgRows.length,
+  onPageChange: noop,
+  onPageSizeChange: noop,
+};
+const noFilters = { q: '', status: 'all' as const, active: false };
+
+const orgs = (over: Partial<PlatformOrgsProps> = {}) => (
+  <PlatformFrame active="orgs">
+    <PlatformOrgsScreen
+      view={{ kind: 'ready', rows: platformOrgRows, pagination: orgsPagination }}
+      filters={noFilters}
+      onSearch={noop}
+      onStatus={noop}
+      onClearFilters={noop}
+      createHref="/orgs/new"
+      {...over}
+    />
+  </PlatformFrame>
+);
+
+export const PlatformOrgs: Story = {
+  name: 'Organizations, directory: suspended org, no owner yet, no activity yet',
+  render: () => orgs(),
+};
+export const PlatformOrgsLoading: Story = {
+  name: 'Organizations, loading',
+  render: () => orgs({ view: { kind: 'loading' } }),
+};
+export const PlatformOrgsEmpty: Story = {
+  name: 'Organizations, no organizations yet',
+  render: () => orgs({ view: { kind: 'ready', rows: [], pagination: { ...orgsPagination, total: 0 } } }),
+};
+export const PlatformOrgsEmptyFiltered: Story = {
+  name: 'Organizations, search and status match nothing',
+  render: () =>
+    orgs({
+      view: { kind: 'ready', rows: [], pagination: { ...orgsPagination, total: 0 } },
+      filters: { q: 'zephyr', status: 'suspended', active: true },
+    }),
+};
+export const PlatformOrgsError: Story = {
+  name: 'Organizations, failed to load',
+  render: () =>
+    orgs({ view: { kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry: noop } }),
+};
+export const PlatformOrgsPaged: Story = {
+  name: 'Organizations, page 2 of 2',
+  render: () =>
+    orgs({
+      view: {
+        kind: 'ready',
+        rows: pagedPlatformOrgRows.slice(20),
+        pagination: { page: 2, pageSize: 20 as const, total: 25, onPageChange: noop, onPageSizeChange: noop },
       },
     }),
 };

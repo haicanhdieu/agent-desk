@@ -1,7 +1,8 @@
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { platformAdminRows } from '@/mocks';
+import { pagedPlatformOrgRows, platformAdminRows, platformOrgRows } from '@/mocks';
 import { PlatformAdmins, type PlatformAdminsProps } from './PlatformAdmins';
+import { PlatformOrgs, type PlatformOrgsProps } from './PlatformOrgs';
 
 const noop = () => {};
 const pagination = { page: 1, pageSize: 20 as const, total: 3, onPageChange: noop, onPageSizeChange: noop };
@@ -162,5 +163,135 @@ describe('PlatformAdmins', () => {
       />,
     );
     expect(screen.getByRole('dialog', { name: 'Add platform admin' })).toBeInTheDocument();
+  });
+});
+
+const orgFilters = { q: '', status: 'all' as const, active: false };
+const orgProps = (over: Partial<PlatformOrgsProps> = {}): PlatformOrgsProps => ({
+  view: { kind: 'ready', rows: platformOrgRows, pagination: { ...pagination, total: platformOrgRows.length } },
+  filters: orgFilters,
+  onSearch: vi.fn(),
+  onStatus: vi.fn(),
+  onClearFilters: vi.fn(),
+  createHref: '/orgs/new',
+  ...over,
+});
+
+describe('PlatformOrgs', () => {
+  it('ready: h1 "Organizations", the seven columns and one row per org', () => {
+    render(<PlatformOrgs {...orgProps()} />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Organizations' })).toHaveAttribute('tabindex', '-1');
+    expect(screen.getAllByRole('columnheader').map((h) => h.textContent)).toEqual([
+      'Organization',
+      'Owner',
+      'Members',
+      'Projects',
+      'Last activity',
+      'Status',
+      'Created',
+    ]);
+    expect(screen.getAllByRole('row')).toHaveLength(platformOrgRows.length + 1);
+  });
+
+  it('"Create organization" links to createHref', () => {
+    render(<PlatformOrgs {...orgProps({ createHref: '/orgs/new' })} />);
+    expect(screen.getByRole('link', { name: 'Create organization' })).toHaveAttribute('href', '/orgs/new');
+  });
+
+  it('search is labelled, capped at 100 characters and reports typing', async () => {
+    const onSearch = vi.fn();
+    render(<PlatformOrgs {...orgProps({ onSearch })} />);
+    const search = screen.getByRole('searchbox', { name: 'Search organizations' });
+    expect(search).toHaveAttribute('maxlength', '100');
+    await userEvent.type(search, 'a');
+    expect(onSearch).toHaveBeenLastCalledWith('a');
+  });
+
+  it('the search box shows the filter q and follows it when it is cleared', () => {
+    const { rerender } = render(
+      <PlatformOrgs {...orgProps({ filters: { q: 'acme', status: 'all', active: true } })} />,
+    );
+    expect(screen.getByRole('searchbox', { name: 'Search organizations' })).toHaveValue('acme');
+    rerender(<PlatformOrgs {...orgProps({ filters: orgFilters })} />);
+    expect(screen.getByRole('searchbox', { name: 'Search organizations' })).toHaveValue('');
+  });
+
+  it('status select offers All statuses, Active and Suspended and reports the choice', async () => {
+    const onStatus = vi.fn();
+    render(<PlatformOrgs {...orgProps({ onStatus })} />);
+    const select = screen.getByRole('combobox', { name: 'Status' });
+    expect(
+      within(select)
+        .getAllByRole('option')
+        .map((o) => o.textContent),
+    ).toEqual(['All statuses', 'Active', 'Suspended']);
+    await userEvent.selectOptions(select, 'Suspended');
+    expect(onStatus).toHaveBeenCalledWith('suspended');
+  });
+
+  it('empty and unfiltered: "No organizations yet" with no filters or table', () => {
+    render(
+      <PlatformOrgs {...orgProps({ view: { kind: 'ready', rows: [], pagination: { ...pagination, total: 0 } } })} />,
+    );
+    expect(screen.getByText('No organizations yet')).toBeInTheDocument();
+    expect(screen.getByText('Create one to invite its first owner.')).toBeInTheDocument();
+    expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).not.toBeInTheDocument();
+  });
+
+  it('empty and filtered: "No organizations match" and Clear filters calls onClearFilters', async () => {
+    const onClearFilters = vi.fn();
+    render(
+      <PlatformOrgs
+        {...orgProps({
+          view: { kind: 'ready', rows: [], pagination: { ...pagination, total: 0 } },
+          filters: { q: 'zephyr', status: 'suspended', active: true },
+          onClearFilters,
+        })}
+      />,
+    );
+    expect(screen.getByText('No organizations match')).toBeInTheDocument();
+    expect(screen.queryByText('No organizations yet')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(onClearFilters).toHaveBeenCalledTimes(1);
+  });
+
+  it('the table scrolls sideways inside main', () => {
+    render(<PlatformOrgs {...orgProps()} />);
+    const region = screen.getByRole('region', { name: 'Organizations table' });
+    expect(region).toHaveAttribute('tabindex', '0');
+    expect(screen.getByRole('main')).toContainElement(region);
+    expect(region).toContainElement(screen.getByRole('table'));
+  });
+
+  it('pagination shows with rows', () => {
+    render(
+      <PlatformOrgs
+        {...orgProps({
+          view: { kind: 'ready', rows: pagedPlatformOrgRows.slice(20), pagination: { ...pagination, total: 25 } },
+        })}
+      />,
+    );
+    expect(screen.getByRole('navigation', { name: 'Pagination' })).toBeInTheDocument();
+  });
+
+  it('loading is a busy status with no table', () => {
+    render(<PlatformOrgs {...orgProps({ view: { kind: 'loading' } })} />);
+    expect(screen.getByRole('status', { name: 'Loading' })).toHaveAttribute('aria-busy', 'true');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('error shows the title and request id, and Retry calls onRetry', async () => {
+    const onRetry = vi.fn();
+    render(
+      <PlatformOrgs
+        {...orgProps({
+          view: { kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry },
+        })}
+      />,
+    );
+    expect(screen.getByText('Request ID: req_01JDP4A7K2QX')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Retry' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
   });
 });

@@ -806,11 +806,11 @@ export const platformOrgColumns: DataTableColumn[]; // Organization, Owner, Memb
 export function PlatformOrgRow(props: { row: PlatformOrgRowView }): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: OrgStatus shows glyph plus text for both states; the row name is a link to `href` with `/o/<slug>` in mono beside it; "No owner yet" and "No activity yet"; relative times carry the full date in `title`; a long name ellipsizes with `title`; markup in a name renders as text.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgRow.test.tsx src/components/OrgStatus.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both with stories (OrgStatus: Active, Suspended; row: Default, Suspended, NoOwner, NoActivity, LongName).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform org row and org status in Storybook`.
+- [x] **Step 1: Write the failing tests**: OrgStatus shows glyph plus text for both states; the row name is a link to `href` with `/o/<slug>` in mono beside it; "No owner yet" and "No activity yet"; relative times carry the full date in `title`; a long name ellipsizes with `title`; markup in a name renders as text.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformOrgRow.test.tsx src/components/OrgStatus.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both with stories (OrgStatus: Active, Suspended; row: Default, Suspended, NoOwner, NoActivity, LongName).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform org row and org status in Storybook`.
 
 ---
 
@@ -839,11 +839,11 @@ export interface PlatformOrgsProps {
 export function PlatformOrgs(props: PlatformOrgsProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests** in `platform.test.tsx`: h1 "Organizations", "Create organization" links to `createHref`, search labelled "Search organizations" (`maxLength` 100), status select "All statuses / Active / Suspended"; empty unfiltered "No organizations yet" / "Create one to invite its first owner."; empty filtered "No organizations match" with "Clear filters"; the table scrolls horizontally inside `main`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories `PlatformOrgs`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`; barrel lines for Task 14; register the 6 boards; coverage 205 to 211; regenerate the interactive prototype; parity notes.
+- [x] **Step 1: Write the failing tests** in `platform.test.tsx`: h1 "Organizations", "Create organization" links to `createHref`, search labelled "Search organizations" (`maxLength` 100), status select "All statuses / Active / Suspended"; empty unfiltered "No organizations yet" / "Create one to invite its first owner."; empty filtered "No organizations match" with "Clear filters"; the table scrolls horizontally inside `main`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/platform.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories `PlatformOrgs`, `…Loading`, `…Empty`, `…EmptyFiltered`, `…Error`, `…Paged`; barrel lines for Task 14; register the 6 boards; coverage 205 to 211; regenerate the interactive prototype; parity notes.
 - [ ] **Step 4: Run** the same commands as Task 5 Step 4 for these 6 boards. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): organizations directory boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): organizations directory boards in Storybook`.
 
 ---
 

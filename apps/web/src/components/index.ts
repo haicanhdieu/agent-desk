@@ -127,4 +127,6 @@ export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLay
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
 export { PlatformLayout, type PlatformLayoutProps } from './PlatformLayout';
 export { PlatformAdminRow, platformAdminColumns, type PlatformAdminRowProps } from './PlatformAdminRow';
+export { PlatformOrgRow, platformOrgColumns } from './PlatformOrgRow';
+export { OrgStatus } from './OrgStatus';
 export { AddPlatformAdminDialog, type AddPlatformAdminDialogProps } from './AddPlatformAdminDialog';
