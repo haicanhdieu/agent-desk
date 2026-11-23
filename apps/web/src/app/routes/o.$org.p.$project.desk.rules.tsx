@@ -16,7 +16,7 @@ import {
 } from '@/app/pagination';
 import { useNow } from '@/app/useNow';
 import { useToast } from '@/ds';
-import { requirePermission } from '@/features/access/guards';
+import { requireProjectPermission } from '@/features/access/guards';
 import { projectPaths, useDeskFrame } from '@/features/desk/frame';
 import { toRule } from '@/features/desk/map';
 import { useDeleteRule, useToggleRule } from '@/features/desk/mutations';
@@ -41,7 +41,7 @@ export const Route = createFileRoute('/o/$org/p/$project/desk/rules')({
   loaderDeps: ({ search }) => ({ page: pageOfSearch(search) }),
   // Desk config is for roles that hold `rule:read` on this project; the guard runs before any loader.
   beforeLoad: ({ context: { queryClient }, params }) =>
-    requirePermission(queryClient, params.org, 'rule:read', { projectId: params.project }),
+    requireProjectPermission(queryClient, params.org, 'rule:read', params.project),
   loader: async ({ context: { queryClient }, params: { org, project }, deps: { page }, cause }) => {
     await Promise.all([
       loadPage(queryClient, deskQueries.rules(org, project, { page, pageSize: readPageSize() }), cause),

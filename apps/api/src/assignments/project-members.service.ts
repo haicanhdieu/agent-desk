@@ -187,8 +187,8 @@ export class ProjectMembersService {
   }
 
   /**
-   * Replaces the person's project-scope roles on the project with one row. Order: lock the person (member row, then
-   * their rows on the project); no row on the project is 404, an unusable role is 422 /roleId, then
+   * Replaces the person's project-scope roles on the project with one row. Order: lock the person (member row, the
+   * project row `FOR SHARE`, then their rows on the project; a project that is gone is 404); no row on the project is 404, an unusable role is 422 /roleId, then
    * `checkTenantAssign` create on the new role and delete on each replaced role (403). The same single role again is
    * 200 with nothing written. Concurrent writes for one person serialize on the locks; the last one wins.
    */
@@ -200,7 +200,7 @@ export class ProjectMembersService {
     roleId: string,
   ): Promise<ProjectMemberDto> {
     const { dto, changed } = await withOrg(this.db, orgId, async (tx) => {
-      const { rows } = await this.lockPerson(tx, orgId, projectId, userId);
+      const { rows } = await this.lockPerson(tx, orgId, projectId, userId, true);
       if (rows.length === 0) throw new NotFoundProblemException(NOT_ON_PROJECT, []);
       const role = await loadRole(tx, roleId);
       if (!role || !role.assignableScopes.includes('project')) {
@@ -317,12 +317,19 @@ export class ProjectMembersService {
     );
   }
 
-  /** Locks the member row, then the person's project-scope rows on P (both FOR UPDATE); no member row = not in the org. */
+  /**
+   * Locks the member row, then the person's project-scope rows on P (both FOR UPDATE); no member row = not in the org.
+   * With `lockProject` the project row is locked `FOR SHARE` between the two (404 when it is gone): a write that
+   * deletes and re-inserts the person's rows takes the project row (the insert's foreign key does) while holding them,
+   * and a project delete locks the project row first and then cascades over those rows, so the project row must come
+   * first or the two deadlock (40P01, a 500). The delete never locks member rows, so member row first stays safe.
+   */
   private async lockPerson(
     tx: Tx,
     orgId: string,
     projectId: string,
     userId: string,
+    lockProject = false,
   ): Promise<{ inOrg: boolean; rows: AssignmentRow[] }> {
     const [target] = await tx
       .select({ id: member.id })
@@ -331,6 +338,15 @@ export class ProjectMembersService {
       .limit(1)
       .for('update');
     if (!target) return { inOrg: false, rows: [] };
+    if (lockProject) {
+      const [project] = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.orgId, orgId), eq(projects.id, projectId)))
+        .limit(1)
+        .for('share');
+      if (!project) throw new NotFoundException('Project not found');
+    }
     return { inOrg: true, rows: await projectRowsOf(tx, orgId, projectId, [userId], true) };
   }
 

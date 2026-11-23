@@ -710,6 +710,57 @@ describe('serialized writes for one person (BR-12)', () => {
   });
 });
 
+describe('a project delete racing a project member write (project row locked first)', () => {
+  /**
+   * Plays `ProjectsService.remove`: a transaction that locks the project row FOR UPDATE, waits until `during` has been
+   * started (and has had time to take its locks), then deletes the project (the cascade deletes its role rows) and
+   * commits. The delete must commit: a deadlock (40P01) aborts it or `during`, which fails the test.
+   */
+  async function deleteProjectWhile<T>(orgId: string, projectId: string, during: () => Promise<T>): Promise<T> {
+    let locked: () => void = () => undefined;
+    const lockTaken = new Promise<void>((resolve) => {
+      locked = resolve;
+    });
+    const deleter = withOrg(t.db, orgId, async (tx) => {
+      await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('update');
+      locked();
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      await tx.delete(projects).where(eq(projects.id, projectId));
+    });
+    await lockTaken;
+    const write = during();
+    const [outcome, result] = await Promise.allSettled([deleter, write]);
+    expect(outcome.status, `the project delete: ${JSON.stringify(outcome)}`).toBe('fulfilled');
+    if (result.status === 'rejected') throw result.reason;
+    return result.value;
+  }
+
+  it('a role change on a project being deleted answers 404, with no deadlock and no 500', async () => {
+    const f = await buildCast('pm-del-set');
+    const res = await deleteProjectWhile(f.orgId, f.p1, () =>
+      setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer),
+    );
+    expect(res.statusCode).toBe(404);
+    expect(await auditRows(f.orgId, 'project_member.role_changed', f.ids.c)).toHaveLength(0);
+  });
+
+  it('an add on a project being deleted answers 404, with no deadlock and no 500', async () => {
+    const f = await buildCast('pm-del-add');
+    const before = (await auditRows(f.orgId, 'assignment.granted', f.ids.n)).length;
+    const res = await deleteProjectWhile(f.orgId, f.p1, () =>
+      addProjectMember(t, f.a, f.orgId, f.p1, { userId: f.ids.n, roleId: f.roles.member }),
+    );
+    expect(res.statusCode).toBe(404);
+    expect(await auditRows(f.orgId, 'assignment.granted', f.ids.n)).toHaveLength(before);
+  });
+
+  it('a removal on a project being deleted answers 204 beside the delete, with no deadlock', async () => {
+    const f = await buildCast('pm-del-rm');
+    const res = await deleteProjectWhile(f.orgId, f.p1, () => removeProjectMember(t, f.oa, f.orgId, f.p1, f.ids.c));
+    expect(res.statusCode).toBe(204);
+  });
+});
+
 describe('a project admin whose rights change (BR-25)', () => {
   it('loses add, set-role and remove at once when the admin role is replaced by member', async () => {
     const f = await buildCast('pm-demote');

@@ -402,8 +402,12 @@ test.describe('BR-25: a demoted or removed admin with the page open', () => {
     }
   });
 
-  test('TC-25.2: O removes all of A’s roles on P1; A’s Change role is refused, nothing changes, and after a reload "Page not found" shows', async () => {
-    const { a, c, o, p1 } = cast;
+  test('TC-25.2: O removes all of A’s roles on P1 (A still holds Admin on P2); A’s Change role is refused, nothing changes, and after a reload "Page not found" shows', async () => {
+    const { a, c, o, p1, p2, roleIds } = cast;
+    // The Given: A also holds Admin on P2, so A still holds `assignment:read` somewhere (the guard says Forbidden for a
+    // permission held nowhere, before it looks at the project) and P1 is out of A's scope, hence not found.
+    const onP2 = await projectMembersApi(o, p2).add(a.userId, roleIds.admin);
+    expect(onP2.status(), `O gives A Admin on P2: ${await onP2.text()}`).toBe(201);
     await openMembers(a);
     // The role cards load with A's rights, so the dialog is opened and a role picked first; the save is sent after.
     const dialog = await openChangeRole(a.page, c.handle);
@@ -411,9 +415,10 @@ test.describe('BR-25: a demoted or removed admin with the page open', () => {
     const removed = await projectMembersApi(o, p1).remove(a.userId);
     expect(removed.status(), `O removes all of A's roles on P1: ${await removed.text()}`).toBe(204);
 
+    // P1 is now out of A's scope: the API answers 404 to the save; the page closes the dialog and toasts it.
     await dialog.getByRole('button', { name: 'Save role' }).click();
-    await expect(dialog.getByText("You don't have access")).toBeVisible();
-    await expect(dialog.getByText(/^Request ID: \S+/)).toBeVisible();
+    await expect(a.page.getByText('Member is no longer on this project')).toBeVisible();
+    await expect(dialog).toHaveCount(0);
     expect(await roleKeysOnP1(c.userId), 'C is still a Member').toEqual(['member']);
 
     await a.page.reload();

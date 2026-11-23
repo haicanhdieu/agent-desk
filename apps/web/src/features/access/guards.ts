@@ -1,5 +1,5 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
-import { can, inScope, type Access, type AccessTarget, type Permission } from '@agentdesk/contracts';
+import { can, holdsAnywhere, inScope, type Access, type AccessTarget, type Permission } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
 import { notFound } from '@tanstack/react-router';
 import { canInvite, orgAccessQuery, toAccess } from './queries';
@@ -34,8 +34,9 @@ export async function requirePermission(
 }
 
 /**
- * For a project page's `beforeLoad`: like `requirePermission` on `projectId`, but a project the caller's grants do not
- * reach at all is not found (BR-3: nothing of it shows), while a reachable project without the permission is Forbidden.
+ * For a project page's `beforeLoad`, in the ADR-0036 guard order: a permission the caller holds nowhere in the org is
+ * Forbidden (before the project is looked at); a project the caller's grants do not reach is not found (BR-3: nothing
+ * of it shows); a reachable project without the permission is Forbidden.
  */
 export async function requireProjectPermission(
   queryClient: QueryClient,
@@ -44,6 +45,7 @@ export async function requireProjectPermission(
   projectId: string,
 ): Promise<void> {
   const access = await grantsOf(queryClient, org);
+  if (!holdsAnywhere(access, permission)) throw forbidden();
   if (can(access, permission, { projectId })) return;
   if (!inScope(access, projectId)) throw notFound();
   throw forbidden();

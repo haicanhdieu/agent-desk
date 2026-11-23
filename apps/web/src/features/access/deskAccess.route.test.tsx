@@ -96,14 +96,14 @@ describe.each(['owner', 'orgAdmin'] as const)('an %s', (role) => {
 });
 
 describe('an admin of one project', () => {
-  it('opens the Desk of that project and sees Forbidden on another project', async () => {
+  it('opens the Desk of that project', async () => {
     await open(desk(P1, 'agent'), 'projectAdmin');
     expect(await screen.findByRole('heading', { level: 1, name: 'Agent & settings' })).toBeInTheDocument();
   });
 
-  it('sees Forbidden on the Desk of a project they do not administer and requests none of its data', async () => {
+  it('sees Page not found on the Desk of a project they do not administer and requests none of its data', async () => {
     await open(desk(P2, 'rules'), 'projectAdmin');
-    expect(await screen.findByRole('heading', FORBIDDEN)).toBeInTheDocument();
+    expect(await screen.findByText('Page not found')).toBeInTheDocument();
     expect(deskCalls()).toEqual([]);
   });
 

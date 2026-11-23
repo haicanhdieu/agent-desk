@@ -950,7 +950,7 @@ Self-removal (403) is proved by TC-11.2.
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | --- | ----- | ----- | -------- |
 | TC-25.1 | edge | local | A has P1 Members open | 1. O removes A's Admin role and grants A Member on P1 (API). 2. A adds a person in the open page. 3. A reloads. | The Add is refused (error Banner with a request id; nothing added); after the reload the Forbidden page shows. |
-| TC-25.2 | edge | local | A has P1 Members open | 1. O removes all of A's roles on P1. 2. A attempts Change role in the open page. 3. A reloads. | The change is refused, nothing changes; after the reload the heading "Page not found" shows. |
+| TC-25.2 | edge | local | A has P1 Members open; A also holds Admin on P2 (O grants it over the API before step 1) | 1. O removes all of A's roles on P1. 2. A attempts Change role in the open page. 3. A reloads. | The change is refused, nothing changes; after the reload the heading "Page not found" shows. |
 | TC-25.3 | edge | local | A has P1 Audit log open | 1. O demotes A to Member on P1. 2. A reloads. | The Forbidden page shows, no entries. |
 
 #### BR-26: Org Viewer plus project Admin
