@@ -1248,13 +1248,13 @@ export const auditQuery = (org: string, orgId: string, q: { page: number; pageSi
 export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): AuditRowView;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts` (`it.each`, injected `now`, pinned TZ; BR-20 to BR-23): "2 min ago" / "yesterday" / "12 Nov" with exact "22 Nov 2026, 10:58"; Who: name, "Deleted user" (`actor: null`), the "Platform admin" tag; What, without the actor: "changed <member>'s role from Admin to Owner", "changed the organization URL from /o/<old> to /o/<new>", "changed the organization name from <old> to <new>", "removed <member> from the organization (was Member)" and without "(was …)" when `from` is null, "invited <email> as Viewer", "resent the invitation for <email>", "revoked the invitation for <email>", "accepted an invitation as Member" (no email), "declined an invitation"; `assignment.*`, `invitation.expired`, `org.created` and generic rows → `raw` with the key; names and role values are `strong` parts.
   - `audit.route.test.tsx` (BR-20, BR-24): newest first, paging page 2 of 2, skeleton, error with Retry, empty "No activity yet", HTML text shown literally, project admin → no-access inside the layout.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/audit`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (`validateSearch` `PageSearch`, `useNow()`), the query and the mapper; regenerate `routeTree.gen.ts`.
-- [ ] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Tasks 34 and 37.
-- [ ] **Step 5: Commit** `feat(web): Audit log page`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/audit`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (`validateSearch` `PageSearch`, `useNow()`), the query and the mapper; regenerate `routeTree.gen.ts`.
+- [x] **Step 4: Run** the Step 2 command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Tasks 34 and 37.
+- [x] **Step 5: Commit** `feat(web): Audit log page`.
 
 ---
 
