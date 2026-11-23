@@ -220,6 +220,8 @@ export const stateStories = {
   RunPrMerged: { title: detail, exportName: 'RunPrMerged', board: 'RunIdle' },
   RunPrMergedCollapsed: { title: detail, exportName: 'RunPrMergedCollapsed', board: 'RunIdle' },
   RunsQueuedOnly: { title: runs, exportName: 'RunsQueuedOnly', board: 'RunsPaged' },
+  RunsSearchEmpty: { title: runs, exportName: 'RunsSearchEmpty', board: 'Runs' },
+  RunsSearchLoading: { title: runs, exportName: 'RunsSearchLoading', board: 'Runs' },
   RunsProblemsPolling: { title: runs, exportName: 'RunsProblemsPolling', board: 'RunsProblems' },
   NeedsYouPaused: { title: runs, exportName: 'NeedsYouPaused', board: 'NeedsYou' },
   RunPaused: { title: detail, exportName: 'RunPaused', board: 'RunIdle' },

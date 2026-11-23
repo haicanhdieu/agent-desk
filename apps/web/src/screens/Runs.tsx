@@ -103,6 +103,7 @@ export function Runs({
     onGroupedChange?.(next);
   };
   const shown = filterGroups(groups, filter);
+  const searched = page.search?.applied ?? '';
   // Ungrouped: the same runs as one flat list, newest first. Only the layout changes, never the run data.
   const flat = shown.flatMap((g) => g.runs).sort((a, b) => b.id - a.id);
   return (
@@ -121,46 +122,63 @@ export function Runs({
           Run {waitingRun} is waiting for a free slot.
         </Banner>
       )}
-      {shown.length === 0 ? (
-        <EmptyState
-          title="No runs match this filter"
-          headingLevel={2}
-          body="Runs appear here when a ticket comment starts one."
-          action={
-            showAllHref !== undefined ? (
-              <Button variant="ghost" href={showAllHref}>
-                Show all runs
+      <section aria-label="Run results" aria-busy={pagination?.busy ? true : undefined}>
+        {shown.length === 0 && searched !== '' ? (
+          <EmptyState
+            title={`No runs match “${searched}”`}
+            headingLevel={2}
+            body={
+              filter === 'all'
+                ? 'Search looks at ticket numbers, titles and labels, run numbers, routing rule commands and who triggered the run.'
+                : 'Only runs in this status view are searched. Try another view, or clear the search.'
+            }
+            action={
+              <Button variant="ghost" onClick={() => page.search?.onChange('')}>
+                Clear search
               </Button>
-            ) : (
-              <Button variant="ghost" onClick={() => page.onFilter?.('all')}>
-                Show all runs
-              </Button>
-            )
-          }
-        />
-      ) : (
-        <>
-          <DataTable columns={columns} busy={pagination?.busy}>
-            {grouped
-              ? shown.flatMap((g) => [
-                  <TicketGroupRow key={`g${g.ticket.kind}:${g.ticket.number}`} group={g} colSpan={columns.length} />,
-                  ...g.runs.map((r, i) => (
-                    <RunRow
-                      key={r.id}
-                      run={r}
-                      tree={i === g.runs.length - 1 ? 'last' : 'mid'}
-                      href={runHref(r)}
-                      actions={rowActions(r, runHref)}
-                    />
-                  )),
-                ])
-              : flat.map((r) => (
-                  <RunRow key={r.id} run={r} tree="none" href={runHref(r)} actions={rowActions(r, runHref)} />
-                ))}
-          </DataTable>
-          {pagination && <Pagination {...pagination} />}
-        </>
-      )}
+            }
+          />
+        ) : shown.length === 0 ? (
+          <EmptyState
+            title="No runs match this filter"
+            headingLevel={2}
+            body="Runs appear here when a ticket comment starts one."
+            action={
+              showAllHref !== undefined ? (
+                <Button variant="ghost" href={showAllHref}>
+                  Show all runs
+                </Button>
+              ) : (
+                <Button variant="ghost" onClick={() => page.onFilter?.('all')}>
+                  Show all runs
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <>
+            <DataTable columns={columns} busy={pagination?.busy}>
+              {grouped
+                ? shown.flatMap((g) => [
+                    <TicketGroupRow key={`g${g.ticket.kind}:${g.ticket.number}`} group={g} colSpan={columns.length} />,
+                    ...g.runs.map((r, i) => (
+                      <RunRow
+                        key={r.id}
+                        run={r}
+                        tree={i === g.runs.length - 1 ? 'last' : 'mid'}
+                        href={runHref(r)}
+                        actions={rowActions(r, runHref)}
+                      />
+                    )),
+                  ])
+                : flat.map((r) => (
+                    <RunRow key={r.id} run={r} tree="none" href={runHref(r)} actions={rowActions(r, runHref)} />
+                  ))}
+            </DataTable>
+            {pagination && <Pagination {...pagination} />}
+          </>
+        )}
+      </section>
     </RunsPage>
   );
 }

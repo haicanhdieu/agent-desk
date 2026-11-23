@@ -211,12 +211,18 @@ describe('MSW handlers cover the contract', () => {
     expect(past).toMatchObject({ items: [], total: 12 });
     const byTicket = await api.runs.list({
       params: { projectId: P },
-      query: { ticket: '133' },
+      query: { q: '133' },
     });
-    expect(byTicket.items.map((r) => r.number)).toEqual([57, 56]);
-    expect(byTicket.total).toBe(2);
+    // PR #133 has runs 57 and 56; the issue it is linked to (run 55) is in the same group, so it is found too.
+    expect(byTicket.items.map((r) => r.number)).toEqual([57, 56, 55]);
+    expect(byTicket.total).toBe(3);
+    // `ticket` and `q` combine (AND): the exact ticket 133 has runs 57 and 56, only 57 and 56 hold 133 in q too.
+    const both = await api.runs.list({ params: { projectId: P }, query: { ticket: '133', q: '133' } });
+    expect(both.items.map((r) => r.number)).toEqual([57, 56]);
+    const none = await api.runs.list({ params: { projectId: P }, query: { ticket: '133', q: 'zzz-no-match' } });
+    expect(none.items).toEqual([]);
     // Every item carries how many runs its ticket has had, whatever the filter.
-    expect(byTicket.items.map((r) => r.ticketRunCount)).toEqual([2, 2]);
+    expect(byTicket.items.map((r) => r.ticketRunCount)).toEqual([2, 2, 1]);
   });
 
   it('serves the run list numbers from the store: counts, today, the idle run and the next queued run', async () => {

@@ -110,6 +110,59 @@ describe('Runs', () => {
     expect(screen.getByRole('heading', { level: 2, name: 'No runs match this filter' })).toBeInTheDocument();
   });
 
+  describe('search', () => {
+    it('shows no search box without a search prop (the Ignored view)', () => {
+      render(<Runs {...base} filter="all" />);
+      expect(screen.queryByRole('searchbox', { name: 'Search runs' })).not.toBeInTheDocument();
+    });
+
+    it('shows the typed text and reports edits and the clear button', async () => {
+      const onChange = vi.fn();
+      render(<Runs {...base} filter="all" search={{ value: 'log', applied: 'log', onChange }} />);
+      const box = screen.getByRole('searchbox', { name: 'Search runs' });
+      expect(box).toHaveValue('log');
+      await userEvent.type(box, 'i');
+      expect(onChange).toHaveBeenLastCalledWith('logi');
+      await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+      expect(onChange).toHaveBeenLastCalledWith('');
+    });
+
+    it('an empty result for a search says so with the query, apart from the status-filter empty state', async () => {
+      const onChange = vi.fn();
+      render(<Runs {...base} groups={[]} filter="ended" search={{ value: 'zzz', applied: 'zzz', onChange }} />);
+      expect(screen.getByRole('heading', { level: 2, name: 'No runs match “zzz”' })).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'No runs match this filter' })).not.toBeInTheDocument();
+      const clear = screen.getAllByRole('button', { name: 'Clear search' });
+      await userEvent.click(clear[clear.length - 1]);
+      expect(onChange).toHaveBeenLastCalledWith('');
+    });
+
+    it('with no query the status-filter empty state stays', () => {
+      render(<Runs {...base} groups={[]} filter="ended" search={{ value: '', applied: '', onChange: () => {} }} />);
+      expect(screen.getByRole('heading', { level: 2, name: 'No runs match this filter' })).toBeInTheDocument();
+    });
+
+    it('marks the results region busy while a search loads, and keeps the box editable', () => {
+      render(
+        <Runs
+          {...base}
+          filter="all"
+          search={{ value: 'a', applied: '', onChange: () => {} }}
+          pagination={{
+            page: 1,
+            pageSize: 20,
+            total: 9,
+            busy: true,
+            onPageChange: () => {},
+            onPageSizeChange: () => {},
+          }}
+        />,
+      );
+      expect(screen.getByRole('region', { name: 'Run results' })).toHaveAttribute('aria-busy', 'true');
+      expect(screen.getByRole('searchbox', { name: 'Search runs' })).toBeEnabled();
+    });
+  });
+
   it('orders group #131 rows 55, 56, 57 with tree mid, mid, last', () => {
     const { container } = render(<Runs {...base} filter="all" />);
     const rows = ['Run 55', 'Run 56', 'Run 57'].map((t) => screen.getByRole('link', { name: t }).closest('tr')!);
@@ -189,7 +242,15 @@ describe('Runs', () => {
   });
 
   it('renders the needs-you banner, header, row actions and one main', () => {
-    render(<Runs {...base} filter="all" needsYouRun={needsYouRun} onFinishIdle={() => undefined} />);
+    render(
+      <Runs
+        {...base}
+        filter="all"
+        needsYouRun={needsYouRun}
+        onFinishIdle={() => undefined}
+        search={{ value: '', applied: '', onChange: () => undefined }}
+      />,
+    );
     expect(screen.getAllByRole('main')).toHaveLength(1);
     expect(screen.getByRole('heading', { level: 1, name: 'Runs' })).toBeInTheDocument();
     expect(screen.getByText('Run 62 needs you.')).toBeInTheDocument();

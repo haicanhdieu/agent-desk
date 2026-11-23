@@ -235,33 +235,30 @@ describe('runs route', () => {
     await waitFor(() => expect(runNumbers()).toEqual([63]));
   });
 
-  it('?ticket=12 stays a plain number-like string in hrefs and URL, and narrows the list', async () => {
+  it('?q=12 stays a plain number-like string in hrefs and URL, and narrows the list', async () => {
     mockDb.state.runs = mockDb.state.runs.map((r) =>
       r.number === 55 || r.number === 57 ? { ...r, ticket: { ...r.ticket, number: 12, ref: ticket12Ref } } : r,
     );
-    const { router, user } = await renderRoute(`${base}/runs?ticket=12`);
+    const { router, user } = await renderRoute(`${base}/runs?q=12`);
     await screen.findByRole('heading', { level: 1, name: 'Runs' });
-    expect(router.state.location.search).toEqual({ ticket: '12' });
+    expect(router.state.location.search).toEqual({ q: '12' });
     expect(runNumbers().sort((a, b) => a - b)).toEqual([55, 57]);
     const ended = within(chips()).getByRole('link', { name: /^Ended/ });
-    expect(ended).toHaveAttribute('href', `${base}/runs?filter=ended&ticket=12`);
+    expect(ended).toHaveAttribute('href', `${base}/runs?filter=ended&q=12`);
     await user.click(ended);
-    await waitFor(() => expect(router.state.location.searchStr).toBe('?filter=ended&ticket=12'));
-    expect(router.state.location.search).toEqual({ filter: 'ended', ticket: '12' });
+    await waitFor(() => expect(router.state.location.searchStr).toBe('?filter=ended&q=12'));
+    expect(router.state.location.search).toEqual({ filter: 'ended', q: '12' });
     expect(router.state.location.href).not.toContain('%22');
   });
 
-  it('?filter=ignored&ticket=139 keeps the ticket on every filter chip link', async () => {
-    await renderRoute(`${base}/runs?filter=ignored&ticket=139`);
+  it('?filter=ignored&q=139 keeps the search on every filter chip link', async () => {
+    await renderRoute(`${base}/runs?filter=ignored&q=139`);
     await screen.findByRole('heading', { level: 2, name: 'Ignored commands' });
     expect(within(chips()).getByRole('link', { name: /^Ended/ })).toHaveAttribute(
       'href',
-      `${base}/runs?filter=ended&ticket=139`,
+      `${base}/runs?filter=ended&q=139`,
     );
-    expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute(
-      'href',
-      `${base}/runs?filter=ignored&ticket=139`,
-    );
+    expect(screen.getByRole('link', { name: /^Ignored/ })).toHaveAttribute('href', `${base}/runs?filter=ignored&q=139`);
   });
 
   it('?filter=active lists every active run, idle included, matching its chip count', async () => {
@@ -406,14 +403,77 @@ describe('runs route', () => {
       expect(queries.map((q) => new URLSearchParams(q).get('pageSize'))).toEqual(['20']);
     });
 
-    it('?ticket= asks the server for the ticket ref and finds its oldest runs', async () => {
+    it('?q= asks the server for the search and finds its oldest runs', async () => {
       seedMany();
       const queries = captureRunListQueries();
-      await renderRoute(`${base}/runs?ticket=12`);
+      await renderRoute(`${base}/runs?q=12`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
       expect(runNumbers()).toEqual([1, 2]);
-      expect(queries.some((q) => new URLSearchParams(q).get('ticket') === ticket12Ref)).toBe(true);
+      expect(queries.some((q) => new URLSearchParams(q).get('q') === '12')).toBe(true);
       expect(screen.getByText('2 of 10 runs')).toBeInTheDocument();
+    });
+  });
+
+  describe('search', () => {
+    const searchBox = () => screen.getByRole('searchbox', { name: 'Search runs' });
+    const qsOf = (queries: string[]) => queries.map((q) => new URLSearchParams(q).get('q'));
+
+    it('shows the ?q= text in the box and asks the server for it', async () => {
+      const queries = captureRunListQueries();
+      const { router } = await renderRoute(`${base}/runs?q=${encodeURIComponent('kim-hale')}`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      expect(searchBox()).toHaveValue('kim-hale');
+      expect(qsOf(queries)).toContain('kim-hale');
+      expect(router.state.location.search).toEqual({ q: 'kim-hale' });
+    });
+
+    it('typing updates the list once after a pause, puts q in the URL and resets the page', async () => {
+      mockDb.state.runs = mockDb.state.runs.map((r) =>
+        r.number === 64 ? { ...r, ticket: { ...r.ticket, title: 'Zebra crossing fix' } } : r,
+      );
+      const queries = captureRunListQueries();
+      const { user, router } = await renderRoute(`${base}/runs?page=2`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      const before = queries.length;
+      await user.type(searchBox(), 'zebra');
+      await waitFor(() => expect(runNumbers()).toEqual([64]));
+      // Keystrokes inside the pause are not sent one by one: only the final text reaches the server.
+      expect(qsOf(queries.slice(before)).filter((q) => q !== null)).toEqual(['zebra']);
+      expect(router.state.location.search).toEqual({ q: 'zebra' });
+    });
+
+    it('keeps the query across a status chip and a page change', async () => {
+      const { user, router } = await renderRoute(`${base}/runs?q=kim`);
+      await screen.findByRole('heading', { level: 1, name: 'Runs' });
+      const ended = within(chips()).getByRole('link', { name: /^Ended/ });
+      expect(ended).toHaveAttribute('href', `${base}/runs?filter=ended&q=kim`);
+      await user.click(ended);
+      await waitFor(() => expect(router.state.location.search).toEqual({ filter: 'ended', q: 'kim' }));
+    });
+
+    it('the clear button empties the box and the URL and shows the full list again', async () => {
+      const { user, router } = await renderRoute(`${base}/runs?q=nomatchatall`);
+      expect(
+        await screen.findByRole('heading', { level: 2, name: 'No runs match “nomatchatall”' }),
+      ).toBeInTheDocument();
+      await user.click(screen.getAllByRole('button', { name: 'Clear search' })[0] as HTMLElement);
+      await waitFor(() => expect(router.state.location.search).toEqual({}));
+      expect(searchBox()).toHaveValue('');
+      await waitFor(() => expect(runNumbers()).toHaveLength(12));
+    });
+
+    it('an empty search result shows the query, apart from the status-filter empty state', async () => {
+      await renderRoute(`${base}/runs?q=nomatchatall`);
+      expect(
+        await screen.findByRole('heading', { level: 2, name: 'No runs match “nomatchatall”' }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole('heading', { name: 'No runs match this filter' })).not.toBeInTheDocument();
+    });
+
+    it('the Ignored view has no search box (there is nothing there to search)', async () => {
+      await renderRoute(`${base}/runs?filter=ignored&q=abc`);
+      await screen.findByRole('heading', { level: 2, name: 'Ignored commands' });
+      expect(screen.queryByRole('searchbox')).not.toBeInTheDocument();
     });
   });
 
@@ -475,23 +535,23 @@ describe('runs route', () => {
       expect(again.router.state.location.search).toEqual({});
     });
 
-    it('TC-15.3: from ?page=3 every chip and the grouped toggle land on page 1, and no filter or ticket href carries page', async () => {
+    it('TC-15.3: from ?page=3 every chip and the grouped toggle land on page 1, and no filter or search href carries page', async () => {
       seedRuns(63);
-      const { user, router } = await renderRoute(`${base}/runs?page=3&ticket=12`);
+      const { user, router } = await renderRoute(`${base}/runs?page=3&q=12`);
       await screen.findByRole('heading', { level: 1, name: 'Runs' });
       const links = [...within(chips()).getAllByRole('link'), screen.getByRole('link', { name: /^Ignored/ })];
       expect(links.length).toBeGreaterThanOrEqual(6);
       for (const l of links) {
         const href = l.getAttribute('href') ?? '';
         expect(href, href).not.toContain('page');
-        expect(href, href).toContain('ticket=12');
+        expect(href, href).toContain('q=12');
       }
       await user.click(screen.getByRole('button', { name: 'Grouped by ticket' }));
       await waitFor(() => expect(router.state.location.search).not.toHaveProperty('page'));
     });
 
-    it('TC-15.3: changing the ticket from ?page=3 shows page 1 of the filtered result', async () => {
-      // 25 runs on ticket 12 and 38 on their own tickets; the app has no ticket text box, the filter is ?ticket=.
+    it('TC-15.3: changing the search from ?page=3 shows page 1 of the filtered result', async () => {
+      // 25 runs on ticket 12 and 38 on their own tickets; the search is ?q=.
       seedRuns(63, { ticketOf: (n) => (n <= 25 ? '12' : String(n)) });
       const { router } = await renderRoute(`${base}/runs?page=3`);
       await screen.findByRole('navigation', { name: 'Pagination' });
@@ -499,11 +559,11 @@ describe('runs route', () => {
       await router.navigate({
         to: '/o/$org/p/$project/runs',
         params: { org: 'alice', project: projectId },
-        search: { ticket: '12' },
+        search: { q: '12' },
       });
       await waitFor(() => expect(nav()).toHaveTextContent('Showing 1–20 of 25'));
       expect(runNumbers()).toHaveLength(20);
-      expect(router.state.location.search).toEqual({ ticket: '12' });
+      expect(router.state.location.search).toEqual({ q: '12' });
     });
 
     it('grouped: a ticket split across pages shows its header on both with the same "N of max runs"', async () => {

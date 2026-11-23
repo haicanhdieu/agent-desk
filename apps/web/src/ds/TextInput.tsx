@@ -115,15 +115,21 @@ export function PasswordInput({
   );
 }
 
+/** A search box. With `onClear`, a trailing button (named `clearLabel`) clears a non-empty controlled value. */
 export function SearchInput({
   placeholder,
   className,
+  onClear,
+  clearLabel = 'Clear search',
   ...rest
-}: { placeholder: string } & InputHTMLAttributes<HTMLInputElement>) {
+}: { placeholder: string; onClear?: () => void; clearLabel?: string } & InputHTMLAttributes<HTMLInputElement>) {
   return (
     <div className={cx(styles.wrap, styles.search, className)}>
       <Icon name="search" size={14} />
       <input type="search" placeholder={placeholder} {...rest} />
+      {onClear && rest.value !== undefined && rest.value !== '' && (
+        <IconButton icon="x" size="sm" aria-label={clearLabel} onClick={onClear} />
+      )}
     </div>
   );
 }

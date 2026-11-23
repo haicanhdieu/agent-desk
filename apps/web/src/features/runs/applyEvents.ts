@@ -112,7 +112,7 @@ function cachedRun(qc: QueryClient, org: string, projectId: string, e: StatusCha
   return undefined;
 }
 
-/** A list key's filter and ticket: ['org', org, 'projects', id, 'runs', 'list', filter, ticket | null, page, pageSize]. */
+/** A list key's filter and ticket: ['org', org, 'projects', id, 'runs', 'list', filter, ticket | null, q | null, page, pageSize]. */
 function listScope(key: QueryKey): { filter: RunListFilter; ticket: string | undefined } | undefined {
   const filter = RunListFilter.safeParse(key[6]);
   if (!filter.success) return undefined;
