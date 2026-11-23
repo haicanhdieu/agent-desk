@@ -147,7 +147,7 @@ describe('BR-13 after an invitation is created', () => {
   it('the org invitations list, the org audit and this project audit read again', async () => {
     applyProjectSpace(mockDb, { role: 'projectAdmin' });
     const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-    queryClient.setQueryData(orgsQuery.queryKey, [{ id: ids.org.alice, name: 'Alice', slug: 'alice' }]);
+    queryClient.setQueryData(orgsQuery.queryKey, [{ id: ids.org.alice, name: 'Alice', slug: 'alice', status: 'active' }]);
     const keys = {
       invitations: [...orgInvitationsListKey('alice'), 'pending', 1, 20],
       orgAudit: ['org', 'alice', 'audit', 'list', 1, 20],
