@@ -63,6 +63,16 @@ describe('shouldLoadMore', () => {
 });
 
 describe('MemberPicker semantics', () => {
+  it('has no aria-controls while there is no listbox to control', async () => {
+    const user = userEvent.setup();
+    setup({ options: [], total: 0 });
+    const box = screen.getByRole('combobox');
+    await user.click(box);
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+    expect(box).not.toHaveAttribute('aria-controls');
+    expect(box).toHaveAttribute('aria-expanded', 'false');
+  });
+
   it('is a combobox that controls a listbox and names the active option', async () => {
     const user = userEvent.setup();
     setup();

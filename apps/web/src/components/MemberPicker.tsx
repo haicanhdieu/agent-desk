@@ -193,8 +193,8 @@ export function MemberPicker(p: MemberPickerProps) {
       <TextInput
         id={id}
         role="combobox"
-        aria-expanded={open}
-        aria-controls={listId}
+        aria-expanded={open && count > 0}
+        aria-controls={count > 0 ? listId : undefined}
         aria-autocomplete="list"
         aria-activedescendant={open && active >= 0 && count > 0 ? optionId(active) : undefined}
         aria-invalid={p.invalid ? true : undefined}

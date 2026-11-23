@@ -1601,6 +1601,142 @@
    "h": 900,
    "title": "Settings \u2014 Audit log, invitation entries without the email",
    "expand": "fill"
+  },
+  "DeskMembers.dc.html": {
+   "x": 0,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, you, several roles, a long name",
+   "expand": "fill"
+  },
+  "DeskMembersLoading.dc.html": {
+   "x": 1520,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, loading",
+   "expand": "fill"
+  },
+  "DeskMembersEmpty.dc.html": {
+   "x": 3040,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, empty",
+   "expand": "fill"
+  },
+  "DeskMembersError.dc.html": {
+   "x": 4560,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, failed to load",
+   "expand": "fill"
+  },
+  "DeskMembersPaged.dc.html": {
+   "x": 0,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskMembersForbidden.dc.html": {
+   "x": 1520,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members URL opened by a member or viewer: no access",
+   "expand": "fill"
+  },
+  "DeskMembersRowMenu.dc.html": {
+   "x": 3040,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, row menu on another person",
+   "expand": "fill"
+  },
+  "DeskMembersBusy.dc.html": {
+   "x": 4560,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, a row action in flight",
+   "expand": "fill"
+  },
+  "DeskMembersAdd.dc.html": {
+   "x": 0,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, Person and Role empty",
+   "expand": "fill"
+  },
+  "DeskMembersAddSearch.dc.html": {
+   "x": 1520,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, server search, 20 of 23 loaded",
+   "expand": "fill"
+  },
+  "DeskMembersAddNoMatch.dc.html": {
+   "x": 3040,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, no match",
+   "expand": "fill"
+  },
+  "DeskMembersAddAllAdded.dc.html": {
+   "x": 4560,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, everyone already has a role",
+   "expand": "fill"
+  },
+  "DeskMembersAddFieldErrors.dc.html": {
+   "x": 0,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, field errors",
+   "expand": "fill"
+  },
+  "DeskMembersAddSaving.dc.html": {
+   "x": 1520,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, saving",
+   "expand": "fill"
+  },
+  "DeskMembersAddFormError.dc.html": {
+   "x": 3040,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, server error",
+   "expand": "fill"
+  },
+  "DeskMembersAddAlreadyOnProject.dc.html": {
+   "x": 4560,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, already has a role",
+   "expand": "fill"
+  },
+  "DeskMembersAdded.dc.html": {
+   "x": 0,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, added, list refetched, toast",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1802,7 +1938,24 @@
   "OrgAuditError.dc.html",
   "OrgAuditForbidden.dc.html",
   "OrgAuditInvitationProjects.dc.html",
-  "OrgAuditInvitationNoEmail.dc.html"
+  "OrgAuditInvitationNoEmail.dc.html",
+  "DeskMembers.dc.html",
+  "DeskMembersLoading.dc.html",
+  "DeskMembersEmpty.dc.html",
+  "DeskMembersError.dc.html",
+  "DeskMembersPaged.dc.html",
+  "DeskMembersForbidden.dc.html",
+  "DeskMembersRowMenu.dc.html",
+  "DeskMembersBusy.dc.html",
+  "DeskMembersAdd.dc.html",
+  "DeskMembersAddSearch.dc.html",
+  "DeskMembersAddNoMatch.dc.html",
+  "DeskMembersAddAllAdded.dc.html",
+  "DeskMembersAddFieldErrors.dc.html",
+  "DeskMembersAddSaving.dc.html",
+  "DeskMembersAddFormError.dc.html",
+  "DeskMembersAddAlreadyOnProject.dc.html",
+  "DeskMembersAdded.dc.html"
  ],
  "notes": {
   "t-intro": {

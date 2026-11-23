@@ -880,11 +880,11 @@ export interface DeskMembersProps {
 }
 ```
 
-- [ ] **Step 1: Write the failing test** `deskMembers.test.tsx` (BR-4, BR-15): h1 "Members", intro "People with a role on this project. A role in <Org> also applies here.", buttons "Invite people" then "Add member"; loading skeleton rows; error Banner with Retry; empty "No project roles yet" / "Add a member of <Org> to give them a role on this project." with "Add member"; busy row's menu disabled.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskMembers.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen and stories DeskMembers, DeskMembersLoading, DeskMembersEmpty (Kim Hale), DeskMembersError, DeskMembersPaged, DeskMembersForbidden (Mira Chen: route `Forbidden` under the project bar with no Settings tab and no side menu), DeskMembersRowMenu, DeskMembersBusy; register the 8 boards (+8).
+- [x] **Step 1: Write the failing test** `deskMembers.test.tsx` (BR-4, BR-15): h1 "Members", intro "People with a role on this project. A role in <Org> also applies here.", buttons "Invite people" then "Add member"; loading skeleton rows; error Banner with Retry; empty "No project roles yet" / "Add a member of <Org> to give them a role on this project." with "Add member"; busy row's menu disabled.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskMembers.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen and stories DeskMembers, DeskMembersLoading, DeskMembersEmpty (Kim Hale), DeskMembersError, DeskMembersPaged, DeskMembersForbidden (Mira Chen: route `Forbidden` under the project bar with no Settings tab and no side menu), DeskMembersRowMenu, DeskMembersBusy; register the 8 boards (+8).
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/test/stories.smoke.test.tsx`, `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`, then compare `parity-out/<board>.{story,proto}.png` for DeskMembers, DeskMembersEmpty (never commit `parity-out/`). Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): project Members list boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): project Members list boards in Storybook`.
 
 ---
 
@@ -902,11 +902,11 @@ export interface DeskMembersProps {
 - Consumes: `AddProjectMemberDialog` (Task 16), `DeskMembers` `children` and `notice` (Task 18).
 - Produces: stories only; `DeskMembers` is unchanged unless a board needs a slot (then `children` is used).
 
-- [ ] **Step 1: Write the failing test** in `deskMembers.test.tsx`: with an `AddProjectMemberDialog` child the dialog is labelled "Add member to <project>" and focus is on Person; the "added" notice reads "<name> added as <Role>" with `role="status"`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskMembers.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** stories DeskMembersAdd, DeskMembersAddSearch, DeskMembersAddNoMatch, DeskMembersAddAllAdded, DeskMembersAddFieldErrors, DeskMembersAddSaving, DeskMembersAddFormError, DeskMembersAddAlreadyOnProject, DeskMembersAdded; register the 9 boards (+9).
+- [x] **Step 1: Write the failing test** in `deskMembers.test.tsx`: with an `AddProjectMemberDialog` child the dialog is labelled "Add member to <project>" and focus is on Person; the "added" notice reads "<name> added as <Role>" with `role="status"`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskMembers.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** stories DeskMembersAdd, DeskMembersAddSearch, DeskMembersAddNoMatch, DeskMembersAddAllAdded, DeskMembersAddFieldErrors, DeskMembersAddSaving, DeskMembersAddFormError, DeskMembersAddAlreadyOnProject, DeskMembersAdded; register the 9 boards (+9).
 - [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts src/test/stories.smoke.test.tsx`, `pnpm --filter @agentdesk/web build-storybook && pnpm --filter @agentdesk/web parity`, then compare `parity-out/<board>.{story,proto}.png` for DeskMembersAdd, DeskMembersAddAlreadyOnProject (never commit `parity-out/`). Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): add member boards in Storybook`.
+- [x] **Step 5: Commit**: `feat(web): add member boards in Storybook`.
 
 ---
 

@@ -1,5 +1,12 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
-import { AppShell, type PaginationProps } from '@/components';
+import {
+  AddProjectMemberDialog,
+  AppShell,
+  TopBar,
+  type AddProjectMemberDialogProps,
+  type PaginationProps,
+} from '@/components';
+import type { Actor, ProjectMemberRowView } from '@/mocks/types';
 import type { DeskFrameData } from './DeskFrame';
 import {
   agentSettings,
@@ -14,6 +21,11 @@ import {
   projectAuditRows,
   projectAuditRowsExpired,
   projectAuditRowsNoEmail,
+  manyPickerOptions,
+  memberPickerOptions,
+  pagedProjectMemberRows,
+  projectMemberRows,
+  projectRoleCards,
   promptSystemLines,
   rules,
   TRIAGE_PROMPT,
@@ -29,6 +41,8 @@ import {
 } from '@/mocks';
 import { DeskSetup as DeskSetupScreen, type DeskSetupProps } from './DeskSetup';
 import { DeskAudit as DeskAuditScreen } from './DeskAudit';
+import { DeskMembers as DeskMembersScreen, type DeskMembersProps } from './DeskMembers';
+import screenStyles from './Screens.module.css';
 import { DeskAgent as DeskAgentBase, type DeskAgentProps } from './DeskAgent';
 import { DeskRules as DeskRulesScreen, RulePane } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
@@ -771,4 +785,179 @@ export const DeskAuditInvitationNoEmail: Story = {
 export const DeskAuditInvitationExpired: Story = {
   name: 'Audit log, expired invitation entries, with and without the email',
   ...audit({ kind: 'ready', rows: projectAuditRowsExpired }),
+};
+
+// The project Members page (Settings > Access > Members), 1440x900 boards. Lee Park (project admin) is signed in
+// unless a board says otherwise.
+const LEE: Actor = { login: 'lee-park', initials: 'LP' };
+const MIRA: Actor = { login: 'mira-chen', initials: 'MC' };
+const leeFrame: DeskFrameData = { ...deskFrame, user: LEE };
+const members = (
+  state: DeskMembersProps['state'],
+  props: Partial<Omit<DeskMembersProps, 'state'>> = {},
+  frame: DeskFrameData = leeFrame,
+): Story => ({
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <DeskMembersScreen
+      frame={frame}
+      orgName="Harbor Labs"
+      projectName="invoicer-api"
+      state={state}
+      onAdd={noop}
+      onInvite={noop}
+      onChangeRole={noop}
+      onRemove={noop}
+      {...props}
+    />
+  ),
+});
+const membersReady = (
+  rows: ProjectMemberRowView[],
+  more: Partial<Extract<DeskMembersProps['state'], { kind: 'ready' }>> = {},
+): DeskMembersProps['state'] => ({ kind: 'ready', rows, busyUserId: null, ...more });
+
+export const DeskMembers: Story = {
+  name: 'Members: you, several roles, a long name and a person without a handle',
+  ...members(membersReady(projectMemberRows)),
+};
+export const DeskMembersLoading: Story = { name: 'Members, loading', ...members({ kind: 'loading' }) };
+export const DeskMembersEmpty: Story = {
+  name: 'Members, empty (org owner)',
+  ...members(membersReady([]), {}, deskFrame),
+};
+export const DeskMembersError: Story = {
+  name: 'Members, failed to load',
+  ...members({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: noop }),
+};
+export const DeskMembersPaged: Story = {
+  name: 'Members, page 2 of 2',
+  ...members(membersReady(pagedProjectMemberRows.slice(0, 5), { pagination: pagination(2, 25) })),
+};
+export const DeskMembersForbidden: Story = {
+  name: 'Members URL opened by a member or viewer: no access under the project bar, no Settings tab, no side menu',
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => (
+    <>
+      <TopBar
+        variant="project"
+        active="runs"
+        user={MIRA}
+        org={deskFrame.org}
+        needsYou={deskFrame.project.needsYou}
+        project={{ name: deskFrame.project.name, repoUrl: `https://github.com/${deskFrame.project.repo}` }}
+        links={{ projects: '#projects', runs: '#runs' }}
+      />
+      <main className={screenStyles.emptyNotice}>
+        <div className={screenStyles.emptyNoticeCol}>
+          <h1>You don&apos;t have access</h1>
+          <p className="muted">Ask an owner of this organization to give you access.</p>
+        </div>
+      </main>
+    </>
+  ),
+};
+export const DeskMembersRowMenu: Story = {
+  name: 'Members, row menu on another person',
+  ...members(membersReady(projectMemberRows), { openMenuUserId: 'user-tenant-4' }),
+};
+export const DeskMembersBusy: Story = {
+  name: 'Members, a row action in flight: that menu is disabled',
+  ...members(membersReady(projectMemberRows, { busyUserId: 'user-tenant-4' })),
+};
+
+// The Add member dialog over the Members page (Lee Park, project admin). Dialogs are always open boards, controlled.
+const noPickerOption = memberPickerOptions[0] ?? null;
+const memberRole = projectRoleCards[1]?.roleId ?? null;
+const addDialog = (
+  over: Partial<AddProjectMemberDialogProps> = {},
+  picker: Partial<AddProjectMemberDialogProps['picker']> = {},
+) => (
+  <AddProjectMemberDialog
+    projectName="invoicer-api"
+    orgName="Harbor Labs"
+    picker={{
+      query: '',
+      onQueryChange: noop,
+      options: memberPickerOptions,
+      total: memberPickerOptions.length,
+      hasMore: false,
+      state: { kind: 'idle' },
+      picked: null,
+      onPick: noop,
+      onLoadMore: noop,
+      ...picker,
+    }}
+    roles={projectRoleCards}
+    roleId={null}
+    onRoleChange={noop}
+    errors={{}}
+    saving={false}
+    onSubmit={noop}
+    onCancel={noop}
+    {...over}
+  />
+);
+const membersAdd = (dialog: ReturnType<typeof addDialog>): Story =>
+  members(membersReady(projectMemberRows), { children: dialog });
+
+export const DeskMembersAdd: Story = {
+  name: 'Members, add dialog: Person and Role empty, no role preselected',
+  ...membersAdd(addDialog()),
+};
+export const DeskMembersAddSearch: Story = {
+  name: 'Members, add dialog: server search open, 20 of 23 loaded, more load on scroll',
+  ...membersAdd(addDialog({}, { query: 'a', options: manyPickerOptions.slice(0, 20), total: 23, hasMore: true })),
+};
+export const DeskMembersAddNoMatch: Story = {
+  name: 'Members, add dialog: no member matches the search',
+  ...membersAdd(addDialog({}, { query: 'zz', options: [], total: 0 })),
+};
+export const DeskMembersAddAllAdded: Story = {
+  name: 'Members, add dialog: everyone in the organization already has a role here',
+  ...membersAdd(addDialog({}, { options: [], total: 0 })),
+};
+export const DeskMembersAddFieldErrors: Story = {
+  name: 'Members, add dialog: submitted with no person and no role',
+  ...membersAdd(addDialog({ errors: { userId: 'Choose a person.', roleId: 'Choose a role.' } })),
+};
+export const DeskMembersAddSaving: Story = {
+  name: 'Members, add dialog: saving',
+  ...membersAdd(addDialog({ roleId: memberRole, saving: true }, { picked: noPickerOption })),
+};
+export const DeskMembersAddFormError: Story = {
+  name: 'Members, add dialog: server error, input kept',
+  ...membersAdd(
+    addDialog(
+      {
+        roleId: memberRole,
+        formError: { title: 'Internal server error', requestId: 'req_01JD7Q3M8V2K' },
+      },
+      { picked: noPickerOption },
+    ),
+  ),
+};
+export const DeskMembersAddAlreadyOnProject: Story = {
+  name: 'Members, add dialog: 409, the person got a role meanwhile; Person cleared, role kept',
+  ...membersAdd(
+    addDialog({
+      roleId: memberRole,
+      formError: {
+        title: 'This person already has a role on this project.',
+        detail: 'Use Change role to change it.',
+      },
+    }),
+  ),
+};
+export const DeskMembersAdded: Story = {
+  name: 'Members, added: list refetched, toast',
+  ...members(
+    membersReady([
+      ...projectMemberRows,
+      { userId: 'user-candidate-1', name: 'Mira Chen', handle: 'mira', you: false, roles: 'Member' },
+    ]),
+    { notice: { tone: 'ok', title: 'Mira Chen added as Member', onDismiss: noop } },
+  ),
 };

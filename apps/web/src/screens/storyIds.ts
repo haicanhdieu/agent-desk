@@ -215,6 +215,23 @@ export const boardStories = {
   OrgAuditForbidden: { title: orgSettings, exportName: 'OrgAuditForbidden' },
   OrgAuditInvitationProjects: { title: orgSettings, exportName: 'OrgAuditInvitationProjects' },
   OrgAuditInvitationNoEmail: { title: orgSettings, exportName: 'OrgAuditInvitationNoEmail' },
+  DeskMembers: { title: desk, exportName: 'DeskMembers' },
+  DeskMembersLoading: { title: desk, exportName: 'DeskMembersLoading' },
+  DeskMembersEmpty: { title: desk, exportName: 'DeskMembersEmpty' },
+  DeskMembersError: { title: desk, exportName: 'DeskMembersError' },
+  DeskMembersPaged: { title: desk, exportName: 'DeskMembersPaged' },
+  DeskMembersForbidden: { title: desk, exportName: 'DeskMembersForbidden' },
+  DeskMembersRowMenu: { title: desk, exportName: 'DeskMembersRowMenu' },
+  DeskMembersBusy: { title: desk, exportName: 'DeskMembersBusy' },
+  DeskMembersAdd: { title: desk, exportName: 'DeskMembersAdd' },
+  DeskMembersAddSearch: { title: desk, exportName: 'DeskMembersAddSearch' },
+  DeskMembersAddNoMatch: { title: desk, exportName: 'DeskMembersAddNoMatch' },
+  DeskMembersAddAllAdded: { title: desk, exportName: 'DeskMembersAddAllAdded' },
+  DeskMembersAddFieldErrors: { title: desk, exportName: 'DeskMembersAddFieldErrors' },
+  DeskMembersAddSaving: { title: desk, exportName: 'DeskMembersAddSaving' },
+  DeskMembersAddFormError: { title: desk, exportName: 'DeskMembersAddFormError' },
+  DeskMembersAddAlreadyOnProject: { title: desk, exportName: 'DeskMembersAddAlreadyOnProject' },
+  DeskMembersAdded: { title: desk, exportName: 'DeskMembersAdded' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;
