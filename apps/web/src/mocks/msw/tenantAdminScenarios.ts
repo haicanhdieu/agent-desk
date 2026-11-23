@@ -37,6 +37,7 @@ export const TENANT_ADMIN_SCENARIOS = [
   'auditError',
   'auditSlow',
   'auditPaged',
+  'invitationsManyAccepted',
 ] as const;
 
 export type TenantAdminScenario = (typeof TENANT_ADMIN_SCENARIOS)[number];
@@ -46,6 +47,7 @@ export function parseTenantAdminScenario(raw: string | null): TenantAdminScenari
 }
 
 const SLOW_MS = 1500;
+const ACCEPTED_INVITATIONS = 25;
 const SEEDED_AT = '2026-10-05T10:30:00.000Z';
 const ORG_OWNER = 'owner';
 const MEMBER_GONE = 'Member is no longer in the organization';
@@ -160,6 +162,22 @@ const seeders: Record<TenantAdminScenario, (db: MockDb) => void> = {
   auditPaged(db) {
     seed(db, 'owner', twoOwners);
     db.state.audit[ids.org.alice] = pagedAuditFixtures(25);
+  },
+  // The owner's org has 25 accepted invitations (page size 20), so page 2 of the Accepted filter exists.
+  invitationsManyAccepted(db) {
+    seed(db, 'owner', twoOwners);
+    const base = db.state.invitations.find((i) => i.orgId === ids.org.alice);
+    if (!base) throw new Error('invitation fixture missing');
+    for (let n = 1; n <= ACCEPTED_INVITATIONS; n += 1) {
+      db.state.invitations.push({
+        ...base,
+        id: `b3300000-0000-4000-8000-${String(n).padStart(12, '0')}`,
+        email: `accepted${n}@x.dev`,
+        status: 'accepted',
+        acceptedAt: SEEDED_AT,
+        createdAt: new Date(Date.parse(SEEDED_AT) - n * 60_000).toISOString(),
+      });
+    }
   },
 };
 

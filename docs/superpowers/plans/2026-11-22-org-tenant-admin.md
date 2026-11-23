@@ -1360,9 +1360,9 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: `seedTenantAdmin`, `seedOnboarding` (`mock.ts`).
 
-- [ ] **Step 1: Write the specs** for BR-2 (TC-2.1 to 2.3), BR-13 (TC-13.1 to 13.8), BR-15 (TC-15.1 to 15.4), BR-16 (TC-16.1, 16.2) and BR-17 (TC-17.1 to 17.6; TC-17.5 expects the slug format message, spec Q4; errors show on "Save", spec Q5).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-settings.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for Settings access and General`.
+- [x] **Step 1: Write the specs** for BR-2 (TC-2.1 to 2.3), BR-13 (TC-13.1 to 13.8), BR-15 (TC-15.1 to 15.4), BR-16 (TC-16.1, 16.2) and BR-17 (TC-17.1 to 17.6; TC-17.5 expects the slug format message, spec Q4; errors show on "Save", spec Q5).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-settings.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): mock e2e for Settings access and General`.
 
 ---
 

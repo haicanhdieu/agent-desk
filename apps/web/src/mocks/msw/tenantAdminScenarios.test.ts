@@ -55,7 +55,7 @@ const apply = (name: TenantAdminScenario) => applyTenantAdminScenario(mockDb, na
 
 it('the key and every scenario name', () => {
   expect(TENANT_ADMIN_SCENARIO_KEY).toBe('agentdesk.mock.tenantAdmin');
-  expect(TENANT_ADMIN_SCENARIOS).toHaveLength(15);
+  expect(TENANT_ADMIN_SCENARIOS).toHaveLength(16);
   expect(parseTenantAdminScenario('soleOwner')).toBe('soleOwner');
   expect(parseTenantAdminScenario('nope')).toBeUndefined();
   expect(parseTenantAdminScenario(null)).toBeUndefined();
@@ -337,5 +337,17 @@ describe('default seed', () => {
     expect(keyOf()).not.toBe(before);
     mockDb.reset();
     expect(keyOf()).toBe(before);
+  });
+});
+
+describe('invitationsManyAccepted', () => {
+  it('has a second page of accepted invitations at page size 20, and the other scenarios keep the default list', async () => {
+    apply('invitationsManyAccepted');
+    const page2 = await api.invitations.list({ params, query: { status: 'accepted', page: 2, pageSize: 20 } });
+    expect(page2.total).toBeGreaterThan(20);
+    expect(page2.items.length).toBeGreaterThan(0);
+    apply('twoOwners');
+    const small = await api.invitations.list({ params, query: { status: 'accepted', page: 1, pageSize: 20 } });
+    expect(small.total).toBeLessThanOrEqual(20);
   });
 });
