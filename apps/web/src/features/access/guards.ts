@@ -1,6 +1,7 @@
 import { useQuery, type QueryClient } from '@tanstack/react-query';
-import { can, type Access, type AccessTarget, type Permission } from '@agentdesk/contracts';
+import { can, holdsAnywhere, inScope, type Access, type AccessTarget, type Permission } from '@agentdesk/contracts';
 import { ApiError } from '@agentdesk/contracts/client';
+import { notFound } from '@tanstack/react-router';
 import { canInvite, orgAccessQuery, toAccess } from './queries';
 
 // Route and screen guards over the session's grants. They only decide what the UI shows: the API is the authority
@@ -30,6 +31,24 @@ export async function requirePermission(
   target: AccessTarget = {},
 ): Promise<void> {
   if (!can(await grantsOf(queryClient, org), permission, target)) throw forbidden();
+}
+
+/**
+ * For a project page's `beforeLoad`, in the ADR-0036 guard order: a permission the caller holds nowhere in the org is
+ * Forbidden (before the project is looked at); a project the caller's grants do not reach is not found (BR-3: nothing
+ * of it shows); a reachable project without the permission is Forbidden.
+ */
+export async function requireProjectPermission(
+  queryClient: QueryClient,
+  org: string,
+  permission: Permission,
+  projectId: string,
+): Promise<void> {
+  const access = await grantsOf(queryClient, org);
+  if (!holdsAnywhere(access, permission)) throw forbidden();
+  if (can(access, permission, { projectId })) return;
+  if (!inScope(access, projectId)) throw notFound();
+  throw forbidden();
 }
 
 /** For a route's `beforeLoad`: throws a 403 unless the caller may invite (invite rights at the org or on a project). */

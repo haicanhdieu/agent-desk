@@ -323,7 +323,7 @@ test.describe('platform admin and the cast', () => {
       );
       const owner = lines('owner');
       const admin = lines('admin');
-      expect(owner, 'owner holds all 34 tenant permissions').toHaveLength(34);
+      expect(owner, 'owner holds all 35 tenant permissions').toHaveLength(35);
       expect(
         owner.every((l) => l.endsWith(':any') && !l.startsWith('platform-')),
         'owner: any, tenant permissions only',

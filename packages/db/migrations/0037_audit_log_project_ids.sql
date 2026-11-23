@@ -1,0 +1,1 @@
+ALTER TABLE "audit_log" ADD COLUMN "project_ids" uuid[] DEFAULT '{}'::uuid[] NOT NULL;

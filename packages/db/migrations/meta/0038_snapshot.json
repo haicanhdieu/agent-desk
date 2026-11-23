@@ -1,6 +1,6 @@
 {
-  "id": "155a3ca8-2f5c-4471-879d-a29b9fe94fc4",
-  "prevId": "a9c93839-7f87-49b8-b589-d15903d6ab9c",
+  "id": "455cecef-4e5a-46c3-a0f3-a92c0390e9d7",
+  "prevId": "4552b02a-fdca-4c24-9409-4e3f6400bab1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -409,19 +409,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'active'"
-        },
-        "suspended_at": {
-          "name": "suspended_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -453,16 +440,7 @@
         }
       },
       "policies": {},
-      "checkConstraints": {
-        "organization_status_check": {
-          "name": "organization_status_check",
-          "value": "\"organization\".\"status\" in ('active','suspended')"
-        },
-        "organization_suspended_at_check": {
-          "name": "organization_suspended_at_check",
-          "value": "(\"organization\".\"status\" = 'suspended') = (\"organization\".\"suspended_at\" is not null)"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.session": {
@@ -988,6 +966,13 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "project_ids": {
+          "name": "project_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
         }
       },
       "indexes": {
@@ -1010,6 +995,21 @@
           "isUnique": false,
           "concurrently": false,
           "method": "btree",
+          "with": {}
+        },
+        "audit_log_project_ids_idx": {
+          "name": "audit_log_project_ids_idx",
+          "columns": [
+            {
+              "expression": "project_ids",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "gin",
           "with": {}
         }
       },
@@ -2385,27 +2385,6 @@
           "columns": [
             {
               "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "runs_org_queued_idx": {
-          "name": "runs_org_queued_idx",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "queued_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4023,12 +4002,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "target_org_id": {
-          "name": "target_org_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "payload": {
           "name": "payload",
           "type": "jsonb",
@@ -4048,33 +4021,6 @@
         "platform_audit_log_created_at_idx": {
           "name": "platform_audit_log_created_at_idx",
           "columns": [
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "platform_audit_log_target_org_idx": {
-          "name": "platform_audit_log_target_org_idx",
-          "columns": [
-            {
-              "expression": "target_org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
             {
               "expression": "created_at",
               "isExpression": false,

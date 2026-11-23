@@ -8,9 +8,10 @@ import {
 } from '@nestjs/common';
 import type { FastifyRequest } from 'fastify';
 import { mergeMap, type Observable } from 'rxjs';
-import { flattenRoutes, routes } from '@agentdesk/contracts';
+import { flattenRoutes, routeAccess, routes, type RouteKey } from '@agentdesk/contracts';
 import { auditLog, withOrg, type Db } from '@agentdesk/db';
 import { describeError } from '../common/pg-errors';
+import type { RequestAuthz } from '../access/current-access';
 import { DB } from '../db/db.module';
 import { redactBody } from './redact-body';
 
@@ -69,6 +70,13 @@ function paramsOf(params: unknown): Record<string, unknown> {
   return typeof params === 'object' && params !== null ? Object.fromEntries(Object.entries(params)) : {};
 }
 
+/** [authz.projectId] when the matched route is project-kind and the guard resolved a project, else []. */
+export function auditProjectIds(authz: Pick<RequestAuthz, 'routeKey' | 'projectId'> | undefined): string[] {
+  if (authz === undefined || authz.projectId === undefined) return [];
+  const key: RouteKey = authz.routeKey;
+  return routeAccess[key].scope === 'project' ? [authz.projectId] : [];
+}
+
 @Injectable()
 export class AuditInterceptor implements NestInterceptor {
   private readonly logger = new Logger(AuditInterceptor.name);
@@ -94,6 +102,7 @@ export class AuditInterceptor implements NestInterceptor {
               targetType: target.targetType,
               targetId: target.targetId,
               payload: redactBody(req.body, target.action),
+              projectIds: auditProjectIds(req.authz),
             }),
           );
         } catch (err) {

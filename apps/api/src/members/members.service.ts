@@ -1,16 +1,18 @@
 import { ForbiddenException, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Logger } from 'pino';
-import { and, asc, eq, inArray, sql, type SQL } from 'drizzle-orm';
-import { member, roleAssignments, roles, user, withOrg, type Db } from '@agentdesk/db';
+import { and, asc, eq, inArray, or, sql, type SQL } from 'drizzle-orm';
+import { member, projects, roleAssignments, roles, user, withOrg, type Db } from '@agentdesk/db';
 import {
   can,
   holdsAnywhere,
+  inScope,
   pageWindow,
   toPage,
   visibleProjects,
   type Access,
   type AssignmentDto,
   type MemberDto,
+  type MembersListQuery,
   type Page,
   type PageQuery,
   type PlatformMemberDto,
@@ -31,6 +33,11 @@ import { toAssignmentDto } from '../assignments/assignments.service';
 interface Visible {
   orgScope: boolean;
   projects: 'all' | string[];
+}
+
+/** Escapes `\`, `%` and `_` so user text matches literally inside an `ILIKE ... ESCAPE '\'` pattern. */
+export function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (c) => `\\${c}`);
 }
 
 /** The 404 problem title for a user who is not a member of the org. */
@@ -58,12 +65,14 @@ export class MembersService {
    * check). Assignments: all of them for an org-scope `member:read` holder; for anyone else only the project-scope
    * ones on projects where the caller holds `assignment:read`, plus the org-scope ones when that grant is org-scope.
    */
-  async list(access: Access, orgId: string, q: PageQuery): Promise<Page<MemberDto>> {
+  async list(access: Access, orgId: string, q: MembersListQuery): Promise<Page<MemberDto>> {
     if (!holdsAnywhere(access, 'member:read') && !holdsAnywhere(access, 'assignment:create')) {
       throw new ForbiddenException(FORBIDDEN_DETAIL);
     }
     const visible = this.visibleFor(access);
-    const page = await this.load(orgId, q, visible);
+    const { q: search, excludeProject, ...paging } = q;
+    if (excludeProject !== undefined) await this.requireProjectReader(access, orgId, excludeProject);
+    const page = await this.load(orgId, paging, visible, undefined, { q: search, excludeProject });
     // fields are picked one by one so the email read for the shared query can never reach a tenant response
     return {
       ...page,
@@ -74,6 +83,20 @@ export class MembersService {
         assignments: m.assignments,
       })),
     };
+  }
+
+  /** The project exists in the org (404), is in the caller's scope (404), and the caller holds `assignment:read` on it (403). */
+  private async requireProjectReader(access: Access, orgId: string, projectId: string): Promise<void> {
+    const found = await withOrg(this.db, orgId, async (tx) => {
+      const [row] = await tx
+        .select({ id: projects.id })
+        .from(projects)
+        .where(and(eq(projects.orgId, orgId), eq(projects.id, projectId)))
+        .limit(1);
+      return row !== undefined;
+    });
+    if (!found || !inScope(access, projectId)) throw new NotFoundException('Project not found');
+    if (!can(access, 'assignment:read', { projectId })) throw new ForbiddenException(FORBIDDEN_DETAIL);
   }
 
   private visibleFor(access: Access): Visible {
@@ -275,16 +298,34 @@ export class MembersService {
     return this.load(orgId, q, { orgScope: true, projects: 'all' });
   }
 
-  private async load(orgId: string, q: PageQuery, visible: Visible, only?: string): Promise<Page<MemberRow>> {
+  private async load(
+    orgId: string,
+    q: PageQuery,
+    visible: Visible,
+    only?: string,
+    filter?: { q?: string; excludeProject?: string },
+  ): Promise<Page<MemberRow>> {
     const { limit, offset } = pageWindow(q);
     return withOrg(this.db, orgId, async (tx) => {
-      const inOrg =
-        only === undefined
-          ? eq(member.organizationId, orgId)
-          : and(eq(member.organizationId, orgId), eq(member.userId, only));
+      const conditions: (SQL | undefined)[] = [eq(member.organizationId, orgId)];
+      if (only !== undefined) conditions.push(eq(member.userId, only));
+      if (filter?.q !== undefined) {
+        // bound parameter, wildcards escaped: the text only ever matches literally
+        const pattern = `%${escapeLike(filter.q)}%`;
+        conditions.push(
+          or(sql`${user.name} ILIKE ${pattern} ESCAPE '\\'`, sql`${user.handle} ILIKE ${pattern} ESCAPE '\\'`),
+        );
+      }
+      if (filter?.excludeProject !== undefined) {
+        conditions.push(
+          sql`NOT EXISTS (SELECT 1 FROM ${roleAssignments} WHERE ${roleAssignments.orgId} = ${orgId} AND ${roleAssignments.userId} = ${member.userId} AND ${roleAssignments.scopeType} = 'project' AND ${roleAssignments.projectId} = ${filter.excludeProject})`,
+        );
+      }
+      const inOrg = and(...conditions);
       const [counted] = await tx
         .select({ total: sql<number>`count(*)::int` })
         .from(member)
+        .innerJoin(user, eq(user.id, member.userId))
         .where(inOrg);
       const people = await tx
         .select({ userId: user.id, handle: user.handle, name: user.name, email: user.email })

@@ -43,6 +43,7 @@ const ADMIN_PERMISSIONS = [
   'assignment:delete',
   'org:update',
   'audit:read',
+  'project-audit:read',
 ];
 // Issue 216: member and viewer hold no Desk configuration read (agent, skill, rule, setup).
 const MEMBER_ANY = ['project:read', 'run:read', 'run:create'] as const;
@@ -107,7 +108,7 @@ describe('seeded role templates', () => {
   });
 
   it('the template matrix is the expected one', () => {
-    expect(Object.keys(EXPECTED).map((k) => EXPECTED[k]?.length)).toEqual([34, 33, 6, 2]);
+    expect(Object.keys(EXPECTED).map((k) => EXPECTED[k]?.length)).toEqual([35, 34, 6, 2]);
     expect([...new Set(lines.map((l) => l.key))].sort()).toEqual(['admin', 'member', 'owner', 'viewer']);
     for (const [key, expected] of Object.entries(EXPECTED)) {
       expect(linesOf(key).sort(), key).toEqual([...expected].sort());

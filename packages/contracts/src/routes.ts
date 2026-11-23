@@ -14,6 +14,10 @@ import {
   OrgChecklistDto,
   MemberDto,
   MemberUserId,
+  MembersListQuery,
+  ProjectMemberDto,
+  AddProjectMemberRequest,
+  SetProjectRoleRequest,
   RoleDto,
   UpdateMemberRoleRequest,
 } from './schemas/access';
@@ -85,6 +89,7 @@ export interface RouteDef {
 }
 
 const projectParams = z.object({ projectId: z.uuid() });
+const projectMemberParams = z.object({ projectId: z.uuid(), userId: MemberUserId });
 const runParams = z.object({ runId: z.uuid() });
 const ruleParams = z.object({ ruleId: z.uuid() });
 const skillParams = z.object({ projectId: z.uuid(), name: SkillName });
@@ -136,6 +141,13 @@ export const routes = {
       response: ProjectDto,
     },
     remove: { method: 'DELETE', path: '/api/projects/:projectId', params: projectParams, response: empty },
+    audit: {
+      method: 'GET',
+      path: '/api/projects/:projectId/audit',
+      params: projectParams,
+      query: PageQuery,
+      response: pageOf(AuditEntryDto),
+    },
     connection: {
       method: 'GET',
       path: '/api/projects/:projectId/connection',
@@ -416,7 +428,7 @@ export const routes = {
       method: 'GET',
       path: '/api/orgs/:orgId/members',
       params: orgParams,
-      query: PageQuery,
+      query: MembersListQuery,
       response: pageOf(MemberDto),
     },
     updateRole: {
@@ -430,6 +442,35 @@ export const routes = {
       method: 'DELETE',
       path: '/api/orgs/:orgId/members/:userId',
       params: orgMemberParams,
+      response: empty,
+    },
+  },
+  projectMembers: {
+    list: {
+      method: 'GET',
+      path: '/api/projects/:projectId/members',
+      params: projectParams,
+      query: PageQuery,
+      response: pageOf(ProjectMemberDto),
+    },
+    add: {
+      method: 'POST',
+      path: '/api/projects/:projectId/members',
+      params: projectParams,
+      body: AddProjectMemberRequest,
+      response: ProjectMemberDto,
+    },
+    setRole: {
+      method: 'PUT',
+      path: '/api/projects/:projectId/members/:userId/role',
+      params: projectMemberParams,
+      body: SetProjectRoleRequest,
+      response: ProjectMemberDto,
+    },
+    remove: {
+      method: 'DELETE',
+      path: '/api/projects/:projectId/members/:userId',
+      params: projectMemberParams,
       response: empty,
     },
   },

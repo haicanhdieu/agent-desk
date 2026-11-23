@@ -7,6 +7,7 @@ import type {
   MemberDto,
   OrgChecklistDto,
   OrgStatus,
+  ProjectMemberDto,
   ProjectConnectionDto,
   PluginsDto,
   PrState,
@@ -21,7 +22,7 @@ import type {
   SkillDto,
 } from '@agentdesk/contracts';
 import { invitationFixtures, memberFixtures } from '../dto/access';
-import { auditEntryFixtures } from '../dto/audit';
+import { auditEntryFixtures, otherProjectAuditFixtures, projectAuditFixtures } from '../dto/audit';
 import { agentFixtures } from '../dto/agents';
 import type { AgentModelsScenario } from './agentModels';
 import { connectionFixtures, connectionOrg, repoFixtures } from '../dto/connections';
@@ -29,6 +30,7 @@ import { runEventFixtures } from '../dto/events';
 import { ids } from '../dto/ids';
 import { checklistFixtures } from '../dto/invitations';
 import { ignoredFixtures, projectConnectionFixtures, projectFixtures, projectOrg } from '../dto/projects';
+import { projectMemberFixtures } from '../dto/projectMembers';
 import { ruleFixtures } from '../dto/rules';
 import { runFixtures, type MockRun } from '../dto/runs';
 import { prStateFixtures } from '../dto/prStates';
@@ -109,6 +111,36 @@ export const freshTenantAdmin = (): TenantAdminState => ({
   failuresLeft: { members: 0, audit: 0 },
 });
 
+/** What the project-space scenarios bend (projectSpaceScenarios.ts): the people with a project role, each project's audit, and the delays and failures. */
+export interface ProjectSpaceState {
+  /** The people with a project role, by project id. */
+  members: Record<string, ProjectMemberDto[]>;
+  /** Each project's audit entries, newest first. */
+  audit: Record<string, AuditEntryDto[]>;
+  delayMs: { members: number; audit: number };
+  /** Requests still to answer 500: the project members list, the project audit, the picker (`members.list` with excludeProject). */
+  failuresLeft: { members: number; audit: number; picker: number };
+  /** The "meanwhile" scenario that fires once, after a first read (counted by `listReads` and `pickerReads`): `roleRemoved` applies after the first project members list is read; `roleAdded` and `demoted` after the first Add-dialog picker read. */
+  meanwhile?: 'roleRemoved' | 'roleAdded' | 'demoted';
+  listReads: number;
+  pickerReads: number;
+  /** People who left the org: adding one is 422 and drops them from the roster. */
+  goneUserIds: string[];
+}
+
+export const freshProjectSpace = (): ProjectSpaceState => ({
+  members: structuredClone(projectMemberFixtures),
+  audit: structuredClone({
+    [ids.project.invoicerApi]: projectAuditFixtures,
+    [ids.project.invoicerWeb]: otherProjectAuditFixtures,
+  }),
+  delayMs: { members: 0, audit: 0 },
+  failuresLeft: { members: 0, audit: 0, picker: 0 },
+  listReads: 0,
+  pickerReads: 0,
+  goneUserIds: [],
+});
+
 export interface MockState {
   auth: MockAuth;
   users: MockUser[];
@@ -120,6 +152,7 @@ export interface MockState {
   /** Each org's audit entries, newest first. */
   audit: Record<string, AuditEntryDto[]>;
   tenantAdmin: TenantAdminState;
+  projectSpace: ProjectSpaceState;
   /** The first-run checklist each org's owners and admins see. */
   checklists: Record<string, OrgChecklistDto>;
   /** How long `set-active` holds its answer, for the slow org switch. */
@@ -213,6 +246,7 @@ export function seedState(): MockState {
     members: { [ids.org.alice]: structuredClone(memberFixtures), [ids.org.acme]: structuredClone(memberFixtures) },
     audit: { [ids.org.alice]: auditEntryFixtures, [ids.org.acme]: [] },
     tenantAdmin: freshTenantAdmin(),
+    projectSpace: freshProjectSpace(),
     checklists: {
       [ids.org.alice]: checklistFixtures.complete,
       [ids.org.acme]: checklistFixtures.complete,

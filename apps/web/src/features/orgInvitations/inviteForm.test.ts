@@ -1,8 +1,18 @@
 import type { Access, ProjectDto } from '@agentdesk/contracts';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { renderHook } from '@testing-library/react';
+import { createElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import { roleFixtures } from '@/mocks/dto/access';
 import { ids } from '@/mocks/dto/ids';
-import { INVITE_FIELD_POINTERS, projectOptions, projectsOnly, roleOptions } from './inviteForm';
+import {
+  INVITE_FIELD_POINTERS,
+  projectOptions,
+  projectRoleOptions,
+  projectsOnly,
+  roleOptions,
+  useInviteForm,
+} from './inviteForm';
 
 const P1 = ids.project.invoicerApi;
 const P2 = ids.project.invoicerWeb;
@@ -74,5 +84,40 @@ describe('INVITE_FIELD_POINTERS', () => {
       '/scope/projectIds': 'projectIds',
       '/projectIds': 'projectIds',
     });
+  });
+});
+
+describe('BR-13 projectRoleOptions', () => {
+  it('offers exactly Admin, Member and Viewer, in that order', () => {
+    expect(projectRoleOptions([...roleFixtures].reverse()).map((o) => o.label)).toEqual(['Admin', 'Member', 'Viewer']);
+  });
+
+  it('uses the role id as the option id', () => {
+    expect(projectRoleOptions(roleFixtures)[0]).toEqual({ id: role('admin').id, label: 'Admin' });
+  });
+});
+
+describe('BR-13 useInviteForm fixedProjectId', () => {
+  const values = (fixedProjectId?: string) => {
+    const client = new QueryClient();
+    const wrapper = ({ children }: { children: ReactNode }) => createElement(QueryClientProvider, { client }, children);
+    return renderHook(
+      () =>
+        useInviteForm({
+          org: 'acme',
+          projectsOnly: true,
+          onOrgSwitched: () => {},
+          ...(fixedProjectId !== undefined && { fixedProjectId }),
+        }),
+      { wrapper },
+    ).result.current.values;
+  };
+
+  it('starts on some projects with that one project', () => {
+    expect(values(P1)).toEqual({ email: '', roleId: '', scope: 'projects', projectIds: [P1] });
+  });
+
+  it('starts with no project without it', () => {
+    expect(values().projectIds).toEqual([]);
   });
 });

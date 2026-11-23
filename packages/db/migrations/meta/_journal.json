@@ -257,22 +257,29 @@
     {
       "idx": 36,
       "version": "7",
-      "when": 1795450100787,
-      "tag": "0036_organization_status",
+      "when": 1795500000000,
+      "tag": "0036_seed_project_audit_read",
       "breakpoints": true
     },
     {
       "idx": 37,
       "version": "7",
-      "when": 1795450229688,
-      "tag": "0037_platform_org_stats",
+      "when": 1795500100000,
+      "tag": "0037_audit_log_project_ids",
       "breakpoints": true
     },
     {
       "idx": 38,
       "version": "7",
-      "when": 1795451440830,
-      "tag": "0038_platform_audit_target_org",
+      "when": 1795500200000,
+      "tag": "0038_audit_log_project_ids_idx",
+      "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1795500300000,
+      "tag": "0039_backfill_audit_project_ids",
       "breakpoints": true
     }
   ]

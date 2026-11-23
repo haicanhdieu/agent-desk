@@ -1,0 +1,74 @@
+.picker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.status {
+  min-height: 16px;
+  color: var(--muted);
+  font-size: var(--fs-12_5);
+}
+.panel {
+  border: 1px solid var(--line2);
+  border-radius: var(--radius-6);
+  background: var(--panel);
+  overflow: hidden;
+}
+.note,
+.end {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 10px;
+  min-height: 36px;
+  color: var(--muted);
+  font-size: var(--fs-13);
+}
+.scroll {
+  overflow-y: auto;
+}
+.list {
+  position: relative;
+  width: 100%;
+}
+.option,
+.end {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+.option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  cursor: pointer;
+  color: var(--text);
+  font-size: var(--fs-13);
+}
+.option:hover,
+.option[data-active] {
+  background: var(--raised);
+}
+.option[aria-selected='true'] {
+  background: var(--select-bg);
+}
+.name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+  font-weight: 500;
+}
+.handle {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: var(--fs-13);
+  white-space: nowrap;
+  flex: 0 0 auto;
+}

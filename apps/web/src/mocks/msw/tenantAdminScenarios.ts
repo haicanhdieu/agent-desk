@@ -68,7 +68,7 @@ const ownerCount = (members: MemberDto[]) => members.filter((m) => orgRoleKey(m)
 /** B of the "meanwhile" scenarios: Cleo Martin, a Member with project roles. */
 const B = tenantMemberFixtures.twoOwners[3]?.userId ?? '';
 
-type CallerRole = 'owner' | 'admin' | 'projectAdmin' | 'member' | 'viewer';
+export type CallerRole = 'owner' | 'admin' | 'projectAdmin' | 'member' | 'viewer';
 
 /** A new org-scope assignment; the seeded ones carry a fixed time so a scenario seeds the same data every load. */
 function orgAssignment(
@@ -103,7 +103,7 @@ function rosterFor(db: MockDb, base: MemberDto[], role: CallerRole): MemberDto[]
   });
 }
 
-function signedInAs(db: MockDb, role: CallerRole): void {
+export function signedInAs(db: MockDb, role: CallerRole): void {
   const state = db.state;
   state.memberships = [
     {
@@ -213,9 +213,14 @@ export async function gate(db: MockDb, list: 'members' | 'audit'): Promise<void>
 }
 
 /** The page of members; the "meanwhile" scenarios change the data right after the first read. */
-export function listMembers(db: MockDb, orgId: string, query: PageQuery): Page<MemberDto> {
+export function listMembers(
+  db: MockDb,
+  orgId: string,
+  query: PageQuery,
+  keep: (m: MemberDto) => boolean = () => true,
+): Page<MemberDto> {
   const s = state(db);
-  const page = slicePage(structuredClone(s.members[orgId] ?? []), query);
+  const page = slicePage(structuredClone((s.members[orgId] ?? []).filter(keep)), query);
   const hook = s.tenantAdmin.afterFirstMembersList;
   if (s.tenantAdmin.membersListReads === 0 && hook) {
     const roster = s.members[orgId] ?? [];

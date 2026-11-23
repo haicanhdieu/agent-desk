@@ -637,7 +637,7 @@ Screens and components this changes:
     "Platform admin" tag); What (a sentence per known action, with from → to for role and org changes; a role change to
     or from Owner reads like any other role change; unknown or generic actions show the raw key in mono; no raw
     payload). An invitation entry names the invitee email in plain text, for example "invited sam.reyes@contractor.io
-    as Viewer" (human answer "1" on the audit email gap; the approved audit boards); the audit log is readable only by
+    as Viewer to invoicer-api, invoicer-web" (project-scoped invitations name their visible projects, rbac-project-admin-space BR-27) (human answer "1" on the audit email gap; the approved audit boards); the audit log is readable only by
     owners and admins (`audit:read`); the email is never a link and is never rendered as HTML (AGENTS rule 6). Stories:
     RoleChanged, MadeOwner, MemberRemoved, InvitationCreated (with the email), OrgRenamed, SlugChanged, GenericRequest,
     PlatformAdminActor, DeletedActor, LongText (a long email or HTML-like text cut with an ellipsis, shown as text).
@@ -762,7 +762,7 @@ prototype) (agent call):
   changed the organization URL from /o/<old> to /o/<new>"; "<actor> changed the organization name from <old> to
   <new>"; "<actor> removed <member> from the organization (was Member)"; "<actor> invited <email> as Viewer"; "<actor>
   resent the invitation for <email>"; "<actor> revoked the invitation for <email>"; "<actor> accepted an invitation as
-  Member"; "<actor> declined an invitation"; a generic request shows its raw key in mono ("POST orgs.create").
+  Member"; "<actor> declined an invitation" (each gains " to <projects>" for a project-scoped invitation, see rbac-project-admin-space §Copy); a generic request shows its raw key in mono ("POST orgs.create").
   Invitation entries show the invitee email in plain text (human answer "1"); the Who column is the actor, so accept
   and decline, whose actor is the invitee, show no email.
 - Pagination (Members and Audit, the existing `Pagination`): "Showing 21–25 of 25", Previous, page numbers, Next, "Go
@@ -1442,7 +1442,7 @@ Note for BR-5: removing the only owner has no UI path from one browser (the own 
 
 | Case | Type | Env | Given | Steps | Expected |
 | ---- | ---- | ---- | ----- | ----- | -------- |
-| TC-23.1 | positive | local | O signed in. | 1. Invite `sam@example.test` as Viewer. 2. Open Audit log. | An entry reads "O invited sam@example.test as Viewer", the email as plain text (not a link). |
+| TC-23.1 | positive | local | O signed in. | 1. Invite `sam@example.test` as Viewer to two projects P1 and P2. 2. Open Audit log. | An entry reads "O invited sam@example.test as Viewer to P1, P2", the email as plain text (not a link). |
 | TC-23.2 | positive | local | A pending invitation. | 1. Resend it. 2. Open Audit log. | An entry reads "O resent the invitation for <email>". |
 | TC-23.3 | positive | local | A pending invitation. | 1. Revoke it. 2. Open Audit log. | An entry reads "O revoked the invitation for <email>". |
 | TC-23.4 | positive | local | A pending invitation as Member. | 1. The invitee accepts. 2. O opens Audit log. | An entry reads "<invitee> accepted an invitation as Member", with no email. |

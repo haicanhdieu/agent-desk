@@ -1,2 +1,0 @@
-ALTER TABLE "platform_audit_log" ADD COLUMN "target_org_id" uuid;--> statement-breakpoint
-CREATE INDEX "platform_audit_log_target_org_idx" ON "platform_audit_log" USING btree ("target_org_id","created_at","id");

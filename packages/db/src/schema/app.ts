@@ -448,8 +448,17 @@ export const auditLog = pgTable(
     targetId: text('target_id'),
     payload: jsonb('payload').$type<Record<string, unknown>>().notNull().default({}),
     at: ts('at').notNull().defaultNow(),
+    /** Projects the entry concerns, for the per-project audit log; no foreign key (a deleted project keeps its rows). */
+    projectIds: uuid('project_ids')
+      .array()
+      .notNull()
+      .default(sql`'{}'::uuid[]`),
   },
-  (t) => [index('audit_log_org_at_idx').on(t.orgId, t.at), orgPolicy()],
+  (t) => [
+    index('audit_log_org_at_idx').on(t.orgId, t.at),
+    index('audit_log_project_ids_idx').using('gin', t.projectIds),
+    orgPolicy(),
+  ],
 );
 
 /** Append-only history of a project's setup script; the highest version is current. No UPDATE/DELETE grant. */

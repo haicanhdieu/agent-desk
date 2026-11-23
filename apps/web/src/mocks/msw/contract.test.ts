@@ -15,6 +15,7 @@ import {
   PlatformOrgDetailDto,
   PlatformOrgDto,
   PlatformProjectDto,
+  ProjectMemberDto,
   RoleDto,
   IgnoredEventDto,
   PluginsDto,
@@ -53,7 +54,14 @@ import {
 import { platformOrgDtoFixtures } from '../dto/platform';
 import { addPlatformOrg, getPlatformOrg, listPlatformOrgs } from './platformOrgs';
 import { Problem } from './http';
-import { auditEntryFixtures, pagedAuditFixtures } from '../dto/audit';
+import {
+  auditEntryFixtures,
+  pagedAuditFixtures,
+  pagedProjectAuditFixtures,
+  otherProjectAuditFixtures,
+  projectAuditFixtures,
+} from '../dto/audit';
+import { pickerCandidateFixtures, projectMemberFixtures } from '../dto/projectMembers';
 import { checklistFixtures, myInvitationFixtures, orgInvitationFixtures } from '../dto/invitations';
 import { agentFixtures } from '../dto/agents';
 import { agentModelsFixtures } from '../dto/agentModels';
@@ -126,6 +134,11 @@ describe('MSW handlers cover the contract', () => {
       [MemberDto, Object.values(tenantMemberFixtures).flat()],
       [AuditEntryDto, auditEntryFixtures],
       [AuditEntryDto, pagedAuditFixtures(25)],
+      [AuditEntryDto, projectAuditFixtures],
+      [AuditEntryDto, pagedProjectAuditFixtures],
+      [AuditEntryDto, otherProjectAuditFixtures],
+      [ProjectMemberDto, Object.values(projectMemberFixtures).flat()],
+      [MemberDto, pickerCandidateFixtures],
       [AccessDto, Object.values(tenantAccessFixtures)],
     ];
     for (const [schema, items] of lists) {
@@ -240,6 +253,69 @@ describe('MSW handlers cover the contract', () => {
     const none = await api.runs.stats({ params: { projectId: P }, query: { since: '2999-01-01T00:00:00.000Z' } });
     expect(none.today).toEqual({ total: 0, failed: 0 });
     await expect(api.runs.byNumber({ params: { projectId: P, number: 62 } })).resolves.toMatchObject({ number: 62 });
+  });
+});
+
+describe('project space fixtures', () => {
+  it('gives the owner and admin roles project-audit:read and nobody else', () => {
+    const holders = roleFixtures
+      .filter((r) => r.permissions.some((l) => l.permission === 'project-audit:read'))
+      .map((r) => r.key);
+    expect(holders).toEqual(['owner', 'admin']);
+  });
+
+  it("keeps another project's id out of P's audit except in the projects of a fully visible invitation", () => {
+    const other = ids.project.invoicerWeb;
+    for (const e of projectAuditFixtures) {
+      const rest = JSON.stringify({ ...e, projects: [] });
+      expect(rest).not.toContain(other);
+      expect(rest).not.toContain('invoicer-web');
+      if (e.projects.some((p) => p.id === other)) {
+        expect(e.action.startsWith('invitation.')).toBe(true);
+        expect(e.target.label).not.toBeNull();
+      }
+      if (e.action.startsWith('invitation.') && e.target.label === null) {
+        expect(e.projects.every((p) => p.id === P)).toBe(true);
+      }
+    }
+    expect(otherProjectAuditFixtures.length).toBeGreaterThan(0);
+  });
+
+  it('covers a full, a redacted and an expired invitation, and more than three projects', () => {
+    const inv = projectAuditFixtures.filter((e) => e.action.startsWith('invitation.'));
+    expect(inv.some((e) => e.target.label !== null && e.projects.length > 3)).toBe(true);
+    expect(inv.some((e) => e.target.label === null)).toBe(true);
+    expect(inv.some((e) => e.action === 'invitation.expired')).toBe(true);
+    for (const e of projectAuditFixtures.filter((x) => !x.action.startsWith('invitation.'))) {
+      expect(e.projects).toEqual([]);
+    }
+  });
+
+  it('lists the projects of every audit entry sorted by name, then id, as the API sends them', () => {
+    for (const e of [...auditEntryFixtures, ...projectAuditFixtures, ...otherProjectAuditFixtures]) {
+      const sorted = [...e.projects].sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+      expect(e.projects).toEqual(sorted);
+    }
+  });
+
+  it('uses fixed seed times, newest first', () => {
+    const times = projectAuditFixtures.map((e) => Date.parse(e.at));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+    expect(pagedProjectAuditFixtures).toHaveLength(25);
+  });
+
+  it('lists 45 eligible people, with a null handle and LIKE wildcards in names', () => {
+    expect(pickerCandidateFixtures).toHaveLength(45);
+    expect(pickerCandidateFixtures.some((m) => m.handle === null)).toBe(true);
+    expect(pickerCandidateFixtures.some((m) => m.name.includes('%'))).toBe(true);
+    expect(pickerCandidateFixtures.some((m) => m.name.includes('_'))).toBe(true);
+  });
+
+  it('holds P and another project apart in the project member fixtures', () => {
+    expect(Object.keys(projectMemberFixtures).sort()).toEqual(
+      [ids.project.invoicerApi, ids.project.invoicerWeb].sort(),
+    );
+    expect(projectMemberFixtures[P]?.some((m) => m.projectRoles.length > 1)).toBe(true);
   });
 });
 

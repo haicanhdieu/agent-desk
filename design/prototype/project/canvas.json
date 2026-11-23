@@ -322,6 +322,14 @@
    "title": "Desk \u2014 routing rules, prompt too long, preview failed",
    "expand": "fill"
   },
+  "DeskAgentProjectAdmin.dc.html": {
+   "x": 16720,
+   "y": 7780,
+   "w": 1440,
+   "h": 1320,
+   "title": "Desk \u2014 agent and settings, project admin (no Delete project)",
+   "expand": "fill"
+  },
   "DeskAgentCustomModel.dc.html": {
    "x": 13680,
    "y": 7780,
@@ -1522,9 +1530,297 @@
    "title": "Settings \u2014 Audit log URL opened by a project admin: no access inside the layout",
    "expand": "fill"
   },
-  "PlatformAdmins.dc.html": {
+  "DeskAudit.dc.html": {
    "x": 0,
    "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, newest first",
+   "expand": "fill"
+  },
+  "DeskAuditLoading.dc.html": {
+   "x": 1520,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, loading",
+   "expand": "fill"
+  },
+  "DeskAuditEmpty.dc.html": {
+   "x": 3040,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, empty",
+   "expand": "fill"
+  },
+  "DeskAuditError.dc.html": {
+   "x": 4560,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, failed to load",
+   "expand": "fill"
+  },
+  "DeskAuditPaged.dc.html": {
+   "x": 6080,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskAuditInvitationNoEmail.dc.html": {
+   "x": 7600,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, invitation entries without the email",
+   "expand": "fill"
+  },
+  "DeskAuditInvitationExpired.dc.html": {
+   "x": 9120,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, expired invitation entries",
+   "expand": "fill"
+  },
+  "OrgAuditInvitationProjects.dc.html": {
+   "x": 7600,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, invitation entries naming their projects",
+   "expand": "fill"
+  },
+  "OrgAuditInvitationNoEmail.dc.html": {
+   "x": 9120,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, invitation entries without the email",
+   "expand": "fill"
+  },
+  "DeskMembers.dc.html": {
+   "x": 0,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, you, several roles, a long name",
+   "expand": "fill"
+  },
+  "DeskMembersLoading.dc.html": {
+   "x": 1520,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, loading",
+   "expand": "fill"
+  },
+  "DeskMembersEmpty.dc.html": {
+   "x": 3040,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, empty",
+   "expand": "fill"
+  },
+  "DeskMembersError.dc.html": {
+   "x": 4560,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, failed to load",
+   "expand": "fill"
+  },
+  "DeskMembersPaged.dc.html": {
+   "x": 0,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskMembersForbidden.dc.html": {
+   "x": 1520,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members URL opened by a member or viewer: no access",
+   "expand": "fill"
+  },
+  "DeskMembersRowMenu.dc.html": {
+   "x": 3040,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, row menu on another person",
+   "expand": "fill"
+  },
+  "DeskMembersBusy.dc.html": {
+   "x": 4560,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, a row action in flight",
+   "expand": "fill"
+  },
+  "DeskMembersAdd.dc.html": {
+   "x": 0,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, Person and Role empty",
+   "expand": "fill"
+  },
+  "DeskMembersAddSearch.dc.html": {
+   "x": 1520,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, server search, 20 of 23 loaded",
+   "expand": "fill"
+  },
+  "DeskMembersAddNoMatch.dc.html": {
+   "x": 3040,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, no match",
+   "expand": "fill"
+  },
+  "DeskMembersAddAllAdded.dc.html": {
+   "x": 4560,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, everyone already has a role",
+   "expand": "fill"
+  },
+  "DeskMembersAddFieldErrors.dc.html": {
+   "x": 0,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, field errors",
+   "expand": "fill"
+  },
+  "DeskMembersAddSaving.dc.html": {
+   "x": 1520,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, saving",
+   "expand": "fill"
+  },
+  "DeskMembersAddFormError.dc.html": {
+   "x": 3040,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, server error",
+   "expand": "fill"
+  },
+  "DeskMembersAddAlreadyOnProject.dc.html": {
+   "x": 4560,
+   "y": 51760,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, add dialog, already has a role",
+   "expand": "fill"
+  },
+  "DeskMembersAdded.dc.html": {
+   "x": 0,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, added, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersInvite.dc.html": {
+   "x": 1520,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, invite dialog, this project fixed, project roles only",
+   "expand": "fill"
+  },
+  "DeskMembersInviteCreated.dc.html": {
+   "x": 3040,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, invite dialog, invitation created",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRole.dc.html": {
+   "x": 4560,
+   "y": 53040,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, current role preselected",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRoleSaving.dc.html": {
+   "x": 0,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, saving",
+   "expand": "fill"
+  },
+  "DeskMembersChangeRoleError.dc.html": {
+   "x": 1520,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, change role dialog, refused (403)",
+   "expand": "fill"
+  },
+  "DeskMembersRoleChanged.dc.html": {
+   "x": 3040,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, role changed, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersRemoveConfirm.dc.html": {
+   "x": 4560,
+   "y": 54320,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, remove from project confirmation",
+   "expand": "fill"
+  },
+  "DeskMembersRemoving.dc.html": {
+   "x": 0,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, removing",
+   "expand": "fill"
+  },
+  "DeskMembersRemoved.dc.html": {
+   "x": 1520,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, removed, list refetched, toast",
+   "expand": "fill"
+  },
+  "DeskMembersGone.dc.html": {
+   "x": 3040,
+   "y": 55600,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 members, member removed meanwhile, error toast",
+   "expand": "fill"
+  },
+  "PlatformAdmins.dc.html": {
+   "x": 0,
+   "y": 56880,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 two working admins and one seeded email not signed in yet",
@@ -1532,7 +1828,7 @@
   },
   "PlatformAdminsLoading.dc.html": {
    "x": 1520,
-   "y": 46640,
+   "y": 56880,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 loading",
@@ -1540,7 +1836,7 @@
   },
   "PlatformAdminsEmpty.dc.html": {
    "x": 3040,
-   "y": 46640,
+   "y": 56880,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 empty",
@@ -1548,7 +1844,7 @@
   },
   "PlatformAdminsError.dc.html": {
    "x": 4560,
-   "y": 46640,
+   "y": 56880,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 failed to load",
@@ -1556,7 +1852,7 @@
   },
   "PlatformAdminsForbidden.dc.html": {
    "x": 6080,
-   "y": 46640,
+   "y": 56880,
    "w": 1440,
    "h": 900,
    "title": "Platform admin area \u2014 not a platform admin (org owner types /platform/admins)",
@@ -1564,7 +1860,7 @@
   },
   "PlatformAdminsPaged.dc.html": {
    "x": 0,
-   "y": 47920,
+   "y": 58160,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 page 2 of 2",
@@ -1572,7 +1868,7 @@
   },
   "PlatformAdminsAdd.dc.html": {
    "x": 1520,
-   "y": 47920,
+   "y": 58160,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 Add platform admin dialog",
@@ -1580,7 +1876,7 @@
   },
   "PlatformAdminsAddError.dc.html": {
    "x": 3040,
-   "y": 47920,
+   "y": 58160,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 Add: server error banner in the dialog (403 or 5xx)",
@@ -1588,7 +1884,7 @@
   },
   "PlatformAdminsAddFieldErrors.dc.html": {
    "x": 4560,
-   "y": 47920,
+   "y": 58160,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 Add: no account has this email (404)",
@@ -1596,7 +1892,7 @@
   },
   "PlatformAdminsAddSaving.dc.html": {
    "x": 6080,
-   "y": 47920,
+   "y": 58160,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 Add: adding",
@@ -1604,7 +1900,7 @@
   },
   "PlatformAdminsRevokeConfirm.dc.html": {
    "x": 0,
-   "y": 49200,
+   "y": 59440,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 revoke confirm for another admin",
@@ -1612,7 +1908,7 @@
   },
   "PlatformAdminsRevokeSelf.dc.html": {
    "x": 1520,
-   "y": 49200,
+   "y": 59440,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 revoke your own access (warns)",
@@ -1620,7 +1916,7 @@
   },
   "PlatformAdminsRevoking.dc.html": {
    "x": 3040,
-   "y": 49200,
+   "y": 59440,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 revoking (busy, not closable)",
@@ -1628,7 +1924,7 @@
   },
   "PlatformAdminsLastAdmin.dc.html": {
    "x": 4560,
-   "y": 49200,
+   "y": 59440,
    "w": 1440,
    "h": 900,
    "title": "Platform admins \u2014 last working admin: Revoke disabled with the reason",
@@ -1636,7 +1932,7 @@
   },
   "ProjectsOrgSwitchAdminPlatform.dc.html": {
    "x": 6080,
-   "y": 49200,
+   "y": 59440,
    "w": 1440,
    "h": 900,
    "title": "Projects \u2014 platform admin, switcher open with Platform admin above Create organization",
@@ -1644,7 +1940,7 @@
   },
   "MyInvitationsEmptyPlatformAdminMenu.dc.html": {
    "x": 0,
-   "y": 50480,
+   "y": 60720,
    "w": 1440,
    "h": 900,
    "title": "Welcome \u2014 platform admin, no org, menu open with Platform admin",
@@ -1652,7 +1948,7 @@
   },
   "PlatformOrgs.dc.html": {
    "x": 1520,
-   "y": 50480,
+   "y": 60720,
    "w": 1440,
    "h": 900,
    "title": "Organizations \u2014 directory: suspended org, no owner yet, no activity yet",
@@ -1660,7 +1956,7 @@
   },
   "PlatformOrgsLoading.dc.html": {
    "x": 3040,
-   "y": 50480,
+   "y": 60720,
    "w": 1440,
    "h": 900,
    "title": "Organizations \u2014 loading",
@@ -1668,7 +1964,7 @@
   },
   "PlatformOrgsEmpty.dc.html": {
    "x": 4560,
-   "y": 50480,
+   "y": 60720,
    "w": 1440,
    "h": 900,
    "title": "Organizations \u2014 no organizations yet",
@@ -1676,7 +1972,7 @@
   },
   "PlatformOrgsEmptyFiltered.dc.html": {
    "x": 6080,
-   "y": 50480,
+   "y": 60720,
    "w": 1440,
    "h": 900,
    "title": "Organizations \u2014 search and status match nothing",
@@ -1684,7 +1980,7 @@
   },
   "PlatformOrgsError.dc.html": {
    "x": 0,
-   "y": 51760,
+   "y": 62000,
    "w": 1440,
    "h": 900,
    "title": "Organizations \u2014 failed to load",
@@ -1692,7 +1988,7 @@
   },
   "PlatformOrgsPaged.dc.html": {
    "x": 1520,
-   "y": 51760,
+   "y": 62000,
    "w": 1440,
    "h": 900,
    "title": "Organizations \u2014 page 2 of 2",
@@ -1700,7 +1996,7 @@
   },
   "PlatformOrgOverview.dc.html": {
    "x": 3040,
-   "y": 51760,
+   "y": 62000,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 Overview, active org",
@@ -1708,7 +2004,7 @@
   },
   "PlatformOrgOverviewLoading.dc.html": {
    "x": 4560,
-   "y": 51760,
+   "y": 62000,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 loading",
@@ -1716,7 +2012,7 @@
   },
   "PlatformOrgOverviewError.dc.html": {
    "x": 6080,
-   "y": 51760,
+   "y": 62000,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 failed to load",
@@ -1724,7 +2020,7 @@
   },
   "PlatformOrgOverviewNotFound.dc.html": {
    "x": 0,
-   "y": 53040,
+   "y": 63280,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 unknown organization id",
@@ -1732,7 +2028,7 @@
   },
   "PlatformOrgOverviewSuspended.dc.html": {
    "x": 1520,
-   "y": 53040,
+   "y": 63280,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 Overview, suspended org (banner with the reason)",
@@ -1740,7 +2036,7 @@
   },
   "PlatformOrgOverviewSuspendDialog.dc.html": {
    "x": 3040,
-   "y": 53040,
+   "y": 63280,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 Suspend dialog",
@@ -1748,7 +2044,7 @@
   },
   "PlatformOrgOverviewSuspendError.dc.html": {
    "x": 4560,
-   "y": 53040,
+   "y": 63280,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 Suspend: reason missing (error at the field)",
@@ -1756,7 +2052,7 @@
   },
   "PlatformOrgOverviewSuspendFormError.dc.html": {
    "x": 6080,
-   "y": 53040,
+   "y": 63280,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 Suspend: server error banner in the dialog",
@@ -1764,7 +2060,7 @@
   },
   "PlatformOrgOverviewSuspendSaving.dc.html": {
    "x": 0,
-   "y": 54320,
+   "y": 64560,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 Suspend: suspending",
@@ -1772,7 +2068,7 @@
   },
   "PlatformOrgOverviewReactivateDialog.dc.html": {
    "x": 1520,
-   "y": 54320,
+   "y": 64560,
    "w": 1440,
    "h": 900,
    "title": "Organization detail \u2014 Reactivate dialog on a suspended org",
@@ -1780,7 +2076,7 @@
   },
   "OrgSuspended.dc.html": {
    "x": 0,
-   "y": 55600,
+   "y": 65840,
    "w": 1440,
    "h": 900,
    "title": "Organization suspended \u2014 fixed message for every member, no reason",
@@ -1788,7 +2084,7 @@
   },
   "OrgSuspendedSwitcher.dc.html": {
    "x": 1520,
-   "y": 55600,
+   "y": 65840,
    "w": 1440,
    "h": 900,
    "title": "Organization suspended \u2014 switcher open: the suspended org is marked, other orgs open",
@@ -1796,7 +2092,7 @@
   },
   "OrgSuspendedPlatformAdmin.dc.html": {
    "x": 3040,
-   "y": 55600,
+   "y": 65840,
    "w": 1440,
    "h": 900,
    "title": "Organization suspended \u2014 a platform admin whose active org is suspended still has Platform admin",
@@ -1804,7 +2100,7 @@
   },
   "OrgAuditPlatformSuspend.dc.html": {
    "x": 4560,
-   "y": 55600,
+   "y": 65840,
    "w": 1440,
    "h": 900,
    "title": "Settings \u2014 Audit log after reactivation: platform admin suspended and reactivated the organization (no reason)",
@@ -1856,6 +2152,14 @@
   "DeskRulesPromptNew.dc.html",
   "DeskRulesPromptError.dc.html",
   "DeskAgent.dc.html",
+  "DeskAgentProjectAdmin.dc.html",
+  "DeskAudit.dc.html",
+  "DeskAuditLoading.dc.html",
+  "DeskAuditEmpty.dc.html",
+  "DeskAuditError.dc.html",
+  "DeskAuditPaged.dc.html",
+  "DeskAuditInvitationNoEmail.dc.html",
+  "DeskAuditInvitationExpired.dc.html",
   "DeskAgentCustomModel.dc.html",
   "DeskAgentAddressChanged.dc.html",
   "DeskAgentAutoResume.dc.html",
@@ -2001,6 +2305,35 @@
   "OrgAuditLoading.dc.html",
   "OrgAuditError.dc.html",
   "OrgAuditForbidden.dc.html",
+  "OrgAuditInvitationProjects.dc.html",
+  "OrgAuditInvitationNoEmail.dc.html",
+  "DeskMembers.dc.html",
+  "DeskMembersLoading.dc.html",
+  "DeskMembersEmpty.dc.html",
+  "DeskMembersError.dc.html",
+  "DeskMembersPaged.dc.html",
+  "DeskMembersForbidden.dc.html",
+  "DeskMembersRowMenu.dc.html",
+  "DeskMembersBusy.dc.html",
+  "DeskMembersAdd.dc.html",
+  "DeskMembersAddSearch.dc.html",
+  "DeskMembersAddNoMatch.dc.html",
+  "DeskMembersAddAllAdded.dc.html",
+  "DeskMembersAddFieldErrors.dc.html",
+  "DeskMembersAddSaving.dc.html",
+  "DeskMembersAddFormError.dc.html",
+  "DeskMembersAddAlreadyOnProject.dc.html",
+  "DeskMembersAdded.dc.html",
+  "DeskMembersInvite.dc.html",
+  "DeskMembersInviteCreated.dc.html",
+  "DeskMembersChangeRole.dc.html",
+  "DeskMembersChangeRoleSaving.dc.html",
+  "DeskMembersChangeRoleError.dc.html",
+  "DeskMembersRoleChanged.dc.html",
+  "DeskMembersRemoveConfirm.dc.html",
+  "DeskMembersRemoving.dc.html",
+  "DeskMembersRemoved.dc.html",
+  "DeskMembersGone.dc.html",
   "PlatformAdmins.dc.html",
   "PlatformAdminsLoading.dc.html",
   "PlatformAdminsEmpty.dc.html",

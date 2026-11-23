@@ -12,6 +12,7 @@ import {
   type InvitationDto,
   type InvitationListStatus,
   type MyInvitationDto,
+  type PermissionLineDto,
   canResume,
   FINISHABLE_RUN_STATUSES,
   STOPPABLE_RUN_STATUSES,
@@ -68,6 +69,17 @@ import {
   requireActiveOrg,
   updateOrg,
 } from './tenantAdminScenarios';
+import {
+  addProjectMember,
+  checkPickerFailure,
+  listProjectAudit,
+  applyAfterFirstPicker,
+  listProjectMembers,
+  pickerFilter,
+  removeProjectMember,
+  requireProjectScope,
+  setProjectRole,
+} from './projectSpaceScenarios';
 import { appendRunEvent, endSetupTest, rememberSetupTestScript, scriptRun, setRunStatus } from './live';
 
 // One handler per contracts route, implementing list/get/create/update/delete over the in-memory store. Every
@@ -335,6 +347,27 @@ function projectRow(projectId: string): ProjectRow {
   const row = db().projects.find((p) => p.id === projectId && p.orgId === orgId);
   if (!row) throw notFound('Project');
   return row;
+}
+
+/** The project exists in the active org and the caller's seat reaches it; anything else is a 404. */
+function projectInScope(projectId: string): { user: MockUser; orgId: string } {
+  const { user, orgId } = session();
+  projectRow(projectId);
+  requireProjectScope(mockDb, user.id, orgId, projectId);
+  return { user, orgId };
+}
+
+const forbiddenProblem = () => new Problem({ status: 403, title: 'Forbidden', type: 'forbidden' });
+
+/** Whether the user's seat holds `permission` on `projectId` (an org seat holds it everywhere). */
+function canOnProject(user: MockUser, permission: PermissionLineDto['permission'], projectId: string): boolean {
+  const grants = accessOf(user).assignments.map((a) => ({
+    roleId: a.roleKey,
+    roleKey: a.roleKey,
+    scope: a.scope,
+    lines: a.permissions,
+  }));
+  return can({ userId: user.id, grants }, permission, { projectId });
 }
 
 function toProjectDto(row: ProjectRow): ProjectDto {
@@ -612,6 +645,29 @@ const impl: Impl = {
     }
     db().triggers[row.id] = trig;
     return toProjectDto(row);
+  },
+  'projects.audit': ({ params, query }) => {
+    const { user, orgId } = projectInScope(params.projectId);
+    return listProjectAudit(mockDb, params.projectId, query, { userId: user.id, orgId });
+  },
+  'projectMembers.list': ({ params, query }) => {
+    projectInScope(params.projectId);
+    return listProjectMembers(mockDb, params.projectId, query);
+  },
+  'projectMembers.add': ({ params, body }) => {
+    const { user, orgId } = projectInScope(params.projectId);
+    return addProjectMember(mockDb, user, orgId, params.projectId, body);
+  },
+  'projectMembers.setRole': ({ params, body }) => {
+    const { user } = projectInScope(params.projectId);
+    return setProjectRole(mockDb, user, params.projectId, params.userId, body.roleId);
+  },
+  'projectMembers.remove': ({ params }) => {
+    const { user } = session();
+    // Removing yourself is refused before anything is looked up, the project included.
+    if (params.userId === user.id) removeProjectMember(mockDb, user, params.projectId, params.userId);
+    projectInScope(params.projectId);
+    return removeProjectMember(mockDb, user, params.projectId, params.userId);
   },
   'projects.remove': ({ params }) => {
     const row = projectRow(params.projectId);
@@ -1013,10 +1069,19 @@ const impl: Impl = {
   'me.platform': () => ({ platformAdmin: sessionUser().platformAdmin }),
   'roles.list': () => roleFixtures,
   'members.list': async ({ params, query }) => {
-    const { orgId } = session();
+    const { user, orgId } = session();
     requireActiveOrg(params.orgId, orgId);
+    if (query.excludeProject !== undefined) {
+      // Checked in the API's order: the project exists and the caller reaches it (404), then may read its assignments (403).
+      projectInScope(query.excludeProject);
+      if (!canOnProject(user, 'assignment:read', query.excludeProject)) throw forbiddenProblem();
+      checkPickerFailure(mockDb);
+    }
     await gate(mockDb, 'members');
-    return listMembers(mockDb, orgId, query);
+    const page = await listMembers(mockDb, orgId, query, pickerFilter(mockDb, query));
+    if (query.excludeProject !== undefined)
+      applyAfterFirstPicker(mockDb, { userId: user.id, orgId }, query.excludeProject);
+    return page;
   },
   'assignments.list': ({ query }) => slicePage(assignmentFixtures, query),
   'assignments.create': () => assignmentFixtures[0] ?? never('assignment'),
@@ -1130,6 +1195,8 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'runs.closeSession': 202,
   'setupTests.end': 202,
   'assignments.create': 201,
+  'projectMembers.add': 201,
+  'projectMembers.remove': 204,
   'invitations.create': 201,
   'platform.createOrg': 201,
   'platform.createAssignment': 201,

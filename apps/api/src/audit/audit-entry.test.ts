@@ -19,7 +19,12 @@ describe('buildAuditRow', () => {
       targetType: 'user',
       targetId: 'user-2',
       payload: { to: { roleId: 'r1', roleKey: 'admin', scope: { type: 'org' } } },
+      projectIds: [],
     });
+  });
+
+  it('tags the row with the given project ids, in order', () => {
+    expect(buildAuditRow({ ...base, projectIds: ['p2', 'p1'] }).projectIds).toEqual(['p2', 'p1']);
   });
 
   it('adds actorKind to the payload', () => {

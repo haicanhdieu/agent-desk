@@ -62,7 +62,10 @@ const inserts: Record<string, (tx: Tx, orgId: string) => Promise<unknown>> = {
     tx.execute(sql`insert into setup_test_events (org_id, setup_test_id, seq, type)
       values (${o}, ${a.setupTestId}, 99, 'status')`),
   poll_cursors: (tx, o) => tx.execute(sql`insert into poll_cursors (org_id, project_id) values (${o}, ${b.projectId})`),
-  audit_log: (tx, o) => tx.execute(sql`insert into audit_log (org_id, action) values (${o}, 'x')`),
+  audit_log: (tx, o) =>
+    tx.execute(
+      sql`insert into audit_log (org_id, action, project_ids) values (${o}, 'x', array[${a.projectId}]::uuid[])`,
+    ),
   roles: (tx, o) =>
     tx.execute(sql`insert into roles (org_id, key, name, assignable_scopes)
       values (${o}, ${`k-${Math.random()}`}, 'R', '{org}')`),
@@ -108,6 +111,16 @@ describe.each(Object.keys(inserts))('RLS on %s', (table) => {
   it('a raw query without withOrg returns 0 rows', async () => {
     const r = await db.pool.query(`select 1 from ${table}`);
     expect(r.rowCount).toBe(0);
+  });
+});
+
+describe('audit_log.project_ids', () => {
+  it('an insert without project_ids reads back an empty array', async () => {
+    const rows = await withOrg(db, ORG_A, async (tx) => {
+      await tx.execute(sql`insert into audit_log (org_id, action) values (${ORG_A}, 'no-tags')`);
+      return tx.execute<{ project_ids: string[] }>(sql`select project_ids from audit_log where action = 'no-tags'`);
+    });
+    expect(rows.rows[0]?.project_ids).toEqual([]);
   });
 });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AuditEntryDto } from '@agentdesk/contracts';
-import { toAuditRow } from './map';
+import { projectsPhrase, toAuditRow } from './map';
 
 const NOW = new Date('2026-11-22T11:00:00.000Z');
 const TZ = 'UTC';
@@ -14,6 +14,7 @@ const entry = (over: Partial<AuditEntryDto>): AuditEntryDto => ({
   action: 'member.role_changed',
   target: { type: null, id: null, label: null },
   changes: [],
+  projects: [],
   ...over,
 });
 const user = (label: string | null) => ({ type: 'user', id: 'u-b', label });
@@ -225,12 +226,6 @@ describe('toAuditRow: what, raw rows (TC-20.7)', () => {
       'Ben Okafor',
     ],
     ['assignment.revoked', entry({ action: 'assignment.revoked' }), 'assignment.revoked', null],
-    [
-      'invitation.expired',
-      entry({ action: 'invitation.expired', target: invitation('sam@example.test') }),
-      'invitation.expired',
-      null,
-    ],
     ['org.created', entry({ action: 'org.created' }), 'org.created', null],
     ['org.updated without a change', entry({ action: 'org.updated' }), 'org.updated', null],
     [
@@ -267,5 +262,143 @@ describe('toAuditRow: platform suspend and reactivate (BR-43)', () => {
       { text: 'Ada Admin', strong: true },
       { text: tail, strong: false },
     ]);
+  });
+});
+
+const proj = (name: string, n = 1) => ({ id: `b6000000-0000-4000-8000-${String(n).padStart(12, '0')}`, name });
+const named = (...names: string[]) => names.map((name, i) => proj(name, i + 1));
+const text = (row: ReturnType<typeof toAuditRow>) =>
+  sentence(row)
+    .parts.map((p) => p.text)
+    .join('');
+const EMAIL = 'sam@example.test';
+
+describe('projectsPhrase (BR-27)', () => {
+  it('is null without projects', () => {
+    expect(projectsPhrase([])).toBeNull();
+  });
+  it.each([
+    [['a'], 'a'],
+    [['a', 'b'], 'a, b'],
+    [['a', 'b', 'c'], 'a, b, c'],
+    [['a', 'b', 'c', 'd'], 'a, b, c and 1 more'],
+    [['a', 'b', 'c', 'd', 'e'], 'a, b, c and 2 more'],
+  ])('%j reads %s and the title lists every name', (names, shown) => {
+    expect(projectsPhrase(names.map((name) => ({ name })))).toEqual({ text: shown, title: names.join(', ') });
+  });
+});
+
+describe('toAuditRow: invitation sentences name their projects (BR-27)', () => {
+  const cases = (label: string | null, projects: ReturnType<typeof named>) => ({
+    created: entry({
+      action: 'invitation.created',
+      target: invitation(label),
+      changes: [change('role', null, 'Viewer')],
+      projects,
+    }),
+    resent: entry({ action: 'invitation.resent', target: invitation(label), projects }),
+    revoked: entry({ action: 'invitation.revoked', target: invitation(label), projects }),
+    accepted: entry({
+      action: 'invitation.accepted',
+      target: invitation(label),
+      changes: [change('role', null, 'Member')],
+      projects,
+    }),
+    declined: entry({ action: 'invitation.declined', target: invitation(label), projects }),
+    expired: entry({ action: 'invitation.expired', target: invitation(label), projects }),
+  });
+
+  it.each([
+    ['one', ['api'], 'api'],
+    ['two', ['api', 'web'], 'api, web'],
+    ['five', ['a', 'b', 'c', 'd', 'e'], 'a, b, c and 2 more'],
+  ])('with the email and %s projects', (_n, names, shown) => {
+    const c = cases(EMAIL, named(...names));
+    expect(text(toAuditRow(c.created, NOW, TZ))).toBe(`Alice Doe invited ${EMAIL} as Viewer to ${shown}`);
+    expect(text(toAuditRow(c.resent, NOW, TZ))).toBe(`Alice Doe resent the invitation for ${EMAIL} to ${shown}`);
+    expect(text(toAuditRow(c.revoked, NOW, TZ))).toBe(`Alice Doe revoked the invitation for ${EMAIL} to ${shown}`);
+    expect(text(toAuditRow(c.accepted, NOW, TZ))).toBe(`Alice Doe accepted an invitation as Member to ${shown}`);
+    expect(text(toAuditRow(c.declined, NOW, TZ))).toBe(`Alice Doe declined an invitation to ${shown}`);
+    expect(text(toAuditRow(c.expired, NOW, TZ))).toBe(`The invitation for ${EMAIL} to ${shown} expired`);
+  });
+
+  it('without the email', () => {
+    const c = cases(null, named('api', 'web'));
+    expect(text(toAuditRow(c.created, NOW, TZ))).toBe('Alice Doe invited someone as Viewer to api, web');
+    expect(text(toAuditRow(c.resent, NOW, TZ))).toBe('Alice Doe resent an invitation to api, web');
+    expect(text(toAuditRow(c.revoked, NOW, TZ))).toBe('Alice Doe revoked an invitation to api, web');
+    expect(text(toAuditRow(c.expired, NOW, TZ))).toBe('An invitation to api, web expired');
+  });
+
+  it("an org-scope invitation keeps today's sentences with no ' to ...'", () => {
+    const c = cases(EMAIL, []);
+    expect(text(toAuditRow(c.created, NOW, TZ))).toBe(`Alice Doe invited ${EMAIL} as Viewer`);
+    expect(text(toAuditRow(c.accepted, NOW, TZ))).toBe('Alice Doe accepted an invitation as Member');
+    expect(text(toAuditRow(c.declined, NOW, TZ))).toBe('Alice Doe declined an invitation');
+  });
+
+  it('Review Focus 5: a project invitation whose projects are all gone renders without " to ..."', () => {
+    expect(text(toAuditRow(cases(EMAIL, []).resent, NOW, TZ))).toBe(`Alice Doe resent the invitation for ${EMAIL}`);
+  });
+
+  it('expired without projects states the fact only', () => {
+    expect(text(toAuditRow(cases(EMAIL, []).expired, NOW, TZ))).toBe(`The invitation for ${EMAIL} expired`);
+    expect(text(toAuditRow(cases(null, []).expired, NOW, TZ))).toBe('An invitation expired');
+  });
+
+  it('the title of an "and N more" row lists every visible name', () => {
+    const row = toAuditRow(cases(EMAIL, named('a', 'b', 'c', 'd', 'e')).created, NOW, TZ);
+    expect(sentence(row).title).toBe(`Alice Doe invited ${EMAIL} as Viewer to a, b, c, d, e`);
+  });
+
+  it('the title keeps replacement patterns in project names literal', () => {
+    const names = ['Q$&A', 'b$$', "c$'", 'd', 'e'];
+    const row = toAuditRow(cases(EMAIL, named(...names)).created, NOW, TZ);
+    expect(sentence(row).title).toBe(`Alice Doe invited ${EMAIL} as Viewer to ${names.join(', ')}`);
+  });
+
+  it('project names with markup stay text parts', () => {
+    const row = toAuditRow(cases(EMAIL, named('<b>x</b>')).declined, NOW, TZ);
+    expect(sentence(row).parts.at(-1)).toEqual({ text: '<b>x</b>', strong: true });
+  });
+});
+
+describe('toAuditRow: project scope sentences', () => {
+  const granted = entry({
+    action: 'assignment.granted',
+    target: user('Mira Chen'),
+    changes: [change('role', null, 'Member')],
+  });
+  it('project scope: assignment.granted with a role reads "added ... to this project as ..."', () => {
+    expect(text(toAuditRow(granted, NOW, TZ, 'project'))).toBe('Alice Doe added Mira Chen to this project as Member');
+  });
+  it('project scope: assignment.granted without a role change shows the raw key', () => {
+    const dto = entry({ action: 'assignment.granted', target: user('Mira Chen') });
+    expect(toAuditRow(dto, NOW, TZ, 'project').what).toEqual({
+      kind: 'raw',
+      key: 'assignment.granted',
+      target: 'Mira Chen',
+    });
+  });
+  it('org scope: assignment.granted stays the raw key', () => {
+    expect(toAuditRow(granted, NOW, TZ).what).toEqual({ kind: 'raw', key: 'assignment.granted', target: 'Mira Chen' });
+  });
+  it('project_member.role_changed', () => {
+    const dto = entry({
+      action: 'project_member.role_changed',
+      target: user('Cleo Martin'),
+      changes: [change('role', 'Member', 'Admin')],
+    });
+    expect(text(toAuditRow(dto, NOW, TZ, 'project'))).toBe(
+      "Alice Doe changed Cleo Martin's project role from Member to Admin",
+    );
+  });
+  it('project_member.removed', () => {
+    const dto = entry({
+      action: 'project_member.removed',
+      target: user('Dana Wu'),
+      changes: [change('role', 'Viewer', null)],
+    });
+    expect(text(toAuditRow(dto, NOW, TZ, 'project'))).toBe('Alice Doe removed Dana Wu from this project (was Viewer)');
   });
 });

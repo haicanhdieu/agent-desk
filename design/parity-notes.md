@@ -411,3 +411,29 @@ Org detail boards.
   "Platform admin": "<actor> reactivated the organization" and "<actor> suspended the organization"; no reason text.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 4 pixel pairs are unchecked: none is claimed
   to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.
+
+## Project admin space: Desk side menu and DeskAgentProjectAdmin
+
+Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook). One board added, so
+`parity.mjs` finds 190: DeskAgentProjectAdmin (`Screens/Desk`), Lee Park as signed-in project admin, no Danger zone.
+
+- Redrawn side menus: the shared `deskFrame` story frame now passes the Members and Audit log links, so every Desk story
+  shows the "Access" group after "Agent & settings". The DeskSetupEnvironment* stories are not in the repo yet, so the two
+  read-only ones are not touched here.
+- Intentional: the existing Desk board stories draw the Access group (human answer "1"); `DeskLayout` hides an item whose link
+  is not set, and the whole group when neither is.
+- Storybook and `parity.mjs` were not run here (no Chromium within the memory headroom). The new pixel pair is unchecked:
+  none is claimed to match.
+
+## Project admin space: project and org Audit log boards
+
+Spec: `docs/superpowers/specs/2026-11-23-rbac-project-admin-space-design.md` (UI and Storybook, Audit log). Nine boards added,
+so `parity.mjs` finds 199: DeskAudit, DeskAuditLoading, DeskAuditEmpty, DeskAuditError, DeskAuditPaged,
+DeskAuditInvitationNoEmail, DeskAuditInvitationExpired (`Screens/Desk`), OrgAuditInvitationProjects and
+OrgAuditInvitationNoEmail (`Screens/OrgSettings`). Their `canvas.json` entries sit after DeskAgentProjectAdmin and OrgAuditForbidden.
+
+- Table and states: as the org Audit log (shared `DataTable` and `AuditRow`, `EmptyState` "No activity yet", labelled busy
+  status, shared `RouteLoadError`), inside the Desk frame with the Audit log item current.
+- OrgAudit*: intentional: invitation sentences name projects (at most 3, then "and N more"; the title keeps the full list).
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium, low RAM). The 9 pixel pairs are unchecked: none is
+  claimed to match.

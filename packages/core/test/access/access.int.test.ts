@@ -204,7 +204,7 @@ describe('loadAccess', () => {
 
     const accessB = await withOrg(db, orgB, (tx) => loadAccess(tx, alice));
     expect(accessB.grants.map((g) => g.roleKey)).toEqual(['owner']);
-    expect(accessB.grants[0]?.lines).toHaveLength(34);
+    expect(accessB.grants[0]?.lines).toHaveLength(35);
   });
 
   it('returns no grants for a user without assignments in the org', async () => {

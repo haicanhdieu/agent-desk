@@ -5,6 +5,14 @@ import {
   agentSettings,
   auditRows,
   memberRows,
+  manyPickerOptions,
+  memberPickerOptions,
+  pagedProjectMemberRows,
+  projectAuditRows,
+  projectAuditRowsExpired,
+  projectAuditRowsNoEmail,
+  projectMemberRows,
+  projectRoleCards,
   orgSettingsFixtures,
   pagedAuditLastPage,
   pagedAuditRows,
@@ -431,6 +439,54 @@ describe('tenant-admin fixtures', () => {
       else if (label === 'yesterday') expect(exact.startsWith('21 Nov')).toBe(true);
       else expect(exact.startsWith(label + ' ')).toBe(true);
     }
+  });
+
+  it('project space views: members, picker and role cards', () => {
+    expect(projectMemberRows[0]).toMatchObject({ name: 'Lee Park', you: true, roles: 'Admin' });
+    expect(projectMemberRows.some((r) => r.roles.includes(', '))).toBe(true);
+    expect(projectMemberRows.some((r) => r.handle === null)).toBe(true);
+    expect(pagedProjectMemberRows).toHaveLength(25);
+    expect(memberPickerOptions.some((o) => o.handle === null)).toBe(true);
+    expect(manyPickerOptions).toHaveLength(200);
+    expect(projectRoleCards.map((c) => c.key)).toEqual(['admin', 'member', 'viewer']);
+    expect(projectRoleCards[1]!.description).toBe('See runs, start runs and act on their own runs.');
+  });
+
+  it('project audit rows name projects: capped at three, redacted and expired forms', () => {
+    const titles = projectAuditRows.map((r) => (r.what.kind === 'sentence' ? r.what.title : r.what.key));
+    expect(titles.some((t) => t.endsWith(' to billing-jobs, docs-site, invoicer-api, invoicer-web, storefront'))).toBe(
+      true,
+    );
+    expect(titles).toContain('Lee Park added Mira Chen to this project as Member');
+    expect(titles).toContain("Lee Park changed Cleo Martin's project role from Member to Admin");
+    expect(titles).toContain('Lee Park removed Dana Wu from this project (was Viewer)');
+    expect(projectAuditRows.some((r) => r.what.kind === 'raw')).toBe(true);
+    expect(projectAuditRows.some((r) => r.who.tag === 'deleted')).toBe(true);
+    const parts = projectAuditRows.flatMap((r) => (r.what.kind === 'sentence' ? r.what.parts.map((x) => x.text) : []));
+    expect(parts).toContain('billing-jobs, docs-site, invoicer-api and 2 more');
+    const noEmail = projectAuditRowsNoEmail.map((r) => (r.what.kind === 'sentence' ? r.what.title : ''));
+    expect(noEmail).toContain('Kim Hale invited someone as Viewer to invoicer-api');
+    const expired = projectAuditRowsExpired.map((r) => (r.what.kind === 'sentence' ? r.what.title : ''));
+    expect(expired).toEqual([
+      'The invitation for sam.reyes@contractor.io to invoicer-api expired',
+      'An invitation to invoicer-api expired',
+    ]);
+    const times = projectAuditRows.map((r) => Date.parse(r.when.iso));
+    expect(times).toEqual([...times].sort((a, b) => b - a));
+  });
+
+  it('org audit rows gain project names on invitations, none for the org-scope one', () => {
+    const titles = auditRows.map((r) => (r.what.kind === 'sentence' ? r.what.title : r.what.key));
+    expect(titles).toContain('Alice Doe invited sam.reyes@contractor.io as Viewer to invoicer-api, invoicer-web');
+    expect(titles.some((t) => t.endsWith(' to billing-jobs, docs-site, invoicer-api, invoicer-web, storefront'))).toBe(
+      true,
+    );
+    const parts = auditRows.flatMap((r) => (r.what.kind === 'sentence' ? r.what.parts.map((x) => x.text) : []));
+    expect(parts).toContain('billing-jobs, docs-site, invoicer-api and 2 more');
+    expect(titles.some((t) => /^The invitation for .* to .* expired$/.test(t))).toBe(true);
+    expect(titles.some((t) => /^The invitation for [^ ]+ expired$/.test(t))).toBe(true);
+    expect(titles).toContain('An invitation expired');
+    expect(titles.some((t) => t.includes('long-invitee') && t.endsWith(' as Member'))).toBe(true);
   });
 
   it('exposes the org settings tabs per role', () => {

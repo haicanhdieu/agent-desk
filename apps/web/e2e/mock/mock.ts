@@ -5,6 +5,11 @@ import { ids } from '../../src/mocks/dto/ids';
 import { MOCK_LISTS_KEY, type MockLists } from '../../src/mocks/msw/e2eLists';
 import { ONBOARDING_SCENARIO_KEY, type OnboardingScenario } from '../../src/mocks/msw/onboardingScenarios';
 import { PLATFORM_SCENARIO_KEY, type PlatformScenario } from '../../src/mocks/msw/platformScenarios';
+import {
+  PROJECT_SPACE_KEY,
+  type ProjectSpaceRole,
+  type ProjectSpaceScenario,
+} from '../../src/mocks/msw/projectSpaceScenarios';
 import { TENANT_ADMIN_SCENARIO_KEY, type TenantAdminScenario } from '../../src/mocks/msw/tenantAdminScenarios';
 
 /*
@@ -189,5 +194,26 @@ export async function seedPlatform(page: Page, scenario: PlatformScenario): Prom
       sessionStorage.setItem(key, value);
     },
     [PLATFORM_SCENARIO_KEY, scenario] as const,
+  );
+}
+
+/** A second project the `projectAdmin` role does not administer (the first is INVOICER_API). */
+export const OTHER_PROJECT: string = ids.project.invoicerWeb;
+
+/**
+ * Starts this test in a project-space scenario (src/mocks/msw/projectSpaceScenarios.ts): who is signed in (`role`:
+ * owner, admin, projectAdmin of INVOICER_API, member or viewer), the people with a project role, P's audit log, and any
+ * change, delay or failure the Members and Audit log pages meet. Call before the first `page.goto`: browser.ts reads
+ * the key once when the mock worker starts. It lives in sessionStorage, so a reload in the same tab keeps it.
+ */
+export async function seedProjectSpace(
+  page: Page,
+  opts: { role: ProjectSpaceRole; scenario?: ProjectSpaceScenario },
+): Promise<void> {
+  await page.addInitScript(
+    ([key, value]) => {
+      sessionStorage.setItem(key, value);
+    },
+    [PROJECT_SPACE_KEY, JSON.stringify(opts)] as const,
   );
 }
