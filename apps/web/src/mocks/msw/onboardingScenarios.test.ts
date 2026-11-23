@@ -53,7 +53,7 @@ afterEach(() => vi.useRealTimers());
 
 it('the key and every scenario name', () => {
   expect(ONBOARDING_SCENARIO_KEY).toBe('agentdesk.mock.onboarding');
-  expect(ONBOARDING_SCENARIOS).toHaveLength(22);
+  expect(ONBOARDING_SCENARIOS).toHaveLength(24);
   expect(parseOnboardingScenario('owner')).toBe('owner');
   expect(parseOnboardingScenario('nope')).toBeUndefined();
   expect(parseOnboardingScenario(null)).toBeUndefined();
@@ -143,6 +143,28 @@ describe('people with no org', () => {
     scenarios.onboarding('platformAdminOneOrg');
     expect(await userOrgs()).toEqual(['Alice']);
     expect((await api.me.access()).platformAdmin).toBe(true);
+  });
+});
+
+describe('tenant-admin menu scenarios', () => {
+  // The pending ones expire 23 Nov 14:05, so the clock has to be before that.
+  beforeEach(() => vi.setSystemTime(new Date('2026-11-21T12:00:00.000Z')));
+
+  it('platformAdminNoRole is a platform admin with a seat that holds no role in one org', async () => {
+    scenarios.onboarding('platformAdminNoRole');
+    expect(await userOrgs()).toEqual(['Alice']);
+    expect(mockDb.state.memberships).toEqual([
+      { userId: mockDb.state.users[0]?.id, orgId: ids.org.alice, roleKey: NO_ROLE },
+    ]);
+    expect((await api.me.access()).platformAdmin).toBe(true);
+  });
+
+  it('singleOrgTwoPending is a one-org owner with exactly two pending invitations of their own', async () => {
+    scenarios.onboarding('singleOrgTwoPending');
+    expect(await userOrgs()).toEqual(['Alice']);
+    const mine = await api.me.listInvitations({ query: { page: 1, pageSize: 100 } });
+    expect(mine.total).toBe(2);
+    expect(mine.items.every((i) => i.status === 'pending')).toBe(true);
   });
 });
 

@@ -22,6 +22,8 @@ export const ONBOARDING_SCENARIOS = [
   'noOrgUninvited',
   'platformAdminNoOrg',
   'platformAdminOneOrg',
+  'platformAdminNoRole',
+  'singleOrgTwoPending',
   'singleOrg',
   'twoOrgs',
   'twoOrgsSlowSwitch',
@@ -278,6 +280,15 @@ const seeders: Record<OnboardingScenario, () => void> = {
   },
   platformAdminOneOrg() {
     signInAs({ platformAdmin: true }, [{ orgId: ids.org.alice, roleKey: 'owner' }], ids.org.alice);
+  },
+  // A platform admin whose seat in the one org holds no role: the org is listed, its routes answer 403.
+  platformAdminNoRole() {
+    signInAs({ platformAdmin: true }, [{ orgId: ids.org.alice, roleKey: NO_ROLE }], ids.org.alice);
+  },
+  // The owner of the one org with exactly two pending invitations of their own (a clock at INVITATIONS_MOCK_NOW keeps them pending).
+  singleOrgTwoPending() {
+    seeders.singleOrg();
+    state().invitations = inviteeInvitations(me().email.toLowerCase(), (f) => [f.pending, f.pendingProjects]);
   },
   singleOrg() {
     signInAs({}, [{ orgId: ids.org.alice, roleKey: 'owner' }], ids.org.alice);

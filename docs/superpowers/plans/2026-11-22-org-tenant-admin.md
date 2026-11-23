@@ -1413,7 +1413,7 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 **Interfaces:**
 
 - Consumes: `seedTenantAdmin`, `seedOnboarding` (one org, two orgs, platform admin scenarios; the `me.listInvitations` fixtures for 2 pending, none and error).
- Removed by #230: TC-45.1 and TC-45.2 (My invitations in the account menu) are dropped.
-- [ ] **Step 1: Write the specs**: `org-switch.spec.ts` BR-44 (TC-44.1 to 44.7); `account-menu.spec.ts` BR-45 (TC-45.1 to 45.6; the existing Logout assertions kept); `checklist.spec.ts` BR-49 (TC-49.1 to 49.6, folded into the re-pointed TC-20 cases).
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-switch.spec.ts e2e/mock/account-menu.spec.ts e2e/mock/checklist.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): mock e2e for the org menu, account menu and Projects header`. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; the account prop, AccountMenu.test.tsx and the menu assertions of this task are dropped.
+
+- [x] **Step 1: Write the specs**: `org-switch.spec.ts` BR-44 (TC-44.1 to 44.7); `account-menu.spec.ts` BR-45 (TC-45.1 to 45.6; the existing Logout assertions kept); `checklist.spec.ts` BR-49 (TC-49.1 to 49.6, folded into the re-pointed TC-20 cases).
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-switch.spec.ts e2e/mock/account-menu.spec.ts e2e/mock/checklist.spec.ts`. Expected: PASS.
+- [ ] **Step 3: Commit** `test(web): mock e2e for the org menu, account menu and Projects header`. Removed by #230: the account menu has no My invitations link or pending count and keeps main's name, email, Logout; TC-45.1 to TC-45.4 are dropped and the account prop, AccountMenu.test.tsx and the menu assertions of this task go with it.
