@@ -175,6 +175,8 @@ const stories = {
   OrgAuditLoading: ['Screens/OrgSettings', 'OrgAuditLoading'],
   OrgAuditError: ['Screens/OrgSettings', 'OrgAuditError'],
   OrgAuditForbidden: ['Screens/OrgSettings', 'OrgAuditForbidden'],
+  OrgAuditInvitationProjects: ['Screens/OrgSettings', 'OrgAuditInvitationProjects'],
+  OrgAuditInvitationNoEmail: ['Screens/OrgSettings', 'OrgAuditInvitationNoEmail'],
   ...Object.fromEntries(
     [
       'Starting',
@@ -211,6 +213,13 @@ const stories = {
       'RulesPromptError',
       'Agent',
       'AgentProjectAdmin',
+      'Audit',
+      'AuditLoading',
+      'AuditEmpty',
+      'AuditError',
+      'AuditPaged',
+      'AuditInvitationNoEmail',
+      'AuditInvitationExpired',
       'AgentCustomModel',
       'AgentAddressChanged',
       'AgentAutoResume',

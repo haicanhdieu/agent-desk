@@ -10,6 +10,10 @@ import {
   pagedRules,
   pagedSkills,
   pagedVersions,
+  pagedAuditLastPage,
+  projectAuditRows,
+  projectAuditRowsExpired,
+  projectAuditRowsNoEmail,
   promptSystemLines,
   rules,
   TRIAGE_PROMPT,
@@ -24,6 +28,7 @@ import {
   skills,
 } from '@/mocks';
 import { DeskSetup as DeskSetupScreen, type DeskSetupProps } from './DeskSetup';
+import { DeskAudit as DeskAuditScreen } from './DeskAudit';
 import { DeskAgent as DeskAgentBase, type DeskAgentProps } from './DeskAgent';
 import { DeskRules as DeskRulesScreen, RulePane } from './DeskRules';
 import { DeskSkills as DeskSkillsScreen, type DeskSkillsProps } from './DeskSkills';
@@ -735,4 +740,35 @@ export const DeskSetupVersionsEmpty: Story = {
   render: () => (
     <DeskSetupScreen {...setupProps} versions={[]} versionsTotal={0} versionsPagination={pagination(1, 0)} />
   ),
+};
+
+// The project Audit log (Settings > Access > Audit log), 1440x900 boards.
+const audit = (state: Parameters<typeof DeskAuditScreen>[0]['state']): Story => ({
+  decorators: artboard(900),
+  globals: viewport(1440, 900),
+  render: () => <DeskAuditScreen frame={deskFrame} state={state} />,
+});
+const retry = () => undefined;
+
+export const DeskAudit: Story = {
+  name: 'Audit log, newest first: members, invitations with projects, many projects, generic, deleted user',
+  ...audit({ kind: 'ready', rows: projectAuditRows }),
+};
+export const DeskAuditLoading: Story = { name: 'Audit log, loading', ...audit({ kind: 'loading' }) };
+export const DeskAuditEmpty: Story = { name: 'Audit log, empty', ...audit({ kind: 'ready', rows: [] }) };
+export const DeskAuditError: Story = {
+  name: 'Audit log, failed to load',
+  ...audit({ kind: 'error', requestId: 'req_01JD7Q3M8V2K', onRetry: retry }),
+};
+export const DeskAuditPaged: Story = {
+  name: 'Audit log, page 2 of 2',
+  ...audit({ kind: 'ready', rows: pagedAuditLastPage, pagination: pagination(2, 25) }),
+};
+export const DeskAuditInvitationNoEmail: Story = {
+  name: 'Audit log, invitation entries without the email (viewer does not administer every listed project)',
+  ...audit({ kind: 'ready', rows: projectAuditRowsNoEmail }),
+};
+export const DeskAuditInvitationExpired: Story = {
+  name: 'Audit log, expired invitation entries, with and without the email',
+  ...audit({ kind: 'ready', rows: projectAuditRowsExpired }),
 };

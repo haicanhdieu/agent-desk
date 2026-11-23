@@ -1529,6 +1529,78 @@
    "h": 900,
    "title": "Settings \u2014 Audit log URL opened by a project admin: no access inside the layout",
    "expand": "fill"
+  },
+  "DeskAudit.dc.html": {
+   "x": 0,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, newest first",
+   "expand": "fill"
+  },
+  "DeskAuditLoading.dc.html": {
+   "x": 1520,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, loading",
+   "expand": "fill"
+  },
+  "DeskAuditEmpty.dc.html": {
+   "x": 3040,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, empty",
+   "expand": "fill"
+  },
+  "DeskAuditError.dc.html": {
+   "x": 4560,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, failed to load",
+   "expand": "fill"
+  },
+  "DeskAuditPaged.dc.html": {
+   "x": 6080,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, page 2 of 2",
+   "expand": "fill"
+  },
+  "DeskAuditInvitationNoEmail.dc.html": {
+   "x": 7600,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, invitation entries without the email",
+   "expand": "fill"
+  },
+  "DeskAuditInvitationExpired.dc.html": {
+   "x": 9120,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 audit log, expired invitation entries",
+   "expand": "fill"
+  },
+  "OrgAuditInvitationProjects.dc.html": {
+   "x": 7600,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, invitation entries naming their projects",
+   "expand": "fill"
+  },
+  "OrgAuditInvitationNoEmail.dc.html": {
+   "x": 9120,
+   "y": 45360,
+   "w": 1440,
+   "h": 900,
+   "title": "Settings \u2014 Audit log, invitation entries without the email",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1577,6 +1649,13 @@
   "DeskRulesPromptError.dc.html",
   "DeskAgent.dc.html",
   "DeskAgentProjectAdmin.dc.html",
+  "DeskAudit.dc.html",
+  "DeskAuditLoading.dc.html",
+  "DeskAuditEmpty.dc.html",
+  "DeskAuditError.dc.html",
+  "DeskAuditPaged.dc.html",
+  "DeskAuditInvitationNoEmail.dc.html",
+  "DeskAuditInvitationExpired.dc.html",
   "DeskAgentCustomModel.dc.html",
   "DeskAgentAddressChanged.dc.html",
   "DeskAgentAutoResume.dc.html",
@@ -1721,7 +1800,9 @@
   "OrgAuditEmpty.dc.html",
   "OrgAuditLoading.dc.html",
   "OrgAuditError.dc.html",
-  "OrgAuditForbidden.dc.html"
+  "OrgAuditForbidden.dc.html",
+  "OrgAuditInvitationProjects.dc.html",
+  "OrgAuditInvitationNoEmail.dc.html"
  ],
  "notes": {
   "t-intro": {

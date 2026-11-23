@@ -61,6 +61,13 @@ export const boardStories = {
   DeskRulesPromptError: { title: desk, exportName: 'DeskRulesPromptError' },
   DeskAgent: { title: desk, exportName: 'DeskAgent' },
   DeskAgentProjectAdmin: { title: desk, exportName: 'DeskAgentProjectAdmin' },
+  DeskAudit: { title: desk, exportName: 'DeskAudit' },
+  DeskAuditLoading: { title: desk, exportName: 'DeskAuditLoading' },
+  DeskAuditEmpty: { title: desk, exportName: 'DeskAuditEmpty' },
+  DeskAuditError: { title: desk, exportName: 'DeskAuditError' },
+  DeskAuditPaged: { title: desk, exportName: 'DeskAuditPaged' },
+  DeskAuditInvitationNoEmail: { title: desk, exportName: 'DeskAuditInvitationNoEmail' },
+  DeskAuditInvitationExpired: { title: desk, exportName: 'DeskAuditInvitationExpired' },
   DeskAgentCustomModel: { title: desk, exportName: 'DeskAgentCustomModel' },
   DeskAgentAddressChanged: { title: desk, exportName: 'DeskAgentAddressChanged' },
   DeskAgentAutoResume: { title: desk, exportName: 'DeskAgentAutoResume' },
@@ -206,6 +213,8 @@ export const boardStories = {
   OrgAuditLoading: { title: orgSettings, exportName: 'OrgAuditLoading' },
   OrgAuditError: { title: orgSettings, exportName: 'OrgAuditError' },
   OrgAuditForbidden: { title: orgSettings, exportName: 'OrgAuditForbidden' },
+  OrgAuditInvitationProjects: { title: orgSettings, exportName: 'OrgAuditInvitationProjects' },
+  OrgAuditInvitationNoEmail: { title: orgSettings, exportName: 'OrgAuditInvitationNoEmail' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;
