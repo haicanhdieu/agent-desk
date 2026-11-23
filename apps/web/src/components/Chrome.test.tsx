@@ -322,6 +322,8 @@ describe('TopBar account menu', () => {
     const name = within(m).getByText('Kim Hale');
     const email = within(m).getByText('kim.hale@harbor-labs.example');
     expect(email).toHaveClass('mono');
+    // jsdom cannot lay out; the wrapping rule lives in the .email class (see the OpenLongName story).
+    expect(email).toHaveClass('email');
     expect(name.nextElementSibling).toBe(email);
     expect(within(m).queryByText('kim-hale')).toBeNull();
     expect(within(m).queryByRole('menuitem', { name: /My invitations/ })).toBeNull();

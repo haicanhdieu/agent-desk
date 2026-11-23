@@ -62,3 +62,8 @@
   margin: 4px 0;
   background: var(--line);
 }
+.email {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}

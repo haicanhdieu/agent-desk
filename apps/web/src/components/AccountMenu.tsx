@@ -119,7 +119,7 @@ function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar
             <b className={styles.name} title={name ?? login}>
               {name || login}
             </b>
-            <span className="mono faint">{email || login}</span>
+            <span className={`mono faint ${styles.email}`}>{email || login}</span>
           </span>
           <div role="separator" className={styles.separator} />
           <button

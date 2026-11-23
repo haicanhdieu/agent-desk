@@ -34,7 +34,7 @@ export const OpenLongName: Story = {
     (Story) => (
       <AccountInfoProvider
         name="Kimberly Alexandria Hale-Montgomery the Third of Harbor Labs"
-        email="kimberly.alexandria.hale-montgomery@harbor-labs-international.example"
+        email="kimberlyalexandriahalemontgomery@harborlabsinternational.example"
       >
         <Story />
       </AccountInfoProvider>
