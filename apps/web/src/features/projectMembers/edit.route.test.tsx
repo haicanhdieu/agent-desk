@@ -450,9 +450,9 @@ describe('remove from the project (BR-8)', () => {
     });
     await ready();
     expect(rows()).toHaveLength(1);
-    const dialog = await openRemove(user, 'Bulk 15');
+    const dialog = await openRemove(user, 'Noor Haddad');
     await user.click(within(dialog).getByRole('button', { name: 'Remove' }));
-    expect(await screen.findByText('Bulk 15 removed from invoicer-api')).toBeInTheDocument();
+    expect(await screen.findByText('Noor Haddad removed from invoicer-api')).toBeInTheDocument();
     await waitFor(() => expect(rows()).toHaveLength(20));
     expect(screen.queryByText('No project roles yet')).not.toBeInTheDocument();
   });

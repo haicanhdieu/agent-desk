@@ -231,14 +231,17 @@ export function applyAfterFirstPicker(db: MockDb, caller: { userId: string; orgI
   space.pickerReads += 1;
 }
 
-/** `projectMembers.list`: P's people in the order they were added. */
+/** `projectMembers.list`: P's people sorted by name, then id, as the API sorts them. */
 export async function listProjectMembers(
   db: MockDb,
   projectId: string,
   query: PageQuery,
 ): Promise<Page<ProjectMemberDto>> {
   await gate(db, 'members');
-  const page = slicePage(structuredClone(db.state.projectSpace.members[projectId] ?? []), query);
+  const sorted = structuredClone(db.state.projectSpace.members[projectId] ?? []).sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : a.userId < b.userId ? -1 : a.userId > b.userId ? 1 : 0,
+  );
+  const page = slicePage(sorted, query);
   applyAfterFirstList(db, projectId);
   return page;
 }

@@ -1134,9 +1134,9 @@ export function useAddMemberForm(org: string, projectId: string, onAdded: (dto: 
 
 Covers: BR-1 (TC-1.1 to TC-1.6), BR-2 (TC-2.1, TC-2.3), BR-3 (TC-3.1), BR-4 (TC-4.1, TC-4.2, TC-4.3), BR-11 (TC-11.1), BR-15 (TC-15.1 to TC-15.4).
 
-- [ ] **Step 1: Write the spec**, one test per case, with the spec's strings; TC-2.1 and TC-2.3 assert no `projectMembers.list` request in the page's request log; navigation by click after the first `goto`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-members.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for the project Members page`.
+- [x] **Step 1: Write the spec**, one test per case, with the spec's strings; TC-2.1 and TC-2.3 assert no `projectMembers.list` request in the page's request log; navigation by click after the first `goto`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-members.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for the project Members page`.
 
 ---
 
@@ -1152,9 +1152,9 @@ Covers: BR-1 (TC-1.1 to TC-1.6), BR-2 (TC-2.1, TC-2.3), BR-3 (TC-3.1), BR-4 (TC-
 
 Covers: BR-6 (TC-6.1), BR-7 (TC-7.1 to TC-7.11), BR-12 visible Add parts (TC-12.1, TC-12.2). BR-12's concurrent "last write wins" is Not e2e (Task 8).
 
-- [ ] **Step 1: Write the spec**: TC-7.5 waits for the page-2 and page-3 responses with `expect.poll` on the request log, then asserts the option count stays below the loaded count while `aria-setsize` is 45; TC-7.6 reaches "Load more people" by keyboard and expects the status "20 more people loaded"; TC-7.8 pastes 101 characters and expects 100; never a sleep.
-- [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-members-add.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for adding a project member`.
+- [x] **Step 1: Write the spec**: TC-7.5 waits for the page-2 and page-3 responses with `expect.poll` on the request log, then asserts the option count stays below the loaded count while `aria-setsize` is 45; TC-7.6 reaches "Load more people" by keyboard and expects the status "20 more people loaded"; TC-7.8 pastes 101 characters and expects 100; never a sleep.
+- [x] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/project-members-add.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for adding a project member`.
 
 ---
 
