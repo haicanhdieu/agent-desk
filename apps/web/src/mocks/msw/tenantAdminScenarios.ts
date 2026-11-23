@@ -1,6 +1,6 @@
 import { slicePage, type AssignmentDto, type MemberDto, type Page, type PageQuery } from '@agentdesk/contracts';
 import { roleFixtures, tenantMemberFixtures } from '../dto/access';
-import { pagedAuditFixtures } from '../dto/audit';
+import { pagedAuditFixtures, platformSuspendAuditFixtures } from '../dto/audit';
 import { ids } from '../dto/ids';
 import { NO_ROLE, freshTenantAdmin, type MockDb, type MockState } from './db';
 import { MAX_RETRIES } from '../../app/queryClient';
@@ -37,6 +37,7 @@ export const TENANT_ADMIN_SCENARIOS = [
   'auditError',
   'auditSlow',
   'auditPaged',
+  'auditPlatformSuspend',
   'invitationsManyAccepted',
 ] as const;
 
@@ -162,6 +163,10 @@ const seeders: Record<TenantAdminScenario, (db: MockDb) => void> = {
   auditPaged(db) {
     seed(db, 'owner', twoOwners);
     db.state.audit[ids.org.alice] = pagedAuditFixtures(25);
+  },
+  auditPlatformSuspend(db) {
+    seed(db, 'owner', twoOwners);
+    db.state.audit[ids.org.alice] = platformSuspendAuditFixtures();
   },
   // The owner's org has 25 accepted invitations (page size 20), so page 2 of the Accepted filter exists.
   invitationsManyAccepted(db) {

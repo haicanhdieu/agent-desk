@@ -55,7 +55,7 @@ const apply = (name: TenantAdminScenario) => applyTenantAdminScenario(mockDb, na
 
 it('the key and every scenario name', () => {
   expect(TENANT_ADMIN_SCENARIO_KEY).toBe('agentdesk.mock.tenantAdmin');
-  expect(TENANT_ADMIN_SCENARIOS).toHaveLength(16);
+  expect(TENANT_ADMIN_SCENARIOS).toHaveLength(17);
   expect(parseTenantAdminScenario('soleOwner')).toBe('soleOwner');
   expect(parseTenantAdminScenario('nope')).toBeUndefined();
   expect(parseTenantAdminScenario(null)).toBeUndefined();
@@ -236,6 +236,20 @@ describe('audit.list', () => {
     expect([first.items.length, second.items.length, first.total]).toEqual([20, 5, 25]);
     const times = [...first.items, ...second.items].map((e) => e.at);
     expect(times).toEqual([...times].sort().reverse());
+  });
+
+  it('auditPlatformSuspend lists a platform admin suspend and reactivate, newest first, with no reason anywhere', async () => {
+    apply('auditPlatformSuspend');
+    const { items } = await api.audit.list({ params, query: {} });
+    expect(items.map((e) => [e.action, e.actorKind, e.actor?.name])).toEqual([
+      ['org.reactivated', 'platform_admin', 'Pat Platform'],
+      ['org.suspended', 'platform_admin', 'Pat Platform'],
+    ]);
+    expect(items.map((e) => e.changes)).toEqual([
+      [{ field: 'status', from: 'Suspended', to: 'Active' }],
+      [{ field: 'status', from: 'Active', to: 'Suspended' }],
+    ]);
+    expect(JSON.stringify(items)).not.toMatch(/reason/i);
   });
 
   it('auditEmpty has no entries', async () => {

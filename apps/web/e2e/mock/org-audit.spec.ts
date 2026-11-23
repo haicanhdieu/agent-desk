@@ -6,7 +6,7 @@ import { ORG, seedTenantAdmin } from './mock';
 /*
  * The org Audit log page: paging, deleted and platform-admin actors, text-only rendering, the raw key of a generic
  * entry with its relative and exact time, and the loading, error and empty states (spec
- * 2026-11-22-org-tenant-admin-design.md "E2E requirements": TC-20.3 to TC-20.7, TC-24.3 to TC-24.5).
+ * 2026-11-22-org-tenant-admin-design.md "E2E requirements": TC-20.3 to TC-20.7, TC-24.3 to TC-24.5, TC-43.1).
  *
  * Every test seeds the case's mock scenario (mock.ts `seedTenantAdmin`) and fixes the clock at AUDIT_MOCK_NOW before its
  * first goto, so relative times hold. The default audit entries come from src/mocks/dto/audit.ts; `twoOwners` seeds them
@@ -126,4 +126,21 @@ test('TC-24.5: an org with no entries shows "No activity yet"', async ({ page })
   await expect(heading(page)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'No activity yet' })).toBeVisible();
   await expect(page.locator('tbody tr')).toHaveCount(0);
+});
+
+test('TC-43.1: platform suspend and reactivate entries show each tagged "Platform admin" and with no reason text', async ({
+  page,
+}) => {
+  await open(page, 'auditPlatformSuspend');
+  await loaded(page);
+  await expect(page.locator('tbody tr')).toHaveCount(2);
+  for (const sentence of ['suspended the organization', 'reactivated the organization']) {
+    const row = rowOf(page, sentence);
+    await expect(row).toHaveCount(1);
+    const who = row.getByRole('cell').nth(1);
+    await expect(who).toContainText('Pat Platform');
+    await expect(who.getByText('Platform admin', { exact: true })).toBeVisible();
+    await expect(row).not.toContainText(/reason/i);
+  }
+  await expect(page.getByText('Platform admin', { exact: true })).toHaveCount(2);
 });

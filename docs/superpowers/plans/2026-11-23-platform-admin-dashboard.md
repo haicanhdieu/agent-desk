@@ -1279,15 +1279,15 @@ export function toPlatformOrgOverview(dto: PlatformOrgDetailDto, now: Date): Pla
 - Consumes: `ORG_SUSPENDED_PROBLEM_TYPE`, `OrgStatus` (Tasks 12, 20), `suspendedMember`, `suspendedPlatformAdmin` (Task 21), `OrgSuspended` (Task 28), `OrgOption.suspended` (Task 26).
 - Produces: `RouteError` maps `ApiError` 403 with `type === 'org-suspended'` to `OrgSuspended` (org name from the org list by slug); `createAppQueryClient` gets one global handler that, on an `org-suspended` error, removes `['org', slug]` data and calls `router.invalidate()`; `OrganizationList` parses `status: OrgStatus.default('active')`; `toOrgSwitch` sets `suspended`; the `OrgSuspended` page's top bar uses `useAppBar(null)` with non-suspense access queries; `features/audit/map.ts` sentences "<actor> suspended the organization" and "<actor> reactivated the organization".
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `orgRoute.test.tsx` (BR-37, BR-38, BR-49): `suspendedMember` on `/` and on `/o/<suspended>/projects` renders the fixed message, requests no project list and shows no "Billing hold"; a page already open when an org route starts answering `org-suspended` switches to the message.
   - `orgSwitch.route.test.tsx` (BR-48, BR-37): the suspended org is listed with "Suspended", the other org links and opens normally.
   - `appBar.test.tsx` (BR-51): `suspendedPlatformAdmin` sees "Platform admin" on the suspended page and `/platform/orgs` opens.
   - `map.test.ts` (BR-43): both sentences with the "Platform admin" tag and no reason.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/app/orgRoute.test.tsx src/features/orgs src/features/chrome src/features/audit`. Expected: FAIL.
-- [ ] **Step 3: Implement** the mapping, the global handler, the org-list field and switcher mark, the app-bar change, the sentences.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): show the suspended organization message and mark it in the switcher`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/app/orgRoute.test.tsx src/features/orgs src/features/chrome src/features/audit`. Expected: FAIL.
+- [x] **Step 3: Implement** the mapping, the global handler, the org-list field and switcher mark, the app-bar change, the sentences.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): show the suspended organization message and mark it in the switcher`.
 
 ---
 
@@ -1304,7 +1304,7 @@ export function toPlatformOrgOverview(dto: PlatformOrgDetailDto, now: Date): Pla
 
 Covers: BR-4 (TC-4.11), BR-32 (TC-32.1), BR-33 (TC-33.1 to TC-33.5), BR-34 (TC-34.1), BR-37 (TC-37.1, TC-37.2, TC-37.3), BR-48 (TC-48.1), BR-49 (TC-49.1), BR-51 (TC-51.1) in `platform-suspend.spec.ts`; BR-43 (TC-43.1) in `org-audit.spec.ts`. BR-35 is Not e2e (Task 22). Role-based case: TC-37.1 (a member sees no org data).
 
-- [ ] **Step 1: Write the specs**; TC-33.4 asserts an error at Reason (spec open question Q2); TC-49.1 asserts "Billing hold" appears nowhere.
+- [x] **Step 1: Write the specs**; TC-33.4 asserts an error at Reason (spec open question Q2); TC-49.1 asserts "Billing hold" appears nowhere.
 - [ ] **Step 2: Run** the mock build, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/platform-suspend.spec.ts e2e/mock/org-audit.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): mock e2e for suspend, reactivate and the suspended page`.
 

@@ -50,7 +50,7 @@ describe('platform query keys', () => {
     client.setQueryData(platformKeys.org('o1'), { id: 'o1' });
     client.setQueryData(accessKeys.platform(), { platformAdmin: true });
     client.setQueryData(orgsQuery.queryKey, []);
-    await setActiveOrganization(client, { id: 'o2', slug: 'beta', name: 'Beta' });
+    await setActiveOrganization(client, { id: 'o2', slug: 'beta', name: 'Beta', status: 'active' });
     expect(client.getQueryData(['org', 'acme', 'projects'])).toBeUndefined();
     expect(client.getQueryData(platformKeys.admins(q))).toEqual(['admin']);
     expect(client.getQueryData(platformKeys.org('o1'))).toEqual({ id: 'o1' });

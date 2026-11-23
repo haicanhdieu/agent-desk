@@ -61,8 +61,8 @@ const session: Session = {
   activeOrganizationId: 'org-b',
 };
 const orgs = [
-  { id: 'org-a', slug: 'acme', name: 'Acme' },
-  { id: 'org-b', slug: 'beta', name: 'Beta' },
+  { id: 'org-a', slug: 'acme', name: 'Acme', status: 'active' as const },
+  { id: 'org-b', slug: 'beta', name: 'Beta', status: 'active' as const },
 ];
 
 /** Like the app's client: fresh data is not refetched for 30s. */

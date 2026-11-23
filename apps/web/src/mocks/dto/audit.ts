@@ -90,3 +90,25 @@ export function pagedAuditFixtures(n: number): AuditEntryDto[] {
     changes: [{ field: 'role' as const, from: 'Member', to: 'Admin' }],
   }));
 }
+
+/** A platform admin suspended the org and later reactivated it: two entries, newest first, no reason (it lives in the platform detail). */
+export function platformSuspendAuditFixtures(): AuditEntryDto[] {
+  const pat = { userId: 'user-platform', name: 'Pat Platform', handle: 'pat' };
+  const org = { type: 'org', id: ids.org.alice, label: 'Harbor Labs' };
+  return [
+    entry(1, {
+      actor: pat,
+      actorKind: 'platform_admin',
+      action: 'org.reactivated',
+      target: org,
+      changes: [{ field: 'status', from: 'Suspended', to: 'Active' }],
+    }),
+    entry(15, {
+      actor: pat,
+      actorKind: 'platform_admin',
+      action: 'org.suspended',
+      target: org,
+      changes: [{ field: 'status', from: 'Active', to: 'Suspended' }],
+    }),
+  ];
+}

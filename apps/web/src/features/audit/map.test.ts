@@ -243,3 +243,29 @@ describe('toAuditRow: what, raw rows (TC-20.7)', () => {
     expect(toAuditRow(dto, NOW, TZ).what).toEqual({ kind: 'raw', key, target });
   });
 });
+
+describe('toAuditRow: platform suspend and reactivate (BR-43)', () => {
+  const PLATFORM = { userId: 'u-ada', name: 'Ada Admin', handle: 'ada' };
+  it.each([
+    ['org.suspended', ' suspended the organization'],
+    ['org.reactivated', ' reactivated the organization'],
+  ] as const)('%s reads "<actor>%s" with the Platform admin tag and no reason', (action, tail) => {
+    const row = toAuditRow(
+      entry({
+        action,
+        actor: PLATFORM,
+        actorKind: 'platform_admin',
+        changes: [{ field: 'status', from: 'active', to: 'suspended' }],
+      }),
+      NOW,
+      TZ,
+    );
+    expect(row.who.tag).toBe('platform');
+    const what = sentence(row);
+    expect(what.title).toBe(`Ada Admin${tail}`);
+    expect(what.parts).toEqual([
+      { text: 'Ada Admin', strong: true },
+      { text: tail, strong: false },
+    ]);
+  });
+});

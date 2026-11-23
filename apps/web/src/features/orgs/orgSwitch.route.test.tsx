@@ -170,3 +170,19 @@ describe('org switcher on the Projects page', () => {
     expect(within(menu).queryByRole('link', { name: 'Platform admin' })).toBeNull();
   });
 });
+
+describe('org switcher with a suspended organization (BR-48, BR-37)', () => {
+  it('lists the suspended org with "Suspended"; the other org links and opens normally', async () => {
+    const { user, router } = await renderRoute('/o/alice/projects', {
+      scenario: () => scenarios.platform('suspendedMember'),
+    });
+    await user.click(await switchButton('Alice'));
+    const menu = await screen.findByRole('dialog', { name: 'Organizations' });
+    expect(within(menu).getByRole('link', { name: /Alice/ })).toHaveTextContent('Suspended');
+    const acme = within(menu).getByRole('link', { name: 'Acme' });
+    expect(acme).not.toHaveTextContent('Suspended');
+    await user.click(acme);
+    expect(await screen.findByRole('link', { name: 'storefront' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe('/o/acme/projects');
+  });
+});
