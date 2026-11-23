@@ -21,6 +21,7 @@ export type IconName =
   | 'warning'
   | 'mail'
   | 'lock'
+  | 'logout'
   | 'x'
   | 'trash'
   | 'commit'
@@ -121,6 +122,12 @@ export const iconPaths: Record<IconName, ReactNode> = {
     <>
       <rect x="3" y="5" width="18" height="14" rx="2" />
       <path d="M3.5 6.5 12 13l8.5-6.5" />
+    </>
+  ),
+  logout: (
+    <>
+      <path d="M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3" />
+      <path d="M16 8l4 4-4 4M20 12H9" />
     </>
   ),
   lock: (

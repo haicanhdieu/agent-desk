@@ -74,9 +74,9 @@ for (const [persona, want] of Object.entries(ROLES)) {
   if (persona === 'lee-park') await shot(p, '04-org-menu-project-admin');
   if (persona === 'ops-admin') await shot(p, '05-org-menu-platform-admin');
   await p.keyboard.press('Escape');
-  // account menu: My invitations, Logout, never Settings
+  // account menu: Logout only, never Settings or My invitations
   await p.click('header.top button.avatar');
-  eq(await menuItems(p), persona === 'mira-chen' ? ['My invitations 1 pending', 'Logout'] : ['My invitations', 'Logout'], persona + ' account menu');
+  eq(await menuItems(p), ['Logout'], persona + ' account menu');
   if (persona === 'kim-hale') await shot(p, '06-account-menu');
   await p.keyboard.press('Escape');
   await shot(p, `10-projects-${persona}`);
@@ -237,15 +237,12 @@ for (const [persona, want] of Object.entries(ROLES)) {
   eq(await p.$$eval('header.top .muted', (x) => x.map((e) => e.textContent.trim())), ['No organization'], 'Dana: No organization');
   await shot(p, '55-dana-no-org');
   await p.click('header.top button.avatar');
-  eq(await menuItems(p), ['My invitations 2 pending', 'Logout'], 'Dana account menu with the count');
+  eq(await menuItems(p), ['Logout'], 'Dana account menu');
   await shot(p, '56-dana-account-menu');
-  await p.click('header.top .pop a:has-text("My invitations")'); await p.waitForTimeout(100);
-  eq(await p.$$eval('header.top .pop', (x) => x.length), 0, 'My invitations item closes the menu on the same page');
+  await p.keyboard.press('Escape');
   await p.click('[data-act="mi-accept"] >> nth=0'); await p.waitForTimeout(1200);
   eq(await hash(p), '#/o/harbor-labs/projects', 'accepting still works');
   eq(await tabs(p), ['Projects'], 'new member: Projects tab only');
-  await p.click('header.top button.avatar'); await p.click('header.top .pop a:has-text("My invitations")'); await p.waitForTimeout(150);
-  eq(await hash(p), '#/invitations', 'account menu -> My invitations from an org page');
   await p.click('header.top button.avatar'); await p.click('header.top .pop button:text-is("Logout")'); await p.waitForTimeout(150);
   eq(await hash(p), '#/signin', 'Logout signs out');
   await p.context().close();

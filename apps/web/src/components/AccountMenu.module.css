@@ -57,11 +57,13 @@
   background: var(--raised);
   text-decoration: none;
 }
-.count {
-  margin-left: auto;
-}
 .separator {
   height: 1px;
   margin: 4px 0;
   background: var(--line);
+}
+.email {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }

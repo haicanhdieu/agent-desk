@@ -8,7 +8,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from 'react';
-import { AppLink, Avatar, CountBadge, Icon, Popover } from '@/ds';
+import { Avatar, Icon, Popover } from '@/ds';
 import type { Actor } from '@/mocks/types';
 import styles from './AccountMenu.module.css';
 
@@ -21,22 +21,18 @@ export function SignOutProvider({ onSignOut, children }: { onSignOut: () => void
 
 /** What the account menu says about the signed-in person beyond the handle every top bar already has. */
 export interface AccountInfo {
-  /** Display name, shown above the handle; the handle stands in when the session has none. */
+  /** Display name, shown above the email; the handle stands in when the session has none. */
   name?: string;
-  /** Pending invitations to this person, shown as a count on My invitations; none shows no count. */
-  pendingInvitations?: number;
-  /** Called when the menu opens, so the count can be fetched lazily (keep it stable between renders). */
-  onOpen?(): void;
+  /** Full email address, shown directly under the name; the handle stands in when the session has none. */
+  email?: string;
 }
 
 const AccountInfoContext = createContext<AccountInfo>({});
 
-/** Supplies the name and pending-invitation count behind the account menu (the app reads them from the session). */
+/** Supplies the name and email behind the account menu (the app reads them from the session). */
 export function AccountInfoProvider({ children, ...info }: AccountInfo & { children: ReactNode }) {
-  const { name, pendingInvitations, onOpen } = info;
-  return (
-    <AccountInfoContext.Provider value={{ name, pendingInvitations, onOpen }}>{children}</AccountInfoContext.Provider>
-  );
+  const { name, email } = info;
+  return <AccountInfoContext.Provider value={{ name, email }}>{children}</AccountInfoContext.Provider>;
 }
 
 export interface AccountMenuProps {
@@ -45,7 +41,7 @@ export interface AccountMenuProps {
 
 /**
  * The user's avatar in the top bar. With a sign-out action in context it is a button opening the account menu
- * (identity, My invitations, Logout); without one (static boards) it stays a plain avatar.
+ * (identity, Logout); without one (static boards) it stays a plain avatar.
  */
 export function AccountMenu({ user }: AccountMenuProps) {
   const onSignOut = useContext(SignOutContext);
@@ -58,14 +54,10 @@ const MENU_ITEMS = 'a[href],button:not([disabled])';
 const ARROW_KEYS = ['ArrowDown', 'ArrowUp', 'Home', 'End'];
 
 function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar: ReactNode; onSignOut: () => void }) {
-  const { name, pendingInvitations = 0, onOpen } = useContext(AccountInfoContext);
+  const { name, email } = useContext(AccountInfoContext);
   const [open, setOpen] = useState(false);
   const wrapRef = useRef<HTMLDivElement>(null);
   const menuId = useId();
-
-  useEffect(() => {
-    if (open) onOpen?.();
-  }, [open, onOpen]);
 
   // An outside press closes the menu; Escape is handled by the Popover, which also returns focus to the button.
   useEffect(() => {
@@ -127,17 +119,8 @@ function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar
             <b className={styles.name} title={name ?? login}>
               {name || login}
             </b>
-            <span className="mono faint">{login}</span>
+            <span className={`mono faint ${styles.email}`}>{email || login}</span>
           </span>
-          <AppLink href="/invitations" className={styles.item} role="menuitem" onClick={() => setOpen(false)}>
-            <Icon name="mail" size={15} />
-            <span>My invitations</span>
-            {pendingInvitations > 0 && (
-              <span className={styles.count}>
-                <CountBadge count={pendingInvitations} label="pending" title={`${pendingInvitations} pending`} />
-              </span>
-            )}
-          </AppLink>
           <div role="separator" className={styles.separator} />
           <button
             type="button"
@@ -148,7 +131,8 @@ function AccountMenuButton({ login, avatar, onSignOut }: { login: string; avatar
               onSignOut();
             }}
           >
-            Logout
+            <Icon name="logout" size={15} />
+            <span>Logout</span>
           </button>
         </div>
       </Popover>
