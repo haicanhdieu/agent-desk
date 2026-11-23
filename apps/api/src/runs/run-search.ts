@@ -46,6 +46,13 @@ function runMatches(q: string): SQL {
 /**
  * Refs of the tickets whose newest snapshot matches, and of the tickets linked to them by the newest link of each
  * PR (as `linkedTickets` shows them): a PR hit adds its issues and their other PRs, an issue hit adds its PRs.
+ *
+ * Query plan (EXPLAIN ANALYZE, local Postgres, one project of 30,000 runs / 15,000 tickets, measured when this was
+ * added): the CTEs run once per statement (the `in (...)` is an uncorrelated, hashed subquery), so the count and the
+ * page statement each took roughly 25-125 ms; the page statement stops early once 25 rows match, while a query
+ * matching nothing reads every run of the project. The cost is linear in the project's run count. No btree or GIN
+ * index can serve `strpos(lower(..))`, so none is added: a trigram index needs the pg_trgm extension, which is a
+ * human decision to take only if a real project outgrows this.
  */
 function matchingGroupRefs(projectId: string, q: string): SQL {
   return sql`(
