@@ -4,7 +4,9 @@ import { and, asc, eq, sql } from 'drizzle-orm';
 import { projectEnvSecretName, type SecretStore } from '@agentdesk/core';
 import { projectEnvVars, projects, user, withOrg, type Db, type Tx } from '@agentdesk/db';
 import {
+  ENV_CAP_DETAIL_PREFIX,
   ENV_MAX_TOTAL_BYTES,
+  ENV_SIZE_DETAIL_PREFIX,
   pageWindow,
   toPage,
   type CreateEnvSecretRequest,
@@ -92,16 +94,7 @@ export class ProjectEnvService {
     return withOrg(this.db, org.orgId, async (tx) => {
       await assertProjectVisible(tx, projectId);
       await this.lockProject(tx, projectId);
-      const existing = await tx
-        .select({ id: projectEnvVars.id })
-        .from(projectEnvVars)
-        .where(and(eq(projectEnvVars.projectId, projectId), eq(projectEnvVars.name, body.name)))
-        .limit(1);
-      if (existing[0]) {
-        throw new ConflictProblemException('Name already exists', [
-          { pointer: '/name', detail: 'An entry with this name already exists.' },
-        ]);
-      }
+      await this.assertNameFree(tx, projectId, body.name);
       // after the duplicate check, so an existing name is reported as such even at a limit (BR-14)
       await this.checkLimits(tx, projectId, { addEntry: true, deltaBytes: entrySize(body.name, body.value) });
       const [row] = await tx
@@ -115,13 +108,7 @@ export class ProjectEnvService {
           sizeBytes: entrySize(body.name, body.value),
           updatedBy: actor,
         })
-        .returning({
-          name: projectEnvVars.name,
-          kind: projectEnvVars.kind,
-          value: projectEnvVars.value,
-          updatedAt: projectEnvVars.updatedAt,
-          updatedBy: projectEnvVars.updatedBy,
-        });
+        .returning(ENTRY_COLUMNS);
       if (!row) throw new Error('env var insert returned no row');
       return toDto({ ...row, updatedBy: await this.handleOf(tx, actor) });
     });
@@ -150,13 +137,7 @@ export class ProjectEnvService {
         .update(projectEnvVars)
         .set({ value: body.value, sizeBytes, updatedBy: actor, updatedAt: sql`now()` })
         .where(where)
-        .returning({
-          name: projectEnvVars.name,
-          kind: projectEnvVars.kind,
-          value: projectEnvVars.value,
-          updatedAt: projectEnvVars.updatedAt,
-          updatedBy: projectEnvVars.updatedBy,
-        });
+        .returning(ENTRY_COLUMNS);
       if (!row) throw new NotFoundException('Variable not found');
       return toDto({ ...row, updatedBy: await this.handleOf(tx, actor) });
     });
@@ -333,19 +314,6 @@ export class ProjectEnvService {
     }
   }
 
-  /**
-   * Takes the project row lock (serialising every env write of the project), then enforces the entry cap (only when a
-   * new entry is added) and the 256 KiB total (name and value bytes of both kinds, after the change).
-   */
-  async lockProjectAndCheck(
-    tx: Tx,
-    projectId: string,
-    change: { addEntry: boolean; deltaBytes: number },
-  ): Promise<void> {
-    await this.lockProject(tx, projectId);
-    await this.checkLimits(tx, projectId, change);
-  }
-
   private async lockProject(tx: Tx, projectId: string): Promise<void> {
     await tx.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).for('update');
   }
@@ -365,12 +333,10 @@ export class ProjectEnvService {
       .where(eq(projectEnvVars.projectId, projectId));
     const max = this.config.PROJECT_ENV_MAX_ENTRIES;
     if (change.addEntry && (used?.count ?? 0) >= max) {
-      throw new ConflictException(`This project already has the maximum of ${max} environment entries.`);
+      throw new ConflictException(`${ENV_CAP_DETAIL_PREFIX}${max} environment entries.`);
     }
     if (change.deltaBytes > 0 && (used?.bytes ?? 0) + change.deltaBytes > ENV_MAX_TOTAL_BYTES) {
-      throw new ConflictException(
-        `Names and values together cannot exceed ${ENV_MAX_TOTAL_BYTES} bytes (256 KiB) per project.`,
-      );
+      throw new ConflictException(`${ENV_SIZE_DETAIL_PREFIX}${ENV_MAX_TOTAL_BYTES} bytes (256 KiB) per project.`);
     }
   }
 

@@ -405,7 +405,12 @@ test.describe('BR-28: edit of an entry removed meanwhile', () => {
     });
     await vars(page).getByRole('button', { name: 'Save' }).click();
     await expect(vars(page).getByText(GONE, { exact: true })).toBeVisible();
+    // The placeholder form row keeps the banner up; closing it shows the refreshed list without a reload.
+    await vars(page).getByRole('button', { name: 'Cancel' }).click();
+    await expect(vars(page).getByText(GONE, { exact: true })).toHaveCount(0);
+    await expect(vars(page).getByText(name, { exact: true })).toHaveCount(0);
     await expect(vars(page).getByRole('button', { name: `Edit ${name}` })).toHaveCount(0);
+    await expect(vars(page).getByRole('button', { name: 'Add variable' })).toBeVisible();
     expect(await listEnv(page, projectId, 'plain')).toEqual([]);
     await page.reload();
     await expect(vars(page).getByRole('button', { name: 'Add variable' })).toBeVisible();
@@ -430,7 +435,12 @@ test.describe('BR-28: edit of an entry removed meanwhile', () => {
     });
     await secrets(page).getByRole('button', { name: 'Save' }).click();
     await expect(secrets(page).getByText(GONE, { exact: true })).toBeVisible();
+    // The placeholder form row keeps the banner up; closing it shows the refreshed list without a reload.
+    await secrets(page).getByRole('button', { name: 'Cancel' }).click();
+    await expect(secrets(page).getByText(GONE, { exact: true })).toHaveCount(0);
+    await expect(secrets(page).getByText(name, { exact: true })).toHaveCount(0);
     await expect(secrets(page).getByRole('button', { name: `Replace ${name}` })).toHaveCount(0);
+    await expect(secrets(page).getByRole('button', { name: 'Add secret' })).toBeVisible();
     expect(await listEnv(page, projectId, 'secret')).toEqual([]);
     await page.reload();
     await expect(secrets(page).getByRole('button', { name: 'Add secret' })).toBeVisible();

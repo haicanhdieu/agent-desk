@@ -19,7 +19,9 @@ import {
   type RouteDef,
   type RuleDto,
   FINAL_RUN_STATUSES,
+  ENV_CAP_DETAIL_PREFIX,
   ENV_MAX_TOTAL_BYTES,
+  ENV_SIZE_DETAIL_PREFIX,
   type EnvEntryDto,
   type EnvKind,
   slicePage,
@@ -535,7 +537,7 @@ function assertEnvRoom(list: EnvEntryDto[], change: { addEntry: boolean; deltaBy
       status: 409,
       title: 'Conflict',
       type: 'conflict',
-      detail: `This project already has the maximum of ${ENV_MAX_ENTRIES} environment entries.`,
+      detail: `${ENV_CAP_DETAIL_PREFIX}${ENV_MAX_ENTRIES} environment entries.`,
     });
   }
   const used = list.reduce((sum, e) => sum + envBytes(e), 0);
@@ -544,7 +546,7 @@ function assertEnvRoom(list: EnvEntryDto[], change: { addEntry: boolean; deltaBy
       status: 409,
       title: 'Conflict',
       type: 'conflict',
-      detail: `Names and values together cannot exceed ${ENV_MAX_TOTAL_BYTES} bytes (256 KiB) per project.`,
+      detail: `${ENV_SIZE_DETAIL_PREFIX}${ENV_MAX_TOTAL_BYTES} bytes (256 KiB) per project.`,
     });
   }
 }

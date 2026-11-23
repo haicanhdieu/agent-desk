@@ -323,6 +323,10 @@ describe('size total', () => {
     await fill();
     const over = await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'LAST', value: 'a'.repeat(8003) });
     expect(over.statusCode).toBe(409);
+    // the web tells the size 409 from the cap 409 by this text (contracts ENV_SIZE_DETAIL_PREFIX)
+    expect(over.json<{ detail: string }>().detail).toBe(
+      'Names and values together cannot exceed 262144 bytes (256 KiB) per project.',
+    );
     expect(await rows(a, a.p1)).toHaveLength(31);
     const exact = await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'LAST', value: 'a'.repeat(8002) });
     expect(exact.statusCode).toBe(201);
@@ -348,6 +352,10 @@ describe('entry cap at the default', () => {
     await seedEnvRows(t, a.orgId, a.p1, 100, 'secret');
     const res = await send(t, 'POST', varsUrl(a.p1), a.owner, { name: 'ONE_TOO_MANY', value: 'x' });
     expect(res.statusCode).toBe(409);
+    // the web tells the cap 409 from the size 409 by this text (contracts ENV_CAP_DETAIL_PREFIX)
+    expect(res.json<{ detail: string }>().detail).toBe(
+      'This project already has the maximum of 500 environment entries.',
+    );
     expect(await rows(a, a.p1)).toHaveLength(500);
   });
 

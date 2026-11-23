@@ -334,6 +334,26 @@ describe('createSetupTestJob project env', () => {
     await acts.finalizeSetupTest(ref);
   });
 
+  it('a Secret left by an earlier attempt keeps an existing secret value, adds a missing key and leaves platform keys', async () => {
+    await setEntry('E2E_SECRET', 'secret', SECRET_A);
+    await setEntry('E2E_LATE', 'secret', 'late-secret-value');
+    const ref = await seedTest();
+    const name = setupTestJobName(ref.setupTestId);
+    await kube.ensureSecret(name, { STALE_KEY: 'stale-value-1', E2E_SECRET: 'old-secret-value-9' }, {});
+    const acts = createSetupTestActivities(deps({ kube: capturing() }));
+    await acts.createSetupTestJob(ref);
+    const secret = await kube.readSecret(name);
+    expect(secret).toMatchObject({
+      STALE_KEY: 'stale-value-1',
+      E2E_SECRET: 'old-secret-value-9',
+      E2E_LATE: 'late-secret-value',
+    });
+    // Platform keys of the left Secret are untouched: the project step never writes them.
+    expect(Object.keys(secret ?? {}).sort()).toEqual(['E2E_LATE', 'E2E_SECRET', 'STALE_KEY']);
+    expect(await kube.podEnv(name)).toMatchObject({ E2E_SECRET: 'old-secret-value-9', E2E_LATE: 'late-secret-value' });
+    await acts.finalizeSetupTest(ref);
+  });
+
   it('an empty project gives the same Secret and no extra env as before', async () => {
     const ref = await seedTest();
     const acts = createSetupTestActivities(deps({ kube: capturing() }));

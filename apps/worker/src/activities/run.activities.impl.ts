@@ -588,8 +588,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       const { token, expiresAt } = await codeHost.mintWorkspaceToken(project);
       known = [...known, token];
       plan = { nextRefreshSeconds: nextRefreshDelaySeconds(expiresAt, clock.now()) };
-      // Read fresh on every attempt and on resume: a save between attempts is picked up (accepted). The values stay in
-      // this activity: secrets go into the run Secret, plain values into the Job env.
+      // Read fresh on every attempt and on resume. A value saved between attempts is picked up only for keys the
+      // surviving Secret lacks; keys it already has keep their first value, so the Secret always matches what a live pod
+      // already read (and what redaction knows). The values stay in this activity: secrets go into the run Secret,
+      // plain values into the Job env.
       const projectEnv = await loadProjectEnv(db, deps.secrets, { orgId: ctx.orgId, projectId: ctx.projectId });
       known = [...known, ...secretValues(projectEnv.secrets)];
       const secretData: Record<string, string> = {
@@ -604,6 +606,14 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       // The repo URL carries no credential. The token is its own key, mounted as a file so a refresh reaches the
       // running pod (ADR 0021); only the repo URL and the agent credential become env vars.
       await kube.ensureSecret(name, { ...projectEnv.secrets, ...secretData }, runLabels(ctx));
+      // A Secret left by a failed attempt keeps its old keys (create is a no-op on 409): add only the project secret
+      // keys it lacks, so every secretKeyRef of the Job below finds its key. An existing value is never overwritten (a
+      // surviving pod holds it and the redaction list is built from the Secret); platform keys are not touched.
+      const existing = (await kube.readSecret(name)) ?? {};
+      const missing = Object.fromEntries(
+        Object.entries(projectEnv.secrets).filter(([key]) => !Object.hasOwn(existing, key)),
+      );
+      if (Object.keys(missing).length > 0) await kube.replaceSecretData(name, missing);
       const prompt = buildPrompt({
         ...promptSourceOf(d),
         ticketKind: d.ticketKind,

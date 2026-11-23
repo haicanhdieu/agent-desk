@@ -1015,6 +1015,32 @@ describe('createRunSecretAndJob project env', () => {
     await acts.deleteJob(ctx);
   });
 
+  it('a retry that finds the run Secret from a failed attempt keeps an existing secret value and adds a key saved meanwhile', async () => {
+    await setEntry('E2E_SECRET', 'secret', 'old-secret-value');
+    const runId = await seedRun('x');
+    const ctx = await ctxFor(runId);
+    const failing = wrapKube({
+      ensureVolumeClaim: async () => {
+        throw new Error('500 pvc unavailable');
+      },
+    });
+    await createRunActivities(deps({ kube: failing }))
+      .createRunSecretAndJob(ctx)
+      .catch(() => undefined);
+    expect(await kube.readSecret(`run-${runId}`)).not.toBeNull();
+    await setEntry('E2E_SECRET', 'secret', 'new-secret-value');
+    await setEntry('E2E_LATE', 'secret', 'late-secret-value');
+    const acts = createRunActivities(deps());
+    await acts.createRunSecretAndJob(ctx);
+    // The first value stays (a surviving pod may already hold it, and redaction is built from the Secret).
+    expect(await kube.readSecret(`run-${runId}`)).toMatchObject({
+      E2E_SECRET: 'old-secret-value',
+      E2E_LATE: 'late-secret-value',
+    });
+    expect(await env(runId)).toMatchObject({ E2E_SECRET: 'old-secret-value', E2E_LATE: 'late-secret-value' });
+    await acts.deleteJob(ctx);
+  });
+
   it('a save after the Job exists leaves the existing Job and Secret untouched', async () => {
     await setEntry('E2E_PLAIN', 'plain', 'first-plain');
     await setEntry('E2E_SECRET', 'secret', 'first-secret-value');

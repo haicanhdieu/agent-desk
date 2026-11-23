@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   CreateEnvSecretRequest,
   CreateEnvVarRequest,
+  ENV_CAP_DETAIL_PREFIX,
   ENV_MAX_TOTAL_BYTES,
+  ENV_SIZE_DETAIL_PREFIX,
   ENV_NAME_MAX,
   ENV_VALUE_MAX_BYTES,
   EnvEntryDto,
@@ -27,6 +29,11 @@ describe('env limits', () => {
     expect(ENV_VALUE_MAX_BYTES).toBe(8192);
     expect(ENV_MAX_TOTAL_BYTES).toBe(262144);
     expect(SECRET_VALUE_MIN_LENGTH).toBe(6);
+  });
+
+  it('pins the start of the two 409 details the web tells apart', () => {
+    expect(ENV_CAP_DETAIL_PREFIX).toBe('This project already has the maximum of ');
+    expect(ENV_SIZE_DETAIL_PREFIX).toBe('Names and values together cannot exceed ');
   });
 });
 

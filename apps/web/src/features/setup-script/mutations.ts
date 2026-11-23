@@ -1,6 +1,6 @@
 import { ApiError } from '@agentdesk/contracts/client';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { EnvKind } from '@agentdesk/contracts';
+import { ENV_CAP_DETAIL_PREFIX, ENV_SIZE_DETAIL_PREFIX, type EnvKind } from '@agentdesk/contracts';
 import type { EnvSaveError } from '@/components';
 import { api } from '../api';
 import { fieldErrorsFromProblem, GENERIC_FORM_ERROR } from '../desk/problem';
@@ -64,8 +64,6 @@ const TOO_MANY = 'Too many entries';
 const TOO_LARGE = 'Too large';
 // The API gives every 409 the title "Conflict"; its two limit conflicts are told apart by the start of their detail
 // (project-env.service.ts `checkLimits`). Both texts are fixed by the API, never by a caller.
-const CAP_DETAIL = 'This project already has the maximum of ';
-const SIZE_DETAIL = 'Names and values together cannot exceed ';
 const TOO_LARGE_DETAIL =
   'Names and values of this project would pass 256 KiB together. Shorten or remove entries to make room.';
 const SERVER_ERROR = 500;
@@ -79,10 +77,10 @@ const POINTERS = { '/name': 'name', '/value': 'value' };
 export function envSaveError(e: unknown, typedName?: string): EnvSaveError {
   if (!(e instanceof ApiError)) return { banner: { title: GENERIC_FORM_ERROR } };
   if (e.status === 404) return { gone: true };
-  if (e.status === 409 && e.detail?.startsWith(CAP_DETAIL) === true) {
+  if (e.status === 409 && e.detail?.startsWith(ENV_CAP_DETAIL_PREFIX) === true) {
     return { banner: { title: TOO_MANY, ...(e.detail !== undefined && { detail: e.detail }) } };
   }
-  if (e.status === 409 && e.detail?.startsWith(SIZE_DETAIL) === true)
+  if (e.status === 409 && e.detail?.startsWith(ENV_SIZE_DETAIL_PREFIX) === true)
     return { banner: { title: TOO_LARGE, detail: TOO_LARGE_DETAIL } };
   if (e.status >= SERVER_ERROR) {
     return { banner: { title: e.title, ...(e.requestId !== undefined && { requestId: e.requestId }) } };

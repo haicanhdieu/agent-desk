@@ -158,6 +158,14 @@ export function createSetupTestActivities(deps: SetupTestActivityDeps): SetupTes
       // Repo URL and workspace token only (plus project env): a setup test never gets the agent credential. It is not
       // refreshed; the test lives well under the token's hour.
       await kube.ensureSecret(name, { ...projectEnv.secrets, ...secretData }, labels);
+      // A Secret left by a failed attempt keeps its old keys (create is a no-op on 409): add only the project secret
+      // keys it lacks, so every secretKeyRef of the Job below finds its key. An existing value is never overwritten (a
+      // surviving pod holds it and the redaction list is built from the Secret); platform keys are not touched.
+      const existing = (await kube.readSecret(name)) ?? {};
+      const missing = Object.fromEntries(
+        Object.entries(projectEnv.secrets).filter(([key]) => !Object.hasOwn(existing, key)),
+      );
+      if (Object.keys(missing).length > 0) await kube.replaceSecretData(name, missing);
       const job = buildSetupTestJob({
         setupTestId: ref.setupTestId,
         orgId: ref.orgId,

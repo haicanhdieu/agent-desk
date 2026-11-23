@@ -844,7 +844,7 @@ test.describe('BR-4: the env of a project is scoped to the project and the org',
     const page = cast.a.page;
     await page.goto(envPath(cast.slug, cast.p2));
     await expect(page.getByText('Page not found')).toBeVisible();
-    await expect(page.getByText('Forbidden')).toHaveCount(0);
+    await expect(page.getByText("You don't have access")).toHaveCount(0);
     await expect(page.getByText(p2Name)).toHaveCount(0);
   });
 
@@ -871,7 +871,7 @@ test.describe('BR-4: the env of a project is scoped to the project and the org',
       const page = second.owner.page;
       await page.goto(envPath(cast.slug, cast.p1));
       await expect(page.getByText('Page not found')).toBeVisible();
-      await expect(page.getByText('Forbidden')).toHaveCount(0);
+      await expect(page.getByText("You don't have access")).toHaveCount(0);
       await expect(page.getByText(aName)).toHaveCount(0);
 
       for (const { what, call } of envCalls(second.owner, cast.p1, aName, `E2E_SECRET_${rand}`)) {

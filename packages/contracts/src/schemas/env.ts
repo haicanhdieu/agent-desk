@@ -6,6 +6,12 @@ export const ENV_NAME_MAX = 128;
 export const ENV_VALUE_MAX_BYTES = 8192;
 /** Sum of UTF-8 bytes of every name and value of a project, both kinds. Fixed, not configurable. */
 export const ENV_MAX_TOTAL_BYTES = 262144;
+/**
+ * The API gives both limit 409s the title "Conflict"; the web tells them apart by the start of their detail, so these
+ * two prefixes are the contract (API `checkLimits`, web `envSaveError`, the web mock).
+ */
+export const ENV_CAP_DETAIL_PREFIX = 'This project already has the maximum of ';
+export const ENV_SIZE_DETAIL_PREFIX = 'Names and values together cannot exceed ';
 /** Shorter secrets are not redacted from run output (`MIN_SECRET_LENGTH` in the worker). */
 export const SECRET_VALUE_MIN_LENGTH = 6;
 
