@@ -125,3 +125,6 @@ export { MemberRow, memberColumns, type MemberRowProps } from './MemberRow';
 export { AuditRow, auditColumns } from './AuditRow';
 export { OrgSettingsLayout, type OrgSettingsLayoutProps } from './OrgSettingsLayout';
 export { InvitationCard, type InvitationCardProps } from './InvitationCard';
+export { PlatformLayout, type PlatformLayoutProps } from './PlatformLayout';
+export { PlatformAdminRow, platformAdminColumns, type PlatformAdminRowProps } from './PlatformAdminRow';
+export { AddPlatformAdminDialog, type AddPlatformAdminDialogProps } from './AddPlatformAdminDialog';

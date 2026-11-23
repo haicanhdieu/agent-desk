@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite';
+import { userEvent, within } from 'storybook/test';
 import {
   AppShell,
   InviteDialog,
@@ -129,6 +130,17 @@ export const MyInvitationsEmptyPlatformAdmin: Story = {
       opsAdmin,
       adminOrg,
     ),
+};
+export const MyInvitationsEmptyPlatformAdminMenu: Story = {
+  name: 'Welcome, platform admin, no org, menu open with Platform admin',
+  render: () =>
+    screen({ kind: 'empty', email: 'ops@example.com', platformAdmin: true, createHref: '/orgs/new' }, opsAdmin, {
+      ...adminOrg,
+      platformHref: '/platform/orgs',
+    }),
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /^Switch organization/ }));
+  },
 };
 export const MyInvitationsError: Story = {
   name: 'Welcome, failed to load',

@@ -13,6 +13,7 @@ const terminalArea = 'Screens/RunTerminalArea';
 const desk = 'Screens/Desk';
 const invitations = 'Screens/Invitations';
 const orgSettings = 'Screens/OrgSettings';
+const platform = 'Screens/Platform';
 
 /** The 97 boards of design/prototype/project/canvas.json, in canvas order. */
 export const boardStories = {
@@ -205,6 +206,22 @@ export const boardStories = {
   OrgAuditLoading: { title: orgSettings, exportName: 'OrgAuditLoading' },
   OrgAuditError: { title: orgSettings, exportName: 'OrgAuditError' },
   OrgAuditForbidden: { title: orgSettings, exportName: 'OrgAuditForbidden' },
+  PlatformAdmins: { title: platform, exportName: 'PlatformAdmins' },
+  PlatformAdminsLoading: { title: platform, exportName: 'PlatformAdminsLoading' },
+  PlatformAdminsEmpty: { title: platform, exportName: 'PlatformAdminsEmpty' },
+  PlatformAdminsError: { title: platform, exportName: 'PlatformAdminsError' },
+  PlatformAdminsForbidden: { title: platform, exportName: 'PlatformAdminsForbidden' },
+  PlatformAdminsPaged: { title: platform, exportName: 'PlatformAdminsPaged' },
+  PlatformAdminsAdd: { title: platform, exportName: 'PlatformAdminsAdd' },
+  PlatformAdminsAddError: { title: platform, exportName: 'PlatformAdminsAddError' },
+  PlatformAdminsAddFieldErrors: { title: platform, exportName: 'PlatformAdminsAddFieldErrors' },
+  PlatformAdminsAddSaving: { title: platform, exportName: 'PlatformAdminsAddSaving' },
+  PlatformAdminsRevokeConfirm: { title: platform, exportName: 'PlatformAdminsRevokeConfirm' },
+  PlatformAdminsRevokeSelf: { title: platform, exportName: 'PlatformAdminsRevokeSelf' },
+  PlatformAdminsRevoking: { title: platform, exportName: 'PlatformAdminsRevoking' },
+  PlatformAdminsLastAdmin: { title: platform, exportName: 'PlatformAdminsLastAdmin' },
+  ProjectsOrgSwitchAdminPlatform: { title: entry, exportName: 'ProjectsOrgSwitchAdminPlatform' },
+  MyInvitationsEmptyPlatformAdminMenu: { title: invitations, exportName: 'MyInvitationsEmptyPlatformAdminMenu' },
 } as const satisfies Record<string, BoardStory>;
 
 export type BoardName = keyof typeof boardStories;

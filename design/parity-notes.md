@@ -337,3 +337,23 @@ Spec: `docs/superpowers/specs/2026-11-22-org-tenant-admin-design.md` (UI and Sto
 - Forbidden: the project admin's frame (side menu lists only Invitations), the no-access notice inside the layout.
 - Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 6 pixel pairs are unchecked: none is claimed
   to match.
+
+## Platform admin: Platform admins boards
+
+Spec: `docs/superpowers/specs/2026-11-23-platform-admin-dashboard-design.md` (UI and Storybook). Sixteen boards added, so
+`parity.mjs` finds 205: PlatformAdmins, PlatformAdminsLoading, PlatformAdminsEmpty, PlatformAdminsError, PlatformAdminsForbidden,
+PlatformAdminsPaged, PlatformAdminsAdd, PlatformAdminsAddError, PlatformAdminsAddFieldErrors, PlatformAdminsAddSaving,
+PlatformAdminsRevokeConfirm, PlatformAdminsRevokeSelf, PlatformAdminsRevoking, PlatformAdminsLastAdmin (`Screens/Platform`),
+ProjectsOrgSwitchAdminPlatform (`Screens/Entry`) and MyInvitationsEmptyPlatformAdminMenu (`Screens/Invitations`). The boards
+were missing from `canvas.json`; their entries (and order) are added after the Audit log boards.
+
+- Rows: the stories use the shared fixtures (`platformAdminRows`), so names and emails differ from the boards' sample people;
+  the columns, the "Not signed in yet" chip, the "You" chip and the dash cells are the shared `PlatformAdminRow`.
+- Paged: page 2 of 2 shows rows 21 to 25 of 25 from the fixture, where the board shows 21 to 23 of 23.
+- Empty, loading and error: `EmptyState` h2 "No platform admins" (the board draws an h3), a labelled busy status of `Skeleton`
+  blocks with no h1, the shared `RouteLoadError`.
+- Forbidden: the bar stays, the side menu is dropped; "Go to projects" is the shared link `Button`.
+- Dialogs: the shared `AddPlatformAdminDialog`, and an inline revoke confirm built on the design-system `Dialog` (480px).
+- Switcher boards: the open menu shows "Platform admin" above "Create organization" through `OrgSwitch`'s `platformHref`.
+- Storybook and `parity.mjs` were not run in the runner pod (no Chromium). The 16 pixel pairs are unchecked: none is claimed
+  to match. The interactive prototype (`_tools/build-boards.mjs`) was regenerated and came out unchanged: it already had these boards.

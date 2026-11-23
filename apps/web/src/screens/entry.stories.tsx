@@ -259,6 +259,20 @@ export const ProjectsOrgSwitchAdmin: Story = {
   play: openSwitch,
 };
 
+export const ProjectsOrgSwitchAdminPlatform: Story = {
+  name: 'Projects, platform admin, switcher open with Platform admin above Create organization',
+  render: () => (
+    <ProjectsScreen
+      user={opsAdmin}
+      projects={projects}
+      newHref="#"
+      org={{ ...orgOf(harbor, [harbor], true), platformHref: '/platform/orgs' }}
+      canCreate
+    />
+  ),
+  play: openSwitch,
+};
+
 export const ProjectsOrgSwitchOpen: Story = {
   name: 'Projects, switcher open, several orgs',
   render: () => (

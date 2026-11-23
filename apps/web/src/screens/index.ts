@@ -32,3 +32,4 @@ export { OrgGeneral, type OrgGeneralProps } from './OrgGeneral';
 export { OrgAudit, type OrgAuditProps } from './OrgAudit';
 export { OrgMembers, type OrgMembersProps } from './OrgMembers';
 export { CreateOrg, type CreateOrgProps, type CreateOrgState, type CreateOrgValues } from './CreateOrg';
+export { PlatformAdmins, type PlatformAdminsProps, type PlatformAdminsView } from './PlatformAdmins';

@@ -75,3 +75,4 @@ export {
   inviteProjectOptions,
   invitationLink,
 } from './invitations';
+export { platformAdminRows, pagedPlatformAdminRows, type PlatformAdminRowView } from './platform/admins';

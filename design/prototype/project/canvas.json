@@ -1521,6 +1521,134 @@
    "h": 900,
    "title": "Settings \u2014 Audit log URL opened by a project admin: no access inside the layout",
    "expand": "fill"
+  },
+  "PlatformAdmins.dc.html": {
+   "x": 0,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 two working admins and one seeded email not signed in yet",
+   "expand": "fill"
+  },
+  "PlatformAdminsLoading.dc.html": {
+   "x": 1520,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 loading",
+   "expand": "fill"
+  },
+  "PlatformAdminsEmpty.dc.html": {
+   "x": 3040,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 empty",
+   "expand": "fill"
+  },
+  "PlatformAdminsError.dc.html": {
+   "x": 4560,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 failed to load",
+   "expand": "fill"
+  },
+  "PlatformAdminsForbidden.dc.html": {
+   "x": 6080,
+   "y": 46640,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admin area \u2014 not a platform admin (org owner types /platform/admins)",
+   "expand": "fill"
+  },
+  "PlatformAdminsPaged.dc.html": {
+   "x": 0,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 page 2 of 2",
+   "expand": "fill"
+  },
+  "PlatformAdminsAdd.dc.html": {
+   "x": 1520,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 Add platform admin dialog",
+   "expand": "fill"
+  },
+  "PlatformAdminsAddError.dc.html": {
+   "x": 3040,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 Add: server error banner in the dialog (403 or 5xx)",
+   "expand": "fill"
+  },
+  "PlatformAdminsAddFieldErrors.dc.html": {
+   "x": 4560,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 Add: no account has this email (404)",
+   "expand": "fill"
+  },
+  "PlatformAdminsAddSaving.dc.html": {
+   "x": 6080,
+   "y": 47920,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 Add: adding",
+   "expand": "fill"
+  },
+  "PlatformAdminsRevokeConfirm.dc.html": {
+   "x": 0,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 revoke confirm for another admin",
+   "expand": "fill"
+  },
+  "PlatformAdminsRevokeSelf.dc.html": {
+   "x": 1520,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 revoke your own access (warns)",
+   "expand": "fill"
+  },
+  "PlatformAdminsRevoking.dc.html": {
+   "x": 3040,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 revoking (busy, not closable)",
+   "expand": "fill"
+  },
+  "PlatformAdminsLastAdmin.dc.html": {
+   "x": 4560,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Platform admins \u2014 last working admin: Revoke disabled with the reason",
+   "expand": "fill"
+  },
+  "ProjectsOrgSwitchAdminPlatform.dc.html": {
+   "x": 6080,
+   "y": 49200,
+   "w": 1440,
+   "h": 900,
+   "title": "Projects \u2014 platform admin, switcher open with Platform admin above Create organization",
+   "expand": "fill"
+  },
+  "MyInvitationsEmptyPlatformAdminMenu.dc.html": {
+   "x": 0,
+   "y": 50480,
+   "w": 1440,
+   "h": 900,
+   "title": "Welcome \u2014 platform admin, no org, menu open with Platform admin",
+   "expand": "fill"
   }
  },
  "order": [
@@ -1712,7 +1840,23 @@
   "OrgAuditEmpty.dc.html",
   "OrgAuditLoading.dc.html",
   "OrgAuditError.dc.html",
-  "OrgAuditForbidden.dc.html"
+  "OrgAuditForbidden.dc.html",
+  "PlatformAdmins.dc.html",
+  "PlatformAdminsLoading.dc.html",
+  "PlatformAdminsEmpty.dc.html",
+  "PlatformAdminsError.dc.html",
+  "PlatformAdminsForbidden.dc.html",
+  "PlatformAdminsPaged.dc.html",
+  "PlatformAdminsAdd.dc.html",
+  "PlatformAdminsAddError.dc.html",
+  "PlatformAdminsAddFieldErrors.dc.html",
+  "PlatformAdminsAddSaving.dc.html",
+  "PlatformAdminsRevokeConfirm.dc.html",
+  "PlatformAdminsRevokeSelf.dc.html",
+  "PlatformAdminsRevoking.dc.html",
+  "PlatformAdminsLastAdmin.dc.html",
+  "ProjectsOrgSwitchAdminPlatform.dc.html",
+  "MyInvitationsEmptyPlatformAdminMenu.dc.html"
  ],
  "notes": {
   "t-intro": {

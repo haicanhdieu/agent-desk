@@ -721,3 +721,18 @@
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* platform admin area: the page next to the side menu */
+.platformMain {
+  flex: 1;
+  min-width: 0;
+  padding: 24px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.platformLoading {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}

@@ -1,0 +1,148 @@
+import type { Meta, StoryObj } from '@storybook/react-vite';
+import { AppShell } from '@/components';
+import { pagedPlatformAdminRows, platformAdminRows, type PlatformAdminRowView } from '@/mocks';
+import { PlatformAdmins as PlatformAdminsScreen, type PlatformAdminsProps } from './PlatformAdmins';
+import { PlatformFrame } from './platformFrame';
+import { viewport } from './viewports';
+
+const noop = () => undefined;
+
+const meta = {
+  title: 'Screens/Platform',
+  parameters: { layout: 'fullscreen' },
+  globals: viewport(1440, 900),
+  decorators: [
+    (S) => (
+      <AppShell height={900} topBar={null}>
+        <S />
+      </AppShell>
+    ),
+  ],
+} satisfies Meta;
+export default meta;
+type Story = StoryObj<typeof meta>;
+
+const pagination = {
+  page: 1,
+  pageSize: 20 as const,
+  total: platformAdminRows.length,
+  onPageChange: noop,
+  onPageSizeChange: noop,
+};
+
+const admins = (over: Partial<PlatformAdminsProps> = {}, sideMenu = true) => (
+  <PlatformFrame active="admins" sideMenu={sideMenu}>
+    <PlatformAdminsScreen
+      view={{ kind: 'ready', rows: platformAdminRows, pagination }}
+      onAdd={noop}
+      onRevoke={noop}
+      {...over}
+    />
+  </PlatformFrame>
+);
+
+const find = (email: string): PlatformAdminRowView => {
+  const row = platformAdminRows.find((r) => r.email === email);
+  if (!row) throw new Error(`platform admin fixtures lost ${email}`);
+  return row;
+};
+const grace = find('grace@example.com');
+const alice = find('alice@example.com');
+
+export const PlatformAdmins: Story = {
+  name: 'Platform admins, two working admins and one email not signed in yet',
+  render: () => admins(),
+};
+export const PlatformAdminsLoading: Story = {
+  name: 'Platform admins, loading',
+  render: () => admins({ view: { kind: 'loading' } }),
+};
+export const PlatformAdminsEmpty: Story = {
+  name: 'Platform admins, empty',
+  render: () => admins({ view: { kind: 'ready', rows: [], pagination } }),
+};
+export const PlatformAdminsError: Story = {
+  name: 'Platform admins, failed to load',
+  render: () =>
+    admins({
+      view: { kind: 'error', title: 'Internal server error', requestId: 'req_01JDP4A7K2QX', onRetry: noop },
+    }),
+};
+export const PlatformAdminsForbidden: Story = {
+  name: 'Platform admin area, not a platform admin: no side menu',
+  render: () => admins({ view: { kind: 'forbidden' } }, false),
+};
+export const PlatformAdminsPaged: Story = {
+  name: 'Platform admins, page 2 of 2',
+  render: () =>
+    admins({
+      view: {
+        kind: 'ready',
+        rows: pagedPlatformAdminRows.slice(20),
+        pagination: { page: 2, pageSize: 20 as const, total: 25, onPageChange: noop, onPageSizeChange: noop },
+      },
+    }),
+};
+
+const addDialog = (over: Partial<NonNullable<PlatformAdminsProps['addDialog']>> = {}) =>
+  admins({
+    addDialog: {
+      open: true,
+      values: { email: '' },
+      errors: {},
+      saving: false,
+      onChange: noop,
+      onSubmit: noop,
+      onClose: noop,
+      ...over,
+    },
+  });
+
+export const PlatformAdminsAdd: Story = {
+  name: 'Platform admins, Add platform admin dialog',
+  render: () => addDialog(),
+};
+export const PlatformAdminsAddError: Story = {
+  name: 'Platform admins, Add: server error banner in the dialog',
+  render: () =>
+    addDialog({
+      values: { email: 'dana.ortiz@example.com' },
+      formError: { title: 'Internal server error', requestId: 'req_01JDP4C9W1ZE' },
+    }),
+};
+export const PlatformAdminsAddFieldErrors: Story = {
+  name: 'Platform admins, Add: no account has this email',
+  render: () =>
+    addDialog({ values: { email: 'jo.marsh@example.com' }, errors: { email: 'No account has this email yet.' } }),
+};
+export const PlatformAdminsAddSaving: Story = {
+  name: 'Platform admins, Add: adding',
+  render: () => addDialog({ values: { email: 'dana.ortiz@example.com' }, saving: true }),
+};
+
+const revoke = (row: PlatformAdminRowView, own: boolean, busy: boolean) =>
+  admins({ revokeConfirm: { row, own, busy, onConfirm: noop, onCancel: noop } });
+
+export const PlatformAdminsRevokeConfirm: Story = {
+  name: 'Platform admins, revoke confirm for another admin',
+  render: () => revoke(grace, false, false),
+};
+export const PlatformAdminsRevokeSelf: Story = {
+  name: 'Platform admins, revoke your own access (warns)',
+  render: () => revoke(alice, true, false),
+};
+export const PlatformAdminsRevoking: Story = {
+  name: 'Platform admins, revoking (busy, not closable)',
+  render: () => revoke(grace, false, true),
+};
+export const PlatformAdminsLastAdmin: Story = {
+  name: 'Platform admins, last working admin: Revoke disabled with the reason',
+  render: () =>
+    admins({
+      view: {
+        kind: 'ready',
+        rows: [find('new.hire@example.com'), { ...alice, lastWorkingAdmin: true }],
+        pagination: { ...pagination, total: 2 },
+      },
+    }),
+};
