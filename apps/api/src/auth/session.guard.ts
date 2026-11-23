@@ -12,11 +12,12 @@ import type { Logger } from 'pino';
 import type { RouteAccess, RouteKey } from '@agentdesk/contracts';
 import type { Db } from '@agentdesk/db';
 import { FORBIDDEN_DETAIL } from '../access/authorize';
-import { checkTenantAccess, isOrgMember } from '../access/check-access';
+import { checkTenantAccess, orgMembership } from '../access/check-access';
 import { isPlatformAdmin } from '../access/platform-admin';
 import { routeEntryFor } from '../access/route-entry';
 import { LOGGER } from '../common/logger';
 import { OrgMismatchException, requestedOrgId } from '../common/org-mismatch';
+import { OrgSuspendedException } from '../common/org-suspended';
 import { requestContext } from '../common/request-context';
 import { DB } from '../db/db.module';
 import { AUTH, type Auth } from './auth';
@@ -62,6 +63,15 @@ export class SessionGuard implements CanActivate {
     @Inject(DB) private readonly db: Db,
     @Inject(LOGGER) private readonly logger: Logger,
   ) {}
+
+  /** The refusal of a suspended org, logged like `deny` (ids only; there is no reason to log). */
+  private suspended(
+    req: FastifyRequest,
+    who: { orgId: string; userId: string; routeKey: RouteKey | null },
+  ): OrgSuspendedException {
+    this.logger.info({ requestId: req.id, ...who }, 'org suspended');
+    return new OrgSuspendedException();
+  }
 
   /** Logs the deny and returns the 403 to throw; the response never says which permission is missing. */
   private deny(
@@ -134,19 +144,20 @@ export class SessionGuard implements CanActivate {
     if (!orgId) throw new ForbiddenException('No active organization');
 
     if (match.kind === 'dev') {
-      if (!(await isOrgMember(this.db, { userId, orgId }))) {
-        throw new ForbiddenException('Not a member of the active organization');
-      }
+      const membership = await orgMembership(this.db, { userId, orgId });
+      if (membership === 'none') throw new ForbiddenException('Not a member of the active organization');
+      if (membership === 'suspended') throw this.suspended(req, { orgId, userId, routeKey: null });
       req.orgContext = { userId, orgId };
       requestContext.set({ orgId });
       return true;
     }
 
-    // Membership, the path :orgId, the permission (before any id is looked up) and the project scope are decided here,
+    // Membership, the org being active, the path :orgId, the permission (before any id is looked up) and the project scope are decided here,
     // so a refusal never depends on what the target is. Any outcome but ok fails closed.
     const { entry } = match;
     const check = await checkTenantAccess(this.db, { userId, orgId }, entry, stringParams(req.params), this.logger);
     if (!check.ok) {
+      if (check.reason === 'org-suspended') throw this.suspended(req, { orgId, userId, routeKey: match.key });
       if (check.status === 404) throw new NotFoundException('Not found');
       throw this.deny(req, {
         orgId,

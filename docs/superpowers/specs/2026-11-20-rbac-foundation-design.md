@@ -268,7 +268,7 @@ New migrations follow `0021_agent_auto_resume_max.sql`; schema and data migratio
 Guard: one global guard, the extended `SessionGuard`:
 
 1. No session → 401. A `scope:'platform'` route (only `/api/platform/*`) needs a verified email with a `platform_admins` entry ([ADR-0037](../../adr/0037-platform-admins-in-database.md)) (which then holds every `platform-*` permission), else 403; no active org or membership is needed; an unknown `:orgId` → 404. A route-table test asserts every `/api/platform/*` route is `scope:'platform'` and no other route is.
-2. Org routes need an active org and a `member` row, else 403.
+2. Org routes need an active org and a `member` row, else 403. Then the org must be active: a member of a suspended org, whatever their role, gets 403 with problem type `org-suspended` before any permission is read (a non-member keeps the plain 403) ([ADR-0038](../../adr/0038-suspended-orgs-refused-at-guard-intake-and-first-start.md)).
 3. `loadAccess(tx, userId)` under `withOrg(orgId)`: one query over `role_assignments` joined with `role_permissions` (and the role key).
 4. The route entry is found by `method + req.routeOptions.url`; an `/api` route with no entry → 403. The install callback reuses `connections.install`.
 5. Permission before target lookup: if the caller holds the route's permission at no scope in the org (no grant line at all, any condition) → 403 before any id is resolved, so a missing, other-org or malformed id gets the same 403 and nothing about the target leaks (BR-6). A member with no assignment therefore gets 403 on `projects.list`. Only callers who hold it somewhere go on.

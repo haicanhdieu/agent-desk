@@ -3,6 +3,7 @@ import type { Logger } from 'pino';
 import { describe, expect, it } from 'vitest';
 import { ConflictException } from '@nestjs/common';
 import { OrgMismatchException } from './org-mismatch';
+import { OrgSuspendedException } from './org-suspended';
 import { NotFoundProblemException } from './zod-validation';
 import { ProblemFilter } from './problem.filter';
 
@@ -94,5 +95,20 @@ describe('ProblemFilter', () => {
     const { host: h, sent } = host();
     new ProblemFilter(capturingLogger().logger).catch(new ConflictException('taken'), h);
     expect(sent.body).toMatchObject({ type: 'about:blank', status: 409, detail: 'taken' });
+  });
+});
+
+describe('ProblemFilter org-suspended', () => {
+  it('answers 403 with type org-suspended and only the fixed text', () => {
+    const { host: h, sent } = host();
+    new ProblemFilter(capturingLogger().logger).catch(new OrgSuspendedException(), h);
+    expect(sent.status).toBe(403);
+    expect(sent.body).toEqual({
+      type: 'org-suspended',
+      title: 'Forbidden',
+      status: 403,
+      detail: 'This organization is suspended.',
+      requestId: 'req-1',
+    });
   });
 });

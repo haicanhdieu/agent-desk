@@ -3,7 +3,6 @@ import type { FastifyReply, FastifyRequest } from 'fastify';
 import { ZodValidationException } from 'nestjs-zod';
 import { z } from 'zod';
 import type { ProblemSchema } from '@agentdesk/contracts';
-import { OrgMismatchException } from './org-mismatch';
 import { describeError } from './pg-errors';
 import { requestContext } from './request-context';
 import {
@@ -15,6 +14,12 @@ import {
   toIssues,
 } from './zod-validation';
 import type { Logger } from 'pino';
+
+/** The problem `type` an exception carries (OrgMismatchException, OrgSuspendedException), else undefined. */
+function problemTypeOf(e: unknown): string | undefined {
+  if (!(e instanceof HttpException) || !('problemType' in e)) return undefined;
+  return typeof e.problemType === 'string' ? e.problemType : undefined;
+}
 
 export const PROBLEM_CONTENT_TYPE = 'application/problem+json';
 
@@ -91,7 +96,7 @@ export class ProblemFilter implements ExceptionFilter {
     }
 
     const problem: ProblemSchema = {
-      type: exception instanceof OrgMismatchException ? exception.problemType : 'about:blank',
+      type: problemTypeOf(exception) ?? 'about:blank',
       title: TITLES[status] ?? HttpStatus[status] ?? 'Error',
       status,
       ...(detail !== undefined && status !== 500 ? { detail } : {}),
