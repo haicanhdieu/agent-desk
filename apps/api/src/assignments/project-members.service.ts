@@ -16,7 +16,11 @@ import { checkTenantAssign } from '../access/grant-rules';
 import { writeAuditEntry } from '../audit/audit-entry';
 import { LOGGER } from '../common/logger';
 import { requestContext } from '../common/request-context';
-import { ConflictProblemException, UnprocessableProblemException } from '../common/zod-validation';
+import {
+  ConflictProblemException,
+  NotFoundProblemException,
+  UnprocessableProblemException,
+} from '../common/zod-validation';
 import { DB } from '../db/db.module';
 import { loadRole } from '../orgs/roles';
 import type { AssignmentRow } from './assignments.service';
@@ -180,6 +184,137 @@ export class ProjectMembersService {
       'project member added',
     );
     return dto;
+  }
+
+  /**
+   * Replaces the person's project-scope roles on the project with one row. Order: lock the person (member row, then
+   * their rows on the project); no row on the project is 404, an unusable role is 422 /roleId, then
+   * `checkTenantAssign` create on the new role and delete on each replaced role (403). The same single role again is
+   * 200 with nothing written. Concurrent writes for one person serialize on the locks; the last one wins.
+   */
+  async setRole(
+    access: Access,
+    orgId: string,
+    projectId: string,
+    userId: string,
+    roleId: string,
+  ): Promise<ProjectMemberDto> {
+    const { dto, changed } = await withOrg(this.db, orgId, async (tx) => {
+      const { rows } = await this.lockPerson(tx, orgId, projectId, userId);
+      if (rows.length === 0) throw new NotFoundProblemException(NOT_ON_PROJECT, []);
+      const role = await loadRole(tx, roleId);
+      if (!role || !role.assignableScopes.includes('project')) {
+        throw new UnprocessableProblemException('Role not allowed here', [
+          {
+            pointer: '/roleId',
+            detail: 'this role does not exist in the organization or cannot be given at this scope',
+          },
+        ]);
+      }
+      const scope = { type: 'project', projectId } as const;
+      if (!checkTenantAssign(access, 'assignment:create', role, scope).ok) {
+        throw new ForbiddenException(FORBIDDEN_DETAIL);
+      }
+      await this.checkCanDelete(tx, access, rows, scope);
+      const unchanged = rows.length === 1 && rows[0]?.roleId === role.id;
+      if (!unchanged) {
+        await tx.delete(roleAssignments).where(
+          and(
+            eq(roleAssignments.orgId, orgId),
+            inArray(
+              roleAssignments.id,
+              rows.map((r) => r.id),
+            ),
+          ),
+        );
+        await tx.insert(roleAssignments).values({
+          orgId,
+          userId,
+          roleId: role.id,
+          scopeType: 'project',
+          projectId,
+          grantedBy: access.userId,
+        });
+        await writeAuditEntry(tx, {
+          orgId,
+          actorUserId: access.userId,
+          actorKind: 'member',
+          action: 'project_member.role_changed',
+          targetType: 'user',
+          targetId: userId,
+          payload: { projectId, from: rows.map((r) => r.roleKey), to: role.key },
+          projectIds: [projectId],
+        });
+      }
+      return { dto: await this.loadOne(tx, orgId, projectId, userId), changed: !unchanged };
+    });
+    // the log follows the audit trail: nothing is logged when nothing was written
+    if (changed) {
+      this.logChange(orgId, projectId, access.userId, userId, 'project_member.role_changed', 'project role changed');
+    }
+    return dto;
+  }
+
+  /**
+   * Removes the person's project-scope roles on the project (never org-scope ones). Yourself is 403 before any lookup;
+   * no row on the project is 404; `checkTenantAssign` delete on each row's role (403).
+   */
+  async remove(access: Access, orgId: string, projectId: string, userId: string): Promise<void> {
+    if (userId === access.userId) throw new ForbiddenException(FORBIDDEN_DETAIL);
+    await withOrg(this.db, orgId, async (tx) => {
+      const { rows } = await this.lockPerson(tx, orgId, projectId, userId);
+      if (rows.length === 0) throw new NotFoundProblemException(NOT_ON_PROJECT, []);
+      await this.checkCanDelete(tx, access, rows, { type: 'project', projectId });
+      await tx.delete(roleAssignments).where(
+        and(
+          eq(roleAssignments.orgId, orgId),
+          inArray(
+            roleAssignments.id,
+            rows.map((r) => r.id),
+          ),
+        ),
+      );
+      await writeAuditEntry(tx, {
+        orgId,
+        actorUserId: access.userId,
+        actorKind: 'member',
+        action: 'project_member.removed',
+        targetType: 'user',
+        targetId: userId,
+        payload: { projectId, from: rows.map((r) => r.roleKey) },
+        projectIds: [projectId],
+      });
+    });
+    this.logChange(orgId, projectId, access.userId, userId, 'project_member.removed', 'project member removed');
+  }
+
+  /** 403 unless the actor may delete the assignment of every distinct role in `rows` at `scope`. */
+  private async checkCanDelete(
+    tx: Tx,
+    access: Access,
+    rows: AssignmentRow[],
+    scope: { type: 'project'; projectId: string },
+  ): Promise<void> {
+    for (const roleId of new Set(rows.map((r) => r.roleId))) {
+      const role = await loadRole(tx, roleId);
+      if (!role || !checkTenantAssign(access, 'assignment:delete', role, scope).ok) {
+        throw new ForbiddenException(FORBIDDEN_DETAIL);
+      }
+    }
+  }
+
+  private logChange(
+    orgId: string,
+    projectId: string,
+    actorUserId: string,
+    targetUserId: string,
+    action: string,
+    message: string,
+  ): void {
+    this.logger.info(
+      { requestId: requestContext.get()?.requestId, orgId, projectId, actorUserId, targetUserId, action },
+      message,
+    );
   }
 
   /** Locks the member row, then the person's project-scope rows on P (both FOR UPDATE); no member row = not in the org. */

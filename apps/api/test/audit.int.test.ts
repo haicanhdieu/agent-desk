@@ -1,21 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import pino from 'pino';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AuditEntryDto, Page } from '@agentdesk/contracts';
-import { auditLog, connections, projects, withOrg } from '@agentdesk/db';
+import { auditLog, connections, invitations, projects, withOrg } from '@agentdesk/db';
 import { createTestApp, type TestApp } from './helpers/app';
 import {
   acceptInvite,
+  addProjectMember,
   changeRole,
   createOrg,
   declineInvite,
   inviteAndLogin,
   invite,
+  grant,
   loginAs,
   auditList,
+  projectAudit,
   removeMember,
+  removeProjectMember,
+  revoke,
   roleIdsOf,
+  setProjectRole,
   updateOrg,
   userIdOf,
 } from './helpers/auth';
@@ -409,5 +415,302 @@ describe('audit list', () => {
     const resent = logLines.find((l) => l['msg'] === 'invitation resent' && l['invitationId'] === pending.id);
     expect(resent?.['orgId']).toBe(f.orgId);
     expect(logLines.some((l) => JSON.stringify(l).includes(email))).toBe(false);
+  });
+});
+
+interface ProjectCast {
+  orgId: string;
+  p1: string;
+  p2: string;
+  /** org owner */
+  o: string;
+  /** admin on P1 only */
+  a: string;
+  /** admin on P2 only */
+  a2: string;
+  /** member on P1 */
+  b: string;
+  v: string;
+  /** a signed-in org member with no assignment */
+  n: string;
+  /** org viewer, admin on P1 */
+  vAdmin: string;
+  roles: Record<'owner' | 'admin' | 'member' | 'viewer', string>;
+  ids: { a: string; c: string };
+}
+
+async function buildProjectCast(slug: string): Promise<ProjectCast> {
+  const org = await createOrg(t, `Org ${slug}`, slug);
+  const p1 = await seedProject(org.id, `P1-${slug}`);
+  const p2 = await seedProject(org.id, `P2-${slug}`);
+  const h = (n: string) => `${slug}-${n}`;
+  const o = await inviteAndLogin(t, org.id, h('o'), 'owner', { type: 'org' });
+  const a = await inviteAndLogin(t, org.id, h('a'), 'admin', { type: 'project', projectIds: [p1] });
+  const a2 = await inviteAndLogin(t, org.id, h('a2'), 'admin', { type: 'project', projectIds: [p2] });
+  const b = await inviteAndLogin(t, org.id, h('b'), 'member', { type: 'project', projectIds: [p1] });
+  // the person the member routes act on: an org member with a P2 role only
+  await inviteAndLogin(t, org.id, h('c'), 'member', { type: 'project', projectIds: [p2] });
+  const v = await inviteAndLogin(t, org.id, h('v'), 'viewer', { type: 'org' });
+  const n = await inviteAndLogin(t, org.id, h('n'), 'viewer', { type: 'org' });
+  const nId = await userIdOf(t, h('n'));
+  await revoke(t, org.id, (await grant(t, org.id, nId, 'viewer', { type: 'org' })).id);
+  const vAdmin = await inviteAndLogin(t, org.id, h('va'), 'viewer', { type: 'org' });
+  await grant(t, org.id, await userIdOf(t, h('va')), 'admin', { type: 'project', projectId: p1 });
+  return {
+    orgId: org.id,
+    p1,
+    p2,
+    o,
+    a,
+    a2,
+    b,
+    v,
+    n,
+    vAdmin,
+    roles: await roleIdsOf(t, o, org.id),
+    ids: { a: await userIdOf(t, h('a')), c: await userIdOf(t, h('c')) },
+  };
+}
+
+async function projectEntries(
+  f: ProjectCast,
+  projectId: string,
+  cookie: string,
+  query: { page?: number; pageSize?: number } = {},
+) {
+  const res = await projectAudit(t, cookie, f.orgId, projectId, { pageSize: 100, ...query });
+  expect(res.statusCode, res.body).toBe(200);
+  return expectContract('projects.audit', res) as Page<AuditEntryDto>;
+}
+
+describe('projects.audit', () => {
+  it('BR-16 lists the rows tagged with the project newest first by time then id, paged with a total', async () => {
+    const f = await buildProjectCast('pa-list');
+    const ids: string[] = [];
+    await withOrg(t.db, f.orgId, async (tx) => {
+      const base = Date.parse('2031-01-01T00:00:00Z');
+      for (let i = 0; i < 5; i += 1) {
+        const [row] = await tx
+          .insert(auditLog)
+          .values({
+            orgId: f.orgId,
+            actorUserId: f.ids.a,
+            action: `GET pa-list.${i}`,
+            projectIds: [f.p1],
+            // rows 3 and 4 share a time, so the id decides their order
+            at: new Date(base + Math.min(i, 3) * 1000),
+          })
+          .returning({ id: auditLog.id });
+        ids.push(row?.id ?? '');
+      }
+    });
+    const all = await projectEntries(f, f.p1, f.a);
+    const mine = all.items.filter((e) => e.action.startsWith('GET pa-list.'));
+    const tied = [ids[3] ?? '', ids[4] ?? ''].sort().reverse();
+    expect(mine.map((e) => e.id)).toEqual([...tied, ids[2], ids[1], ids[0]]);
+    expect(all.total).toBe(all.items.length);
+    const second = await projectEntries(f, f.p1, f.a, { pageSize: 2, page: 2 });
+    expect(second.total).toBe(all.total);
+    expect(second.items.map((e) => e.id)).toEqual(all.items.slice(2, 4).map((e) => e.id));
+  });
+
+  it('BR-16 shows actor null for a deleted actor', async () => {
+    const f = await buildProjectCast('pa-gone');
+    await withOrg(t.db, f.orgId, async (tx) => {
+      await tx
+        .insert(auditLog)
+        .values({ orgId: f.orgId, actorUserId: null, action: 'GET pa-gone', projectIds: [f.p1] });
+    });
+    const row = (await projectEntries(f, f.p1, f.a)).items.find((e) => e.action === 'GET pa-gone');
+    expect(row?.actor).toBeNull();
+  });
+
+  it('BR-17 shows add, change role and remove with the role before and after, and the same rows in the org log', async () => {
+    const f = await buildProjectCast('pa-members');
+    const cId = f.ids.c;
+    const added = await addProjectMember(t, f.a, f.orgId, f.p1, { userId: cId, roleId: f.roles.member });
+    expect(added.statusCode).toBe(201);
+    expect((await setProjectRole(t, f.a, f.orgId, f.p1, cId, f.roles.viewer)).statusCode).toBe(200);
+    expect((await removeProjectMember(t, f.a, f.orgId, f.p1, cId)).statusCode).toBe(204);
+    for (const page of [await projectEntries(f, f.p1, f.a), await entries(f.orgId, f.o)]) {
+      const mine = page.items.filter(
+        (e) => e.target.id === cId && /^(assignment\.granted|project_member\.)/.test(e.action),
+      );
+      const byAction = (action: string) => mine.find((e) => e.action === action);
+      expect(byAction('assignment.granted')?.changes).toEqual([{ field: 'role', from: null, to: 'Member' }]);
+      expect(byAction('project_member.role_changed')?.changes).toEqual([
+        { field: 'role', from: 'Member', to: 'Viewer' },
+      ]);
+      expect(byAction('project_member.removed')?.changes).toEqual([{ field: 'role', from: 'Viewer', to: null }]);
+      expect(byAction('project_member.removed')?.actor?.userId).toBe(f.ids.a);
+    }
+  });
+
+  it('BR-19 holds no row of another project, no org-only row and no row of another org', async () => {
+    const f = await buildProjectCast('pa-iso');
+    const other = await buildProjectCast('pa-iso-b');
+    await withOrg(t.db, f.orgId, async (tx) => {
+      await tx.insert(auditLog).values([
+        { orgId: f.orgId, actorUserId: f.ids.a, action: 'GET only.in.p2', projectIds: [f.p2] },
+        { orgId: f.orgId, actorUserId: f.ids.a, action: 'GET only.in.p1', projectIds: [f.p1] },
+        { orgId: f.orgId, actorUserId: f.ids.a, action: 'GET both', projectIds: [f.p1, f.p2] },
+      ]);
+    });
+    await withOrg(t.db, other.orgId, async (tx) => {
+      await tx.insert(auditLog).values({ orgId: other.orgId, action: 'GET only.in.b', projectIds: [other.p1] });
+    });
+    expect((await updateOrg(t, f.o, f.orgId, { name: 'Renamed iso' })).statusCode).toBe(200);
+    const actions = (await projectEntries(f, f.p1, f.a)).items.map((e) => e.action);
+    expect(actions).toContain('GET only.in.p1');
+    expect(actions).toContain('GET both');
+    expect(actions).not.toContain('GET only.in.p2');
+    expect(actions).not.toContain('GET only.in.b');
+    expect(actions).not.toContain('PATCH orgs.update');
+    const p2Actions = (await projectEntries(f, f.p2, f.a2)).items.map((e) => e.action);
+    expect(p2Actions).toContain('GET only.in.p2');
+    expect(p2Actions).not.toContain('GET only.in.p1');
+  });
+
+  it('BR-27 a project admin sees an invitation email only when every listed project is theirs', async () => {
+    const f = await buildProjectCast('pa-inv');
+    const create = async (email: string, projectIds: string[]): Promise<string> => {
+      const res = await t.app.inject({
+        method: 'POST',
+        url: `/api/orgs/${f.orgId}/invitations`,
+        headers: { cookie: f.o, 'x-org-id': f.orgId },
+        payload: { email, roleId: f.roles.viewer, scope: { type: 'project', projectIds } },
+      });
+      expect(res.statusCode, res.body).toBe(201);
+      return res.json<{ id: string }>().id;
+    };
+    const onlyP1 = await create('pa-inv-x@dev.local', [f.p1]);
+    const both = await create('pa-inv-y@dev.local', [f.p1, f.p2]);
+    const onlyP2 = await create('pa-inv-z@dev.local', [f.p2]);
+    const created = (page: Page<AuditEntryDto>, id: string) =>
+      page.items.find((e) => e.action === 'invitation.created' && e.target.id === id);
+
+    const asA = await projectEntries(f, f.p1, f.a);
+    expect(created(asA, onlyP1)?.target.label).toBe('pa-inv-x@dev.local');
+    expect(created(asA, onlyP1)?.projects).toEqual([{ id: f.p1, name: 'P1-pa-inv' }]);
+    expect(created(asA, both)?.target.label).toBeNull();
+    expect(created(asA, both)?.projects).toEqual([{ id: f.p1, name: 'P1-pa-inv' }]);
+    expect(created(asA, onlyP2)).toBeUndefined();
+    expect(JSON.stringify(asA)).not.toContain('pa-inv-y@dev.local');
+    expect(JSON.stringify(asA)).not.toContain('P2-pa-inv');
+
+    const asO = await entries(f.orgId, f.o);
+    expect(created(asO, both)?.target.label).toBe('pa-inv-y@dev.local');
+    expect(created(asO, both)?.projects).toEqual([
+      { id: f.p1, name: 'P1-pa-inv' },
+      { id: f.p2, name: 'P2-pa-inv' },
+    ]);
+  });
+
+  it('BR-27 an invitation that expired is redacted like any other', async () => {
+    const f = await buildProjectCast('pa-exp');
+    const email = 'pa-exp-guest@dev.local';
+    const stale = await invite(t, f.orgId, email, 'viewer', { type: 'project', projectIds: [f.p1, f.p2] });
+    await withOrg(t.db, f.orgId, (tx) =>
+      tx
+        .update(invitations)
+        .set({ expiresAt: new Date(Date.now() - 60_000) })
+        .where(eq(invitations.id, stale.id)),
+    );
+    // a new invitation to the same address replaces the stale one and writes `invitation.expired`
+    await invite(t, f.orgId, email, 'viewer', { type: 'project', projectIds: [f.p1, f.p2] });
+    const asA = await projectEntries(f, f.p1, f.a);
+    const expired = asA.items.find((e) => e.action === 'invitation.expired' && e.target.id === stale.id);
+    expect(expired?.target.label).toBeNull();
+    expect(expired?.projects).toEqual([{ id: f.p1, name: 'P1-pa-exp' }]);
+    expect(JSON.stringify(asA)).not.toContain(email);
+    const asO = await entries(f.orgId, f.o);
+    expect(asO.items.find((e) => e.action === 'invitation.expired' && e.target.id === stale.id)?.target.label).toBe(
+      email,
+    );
+  });
+
+  it('refuses a member, a viewer and a person with no role with 403, for any project id', async () => {
+    const f = await buildProjectCast('pa-deny');
+    for (const cookie of [f.b, f.v, f.n]) {
+      for (const id of [f.p1, f.p2, randomUUID(), 'not-a-uuid']) {
+        const res = await projectAudit(t, cookie, f.orgId, id);
+        expect(res.statusCode, id).toBe(403);
+        expect(res.json()).not.toHaveProperty('items');
+      }
+    }
+  });
+
+  it('keeps a project admin to their own project: another project is 404', async () => {
+    const f = await buildProjectCast('pa-scope');
+    const res = await projectAudit(t, f.a, f.orgId, f.p2);
+    expect(res.statusCode).toBe(404);
+    expect(res.json()).not.toHaveProperty('items');
+    expect((await projectAudit(t, f.a, f.orgId, randomUUID())).statusCode).toBe(404);
+    expect((await projectAudit(t, f.a2, f.orgId, f.p1)).statusCode).toBe(404);
+  });
+
+  it('answers 404 for a project of another org, with no row of it', async () => {
+    const a = await buildProjectCast('pa-x-a');
+    const b = await buildProjectCast('pa-x-b');
+    await withOrg(t.db, b.orgId, async (tx) => {
+      await tx.insert(auditLog).values({ orgId: b.orgId, action: 'GET only.in.b', projectIds: [b.p1] });
+    });
+    for (const cookie of [a.o, a.a]) {
+      const res = await projectAudit(t, cookie, a.orgId, b.p1);
+      expect(res.statusCode).toBe(404);
+      expect(res.body).not.toContain('only.in.b');
+    }
+  });
+
+  it('lets an org viewer who is admin on the project read its audit log, and an org owner read any', async () => {
+    const f = await buildProjectCast('pa-ok');
+    expect((await projectAudit(t, f.vAdmin, f.orgId, f.p1)).statusCode).toBe(200);
+    // an org viewer sees P2, so its scope passes and the missing permission answers 403
+    expect((await projectAudit(t, f.vAdmin, f.orgId, f.p2)).statusCode).toBe(403);
+    expect((await projectAudit(t, f.o, f.orgId, f.p1)).statusCode).toBe(200);
+    expect((await projectAudit(t, f.o, f.orgId, f.p2)).statusCode).toBe(200);
+  });
+
+  it('never returns a credential or an env value', async () => {
+    const f = await buildProjectCast('pa-secret');
+    await withOrg(t.db, f.orgId, async (tx) => {
+      await tx.insert(auditLog).values([
+        {
+          orgId: f.orgId,
+          actorUserId: f.ids.a,
+          action: 'PUT agents.putCredential',
+          projectIds: [f.p1],
+          payload: { type: 'api_key', value: 'tok-SECRET-1' },
+        },
+        {
+          orgId: f.orgId,
+          actorUserId: f.ids.a,
+          action: 'PUT setupEnv.put',
+          projectIds: [f.p1],
+          payload: { env: { API_KEY: 'tok-SECRET-2' }, password: 'tok-SECRET-3' },
+        },
+      ]);
+    });
+    const res = await projectAudit(t, f.a, f.orgId, f.p1);
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toContain('PUT agents.putCredential');
+    expect(res.body).not.toContain('SECRET');
+    expect(res.body).not.toContain('"payload"');
+  });
+
+  it('keeps the rows in the org log after the project is deleted, and answers 404 for the project', async () => {
+    const f = await buildProjectCast('pa-del');
+    const added = await addProjectMember(t, f.a, f.orgId, f.p1, { userId: f.ids.c, roleId: f.roles.member });
+    expect(added.statusCode).toBe(201);
+    await withOrg(t.db, f.orgId, (tx) =>
+      tx.delete(projects).where(and(eq(projects.id, f.p1), eq(projects.orgId, f.orgId))),
+    );
+    expect((await projectAudit(t, f.o, f.orgId, f.p1)).statusCode).toBe(404);
+    // the deleted project took the admin's only grant with it, so the permission check refuses first
+    expect((await projectAudit(t, f.a, f.orgId, f.p1)).statusCode).toBe(403);
+    const kept = (await entries(f.orgId, f.o)).items.find(
+      (e) => e.action === 'assignment.granted' && e.target.id === f.ids.c,
+    );
+    expect(kept).toBeDefined();
   });
 });

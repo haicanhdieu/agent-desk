@@ -550,7 +550,7 @@ export const NOT_ON_PROJECT = 'Member is no longer on this project'; // 404 titl
 - Consumes: `lockPerson`, `NOT_ON_PROJECT` (Task 7); helpers `setProjectRole`, `removeProjectMember`, `memberSearch` (Task 2).
 - Produces: `ProjectMembersService.setRole(access: Access, orgId: string, projectId: string, userId: string, roleId: string): Promise<ProjectMemberDto>`; `remove(access: Access, orgId: string, projectId: string, userId: string): Promise<void>`; controller `@Put(routePath(routes.projectMembers.setRole))`, `@Delete(routePath(routes.projectMembers.remove))` `@HttpCode(204)`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - BR-8, N-REPLACE: A sets C member → viewer → 200, C holds exactly one P1 row (viewer), one `project_member.role_changed` row `{projectId: P1, from: ['member'], to: 'viewer'}` tagged `[P1]`; C's next `runs.cancel` of RC → 403; a person with member and viewer on P1 set to admin → one admin row, audit `from` lists both; same role again → 200, no audit row; no project row on P1 → 404 `NOT_ON_PROJECT`; Owner role → 422 `/roleId`.
   - BR-9: A removes B → 204; B's P1 rows gone, B's P2 row and any org row kept; one `project_member.removed` row tagged `[P1]`; removing again → 404.
   - N-SELF, BR-11: A's DELETE of A → 403, nothing written, A still admin.
@@ -559,10 +559,10 @@ export const NOT_ON_PROJECT = 'Member is no longer on this project'; // 404 titl
   - BR-25: O revokes A's admin and grants member on P1 → A's next add and set-role → 403; O removes all of A's P1 rows → A's next set-role → 404.
   - BR-23/24/26 for setRole and remove: B, V, N → 403; A on P2 with B's id → 404 and B's P2 row unchanged; org B owner → 404; org viewer + P1 admin manages P1; set-role and remove never touch org-scope rows.
   - BR-10 (`terminal.int.test.ts`, TC-35.1 pattern): C attached to RC's terminal; A removes C from P1; the socket closes 4403 on the next re-check; RC keeps status and `owner_user_id`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/project-members.int.test.ts test/terminal.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `setRole` and `remove` per Global Constraints (self check first in `remove`, `lockPerson`, `checkTenantAssign` per row, delete and insert in one `withOrg` transaction, audit, log); delete the two keys from `NOT_REGISTERED_YET`.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Task 35.
-- [ ] **Step 5: Commit**: `feat(api): change a person's project role and remove them from a project`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/project-members.int.test.ts test/terminal.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `setRole` and `remove` per Global Constraints (self check first in `remove`, `lockPerson`, `checkTenantAssign` per row, delete and insert in one `withOrg` transaction, audit, log); delete the two keys from `NOT_REGISTERED_YET`.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Task 35.
+- [x] **Step 5: Commit**: `feat(api): change a person's project role and remove them from a project`. Label `review:sensitive`.
 
 ---
 
@@ -581,17 +581,17 @@ export const NOT_ON_PROJECT = 'Member is no longer on this project'; // 404 titl
 - Consumes: `page(…)`, `auditViewerOf` (Task 6); `routes.projects.audit`, `projectAudit` helper (Task 2); the seeded permission (Task 1); project member endpoints and helpers (Tasks 7, 8).
 - Produces: `AuditService.listProject(access: Access, orgId: string, projectId: string, q: PageQuery): Promise<Page<AuditEntryDto>>`; controller `@Get(routePath(routes.projects.audit))` with `@CurrentOrg()` and `@CurrentAccess()`.
 
-- [ ] **Step 1: Write the failing tests** in `audit.int.test.ts` (new describes for `projects.audit`):
+- [x] **Step 1: Write the failing tests** in `audit.int.test.ts` (new describes for `projects.audit`):
   - BR-16: rows seeded at fixed times tagged P1 list `at desc, id desc`, paged with `total`; a deleted actor → `actor: null`.
   - BR-17: add, set-role and remove through the real routes show in P1's audit with `changes` role from/to, and in `audit.list` for O.
   - BR-19: P1's audit holds no P2-only row, no org-only row (`orgs.update`), no org B row.
   - BR-27: through the real invitation routes as O: invitation to X listing P1 only → A sees X's email and `projects: [P1]`; to Y listing P1 + P2 → A sees `target.label` null and only P1; O sees Y's email and both; an invitation listing only P2 never shows in P1's audit; an expired one listing P1 + P2 (expiry forced in SQL as `invitations.int.test.ts` does) shows redacted alike.
   - Security: B, V, N → 403 (random, malformed, real id alike); A on P2 → 404; org B owner on P1 → 404; org viewer + P1 admin → 200 on P1; secrets: an `agents.putCredential` value and an env value never appear in the response.
   - Review Focus 1: after O deletes P1, its rows still list in `audit.list` and `projects.audit` for P1 → 404.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/audit.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** `listProject` as `page(access, orgId, q, and(eq(auditLog.orgId, orgId), sql\`${auditLog.projectIds} @> ARRAY[${projectId}]::uuid[]\`))` and the controller method; delete `'projects.audit'` from `NOT_REGISTERED_YET` (the list is empty again).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts test/org-check.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Tasks 36 and 37.
-- [ ] **Step 5: Commit**: `feat(api): owners and admins read a project's audit log`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/audit.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** `listProject` as `page(access, orgId, q, and(eq(auditLog.orgId, orgId), sql\`${auditLog.projectIds} @> ARRAY[${projectId}]::uuid[]\`))` and the controller method; delete `'projects.audit'` from `NOT_REGISTERED_YET` (the list is empty again).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts test/org-check.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Tasks 36 and 37.
+- [x] **Step 5: Commit**: `feat(api): owners and admins read a project's audit log`. Label `review:sensitive`.
 
 ---
 

@@ -27,6 +27,20 @@ export class AuditService {
   }
 
   /**
+   * One page of a project's audit log: the org's rows tagged with `projectId`, same order, paging and per-viewer
+   * redaction as `list`. The caller's `project-audit:read` and the project's scope were decided by the guard
+   * before this runs; the tag filter is still applied here, so no row of another project or org can show.
+   */
+  listProject(access: Access, orgId: string, projectId: string, q: PageQuery): Promise<Page<AuditEntryDto>> {
+    return this.page(
+      access,
+      orgId,
+      q,
+      sql`${eq(auditLog.orgId, orgId)} and ${auditLog.projectIds} @> ARRAY[${projectId}]::uuid[]`,
+    );
+  }
+
+  /**
    * One page of the rows matching `where` (the caller scopes it to `orgId`), newest first, under `withOrg(orgId)`.
    * Actor and user-target names, invitation emails (for invitation targets only), role names and the names of the
    * listed projects are read in the same transaction; invitee emails and project names are limited to what `access`

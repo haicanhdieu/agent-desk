@@ -3,10 +3,10 @@ import pino from 'pino';
 import { and, eq } from 'drizzle-orm';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { NotFoundException } from '@nestjs/common';
-import { ProjectMemberDto, type Page } from '@agentdesk/contracts';
+import { MemberDto, ProjectMemberDto, type Page } from '@agentdesk/contracts';
 import { loadAccess } from '@agentdesk/core';
-import { auditLog, connections, projects, rolePermissions, roleAssignments, roles, withOrg } from '@agentdesk/db';
-import { ALREADY_ON_PROJECT, ProjectMembersService } from '../src/assignments/project-members.service';
+import { auditLog, connections, projects, rolePermissions, roleAssignments, roles, runs, withOrg } from '@agentdesk/db';
+import { ALREADY_ON_PROJECT, NOT_ON_PROJECT, ProjectMembersService } from '../src/assignments/project-members.service';
 import { createTestApp, type TestApp } from './helpers/app';
 import {
   addProjectMember,
@@ -16,14 +16,18 @@ import {
   invite,
   acceptInvite,
   loginAs,
+  memberSearch,
   projectMembersList,
+  removeProjectMember,
   revoke,
   roleIdsOf,
+  setProjectRole,
   userIdOf,
 } from './helpers/auth';
 import { expectContract } from './helpers/contract';
 
 // BR-4, BR-5, BR-6, BR-13, BR-23, BR-24, BR-26 and Review Focus 1: project members list and add.
+// BR-8, BR-9, BR-11, BR-12, BR-14, BR-25 and N-SELF: change a project role and remove from a project.
 
 let t: TestApp;
 const logLines: Record<string, unknown>[] = [];
@@ -440,5 +444,352 @@ describe('a project deleted while its Members page is open (Review Focus 1)', ()
     expect(add.statusCode).toBe(404);
     // A held admin only on P1: the grant is deleted with the project, so the permission check (403) comes first
     expect((await projectMembersList(t, f.a, f.orgId, f.p1)).statusCode).toBe(403);
+  });
+});
+
+async function seedRun(orgId: string, projectId: string, ownerUserId: string): Promise<string> {
+  return withOrg(t.db, orgId, async (tx) => {
+    const [row] = await tx
+      .insert(runs)
+      .values({
+        orgId,
+        projectId,
+        command: 'fix',
+        skillName: 'fix',
+        ticketRef: `pm-${randomUUID()}`,
+        ticketKind: 'issue',
+        checkoutRef: 'refs/heads/main',
+        triggerSource: 'webhook',
+        status: 'running',
+        ownerUserId,
+      })
+      .returning({ id: runs.id });
+    return row?.id ?? '';
+  });
+}
+
+const cancelRun = (cookie: string, orgId: string, runId: string) =>
+  t.app.inject({ method: 'POST', url: `/api/runs/${runId}/cancel`, headers: { cookie, 'x-org-id': orgId } });
+
+/** The role keys of the person's project-scope rows on `projectId`, sorted. */
+async function keysOf(orgId: string, projectId: string, userId: string): Promise<string[]> {
+  return withOrg(t.db, orgId, async (tx) => {
+    const rows = await tx
+      .select({ key: roles.key })
+      .from(roleAssignments)
+      .innerJoin(roles, eq(roles.id, roleAssignments.roleId))
+      .where(
+        and(
+          eq(roleAssignments.orgId, orgId),
+          eq(roleAssignments.scopeType, 'project'),
+          eq(roleAssignments.projectId, projectId),
+          eq(roleAssignments.userId, userId),
+        ),
+      );
+    return rows.map((r) => r.key).sort();
+  });
+}
+
+/** A project-only role holding exactly `permissions`, given to `userId` on `projectId`. */
+async function giveNarrowRole(
+  orgId: string,
+  projectId: string,
+  userId: string,
+  key: string,
+  permissions: string[],
+): Promise<void> {
+  await withOrg(t.db, orgId, async (tx) => {
+    const [row] = await tx
+      .insert(roles)
+      .values({ orgId, key, name: key, assignableScopes: ['project'] })
+      .returning({ id: roles.id });
+    const roleId = row?.id ?? '';
+    await tx
+      .insert(rolePermissions)
+      .values([...new Set(permissions)].map((permission) => ({ orgId, roleId, permission, condition: 'any' })));
+    await tx.insert(roleAssignments).values({ orgId, userId, roleId, scopeType: 'project', projectId });
+  });
+}
+
+describe('changing a project role (BR-8, BR-14)', () => {
+  it('replaces the role with one row, audits the change and takes the old rights away at once', async () => {
+    const f = await buildCast('pm-set');
+    const runC = await seedRun(f.orgId, f.p1, f.ids.c);
+    logLines.length = 0;
+    const res = await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer);
+    expect(res.statusCode).toBe(200);
+    const dto = expectContract('projectMembers.setRole', res) as ProjectMemberDto;
+    expect(dto.projectRoles.map((r) => r.role.key)).toEqual(['viewer']);
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['viewer']);
+    const rows = await auditRows(f.orgId, 'project_member.role_changed', f.ids.c);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.payload).toMatchObject({ projectId: f.p1, from: ['member'], to: 'viewer' });
+    expect(rows[0]?.projectIds).toEqual([f.p1]);
+    expect(rows[0]?.actorUserId).toBe(f.ids.a);
+    expect((await cancelRun(f.c, f.orgId, runC)).statusCode).toBe(403);
+    const line = logLines.find((l) => l['action'] === 'project_member.role_changed' && l['level'] === 30);
+    expect(line).toMatchObject({ orgId: f.orgId, projectId: f.p1, actorUserId: f.ids.a, targetUserId: f.ids.c });
+    expect(JSON.stringify(logLines)).not.toContain('@dev.local');
+  });
+
+  it('lets the person cancel their own run before the change (the 403 above is the change, not the setup)', async () => {
+    const f = await buildCast('pm-set-before');
+    const runC = await seedRun(f.orgId, f.p1, f.ids.c);
+    expect((await cancelRun(f.c, f.orgId, runC)).statusCode).toBeLessThan(300);
+  });
+
+  it('collapses two roles into one row and lists both in the audit entry', async () => {
+    const f = await buildCast('pm-set-two');
+    await grant(t, f.orgId, f.ids.c, 'viewer', { type: 'project', projectId: f.p1 });
+    const res = await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.admin);
+    expect(res.statusCode).toBe(200);
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['admin']);
+    const rows = await auditRows(f.orgId, 'project_member.role_changed', f.ids.c);
+    expect(rows).toHaveLength(1);
+    const payload = rows[0]?.payload as { from: string[]; to: string };
+    expect([...payload.from].sort()).toEqual(['member', 'viewer']);
+    expect(payload.to).toBe('admin');
+  });
+
+  it('answers 200 and writes neither an audit entry nor a log line for the role the person already has', async () => {
+    const f = await buildCast('pm-set-same');
+    logLines.length = 0;
+    const res = await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.member);
+    expect(res.statusCode).toBe(200);
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['member']);
+    expect(await auditRows(f.orgId, 'project_member.role_changed', f.ids.c)).toHaveLength(0);
+    expect(logLines.filter((l) => l['action'] === 'project_member.role_changed')).toHaveLength(0);
+  });
+
+  it('answers 404 for a person with no role on the project, and for a user who is not in the org', async () => {
+    const f = await buildCast('pm-set-none');
+    const none = await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.d, f.roles.viewer);
+    expect(none.statusCode).toBe(404);
+    expect(none.json<{ detail: string }>().detail).toBe(NOT_ON_PROJECT);
+    const stranger = await setProjectRole(t, f.a, f.orgId, f.p1, randomUUID(), f.roles.viewer);
+    expect(stranger.statusCode).toBe(404);
+    expect(await projectRows(f.orgId, f.p1, f.ids.d)).toHaveLength(0);
+  });
+
+  it('refuses roles that are org-only, from another org or unknown with 422 /roleId and changes nothing', async () => {
+    const f = await buildCast('pm-set-role');
+    const other = await buildCast('pm-set-role-other');
+    for (const roleId of [f.roles.owner, other.roles.viewer, randomUUID()]) {
+      const res = await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, roleId);
+      expect(res.statusCode).toBe(422);
+      expect(res.json<{ errors: { pointer: string }[] }>().errors[0]?.pointer).toBe('/roleId');
+    }
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['member']);
+  });
+
+  it('refuses a new role the admin does not fully hold with 403, changing nothing and writing no audit entry', async () => {
+    const f = await buildCast('pm-set-esc');
+    await giveNarrowRole(f.orgId, f.p1, f.ids.n, 'narrow-setter', [
+      'project:read',
+      'assignment:read',
+      'assignment:create',
+      'assignment:delete',
+    ]);
+    expect((await setProjectRole(t, f.n, f.orgId, f.p1, f.ids.c, f.roles.member)).statusCode).toBe(403);
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['member']);
+    expect(await auditRows(f.orgId, 'project_member.role_changed', f.ids.c)).toHaveLength(0);
+  });
+
+  it('refuses replacing a role the admin could not delete with 403, changing nothing', async () => {
+    const f = await buildCast('pm-set-del');
+    // N holds every viewer line plus assignment rights: it may give viewer, but not take admin away from A
+    const viewerLines = await withOrg(t.db, f.orgId, (tx) =>
+      tx
+        .select({ permission: rolePermissions.permission })
+        .from(rolePermissions)
+        .where(eq(rolePermissions.roleId, f.roles.viewer)),
+    );
+    await giveNarrowRole(f.orgId, f.p1, f.ids.n, 'viewer-assigner', [
+      ...viewerLines.map((l) => l.permission),
+      'project:read',
+      'assignment:read',
+      'assignment:create',
+      'assignment:delete',
+    ]);
+    // a viewer-only person is within N's reach: the same role again is allowed (200)
+    await grant(t, f.orgId, f.ids.d, 'viewer', { type: 'project', projectId: f.p1 });
+    expect((await setProjectRole(t, f.n, f.orgId, f.p1, f.ids.d, f.roles.viewer)).statusCode).toBe(200);
+    expect((await setProjectRole(t, f.n, f.orgId, f.p1, f.ids.a, f.roles.viewer)).statusCode).toBe(403);
+    expect(await keysOf(f.orgId, f.p1, f.ids.a)).toEqual(['admin']);
+    expect(await auditRows(f.orgId, 'project_member.role_changed', f.ids.a)).toHaveLength(0);
+  });
+
+  it('shows the new role in the org members list (BR-14)', async () => {
+    const f = await buildCast('pm-set-list');
+    expect((await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer)).statusCode).toBe(200);
+    const page = expectContract('members.list', await memberSearch(t, f.o, f.orgId, {})) as Page<MemberDto>;
+    const c = page.items.find((i) => i.userId === f.ids.c);
+    expect(
+      c?.assignments.filter((x) => x.scope.type === 'project' && x.scope.projectId === f.p1).map((x) => x.role.key),
+    ).toEqual(['viewer']);
+  });
+});
+
+describe('removing a project member (BR-9, BR-11)', () => {
+  it('deletes only the project rows, keeps other scopes, audits it and answers 404 the second time', async () => {
+    const f = await buildCast('pm-rm');
+    logLines.length = 0;
+    const res = await removeProjectMember(t, f.a, f.orgId, f.p1, f.ids.b);
+    expect(res.statusCode).toBe(204);
+    expectContract('projectMembers.remove', res);
+    expect(await projectRows(f.orgId, f.p1, f.ids.b)).toHaveLength(0);
+    expect(await keysOf(f.orgId, f.p2, f.ids.b)).toEqual(['member']);
+    const rows = await auditRows(f.orgId, 'project_member.removed', f.ids.b);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.payload).toMatchObject({ projectId: f.p1, from: ['member'] });
+    expect(rows[0]?.projectIds).toEqual([f.p1]);
+    expect(rows[0]?.actorUserId).toBe(f.ids.a);
+    const line = logLines.find((l) => l['action'] === 'project_member.removed' && l['level'] === 30);
+    expect(line).toMatchObject({ orgId: f.orgId, projectId: f.p1, actorUserId: f.ids.a, targetUserId: f.ids.b });
+    const again = await removeProjectMember(t, f.a, f.orgId, f.p1, f.ids.b);
+    expect(again.statusCode).toBe(404);
+    expect(await auditRows(f.orgId, 'project_member.removed', f.ids.b)).toHaveLength(1);
+  });
+
+  it('never touches the person org-scope rows', async () => {
+    const f = await buildCast('pm-rm-org');
+    await grant(t, f.orgId, f.ids.v, 'member', { type: 'project', projectId: f.p1 });
+    expect((await removeProjectMember(t, f.a, f.orgId, f.p1, f.ids.v)).statusCode).toBe(204);
+    const all = await withOrg(t.db, f.orgId, (tx) =>
+      tx
+        .select({ scopeType: roleAssignments.scopeType })
+        .from(roleAssignments)
+        .where(and(eq(roleAssignments.orgId, f.orgId), eq(roleAssignments.userId, f.ids.v))),
+    );
+    expect(all.map((r) => r.scopeType)).toEqual(['org']);
+  });
+
+  it('refuses to remove yourself with 403 before any lookup, writing nothing', async () => {
+    const f = await buildCast('pm-rm-self');
+    expect((await removeProjectMember(t, f.a, f.orgId, f.p1, f.ids.a)).statusCode).toBe(403);
+    expect(await keysOf(f.orgId, f.p1, f.ids.a)).toEqual(['admin']);
+    expect(await auditRows(f.orgId, 'project_member.removed', f.ids.a)).toHaveLength(0);
+    // an org owner who holds no project row is refused alike, not told 404
+    expect((await removeProjectMember(t, f.o, f.orgId, f.p1, f.ids.o)).statusCode).toBe(403);
+  });
+
+  it('answers 403 when a replaced role is more than the admin holds, deleting nothing', async () => {
+    const f = await buildCast('pm-rm-esc');
+    await giveNarrowRole(f.orgId, f.p1, f.ids.n, 'narrow-remover', [
+      'project:read',
+      'assignment:read',
+      'assignment:delete',
+    ]);
+    expect((await removeProjectMember(t, f.n, f.orgId, f.p1, f.ids.a)).statusCode).toBe(403);
+    expect(await keysOf(f.orgId, f.p1, f.ids.a)).toEqual(['admin']);
+    expect(await auditRows(f.orgId, 'project_member.removed', f.ids.a)).toHaveLength(0);
+  });
+});
+
+describe('serialized writes for one person (BR-12)', () => {
+  it('two role changes at once both answer 200 and leave one row and two audit entries', async () => {
+    const f = await buildCast('pm-race');
+    const [r1, r2] = await Promise.all([
+      setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer),
+      setProjectRole(t, f.oa, f.orgId, f.p1, f.ids.c, f.roles.admin),
+    ]);
+    expect([r1.statusCode, r2.statusCode]).toEqual([200, 200]);
+    expect(await projectRows(f.orgId, f.p1, f.ids.c)).toHaveLength(1);
+    expect(await auditRows(f.orgId, 'project_member.role_changed', f.ids.c)).toHaveLength(2);
+  });
+
+  it('a role change and a removal at once never leave two rows or a 500', async () => {
+    const f = await buildCast('pm-race-rm');
+    const [set, rm] = await Promise.all([
+      setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer),
+      removeProjectMember(t, f.oa, f.orgId, f.p1, f.ids.c),
+    ]);
+    expect([200, 404]).toContain(set.statusCode);
+    expect(rm.statusCode).toBe(204);
+    expect((await projectRows(f.orgId, f.p1, f.ids.c)).length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('a project admin whose rights change (BR-25)', () => {
+  it('loses add, set-role and remove at once when the admin role is replaced by member', async () => {
+    const f = await buildCast('pm-demote');
+    expect((await setProjectRole(t, f.o, f.orgId, f.p1, f.ids.a, f.roles.member)).statusCode).toBe(200);
+    const add = await addProjectMember(t, f.a, f.orgId, f.p1, { userId: f.ids.d, roleId: f.roles.member });
+    expect(add.statusCode).toBe(403);
+    expect((await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer)).statusCode).toBe(403);
+    expect((await removeProjectMember(t, f.a, f.orgId, f.p1, f.ids.c)).statusCode).toBe(403);
+    expect(await projectRows(f.orgId, f.p1, f.ids.d)).toHaveLength(0);
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['member']);
+  });
+
+  it('loses everything on the project once all their rows there are removed', async () => {
+    const f = await buildCast('pm-demote-all');
+    expect((await removeProjectMember(t, f.o, f.orgId, f.p1, f.ids.a)).statusCode).toBe(204);
+    expect((await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer)).statusCode).toBe(403);
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['member']);
+  });
+
+  it('answers 404 to a set-role for a person whose project rows are all gone', async () => {
+    const f = await buildCast('pm-gone-rows');
+    expect((await removeProjectMember(t, f.o, f.orgId, f.p1, f.ids.c)).statusCode).toBe(204);
+    expect((await setProjectRole(t, f.a, f.orgId, f.p1, f.ids.c, f.roles.viewer)).statusCode).toBe(404);
+  });
+});
+
+describe('access: set-role and remove (BR-23, BR-24, BR-26)', () => {
+  it('answers 403 to a member, a viewer and a person with no assignment, whatever the project id', async () => {
+    const f = await buildCast('pm-403b');
+    for (const cookie of [f.b, f.v, f.n]) {
+      const set = new Set<string>();
+      const rm = new Set<string>();
+      for (const id of [f.p1, randomUUID(), 'not-a-uuid']) {
+        const a = await setProjectRole(t, cookie, f.orgId, id, f.ids.c, f.roles.viewer);
+        expect(a.statusCode).toBe(403);
+        set.add(a.body.replace(/"requestId":"[^"]*"/, ''));
+        const b = await removeProjectMember(t, cookie, f.orgId, id, f.ids.c);
+        expect(b.statusCode).toBe(403);
+        rm.add(b.body.replace(/"requestId":"[^"]*"/, ''));
+      }
+      expect(set.size).toBe(1);
+      expect(rm.size).toBe(1);
+    }
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['member']);
+  });
+
+  it('answers 404 to an admin on P1 for P2 and leaves the P2 row alone', async () => {
+    const f = await buildCast('pm-404b');
+    expect((await setProjectRole(t, f.a, f.orgId, f.p2, f.ids.b, f.roles.viewer)).statusCode).toBe(404);
+    expect((await removeProjectMember(t, f.a, f.orgId, f.p2, f.ids.b)).statusCode).toBe(404);
+    expect(await keysOf(f.orgId, f.p2, f.ids.b)).toEqual(['member']);
+  });
+
+  it('answers 404 to the owner of another org, naming nothing of this org', async () => {
+    const f = await buildCast('pm-xorg-b');
+    const other = await buildCast('pm-xorg-b-other');
+    const set = await setProjectRole(t, other.o, other.orgId, f.p1, f.ids.c, other.roles.viewer);
+    expect(set.statusCode).toBe(404);
+    expect(set.body).not.toContain('pm-xorg-b-');
+    expect((await removeProjectMember(t, other.o, other.orgId, f.p1, f.ids.c)).statusCode).toBe(404);
+    expect(await keysOf(f.orgId, f.p1, f.ids.c)).toEqual(['member']);
+  });
+
+  it('lets an org viewer who is admin on P1 manage P1 and answers 403 on P2', async () => {
+    const f = await buildCast('pm-va-b');
+    expect((await setProjectRole(t, f.vAdmin, f.orgId, f.p1, f.ids.c, f.roles.viewer)).statusCode).toBe(200);
+    expect((await removeProjectMember(t, f.vAdmin, f.orgId, f.p1, f.ids.c)).statusCode).toBe(204);
+    expect((await setProjectRole(t, f.vAdmin, f.orgId, f.p2, f.ids.b, f.roles.viewer)).statusCode).toBe(403);
+    expect((await removeProjectMember(t, f.vAdmin, f.orgId, f.p2, f.ids.b)).statusCode).toBe(403);
+  });
+
+  it('answers 401 without a session', async () => {
+    const f = await buildCast('pm-401b');
+    const put = await t.app.inject({
+      method: 'PUT',
+      url: `/api/projects/${f.p1}/members/${f.ids.c}/role`,
+      payload: { roleId: f.roles.viewer },
+    });
+    expect(put.statusCode).toBe(401);
+    const del = await t.app.inject({ method: 'DELETE', url: `/api/projects/${f.p1}/members/${f.ids.c}` });
+    expect(del.statusCode).toBe(401);
   });
 });
