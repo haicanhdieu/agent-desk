@@ -294,15 +294,15 @@ graph LR
 
 - Produces: `Permission` includes `'project-audit:read'` (in `TENANT_PERMISSIONS` right after `'audit:read'`), `PERMISSION_LEVEL['project-audit:read'] === 'project'`. Every org's built-in `owner` and `admin` roles and the `owner`/`admin` templates hold `('project-audit:read', 'any')`; new orgs get it through `copyRoleTemplates`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `access.test.ts`: `PERMISSION_LEVEL['project-audit:read']` is `'project'`; tenant count 35, all permissions 50; `can()` with a project grant on P1 listing it → true for P1, false for P2; BR-26: an access with an org-scope viewer grant and a P1 admin grant → `can(…, 'project-audit:read', {projectId: P1})`, `can(…, 'assignment:create', {projectId: P1})` true, `can(…, 'rule:create', {projectId: P2})` false, `can(…, 'project:read', {projectId: P2})` true.
   - `migrate.int.test.ts` (N-PERM), new describe "project-audit:read seed on an upgraded database": `startPgAt('0035_seed_audit_read')` with two orgs, apply → exactly one `project-audit:read` line on each org's `owner` and `admin`, none on `member` or `viewer`; a second apply changes no row count; an org created afterwards holds it. Update the "four built-in roles" counts to owner 35, admin 34, member 6, viewer 2 (the rule change).
   - `role-templates.int.test.ts`: `ADMIN_PERMISSIONS` gains `project-audit:read`; lengths `[35, 34, 6, 2]`.
   - `rbac-grants.spec.ts`: the owner permission list gains `'project-audit:read'` (sorted as today).
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts`, `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`, `pnpm --filter @agentdesk/core exec vitest run test/access/role-templates.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the enum line; the hand-written SQL migration copying `0035_seed_audit_read.sql` with `project-audit:read` (template insert, then the per-org DO loop setting `app.org_id`, `ON CONFLICT DO NOTHING`), its journal entry and a snapshot copied from the previous one (no schema change). ADR-0036 §Decision "Each permission has a level": add `project-audit:read` to the project-level examples and say it is held by owner and admin. Desk access matrix spec: rows for the five new API routes and the two new UI routes (owner, admin any; member, viewer no; project admin on own project any) and the Delete project control (owner, org admin only).
-- [ ] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/contracts test`, `pnpm --filter @agentdesk/db typecheck`, and `pnpm --filter @agentdesk/web exec vitest run src/mocks` (role fixtures unaffected). Expected: PASS. With the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-grants.spec.ts`. Expected: PASS.
-- [ ] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): add the project-audit:read permission and seed it for owner and admin`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run src/access.test.ts`, `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`, `pnpm --filter @agentdesk/core exec vitest run test/access/role-templates.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the enum line; the hand-written SQL migration copying `0035_seed_audit_read.sql` with `project-audit:read` (template insert, then the per-org DO loop setting `app.org_id`, `ON CONFLICT DO NOTHING`), its journal entry and a snapshot copied from the previous one (no schema change). ADR-0036 §Decision "Each permission has a level": add `project-audit:read` to the project-level examples and say it is held by owner and admin. Desk access matrix spec: rows for the five new API routes and the two new UI routes (owner, admin any; member, viewer no; project admin on own project any) and the Delete project control (owner, org admin only).
+- [x] **Step 4: Run** the Step 2 commands, `pnpm --filter @agentdesk/contracts test`, `pnpm --filter @agentdesk/db typecheck`, and `pnpm --filter @agentdesk/web exec vitest run src/mocks` (role fixtures unaffected). Expected: PASS. With the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/rbac-grants.spec.ts`. Expected: PASS.
+- [x] **Step 5: Commit** (`devbox run fix` first): `feat(contracts): add the project-audit:read permission and seed it for owner and admin`. Label `review:sensitive`.
 
 ---
 
@@ -353,15 +353,15 @@ export function projectAudit(t: TestApp, cookie: string, orgId: string, projectI
 export function memberSearch(t: TestApp, cookie: string, orgId: string, query: { q?: string; excludeProject?: string; page?: number; pageSize?: number }): ReturnType<TestApp['app']['inject']>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `schemas/access.test.ts` (BR-7 contract): `MembersListQuery` accepts `{}`, `{q: 'a'}`, `{q: 'a'.repeat(100)}`, `{q: '  al  '}` (parsed `al`), `{pageSize: '20'}`; rejects `{q: ''}`, `{q: '   '}`, `{q: 'a'.repeat(101)}`, `{excludeProject: 'nope'}`; `ProjectMemberDto` accepts `handle: null`; `AddProjectMemberRequest` rejects a missing `roleId` and an empty `userId`; `SetProjectRoleRequest` rejects a non-uuid.
   - `schemas/audit.test.ts`: `AuditEntryDto` requires `projects` (array of `{id, name}`), rejects `projects: [{id: 'x'}]`; `AuditAction.options` holds the two new names.
   - `routes.test.ts`: the five keys with the methods and paths of Global Constraints; route count 84 → 89. `route-access.test.ts`: count 89 and the five expected entries. `role-matrix.test.ts`: the five rows are `ADMINS`.
   - `audit-view.test.ts`: the "exactly the DTO keys" test now expects `projects: []`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts above. Compile fixes outside contracts: `toAuditEntry` returns `projects: []` (Task 6 fills it); `apps/web/src/mocks/dto/audit.ts` entries and the `map.test.ts` DTO factory gain `projects: []`; `handlers.ts` gets fixture-backed `impl` entries (`projectMembers.list` and `projects.audit` an empty page, `add` and `setRole` a fixed `ProjectMemberDto`, `remove` 204; Task 12 replaces them). In `authz.int.test.ts`: `DENIAL_TABLE` rows `tenant(403)` for the five keys and the five keys in `NOT_REGISTERED_YET`. In `scope.int.test.ts` `cases()`: the five routes on P2 (body `{userId: <B's id>, roleId: <member role id>}` for add, `{roleId}` for setRole), each 404 for the P1 admin. Add the six helpers.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/web typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts test/org-check.int.test.ts src/audit`, `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts src/features/audit`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): add project member and project audit routes, member search and audit projects`. Label `review:sensitive` (routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts above. Compile fixes outside contracts: `toAuditEntry` returns `projects: []` (Task 6 fills it); `apps/web/src/mocks/dto/audit.ts` entries and the `map.test.ts` DTO factory gain `projects: []`; `handlers.ts` gets fixture-backed `impl` entries (`projectMembers.list` and `projects.audit` an empty page, `add` and `setRole` a fixed `ProjectMemberDto`, `remove` 204; Task 12 replaces them). In `authz.int.test.ts`: `DENIAL_TABLE` rows `tenant(403)` for the five keys and the five keys in `NOT_REGISTERED_YET`. In `scope.int.test.ts` `cases()`: the five routes on P2 (body `{userId: <B's id>, roleId: <member role id>}` for add, `{roleId}` for setRole), each 404 for the P1 admin. Add the six helpers.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/web typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/scope.int.test.ts test/org-check.int.test.ts src/audit`, `pnpm --filter @agentdesk/web exec vitest run src/mocks/msw/contract.test.ts src/features/audit`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): add project member and project audit routes, member search and audit projects`. Label `review:sensitive` (routeAccess).
 
 ---
 
@@ -380,13 +380,13 @@ export function memberSearch(t: TestApp, cookie: string, orgId: string, query: {
 
 - Produces: Drizzle `auditLog.projectIds` (`uuid('project_ids').array().notNull().default(sql\`'{}'::uuid[]\`)`), index `audit_log_project_ids_idx` using `gin` on `project_ids`.
 
-- [ ] **Step 1: Write the failing tests** (N-AUDITCOL)
+- [x] **Step 1: Write the failing tests** (N-AUDITCOL)
   - `migrate.int.test.ts`: on a database stopped before the column with existing `audit_log` rows in two orgs, applying gives every old row `project_ids = '{}'`; the column is `uuid[] not null`; `audit_log_project_ids_idx` exists with access method `gin`; `relforcerowsecurity` still true on `audit_log`; a query `project_ids @> ARRAY[$1]::uuid[]` returns only tagged rows.
   - `rls.int.test.ts`: the `inserts` map entry for `audit_log` sets `project_ids` so the two-org leak test covers it; an insert without `project_ids` gets `{}`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts test/rls.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the column in `schema/app.ts`; generate the column migration with drizzle-kit, then move the index into its own plain `CREATE INDEX "audit_log_project_ids_idx" ON "audit_log" USING gin ("project_ids");` migration (as `0034`); keep journal and snapshots in step.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/db typecheck`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): tag audit rows with their projects`. Label `review:sensitive` (migration).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts test/rls.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the column in `schema/app.ts`; generate the column migration with drizzle-kit, then move the index into its own plain `CREATE INDEX "audit_log_project_ids_idx" ON "audit_log" USING gin ("project_ids");` migration (as `0034`); keep journal and snapshots in step.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/db typecheck`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): tag audit rows with their projects`. Label `review:sensitive` (migration).
 
 ---
 

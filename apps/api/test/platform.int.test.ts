@@ -93,7 +93,7 @@ describe('platform org creation', () => {
     expect(roles.every((r) => r.builtIn)).toBe(true);
     const owner = roles.find((r) => r.key === 'owner');
     expect(owner?.assignableScopes).toEqual(['org']);
-    expect(owner?.permissions).toHaveLength(34);
+    expect(owner?.permissions).toHaveLength(35);
     const member = roles.find((r) => r.key === 'member');
     expect(member?.permissions).toContainEqual({ permission: 'run:cancel', condition: 'own' });
     expect(member?.permissions).toContainEqual({ permission: 'run:read', condition: 'any' });

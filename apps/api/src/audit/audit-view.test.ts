@@ -218,7 +218,16 @@ describe('toAuditEntry', () => {
 
   it('has exactly the DTO keys and never a payload', () => {
     const out = toAuditEntry(row({ payload: { anything: 1 } }), lookups);
-    expect(Object.keys(out).sort()).toEqual(['action', 'actor', 'actorKind', 'at', 'changes', 'id', 'target']);
+    expect(Object.keys(out).sort()).toEqual([
+      'action',
+      'actor',
+      'actorKind',
+      'at',
+      'changes',
+      'id',
+      'projects',
+      'target',
+    ]);
     expect(Object.keys(out.target).sort()).toEqual(['id', 'label', 'type']);
     expect(out.at).toBe('2026-11-22T10:00:00.000Z');
   });

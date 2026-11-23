@@ -514,6 +514,8 @@ type Impl = {
   [K in JsonKey]: (ctx: RouteCtx<K>) => Answer<ResponseOf<K>> | Promise<Answer<ResponseOf<K>>>;
 };
 
+const PLACEHOLDER_ASSIGNMENT_ID = '00000000-0000-4000-8000-000000000000';
+
 const impl: Impl = {
   'connections.list': () => {
     const { orgId } = session();
@@ -616,6 +618,25 @@ const impl: Impl = {
     db().triggers[row.id] = trig;
     return toProjectDto(row);
   },
+  'projects.audit': ({ query }) => slicePage([], query),
+  'projectMembers.list': ({ query }) => slicePage([], query),
+  'projectMembers.add': ({ body }) => ({
+    userId: body.userId,
+    name: 'Mock member',
+    handle: null,
+    projectRoles: [
+      { assignmentId: PLACEHOLDER_ASSIGNMENT_ID, role: { id: body.roleId, key: 'member', name: 'Member' } },
+    ],
+  }),
+  'projectMembers.setRole': ({ params, body }) => ({
+    userId: params.userId,
+    name: 'Mock member',
+    handle: null,
+    projectRoles: [
+      { assignmentId: PLACEHOLDER_ASSIGNMENT_ID, role: { id: body.roleId, key: 'member', name: 'Member' } },
+    ],
+  }),
+  'projectMembers.remove': () => null,
   'projects.remove': ({ params }) => {
     const row = projectRow(params.projectId);
     const s = db();
@@ -1126,6 +1147,8 @@ const STATUS: Partial<Record<RouteKey, number>> = {
   'runs.closeSession': 202,
   'setupTests.end': 202,
   'assignments.create': 201,
+  'projectMembers.add': 201,
+  'projectMembers.remove': 204,
   'invitations.create': 201,
   'platform.createOrg': 201,
   'platform.createAssignment': 201,

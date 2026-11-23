@@ -228,6 +228,7 @@ describe('audit page: switching org (BR-25)', () => {
             action: 'member.role_changed',
             target: { type: 'user', id: 'x', label: 'Acme Person' },
             changes: [{ field: 'role', from: 'Member', to: 'Admin' }],
+            projects: [],
           },
         ];
       },

@@ -253,6 +253,27 @@
       "when": 1795400000000,
       "tag": "0035_seed_audit_read",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0036_seed_project_audit_read",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1795500100000,
+      "tag": "0037_audit_log_project_ids",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1795500200000,
+      "tag": "0038_audit_log_project_ids_idx",
+      "breakpoints": true
     }
   ]
 }

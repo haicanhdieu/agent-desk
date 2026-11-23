@@ -20,6 +20,7 @@ const entry = (minutesAgo: number, over: Partial<AuditEntryDto>): AuditEntryDto 
   action: 'member.role_changed',
   target: { type: null, id: null, label: null },
   changes: [],
+  projects: [],
   ...over,
 });
 
@@ -88,5 +89,6 @@ export function pagedAuditFixtures(n: number): AuditEntryDto[] {
     action: 'member.role_changed',
     target: member(`Member ${n - i}`),
     changes: [{ field: 'role' as const, from: 'Member', to: 'Admin' }],
+    projects: [],
   }));
 }

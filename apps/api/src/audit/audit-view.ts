@@ -99,5 +99,6 @@ export function toAuditEntry(row: AuditRowIn, lookups: AuditLookups): AuditEntry
     action: row.action,
     target: { type: row.targetType, id: row.targetId, label: labelOf(row, lookups) },
     changes: changesOf(row.action, payload, lookups),
+    projects: [],
   };
 }

@@ -14,6 +14,7 @@ const entry = (over: Partial<AuditEntryDto>): AuditEntryDto => ({
   action: 'member.role_changed',
   target: { type: null, id: null, label: null },
   changes: [],
+  projects: [],
   ...over,
 });
 const user = (label: string | null) => ({ type: 'user', id: 'u-b', label });

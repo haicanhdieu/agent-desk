@@ -14,6 +14,8 @@ export const AuditAction = z.enum([
   'member.role_changed',
   'member.removed',
   'org.updated',
+  'project_member.role_changed',
+  'project_member.removed',
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
@@ -27,6 +29,9 @@ export type AuditChange = z.infer<typeof AuditChange>;
 export const AuditActorKind = z.enum(['member', 'platform_admin']);
 export type AuditActorKind = z.infer<typeof AuditActorKind>;
 
+export const AuditProjectRef = z.object({ id: Id, name: z.string() });
+export type AuditProjectRef = z.infer<typeof AuditProjectRef>;
+
 /** No raw payload: the API maps the stored payload to `changes` and never returns it. */
 export const AuditEntryDto = z.object({
   id: Id,
@@ -36,5 +41,6 @@ export const AuditEntryDto = z.object({
   action: z.string(),
   target: z.object({ type: z.string().nullable(), id: z.string().nullable(), label: z.string().nullable() }),
   changes: z.array(AuditChange),
+  projects: z.array(AuditProjectRef),
 });
 export type AuditEntryDto = z.infer<typeof AuditEntryDto>;
