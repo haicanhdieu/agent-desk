@@ -14,11 +14,13 @@ export const AuditAction = z.enum([
   'member.role_changed',
   'member.removed',
   'org.updated',
+  'org.suspended',
+  'org.reactivated',
 ]);
 export type AuditAction = z.infer<typeof AuditAction>;
 
 export const AuditChange = z.object({
-  field: z.enum(['role', 'name', 'slug']),
+  field: z.enum(['role', 'name', 'slug', 'status']),
   from: z.string().nullable(),
   to: z.string().nullable(),
 });

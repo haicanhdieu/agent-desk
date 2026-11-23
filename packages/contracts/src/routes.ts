@@ -27,6 +27,7 @@ import {
   PlatformAssignmentDto,
   PlatformInvitationDto,
   PlatformMemberDto,
+  OrgStatusChangeRequest,
   PlatformOrgDetailDto,
   PlatformOrgDto,
   PlatformOrgListQuery,
@@ -500,6 +501,20 @@ export const routes = {
       response: pageOf(PlatformOrgDto),
     },
     getOrg: { method: 'GET', path: '/api/platform/orgs/:orgId', params: orgParams, response: PlatformOrgDetailDto },
+    suspendOrg: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/suspend',
+      params: orgParams,
+      body: OrgStatusChangeRequest,
+      response: PlatformOrgDetailDto,
+    },
+    reactivateOrg: {
+      method: 'POST',
+      path: '/api/platform/orgs/:orgId/reactivate',
+      params: orgParams,
+      body: OrgStatusChangeRequest,
+      response: PlatformOrgDetailDto,
+    },
     listProjects: {
       method: 'GET',
       path: '/api/platform/orgs/:orgId/projects',

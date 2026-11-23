@@ -106,13 +106,15 @@ const expected: Record<RouteKey, RouteAccess> = {
   'platform.listAdmins': platform('platform-admin:read'),
   'platform.grantAdmin': platform('platform-admin:create'),
   'platform.revokeAdmin': platform('platform-admin:delete'),
+  'platform.suspendOrg': platform('platform-org:update'),
+  'platform.reactivateOrg': platform('platform-org:update'),
 };
 
 const flat = flattenRoutes(routes);
 
 describe('routeAccess', () => {
-  it('matches the approved permission map for all 86 keys', () => {
-    expect(Object.keys(expected)).toHaveLength(86);
+  it('matches the approved permission map for all 88 keys', () => {
+    expect(Object.keys(expected)).toHaveLength(88);
     expect(routeAccess).toEqual(expected);
   });
 

@@ -1498,3 +1498,66 @@ describe('platform_org_stats definer function (migration 0037)', () => {
     }
   });
 });
+
+describe('platform_audit_log.target_org_id on an upgraded database (migration 0038)', () => {
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
+    query<T>(old.ownerUrl, sql, params);
+  const priv = async (p: string): Promise<boolean> =>
+    (
+      await owner<{ ok: boolean }>("select has_table_privilege('agentdesk_app', 'platform_audit_log', $1) as ok", [p])
+    )[0]?.ok === true;
+
+  beforeAll(async () => {
+    old = await startPgAt('0037_platform_org_stats');
+    for (const action of ['platform_admin.granted', 'platform_admin.revoked']) {
+      await owner(
+        `insert into platform_audit_log (actor_user_id, action, target_type, target_id) values ('u-1', $1, 'platform_admin', 'x@x.io')`,
+        [action],
+      );
+    }
+    await old.migrateRest();
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  it('keeps existing audit rows with a null target_org_id', async () => {
+    const rows = await owner<{ target_org_id: string | null }>('select target_org_id from platform_audit_log');
+    expect(rows).toHaveLength(2);
+    expect(rows.every((r) => r.target_org_id === null)).toBe(true);
+  });
+
+  it('adds a nullable uuid target_org_id column', async () => {
+    expect(
+      await owner(
+        `select data_type, is_nullable from information_schema.columns
+         where table_name = 'platform_audit_log' and column_name = 'target_org_id'`,
+      ),
+    ).toEqual([{ data_type: 'uuid', is_nullable: 'YES' }]);
+  });
+
+  it('indexes platform_audit_log by (target_org_id, created_at, id)', async () => {
+    const rows = await owner<{ col: string }>(
+      `select a.attname as col from pg_index i
+       join pg_class c on c.oid = i.indexrelid
+       join pg_attribute a on a.attrelid = i.indrelid and a.attnum = any(i.indkey)
+       where c.relname = 'platform_audit_log_target_org_idx'
+       order by array_position(i.indkey::int2[], a.attnum)`,
+    );
+    expect(rows.map((r) => r.col)).toEqual(['target_org_id', 'created_at', 'id']);
+  });
+
+  it('leaves the app role with SELECT and INSERT only, and no RLS', async () => {
+    expect(await priv('SELECT')).toBe(true);
+    expect(await priv('INSERT')).toBe(true);
+    expect(await priv('UPDATE')).toBe(false);
+    expect(await priv('DELETE')).toBe(false);
+    const rls = await owner<{ relrowsecurity: boolean }>(
+      `select relrowsecurity from pg_class where relname = 'platform_audit_log'`,
+    );
+    expect(rls).toEqual([{ relrowsecurity: false }]);
+  });
+});

@@ -929,11 +929,11 @@ Covers: BR-18 (TC-18.2), BR-19 (TC-19.2), BR-20 (TC-20.6), BR-21 (TC-21.2) in `p
 
 - Produces: Drizzle `platformAuditLog.targetOrgId` (`uuid('target_org_id')`, nullable), index `platform_audit_log_target_org_idx` on `(target_org_id, created_at, id)`.
 
-- [ ] **Step 1: Write the failing test** in `migrate.int.test.ts`: a DB migrated to 0037 with two platform audit rows; after the rest, both have null `target_org_id`; the index exists with those columns; `agentdesk_app` holds SELECT and INSERT only on the table; no RLS on it.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the column and index; generate 0038 with drizzle-kit.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): target org on platform audit rows`. Label `review:sensitive` (migration).
+- [x] **Step 1: Write the failing test** in `migrate.int.test.ts`: a DB migrated to 0037 with two platform audit rows; after the rest, both have null `target_org_id`; the index exists with those columns; `agentdesk_app` holds SELECT and INSERT only on the table; no RLS on it.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the column and index; generate 0038 with drizzle-kit.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/db exec vitest run test/rls.int.test.ts`, `pnpm --filter @agentdesk/db typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): target org on platform audit rows`. Label `review:sensitive` (migration).
 
 ---
 
@@ -970,17 +970,17 @@ routeAccess: both platform('platform-org:update')
 export function setPlatformOrgStatus(orgId: string, to: OrgStatus, reason: string): PlatformOrgDetailDto; // repeat is a no-op
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `access.test.ts`: `PERMISSION_LEVEL['platform-org:update'] === 'platform'`; platform count +1.
   - `platform.test.ts` (BR-33): `reason` empty, spaces only and 501 characters rejected; 1 and 500 accepted (trimmed); an extra key rejected; `PlatformAuditAction.options` has the eleven values and includes `org.updated` (BR-53).
   - `audit.test.ts`: the two actions and the `status` change field.
   - `routes.test.ts`, `route-access.test.ts`: both routes and entries; counts +2. `org-context.test.ts`: the constant.
   - `authz.int.test.ts`: both keys `platformRoute(200)` and in `NOT_REGISTERED_YET`; the platform write bodies `{ reason: 'x' }`.
   - `contract.test.ts`: suspend sets `status`, `suspendedAt` and `suspension.reason`; a repeat changes nothing; reactivate clears them.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
-- [ ] **Step 3: Implement** the contracts and the MSW store and handlers (400 with pointer `/reason` from the schema, 404 unknown org).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(contracts): suspend and reactivate routes, org-suspended problem type, platform audit actions`. Label `review:sensitive` (permission, routeAccess).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/contracts exec vitest run`. Expected: FAIL.
+- [x] **Step 3: Implement** the contracts and the MSW store and handlers (400 with pointer `/reason` from the schema, 404 unknown org).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api typecheck`, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts`, `pnpm --filter @agentdesk/web exec vitest run src/mocks`, `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(contracts): suspend and reactivate routes, org-suspended problem type, platform audit actions`. Label `review:sensitive` (permission, routeAccess).
 
 ---
 

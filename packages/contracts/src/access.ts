@@ -40,6 +40,7 @@ const TENANT_PERMISSIONS = [
 const PLATFORM_PERMISSIONS = [
   'platform-org:create',
   'platform-org:read',
+  'platform-org:update',
   'platform-project:read',
   'platform-role:read',
   'platform-member:read',

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { OrgStatus } from '../enums';
+import { ORG_STATUS_REASON_MAX } from '../org-context';
 import { pageOf } from './page';
 import {
   CreateOrgRequest,
   GrantPlatformAdminRequest,
   OrgDto,
+  OrgStatusChangeRequest,
+  PlatformAuditAction,
   PlatformAdminDto,
   ORG_SEARCH_MAX,
   PlatformMemberDto,
@@ -200,5 +203,29 @@ describe('PlatformOrgListQuery', () => {
   });
   it.each([{ q: 'a'.repeat(101) }, { status: 'deleted' }])('rejects %j', (q) => {
     expect(PlatformOrgListQuery.safeParse(q).success).toBe(false);
+  });
+});
+
+describe('OrgStatusChangeRequest (BR-33)', () => {
+  it.each([[''], ['   '], ['x'.repeat(ORG_STATUS_REASON_MAX + 1)]])('rejects reason %j at /reason', (reason) => {
+    const r = OrgStatusChangeRequest.safeParse({ reason });
+    expect(r.success).toBe(false);
+    expect(r.error?.issues[0]?.path).toEqual(['reason']);
+  });
+  it('accepts 1 and 500 characters, trimmed', () => {
+    expect(OrgStatusChangeRequest.parse({ reason: ' x ' }).reason).toBe('x');
+    expect(OrgStatusChangeRequest.safeParse({ reason: 'x'.repeat(ORG_STATUS_REASON_MAX) }).success).toBe(true);
+  });
+  it('rejects an extra key', () => {
+    expect(OrgStatusChangeRequest.safeParse({ reason: 'x', note: 'y' }).success).toBe(false);
+  });
+});
+
+describe('PlatformAuditAction (BR-53)', () => {
+  it('has the eleven actions, including org.updated', () => {
+    expect(PlatformAuditAction.options).toHaveLength(11);
+    expect(PlatformAuditAction.options).toEqual(
+      expect.arrayContaining(['org.suspended', 'org.reactivated', 'org.updated', 'platform_admin.granted']),
+    );
   });
 });

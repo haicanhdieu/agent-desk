@@ -12,6 +12,7 @@ import {
   PAGE_SIZE_DEFAULT,
   PlatformAdminDto,
   PlatformMemberDto,
+  PlatformOrgDetailDto,
   PlatformOrgDto,
   PlatformProjectDto,
   RoleDto,
@@ -1152,6 +1153,50 @@ describe('platform org directory store', () => {
     if (!first) throw new Error('no fixture');
     expect((await fetch(`http://localhost:3000/api/platform/orgs/${first.id}`)).status).toBe(200);
     expect((await fetch(`http://localhost:3000/api/platform/orgs/${crypto.randomUUID()}`)).status).toBe(404);
+  });
+  it('suspends and reactivates an org over HTTP, a repeat changes nothing, bad input is a 400 at /reason', async () => {
+    const me = mockDb.state.users[0];
+    if (me) me.platformAdmin = true;
+    const target = platformOrgDtoFixtures.find((o) => o.status === 'active');
+    if (!target) throw new Error('no active fixture');
+    const url = `http://localhost:3000/api/platform/orgs/${target.id}`;
+    const post = (path: string, body: unknown) =>
+      fetch(`${url}/${path}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+
+    const bad = await post('suspend', { reason: '   ' });
+    expect(bad.status).toBe(400);
+    expect(await bad.json()).toMatchObject({ errors: [{ pointer: '/reason' }] });
+    expect(
+      (
+        await fetch(`http://localhost:3000/api/platform/orgs/${crypto.randomUUID()}/suspend`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ reason: 'x' }),
+        })
+      ).status,
+    ).toBe(404);
+
+    const suspended = await post('suspend', { reason: ' abuse ' });
+    expect(suspended.status).toBe(200);
+    const detail = PlatformOrgDetailDto.parse(await suspended.json());
+    expect(detail).toMatchObject({ status: 'suspended', suspension: { reason: 'abuse' } });
+    expect(detail.suspendedAt).not.toBeNull();
+    expect(detail.suspension?.by).toEqual({ userId: me?.id, name: me?.name, handle: me?.handle ?? null });
+
+    const repeat = PlatformOrgDetailDto.parse(await (await post('suspend', { reason: 'second' })).json());
+    expect(repeat).toEqual(detail);
+
+    const reactivated = PlatformOrgDetailDto.parse(await (await post('reactivate', { reason: 'resolved' })).json());
+    expect(reactivated).toMatchObject({ status: 'active', suspendedAt: null, suspension: null });
+    expect(getPlatformOrg(target.id)).toMatchObject({ status: 'active', suspension: null });
+
+    const reactivatedAgain = await post('reactivate', { reason: 'again' });
+    expect(reactivatedAgain.status).toBe(200);
+    expect(PlatformOrgDetailDto.parse(await reactivatedAgain.json())).toEqual(reactivated);
   });
   it('adds a created org to the directory with no owner', async () => {
     const me = mockDb.state.users[0];

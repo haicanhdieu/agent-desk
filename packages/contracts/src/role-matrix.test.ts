@@ -156,6 +156,8 @@ const MATRIX: Record<RouteKey, Row> = {
   'platform.listAdmins': NOBODY,
   'platform.grantAdmin': NOBODY,
   'platform.revokeAdmin': NOBODY,
+  'platform.suspendOrg': NOBODY,
+  'platform.reactivateOrg': NOBODY,
 };
 
 describe('role matrix over routeAccess', () => {

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { OrgStatus } from '../enums';
+import { ORG_STATUS_REASON_MAX } from '../org-context';
 import { OrgSlug } from '../slug';
 import { AssignmentDto, InvitationDto, InvitationEmail, InviterDto, RoleDto } from './access';
 import { Id, Timestamp } from './common';
@@ -100,3 +101,23 @@ export type PlatformAssignmentDto = z.infer<typeof PlatformAssignmentDto>;
 
 export const PlatformInvitationDto = z.object({ ...InvitationDto.shape });
 export type PlatformInvitationDto = z.infer<typeof PlatformInvitationDto>;
+
+export const OrgStatusChangeRequest = z
+  .object({ reason: z.string().trim().min(1).max(ORG_STATUS_REASON_MAX) })
+  .strict();
+export type OrgStatusChangeRequest = z.infer<typeof OrgStatusChangeRequest>;
+
+export const PlatformAuditAction = z.enum([
+  'platform_admin.granted',
+  'platform_admin.revoked',
+  'org.created',
+  'org.updated',
+  'org.suspended',
+  'org.reactivated',
+  'assignment.granted',
+  'assignment.revoked',
+  'invitation.created',
+  'invitation.resent',
+  'invitation.revoked',
+]);
+export type PlatformAuditAction = z.infer<typeof PlatformAuditAction>;

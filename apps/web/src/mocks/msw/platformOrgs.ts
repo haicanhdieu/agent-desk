@@ -1,9 +1,11 @@
 import {
   slicePage,
+  type OrgStatus,
   type Page,
   type PlatformOrgDetailDto,
   type PlatformOrgDto,
   type PlatformOrgListQuery,
+  type PlatformOrgSuspensionDto,
 } from '@agentdesk/contracts';
 import { platformOrgDtoFixtures } from '../dto/platform';
 import { mockDb } from './db';
@@ -12,13 +14,16 @@ import { notFound } from './http';
 // The platform organizations directory: stateful so later suspend and reactivate calls change what the list shows.
 
 let orgs: PlatformOrgDto[] = structuredClone(platformOrgDtoFixtures);
+let suspensions = new Map<string, PlatformOrgSuspensionDto>();
 mockDb.onReset(() => {
   orgs = structuredClone(platformOrgDtoFixtures);
+  suspensions = new Map();
 });
 
 /** Replaces the directory (scenario seeding); a store reset puts the fixtures back. */
 export function seedPlatformOrgs(entries: PlatformOrgDto[]): void {
   orgs = structuredClone(entries);
+  suspensions = new Map();
 }
 
 /** A new organization has no owner, members or projects yet. */
@@ -52,5 +57,27 @@ export function listPlatformOrgs(q: PlatformOrgListQuery): Page<PlatformOrgDto> 
 export function getPlatformOrg(orgId: string): PlatformOrgDetailDto {
   const org = orgs.find((o) => o.id === orgId);
   if (!org) throw notFound('Organization');
-  return { ...structuredClone(org), suspension: null };
+  return { ...structuredClone(org), suspension: structuredClone(suspensions.get(orgId) ?? null) };
+}
+
+/** As the API: a repeat (already in that status) is a no-op that keeps the first reason; a real change sets or clears the suspension. */
+export function setPlatformOrgStatus(
+  orgId: string,
+  to: OrgStatus,
+  reason: string,
+  by: PlatformOrgSuspensionDto['by'] = null,
+): PlatformOrgDetailDto {
+  const org = orgs.find((o) => o.id === orgId);
+  if (!org) throw notFound('Organization');
+  if (org.status === to) return getPlatformOrg(orgId);
+  org.status = to;
+  if (to === 'suspended') {
+    const at = new Date().toISOString();
+    org.suspendedAt = at;
+    suspensions.set(orgId, { at, reason, by });
+  } else {
+    org.suspendedAt = null;
+    suspensions.delete(orgId);
+  }
+  return getPlatformOrg(orgId);
 }

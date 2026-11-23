@@ -56,7 +56,7 @@ import {
   type RouteKey,
 } from './http';
 import { grantPlatformAdmin, listPlatformAdmins, revokePlatformAdmin } from './platformAdmins';
-import { addPlatformOrg, getPlatformOrg, listPlatformOrgs } from './platformOrgs';
+import { addPlatformOrg, getPlatformOrg, listPlatformOrgs, setPlatformOrgStatus } from './platformOrgs';
 import { linkedTicketsFor, toDto } from './linkedTickets';
 import {
   changeMemberRole,
@@ -268,6 +268,7 @@ const requireOrg = (orgId: string): string => {
   if (!db().orgs.some((o) => o.id === orgId)) throw notFound('Organization');
   return orgId;
 };
+const actorOf = (u: MockUser) => ({ userId: u.id, name: u.name, handle: u.handle ?? null });
 const revokeNotPending = () => conflict('Invitation is not pending', []);
 
 function revokeInvitation(orgId: string, id: string): null {
@@ -1096,6 +1097,10 @@ const impl: Impl = {
   },
   'platform.listOrgs': ({ query }) => listPlatformOrgs(query),
   'platform.getOrg': ({ params }) => getPlatformOrg(params.orgId),
+  'platform.suspendOrg': ({ params, body }) =>
+    setPlatformOrgStatus(params.orgId, 'suspended', body.reason, actorOf(sessionUser())),
+  'platform.reactivateOrg': ({ params, body }) =>
+    setPlatformOrgStatus(params.orgId, 'active', body.reason, actorOf(sessionUser())),
   'platform.listProjects': ({ query }) => slicePage(platformProjectFixtures, query),
   'platform.listRoles': () => roleFixtures,
   'platform.listMembers': ({ query }) => slicePage(platformMemberFixtures, query),
