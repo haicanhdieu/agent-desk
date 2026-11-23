@@ -676,10 +676,10 @@ Blocker from the spec, not an ordering preference: Tasks 12, 13, 15 and 16 (Stor
 
 Covers: BR-1 (TC-1.1, TC-1.2, TC-1.3), BR-3 (TC-3.1, TC-3.2, TC-3.3), BR-5 empty states (TC-5.1, TC-5.2, TC-5.3), BR-20 mock side (TC-20.1, TC-20.2), BR-24 (TC-24.1, TC-24.2), BR-29 (TC-29.1, TC-29.2, TC-29.3). BR-5 loading and error are Not e2e (route test and stories, Task 18).
 
-- [ ] **Step 1: Write the spec** with one test per case above, using the labels and strings of the spec TC rows (mock cases never reload; they leave the tab and return by click). TC-5.3 adds `DB_HOST` and asserts the secrets empty text stays.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment.spec.ts`. Expected: PASS (the specs are the first red when Task 18 is absent).
-- [ ] **Step 3: Run** `e2e/mock/desk-setup-layout.spec.ts` again unchanged. Expected: PASS.
-- [ ] **Step 4: Commit**: `test(web): mock e2e for Environment tab access and states`.
+- [x] **Step 1: Write the spec** with one test per case above, using the labels and strings of the spec TC rows (mock cases never reload; they leave the tab and return by click). TC-5.3 adds `DB_HOST` and asserts the secrets empty text stays.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock` then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment.spec.ts`. Expected: PASS (the specs are the first red when Task 18 is absent).
+- [x] **Step 3: Run** `e2e/mock/desk-setup-layout.spec.ts` again unchanged. Expected: PASS.
+- [x] **Step 4: Commit**: `test(web): mock e2e for Environment tab access and states`.
 
 ---
 
@@ -697,9 +697,9 @@ Covers: BR-1 (TC-1.1, TC-1.2, TC-1.3), BR-3 (TC-3.1, TC-3.2, TC-3.3), BR-5 empty
 
 Covers: BR-27 (TC-27.1 to TC-27.6). The extensions to `lists-paging.spec.ts` and `pagination-control.spec.ts` add one Environment-lists case each (both lists page independently, and the control and `Rows per page` behave as on the other lists), titled `BR-27: ...`. TC-27.7 is local (Task 24).
 
-- [ ] **Step 1: Write the specs:** TC-27.1 (control and totals "23 variables" and "22 secrets"), TC-27.2 (ascending name order), TC-27.3 (`varsPage=2` and no `secretsPage`), TC-27.4 (open Add form with `KEEP_ME` survives Next under the secrets list), TC-27.5 (`?varsPage=2` direct), TC-27.6 (`varsPage=99` clamps); then the two extension cases.
-- [ ] **Step 2: Run** the build as in Task 19, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment-paging.spec.ts e2e/mock/lists-paging.spec.ts e2e/mock/pagination-control.spec.ts -g "BR-27"`. Expected: PASS.
-- [ ] **Step 3: Commit**: `test(web): mock e2e for paged Environment lists`.
+- [x] **Step 1: Write the specs:** TC-27.1 (control and totals "23 variables" and "22 secrets"), TC-27.2 (ascending name order), TC-27.3 (`varsPage=2` and no `secretsPage`), TC-27.4 (open Add form with `KEEP_ME` survives Next under the secrets list), TC-27.5 (`?varsPage=2` direct), TC-27.6 (`varsPage=99` clamps); then the two extension cases.
+- [x] **Step 2: Run** the build as in Task 19, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/desk-setup-environment-paging.spec.ts e2e/mock/lists-paging.spec.ts e2e/mock/pagination-control.spec.ts -g "BR-27"`. Expected: PASS.
+- [x] **Step 3: Commit**: `test(web): mock e2e for paged Environment lists`.
 
 ---
 
