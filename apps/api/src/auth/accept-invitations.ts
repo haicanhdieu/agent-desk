@@ -91,6 +91,7 @@ export async function acceptInvitationInTx(
       ...(skippedProjectIds.length > 0 ? { skippedProjectIds } : {}),
       acceptedBy: user.id,
     },
+    projectIds: invitation.projectIds,
   });
   if (created.length > 0) {
     await tx.insert(auditLog).values(
@@ -109,6 +110,7 @@ export async function acceptInvitationInTx(
             },
             via: { invitationId: invitation.id },
           },
+          projectIds: projectId === null ? [] : [projectId],
         }),
       ),
     );

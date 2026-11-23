@@ -1521,3 +1521,209 @@ describe('project-audit:read seed migration (0036) on an upgraded database (N-PE
     expect(await lines(orgC)).toEqual(HELD);
   });
 });
+
+describe('audit project backfill migration (0039) on an upgraded database (N-BACKFILL)', () => {
+  const orgA = randomUUID();
+  const orgB = randomUUID();
+  const MIGRATION = new URL('../migrations/0039_backfill_audit_project_ids.sql', import.meta.url);
+  const ids = {
+    p1: randomUUID(),
+    p2: randomUUID(),
+    pb: randomUUID(),
+    run1: randomUUID(),
+    deletedRun: randomUUID(),
+    rule2: randomUUID(),
+    agent1: randomUUID(),
+    setup2: randomUUID(),
+    inv: randomUUID(),
+    invOrg: randomUUID(),
+    runB: randomUUID(),
+  };
+  let old: Awaited<ReturnType<typeof startPgAt>>;
+
+  async function owner<T extends pg.QueryResultRow>(sql: string, params: unknown[] = [], orgId?: string): Promise<T[]> {
+    const client = new pg.Client({ connectionString: old.ownerUrl });
+    await client.connect();
+    try {
+      await client.query('begin');
+      if (orgId) await client.query("select set_config('app.org_id', $1, true)", [orgId]);
+      const r = await client.query<T>(sql, params);
+      await client.query('commit');
+      return r.rows;
+    } finally {
+      await client.end();
+    }
+  }
+
+  /** One org with two projects (or one), their run, rule, agent, setup test, and a role to invite with. */
+  async function seedOrg(orgId: string, projectIds: string[]): Promise<string> {
+    await owner(`insert into organization (id, name, slug, created_at) values ($1, $1, $1, now())`, [orgId]);
+    await owner(
+      `insert into roles (org_id, key, name, built_in, template_id, assignable_scopes)
+       select $1::uuid, t.key, t.name, true, t.id, t.assignable_scopes from role_templates t`,
+      [orgId],
+      orgId,
+    );
+    const [conn] = await owner<{ id: string }>(
+      `insert into connections (org_id, provider, capabilities, external_id, account_name)
+       values ($1, 'fake', '{"code":true,"board":true}', $2, 'demo') returning id`,
+      [orgId, `acct-${orgId}`],
+      orgId,
+    );
+    for (const [i, id] of projectIds.entries()) {
+      await owner(
+        `insert into projects (id, org_id, name, repo_path, code_connection_id, board_connection_id)
+         values ($1, $2, $3, $4, $5, $5)`,
+        [id, orgId, `p${i}`, `dev/${id}`, conn?.id],
+        orgId,
+      );
+    }
+    const [role] = await owner<{ id: string }>(
+      `select id from roles where org_id = $1 and key = 'viewer'`,
+      [orgId],
+      orgId,
+    );
+    return role?.id ?? '';
+  }
+
+  async function addRun(orgId: string, projectId: string, id: string): Promise<void> {
+    await owner(
+      `insert into runs (id, org_id, project_id, skill_name, ticket_ref, ticket_kind, checkout_ref, status,
+                         trigger_source, trigger_comment_id, command)
+       values ($1::uuid, $2, $3, 'fix', $4, 'issue', 'main', 'queued', 'webhook', $1::text, '/fix')`,
+      [id, orgId, projectId, `dev/x#${id}`],
+      orgId,
+    );
+  }
+
+  async function audit(
+    orgId: string,
+    key: string,
+    action: string,
+    targetType: string | null,
+    targetId: string | null,
+    payload: Record<string, unknown> = {},
+    projectIds: string[] = [],
+  ): Promise<void> {
+    await owner(
+      `insert into audit_log (org_id, action, target_type, target_id, payload, project_ids)
+       values ($1, $2, $3, $4, $5::jsonb, $6::uuid[])`,
+      [orgId, action, targetType, targetId, JSON.stringify({ ...payload, key }), projectIds],
+      orgId,
+    );
+  }
+
+  async function tags(orgId: string): Promise<Record<string, string[]>> {
+    const rows = await owner<{ key: string; project_ids: string[] }>(
+      `select payload->>'key' as key, project_ids from audit_log where org_id = $1`,
+      [orgId],
+      orgId,
+    );
+    return Object.fromEntries(rows.map((r) => [r.key, [...r.project_ids].sort()]));
+  }
+
+  beforeAll(async () => {
+    old = await startPgAt('0038_audit_log_project_ids_idx');
+    const roleA = await seedOrg(orgA, [ids.p1, ids.p2]);
+    await seedOrg(orgB, [ids.pb]);
+    await addRun(orgA, ids.p1, ids.run1);
+    await addRun(orgB, ids.pb, ids.runB);
+    await owner(
+      `insert into agents (id, org_id, project_id, name, model) values ($1, $2, $3, 'a1', 'm')`,
+      [ids.agent1, orgA, ids.p1],
+      orgA,
+    );
+    await owner(
+      `insert into rules (id, org_id, project_id, command, agent_id, skill_name) values ($1, $2, $3, '/r', $4, 'fix')`,
+      [ids.rule2, orgA, ids.p2, ids.agent1],
+      orgA,
+    );
+    await owner(
+      `insert into setup_tests (id, org_id, project_id, status, script_sha256, started_by)
+       values ($1, $2, $3, 'passed', 'sha', 'u1')`,
+      [ids.setup2, orgA, ids.p2],
+      orgA,
+    );
+    const inviteSql = `insert into invitations (id, org_id, email, role_id, scope_type, project_ids, status, expires_at, invited_by)
+       values ($1, $2, $3, $4, $5, $6::uuid[], 'pending', now() + interval '7 days', 'u1')`;
+    await owner(inviteSql, [ids.inv, orgA, 'a@example.com', roleA, 'project', [ids.p1, ids.p2]], orgA);
+    await owner(inviteSql, [ids.invOrg, orgA, 'b@example.com', roleA, 'org', []], orgA);
+
+    await audit(orgA, 'project', 'projects.update', 'projects', ids.p1);
+    await audit(orgA, 'project-bad-id', 'projects.update', 'projects', 'not-a-uuid');
+    await audit(orgA, 'run', 'runs.cancel', 'runs', ids.run1);
+    await audit(orgA, 'run-deleted', 'runs.cancel', 'runs', ids.deletedRun);
+    await audit(orgA, 'rule', 'rules.update', 'rules', ids.rule2);
+    await audit(orgA, 'agent', 'agents.update', 'agents', ids.agent1);
+    await audit(orgA, 'setup', 'setup-tests.create', 'setup-tests', ids.setup2);
+    await audit(orgA, 'grant-project', 'assignment.granted', 'user', 'u2', {
+      to: { roleKey: 'viewer', scope: { type: 'project', projectId: ids.p1 } },
+    });
+    await audit(orgA, 'revoke-project', 'assignment.revoked', 'user', 'u2', {
+      from: { roleKey: 'viewer', scope: { type: 'project', projectId: ids.p2 } },
+    });
+    await audit(orgA, 'grant-org', 'assignment.granted', 'user', 'u2', {
+      to: { roleKey: 'viewer', scope: { type: 'org' } },
+    });
+    for (const verb of ['created', 'resent', 'revoked', 'accepted', 'declined', 'expired']) {
+      await audit(orgA, `inv-${verb}`, `invitation.${verb}`, 'invitation', ids.inv);
+    }
+    await audit(orgA, 'inv-org', 'invitation.created', 'invitation', ids.invOrg);
+    await audit(orgA, 'org-route', 'PATCH members.update', 'members', 'u2');
+    await audit(orgA, 'already-tagged', 'projects.update', 'projects', ids.p1, {}, [ids.p2]);
+    await audit(orgB, 'b-project', 'projects.update', 'projects', ids.pb);
+    await audit(orgB, 'b-run', 'runs.cancel', 'runs', ids.runB);
+    await audit(orgB, 'b-foreign-run', 'runs.cancel', 'runs', ids.run1);
+  }, 180_000);
+
+  afterAll(async () => {
+    await old?.stop();
+  });
+
+  const count = async (orgId: string): Promise<number> =>
+    Number((await owner<{ n: string }>(`select count(*)::text as n from audit_log`, [], orgId))[0]?.n);
+
+  it('starts with every row untagged except the pre-tagged one', async () => {
+    const t = await tags(orgA);
+    expect(t['project']).toEqual([]);
+    expect(t['already-tagged']).toEqual([ids.p2]);
+  });
+
+  it('tags each row from its target and leaves untied rows org-only', async () => {
+    const before = [await count(orgA), await count(orgB)];
+    await old.migrateRest();
+    const a = await tags(orgA);
+    const both = [ids.p1, ids.p2].sort();
+    expect(a).toMatchObject({
+      project: [ids.p1],
+      run: [ids.p1],
+      rule: [ids.p2],
+      agent: [ids.p1],
+      setup: [ids.p2],
+      'grant-project': [ids.p1],
+      'revoke-project': [ids.p2],
+      'inv-created': both,
+      'inv-resent': both,
+      'inv-revoked': both,
+      'inv-accepted': both,
+      'inv-declined': both,
+      'inv-expired': both,
+      'project-bad-id': [],
+      'run-deleted': [],
+      'grant-org': [],
+      'inv-org': [],
+      'org-route': [],
+      'already-tagged': [ids.p2],
+    });
+    const b = await tags(orgB);
+    expect(b).toEqual({ 'b-project': [ids.pb], 'b-run': [ids.pb], 'b-foreign-run': [] });
+    expect([await count(orgA), await count(orgB)]).toEqual(before);
+  });
+
+  it('is idempotent: applying its SQL again changes no tag', async () => {
+    const before = [await tags(orgA), await tags(orgB)];
+    const sql = await readFile(MIGRATION, 'utf8');
+    for (const statement of sql.split('--> statement-breakpoint')) await owner(statement);
+    expect([await tags(orgA), await tags(orgB)]).toEqual(before);
+  });
+});

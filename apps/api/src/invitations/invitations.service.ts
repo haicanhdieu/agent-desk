@@ -117,6 +117,7 @@ async function expireStalePending(
       targetType: 'invitation',
       targetId: row.id,
       payload: auditPayload(row, { id: row.roleId, key: staleRole?.key ?? '' }),
+      projectIds: row.projectIds,
     });
   }
 }
@@ -207,6 +208,7 @@ export class InvitationsService {
           targetType: 'invitation',
           targetId: row.id,
           payload: auditPayload(row, role),
+          projectIds: row.projectIds,
         });
         return toInvitationDto(
           row,
@@ -304,6 +306,7 @@ export class InvitationsService {
           targetType: 'invitation',
           targetId: row.id,
           payload: { expiresAt: row.expiresAt.toISOString() },
+          projectIds: row.projectIds,
         });
         const projectList = await projectRefs(tx, orgId, row.projectIds);
         return toInvitationDto(
@@ -365,6 +368,7 @@ export class InvitationsService {
         targetType: 'invitation',
         targetId: row.id,
         payload: auditPayload(row, { id: row.roleId, key: roleMap.get(row.roleId)?.key ?? '' }),
+        projectIds: row.projectIds,
       });
     });
   }

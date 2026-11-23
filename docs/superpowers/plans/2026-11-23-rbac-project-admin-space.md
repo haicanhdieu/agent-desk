@@ -405,11 +405,11 @@ export function memberSearch(t: TestApp, cookie: string, orgId: string, query: {
 - Consumes: `audit_log.project_ids` (Task 3).
 - Produces: after this migration, existing rows with `project_ids = '{}'` are tagged by the Data model rules (`target_type = 'projects'` → `[target_id]` when a uuid; `runs`, `rules`, `agents`, `setup-tests` → the joined row's `project_id`; `assignment.granted` / `assignment.revoked` → payload `to.scope.projectId` / `from.scope.projectId`; `invitation.*` including `expired` → the joined project-scope invitation's `project_ids`). Untied rows stay `{}`.
 
-- [ ] **Step 1: Write the failing tests** (N-BACKFILL, BR-16 and BR-27 Not-e2e parts) in a new describe of `migrate.int.test.ts` using a `startPgAt('0038_audit_log_project_ids_idx')` fixture seeded with: rows per target kind (project, run, rule, agent, setup test), a deleted run's row, a project-scope `assignment.granted` and `assignment.revoked` payload, an org-scope grant, invitation rows (created, resent, revoked, accepted, declined, expired) for an invitation listing two projects, an org-scope invitation row, a generic org route row, and the same kinds in a second org. Assert after `migrateRest`: each tied row holds exactly the expected project ids; the deleted run's row, the org-scope grant, the org-scope invitation and the org route row stay `{}`; org B rows only carry org B projects; row count unchanged; running the migration SQL a second time changes nothing.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** a hand-written migration: a DO loop over uuid-shaped `organization.id` that sets `app.org_id` per org (`audit_log` forces RLS) and runs one `UPDATE … WHERE org_id = org AND project_ids = '{}'` per rule (uuid checks with the `0035` regex before any `::uuid` cast), then resets `app.org_id`. Snapshot copied (no schema change).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/db test`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(db): backfill audit project tags from row targets`. Label `review:sensitive` (migration, RLS).
+- [x] **Step 1: Write the failing tests** (N-BACKFILL, BR-16 and BR-27 Not-e2e parts) in a new describe of `migrate.int.test.ts` using a `startPgAt('0038_audit_log_project_ids_idx')` fixture seeded with: rows per target kind (project, run, rule, agent, setup test), a deleted run's row, a project-scope `assignment.granted` and `assignment.revoked` payload, an org-scope grant, invitation rows (created, resent, revoked, accepted, declined, expired) for an invitation listing two projects, an org-scope invitation row, a generic org route row, and the same kinds in a second org. Assert after `migrateRest`: each tied row holds exactly the expected project ids; the deleted run's row, the org-scope grant, the org-scope invitation and the org route row stay `{}`; org B rows only carry org B projects; row count unchanged; running the migration SQL a second time changes nothing.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/db exec vitest run test/migrate.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** a hand-written migration: a DO loop over uuid-shaped `organization.id` that sets `app.org_id` per org (`audit_log` forces RLS) and runs one `UPDATE … WHERE org_id = org AND project_ids = '{}'` per rule (uuid checks with the `0035` regex before any `::uuid` cast), then resets `app.org_id`. Snapshot copied (no schema change).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/db test`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(db): backfill audit project tags from row targets`. Label `review:sensitive` (migration, RLS).
 
 ---
 
@@ -440,14 +440,14 @@ export function auditProjectIds(authz: Pick<RequestAuthz, 'routeKey' | 'projectI
 
   Writers: `AssignmentsService.grant` and `revoke` pass `[projectId]` for a project scope; `acceptInvitationInTx` passes the invitation's `projectIds` on `invitation.accepted` and `[projectId]` on each project grant row it writes; `invitations.service.ts` passes the invitation's `projectIds` on `invitation.created`, `resent`, `revoked` and on `invitation.expired` in `expireStalePending` (project scope only); `my-invitations.service.ts` passes them on `invitation.declined`. Org-level events stay `[]`.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `audit-entry.test.ts`: `buildAuditRow` without `projectIds` → `[]`; with two ids → both, in order.
   - `audit.interceptor.test.ts`: `auditProjectIds` → `[P]` for `{routeKey: 'rules.update', projectId: P}`, `[]` for `{routeKey: 'orgs.update'}`, `[]` for `undefined`, `[]` for a project route without `projectId`.
   - `audit-tagging.int.test.ts` (N-AUDITCOL, BR-18; real guard and `withOrg`; rows read back as `agentdesk_app` under `withOrg`): one call per route family as the P1 admin — `projects.update`, `agents.put`, `agents.putCredential` (payload holds no credential value, key `value` absent), `rules.create`, `skills.put`, `setupScript.put`, `setupTests.create`, `runs.cancel` — each writes one row with `project_ids = [P1]`; `orgs.update` by the owner → `{}`; a project-scope grant and revoke through `assignments.*` → `[P1]`, an org-scope grant → `{}`; invitation created, resent, revoked, accepted (plus its grant rows `[P1]` and `[P2]`), declined for an invitation listing P1 and P2 → `[P1, P2]`; an expired one (set `expires_at` in the past as the owner, re-invite as `invitations.int.test.ts` does) → `invitation.expired` with `[P1, P2]`; an org-scope invitation → `{}`; `member.role_changed` and `member.removed` → `{}`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit test/audit-tagging.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the optional field, the helper and its use in the interceptor insert, and the writer changes above (no other behaviour change).
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts test/invitations.int.test.ts test/my-invitations.int.test.ts test/invitation-resend.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Task 36 and Task 37.
-- [ ] **Step 5: Commit**: `feat(api): tag audit rows with the projects they belong to`. Label `review:sensitive` (audit, grant writes).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run src/audit test/audit-tagging.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the optional field, the helper and its use in the interceptor insert, and the writer changes above (no other behaviour change).
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/assignments.int.test.ts test/invitations.int.test.ts test/my-invitations.int.test.ts test/invitation-resend.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS. E2E: Task 36 and Task 37.
+- [x] **Step 5: Commit**: `feat(api): tag audit rows with the projects they belong to`. Label `review:sensitive` (audit, grant writes).
 
 ---
 

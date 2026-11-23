@@ -97,6 +97,7 @@ export class MyInvitationsService {
         targetType: 'invitation',
         targetId: row.id,
         payload: { email: row.email },
+        projectIds: row.projectIds,
       });
     });
     this.logger.info({ requestId: requestContext.get()?.requestId, orgId, invitationId }, 'invitation declined');
