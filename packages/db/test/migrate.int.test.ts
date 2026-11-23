@@ -1763,7 +1763,7 @@ describe('audit project backfill migration (0039) on an upgraded database (N-BAC
   });
 });
 
-describe('organization status on an upgraded database (migration 0040)', () => {
+describe('organization status and the runs index on an upgraded database (migrations 0040 and 0041)', () => {
   let old: Awaited<ReturnType<typeof startPgAt>>;
   const orgA = randomUUID();
   const orgB = randomUUID();
@@ -1834,7 +1834,7 @@ describe('organization status on an upgraded database (migration 0040)', () => {
   });
 });
 
-describe('platform_org_stats definer function (migration 0041)', () => {
+describe('platform_org_stats definer function (migration 0042)', () => {
   const owner = (sql: string, params: unknown[] = []) => query<Record<string, unknown>>(env.ownerUrl, sql, params);
 
   it('is security definer, owned by agentdesk_owner, with a pinned search_path', async () => {
@@ -1889,7 +1889,7 @@ describe('platform_org_stats definer function (migration 0041)', () => {
   });
 });
 
-describe('platform_audit_log.target_org_id on an upgraded database (migration 0042)', () => {
+describe('platform_audit_log.target_org_id on an upgraded database (migration 0043)', () => {
   let old: Awaited<ReturnType<typeof startPgAt>>;
 
   const owner = async <T extends pg.QueryResultRow>(sql: string, params: unknown[] = []): Promise<T[]> =>
@@ -1900,7 +1900,7 @@ describe('platform_audit_log.target_org_id on an upgraded database (migration 00
     )[0]?.ok === true;
 
   beforeAll(async () => {
-    old = await startPgAt('0041_platform_org_stats');
+    old = await startPgAt('0042_platform_org_stats');
     for (const action of ['platform_admin.granted', 'platform_admin.revoked']) {
       await owner(
         `insert into platform_audit_log (actor_user_id, action, target_type, target_id) values ('u-1', $1, 'platform_admin', 'x@x.io')`,

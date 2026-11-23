@@ -1,5 +1,5 @@
 {
-  "id": "edaba82c-c636-43ae-9d97-19ad60dc13ff",
+  "id": "abffff56-8e11-406d-93e9-f7133acd5b6f",
   "prevId": "fce2a114-8957-4b20-b6ca-a39f28a9097e",
   "version": "7",
   "dialect": "postgresql",
@@ -2407,27 +2407,6 @@
           "columns": [
             {
               "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "runs_org_queued_idx": {
-          "name": "runs_org_queued_idx",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "queued_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
