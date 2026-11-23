@@ -1,5 +1,17 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Banner, Button, Field, Icon, LabelChip, Skeleton, StatusBadge, StatusIcon, TextInput } from '@/ds';
+import {
+  Banner,
+  Button,
+  Field,
+  Icon,
+  LabelChip,
+  Skeleton,
+  StatusBadge,
+  StatusIcon,
+  TabPanel,
+  Tabs,
+  TextInput,
+} from '@/ds';
 import {
   AppShell,
   CodeEditor,
@@ -24,6 +36,15 @@ import {
 } from '@/components';
 import styles from './Screens.module.css';
 import { DeskFrame, type DeskFrameData } from './DeskFrame';
+import { DeskSetupEnvironment, type DeskSetupEnvironmentProps } from './DeskSetupEnvironment';
+
+export type DeskSetupTab = 'script' | 'environment';
+
+const SETUP_TABS: { value: DeskSetupTab; label: string }[] = [
+  { value: 'script', label: 'Setup script' },
+  { value: 'environment', label: 'Environment' },
+];
+const TAB_PREFIX = 'desk-setup';
 
 /** Starter text for a project with no saved script. */
 export const SETUP_SCRIPT_STARTER = [
@@ -97,6 +118,11 @@ export interface DeskSetupProps {
   onViewLog?(): void;
   onViewVersion?(version: number): void;
   onRestore?(version: number): void;
+  /** The open tab; without it the screen keeps its own, starting on `script`. */
+  tab?: DeskSetupTab;
+  onTabChange?(tab: DeskSetupTab): void;
+  /** The Environment tab body; without it the tab is empty. */
+  environment?: DeskSetupEnvironmentProps;
 }
 
 const testStatus = {
@@ -242,7 +268,16 @@ export function DeskSetup({
   onViewLog,
   onViewVersion,
   onRestore,
+  tab,
+  onTabChange,
+  environment,
 }: DeskSetupProps) {
+  const [ownTab, setOwnTab] = useState<DeskSetupTab>('script');
+  const activeTab = tab ?? ownTab;
+  const changeTab = (next: DeskSetupTab) => {
+    setOwnTab(next);
+    onTabChange?.(next);
+  };
   const saved = script?.body ?? '';
   const [value, setValue] = useState(draft ?? (script ? script.body : SETUP_SCRIPT_STARTER));
   const [note, setNote] = useState('');
@@ -331,84 +366,104 @@ export function DeskSetup({
             )}
           </div>
 
-          {saveError && (
-            <div className={styles.setupDeskBanner}>
-              <Banner tone="err" icon={<Icon name="warning" size={16} />} title={saveError} live="assertive" />
-            </div>
-          )}
+          <div className={styles.setupTabs}>
+            <Tabs
+              tabs={SETUP_TABS}
+              value={activeTab}
+              onChange={changeTab}
+              label="Workspace setup"
+              idPrefix={TAB_PREFIX}
+            />
+          </div>
 
-          {test ? (
-            <>
-              <div
-                className={
-                  height === 'viewport'
-                    ? `${styles.setupTestEditor} ${styles.setupTestEditorFit}`
-                    : styles.setupTestEditor
-                }
-              >
-                {editor}
-              </div>
-              <div className={styles.setupPhaseBar}>
-                <StatusBadge status={testStatus[test.status].status} variant="pill">
-                  {testStatus[test.status].label}
-                </StatusBadge>
-                <SetupPhases phases={test.phases} />
-              </div>
-              {test.failure && (
-                <div className={styles.setupFailure}>
-                  <Banner tone="err" icon={<Icon name="warning" size={16} />} title={test.failure.title} live="polite">
-                    {test.failure.detail}
-                  </Banner>
-                </div>
-              )}
-              <div className={styles.setupLogBox}>
-                <SetupLog lines={test.lines} onEndTest={onEndTest} />
-              </div>
-            </>
-          ) : (
-            <>
+          <TabPanel value="script" active={activeTab} idPrefix={TAB_PREFIX}>
+            {saveError && (
               <div className={styles.setupDeskBanner}>
-                <LastTestBanner lastTest={lastTest} onViewLog={onViewLog} />
+                <Banner tone="err" icon={<Icon name="warning" size={16} />} title={saveError} live="assertive" />
               </div>
-              <p className={styles.setupDeskLabel}>
-                Setup script <span className="faint">runs with bash in the repo root, 10 min limit</span>
-              </p>
-              <div className={styles.setupEditorBox}>{editor}</div>
-              <div className={styles.setupSaveBar}>
-                <div className={styles.setupSaveRow}>
-                  <Field
-                    className={styles.grow}
-                    label={
-                      <>
-                        Change note <span className="faint">optional</span>
-                      </>
-                    }
-                  >
-                    {({ id }) => (
-                      <TextInput
-                        id={id}
-                        value={note}
-                        placeholder="What changed and why"
-                        onChange={(e) => setNote(e.target.value)}
-                      />
-                    )}
-                  </Field>
-                  <Button
-                    variant="ghost"
-                    disabled={!dirty || saving}
-                    onClick={() => setValue(script ? script.body : SETUP_SCRIPT_STARTER)}
-                  >
-                    Discard
-                  </Button>
-                  {save}
+            )}
+
+            {test ? (
+              <>
+                <div
+                  className={
+                    height === 'viewport'
+                      ? `${styles.setupTestEditor} ${styles.setupTestEditorFit}`
+                      : styles.setupTestEditor
+                  }
+                >
+                  {editor}
                 </div>
-                <p className={styles.setupSaveNote}>
-                  Don&apos;t put passwords or tokens here. Runs that start after you save use the new version; running
-                  runs keep theirs.
+                <div className={styles.setupPhaseBar}>
+                  <StatusBadge status={testStatus[test.status].status} variant="pill">
+                    {testStatus[test.status].label}
+                  </StatusBadge>
+                  <SetupPhases phases={test.phases} />
+                </div>
+                {test.failure && (
+                  <div className={styles.setupFailure}>
+                    <Banner
+                      tone="err"
+                      icon={<Icon name="warning" size={16} />}
+                      title={test.failure.title}
+                      live="polite"
+                    >
+                      {test.failure.detail}
+                    </Banner>
+                  </div>
+                )}
+                <div className={styles.setupLogBox}>
+                  <SetupLog lines={test.lines} onEndTest={onEndTest} />
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={styles.setupDeskBanner}>
+                  <LastTestBanner lastTest={lastTest} onViewLog={onViewLog} />
+                </div>
+                <p className={styles.setupDeskLabel}>
+                  Setup script <span className="faint">runs with bash in the repo root, 10 min limit</span>
                 </p>
-              </div>
-            </>
-          )}
+                <div className={styles.setupEditorBox}>{editor}</div>
+                <div className={styles.setupSaveBar}>
+                  <div className={styles.setupSaveRow}>
+                    <Field
+                      className={styles.grow}
+                      label={
+                        <>
+                          Change note <span className="faint">optional</span>
+                        </>
+                      }
+                    >
+                      {({ id }) => (
+                        <TextInput
+                          id={id}
+                          value={note}
+                          placeholder="What changed and why"
+                          onChange={(e) => setNote(e.target.value)}
+                        />
+                      )}
+                    </Field>
+                    <Button
+                      variant="ghost"
+                      disabled={!dirty || saving}
+                      onClick={() => setValue(script ? script.body : SETUP_SCRIPT_STARTER)}
+                    >
+                      Discard
+                    </Button>
+                    {save}
+                  </div>
+                  <p className={styles.setupSaveNote}>
+                    Don&apos;t put passwords or tokens here. Add them as secrets on the Environment tab. Runs that start
+                    after you save use the new version; running runs keep theirs.
+                  </p>
+                </div>
+              </>
+            )}
+          </TabPanel>
+          <TabPanel value="environment" active={activeTab} idPrefix={TAB_PREFIX}>
+            {environment && <DeskSetupEnvironment {...environment} />}
+          </TabPanel>
         </main>
 
         <SidePanel aria-label={test ? 'Test result' : 'Plugins and history'}>
@@ -420,7 +475,10 @@ export function DeskSetup({
                     { term: 'Script', value: test.scriptLabel },
                     { term: 'Checkout', value: <span className="mono">{test.checkout}</span> },
                     { term: 'Started', value: test.started },
-                    { term: 'Credentials', value: 'Repo token only. Claude is not started.' },
+                    {
+                      term: 'Credentials',
+                      value: "Repo token and this project's environment values. Claude is not started.",
+                    },
                   ]}
                 />
               </Section>
@@ -428,8 +486,13 @@ export function DeskSetup({
                 <PluginList plugins={test.plugins} />
               </Section>
               <Section title="Limits">
-                <Banner tone="warn" icon={<Icon name="warning" size={15} />} title="Private package feeds need secrets">
-                  Setup has no secrets or private network yet, so private feeds fail. Use public feeds for now.
+                <Banner
+                  tone="warn"
+                  icon={<Icon name="warning" size={15} />}
+                  title="Private package feeds need a secret"
+                >
+                  Add it on the Environment tab. Setup has no private network yet, so only feeds reachable from the
+                  internet work.
                 </Banner>
               </Section>
             </>

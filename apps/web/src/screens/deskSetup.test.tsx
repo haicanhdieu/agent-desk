@@ -13,6 +13,7 @@ import {
   user,
 } from '@/mocks';
 import { DeskSetup, SETUP_SCRIPT_STARTER, type DeskSetupProps } from './DeskSetup';
+import type { DeskSetupEnvironmentProps } from './DeskSetupEnvironment';
 import type { PaginationProps } from '@/components';
 import { SetupWorkspace } from './SetupWorkspace';
 import { RunDetail } from './RunDetail';
@@ -30,7 +31,7 @@ describe('DeskSetup', () => {
     render(<DeskSetup {...props} onSave={onSave} />);
     const save = screen.getByRole('button', { name: 'Save version 5' });
     expect(save).toBeDisabled();
-    await userEvent.type(screen.getByLabelText('Setup script'), '\ndotnet build');
+    await userEvent.type(screen.getByRole('textbox', { name: 'Setup script' }), '\ndotnet build');
     await userEvent.type(screen.getByLabelText(/Change note/), 'Build once');
     expect(save).toBeEnabled();
     expect(screen.getByText('Unsaved changes')).toBeInTheDocument();
@@ -67,7 +68,7 @@ describe('DeskSetup', () => {
   it('without a script, starts from the starter and saves version 1', () => {
     render(<DeskSetup {...props} script={null} versions={[]} />);
     expect(screen.getByText(/No setup script: runs start the agent right after cloning/)).toBeInTheDocument();
-    expect(screen.getByLabelText('Setup script')).toHaveValue(SETUP_SCRIPT_STARTER);
+    expect(screen.getByRole('textbox', { name: 'Setup script' })).toHaveValue(SETUP_SCRIPT_STARTER);
     expect(screen.getByRole('button', { name: 'Save version 1' })).toBeEnabled();
   });
   it('splits the column between the editor and the log only when fitting the window; a board keeps its fixed editor', () => {
@@ -80,7 +81,7 @@ describe('DeskSetup', () => {
       checkout: 'main a91c3e2',
       started: '14:31',
     };
-    const editorBox = () => screen.getByLabelText('Setup script').closest('[class*="setupTestEditor"]');
+    const editorBox = () => screen.getByRole('textbox', { name: 'Setup script' }).closest('[class*="setupTestEditor"]');
     const { rerender } = render(<DeskSetup {...props} test={test} />);
     expect(editorBox()?.className).not.toMatch(/Fit/);
     rerender(<DeskSetup {...props} height="viewport" test={test} />);
@@ -108,7 +109,9 @@ describe('DeskSetup', () => {
     expect(screen.getByRole('log', { name: 'Test workspace terminal' })).toHaveTextContent(
       'agentdesk: setup failed exit=1',
     );
-    expect(screen.getByText('Repo token only. Claude is not started.')).toBeInTheDocument();
+    expect(
+      screen.getByText("Repo token and this project's environment values. Claude is not started."),
+    ).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'End test' }));
     expect(onEndTest).toHaveBeenCalled();
   });
@@ -299,5 +302,147 @@ describe('DeskSetup version history paging', () => {
     expect(screen.getByText('0 versions')).toBeInTheDocument();
     expect(screen.getByText('No versions yet. The first save creates version 1.')).toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Pagination' })).toBeNull();
+  });
+});
+
+const environment = (vars: boolean, secrets: boolean, testRunning?: boolean): DeskSetupEnvironmentProps => ({
+  variables: { entries: [{ name: 'DB_HOST', value: 'db.internal' }], total: 1, canWrite: vars },
+  secrets: { entries: [{ name: 'NPM_TOKEN', meta: 'Set 2 days ago by kim-hale' }], total: 1, canWrite: secrets },
+  testRunning,
+});
+const runningTest = {
+  status: 'running' as const,
+  phases: setupPhases.failed,
+  plugins: setupPlugins.result,
+  lines: setupTestTerminal,
+  scriptLabel: 'Draft',
+  checkout: 'main a91c3e2',
+  started: '14:31',
+};
+const READ_ONLY = 'You can see these but not change them.';
+
+describe('DeskSetup tabs and Environment', () => {
+  it('has a tab strip with Setup script selected by default', () => {
+    render(<DeskSetup {...props} environment={environment(true, true)} />);
+    expect(screen.getByRole('tab', { name: 'Setup script' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Environment' })).toHaveAttribute('aria-selected', 'false');
+    expect(screen.getByRole('textbox', { name: 'Setup script' })).toBeInTheDocument();
+  });
+
+  it('names the variables and secrets pagination landmarks apart when neither caller passes a label', async () => {
+    const paged: PaginationProps = {
+      page: 1,
+      pageSize: 20,
+      total: 45,
+      onPageChange: () => undefined,
+      onPageSizeChange: () => undefined,
+    };
+    const env = environment(true, true);
+    render(
+      <DeskSetup
+        {...props}
+        environment={{
+          ...env,
+          variables: { ...env.variables, total: 45, pagination: paged },
+          secrets: { ...env.secrets, total: 45, pagination: paged },
+        }}
+      />,
+    );
+    await userEvent.click(screen.getByRole('tab', { name: 'Environment' }));
+    expect(screen.getByRole('navigation', { name: 'Variables pagination' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Secrets pagination' })).toBeInTheDocument();
+  });
+
+  it('rewords the save note to point at secrets', () => {
+    render(<DeskSetup {...props} />);
+    expect(
+      screen.getByText(
+        "Don't put passwords or tokens here. Add them as secrets on the Environment tab. Runs that start after you save use the new version; running runs keep theirs.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('rewords the Limits banner of a test', () => {
+    render(<DeskSetup {...props} test={runningTest} />);
+    expect(screen.getByText('Private package feeds need a secret')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Add it on the Environment tab. Setup has no private network yet, so only feeds reachable from the internet work.',
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it('shows both groups with intro, help texts and the visibility note', () => {
+    render(<DeskSetup {...props} tab="environment" environment={environment(true, true)} />);
+    expect(
+      screen.getByText(/^Every run and setup test in this project gets these as environment variables\./),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Environment variables' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Secrets' })).toBeInTheDocument();
+    expect(
+      screen.getByText('Plain values are shown in full and are not hidden in logs. Put anything sensitive in Secrets.'),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Write-only. After you save, a value is hidden for good: you can replace or remove it, not read it back.',
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'Setup scripts and the agent can read these values. Run output shows them as ***, but keep each secret to what this project needs.',
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add variable' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add secret' })).toBeInTheDocument();
+    expect(screen.queryByText(READ_ONLY)).not.toBeInTheDocument();
+    expect(screen.queryByText(/A test is running/)).not.toBeInTheDocument();
+  });
+
+  it('with no write permission shows one note under the intro and no controls', () => {
+    render(<DeskSetup {...props} tab="environment" environment={environment(false, false)} />);
+    expect(screen.getAllByText(READ_ONLY)).toHaveLength(1);
+    expect(screen.queryByRole('button', { name: 'Add variable' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add secret' })).not.toBeInTheDocument();
+  });
+
+  it('with only the secrets read-only keeps variable controls and notes the Secrets group', () => {
+    render(<DeskSetup {...props} tab="environment" environment={environment(true, false)} />);
+    expect(screen.getAllByText(READ_ONLY)).toHaveLength(1);
+    expect(screen.getByRole('button', { name: 'Add variable' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add secret' })).not.toBeInTheDocument();
+  });
+
+  it('with only the variables read-only keeps secret controls and no note', () => {
+    render(<DeskSetup {...props} tab="environment" environment={environment(false, true)} />);
+    expect(screen.queryByText(READ_ONLY)).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Add variable' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add secret' })).toBeInTheDocument();
+  });
+
+  it('says a test is running only while one runs', () => {
+    const line = 'A test is running. It keeps the values it started with.';
+    const { rerender } = render(<DeskSetup {...props} tab="environment" environment={environment(true, true, true)} />);
+    expect(screen.getByText(line)).toBeInTheDocument();
+    rerender(<DeskSetup {...props} tab="environment" environment={environment(true, true, false)} />);
+    expect(screen.queryByText(line)).not.toBeInTheDocument();
+  });
+
+  it('keeps a typed script draft across a switch to Environment and back', async () => {
+    const ue = userEvent.setup();
+    render(<DeskSetup {...props} environment={environment(true, true)} />);
+    await ue.type(screen.getByRole('textbox', { name: 'Setup script' }), '\necho kept');
+    await ue.click(screen.getByRole('tab', { name: 'Environment' }));
+    expect(screen.getByRole('heading', { name: 'Secrets' })).toBeInTheDocument();
+    expect(screen.queryByRole('textbox', { name: 'Setup script' })).not.toBeInTheDocument();
+    await ue.click(screen.getByRole('tab', { name: 'Setup script' }));
+    expect(screen.getByRole('textbox', { name: 'Setup script' })).toHaveValue(`${setupScript}\necho kept`);
+  });
+
+  it('reports the chosen tab and follows a controlled tab', async () => {
+    const onTabChange = vi.fn();
+    render(<DeskSetup {...props} tab="script" onTabChange={onTabChange} environment={environment(true, true)} />);
+    await userEvent.click(screen.getByRole('tab', { name: 'Environment' }));
+    expect(onTabChange).toHaveBeenCalledWith('environment');
+    expect(screen.getByRole('textbox', { name: 'Setup script' })).toBeInTheDocument();
   });
 });

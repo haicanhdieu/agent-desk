@@ -38,7 +38,7 @@ afterEach(() => {
   for (const stop of stops.splice(0)) stop();
 });
 
-const editor = () => screen.getByLabelText('Setup script');
+const editor = () => screen.getByRole('textbox', { name: 'Setup script' });
 const dbTest = (): SetupTestDto => {
   const t = mockDb.state.setupTests.at(-1);
   if (!t) throw new Error('no setup test in the mock store');
@@ -151,7 +151,7 @@ describe('desk setup route', () => {
       seedVersions(23);
       scenarios.serverError('setupScript.versions', { delayMs: 150 });
       await renderRoute(base());
-      await screen.findByLabelText('Setup script');
+      await screen.findByRole('textbox', { name: 'Setup script' });
       expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
       expect(screen.queryByRole('navigation', { name: 'Pagination' })).not.toBeInTheDocument();
       expect(await screen.findByText('Could not load the version history. Reload to try again.')).toBeInTheDocument();
@@ -376,7 +376,7 @@ describe('desk setup route', () => {
       await renderRoute(base());
       expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
       expect(await screen.findByText('Could not load the setup script')).toBeInTheDocument();
-      expect(screen.queryByLabelText('Setup script')).not.toBeInTheDocument();
+      expect(screen.queryByRole('textbox', { name: 'Setup script' })).not.toBeInTheDocument();
     });
 
     it('the version history failing shows why, the rest still works', async () => {

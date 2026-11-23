@@ -574,11 +574,11 @@ graph LR
   - `DeskSetupProps` gains optional `tab?: 'script' | 'environment'`, `onTabChange?(tab): void`, `environment?: DeskSetupEnvironmentProps`; default tab `script`. The script draft stays state in `DeskSetup` (kept across tab switches); the side panel is unchanged; the page does not scroll, the tab panel scrolls inside the main column.
   - The three reworded sentences from the spec Copy ("Existing sentences made false by this change").
 
-- [ ] **Step 1: Write the failing tests** in `deskSetup.test.tsx`: tab strip with "Setup script" and "Environment"; the three reworded sentences replace the old assertions (note in the PR: not a weakening); Environment tab shows both groups with their help text and BR-24 copy; per-group read-only (variable controls without `secret:update`, and the reverse) and the all-read-only note; test-running line only when `testRunning`; a typed script draft survives switching to Environment and back; `onTabChange` called with the tab value.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskSetup.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the screen body, the tab strip in `DeskSetup.tsx` (existing props stay compatible so current stories compile), the three reworded sentences and the barrel export.
-- [ ] **Step 4: Run** the test, `pnpm --filter @agentdesk/web exec vitest run src/screens` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): add Environment tab to the workspace setup screen`.
+- [x] **Step 1: Write the failing tests** in `deskSetup.test.tsx`: tab strip with "Setup script" and "Environment"; the three reworded sentences replace the old assertions (note in the PR: not a weakening); Environment tab shows both groups with their help text and BR-24 copy; per-group read-only (variable controls without `secret:update`, and the reverse) and the all-read-only note; test-running line only when `testRunning`; a typed script draft survives switching to Environment and back; `onTabChange` called with the tab value.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/screens/deskSetup.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the screen body, the tab strip in `DeskSetup.tsx` (existing props stay compatible so current stories compile), the three reworded sentences and the barrel export.
+- [x] **Step 4: Run** the test, `pnpm --filter @agentdesk/web exec vitest run src/screens` and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): add Environment tab to the workspace setup screen`.
 
 ---
 
@@ -601,11 +601,11 @@ graph LR
 - Consumes: `DeskSetupEnvironment` and the `DeskSetup` tab props (Task 15); `EnvEntryList` fixtures (Task 13).
 - Produces: one story in `Screens/Desk` per board `DeskSetupEnvironment`, `...Empty`, `...Loading`, `...Error`, `...Adding`, `...AddSecret`, `...Editing`, `...Saving`, `...SecretReplace`, `...Remove`, `...FieldErrors`, `...NameTaken`, `...Limit`, `...SaveError`, `...Gone`, `...Paged`, `...Added`, `...ReadOnly`, `...SecretsReadOnly`, `...Testing` (20 new boards, 167 total); the existing `DeskSetup*` stories updated for the tab strip and reworded sentences; each new board registered together in `canvas.json` (file entry and `order`), `boardStories` in `storyIds.ts` and `stories` in `parity.mjs` with the same title and export name; screen-level view fixtures in `mocks/setup.ts` (additions only).
 
-- [ ] **Step 1: Write the failing test change** in `coverage.test.ts`: the board count 147 becomes 167; the `it.each(order)` and orphan checks stay as they are.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts`. Expected: FAIL (boards unregistered).
-- [ ] **Step 3: Implement** the 20 stories matching each prototype board in `design/prototype/project/DeskSetupEnvironment*.dc.html` (copy spacing from the board, fixtures only from `@/mocks`), then register all three files together; the 20 `.dc.html` files already exist, do not edit them.
-- [ ] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx` (every story, axe) and typecheck. Expected: PASS. Run the visual parity script only if Storybook is built (`pnpm --filter @agentdesk/web build-storybook` then `node scripts/parity.mjs`) and report if skipped.
-- [ ] **Step 5: Commit**: `feat(web): add Environment tab stories and register boards`.
+- [x] **Step 1: Write the failing test change** in `coverage.test.ts`: the board count 147 becomes 167; the `it.each(order)` and orphan checks stay as they are.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/test/coverage.test.ts`. Expected: FAIL (boards unregistered).
+- [x] **Step 3: Implement** the 20 stories matching each prototype board in `design/prototype/project/DeskSetupEnvironment*.dc.html` (copy spacing from the board, fixtures only from `@/mocks`), then register all three files together; the 20 `.dc.html` files already exist, do not edit them.
+- [x] **Step 4: Run** the Step 2 command, `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx` (every story, axe) and typecheck. Expected: PASS. Run the visual parity script only if Storybook is built (`pnpm --filter @agentdesk/web build-storybook` then `node scripts/parity.mjs`) and report if skipped.
+- [x] **Step 5: Commit**: `feat(web): add Environment tab stories and register boards`.
 
 ---
 

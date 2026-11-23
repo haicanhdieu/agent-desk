@@ -122,3 +122,9 @@ export function envPagedSecretRows(n: number): EnvEntryRow[] {
     meta: `Set ${i + 1} days ago by ${i % 2 === 0 ? 'kim-hale' : 'dana-ortiz'}`,
   })).sort(byteOrder);
 }
+
+/** The secrets of the Environment boards: the second one is set on a fixed date, not "ago". */
+export const envBoardSecretRows: EnvEntryRow[] = [
+  { name: 'NPM_TOKEN', meta: 'Set 2 days ago by kim-hale' },
+  { name: 'NUGET_API_KEY', meta: 'Set Nov 3 by dana-ortiz' },
+];

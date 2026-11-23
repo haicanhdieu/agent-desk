@@ -2105,6 +2105,166 @@
    "h": 900,
    "title": "Settings \u2014 Audit log after reactivation: platform admin suspended and reactivated the organization (no reason)",
    "expand": "fill"
+  },
+  "DeskSetupEnvironment.dc.html": {
+   "x": 0,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentEmpty.dc.html": {
+   "x": 1520,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, no entries yet",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentLoading.dc.html": {
+   "x": 3040,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, loading",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentError.dc.html": {
+   "x": 4560,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, variables failed to load",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentAdding.dc.html": {
+   "x": 6080,
+   "y": 67120,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, adding a variable",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentAddSecret.dc.html": {
+   "x": 0,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, adding a secret",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentEditing.dc.html": {
+   "x": 1520,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, editing a variable",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentSaving.dc.html": {
+   "x": 3040,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, saving a variable",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentSecretReplace.dc.html": {
+   "x": 4560,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, replacing a secret",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentRemove.dc.html": {
+   "x": 6080,
+   "y": 68400,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, remove a variable",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentFieldErrors.dc.html": {
+   "x": 0,
+   "y": 69680,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, reserved name and short secret",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentNameTaken.dc.html": {
+   "x": 1520,
+   "y": 69680,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, name already exists",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentLimit.dc.html": {
+   "x": 3040,
+   "y": 69680,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, limit reached",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentSaveError.dc.html": {
+   "x": 4560,
+   "y": 69680,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, save failed",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentGone.dc.html": {
+   "x": 6080,
+   "y": 69680,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, entry no longer exists",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentPaged.dc.html": {
+   "x": 0,
+   "y": 70960,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, both lists on page 2",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentAdded.dc.html": {
+   "x": 1520,
+   "y": 70960,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, added to another page",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentReadOnly.dc.html": {
+   "x": 3040,
+   "y": 70960,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, read-only",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentSecretsReadOnly.dc.html": {
+   "x": 4560,
+   "y": 70960,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, secrets read-only",
+   "expand": "fill"
+  },
+  "DeskSetupEnvironmentTesting.dc.html": {
+   "x": 6080,
+   "y": 70960,
+   "w": 1440,
+   "h": 900,
+   "title": "Desk \u2014 workspace setup, environment, while a test runs",
+   "expand": "fill"
   }
  },
  "order": [
@@ -2369,7 +2529,27 @@
   "OrgSuspended.dc.html",
   "OrgSuspendedSwitcher.dc.html",
   "OrgSuspendedPlatformAdmin.dc.html",
-  "OrgAuditPlatformSuspend.dc.html"
+  "OrgAuditPlatformSuspend.dc.html",
+  "DeskSetupEnvironment.dc.html",
+  "DeskSetupEnvironmentEmpty.dc.html",
+  "DeskSetupEnvironmentLoading.dc.html",
+  "DeskSetupEnvironmentError.dc.html",
+  "DeskSetupEnvironmentAdding.dc.html",
+  "DeskSetupEnvironmentAddSecret.dc.html",
+  "DeskSetupEnvironmentEditing.dc.html",
+  "DeskSetupEnvironmentSaving.dc.html",
+  "DeskSetupEnvironmentSecretReplace.dc.html",
+  "DeskSetupEnvironmentRemove.dc.html",
+  "DeskSetupEnvironmentFieldErrors.dc.html",
+  "DeskSetupEnvironmentNameTaken.dc.html",
+  "DeskSetupEnvironmentLimit.dc.html",
+  "DeskSetupEnvironmentSaveError.dc.html",
+  "DeskSetupEnvironmentGone.dc.html",
+  "DeskSetupEnvironmentPaged.dc.html",
+  "DeskSetupEnvironmentAdded.dc.html",
+  "DeskSetupEnvironmentReadOnly.dc.html",
+  "DeskSetupEnvironmentSecretsReadOnly.dc.html",
+  "DeskSetupEnvironmentTesting.dc.html"
  ],
  "notes": {
   "t-intro": {

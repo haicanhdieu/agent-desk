@@ -65,6 +65,7 @@ export {
   setupFailedRunTerminal,
   envVariableRows,
   envSecretRows,
+  envBoardSecretRows,
   envPagedVariableRows,
   envPagedSecretRows,
 } from './setup';
