@@ -408,6 +408,64 @@ describe('processTicketEvent', () => {
   });
 });
 
+/** Sets the org's status through the admin pool, creating the organization row when the seed has none. */
+async function setOrgStatus(orgId: string, status: 'active' | 'suspended'): Promise<void> {
+  await admin.query(
+    `insert into organization (id, name, slug, created_at, status, suspended_at)
+     values ($1, $1, $1, now(), $2, case when $2 = 'suspended' then now() end)
+     on conflict (id) do update set status = excluded.status, suspended_at = excluded.suspended_at`,
+    [orgId, status],
+  );
+}
+
+describe('processTicketEvent: suspended organization (BR-39, BR-42)', () => {
+  it.each(['webhook', 'poll'] as const)(
+    'a command on a suspended org is recorded as ignored_org_suspended and starts no run (%s)',
+    async (channel) => {
+      const s = await seed();
+      await setOrgStatus(s.orgId, 'suspended');
+      const h = harness();
+      const r = await processTicketEvent(h.deps, eventFor(s), channel);
+      expect(r).toEqual({ outcome: 'ignored_org_suspended' });
+      expect(await runsOf(s)).toHaveLength(0);
+      expect(h.startRun).not.toHaveBeenCalled();
+      expect(h.getTicket).not.toHaveBeenCalled();
+      expect(await inboundOf(s)).toMatchObject([
+        { outcome: 'ignored_org_suspended', channel, orgId: s.orgId, projectId: s.projectId },
+      ]);
+    },
+  );
+
+  it('the same command on an active org creates a run', async () => {
+    const s = await seed();
+    await setOrgStatus(s.orgId, 'active');
+    const r = await processTicketEvent(harness().deps, eventFor(s), 'webhook');
+    expect(r.outcome).toBe('run_created');
+  });
+
+  it('a suspended org does not change another org: only its own events are ignored', async () => {
+    const a = await seed();
+    const b = await seed();
+    await setOrgStatus(a.orgId, 'suspended');
+    await setOrgStatus(b.orgId, 'active');
+    expect((await processTicketEvent(harness().deps, eventFor(a), 'webhook')).outcome).toBe('ignored_org_suspended');
+    expect((await processTicketEvent(harness().deps, eventFor(b), 'webhook')).outcome).toBe('run_created');
+  });
+
+  it('after reactivation the earlier comment starts nothing and a new comment starts a run', async () => {
+    const s = await seed();
+    await setOrgStatus(s.orgId, 'suspended');
+    const h = harness();
+    const earlier = eventFor(s);
+    await processTicketEvent(h.deps, earlier, 'poll');
+    await setOrgStatus(s.orgId, 'active');
+    expect(await processTicketEvent(h.deps, earlier, 'poll')).toEqual({ outcome: 'duplicate' });
+    expect(await runsOf(s)).toHaveLength(0);
+    expect((await processTicketEvent(h.deps, eventFor(s), 'poll')).outcome).toBe('run_created');
+    expect(await runsOf(s)).toHaveLength(1);
+  });
+});
+
 describe('processTicketEvent: run owner', () => {
   const ORIGIN_START = '2026-11-11T23:00:00Z';
   const BOT_AT = '2026-11-12T00:00:00Z';

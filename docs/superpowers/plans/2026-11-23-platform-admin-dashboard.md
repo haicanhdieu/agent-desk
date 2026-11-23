@@ -1104,14 +1104,14 @@ export class OrgSuspendedException extends ForbiddenException { readonly problem
 - Consumes: `organization.status` (Task 10).
 - Produces: intake outcome `'ignored_org_suspended'` (recorded on the `inbound_events` row, no run row); `WebhooksController.receive` answers `{ outcome: 'ignored' }` for that outcome and keeps every other outcome's body.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `intake.int.test.ts` (BR-39, BR-42): a command comment on a project of a suspended org, on the webhook and the poll channel: outcome `ignored_org_suspended`, the event recorded, no run; the same on an active org creates a run; after reactivation the earlier comment starts nothing and a new one starts a run.
-  - `webhooks.int.test.ts`: a bad signature is refused first with no lookup (status read count 0); a verified delivery for a suspended org answers 200 `{ outcome: 'ignored' }`, the same body as an event with no command.
+  - `webhooks.int.test.ts`: a bad signature is refused first with no lookup (status read count 0); a verified delivery for a suspended org answers 200 `{ outcome: 'ignored' }`, the plain `ignored` body a null-parse event gets.
   - `poll.int.test.ts`: the cursor advances past a suspended org's comments and nothing replays after reactivation.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/intake.int.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the check in `process-ticket-event.ts` right after the project is resolved, inside the same transaction (read `organization.status` by the resolved org id; `finish('ignored_org_suspended', 'organization suspended')`), and the one-outcome mapping in the controller.
-- [ ] **Step 4: Run** Step 2's commands and `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(core): intake ignores events of a suspended organization`. Label `review:sensitive` (webhooks).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/core exec vitest run test/intake.int.test.ts`, `pnpm --filter @agentdesk/api exec vitest run test/webhooks.int.test.ts`, `pnpm --filter @agentdesk/worker exec vitest run test/poll.int.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the check in `process-ticket-event.ts` right after the project is resolved, inside the same transaction (read `organization.status` by the resolved org id; `finish('ignored_org_suspended', 'organization suspended')`), and the one-outcome mapping in the controller.
+- [x] **Step 4: Run** Step 2's commands and `pnpm --filter @agentdesk/core typecheck && pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(core): intake ignores events of a suspended organization`. Label `review:sensitive` (webhooks).
 
 ---
 
@@ -1129,13 +1129,13 @@ export class OrgSuspendedException extends ForbiddenException { readonly problem
 - Consumes: `organization.status` (Task 10).
 - Produces: `RunDetails.orgStatus: 'active' | 'suspended'` selected by `details(tx, orgId, runId)`; in `createRunSecretAndJob`, `if (!resume && d.orgStatus === 'suspended') throw ApplicationFailure.nonRetryable('the organization is suspended', 'OrgSuspended')` right after the `isFinal` check.
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `run.activities.int.test.ts` (BR-47, BR-41): a first start on a suspended org throws a non-retryable `OrgSuspended` failure and the fake gateway saw no Secret, no Job and no token mint; on an active org it starts; a resume and an auto-resume attempt on a suspended org create their Job; a race case: the run row exists (intake passed), the org is suspended, then the first start refuses.
   - `run.workflow.test.ts`: that activity failure ends the run `failed` with a reason containing "the organization is suspended" through the existing failure path.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts test/run.workflow.test.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the select and the guard.
-- [ ] **Step 4: Run** Step 2's command, the existing replay tests `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.auto-resume.test.ts test/run.workflow.resuming.test.ts test/run.workflow.reopened.test.ts test/run.workflow.in-process.test.ts`, `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(worker): refuse the first start of a run in a suspended organization`. Label `review:sensitive` (run Job).
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/worker exec vitest run test/run.activities.int.test.ts test/run.workflow.test.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the select and the guard.
+- [x] **Step 4: Run** Step 2's command, the existing replay tests `pnpm --filter @agentdesk/worker exec vitest run test/run.workflow.auto-resume.test.ts test/run.workflow.resuming.test.ts test/run.workflow.reopened.test.ts test/run.workflow.in-process.test.ts`, `pnpm --filter @agentdesk/worker typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(worker): refuse the first start of a run in a suspended organization`. Label `review:sensitive` (run Job).
 
 ---
 
@@ -1348,7 +1348,7 @@ Covers: BR-32 (TC-32.2), BR-34 (TC-34.2), BR-37 (TC-37.4), BR-38 (TC-38.1 to TC-
 
 Covers: BR-39 (TC-39.1, TC-39.2, TC-39.3), BR-40 (TC-40.1, TC-40.2), BR-41 (TC-41.1, TC-41.2), BR-42 (TC-42.2). BR-47 and BR-39's poll channel are Not e2e (Tasks 25 and 24). Role-based case: TC-40.1 (the owner cannot start a run).
 
-- [ ] **Step 1: Write the spec**: "no run started" is asserted on the recorded intake outcome (`ignored_org_suspended`) and on that ticket's run list, never by waiting for an absence; the webhook body is asserted equal to the body of an event with no command; reactivate in `finally`. TC-39.x and TC-40.x use the existing fake ticket source and run routes (spec open question Q3: outcomes only).
+- [ ] **Step 1: Write the spec**: "no run started" is asserted on the recorded intake outcome (`ignored_org_suspended`) and on that ticket's run list, never by waiting for an absence; the webhook body is asserted equal to the plain `{ outcome: 'ignored' }` (the body of a null-parse event); reactivate in `finally`. TC-39.x and TC-40.x use the existing fake ticket source and run routes (spec open question Q3: outcomes only).
 - [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/platform-suspend-runs.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit**: `test(web): local e2e for runs and webhooks of a suspended organization`.
 

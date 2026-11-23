@@ -53,6 +53,8 @@ export class WebhooksController {
 
     const result = await this.intake.process(event, 'webhook');
     if (result.outcome === 'run_created') void reply.status(202);
+    // A suspension is not revealed to the sender: same body as an event with no command (ADR-0038).
+    if (result.outcome === 'ignored_org_suspended') return { outcome: 'ignored' };
     return { outcome: result.outcome };
   }
 }

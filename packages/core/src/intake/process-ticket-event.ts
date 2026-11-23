@@ -3,6 +3,7 @@ import {
   agents,
   connections,
   inboundEvents,
+  organization,
   projects,
   resolveProject,
   rules,
@@ -151,6 +152,8 @@ async function prefetchTicket(
   if (!parsed || !isAuthorizedAuthor(event, deps.botLogin)) return undefined;
   const { projectId } = target;
   const pre = await withOrg(deps.db, target.orgId, async (tx) => {
+    // A suspended org's event is decided (ignored) in the routing transaction; the board is never called for it.
+    if (await isOrgSuspended(tx, target.orgId)) return undefined;
     const [delivery] = await tx
       .select({ id: inboundEvents.id })
       .from(inboundEvents)
@@ -205,6 +208,16 @@ async function prefetchTicket(
   } catch (err) {
     return { ok: false, err };
   }
+}
+
+/** Whether the org is suspended, by its resolved id. A missing organization row counts as not suspended. */
+async function isOrgSuspended(tx: Tx, orgId: string): Promise<boolean> {
+  const [org] = await tx
+    .select({ status: organization.status })
+    .from(organization)
+    .where(eq(organization.id, orgId))
+    .limit(1);
+  return org?.status === 'suspended';
 }
 
 /** The issue refs a PR links to, for a bot comment's owner lookup; [] for an issue, or when the ticket is unavailable. */
@@ -296,6 +309,10 @@ async function decideInTx(
     await tx.update(inboundEvents).set({ outcome, detail }).where(eq(inboundEvents.id, inboundId));
     return { outcome };
   };
+
+  // A suspended org starts nothing (ADR-0038, BR-39). Read by the resolved org id in this transaction; the event is
+  // recorded and the poll cursor moves past it, so nothing replays after reactivation. A missing row is not suspended.
+  if (await isOrgSuspended(tx, orgId)) return finish('ignored_org_suspended', 'organization suspended');
 
   // Serialise deliveries of the same comment: the loser waits here until the winner commits, then sees its run below
   // (otherwise its guards could see the winner's fresh run first and report ignored_active_run).

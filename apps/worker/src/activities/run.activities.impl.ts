@@ -285,6 +285,8 @@ interface RunDetails {
   /** Login and provider user id of the person who triggered the run; null on runs created before they were recorded. */
   triggeredBy: string | null;
   triggeredByExternalId: string | null;
+  /** The organization's status now: a suspended organization's run is not started (a resume still is). */
+  orgStatus: 'active' | 'suspended';
 }
 
 export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
@@ -341,7 +343,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       if (!kind.success) throw ApplicationFailure.nonRetryable('unknown agent kind');
       agentKind = kind.data;
     }
-    const [o] = await tx.select({ slug: organization.slug }).from(organization).where(eq(organization.id, orgId));
+    const [o] = await tx
+      .select({ slug: organization.slug, status: organization.status })
+      .from(organization)
+      .where(eq(organization.id, orgId));
     const ticketNumber = r.ticketNumber ?? Number.parseInt(r.ticketRef.replace(/^#/, ''), 10);
     return {
       number: r.number,
@@ -360,6 +365,7 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
       repoPath: r.repoPath,
       defaultBranch: r.defaultBranch,
       orgSlug: o?.slug ?? null,
+      orgStatus: o?.status === 'suspended' ? 'suspended' : 'active',
       code: { provider: r.codeProvider, externalId: r.codeExternalId },
       board: { provider: r.boardProvider, externalId: r.boardExternalId },
       maxTurns: r.maxTurns,
@@ -530,6 +536,10 @@ export function createRunActivities(deps: RunActivityDeps): RunActivityImpls {
     const resume = opts.resume === true;
     const d = await mustDetails(ctx.orgId, ctx.runId);
     if (isFinal(d.status)) return undefined;
+    // Only the first start is refused: a resume belongs to a run already in progress, and a paused run stays paused.
+    if (!resume && d.orgStatus === 'suspended') {
+      throw ApplicationFailure.nonRetryable('the organization is suspended', 'OrgSuspended');
+    }
     // A resume happens long after `ctx` was loaded: the agent and its credential are read fresh (the agent may be gone).
     const stored = await storedCredential(resume ? { ...ctx, agentId: d.agentId } : ctx, d.baseUrl);
     // An agent with a credential always has a kind; a run without an agent has no credential.
