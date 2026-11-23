@@ -78,7 +78,7 @@ A description is first filed as a new issue, so the board tracks it. The skill t
 4. Fixes (systematic debugging, then a failing test first) or implements the task list (test-driven). When an agent stops on a question a human would answer, an Advisor agent rules on it first from the repo's rules, ADRs and the ticket, and posts the decision on the issue (it is also listed in the PR). A question those sources don't settle, or that would change the architecture, a requirement or a rule, stops at **Blocked** with a comment asking you to pick one of up to 3 solutions.
 5. Verifies (at most 3 rounds; still red after that, it stops at **Blocked** with the failing output), pushes, opens a PR to `main`, labels it, and moves the card to **In review**.
 
-A plan too big for one ~800-line PR is split into **units** ([multi-unit.md](../../.agent/skills/dev-build/multi-unit.md)). Each unit is built on its own branch, verified, and opened as a draft sub-PR (label `internal`) into an integration branch `feat/<n>-<slug>`, where `dev-build` reviews it and merges it; independent units run in parallel. When all are merged, it verifies and reviews the whole branch and opens **one** PR from it to `main`. You never review the sub-PRs; the one PR to `main` is what goes to **In review**.
+A plan too big for one ~800-line PR is split into **units** ([multi-unit.md](../../.agent/skills/dev-build/phases/multi-unit.md)). Each unit is built on its own branch, verified, and opened as a draft sub-PR (label `internal`) into an integration branch `feat/<n>-<slug>`, where `dev-build` reviews it and merges it; independent units run in parallel. When all are merged, it verifies and reviews the whole branch and opens **one** PR from it to `main`. You never review the sub-PRs; the one PR to `main` is what goes to **In review**.
 
 If the card is already In progress, In review, QA or Done, `dev-build` stops and tells you; it never takes over someone else's branch.
 
@@ -111,7 +111,7 @@ The skill:
    | medium   | A SHOULD broken, missing edge case or UI state, maintenance cost                            | fixed             |
    | low      | Nice to have                                                                                | listed, not fixed |
 
-   Full rubric: [severity.md](../../.agent/skills/dev-review/severity.md). A separate checker agent removes duplicates, checks each finding against the code and each suggested fix against how the repo's tools really work, and the orchestrator confirms every critical, high and medium itself. Findings are posted as one comment on the PR per round.
+   Full rubric: [severity.md](../../.agent/skills/dev-review/reference/severity.md). A separate checker agent removes duplicates, checks each finding against the code and each suggested fix against how the repo's tools really work, and the orchestrator confirms every critical, high and medium itself. Findings are posted as one comment on the PR per round.
 
 3. Sends agents to fix every critical, high and medium finding, then re-reviews all five dimensions. At most 3 rounds. A question a rule or ADR can settle (for example a conflict between two sides, or whether a finding holds) goes to an Advisor agent first; anything it can't settle stops at **Blocked**.
 4. Waits for CI and fixes failures this PR caused (at most 3 tries). A failure the PR didn't cause (it fails on `main` too, infra, a flaky test) blocks instead of being re-run.

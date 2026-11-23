@@ -16,7 +16,7 @@
 # (fix|feat)/<n>-<slug> or (fix|feat)/<n>-<slug>--u<id> and must be on origin.
 #
 # New run, integration or unit: refuses an existing branch or worktree (someone
-# else owns it). Resume: reuses the pushed branch. The caller (SKILL.md step 1)
+# else owns it). Resume: reuses the pushed branch. The caller (phases/1-triage.md)
 # has already checked that dev-build itself blocked this ticket. The branch is
 # NOT rebased; BEHIND says how far its base has moved.
 #
