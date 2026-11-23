@@ -1324,9 +1324,9 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: as Task 31; `secondOrg` for BR-25.
 
-- [ ] **Step 1: Write the specs** for BR-20 (TC-20.1, 20.2), BR-21 (TC-21.1 to 21.5), BR-22 (TC-22.1, 22.2), BR-23 (TC-23.1 to 23.6; TC-23.6 on the "accepted an invitation as Member" entry, spec Q3) and BR-25 (TC-25.1 to 25.4). Assert the entry text, not the relative time.
-- [ ] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-audit.spec.ts`. Expected: PASS.
-- [ ] **Step 3: Commit** `test(web): local e2e for the audit log`.
+- [x] **Step 1: Write the specs** for BR-20 (TC-20.1, 20.2), BR-21 (TC-21.1 to 21.5), BR-22 (TC-22.1, 22.2), BR-23 (TC-23.1 to 23.6; TC-23.6 on the "accepted an invitation as Member" entry, spec Q3) and BR-25 (TC-25.1 to 25.4). Assert the entry text, not the relative time.
+- [x] **Step 2: Run** with the stack up: `pnpm --filter @agentdesk/web exec playwright test e2e/local/org-audit.spec.ts`. Expected: PASS.
+- [x] **Step 3: Commit** `test(web): local e2e for the audit log`.
 
 ---
 

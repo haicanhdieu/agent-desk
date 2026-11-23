@@ -405,6 +405,21 @@ describe('my invitations', () => {
     });
   });
 
+  it('BR-23: the invitation.accepted audit row has the acceptor as actor, not the inviter', async () => {
+    const u = await newUser('acceptor');
+    const org = await newOrg('Acceptor Org');
+    const inv = await invite(t, org, u.email, 'member', { type: 'org' });
+    expect((await acceptInvite(t, u.cookie, inv.id)).statusCode).toBe(200);
+
+    const accepted = await asOrg(
+      org,
+      "select actor_user_id, payload from audit_log where action = 'invitation.accepted' and target_id = $1",
+      [inv.id],
+    );
+    expect(accepted.rows).toHaveLength(1);
+    expect(accepted.rows[0]).toMatchObject({ actor_user_id: u.userId, payload: { acceptedBy: u.userId } });
+  });
+
   it('N-3: accept and decline log requestId, orgId and invitationId and never an email at info', async () => {
     const u = await newUser('logs');
     const org = await newOrg('Log Org');

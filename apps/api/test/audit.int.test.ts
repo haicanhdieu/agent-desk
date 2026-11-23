@@ -214,6 +214,7 @@ describe('audit list', () => {
         { field: 'role', from: null, to: 'Member' },
       ]);
       expect(byAction('invitation.accepted', accepted.id)?.target.label).toBe('au-inv-acc@dev.local');
+      expect(byAction('invitation.accepted', accepted.id)?.actor?.userId).toBe(await userIdOf(t, 'au-inv-acc'));
       expect(byAction('invitation.declined', declined.id)?.target.label).toBe('au-inv-dec@dev.local');
       for (const e of page.items.filter((x) => x.target.type !== 'invitation')) {
         expect(JSON.stringify(e)).not.toContain('@dev.local');
