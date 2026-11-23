@@ -92,10 +92,7 @@ function Lockup({ height, label }: { height: number; label: string }) {
         <Mark />
       </g>
       <text x="142" {...WORD} className={logo.wordInk}>
-        Agent
-      </text>
-      <text x="290" {...WORD} className={logo.node}>
-        Desk
+        Agent <tspan className={logo.node}>Desk</tspan>
       </text>
     </svg>
   );

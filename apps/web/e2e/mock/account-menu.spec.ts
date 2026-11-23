@@ -64,5 +64,5 @@ test('the top bar brand is the horizontal logo lockup, with the name drawn insid
   await page.goto(`/o/${ORG}/projects`);
   const brand = page.getByRole('link', { name: 'Agent Desk, all projects' });
   await expect(brand.locator('svg[viewBox="0 0 480 120"]')).toBeVisible();
-  await expect(brand.locator('svg text')).toHaveText(['Agent', 'Desk']);
+  await expect(brand.locator('svg text')).toHaveText(['Agent Desk']);
 });

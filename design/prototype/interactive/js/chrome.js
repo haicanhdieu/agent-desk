@@ -119,8 +119,8 @@
     const screen = (AD.cur && AD.cur.screen) || '';
     const inOrgRoute = !!(AD.cur && AD.cur.params && AD.cur.params.org);
     const brandHref = inOrgRoute ? AD.href('/o/' + AD.cur.params.org + '/projects') : u ? AD.href('/') : AD.href('/signin');
-    if (!u) return `<header class="top"><a href="${brandHref}" class="brand" aria-label="Agent Desk">${I.brand}Agent Desk</a><span class="grow"></span></header>`;
-    const brand = `<a href="${brandHref}" class="brand" aria-label="Agent Desk, all projects">${I.brand}Agent Desk</a><span class="sep"></span>`;
+    if (!u) return `<header class="top"><a href="${brandHref}" class="brand" aria-label="Agent Desk">${I.brand}</a><span class="grow"></span></header>`;
+    const brand = `<a href="${brandHref}" class="brand" aria-label="Agent Desk, all projects">${I.brand}</a><span class="sep"></span>`;
     let level = out.header;
     if (level === 'auto') level = /^(runs|run|desk)$/.test(screen) ? 'project' : 'global';
     const noOrg = !!out.noOrg || !AD.userOrgs(u.id).length;
