@@ -37,7 +37,12 @@ import { freshStateDir, installFake, makeProject, wideFakeRepos } from './helper
  * Route keys whose controllers are added by later tasks of the RBAC plan. Each entry is asserted to be still
  * unregistered, so the task that adds the controller must delete its line here.
  */
-const NOT_REGISTERED_YET: RouteKey[] = [];
+const NOT_REGISTERED_YET: RouteKey[] = [
+  // the secret routes of project env vars and secrets are implemented by plan Task 7
+  'projectEnv.createSecret',
+  'projectEnv.updateSecret',
+  'projectEnv.removeSecret',
+];
 
 /** Served through a WebSocket gateway, not a Nest HTTP controller. */
 const TERMINAL_KEYS: RouteKey[] = ['runs.terminal', 'setupTests.terminal'];
@@ -788,6 +793,13 @@ const DENIAL_TABLE: Record<HttpKey, Expected> = {
   'setupScript.put': tenant(403),
   'setupScript.versions': tenant(403),
   'setupScript.version': tenant(403),
+  'projectEnv.list': tenant(403),
+  'projectEnv.createVar': tenant(403),
+  'projectEnv.updateVar': tenant(403),
+  'projectEnv.removeVar': tenant(403),
+  'projectEnv.createSecret': tenant(403),
+  'projectEnv.updateSecret': tenant(403),
+  'projectEnv.removeSecret': tenant(403),
   'setup.plugins': tenant(403),
   'setupTests.create': tenant(403),
   'setupTests.latest': tenant(403),
@@ -1146,6 +1158,8 @@ describe('denial table over every route, stream and terminal', () => {
       },
       'rules.update': { enabled: false },
       'setupScript.put': { body: 'echo denied', baseVersion: null },
+      'projectEnv.createVar': { name: 'DENIED_VAR', value: 'denied' },
+      'projectEnv.updateVar': { value: 'denied' },
       'setupTests.create': { script: 'echo denied' },
       'assignments.create': { userId: spareId, roleId: memberRole, scope: { type: 'project', projectId: p1 } },
       'members.updateRole': { roleId: viewerRole },

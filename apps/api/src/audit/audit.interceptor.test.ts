@@ -2,7 +2,7 @@ import type { CallHandler, ExecutionContext } from '@nestjs/common';
 import { lastValueFrom, of } from 'rxjs';
 import { describe, expect, it, vi } from 'vitest';
 import type { Db } from '@agentdesk/db';
-import { AuditInterceptor, auditProjectIds, describeRequest } from './audit.interceptor';
+import { AUDIT_ENV_BY_ACTION, AuditInterceptor, auditProjectIds, describeRequest } from './audit.interceptor';
 
 const withOrg = vi.hoisted(() => vi.fn());
 vi.mock('@agentdesk/db', async (orig) => ({ ...(await orig<typeof import('@agentdesk/db')>()), withOrg }));
@@ -84,5 +84,68 @@ describe('AuditInterceptor', () => {
       params: { id: '\nx' },
     });
     expect(row).toMatchObject({ action: 'POST /api/odd/:id', targetType: 'odd', targetId: null });
+  });
+
+  describe('project env actions', () => {
+    const project = '3f1c8f58-5d5e-4a62-9d3b-0b1b6c1d7a10';
+    const route = (suffix: string) => ({ url: `/api/projects/:projectId/${suffix}` });
+
+    it('maps all six write actions to a kind', () => {
+      expect(AUDIT_ENV_BY_ACTION).toEqual({
+        'POST projectEnv.createVar': 'plain',
+        'PUT projectEnv.updateVar': 'plain',
+        'DELETE projectEnv.removeVar': 'plain',
+        'POST projectEnv.createSecret': 'secret',
+        'PUT projectEnv.updateSecret': 'secret',
+        'DELETE projectEnv.removeSecret': 'secret',
+      });
+    });
+
+    it('POST takes the name from the body, adds the kind and never the value; the target stays the project', async () => {
+      const row = await auditedValues({
+        method: 'POST',
+        routeOptions: route('env-vars'),
+        params: { projectId: project },
+        body: { name: 'FOO', value: 'bar-value' },
+      });
+      expect(row).toMatchObject({
+        action: 'POST projectEnv.createVar',
+        targetId: project,
+        payload: { name: 'FOO', kind: 'plain' },
+      });
+      expect(JSON.stringify(row['payload'])).not.toContain('bar-value');
+    });
+
+    it('PUT and DELETE take the name from the path, not the body', async () => {
+      const put = await auditedValues({
+        method: 'PUT',
+        routeOptions: route('env-secrets/:name'),
+        params: { projectId: project, name: 'TOKEN_A' },
+        body: { value: 'secret-value-1', name: 'FORGED' },
+      });
+      expect(put).toMatchObject({
+        action: 'PUT projectEnv.updateSecret',
+        targetId: project,
+        payload: { name: 'TOKEN_A', kind: 'secret' },
+      });
+      expect(JSON.stringify(put['payload'])).not.toContain('secret-value-1');
+      const del = await auditedValues({
+        method: 'DELETE',
+        routeOptions: route('env-vars/:name'),
+        params: { projectId: project, name: 'FOO' },
+        body: undefined,
+      });
+      expect(del).toMatchObject({ action: 'DELETE projectEnv.removeVar', payload: { name: 'FOO', kind: 'plain' } });
+    });
+
+    it('leaves other actions untouched', async () => {
+      const row = await auditedValues({
+        method: 'PATCH',
+        routeOptions: { url: '/api/projects/:projectId' },
+        params: { projectId: project },
+        body: { name: 'x' },
+      });
+      expect(row['payload']).toEqual({ name: 'x' });
+    });
   });
 });
