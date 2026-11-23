@@ -976,13 +976,13 @@ export interface DeskMembersProps {
 - Consumes: `AuditEntryDto.projects` (Task 2); the story rows the sentences must match (Task 17).
 - Produces: `toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string, scope: 'org' | 'project' = 'org'): AuditRowView`; `export function projectsPhrase(projects: { name: string }[]): { text: string; title: string } | null` (null for none; "p1, p2, p3 and N more" above 3, `title` the full list).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `map.test.ts` (BR-27, human spec gaps 1, 2, 6): created, resent, revoked, accepted, declined, expired with one, two and five projects, with and without email, in the spec's exact sentences; org-scope invitation (no projects) keeps today's sentence; Review Focus 5: a project-scope entry with `projects: []` renders without " to …"; expired without projects "The invitation for <email> expired" / "An invitation expired"; the "and N more" `title` lists every visible name; names with markup stay text parts; scope `project`: `assignment.granted` with a role change → "<actor> added <member> to this project as <Role>", without → raw key; `project_member.role_changed` → "<actor> changed <member>'s project role from <A> to <B>"; `project_member.removed` → "<actor> removed <member> from this project (was <Role>)"; scope `org`: `assignment.granted` stays the raw key.
   - `audit.route.test.tsx`: the org Audit log renders an invitation sentence with project names from the MSW fixture.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/audit`. Expected: FAIL.
-- [ ] **Step 3: Implement** the sentences (text parts only); fix the stale org-tenant-admin spec lines named in the spec's "Other decisions" (the `AuditRow` example, the five Copy sentences and the TC-23.1 expected text) to this spec's sentences.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 31 and Task 37.
-- [ ] **Step 5: Commit**: `feat(web): audit invitation sentences name their projects`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/audit`. Expected: FAIL.
+- [x] **Step 3: Implement** the sentences (text parts only); fix the stale org-tenant-admin spec lines named in the spec's "Other decisions" (the `AuditRow` example, the five Copy sentences and the TC-23.1 expected text) to this spec's sentences.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 31 and Task 37.
+- [x] **Step 5: Commit**: `feat(web): audit invitation sentences name their projects`.
 
 ---
 
@@ -1001,11 +1001,11 @@ export interface DeskMembersProps {
 - Consumes: `DeskAudit` (Task 17), `toAuditRow(…, 'project')` (Task 22), `useDeskFrame` links (Task 21), MSW `projects.audit` (Task 12).
 - Produces: `projectAuditListKey(org: string, projectId: string)` = `['org', org, 'projects', projectId, 'audit', 'list']`; `projectAuditQuery(org, projectId, q: { page; pageSize })`; route `/o/$org/p/$project/desk/audit` with `?page`, `beforeLoad: requirePermission(qc, org, 'project-audit:read', { projectId })`.
 
-- [ ] **Step 1: Write the failing tests** in `audit.route.test.tsx`: BR-16 rows newest first with "Deleted user"; BR-20 loading, error + Retry, empty; BR-2 member and viewer → Forbidden and no `projects.audit` request; BR-3 projectAdmin on `OTHER_PROJECT` → "Page not found" and no request; paging keeps old rows while loading (`?page=2`). `queries.test.ts`: key shape.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectAudit`. Expected: FAIL.
-- [ ] **Step 3: Implement** the route (pattern of `o.$org.settings.audit.tsx`, inside `DeskFrame` `active: 'audit'`) and regenerate `routeTree.gen.ts`.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 31.
-- [ ] **Step 5: Commit**: `feat(web): project Audit log page`.
+- [x] **Step 1: Write the failing tests** in `audit.route.test.tsx`: BR-16 rows newest first with "Deleted user"; BR-20 loading, error + Retry, empty; BR-2 member and viewer → Forbidden and no `projects.audit` request; BR-3 projectAdmin on `OTHER_PROJECT` → "Page not found" and no request; paging keeps old rows while loading (`?page=2`). `queries.test.ts`: key shape.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/features/projectAudit`. Expected: FAIL.
+- [x] **Step 3: Implement** the route (pattern of `o.$org.settings.audit.tsx`, inside `DeskFrame` `active: 'audit'`) and regenerate `routeTree.gen.ts`.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web typecheck`. Expected: PASS. E2E: Task 31.
+- [x] **Step 5: Commit**: `feat(web): project Audit log page`.
 
 ---
 

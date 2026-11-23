@@ -87,6 +87,14 @@ describe('audit page: rows (BR-20)', () => {
     expect(Array.from(main.querySelectorAll('b')).some((b) => b.textContent === 'long-invitee-')).toBe(false);
   });
 
+  it('BR-27 an invitation entry names its listed projects', async () => {
+    await renderRoute('/o/alice/settings/audit', { scenario: asRole('twoOwners') });
+    await ready();
+    expect(screen.getByRole('main')).toHaveTextContent(
+      'Alice Doe invited sam.reyes@contractor.io as Viewer to invoicer-api, invoicer-web',
+    );
+  });
+
   it('TC-20.7 a generic request entry shows its raw key in mono and the When cell has the exact date on hover', async () => {
     await renderRoute('/o/alice/settings/audit', { scenario: asRole('twoOwners') });
     await ready();
