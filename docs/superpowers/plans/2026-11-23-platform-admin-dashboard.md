@@ -438,13 +438,13 @@ export function PlatformLayout(props: PlatformLayoutProps): JSX.Element;
 OrgSwitchProps: + platformHref?: string // item "Platform admin" in the bottom group above "Create organization", also in the no-org menu
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `PlatformLayout.test.tsx`: `nav` labelled "Platform admin" with items "Organizations", "Platform admins", "Audit log"; `active` sets `aria-current="page"`; with `org`, a group headed by the org name lists Overview and only the given links; a long org name renders as text with `title`.
   - `OrgSwitch.test.tsx` (BR-1): with `platformHref`, the menu shows "Platform admin" above "Create organization", also with no orgs and no current org; without it, no such item.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** the layout with `SubNav` and the geometry of `OrgSettingsLayout`; stories Default, OrgGroup, OrgGroupAllTabs; OrgSwitch stories WithPlatformItem and NoOrgPlatformItem.
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform layout and the platform switcher item in Storybook`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformLayout.test.tsx src/components/OrgSwitch.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** the layout with `SubNav` and the geometry of `OrgSettingsLayout`; stories Default, OrgGroup, OrgGroupAllTabs; OrgSwitch stories WithPlatformItem and NoOrgPlatformItem.
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform layout and the platform switcher item in Storybook`.
 
 ---
 
@@ -482,11 +482,11 @@ export interface AddPlatformAdminDialogProps {
 export function AddPlatformAdminDialog(props: AddPlatformAdminDialogProps): JSX.Element;
 ```
 
-- [ ] **Step 1: Write the failing tests**: "You" after the name; "Not signed in yet" in place of the name with "—" for handle and added by; `lastWorkingAdmin` disables "Revoke" with visible "Last admin", `title` "Grant the role to someone else first." and `aria-describedby`; the Revoke `aria-label` is "Revoke platform access for <email>"; a name with markup renders as text. Dialog: label "Email", hint text, "Add"/"Adding…", not closable while saving, field error under Email, Banner with problem title and request id.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformAdminRow.test.tsx src/components/AddPlatformAdminDialog.test.tsx`. Expected: FAIL.
-- [ ] **Step 3: Implement** both with stories (row: Default, You, NeverSignedIn, LastAdmin, Busy; dialog: Idle, Saving, FieldError, FormError).
-- [ ] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(web): platform admin row and add dialog in Storybook`.
+- [x] **Step 1: Write the failing tests**: "You" after the name; "Not signed in yet" in place of the name with "—" for handle and added by; `lastWorkingAdmin` disables "Revoke" with visible "Last admin", `title` "Grant the role to someone else first." and `aria-describedby`; the Revoke `aria-label` is "Revoke platform access for <email>"; a name with markup renders as text. Dialog: label "Email", hint text, "Add"/"Adding…", not closable while saving, field error under Email, Banner with problem title and request id.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/web exec vitest run src/components/PlatformAdminRow.test.tsx src/components/AddPlatformAdminDialog.test.tsx`. Expected: FAIL.
+- [x] **Step 3: Implement** both with stories (row: Default, You, NeverSignedIn, LastAdmin, Busy; dialog: Idle, Saving, FieldError, FormError).
+- [x] **Step 4: Run** Step 2's command and `pnpm --filter @agentdesk/web exec vitest run src/test/stories.smoke.test.tsx`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(web): platform admin row and add dialog in Storybook`.
 
 ---
 

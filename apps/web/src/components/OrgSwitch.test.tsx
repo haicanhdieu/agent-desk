@@ -129,6 +129,35 @@ describe('OrgSwitch', () => {
     expect(screen.getAllByTitle(orgSwitchFixtures.longName.current?.name ?? '')[0]).toBeInTheDocument();
   });
 
+  it('BR-1: platformHref adds "Platform admin" above "Create organization"', async () => {
+    const user = setup('platformAdmin', { platformHref: '/platform/orgs' });
+    await user.click(button());
+    const links = within(screen.getByRole('dialog')).getAllByRole('link');
+    expect(links.map((l) => l.textContent?.trim()).slice(-2)).toEqual(['Platform admin', 'Create organization']);
+    expect(screen.getByRole('link', { name: 'Platform admin' })).toHaveAttribute('href', '/platform/orgs');
+  });
+
+  it('BR-1: platformHref shows the item with no orgs and no current org', async () => {
+    const user = setup('platformAdminNoOrg', { platformHref: '/platform/orgs' });
+    await user.click(button());
+    const links = within(screen.getByRole('dialog')).getAllByRole('link');
+    expect(links.map((l) => l.textContent?.trim())).toEqual(['Platform admin', 'Create organization']);
+  });
+
+  it('BR-1: platformHref with no orgs, no current org and no create right still opens a menu', async () => {
+    const user = userEvent.setup();
+    render(<OrgSwitch {...noOrgData} orgHref={orgHref} createHref={createHref} platformHref="/platform/orgs" />);
+    await user.click(button());
+    const links = within(screen.getByRole('dialog')).getAllByRole('link');
+    expect(links.map((l) => l.textContent?.trim())).toEqual(['Platform admin']);
+  });
+
+  it('BR-1: without platformHref there is no "Platform admin" item', async () => {
+    const user = setup('platformAdmin');
+    await user.click(button());
+    expect(screen.queryByRole('link', { name: 'Platform admin' })).toBeNull();
+  });
+
   it('keyboard: ArrowDown opens, arrows/Home/End move focus, Escape closes and refocuses the button', async () => {
     const user = setup('platformAdmin');
     button().focus();

@@ -1,0 +1,40 @@
+.name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.nameText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+  min-width: 0;
+}
+.cell {
+  font-size: var(--fs-13);
+  overflow-wrap: anywhere;
+}
+.mono {
+  font-family: var(--mono);
+}
+.faint {
+  color: var(--faint);
+  font-size: var(--fs-13);
+}
+.muted {
+  color: var(--muted);
+}
+.actionsCell {
+  text-align: right;
+}
+.actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.reason {
+  color: var(--muted);
+  font-size: var(--fs-12);
+  white-space: nowrap;
+}
