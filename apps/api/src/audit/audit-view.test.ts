@@ -43,6 +43,31 @@ function row(over: Partial<AuditRowIn>): AuditRowIn {
 describe('toAuditEntry', () => {
   it.each([
     [
+      'org.suspended',
+      row({
+        action: 'org.suspended',
+        targetType: 'org',
+        targetId: 'o-1',
+        payload: { from: 'active', to: 'suspended' },
+      }),
+      [{ field: 'status', from: 'active', to: 'suspended' }],
+    ],
+    [
+      'org.reactivated',
+      row({
+        action: 'org.reactivated',
+        targetType: 'org',
+        targetId: 'o-1',
+        payload: { from: 'suspended', to: 'active' },
+      }),
+      [{ field: 'status', from: 'suspended', to: 'active' }],
+    ],
+    [
+      'org.suspended with a malformed payload',
+      row({ action: 'org.suspended', targetType: 'org', targetId: 'o-1', payload: { from: 1 } }),
+      [],
+    ],
+    [
       'member.role_changed',
       row({
         action: 'member.role_changed',

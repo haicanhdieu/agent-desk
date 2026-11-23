@@ -60,6 +60,12 @@ function changesOf(action: string, payload: Record<string, unknown>, lookups: Au
       }
       return out;
     }
+    case 'org.suspended':
+    case 'org.reactivated': {
+      const from = str(payload['from']);
+      const to = str(payload['to']);
+      return from === null || to === null ? [] : [{ field: 'status', from, to }];
+    }
     case 'member.removed': {
       const from = payload['from'];
       if (!Array.isArray(from)) return [];

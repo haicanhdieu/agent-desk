@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Inject, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Inject, Param, Post, Query } from '@nestjs/common';
 import { z } from 'zod';
 import {
   routes,
   type CreateOrgRequest,
   type CreateOrgResponse,
+  type OrgStatusChangeRequest,
   type Page,
   type PageQuery,
   type PlatformOrgDetailDto,
@@ -21,6 +22,7 @@ const CreateBody = new ZodPipe(routes.platform.createOrg.body);
 const ListOrgsQuery = new ZodPipe(routes.platform.listOrgs.query);
 // Not the route's uuid schema: a malformed id is a 404 for an admin (the guard already ran), never a 400.
 const GetOrgParams = new ZodPipe(z.object({ orgId: z.string().max(200) }));
+const StatusBody = new ZodPipe(routes.platform.suspendOrg.body);
 const ProjectsParams = new ZodPipe(routes.platform.listProjects.params);
 const ProjectsQuery = new ZodPipe(routes.platform.listProjects.query);
 const RolesParams = new ZodPipe(routes.platform.listRoles.params);
@@ -52,6 +54,26 @@ export class PlatformOrgsController {
     @Param(GetOrgParams) p: { orgId: string },
   ): Promise<PlatformOrgDetailDto> {
     return this.orgs.getOrg(p.orgId);
+  }
+
+  @Post(routePath(routes.platform.suspendOrg))
+  @HttpCode(200)
+  suspend(
+    @CurrentPlatformAdmin() admin: PlatformAdminContext,
+    @Param(GetOrgParams) p: { orgId: string },
+    @Body(StatusBody) body: OrgStatusChangeRequest,
+  ): Promise<PlatformOrgDetailDto> {
+    return this.orgs.setStatus(admin.userId, p.orgId, 'suspended', body.reason);
+  }
+
+  @Post(routePath(routes.platform.reactivateOrg))
+  @HttpCode(200)
+  reactivate(
+    @CurrentPlatformAdmin() admin: PlatformAdminContext,
+    @Param(GetOrgParams) p: { orgId: string },
+    @Body(StatusBody) body: OrgStatusChangeRequest,
+  ): Promise<PlatformOrgDetailDto> {
+    return this.orgs.setStatus(admin.userId, p.orgId, 'active', body.reason);
   }
 
   @Get(routePath(routes.platform.listProjects))

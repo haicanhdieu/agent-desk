@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import type { Logger } from 'pino';
 import { and, asc, desc, eq, inArray, sql, type SQL } from 'drizzle-orm';
-import { copyRoleTemplates } from '@agentdesk/core';
-import { organization, platformOrgStats, projects, user, withOrg, type Db } from '@agentdesk/db';
+import { copyRoleTemplates, type Clock } from '@agentdesk/core';
+import { organization, platformAuditLog, platformOrgStats, projects, user, withOrg, type Db } from '@agentdesk/db';
 import {
   Id,
   OrgStatus,
@@ -16,12 +16,15 @@ import {
   type PageQuery,
   type PlatformOrgDetailDto,
   type PlatformOrgDto,
+  type PlatformOrgSuspensionDto,
   type PlatformOrgListQuery,
   type PlatformProjectDto,
   type UpdateOrgRequest,
   type RoleDto,
 } from '@agentdesk/contracts';
 import { writeAuditEntry } from '../audit/audit-entry';
+import { writePlatformAuditEntry } from '../audit/platform-audit-entry';
+import { CLOCK } from '../common/clock';
 import { LOGGER } from '../common/logger';
 import { isUniqueViolation } from '../common/pg-errors';
 import { requestContext } from '../common/request-context';
@@ -59,6 +62,7 @@ export class OrgsService {
   constructor(
     @Inject(DB) private readonly db: Db,
     @Inject(LOGGER) private readonly logger: Logger,
+    @Inject(CLOCK) private readonly clock: Clock,
   ) {}
 
   /**
@@ -179,14 +183,96 @@ export class OrgsService {
     return toPage(await this.toDtos(rows), counted?.total ?? 0, q);
   }
 
-  /** One org with its suspension (null until the suspend route lands). 404 for an unknown or malformed id. */
+  /** One org with its suspension (the latest `org.suspended` row of that org while suspended, else null). 404 for an unknown or malformed id. */
   async getOrg(orgId: string): Promise<PlatformOrgDetailDto> {
     if (!Id.safeParse(orgId).success) throw new NotFoundException('Organization not found');
     const rows = await this.db.orm.select(ORG_COLUMNS).from(organization).where(eq(organization.id, orgId)).limit(1);
     if (rows.length === 0) throw new NotFoundException('Organization not found');
     const [dto] = await this.toDtos(rows);
     if (!dto) throw new NotFoundException('Organization not found');
-    return { ...dto, suspension: null };
+    return { ...dto, suspension: dto.status === 'suspended' ? await this.suspensionOf(orgId, dto.suspendedAt) : null };
+  }
+
+  private async suspensionOf(orgId: string, suspendedAt: string | null): Promise<PlatformOrgSuspensionDto | null> {
+    if (suspendedAt === null) return null;
+    const [row] = await this.db.orm
+      .select({
+        payload: platformAuditLog.payload,
+        actorUserId: platformAuditLog.actorUserId,
+        name: user.name,
+        handle: user.handle,
+      })
+      .from(platformAuditLog)
+      .leftJoin(user, eq(user.id, platformAuditLog.actorUserId))
+      .where(and(eq(platformAuditLog.targetOrgId, orgId), eq(platformAuditLog.action, 'org.suspended')))
+      .orderBy(desc(platformAuditLog.createdAt), desc(platformAuditLog.id))
+      .limit(1);
+    if (!row) return null;
+    const reason = (row.payload as Record<string, unknown> | null)?.['reason'];
+    return {
+      at: suspendedAt,
+      reason: typeof reason === 'string' ? reason : '',
+      by:
+        row.actorUserId === null || row.name === null
+          ? null
+          : { userId: row.actorUserId, name: row.name, handle: row.handle },
+    };
+  }
+
+  /**
+   * Suspend or reactivate in one withOrg(orgId) tx: read the org row under a row lock (so concurrent changes
+   * serialize and each audit from/to stays true), do nothing when it is already in `to`, else update `status` and
+   * `suspended_at` (from the injected clock) and write the tenant row (no reason) and the platform row (with the
+   * reason). The actor comes from the session. 404 for an unknown or malformed id.
+   */
+  async setStatus(actorUserId: string, orgId: string, to: OrgStatus, reason: string): Promise<PlatformOrgDetailDto> {
+    if (!Id.safeParse(orgId).success) throw new NotFoundException('Organization not found');
+    const changed = await withOrg(this.db, orgId, async (tx): Promise<boolean> => {
+      const [current] = await tx
+        .select({ status: organization.status })
+        .from(organization)
+        .where(eq(organization.id, orgId))
+        .limit(1)
+        .for('update');
+      if (!current) throw new NotFoundException('Organization not found');
+      if (current.status === to) return false;
+      const from = OrgStatus.parse(current.status);
+      await tx
+        .update(organization)
+        .set({ status: to, suspendedAt: to === 'suspended' ? this.clock.now() : null })
+        .where(eq(organization.id, orgId));
+      const action = to === 'suspended' ? 'org.suspended' : 'org.reactivated';
+      await writeAuditEntry(tx, {
+        orgId,
+        actorUserId,
+        actorKind: 'platform_admin',
+        action,
+        targetType: 'org',
+        targetId: orgId,
+        payload: { from, to },
+      });
+      await writePlatformAuditEntry(tx, {
+        actorUserId,
+        action,
+        targetType: 'org',
+        targetId: orgId,
+        targetOrgId: orgId,
+        payload: { from, to, reason },
+      });
+      return true;
+    });
+    if (changed) {
+      this.logger.info(
+        {
+          requestId: requestContext.get()?.requestId,
+          actorUserId,
+          orgId,
+          action: to === 'suspended' ? 'org.suspended' : 'org.reactivated',
+        },
+        'org status changed',
+      );
+    }
+    return this.getOrg(orgId);
   }
 
   private async toDtos(rows: OrgRow[]): Promise<PlatformOrgDto[]> {

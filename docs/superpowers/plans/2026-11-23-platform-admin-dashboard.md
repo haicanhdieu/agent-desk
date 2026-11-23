@@ -1039,16 +1039,16 @@ export function reactivateOrgRoute(t: TestApp, cookie: string, orgId: string, bo
 export async function suspendedOrgApp(t: TestApp, orgId: string, reason?: string): Promise<void>;
 ```
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
   - `platform-suspend.int.test.ts`: BR-32, BR-34: suspend answers 200 `PlatformOrgDetailDto` with `status: 'suspended'`, `suspendedAt` from the injected `Clock`, `suspension.reason` and `by`; `getOrg` agrees; reactivate returns `active`, `suspension: null`; one `platform_audit_log` row each with `target_org_id`, the reason in `payload`, actor from the session; one tenant `audit_log` row each (`org.suspended`/`org.reactivated`, `actor_kind 'platform_admin'`, payload status from/to, no reason). BR-33: empty, spaces-only, 501-character reason and an extra key are 400 with pointer `/reason`, org unchanged, no rows. BR-35: a repeat is 200, no change, no row in either table; two concurrent suspends (`Promise.all`) give one change and one row each; suspend racing reactivate leaves audit rows equal to the real changes (outcome sets). BR-36: 403 before lookup for that org's owner, admin, project admin, member, viewer, another org's owner and a no-org user; an unknown id gives the same 403; 401 signed out; 404 unknown and malformed id for the admin. A seeded secret-looking reason (`ghp_` + 36 characters) is stored redacted.
   - `audit.int.test.ts` (BR-43): the org's owner reads both rows after reactivation through `audit.list`, tagged `platform_admin`, change field `status`, no reason anywhere in the DTO; none on a repeat.
   - `audit-view.test.ts`: `org.suspended` maps to one `status` change `active → suspended`.
   - `platform-audit-entry.test.ts`: `targetOrgId` is copied; payload goes through `redactBody`.
   - `authz.int.test.ts`: remove both keys from `NOT_REGISTERED_YET`.
-- [ ] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-suspend.int.test.ts test/audit.int.test.ts src/audit`. Expected: FAIL.
-- [ ] **Step 3: Implement** `setStatus` in one `withOrg(orgId)` transaction (`select … for update` on the org row; no change when already in `to`; else update `status` and `suspended_at`, write the tenant row and the platform row), the two controller routes, the audit-entry type, the view mapping, info log `{ requestId, actorUserId, orgId, action }` (never the reason), the helpers. platform-setup.md: how suspend and reactivate work and what members see.
-- [ ] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/platform.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
-- [ ] **Step 5: Commit**: `feat(api): suspend and reactivate an organization with tenant and platform audit`. Label `review:sensitive`.
+- [x] **Step 2: Run** `pnpm --filter @agentdesk/api exec vitest run test/platform-suspend.int.test.ts test/audit.int.test.ts src/audit`. Expected: FAIL.
+- [x] **Step 3: Implement** `setStatus` in one `withOrg(orgId)` transaction (`select … for update` on the org row; no change when already in `to`; else update `status` and `suspended_at`, write the tenant row and the platform row), the two controller routes, the audit-entry type, the view mapping, info log `{ requestId, actorUserId, orgId, action }` (never the reason), the helpers. platform-setup.md: how suspend and reactivate work and what members see.
+- [x] **Step 4: Run** Step 2's command, `pnpm --filter @agentdesk/api exec vitest run test/authz.int.test.ts test/platform.int.test.ts`, `pnpm --filter @agentdesk/api typecheck`. Expected: PASS.
+- [x] **Step 5: Commit**: `feat(api): suspend and reactivate an organization with tenant and platform audit`. Label `review:sensitive`.
 
 ---
 

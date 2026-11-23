@@ -75,6 +75,16 @@ Check with `SELECT email, granted_at FROM platform_admins;`.
 2. They create the organization in the web app (Create organization, at `/orgs/new`) or with `POST /api/platform/orgs`.
 3. They invite the organization's owner with the platform invitation routes (`POST /api/platform/orgs/:orgId/invitations`). From then on, platform admins list, grant and revoke the role with `GET`, `POST` and `DELETE /api/platform/admins`.
 
+## Suspend and reactivate an organization
+
+A platform admin suspends or reactivates an organization from its page under `/platform`, or with `POST /api/platform/orgs/:orgId/suspend` and `POST /api/platform/orgs/:orgId/reactivate`. Both need the `platform-org:update` permission, which only platform admins hold (an org owner gets 403). The body is `{ "reason": "<1 to 500 characters>" }`; any other key is a 400.
+
+- The change is one transaction on the org row. Suspending an already suspended org (or reactivating an active one) answers 200, changes nothing and writes no audit row, so two admins clicking at once produce one change.
+- A change writes two audit rows. The platform audit row (`platform_audit_log`, `target_org_id` set) holds the reason, with token-shaped values masked, and is the only place the reason is stored. The organization's own audit (Settings, Audit) gets an `org.suspended` or `org.reactivated` entry marked "Platform admin", with the status change and no reason. Do not put secrets in a reason.
+- The org page shows the current reason, who suspended the org and when, read from the latest `org.suspended` platform audit row.
+- What members see: a suspended org's members are refused (the "This organization is suspended" message and an API refusal that names the suspension). That enforcement lands in a later change of this feature; until then the status is recorded and shown but is not yet enforced. Running runs finish. On reactivation members get access back on their next request, paused runs stay paused until someone resumes them, and triggers missed while suspended start no run.
+- A platform admin can still edit the name and URL of a suspended org.
+
 ## Upgrade
 
 Deploys from before ADR-0037 listed admins in `PLATFORM_ADMIN_EMAILS`. That variable is no longer read: a leftover value is ignored, grants nothing and logs no warning, and nobody is a platform admin after the upgrade. Run step 5 for each former admin before or right after you deploy. Their accounts and org access are untouched.

@@ -7,6 +7,7 @@ import {
   MemorySecretStore,
   createAdapterRegistry,
   systemClock,
+  type Clock,
   type AdapterRegistry,
   type AgentHttpGet,
   type KubeGateway,
@@ -17,6 +18,7 @@ import { AGENT_HTTP } from '../../src/agents/agent-http.provider';
 import { ADAPTER_REGISTRY } from '../../src/adapters/adapter-registry.module';
 import { AppModule } from '../../src/app.module';
 import { configureApp, createAdapter } from '../../src/bootstrap';
+import { CLOCK } from '../../src/common/clock';
 import { LOGGER, createLogger } from '../../src/common/logger';
 import { CONFIG } from '../../src/config/config.module';
 import { parseConfig, type Config } from '../../src/config/config.schema';
@@ -65,6 +67,8 @@ export interface TestAppOptions {
   prStateLookup?: Partial<PrStateLookupOptions>;
   /** Logger for request/problem logging (default: silent); tests capture output through it. */
   logger?: Logger;
+  /** Replaces the clock services read the current time from (default: the system clock). */
+  clock?: Clock;
   /** Seeds admin@dev.local as platform admin once the database is created (default true). */
   seedDevAdmin?: boolean;
 }
@@ -116,6 +120,7 @@ export async function createTestApp(options: TestAppOptions = {}): Promise<TestA
     const secrets = new MemorySecretStore();
     const builder = Test.createTestingModule({ imports: [AppModule], controllers: options.controllers ?? [] });
     if (options.kube) builder.overrideProvider(KUBE_GATEWAY).useValue(options.kube);
+    if (options.clock) builder.overrideProvider(CLOCK).useValue(options.clock);
     if (options.agentHttp) builder.overrideProvider(AGENT_HTTP).useValue(options.agentHttp);
     if (options.prStateLookup)
       builder
