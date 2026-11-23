@@ -1342,7 +1342,7 @@ export function toAuditRow(dto: AuditEntryDto, now: Date, timeZone?: string): Au
 
 - Consumes: `seedTenantAdmin` (Task 8), `ORG` from `mock.ts`.
 
-- [ ] **Step 1: Write the specs** for BR-1 (TC-1.4, `membersPaged`), BR-4 (TC-4.1 to 4.3), BR-5 (TC-5.1 `soleOwner`, TC-5.2 `twoOwners`), BR-8 (TC-8.1, 8.2 `memberRemovedMeanwhile`; TC-8.3 `roleChangedMeanwhile`), BR-9 (TC-9.1 to 9.3) and BR-24 (TC-24.1 `membersSlow`, TC-24.2 `membersError`).
+- [x] **Step 1: Write the specs** for BR-1 (TC-1.4, `membersPaged`), BR-4 (TC-4.1 to 4.3), BR-5 (TC-5.1 `soleOwner`, TC-5.2 `twoOwners`), BR-8 (TC-8.1, 8.2 `memberRemovedMeanwhile`; TC-8.3 `roleChangedMeanwhile`), BR-9 (TC-9.1 to 9.3) and BR-24 (TC-24.1 `membersSlow`, TC-24.2 `membersError`).
 - [ ] **Step 2: Run** `pnpm --filter @agentdesk/web exec vite build --mode mock`, then `pnpm --filter @agentdesk/web exec playwright test e2e/mock/org-members.spec.ts`. Expected: PASS.
 - [ ] **Step 3: Commit** `test(web): mock e2e for the Members page`.
 
